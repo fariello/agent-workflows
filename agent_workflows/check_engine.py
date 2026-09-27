@@ -20,6 +20,7 @@ phase where it belongs, to ONE plan that is actually transitioning."""
 from __future__ import annotations
 
 import importlib.util
+import os
 import re as _re
 from pathlib import Path
 from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
@@ -5999,9 +6000,11 @@ def _carrier_index(repo_root: Path) -> Dict[str, List[Tuple[str, Optional[str], 
 
 
 def _resolve_carrier(
-    carrier_index: Dict[str, List[Tuple[str, Optional[str], str]]], id6: str
-) -> Tuple[str, str]:
-    """Resolve one carrier id6. Returns (verdict, detail) with verdict in
+    carrier_index: Dict[str, List[Tuple[str, Optional[str], str]]],
+    id6: str,
+    repo_root: Optional[Path] = None,
+) -> Tuple[str, str, List[str]]:
+    """Resolve one carrier id6. Returns (verdict, detail, finished_relpaths) with verdict in
     {"ok", "dangling", "terminal"}.
 
     RESOLVES, DOES NOT MERELY PARSE (E-02). A dangling id6 FAILS, exactly as
@@ -6012,20 +6015,38 @@ def _resolve_carrier(
     """
     owners = carrier_index.get(id6) or []
     if not owners:
-        return "dangling", "carrier {0} resolves to no backlog item or plan".format(id6)
+        return (
+            "dangling",
+            "carrier {0} resolves to no backlog item or plan".format(id6),
+            [],
+        )
     live = [
         o
         for o in owners
         if (o[1] or "").strip().lower() not in _CARRIER_TERMINAL_STATUSES
     ]
     if live:
-        return "ok", ""
+        return "ok", "", []
     statuses = ", ".join(sorted({(o[1] or "?").strip().lower() for o in owners}))
-    return "terminal", (
-        "carrier {0} resolves only to a terminal/hidden artifact ({1}); nothing revisits it".format(
-            id6, statuses
-        )
+    detail = "carrier {0} resolves only to a terminal/hidden artifact ({1}); nothing revisits it".format(
+        id6, statuses
     )
+    finished_relpaths: List[str] = []
+    if repo_root is not None:
+        for o in owners:
+            rec_type = o[0]
+            st = (o[1] or "").strip().lower()
+            path = o[2]
+            if (rec_type == "backlog" and st == "done") or (
+                rec_type == "plans" and st == "executed"
+            ):
+                try:
+                    rel = os.path.relpath(path, repo_root).replace("\\", "/")
+                    if not (rel == ".." or rel.startswith("../") or os.path.isabs(rel)):
+                        finished_relpaths.append(rel)
+                except Exception:
+                    pass
+    return "terminal", detail, finished_relpaths
 
 
 def evaluate_carrier_obligation(
@@ -6128,8 +6149,11 @@ def evaluate_carrier_obligation(
                 None,
             )
         problems: List[str] = []
+        all_finished: List[str] = []
         for id6 in good:
-            verdict, detail = _resolve_carrier(carrier_index, id6)
+            verdict, detail, finished = _resolve_carrier(
+                carrier_index, id6, repo_root=repo_root
+            )
             if verdict == "ok":
                 return CloseVerdict(
                     True,
@@ -6139,6 +6163,34 @@ def evaluate_carrier_obligation(
                     "HANDOFF",
                 )
             problems.append(detail)
+            for p in finished:
+                if p not in all_finished:
+                    all_finished.append(p)
+        if all_finished:
+            first_path = all_finished[0]
+            more_count = len(all_finished) - 1
+            evidence_line = "- Carrier-Evidence: {0}{1}".format(
+                first_path,
+                ""
+                if more_count == 0
+                else " (and {0} more finished owner(s))".format(more_count),
+            )
+            reason = (
+                "{0}: {1}\n"
+                "this obligation was discharged by finished work; cite it instead of the carrier:\n"
+                "{2}\n"
+                "do NOT use `Carrier-Declined` here: the work shipped, so declining it would record it as needing no carrier"
+            ).format(obligation.locator, "; ".join(problems), evidence_line)
+            remedy_fix = "cite evidence it was discharged by finished work: add `- Carrier-Evidence: {0}`".format(
+                first_path
+            )
+            return CloseVerdict(
+                False,
+                "error",
+                reason,
+                (remedy_fix,) + fixes,
+                None,
+            )
         return CloseVerdict(
             False,
             "error",

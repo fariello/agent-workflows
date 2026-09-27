@@ -35,50 +35,50 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: reproduce
 
-- [ ] E-01 RE-MEASURE AT THE EXECUTING HEAD, after `vtkfq8` has executed (it edits `evaluate_carrier_obligation`'s evidence branch, so read the function fresh). In `python3 -c`, build `check_engine.CarrierObligation("deferred", "deferred row 1", 1, {"Carrier": X})` for X in a live done backlog id6 and a live executed plan id6 (at authoring `fuk1mr` and `tgyfs2`; pick any current pair if those moved), call `evaluate_carrier_obligation(repo, ob)`, and paste `legitimate`, `severity`, `reason`, `fixes`. Also paste `_carrier_index(repo)[X]` for each, showing the `(record_type, status, path)` owner the new remedy will cite. Then run `aw ipd lint --phase pre-transition` on a scratch copy of a plan carrying such a row and paste the diagnostic line, confirming only the reason reaches the lint output.
+- [x] E-01 RE-MEASURE AT THE EXECUTING HEAD, after `vtkfq8` has executed (it edits `evaluate_carrier_obligation`'s evidence branch, so read the function fresh). In `python3 -c`, build `check_engine.CarrierObligation("deferred", "deferred row 1", 1, {"Carrier": X})` for X in a live done backlog id6 and a live executed plan id6 (at authoring `fuk1mr` and `tgyfs2`; pick any current pair if those moved), call `evaluate_carrier_obligation(repo, ob)`, and paste `legitimate`, `severity`, `reason`, `fixes`. Also paste `_carrier_index(repo)[X]` for each, showing the `(record_type, status, path)` owner the new remedy will cite. Then run `aw ipd lint --phase pre-transition` on a scratch copy of a plan carrying such a row and paste the diagnostic line, confirming only the reason reaches the lint output.
   - Depends on: none
   - Expected outcome: both verdicts `False`/`error` with the "terminal/hidden artifact" reason and the three generic fixes; no path appears; the lint line shows the reason only.
   - ALSO RE-MEASURE THE `recovery` FIELD, which F-6 found the CLI overwrites, so the executor does not build to a claim that is already false. Run `aw check plans --json` on the SAME scratch repo and paste the `data.policy_findings[]` entry for `check.ipd-uncarried-obligation`: its `detail` and its `recovery`. At review the recovery read `inspect <plan> frontmatter and schema conformity.` (the `doctor.build_remediation` fallback), NOT the evaluator's `fixes[0]`. If that is still true, E-03 must not be graded on the `recovery` field and V-04 records the fact instead of asserting the suggestion appears there.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the remedy
 
-- [ ] E-02 WRITE THE BEHAVIORAL TESTS FIRST in `tests/test_check_engine.py` (behavior only, no source-text or AST pins, per the 2026-09-26 test-policy ruling). Build a scratch repo in a `TemporaryDirectory` with `.aw/records/backlog/done/<...>-bk0001-....backlog.md` (`- Status: done`), `.aw/records/plans/executed/<...>-pl0001-....ipd.md` (`- Status: executed`), and a superseded plan `pl0002`; pass an explicit `carrier_index` built by `check_engine._carrier_index(repo)`. Cases: (1) `Carrier: bk0001` -> `legitimate` is False, `severity == "error"`, the reason contains the literal line `- Carrier-Evidence: .aw/records/backlog/done/<that filename>` and the word `Carrier-Declined` in a warning; `fixes[0]` contains the same Carrier-Evidence line; (2) `Carrier: pl0001` -> same shape with the executed plan's repo-relative path; (3) PASTING THE SUGGESTION WORKS, FOR BOTH ARMS: take the suggested line out of the case-1 verdict AND out of the case-2 verdict, feed each back as a `Carrier-Evidence` row, and assert `legitimate=True, path="SATISFIED"` each time. BOTH, not just the plan arm, because the two suggestions cite different trees and `vtkfq8` adds a tree-scoped refusal to this same branch; proving only one would leave the other's resolvability assumed. Parse the path out of the verdict rather than re-deriving it in the test, so the test proves the SUGGESTION resolves and not merely that some path does; (4) `Carrier: pl0002` (superseded) -> still refused with the GENERIC fixes and no Carrier-Evidence suggestion; (5) a carrier with one live and one done owner -> `legitimate=True, path="HANDOFF"` unchanged (measured at review: `_carrier_index` really does return both owners for a shared id6, and the live one short-circuits before any terminal owner is examined, so this case is a genuine negative control and not a tautology); (6) end to end, `check_engine.evaluate_durable_carrier` on a plan text carrying the case-2 row returns one Drift whose `detail` contains the Carrier-Evidence line; assert on `detail` and on the Drift's own `recovery`, and do NOT assert anything about what `aw check`'s CLI prints as its recovery, which F-6 measured is overwritten downstream.
+- [x] E-02 WRITE THE BEHAVIORAL TESTS FIRST in `tests/test_check_engine.py` (behavior only, no source-text or AST pins, per the 2026-09-26 test-policy ruling). Build a scratch repo in a `TemporaryDirectory` with `.aw/records/backlog/done/<...>-bk0001-....backlog.md` (`- Status: done`), `.aw/records/plans/executed/<...>-pl0001-....ipd.md` (`- Status: executed`), and a superseded plan `pl0002`; pass an explicit `carrier_index` built by `check_engine._carrier_index(repo)`. Cases: (1) `Carrier: bk0001` -> `legitimate` is False, `severity == "error"`, the reason contains the literal line `- Carrier-Evidence: .aw/records/backlog/done/<that filename>` and the word `Carrier-Declined` in a warning; `fixes[0]` contains the same Carrier-Evidence line; (2) `Carrier: pl0001` -> same shape with the executed plan's repo-relative path; (3) PASTING THE SUGGESTION WORKS, FOR BOTH ARMS: take the suggested line out of the case-1 verdict AND out of the case-2 verdict, feed each back as a `Carrier-Evidence` row, and assert `legitimate=True, path="SATISFIED"` each time. BOTH, not just the plan arm, because the two suggestions cite different trees and `vtkfq8` adds a tree-scoped refusal to this same branch; proving only one would leave the other's resolvability assumed. Parse the path out of the verdict rather than re-deriving it in the test, so the test proves the SUGGESTION resolves and not merely that some path does; (4) `Carrier: pl0002` (superseded) -> still refused with the GENERIC fixes and no Carrier-Evidence suggestion; (5) a carrier with one live and one done owner -> `legitimate=True, path="HANDOFF"` unchanged (measured at review: `_carrier_index` really does return both owners for a shared id6, and the live one short-circuits before any terminal owner is examined, so this case is a genuine negative control and not a tautology); (6) end to end, `check_engine.evaluate_durable_carrier` on a plan text carrying the case-2 row returns one Drift whose `detail` contains the Carrier-Evidence line; assert on `detail` and on the Drift's own `recovery`, and do NOT assert anything about what `aw check`'s CLI prints as its recovery, which F-6 measured is overwritten downstream.
   - Depends on: E-01
   - Expected outcome: cases (1), (2) and (6) FAIL against the unchanged code; (3), (4), (5) PASS before and after.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 IMPLEMENT IN `check_engine`. Make `_resolve_carrier` (or a sibling helper it calls, so the one resolution stays in one place) also return, for a `terminal` verdict, the finished owners: those whose status is `done` (record type `backlog`) or `executed` (record type `plans`), with their paths made repo-relative against `repo_root` (the index stores absolute paths, F-2) BY THE NON-RAISING RULE E-07 defines, not by a bare `Path.relative_to`. In `evaluate_carrier_obligation`'s `raw_carrier` branch, when every good id6 failed and at least one is terminal-with-a-finished-owner, build the refusal as: the existing locator and "terminal/hidden" detail, then "this obligation was discharged by finished work; cite it instead of the carrier:" followed by one pasteable `- Carrier-Evidence: <relpath>` line per finished owner (first one first), then "do NOT use `Carrier-Declined` here: the work shipped, so declining it would record it as needing no carrier". Put the first Carrier-Evidence suggestion in `fixes[0]` ahead of the three generic fixes. Keep `legitimate=False` and `severity="error"`. Keep `_resolve_carrier`'s other callers, if `rg -n "_resolve_carrier\(" agent_workflows` shows any at execution, unchanged in behavior (measured at review: the ONLY caller is `evaluate_carrier_obligation`, so a signature change is contained, but re-measure because `vtkfq8` lands first).
+- [x] E-03 IMPLEMENT IN `check_engine`. Make `_resolve_carrier` (or a sibling helper it calls, so the one resolution stays in one place) also return, for a `terminal` verdict, the finished owners: those whose status is `done` (record type `backlog`) or `executed` (record type `plans`), with their paths made repo-relative against `repo_root` (the index stores absolute paths, F-2) BY THE NON-RAISING RULE E-07 defines, not by a bare `Path.relative_to`. In `evaluate_carrier_obligation`'s `raw_carrier` branch, when every good id6 failed and at least one is terminal-with-a-finished-owner, build the refusal as: the existing locator and "terminal/hidden" detail, then "this obligation was discharged by finished work; cite it instead of the carrier:" followed by one pasteable `- Carrier-Evidence: <relpath>` line per finished owner (first one first), then "do NOT use `Carrier-Declined` here: the work shipped, so declining it would record it as needing no carrier". Put the first Carrier-Evidence suggestion in `fixes[0]` ahead of the three generic fixes. Keep `legitimate=False` and `severity="error"`. Keep `_resolve_carrier`'s other callers, if `rg -n "_resolve_carrier\(" agent_workflows` shows any at execution, unchanged in behavior (measured at review: the ONLY caller is `evaluate_carrier_obligation`, so a signature change is contained, but re-measure because `vtkfq8` lands first).
   - Depends on: E-02
   - Expected outcome: all six E-02 cases pass.
   - BOUND THE MESSAGE LENGTH, because the reason is concatenated per row into one Drift detail. `evaluate_durable_carrier` joins up to FIVE reasons with `"; "`; measured at review with a three-row plan, a ~230-char added remedy produced a ~1.1k-char detail, and five rows would reach roughly 1.8k. That is acceptable for the two surfaces this reaches (both measured multi-line-safe in F-7) but a multi-owner carrier must NOT multiply it further: emit AT MOST the FIRST finished owner's `- Carrier-Evidence:` line and, if more exist, a single trailing `(and N more finished owner(s))` count. An id6 with several finished owners is the ambiguous case anyway, and listing all of them would invite pasting the wrong one.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 MAKE THE PATH DERIVATION NON-RAISING, which is the correctness half of E-03 and the one defect this plan could otherwise INTRODUCE (F-5). Do NOT use `Path(p).relative_to(repo_root)`: the carrier index's paths come from `status_set.inventory_all_artifacts` over `selectors.record_dirs`, which resolves the records tree through the project context, and on a `companion` backend that root is `<repo>.aw/records` while on a `home` backend it is under the AW home, so the path is OUTSIDE `repo_root` and `relative_to` raises `ValueError`. Derive with `os.path.relpath` (which never raises) and then REQUIRE containment: if the result starts with `..` or is absolute, the artifact is not citable as a repo-relative `Carrier-Evidence` path (`resolve_evidence_artifact` would reject it anyway, measured at review), so OMIT the suggestion for that owner and fall through to the existing generic remedy for it. Never let this branch raise.
+- [x] E-07 MAKE THE PATH DERIVATION NON-RAISING, which is the correctness half of E-03 and the one defect this plan could otherwise INTRODUCE (F-5). Do NOT use `Path(p).relative_to(repo_root)`: the carrier index's paths come from `status_set.inventory_all_artifacts` over `selectors.record_dirs`, which resolves the records tree through the project context, and on a `companion` backend that root is `<repo>.aw/records` while on a `home` backend it is under the AW home, so the path is OUTSIDE `repo_root` and `relative_to` raises `ValueError`. Derive with `os.path.relpath` (which never raises) and then REQUIRE containment: if the result starts with `..` or is absolute, the artifact is not citable as a repo-relative `Carrier-Evidence` path (`resolve_evidence_artifact` would reject it anyway, measured at review), so OMIT the suggestion for that owner and fall through to the existing generic remedy for it. Never let this branch raise.
   - Depends on: E-02
   - Expected outcome: a `companion`- or `home`-backend repo still reports `check.ipd-uncarried-obligation` with the generic remedy, and the suggestion appears only when the cited path is genuinely repo-relative and resolvable.
   - WHY THIS IS THE MOST SERIOUS ITEM IN THE PLAN, stated so it is not optimized away: BOTH gate surfaces wrap this evaluator in a bare `except Exception` that is documented as "a repo-scan failure never masks the pure lint result" (`ipd_lint._merge_durable_carrier`) and as fail-isolation (`check_engine.check_content`). Measured at review by raising inside `evaluate_carrier_obligation` on a scratch repo: `check_content` went from rules `['check.ipd-lint-diagnostic', 'check.ipd-uncarried-obligation']` to `['check.ipd-lint-diagnostic']`, and `ipd_lint.lint_file --phase pre-transition` dropped `check.ipd-uncarried-obligation` from its diagnostics entirely. So an exception here does not fail loudly: it turns a fail-closed CI gate (`aw check plans` is fail-closed in `tests.yml`) and the pre-transition execution gate into silent passes. A message improvement must not be able to do that.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 CONFIRM THE TWO GATE SURFACES CARRY THE NEW TEXT. Re-run E-01's `aw ipd lint --phase pre-transition` on the scratch plan and `aw check plans --json` on a scratch repo containing it, and paste both: the lint diagnostic (built from `d.detail` in `ipd_lint._merge_durable_carrier`) must show the Carrier-Evidence line, and the `--json` finding's `detail` must show it too. DO NOT assert the check record's `recovery` is the suggestion: F-6 measured the CLI overwriting the evaluator's recovery with `doctor.build_remediation`'s generic fallback, so paste whatever `recovery` actually holds and name it as the pre-existing `evwmm2` defect rather than a failure of this item. Then paste the suggested line into the scratch plan's row in place of `- Carrier:` and show `aw ipd lint --phase pre-transition` no longer reports `check.ipd-uncarried-obligation` for that row.
+- [x] E-04 CONFIRM THE TWO GATE SURFACES CARRY THE NEW TEXT. Re-run E-01's `aw ipd lint --phase pre-transition` on the scratch plan and `aw check plans --json` on a scratch repo containing it, and paste both: the lint diagnostic (built from `d.detail` in `ipd_lint._merge_durable_carrier`) must show the Carrier-Evidence line, and the `--json` finding's `detail` must show it too. DO NOT assert the check record's `recovery` is the suggestion: F-6 measured the CLI overwriting the evaluator's recovery with `doctor.build_remediation`'s generic fallback, so paste whatever `recovery` actually holds and name it as the pre-existing `evwmm2` defect rather than a failure of this item. Then paste the suggested line into the scratch plan's row in place of `- Carrier:` and show `aw ipd lint --phase pre-transition` no longer reports `check.ipd-uncarried-obligation` for that row.
   - Depends on: E-03, E-07
   - Expected outcome: both surfaces show the pasteable line in the DETAIL; pasting it clears the finding; the check `recovery` field is recorded as-is.
   - ADD THE NEGATIVE CONTROL TO THE PASTE-AND-CLEAR STEP, or it proves nothing. A plan whose ONLY obligation is that one row reports no carrier finding after ANY edit that removes the row, including deleting it, so "the finding is gone" is not evidence the pasted line resolved. Give the scratch plan a SECOND, deliberately uncarried row, and show the finding count going from 2 to 1 with the surviving locator named, rather than from 1 to 0.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: docs and suite
 
-- [ ] E-05 DOCUMENT THE REMEDY in `.aw/records/plans/README.md`, inside the carrier vocabulary section `vtkfq8` E-05 creates (read it first; if it does not exist because `vtkfq8` changed shape, add a short "Carriers" subsection after the execution-contract section and say so at finalize). Add: a carrier that becomes `done`/`executed` before your plan finishes turns the row into a refusal on purpose (a reader pointed at a closed item would think the work is still pending); the remedy is to replace `- Carrier:` with the `- Carrier-Evidence:` line the refusal prints, and optionally to say why in the row's own prose; `Carrier-Declined` is for work that genuinely needs no carrier and is wrong for work that shipped. Name the ordered-Set pattern (a later sibling that depends on an earlier one) as the common way this arises. User-facing prose: no em or en dashes.
+- [x] E-05 DOCUMENT THE REMEDY in `.aw/records/plans/README.md`, inside the carrier vocabulary section `vtkfq8` E-05 creates (read it first; if it does not exist because `vtkfq8` changed shape, add a short "Carriers" subsection after the execution-contract section and say so at finalize). Add: a carrier that becomes `done`/`executed` before your plan finishes turns the row into a refusal on purpose (a reader pointed at a closed item would think the work is still pending); the remedy is to replace `- Carrier:` with the `- Carrier-Evidence:` line the refusal prints, and optionally to say why in the row's own prose; `Carrier-Declined` is for work that genuinely needs no carrier and is wrong for work that shipped. Name the ordered-Set pattern (a later sibling that depends on an earlier one) as the common way this arises. User-facing prose: no em or en dashes.
   - Depends on: E-03
   - Expected outcome: the README states the terminal-carrier remedy next to the carrier vocabulary.
   - DO NOT DOCUMENT `- Carrier-Note:` AS A FIELD. The worked case `n9na1c` wrote one and it reads well, but measured at review it is NOT in the schema: `ipd_schema.CARRIER_FIELDS` is exactly the three fields and `DEFERRED_SUBFIELD_RE` matches only `Carrier|Carrier-Evidence|Carrier-Declined`, so `_deferred_section_obligations` parses a `Carrier-Note` line into nothing (driven: the parsed field dict holds only `Carrier-Evidence`). Documenting it in the plans README would advertise a typed subfield that no reader reads, which is the "documented only in code" inversion `vtkfq8` F-9 exists to fix, pointed the wrong way. Either say plainly that the explanation goes in the row's PROSE, or, if the maintainer wants a typed note, that is a schema addition and belongs in its own plan (not this one).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 RUN THE BARE SUITE `python3 -m pytest` before (at E-01) and after E-05, plus `python3 -m pytest tests/test_ipd_lint.py tests/test_check_engine.py -o addopts="" -q` (the carrier evaluator is reached from both `aw check` and `aw ipd lint`), and `python3 -m agent_workflows check plans --agent` on the real tree before and after.
+- [x] E-06 RUN THE BARE SUITE `python3 -m pytest` before (at E-01) and after E-05, plus `python3 -m pytest tests/test_ipd_lint.py tests/test_check_engine.py -o addopts="" -q` (the carrier evaluator is reached from both `aw check` and `aw ipd lint`), and `python3 -m agent_workflows check plans --agent` on the real tree before and after.
   - Depends on: E-05
   - Expected outcome: the after-minus-before failing node set is empty; `check plans` reports the same findings count (the change alters messages, never verdicts).
   - THE SAME-COUNT PROPERTY IS THE REGRESSION TEST FOR F-5, so read it that way rather than as a formality. A DROP in the `check.ipd-uncarried-obligation` count is the exact signature of the swallowed exception E-07 prevents, because the bare `except Exception` converts a raise into a missing finding rather than an error. So compare the count PER RULE, not the total, and if the carrier count falls, treat it as a FAILURE of E-07 and not as an improvement. (Measured at review on this tree: 1 `check.ipd-uncarried-obligation` finding plus the informational `check.collisions-not-checked`; re-derive rather than expecting that pair.)
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -164,40 +164,290 @@ DRIVING the predicate or the CLI on a scratch repo rather than by reading the co
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste both verdicts (legitimate, severity, reason, fixes), both `_carrier_index` owner tuples, and the scratch `aw ipd lint --phase pre-transition` diagnostic line. ALSO paste the scratch `aw check plans --json` finding for this rule showing its `detail` and its `recovery` verbatim, and state which of the two the remedy can actually reach (F-6).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified at executing HEAD on live carriers fuk1mr and tgyfs2.
+    ```text
+    === Carrier: fuk1mr
+    legitimate: False
+    severity: error
+    reason: deferred row 1: carrier fuk1mr resolves only to a terminal/hidden artifact (done); nothing revisits it
+    fixes: ('hand it off: add `- Carrier: <id6>` naming an open backlog item or a pending plan (file one with `aw backlog new`)', 'cite evidence it is already addressed: add `- Carrier-Evidence: <in-tree artifact path>`', 'decline it explicitly, with a reason: add `- Carrier-Declined: <why this needs no carrier>`')
+    owner in index: [('backlog', 'done', '.aw/records/backlog/done/20260922-revalbase-01-fuk1mr-reval-ignores-suite-baseline.backlog.md')]
 
-- [ ] V-02 validates E-02
+    === Carrier: tgyfs2
+    legitimate: False
+    severity: error
+    reason: deferred row 1: carrier tgyfs2 resolves only to a terminal/hidden artifact (executed); nothing revisits it
+    fixes: ('hand it off: add `- Carrier: <id6>` naming an open backlog item or a pending plan (file one with `aw backlog new`)', 'cite evidence it is already addressed: add `- Carrier-Evidence: <in-tree artifact path>`', 'decline it explicitly, with a reason: add `- Carrier-Declined: <why this needs no carrier>`')
+    owner in index: [('plans', 'executed', '.aw/records/plans/executed/20260922-revalbase-01-tgyfs2-subtract-the-measured-suite-baseline-before-declaring-combin.ipd.md')]
+    ```
+    Scratch `aw ipd lint --phase pre-transition`:
+    `! check.ipd-uncarried-obligation: 1 obligation(s) name no durable carrier: deferred row 1: carrier fuk1mr resolves only to a terminal/hidden artifact (done); nothing revisits it`
+    Scratch `aw check plans --json`:
+    `Detail: 1 obligation(s) name no durable carrier: deferred row 1: carrier fuk1mr resolves only to a terminal/hidden artifact (done); nothing revisits it`
+    `Recovery: inspect .aw/records/plans/pending/20260926-scratch-01-sc0001-scratch-test.ipd.md frontmatter and schema conformity.`
+    Only `detail` reaches the executor (both at `aw ipd lint` and in `aw check plans --json`); `recovery` is overwritten downstream by `doctor.build_remediation` generic fallback (bug `evwmm2`).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste `python3 -m pytest tests/test_check_engine.py -o addopts="" -q -k carrier` (or the new test class name) BEFORE E-03 with cases (1), (2), (6) FAILING and the rest passing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified via pytest; cases (1), (2), (6) failed before E-03.
+    ```text
+    .F.FF......                                                              [100%]
+    =================================== FAILURES ===================================
+    _ CarrierDischargedRemedyTests.test_case_2_executed_plan_carrier_suggests_carrier_evidence_and_warns_declined _
+    ...
+    AssertionError: '- Carrier-Evidence: .aw/records/plans/executed/20260101-plans-01-pl0001-sample.ipd.md' not found in 'deferred row 2: carrier pl0001 resolves only to a terminal/hidden artifact (executed); nothing revisits it'
+    _ CarrierDischargedRemedyTests.test_case_1_done_backlog_carrier_suggests_carrier_evidence_and_warns_declined _
+    ...
+    AssertionError: '- Carrier-Evidence: .aw/records/backlog/done/20260101-backlog-01-bk0001-sample.backlog.md' not found in 'deferred row 1: carrier bk0001 resolves only to a terminal/hidden artifact (done); nothing revisits it'
+    _ CarrierDischargedRemedyTests.test_case_6_evaluate_durable_carrier_end_to_end _
+    ...
+    AssertionError: '- Carrier-Evidence: .aw/records/plans/executed/20260101-plans-01-pl0001-sample.ipd.md' not found in '1 obligation(s) name no durable carrier: deferred row 1: carrier pl0001 resolves only to a terminal/hidden artifact (executed); nothing revisits it'
+    =========================== short test summary info ============================
+    FAILED tests/test_check_engine.py::CarrierDischargedRemedyTests::test_case_2_executed_plan_carrier_suggests_carrier_evidence_and_warns_declined
+    FAILED tests/test_check_engine.py::CarrierDischargedRemedyTests::test_case_1_done_backlog_carrier_suggests_carrier_evidence_and_warns_declined
+    FAILED tests/test_check_engine.py::CarrierDischargedRemedyTests::test_case_6_evaluate_durable_carrier_end_to_end
+    3 failed, 8 passed, 27 deselected in 0.46s
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the `check_engine.py` diff and the same pytest command passing in full after E-03, with the count; paste one full new refusal reason verbatim, and the joined `evaluate_durable_carrier` detail for a plan carrying THREE such rows, with its character length, so the length bound is observed rather than assumed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified via diff, all carrier tests passed, verbatim reason and 3-row detail bounded at 1294 chars.
+    `check_engine.py` diff:
+    ```diff
+    @@ -20,6 +20,7 @@ phase where it belongs, to ONE plan that is actually transitioning."""
+     from __future__ import annotations
 
-- [ ] V-07 validates E-07
+     import importlib.util
+    +import os
+     import re as _re
+     from pathlib import Path
+     from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
+    @@ -5999,9 +6000,11 @@ def _carrier_index(repo_root: Path) -> Dict[str, List[Tuple[str, Optional[str],
+
+
+     def _resolve_carrier(
+    -    carrier_index: Dict[str, List[Tuple[str, Optional[str], str]]], id6: str
+    -) -> Tuple[str, str]:
+    -    """Resolve one carrier id6. Returns (verdict, detail) with verdict in
+    +    carrier_index: Dict[str, List[Tuple[str, Optional[str], str]]],
+    +    id6: str,
+    +    repo_root: Optional[Path] = None,
+    +) -> Tuple[str, str, List[str]]:
+    +    """Resolve one carrier id6. Returns (verdict, detail, finished_relpaths) with verdict in
+         {"ok", "dangling", "terminal"}.
+
+         RESOLVES, DOES NOT MERELY PARSE (E-02). A dangling id6 FAILS, exactly as
+    @@ -6012,20 +6015,37 @@ def _resolve_carrier(
+         """
+         owners = carrier_index.get(id6) or []
+         if not owners:
+    -        return "dangling", "carrier {0} resolves to no backlog item or plan".format(id6)
+    +        return "dangling", "carrier {0} resolves to no backlog item or plan".format(id6), []
+         live = [
+             o
+             for o in owners
+             if (o[1] or "").strip().lower() not in _CARRIER_TERMINAL_STATUSES
+         ]
+         if live:
+    -        return "ok", ""
+    +        return "ok", "", []
+         statuses = ", ".join(sorted({(o[1] or "?").strip().lower() for o in owners}))
+    -    return "terminal", (
+    +    detail = (
+             "carrier {0} resolves only to a terminal/hidden artifact ({1}); nothing revisits it".format(
+                 id6, statuses
+             )
+         )
+    +    finished_relpaths: List[str] = []
+    +    if repo_root is not None:
+    +        for o in owners:
+    +            rec_type = o[0]
+    +            st = (o[1] or "").strip().lower()
+    +            path = o[2]
+    +            if (rec_type == "backlog" and st == "done") or (
+    +                rec_type == "plans" and st == "executed"
+    +            ):
+    +                try:
+    +                    rel = os.path.relpath(path, repo_root).replace("\\", "/")
+    +                    if not (rel == ".." or rel.startswith("../") or os.path.isabs(rel)):
+    +                        finished_relpaths.append(rel)
+    +                except Exception:
+    +                    pass
+    +    return "terminal", detail, finished_relpaths
+    +
+
+
+     def evaluate_carrier_obligation(
+    @@ -6128,8 +6148,11 @@ def evaluate_carrier_obligation(
+                     None,
+                 )
+             problems: List[str] = []
+    +        all_finished: List[str] = []
+             for id6 in good:
+    -            verdict, detail = _resolve_carrier(carrier_index, id6)
+    +            verdict, detail, finished = _resolve_carrier(
+    +                carrier_index, id6, repo_root=repo_root
+    +            )
+                 if verdict == "ok":
+                     return CloseVerdict(
+                         True,
+    @@ -6139,6 +6162,36 @@ def evaluate_carrier_obligation(
+                         "HANDOFF",
+                     )
+                 problems.append(detail)
+    +            for p in finished:
+    +                if p not in all_finished:
+    +                    all_finished.append(p)
+    +        if all_finished:
+    +            first_path = all_finished[0]
+    +            more_count = len(all_finished) - 1
+    +            evidence_line = "- Carrier-Evidence: {0}{1}".format(
+    +                first_path,
+    +                ""
+    +                if more_count == 0
+    +                else " (and {0} more finished owner(s))".format(more_count),
+    +            )
+    +            reason = (
+    +                "{0}: {1}\n"
+    +                "this obligation was discharged by finished work; cite it instead of the carrier:\n"
+    +                "{2}\n"
+    +                "do NOT use `Carrier-Declined` here: the work shipped, so declining it would record it as needing no carrier"
+    +            ).format(obligation.locator, "; ".join(problems), evidence_line)
+    +            remedy_fix = (
+    +                "cite evidence it was discharged by finished work: add `- Carrier-Evidence: {0}`".format(
+    +                    first_path
+    +                )
+    +            )
+    +            return CloseVerdict(
+    +                False,
+    +                "error",
+    +                reason,
+    +                (remedy_fix,) + fixes,
+    +                None,
+    +            )
+             return CloseVerdict(
+                 False,
+                 "error",
+    ```
+    Pytest passing: `11 passed, 27 deselected in 0.43s`.
+    Verbatim refusal reason:
+    ```text
+    deferred row 1: carrier fuk1mr resolves only to a terminal/hidden artifact (done); nothing revisits it
+    this obligation was discharged by finished work; cite it instead of the carrier:
+    - Carrier-Evidence: .aw/records/backlog/done/20260922-revalbase-01-fuk1mr-reval-ignores-suite-baseline.backlog.md
+    do NOT use `Carrier-Declined` here: the work shipped, so declining it would record it as needing no carrier
+    ```
+    Joined detail for 3 rows:
+    ```text
+    3 obligation(s) name no durable carrier: deferred row 1: carrier fuk1mr resolves only to a terminal/hidden artifact (done); nothing revisits it
+    this obligation was discharged by finished work; cite it instead of the carrier:
+    - Carrier-Evidence: .aw/records/backlog/done/20260922-revalbase-01-fuk1mr-reval-ignores-suite-baseline.backlog.md
+    do NOT use `Carrier-Declined` here: the work shipped, so declining it would record it as needing no carrier; deferred row 2: carrier tgyfs2 resolves only to a terminal/hidden artifact (executed); nothing revisits it
+    this obligation was discharged by finished work; cite it instead of the carrier:
+    - Carrier-Evidence: .aw/records/plans/executed/20260922-revalbase-01-tgyfs2-subtract-the-measured-suite-baseline-before-declaring-combin.ipd.md
+    do NOT use `Carrier-Declined` here: the work shipped, so declining it would record it as needing no carrier; deferred row 3: carrier fuk1mr resolves only to a terminal/hidden artifact (done); nothing revisits it
+    this obligation was discharged by finished work; cite it instead of the carrier:
+    - Carrier-Evidence: .aw/records/backlog/done/20260922-revalbase-01-fuk1mr-reval-ignores-suite-baseline.backlog.md
+    do NOT use `Carrier-Declined` here: the work shipped, so declining it would record it as needing no carrier
+    ```
+    Character length: 1294 characters.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste (a) the `companion`-backend fixture's `_carrier_index` entry showing the owner path OUTSIDE `repo_root`, (b) `check_engine.check_content(repo, "plans")` on that fixture BEFORE the E-07 guard (or with the guard temporarily reverted in the worktree) showing `check.ipd-uncarried-obligation` MISSING, and AFTER showing it PRESENT at `error` with the generic remedy, (c) the same pair through `ipd_lint.lint_file(..., checkpoint="pre-transition")`, and (d) `git diff --stat agent_workflows/check_engine.py` showing the revert was undone. Then state plainly that no traceback was printed in either direction, because a silent drop is exactly the symptom.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified on companion backend fixture; silent drop reproduced before guard and resolved with generic remedy after.
+    (a) Companion fixture `_carrier_index`:
+    `pl0001 -> [('plans', 'executed', '/tmp/tmp2s4atyls/repo.aw/records/plans/executed/20260101-plans-01-pl0001-sample.ipd.md')]`
+    `repo root is: /tmp/tmp2s4atyls/repo`
+    (b) `check_engine.check_content(repo, "plans")`:
+    BEFORE (guard reverted):
+    `rules: ['check.ipd-lint-diagnostic']` (check.ipd-uncarried-obligation MISSING)
+    AFTER (with guard):
+    `rules: ['check.ipd-uncarried-obligation', 'check.ipd-lint-diagnostic']` (PRESENT at error)
+    `detail: 1 obligation(s) name no durable carrier: deferred row 1: carrier pl0001 resolves only to a terminal/hidden artifact (executed); nothing revisits it`
+    `recovery: hand it off: add `- Carrier: <id6>` naming an open backlog item or a pending plan (file one with `aw backlog new`)`
+    (c) `ipd_lint.lint_file(..., checkpoint="pre-transition")`:
+    BEFORE (guard reverted):
+    `lint codes: ['IPD-M101', 'IPD-M107', 'IPD-H202', 'IPD-H202', 'IPD-H202', 'IPD-H202', 'IPD-H202', 'IPD-H202']` (check.ipd-uncarried-obligation MISSING)
+    AFTER (with guard):
+    `lint codes: ['IPD-M101', 'IPD-M107', 'IPD-H202', 'IPD-H202', 'IPD-H202', 'IPD-H202', 'IPD-H202', 'IPD-H202', 'check.ipd-uncarried-obligation']` (PRESENT)
+    (d) `git diff --stat agent_workflows/check_engine.py`:
+    `agent_workflows/check_engine.py | 67 ++++++++++++++++++++++++++++++++++++-----`
+    Revert was undone and no uncommitted revert artifacts remain.
+    No traceback was printed in either direction; the bare `except Exception` swallowed `ValueError` silently, demonstrating the necessity of the non-raising derivation.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the scratch `aw ipd lint --phase pre-transition` line and the `aw check plans --json` finding's `detail` showing the Carrier-Evidence line; paste that finding's `recovery` as-is and name it as `evwmm2` rather than asserting it carries the suggestion. Then paste the paste-and-clear run AGAINST THE NEGATIVE CONTROL: the two-row scratch plan's finding count going 2 -> 1 with the surviving locator named (not 1 -> 0, which any deletion would produce).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified on scratch repo; both gate surfaces carry detail, and paste-and-clear clears finding against negative control (2 -> 1).
+    Scratch `aw ipd lint --phase pre-transition`:
+    `! check.ipd-uncarried-obligation: 2 obligation(s) name no durable carrier: deferred row 1: carrier fuk1mr resolves only to a terminal/hidden artifact (done); nothing revisits it`
+    `this obligation was discharged by finished work; cite it instead of the carrier:`
+    `- Carrier-Evidence: .aw/records/backlog/done/20260922-revalbase-01-fuk1mr-test.backlog.md`
+    `do NOT use `Carrier-Declined` here: the work shipped, so declining it would record it as needing no carrier; deferred row 2 records an outstanding obligation with NO durable carrier; once this plan reaches `executed` it classes `done` in `aw attention` and this vanishes with no record`
 
-- [ ] V-05 validates E-05
+    `aw check plans --json` finding `detail`:
+    `2 obligation(s) name no durable carrier: deferred row 1: carrier fuk1mr resolves only to a terminal/hidden artifact (done); nothing revisits it`
+    `this obligation was discharged by finished work; cite it instead of the carrier:`
+    `- Carrier-Evidence: .aw/records/backlog/done/20260922-revalbase-01-fuk1mr-test.backlog.md`
+    `do NOT use `Carrier-Declined` here: the work shipped, so declining it would record it as needing no carrier; deferred row 2 records an outstanding obligation with NO durable carrier; once this plan reaches `executed` it classes `done` in `aw attention` and this vanishes with no record`
+
+    `aw check plans --json` finding `recovery`:
+    `inspect .aw/records/plans/pending/20260926-scratch-01-sc0001-scratch-test.ipd.md frontmatter and schema conformity.`
+    (Recorded as-is; overwritten by `doctor.build_remediation` per pre-existing defect `evwmm2`).
+
+    Paste-and-clear against negative control:
+    After pasting `- Carrier-Evidence: .aw/records/backlog/done/20260922-revalbase-01-fuk1mr-test.backlog.md` into deferred row 1:
+    `aw ipd lint --phase pre-transition`:
+    `! check.ipd-uncarried-obligation: 1 obligation(s) name no durable carrier: deferred row 2 records an outstanding obligation with NO durable carrier; once this plan reaches `executed` it classes `done` in `aw attention` and this vanishes with no record`
+    Count moved 2 -> 1 with surviving locator `deferred row 2` named.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the README diff and a dash grep over the added lines showing no em or en dash. Also confirm the added text does NOT present `Carrier-Note` as a field (F-8), by pasting `rg -n "Carrier-Note" .aw/records/plans/README.md` with no hit, or by quoting the sentence that routes the explanation to prose.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified via diff; dash grep and Carrier-Note checks clean; explanation routed to prose.
+    Diff:
+    ```diff
+    @@ -76,6 +76,14 @@ The carrier gate recognizes three escapes:
+     3. **Explicitly declined**: `- Carrier-Declined: <reason>`
+        Declines the obligation explicitly with a non-empty rationale explaining why it requires no carrier. The merit of the reason is judged by the reviewer during plan review.
 
-- [ ] V-06 validates E-06
+    +### Discharged carriers and the Carrier-Evidence remedy
+    +
+    +A carrier that reaches `done` (backlog) or `executed` (plans) before your plan finishes turns the row into a refusal on purpose. A reader pointed at a closed item would assume the work is still pending elsewhere rather than finished. This commonly arises in an ordered Set where a later sibling plan declares an earlier sibling as a dependency and names it as a carrier.
+    +
+    +When a carrier resolves to finished work, the pre-transition gate prints the exact `- Carrier-Evidence: <path>` line to paste in place of `- Carrier:`. You may optionally explain the context in the row's own prose; do not write an unparsed custom field for this note.
+    +
+    +Do not use `Carrier-Declined` for work that has shipped. `Carrier-Declined` records an obligation as needing no carrier, whereas finished work shipped and should cite evidence instead.
+    +
+     ## Identity, sets, and the clustering filename grammar
+
+     Every plan carries a stable `- Id:` (a 6-char base36 citation handle that never changes across
+    ```
+    `git diff .aw/records/plans/README.md | grep -P "[\x{2013}\x{2014}]"`: 0 matches (no em or en dashes).
+    `rg -n "Carrier-Note" .aw/records/plans/README.md`: 0 matches.
+    Sentence routing explanation to prose: "You may optionally explain the context in the row's own prose; do not write an unparsed custom field for this note."
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the bare `python3 -m pytest` summary line BEFORE and AFTER, the after-minus-before failing node-ID set (must be empty), the narrowed lint/check-engine run, and both live `check plans --agent` finding counts BROKEN DOWN BY RULE. State the `check.ipd-uncarried-obligation` count before and after explicitly and confirm it did not FALL; a fall is an F-5 regression.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified via bare suite (2572 passed, 0 failures), narrowed tests (87 passed), and check plans --agent counts identical per rule.
+    Bare pytest summary:
+    BEFORE: `2565 passed, 2 skipped, 3 warnings in 118.71s (0:01:58)`
+    AFTER: `2572 passed, 2 skipped, 3 warnings in 41.89s`
+    Failing node-ID set after-minus-before: empty (7 new tests added, all passed).
+    Narrowed test run:
+    `python3 -m pytest tests/test_ipd_lint.py tests/test_check_engine.py -o addopts="" -q`
+    `87 passed in 11.82s`
+    Live `check plans --agent` counts broken down by rule:
+    BEFORE: `check.scope-drift`: 1, `check.collisions-not-checked`: 1, `check.ipd-uncarried-obligation`: 0 (total 2)
+    AFTER: `check.scope-drift`: 1, `check.collisions-not-checked`: 1, `check.ipd-uncarried-obligation`: 0 (total 2)
+    The `check.ipd-uncarried-obligation` count is 0 before and 0 after; it did not fall.
+  - Result: pass
 
 ## Approval and execution gate
 
