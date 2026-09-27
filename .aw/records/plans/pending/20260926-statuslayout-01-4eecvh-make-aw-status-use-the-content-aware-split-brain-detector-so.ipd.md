@@ -38,21 +38,21 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: reproduce
 
-- [ ] E-01 RE-MEASURE THE DISAGREEMENT at the executing HEAD. Build the fixtures with `tempfile.TemporaryDirectory()` in one throwaway `python3 -` script, NOT as hand-made dirs under `/tmp/`: the sandbox may refuse a bare `/tmp` path (measured at review, where `/tmp/<name>` was denied and `tempfile` inside the interpreter worked), and a temp dir cleans itself up. Shapes: CLEAN = `.aw/system/VERSION` + `.agents/skills/x/SKILL.md`; RESIDUE = CLEAN plus empty `.agents/workflows/assess/tools/` and a non-empty `.agents/README.md`; GENUINE = CLEAN plus a non-empty `.agents/workflows/assess/assess.md`. For each, paste `cli._collect_repo_status_details(repo, "2.0.0")["layout"]` and `["split_brain"]`, `engine.detect_split_brain_layout(repo)`, and `doctor.probe_environment(repo).layout`. If CLEAN and RESIDUE already report `split_brain=False` from the collector, STOP and report the defect fixed.
+- [x] E-01 RE-MEASURE THE DISAGREEMENT at the executing HEAD. Build the fixtures with `tempfile.TemporaryDirectory()` in one throwaway `python3 -` script, NOT as hand-made dirs under `/tmp/`: the sandbox may refuse a bare `/tmp` path (measured at review, where `/tmp/<name>` was denied and `tempfile` inside the interpreter worked), and a temp dir cleans itself up. Shapes: CLEAN = `.aw/system/VERSION` + `.agents/skills/x/SKILL.md`; RESIDUE = CLEAN plus empty `.agents/workflows/assess/tools/` and a non-empty `.agents/README.md`; GENUINE = CLEAN plus a non-empty `.agents/workflows/assess/assess.md`. For each, paste `cli._collect_repo_status_details(repo, "2.0.0")["layout"]` and `["split_brain"]`, `engine.detect_split_brain_layout(repo)`, and `doctor.probe_environment(repo).layout`. If CLEAN and RESIDUE already report `split_brain=False` from the collector, STOP and report the defect fixed.
   - Depends on: none
   - Expected outcome: CLEAN and RESIDUE: collector `('.aw + .agents', True)`, engine `False`, doctor `'.aw'`. GENUINE: collector `('.aw + .agents', True)`, engine `True`, doctor contains `split-brain`. Note the collector's verdict is IDENTICAL across all three, which is the defect: it carries no information about content.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: fix
 
-- [ ] E-02 REPOINT `cli._collect_repo_status_details` at the shared detector. Replace the four-arm existence ladder with the doctor shape: `if has_aw and engine.detect_split_brain_layout(repo): layout = ".aw + .agents"; split_brain = True` / `elif has_aw: layout = ".aw"` / `elif has_agents: layout = ".agents"` / `else: layout = "none"`, `split_brain = False` in every non-first arm. Keep the `.aw + .agents` label for the genuine case so the renderer (`if rd.get("split_brain"):` in the status printer) and the `--json` `layout`/`split_brain` keys are unchanged in shape. Add a comment citing `z1yefm` E-06 and `doctor.probe_environment` as the precedent and `ovjx46` as the carrier. Do not import anything new: `engine` is already imported by `cli`.
+- [x] E-02 REPOINT `cli._collect_repo_status_details` at the shared detector. Replace the four-arm existence ladder with the doctor shape: `if has_aw and engine.detect_split_brain_layout(repo): layout = ".aw + .agents"; split_brain = True` / `elif has_aw: layout = ".aw"` / `elif has_agents: layout = ".agents"` / `else: layout = "none"`, `split_brain = False` in every non-first arm. Keep the `.aw + .agents` label for the genuine case so the renderer (`if rd.get("split_brain"):` in the status printer) and the `--json` `layout`/`split_brain` keys are unchanged in shape. Add a comment citing `z1yefm` E-06 and `doctor.probe_environment` as the precedent and `ovjx46` as the carrier. Do not import anything new: `engine` is already imported by `cli`.
   - Depends on: E-01
   - Expected outcome: CLEAN and RESIDUE -> `('.aw', False)`; GENUINE -> `('.aw + .agents', True)`; a legacy-only `.agents` repo -> `('.agents', False)`; an empty dir -> `('none', False)`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove it
 
-- [ ] E-03 ADD A BEHAVIORAL CONSISTENCY TEST to `tests/test_doctor.py`, inside or beside `DoctorLayoutClassificationIsContentAwareTests` (whose `setUp` already builds the RESIDUE shape with `.agents/skills`). Cases, each calling the real functions: (1) RESIDUE: collector `split_brain` is `False` and `layout == ".aw"`; (2) CLEAN (RESIDUE minus the empty tool dirs and README, i.e. `.aw/system` + `.agents/skills` only): same; (3) GENUINE: collector `split_brain` is `True`; (4) for all three shapes, `collector["split_brain"] == engine.detect_split_brain_layout(root) == ("split-brain" in doctor.probe_environment(root).layout)`; (5) legacy-only (`.aw` removed): collector `layout == ".agents"`, `split_brain` `False`. Also drive the RENDERED human output, because the user-visible symptom is a line of text and no test asserts on it today (F-4).
+- [x] E-03 ADD A BEHAVIORAL CONSISTENCY TEST to `tests/test_doctor.py`, inside or beside `DoctorLayoutClassificationIsContentAwareTests` (whose `setUp` already builds the RESIDUE shape with `.agents/skills`). Cases, each calling the real functions: (1) RESIDUE: collector `split_brain` is `False` and `layout == ".aw"`; (2) CLEAN (RESIDUE minus the empty tool dirs and README, i.e. `.aw/system` + `.agents/skills` only): same; (3) GENUINE: collector `split_brain` is `True`; (4) for all three shapes, `collector["split_brain"] == engine.detect_split_brain_layout(root) == ("split-brain" in doctor.probe_environment(root).layout)`; (5) legacy-only (`.aw` removed): collector `layout == ".agents"`, `split_brain` `False`. Also drive the RENDERED human output, because the user-visible symptom is a line of text and no test asserts on it today (F-4).
 
   THE RENDER MECHANISM IS PRESCRIBED, NOT LEFT TO THE EXECUTOR, and it was PROVEN AT REVIEW rather than assumed (PR-002; the earlier "if it cannot be done, assert on the collector only and say so" hedge is removed, since the escape it offered would have dropped the only assertion covering the symptom). Both of these were executed at review against the unfixed code and both printed the false warning, so either is acceptable:
   - `mock.patch.object(cli, "_repos_for_report", return_value=[repo])` around `cli.main(["status"])`, stdout captured, which needs no config file at all; or
@@ -62,12 +62,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   Assert the text `dual layout / split-brain` does NOT appear for RESIDUE, and DOES appear for GENUINE.
   - Depends on: E-02
   - Expected outcome: all cases pass; cases (1), (2), (4) and BOTH render assertions' RESIDUE half FAIL against the pre-change collector; (3) and (5) pass before and after. Measured at review on the unfixed code: RESIDUE and GENUINE both render `Layout:    .aw + .agents [dual layout / split-brain - run aw migrate-layout]`, so the RESIDUE render assertion is genuinely red before the fix and is not vacuous.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 RUN THE BARE SUITE `python3 -m pytest` before and after the change and compare failing node IDs. Bare means bare: do NOT add `-n0`, a second `-q`, or `-p no:randomly`. Baseline measured at review on this lane: `2501 passed, 2 skipped, 3 warnings in 59.95s`. RE-DERIVE that number rather than matching it (a live population that drifts with every merge); the BAR is the failing-node-set comparison, not the count.
+- [x] E-04 RUN THE BARE SUITE `python3 -m pytest` before and after the change and compare failing node IDs. Bare means bare: do NOT add `-n0`, a second `-q`, or `-p no:randomly`. Baseline measured at review on this lane: `2501 passed, 2 skipped, 3 warnings in 59.95s`. RE-DERIVE that number rather than matching it (a live population that drifts with every merge); the BAR is the failing-node-set comparison, not the count.
   - Depends on: E-03
   - Expected outcome: the after-minus-before failing node set is empty.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -154,17 +154,54 @@ No source-text or structure assertion appears anywhere in this plan (maintainer 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the four values for each of CLEAN, RESIDUE and GENUINE at the executing HEAD, with the HEAD hash.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified at executing HEAD `6296eb3e3311f80e0c23f34c96f8b3c359578d7b`.
+    Shape: CLEAN
+      collector: layout='.aw + .agents', split_brain=True
+      engine: False
+      doctor: '.aw'
+    Shape: RESIDUE
+      collector: layout='.aw + .agents', split_brain=True
+      engine: False
+      doctor: '.aw'
+    Shape: GENUINE
+      collector: layout='.aw + .agents', split_brain=True
+      engine: True
+      doctor: '.aw + .agents (dual layout / split-brain)'
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the diff of `_collect_repo_status_details`'s layout block; paste the collector's `(layout, split_brain)` for CLEAN, RESIDUE, GENUINE, legacy-only and empty after the change, matching E-02's expected outcome.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified.
+    1. Diff of layout block in `_collect_repo_status_details`:
+    ```diff
+    --- a/agent_workflows/cli.py
+    +++ b/agent_workflows/cli.py
+    @@ -8363,7 +8363,10 @@ def _collect_repo_status_details(repo: Path, packaged: str) -> dict:
 
-- [ ] V-03 validates E-03
+         has_aw = (repo / ".aw").is_dir()
+         has_agents = (repo / ".agents").is_dir()
+    -    if has_aw and has_agents:
+    +    # ovjx46 / 4eecvh E-02: mirror doctor.probe_environment (z1yefm E-06). A bare
+    +    # existence check on `.agents/` reports split-brain forever on every migrated repo
+    +    # because `.agents/skills` is permanent. Ask the content-aware engine detector.
+    +    if has_aw and engine.detect_split_brain_layout(repo):
+             layout = ".aw + .agents"
+             split_brain = True
+         elif has_aw:
+    ```
+    2. Collector output after change:
+    ```
+    CLEAN: layout='.aw', split_brain=False
+    RESIDUE: layout='.aw', split_brain=False
+    GENUINE: layout='.aw + .agents', split_brain=True
+    legacy-only: layout='.agents', split_brain=False
+    empty: layout='none', split_brain=False
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste `python3 -m pytest tests/test_doctor.py -o addopts="" -q` passing with its count. Then paste a BEFORE-FIX run showing cases (1), (2), (4) and the RESIDUE render assertion FAILING while (3) and (5) pass. Finally re-paste the passing run.
 
     HOW TO OBTAIN THE BEFORE-FIX RUN (prescribed at review, PR-003, because the mechanism decides whether the fix can be lost). Preferred: check the NEW TEST FILE STATE out into a throwaway detached worktree at the pre-change commit, i.e. `git worktree add --detach .aw/tmp/4eecvh-head <pre-change-commit>`, copy the new test module in, run there, then `git worktree remove --force .aw/tmp/4eecvh-head`. `.aw/worktrees/` and `tmp/` are gitignored (`.gitignore:73`, `.gitignore:42`). Acceptable alternative: temporarily revert ONLY the E-02 hunk in place, run, and restore it. If you take the alternative, restore it IMMEDIATELY in the next command, and note in the evidence that you did: an interrupted restore leaves the repo carrying the bug with a test suite that fails, which is worse than either end state. Do NOT use `git stash`: this is a SHARED CHECKOUT and stashing would move another party's uncommitted work.
@@ -172,13 +209,103 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     A CONTROL THAT ALSO FAILS MEANS THE TEST IS BROKEN, not that the fix is bigger: cases (3) and (5) must pass in BOTH runs. If either fails before the fix, report it rather than adjusting the assertion to make it green.
 
     State which of the two prescribed render mechanisms E-03 used (`mock.patch.object(cli, "_repos_for_report", ...)` or the `XDG_CONFIG_HOME` + `config.save` route), and confirm the assertion ran against ANSI-stripped output with `NO_COLOR=1`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified. Test added before applying E-02 and run against the pre-change collector; then E-02 applied and re-run.
+    Render mechanism used: `mock.patch.object(cli, "_repos_for_report", return_value=[repo])` around `cli.main(["status"])`, with `NO_COLOR=1` set and restored in `tearDown`, and output ANSI-stripped via `re.sub(r"\033\[[0-9;]*m", "", out)`.
 
-- [ ] V-04 validates E-04
+    1. Passing run:
+    ```
+    $ python3 -m pytest tests/test_doctor.py -o addopts="" -q
+    ..................................                                       [100%]
+    34 passed in 3.71s
+    ```
+
+    2. Before-fix run (cases (1), (2), (4) and RESIDUE render assertion fail; (3), (5) and GENUINE render assertion pass):
+    ```
+    $ python3 -m pytest tests/test_doctor.py -o addopts="" -q
+    ...........................F.FF..F                                       [100%]
+    =================================== FAILURES ===================================
+    _ DoctorLayoutClassificationIsContentAwareTests.test_collector_engine_and_doctor_agree_on_all_three_shapes _
+
+    self = <tests.test_doctor.DoctorLayoutClassificationIsContentAwareTests testMethod=test_collector_engine_and_doctor_agree_on_all_three_shapes>
+
+        def test_collector_engine_and_doctor_agree_on_all_three_shapes(self) -> None:
+            """(4) Three-way agreement across CLEAN, RESIDUE, and GENUINE shapes."""
+            # 1. RESIDUE
+            det_res = cli._collect_repo_status_details(self.root, "1.3.0")
+            eng_res = engine.detect_split_brain_layout(self.root)
+            doc_res = "split-brain" in doctor.probe_environment(self.root).layout
+    >       self.assertEqual(det_res["split_brain"], eng_res)
+    E       AssertionError: True != False
+
+    tests/test_doctor.py:418: AssertionError
+    _ DoctorLayoutClassificationIsContentAwareTests.test_status_rendered_output_residue_does_not_warn_split_brain _
+
+    self = <tests.test_doctor.DoctorLayoutClassificationIsContentAwareTests testMethod=test_status_rendered_output_residue_does_not_warn_split_brain>
+
+        def test_status_rendered_output_residue_does_not_warn_split_brain(self) -> None:
+            """Assert the text 'dual layout / split-brain' does NOT appear for RESIDUE."""
+            out = self._render_status(self.root)
+    >       self.assertNotIn("dual layout / split-brain", out)
+    E       AssertionError: 'dual layout / split-brain' unexpectedly found in "agent-workflows status\nEnvironment:\n  Packaged version: 1.3.0rc2.dev4561+g6296eb3e.d20260927\n  Python: 3.14.6 (<home>/venv/p3.14/bin/python3)\n  git: present\n  Config: /tmp/aw-test-home-guvkp61u/xdg-config/agent-workflows/config.json  (none yet; run 'aw setup')\n  Search roots: (none)\n  Repos configured: 0\n  Repos excluded: 0\n\nManaged Repositories (1)\n- /tmp/tmpd1gmzb9w [ahead] v1.3.0 (packaged: 1.3.0rc2.dev4561+g6296eb3e.d20260927)\n  Layout:    .aw + .agents [dual layout / split-brain - run aw migrate-layout]\n  Attention: 0 items\n\nCurrency\n  [ahead] 1 repo(s)\n"
+
+    tests/test_doctor.py:454: AssertionError
+    _ DoctorLayoutClassificationIsContentAwareTests.test_status_collector_clean_is_not_split_brain _
+
+    self = <tests.test_doctor.DoctorLayoutClassificationIsContentAwareTests testMethod=test_status_collector_clean_is_not_split_brain>
+
+        def test_status_collector_clean_is_not_split_brain(self) -> None:
+            """(2) CLEAN (RESIDUE minus empty tool dirs and README): layout == '.aw', split_brain is False."""
+            shutil.rmtree(self.root / ".agents" / "workflows")
+            (self.root / ".agents" / "README.md").unlink()
+            details = cli._collect_repo_status_details(self.root, "1.3.0")
+    >       self.assertEqual(details["layout"], ".aw")
+    E       AssertionError: '.aw + .agents' != '.aw'
+    E       - .aw + .agents
+    E       + .aw
+
+    tests/test_doctor.py:400: AssertionError
+    _ DoctorLayoutClassificationIsContentAwareTests.test_status_collector_residue_is_not_split_brain _
+
+    self = <tests.test_doctor.DoctorLayoutClassificationIsContentAwareTests testMethod=test_status_collector_residue_is_not_split_brain>
+
+        def test_status_collector_residue_is_not_split_brain(self) -> None:
+            """(1) RESIDUE: collector split_brain is False and layout == '.aw'."""
+            details = cli._collect_repo_status_details(self.root, "1.3.0")
+    >       self.assertEqual(details["layout"], ".aw")
+    E       AssertionError: '.aw + .agents' != '.aw'
+    E       - .aw + .agents
+    E       + .aw
+
+    tests/test_doctor.py:392: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_doctor.py::DoctorLayoutClassificationIsContentAwareTests::test_collector_engine_and_doctor_agree_on_all_three_shapes
+    FAILED tests/test_doctor.py::DoctorLayoutClassificationIsContentAwareTests::test_status_rendered_output_residue_does_not_warn_split_brain
+    FAILED tests/test_doctor.py::DoctorLayoutClassificationIsContentAwareTests::test_status_collector_clean_is_not_split_brain
+    FAILED tests/test_doctor.py::DoctorLayoutClassificationIsContentAwareTests::test_status_collector_residue_is_not_split_brain
+    4 failed, 30 passed in 3.72s
+    ```
+
+    3. Re-pasted passing run:
+    ```
+    $ python3 -m pytest tests/test_doctor.py -o addopts="" -q
+    ..................................                                       [100%]
+    34 passed in 3.71s
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the bare `python3 -m pytest` summary line BEFORE and AFTER and the after-minus-before failing node-ID set (must be empty).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified bare `python3 -m pytest` runs before and after.
+    BEFORE:
+    ```
+    2601 passed, 2 skipped, 3 warnings in 115.82s (0:01:55)
+    ```
+    AFTER:
+    ```
+    2608 passed, 2 skipped, 3 warnings in 47.87s
+    ```
+    After-minus-before failing node-ID set: `set()` (empty set; 0 failing tests before, 0 failing tests after).
+  - Result: pass
 
 ## Approval and execution gate
 
