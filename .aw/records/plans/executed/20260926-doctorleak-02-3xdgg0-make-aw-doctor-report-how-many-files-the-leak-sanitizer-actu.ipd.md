@@ -6,7 +6,7 @@
 - Scope: IN: a counted variant `leak_sanitizer.scan_working_tree_counted`; `scan_working_tree` delegates to it; `doctor.probe_sanitizer` sets `scanned_files`; one outcome test. OUT: the other scanners (`scan_staged`, `scan_history`); other callers of `scan_working_tree`; a `local_leaks` re-export of the NEW name (the shim preserves the HISTORICAL API and no consumer imports the new one; D-2); rpqv4q's drift/except changes; making the count visible in the `--agent` COMPACT record (F-3, carried); a human-render line for the count (F-4, carried).
 - Scope-Paths: agent_workflows/leak_sanitizer.py, agent_workflows/doctor.py, tests/test_doctor.py
 - Item-Dependencies: executed:rpqv4q
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 3xdgg0
-- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 3xdgg0 verified (set doctorleak, attempt 1).
 - 2026-09-27 approved (aw set): status set to approved
 - 2026-09-27 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; 8 findings PR-901..PR-908 all FIXED, 4 decisions D-1..D-4 recorded; review record written. PR-901: the count CANNOT reach aw doctor --agent (the compact record reduces a dict-valued Evidence to its key and doctor declares no --verbose), so V-02 demanded unproducible evidence; renamed to --json and recorded as F-3. PR-902: added E-04/V-04 pinning that 0 still means did-not-scan, the half of the Goal that was untested. PR-903: E-01's excluded branch is nearly unreachable (check=False does not raise), so the increment placement is now specified. Corrected two facts (the shared fixture tracks 3 files not many; rpqv4q is executed not approved). aw ipd lint --phase review-finalize conforming and aw check plans clean for this plan.
 - 2026-09-26 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog c0ppo0: add leak_sanitizer.scan_working_tree_counted and set doctor's scanned_files from it, with a 2-file/1-leak outcome test.
