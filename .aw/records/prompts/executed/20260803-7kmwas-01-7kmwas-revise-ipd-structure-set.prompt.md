@@ -1,3 +1,4 @@
+<!-- aw-prompt: Kind: run-once | Id: 7kmwas | Status: executed | Created: 2026-08-03 . This HTML comment is pipeline metadata only; it is invisible when pasted into a chat and is not part of the prompt. -->
 # Revise and harden the `ipd-structure` specification and IPD Set
 
 You are a senior software and systems architect, specification engineer, deterministic-tooling designer, and expert in agent-executable Implementation Plan Documents (IPDs). You are working in the `fariello/agent-workflows` repository.

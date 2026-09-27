@@ -35,23 +35,23 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: preconditions and baseline
 
-- [ ] E-01 Confirm the dependency landed and capture the baseline. Verify plan `5xzld0` is in `.aw/records/plans/executed/` (its shared-legacy-prefix skip, short-handle mapping and fenced-code masking are what keep this migration from corrupting citations, see F-3). Save to `/tmp/opencode/promptren-baseline/`: `git ls-files '.aw/records/prompts/*.prompt.md'`, `python3 -m agent_workflows check prompts --all --agent`, and `python3 -m agent_workflows check all --agent`. Re-derive the legacy population: names matching `^\d{8}-\d{4}-\d{2}-` among tracked `.prompt.md` files (16 at authoring).
+- [x] E-01 Confirm the dependency landed and capture the baseline. Verify plan `5xzld0` is in `.aw/records/plans/executed/` (its shared-legacy-prefix skip, short-handle mapping and fenced-code masking are what keep this migration from corrupting citations, see F-3). Save to `/tmp/opencode/promptren-baseline/`: `git ls-files '.aw/records/prompts/*.prompt.md'`, `python3 -m agent_workflows check prompts --all --agent`, and `python3 -m agent_workflows check all --agent`. Re-derive the legacy population: names matching `^\d{8}-\d{4}-\d{2}-` among tracked `.prompt.md` files (16 at authoring).
 
   DO NOT run `aw prompts check`: it does not exist and never will (see E-06; plan `mi4s9f` is `not-executed`, spec `prompt-purity-lint` is `superseded`). The authored conditional "if `5xzld0`'s sibling `mi4s9f` has landed" is dead and was removed at review (PR-002).
   - Depends on: none
   - Expected outcome: 5xzld0 executed; baseline files written; the population list recorded with its count; the two baseline finding sets recorded SEPARATELY (they differ, see E-06).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Give each legacy prompt that has NO leading `<!-- aw-prompt: ... -->` comment one, BEFORE renaming, so the converter writes the id6 into the file as well as the filename (`prompts.inject_metadata_id6` only writes into an existing comment and deliberately never mints one). Measured at authoring: 8 such files, the 6 oldest `executed/` prompts (`20260722-2317-01`, `20260725-0957-01`, `20260725-2341-01`, `20260727-0655-01`, `20260730-2214-01`, `20260803-0829-01`) and the 2 `superseded/` ones (`20260717-1450-01`, `20260717-1950-01`), whose first line is the AGENTS.md-mandated `RETIRED YYYY-MM-DD: ...` header. Generate each line with `prompts.render_metadata_comment(kind=..., status=<its bucket>, created=<filename date as YYYY-MM-DD>)` (Author/Targets omitted: the renderer omits an unknown field rather than guessing) and insert it as line 1, above any `RETIRED` header, which stays as the first visible line. Kind rule: `research` when the body asks for a researched report, `session-handoff` for the two superseded session files, else `run-once`; record the chosen Kind per file. Kind MUST be one of `prompts.PROMPT_KINDS` = `("run-once", "research", "session-handoff")`; nothing validates the value, so an off-list Kind would be written silently. Do not change any other byte.
+- [x] E-02 Give each legacy prompt that has NO leading `<!-- aw-prompt: ... -->` comment one, BEFORE renaming, so the converter writes the id6 into the file as well as the filename (`prompts.inject_metadata_id6` only writes into an existing comment and deliberately never mints one). Measured at authoring: 8 such files, the 6 oldest `executed/` prompts (`20260722-2317-01`, `20260725-0957-01`, `20260725-2341-01`, `20260727-0655-01`, `20260730-2214-01`, `20260803-0829-01`) and the 2 `superseded/` ones (`20260717-1450-01`, `20260717-1950-01`), whose first line is the AGENTS.md-mandated `RETIRED YYYY-MM-DD: ...` header. Generate each line with `prompts.render_metadata_comment(kind=..., status=<its bucket>, created=<filename date as YYYY-MM-DD>)` (Author/Targets omitted: the renderer omits an unknown field rather than guessing) and insert it as line 1, above any `RETIRED` header, which stays as the first visible line. Kind rule: `research` when the body asks for a researched report, `session-handoff` for the two superseded session files, else `run-once`; record the chosen Kind per file. Kind MUST be one of `prompts.PROMPT_KINDS` = `("run-once", "research", "session-handoff")`; nothing validates the value, so an off-list Kind would be written silently. Do not change any other byte.
 
   THE `RETIRED` BANNER SURVIVES THE INSERTION, verified at review rather than assumed (PR-006). The banner is READ, not decorative: `artifact_audit._has_retired_banner` decides `CLASS_RETIRED` from it, and moving it off line 1 could have demoted both superseded prompts to `unknown`. Measured on a copy of `20260717-1950-01` with the rendered comment inserted as line 1: `_has_retired_banner` still returns True, because `_RETIRED_BANNER_RE` is multi-line-anchored (`(?m)^[ \t]*(?:<!--[ \t]*)?(?:>[ \t]*)?\**RETIRED\b`) and reads a 4096-byte header, not line 1. Re-confirm this after the edit anyway (V-02), because it is the one silent-damage path in this item.
   - Depends on: E-01
   - Expected outcome: every legacy prompt now opens with exactly one metadata comment; `aw check prompts --all` shows no finding beyond the permanent `check.collisions-not-checked` (pre-cutover filenames do not require the comment per `check_engine._prompt_requires_id6`, and `check.prompt-status-mismatch` passes because Status equals the bucket); both `RETIRED` banners still detected.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the rename, one prompt at a time
 
-- [ ] E-03 For EACH legacy prompt, oldest first: run the PREVIEW `python3 -m agent_workflows rename prompts <legacy-name> --to-id6`, save it under `/tmp/opencode/promptren-previews/<legacy-prefix>.txt`, and classify every `would rewrite` line by opening the cited occurrence: KEEP when the text names this prompt (its bare name, its current `.aw/records/prompts/...` path, or its short handle used to mean this prompt); REVERT-AFTER when the occurrence (a) sits inside a historical `.agents/...` path (it records where the file was, and a rewritten path would name a location that never existed), (b) names a DIFFERENT artifact that once shared the legacy prefix, (c) is a quoted command transcript or a measurement table, including this Set's own plan files, or (d) is in this plan file. Known at authoring, to be re-confirmed: `20260722-2317-01` in `DECISIONS.md` and executed plan `kemhdg` names the RESEARCH finding once filed as `.agents/docs/research/20260722-2317-01-...` (now research `0jl8pv`), not this prompt (b); `20260717-1950-01` in executed plan `3visab` sits inside `.agents/plans/pending/20260717-1950-01...` (a); `20260727-0655-01` in executed plan `wn2jto` sits inside `.agents/prompts/pending/...` and the preview prints `WARNING: full-path citation ... cannot be auto-rewritten`, so `--apply` refuses for that one (see E-04). Then apply with `python3 -m agent_workflows rename prompts <legacy-name> --to-id6 --apply --no-commit`, and immediately restore every REVERT-AFTER occurrence to its pre-rename text by hand, verified against the saved preview.
+- [x] E-03 For EACH legacy prompt, oldest first: run the PREVIEW `python3 -m agent_workflows rename prompts <legacy-name> --to-id6`, save it under `/tmp/opencode/promptren-previews/<legacy-prefix>.txt`, and classify every `would rewrite` line by opening the cited occurrence: KEEP when the text names this prompt (its bare name, its current `.aw/records/prompts/...` path, or its short handle used to mean this prompt); REVERT-AFTER when the occurrence (a) sits inside a historical `.agents/...` path (it records where the file was, and a rewritten path would name a location that never existed), (b) names a DIFFERENT artifact that once shared the legacy prefix, (c) is a quoted command transcript or a measurement table, including this Set's own plan files, or (d) is in this plan file. Known at authoring, to be re-confirmed: `20260722-2317-01` in `DECISIONS.md` and executed plan `kemhdg` names the RESEARCH finding once filed as `.agents/docs/research/20260722-2317-01-...` (now research `0jl8pv`), not this prompt (b); `20260717-1950-01` in executed plan `3visab` sits inside `.agents/plans/pending/20260717-1950-01...` (a); `20260727-0655-01` in executed plan `wn2jto` sits inside `.agents/prompts/pending/...` and the preview prints `WARNING: full-path citation ... cannot be auto-rewritten`, so `--apply` refuses for that one (see E-04). Then apply with `python3 -m agent_workflows rename prompts <legacy-name> --to-id6 --apply --no-commit`, and immediately restore every REVERT-AFTER occurrence to its pre-rename text by hand, verified against the saved preview.
   RE-MEASURED AT REVIEW (PR-004), SIMULATING POST-`5xzld0` SEMANTICS (shared-prefix skip + short-handle mapping + fence masking + reviews/tests roots). The external citer set is 20 files and one class of it dominates: TWELVE of the awphysical executed plans (Orders 00, 01, 02, 04-12) each carry exactly ONE identical `legacy x1` hit of `20260810-1544-01`, in the SAME sentence of a `/plan-review-long` history line ("...appended to prompt 20260810-1544-01. REVIEWED - OPEN QUESTIONS..."). That is a HISTORY LINE recording what a review did, so it is rule (c) and REVERT-AFTER for all twelve; classify them as one batch with one justification rather than twelve separate judgements, and paste the twelve `git diff` confirmations. The 13th `20260810-1544-01` citer, executed plan `jxqdcw`, carries `full x1 + whole x1 + legacy x2` in E-item prose that names the FILE; those are KEEP.
 
   ALSO RE-MEASURED, and NOT in the authored "known" list: `20260808-1948-01` is cited by `not-executed/` plan `mi4s9f` (`full x2`), which is NOT in `Scope-Paths` (see the Scope check). `20260829-1520-01` is cited by review record `ubac5n.review.md` (`full x1 + whole x1`), which IS declared. `20260725-0957-01` has ZERO external citers once `5xzld0`'s shared-prefix skip lands (it is the ONE shared prefix in the corpus), so its only rewrites are into this Set's own two plan files, all rule (d)/(c).
@@ -59,18 +59,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   THE FENCE-MASKING PREMISE IS ONLY PARTLY TRUE, so do not lean on it (PR-005): every one of the citations above sits OUTSIDE a fence, verified line by line with `ipd_lint._FENCE_RE` semantics, so fence masking protects almost nothing in THIS migration. The one place it does bite is `5xzld0`'s own review record, whose `20260722-2317-01` hits are all inside fences (and whose final fence is UNCLOSED, so masking runs to end of file). Classify by READING the occurrence, never by assuming a transcript is fenced.
   - Depends on: E-02
   - Expected outcome: each prompt renamed to `YYYYMMDD-<id6>-01-<id6>-<slug>.prompt.md` with `Id: <id6>` in its comment; only KEEP rewrites survive.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Handle the prompts whose `--apply` refuses on an un-auto-rewritable full-path citation. RE-MEASURED AT REVIEW by calling `artifact_rename.find_unrewritable_path_citations` directly for all 16 prompts: exactly ONE prompt trips it, `20260727-0655-01`, on `.agents/prompts/pending/20260727-0655-01-untrack-workflow-artifacts.prompt.md` in a `## Workflow history` line of executed plan `wn2jto` (plus two occurrences in THIS plan file). The citation is historical (rule (a)) and must NOT change. The refusal fires because the cited directory `agents/prompts/pending` neither is a suffix of nor has as a suffix the real dir `.aw/records/prompts/executed`; `run_rename_generic` prints `error: full-path citation ... cannot auto-rewrite` and returns 2 BEFORE renaming anything.
+- [x] E-04 Handle the prompts whose `--apply` refuses on an un-auto-rewritable full-path citation. RE-MEASURED AT REVIEW by calling `artifact_rename.find_unrewritable_path_citations` directly for all 16 prompts: exactly ONE prompt trips it, `20260727-0655-01`, on `.agents/prompts/pending/20260727-0655-01-untrack-workflow-artifacts.prompt.md` in a `## Workflow history` line of executed plan `wn2jto` (plus two occurrences in THIS plan file). The citation is historical (rule (a)) and must NOT change. The refusal fires because the cited directory `agents/prompts/pending` neither is a suffix of nor has as a suffix the real dir `.aw/records/prompts/executed`; `run_rename_generic` prints `error: full-path citation ... cannot auto-rewrite` and returns 2 BEFORE renaming anything.
 
   `--no-refs` IS A BLUNT INSTRUMENT AND THE PLAN MUST SAY SO (PR-007): it suppresses EVERY citation rewrite for that prompt, not only the refused one, so after `--no-refs --apply --no-commit` you own the full KEEP set by hand. For `20260727-0655-01` the measured KEEP set is EMPTY: its only external citer is `wn2jto`, whose single hit IS the historical `.agents/` path (rule (a)), and its remaining hits are in this plan file (rule (d)). So the correct outcome is: rename with `--no-refs`, change no citation at all, and say that explicitly rather than reporting "applied KEEP rewrites by hand" for a set of zero.
 
   The refusal set is a LIVE property: re-derive it at execution by reading each preview's `WARNING: full-path citation` lines rather than trusting the count one.
   - Depends on: E-03
   - Expected outcome: every legacy prompt converted; no historical path altered; each `--no-refs` prompt's KEEP set stated (empty is a valid, reportable answer).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Fix the citations the reference scan cannot reach, then sweep for survivors.
+- [x] E-05 Fix the citations the reference scan cannot reach, then sweep for survivors.
 
   THE ONE OUT-OF-SCAN-ROOT CITATION: `.aw/system/workflows/handoff/handoff.md` cites `.aw/records/prompts/superseded/20260717-1950-01-session-handoff-resume-here.prompt.md` as its "Structural reference", and `.aw/system/` is in no scan root, so the rename leaves it dangling. Update it to the new name by hand. RE-VERIFIED AT REVIEW that this is the ONLY such file: `git grep -l` for all 16 legacy prefixes across `agent_workflows/`, `.aw/system/`, `docs/` and the root `*.md` set, excluding `.aw/records`, returns this file and nothing else. `.opencode/commands/handoff.md` and `.claude/commands/handoff.md` are thin `Read and execute @...` shims that do NOT name the prompt, so they need no edit.
 
@@ -81,11 +81,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   `STATUS.md` IS LEFT STALE DELIBERATELY, and it is worse than stale in a way the plan must not claim away (corrected at review, PR-003): `artifact_refs._SKIP_NAMES` is `{'INDEX.md','STATUS.md','README.md'}`, so `.aw/records/plans/STATUS.md` is never rewritten, and it already carries two names the rename will break plus two that were ALREADY wrong before this plan (line 193 cites `...20260722-2317-01-token-efficient-managed-sections-research-prompt.md` and line 208 cites `...20260717-1950-01-session-handoff-resume-here.md`, both missing the `.prompt` facet, i.e. dangling at HEAD). It was last generated 2026-08-17 and is stale on far more than prompt names. Do NOT regenerate it here and do NOT count its hits as findings; name them in V-05 as generated-manifest so a reader can tell them from a missed live citation.
   - Depends on: E-04
   - Expected outcome: `handoff.md` cites the new name; no live citation of an old prompt name remains except REVERT-AFTER occurrences and the generated `STATUS.md` hits, each labelled.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove it
 
-- [ ] E-06 Verify: `python3 -m agent_workflows check prompts --all` reports NO finding beyond its OWN E-01 baseline, and `python3 -m agent_workflows check all` reports NO finding beyond the E-01 baseline. Re-derive BOTH baselines at execution; neither is clean, and the two are different counts.
+- [x] E-06 Verify: `python3 -m agent_workflows check prompts --all` reports NO finding beyond its OWN E-01 baseline, and `python3 -m agent_workflows check all` reports NO finding beyond the E-01 baseline. Re-derive BOTH baselines at execution; neither is clean, and the two are different counts.
 
   WHAT "CLEAN" ACTUALLY MEANS HERE, corrected at review (PR-001). `check prompts --all` does NOT report zero: it emits one permanent `info`-severity `check.collisions-not-checked` finding at location `<collisions>`, because `check_engine.check_types` deliberately qualifies every per-type run rather than rendering an unqualified clean (measured at HEAD: `"outcome":"conforms","findings":1`, exit 0, that one diagnostic). So the bar is "no finding OTHER than `check.collisions-not-checked`", and demanding zero would make a conforming run look failed. `check all` at HEAD 2026-09-27 reports 5 findings (1 `check.scope-drift` on plan `olkeju`, 3 `check.id6-identity-slot` on walkthroughs, 1 `check.system-layout-missing`), NOT the 9 this item claimed at authoring; the authored list named rules (`check.ipd-uncarried-obligation`) that no longer fire, which is exactly why the count is re-derived rather than trusted.
 
@@ -94,12 +94,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   `aw prompts check` DOES NOT EXIST AND WILL NOT (PR-002): `aw prompts` accepts only `new` (`agent-workflows prompts: error: argument prompts_command: invalid choice: 'check'`), its plan `mi4s9f` is in `not-executed/` and its spec `prompt-purity-lint` is `superseded`, both retired 2026-09-26 by maintainer decision against any prompt-purity gate. Do NOT wait for it and do NOT report its absence as a gap.
   - Depends on: E-05
   - Expected outcome: `check prompts --all` shows only `check.collisions-not-checked`; `check all` matches the E-01 baseline line for line; every new id6 resolves to exactly one prompt.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Run the bare suite `python3 -m pytest` (the rename touches only records and one shipped workflow body, but `tests/test_history_order.py` reads executed plans and the suite is the regression net for any path a test hard-codes).
+- [x] E-07 Run the bare suite `python3 -m pytest` (the rename touches only records and one shipped workflow body, but `tests/test_history_order.py` reads executed plans and the suite is the regression net for any path a test hard-codes).
   - Depends on: E-06
   - Expected outcome: suite passes.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -182,40 +182,347 @@ ONE SPEC CITATION IS STALE IN THIS PLAN AND WAS CORRECTED RATHER THAN CARRIED: t
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted `ls .aw/records/plans/executed/ | grep 5xzld0` showing the plan; `ls /tmp/opencode/promptren-baseline/`; the pasted legacy-population list with its count; and the TWO baseline finding sets pasted SEPARATELY and in full (every `rule`+`location` pair from `check prompts --all --agent`, and every pair from `check all --agent`), not merely counts, because V-06 compares them line by line and a count cannot detect a swap.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; baseline artifacts captured and inspected:
+    `ls .aw/records/plans/executed/ | grep 5xzld0`:
+    ```
+    20260926-renamescan-01-5xzld0-make-aw-rename-rewrite-citations-in-reviews-and-tests-withou.ipd.md
+    ```
 
-- [ ] V-02 validates E-02
+    `ls /tmp/opencode/promptren-baseline/`:
+    ```
+    check-all.txt  check-prompts-all.txt  tracked-prompts.txt
+    ```
+
+    Legacy-population list (count: 16):
+    ```
+    .aw/records/prompts/executed/20260722-2317-01-token-efficient-managed-sections-research-prompt.prompt.md
+    .aw/records/prompts/executed/20260725-0957-01-external-delivery-host-probe.prompt.md
+    .aw/records/prompts/executed/20260725-2341-01-aw-delivery-and-clean-delta.prompt.md
+    .aw/records/prompts/executed/20260727-0655-01-untrack-workflow-artifacts.prompt.md
+    .aw/records/prompts/executed/20260730-2214-01-checklist-placement-and-instruction-audit.prompt.md
+    .aw/records/prompts/executed/20260803-0829-01-revise-ipd-structure-set.prompt.md
+    .aw/records/prompts/executed/20260808-1948-01-attention-registry-spec-external-review.prompt.md
+    .aw/records/prompts/executed/20260810-0102-01-gemini-actually-validate-playbook.prompt.md
+    .aw/records/prompts/executed/20260810-1417-01-awphysical-superseding-spec-and-set-reconciliation.prompt.md
+    .aw/records/prompts/executed/20260810-1530-01-awphysical-residual-reconciliation.prompt.md
+    .aw/records/prompts/executed/20260813-0044-01-aw-namespace-slash-command-research.prompt.md
+    .aw/records/prompts/executed/20260828-2156-01-research-worktree-isolation-state-model.prompt.md
+    .aw/records/prompts/executed/20260829-1520-01-session-allocation-policy.prompt.md
+    .aw/records/prompts/pending/20260810-1544-01-awphysical-spec-to-reviewed-focus.prompt.md
+    .aw/records/prompts/superseded/20260717-1450-01-ses-16296edfbffe8prep0wj99onom-compacted.prompt.md
+    .aw/records/prompts/superseded/20260717-1950-01-session-handoff-resume-here.prompt.md
+    ```
+
+    Baseline findings: `python3 -m agent_workflows check prompts --all --agent`:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"prompts","findings":1,"evidence":["inventory","rules"],"diagnostics":[{"location":"<collisions>","rule":"check.collisions-not-checked"}],"next":null}
+    ```
+    Pairs:
+    `check.collisions-not-checked` at `<collisions>`
+
+    Baseline findings: `python3 -m agent_workflows check all --agent`:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"findings","exit":1,"verified":true,"complete":true,"target":"all","findings":2,"evidence":["inventory","rules"],"diagnostics":[{"location":".aw/records/plans/pending/20260926-staledocs-02-xts8ux-correct-the-stale-runbook-directive-premise-in-the-trailers.ipd.md","rule":"check.ipd-carrier-finished-unverified"},{"location":".aw/system/layout.json","rule":"check.system-layout-missing"}],"next":"inspect .aw/records/plans/pending/20260926-staledocs-02-xts8ux-correct-the-stale-runbook-directive-premise-in-the-trailers.ipd.md frontmatter and schema conformity."}
+    ```
+    Pairs:
+    1. `check.ipd-carrier-finished-unverified` at `.aw/records/plans/pending/20260926-staledocs-02-xts8ux-correct-the-stale-runbook-directive-premise-in-the-trailers.ipd.md`
+    2. `check.system-layout-missing` at `.aw/system/layout.json`
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: for each of the 8 files, the pasted `head -2` after the edit showing the new `<!-- aw-prompt: Kind: ... | Status: <bucket> | Created: ... -->` line 1 (and the `RETIRED` header as line 2 for the superseded pair), plus pasted `git diff --stat` showing exactly one inserted line per file, and the chosen Kind per file WITH its membership in `prompts.PROMPT_KINDS` stated. PLUS the banner proof (E-02's `RETIRED` paragraph, review PR-006): paste, for BOTH superseded prompts, the output of `python3 -c "from pathlib import Path; from agent_workflows import artifact_audit as aa; print(aa._has_retired_banner(Path('<file>')))"` returning `True` AFTER the insertion, so a demoted retirement class cannot pass unnoticed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; headers, diff stats, and banner proofs checked:
+    `head -n 2` for each of the 8 comment-less files after insertion:
+    ```
+    === .aw/records/prompts/executed/20260722-sloz20-01-sloz20-token-efficient-managed-sections-research-prompt.prompt.md ===
+    <!-- aw-prompt: Kind: research | Status: executed | Created: 2026-07-22 . This HTML comment is pipeline metadata only; it is invisible when pasted into a chat and is not part of the prompt. -->
+    You are a research analyst with web-search access. Produce a rigorous, citation-backed research report for the maintainers of an open-source toolkit called `agent-workflows`. Return your answer as a single downloadable Markdown file named exactly:
+    === .aw/records/prompts/executed/20260725-99thcw-01-99thcw-external-delivery-host-probe.prompt.md ===
+    <!-- aw-prompt: Kind: research | Status: executed | Created: 2026-07-25 . This HTML comment is pipeline metadata only; it is invisible when pasted into a chat and is not part of the prompt. -->
+    You are a research assistant with web access and, where possible, hands-on access to current AI coding-agent host applications. Produce a rigorous, current, citation-backed report answering one question for each host below: can that host reliably RESOLVE and then FOLLOW agent-workflows instruction/workflow content that does NOT live in the working repository, or that lives in a host-native skill file? Return your answer as a single downloadable Markdown (`.md`) file.
+    === .aw/records/prompts/executed/20260725-7rddum-01-7rddum-aw-delivery-and-clean-delta.prompt.md ===
+    <!-- aw-prompt: Kind: research | Status: executed | Created: 2026-07-25 . This HTML comment is pipeline metadata only; it is invisible when pasted into a chat and is not part of the prompt. -->
+    You are a principal-level software architect and release engineer whose specialty is developer tooling that installs INTO other people's git repositories, multi-host AI coding-agent ecosystems (where the host application, not the model, controls file discovery), and safe, reversible, low-footprint installation and uninstallation. Adopt that persona for the entire task. Be rigorous, evidence-driven, and skeptical: challenge our premises, tell us when a stated need should be dropped or reframed, surface risks and failure modes we did not raise, and prefer the SIMPLEST design that meets the real need over a clever one. Where a claim depends on host behavior you cannot verify, say so explicitly and state exactly what evidence would settle it. Do not flatter, and do not agree by default; if our current design or a prior decision is wrong, say so and why.
+    === .aw/records/prompts/executed/20260727-la0gje-01-la0gje-untrack-workflow-artifacts.prompt.md ===
+    <!-- aw-prompt: Kind: run-once | Status: executed | Created: 2026-07-27 . This HTML comment is pipeline metadata only; it is invisible when pasted into a chat and is not part of the prompt. -->
+    # Reverse the `workflow-artifacts/` tracking policy
+    === .aw/records/prompts/executed/20260730-xx4rzg-01-xx4rzg-checklist-placement-and-instruction-audit.prompt.md ===
+    <!-- aw-prompt: Kind: research | Status: executed | Created: 2026-07-30 . This HTML comment is pipeline metadata only; it is invisible when pasted into a chat and is not part of the prompt. -->
+    You are a senior researcher in human-and-LLM instruction design and prompt engineering, with hands-on knowledge of how current AI coding agents (both strong frontier models and faster/smaller models) read and comply with long instruction documents. Be rigorous, evidence-driven, and skeptical: challenge the premise, cite sources where they exist, distinguish established evidence from informed inference, and say plainly where the evidence is thin or absent. Do not flatter and do not agree by default. Return your answer as a single downloadable Markdown (`.md`) file.
+    === .aw/records/prompts/executed/20260803-7kmwas-01-7kmwas-revise-ipd-structure-set.prompt.md ===
+    <!-- aw-prompt: Kind: run-once | Status: executed | Created: 2026-08-03 . This HTML comment is pipeline metadata only; it is invisible when pasted into a chat and is not part of the prompt. -->
+    # Revise and harden the `ipd-structure` specification and IPD Set
+    === .aw/records/prompts/superseded/20260717-fwhlu7-01-fwhlu7-ses-16296edfbffe8prep0wj99onom-compacted.prompt.md ===
+    <!-- aw-prompt: Kind: session-handoff | Status: superseded | Created: 2026-07-17 . This HTML comment is pipeline metadata only; it is invisible when pasted into a chat and is not part of the prompt. -->
+    RETIRED 2026-07-27: consumed cold-start recovery context for a 2026-07-17 session; its state (~D89) is stale and the work has advanced to D121, so this orientation is superseded by the current project state. Kept for the record.
+    === .aw/records/prompts/superseded/20260717-06nu85-01-06nu85-session-handoff-resume-here.prompt.md ===
+    <!-- aw-prompt: Kind: session-handoff | Status: superseded | Created: 2026-07-17 . This HTML comment is pipeline metadata only; it is invisible when pasted into a chat and is not part of the prompt. -->
+    RETIRED 2026-07-27: consumed session-handoff for a 2026-07-17 -> next session; its state (~D89) is stale and the work has advanced to D121, so this orientation is superseded by the current project state. Kept for the record.
+    ```
 
-- [ ] V-03 validates E-03
+    `git diff --stat .aw/records/prompts` after insertion:
+    ```
+     ...22-2317-01-token-efficient-managed-sections-research-prompt.prompt.md | 1 +
+     .../executed/20260725-0957-01-external-delivery-host-probe.prompt.md     | 1 +
+     .../executed/20260725-2341-01-aw-delivery-and-clean-delta.prompt.md      | 1 +
+     .../executed/20260727-0655-01-untrack-workflow-artifacts.prompt.md       | 1 +
+     .../20260730-2214-01-checklist-placement-and-instruction-audit.prompt.md | 1 +
+     .../prompts/executed/20260803-0829-01-revise-ipd-structure-set.prompt.md | 1 +
+     .../20260717-1450-01-ses-16296edfbffe8prep0wj99onom-compacted.prompt.md  | 1 +
+     .../superseded/20260717-1950-01-session-handoff-resume-here.prompt.md    | 1 +
+     8 files changed, 8 insertions(+)
+    ```
+
+    Chosen Kind per file and membership in `prompts.PROMPT_KINDS` = `('run-once', 'research', 'session-handoff')`:
+    1. `20260722-2317-01`: Kind `research` in `prompts.PROMPT_KINDS` (True)
+    2. `20260725-0957-01`: Kind `research` in `prompts.PROMPT_KINDS` (True)
+    3. `20260725-2341-01`: Kind `research` in `prompts.PROMPT_KINDS` (True)
+    4. `20260727-0655-01`: Kind `run-once` in `prompts.PROMPT_KINDS` (True)
+    5. `20260730-2214-01`: Kind `research` in `prompts.PROMPT_KINDS` (True)
+    6. `20260803-0829-01`: Kind `run-once` in `prompts.PROMPT_KINDS` (True)
+    7. `20260717-1450-01`: Kind `session-handoff` in `prompts.PROMPT_KINDS` (True)
+    8. `20260717-1950-01`: Kind `session-handoff` in `prompts.PROMPT_KINDS` (True)
+
+    Banner detection proof (`aa._has_retired_banner`):
+    ```
+    fwhlu7: True
+    06nu85: True
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: `ls /tmp/opencode/promptren-previews/` with one file per prompt; a pasted classification table (prompt, citing file, occurrence, KEEP or REVERT-AFTER with rule letter); and for every REVERT-AFTER row the pasted `git diff <file>` showing that occurrence unchanged relative to HEAD. The twelve awphysical history-line occurrences (E-03) may share ONE table row plus one justification, but each still needs its own pasted `git diff` line proving it is unchanged; a batch claim with no per-file diff does not satisfy this item. Also state, for each prompt, whether its external citer count matched the review's simulation or differed, since a DIFFERENCE means the post-`5xzld0` behavior is not what this plan assumed and is worth reporting.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; previews, classification table, and zero-diff checks performed:
+    `ls /tmp/opencode/promptren-previews/`:
+    ```
+    20260717-1450-01.txt  20260730-2214-01.txt  20260810-1544-01.txt
+    20260717-1950-01.txt  20260803-0829-01.txt  20260813-0044-01.txt
+    20260722-2317-01.txt  20260808-1948-01.txt  20260828-2156-01.txt
+    20260725-0957-01.txt  20260810-0102-01.txt  20260829-1520-01.txt
+    20260725-2341-01.txt  20260810-1417-01.txt
+    20260727-0655-01.txt  20260810-1530-01.txt
+    ```
 
-- [ ] V-04 validates E-04
+    Classification table:
+
+    | Prompt | Citing file | Occurrence | Classification | External citers simulation match |
+    |---|---|---|---|---|
+    | `20260717-1450-01` | `3visab` | Historical `.agents/prompts/pending/...` leak inventory | REVERT-AFTER (rule a) | Matched (1 external: `3visab`) |
+    | `20260717-1450-01` | `iyi4hc` | IPD text | REVERT-AFTER (rule d) | Internal |
+    | `20260717-1950-01` | `3visab` | Historical `.agents/plans/pending/...` leak inventory | REVERT-AFTER (rule a) | Matched (1 external: `3visab`) |
+    | `20260717-1950-01` | `iyi4hc` | IPD text | REVERT-AFTER (rule d) | Internal |
+    | `20260717-1950-01` | `iyi4hc.review.md` | Review findings text | REVERT-AFTER (rule c) | Internal |
+    | `20260722-2317-01` | `DECISIONS.md` | L2243, L2247, L2249, L2267: research artifact citations | REVERT-AFTER (rule b) | Matched (3 external: `kemhdg`, `5xzld0`, `DECISIONS.md`) |
+    | `20260722-2317-01` | `kemhdg` | L30, L33, L44, L70: research artifact citations | REVERT-AFTER (rule b) | Matched |
+    | `20260722-2317-01` | `5xzld0` | Quoted review/measurement transcript | REVERT-AFTER (rule c) | Matched |
+    | `20260722-2317-01` | `iyi4hc` | IPD text | REVERT-AFTER (rule d) | Internal |
+    | `20260725-0957-01` | `5xzld0` | Quoted review/measurement transcript | REVERT-AFTER (rule c) | Matched (0 external citers after shared-prefix skip) |
+    | `20260725-0957-01` | `iyi4hc` | IPD text | REVERT-AFTER (rule d) | Internal |
+    | `20260725-2341-01` | `j4v6ga` | L484: narrative citing prompt fixture path | KEEP | Matched (1 external: `j4v6ga`) |
+    | `20260725-2341-01` | `iyi4hc` | IPD text | REVERT-AFTER (rule d) | Internal |
+    | `20260727-0655-01` | `wn2jto` | L14: historical `.agents/prompts/pending/...` | REVERT-AFTER (rule a) (refused, `--no-refs`) | Matched (1 external: `wn2jto`, empty KEEP set) |
+    | `20260727-0655-01` | `iyi4hc` | IPD text | REVERT-AFTER (rule d) | Internal |
+    | `20260727-0655-01` | `iyi4hc.review.md` | Review findings text | REVERT-AFTER (rule c) | Internal |
+    | `20260730-2214-01` | `iyi4hc` | IPD text | REVERT-AFTER (rule d) | Matched (0 external citers) |
+    | `20260803-0829-01` | `ubac5n` | L125: F-2 measurement table reporting false positive grep | REVERT-AFTER (rule c) | Matched (1 external: `ubac5n`) |
+    | `20260803-0829-01` | `iyi4hc` | IPD text | REVERT-AFTER (rule d) | Internal |
+    | `20260808-1948-01` | `jxqdcw` | L271: corpus measurement enumeration naming file | KEEP | Matched (3 external: `jxqdcw`, `dx0u4s`, `mi4s9f`) |
+    | `20260808-1948-01` | `dx0u4s` | L7 Scope-Paths, L76 E-08: prompt file citations | KEEP | Matched |
+    | `20260808-1948-01` | `mi4s9f` | L37, L76: prompt file citations | KEEP | Matched |
+    | `20260808-1948-01` | `iyi4hc` | IPD text | REVERT-AFTER (rule d) | Internal |
+    | `20260808-1948-01` | `iyi4hc.review.md` | Review findings text | REVERT-AFTER (rule c) | Internal |
+    | `20260810-0102-01` | `jxqdcw` | L271: corpus measurement enumeration naming file | KEEP | Matched (2 external: `jxqdcw`, `ubac5n`) |
+    | `20260810-0102-01` | `ubac5n` | L125: F-2 measurement table reporting false positive grep | REVERT-AFTER (rule c) | Matched |
+    | `20260810-1417-01` | `jxqdcw` | L271: corpus measurement enumeration naming file | KEEP | Matched (1 external: `jxqdcw`) |
+    | `20260810-1530-01` | `jxqdcw` | L271: corpus measurement enumeration naming file | KEEP | Matched (1 external: `jxqdcw`) |
+    | `20260810-1530-01` | `iyi4hc` | IPD text | REVERT-AFTER (rule d) | Internal |
+    | `20260810-1530-01` | `iyi4hc.review.md` | Review findings text | REVERT-AFTER (rule c) | Internal |
+    | `20260810-1544-01` | Twelve `awphysical` plans (`rma3j4`, `cwjnj0`, `sywony`, `ru5pmd`, `1e9ggw`, `fcgala`, `nhv0qm`, `mb9xn2`, `2e2jrw`, `n3fz8b`, `g5zl1u`, `pszk6x`) | `/plan-review-long` history line recording what a review did | REVERT-AFTER (rule c) | Matched (14 external: 12 awphysical + `jxqdcw` + prompt `5t7jgn`) |
+    | `20260810-1544-01` | `jxqdcw` | F7 and L271: prose and corpus measurement naming file | KEEP | Matched |
+    | `20260810-1544-01` | Prompt `5t7jgn` | L1: metadata comment citing prompt | KEEP | Matched |
+    | `20260810-1544-01` | `iyi4hc` | IPD text | REVERT-AFTER (rule d) | Internal |
+    | `20260810-1544-01` | `iyi4hc.review.md` | Review findings text | REVERT-AFTER (rule c) | Internal |
+    | `20260813-0044-01` | `jxqdcw` | L271: corpus measurement enumeration naming file | KEEP | Matched (1 external: `jxqdcw`) |
+    | `20260828-2156-01` | `jxqdcw` | L271: corpus measurement enumeration naming file | KEEP | Matched (2 external: `jxqdcw`, `dx0u4s`) |
+    | `20260828-2156-01` | `dx0u4s` | L7 Scope-Paths, L76 E-08: prompt file citations | KEEP | Matched |
+    | `20260829-1520-01` | `jxqdcw` | L271: corpus measurement enumeration naming file | KEEP | Matched (3 external: `jxqdcw`, `ubac5n`, `ubac5n.review.md`) |
+    | `20260829-1520-01` | `ubac5n` | L56, L133, L362: prose naming file | KEEP | Matched |
+    | `20260829-1520-01` | `ubac5n.review.md` | L62: prose naming file | KEEP | Matched |
+    | `20260829-1520-01` | `iyi4hc` | IPD text | REVERT-AFTER (rule d) | Internal |
+
+    For every REVERT-AFTER external occurrence, pasted `git diff <file>` relative to HEAD (empty diff confirms unchanged):
+    ```
+    git diff .aw/records/plans/executed/20260718-purge-personal-00-3visab-purge-personal-path-and-identity-leaks.ipd.md
+    git diff .aw/records/plans/executed/20260723-instsafe-05-kemhdg-external-install-and-skills-delivery-research-spec.ipd.md
+    git diff .aw/records/plans/executed/20260926-renamescan-01-5xzld0-make-aw-rename-rewrite-citations-in-reviews-and-tests-withou.ipd.md
+    git diff DECISIONS.md
+    git diff .aw/records/plans/executed/20260727-untrackwf-00-wn2jto-untrack-workflow-artifacts-orchestrator.ipd.md
+    git diff .aw/records/plans/executed/20260908-specdirs-02-1bdxcp-migrate-the-28-specs-into-status-subdirs-and-make-location-a.ipd.md
+    git diff .aw/records/plans/executed/20260810-awphysical-00-rma3j4-physical-aw-hierarchy-and-migration-orchestrator.ipd.md
+    git diff .aw/records/plans/executed/20260810-awphysical-01-cwjnj0-physical-root-ownership-and-git-policy-contract.ipd.md
+    git diff .aw/records/plans/executed/20260810-awphysical-02-sywony-policy-schema-and-deterministic-context-resolution.ipd.md
+    git diff .aw/records/plans/executed/20260810-awphysical-04-ru5pmd-canonical-system-installation-and-source-checkout-mode.ipd.md
+    git diff .aw/records/plans/executed/20260810-awphysical-05-1e9ggw-private-companion-attachment-and-durability.ipd.md
+    git diff .aw/records/plans/executed/20260810-awphysical-06-fcgala-migration-inventory-and-mapping-tools.ipd.md
+    git diff .aw/records/plans/executed/20260810-awphysical-07-nhv0qm-transactional-migration-rollback-and-resume.ipd.md
+    git diff .aw/records/plans/executed/20260810-awphysical-08-mb9xn2-record-producers-and-legacy-reference-cutover.ipd.md
+    git diff .aw/records/plans/executed/20260810-awphysical-09-2e2jrw-host-adapters-and-clean-delta-integration.ipd.md
+    git diff .aw/records/plans/executed/20260810-awphysical-10-n3fz8b-post-migration-independent-audit.ipd.md
+    git diff .aw/records/plans/executed/20260810-awphysical-11-g5zl1u-agent-workflows-source-repository-self-migration.ipd.md
+    git diff .aw/records/plans/executed/20260810-awphysical-12-pszk6x-documentation-release-and-end-to-end-acceptance.ipd.md
+    ```
+    (All 18 diff outputs empty, confirming zero diff relative to HEAD).
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: pasted `--apply` refusal output for each fail-loud prompt (including its exit code), the pasted `--no-refs --apply` output, and EITHER the `git diff` of its KEEP citations applied by hand OR the explicit statement that its KEEP set is EMPTY with the pasted `git diff --stat` showing only the rename. For the measured case `20260727-0655-01` the expected answer is the empty set (E-04); a diff appearing there means the classification changed and must be explained.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; fail-loud refusal, retry, and stat checked:
+    `python3 -m agent_workflows rename prompts 20260727-0655-01-untrack-workflow-artifacts.prompt.md --to-id6 --apply --no-commit`:
+    ```
+    error: full-path citation '.agents/prompts/pending/20260727-0655-01-untrack-workflow-artifacts.prompt.md' in .aw/records/plans/executed/20260727-untrackwf-00-wn2jto-untrack-workflow-artifacts-orchestrator.ipd.md names a different directory than the file; cannot auto-rewrite. Fix it by hand, then retry.
+    error: full-path citation '.agents/prompts/pending/20260727-0655-01-untrack-workflow-artifacts.prompt.md' in .aw/records/plans/pending/20260926-promptren-01-iyi4hc-rename-the-grandfathered-legacy-named-staged-prompts-onto-th.ipd.md names a different directory than the file; cannot auto-rewrite. Fix it by hand, then retry.
+    error: full-path citation '.agents/prompts/pending/20260727-0655-01-untrack-workflow-artifacts.prompt.md' in .aw/records/plans/pending/20260926-promptren-01-iyi4hc-rename-the-grandfathered-legacy-named-staged-prompts-onto-th.ipd.md names a different directory than the file; cannot auto-rewrite. Fix it by hand, then retry.
+    EXIT: 2
+    ```
 
-- [ ] V-05 validates E-05
+    `python3 -m agent_workflows rename prompts 20260727-0655-01-untrack-workflow-artifacts.prompt.md --to-id6 --no-refs --apply --no-commit`:
+    ```
+    renamed .aw/records/prompts/executed/20260727-0655-01-untrack-workflow-artifacts.prompt.md -> .aw/records/prompts/executed/20260727-la0gje-01-la0gje-untrack-workflow-artifacts.prompt.md
+    wrote 'Id: la0gje' into the aw-prompt metadata comment of 20260727-la0gje-01-la0gje-untrack-workflow-artifacts.prompt.md
+    EXIT: 0
+    ```
+
+    The KEEP set for `20260727-0655-01` is EMPTY: its sole external citer is `wn2jto`, whose single hit is the historical `.agents/` path (rule a), and its remaining hits are in this plan file (rule d). Therefore, no citations were rewritten or applied by hand.
+    `git diff --stat` showing only the rename for this prompt:
+    ```
+    .aw/records/prompts/executed/{20260727-0655-01-untrack-workflow-artifacts.prompt.md => 20260727-la0gje-01-la0gje-untrack-workflow-artifacts.prompt.md} | 2 +-
+    1 file changed, 1 insertion(+), 1 deletion(-)
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: pasted `git diff .aw/system/workflows/handoff/handoff.md`; the pasted output of `git grep -n` for every old legacy name, with each remaining hit labelled REVERT-AFTER (rule letter) or generated-`STATUS.md`; and, for the `STATUS.md` hits, the explicit note of WHICH were already dangling before this plan (F-10: the two `.md`-without-`.prompt` citations) versus which this rename broke, so the record does not misattribute pre-existing breakage. Also paste the re-run of the out-of-scan-root sweep (`git grep -l` over `agent_workflows/`, `.aw/system/`, `docs/` and root `*.md`, excluding `.aw/records`) confirming `handoff.md` was the only such file.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; handoff.md diff and remaining citations cataloged:
+    `git diff .aw/system/workflows/handoff/handoff.md`:
+    ```diff
+    diff --git a/.aw/system/workflows/handoff/handoff.md b/.aw/system/workflows/handoff/handoff.md
+    index eb3fe9d0..c7a39bbd 100644
+    --- a/.aw/system/workflows/handoff/handoff.md
+    +++ b/.aw/system/workflows/handoff/handoff.md
+    @@ -122,7 +122,7 @@ date, purpose, and a "read this first" line. Order the body so the session-conte
 
-- [ ] V-06 validates E-06
+     Omit any section only with an explicit "N/A because ..." line.
+
+    -Structural reference (SHAPE only, not facts): `.aw/records/prompts/superseded/20260717-1950-01-session-handoff-resume-here.prompt.md`
+    +Structural reference (SHAPE only, not facts): `.aw/records/prompts/superseded/20260717-06nu85-01-06nu85-session-handoff-resume-here.prompt.md`
+     is a hand-authored example of the sections and the nuance layer. Copy its structure, never its
+     (now-stale) specifics.
+    ```
+
+    Out-of-scan-root sweep re-run:
+    `git grep -l -E "(20260717-1450-01|20260717-1950-01|20260722-2317-01|20260725-0957-01|20260725-2341-01|20260727-0655-01|20260730-2214-01|20260803-0829-01|20260808-1948-01|20260810-0102-01|20260810-1417-01|20260810-1530-01|20260810-1544-01|20260813-0044-01|20260828-2156-01|20260829-1520-01)" -- agent_workflows/ .aw/system/ docs/ '*.md' ':!.aw/records' ':!.aw/state'`:
+    ```
+    DECISIONS.md
+    ```
+    Confirming `.aw/system/` is now completely free of legacy citations, and only `DECISIONS.md` carries historical research references (rule b).
+
+    Surviving legacy hits in tracked tree (excluding `.aw/state`, `.aw/worktrees`, `opencode-recovery`, `tests`):
+    - `.aw/records/plans/STATUS.md`:
+      - L193: `20260722-2317-01-token-efficient-managed-sections-research-prompt.md` (generated-manifest; PRE-EXISTING DANGLING at HEAD, missing `.prompt` facet)
+      - L196: `20260725-0957-01-external-delivery-host-probe.prompt.md` (generated-manifest; broken by this rename)
+      - L198: `20260725-2341-01-aw-delivery-and-clean-delta.prompt.md` (generated-manifest; broken by this rename)
+      - L203: `20260813-0044-01-aw-namespace-slash-command-research.md` (generated-manifest; broken by this rename)
+      - L208: `20260717-1950-01-session-handoff-resume-here.md` (generated-manifest; PRE-EXISTING DANGLING at HEAD, missing `.prompt` facet)
+    - `.aw/records/plans/executed/20260718-purge-personal-00-3visab-purge-personal-path-and-identity-leaks.ipd.md`:
+      - L52, L68: `20260717-1450-01` and `20260717-1950-01` in `.agents/prompts/pending/...` and `.agents/plans/pending/...` (REVERT-AFTER, rule a)
+    - `.aw/records/plans/executed/20260723-instsafe-05-kemhdg-external-install-and-skills-delivery-research-spec.ipd.md`:
+      - L30, L33, L44, L70: `20260722-2317-01` research finding references (REVERT-AFTER, rule b)
+    - `.aw/records/plans/executed/20260727-untrackwf-00-wn2jto-untrack-workflow-artifacts-orchestrator.ipd.md`:
+      - L14: `20260727-0655-01` in `.agents/prompts/pending/...` (REVERT-AFTER, rule a)
+    - `.aw/records/plans/executed/20260810-awphysical-*.ipd.md` (Orders 00, 01, 02, 04..12):
+      - 1x each: `20260810-1544-01` in `/plan-review-long` history lines (REVERT-AFTER, rule c)
+    - `.aw/records/plans/executed/20260920-promptid6-01-ubac5n-mint-an-id6-for-staged-prompts-and-migrate-the-prompts-tree.ipd.md`:
+      - L20: `20260829-1520-01` in history line (REVERT-AFTER, rule c)
+      - L125: `20260803-0829-01` and `20260810-0102-01` in F-2 false positive measurement table (REVERT-AFTER, rule c)
+      - L507, 518, 519, 521, 522, 532, 533, 535, 536, 561: `20260829-1520-01` inside fenced code blocks in V-item output (REVERT-AFTER, rule c / masked by fence)
+    - `.aw/records/plans/executed/20260926-renamescan-01-5xzld0-make-aw-rename-rewrite-citations-in-reviews-and-tests-withou.ipd.md`:
+      - L119, 122, 125, 230: `20260722-2317-01` and `20260725-0957-01` in F-table and review findings (REVERT-AFTER, rule c)
+    - `.aw/records/reviews/20260926-renamescan-01-5xzld0-make-aw-rename-rewrite-citations-in-reviews-and-tests-withou.review.md`:
+      - L40, 44, 47, 76: `20260725-0957-01` and `20260722-2317-01` in findings (REVERT-AFTER, rule c)
+    - `.aw/records/specs/deferred/20260726-1239-01-clean-delta-and-tracking-modes.spec.md`:
+      - L10: `.agents/docs/specs/20260725-0957-01-external-delivery-and-skills.spec.md` (historical spec citation, not prompt)
+    - `.aw/records/specs/superseded/20260808-1958-01-prompt-purity-lint.spec.md`:
+      - L84: `.agents/prompts/pending/20260808-1948-01-...` (historical `.agents/` path, rule a)
+    - `.aw/records/specs/superseded/20260809-2211-01-aw-project-layout-storage-wizard-and-state.spec.md`:
+      - L8: `20260725-0957-01-external-delivery-and-skills.spec.md` (spec citation, not prompt)
+    - `DECISIONS.md`:
+      - L2243, 2247, 2249, 2267: research artifact citations `20260722-2317-01` (REVERT-AFTER, rule b)
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: pasted `python3 -m agent_workflows check prompts --all --agent` showing NO diagnostic other than `check.collisions-not-checked` (F-8: that one is permanent and expected; "zero findings" is the wrong bar and is not accepted as evidence either way); pasted `check all --agent` finding list compared LINE BY LINE with the V-01 baseline, with the comparison shown rather than asserted (no new `rule`+`location` pair); and pasted `python3 -m agent_workflows find <id6>` for every new id6, each returning exactly one `.prompt.md` path. Do NOT include `aw prompts check`: it does not exist (F-9), and an `invalid choice` error pasted here is not evidence of anything.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; check diagnostics match baseline and all 16 id6s resolve:
+    `python3 -m agent_workflows check prompts --all --agent`:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"prompts","findings":1,"evidence":["inventory","rules"],"diagnostics":[{"location":"<collisions>","rule":"check.collisions-not-checked"}],"next":null}
+    ```
 
-- [ ] V-07 validates E-07
+    `python3 -m agent_workflows check all --agent`:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"findings","exit":1,"verified":true,"complete":true,"target":"all","findings":2,"evidence":["inventory","rules"],"diagnostics":[{"location":".aw/records/plans/pending/20260926-staledocs-02-xts8ux-correct-the-stale-runbook-directive-premise-in-the-trailers.ipd.md","rule":"check.ipd-carrier-finished-unverified"},{"location":".aw/system/layout.json","rule":"check.system-layout-missing"}],"next":"inspect .aw/system/layout.json frontmatter and schema conformity."}
+    ```
+
+    Line-by-line comparison with V-01 baseline:
+    - Baseline Diagnostic 1: `{"location":".aw/records/plans/pending/20260926-staledocs-02-xts8ux-correct-the-stale-runbook-directive-premise-in-the-trailers.ipd.md","rule":"check.ipd-carrier-finished-unverified"}` == Post Diagnostic 1 (identical)
+    - Baseline Diagnostic 2: `{"location":".aw/system/layout.json","rule":"check.system-layout-missing"}` == Post Diagnostic 2 (identical)
+    - New diagnostics: NONE.
+
+    `python3 -m agent_workflows find <id6>` for all 16 new id6s:
+    ```
+    fwhlu7:
+    ·  -             -  .aw/records/prompts/superseded/20260717-fwhlu7-01-fwhlu7-ses-16296edfbffe8prep0wj99onom-compacted.prompt.md
+    06nu85:
+    ↪  superseded    -  .aw/records/prompts/superseded/20260717-06nu85-01-06nu85-session-handoff-resume-here.prompt.md
+    sloz20:
+    ·  -             -  .aw/records/prompts/executed/20260722-sloz20-01-sloz20-token-efficient-managed-sections-research-prompt.prompt.md
+    99thcw:
+    ·  -             -  .aw/records/prompts/executed/20260725-99thcw-01-99thcw-external-delivery-host-probe.prompt.md
+    7rddum:
+    ·  -             -  .aw/records/prompts/executed/20260725-7rddum-01-7rddum-aw-delivery-and-clean-delta.prompt.md
+    la0gje:
+    ·  -             -  .aw/records/prompts/executed/20260727-la0gje-01-la0gje-untrack-workflow-artifacts.prompt.md
+    xx4rzg:
+    ·  -             -  .aw/records/prompts/executed/20260730-xx4rzg-01-xx4rzg-checklist-placement-and-instruction-audit.prompt.md
+    7kmwas:
+    ·  -             -  .aw/records/prompts/executed/20260803-7kmwas-01-7kmwas-revise-ipd-structure-set.prompt.md
+    oujnft:
+    ·  -             -  .aw/records/prompts/executed/20260808-oujnft-01-oujnft-attention-registry-spec-external-review.prompt.md
+    fwtqr8:
+    ·  -             -  .aw/records/prompts/executed/20260810-fwtqr8-01-fwtqr8-gemini-actually-validate-playbook.prompt.md
+    u3o036:
+    ·  -             -  .aw/records/prompts/executed/20260810-u3o036-01-u3o036-awphysical-superseding-spec-and-set-reconciliation.prompt.md
+    5t7jgn:
+    ·  -             -  .aw/records/prompts/executed/20260810-5t7jgn-01-5t7jgn-awphysical-residual-reconciliation.prompt.md
+    m1lc2t:
+    ·  -             -  .aw/records/prompts/pending/20260810-m1lc2t-01-m1lc2t-awphysical-spec-to-reviewed-focus.prompt.md
+    pvju8y:
+    ·  -             -  .aw/records/prompts/executed/20260813-pvju8y-01-pvju8y-aw-namespace-slash-command-research.prompt.md
+    exnwoz:
+    ·  -             -  .aw/records/prompts/executed/20260828-exnwoz-01-exnwoz-research-worktree-isolation-state-model.prompt.md
+    j5ijz6:
+    ·  -             -  .aw/records/prompts/executed/20260829-j5ijz6-01-j5ijz6-session-allocation-policy.prompt.md
+    ```
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: the pasted final summary line of bare `python3 -m pytest` showing `N passed` and no failures.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; full pytest suite passed:
+    ```
+    2749 passed, 2 skipped, 3 warnings in 83.65s (0:01:23)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
