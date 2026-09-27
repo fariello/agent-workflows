@@ -635,9 +635,10 @@ def run_set(args) -> int:
     auth = A.TRANSITION_AUTHORITY.get(f"->{new}", {})
     if auth.get("by_human") or auth.get("human_token"):
         if not getattr(args, "by_human", False):
+            from agent_workflows import term as _term
+
             is_interactive = (
-                hasattr(sys.stdin, "isatty")
-                and sys.stdin.isatty()
+                _term.stdin_is_interactive()
                 and not getattr(args, "agent", False)
                 and not getattr(args, "as_agent", False)
                 and not getattr(args, "json", False)

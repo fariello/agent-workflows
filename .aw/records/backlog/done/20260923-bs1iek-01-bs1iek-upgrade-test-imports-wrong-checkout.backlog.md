@@ -1,5 +1,5 @@
 - Id: bs1iek
-- Status: graduated
+- Status: done
 - Graduated-To: upgrehearse
 - Blocks-Release: next
 - Set: bs1iek
@@ -8,6 +8,7 @@
 - Summary: aw_upgrade_test.py rehearses the MAIN checkout's code when run from a lane worktree, silently invalidating its own results
 
 ## Workflow history
+- 2026-09-27 done (aw set): Done: plan btth0a executed (manual recovery of its stranded lane, 2026-09-27).
 - 2026-09-26 graduated (aw set): Graduated 2026-09-26 into plan btth0a (Set upgrehearse), re-verified live at HEAD.
 - 2026-09-23 created (aw backlog): Found while executing IPD i8u6hh (verstamp Order 01).
 

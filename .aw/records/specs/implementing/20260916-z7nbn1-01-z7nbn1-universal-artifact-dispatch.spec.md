@@ -10,6 +10,8 @@
 - Scope: Every tool that looks at or acts on artifacts resolves them through one selector, decides what to do through one action table, and refuses clearly on anything it cannot classify; executing a spec or backlog item PRODUCES plans or backlog items rather than doing work itself.
 
 ## Workflow history
+
+- 2026-09-27 note (aw specs): 5.6 wording amended by artdispatch 7icz68: AST/grep check replaced by behavioral runner-vs-table equality (maintainer ruling 2026-09-26, no structure tests)
 - 2026-09-26 implementing (aw set): Graduated 2026-09-26 into Set artdispatch (7icz68, 8l8dgb, jdn790, 2ptgds, aeq7f8, y3p3p5; every plan carries From-Spec z7nbn1 and Blocks-Release next; 5.7 owned by mxzogk).
 - 2026-09-26 approved (aw set, --by-human): Maintainer approved 2026-09-26 in chat ('Yes, approve and graduate') after /spec-review APPROVE WITH REVISIONS APPLIED
 
@@ -329,8 +331,9 @@ nothing new.
 plan yields a plan carrying the SAME value, and a spec with no gate yields a plan with none invented.
 This is `SPEC-PLAN-GATE-CARRY` (OQ-02, in scope) and both directions must be tested.
 
-5.6 No second action table exists: an AST or grep check proves `_ACTION_TABLES` is the only
-type-plus-status-to-action mapping in the package. In particular `runner_shared.action_for` /
+5.6 No second action table exists: `_ACTION_TABLES`, read through the public reader, is the only
+type-plus-status-to-action mapping in the package, as shown by the second mapping's removal or
+re-pointing plus the behavioral runner-versus-table equality test. In particular `runner_shared.action_for` /
 `determine_action` either read through the public table reader or are removed; a test pins that the
 runner's derived action equals the table's for every (type, status) row, including `executed ->
 skip`.

@@ -1,5 +1,5 @@
 - Id: faov03
-- Status: graduated
+- Status: done
 - Graduated-To: faov03
 - Blocks-Release: next
 - Set: faov03
@@ -8,6 +8,7 @@
 - Summary: aw find specs --status silently ignores its filter, affecting seven record types
 
 ## Workflow history
+- 2026-09-27 done (aw set): Done: plan wja06w executed (manual recovery of its stranded lane, 2026-09-27).
 - 2026-09-26 graduated (aw set): Graduated 2026-09-26 into plan wja06w (Set faov03), re-verified live at HEAD.
 - 2026-09-23 created (aw backlog): MEASURED 2026-09-23 at HEAD a7e27f4a while executing plan ui8b9b: 'aw find specs --status to-review' and 'aw find specs --status bogusvalue' each return the SAME full list at exit 0, and the --status to-review output visibly lists specs whose status is 'approved'. So a caller cannot distinguish a real filtered answer from an unfiltered one, and an INVALID status value is accepted silently rather than refused.
 

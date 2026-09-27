@@ -3244,7 +3244,13 @@ class TheActionDecisionIsSHAREDCode(unittest.TestCase):
                     mod.action_for("orchestrator", "auto-approved"), "orchestrate"
                 )
                 self.assertEqual(mod.action_for("orchestrator", "to-review"), "review")
-                self.assertEqual(mod.action_for("orchestrator", "draft"), "review")
+                self.assertEqual(
+                    mod.action_for("orchestrator", "draft"), "undetermined"
+                )
+                self.assertEqual(
+                    mod.action_for("orchestrator", "draft", authoring_complete=True),
+                    "review",
+                )
                 self.assertEqual(mod.action_for("child", "approved"), "execute")
                 self.assertEqual(mod.action_for(None, "approved"), "execute")
 

@@ -314,16 +314,16 @@ def _is_interactive(interactive: Optional[bool]) -> bool:
     """Resolve the effective interactivity.
 
     ``interactive`` explicitly overrides (used by tests and callers that already know the
-    channel); ``None`` falls back to ``sys.stdin.isatty()`` - the same signal ``cli._confirm``
-    keys off (cli.py:2701).
+    channel); ``None`` falls back to :func:`agent_workflows.term.stdin_is_interactive`.
+    Note that ``cli._confirm`` still reads bare ``sys.stdin.isatty()`` (cli.py:6393),
+    so the two signals now differ on win32 where NUL reports isatty True.
     """
 
     if interactive is not None:
         return interactive
-    try:
-        return bool(sys.stdin.isatty())
-    except (ValueError, AttributeError):  # detached/!closed stdin
-        return False
+    from agent_workflows import term as _term
+
+    return _term.stdin_is_interactive()
 
 
 def _prompt(message: str, paths: Sequence[str]) -> bool:

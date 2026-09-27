@@ -3,14 +3,19 @@
 from __future__ import annotations
 
 import io
+import os
+import re
+import shutil
 import subprocess
 import tempfile
 import types
 import unittest
 from contextlib import redirect_stdout, redirect_stderr
 from pathlib import Path
+from unittest import mock
 
 from agent_workflows import artifact_core as core
+from agent_workflows import cli
 from agent_workflows import doctor
 from agent_workflows import engine, versioning
 
@@ -371,6 +376,7 @@ class DoctorLayoutClassificationIsContentAwareTests(unittest.TestCase):
     """
 
     def setUp(self) -> None:
+        self._orig_no_color = os.environ.get("NO_COLOR")
         self._tmp = tempfile.TemporaryDirectory()
         self.root = Path(self._tmp.name)
         # A migrated repo: populated `.aw/system` ...
@@ -390,7 +396,95 @@ class DoctorLayoutClassificationIsContentAwareTests(unittest.TestCase):
         skill.write_text("# assess skill\n", encoding="utf-8")
 
     def tearDown(self) -> None:
+        if self._orig_no_color is None:
+            os.environ.pop("NO_COLOR", None)
+        else:
+            os.environ["NO_COLOR"] = self._orig_no_color
         self._tmp.cleanup()
+
+    def _render_status(self, repo: Path) -> str:
+        os.environ["NO_COLOR"] = "1"
+        buf = io.StringIO()
+        with mock.patch.object(cli, "_repos_for_report", return_value=[repo]):
+            with redirect_stdout(buf):
+                cli.main(["status"])
+        out = buf.getvalue()
+        return re.sub(r"\033\[[0-9;]*m", "", out)
+
+    def test_status_collector_residue_is_not_split_brain(self) -> None:
+        """(1) RESIDUE: collector split_brain is False and layout == '.aw'."""
+        details = cli._collect_repo_status_details(self.root, "1.3.0")
+        self.assertEqual(details["layout"], ".aw")
+        self.assertFalse(details["split_brain"])
+
+    def test_status_collector_clean_is_not_split_brain(self) -> None:
+        """(2) CLEAN (RESIDUE minus empty tool dirs and README): layout == '.aw', split_brain is False."""
+        shutil.rmtree(self.root / ".agents" / "workflows")
+        (self.root / ".agents" / "README.md").unlink()
+        details = cli._collect_repo_status_details(self.root, "1.3.0")
+        self.assertEqual(details["layout"], ".aw")
+        self.assertFalse(details["split_brain"])
+
+    def test_status_collector_genuine_split_brain_is_detected(self) -> None:
+        """(3) GENUINE: collector split_brain is True."""
+        (self.root / ".agents" / "workflows" / "assess" / "assess.md").write_text(
+            "# assess\nLIVE legacy body\n", encoding="utf-8"
+        )
+        details = cli._collect_repo_status_details(self.root, "1.3.0")
+        self.assertTrue(details["split_brain"])
+        self.assertEqual(details["layout"], ".aw + .agents")
+
+    def test_collector_engine_and_doctor_agree_on_all_three_shapes(self) -> None:
+        """(4) Three-way agreement across CLEAN, RESIDUE, and GENUINE shapes."""
+        # 1. RESIDUE
+        det_res = cli._collect_repo_status_details(self.root, "1.3.0")
+        eng_res = engine.detect_split_brain_layout(self.root)
+        doc_res = "split-brain" in doctor.probe_environment(self.root).layout
+        self.assertEqual(det_res["split_brain"], eng_res)
+        self.assertEqual(eng_res, doc_res)
+
+        # 2. CLEAN
+        shutil.rmtree(self.root / ".agents" / "workflows")
+        (self.root / ".agents" / "README.md").unlink()
+        det_clean = cli._collect_repo_status_details(self.root, "1.3.0")
+        eng_clean = engine.detect_split_brain_layout(self.root)
+        doc_clean = "split-brain" in doctor.probe_environment(self.root).layout
+        self.assertEqual(det_clean["split_brain"], eng_clean)
+        self.assertEqual(eng_clean, doc_clean)
+
+        # 3. GENUINE
+        (self.root / ".agents" / "workflows" / "assess").mkdir(parents=True)
+        (self.root / ".agents" / "workflows" / "assess" / "assess.md").write_text(
+            "# assess\nLIVE\n", encoding="utf-8"
+        )
+        det_gen = cli._collect_repo_status_details(self.root, "1.3.0")
+        eng_gen = engine.detect_split_brain_layout(self.root)
+        doc_gen = "split-brain" in doctor.probe_environment(self.root).layout
+        self.assertEqual(det_gen["split_brain"], eng_gen)
+        self.assertEqual(eng_gen, doc_gen)
+
+    def test_status_collector_legacy_only_reports_agents_layout(self) -> None:
+        """(5) legacy-only (.aw removed): collector layout == '.agents', split_brain False."""
+        shutil.rmtree(self.root / ".aw")
+        (self.root / ".agents" / "workflows" / "assess" / "assess.md").write_text(
+            "# assess\n", encoding="utf-8"
+        )
+        details = cli._collect_repo_status_details(self.root, "1.3.0")
+        self.assertEqual(details["layout"], ".agents")
+        self.assertFalse(details["split_brain"])
+
+    def test_status_rendered_output_residue_does_not_warn_split_brain(self) -> None:
+        """Assert the text 'dual layout / split-brain' does NOT appear for RESIDUE."""
+        out = self._render_status(self.root)
+        self.assertNotIn("dual layout / split-brain", out)
+
+    def test_status_rendered_output_genuine_warns_split_brain(self) -> None:
+        """Assert the text 'dual layout / split-brain' DOES appear for GENUINE."""
+        (self.root / ".agents" / "workflows" / "assess" / "assess.md").write_text(
+            "# assess\nLIVE\n", encoding="utf-8"
+        )
+        out = self._render_status(self.root)
+        self.assertIn("dual layout / split-brain", out)
 
     def test_residue_only_repo_is_not_reported_split_brain(self) -> None:
         """A migrated repo holding only residue reports a plain `.aw` layout."""

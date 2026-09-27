@@ -34,7 +34,7 @@ import re
 import sys
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Dict, List, NamedTuple, Optional, Tuple, Union
+from typing import Any, Dict, FrozenSet, List, NamedTuple, Optional, Tuple, Union
 
 from . import __version__, config, discovery, engine, versioning
 from . import run_dispatch as _run_dispatch
@@ -8389,7 +8389,10 @@ def _collect_repo_status_details(repo: Path, packaged: str) -> dict:
 
     has_aw = (repo / ".aw").is_dir()
     has_agents = (repo / ".agents").is_dir()
-    if has_aw and has_agents:
+    # ovjx46 / 4eecvh E-02: mirror doctor.probe_environment (z1yefm E-06). A bare
+    # existence check on `.agents/` reports split-brain forever on every migrated repo
+    # because `.agents/skills` is permanent. Ask the content-aware engine detector.
+    if has_aw and engine.detect_split_brain_layout(repo):
         layout = ".aw + .agents"
         split_brain = True
     elif has_aw:
@@ -11543,6 +11546,13 @@ def _find_type_records(
         return lines, paths, type_matches
 
     # All other types: specs, prompts, backlog, walkthroughs, roadmaps, comms, releases
+    # Unreadable fields (F-8/F-9): For 6/9 generic types (walkthroughs 24/24, reviews 367/367, comms 7/7,
+    # roadmaps 1/1, other 4/4, prompts 16/17) no record has a readable `- Status:`, so `--status` returns 0
+    # rows; `--id` returns 0 for reviews (0/367, `Subject-Id:`) and comms (0/7, no id), 9/24 for walkthroughs.
+    explicit_id = getattr(args, "id", None)
+    explicit_set = getattr(args, "set", None)
+    explicit_status = getattr(args, "status", None)
+
     type_matches = []
     if selectors_list:
         matched_paths, type_matches = _resolve_selectors_with_kinds(
@@ -11558,8 +11568,22 @@ def _find_type_records(
             text = p.read_text(encoding="utf-8")
         except OSError:
             continue
-        id6 = sel_mod._read_id(text) or "-"
-        status = sel_mod._read_status(text) or "-"
+        raw_id = sel_mod._read_id(text)
+        if explicit_id and raw_id != explicit_id:
+            continue
+        raw_status = sel_mod._read_status(text)
+        if explicit_status:
+            if (
+                not raw_status
+                or raw_status.strip().lower() != explicit_status.strip().lower()
+            ):
+                continue
+        if explicit_set:
+            raw_set = sel_mod._read_setid(text)
+            if raw_set != explicit_set:
+                continue
+        id6 = raw_id or "-"
+        status = raw_status or "-"
         try:
             rel = str(p.resolve().relative_to(repo_root.resolve()))
         except Exception:
@@ -11687,6 +11711,34 @@ def _id6_collision_message(coll: _Id6Collision) -> str:
     )
 
 
+def _find_valid_statuses(artifact_type: str) -> Optional[FrozenSet[str]]:
+    """Return the canonical valid statuses for artifact_type, or None if the type has no enum."""
+    if artifact_type == "specs":
+        from agent_workflows import attention_contract
+
+        return attention_contract.SPEC_STATUSES
+    if artifact_type == "backlog":
+        from agent_workflows import backlog
+
+        return backlog.STATUSES
+    if artifact_type == "releases":
+        from agent_workflows import releases
+
+        return frozenset(releases.RELEASE_STATUSES)
+    if artifact_type == "plans":
+        from agent_workflows import plans
+
+        # Per OQ-02: RECOGNIZED plus directory words pending and reusable (displayed by find)
+        return frozenset(plans.RECOGNIZED | {"pending", "reusable"})
+    if artifact_type == "research":
+        from agent_workflows import research_contract
+
+        return frozenset(
+            research_contract.STATUSES | set(research_contract.STATUS_NORMALIZATIONS)
+        )
+    return None
+
+
 def _run_find(
     args: argparse.Namespace, term: Term, context: Optional[Any] = None
 ) -> int:
@@ -11717,6 +11769,58 @@ def _run_find(
 
     repo_root = Path(getattr(args, "dir", None) or os.getcwd())
     types = at.ARTIFACT_TYPES if norm == "all" else (norm,)
+
+    status_filter = getattr(args, "status", None)
+    if status_filter:
+        # Status validation (IPD wja06w E-04 / F-7 / OQ-01):
+        # Collect the enums of the resolved types. If ANY resolved type has NO enum
+        # (e.g. prompts, walkthroughs, roadmaps, comms, reviews, other, or 'all' which
+        # always spans all eleven types), DO NOT VALIDATE AT ALL (accept and let the filter answer).
+        # Otherwise refuse when the value is in none of the collected enums.
+        # THE "ANY TYPE WITHOUT AN ENUM DISABLES VALIDATION" RULE IS LOAD-BEARING:
+        # at.ARTIFACT_TYPES spans all eleven types, so 'all' always includes the six enum-less ones.
+        # Under an "at least one type has an enum" rule, `aw find all --status <v>` would refuse any
+        # value outside the 25-value union, while `aw find walkthroughs --status <v>` accepts the
+        # exact same value because walkthroughs have no enum - making the broader query stricter
+        # than the narrow one and refusing legitimate queries.
+        # Under this corrected rule, validation is OFF for 'all' and applies to single-type and
+        # multi-type queries where every type has a canonical enum.
+        valid_enums: List[FrozenSet[str]] = []
+        has_enumless_type = False
+        for t in types:
+            enum_vals = _find_valid_statuses(t)
+            if enum_vals is None:
+                has_enumless_type = True
+                break
+            valid_enums.append(enum_vals)
+
+        if not has_enumless_type:
+            union_valid: set[str] = set()
+            for ev in valid_enums:
+                union_valid.update(ev)
+            if status_filter.strip().lower() not in {s.lower() for s in union_valid}:
+                sorted_valid = sorted(union_valid)
+                types_label = norm if norm != "all" else ", ".join(sorted(types))
+                err_msg = (
+                    f"Unrecognized --status '{status_filter}' for {types_label}. "
+                    f"Valid statuses: {', '.join(sorted_valid)}."
+                )
+                if ctx.is_agent or ctx.is_json:
+                    res = CommandResult(
+                        command="find",
+                        status="cannot-run",
+                        exit_code=2,
+                        summary=err_msg,
+                    )
+                    return get_renderer(ctx).emit(res, ctx)
+                if getattr(args, "paths", False):
+                    # stdout stays empty so a -p consumer sees no path; write refusal to stderr
+                    Term(
+                        stream=sys.stderr, color=term.color, unicode=term.unicode
+                    ).status("fail", err_msg)
+                    return 2
+                term.status("fail", err_msg)
+                return 2
 
     all_lines = []
     all_paths = []

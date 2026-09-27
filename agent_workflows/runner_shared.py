@@ -13756,11 +13756,11 @@ def closure_target_admission(
     # `discover_plans` recurses EVERY disposition directory, so the manifest carries terminal plans
     # too: measured at execution, 694 discoverable plans of which 547 are `- Status: executed`, and 12
     # of the 43 `executed:` edges declared across the pending plans point at a target that is ALREADY
-    # in a terminal directory. `action_for(kind, "executed")` returns `"execute"` (`"orchestrate"` for
-    # an orchestrator), so a closure that enqueued every declared target would hand the runner FINISHED
-    # PLANS to execute again.
+    # in a terminal directory. `action_for(kind, "executed")` returns `"skip"` (spec `z7nbn1` 1.2/5.6),
+    # so a closure that enqueued every declared target would hand the runner FINISHED PLANS that skip
+    # rather than work.
     #
-    # WHAT CURRENTLY PREVENTS DISPATCH IS INCIDENTAL AND MUST NOT BE LEANED ON: the queue builder
+    # WHAT PREVENTS DISPATCH IS INCIDENTAL AND MUST NOT BE LEANED ON: the queue builder
     # assigns `status: "reviewed"` to any status outside
     # `("to-review","draft","approved","auto-approved")`, and the dispatch loop only picks
     # `status == "queued"` items. Neither was written as a terminal-target filter, and either could
@@ -17859,12 +17859,22 @@ class OrchestratorDispatch(NamedTuple):
     eligibility: RetirementDecision | None = None
 
 
-def determine_action(status: str) -> str:
-    """Return 'review' for to-review/draft plans; 'execute' for approved/ready plans."""
-    norm = (status or "").lower().strip()
-    if norm in ("to-review", "draft"):
-        return "review"
-    return "execute"
+def determine_action(
+    status: str | None,
+    *,
+    authoring_complete: bool | None = None,
+    for_legality: bool = False,
+) -> str:
+    """Return the runner-derived action for an IPD given its status (delegates to `run_selection_policy`)."""
+    from agent_workflows import run_selection_policy as _policy
+
+    return _policy.runner_action(
+        "ipd",
+        status or "approved",
+        kind=None,
+        authoring_complete=authoring_complete,
+        for_legality=for_legality,
+    )
 
 
 #: Statuses that mean "this plan still has work to do in this run", so its queue entry starts
@@ -17889,7 +17899,7 @@ NON_TERMINAL_QUEUE_STATUSES: frozenset[str] = frozenset(
 TERMINAL_QUEUE_STATUSES: frozenset[str] = frozenset(("executed",))
 
 
-def initial_queue_status(status: str | None) -> str:
+def initial_queue_status(status: str | None, *, action: str | None = None) -> str:
     """The status a queue entry is BORN with, given the plan's `- Status:`. SHARED BY BOTH HOSTS.
 
     THE DEFECT THIS FIXES, measured across 13 runs. Both hosts built this inline as an ALLOWLIST with
@@ -17924,8 +17934,14 @@ def initial_queue_status(status: str | None) -> str:
     the `None` case an older hand-written manifest produces), which is why the review-mode fixture at
     `tests/test_oc_runipd.py` keeps passing: this function changes the answer ONLY for a status that is
     terminal on disk.
+
+    A `skip` ENTRY MUST NEVER BE BORN `queued` (artdispatch 7icz68 E-06): `execute_item_core` treats
+    any non-`review` action as an execute turn, so a `queued` entry with action `skip` would be executed.
+    An entry with action `skip` that would otherwise start `queued` is therefore frozen as `not-run`.
     """
     norm = (status or "").lower().strip()
+    if action == "skip" and norm in NON_TERMINAL_QUEUE_STATUSES:
+        return "not-run"
     if norm in NON_TERMINAL_QUEUE_STATUSES:
         return "queued"
     if norm in TERMINAL_QUEUE_STATUSES:
@@ -17933,25 +17949,26 @@ def initial_queue_status(status: str | None) -> str:
     return "reviewed"
 
 
-def action_for(kind: str | None, status: str) -> str:
-    """Decide the driver action for a plan given its Kind + Status. SHARED BY BOTH HOSTS (spec R-10).
+def action_for(
+    kind: str | None,
+    status: str | None,
+    *,
+    authoring_complete: bool | None = None,
+    for_legality: bool = False,
+) -> str:
+    """Decide the driver action for a plan given its Kind + Status (spec R-10, `z7nbn1` 1.2/5.6).
 
-    Orchestrators are special ONLY once past review: an approved/auto-approved orchestrator authors no
-    code, so it is not agent-executed ('orchestrate' -> the runner retires it once every child of its
-    Set reached `executed`). But a draft/to-review orchestrator still needs its own /plan-review to
-    advance (the orchestrator artifact must be review-complete whether the Set is driven by a runner
-    OR executed manually), so it takes the normal 'review' action. Everything else uses
-    `determine_action` (review for to-review/draft, execute otherwise).
-
-    THE `orchestrate` RETURN STARTS AT `reviewed`, NOT AT `approved`, which matters to any caller
-    treating this as authority: it is a DISPATCH decision, not a retirement authorization. The
-    retirement transition therefore re-checks eligibility itself rather than trusting Kind
-    (`ipd_lifecycle.retire_orchestrator`), and this function must not be read as a permission.
+    Delegates to `run_selection_policy.runner_action`.
     """
-    norm = (status or "approved").lower().strip()
-    if (kind or "").lower() == "orchestrator" and norm not in ("to-review", "draft"):
-        return "orchestrate"
-    return determine_action(status or "approved")
+    from agent_workflows import run_selection_policy as _policy
+
+    return _policy.runner_action(
+        "ipd",
+        status or "approved",
+        kind=kind,
+        authoring_complete=authoring_complete,
+        for_legality=for_legality,
+    )
 
 
 def decide_orchestrator_dispatch(
@@ -23994,9 +24011,17 @@ EXECUTE_REPORTING_SUCCESS_STATES: frozenset[str] = frozenset(
     SUCCESS_STATES - {"reviewed"}
 )
 
+#: The reporting success bar for a `skip` action (artdispatch 7icz68 E-07). A skip that completed is
+#: a success for that item, so this admits the terminal statuses a correct skip produces: `not-run` for
+#: an incomplete draft, `executed` for an already executed plan, and `reviewed`/`superseded`/`not-executed`
+#: for retired ones.
+SKIP_REPORTING_SUCCESS_STATES: frozenset[str] = frozenset(
+    {"not-run", "executed", "reviewed", "superseded", "not-executed"}
+)
+
 
 def success_states_for_action(action: str | None) -> Container[str]:
-    """The REPORTING success bar for ONE item, given the ACTION it was queued for (zz5yxq E-02).
+    """The REPORTING success bar for ONE item, given the ACTION it was queued for (zz5yxq E-02, 7icz68 E-07).
 
     THE DEFECT THIS EXISTS TO FIX, measured at HEAD `44d4950d` and again at `70a2059f`. `reviewed`
     is simultaneously a ROUTING decision meaning "execute this" (`action_for('child','reviewed')` ->
@@ -24021,9 +24046,17 @@ def success_states_for_action(action: str | None) -> Container[str]:
     `cascade_dependency_blocked` records a real run (`run-20260904T042705Z-1025943`) in which
     hardcoding the execution bar for a review pass made a review-mode Set run impossible to
     complete. So this function widens NOTHING and narrows exactly one status for exactly one action.
+
+    A SKIP ACTION ADMITS THE STATUSES A CORRECT SKIP PRODUCES (7icz68 E-07): `not-run` for an
+    incomplete draft, `executed` for an already executed plan, and `reviewed` (or `superseded` /
+    `not-executed`) for retired plans. A skip that completed is a success for that item.
     """
 
-    return SUCCESS_STATES if action == "review" else EXECUTE_REPORTING_SUCCESS_STATES
+    if action == "review":
+        return SUCCESS_STATES
+    if action == "skip":
+        return SKIP_REPORTING_SUCCESS_STATES
+    return EXECUTE_REPORTING_SUCCESS_STATES
 
 
 def item_reached_success(item: Mapping[str, Any]) -> bool:
@@ -25483,8 +25516,19 @@ def initialize_run_core(
                 except Exception:
                     st = None
             st = st or "approved"
+            # E-05 (F-11): Legality check deliberately treats draft as review so `aw oc review <id6>`
+            # (expanding to `--action review`) starts rather than raising DriverError on a named draft.
+            # Dispatch (the queue loop below) derives `skip` for an incomplete draft.
             preflight_items.append(
-                (id6, st, action_for(resolve_manifest_kind(plan_info, probe_path), st))
+                (
+                    id6,
+                    st,
+                    action_for(
+                        resolve_manifest_kind(plan_info, probe_path),
+                        st,
+                        for_legality=True,
+                    ),
+                )
             )
         action_labels = (
             labels
@@ -25553,7 +25597,11 @@ def initialize_run_core(
                 pass
 
         kind = resolve_manifest_kind(plan, p_path)
-        action = action_for(kind, status or "approved")
+        norm_st = (status or "approved").strip().lower()
+        complete = None
+        if norm_st == "draft":
+            complete = plan_authoring_complete(repo, str(plan.get("file", "")))
+        action = action_for(kind, status or "approved", authoring_complete=complete)
         queue.append(
             {
                 "position": position,
@@ -25567,7 +25615,7 @@ def initialize_run_core(
                 or (getattr(rec, "from_backlog", None) if p_path else None),
                 "initial_status": status or "approved",
                 "action": action,
-                "status": initial_queue_status(status),
+                "status": initial_queue_status(status, action=action),
                 "attempts": [],
                 # zz5yxq E-03: the needs-approval fact, made EXPLICIT and DURABLE at queue-build time
                 # rather than left implicit in the queue status. It was already implicit here (an item
@@ -28106,9 +28154,14 @@ def execute_item_core(
 
     repo = Path(state["repo"])
     pal = Palette(should_color(sys.stdout))
+    action = item.get("action", "execute")
+    # E-06: A skip entry (or any action outside review/execute) must never be executed.
+    if action not in ("review", "execute"):
+        raise DriverError(
+            f"Cannot execute item {item.get('id6', '<unknown>')}: invalid action {action!r} (expected 'review' or 'execute')"
+        )
     plan_path = resolve_plan_path(repo, item.get("configured_file", ""), item["id6"])
     attempt_no = len(item.get("attempts", [])) + 1
-    action = item.get("action", "execute")
     is_review = action == "review"
 
     routing = None if is_review else route_recovery_turn(run_dir, state, item, recovery)
@@ -31461,15 +31514,12 @@ def _consuming_actions_for(plans: list[tuple[Path, str]]) -> dict[str, str]:
         if not status:
             continue
         try:
-            # UNQUALIFIED SINCE runnerlayer Order 02 (`1f7xno`): this body read
-            # `runner_shared.action_for` while it lived in `oc_runipd`, where that prefix named an
-            # IMPORTED MODULE. Inside `runner_shared` there is no such global, so the attribute access
-            # raised `NameError` and the `except Exception` below SWALLOWED it, making this function
-            # return an empty map and silently switching the dependency evaluator to its strict
-            # default. It broke fourteen tests and failed LOUDLY only because they existed; a
-            # qualified self-reference inside a swallowing try is the one lift error that can be
-            # invisible, which is why the batch pipeline now scans for it by AST.
-            action = action_for(kind, status)
+            complete = None
+            if status.strip().lower() == "draft":
+                from agent_workflows import ipd_authoring
+
+                complete = ipd_authoring.authoring_placeholders_resolved(text)
+            action = action_for(kind, status, authoring_complete=complete)
         except Exception:
             continue
         if action:
