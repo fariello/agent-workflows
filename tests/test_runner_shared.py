@@ -336,11 +336,22 @@ REDOCUMENTED_SINCE_MOVE = ("describe_lane",)
 # the verb; `test_a_spec_that_HAS_an_Id_reached_by_stem_does_not_get_the_id_less_note` is the
 # load-bearing negative proving the branch keys on the ACTUAL absence of `- Id:` rather than on the
 # selector spelling, so it cannot assert something false about a conformant spec).
+#
+# planpathtype-01 (`mxzogk`): `resolve_plan_path` previously failed open in three measured ways:
+# (1) its `configured` branch returned any existing file (such as a plans README or a spec); (2) its
+# `id6` branch matched via substring precedence, resolving a spec id6 to a plan that merely mentioned it;
+# and (3) its glob fallback searched `repo` root, walking lane worktrees and suite baselines while
+# matching mention-only slugs. The fix restricts the `id6` branch to an exact declaration
+# (`allow=frozenset({selectors.MATCH_ID6})`), type-checks the `configured` branch against discover_plans
+# membership rules and `detect_artifact_type == "plans"`, and limits the glob fallback to the plans trees
+# and claiming hits (`CLAIMING_OWNERSHIPS`). Replacement behavioral coverage lives in
+# `tests/test_resolve_plan_path_typed.py`.
 SUPERSEDED_SINCE_MOVE = (
     "state_root",
     "_run_git",
     "should_color",
     "describe_unresolved_plan_selector",
+    "resolve_plan_path",
 )
 
 

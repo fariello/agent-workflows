@@ -11582,22 +11582,72 @@ def resolve_plan_path(repo: Path, configured: str, id6: str) -> Path:
 
     if id6:
         try:
-            matched = selectors.resolve_selectors(repo, "plans", [id6])
-            if len(matched) == 1 and matched[0].is_file():
-                return matched[0].resolve()
+            res = selectors.resolve(
+                repo, "plans", id6, allow=frozenset({selectors.MATCH_ID6})
+            )
+            if len(res.paths) == 1 and res.paths[0].is_file():
+                return res.paths[0].resolve()
         except Exception:
             pass
 
     if configured:
         direct = (repo / configured).resolve()
         if direct.is_file():
+            from agent_workflows import status_set
+
+            plans_roots = [
+                (repo / ".aw" / "records" / "plans").resolve(),
+                (repo / ".agents" / "plans").resolve(),
+            ]
+            under_plans = any(
+                root == direct or root in direct.parents for root in plans_roots
+            )
+            detected = status_set.detect_artifact_type(direct, repo)
+            if detected and detected != "plans":
+                what = f"a {detected}"
+                raise DriverError(
+                    f"Refusing {configured!r} for IPD {id6}: it is {what}, not an IPD plan"
+                )
+            if direct.name in {"README.md", "INDEX.md", "STATUS.md"}:
+                what = "a plans index file"
+                raise DriverError(
+                    f"Refusing {configured!r} for IPD {id6}: it is {what}, not an IPD plan"
+                )
+            if not under_plans:
+                what = "outside the plans trees"
+                raise DriverError(
+                    f"Refusing {configured!r} for IPD {id6}: it is {what}, not an IPD plan"
+                )
+            if detected != "plans":
+                what = f"a {detected}" if detected else "outside the plans trees"
+                raise DriverError(
+                    f"Refusing {configured!r} for IPD {id6}: it is {what}, not an IPD plan"
+                )
             return direct
-    roots = [repo / ".aw" / "records" / "plans", repo / ".agents" / "plans", repo]
+
+    def _claims_id6(path: Path) -> bool:
+        if selectors.id6_ownership(path, id6) in selectors.CLAIMING_OWNERSHIPS:
+            return True
+        declared = selectors.declared_id6(path)
+        if declared is not None:
+            return declared == id6
+        from agent_workflows import artifact_naming
+
+        m = artifact_naming.parse_clustered(path.name)
+        return bool(
+            m
+            and m.group("id6") == id6
+            and not selectors._declares_typed_subject(path, id6)
+        )
+
+    roots = [repo / ".aw" / "records" / "plans", repo / ".agents" / "plans"]
     matches: list[Path] = []
     for root in roots:
         if root.exists():
             matches.extend(
-                path for path in root.rglob(f"*-{id6}-*.ipd.md") if path.is_file()
+                path
+                for path in root.rglob(f"*-{id6}-*.ipd.md")
+                if path.is_file() and _claims_id6(path)
             )
     unique = sorted(set(matches))
     if len(unique) == 1:
