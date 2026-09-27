@@ -6,7 +6,7 @@
 - Scope: IN: (a) `selectors.record_dirs` learns the LEGACY research read path `.agents/docs/research`, which it does not know today and which `research_contract.resolve_research_root` does (review PR-601: without this the routing is a REGRESSION, not a fix, on every legacy-layout repo AND on the whole existing test fixture population); (b) a shared `_resolve_one_research` / `_resolve_research_for_mutation` helper that DENIES `selectors.MATCH_PATH` and CONFINES every resolved path under the research root (review PR-602: the resolver's `path` kind otherwise accepts any repo file, and the research planners then corrupt or crash on it); (c) `research_archive.run_archive`'s targeted branch resolves `target` through that helper and feeds each resolved path into a path-keyed transition planner; (d) `research_archive.plan_transition` gains a path-keyed core (`plan_transition_for_path`) that the id6 entry point and the resolver path both use, so the per-doc rules (research-prompt hot-status refusal, shard target) live once; (e) `research_refs._find_by_id6` resolves through the helper with UNIQUE semantics (exactly one file, or the refusal), which routes `aw rename research` and `aw group research`; (f) `research_cmd.plan_set_outcome` and `plan_set_priority` resolve their single target the same way; (g) a `--force` flag on `aw archive` (declared on `p_archive` in `cli._build_parser` and in the `archive` `CommandDeclaration.legacy_flags` in `command_surface`), threaded to the resolver; (h) behavioral parity and refusal tests, including the legacy-layout and out-of-tree-path cases. OUT: the bare age sweep (`sweep_candidates`), which selects by age not selector; `plans_archive`; the resolver's own AMBIGUITY policy (`resolve_for_mutation`'s kind rules are consumed, never edited); porting research readers to `artifact_meta` (spec `4sd62s`).
 - Scope-Paths: agent_workflows/selectors.py, agent_workflows/research_archive.py, agent_workflows/research_refs.py, agent_workflows/research_cmd.py, agent_workflows/cli.py, agent_workflows/command_surface.py, tests/test_research_archive.py, tests/test_cli_find.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 12
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: me227c
-- Approval: 2026-09-26, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: me227c verified (set researchsel, attempt 1).
 - 2026-09-26 approved (aw set): status set to approved
 - 2026-09-26 reviewed (aw set): plan-review: APPROVE WITH REVISIONS APPLIED; PR-601..PR-607 all FIXED (two BLOCKERs found by measurement: legacy-layout regression and unconfined path selector). 8 items -> 12 with a 12:12 E/V bijection.
 
