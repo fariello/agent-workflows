@@ -6,7 +6,7 @@
 - Scope: IN: (a) restrict the id6 branch to an exact `- Id:` match (`selectors.resolve(repo, "plans", id6, allow=frozenset({selectors.MATCH_ID6}))`); (b) make the `configured` branch accept a file only when it is a plan by the same membership rule `runner_shared.discover_plans` uses (under the repo's `.aw/records/plans` or `.agents/plans` tree, not an index file `README.md`/`INDEX.md`/`STATUS.md`) AND `status_set.detect_artifact_type` reports `plans`, else raise `DriverError` naming the detected type; (c) limit the glob fallback's roots to the two plans trees and keep only hits that CLAIM the id6 (`selectors.id6_ownership` in `selectors.CLAIMING_OWNERSHIPS`); (d) record the supersession in `tests/test_runner_shared.py`'s `SUPERSEDED_SINCE_MOVE`; (e) behavioral tests for each measured case plus the existing lane and executed-transition behaviors. OUT: `runner_shared.expand_selectors`' file-candidate branch admitting a non-plan path into the manifest (with this fix the item is refused loudly at dispatch; refusing earlier is spec `z7nbn1`'s typed-dispatch work); `selectors.resolve`'s precedence (a shared contract for every verb); editing spec `z7nbn1` (under maintainer review); any new source-pinning test (maintainer ruling 2026-09-26).
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_resolve_plan_path_typed.py, tests/test_runner_shared.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 08
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: mxzogk
-- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: mxzogk verified (set planpathtype, attempt 1).
 - 2026-09-27 approved (aw set): status set to approved
 
 - 2026-09-26 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-009 all FIXED; review record `.aw/records/reviews/20260926-planpathtype-01-mxzogk-make-resolve-plan-path-fail-closed-on-a-non-plan-path-a-ment.review.md`. All three fail-open modes and F-1..F-8 re-verified at lane HEAD ec5c6c12 and every one reproduced; the three code changes stand as authored, and the narrowing was verified not to break the executed-transition case, the lane case, `.agents/plans`, an absolute configured path, or any discovered plan (836 measured, 0 non-`.ipd.md`, 0 non-`declared`). CORRECTED THE EVIDENCE: E-06 case (6)'s fixture was unreachable by the glob it targeted and would have passed vacuously (F-9); case (5) bundled an already-passing guard with the real fail-before (F-10); F-2 named `execute` for a `to-review` spec that actually yields `review`, so the dispatch test now covers both actions (F-11); the 29-call-site census was a grep artifact contradicting the plan's own scope note, 28 by AST all in `runner_shared` (F-12); three drifting live counts became re-derived properties (F-13). Split the dispatch case into E-07 (different harness). `aw ipd lint --phase review-finalize` conforming; baseline `pytest tests/test_runner_shared.py tests/test_oc_runipd.py tests/test_agy_runipd_cli.py` 316 passed.
