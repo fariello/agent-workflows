@@ -59,7 +59,7 @@ deliberately rejected config for a documented reason.
 OQ-02 IS THE MOST INSTRUCTIVE FINDING, because its conclusion was right and its evidence was false in
 both halves. It asserted that the newest legacy tracked prompt date is `20260920` and that a
 `20260920`-dated legacy name remains in `pending/`. Measured: the newest legacy name is
-`20260829-1520-01-session-allocation-policy.prompt.md`, and the only `20260920` prompt in the tree is
+`20260829-j5ijz6-01-j5ijz6-session-allocation-policy.prompt.md`, and the only `20260920` prompt in the tree is
 the CONFORMING hand-made one. The second reason rested on a file in the `untracked/` quarantine lane,
 and that lane DOES NOT EXIST in a lane worktree, with no `20260920-12*` file anywhere in the tree. I
 kept `20260921` on rewritten reasoning (a cutover at or below `20260920` would make the hand-made

@@ -1,3 +1,4 @@
+<!-- aw-prompt: Kind: research | Id: 99thcw | Status: executed | Created: 2026-07-25 . This HTML comment is pipeline metadata only; it is invisible when pasted into a chat and is not part of the prompt. -->
 You are a research assistant with web access and, where possible, hands-on access to current AI coding-agent host applications. Produce a rigorous, current, citation-backed report answering one question for each host below: can that host reliably RESOLVE and then FOLLOW agent-workflows instruction/workflow content that does NOT live in the working repository, or that lives in a host-native skill file? Return your answer as a single downloadable Markdown (`.md`) file.
 
 ## Background you need

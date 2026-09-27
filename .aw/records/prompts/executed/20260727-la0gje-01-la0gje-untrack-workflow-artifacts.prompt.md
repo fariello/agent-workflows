@@ -1,3 +1,4 @@
+<!-- aw-prompt: Kind: run-once | Id: la0gje | Status: executed | Created: 2026-07-27 . This HTML comment is pipeline metadata only; it is invisible when pasted into a chat and is not part of the prompt. -->
 # Reverse the `workflow-artifacts/` tracking policy
 
 Implement a reversal of the prior policy requiring `workflow-artifacts/` to be committed and tracked.

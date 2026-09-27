@@ -1,3 +1,4 @@
+<!-- aw-prompt: Kind: session-handoff | Id: 06nu85 | Status: superseded | Created: 2026-07-17 . This HTML comment is pipeline metadata only; it is invisible when pasted into a chat and is not part of the prompt. -->
 RETIRED 2026-07-27: consumed session-handoff for a 2026-07-17 -> next session; its state (~D89) is stale and the work has advanced to D121, so this orientation is superseded by the current project state. Kept for the record.
 
 # Session handoff: resume here

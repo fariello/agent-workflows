@@ -1,3 +1,4 @@
+<!-- aw-prompt: Kind: research | Id: sloz20 | Status: executed | Created: 2026-07-22 . This HTML comment is pipeline metadata only; it is invisible when pasted into a chat and is not part of the prompt. -->
 You are a research analyst with web-search access. Produce a rigorous, citation-backed research report for the maintainers of an open-source toolkit called `agent-workflows`. Return your answer as a single downloadable Markdown file named exactly:
 
 `20260722-2317-01-token-efficient-managed-sections-in-agent-instruction-files.gpt-56.research.finding.md`

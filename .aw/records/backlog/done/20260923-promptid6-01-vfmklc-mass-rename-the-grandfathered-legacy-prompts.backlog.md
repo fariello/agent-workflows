@@ -1,5 +1,5 @@
 - Id: vfmklc
-- Status: graduated
+- Status: done
 - Graduated-To: promptren
 - Set: promptid6
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Mass-rename the 17 grandfathered legacy-named prompts to the id6-clustered grammar
 
 ## Workflow history
+- 2026-09-27 set (aw backlog): closed by aw oc run: IPD iyi4hc executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260926-promptren-01-iyi4hc-rename-the-grandfathered-legacy-named-staged-prompts-onto-th.ipd.md); evidence .aw/records/plans/executed/20260926-promptren-01-iyi4hc-rename-the-grandfathered-legacy-named-staged-prompts-onto-th.ipd.md
 - 2026-09-26 graduated (aw set): Graduated 2026-09-26 into to-review plan Set promptren (commit 2c7068ca).
 - 2026-09-23 created (aw backlog): Mass-rename the 17 grandfathered legacy-named prompts to the id6-clustered grammar
 
