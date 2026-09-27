@@ -3,12 +3,12 @@
 - Set: lifegate
 - Priority: high
 - Work-Kind: bug
-- Summary: DRAFT DESIGN: replace the location-plus-token lifecycle gate with one plan-scoped 'a live runner holds this plan' check, allow begin/finalize anywhere, and nudge toward the lane
+- Summary: replace the location-plus-token lifecycle gate with one plan-scoped 'a live runner holds this plan' check, allow begin/finalize anywhere, and nudge toward the lane
 
 ## Workflow history
 - 2026-09-26 created (aw backlog): Draft design, decisions being recorded one at a time with the maintainer (2026-09-26). Not yet ready to graduate.
 
-STATUS: DRAFT. Design decisions are being settled one at a time with the maintainer; do not graduate until every item below is DECIDED.
+STATUS: DESIGN COMPLETE 2026-09-26. Every decision D1-D8 below was settled with the maintainer one at a time; ready to graduate into a plan.
 
 ## Problem
 
@@ -83,7 +83,25 @@ Added as GUIDING_PRINCIPLES.md section 15, "Guard against honest mistakes, never
 - REFRAME, do not rebuild: it is OPTIONAL ISOLATION an operator may choose, NOT "the real fix for malicious agents" and NOT something any gate relies on. Nothing in this design (and nothing new) may depend on it being on. This matches P15: if real isolation is ever required it comes from the OS, never from our own checks.
 - Documentation that frames it as the answer to a 'determined same-user agent' (for example `ipd_lifecycle`'s honest-limit comments pointing at `1o4eif`) is updated when the token code it sits beside is deleted in this design, and elsewhere by the `ariaau` audit.
 
-### D8 (OPEN): specs to amend (c4gd2h at least) and the Scope-Paths declaration.
+### D8 (DECIDED 2026-09-26): specs this design touches (enumerated by search, not assumed)
+
+Searched every `.spec.md` for the token (`AW_DRIVER_ATTEST`, `driver-attest`, 'driver attestation'), the location guess (`lane_worktree_active`), the refusal (`AW-LIFECYCLE-ROLE-001`), the role (`AW_EXECUTION_ROLE`, 'worker role', `worker_role_active`), and lifecycle ownership (begin receipt, self-finalize, 'runner owns').
+
+FINDING: the per-run token and the location guess added by plan `u27oh3` are specified in NO spec. They exist only in that plan and in code. So removing them needs no spec amendment by itself. The earlier assumption that `c4gd2h` must be amended was WRONG: `c4gd2h` (runner lifecycle: graceful quit) holds stop-protocol rules, not lifecycle-role rules; its R2 ('driver.lock is released on completion of any level; a lock holding a dead PID is a defect') is CONSISTENT with D2 and needs no change.
+
+MUST AMEND (declare each in the plan's `- Scope-Paths:` and say why in its spec-sync section):
+- `7ckptx` (worker lane containment, approved). Its R4.5 ('an isolated turn's child environment MUST carry the execution-role selector that causes driver-owned lifecycle verbs to refuse inside a lane') and acceptance A11 ('an in-lane invocation of a driver-owned lifecycle verb refuses with the documented code ... the driver's own invocation still succeeds') stay TRUE for the worker label, but 'refuse inside a lane' must be restated as: refused for a worker-labelled caller (unchanged), and for anyone else ONLY while a live run holds the plan (D1/D2), anywhere, not by location. R4.5's existing honest-limit wording ('an environment selector and not a hardened boundary') already matches P15 and stays.
+
+MUST UPDATE if it is still `to-review` when the plan executes, otherwise note-amend:
+- `llbr2b` (lifecycle automation policy, to-review). Its section 3.2 note ('A worker-role process is refused outright at the CLI wrapper') becomes wrong once D4 moves the check into the core functions, and its invariant C-8 ('worker/coordinator ROLE ... INVARIANT') must add the new 'held by a live run' refusal as a second lifecycle invariant.
+
+READ, NO CHANGE EXPECTED (the plan re-checks each at execution):
+- `77tr3o` (orchestrator retirement, approved): mentions the `aw set executed` worker-role bypass as out of its scope; D4 closes that path, so the plan may add a one-line history note pointing at it.
+- `25kzda` (run-and-verify, approved): `IPD-EXEC-BEGIN-RECEIPT` and the begin-receipt staleness rules are unchanged by this design.
+- `c4gd2h` (runner lifecycle, implementing): consistent, as above.
+- `pqsx96` (draft), `i4gpto` (draft): mention begin receipts only; unaffected.
+
+ALSO UPDATE (not specs): `GUIDING_PRINCIPLES.md` P15 already cites this design; code comments that point to `1o4eif` as the fix for a 'determined same-user agent' beside the deleted token code (see D7).
 
 ## Honest limits
 
