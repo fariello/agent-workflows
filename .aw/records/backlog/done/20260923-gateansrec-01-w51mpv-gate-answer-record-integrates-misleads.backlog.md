@@ -1,5 +1,5 @@
 - Id: w51mpv
-- Status: graduated
+- Status: done
 - Graduated-To: gateansrec
 - Set: gateansrec
 - Priority: medium
@@ -7,10 +7,11 @@
 - Summary: The persisted gate-answer record's 'integrates' field is False for a fixed answer that DID release, so the durable record contradicts the outcome a reader is trying to audit
 
 ## Workflow history
+- 2026-09-27 set (aw backlog): closed by aw oc run: IPD nzznlm executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260926-gateansrec-01-nzznlm-record-whether-a-gate-answer-actually-released-the-lane-besi.ipd.md); evidence .aw/records/plans/executed/20260926-gateansrec-01-nzznlm-record-whether-a-gate-answer-actually-released-the-lane-besi.ipd.md
 - 2026-09-26 graduated (aw set): Graduated 2026-09-26 into plan nzznlm (Set gateansrec), re-verified live at HEAD.
 - 2026-09-23 created (aw backlog): MEASURED while executing plan n9na1c on 2026-09-23, by driving the real perform_gate_answer with each of the four answer tokens and a PASSING re-run for 'fixed':
 
-    fixed | GateAnswerOutcome.release = True | record['integrates'] = False | record['recheck_passed'] = True
+fixed | GateAnswerOutcome.release = True | record['integrates'] = False | record['recheck_passed'] = True
 
 So for a verified 'fixed', the lane DID integrate and the durably persisted record says 'integrates': False. Both values are individually defensible - GateAnswerOutcome.release is the field the integration decision actually reads, while record['integrates'] mirrors GateAnswerVerdict.integrates, which is a property of the TOKEN before any re-run has happened - but they are persisted side by side under names that read as synonyms, and only ONE of them is the outcome.
 
