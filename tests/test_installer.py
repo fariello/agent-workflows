@@ -2620,14 +2620,8 @@ class DeepCleanupTests(unittest.TestCase):
     def test_plan_counts_and_all_recoverable_when_committed(self):
         """Everything committed means nothing is at risk, so the warning stays SOFT.
 
-        PRE-EXISTING FAILURE, NOT INTRODUCED BY THE TABLE WORK, and kept rather than weakened:
-        verified failing at HEAD (commit 6123749b) before this file was touched. The install now emits
-        `.aw/workflow-artifacts/README.md`, which is GITIGNORED by design (D92), so `git add -A` cannot
-        commit it and `plan_deep_cleanup` correctly classifies it as untracked and therefore at-risk,
-        which makes `all_recoverable` False. Either the product should exclude its own gitignored
-        run-scratch README from the at-risk set, or this expectation should change; that is a
-        maintainer call about `agent_workflows/`, which this test-only change must not make. Deleting
-        the assertion would have hidden the question, so it stays as written.
+        The product answered the at-risk classification for untracked regenerable files via
+        `_DEEP_CLEANUP_REGENERABLE` in `engine.plan_deep_cleanup` (plan `baxbdh`, backlog `3ypquf`).
         """
         repo = init_repo(self.base / "r")
         self._install_commit(repo)
