@@ -6,7 +6,7 @@
 - Scope: IN: one shared wait helper and one policy (poll every 10s, a progress line every 60s naming what is awaited and who holds it, fail after 30 minutes; a lock whose holder is dead is taken over at once, as today) applied to all five: `ipd_lifecycle.acquire_finalize_lock` plus the runner's `finalize_with_contention_retry` re-attempts, `runner_shared.integration_lock`, the deferral ladder's `poll_for_integration_window`, `commit_lock.writer_lock` (which now fails instead of committing unserialized), and the `ISO_RACED` path in `git_commit_helper.offer_commit` (re-run the isolated commit on the new tip); outcome tests with an injected clock; one CHANGELOG line. OUT: the pre-commit hook re-stage retry in `commit_lock.commit_isolated` (stays one immediate redo, maintainer ruling 2026-09-27); the agent retry budget and its per-kind counters (unchanged, maintainer ruling 2026-09-27); `--integration-retry-limit` semantics beyond its wait timing; `run_ledger_store.writer_lock` (a different, in-run ledger lock).
 - Scope-Paths: agent_workflows/contention_wait.py, agent_workflows/ipd_lifecycle.py, agent_workflows/runner_shared.py, agent_workflows/commit_lock.py, agent_workflows/git_commit_helper.py, tests/test_contention_wait.py, tests/test_runner_shared.py, tests/test_ipd_lifecycle_cli.py, tests/test_finalize_sendback.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Blocks-Release: next
 - From-Backlog: ibk7bt
@@ -17,8 +17,10 @@
 - Highest E allocated: 09
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 9bq5o4
+- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 approved (aw set): status set to approved
 - 2026-09-27 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-010 all fixed. Two items would have damaged working behavior: E-02 proposed removing a finalize re-attempt loop that executed plan y2vzit built deliberately and that two shipped tests pin (57 passed measured), and E-01's 10s poll would have added a twentyfold stall to the sub-second common case and made test_two_process_lock_wait_succeeds time out, so poll (0.1s) and report cadence (60s) are now separate numbers under new OQ-02. E-04 was folding a 3600s staleness bound into an 1800s timeout. Also found: the writer lock and finalize lock are the SAME FILE so E-05's fail-closed 30 min change blocks 7 offer_commit call sites; open release-gating backlog bqz8kn is resolved by E-05 and was unmentioned; E-07 split into E-07/E-08/E-09 by fixture kind. Findings recorded in .aw/records/reviews/20260927-uniwait-01-9bq5o4-make-the-five-contention-waits-share-one-policy-check-every.review.md
 - 2026-09-27 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog ibk7bt per maintainer ruling 2026-09-27: one wait policy (10s poll, 60s report, 30 min) for five code-only contention waits.
 
