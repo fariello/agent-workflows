@@ -1,5 +1,5 @@
 - Id: duac3v
-- Status: graduated
+- Status: done
 - Graduated-To: finlockwait
 - Blocks-Release: next
 - Set: finlockwait
@@ -8,6 +8,7 @@
 - Summary: aw ipd finalize fails an item terminally (fail-gate) when the shared writer lock is momentarily held by a peer's self-commit, instead of waiting or retrying
 
 ## Workflow history
+- 2026-09-27 set (aw backlog): closed by aw oc run: IPD y2vzit executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260926-finlockwait-01-y2vzit-make-finalize-wait-for-a-briefly-held-writer-lock-and-retry.ipd.md); evidence .aw/records/plans/executed/20260926-finlockwait-01-y2vzit-make-finalize-wait-for-a-briefly-held-writer-lock-and-retry.ipd.md
 - 2026-09-26 graduated (aw set): graduated into plan y2vzit (finlockwait-01), which carries Blocks-Release: next; the writer_lock budget half was split to bqz8kn
 - 2026-09-26 created (aw backlog): Filed from run run-20260926T051642Z-116672 triage: 9npssm lost its finalize to lock contention from a concurrent run.
 
