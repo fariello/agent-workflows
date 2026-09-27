@@ -47,10 +47,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: every `xu3yxw` `Observed evidence` block contains a pasted command and its output without machine-local path leaks.
   - Execution state: performed
 
-- [ ] E-03 Finalize both plans through the lifecycle, `xu3yxw` first, then `jfza7e`, each passing `aw ipd lint --phase pre-transition` before its transition. Because the code for both already sits on `feat/aw-partition`, begin and finalize are bookkeeping transactions over already-committed work; if the runner's scope reconciliation sees the earlier execution commits as out-of-window, justify with `--scope-reason` naming `309bc790` / `564fc488` rather than re-implementing. In `.aw/worktrees/feat-partition`, note that `AW-LIFECYCLE-ROLE-001` gates hand begin/finalize unless driven by a runner (`aw oc run` / `aw agy run`) or run with driver attestation, and `aw ipd begin` must precede `aw ipd finalize` to issue the matching receipt.
+- [x] E-03 Finalize both plans through the lifecycle, `xu3yxw` first, then `jfza7e`, each passing `aw ipd lint --phase pre-transition` before its transition. Because the code for both already sits on `feat/aw-partition`, begin and finalize are bookkeeping transactions over already-committed work; if the runner's scope reconciliation sees the earlier execution commits as out-of-window, justify with `--scope-reason` naming `309bc790` / `564fc488` rather than re-implementing. In `.aw/worktrees/feat-partition`, note that `AW-LIFECYCLE-ROLE-001` gates hand begin/finalize unless driven by a runner (`aw oc run` / `aw agy run`) or run with driver attestation, and `aw ipd begin` must precede `aw ipd finalize` to issue the matching receipt.
   - Depends on: E-02
   - Expected outcome: both plans are in `.aw/records/plans/executed/` with `- Status: executed` and a finalize history line.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -126,10 +126,28 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     12 fence lines = six fenced blocks, one per V-01..V-06. Bare suite after the change: `2489 passed, 2 skipped, 3 warnings in 35.97s`.
   - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `ls .aw/records/plans/executed/ | grep -E "xu3yxw|jfza7e"`, both plans' `- Status:` lines, and each plan's finalize history line.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Both plans finalized into executed/ with status executed and attributed finalize history lines.
+    Listing from executed directory:
+    ```
+    $ ls .aw/records/plans/executed/ | grep -E "xu3yxw|jfza7e"
+    20260926-partition-01-xu3yxw-add-aw-partition-command-to-cluster-dependent-plans-into-bal.ipd.md
+    20260926-partition-03-jfza7e-close-xu3yxw-execution-gaps-shared-edge-parser-dead-depth-fa.ipd.md
+    ```
+    Status lines in both plans:
+    ```
+    $ grep -n "^- Status:" .aw/records/plans/executed/20260926-partition-01-xu3yxw-add-aw-partition-command-to-cluster-dependent-plans-into-bal.ipd.md .aw/records/plans/executed/20260926-partition-03-jfza7e-close-xu3yxw-execution-gaps-shared-edge-parser-dead-depth-fa.ipd.md
+    .aw/records/plans/executed/20260926-partition-01-xu3yxw-add-aw-partition-command-to-cluster-dependent-plans-into-bal.ipd.md:9:- Status: executed
+    .aw/records/plans/executed/20260926-partition-03-jfza7e-close-xu3yxw-execution-gaps-shared-edge-parser-dead-depth-fa.ipd.md:9:- Status: executed
+    ```
+    Finalize workflow history entries:
+    ```
+    $ grep -n -E "executed \(antigravity" .aw/records/plans/executed/20260926-partition-01-xu3yxw-add-aw-partition-command-to-cluster-dependent-plans-into-bal.ipd.md .aw/records/plans/executed/20260926-partition-03-jfza7e-close-xu3yxw-execution-gaps-shared-edge-parser-dead-depth-fa.ipd.md
+    .aw/records/plans/executed/20260926-partition-01-xu3yxw-add-aw-partition-command-to-cluster-dependent-plans-into-bal.ipd.md:20:- 2026-09-26 executed (antigravity): finalize xu3yxw: add aw partition command [Scope reconciliation - in-scope-unmodified CHANGELOG.md: committed in 309bc790; in-scope-unmodified agent_workflows/cli.py: committed in 309bc790; in-scope-unmodified agent_workflows/command_surface.py: committed in 309bc790; in-scope-unmodified agent_workflows/partition.py: committed in 309bc790; in-scope-unmodified tests/test_partition.py: committed in 309bc790]
+    .aw/records/plans/executed/20260926-partition-03-jfza7e-close-xu3yxw-execution-gaps-shared-edge-parser-dead-depth-fa.ipd.md:21:- 2026-09-26 executed (antigravity): finalize jfza7e: close xu3yxw execution gaps [Scope reconciliation - in-scope-unmodified agent_workflows/partition.py: committed in 564fc488; in-scope-unmodified tests/test_partition.py: committed in 564fc488]
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
