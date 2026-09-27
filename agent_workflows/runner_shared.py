@@ -6998,6 +6998,11 @@ TURN_RETRY_CLASSIFICATION: tuple[tuple[str, bool, str], ...] = (
         "checkpoint) is ALREADY spent by `finalize_retry_decision`, which classifies the refusal "
         "TEXT. Retrying here as well would double-spend the same budget on the same failure",
     ),
+    (
+        "retired",
+        False,
+        "success: the turn retired its plan in-lane and landed; nothing to correct",
+    ),
     ("reviewed", False, "a review outcome, not a failed execution"),
     ("approved", False, "a review outcome, not a failed execution"),
     (
@@ -24222,6 +24227,15 @@ EXECUTE_REPORTING_SUCCESS_STATES: frozenset[str] = frozenset(
     SUCCESS_STATES - {"reviewed"}
 )
 
+#: The EXECUTE reporting bar PLUS an in-lane retirement (`RETIRED_STATUS`). Kept separate from
+#: `EXECUTE_REPORTING_SUCCESS_STATES`, whose exact membership (`SUCCESS_STATES - {"reviewed"}`) is
+#: pinned by `tests/test_reaskscore_composed.py`, so that constant keeps meaning what it says while
+#: `success_states_for_action` can still count a verified retirement as the success it is. It stays
+#: OUT of `EXECUTION_SUCCESS_STATES`: a retired plan never satisfies an `executed:` edge.
+EXECUTE_OR_RETIRED_REPORTING_SUCCESS_STATES: frozenset[str] = frozenset(
+    EXECUTE_REPORTING_SUCCESS_STATES | {"retired"}
+)
+
 #: The reporting success bar for a `skip` action (artdispatch 7icz68 E-07). A skip that completed is
 #: a success for that item, so this admits the terminal statuses a correct skip produces: `not-run` for
 #: an incomplete draft, `executed` for an already executed plan, and `reviewed`/`superseded`/`not-executed`
@@ -24275,7 +24289,9 @@ def success_states_for_action(action: str | None) -> Container[str]:
         return SKIP_REPORTING_SUCCESS_STATES
     if action == "plan":
         return PLAN_REPORTING_SUCCESS_STATES
-    return EXECUTE_REPORTING_SUCCESS_STATES
+    # An execute turn that correctly RETIRED its plan in-lane (a genuine stop condition, verified)
+    # is a success for the turn; see `RETIRED_STATUS`.
+    return EXECUTE_OR_RETIRED_REPORTING_SUCCESS_STATES
 
 
 def item_reached_success(item: Mapping[str, Any]) -> bool:
@@ -27029,6 +27045,7 @@ TERMINAL_STATES_CANONICAL: frozenset[str] = frozenset(
         "not-run",
         "failed",
         "already-landed",  # mergeskip (8k0z40): lane work already landed on HEAD
+        "retired",  # the turn retired its plan in-lane (superseded/not-executed); see RETIRED_STATUS
     }
 )
 
@@ -27635,6 +27652,31 @@ def read_recorded_outcome(
     return outcome if isinstance(outcome, dict) else None
 
 
+#: The disposition of an execute turn that RETIRED its plan in-lane rather than executing it.
+#:
+#: WHY IT EXISTS, measured in run `run-20260927T174659Z-293992`: plan `xts8ux` carried a genuine
+#: stop condition (E-01: "if `a6xbso` landed first, do NOT edit; retire this plan as superseded").
+#: The agent hit it, correctly moved the plan to `superseded/` in its lane via `aw set`, and the
+#: independent verifier returned VERIFIED. The runner then scored the turn `fail-gate` (no `executed/`
+#: bucket, and the agent's self-reported `blocked`), tried to FINALIZE a superseded plan into
+#: `executed/`, was refused, and preserved the lane, so a verified, correct retirement never reached
+#: `main` and the run reported a failure.
+#:
+#: WHAT IT IS AND IS NOT. It is a SUCCESS for the turn (the correct disposition was reached and
+#: verified) and it LANDS the lane on `main`. It is NOT `executed`: the plan's work was decided
+#: against, so an `executed:` edge on it must stay unsatisfied (spec `25kzda` 5.4 rule 9), which is
+#: why it is absent from `EXECUTION_SUCCESS_STATES`, and why `finalize` (which moves a plan to
+#: `executed/`) is never called for it.
+#:
+#: THE AUTHORITY IS THE LANE'S DIRECTORY, never the agent's prose: a turn only earns this when the
+#: plan file actually sits in a retired directory in the lane, which `aw set` (the tooled lifecycle
+#: move) is what puts it there.
+RETIRED_STATUS = "retired"
+
+#: Plan buckets that mean the plan was deliberately retired (not executed).
+RETIRED_PLAN_BUCKETS: frozenset[str] = frozenset({"superseded", "not-executed"})
+
+
 def outcome_precedence_disposition(
     bucket: str | None, outcome: Mapping[str, Any] | None
 ) -> str | None:
@@ -27665,6 +27707,11 @@ def outcome_precedence_disposition(
 
     if bucket == "executed":
         return "executed"
+    # The directory, not the agent's word, establishes a retirement (see RETIRED_STATUS). Checked
+    # BEFORE the outcome so an agent that retired correctly but self-reported `blocked` is not
+    # scored as a failure.
+    if bucket in RETIRED_PLAN_BUCKETS:
+        return RETIRED_STATUS
     if outcome:
         disposition = outcome.get("disposition")
         if disposition == "executed":
@@ -27735,6 +27782,20 @@ def reconcile_disposition(
         bucket = plan_bucket(current_plan)
     except DriverError:
         bucket = None
+    # AN IN-LANE RETIREMENT IS VISIBLE ONLY IN THE LANE (see `RETIRED_STATUS`). Main still holds the
+    # plan in `pending/` until the lane lands, so asking main alone scored a correct, verified
+    # retirement as a failure (run `run-20260927T174659Z-293992`, `xts8ux`). Consulted ONLY for the
+    # retired buckets: an `executed/` claim is still read from main's side exactly as before, since a
+    # lane never finalizes before its gates.
+    if bucket not in ("executed",) and plan_repo is not None and plan_repo != repo:
+        with contextlib.suppress(DriverError):
+            lane_bucket = plan_bucket(
+                resolve_plan_path(
+                    plan_repo, item.get("configured_file", ""), item["id6"]
+                )
+            )
+            if lane_bucket in RETIRED_PLAN_BUCKETS:
+                bucket = lane_bucket
     established = outcome_precedence_disposition(bucket, outcome)
     if established is not None:
         return established, outcome
@@ -28310,6 +28371,142 @@ def _record_lane_ending_facts(
         return
     attempt["lane_ending_head"] = head
     attempt["lane_ending_status"] = status
+
+
+def integrate_retired_lane(
+    *,
+    repo: Path,
+    run_dir: Path,
+    state: dict[str, Any],
+    item: dict[str, Any],
+    attempt: dict[str, Any],
+    wt_handle: Any,
+    work_dir: Any,
+    host_labels: HostLabels,
+    save_state: Callable[..., Any],
+    append_jsonl: Callable[..., Any],
+    integrate_lane_branch: Callable[..., Any],
+    make_validation_runner: Callable[..., Any],
+    run_suite_check: Callable[..., Any],
+    process_backlog_close: Callable[..., Any],
+    git_head: Callable[[Path], Any],
+    git_status: Callable[[Path], Any],
+) -> str:
+    """Land a lane whose turn RETIRED its plan in-lane, with NO finalize. Returns the disposition.
+
+    See `RETIRED_STATUS` for the measured incident. The caller has already established that the
+    lane's plan sits in a retired directory AND that the turn earned integration (verifier verdict
+    or driver-run suite), so this performs only the publish:
+
+      * the SAME serialized publish an executed lane uses (`integrate_under_repository_lock` around
+        `integrate_lane_branch` with `action_kind="execute"`), so the merge is revalidated and a
+        peer driver cannot advance `main` underneath it;
+      * on success: status `retired`, the lane torn down under the usual classification, and the
+        item's backlog close EVALUATED (the close predicate decides whether a retired carrier
+        closes its item; this function asserts nothing about it);
+      * on refusal: the SAME `record_integration_refusal` ladder an executed lane gets, so a
+        transient refusal is deferred and re-attempted rather than stranded, and the lane is kept.
+
+    `aw ipd finalize` is deliberately NOT called: it moves a plan to `executed/`, which for a retired
+    plan would be a false record. The retirement itself was already written by `aw set` in the lane.
+    """
+    from agent_workflows import lane_containment
+
+    pal = Palette(should_color(sys.stdout))
+    val_runner = make_validation_runner(
+        state, run_dir, item, suite_check=run_suite_check
+    )
+
+    def _publish(_item: Any, _handle: Any) -> tuple[bool, str, str]:
+        try:
+            return integrate_lane_branch(repo, _handle, _item["id6"], val_runner)
+        except TypeError:
+            return integrate_lane_branch(
+                repo,
+                _handle,
+                _item["id6"],
+                val_runner,
+                host_label=host_labels.command,
+                run_checked=globals()["run_checked"],
+                action_kind="execute",
+            )
+
+    integrated, integ_reason, integ_kind = integrate_under_repository_lock(
+        repo,
+        item,
+        wt_handle,
+        state=state,
+        holder_label=integration_lock_holder_label(state),
+        integrate=_publish,
+        progress=integration_lock_progress_reporter(),
+        run_checked=globals()["run_checked"],
+    )
+    _record_lane_ending_facts(
+        attempt, work_dir, git_head_fn=git_head, git_status_fn=git_status
+    )
+    if not integrated:
+        decision = record_integration_refusal(
+            run_dir=run_dir,
+            state=state,
+            item=item,
+            attempt=attempt,
+            integ_kind=integ_kind,
+            integ_reason=integ_reason,
+            branch=wt_handle.branch,
+            save_state=save_state,
+            append_jsonl=append_jsonl,
+        )
+        print(
+            pal(
+                f"  ! IPD {item['id6']} retired on lane {wt_handle.branch} but NOT integrated "
+                f"to main ({decision.status}): {integ_reason}",
+                "yellow",
+            ),
+            file=sys.stderr,
+        )
+        return decision.status
+
+    attempt["ending_head"] = git_head(repo)
+    attempt["ending_status"] = git_status(repo)
+    attempt["disposition"] = RETIRED_STATUS
+    attempt["integrated"] = integ_reason
+    item["status"] = RETIRED_STATUS
+    item["integrated"] = integ_reason
+    with contextlib.suppress(DriverError):
+        item["last_plan_path"] = str(
+            resolve_plan_path(repo, item.get("configured_file", ""), item["id6"])
+        )
+    save_state(run_dir, state)
+    append_jsonl(
+        run_dir / "events.jsonl",
+        {
+            "at": utc_now(),
+            "event": "ipd-retired-integrated",
+            "id6": item["id6"],
+            "setid": item.get("setid"),
+            "integration": integ_reason,
+        },
+    )
+    print(
+        pal(
+            f"  \u2713 IPD {item['id6']} retired in-lane and integrated to main ({integ_reason})",
+            "green",
+        )
+    )
+    decision = lane_containment.teardown_lane_if_classified(
+        repo=repo, handle=wt_handle, run_dir=run_dir, item=item
+    )
+    if not decision.torn_down:
+        lane_containment.record_lane_preserved(
+            run_dir=run_dir,
+            item=item,
+            handle=wt_handle,
+            reason=decision.reason,
+            reason_codes=decision.reason_codes,
+            detail=decision.inventory.as_dict(),
+        )
+    process_backlog_close(run_dir, state, item)
+    return RETIRED_STATUS
 
 
 def execute_item_core(
@@ -29244,7 +29441,13 @@ def execute_item_core(
             verify_disp: Any = None
             if (
                 not is_review
-                and disposition in ("executed", "fail-gate", "substantially-complete")
+                and disposition
+                in (
+                    "executed",
+                    "fail-gate",
+                    "substantially-complete",
+                    RETIRED_STATUS,
+                )
                 and validate
             ):
                 plan_repo = Path(work_dir) if work_dir else repo
@@ -29798,7 +30001,13 @@ def execute_item_core(
         integration_gate_relevant = (
             self_finalize
             and not is_review
-            and disposition in ("executed", "fail-gate", "substantially-complete")
+            and disposition
+            in (
+                "executed",
+                "fail-gate",
+                "substantially-complete",
+                RETIRED_STATUS,
+            )
         )
         if integration_gate_relevant and not validate:
             suite_result = run_suite_check(repo, str(state.get("run_id") or ""))
@@ -30370,6 +30579,40 @@ def execute_item_core(
                 attempt["review_integrated"] = True
                 item["review_integrated"] = True
             save_state(run_dir, state)
+
+        # IN-LANE RETIREMENT (see `RETIRED_STATUS`): the turn moved its plan to `superseded/` or
+        # `not-executed/` and earned integration (verifier or suite). There is NOTHING TO FINALIZE -
+        # `aw ipd finalize` moves a plan to `executed/`, which would be a false claim - so the lane is
+        # landed on `main` directly, through the SAME serialized, revalidating publish an executed
+        # lane uses, and the item ends `retired`. Not earned (or no lane) falls through unchanged:
+        # the lane is preserved exactly as for any other unintegrated turn.
+        if (
+            not is_review
+            and disposition == RETIRED_STATUS
+            and self_finalize
+            and wt_handle is not None
+            and integration.earned
+        ):
+            disposition = integrate_retired_lane(
+                repo=repo,
+                run_dir=run_dir,
+                state=state,
+                item=item,
+                attempt=attempt,
+                wt_handle=wt_handle,
+                work_dir=work_dir,
+                host_labels=host_labels,
+                save_state=save_state,
+                append_jsonl=append_jsonl,
+                integrate_lane_branch=integrate_lane_branch,
+                make_validation_runner=make_integration_validation_runner,
+                run_suite_check=run_suite_check,
+                process_backlog_close=process_backlog_close,
+                git_head=git_head,
+                git_status=git_status,
+            )
+            if disposition == RETIRED_STATUS:
+                wt_handle = None
 
         if not is_review and disposition in (
             "executed",

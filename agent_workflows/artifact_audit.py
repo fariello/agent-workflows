@@ -907,6 +907,8 @@ def _status_disagrees(recorded: str, declared: str) -> bool:
     dec = canonical_terminal_status(declared)
     if rec in ("executed", "complete"):
         return dec not in ("executed", "complete")
+    if rec == "retired":
+        return dec not in ("superseded", "not-executed")
     if rec == "reviewed":
         return dec not in ("reviewed", "approved")
     if rec in (
@@ -1008,6 +1010,15 @@ def audit_artifact(
 
     actual_dir = actual_file.parent.name
     file_status = read_declared_status(actual_file)
+    # A run status of `retired` (runner_shared.RETIRED_STATUS) names the CLASS of disposition, not
+    # which retired directory: the plan's own declared status says whether it is `superseded` or
+    # `not-executed`, so the expectation is resolved from the file rather than guessed.
+    if recorded == "retired":
+        expected = (
+            file_status if file_status in _RETIREMENT_DIRS else min(_RETIREMENT_DIRS)
+        )
+        if actual_dir in _RETIREMENT_DIRS:
+            expected = actual_dir
     return _classified(
         ArtifactAudit(
             id6=id6,

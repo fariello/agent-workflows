@@ -45,6 +45,7 @@ EXPECTED_CANONICAL_STATES = frozenset(
         "not-run",
         "failed",
         "already-landed",
+        "retired",
     }
 )
 
@@ -66,11 +67,11 @@ class TestTerminalStatusVocabularyDefinitions(unittest.TestCase):
     """V-01 (E-01): Shared vocabulary definition, alias map, and host object identity."""
 
     def test_canonical_terminal_states_set(self):
-        """TERMINAL_STATES_CANONICAL contains exactly the 13 canonical states."""
+        """TERMINAL_STATES_CANONICAL contains exactly the 14 canonical states."""
         self.assertEqual(
             runner_shared.TERMINAL_STATES_CANONICAL, EXPECTED_CANONICAL_STATES
         )
-        self.assertEqual(len(runner_shared.TERMINAL_STATES_CANONICAL), 13)
+        self.assertEqual(len(runner_shared.TERMINAL_STATES_CANONICAL), 14)
 
     def test_terminal_status_aliases_map(self):
         """TERMINAL_STATUS_ALIASES maps all legacy tokens to canonical members."""

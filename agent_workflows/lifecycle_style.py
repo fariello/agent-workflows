@@ -480,6 +480,10 @@ _RUNNER_ITEM_PAIRS: Tuple[Tuple[str, str], ...] = (
     ("fail-depend", BLOCKED),
     ("fail-merge", BLOCKED),
     ("already-landed", BLOCKED),  # mergeskip (8k0z40): lane work already landed on HEAD
+    (
+        "retired",
+        SUPERSEDED,
+    ),  # the turn retired its plan in-lane (runner_shared.RETIRED_STATUS)
     ("not-run", ABANDONED),
     ("failed", FAILED),
     ("failed-safely", FAILED),

@@ -88,6 +88,7 @@ KNOWN_ITEM_STATUSES = frozenset(
         "not-run",
         "failed",
         "already-landed",  # mergeskip (8k0z40): lane work already landed on HEAD
+        "retired",  # the turn retired its plan in-lane (runner_shared.RETIRED_STATUS)
         # in-flight / recoverable
         "queued",
         "running",
