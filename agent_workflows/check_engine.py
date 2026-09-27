@@ -76,6 +76,18 @@ PROMPT_ID6_CUTOVER_DATE = (
     "20260921"  # compact YYYYMMDD; require_id6 iff filename date >= this
 )
 
+# Walkthrough id6-in-filename cutover (IPD nrqo90 E-03 / D140): walkthroughs adopt the id6-clustered
+# grammar GOING FORWARD, so a walkthrough whose FILENAME date is at/after the cutover MUST be
+# id6-clustered while a pre-cutover walkthrough stays conformant in either shape (all 24 measured
+# 2026-09-27 are pre-cutover and remain valid). THIS CONSTANT IS THE FALLBACK, NOT THE BOUNDARY:
+# `_walkthrough_requires_id6` resolves `config.resolve_cutover_date(repo_root, "walkthrough_id6")`
+# FIRST, exactly as `_spec_requires_id6` and `_prompt_requires_id6` do, so a repository moves its
+# own boundary in `.aw/config/project.json` and never by editing Python. The fallback is non-`None`
+# DELIBERATELY, avoiding both failure modes.
+WALKTHROUGH_ID6_CUTOVER_DATE = (
+    "20260927"  # compact YYYYMMDD; require_id6 iff filename date >= this
+)
+
 # --------------------------------------------------------------------------------------
 # Versioned policy schema (agentadhere Phase 1, IPD uisjns).
 #
@@ -874,10 +886,13 @@ def check_names(
         # Spec id6 cutover (IPD ha55fi E-03): a spec dated at/after the spec_id6 cutover must be
         # id6-clustered; a pre-cutover spec is grandfathered (legacy HHMM-NN name still conforms).
         # Prompt id6 cutover (IPD ubac5n E-03): the exact structural twin for prompts.
+        # Walkthrough id6 cutover (IPD nrqo90 E-03): the exact structural twin for walkthroughs.
         if record_type == "specs":
             require_id6 = _spec_requires_id6(p.name, repo_root=repo_root)
         elif record_type == "prompts":
             require_id6 = _prompt_requires_id6(p.name, repo_root=repo_root)
+        elif record_type == "walkthroughs":
+            require_id6 = _walkthrough_requires_id6(p.name, repo_root=repo_root)
         else:
             require_id6 = False
         if npn.is_conformant(p.name, expected_type=facet, require_id6=require_id6):
@@ -892,14 +907,23 @@ def check_names(
         if require_id6:
             from agent_workflows import config as _config
 
-            # One message shape, two features. The singular noun and the `aw rename <type>` recovery
-            # command are derived from `record_type` rather than hard-coded, so the prompt cutover
-            # cannot ship a message telling an operator to run the SPEC converter.
-            feature, fallback, noun = (
-                ("spec_id6", SPEC_ID6_CUTOVER_DATE, "spec")
-                if record_type == "specs"
-                else ("prompt_id6", PROMPT_ID6_CUTOVER_DATE, "prompt")
-            )
+            # One message shape, three features. The singular noun and the `aw rename <type>` recovery
+            # command are derived from `record_type` rather than hard-coded, so the cutover
+            # cannot ship a message telling an operator to run another type's converter.
+            if record_type == "specs":
+                feature, fallback, noun = ("spec_id6", SPEC_ID6_CUTOVER_DATE, "spec")
+            elif record_type == "prompts":
+                feature, fallback, noun = (
+                    "prompt_id6",
+                    PROMPT_ID6_CUTOVER_DATE,
+                    "prompt",
+                )
+            else:
+                feature, fallback, noun = (
+                    "walkthrough_id6",
+                    WALKTHROUGH_ID6_CUTOVER_DATE,
+                    "walkthrough",
+                )
             cutover_disp = (
                 _config.resolve_cutover_date(repo_root, feature, compact=True)
                 or fallback
@@ -968,6 +992,37 @@ def _prompt_requires_id6(filename: str, repo_root: Optional[Path] = None) -> boo
         cutover = _config.resolve_cutover_date(repo_root, "prompt_id6", compact=True)
     if cutover is None:
         cutover = PROMPT_ID6_CUTOVER_DATE
+    return m.group(1) >= cutover
+
+
+def _walkthrough_requires_id6(filename: str, repo_root: Optional[Path] = None) -> bool:
+    """True iff a walkthrough filename's leading YYYYMMDD date is at/after the walkthrough_id6 cutover date.
+
+    IPD `nrqo90` E-03. The EXACT STRUCTURAL TWIN of :func:`_prompt_requires_id6` and
+    :func:`_spec_requires_id6`, deliberately, rather than a second mechanism: resolve
+    `cutovers.walkthrough_id6` from the repository's own `.aw/config/project.json` FIRST, fall back
+    to the module constant, and treat an unparseable leading date as PRE-cutover so an unusual legacy
+    shape is not force-failed by the boundary (the normal grammar check still applies to it).
+    `config.resolve_cutover_date` needed no change: it already resolves an arbitrary feature key.
+
+    THE FALLBACK IS WHY THIS HAS NEITHER DOCUMENTED FAILURE MODE. Config-FIRST keeps the boundary
+    per-repository and movable without editing Python (which copying the deprecated bare constant
+    would have lost); a non-`None` CONSTANT fallback keeps the `error` tier reachable in a repository
+    that has not stamped the key, which is the `None`-grandfathers-everything decoration mode
+    `CARRIER_CUTOVER_DATE`'s comment records as its reason for choosing a bare constant.
+    """
+    m = _SPEC_DATE_RE.match(filename)
+    if m is None:
+        return False
+    cutover = None
+    if repo_root is not None:
+        from agent_workflows import config as _config
+
+        cutover = _config.resolve_cutover_date(
+            repo_root, "walkthrough_id6", compact=True
+        )
+    if cutover is None:
+        cutover = WALKTHROUGH_ID6_CUTOVER_DATE
     return m.group(1) >= cutover
 
 

@@ -1,6 +1,8 @@
 # Walkthrough: the missing-input report-and-refuse cycle (`lanectn` Order 04, `y5od1h`)
 
 - Date: 2026-09-06
+- Id: cceh3w
+- Target-Id: y5od1h
 - Plan: `.aw/records/plans/executed/20260901-lanectn-04-y5od1h-bounded-missing-input-repair-without-original-checkout-acces.ipd.md`
 - Spec: `7ckptx` R3.1, R3.2, R3.3, R3.5, R3.6, R3.7 (R3.3a/-1/-1a/-1b/-2, R3.3b, R3.4 withdrawn)
 - Base commit: `274092d3`

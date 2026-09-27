@@ -30,6 +30,7 @@
     "spec_id6": "2026-08-29",
     "dependency_schema": "2026-09-01",
     "carrier_obligations": "2026-09-19",
-    "prompt_id6": "2026-09-21"
+    "prompt_id6": "2026-09-21",
+    "walkthrough_id6": "2026-09-27"
   }
 }
