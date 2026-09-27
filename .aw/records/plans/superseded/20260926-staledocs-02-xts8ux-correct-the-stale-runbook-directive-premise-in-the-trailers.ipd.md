@@ -1,3 +1,5 @@
+RETIRED 2026-09-27: superseded by executed plan `a6xbso` (`.aw/records/plans/executed/20260926-trailread-01-a6xbso-stamp-aw-run-and-aw-item-trailers-on-the-agent-s-own-aw-comm.ipd.md`). Premise spent: plan `a6xbso` landed first and rewrote `agent_workflows/work_cmd._trailers_from_args` docstring to document the `AW_RUN_ID`/`AW_ITEM_ID6` environment-variable channel; the stale "runbook directive" citation is already absent and rewriting the paragraph to claim no IDs are supplied would write a new falsehood. E-01 stop condition triggered.
+
 # IPD: Correct the stale runbook-directive premise in the _trailers_from_args docstring
 
 - Date: 2026-09-26
@@ -6,7 +8,7 @@
 - Scope: IN: the docstring of `agent_workflows/work_cmd._trailers_from_args` only. OUT: any behavior change, any new flag, wiring run/item ids into the agent's `aw commit` (that is the gap the docstring documents, and closing it is a separate design decision), the driver prompts.
 - Scope-Paths: agent_workflows/work_cmd.py
 - Item-Dependencies: none
-- Status: approved
+- Status: superseded
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +18,9 @@
 - Highest E allocated: 03
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: xts8ux
-- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 superseded (aw set): Retired as superseded by executed plan a6xbso (trailread Order 01). Premise spent per E-01 stop condition: docstring already rewritten and stale runbook directive citation already absent.
 - 2026-09-27 approved (aw set): status set to approved
 - 2026-09-27 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-601..PR-605 all FIXED. Premise re-measured: the stale phrase occurs exactly once in the package and aw commit exposes no id flag. Found that deferral carrier a6xbso is a live reviewed plan rewriting this same paragraph to the opposite conclusion, so added a premise-check E-01 that stops and retires if it landed first; replaced V-01's positive grep, which passed before any edit, with a four-probe docstring check measured to flip.
 - 2026-09-26 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog t5ycse: Rewrite the _trailers_from_args docstring to name the real gap (aw commit gets no run/item ids).
@@ -35,22 +37,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Rewrite the docstring paragraph
 
-- [ ] E-01 CHECK WHICH WORLD YOU ARE IN BEFORE EDITING (added in review, F-4). Run `python3 -c "import inspect; from agent_workflows import work_cmd as w; d = inspect.getdoc(w._trailers_from_args); [print(f'{p!r}: {p in d}') for p in ('runbook directive','AW_RUN_ID')]"` and `ls .aw/records/plans/executed/ | grep a6xbso || echo "a6xbso not executed (pass)"`. GENUINE STOP CONDITION: if `runbook directive` is already absent, or `AW_RUN_ID` is already present, or `a6xbso` is in `executed/`, then plan `a6xbso` has landed first and rewrote this paragraph to say the ids ARE now supplied. In that world this plan's premise is SPENT and executing it would write a new falsehood (see OQ-01). Do NOT edit: report it and retire this plan as superseded by `a6xbso`.
+- [x] E-01 CHECK WHICH WORLD YOU ARE IN BEFORE EDITING (added in review, F-4). Run `python3 -c "import inspect; from agent_workflows import work_cmd as w; d = inspect.getdoc(w._trailers_from_args); [print(f'{p!r}: {p in d}') for p in ('runbook directive','AW_RUN_ID')]"` and `ls .aw/records/plans/executed/ | grep a6xbso || echo "a6xbso not executed (pass)"`. GENUINE STOP CONDITION: if `runbook directive` is already absent, or `AW_RUN_ID` is already present, or `a6xbso` is in `executed/`, then plan `a6xbso` has landed first and rewrote this paragraph to say the ids ARE now supplied. In that world this plan's premise is SPENT and executing it would write a new falsehood (see OQ-01). Do NOT edit: report it and retire this plan as superseded by `a6xbso`.
   - Depends on: none
   - Expected outcome: measured in review at this HEAD, `runbook directive` is `True`, `AW_RUN_ID` is `False`, and `a6xbso` is in `pending/` (`reviewed`, awaiting approval), so the premise holds and E-01 proceeds.
-  - Execution state: pending
+  - Execution state: performed
 
 - [ ] E-02 In `agent_workflows/work_cmd._trailers_from_args`, rewrite the paragraph beginning "THE RUNNER WIRING IS NOW PARTLY LANDED" so that: the WIRED half is unchanged (driver-side `oc_runipd.commit_backlog_close` passes `run_item_trailers(run_id, plan_id6)`); the DEFERRED half says the agent's code commits are now instructed through `aw commit <plan> -- <paths>` (the four prompt sites: the execution-directive item 4 in `oc_runipd` and `agy_runipd` default runbook text, and the two "commit through `aw commit <plan> -- <paths>`" lines in `runner_shared`'s review/verify prompts), which reaches this function, but the runner passes no `run_id`/`item_id6` (nor `trailers`) to that invocation and `aw commit` has no public flag for them, so `_trailers_from_args` returns `[]` for every agent commit. Remove the sentence claiming the commits "pass through no `offer_commit` call, and so cannot be reached by wiring one" and the "raw `git commit -m msg -- <path>` per the runbook directive" clause. Keep the final paragraph about not auto-deriving the plan id6.
   - Depends on: E-01
   - Expected outcome: the docstring names `aw commit` as the instructed path and "no ids supplied" as the cause; `grep -n "runbook directive\|git commit -m msg" agent_workflows/work_cmd.py` returns nothing.
-  - Execution state: pending
+  - Execution state: blocked
+  - Execution note: superseded by executed plan a6xbso per E-01 stop condition
 
 ### Task group 2: Verify no behavior changed
 
 - [ ] E-03 Run the bare suite `python3 -m pytest` and confirm `git diff --stat` touches only `agent_workflows/work_cmd.py` and that the diff is inside the docstring (no code line changed).
   - Depends on: E-02
   - Expected outcome: suite passes; diff is docstring-only.
-  - Execution state: pending
+  - Execution state: blocked
+  - Execution note: superseded by executed plan a6xbso per E-01 stop condition
 
 ## Project conventions discovered (Step 0)
 
@@ -118,10 +122,22 @@ N/A: internal docstring only; no spec or user-facing doc describes this function
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the two-probe output (`'runbook directive': True` and `'AW_RUN_ID': False` are the values measured in review at this HEAD) and the `a6xbso` disposition line. If either probe reads the other way, or `a6xbso` appears under `executed/`, paste that and STOP: the premise is spent and the plan is to be retired as superseded, not executed (OQ-01).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: STOP condition triggered; premise is spent because prerequisite carrier plan `a6xbso` has already executed and rewritten the target docstring.
+    1. Two-probe docstring inspection output:
+    ```
+    $ python3 -c "import inspect; from agent_workflows import work_cmd as w; d = inspect.getdoc(w._trailers_from_args); [print(f'{p!r}: {p in d}') for p in ('runbook directive','AW_RUN_ID')]"
+    'runbook directive': False
+    'AW_RUN_ID': True
+    ```
+    2. Plan a6xbso disposition in executed directory:
+    ```
+    $ ls .aw/records/plans/executed/ | grep a6xbso || echo "a6xbso not executed (pass)"
+    20260926-trailread-01-a6xbso-stamp-aw-run-and-aw-item-trailers-on-the-agent-s-own-aw-comm.ipd.md
+    ```
+    Both docstring probes read opposite to review HEAD ('runbook directive' is False, 'AW_RUN_ID' is True) and a6xbso is present in `.aw/records/plans/executed/`. Per E-01, V-01, and OQ-01 instructions, execution stopped without editing `agent_workflows/work_cmd.py`; plan is retired as superseded by a6xbso.
+  - Result: pass
 - [ ] V-02 validates E-02
   - Required evidence: paste the rewritten paragraph and the output of `grep -n "runbook directive\|git commit -m msg" agent_workflows/work_cmd.py` (expected: empty; a bare `grep` finding nothing exits 1, which is the PASS case and aborts a `set -e` lane, so append `|| echo "absent (pass)"`). THEN, instead of the authored file-wide `aw commit <plan>` grep, which PASSES TODAY against the unedited file (F-5), run this docstring-scoped check and paste its output verbatim:
 
@@ -130,12 +146,12 @@ python3 -c "import inspect; from agent_workflows import work_cmd as w; d = inspe
 ```
 
 Required result: the FIRST probe `True` and the other THREE `False`, then the printed docstring showing the new wording. Each of the four was measured against the UNEDITED file in review and reads the opposite way today (`False, True, True, True`), so all four flip and none of them can pass vacuously. Reading the resolved docstring off the imported object is the durable form: it cannot drift with line numbers and cannot be satisfied by a match elsewhere in the file.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: omitted (superseded by a6xbso per E-01 stop condition)
+  - Result: blocked
 - [ ] V-03 validates E-03
   - Required evidence: paste the final summary line of bare `python3 -m pytest` (expected `N passed`, no failures) and `git diff --stat` showing only `agent_workflows/work_cmd.py`, plus `git diff -U0 agent_workflows/work_cmd.py` showing every changed line lies inside the docstring.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: omitted (superseded by a6xbso per E-01 stop condition; lane baseline suite passed: 2808 passed, 2 skipped, 3 warnings in 139.08s)
+  - Result: blocked
 
 ## Approval and execution gate
 
