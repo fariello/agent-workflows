@@ -184,17 +184,17 @@ jobs:
         shell: bash
         run: python -m agent_workflows check backlog --agent
 
-      # release-gates is currently ADVISORY (report-only), NOT fail-closed: the tree carries two
-      # pre-existing findings (check.live-bug-ungated on 7l1ggb and check.from-backlog-dangling on
-      # executed plan mjx7ne with From-Backlog: none) that a fail-closed gate would red `main` on.
-      # It joins the fail-closed set above once those baseline findings are cleaned or resolved
-      # (see backlog 7dcw6z and IPD 2vw35i). It runs the SAME shipped engine (aw check release-gates)
-      # so the release-gate family is visible in CI; `|| true` keeps it non-blocking for now.
-      - name: aw check release-gates (release-gate family; ADVISORY until baseline findings cleared)
+      # release-gates is fail-closed (joined the fail-closed set in plan 3cs7qg once the family
+      # reported zero findings).
+      # OPERATIONAL CAVEAT (backlog cnn7au): the release-gate family includes `check.blocks-release-dangling`.
+      # Because `resolve_release` maps `next` only when exactly one release record is `planned`,
+      # marking the single planned release `shipped` WITHOUT creating the next planned record turns
+      # every `Blocks-Release: next` record into a dangling finding and reds `main` (tracked by backlog
+      # item cnn7au; the release workflow must ship and create the successor planned record together).
+      - name: aw check release-gates (release-gate family; fail closed)
         shell: bash
-        run: |
-          python -m agent_workflows check release-gates --agent || \
-            echo "::warning::aw check release-gates reported findings (advisory; see IPD 2vw35i - flip to fail-closed after 7l1ggb and From-Backlog none baseline findings are resolved)"
+        run: python -m agent_workflows check release-gates --agent
+
 
   output-conformance:
     name: CLI output-conformance harness (fail-closed)

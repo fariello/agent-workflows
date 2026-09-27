@@ -36,47 +36,48 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: one sentinel set, four readers
 
-- [ ] E-01 In `agent_workflows/ipd_schema.py`, directly below `META_FROM_BACKLOG`, add `SOURCE_LINK_ABSENT_SENTINELS: frozenset = frozenset({"-", "none", "unresolved"})` with a comment: these literal values mean "no source item" and every reader of a graduation-source link (`From-Backlog` AND `From-Spec`) treats them as if the field were absent; comparison is case-insensitive after stripping surrounding quotes. Add a helper `source_link_is_absent(value: str | None) -> bool` beside it (True for None, empty, or a sentinel), so readers share the comparison as well as the set. NAME IT FOR BOTH FIELDS, not `FROM_BACKLOG_*`: E-04 gives `From-Spec` the same treatment, and a `from_backlog`-named constant consulted by the spec reader is the kind of misnaming a later maintainer "corrects" by forking a second set.
+- [x] E-01 In `agent_workflows/ipd_schema.py`, directly below `META_FROM_BACKLOG`, add `SOURCE_LINK_ABSENT_SENTINELS: frozenset = frozenset({"-", "none", "unresolved"})` with a comment: these literal values mean "no source item" and every reader of a graduation-source link (`From-Backlog` AND `From-Spec`) treats them as if the field were absent; comparison is case-insensitive after stripping surrounding quotes. Add a helper `source_link_is_absent(value: str | None) -> bool` beside it (True for None, empty, or a sentinel), so readers share the comparison as well as the set. NAME IT FOR BOTH FIELDS, not `FROM_BACKLOG_*`: E-04 gives `From-Spec` the same treatment, and a `from_backlog`-named constant consulted by the spec reader is the kind of misnaming a later maintainer "corrects" by forking a second set.
   - Depends on: none
   - Expected outcome: one importable definition covering both link fields.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Make the two SIMPLE `From-Backlog` readers use it. (a) `releases.check_from_backlog`: skip the match when the helper reports the captured value absent. `releases` imports `ipd_schema` nowhere today; use a module-scope `from agent_workflows import ipd_schema as _schema` (verified in review: `ipd_schema`'s module-scope import closure is `{artifact_core, attention_contract, backlog, config, lifecycle_dirs, plans, record_placement}` and does NOT contain `releases`, so there is no cycle; measured cost of adding it to a `releases`-only import is about 16ms of a roughly 110ms import, and every CLI path that reaches `check_from_backlog` already has `ipd_schema` in `sys.modules`, so the real added cost on those paths is zero). (b) `runner_shared._read_from_backlog`: replace the inline `raw in {"-", "none", "unresolved"}` with the helper. Do not change either regex's shape (that is 6os96s's decision).
+- [x] E-02 Make the two SIMPLE `From-Backlog` readers use it. (a) `releases.check_from_backlog`: skip the match when the helper reports the captured value absent. `releases` imports `ipd_schema` nowhere today; use a module-scope `from agent_workflows import ipd_schema as _schema` (verified in review: `ipd_schema`'s module-scope import closure is `{artifact_core, attention_contract, backlog, config, lifecycle_dirs, plans, record_placement}` and does NOT contain `releases`, so there is no cycle; measured cost of adding it to a `releases`-only import is about 16ms of a roughly 110ms import, and every CLI path that reaches `check_from_backlog` already has `ipd_schema` in `sys.modules`, so the real added cost on those paths is zero). (b) `runner_shared._read_from_backlog`: replace the inline `raw in {"-", "none", "unresolved"}` with the helper. Do not change either regex's shape (that is 6os96s's decision).
   - Depends on: E-01
   - Expected outcome: a sentinel produces no dangling finding and the runner keeps returning None.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Make the `check_engine` `From-Backlog` readers use it. Add a module-private `_from_backlog_value(text) -> str | None` that runs `_META_FROM_BACKLOG_RE.search` and returns None for an absent sentinel, and route every single-value call site through it (`find_from_backlog_plans`, `find_from_backlog_specs`, `_from_backlog_carrier_index`, and the plan-gate index in `release_gate_warnings`'s orphaned-live-blocker check); in `build_graduation_reverse_index`, which uses `_META_FROM_BACKLOG_RE.finditer`, filter sentinel values out of `sources`. `check_engine` already imports `ipd_schema as _S` at module scope, so no new import. Kept separate from E-02 because it is five call sites in one module with its own helper, which is what the `IPD-Z602` density advisory flagged on the authored single item.
+- [x] E-03 Make the `check_engine` `From-Backlog` readers use it. Add a module-private `_from_backlog_value(text) -> str | None` that runs `_META_FROM_BACKLOG_RE.search` and returns None for an absent sentinel, and route every single-value call site through it (`find_from_backlog_plans`, `find_from_backlog_specs`, `_from_backlog_carrier_index`, and the plan-gate index in `release_gate_warnings`'s orphaned-live-blocker check); in `build_graduation_reverse_index`, which uses `_META_FROM_BACKLOG_RE.finditer`, filter sentinel values out of `sources`. `check_engine` already imports `ipd_schema as _S` at module scope, so no new import. Kept separate from E-02 because it is five call sites in one module with its own helper, which is what the `IPD-Z602` density advisory flagged on the authored single item.
   - Depends on: E-01
   - Expected outcome: a sentinel produces no carrier entry and no graduation edge.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Make the SPEC-side twin agree. In `check_engine.check_from_spec_dangling`, skip the `_ITEM_FROM_SPEC_RE` match when the helper reports the captured value absent. THIS IS NOT SCOPE CREEP AND IT IS THE HIGHER-RISK HALF: measured in review, `- From-Spec: none` / `-` / `unresolved` each produce a `check.from-spec-dangling` finding, that rule is reachable from `aw check all` (not from `aw check plans`), and its own docstring states that severity parity between the two carriers of one handoff "is the point" because AGENTS.md makes a spec "an equally valid gate carrier". Leaving the twin disagreeing would ship the exact inconsistency this plan exists to remove, in the field with the identical contract. Leave that function's empty-known-set fail-safe guard untouched.
+- [x] E-04 Make the SPEC-side twin agree. In `check_engine.check_from_spec_dangling`, skip the `_ITEM_FROM_SPEC_RE` match when the helper reports the captured value absent. THIS IS NOT SCOPE CREEP AND IT IS THE HIGHER-RISK HALF: measured in review, `- From-Spec: none` / `-` / `unresolved` each produce a `check.from-spec-dangling` finding, that rule is reachable from `aw check all` (not from `aw check plans`), and its own docstring states that severity parity between the two carriers of one handoff "is the point" because AGENTS.md makes a spec "an equally valid gate carrier". Leaving the twin disagreeing would ship the exact inconsistency this plan exists to remove, in the field with the identical contract. Leave that function's empty-known-set fail-safe guard untouched.
   - Depends on: E-01
   - Expected outcome: `- From-Spec:` and `- From-Backlog:` answer identically for all three sentinels.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Add outcome tests to `tests/test_check_engine_release_gate.py`, reusing `_create_minimal_repo`: for each of `-`, `none`, `unresolved` (subTest), a plan with `- From-Backlog: <value>` yields 0 `check.from-backlog-dangling` from `check_engine.check_release_gates(repo)`, `check_engine.find_from_backlog_artifacts(repo, <value>)` returns empty, `check_engine._from_backlog_carrier_index(repo)` has no key for the sentinel, `check_engine.build_graduation_reverse_index(repo)` has no `('backlog', <value>)` key, and `runner_shared._read_from_backlog(<plan text>)` returns None. Same three sentinels on `- From-Spec:` yield 0 `check.from-spec-dangling` from `check_engine.check_from_spec_dangling(repo)` (the fixture needs a spec carrying an `- Id:` so the known-set guard does not short-circuit). Two NEGATIVE cases prove the change did not blunt the rules: a real-shaped but unknown id6 (`zz9zz9`) yields exactly 1 `check.from-backlog-dangling` and, on the spec field, exactly 1 `check.from-spec-dangling`. Outcomes only; no test reads source text or pins the constant's spelling.
+- [x] E-05 Add outcome tests to `tests/test_check_engine_release_gate.py`, reusing `_create_minimal_repo`: for each of `-`, `none`, `unresolved` (subTest), a plan with `- From-Backlog: <value>` yields 0 `check.from-backlog-dangling` from `check_engine.check_release_gates(repo)`, `check_engine.find_from_backlog_artifacts(repo, <value>)` returns empty, `check_engine._from_backlog_carrier_index(repo)` has no key for the sentinel, `check_engine.build_graduation_reverse_index(repo)` has no `('backlog', <value>)` key, and `runner_shared._read_from_backlog(<plan text>)` returns None. Same three sentinels on `- From-Spec:` yield 0 `check.from-spec-dangling` from `check_engine.check_from_spec_dangling(repo)` (the fixture needs a spec carrying an `- Id:` so the known-set guard does not short-circuit). Two NEGATIVE cases prove the change did not blunt the rules: a real-shaped but unknown id6 (`zz9zz9`) yields exactly 1 `check.from-backlog-dangling` and, on the spec field, exactly 1 `check.from-spec-dangling`. Outcomes only; no test reads source text or pins the constant's spelling.
   - Depends on: E-02, E-03, E-04
   - Expected outcome: every sentinel case passes and each fails against its own pre-change reader; both negative cases still fire.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Add the REGRESSION GUARD that makes the shared set durable, because nothing above stops the next reader keeping a private copy. Assert BEHAVIORALLY, not by reading source text: parameterize one test over the public readers that take a value or a repo (`runner_shared._read_from_backlog`, `check_engine.find_from_backlog_artifacts`, `check_engine._from_backlog_carrier_index`, `check_engine.build_graduation_reverse_index`, `releases.check_from_backlog`, `check_engine.check_from_spec_dangling`) and assert each treats EVERY member of `ipd_schema.SOURCE_LINK_ABSENT_SENTINELS` as absent, iterating the frozenset rather than a literal list. A sentinel added to the constant then automatically obliges every reader, and a reader that forked its own set fails here instead of reddening CI on live data.
+- [x] E-06 Add the REGRESSION GUARD that makes the shared set durable, because nothing above stops the next reader keeping a private copy. Assert BEHAVIORALLY, not by reading source text: parameterize one test over the public readers that take a value or a repo (`runner_shared._read_from_backlog`, `check_engine.find_from_backlog_artifacts`, `check_engine._from_backlog_carrier_index`, `check_engine.build_graduation_reverse_index`, `releases.check_from_backlog`, `check_engine.check_from_spec_dangling`) and assert each treats EVERY member of `ipd_schema.SOURCE_LINK_ABSENT_SENTINELS` as absent, iterating the frozenset rather than a literal list. A sentinel added to the constant then automatically obliges every reader, and a reader that forked its own set fails here instead of reddening CI on live data.
   - Depends on: E-05
   - Expected outcome: adding a member to the constant fails the suite until every reader honors it.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: fail-closed CI gate
 
-- [ ] E-07 In `.github/workflows/tests.yml`, first run `python -m agent_workflows check release-gates --agent` at the branch head and confirm `"findings":0` and exit 0 (measured in review at this branch head: `"outcome":"conforms","exit":0,...,"findings":0`; the authored plan cited HEAD `61ef21d8`, which is an ancestor, so RE-DERIVE it rather than trusting either number). Then change the step named `aw check release-gates (release-gate family; ADVISORY until baseline findings cleared)` to `aw check release-gates (release-gate family; fail closed)` with `run: python -m agent_workflows check release-gates --agent` (drop the `|| echo "::warning::..."` fallback), and replace the six-line comment above it (which cites `7l1ggb` and an executed plan's `From-Backlog: none`, neither of which is a finding any more) with a comment stating BOTH facts a future reader needs: that it joined the fail-closed set once the family reported zero findings (plan 3cs7qg), AND that the family includes `check.blocks-release-dangling`, so a release cycle that marks the single planned release `shipped` WITHOUT creating the next planned record turns every `Blocks-Release: next` record into a finding and reds `main` (measured in review: 608 findings in that state, 0 when a new planned record accompanies the ship; tracked by backlog item `cnn7au`, which the comment MUST name so a future reader meets the caveat where the gate lives). If the check reports ANY finding at the branch head, do not flip; see the stop condition.
+- [x] E-07 In `.github/workflows/tests.yml`, first run `python -m agent_workflows check release-gates --agent` at the branch head and confirm `"findings":0` and exit 0 (measured in review at this branch head: `"outcome":"conforms","exit":0,...,"findings":0`; the authored plan cited HEAD `61ef21d8`, which is an ancestor, so RE-DERIVE it rather than trusting either number). Then change the step named `aw check release-gates (release-gate family; ADVISORY until baseline findings cleared)` to `aw check release-gates (release-gate family; fail closed)` with `run: python -m agent_workflows check release-gates --agent` (drop the `|| echo "::warning::..."` fallback), and replace the six-line comment above it (which cites `7l1ggb` and an executed plan's `From-Backlog: none`, neither of which is a finding any more) with a comment stating BOTH facts a future reader needs: that it joined the fail-closed set once the family reported zero findings (plan 3cs7qg), AND that the family includes `check.blocks-release-dangling`, so a release cycle that marks the single planned release `shipped` WITHOUT creating the next planned record turns every `Blocks-Release: next` record into a finding and reds `main` (measured in review: 608 findings in that state, 0 when a new planned record accompanies the ship; tracked by backlog item `cnn7au`, which the comment MUST name so a future reader meets the caveat where the gate lives). If the check reports ANY finding at the branch head, do not flip; see the stop condition.
   - Depends on: E-02, E-03, E-04
   - Expected outcome: the step fails the job on any release-gate finding, and its comment names the one operational state that reds it plus the item tracking its fix.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Run the bare suite `python3 -m pytest`.
+- [x] E-08 Run the bare suite `python3 -m pytest`.
   - Depends on: E-06, E-07
   - Expected outcome: green.
-  - Execution state: pending
+  - Execution state: performed
+
 
 ## Project conventions discovered (Step 0)
 
@@ -153,45 +154,338 @@ ONE DOC LINE DOES GO STALE AND IT IS NOT IN SCOPE-PATHS. `AGENTS.md` states "In 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the diff; paste `python3 -c 'from agent_workflows import ipd_schema as s; print([s.source_link_is_absent(v) for v in (None, "", "-", "none", "NONE", "\"none\"", "unresolved", "abc123")])'` showing `[True, True, True, True, True, True, True, False]`; paste `python3 -c 'from agent_workflows import ipd_schema as s; print(sorted(s.SOURCE_LINK_ABSENT_SENTINELS))'` showing `['-', 'none', 'unresolved']`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; diff, test array query, and sorted sentinels query verified.
+    1. Diff of agent_workflows/ipd_schema.py:
+    ```diff
+    @@ -190,6 +190,21 @@
+     # lint error; value validation (does the target resolve to a backlog item id6) lives in the
+     # `aw check` surface (check.from-backlog-dangling), not the schema layer.
+     META_FROM_BACKLOG = "From-Backlog"
+    +# Graduation-source link absent sentinels (plan 3cs7qg): these literal values mean "no source item"
+    +# and every reader of a graduation-source link (`From-Backlog` AND `From-Spec`) treats them as if
+    +# the field were absent; comparison is case-insensitive after stripping surrounding quotes.
+    +SOURCE_LINK_ABSENT_SENTINELS: FrozenSet[str] = frozenset({"-", "none", "unresolved"})
+    +
+    +
+    +def source_link_is_absent(value: Optional[str]) -> bool:
+    +    """Return True if the graduation-source link value is None, empty, or an absent sentinel."""
+    +    if value is None:
+    +        return True
+    +    cleaned = value.strip().strip("\"'").strip()
+    +    if not cleaned:
+    +        return True
+    +    return cleaned.lower() in SOURCE_LINK_ABSENT_SENTINELS
+    +
+     # From-Spec (detrun Order bmh754, spec 25kzda; the surviving residue of an otherwise-shipped Set): the
+    ```
+    2. Python test array query:
+    ```
+    $ python3 -c 'from agent_workflows import ipd_schema as s; print([s.source_link_is_absent(v) for v in (None, "", "-", "none", "NONE", "\"none\"", "unresolved", "abc123")])'
+    [True, True, True, True, True, True, True, False]
+    ```
+    3. Sorted sentinels query:
+    ```
+    $ python3 -c 'from agent_workflows import ipd_schema as s; print(sorted(s.SOURCE_LINK_ABSENT_SENTINELS))'
+    ['-', 'none', 'unresolved']
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the diff of `releases.check_from_backlog` and `runner_shared._read_from_backlog`; paste `grep -n '{"-", "none", "unresolved"}' agent_workflows/*.py` showing NO remaining inline sentinel set anywhere (measured before the change: exactly one hit, `runner_shared.py`). Do NOT use a bare `grep -n '"none"'` as the evidence: `runner_shared` legitimately contains unrelated `"none"` strings (`PEER_NONE`, `AUDIT_BASIS_NONE`, a `grandfathered`/`none` check, prompt text), so that command cannot distinguish success from failure. Also paste the acyclic-import proof: `python3 -c 'import agent_workflows.releases; print("ok")'` in a FRESH interpreter.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; diffs, grep check, and acyclic import verified.
+    1. Diff of releases.check_from_backlog:
+    ```diff
+    @@ -19,6 +19,8 @@
+     from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
-- [ ] V-03 validates E-03
+     from agent_workflows import artifact_core as _core
+    +from agent_workflows import ipd_schema as _schema
+    +
+
+     @@ -751,7 +753,11 @@
+                     except OSError:
+                         continue
+                     m = _ITEM_FROM_BACKLOG_RE.search(text)
+    -                if m and m.group(1) not in known:
+    +                if (
+    +                    m
+    +                    and not _schema.source_link_is_absent(m.group(1))
+    +                    and m.group(1) not in known
+    +                ):
+                         drift.append(
+    ```
+    2. Diff of runner_shared._read_from_backlog:
+    ```diff
+    @@ -10866,7 +10866,7 @@
+         except Exception:
+             return None
+         raw = (fields.get(_schema.META_FROM_BACKLOG) or "").strip()
+    -    if not raw or raw in {"-", "none", "unresolved"}:
+    +    if _schema.source_link_is_absent(raw):
+             return None
+         token = raw.split()[0].strip("\"'").strip()
+    ```
+    3. Grep showing no remaining inline sentinel sets:
+    ```
+    $ grep -n '{"-", "none", "unresolved"}' agent_workflows/*.py
+    agent_workflows/ipd_schema.py:196:SOURCE_LINK_ABSENT_SENTINELS: FrozenSet[str] = frozenset({"-", "none", "unresolved"})
+    ```
+    4. Acyclic import in fresh interpreter:
+    ```
+    $ python3 -c 'import agent_workflows.releases; print("ok")'
+    ok
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the diff of the five `check_engine` call sites plus `_from_backlog_value`; paste a driven probe on a temporary fixture repo showing, for each of `-`/`none`/`unresolved`, that `_from_backlog_carrier_index(repo)` has NO key for the sentinel and `build_graduation_reverse_index(repo)` has no `('backlog', <value>)` key, while a real id6 fixture still produces both.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; check_engine diff and driven probe output verified.
+    1. Diff of five check_engine call sites plus _from_backlog_value:
+    ```diff
+    @@ -3366,6 +3366,18 @@
+     _META_FROM_BACKLOG_RE = _re.compile(r"(?m)^- From-Backlog:[ \t]*(\S+)[ \t]*$")
+     _PLAN_STATUS_RE = _re.compile(r"(?m)^- Status:[ \t]*(\S+)[ \t]*$")
 
-- [ ] V-04 validates E-04
+    +def _from_backlog_value(text: str) -> Optional[str]:
+    +    """Return the captured `- From-Backlog:` value, or None if absent or an absent sentinel (plan 3cs7qg)."""
+    +    m = _META_FROM_BACKLOG_RE.search(text)
+    +    if not m:
+    +        return None
+    +    val = m.group(1)
+    +    if _S.source_link_is_absent(val):
+    +        return None
+    +    return val
+    +
+    @@ -3461,8 +3461,8 @@
+         out: List[Tuple[Path, str]] = []
+         for p, text in _iter_plan_ipds(repo_root):
+    -        mfb = _META_FROM_BACKLOG_RE.search(text)
+    -        if mfb and mfb.group(1) == item_id6:
+    +        val = _from_backlog_value(text)
+    +        if val == item_id6:
+                 mbr = _META_BLOCKS_RELEASE_RE.search(text)
+                 out.append((p, mbr.group(1) if mbr else ""))
+         return out
+    @@ -3471,11 +3471,12 @@
+         out: List[Tuple[Path, str]] = []
+         for p, text in _iter_spec_records(repo_root):
+    -        mfb = _META_FROM_BACKLOG_RE.search(text)
+    -        if mfb and mfb.group(1) == item_id6:
+    +        val = _from_backlog_value(text)
+    +        if val == item_id6:
+                 mbr = _META_BLOCKS_RELEASE_RE.search(text)
+                 out.append((p, mbr.group(1) if mbr else ""))
+         return out
+    @@ -3574,8 +3574,15 @@
+             for path, text in iterator(repo_root):
+                 sources: List[Tuple[str, str]] = [
+    -                ("backlog", m.group(1)) for m in _META_FROM_BACKLOG_RE.finditer(text)
+    -            ] + [("spec", m.group(1)) for m in _ITEM_FROM_SPEC_RE.finditer(text)]
+    +                ("backlog", m.group(1))
+    +                for m in _META_FROM_BACKLOG_RE.finditer(text)
+    +                if not _S.source_link_is_absent(m.group(1))
+    +            ] + [
+    +                ("spec", m.group(1))
+    +                for m in _ITEM_FROM_SPEC_RE.finditer(text)
+    +                if not _S.source_link_is_absent(m.group(1))
+    +            ]
+    @@ -4049,11 +4049,11 @@
+         index: Dict[str, List[Tuple[Path, Optional[str]]]] = {}
+         for iterator in (_iter_plan_ipds, _iter_spec_records):
+             for p, text in iterator(repo_root):
+    -            mfb = _META_FROM_BACKLOG_RE.search(text)
+    -            if not mfb:
+    -                continue
+    -            mbr = _META_BLOCKS_RELEASE_RE.search(text)
+    -            index.setdefault(mfb.group(1), []).append(
+    +            val = _from_backlog_value(text)
+    +            if not val:
+    +                continue
+    +            mbr = _META_BLOCKS_RELEASE_RE.search(text)
+    +            index.setdefault(val, []).append(
+                     (p, mbr.group(1) if mbr else None)
+                 )
+         return index
+    @@ -4348,12 +4348,11 @@
+         plan_gates_by_backlog: Dict[str, Dict[str, bool]] = {}
+         for _p, text in _iter_plan_ipds(repo_root):
+    -        mfb = _META_FROM_BACKLOG_RE.search(text)
+    -        if not mfb:
+    +        backlog_id = _from_backlog_value(text)
+    +        if not backlog_id:
+                 continue
+             mbr = _META_BLOCKS_RELEASE_RE.search(text)
+             gate = mbr.group(1) if mbr else ""
+    -        backlog_id = mfb.group(1)
+             is_exec = _carrier_is_executed(_p)
+    ```
+    2. Driven probe on fixture repo:
+    ```
+    real id6 in carrier: True
+    real id6 in reverse: True
+    sentinel '-' in carrier: False
+    sentinel '-' in reverse: False
+    sentinel 'none' in carrier: False
+    sentinel 'none' in reverse: False
+    sentinel 'unresolved' in carrier: False
+    sentinel 'unresolved' in reverse: False
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the `check_from_spec_dangling` diff; paste a driven probe showing `From-Spec: -`/`none`/`unresolved` each yield 0 `check.from-spec-dangling` and an unknown `zz9zz9` still yields exactly 1 (the fixture MUST contain a spec carrying an `- Id:`, or the empty-known-set guard returns 0 for every case and the test proves nothing).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; check_from_spec_dangling diff and driven probe output verified.
+    1. Diff of check_from_spec_dangling:
+    ```diff
+    @@ -5196,6 +5196,8 @@
+                 if m is None:
+                     continue
+                 target = m.group(1)
+    +            if _S.source_link_is_absent(target):
+    +                continue
+                 if target in known:
+                     continue
+                 drift.append(
+    ```
+    2. Driven probe on fixture repo (with approved spec having `- Id: spc001`):
+    ```
+    sentinel '-' findings count: 0
+    sentinel 'none' findings count: 0
+    sentinel 'unresolved' findings count: 0
+    unknown zz9zz9 findings count: 1
+    finding rule: check.from-spec-dangling
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste `python3 -m pytest -o addopts="" tests/test_check_engine_release_gate.py -v` showing every new case passed; then revert ONLY the `releases.check_from_backlog` hunk IN THE WORKTREE and paste the three `From-Backlog` sentinel cases FAILING with a `check.from-backlog-dangling` finding (not an import error) while both negative cases still pass; revert ONLY the `check_from_spec_dangling` hunk and paste the three `From-Spec` sentinel cases FAILING the same way; restore both.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; all 27 tests pass; temporary reverts produce exact expected dangling findings while negative cases pass.
+    1. All cases passing:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_check_engine_release_gate.py -v
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_whole_family_rules_constant PASSED [  3%]
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_release_gate_warnings_orphaned_live_blocker_remedy PASSED [  7%]
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_live_bug_with_gate_is_clean PASSED [ 11%]
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_cli_check_release_gates_clean PASSED [ 14%]
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_live_ungated_security_item_clean_with_no_config PASSED [ 18%]
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_evaluate_blocking_close_legitimate_when_next_and_id6_resolve_to_same_release PASSED [ 22%]
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_clean_fixture_produces_zero_findings PASSED [ 25%]
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_unknown_id6_still_flags_dangling PASSED [ 29%]
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_gate_mismatch_not_reported_when_next_and_id6_resolve_to_same_release PASSED [ 33%]
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_live_ungated_bug_clean_when_configured_empty PASSED [ 37%]
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_rule_blocks_release_dangling_reachable PASSED [ 40%]
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_handoff_exemption PASSED [ 44%]
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_from_spec_sentinels_treated_as_absent PASSED [ 48%]
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_rule_blocking_item_closed_pending_plan_yields_finding PASSED [ 51%]
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_full_sweep_includes_check_release_gates PASSED [ 55%]
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_rule_from_backlog_dangling_reachable PASSED [ 59%]
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_live_ungated_security_item_flagged_when_configured PASSED [ 62%]
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_cli_check_release_gates_runner PASSED [ 66%]
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_rule_blocking_item_closed_executed_plan_clean PASSED [ 70%]
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_check_commit_invariants_composition_intact PASSED [ 74%]
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_rule_live_bug_ungated_reachable PASSED [ 77%]
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_gate_mismatch_reported_for_genuinely_different_release PASSED [ 81%]
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_regression_guard_all_readers_honor_schema_sentinels PASSED [ 85%]
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_gate_mismatch_unresolvable_next_falls_back_to_string_mismatch PASSED [ 88%]
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_rule_blocking_item_closed_without_gate_reachable PASSED [ 92%]
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_from_backlog_sentinels_treated_as_absent PASSED [ 96%]
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_rule_from_backlog_gate_mismatch_reachable PASSED [100%]
+    ============================== 27 passed in 2.88s ==============================
+    ```
+    2. With releases.check_from_backlog hunk reverted:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_check_engine_release_gate.py -v -k "test_from_backlog_sentinels_treated_as_absent or test_unknown_id6_still_flags_dangling"
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_unknown_id6_still_flags_dangling PASSED [ 50%]
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_from_backlog_sentinels_treated_as_absent FAILED [100%]
+    FAILURES:
+    AssertionError: Lists differ: [Drift(..., rule='check.from-backlog-dangling', detail="From-Backlog '-' does not resolve to a backlog item")] != []
+    ```
+    3. With check_from_spec_dangling hunk reverted:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_check_engine_release_gate.py -v -k "test_from_spec_sentinels_treated_as_absent or test_unknown_id6_still_flags_dangling"
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_unknown_id6_still_flags_dangling PASSED [ 50%]
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_from_spec_sentinels_treated_as_absent FAILED [100%]
+    FAILURES:
+    AssertionError: Lists differ: [Drift(..., rule='check.from-spec-dangling', detail="From-Spec '-' does not resolve to a spec")] != []
+    ```
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste the guard test passing; then MUTATE it to prove it bites: temporarily add a fourth member to `ipd_schema.SOURCE_LINK_ABSENT_SENTINELS` (e.g. `"tbd"`) WITHOUT touching any reader and paste the guard FAILING and naming the readers that do not honor it; revert the mutation and paste it passing again. A guard that passes under that mutation has not proved the readers consult the shared set.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; guard passes; mutation test with a reader retaining a private sentinel set fails and explicitly names the non-conforming reader.
+    1. Guard test passing:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_check_engine_release_gate.py -v -k "test_regression_guard_all_readers_honor_schema_sentinels"
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_regression_guard_all_readers_honor_schema_sentinels PASSED [100%]
+    ```
+    2. Proving guard bites when a reader keeps a private set (reverting releases.check_from_backlog to a private set {"-", "none", "unresolved"} with 'tbd' in schema):
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_check_engine_release_gate.py -v -k "test_regression_guard_all_readers_honor_schema_sentinels"
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_regression_guard_all_readers_honor_schema_sentinels FAILED [100%]
+    FAILURES:
+    AssertionError: Lists differ: [Drift(..., rule='check.from-backlog-dangling', detail="From-Backlog 'tbd' does not resolve to a backlog item")] != [] : releases.check_from_backlog reported dangling finding for sentinel 'tbd'
+    ```
+    3. Restored:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_check_engine_release_gate.py -v -k "test_regression_guard_all_readers_honor_schema_sentinels"
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_regression_guard_all_readers_honor_schema_sentinels PASSED [100%]
+    ```
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: paste `python -m agent_workflows check release-gates --agent; echo exit=$?` at the branch head showing `"findings":0` and `exit=0`; paste the `tests.yml` diff showing the `|| echo` fallback and the stale comment removed and the F-8 release-transition state named together with carrier item `cnn7au` (filed during review, already `open` and gated, so E-07 must CITE it and must not file a second one).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; check release-gates reports findings:0 exit=0; tests.yml diff verified.
+    1. Check command output at branch head:
+    ```
+    $ python -m agent_workflows check release-gates --agent; echo exit=$?
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"release-gates","findings":0,"evidence":["inventory","rules"],"next":"aw releases list"}
+    exit=0
+    ```
+    2. Diff of .github/workflows/tests.yml:
+    ```diff
+    @@ -184,17 +184,17 @@
+             shell: bash
+             run: python -m agent_workflows check backlog --agent
 
-- [ ] V-08 validates E-08
+    -      # release-gates is currently ADVISORY (report-only), NOT fail-closed: the tree carries two
+    -      # pre-existing findings (check.live-bug-ungated on 7l1ggb and check.from-backlog-dangling on
+    -      # executed plan mjx7ne with From-Backlog: none) that a fail-closed gate would red `main` on.
+    -      # It joins the fail-closed set above once those baseline findings are cleaned or resolved
+    -      # (see backlog 7dcw6z and IPD 2vw35i). It runs the SAME shipped engine (aw check release-gates)
+    -      # so the release-gate family is visible in CI; `|| true` keeps it non-blocking for now.
+    -      - name: aw check release-gates (release-gate family; ADVISORY until baseline findings cleared)
+    -        shell: bash
+    -        run: |
+    -          python -m agent_workflows check release-gates --agent || \
+    -            echo "::warning::aw check release-gates reported findings (advisory; see IPD 2vw35i - flip to fail-closed after 7l1ggb and From-Backlog none baseline findings are resolved)"
+    +      # release-gates is fail-closed (joined the fail-closed set in plan 3cs7qg once the family
+    +      # reported zero findings).
+    +      # OPERATIONAL CAVEAT (backlog cnn7au): the release-gate family includes `check.blocks-release-dangling`.
+    +      # Because `resolve_release` maps `next` only when exactly one release record is `planned`,
+    +      # marking the single planned release `shipped` WITHOUT creating the next planned record turns
+    +      # every `Blocks-Release: next` record into a dangling finding and reds `main` (tracked by backlog
+    +      # item cnn7au; the release workflow must ship and create the successor planned record together).
+    +      - name: aw check release-gates (release-gate family; fail closed)
+    +        shell: bash
+    +        run: python -m agent_workflows check release-gates --agent
+    +
+
+       output-conformance:
+         name: CLI output-conformance harness (fail-closed)
+    ```
+  - Result: pass
+
+- [x] V-08 validates E-08
   - Required evidence: paste the final summary line of a BARE `python3 -m pytest` showing 0 failed; name any failure as pre-existing (with evidence at the base commit) or new.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; bare pytest run passed with 0 failed.
+    ```
+    $ python3 -m pytest
+    2605 passed, 2 skipped, 3 warnings in 55.26s
+    ```
+  - Result: pass
+
 
 ## Approval and execution gate
 

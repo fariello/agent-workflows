@@ -19,6 +19,8 @@ from pathlib import Path
 from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
 from agent_workflows import artifact_core as _core
+from agent_workflows import ipd_schema as _schema
+
 
 RELEASE_STATUSES = ("planned", "blocked", "shipped")
 
@@ -749,7 +751,11 @@ def check_from_backlog(repo_root: Path) -> List[_core.Drift]:
                 except OSError:
                     continue
                 m = _ITEM_FROM_BACKLOG_RE.search(text)
-                if m and m.group(1) not in known:
+                if (
+                    m
+                    and not _schema.source_link_is_absent(m.group(1))
+                    and m.group(1) not in known
+                ):
                     drift.append(
                         _core.Drift(
                             str(p),
