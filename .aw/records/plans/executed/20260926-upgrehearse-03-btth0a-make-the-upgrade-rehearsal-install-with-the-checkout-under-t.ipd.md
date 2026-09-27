@@ -6,7 +6,7 @@
 - Scope: IN: in `agent_workflows/upgrade_rehearsal.py` (the post-`8ud1is` home of the harness): when the `-m` form is used, build the child environment and argv for `run_install` with the CANONICAL pin (`runner_shared.pinned_child_env` for the env, including its `AW_PIN_KEEP_ROOT`, and `runner_shared.pinned_module_argv` for the argv, which supplies `-P`/`_AW_PIN_STRIP` so the sandbox cwd cannot outrank the pin), composed so `sandbox_env`'s isolation variables still win on every key EXCEPT `PYTHONPATH`; record `imported_from` (the `agent_workflows.__file__` a probe child with the SAME env and argv shape imports) in each install result; add a `wrong-checkout` observation when `imported_from` is not under the tool's repo root, computed where `probe` can actually see it, and surface it in `report`; behavioral tests driving a temp copied package that simulates a worktree AND a sandbox that contains its own `agent_workflows/`. OUT: changing `default_aw_cmd`'s return value (the restored `CliTests.test_default_aw_cmd_prefers_the_checkout_under_test` pins `[sys.executable, "-m", "agent_workflows"]`, and that function stays the RESOLVER; the `-P`/`-c` bootstrap is applied by `run_install`, which no test pins); the PATH-`aw` fallback and an explicit `aw_cmd` (neither is the `-m` form; recording `imported_from` for them is also out, since a console script's import cannot be probed with `python -c`); `sandbox_env`'s isolation variables (unchanged, and still what the `env` subcommand prints); changing `checkout_pin` or `runner_shared` (this plan is a CONSUMER of both).
 - Scope-Paths: agent_workflows/upgrade_rehearsal.py, tests/test_aw_upgrade_test.py
 - Item-Dependencies: executed:8ud1is
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 11
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: btth0a
-- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 executed (opencode manual-recovery model=its_direct/pt3-claude-opus-5.5-1m-us): Recovered stranded lane: finalize refused as STALE because the executing agent doubled a period inside frozen E-08 text; restored (ba2a9aa8). Lane conflicted with sbo3hl's skills probe changes; resolved as a union of both (0beec3e5). Plan tests 46 passed; full suite 2797 passed on the merged tree.
 - 2026-09-27 approved (aw set): status set to approved
 - 2026-09-27 reviewed (aw set): Reviewed by /plan-review: 9 findings (3 BLOCKER, 3 HIGH, 2 MEDIUM, 1 LOW), all FIXED in place; readiness go-pending-approval. Authored PYTHONPATH fix measured insufficient twice (cwd precedence; checkout_pin re-exec into the sandbox package) and rewritten onto the canonical runner_shared pin; wrong-checkout observation moved to where probe can see it; test loader corrected. Findings and 6 decisions recorded in .aw/records/reviews/20260926-upgrehearse-03-btth0a-*.review.md
 
