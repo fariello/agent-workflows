@@ -36,7 +36,17 @@ The terminal lifecycle gate added by executed plan u27oh3 (spec c4gd2h) blocks a
 - THE RUNNER'S OWN CALL: when the runner calls begin/finalize it passes its own run id; the check IGNORES that one run when looking for holders, so the runner does not block itself. This is a plain label, not a secret: anyone could pass it, which is accepted because we only guard against honest mistakes and nobody passes another run's id by accident. It replaces the random token.
 - ORDER: the existing worker-label check (AW_EXECUTION_ROLE=worker, 'this is the runner's step, you are done') runs FIRST. The runner's own agent never receives the run id, so it never gets the exception.
 
-### D3 (OPEN): stale owner files and platforms. LARGELY RESOLVED BY D2: liveness now comes from driver.lock (released by the OS on death) plus process existence, not from owner files, so stale owner files cannot block anyone. Remaining question, if any: behavior when liveness cannot be determined (for example a run record from another machine).
+### D3 (DECIDED 2026-09-26): when liveness cannot be determined, and runs on other machines
+
+Stale owner files are moot after D2 (liveness comes from driver.lock plus process existence, and a dead run's lock is released by the OS).
+
+- GAP FOUND: run records do NOT capture the machine. `driver.lock` holds only `pid=<n> started=<t>` (runner_shared writes `f"pid={os.getpid()} started={utc_now()}\n"`), and state.json has no machine field (its `host` fields mean the agent program, oc/agy, not the computer). Without it, a live runner on ANOTHER machine sharing the repo (shared drive, cluster) is indistinguishable from a dead local one, and the process check would wrongly say 'dead'. The lane owner files already record `host` (socket.gethostname()) and treat a foreign-machine record as 'cannot tell'; follow that precedent.
+- FIX: record the machine when a run takes its driver.lock: `pid=<n> host=<machine> started=<t>`. Older records without `host=` stay readable.
+- LIVENESS ORDER:
+  1. Lock file unreadable (permissions or similar): REFUSE (maintainer ruling).
+  2. Record names a DIFFERENT machine: cannot check that machine's processes, so REFUSE with 'run <id> on machine <host> may still be working on this plan', plus the `--take-over '<reason>'` override.
+  3. Same machine, or an older record with no `host=`: apply D2 (lock held AND process exists).
+- HONEST LIMIT: on a shared drive the OS file lock may or may not work across machines, depending on the filesystem (NFS, SMB, cluster filesystems differ). The recorded machine name is what makes the cross-machine case safe regardless.
 
 ### D4 (OPEN): every entry point (aw ipd begin/finalize, aw set executed, orchestrator retirement) passes the one check at a shared choke point.
 
