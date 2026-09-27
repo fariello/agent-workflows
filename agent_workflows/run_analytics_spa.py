@@ -1156,7 +1156,12 @@ def _render_controls(model: ViewModel) -> str:
         rows.append(f'<div role="group" aria-label="{escape_attribute(label)}">')
         for index, value in enumerate(values):
             derived = value == "verifier"
-            pressed = "true" if index == 0 else "false"
+            if group == "metric":
+                pressed = "true" if value == "cost" else "false"
+            elif group == "phase":
+                pressed = "false"
+            else:
+                pressed = "true" if index == 0 else "false"
             suffix = ' <span class="muted">(derived)</span>' if derived else ""
             described = (
                 f' aria-describedby="{escape_attribute(group)}-derived-note'
@@ -1224,68 +1229,221 @@ def _render_dimension(dimension: Dimension) -> str:
 
 
 def _render_interactive_explorer(model: ViewModel) -> str:
-    row_count = int(model.payload.get("row_count") or 0)
     col_data = model.payload.get("data") or {}
-    costs = [
-        float(v)
-        for v in (col_data.get("cost_usd") or [])
-        if isinstance(v, (int, float)) and not isinstance(v, bool)
-    ]
-    binned = bin_series(costs, bins=40) if costs else {}
-    counts = list(binned.get("counts") or [])
-    path = series_path_data(counts)
+    phases_raw = col_data.get("phase") or []
+    costs_raw = col_data.get("cost_usd") or []
 
-    sample_size = len(costs)
-    total_cost = sum(costs) if costs else 0.0
-    mean_cost = (total_cost / sample_size) if sample_size else 0.0
-    sorted_costs = sorted(costs)
-    median_cost = sorted_costs[sample_size // 2] if sample_size else 0.0
-    p25_cost = sorted_costs[int(sample_size * 0.25)] if sample_size else 0.0
-    p75_cost = sorted_costs[int(sample_size * 0.75)] if sample_size else 0.0
-    p90_cost = sorted_costs[int(sample_size * 0.90)] if sample_size else 0.0
-    min_cost = sorted_costs[0] if sample_size else 0.0
-    max_cost = sorted_costs[-1] if sample_size else 0.0
+    phase_order = [
+        ("aggregate", "Aggregate"),
+        ("review", "Review"),
+        ("execute", "Execute"),
+        ("verifier", "Verifier"),
+        ("recovery", "Recovery"),
+    ]
+
+    phase_costs: dict[str, list[float]] = {p[0]: [] for p in phase_order}
+    for p, c in zip(phases_raw, costs_raw):
+        if (
+            isinstance(c, (int, float))
+            and not isinstance(c, bool)
+            and c > 0
+            and p in phase_costs
+        ):
+            phase_costs[p].append(float(c))
+
+    phase_stats: dict[str, dict[str, Any]] = {}
+    y_max_candidates = [1.0]
+    for p_id, p_label in phase_order:
+        vals = sorted(phase_costs[p_id])
+        n = len(vals)
+        if n > 0:
+            tot = sum(vals)
+            mean = tot / n
+            var = sum((x - mean) ** 2 for x in vals) / n
+            stdev = math.sqrt(var)
+            median = vals[n // 2]
+            p25 = vals[int(n * 0.25)]
+            p75 = vals[int(n * 0.75)]
+            p_min = vals[0]
+            p_max = vals[-1]
+            y_max_candidates.append(mean + stdev)
+            phase_stats[p_id] = {
+                "n": n,
+                "mean": mean,
+                "stdev": stdev,
+                "median": median,
+                "p25": p25,
+                "p75": p75,
+                "min": p_min,
+                "max": p_max,
+                "tot": tot,
+            }
+        else:
+            phase_stats[p_id] = {
+                "n": 0,
+                "mean": 0.0,
+                "stdev": 0.0,
+                "median": 0.0,
+                "p25": 0.0,
+                "p75": 0.0,
+                "min": 0.0,
+                "max": 0.0,
+                "tot": 0.0,
+            }
+
+    raw_max = max(y_max_candidates)
+    order_mag = 10 ** math.floor(math.log10(raw_max or 1.0))
+    frac = raw_max / (order_mag or 1.0)
+    if frac <= 1.2:
+        y_max = 1.2 * order_mag
+    elif frac <= 2.0:
+        y_max = 2.0 * order_mag
+    elif frac <= 5.0:
+        y_max = 5.0 * order_mag
+    else:
+        y_max = 10.0 * order_mag
+
+    y_origin = 285.0
+    plot_h = 250.0
+
+    def to_y(v: float) -> float:
+        return round(y_origin - (v / y_max) * plot_h, 2)
+
+    svg_parts: list[str] = [
+        '<svg id="phase-chart-svg" class="chart-svg" viewBox="0 0 720 340" width="100%" height="340" role="img" '
+        'aria-labelledby="phase-chart-desc">',
+        '<title id="phase-chart-desc">Phase comparison for Cost (USD)</title>',
+    ]
+
+    for i in range(5):
+        tick_val = (y_max / 4.0) * i
+        y_pos = to_y(tick_val)
+        svg_parts.append(
+            f'<line class="chart-grid-line" x1="90" y1="{y_pos:.2f}" x2="690" y2="{y_pos:.2f}" '
+            'stroke="var(--line)" stroke-width="0.5" stroke-dasharray="3 3"/>'
+        )
+        svg_parts.append(
+            f'<text class="chart-axis-label" x="82" y="{y_pos + 4:.2f}" text-anchor="end" '
+            f'font-size="11" fill="var(--muted)">${tick_val:.2f}</text>'
+        )
+
+    svg_parts.append(
+        '<line class="chart-axis-line" x1="90" y1="35" x2="90" y2="285" stroke="var(--line)" stroke-width="1"/>'
+    )
+    svg_parts.append(
+        '<text class="chart-axis-title" x="90" y="22" font-size="12" font-weight="600" fill="var(--ink)">Cost (USD)</text>'
+    )
+    svg_parts.append(
+        '<line class="chart-axis-line" x1="90" y1="285" x2="690" y2="285" stroke="var(--line)" stroke-width="1"/>'
+    )
+
+    x_positions = [150, 270, 390, 510, 630]
+    for idx, (p_id, p_label) in enumerate(phase_order):
+        x = x_positions[idx]
+        st = phase_stats[p_id]
+        n = st["n"]
+
+        svg_parts.append(
+            f'<text class="phase-col-label" x="{x}" y="303" text-anchor="middle" font-size="13" font-weight="600" fill="var(--ink)">{p_label}</text>'
+        )
+        svg_parts.append(
+            f'<text class="phase-count-label" x="{x}" y="321" text-anchor="middle" font-size="11" fill="var(--muted)">n={n}</text>'
+        )
+
+        if n > 0:
+            mean = st["mean"]
+            stdev = st["stdev"]
+            y_mean = to_y(mean)
+            y_top = to_y(min(y_max, mean + stdev))
+            y_bot = to_y(max(0.0, mean - stdev))
+
+            svg_parts.append(
+                f'<line class="error-bar-line" x1="{x}" y1="{y_top:.2f}" x2="{x}" y2="{y_bot:.2f}" stroke="#0b4f9e" stroke-width="2.5" stroke-linecap="round"/>'
+            )
+            svg_parts.append(
+                f'<line class="error-bar-cap" x1="{x - 14}" y1="{y_top:.2f}" x2="{x + 14}" y2="{y_top:.2f}" stroke="#0b4f9e" stroke-width="2.5"/>'
+            )
+            svg_parts.append(
+                f'<line class="error-bar-cap" x1="{x - 14}" y1="{y_bot:.2f}" x2="{x + 14}" y2="{y_bot:.2f}" stroke="#0b4f9e" stroke-width="2.5"/>'
+            )
+            svg_parts.append(
+                f'<circle class="stat-marker" cx="{x}" cy="{y_mean:.2f}" r="6" fill="#0b4f9e" stroke="#ffffff" stroke-width="2"/>'
+            )
+            y_label = max(22.0, y_top - 6.0)
+            svg_parts.append(
+                f'<text class="stat-value-label" x="{x}" y="{y_label:.2f}" text-anchor="middle" font-size="11" font-weight="600" fill="var(--ink)">${mean:.2f}</text>'
+            )
+        else:
+            svg_parts.append(
+                f'<text x="{x}" y="160" text-anchor="middle" font-size="12" fill="var(--muted)">no data</text>'
+            )
+
+        svg_parts.append(
+            f'<rect class="phase-hitbox" data-phase-id="{p_id}" data-phase-name="{p_id}" data-phase-idx="{idx}" x="{x - 55}" y="35" width="110" height="250" fill="transparent" cursor="pointer"/>'
+        )
+
+    svg_parts.append("</svg>")
+    svg_html = "".join(svg_parts)
+
+    table_rows = []
+    for p_id, p_label in phase_order:
+        st = phase_stats[p_id]
+        n = st["n"]
+        if n > 0:
+            table_rows.append(
+                "<tr>"
+                f'<th scope="row">{p_label}</th>'
+                f"<td>{n}</td>"
+                f'<td>${st["mean"]:.2f}</td>'
+                f'<td>&plusmn;${st["stdev"]:.2f}</td>'
+                f'<td>${st["median"]:.2f}</td>'
+                f'<td>${st["p25"]:.2f}</td>'
+                f'<td>${st["p75"]:.2f}</td>'
+                f'<td>${st["min"]:.2f}</td>'
+                f'<td>${st["max"]:.2f}</td>'
+                f'<td>${st["tot"]:,.2f}</td>'
+                "</tr>"
+            )
+        else:
+            table_rows.append(
+                f'<tr><th scope="row">{p_label}</th><td>0</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td></tr>'
+            )
 
     return (
         '<section class="panel" id="interactive-explorer" aria-labelledby="interactive-h">'
-        '<h2 id="interactive-h">Interactive distribution explorer</h2>'
+        '<h2 id="interactive-h">Phase metric comparison</h2>'
+        '<p class="muted">Compare cost, wall time, and tokens across run phases with error bars. Hover over any phase to inspect exact distribution statistics.</p>'
+        '<div class="stat-toggle-group" role="group" aria-label="Statistic Mode">'
+        "<span>Display statistic:</span> "
+        '<button type="button" data-stat-mode="mean" aria-pressed="true">Mean (&plusmn; Std Dev)</button>'
+        '<button type="button" data-stat-mode="median" aria-pressed="false">Median (IQR P25&ndash;P75)</button>'
+        "</div>"
         '<div class="filter-summary" id="filter-summary" role="status" aria-live="polite">'
-        f"Showing <strong>{sample_size}</strong> of <strong>{row_count}</strong> runs "
-        f"({(sample_size / row_count * 100.0 if row_count else 0.0):.1f}%) &mdash; "
         'Metric: <strong id="filter-summary-metric">Cost (USD)</strong> &middot; '
-        'Phase: <strong id="filter-summary-phase">All</strong> &middot; '
         'Filters: <strong id="filter-summary-dimensions">None</strong>'
         "</div>"
-        '<figure id="chart-interactive" role="group" aria-labelledby="chart-interactive-cap">'
-        f'<figcaption id="chart-interactive-cap">Cost distribution ({sample_size} runs)</figcaption>'
-        '<svg class="chart-svg" viewBox="0 0 640 200" width="100%" height="200" role="img" '
-        'aria-labelledby="chart-interactive-desc">'
-        f'<title id="chart-interactive-desc">Cost distribution for {sample_size} runs</title>'
-        '<line class="chart-grid" x1="0" y1="100" x2="640" y2="100"></line>'
-        '<line class="chart-axis" x1="0" y1="200" x2="640" y2="200"></line>'
-        f'<path id="chart-interactive-path" class="chart-path" d="{escape_attribute(path)}"></path>'
-        f'<text id="chart-axis-min" class="chart-label" x="8" y="190">Min: ${min_cost:.2f}</text>'
-        f'<text id="chart-axis-max" class="chart-label" x="632" y="190" text-anchor="end">Max: ${max_cost:.2f}</text>'
-        f'<text id="chart-axis-mid" class="chart-label" x="320" y="190" text-anchor="middle">Median: ${median_cost:.2f}</text>'
-        "</svg>"
-        f'<p class="muted" id="chart-interactive-summary">'
-        f"Cost (USD): {sample_size} observations summarized into {len(counts)} bins. "
-        f"Total: ${total_cost:,.2f}, Median: ${median_cost:.2f}, Mean: ${mean_cost:.2f}."
-        "</p>"
-        '<table id="chart-interactive-table">'
-        "<caption>Distribution statistics (filtered population)</caption>"
-        '<thead><tr><th scope="col">Statistic</th><th scope="col">Value</th></tr></thead>'
-        "<tbody>"
-        f'<tr><th scope="row">Sample size (n)</th><td id="stat-sample-size">{sample_size}</td></tr>'
-        f'<tr><th scope="row">Total</th><td id="stat-total">${total_cost:,.2f}</td></tr>'
-        f'<tr><th scope="row">Mean</th><td id="stat-mean">${mean_cost:.2f}</td></tr>'
-        f'<tr><th scope="row">Median</th><td id="stat-median">${median_cost:.2f}</td></tr>'
-        f'<tr><th scope="row">P25</th><td id="stat-p25">${p25_cost:.2f}</td></tr>'
-        f'<tr><th scope="row">P75</th><td id="stat-p75">${p75_cost:.2f}</td></tr>'
-        f'<tr><th scope="row">P90</th><td id="stat-p90">${p90_cost:.2f}</td></tr>'
-        f'<tr><th scope="row">Minimum</th><td id="stat-min">${min_cost:.2f}</td></tr>'
-        f'<tr><th scope="row">Maximum</th><td id="stat-max">${max_cost:.2f}</td></tr>'
-        "</tbody></table>"
+        '<figure id="phase-chart-figure" role="group" aria-labelledby="phase-chart-cap">'
+        '<figcaption id="phase-chart-cap">Cost (USD) across run phases</figcaption>'
+        '<div class="chart-container" style="position: relative;">'
+        f"{svg_html}"
+        '<div id="chart-tooltip" class="chart-tooltip" role="tooltip" aria-hidden="true" style="display: none; position: absolute;"></div>'
+        "</div>"
+        '<table id="phase-comparison-table">'
+        "<caption>Phase summary statistics (filtered population)</caption>"
+        "<thead><tr>"
+        '<th scope="col">Phase</th>'
+        '<th scope="col">Sample size (n)</th>'
+        '<th scope="col">Mean</th>'
+        '<th scope="col">Std Dev</th>'
+        '<th scope="col">Median</th>'
+        '<th scope="col">P25</th>'
+        '<th scope="col">P75</th>'
+        '<th scope="col">Min</th>'
+        '<th scope="col">Max</th>'
+        '<th scope="col">Total</th>'
+        "</tr></thead>"
+        f'<tbody id="phase-comparison-body">{"".join(table_rows)}</tbody>'
+        "</table>"
         "</figure>"
         "</section>"
     )

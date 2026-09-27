@@ -531,8 +531,10 @@ def _render_report_html(repo: Path, *, generated_label: str) -> str:
         pass
 
     rows: list[dict[str, Any]] = []
+    runs_dir = Path(repo) / ".aw" / "records" / "runs"
     if entries:
         for e in entries:
+            run_id = str(e.get("run_id") or "")
             f = query_mod._facts_of(e)
             c = f.get("cost")
             w = f.get("wall_seconds")
@@ -545,14 +547,23 @@ def _render_report_html(repo: Path, *, generated_label: str) -> str:
                 if toks.get("cache_read") is not None
                 else toks.get("cache")
             )
+            model_val = str(f.get("model") or "") if f.get("model") else None
+            host_val = str(f.get("host_kind") or "")
+            status_val = str(f.get("status") or "unknown")
+            is_comp = bool(e.get("is_complete"))
+            ev_count = (
+                int(f.get("event_count")) if f.get("event_count") is not None else None
+            )
+
+            # 1. Run-level aggregate row
             rows.append(
                 {
-                    "run_id": str(e.get("run_id") or ""),
-                    "is_complete": bool(e.get("is_complete")),
-                    "status": str(f.get("status") or "unknown"),
-                    "phase": str(f.get("phase") or "unknown"),
-                    "model": str(f.get("model") or "") if f.get("model") else None,
-                    "host": str(f.get("host_kind") or ""),
+                    "run_id": run_id,
+                    "is_complete": is_comp,
+                    "status": status_val,
+                    "phase": "aggregate",
+                    "model": model_val,
+                    "host": host_val,
                     "wall_seconds": float(w)
                     if isinstance(w, (int, float)) and not isinstance(w, bool)
                     else None,
@@ -571,11 +582,176 @@ def _render_report_html(repo: Path, *, generated_label: str) -> str:
                     "total_tokens": float(t)
                     if isinstance(t, (int, float)) and not isinstance(t, bool)
                     else None,
-                    "event_count": int(f.get("event_count"))
-                    if f.get("event_count") is not None
-                    else None,
+                    "event_count": ev_count,
                 }
             )
+
+            # 2. Extract per-phase breakdown from state.json if present
+            state_candidates = [
+                runs_dir / run_id / "state.json",
+                Path(repo) / run_id / "state.json",
+            ]
+            state_path = None
+            for cand in state_candidates:
+                if cand.is_file():
+                    state_path = cand
+                    break
+
+            if state_path:
+                try:
+                    s_data = json.loads(state_path.read_text(encoding="utf-8"))
+                    phase_acc = {
+                        "review": {
+                            "cost": 0.0,
+                            "inp": 0.0,
+                            "out": 0.0,
+                            "cache": 0.0,
+                            "tot": 0.0,
+                            "time": 0.0,
+                            "has_c": False,
+                            "has_t": False,
+                            "has_time": False,
+                        },
+                        "execute": {
+                            "cost": 0.0,
+                            "inp": 0.0,
+                            "out": 0.0,
+                            "cache": 0.0,
+                            "tot": 0.0,
+                            "time": 0.0,
+                            "has_c": False,
+                            "has_t": False,
+                            "has_time": False,
+                        },
+                        "verifier": {
+                            "cost": 0.0,
+                            "inp": 0.0,
+                            "out": 0.0,
+                            "cache": 0.0,
+                            "tot": 0.0,
+                            "time": 0.0,
+                            "has_c": False,
+                            "has_t": False,
+                            "has_time": False,
+                        },
+                        "recovery": {
+                            "cost": 0.0,
+                            "inp": 0.0,
+                            "out": 0.0,
+                            "cache": 0.0,
+                            "tot": 0.0,
+                            "time": 0.0,
+                            "has_c": False,
+                            "has_t": False,
+                            "has_time": False,
+                        },
+                    }
+                    import datetime as _dt
+
+                    for item in s_data.get("queue", []):
+                        act = str(item.get("action") or "execute").lower()
+                        for att in item.get("attempts", []):
+                            is_rec = bool(att.get("recovery"))
+                            pk = (
+                                "recovery"
+                                if is_rec
+                                else ("review" if act == "review" else "execute")
+                            )
+
+                            acost = att.get("cost")
+                            if isinstance(acost, (int, float)) and not isinstance(
+                                acost, bool
+                            ):
+                                phase_acc[pk]["cost"] += float(acost)
+                                phase_acc[pk]["has_c"] = True
+
+                            atoks = att.get("tokens")
+                            if isinstance(atoks, Mapping):
+                                ainp = atoks.get("input") or 0.0
+                                aout = atoks.get("output") or 0.0
+                                acache = (
+                                    atoks.get("cache") or atoks.get("cache_read") or 0.0
+                                )
+                                atot = atoks.get("total") or (ainp + aout + acache)
+                                phase_acc[pk]["inp"] += float(ainp)
+                                phase_acc[pk]["out"] += float(aout)
+                                phase_acc[pk]["cache"] += float(acache)
+                                phase_acc[pk]["tot"] += float(atot)
+                                phase_acc[pk]["has_t"] = True
+
+                            astart = att.get("started_at")
+                            aend = att.get("ended_at")
+                            if astart and aend:
+                                try:
+                                    t_start = _dt.datetime.fromisoformat(
+                                        str(astart)
+                                    ).timestamp()
+                                    t_end = _dt.datetime.fromisoformat(
+                                        str(aend)
+                                    ).timestamp()
+                                    phase_acc[pk]["time"] += max(0.0, t_end - t_start)
+                                    phase_acc[pk]["has_time"] = True
+                                except Exception:
+                                    pass
+
+                            vtoks = att.get("verify_tokens")
+                            vlog = att.get("verify_log")
+                            vcost = att.get("verify_cost")
+                            if vtoks or vlog or vcost:
+                                if isinstance(vcost, (int, float)) and not isinstance(
+                                    vcost, bool
+                                ):
+                                    phase_acc["verifier"]["cost"] += float(vcost)
+                                    phase_acc["verifier"]["has_c"] = True
+                                if isinstance(vtoks, Mapping):
+                                    vinp = vtoks.get("input") or 0.0
+                                    vout = vtoks.get("output") or 0.0
+                                    vcache = (
+                                        vtoks.get("cache")
+                                        or vtoks.get("cache_read")
+                                        or 0.0
+                                    )
+                                    vtot = vtoks.get("total") or (vinp + vout + vcache)
+                                    phase_acc["verifier"]["inp"] += float(vinp)
+                                    phase_acc["verifier"]["out"] += float(vout)
+                                    phase_acc["verifier"]["cache"] += float(vcache)
+                                    phase_acc["verifier"]["tot"] += float(vtot)
+                                    phase_acc["verifier"]["has_t"] = True
+
+                    for pk in ("review", "execute", "verifier", "recovery"):
+                        pinfo = phase_acc[pk]
+                        if pinfo["has_c"] or pinfo["has_t"] or pinfo["has_time"]:
+                            rows.append(
+                                {
+                                    "run_id": run_id,
+                                    "is_complete": is_comp,
+                                    "status": status_val,
+                                    "phase": pk,
+                                    "model": model_val,
+                                    "host": host_val,
+                                    "wall_seconds": pinfo["time"]
+                                    if pinfo["has_time"]
+                                    else None,
+                                    "cost_usd": pinfo["cost"]
+                                    if pinfo["has_c"]
+                                    else None,
+                                    "input_tokens": pinfo["inp"]
+                                    if pinfo["has_t"]
+                                    else None,
+                                    "output_tokens": pinfo["out"]
+                                    if pinfo["has_t"]
+                                    else None,
+                                    "cache_tokens": pinfo["cache"]
+                                    if pinfo["has_t"]
+                                    else None,
+                                    "total_tokens": pinfo["tot"]
+                                    if pinfo["has_t"]
+                                    else None,
+                                    "event_count": None,
+                                }
+                            )
+                except Exception:
+                    pass
     else:
         for source in (quality, cache_status):
             if source is not None and getattr(source, "rows", None):
@@ -586,7 +762,7 @@ def _render_report_html(repo: Path, *, generated_label: str) -> str:
                             "run_id": str(d.get("run_id") or ""),
                             "is_complete": bool(d.get("is_complete")),
                             "status": str(d.get("status") or "unknown"),
-                            "phase": str(d.get("phase") or "unknown"),
+                            "phase": str(d.get("phase") or "aggregate"),
                             "model": (
                                 str(d.get("model") or "") if d.get("model") else None
                             ),
@@ -629,32 +805,33 @@ def _render_report_html(repo: Path, *, generated_label: str) -> str:
         else []
     )
 
-    # Build dimensions
+    # Build dimensions from aggregate rows so coverage is per-run
     dimensions: list[spa_mod.Dimension] = []
-    if rows:
-        models = [r["model"] for r in rows if r.get("model")]
+    agg_rows = [r for r in rows if r.get("phase") == "aggregate"] or rows
+    if agg_rows:
+        models = [r["model"] for r in agg_rows if r.get("model")]
         dimensions.append(
             spa_mod.build_dimension(
                 "model",
                 "Model",
                 models,
-                total_records=len(rows),
+                total_records=len(agg_rows),
                 resolved_records=len(models),
             )
         )
-        hosts = [r["host"] for r in rows if r.get("host")]
+        hosts = [r["host"] for r in agg_rows if r.get("host")]
         dimensions.append(
             spa_mod.build_dimension(
                 "host",
                 "Host",
                 hosts,
-                total_records=len(rows),
+                total_records=len(agg_rows),
                 resolved_records=len(hosts),
             )
         )
         statuses = [
             r["status"]
-            for r in rows
+            for r in agg_rows
             if r.get("status") and r.get("status") != "unknown"
         ]
         dimensions.append(
@@ -662,25 +839,25 @@ def _render_report_html(repo: Path, *, generated_label: str) -> str:
                 "status",
                 "Status",
                 statuses,
-                total_records=len(rows),
+                total_records=len(agg_rows),
                 resolved_records=len(statuses),
             )
         )
 
-    # Extract metrics for statistics
+    # Extract metrics for statistics (per-run aggregate)
     costs = [
         r["cost_usd"]
-        for r in rows
+        for r in agg_rows
         if r.get("cost_usd") is not None and r["cost_usd"] > 0
     ]
     wall_times = [
         r["wall_seconds"]
-        for r in rows
+        for r in agg_rows
         if r.get("wall_seconds") is not None and r["wall_seconds"] > 0
     ]
     token_totals = [
         r["total_tokens"]
-        for r in rows
+        for r in agg_rows
         if r.get("total_tokens") is not None and r["total_tokens"] > 0
     ]
 

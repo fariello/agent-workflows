@@ -342,13 +342,13 @@ class RunAnalyticsCliUxTests(unittest.TestCase):
         self.assertNotIn("0 of 0 required analyses were computed", html)
         self.assertIn("interactive-explorer", html)
         self.assertIn("filter-summary", html)
-        self.assertIn("chart-interactive", html)
-        self.assertIn("chart-interactive-path", html)
-        self.assertIn("chart-interactive-table", html)
-        self.assertIn("stat-sample-size", html)
-        self.assertIn("stat-total", html)
-        self.assertIn("stat-mean", html)
-        self.assertIn("stat-median", html)
+        self.assertIn("phase-chart-figure", html)
+        self.assertIn("phase-chart-svg", html)
+        self.assertIn("phase-comparison-table", html)
+        self.assertIn("phase-comparison-body", html)
+        self.assertIn('data-stat-mode="mean"', html)
+        self.assertIn('data-stat-mode="median"', html)
+        self.assertIn("chart-tooltip", html)
         self.assertIn("input_tokens", html)
         self.assertIn("output_tokens", html)
         self.assertIn("cache_tokens", html)
@@ -367,7 +367,103 @@ class RunAnalyticsCliUxTests(unittest.TestCase):
         self.assertIn("input_tokens", view_model_json["payload"]["data"])
         self.assertIn("output_tokens", view_model_json["payload"]["data"])
         self.assertIn("cache_tokens", view_model_json["payload"]["data"])
-        self.assertEqual(view_model_json["payload"]["row_count"], len(all_runs))
+        self.assertGreaterEqual(view_model_json["payload"]["row_count"], len(all_runs))
+
+    def test_render_report_html_phase_breakdown_from_state_json(self) -> None:
+        run_id = "run-20260927T010000Z-111111"
+        run_path = write_run(
+            self.runs_root,
+            run_id,
+            repo=str(self.repo),
+        )
+
+        # Write state.json with review, execute, verifier, and recovery attempts
+        state_data = {
+            "run_id": run_id,
+            "queue": [
+                {
+                    "action": "review",
+                    "attempts": [
+                        {
+                            "cost": 0.15,
+                            "tokens": {
+                                "input": 2000,
+                                "output": 500,
+                                "cache": 1000,
+                                "total": 3500,
+                            },
+                            "started_at": "2026-09-27T01:00:00+00:00",
+                            "ended_at": "2026-09-27T01:00:20+00:00",
+                        }
+                    ],
+                },
+                {
+                    "action": "execute",
+                    "attempts": [
+                        {
+                            "cost": 0.45,
+                            "tokens": {
+                                "input": 5000,
+                                "output": 1000,
+                                "cache": 3000,
+                                "total": 9000,
+                            },
+                            "started_at": "2026-09-27T01:00:20+00:00",
+                            "ended_at": "2026-09-27T01:01:20+00:00",
+                            "verify_cost": 0.05,
+                            "verify_tokens": {
+                                "input": 1000,
+                                "output": 200,
+                                "cache": 500,
+                                "total": 1700,
+                            },
+                        },
+                        {
+                            "recovery": True,
+                            "cost": 0.20,
+                            "tokens": {
+                                "input": 2000,
+                                "output": 300,
+                                "cache": 500,
+                                "total": 2800,
+                            },
+                            "started_at": "2026-09-27T01:01:20+00:00",
+                            "ended_at": "2026-09-27T01:02:00+00:00",
+                        },
+                    ],
+                },
+            ],
+        }
+        (run_path / "state.json").write_text(json.dumps(state_data), encoding="utf-8")
+
+        cache_mod.update_cache(
+            [run_path],
+            build_facts=run_analytics.build_cache_facts,
+            repo=self.repo,
+        )
+
+        html = analytics_cli._render_report_html(
+            self.repo, generated_label="test-phase-breakdown"
+        )
+        self.assertIn("phase-chart-svg", html)
+        self.assertIn("phase-comparison-table", html)
+        self.assertIn("error-bar-line", html)
+        self.assertIn("stat-marker", html)
+
+        # Parse embedded view-model JSON
+        match = re.search(
+            r'<script type="application/json" id="view-model">(.*?)</script>',
+            html,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(match)
+        view_model_json = json.loads(match.group(1))
+        payload_phases = view_model_json["payload"]["data"]["phase"]
+        self.assertIn("aggregate", payload_phases)
+        self.assertIn("review", payload_phases)
+        self.assertIn("execute", payload_phases)
+        self.assertIn("verifier", payload_phases)
+        self.assertIn("recovery", payload_phases)
 
 
 if __name__ == "__main__":

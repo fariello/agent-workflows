@@ -31,11 +31,48 @@ button[disabled], button[aria-disabled="true"] { opacity: 0.6; cursor: not-allow
 .visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px;
   clip-path: inset(50%); overflow: hidden; white-space: nowrap; }
 .filter-summary { background: #eef4fc; border: 1px solid #c4daf5; border-radius: 4px; padding: 0.5rem 0.75rem; margin: 0.75rem 0; font-weight: 500; }
+.chart-container { position: relative; display: block; width: 100%; }
 .chart-svg { background: #f8fafc; border: 1px solid var(--line); border-radius: 4px; display: block; margin: 0.5rem 0; }
 .chart-path { stroke: #0b4f9e; stroke-width: 2.5; fill: rgba(11, 79, 158, 0.08); }
 .chart-axis { stroke: var(--line); stroke-width: 1; }
 .chart-grid { stroke: var(--line); stroke-width: 0.5; stroke-dasharray: 4 4; }
 .chart-label { font-size: 11px; fill: var(--muted); }
+
+.stat-toggle-group { display: flex; align-items: center; gap: 0.5rem; margin: 0.75rem 0; font-size: 0.9rem; }
+.stat-toggle-group span { font-weight: 600; }
+
+.phase-hitbox:hover { fill: rgba(11, 79, 158, 0.06); }
+.phase-col-selected { fill: rgba(11, 79, 158, 0.12); }
+.error-bar-line { stroke: #0b4f9e; stroke-width: 2.5; stroke-linecap: round; }
+.error-bar-cap { stroke: #0b4f9e; stroke-width: 2.5; }
+.stat-marker { fill: #0b4f9e; stroke: #ffffff; stroke-width: 2; }
+.iqr-box { fill: rgba(11, 79, 158, 0.2); stroke: #0b4f9e; stroke-width: 2; }
+.median-line { stroke: #0b4f9e; stroke-width: 3.5; stroke-linecap: round; }
+.stat-value-label { font-size: 11px; font-weight: 600; fill: var(--ink); }
+.phase-col-label { font-size: 13px; font-weight: 600; fill: var(--ink); }
+.phase-col-label.selected { fill: #0b4f9e; }
+.phase-count-label { font-size: 11px; fill: var(--muted); }
+.chart-grid-line { stroke: var(--line); stroke-width: 0.5; stroke-dasharray: 3 3; }
+.chart-axis-line { stroke: var(--line); stroke-width: 1; }
+.chart-axis-label { font-size: 11px; fill: var(--muted); }
+.chart-axis-title { font-size: 12px; font-weight: 600; fill: var(--ink); }
+
+.chart-tooltip {
+  position: absolute;
+  pointer-events: none;
+  background: #1c2128;
+  color: #f0f6fc;
+  border: 1px solid #444c56;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.82rem;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  z-index: 100;
+  min-width: 180px;
+}
+.tooltip-title { font-weight: 700; border-bottom: 1px solid rgba(255, 255, 255, 0.2); margin-bottom: 0.35rem; padding-bottom: 0.2rem; }
+.tooltip-row { display: flex; justify-content: space-between; gap: 1rem; line-height: 1.4; }
+
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
@@ -46,4 +83,13 @@ button[disabled], button[aria-disabled="true"] { opacity: 0.6; cursor: not-allow
   .filter-summary { background: #17263c; border-color: #264a78; }
   .chart-svg { background: #161b22; }
   .chart-path { stroke: #58a6ff; fill: rgba(88, 166, 255, 0.12); }
+  .phase-hitbox:hover { fill: rgba(88, 166, 255, 0.1); }
+  .phase-col-selected { fill: rgba(88, 166, 255, 0.18); }
+  .error-bar-line { stroke: #58a6ff; }
+  .error-bar-cap { stroke: #58a6ff; }
+  .stat-marker { fill: #58a6ff; stroke: #161b22; }
+  .iqr-box { fill: rgba(88, 166, 255, 0.25); stroke: #58a6ff; }
+  .median-line { stroke: #58a6ff; }
+  .phase-col-label.selected { fill: #58a6ff; }
+  .chart-tooltip { background: #0d1117; border-color: #30363d; color: #c9d1d9; }
 }
