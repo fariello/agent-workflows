@@ -97,8 +97,9 @@ activity log: it is gitignored, so never rely on it as the only home for a reaso
 ## Promotion to a plan
 
 When a backlog item becomes committed execution work, author an IPD under `.aw/records/plans/pending/`,
-then `aw backlog set <item> --status done` with a history line citing the plan id. The backlog captured
-the intent; the plan owns execution.
+then transition the item to `graduated` via `aw backlog set <item> --status graduated` with a history
+line citing the plan id. Once the plan executes, the item can be closed `done` via
+`aw backlog set <item> --status done`. The backlog captured the intent; the plan owns execution.
 
 Record what the item became with `--graduated-to <setid>`, the FORWARD half of the graduation link:
 

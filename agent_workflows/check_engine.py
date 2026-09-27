@@ -3761,6 +3761,37 @@ def _same_release(
     return a == b
 
 
+def _carrier_is_executed(path: Path) -> bool:
+    """True iff the carrier artifact is in a finished terminal state.
+
+    Maintainer ruling 2026-09-26 (OQ-01, backlog rwhbci, closescope 2a6phj):
+    a release-blocking backlog item may close done on the HANDOFF route only
+    when the carrier has actually executed/implemented.
+
+    PLANS VS SPECS DIFFER IN WHERE THEIR TRUTH LIVES:
+      - For a PLAN (.ipd.md): a plan's - Status: field CANNOT tell you its bucket
+        (a plan stays in pending/ through draft/to-review/reviewed/approved, and moves
+        to executed/ only when executed; see runner_shared.plan_bucket). Therefore,
+        we check for an "executed" directory segment in the path. Matching the segment
+        anywhere in the path handles sharded executed archives (e.g. executed/YYYYMM/).
+        We do NOT use is_retired because is_retired is also True for superseded,
+        not-executed, parked, and done, which are terminal but not finished.
+      - For a SPEC (.spec.md): a spec's lifecycle state lives in its - Status:
+        metadata field ("implemented"). Re-reading the file is necessary because
+        find_from_backlog_artifacts yields only (path, blocks_release) pairs without status.
+    """
+    p = Path(path)
+    if p.name.endswith(".ipd.md"):
+        return "executed" in p.parts
+    if p.name.endswith(".spec.md"):
+        try:
+            text = p.read_text(encoding="utf-8")
+        except OSError:
+            return False
+        return _status_meta(text) == "implemented"
+    return False
+
+
 def evaluate_blocking_close(
     repo_root: Path,
     item_path: Path,
@@ -3778,7 +3809,7 @@ def evaluate_blocking_close(
 
     Transitions:
       -> done   : LEGITIMATE iff one of
-                    HANDOFF  - a plan carrying `From-Backlog: <this id6>` AND the same `Blocks-Release`
+                    HANDOFF  - an executed plan or implemented spec carrying `From-Backlog: <this id6>` AND the same `Blocks-Release` (maintainer ruling 2026-09-26, backlog rwhbci, closescope 2a6phj)
                     SATISFIED- a resolvable `evidence` artifact citation
                     DE-GATED - the (post-mutation) item no longer carries Blocks-Release
                   else ILLEGITIMATE (severity error, fail-closed).
@@ -3803,22 +3834,26 @@ def evaluate_blocking_close(
             return CloseVerdict(
                 True, "ok", "no release gate to preserve", (), "DE-GATED"
             )
-        # HANDOFF: a From-Backlog PLAN OR SPEC with the SAME Blocks-Release inherited the gate.
+        # HANDOFF: an EXECUTED From-Backlog PLAN or IMPLEMENTED SPEC with the SAME Blocks-Release inherited the gate.
+        # Maintainer ruling 2026-09-26 (OQ-01, backlog rwhbci, closescope 2a6phj): require an executed carrier.
         # bklgrad Order 01 (v58bvy) E-06: this scanned plans only, which made a spec-first graduation
         # unclosable by construction even though a spec preserves the gate identically.
+        same_gate_carriers: List[Path] = []
         if item_id6:
             release_cache: Dict[str, Optional[Path]] = {}
             for _p, carrier_br in find_from_backlog_artifacts(repo_root, item_id6):
                 if _same_release(
                     repo_root, carrier_br, blocks_release, cache=release_cache
                 ):
-                    return CloseVerdict(
-                        True,
-                        "ok",
-                        f"gate {blocks_release!r} handed off to a From-Backlog plan or spec",
-                        (),
-                        "HANDOFF",
-                    )
+                    same_gate_carriers.append(_p)
+                    if _carrier_is_executed(_p):
+                        return CloseVerdict(
+                            True,
+                            "ok",
+                            f"gate {blocks_release!r} handed off to a From-Backlog plan or spec",
+                            (),
+                            "HANDOFF",
+                        )
         # SATISFIED: a resolvable evidence artifact citation.
         if evidence and resolve_evidence_artifact(repo_root, evidence):
             return CloseVerdict(
@@ -3827,6 +3862,23 @@ def evaluate_blocking_close(
                 f"gate {blocks_release!r} satisfied by resolvable evidence {evidence!r}",
                 (),
                 "SATISFIED",
+            )
+        # If same-gate carriers exist but none is executed, give the graduated-first refusal (E-04).
+        if same_gate_carriers:
+            carrier_list = ", ".join(p.name for p in same_gate_carriers)
+            return CloseVerdict(
+                False,
+                "error",
+                (
+                    f"gate {blocks_release!r} is handed off to From-Backlog carrier(s) "
+                    f"({carrier_list}) but the work has not shipped (carrier is not executed/implemented)"
+                ),
+                (
+                    f"aw backlog set {item_id6 or '<item>'} --status graduated (keep the item as a release blocker until the plan executes)",
+                    "cite satisfying evidence: `aw backlog set done <item> --evidence <in-tree artifact path>`",
+                    "explicitly release the gate first: `aw backlog set done <item> --blocks-release -`",
+                ),
+                None,
             )
         # else fail-closed with the three fixes.
         return CloseVerdict(
@@ -4268,15 +4320,21 @@ def release_gate_warnings(repo_root: Path) -> List[_core.Drift]:
     # open blocker re-walked the complete plans tree per item, even when no warning
     # existed. The warning needs only a source backlog id6 and its inherited release
     # gate, so this index preserves its plan-only semantics without the repeated scans.
-    plan_gates_by_backlog: Dict[str, set[str]] = {}
+    # Note: this index is PLANS-ONLY (_iter_plan_ipds plus From-Backlog), so a spec
+    # carrier produces no warning here. This asymmetry is deliberate (E-05): the predicate
+    # is spec-aware, but widening this advisory is a separate behavior change.
+    # We record whether at least one same-gate plan is executed (closescope 2a6phj E-05).
+    plan_gates_by_backlog: Dict[str, Dict[str, bool]] = {}
     for _p, text in _iter_plan_ipds(repo_root):
         mfb = _META_FROM_BACKLOG_RE.search(text)
         if not mfb:
             continue
         mbr = _META_BLOCKS_RELEASE_RE.search(text)
-        plan_gates_by_backlog.setdefault(mfb.group(1), set()).add(
-            mbr.group(1) if mbr else ""
-        )
+        gate = mbr.group(1) if mbr else ""
+        backlog_id = mfb.group(1)
+        is_exec = _carrier_is_executed(_p)
+        gates_map = plan_gates_by_backlog.setdefault(backlog_id, {})
+        gates_map[gate] = gates_map.get(gate, False) or is_exec
 
     warnings: List[_core.Drift] = []
     for f in _backlog._iter_items(repo_root):
@@ -4291,18 +4349,35 @@ def release_gate_warnings(repo_root: Path) -> List[_core.Drift]:
         if not mbr or not mid:
             continue
         _id6 = mid.group(1)
-        if mbr.group(1) in plan_gates_by_backlog.get(_id6, set()):
-            warnings.append(
-                _core.Drift(
-                    str(f),
-                    "check.orphaned-live-blocker",
-                    (
-                        "an open release-blocking item is already graduated to a From-Backlog "
-                        "plan; close it `done` (the gate is preserved via handoff).\n"
-                        f"    Fix: aw backlog set done {_id6}"
-                    ),
+        item_gate = mbr.group(1)
+        gates_map = plan_gates_by_backlog.get(_id6)
+        if gates_map is not None and item_gate in gates_map:
+            if gates_map[item_gate]:
+                # Executed carrier: remedy advises closing done with the corrected --status spelling (F-9)
+                warnings.append(
+                    _core.Drift(
+                        str(f),
+                        "check.orphaned-live-blocker",
+                        (
+                            "an open release-blocking item is already graduated to a From-Backlog "
+                            "plan; close it `done` (the gate is preserved via handoff).\n"
+                            f"    Fix: aw backlog set {_id6} --status done"
+                        ),
+                    )
                 )
-            )
+            else:
+                # Pending carrier: remedy advises graduating the item until the carrier executes
+                warnings.append(
+                    _core.Drift(
+                        str(f),
+                        "check.orphaned-live-blocker",
+                        (
+                            "an open release-blocking item is graduated to a pending From-Backlog "
+                            "plan; keep it `graduated` until the plan executes.\n"
+                            f"    Fix: aw backlog set {_id6} --status graduated"
+                        ),
+                    )
+                )
     return warnings
 
 
