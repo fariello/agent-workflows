@@ -6,7 +6,7 @@
 - Scope: IN: rewrite the trailer clause of the "Infrastructure status" paragraph so it states, without counts, that several driver-side commit sites pass trailers, agent code commits are generally untrailered, and nothing reads trailers back, each with a dated measurement and its carrier; move the trailers OUT of that sentence's "STILL NET-NEW and to be built:" list, because the writer is shipped and leaving them there keeps the sentence self-contradictory (review F-7); update that paragraph's own measurement header and the preamble's correction-history sentence to record this correction; record the amendment with `aw specs note`; and FILE ONE backlog item for the two code comments that repeat the same false claim (review F-8). OUT: Section 4.2's finding-code table (including the `RUN-COMMIT-CONTENTS`/`RUN-COMMIT-GATEWAY` rows, which stay correctly unbound); the other two dated preamble paragraphs; EDITING those two code comments (E-05 files their carrier instead); the rotted citations backlog `sbh1o1` tracks, which live in OTHER artifacts (see Findings F-4).
 - Scope-Paths: .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: olkeju
-- Approval: 2026-09-26, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 executed (opencode manual-recovery model=its_direct/pt3-claude-opus-5.5-1m-us): Recovered stranded lane: finalize was refused as STALE because the executing agent edited E-05's frozen text and Scope-Paths; both restored to the approved text (0812c9e1), requirements now identical to begin. Lane merged onto current main; full suite 2636 passed. [Scope reconciliation - out-of-scope .aw/records/backlog/open/20260926-oye21y-01-oye21y-correct-two-code-comments-claiming-nothing-passes.backlog.md: created by E-05 (aw backlog new) as the plan instructs; its id6 is minted at execution so it could not be declared in advance (Scope-Paths justification)]
 - 2026-09-26 approved (aw set): status set to approved
 - 2026-09-26 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed in place
 
