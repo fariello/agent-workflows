@@ -6,7 +6,7 @@
 - Scope: IN: backlog.run_set and specs.run_set dry-run gates placed after every validation/refusal (incl. evaluate_blocking_close and the specs human-authority floor) and before the sidecar, any write, git mv, or commit offer; moving both sidecar appends after every refusal; outcome tests for both spellings; one CHANGELOG line. OUT: unifying the two spellings; the positional path's missing close gate (F-7).
 - Scope-Paths: agent_workflows/backlog.py, agent_workflows/specs.py, tests/test_backlog.py, tests/test_specs_status_dirs.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,9 +17,9 @@
 - Highest E allocated: 08
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: wd6npl
-- Approval: 2026-09-26, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: wd6npl verified (set bklgdryrun, attempt 1).
 - 2026-09-26 approved (aw set): status set to approved
 - 2026-09-26 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 all FIXED, none deferred, no open question raised. Reviewed at HEAD `1aae8813`; `aw ipd lint --phase author` conformed before revision. EVERY authored finding reproduced, and both halves were driven LIVE: `aw backlog set <path> --status open --dry-run` exited 0, rewrote the item, deleted an unrecognized `- Custom-Field:` and created the sidecar; `aw specs set <path> --status to-review --dry-run` exited 0 and git-mvd the spec from draft/ to to-review/. Both refusal paths were confirmed to write the sidecar before refusing, so the F-4/F-5 widening is the same defect class and not scope creep. ESCALATED F-7 (PR-001, HIGH): the positional spelling not only skips evaluate_blocking_close but SELF-COMMITS its move, and because check.blocking-item-closed-without-gate is deliberately STAGED-SCOPED, a post-bypass `aw check release-gates` reports CONFORMS with errors 0, so the gate is unenforced AND the backstop is unreachable; the fix stays out of scope and is owned by backlog `mawwlc`, which already exists and which the plan stale-deferred to a verbal hand-off (PR-002). Corrected the gate stop condition, which named backlog id f2kqas as a plan (the plan is 2yqt0a, which declares Item-Dependencies executed:wd6npl and is therefore ordered after this one). Fixed two test items that would have failed for unrelated reasons: E-06(a)s empty-git-status assertion cannot pass on a fixture setUp that never commits (PR-004), and V-05 instructed an out-of-lane `git worktree add /tmp/...` (PR-006). Added F-9, the measured silent deletion of unrecognized fields, folded into E-05s fixture as byte identity so it does not pre-empt plan 2yqt0a which owns the renderer fix. Findings recorded in `.aw/records/reviews/20260926-bklgdryrun-01-wd6npl-honor-dry-run-on-the-status-spelling-of-aw-backlog-set-and-a.review.md`.
 - 2026-09-26 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog bxi1o0: honor --dry-run on the --status spelling of aw backlog set and aw specs set, gated after every refusal and before any sidecar, write, move, or commit offer.
