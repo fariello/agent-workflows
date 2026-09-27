@@ -238,6 +238,13 @@ def _write_file_durably(path: Path, content: bytes) -> None:
             handle.write(content)
             handle.flush()
             os.fsync(handle.fileno())
+        # `mkstemp` hardcodes 0o600 and `os.replace` preserves it, so a published bundle would be
+        # owner-only no matter what the process umask says. A published report is a PUBLIC artifact
+        # of the run (it is what gets served / handed to a reader), so apply the umask the way a
+        # normal create would, letting the deployment decide via umask or group ownership. Without
+        # this, serving `latest/` from a web server 403s on every file even when the directory
+        # permissions are correct.
+        os.chmod(temp_name, 0o666 & ~_current_umask())
         os.replace(temp_name, str(path))
     finally:
         if os.path.exists(temp_name):
@@ -246,6 +253,19 @@ def _write_file_durably(path: Path, content: bytes) -> None:
             except OSError:
                 pass
     _fsync_dir(path.parent)
+
+
+def _current_umask() -> int:
+    """Read the process umask without leaving it changed.
+
+    There is no read-only umask syscall before Python 3.13 / Linux `/proc` parsing, so the portable
+    idiom is set-and-restore. Racy only against a concurrent umask change in the SAME process, which
+    this codebase never does.
+    """
+
+    current = os.umask(0o022)
+    os.umask(current)
+    return current
 
 
 def _fsync_dir(directory: Path) -> None:
