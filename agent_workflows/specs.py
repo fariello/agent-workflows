@@ -737,8 +737,9 @@ def run_set(args) -> int:
     msg = args.message
     from agent_workflows.status_set import same_status_message_is_duplicate
 
+    sidecar_msg = None
     if not same_status_message_is_duplicate(text, status=new, date=date, message=msg):
-        _sidecar_append(_repo_root_of(path), "\n".join(out), f"{new}: {msg}")
+        sidecar_msg = f"{new}: {msg}"
         # apprvguard d7bnhc E-06/E-07: the same auditable override record as `status_set` writes, in this
         # module's own actor-parenthesis shape, so an overridden approval is visible in the ARTIFACT on
         # both approval surfaces rather than only in a shell history. Recorded only on `approved`, the one
@@ -849,6 +850,18 @@ def run_set(args) -> int:
         dest_rel = dest_path.as_posix()
 
     moving = dest_path.resolve() != path.resolve()
+    if getattr(args, "dry_run", False):
+        if moving:
+            sys.stdout.write(
+                f"--- would move {path} -> {dest_path} (status {new}) ---\n"
+            )
+        else:
+            sys.stdout.write(f"--- would set {path} (status {new}) ---\n")
+        return 0
+
+    if sidecar_msg is not None:
+        _sidecar_append(repo_root, new_text, sidecar_msg)
+
     if moving:
         dest_path.parent.mkdir(parents=True, exist_ok=True)
         if path.exists():

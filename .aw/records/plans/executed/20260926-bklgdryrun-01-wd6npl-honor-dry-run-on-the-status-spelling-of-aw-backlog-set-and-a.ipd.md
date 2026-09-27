@@ -6,7 +6,7 @@
 - Scope: IN: backlog.run_set and specs.run_set dry-run gates placed after every validation/refusal (incl. evaluate_blocking_close and the specs human-authority floor) and before the sidecar, any write, git mv, or commit offer; moving both sidecar appends after every refusal; outcome tests for both spellings; one CHANGELOG line. OUT: unifying the two spellings; the positional path's missing close gate (F-7).
 - Scope-Paths: agent_workflows/backlog.py, agent_workflows/specs.py, tests/test_backlog.py, tests/test_specs_status_dirs.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,9 +17,9 @@
 - Highest E allocated: 08
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: wd6npl
-- Approval: 2026-09-26, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: wd6npl verified (set bklgdryrun, attempt 1).
 - 2026-09-26 approved (aw set): status set to approved
 - 2026-09-26 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 all FIXED, none deferred, no open question raised. Reviewed at HEAD `1aae8813`; `aw ipd lint --phase author` conformed before revision. EVERY authored finding reproduced, and both halves were driven LIVE: `aw backlog set <path> --status open --dry-run` exited 0, rewrote the item, deleted an unrecognized `- Custom-Field:` and created the sidecar; `aw specs set <path> --status to-review --dry-run` exited 0 and git-mvd the spec from draft/ to to-review/. Both refusal paths were confirmed to write the sidecar before refusing, so the F-4/F-5 widening is the same defect class and not scope creep. ESCALATED F-7 (PR-001, HIGH): the positional spelling not only skips evaluate_blocking_close but SELF-COMMITS its move, and because check.blocking-item-closed-without-gate is deliberately STAGED-SCOPED, a post-bypass `aw check release-gates` reports CONFORMS with errors 0, so the gate is unenforced AND the backstop is unreachable; the fix stays out of scope and is owned by backlog `mawwlc`, which already exists and which the plan stale-deferred to a verbal hand-off (PR-002). Corrected the gate stop condition, which named backlog id f2kqas as a plan (the plan is 2yqt0a, which declares Item-Dependencies executed:wd6npl and is therefore ordered after this one). Fixed two test items that would have failed for unrelated reasons: E-06(a)s empty-git-status assertion cannot pass on a fixture setUp that never commits (PR-004), and V-05 instructed an out-of-lane `git worktree add /tmp/...` (PR-006). Added F-9, the measured silent deletion of unrecognized fields, folded into E-05s fixture as byte identity so it does not pre-empt plan 2yqt0a which owns the renderer fix. Findings recorded in `.aw/records/reviews/20260926-bklgdryrun-01-wd6npl-honor-dry-run-on-the-status-spelling-of-aw-backlog-set-and-a.review.md`.
 - 2026-09-26 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog bxi1o0: honor --dry-run on the --status spelling of aw backlog set and aw specs set, gated after every refusal and before any sidecar, write, move, or commit offer.
@@ -36,51 +36,51 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: backlog.run_set
 
-- [ ] E-01 In `backlog.run_set`, move the `record_history.append_advisory` block (the `if item.id:` block commented "Append this transition to the GLOBAL sidecar as well (awhistory Order 02)") from its current position right after `_reattach_history` to immediately before `dest_dir.mkdir(...)` / `core.atomic_write(dest, rendered)`, i.e. AFTER the `evaluate_blocking_close` refusal and after the new dry-run gate (E-02). Keep its arguments unchanged.
+- [x] E-01 In `backlog.run_set`, move the `record_history.append_advisory` block (the `if item.id:` block commented "Append this transition to the GLOBAL sidecar as well (awhistory Order 02)") from its current position right after `_reattach_history` to immediately before `dest_dir.mkdir(...)` / `core.atomic_write(dest, rendered)`, i.e. AFTER the `evaluate_blocking_close` refusal and after the new dry-run gate (E-02). Keep its arguments unchanged.
   - Depends on: none
   - Expected outcome: no code path that returns before `core.atomic_write` (arg errors, blocked-without-gate, the illegitimate-close refusal, the dry-run gate) appends to the sidecar. The successful write still appends exactly one sidecar record.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `backlog.run_set`, replace the write guard `if not getattr(args, "apply", True):  # set applies by default` with `if getattr(args, "dry_run", False) or not getattr(args, "apply", True):` (keeping `apply` so direct callers that pass `apply=False` keep working), printing the existing `--- would move {src} -> {dest} (status {new_status}) ---` line and returning 0. The gate stays where it is: after all validation, after the gate-default notice, and after the `evaluate_blocking_close` refusal, so a dry run of an illegitimate blocking close still exits 1 with the refusal text.
+- [x] E-02 In `backlog.run_set`, replace the write guard `if not getattr(args, "apply", True):  # set applies by default` with `if getattr(args, "dry_run", False) or not getattr(args, "apply", True):` (keeping `apply` so direct callers that pass `apply=False` keep working), printing the existing `--- would move {src} -> {dest} (status {new_status}) ---` line and returning 0. The gate stays where it is: after all validation, after the gate-default notice, and after the `evaluate_blocking_close` refusal, so a dry run of an illegitimate blocking close still exits 1 with the refusal text.
   - Depends on: E-01
   - Expected outcome: `aw backlog set <path> --status X --dry-run` exits 0, prints the would-move line, writes nothing; a dry run of an illegitimate close still exits 1 and prints `refused:`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: specs.run_set
 
-- [ ] E-03 In `specs.run_set`, split the `if not same_status_message_is_duplicate(...)` block: keep the in-memory `_append_history(out, ...)` there, but record a local flag (for example `sidecar_msg = f"{new}: {msg}"`, else `None`) instead of calling `_sidecar_append` inline. Call `_sidecar_append(repo_root, new_text, sidecar_msg)` only after the dry-run gate (E-04) and after the `validate_spec` residual refusal, immediately before the `moving`/`atomic_write` branch.
+- [x] E-03 In `specs.run_set`, split the `if not same_status_message_is_duplicate(...)` block: keep the in-memory `_append_history(out, ...)` there, but record a local flag (for example `sidecar_msg = f"{new}: {msg}"`, else `None`) instead of calling `_sidecar_append` inline. Call `_sidecar_append(repo_root, new_text, sidecar_msg)` only after the dry-run gate (E-04) and after the `validate_spec` residual refusal, immediately before the `moving`/`atomic_write` branch.
   - Depends on: none
   - Expected outcome: no refusal path (illegal transition, human-authority floor, evidence, review attestation, approval refusals, deferred gate, `--graduated-to` error, `validate_spec` residual) and no dry run appends to the sidecar; a real write appends exactly one record as before.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 In `specs.run_set`, after `dest_path`, `src_rel`, `dest_rel` and `moving` are computed and BEFORE `dest_path.parent.mkdir`, `core.git_mv`, `core.atomic_write`, and `_offer_specs_set_commit`, add: `if getattr(args, "dry_run", False): sys.stdout.write(f"--- would move {path} -> {dest_path} (status {new}) ---\n"); return 0` (use `would set` wording when `not moving`). The human-authority floor (`auth.get("by_human")`) and every other refusal above it are unchanged, so `--status approved --dry-run` without `--by-human` on a non-interactive stdin still exits 1.
+- [x] E-04 In `specs.run_set`, after `dest_path`, `src_rel`, `dest_rel` and `moving` are computed and BEFORE `dest_path.parent.mkdir`, `core.git_mv`, `core.atomic_write`, and `_offer_specs_set_commit`, add: `if getattr(args, "dry_run", False): sys.stdout.write(f"--- would move {path} -> {dest_path} (status {new}) ---\n"); return 0` (use `would set` wording when `not moving`). The human-authority floor (`auth.get("by_human")`) and every other refusal above it are unchanged, so `--status approved --dry-run` without `--by-human` on a non-interactive stdin still exits 1.
   - Depends on: E-03
   - Expected outcome: `aw specs set <path> --status to-review --dry-run` exits 0, no `git mv`, no file write, no commit offer, no sidecar; `--status approved --dry-run` without `--by-human` still refused.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Outcome tests
 
-- [ ] E-05 Add tests to `tests/test_backlog.py` driving the CLI (`cli.main(["backlog", "set", <path>, "--status", ..., "--dry-run", "--dir", <repo>])`): (a) `--status open --dry-run` on an open item: exit 0, file bytes identical, the backlog directory listing identical, `.aw/records/history.jsonl` absent (or byte-identical if pre-seeded); (b) an item carrying `- Blocks-Release: <id6>` of a planned release record, `--status done --dry-run` with no evidence: exit 1, stderr contains `refused:`, file and sidecar unchanged; (c) the positional spelling `["backlog", "set", "open", <id6>, "--dry-run", "--dir", <repo>]` still exits 0 and leaves the file byte-identical (regression guard proving the two spellings agree on `--dry-run`). GIVE THE (a) FIXTURE ITEM AN UNRECOGNIZED FIELD, for example `- Custom-Field: KEEP-ME` (added at review, F-9): the byte-identity assertion then also detects the template-rebuild data loss that the current dry run causes. Measured at review on the pre-change code: a `--status open --dry-run` dropped `- Custom-Field: KEEP-ME` entirely (`grep -c` went 1 -> 0) while exiting 0. Keep the assertion as BYTE IDENTITY rather than adding a field-specific assertion, so this test does not duplicate or pre-empt plan `2yqt0a`, which owns the renderer fix and depends on this plan.
+- [x] E-05 Add tests to `tests/test_backlog.py` driving the CLI (`cli.main(["backlog", "set", <path>, "--status", ..., "--dry-run", "--dir", <repo>])`): (a) `--status open --dry-run` on an open item: exit 0, file bytes identical, the backlog directory listing identical, `.aw/records/history.jsonl` absent (or byte-identical if pre-seeded); (b) an item carrying `- Blocks-Release: <id6>` of a planned release record, `--status done --dry-run` with no evidence: exit 1, stderr contains `refused:`, file and sidecar unchanged; (c) the positional spelling `["backlog", "set", "open", <id6>, "--dry-run", "--dir", <repo>]` still exits 0 and leaves the file byte-identical (regression guard proving the two spellings agree on `--dry-run`). GIVE THE (a) FIXTURE ITEM AN UNRECOGNIZED FIELD, for example `- Custom-Field: KEEP-ME` (added at review, F-9): the byte-identity assertion then also detects the template-rebuild data loss that the current dry run causes. Measured at review on the pre-change code: a `--status open --dry-run` dropped `- Custom-Field: KEEP-ME` entirely (`grep -c` went 1 -> 0) while exiting 0. Keep the assertion as BYTE IDENTITY rather than adding a field-specific assertion, so this test does not duplicate or pre-empt plan `2yqt0a`, which owns the renderer fix and depends on this plan.
   - Depends on: E-02
   - Expected outcome: three tests, all passing; (a) and (b) fail on HEAD before E-01/E-02.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Add tests to `tests/test_specs_status_dirs.py` (the git-initialised fixture that already exercises `specs.run_set` relocation): (a) `cli.main(["specs", "set", <draft-path>, "--status", "to-review", "--dry-run"])` exits 0, the spec is still at `draft/<name>` with identical bytes, `to-review/` gains nothing, `git status --porcelain` is empty, and no `history.jsonl` appears; (b) a `reviewed` spec with `--status approved --dry-run` and no `--by-human`, stdin non-interactive: exit 1, file unchanged; (c) the positional spelling `["specs", "set", "to-review", <id6>, "--dry-run", "--dir", <repo>]` leaves the tree unchanged. FIXTURE PRECONDITION FOR (a), verified at review (PR-004): `SpecStatusDirectoriesTests.setUp` git-inits and mkdirs but does NOT commit, so a spec written in the test body is UNTRACKED and `git status --porcelain` is NON-EMPTY before the command even runs. Copy the `git add -A` + `git commit -m initial` pair that the existing relocation tests in this file already perform after writing their spec, or the assertion fails for a reason unrelated to the fix. Note also that the sidecar is gitignored in THIS repo only via `.aw/.gitignore` (`records/history.jsonl`), which a scratch fixture does not inherit; that is WHY it shows up as `?? .aw/records/history.jsonl` in a scratch repo (measured) and therefore why the empty-`git status` assertion genuinely detects a stray sidecar write rather than being vacuous. Do not add a gitignore to the fixture to make it pass.
+- [x] E-06 Add tests to `tests/test_specs_status_dirs.py` (the git-initialised fixture that already exercises `specs.run_set` relocation): (a) `cli.main(["specs", "set", <draft-path>, "--status", "to-review", "--dry-run"])` exits 0, the spec is still at `draft/<name>` with identical bytes, `to-review/` gains nothing, `git status --porcelain` is empty, and no `history.jsonl` appears; (b) a `reviewed` spec with `--status approved --dry-run` and no `--by-human`, stdin non-interactive: exit 1, file unchanged; (c) the positional spelling `["specs", "set", "to-review", <id6>, "--dry-run", "--dir", <repo>]` leaves the tree unchanged. FIXTURE PRECONDITION FOR (a), verified at review (PR-004): `SpecStatusDirectoriesTests.setUp` git-inits and mkdirs but does NOT commit, so a spec written in the test body is UNTRACKED and `git status --porcelain` is NON-EMPTY before the command even runs. Copy the `git add -A` + `git commit -m initial` pair that the existing relocation tests in this file already perform after writing their spec, or the assertion fails for a reason unrelated to the fix. Note also that the sidecar is gitignored in THIS repo only via `.aw/.gitignore` (`records/history.jsonl`), which a scratch fixture does not inherit; that is WHY it shows up as `?? .aw/records/history.jsonl` in a scratch repo (measured) and therefore why the empty-`git status` assertion genuinely detects a stray sidecar write rather than being vacuous. Do not add a gitignore to the fixture to make it pass.
   - Depends on: E-04
   - Expected outcome: three tests, all passing; (a) fails on HEAD.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: Record and verify
 
-- [ ] E-07 Add one `- Fixed:` line to the `## 2.0.0 (pending)` section of `CHANGELOG.md`: `aw backlog set <item> --status <s> --dry-run` and `aw specs set <spec> --status <s> --dry-run` previously ignored `--dry-run` and performed the change (a spec was even moved to another folder); both now preview only. No em or en dashes.
+- [x] E-07 Add one `- Fixed:` line to the `## 2.0.0 (pending)` section of `CHANGELOG.md`: `aw backlog set <item> --status <s> --dry-run` and `aw specs set <spec> --status <s> --dry-run` previously ignored `--dry-run` and performed the change (a spec was even moved to another folder); both now preview only. No em or en dashes.
   - Depends on: E-02, E-04
   - Expected outcome: one new line, user-facing wording, no dashes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Run the bare suite `python3 -m pytest`, then `python3 -m agent_workflows check plans --agent` and `aw sanitize --agent`.
+- [x] E-08 Run the bare suite `python3 -m pytest`, then `python3 -m agent_workflows check plans --agent` and `aw sanitize --agent`.
   - Depends on: E-05, E-06, E-07
   - Expected outcome: 0 failed; no new check or sanitizer finding in touched files.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -150,45 +150,201 @@ No `.spec.md` is amended: no spec describes the `--dry-run` behavior of these tw
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: in a scratch repo with an item carrying `- Blocks-Release:` of a planned release, paste `aw backlog set <path> --status done; echo rc=$?; ls .aw/records/history.jsonl` showing `rc=1`, the `refused:` line, and `No such file or directory`. Then paste a real `--status parked` run showing `rc=0` and `wc -l .aw/records/history.jsonl` reporting `1`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified in scratch repository with planned release `rel001` and open item carrying `- Blocks-Release: rel001`.
+    Refused `--status done` close:
+    ```
+    $ aw backlog set .aw/records/backlog/open/20260926-demo-01-bk0001-blocked.backlog.md --status done
+    aw backlog set: refused: backlog item carries Blocks-Release 'rel001'; closing it `done` would silently drop that release gate.
+      - hand the gate to a plan: add `- From-Backlog: <this id6>` (and the same `- Blocks-Release`) to a plan via `aw ipd set ... --from-backlog <id6>`
+      - cite satisfying evidence: `aw backlog set done <item> --evidence <in-tree artifact path>`
+      - explicitly release the gate first: `aw backlog set done <item> --blocks-release -`
+    $ echo rc=$?
+    rc=1
+    $ ls .aw/records/history.jsonl
+    ls: cannot access '.aw/records/history.jsonl': No such file or directory
+    ```
+    Real `--status parked` run:
+    ```
+    $ aw backlog set .aw/records/backlog/open/20260926-demo-01-bk0001-blocked.backlog.md --status parked
+    aw backlog set: warning: parking a release-blocking item hides gate 'rel001' from the active release-blocker view; de-gate (`--blocks-release -`) if it truly no longer blocks.
+    aw backlog set: 20260926-demo-01-bk0001-blocked.backlog.md -> parked
+    $ echo rc=$?
+    rc=0
+    $ wc -l .aw/records/history.jsonl
+    1 .aw/records/history.jsonl
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `sha256sum <item>` before and after `aw backlog set <item> --status open --dry-run --dir <repo>; echo rc=$?`, showing identical hashes, `rc=0`, the `--- would move` line, and `git status --porcelain` empty.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified in scratch repository on open item:
+    ```
+    $ sha256sum .aw/records/backlog/open/20260926-demo-01-bk0001-item.backlog.md
+    3ce96665f21649ed6a205a996a6e2b378980d1b63b8804189db240eb9815a11c  .aw/records/backlog/open/20260926-demo-01-bk0001-item.backlog.md
+    $ aw backlog set .aw/records/backlog/open/20260926-demo-01-bk0001-item.backlog.md --status open --dry-run --dir .
+    --- would move .aw/records/backlog/open/20260926-demo-01-bk0001-item.backlog.md -> .aw/records/backlog/open/20260926-demo-01-bk0001-item.backlog.md (status open) ---
+    $ echo rc=$?
+    rc=0
+    $ sha256sum .aw/records/backlog/open/20260926-demo-01-bk0001-item.backlog.md
+    3ce96665f21649ed6a205a996a6e2b378980d1b63b8804189db240eb9815a11c  .aw/records/backlog/open/20260926-demo-01-bk0001-item.backlog.md
+    $ git status --porcelain
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste a scratch run of `aw specs set <draft-spec> --status to-review --graduated-to 'BAD SET'; echo rc=$?` showing `rc=2` and no `.aw/records/history.jsonl`; then a real `--status to-review` run and `wc -l .aw/records/history.jsonl` reporting `1`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified in scratch repository on draft spec:
+    Refused run with invalid `--graduated-to`:
+    ```
+    $ aw specs set .aw/records/specs/draft/20260924-aa1111-01-aa1111-test.spec.md --status to-review --graduated-to 'BAD SET'
+    aw specs set: --graduated-to takes lowercase-kebab setids of at most 40 characters; malformed: 'BAD SET'
+    $ echo rc=$?
+    rc=2
+    $ ls .aw/records/history.jsonl
+    ls: cannot access '.aw/records/history.jsonl': No such file or directory
+    ```
+    Real `--status to-review` transition:
+    ```
+    $ aw specs set .aw/records/specs/draft/20260924-aa1111-01-aa1111-test.spec.md --status to-review --no-commit
+    aw specs set: .aw/records/specs/to-review/20260924-aa1111-01-aa1111-test.spec.md -> to-review
+    $ echo rc=$?
+    rc=0
+    $ wc -l .aw/records/history.jsonl
+    1 .aw/records/history.jsonl
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `find .aw/records/specs -name '*.spec.md'` before and after `aw specs set <draft-spec> --status to-review --dry-run; echo rc=$?`, identical listings, `rc=0`, the `--- would move` line, and empty `git status --porcelain`. Then paste `aw specs set <reviewed-spec> --status approved --dry-run < /dev/null; echo rc=$?` showing `rc=1` and the `human-only transition` message.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified in scratch repository:
+    ```
+    $ find .aw/records/specs -name '*.spec.md' | sort
+    .aw/records/specs/draft/20260924-aa1111-01-aa1111-test.spec.md
+    .aw/records/specs/reviewed/20260924-cc3333-01-cc3333-test.spec.md
+    $ aw specs set .aw/records/specs/draft/20260924-aa1111-01-aa1111-test.spec.md --status to-review --dry-run
+    --- would move .aw/records/specs/draft/20260924-aa1111-01-aa1111-test.spec.md -> .aw/records/specs/to-review/20260924-aa1111-01-aa1111-test.spec.md (status to-review) ---
+    $ echo rc=$?
+    rc=0
+    $ find .aw/records/specs -name '*.spec.md' | sort
+    .aw/records/specs/draft/20260924-aa1111-01-aa1111-test.spec.md
+    .aw/records/specs/reviewed/20260924-cc3333-01-cc3333-test.spec.md
+    $ git status --porcelain
+    ```
+    Human-authority floor refusal under dry-run without `--by-human` on non-interactive stdin:
+    ```
+    $ aw specs set .aw/records/specs/reviewed/20260924-cc3333-01-cc3333-test.spec.md --status approved --dry-run < /dev/null
+    aw specs set: reviewed -> approved is a human-only transition; pass --by-human to attest (and record) that a human approved it. Use --message to say who/how.
+    $ echo rc=$?
+    rc=1
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste `python3 -m pytest tests/test_backlog.py -o addopts="" -q -k dry_run` showing 3 passed, AND the same tests shown FAILING against the pre-change code for (a) and (b), proving they detect the bug. PREFER AN IN-TREE METHOD (revised at review, PR-006): temporarily revert the E-01/E-02 hunks in place (or `git stash` them), re-run, paste the failures, restore, re-run green. Do NOT create a git worktree outside this workspace: an execute turn runs in an isolated lane whose directory is its complete authorized workspace, so `git worktree add /tmp/...` writes outside it and also registers a worktree in the shared object store that the lane teardown does not own. If a separate checkout is genuinely wanted, place it INSIDE the lane (for example `.aw/tmp-basecheck/`, removed afterwards) and say so.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified using in-tree check.
+    Passing run with changes applied:
+    ```
+    $ python3 -m pytest tests/test_backlog.py -o addopts="" -q -k dry_run
+    ...                                                                      [100%]
+    NOTE: 26 tests were deselected by -m/-k and did not run (the default run skips 'slow' and 'livecorpus'); run everything with: make test-all
+    3 passed, 26 deselected in 0.38s
+    ```
+    Failing run against pre-change code (temporarily checking out HEAD before E-01/E-02 hunks):
+    ```
+    $ python3 -m pytest tests/test_backlog.py -o addopts="" -q -k dry_run
+    .FF                                                                      [100%]
+    =================================== FAILURES ===================================
+    _ BacklogDryRunTests.test_backlog_set_status_dry_run_leaves_file_and_sidecar_untouched _
+    >       self.assertEqual(item_path.read_bytes(), before_bytes)
+    E       AssertionError: b'- I[24 chars]n\n- Set: demo\n- Priority: medium\n- Work-Kin[143 chars]al\n' != b'- I[24 chars]n\n- Priority: medium\n- Work-Kind: feature\n-[121 chars]al\n'
 
-- [ ] V-06 validates E-06
+    _ BacklogDryRunTests.test_backlog_set_status_done_dry_run_refuses_illegitimate_blocking_close_without_sidecar _
+    >       self.assertFalse(sidecar.exists())
+    E       AssertionError: True is not false
+
+    =========================== short test summary info ============================
+    FAILED tests/test_backlog.py::BacklogDryRunTests::test_backlog_set_status_dry_run_leaves_file_and_sidecar_untouched
+    FAILED tests/test_backlog.py::BacklogDryRunTests::test_backlog_set_status_done_dry_run_refuses_illegitimate_blocking_close_without_sidecar
+    2 failed, 1 passed, 26 deselected in 0.43s
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste `python3 -m pytest tests/test_specs_status_dirs.py -o addopts="" -q -k dry_run` showing 3 passed, plus evidence that (a) fails without E-04 (same in-tree method as V-05; no out-of-lane worktree). Also confirm (a) is not passing for the wrong reason: paste the `git status --porcelain` the test asserts on, so a non-empty status caused by an uncommitted fixture spec (PR-004) is visibly excluded.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified using in-tree check.
+    Passing run with changes applied:
+    ```
+    $ python3 -m pytest tests/test_specs_status_dirs.py -o addopts="" -q -k dry_run
+    ...                                                                      [100%]
+    NOTE: 5 tests were deselected by -m/-k and did not run (the default run skips 'slow' and 'livecorpus'); run everything with: make test-all
+    3 passed, 5 deselected in 0.64s
+    ```
+    Failing run against pre-change code (temporarily checking out HEAD before E-03/E-04 hunks):
+    ```
+    $ python3 -m pytest tests/test_specs_status_dirs.py -o addopts="" -q -k dry_run
+    ..F                                                                      [100%]
+    =================================== FAILURES ===================================
+    _ SpecStatusDirectoriesTests.test_specs_set_status_dry_run_leaves_file_and_tree_clean _
+    >           self.assertTrue(spec_path.exists())
+    E           AssertionError: False is not true
+    ----------------------------- Captured stdout call -----------------------------
+    [master (root-commit) 4d79880] initial
+     1 file changed, 10 insertions(+)
+     create mode 100644 .aw/records/specs/draft/20260924-aa1111-01-aa1111-test.spec.md
+    aw specs set: .../.aw/records/specs/to-review/20260924-aa1111-01-aa1111-test.spec.md -> to-review
+    =========================== short test summary info ============================
+    FAILED tests/test_specs_status_dirs.py::SpecStatusDirectoriesTests::test_specs_set_status_dry_run_leaves_file_and_tree_clean
+    1 failed, 2 passed, 5 deselected in 0.57s
+    ```
+    Fixture precondition verified: `setUp` git-initializes and test commits initial spec before driving `cli.main`, asserting `git status --porcelain` is empty:
+    ```python
+    res = subprocess.run(["git", "status", "--porcelain"], cwd=self.repo_root, capture_output=True, text=True, check=True)
+    self.assertEqual(res.stdout.strip(), "")
+    ```
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: paste `git diff CHANGELOG.md` showing exactly one added `- Fixed:` line under `## 2.0.0 (pending)`, and `git diff CHANGELOG.md | grep -P '[\x{2013}\x{2014}]'` printing nothing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified.
+    ```diff
+    $ git diff CHANGELOG.md
+    diff --git a/CHANGELOG.md b/CHANGELOG.md
+    index 20509485..f2158301 100644
+    --- a/CHANGELOG.md
+    +++ b/CHANGELOG.md
+    @@ -66,6 +66,7 @@ Major storage-layout boundary. The logical model (D126-D129) was superseded by t
+     - Fixed: the mandatory execution contract in `templates/plans-README.md` (element 5) told executing agents to perform a hand-rolled terminal lifecycle move with `git mv` plus a manual `Status: executed` edit, which the `aw ipd finalize` post-transition gate and attribution linter (`IPD-M104`, `IPD-S406`) refuse. In an unattended run this caused an agent that completed all work to be rejected by the gate, revert the transition, and report `partial`, stranding its verified changes on an unintegrated lane. The obvious substitution (telling every agent to run `aw ipd finalize`) is also refused in a managed lane by `AW-LIFECYCLE-ROLE-001`, because the runner owns lifecycle transitions for isolated worker turns. Element 5 now separates the unconditional finalize obligation from the conditional owner (the runner finalizes in managed lanes; the executor finalizes only in unmanaged or manual runs), the review workflows now enforce the corrected contract, and a new gate-section lint rule (`IPD-M108`) refuses gates prescribing hand-rolled terminal moves. Downstream repositories do not need to rewrite historical executed plans (which are exempt from the lint), but should check pending plan gates to ensure they do not prescribe hand-rolled moves.
+     - Fixed: `aw commit` and `aw work begin` no longer refuse over a warning-level finding on the plan. They print the warning as a non-blocking note and continue, while still refusing over error-level findings.
+     - Fixed: managed sections in AGENTS.md (and native instruction files) could freeze after a tracked edit or overwrite unrecorded user edits. The installer section consent decision now explicitly handles four cases: (1) on-disk equals desired generator output adopts and re-records the hash, self-healing stale manifest records; (2) on-disk equals recorded hash performs normal refresh to desired; (3) on-disk differs from both preserves the user edition and emits a warning with the delete-and-reinstall remedy; (4) no recorded hash preserves the unrecorded user edition and emits a warning.
+    +- Fixed: `aw backlog set <item> --status <s> --dry-run` and `aw specs set <spec> --status <s> --dry-run` previously ignored `--dry-run` and performed the change (a spec was even moved to another folder); both now preview only.
+     - Removed the `--follow-generated` run flag. It was never implemented and always refused. Plans created during a run are reported as next actions, as before.
 
-- [ ] V-08 validates E-08
+     ## 1.3.0 (pending) - new conventions/features, internal install unification, and install-path fixes
+    ```
+    No em or en dashes:
+    ```
+    $ git diff CHANGELOG.md | grep -P '[\x{2013}\x{2014}]'
+    ```
+  - Result: pass
+
+- [x] V-08 validates E-08
   - Required evidence: paste the final summary line of a BARE `python3 -m pytest` showing 0 failed (name any failure as pre-existing with its node id and evidence it fails at the base commit), plus the exit code of `python3 -m agent_workflows check plans --agent` and of `aw sanitize --agent`, both 0 or with no finding naming a touched file.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified.
+    Bare `python3 -m pytest`:
+    ```
+    2583 passed, 2 skipped, 3 warnings in 76.84s (0:01:16)
+    ```
+    (0 failed)
+    `python3 -m agent_workflows check plans --agent`:
+    Exit code: 1 (2 findings, both pre-existing in pending plan `olkeju` and `<collisions>`; 0 findings naming touched files).
+    `aw sanitize --agent`:
+    Exit code: 0
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

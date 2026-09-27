@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import argparse
+import io
 import subprocess
 import tempfile
 import unittest
+from contextlib import redirect_stderr
 from pathlib import Path
+from unittest.mock import patch
 
 from agent_workflows import attention_contract
 from agent_workflows import specs
@@ -194,6 +197,182 @@ class SpecStatusDirectoriesTests(unittest.TestCase):
         )
         self.assertTrue(dest_path.exists())
         self.assertIn("- Status: to-review", dest_path.read_text(encoding="utf-8"))
+
+    def test_specs_set_status_dry_run_leaves_file_and_tree_clean(self) -> None:
+        from agent_workflows import cli
+
+        spec_path = (
+            self.repo_root
+            / ".aw"
+            / "records"
+            / "specs"
+            / "draft"
+            / "20260924-aa1111-01-aa1111-test.spec.md"
+        )
+        spec_path.write_text(
+            """# Spec: Test Spec
+
+- Date: 2026-09-24
+- Status: draft
+- Id: aa1111
+- Author: tester
+
+## Workflow history
+
+- 2026-09-24 draft (tester): created
+""",
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "add", "-A"], cwd=self.repo_root, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "initial"], cwd=self.repo_root, check=True
+        )
+
+        before_bytes = spec_path.read_bytes()
+        dest_path = (
+            self.repo_root
+            / ".aw"
+            / "records"
+            / "specs"
+            / "to-review"
+            / "20260924-aa1111-01-aa1111-test.spec.md"
+        )
+        sidecar = self.repo_root / ".aw" / "records" / "history.jsonl"
+
+        rc = cli.main(
+            [
+                "specs",
+                "set",
+                str(spec_path),
+                "--status",
+                "to-review",
+                "--dry-run",
+            ]
+        )
+        self.assertEqual(rc, 0)
+        self.assertTrue(spec_path.exists())
+        self.assertEqual(spec_path.read_bytes(), before_bytes)
+        self.assertFalse(dest_path.exists())
+        res = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=self.repo_root,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.assertEqual(res.stdout.strip(), "")
+        self.assertFalse(sidecar.exists())
+
+    def test_specs_set_status_approved_dry_run_refuses_without_human_attestation(
+        self,
+    ) -> None:
+        from agent_workflows import cli
+
+        spec_path = (
+            self.repo_root
+            / ".aw"
+            / "records"
+            / "specs"
+            / "reviewed"
+            / "20260924-cc3333-01-cc3333-test.spec.md"
+        )
+        spec_path.parent.mkdir(parents=True, exist_ok=True)
+        spec_path.write_text(
+            """# Spec: Test Spec
+
+- Date: 2026-09-24
+- Status: reviewed
+- Id: cc3333
+- Author: tester
+
+## Workflow history
+
+- 2026-09-24 reviewed (tester): ready
+- 2026-09-24 draft (tester): created
+""",
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "add", "-A"], cwd=self.repo_root, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "initial reviewed"],
+            cwd=self.repo_root,
+            check=True,
+        )
+        before_bytes = spec_path.read_bytes()
+
+        err = io.StringIO()
+        with patch("sys.stdin", io.StringIO()), redirect_stderr(err):
+            rc = cli.main(
+                [
+                    "specs",
+                    "set",
+                    str(spec_path),
+                    "--status",
+                    "approved",
+                    "--dry-run",
+                    "--dir",
+                    str(self.repo_root),
+                ]
+            )
+        self.assertEqual(rc, 1)
+        self.assertIn("human-only transition", err.getvalue())
+        self.assertEqual(spec_path.read_bytes(), before_bytes)
+
+    def test_specs_set_positional_dry_run_leaves_tree_unchanged(self) -> None:
+        from agent_workflows import cli
+
+        spec_path = (
+            self.repo_root
+            / ".aw"
+            / "records"
+            / "specs"
+            / "draft"
+            / "20260924-dd4444-01-dd4444-test.spec.md"
+        )
+        spec_path.write_text(
+            """# Spec: Test Spec
+
+- Date: 2026-09-24
+- Status: draft
+- Id: dd4444
+- Author: tester
+
+## Workflow history
+
+- 2026-09-24 draft (tester): created
+""",
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "add", "-A"], cwd=self.repo_root, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "initial draft"],
+            cwd=self.repo_root,
+            check=True,
+        )
+        before_bytes = spec_path.read_bytes()
+
+        rc = cli.main(
+            [
+                "specs",
+                "set",
+                "to-review",
+                "dd4444",
+                "--dry-run",
+                "--dir",
+                str(self.repo_root),
+            ]
+        )
+        self.assertEqual(rc, 0)
+        self.assertTrue(spec_path.exists())
+        self.assertEqual(spec_path.read_bytes(), before_bytes)
+        res = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=self.repo_root,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.assertEqual(res.stdout.strip(), "")
 
 
 class LiveSpecsTreeInvariantTests(unittest.TestCase):

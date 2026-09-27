@@ -595,5 +595,169 @@ class BacklogNoteVerbTests(unittest.TestCase):
         self.assertIn("recorded through the CLI", self.item.read_text(encoding="utf-8"))
 
 
+class BacklogDryRunTests(unittest.TestCase):
+    """Outcome tests for --dry-run on aw backlog set (IPD wd6npl E-05)."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.repo = Path(self.tmp.name)
+        (self.repo / ".aw" / "records" / "backlog" / "open").mkdir(parents=True)
+        (self.repo / ".aw" / "records" / "releases" / "planned").mkdir(parents=True)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_backlog_set_status_dry_run_leaves_file_and_sidecar_untouched(self):
+        from agent_workflows import cli
+
+        item_path = (
+            self.repo
+            / ".aw"
+            / "records"
+            / "backlog"
+            / "open"
+            / "20260926-demo-01-bk0001-item.backlog.md"
+        )
+        item_path.write_text(
+            "- Id: bk0001\n"
+            "- Status: open\n"
+            "- Priority: medium\n"
+            "- Work-Kind: feature\n"
+            "- Set: demo\n"
+            "- Custom-Field: KEEP-ME\n"
+            "- Summary: an open item\n\n"
+            "## Workflow history\n"
+            "- 2026-09-26 created (tester): initial\n",
+            encoding="utf-8",
+        )
+        before_bytes = item_path.read_bytes()
+        before_listing = sorted(
+            p.name for p in (self.repo / ".aw" / "records" / "backlog").rglob("*.md")
+        )
+        sidecar = self.repo / ".aw" / "records" / "history.jsonl"
+        self.assertFalse(sidecar.exists())
+
+        rc = cli.main(
+            [
+                "backlog",
+                "set",
+                str(item_path),
+                "--status",
+                "open",
+                "--dry-run",
+                "--dir",
+                str(self.repo),
+            ]
+        )
+        self.assertEqual(rc, 0)
+        self.assertEqual(item_path.read_bytes(), before_bytes)
+        after_listing = sorted(
+            p.name for p in (self.repo / ".aw" / "records" / "backlog").rglob("*.md")
+        )
+        self.assertEqual(after_listing, before_listing)
+        self.assertFalse(sidecar.exists())
+
+    def test_backlog_set_status_done_dry_run_refuses_illegitimate_blocking_close_without_sidecar(
+        self,
+    ):
+        from agent_workflows import cli
+
+        rel_path = (
+            self.repo
+            / ".aw"
+            / "records"
+            / "releases"
+            / "planned"
+            / "20260926-rel001-01-rel001-v1.release.md"
+        )
+        rel_path.write_text(
+            "# Release: v1.0.0\n\n"
+            "- Id: rel001\n"
+            "- Status: planned\n"
+            "- Version: 1.0.0\n",
+            encoding="utf-8",
+        )
+        item_path = (
+            self.repo
+            / ".aw"
+            / "records"
+            / "backlog"
+            / "open"
+            / "20260926-demo-01-bk0002-blocked.backlog.md"
+        )
+        item_path.write_text(
+            "- Id: bk0002\n"
+            "- Status: open\n"
+            "- Priority: high\n"
+            "- Work-Kind: bug\n"
+            "- Blocks-Release: rel001\n"
+            "- Set: demo\n"
+            "- Summary: a release blocker\n\n"
+            "## Workflow history\n"
+            "- 2026-09-26 created (tester): initial\n",
+            encoding="utf-8",
+        )
+        before_bytes = item_path.read_bytes()
+        sidecar = self.repo / ".aw" / "records" / "history.jsonl"
+        self.assertFalse(sidecar.exists())
+
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            rc = cli.main(
+                [
+                    "backlog",
+                    "set",
+                    str(item_path),
+                    "--status",
+                    "done",
+                    "--dry-run",
+                    "--dir",
+                    str(self.repo),
+                ]
+            )
+        self.assertEqual(rc, 1)
+        self.assertIn("refused:", err.getvalue())
+        self.assertEqual(item_path.read_bytes(), before_bytes)
+        self.assertFalse(sidecar.exists())
+
+    def test_backlog_set_positional_dry_run_leaves_file_untouched(self):
+        from agent_workflows import cli
+
+        item_path = (
+            self.repo
+            / ".aw"
+            / "records"
+            / "backlog"
+            / "open"
+            / "20260926-demo-01-bk0003-pos.backlog.md"
+        )
+        item_path.write_text(
+            "- Id: bk0003\n"
+            "- Status: open\n"
+            "- Priority: medium\n"
+            "- Work-Kind: chore\n"
+            "- Set: demo\n"
+            "- Summary: a positional test item\n\n"
+            "## Workflow history\n"
+            "- 2026-09-26 created (tester): initial\n",
+            encoding="utf-8",
+        )
+        before_bytes = item_path.read_bytes()
+
+        rc = cli.main(
+            [
+                "backlog",
+                "set",
+                "open",
+                "bk0003",
+                "--dry-run",
+                "--dir",
+                str(self.repo),
+            ]
+        )
+        self.assertEqual(rc, 0)
+        self.assertEqual(item_path.read_bytes(), before_bytes)
+
+
 if __name__ == "__main__":
     unittest.main()
