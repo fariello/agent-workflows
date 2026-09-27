@@ -6,7 +6,7 @@
 - Scope: IN: (a) `ipd_lifecycle._commit_run_ownership(repo_root, sha, plan_id6) -> "owned" | "foreign" | "unknown"`, reading `AW-Item`/`AW-Run` via `git log -1 --format=%(trailers:key=...,valueonly)`; (b) a range helper `_trailer_owned_committed_paths(repo_root, base_head, plan_id6)` returning the paths of every non-merge commit in `base_head..HEAD` classified `owned`, plus per-class commit counts for evidence, using ONE `git log` call; (c) in `finalize_precheck`'s committed-half branch, a path in the trailer-owned set is ALWAYS owned (reason required), consulted BEFORE and independently of cohesion or the run record; `unknown` and `foreign` commits fall through to today's predicate unchanged; (d) a `trailer_attribution` evidence block; (e) updating the accepted-cost prose in `_working_tree_path_is_owned`, `_execution_cohesive_committed_paths`, `_run_record_committed_paths` and the `finalize_precheck` comment; (f) behavioral tests on scratch repos. OUT: binding `RUN-COMMIT-CONTENTS`/`RUN-COMMIT-GATEWAY` (Carrier-Declined); using a `foreign` trailer to EXCUSE a path (deferred, see OQ-02); any change to `check_engine.check_scope_drift`, which deliberately reads the unfiltered window.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, tests/test_finalize_trailer_attribution.py
 - Item-Dependencies: executed:a6xbso
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 199u11
-- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 199u11 verified (set trailread, attempt 1).
 - 2026-09-27 approved (aw set): status set to approved
 
 - 2026-09-27 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; 8 findings PR-1301..PR-1308 all FIXED (3 HIGH), 4 decisions D-1..D-4 recorded; review record written. F-1 RE-REPRODUCED at review HEAD f94dc07f on three scratch repos (trailered-own, untrailered and foreign all yield commit-cohesion / out_of_scope=[] / disregarded=['other.py'], i.e. indistinguishable today). PR-1301 (HIGH): E-03's line-oriented one-call parse is unsound because a folded trailer value puts a newline INSIDE the field (measured), so a continuation line is indistinguishable from a path; replaced with a record-delimited \x1e/\x1f parse, verified. PR-1302 (HIGH): a trailers field is multi-valued AND multi-line (two AW-Item trailers -> 'aaa111,zzz999'), so E-02 must split on both axes before comparing. PR-1303 (HIGH): the runner auto-answers every demand this plan adds via compute_scope_reconciliation, so the gate's 'always needs a reason' does not describe the automated path; added E-07/V-07 (comment-only) and a gate paragraph. PR-1304: V-05's grep exits 1 on the UNMODIFIED file (the phrase wraps), so it would pass an unperformed E-05; replaced with three anchors each measured exiting 0 today. PR-1305: case (6) can pass having written no trailer. Also corrected the spec-sync claim (the spec has no 'nothing reads trailers back' sentence) and verified no shipped test is forced into scope. aw ipd lint --phase review-finalize conforming.
@@ -36,52 +36,52 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: reproduce
 
-- [ ] E-01 RE-MEASURE THE EXCUSE at the executing HEAD. Build a scratch repo exactly as the `tests/test_ipd_lifecycle_cli.py` `AdditiveScopeWideningTests.setUp` fixture does (`support.ready_plan_text(plan_id="abc123", ...)` marked performed/pass, `.gitignore` with `.aw/state/`, `agent_workflows/demo.py`, `tests/test_demo.py`, committed), run `ipd_lifecycle.begin`, commit an in-scope edit to `agent_workflows/demo.py`, then commit a new `other.py` alone with message `oos\n\nAW-Run: run-20260926T000000Z-1\nAW-Item: abc123`. Paste `finalize_precheck`'s `attribution_source`, `scope_audit.out_of_scope_paths` and `scope_audit.disregarded_unowned_paths`. Do this with `AW_EXECUTION_ROLE` unset. If `other.py` is already in `out_of_scope_paths`, STOP and report that trailers are already read.
+- [x] E-01 RE-MEASURE THE EXCUSE at the executing HEAD. Build a scratch repo exactly as the `tests/test_ipd_lifecycle_cli.py` `AdditiveScopeWideningTests.setUp` fixture does (`support.ready_plan_text(plan_id="abc123", ...)` marked performed/pass, `.gitignore` with `.aw/state/`, `agent_workflows/demo.py`, `tests/test_demo.py`, committed), run `ipd_lifecycle.begin`, commit an in-scope edit to `agent_workflows/demo.py`, then commit a new `other.py` alone with message `oos\n\nAW-Run: run-20260926T000000Z-1\nAW-Item: abc123`. Paste `finalize_precheck`'s `attribution_source`, `scope_audit.out_of_scope_paths` and `scope_audit.disregarded_unowned_paths`. Do this with `AW_EXECUTION_ROLE` unset. If `other.py` is already in `out_of_scope_paths`, STOP and report that trailers are already read.
   - Depends on: none
   - Expected outcome: `commit-cohesion`, `[]`, `['other.py']`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the reader
 
-- [ ] E-02 ADD `ipd_lifecycle._commit_run_ownership(repo_root, sha, plan_id6)` returning `"owned"`, `"foreign"`, or `"unknown"`. Read the values with `_git(repo_root, ["log", "-1", "--format=%(trailers:key=AW-Item,valueonly,separator=%x2C)%x00%(trailers:key=AW-Run,valueonly,separator=%x2C)", sha])`, using the key names `git_commit_helper.TRAILER_KEY_ITEM`/`TRAILER_KEY_RUN` (imported lazily) rather than re-spelling them. Rules: no `AW-Item` value -> `unknown` (whatever `AW-Run` says, because an ownership claim without an item cannot name this plan); any `AW-Item` value equal to `plan_id6` -> `owned`; `AW-Item` present but none equal -> `foreign`; a git failure -> `unknown`. `AW-Run` is parsed and returned in evidence only: finalize is never handed a run id (the `_execution_cohesive_committed_paths` docstring: the run record is "never handed a run id by finalize"), so the ITEM is the key that names this execution; state that in the docstring. The docstring must also state the fail-closed rule verbatim in substance: `unknown` is NEVER treated as `foreign`, because the corpus permanently contains untrailered commits (backlog `j2srcc`, `wao266` OQ-03), and a trailer is a consistency record, not tamper-proof provenance (same honest limit `_run_record_committed_paths` states).
+- [x] E-02 ADD `ipd_lifecycle._commit_run_ownership(repo_root, sha, plan_id6)` returning `"owned"`, `"foreign"`, or `"unknown"`. Read the values with `_git(repo_root, ["log", "-1", "--format=%(trailers:key=AW-Item,valueonly,separator=%x2C)%x00%(trailers:key=AW-Run,valueonly,separator=%x2C)", sha])`, using the key names `git_commit_helper.TRAILER_KEY_ITEM`/`TRAILER_KEY_RUN` (imported lazily) rather than re-spelling them. Rules: no `AW-Item` value -> `unknown` (whatever `AW-Run` says, because an ownership claim without an item cannot name this plan); any `AW-Item` value equal to `plan_id6` -> `owned`; `AW-Item` present but none equal -> `foreign`; a git failure -> `unknown`. `AW-Run` is parsed and returned in evidence only: finalize is never handed a run id (the `_execution_cohesive_committed_paths` docstring: the run record is "never handed a run id by finalize"), so the ITEM is the key that names this execution; state that in the docstring. The docstring must also state the fail-closed rule verbatim in substance: `unknown` is NEVER treated as `foreign`, because the corpus permanently contains untrailered commits (backlog `j2srcc`, `wao266` OQ-03), and a trailer is a consistency record, not tamper-proof provenance (same honest limit `_run_record_committed_paths` states).
   - A TRAILER VALUE IS MULTI-LINE AND MULTI-VALUED, SO SPLIT ON BOTH AXES BEFORE COMPARING (review PR-1302, F-5). Verified with git 2.43.0 at review on a scratch repo: `separator=%x2C` joins SEVERAL `AW-Item` trailers into one comma-separated field (two `AW-Item` trailers yield `aaa111,zzz999`), and git's own trailer grammar lets a value CONTINUE on a following whitespace-indented line, so the field itself may contain a newline (measured: a folded continuation line came back inside the `AW-Item` value). So the parse is: take the field, split on `,`, then split each part on any newline, then `.strip()` each token and drop the empties. `owned` iff any surviving token equals `plan_id6` exactly. Comparing the raw field against `plan_id6` would miss the legitimate multi-value case and could be fooled by a folded line; do not do it.
   - Depends on: E-01
   - Expected outcome: on a scratch repo, a commit trailered `AW-Item: abc123` -> `owned` for `abc123` and `foreign` for `zzz999`; an untrailered commit -> `unknown` for both; a commit carrying BOTH `AW-Item: aaa111` and `AW-Item: zzz999` -> `owned` for each of those two and `foreign` for `abc123`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 ADD `ipd_lifecycle._trailer_owned_committed_paths(repo_root, base_head, plan_id6)` returning a small NamedTuple `(paths: frozenset, owned: int, foreign: int, unknown: int)`. Use ONE call and classify each commit by the SAME rule as E-02 (factor the classification of an already-read `AW-Item` value into one private function both call, so they cannot drift). `paths` is the union of paths of `owned` commits. Empty `plan_id6`, no range, or a git failure returns an empty result with zero counts (no demand added, today's behavior).
+- [x] E-03 ADD `ipd_lifecycle._trailer_owned_committed_paths(repo_root, base_head, plan_id6)` returning a small NamedTuple `(paths: frozenset, owned: int, foreign: int, unknown: int)`. Use ONE call and classify each commit by the SAME rule as E-02 (factor the classification of an already-read `AW-Item` value into one private function both call, so they cannot drift). `paths` is the union of paths of `owned` commits. Empty `plan_id6`, no range, or a git failure returns an empty result with zero counts (no demand added, today's behavior).
   - THE ONE-CALL GROUPING MUST NOT BE LINE-ORIENTED, AND THE AUTHORED SENTINEL DOES NOT FIX IT (review PR-1301, F-4). The authored form `--format=<sentinel>%H%x00<AW-Item field> --name-only` assumes one header line per commit, and the trailer field breaks that assumption for the same reason E-02 must split on newlines: a folded continuation line puts a NEWLINE inside the field, so the next line of output is neither a header nor a path. MEASURED at review with git 2.43.0: the trailered commit's output was `<sentinel><sha>\x00abc123\n  AWHDR1111...\n\ng\n`, i.e. the continuation line was indistinguishable from a path line, and a line-oriented reader attributes a nonexistent path to that commit. That is the FAIL-OPEN direction for the header case (a header misread as a path desynchronizes the grouping and can silently attribute a later commit's paths to an `owned` one). USE A RECORD-DELIMITED PARSE INSTEAD, which was verified at review: `git log --no-merges --format=%x1e%H%x00%(trailers:key=AW-Item,valueonly,separator=%x2C)%x1f --name-only base_head..HEAD`, then split the whole stdout on `\x1e` for records, and inside each record split once on `\x1f` to separate the header fields from the `--name-only` block; split the header on `\x00` for sha and item field, and split the block on newlines for paths. `\x1e`/`\x1f` cannot occur in a git path or in a trailer value, so the framing is exact rather than heuristic. If you prefer another framing, it MUST be record-delimited and you MUST paste the measurement in V-03 showing a folded trailer value parsed correctly.
   - Depends on: E-02
   - Expected outcome: on the E-01 repo, `paths == {"other.py"}` and `owned == 1`, `unknown == 1` (the in-scope commit); on a repo with an additional commit whose `AW-Item` value carries a folded continuation line, the continuation text does NOT appear in `paths`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: consult it
 
-- [ ] E-04 CONSULT THE READER IN `finalize_precheck`'s committed-half branch. Compute `trailered = _trailer_owned_committed_paths(repo_root, base_head, plan_id)` once, beside the existing `exact`/`cohesive` computation. In the loop, inside `if p in committed_set:`, set `owned = True` when `p in trailered.paths`, BEFORE the existing cohesion/`anchored` expression, which is otherwise untouched; the working-tree branch is untouched. This only ever ADDS demands, never removes one, so every path owned today is still owned. Record `evidence["trailer_attribution"] = {"owned_commits": ..., "foreign_commits": ..., "unknown_commits": ..., "owned_paths": sorted(...)}`, and leave `attribution_source` unchanged in meaning (it still names the source that decided the non-trailered remainder). Update the block comment "ACCEPTED COST (the honest bound ...)" in `finalize_precheck` to say the cost now applies ONLY to untrailered commits.
+- [x] E-04 CONSULT THE READER IN `finalize_precheck`'s committed-half branch. Compute `trailered = _trailer_owned_committed_paths(repo_root, base_head, plan_id)` once, beside the existing `exact`/`cohesive` computation. In the loop, inside `if p in committed_set:`, set `owned = True` when `p in trailered.paths`, BEFORE the existing cohesion/`anchored` expression, which is otherwise untouched; the working-tree branch is untouched. This only ever ADDS demands, never removes one, so every path owned today is still owned. Record `evidence["trailer_attribution"] = {"owned_commits": ..., "foreign_commits": ..., "unknown_commits": ..., "owned_paths": sorted(...)}`, and leave `attribution_source` unchanged in meaning (it still names the source that decided the non-trailered remainder). Update the block comment "ACCEPTED COST (the honest bound ...)" in `finalize_precheck` to say the cost now applies ONLY to untrailered commits.
   - Depends on: E-03
   - Expected outcome: on the E-01 repo, `out_of_scope_paths == ['other.py']`, `disregarded_unowned_paths == []`, and `trailer_attribution.owned_paths == ['other.py']`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 RECORD WHERE THE NEW DEMAND ACTUALLY LANDS UNDER THE RUNNER, IN THE `finalize_precheck` COMMENT BLOCK ONLY (review PR-1303, F-6; no behavior change, and deliberately so). The demand this plan adds is felt by a HUMAN finalizing by hand, and is AUTO-ANSWERED under a driver: `runner_shared.compute_scope_reconciliation` maps every path in `out_of_scope_paths` to the fixed string `"changed by the plan's approved execution (auto-reconciled by <host>)"` and hands it to finalize, so under `aw oc run` / `aw agy run` a newly-demanded path is satisfied without stopping the run. Add two or three sentences to the existing comment block stating (a) that the runner auto-reasons these, (b) that this is CORRECT rather than a hole, because a trailer-owned path IS this execution's own work and the auto-reason asserts exactly that (unlike the cohesion case, whose auto-reason can assert a co-worker's path and is the thing `gys47u`'s `attribution_source` note warns about), and (c) that the user-visible effect of this plan under a runner is therefore a TRUER PERMANENT RECORD (the path is recorded as reconciled rather than silently disregarded), not a new stop. Do NOT add a refusal, a warning, or any branch keyed on `trailer_attribution`: that would be a behavior change nobody approved and would strand runs.
+- [x] E-07 RECORD WHERE THE NEW DEMAND ACTUALLY LANDS UNDER THE RUNNER, IN THE `finalize_precheck` COMMENT BLOCK ONLY (review PR-1303, F-6; no behavior change, and deliberately so). The demand this plan adds is felt by a HUMAN finalizing by hand, and is AUTO-ANSWERED under a driver: `runner_shared.compute_scope_reconciliation` maps every path in `out_of_scope_paths` to the fixed string `"changed by the plan's approved execution (auto-reconciled by <host>)"` and hands it to finalize, so under `aw oc run` / `aw agy run` a newly-demanded path is satisfied without stopping the run. Add two or three sentences to the existing comment block stating (a) that the runner auto-reasons these, (b) that this is CORRECT rather than a hole, because a trailer-owned path IS this execution's own work and the auto-reason asserts exactly that (unlike the cohesion case, whose auto-reason can assert a co-worker's path and is the thing `gys47u`'s `attribution_source` note warns about), and (c) that the user-visible effect of this plan under a runner is therefore a TRUER PERMANENT RECORD (the path is recorded as reconciled rather than silently disregarded), not a new stop. Do NOT add a refusal, a warning, or any branch keyed on `trailer_attribution`: that would be a behavior change nobody approved and would strand runs.
   - WHY THIS IS AN ITEM AND NOT A FOOTNOTE: without it, the plan's own gate reads as though executors will now be asked for reasons they were not asked for before, which is false for the automated path that produces nearly all finalizes here, and a later maintainer measuring "did the demand fire?" through a runner log would conclude the reader is inert.
   - Depends on: E-04
   - Expected outcome: the comment block names `compute_scope_reconciliation` and states the auto-reason consequence; `rg -n "compute_scope_reconciliation" agent_workflows/ipd_lifecycle.py` returns at least one hit; no new conditional branch is introduced (the diff adds comment lines only).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 UPDATE THE ACCEPTED-COST PROSE so no docstring still says trailers are unread: `_working_tree_path_is_owned` (the second accepted-cost bullet and the closing "The exact fix that would remove the second cost is commit trailers" sentence: now removed for trailered commits, remains for untrailered ones and for raw `git commit`, which is not refused per `a6xbso` OQ-02); `_execution_cohesive_committed_paths` (the "COMMIT TRAILERS ... essentially no commit in history carries one yet" bullet: now read, as a demand-only source ahead of cohesion); and `_run_record_committed_paths` (the "when those land they become a third and better source" sentence: they have landed, as an additive demand source rather than a replacement, and why: a trailer can only ADD a demand, so it composes with the run record instead of deciding alone). Do NOT rename `_working_tree_path_is_owned` (its docstring explains why).
+- [x] E-05 UPDATE THE ACCEPTED-COST PROSE so no docstring still says trailers are unread: `_working_tree_path_is_owned` (the second accepted-cost bullet and the closing "The exact fix that would remove the second cost is commit trailers" sentence: now removed for trailered commits, remains for untrailered ones and for raw `git commit`, which is not refused per `a6xbso` OQ-02); `_execution_cohesive_committed_paths` (the "COMMIT TRAILERS ... essentially no commit in history carries one yet" bullet: now read, as a demand-only source ahead of cohesion); and `_run_record_committed_paths` (the "when those land they become a third and better source" sentence: they have landed, as an additive demand source rather than a replacement, and why: a trailer can only ADD a demand, so it composes with the run record instead of deciding alone). Do NOT rename `_working_tree_path_is_owned` (its docstring explains why).
   - THE AUTHORED GREP CANNOT SUCCEED OR FAIL HONESTLY, BECAUSE ONE PHRASE IS LINE-WRAPPED (review PR-1304, F-7). Measured at review: `rg -n "essentially no commit in history carries one yet" agent_workflows/ipd_lifecycle.py` exits 1 TODAY, on the unmodified file, because the sentence wraps mid-phrase ("... but essentially no commit in\n      history carries one yet ..."), and `rg` is line-oriented. So the authored expected outcome is already satisfied before any edit, which makes it a vacuous check that would pass a completely unperformed E-05. Use per-phrase anchors that each actually match today, verified at review to exit 0 on the unmodified file: `rg -n "essentially no commit in" agent_workflows/ipd_lifecycle.py` (line 2141), `rg -n "when those land" agent_workflows/ipd_lifecycle.py` (line 2052), and `rg -n "exact fix that would remove" agent_workflows/ipd_lifecycle.py` (line 2333). V-05 must paste each exiting 0 BEFORE the edit and exiting 1 after, which is what distinguishes a performed edit from an unperformed one.
   - Depends on: E-04
   - Expected outcome: each of the three anchors above exits 0 before the edit and 1 after.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: prove it
 
-- [ ] E-06 ADD `tests/test_finalize_trailer_attribution.py`, behavioral only (no source-text or structure assertions, maintainer ruling 2026-09-26), using `support.declare_execution_role(self)` in `setUp` so the coordinator role is declared rather than inherited, and the E-01 fixture shape. Cases: (1) OWN TRAILER DEMANDS: the E-01 shape -> `other.py` in `out_of_scope_paths`, not in `disregarded_unowned_paths`; and `finalize(..., apply=True)` WITHOUT a reason for `other.py` refuses, WITH `scope_reasons={"other.py": "..."}` succeeds. (2) UNTRAILERED FALLS BACK: identical but the `other.py` commit has no trailer -> `other.py` in `disregarded_unowned_paths`, exactly today's result (pins that `unknown` is not promoted either way). (3) FOREIGN FALLS BACK: `AW-Item: zzz999` -> same as (2), and `trailer_attribution.foreign_commits == 1`. (4) NO FALSE UNKNOWN->FOREIGN: a plan whose ONLY commit is an untrailered out-of-scope commit (the `p7dqwz` shape `_execution_cohesive_committed_paths` cites) still has that path in `out_of_scope_paths` (the `anchored=False` fail-closed path is unaffected). (5) `_commit_run_ownership` on three real commits returns `owned`/`foreign`/`unknown` as specified, including a commit with `AW-Run` but no `AW-Item` -> `unknown`. (6) END TO END WITH ORDER 1: the owned commit is produced by `python3 -m agent_workflows commit --no-plan -m oos -- other.py` run as a subprocess with `AW_RUN_ID`/`AW_ITEM_ID6=abc123` in its env (the writer `a6xbso` ships), proving the writer and reader agree on the format.
+- [x] E-06 ADD `tests/test_finalize_trailer_attribution.py`, behavioral only (no source-text or structure assertions, maintainer ruling 2026-09-26), using `support.declare_execution_role(self)` in `setUp` so the coordinator role is declared rather than inherited, and the E-01 fixture shape. Cases: (1) OWN TRAILER DEMANDS: the E-01 shape -> `other.py` in `out_of_scope_paths`, not in `disregarded_unowned_paths`; and `finalize(..., apply=True)` WITHOUT a reason for `other.py` refuses, WITH `scope_reasons={"other.py": "..."}` succeeds. (2) UNTRAILERED FALLS BACK: identical but the `other.py` commit has no trailer -> `other.py` in `disregarded_unowned_paths`, exactly today's result (pins that `unknown` is not promoted either way). (3) FOREIGN FALLS BACK: `AW-Item: zzz999` -> same as (2), and `trailer_attribution.foreign_commits == 1`. (4) NO FALSE UNKNOWN->FOREIGN: a plan whose ONLY commit is an untrailered out-of-scope commit (the `p7dqwz` shape `_execution_cohesive_committed_paths` cites) still has that path in `out_of_scope_paths` (the `anchored=False` fail-closed path is unaffected). (5) `_commit_run_ownership` on three real commits returns `owned`/`foreign`/`unknown` as specified, including a commit with `AW-Run` but no `AW-Item` -> `unknown`. (6) END TO END WITH ORDER 1: the owned commit is produced by `python3 -m agent_workflows commit --no-plan -m oos -- other.py` run as a subprocess with `AW_RUN_ID`/`AW_ITEM_ID6=abc123` in its env (the writer `a6xbso` ships), proving the writer and reader agree on the format.
   - CASE (6)'S `AW_RUN_ID` MUST MATCH THE PATTERN ORDER 1'S READER VALIDATES AGAINST, OR NO TRAILER IS WRITTEN AND THE CASE PASSES VACUOUSLY (review PR-1305, F-8). `a6xbso` E-03 drops a malformed `AW_RUN_ID` with a warning, and its own review (PR-1203) measured that the test-shaped `run-test` FAILS that pattern. `AW_ITEM_ID6` is validated independently against `artifact_core.ID6_RE`, so `abc123` is fine, and a dropped run id alone would still leave `AW-Item` and case (6) would still exercise the reader. Do NOT rely on that: use a pattern-valid run id (the `runner_shared.new_run_id` shape, e.g. `run-20260926T000000Z-1`) so BOTH trailers land, and assert BOTH are present on the produced commit (`git log -1 --format=...` on each key) BEFORE asserting the precheck result. A case (6) that silently wrote no trailer at all would report the same `out_of_scope_paths` as case (2) and read as a reader failure when the writer never fired.
   - IF ORDER 1 HAS NOT EXECUTED, CASE (6) IS THE STOP, NOT A SKIP. `- Item-Dependencies: executed:a6xbso` already gates dispatch, but a hand-run executor can bypass it. If `aw commit` produces no trailers with the env set, STOP and report that Order 1's channel is absent rather than deleting case (6) or hand-writing the trailer to make the file pass; hand-writing it converts the only end-to-end proof in this plan into a second copy of case (1).
   - Depends on: E-04, E-05
   - Expected outcome: all pass; (1), (3)'s counter, (5) and (6) FAIL before the change (no reader), while (2) and (4) pass before and after; case (6) first asserts both trailers are present on the commit it produced.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -167,40 +167,292 @@ F-1 through F-4 were measured at HEAD `61ef21d8` on 2026-09-26 and RE-VERIFIED a
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the three precheck values for the E-01 repo.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Precheck values on scratch E-01 repo show other.py excused:
+    exit_code: 0
+    attribution_source: commit-cohesion
+    out_of_scope_paths: []
+    disregarded_unowned_paths: ['other.py']
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the diff adding `_commit_run_ownership`, and an in-process run printing its result for the trailered commit against `abc123` and `zzz999` and for the untrailered commit.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. _commit_run_ownership correctly classifies owned, foreign, unknown on scratch commits:
+    Diff adding `_commit_run_ownership`:
+    ```python
+    def _commit_run_ownership(
+        repo_root: Path, sha: str, plan_id6: str
+    ) -> str:
+        if not plan_id6 or not sha:
+            return "unknown"
+        from .git_commit_helper import TRAILER_KEY_ITEM, TRAILER_KEY_RUN
 
-- [ ] V-03 validates E-03
+        fmt = f"%(trailers:key={TRAILER_KEY_ITEM},valueonly,separator=%x2C)%x00%(trailers:key={TRAILER_KEY_RUN},valueonly,separator=%x2C)"
+        rc, out, _err = _git(repo_root, ["log", "-1", f"--format={fmt}", sha])
+        if rc != 0:
+            return "unknown"
+        parts = out.split("\x00", 1)
+        raw_item = parts[0]
+        return _classify_item_trailer_value(raw_item, plan_id6)
+    ```
+    In-process run output:
+    ```
+    trailered vs abc123: owned
+    trailered vs zzz999: foreign
+    untrailered vs abc123: unknown
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the diff adding `_trailer_owned_committed_paths` and its printed result on the E-01 repo (`paths`, and the three counts).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. _trailer_owned_committed_paths single-call delimited parse returns paths=['other.py'], owned=1, foreign=0, unknown=1:
+    Diff adding `_trailer_owned_committed_paths`:
+    ```python
+    def _trailer_owned_committed_paths(
+        repo_root: Path, base_head: str, plan_id6: str
+    ) -> TrailerAttribution:
+        if not plan_id6 or not base_head or base_head == "unversioned":
+            return TrailerAttribution(frozenset(), 0, 0, 0)
+        from .git_commit_helper import TRAILER_KEY_ITEM
 
-- [ ] V-04 validates E-04
+        fmt = f"%x1e%H%x00%(trailers:key={TRAILER_KEY_ITEM},valueonly,separator=%x2C)%x1f"
+        rc, out, _err = _git(
+            repo_root,
+            ["log", "--no-merges", f"--format={fmt}", "--name-only", f"{base_head}..HEAD"],
+        )
+        if rc != 0:
+            return TrailerAttribution(frozenset(), 0, 0, 0)
+
+        owned_paths: Set[str] = set()
+        owned_count = 0
+        foreign_count = 0
+        unknown_count = 0
+
+        records = out.split("\x1e")
+        for r in records:
+            if not r.strip():
+                continue
+            parts = r.split("\x1f", 1)
+            header = parts[0]
+            body = parts[1] if len(parts) > 1 else ""
+            h_parts = header.split("\x00", 1)
+            raw_item = h_parts[1] if len(h_parts) > 1 else ""
+            classification = _classify_item_trailer_value(raw_item, plan_id6)
+            paths = [ln.strip() for ln in body.splitlines() if ln.strip()]
+
+            if classification == "owned":
+                owned_count += 1
+                owned_paths.update(paths)
+            elif classification == "foreign":
+                foreign_count += 1
+            else:
+                unknown_count += 1
+
+        return TrailerAttribution(
+            frozenset(owned_paths), owned_count, foreign_count, unknown_count
+        )
+    ```
+    Printed result on E-01 repo:
+    ```
+    paths: ['other.py']
+    owned: 1
+    foreign: 0
+    unknown: 1
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the `finalize_precheck` diff and the three precheck values plus `trailer_attribution` on the E-01 repo after the change.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. finalize_precheck populates trailer_attribution and demands other.py in out_of_scope_paths:
+    `finalize_precheck` diff:
+    ```diff
+    @@ -2818,6 +2818,13 @@
+                 if exact.anchored
+                 else _execution_cohesive_committed_paths(repo_root, base_head, scope_paths)
+             )
+    +        trailered = _trailer_owned_committed_paths(repo_root, base_head, plan_id)
+    +        evidence["trailer_attribution"] = {
+    +            "owned_commits": trailered.owned,
+    +            "foreign_commits": trailered.foreign,
+    +            "unknown_commits": trailered.unknown,
+    +            "owned_paths": sorted(trailered.paths),
+    +        }
+             evidence["attribution_source"] = (
+                 "run-record-exact"
+                 if exact.anchored
+    @@ -2838,7 +2845,19 @@
+                     # fix (owned, therefore reason required) rather than excusing it on absent evidence.
+                     # This is what keeps a plan whose ONLY commit is out-of-scope refused.
+                     owned = (
+    -                    _working_tree_path_is_owned(
+    +                    True
+    +                    if p in trailered.paths
+    +                    else (
+    +                        _working_tree_path_is_owned(
+    +                            p,
+    +                            scope_paths=scope_paths,
+    +                            committed=(),
+    +                            plan_rel=plan_rel,
+    +                            cohesive_committed=cohesive.paths,
+    +                        )
+    +                        if cohesive.anchored
+    +                        else True
+    +                    )
+                     )
+    ```
+    Three precheck values plus `trailer_attribution` on E-01 repo:
+    ```
+    attribution_source: commit-cohesion
+    out_of_scope_paths: ['other.py']
+    disregarded_unowned_paths: []
+    trailer_attribution: {'owned_commits': 1, 'foreign_commits': 0, 'unknown_commits': 1, 'owned_paths': ['other.py']}
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the docstring diffs; then each of the three per-phrase anchors E-05 names (`essentially no commit in`, `when those land`, `exact fix that would remove`) run against `agent_workflows/ipd_lifecycle.py` BEFORE the edit exiting 0 with its line number, and AFTER the edit exiting 1. Do NOT substitute the authored wrapped-phrase grep: it exits 1 on the unmodified file (measured at review) and so proves nothing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Three docstrings updated; each of the 3 anchors exits 0 before edit and 1 after:
+    BEFORE the edit:
+    ```
+    $ rg -n "essentially no commit in" agent_workflows/ipd_lifecycle.py
+    2267:    * COMMIT TRAILERS (``AW-Run:``/``AW-Item:``) would settle it exactly, but essentially no commit in
+    (exit code: 0)
 
-- [ ] V-06 validates E-06
+    $ rg -n "when those land" agent_workflows/ipd_lifecycle.py
+    2178:    WRITER is plan ``wao266``; when those land they become a third and better source ahead of this one).
+    (exit code: 0)
+
+    $ rg -n "exact fix that would remove" agent_workflows/ipd_lifecycle.py
+    2459:    exact fix that would remove the second cost is commit trailers (backlog ``a8eufb``); until those
+    (exit code: 0)
+    ```
+
+    AFTER the edit:
+    ```
+    $ rg -n "essentially no commit in" agent_workflows/ipd_lifecycle.py
+    (exit code: 1)
+
+    $ rg -n "when those land" agent_workflows/ipd_lifecycle.py
+    (exit code: 1)
+
+    $ rg -n "exact fix that would remove" agent_workflows/ipd_lifecycle.py
+    (exit code: 1)
+    ```
+
+    Docstring diffs:
+    ```diff
+    --- a/agent_workflows/ipd_lifecycle.py
+    +++ b/agent_workflows/ipd_lifecycle.py
+    @@ -2174,8 +2174,9 @@
+         note above), and because the failure mode is ASYMMETRIC: a corrupted record can only cause a
+         MISSING demand for a path the plan did commit, which is the same false EXCUSE cohesion already
+         accepts and documents, never a false CLAIM written into permanent history. Non-forgeable
+    -    attribution stays the deferred item it already is (commit trailers, backlog ``a8eufb``, whose
+    -    WRITER is plan ``wao266``; when those land they become a third and better source ahead of this one).
+    +    attribution is supplemented by commit trailers (stamped via ``a6xbso`` and read via ``199u11``),
+    +    which land as an additive demand source ahead of cohesion; they compose with the run record
+    +    instead of deciding alone because a trailer can only ADD a demand.
+     @@ -2265,8 +2266,9 @@
+           identity (measured: identical ``%an``/``%ae`` across the incident's own and foreign commits);
+         * the RUN RECORD (``last_outcome.commits[].sha``) is unreachable, being gitignored, absent from a
+           lane worktree, and never handed a run id by finalize; and
+    -    * COMMIT TRAILERS (``AW-Run:``/``AW-Item:``) would settle it exactly, but essentially no commit in
+    -      history carries one yet, so nothing can be consumed today (backlog ``a8eufb``).
+    +    * COMMIT TRAILERS (``AW-Item:`` stamped by ``aw commit`` and read via
+    +      :func:`_trailer_owned_committed_paths`) are now read ahead of cohesion as an additive
+    +      demand-only source; untrailered and foreign commits still fall back to cohesion.
+     @@ -2570,12 +2572,13 @@
+         * (Order 01 OQ-01/F3) an executor's OWN uncommitted out-of-scope edit is byte-identical to a
+           co-worker's, so it is disregarded too; and
+         * (scopeattr `h9cn0y`) an executor's own COMMITTED out-of-scope path escapes the reason
+    -      requirement when it rides in a commit containing no declared path.
+    +      requirement when it rides in an UNTRAILERED commit containing no declared path.
+
+         The mitigation for both is the execution contract's path-scoped commits, which keep a plan's real
+         work in commits anchored by its declared paths, where the reason requirement still fires. The
+    -    exact fix that would remove the second cost is commit trailers (backlog ``a8eufb``); until those
+    -    exist, this is the strongest attribution available, and it is deliberately weaker than a proof.
+    +    second cost is now removed for trailered commits (read via ``_trailer_owned_committed_paths``, Set
+    +    ``trailread``, ``199u11``), but remains for untrailered commits and for raw ``git commit``; this
+    +    is the strongest attribution available, and it is deliberately weaker than a proof.
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste `python3 -m pytest tests/test_finalize_trailer_attribution.py tests/test_ipd_lifecycle_cli.py -o addopts="" -q` passing with counts; then the new file with the E-04 hunk temporarily reverted, showing (1) and (6) FAILING, (5) failing with an AttributeError if the E-02 hunk is also reverted, and (2), (4) passing; then passing after restoring. Paste the bare `python3 -m pytest` summary BEFORE and AFTER and the after-minus-before failing node-ID set (must be empty). ALSO paste case (6)'s trailer assertion output (both `AW-Run` and `AW-Item` read back off the commit `aw commit` produced), so a vacuously-passing case (6) that wrote no trailer is distinguishable from a real end-to-end pass.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full suite 2803 passed (0 failing delta); revert shows (1),(6) fail; Order 1 stamps and reads back both trailers:
+    1. Combined test passing output:
+    ```
+    $ python3 -m pytest tests/test_finalize_trailer_attribution.py tests/test_ipd_lifecycle_cli.py -o addopts="" -q
+    ...................................................                      [100%]
+    51 passed in 20.09s
+    ```
 
-- [ ] V-07 validates E-07
+    2. Failure demonstration with E-04 hunk temporarily reverted:
+    ```
+    $ python3 -m pytest tests/test_finalize_trailer_attribution.py -o addopts="" -q
+    .FF...                                                                   [100%]
+    =================================== FAILURES ===================================
+    _____ FinalizeTrailerAttributionTests.test_case_6_end_to_end_with_order_1 ______
+    AssertionError: 'other.py' not found in []
+    _______ FinalizeTrailerAttributionTests.test_case_1_own_trailer_demands ________
+    AssertionError: 'other.py' not found in []
+    =========================== short test summary info ============================
+    FAILED tests/test_finalize_trailer_attribution.py::FinalizeTrailerAttributionTests::test_case_6_end_to_end_with_order_1
+    FAILED tests/test_finalize_trailer_attribution.py::FinalizeTrailerAttributionTests::test_case_1_own_trailer_demands
+    2 failed, 4 passed in 1.21s
+    ```
+    Prior to implementing E-02, case (5) also failed:
+    `AttributeError: module 'agent_workflows.ipd_lifecycle' has no attribute '_commit_run_ownership'`
+    After restoring E-04 hunk:
+    ```
+    $ python3 -m pytest tests/test_finalize_trailer_attribution.py -o addopts="" -q
+    ......                                                                   [100%]
+    6 passed in 1.33s
+    ```
+
+    3. Bare pytest summary:
+    BEFORE:
+    `2797 passed, 2 skipped, 3 warnings in 352.77s (0:05:52)`
+    AFTER:
+    `2803 passed, 2 skipped, 3 warnings in 130.60s (0:02:10)`
+    After-minus-before failing node-ID set: empty set (0 failures).
+
+    4. Case (6) trailer read-back assertion:
+    ```
+    AW-Run read back: 'run-20260926T000000Z-1'
+    AW-Item read back: 'abc123'
+    ```
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste the comment-block diff and `rg -n "compute_scope_reconciliation" agent_workflows/ipd_lifecycle.py`; state explicitly that the diff adds comment lines only and introduces no conditional branch keyed on `trailer_attribution`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Comment-block diff adds documentation only; rg confirms compute_scope_reconciliation reference:
+    Comment-block diff:
+    ```diff
+    @@ -2786,3 +2786,11 @@
+     #     requirement when it rides in a commit containing no declared path. The mitigation is
+     #     path-scoped commits; the real fix is commit trailers (backlog `a8eufb`).
+    +#     requirement when it rides in an UNTRAILERED commit containing no declared path. With commit
+    +#     trailers (Set `trailread`, `199u11`), this cost applies ONLY to untrailered commits.
+    +#     Under a runner/driver, `runner_shared.compute_scope_reconciliation` maps every path in
+    +#     `out_of_scope_paths` to a standard reconciliation reason and hands it to finalize, so under
+    +#     `aw oc run` / `aw agy run` the newly-demanded path is satisfied without stopping the run.
+    +#     This auto-reasoning is correct rather than a hole: a trailer-owned path IS this execution's
+    +#     own work and the auto-reason asserts exactly that (unlike cohesion, where auto-reasoning could
+    +#     assert a co-worker's path). The user-visible effect of this plan under a runner is therefore
+    +#     a truer permanent record (the path is recorded as reconciled rather than silently disregarded),
+    +#     not a new stop.
+    ```
+    Anchor grep output:
+    ```
+    $ rg -n "compute_scope_reconciliation" agent_workflows/ipd_lifecycle.py
+    2789:    #     Under a runner/driver, `runner_shared.compute_scope_reconciliation` maps every path in
+    2912:        # key to auto-reason the widening (`runner_shared.compute_scope_reconciliation`), because all
+    ```
+    The diff adds comment lines only and introduces no conditional branch keyed on `trailer_attribution`.
+  - Result: pass
 
 ## Approval and execution gate
 
