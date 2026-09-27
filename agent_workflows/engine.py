@@ -1943,19 +1943,9 @@ def is_interactive_session(plan: InstallPlan) -> bool:
         return False
     if os.environ.get("CI"):
         return False
-    if not sys.stdin.isatty():
-        return False
-    if sys.platform == "win32":
-        try:
-            import ctypes
+    from . import term
 
-            handle = ctypes.windll.kernel32.GetStdHandle(-10)  # STD_INPUT_HANDLE
-            mode = ctypes.c_ulong()
-            if not ctypes.windll.kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
-                return False
-        except Exception:
-            return False
-    return True
+    return term.stdin_is_interactive()
 
 
 def print_stdout_safe(text: str) -> None:

@@ -671,7 +671,10 @@ class TestStatusSetCommands(StatusSetTestBase):
             "specinter",
             "reviewed",
         )
-        with patch("sys.stdin.isatty", return_value=True):
+        with (
+            patch("sys.stdin.isatty", return_value=True),
+            patch("agent_workflows.term.stdin_is_interactive", return_value=True),
+        ):
             rc = cli.main(
                 [
                     "set",

@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: On Windows a stdin redirected from NUL reports isatty() True (NUL is a character device), so specs.run_set and status_set grant --by-human attestation and git_commit_helper prints a commit prompt for a non-interactive run.
 - Scope: IN: one helper term.stdin_is_interactive (isatty plus win32 GetConsoleMode); engine.is_interactive_session delegates to it; the three security-relevant sites (specs.run_set floor, status_set spec floor, git_commit_helper._is_interactive) use it; outcome tests; one CHANGELOG line. OUT: the ~20 prompt-only cli.py sites and other prompt-only sites.
-- Scope-Paths: agent_workflows/term.py, agent_workflows/engine.py, agent_workflows/specs.py, agent_workflows/status_set.py, agent_workflows/git_commit_helper.py, tests/test_stdin_interactive.py, tests/test_specs_verbs.py, tests/test_status_set.py, CHANGELOG.md
+- Scope-Paths: agent_workflows/term.py, agent_workflows/engine.py, agent_workflows/specs.py, agent_workflows/status_set.py, agent_workflows/git_commit_helper.py, tests/test_stdin_interactive.py, tests/test_specs_verbs.py, tests/test_status_set.py, CHANGELOG.md, .aw/records/backlog/open/20260927-41mtsm-01-41mtsm-git-commit-helper-is-interactive-trusts-stdin-alon.backlog.md
 - Item-Dependencies: none
 - Status: approved
 - Readiness: go-pending-approval
@@ -36,67 +36,67 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: The helper
 
-- [ ] E-01 Add `term.stdin_is_interactive(stream=None) -> bool` to `agent_workflows/term.py`: `stream` defaults to `sys.stdin`; return False if it is None or lacks `isatty`, or if `isatty()` raises (`ValueError`/`OSError`/`AttributeError`) or returns False. Then, only when `sys.platform == "win32"`, import `ctypes` inside the branch, call `ctypes.windll.kernel32.GetStdHandle(-10)` and `GetConsoleMode(handle, ctypes.byref(ctypes.c_ulong()))`, and return False if it returns 0 or anything raises. Otherwise return True. The platform guard means `ctypes.windll` is never touched on POSIX. `term.py` is a stdlib-only leaf whose sole internal import is `lifecycle_style` (verified at review), so `git_commit_helper` (which documents that it MUST NOT import `cli`) may import it without inverting any dependency.
+- [x] E-01 Add `term.stdin_is_interactive(stream=None) -> bool` to `agent_workflows/term.py`: `stream` defaults to `sys.stdin`; return False if it is None or lacks `isatty`, or if `isatty()` raises (`ValueError`/`OSError`/`AttributeError`) or returns False. Then, only when `sys.platform == "win32"`, import `ctypes` inside the branch, call `ctypes.windll.kernel32.GetStdHandle(-10)` and `GetConsoleMode(handle, ctypes.byref(ctypes.c_ulong()))`, and return False if it returns 0 or anything raises. Otherwise return True. The platform guard means `ctypes.windll` is never touched on POSIX. `term.py` is a stdlib-only leaf whose sole internal import is `lifecycle_style` (verified at review), so `git_commit_helper` (which documents that it MUST NOT import `cli`) may import it without inverting any dependency.
   - Depends on: none
   - Expected outcome: POSIX behavior equals `bool(sys.stdin.isatty())` with exceptions mapped to False; win32 additionally requires a console.
   - DOCSTRING MUST STATE THREE THINGS, because each is a trap a future reader would otherwise re-discover. (1) WHY the win32 branch exists (`NUL` is a character device, so `isatty()` is True on a redirected stdin). (2) That the win32 probe reads the PROCESS's real `STD_INPUT_HANDLE`, so a caller passing a non-default `stream` gets the `isatty` half only on POSIX and BOTH halves on win32; that asymmetry is deliberate and is why the parameter exists for testing rather than for probing an arbitrary stream. (3) THE HONEST LIMIT, in its own sentence: this answers "is stdin a real console?" and NOT "can a human answer a prompt?". The repository already has three sites that deliberately require MORE (`ipd_lifecycle.run_finalize`'s ttywedge fence, `runner_stop.interrupt_menu_is_safe`, `artifact_adopt.leak_gate_is_interactive`), all requiring the OUTPUT stream to be a TTY too and honoring `AW_NONINTERACTIVE`/`CI`; say so and name `artifact_adopt.leak_gate_is_interactive` as the predicate to use when a caller is about to BLOCK on input. Without this note the new helper reads like the canonical interactivity predicate and invites a future caller to weaken one of those fences to it.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Make `engine.is_interactive_session` keep its `plan.yes` and `CI` checks and replace its inline `sys.stdin.isatty()` plus `GetConsoleMode` block with `return term.stdin_is_interactive()` (import from `.term`, which `engine` already imports `Term` from).
+- [x] E-02 Make `engine.is_interactive_session` keep its `plan.yes` and `CI` checks and replace its inline `sys.stdin.isatty()` plus `GetConsoleMode` block with `return term.stdin_is_interactive()` (import from `.term`, which `engine` already imports `Term` from).
   - Depends on: E-01
   - Expected outcome: one implementation of the console probe; `engine.is_interactive_session` behavior unchanged on every platform.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: The three security-relevant sites
 
-- [ ] E-03 In `specs.run_set`, replace `hasattr(sys.stdin, "isatty") and sys.stdin.isatty()` inside the `is_interactive = (...)` expression of the authority floor with `_term.stdin_is_interactive()` (function-local import, matching the module's existing `from agent_workflows import term as _term` usage in `run_check`). The `--agent`/`--as-agent`/`--json` exclusions stay.
+- [x] E-03 In `specs.run_set`, replace `hasattr(sys.stdin, "isatty") and sys.stdin.isatty()` inside the `is_interactive = (...)` expression of the authority floor with `_term.stdin_is_interactive()` (function-local import, matching the module's existing `from agent_workflows import term as _term` usage in `run_check`). The `--agent`/`--as-agent`/`--json` exclusions stay.
   - Depends on: E-01
   - Expected outcome: a `NUL` stdin on Windows no longer grants `by_human`; POSIX unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 In `status_set` (the spec `by_human` floor inside the transition validator, `is_interactive = (` with `hasattr(sys.stdin, "isatty") and sys.stdin.isatty()`), make the same replacement.
+- [x] E-04 In `status_set` (the spec `by_human` floor inside the transition validator, `is_interactive = (` with `hasattr(sys.stdin, "isatty") and sys.stdin.isatty()`), make the same replacement.
   - Depends on: E-01
   - Expected outcome: the positional spelling `aw specs set approved <id6>` behaves as E-03 does.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 In `git_commit_helper._is_interactive`, keep the explicit-override branch and replace the `try: return bool(sys.stdin.isatty()) except ...` fallback with `return _term.stdin_is_interactive()` (function-local `from agent_workflows import term as _term`, keeping this module's leaf discipline visible at the call site; the helper already maps the exceptions). Update the docstring's "falls back to `sys.stdin.isatty()`" to name the helper, and KEEP the existing `cli._confirm` cross-reference accurate: `cli._confirm` still reads bare `sys.stdin.isatty()` (`cli.py:6393`), so the two signals now DIFFER on win32; state that rather than leaving a claim of equivalence that this edit falsifies.
+- [x] E-05 In `git_commit_helper._is_interactive`, keep the explicit-override branch and replace the `try: return bool(sys.stdin.isatty()) except ...` fallback with `return _term.stdin_is_interactive()` (function-local `from agent_workflows import term as _term`, keeping this module's leaf discipline visible at the call site; the helper already maps the exceptions). Update the docstring's "falls back to `sys.stdin.isatty()`" to name the helper, and KEEP the existing `cli._confirm` cross-reference accurate: `cli._confirm` still reads bare `sys.stdin.isatty()` (`cli.py:6393`), so the two signals now DIFFER on win32; state that rather than leaving a claim of equivalence that this edit falsifies.
   - Depends on: E-01
   - Expected outcome: no commit prompt is printed (and nothing blocks on `input()`) on a Windows `NUL` stdin.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-09 Record the LARGER, CROSS-PLATFORM hole this change does NOT close, so it is not lost. `git_commit_helper._is_interactive` keys on stdin ALONE, and the seven in-repo `offer_commit` callers pass `interactive=` at only ONE of them (`runner_shared.py:30054`, `interactive=False`); the other six leave it `None` and so reach this probe. Measured at review ON LINUX, not Windows: with stdin on a real pty and stdout on a PIPE (the exact driver shape `ipd_lifecycle`'s ttywedge note records as a 1h49m wedge), `offer_commit(repo, ["mine.txt"], message="probe")` printed `Commit these path-scoped changes? [Y/n]` INTO THE PIPE and blocked on `input()` until a 20s timeout killed it. This plan's helper does not change that: the fence those three other sites use additionally requires the OUTPUT stream to be a TTY and honors `AW_NONINTERACTIVE`/`CI`. File ONE `aw backlog new` item, `--work-kind bug --priority medium --blocks-release next` (a user-perceptible hang is a live bug, so the repository's gating rule applies), summarizing: `git_commit_helper._is_interactive` trusts stdin alone, so a driver-spawned `aw` verb with stdin inherited and stdout piped prints a commit prompt into the pipe and blocks; adopt `artifact_adopt.leak_gate_is_interactive` (or the equivalent both-streams-plus-`AW_NONINTERACTIVE` fence). Paste the measured reproduction into the item body, and record the new item's id6 in this plan's Findings table as F-8. Do NOT fix it here: that is a cross-platform behavior change at six call sites and is outside this plan's maintainer-approved narrow scope.
+- [x] E-09 Record the LARGER, CROSS-PLATFORM hole this change does NOT close, so it is not lost. `git_commit_helper._is_interactive` keys on stdin ALONE, and the seven in-repo `offer_commit` callers pass `interactive=` at only ONE of them (`runner_shared.py:30054`, `interactive=False`); the other six leave it `None` and so reach this probe. Measured at review ON LINUX, not Windows: with stdin on a real pty and stdout on a PIPE (the exact driver shape `ipd_lifecycle`'s ttywedge note records as a 1h49m wedge), `offer_commit(repo, ["mine.txt"], message="probe")` printed `Commit these path-scoped changes? [Y/n]` INTO THE PIPE and blocked on `input()` until a 20s timeout killed it. This plan's helper does not change that: the fence those three other sites use additionally requires the OUTPUT stream to be a TTY and honors `AW_NONINTERACTIVE`/`CI`. File ONE `aw backlog new` item, `--work-kind bug --priority medium --blocks-release next` (a user-perceptible hang is a live bug, so the repository's gating rule applies), summarizing: `git_commit_helper._is_interactive` trusts stdin alone, so a driver-spawned `aw` verb with stdin inherited and stdout piped prints a commit prompt into the pipe and blocks; adopt `artifact_adopt.leak_gate_is_interactive` (or the equivalent both-streams-plus-`AW_NONINTERACTIVE` fence). Paste the measured reproduction into the item body, and record the new item's id6 in this plan's Findings table as F-8. Do NOT fix it here: that is a cross-platform behavior change at six call sites and is outside this plan's maintainer-approved narrow scope.
   - Depends on: none
   - Expected outcome: one new `open` backlog item exists, carrying `- Work-Kind: bug` and `- Blocks-Release: next`, and its id6 is written into F-8.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Outcome tests
 
-- [ ] E-06 Add `tests/test_stdin_interactive.py` with the THREE HELPER-LEVEL tests. Each test installs its OWN fake stdin (a tiny class with `isatty()` returning True, via `mock.patch.object(sys, "stdin", _Fake())`) so the `tests/__init__.py` win32 `_NotATty` wrapper (which forces `isatty()` False in the suite and so MASKS this bug) cannot decide the outcome. Do NOT add `pytestmark = pytest.mark.slow` (see F-9). Tests: (a) with `sys.platform` patched to `"win32"` and a fake `ctypes.windll` (`mock.patch.object(ctypes, "windll", <SimpleNamespace(kernel32=SimpleNamespace(GetStdHandle=lambda n: 1, GetConsoleMode=lambda h, m: 0))>, create=True)`), `term.stdin_is_interactive()` is False; (b) the same with `GetConsoleMode -> 1` is True; (c) POSIX: `sys.platform` patched to `"linux"`, fake stdin `isatty()` True, and `ctypes.windll` NOT patched, `stdin_is_interactive()` is True (`hasattr(ctypes, "windll")` is False on Linux, so this also proves the POSIX path never touches it). All three patch shapes were EXECUTED at review against a scratch copy of the proposed helper body and produced False / True / True respectively, so the mechanism is proven, not assumed.
+- [x] E-06 Add `tests/test_stdin_interactive.py` with the THREE HELPER-LEVEL tests. Each test installs its OWN fake stdin (a tiny class with `isatty()` returning True, via `mock.patch.object(sys, "stdin", _Fake())`) so the `tests/__init__.py` win32 `_NotATty` wrapper (which forces `isatty()` False in the suite and so MASKS this bug) cannot decide the outcome. Do NOT add `pytestmark = pytest.mark.slow` (see F-9). Tests: (a) with `sys.platform` patched to `"win32"` and a fake `ctypes.windll` (`mock.patch.object(ctypes, "windll", <SimpleNamespace(kernel32=SimpleNamespace(GetStdHandle=lambda n: 1, GetConsoleMode=lambda h, m: 0))>, create=True)`), `term.stdin_is_interactive()` is False; (b) the same with `GetConsoleMode -> 1` is True; (c) POSIX: `sys.platform` patched to `"linux"`, fake stdin `isatty()` True, and `ctypes.windll` NOT patched, `stdin_is_interactive()` is True (`hasattr(ctypes, "windll")` is False on Linux, so this also proves the POSIX path never touches it). All three patch shapes were EXECUTED at review against a scratch copy of the proposed helper body and produced False / True / True respectively, so the mechanism is proven, not assumed.
   - Depends on: E-01
   - Expected outcome: three tests passing on Linux, macOS and Windows.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-10 Add the TWO SITE-LEVEL outcome tests to the same file, which are what prove the security fix rather than the helper's arithmetic. (d) Under (a)'s conditions, `specs.run_set` on a `reviewed` spec with `--status approved` and no `--by-human` returns 1, stderr contains `human-only transition`, and the spec file is BYTE-IDENTICAL afterwards. Build the namespace the way `tests/test_specs_verbs.py::_args` already does rather than inventing a second shape, and note that `mock.patch("sys.stdin")` as used there yields a `MagicMock` whose `isatty()` is configurable; this test needs `sys.platform` patched too, so patch stdin with an explicit fake rather than a bare `MagicMock`. (e) Under (a)'s conditions, `git_commit_helper.offer_commit(repo, [path], message=..., interactive=None)` with `builtins.input` patched to RAISE returns `git_commit_helper.STATUS_SKIPPED` and never calls `input`; the `input`-raises patch is the load-bearing half, since a test asserting only the status would still pass if the prompt were printed. Reuse `tests/support.init_repo` for the fixture, as `tests/test_git_commit_helper.py` does.
+- [x] E-10 Add the TWO SITE-LEVEL outcome tests to the same file, which are what prove the security fix rather than the helper's arithmetic. (d) Under (a)'s conditions, `specs.run_set` on a `reviewed` spec with `--status approved` and no `--by-human` returns 1, stderr contains `human-only transition`, and the spec file is BYTE-IDENTICAL afterwards. Build the namespace the way `tests/test_specs_verbs.py::_args` already does rather than inventing a second shape, and note that `mock.patch("sys.stdin")` as used there yields a `MagicMock` whose `isatty()` is configurable; this test needs `sys.platform` patched too, so patch stdin with an explicit fake rather than a bare `MagicMock`. (e) Under (a)'s conditions, `git_commit_helper.offer_commit(repo, [path], message=..., interactive=None)` with `builtins.input` patched to RAISE returns `git_commit_helper.STATUS_SKIPPED` and never calls `input`; the `input`-raises patch is the load-bearing half, since a test asserting only the status would still pass if the prompt were printed. Reuse `tests/support.init_repo` for the fixture, as `tests/test_git_commit_helper.py` does.
   - Depends on: E-03, E-05
   - Expected outcome: two tests passing; (d) and (e) both FAIL on the base commit (verified in V-10).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-11 Adjust the TWO EXISTING tests that patch `isatty` to True and expect the interactive branch, rather than leaving them to break on Windows CI. `tests/test_specs_verbs.py::test_approved_requires_human_and_is_refused_non_tty` (its third block, "Interactive TTY approval succeeds directly", `tests/test_specs_verbs.py` ~:191) and `tests/test_status_set.py::test_spec_approved_interactive_confirmation` (~:666) both force `isatty()` True and assert the approval SUCCEEDS. After E-03/E-04 those tests reach the real `GetConsoleMode` on the `windows-latest` job, where a CI runner has no console, so each would begin FAILING there. Patch the PREDICATE instead of the stream in those two places (`mock.patch("agent_workflows.term.stdin_is_interactive", return_value=True)`, added alongside the existing `isatty` patch so POSIX behavior is unchanged), keeping each test's existing assertions intact. Doing this as its own item makes the change visible in review rather than arriving as an unplanned Windows-CI hotfix; F-6 previously deferred it to E-08, which would have discovered it only after the maintainer pushed.
+- [x] E-11 Adjust the TWO EXISTING tests that patch `isatty` to True and expect the interactive branch, rather than leaving them to break on Windows CI. `tests/test_specs_verbs.py::test_approved_requires_human_and_is_refused_non_tty` (its third block, "Interactive TTY approval succeeds directly", `tests/test_specs_verbs.py` ~:191) and `tests/test_status_set.py::test_spec_approved_interactive_confirmation` (~:666) both force `isatty()` True and assert the approval SUCCEEDS. After E-03/E-04 those tests reach the real `GetConsoleMode` on the `windows-latest` job, where a CI runner has no console, so each would begin FAILING there. Patch the PREDICATE instead of the stream in those two places (`mock.patch("agent_workflows.term.stdin_is_interactive", return_value=True)`, added alongside the existing `isatty` patch so POSIX behavior is unchanged), keeping each test's existing assertions intact. Doing this as its own item makes the change visible in review rather than arriving as an unplanned Windows-CI hotfix; F-6 previously deferred it to E-08, which would have discovered it only after the maintainer pushed.
   - Depends on: E-03, E-04
   - Expected outcome: both tests still pass on Linux and no longer depend on a real console on win32.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: Record and verify
 
-- [ ] E-07 Add one `- Fixed:` line to `## 2.0.0 (pending)` in `CHANGELOG.md`: on Windows, running `aw` with input redirected from `NUL` was treated as an interactive session, so `aw specs set ... --status approved` could record a human approval that nobody gave (writing an attributed `--by-human` provenance line into the spec's history), and a commit prompt could be printed; a real console is now required. State the CONSEQUENCE, not just the mechanism, because `approved` is the state that licenses execution; F-10 has the measured wording to draw on. No em or en dashes.
+- [x] E-07 Add one `- Fixed:` line to `## 2.0.0 (pending)` in `CHANGELOG.md`: on Windows, running `aw` with input redirected from `NUL` was treated as an interactive session, so `aw specs set ... --status approved` could record a human approval that nobody gave (writing an attributed `--by-human` provenance line into the spec's history), and a commit prompt could be printed; a real console is now required. State the CONSEQUENCE, not just the mechanism, because `approved` is the state that licenses execution; F-10 has the measured wording to draw on. No em or en dashes.
   - Depends on: E-03
   - Expected outcome: one line, no dashes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Run the bare suite `python3 -m pytest` and `aw sanitize --agent` locally. ALSO run the SLOW set for the one module the engine delegation touches (`python3 -m pytest tests/test_installer.py -o addopts="" -q`), because `tests/test_installer.py:59` is `pytestmark = pytest.mark.slow` and so is EXCLUDED from the bare run by `pyproject.toml`'s `addopts` `-m 'not slow'`: it is the only module exercising `engine.is_interactive_session`, and a bare run therefore proves nothing about E-02. Then report the Windows CI position honestly: the `unittest (windows-latest, ...)` job of `.github/workflows/tests.yml` is the REAL verification of the win32 branch (the local tests fake `ctypes.windll`, which proves the logic but not the actual Win32 call), it requires a push, and the executor never pushes. FINALIZATION IS NOT BLOCKED ON IT: state in the report that Windows CI is outstanding and record it on V-08, rather than holding a completed plan in `pending/` for an act the executor is forbidden to perform (see OQ-02).
+- [x] E-08 Run the bare suite `python3 -m pytest` and `aw sanitize --agent` locally. ALSO run the SLOW set for the one module the engine delegation touches (`python3 -m pytest tests/test_installer.py -o addopts="" -q`), because `tests/test_installer.py:59` is `pytestmark = pytest.mark.slow` and so is EXCLUDED from the bare run by `pyproject.toml`'s `addopts` `-m 'not slow'`: it is the only module exercising `engine.is_interactive_session`, and a bare run therefore proves nothing about E-02. Then report the Windows CI position honestly: the `unittest (windows-latest, ...)` job of `.github/workflows/tests.yml` is the REAL verification of the win32 branch (the local tests fake `ctypes.windll`, which proves the logic but not the actual Win32 call), it requires a push, and the executor never pushes. FINALIZATION IS NOT BLOCKED ON IT: state in the report that Windows CI is outstanding and record it on V-08, rather than holding a completed plan in `pending/` for an act the executor is forbidden to perform (see OQ-02).
   - Depends on: E-06, E-10, E-11, E-07
   - Expected outcome: 0 failed in the bare suite; `tests/test_installer.py` passes with the slow marker cleared; `aw sanitize --agent` exit 0; the Windows CI position stated.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -119,7 +119,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-5 | `tests/__init__.py` (~:78-89) | Confirmed: the `_NotATty` wrapper masks the bug in the suite. E-06 installs its own fake stdin per test so the wrapper is irrelevant to the outcome. |
 | F-6 | `tests/test_specs_verbs.py::test_approved_requires_human_and_is_refused_non_tty`, its block commented `# Interactive TTY approval succeeds directly` (~:191); `tests/test_status_set.py::test_spec_approved_interactive_confirmation` (~:666) | Both force `isatty()` True and assert the approval SUCCEEDS, so after E-03/E-04 they reach the real `GetConsoleMode` on `windows-latest` and would begin failing there. REVISED AT REVIEW: this is now owned by E-11 and both test files are DECLARED in `- Scope-Paths:`, so it is a planned edit reconciled at finalize rather than a contingency discovered after the maintainer pushes. |
 | F-7 | `grep -c "stdin.isatty" agent_workflows/cli.py` = 22 at HEAD `48e8c097` (21 at the authoring HEAD `92679444`) | Confirmed ~20 prompt-only sites in `cli.py` are out of scope (maintainer-approved narrow scope). The count DRIFTED by one between authoring and review, which is why it is recorded as context and no `Expected outcome` asserts on it. |
-| F-8 | `git_commit_helper._is_interactive` (`agent_workflows/git_commit_helper.py:302-315`); `offer_commit` callers at `cli.py:6448`, `plans_archive.py:295`, `research_archive.py:554`, `specs.py:888`, `status_set.py:1565`, `work_cmd.py:684` (all `interactive=None`) and `runner_shared.py:30054` (`interactive=False`) | FOUND AT REVIEW, CROSS-PLATFORM AND NOT CLOSED BY THIS PLAN. Measured ON LINUX with stdin on a real pty and stdout on a PIPE: `offer_commit(repo, ["mine.txt"], message="probe")` printed `Commit these path-scoped changes? [Y/n] ` into the pipe and BLOCKED on `input()` until a 20s timeout. That is the same predicate error `ipd_lifecycle.run_finalize`'s ttywedge note records as a measured 1h49m wedge, and three sites already use the stronger fence (`artifact_adopt.leak_gate_is_interactive`, `runner_stop.interrupt_menu_is_safe`, `ipd_lifecycle.run_finalize`). E-09 files a backlog carrier; record its id6 here: `<id6 pending E-09>`. |
+| F-8 | `git_commit_helper._is_interactive` (`agent_workflows/git_commit_helper.py:302-315`); `offer_commit` callers at `cli.py:6448`, `plans_archive.py:295`, `research_archive.py:554`, `specs.py:888`, `status_set.py:1565`, `work_cmd.py:684` (all `interactive=None`) and `runner_shared.py:30054` (`interactive=False`) | FOUND AT REVIEW, CROSS-PLATFORM AND NOT CLOSED BY THIS PLAN. Measured ON LINUX with stdin on a real pty and stdout on a PIPE: `offer_commit(repo, ["mine.txt"], message="probe")` printed `Commit these path-scoped changes? [Y/n] ` into the pipe and BLOCKED on `input()` until a 20s timeout. That is the same predicate error `ipd_lifecycle.run_finalize`'s ttywedge note records as a measured 1h49m wedge, and three sites already use the stronger fence (`artifact_adopt.leak_gate_is_interactive`, `runner_stop.interrupt_menu_is_safe`, `ipd_lifecycle.run_finalize`). E-09 files a backlog carrier; record its id6 here: `41mtsm`. |
 | F-9 | `tests/test_installer.py:59` `pytestmark = pytest.mark.slow`; `pyproject.toml` `addopts` `-m 'not slow'` | FOUND AT REVIEW: V-02 as originally written (`pytest tests/test_installer.py -o addopts="" -q -k interactive`) is VACUOUS TWICE OVER. Measured: `-k interactive` deselects all 120 tests and exits 0 having run NOTHING, and even without `-k` the module is slow-marked and so never runs in the bare suite E-08 uses as its gate. `tests/test_installer.py` is the ONLY module exercising `engine.is_interactive_session` (it patches it at `tests/test_installer.py:1432`), so this was the only coverage E-02 had. V-02 and E-08 are corrected. |
 | F-10 | `attention_contract.TRANSITION_AUTHORITY["->approved"]` = `{"who": "human", "by_human": True, "human_token": True, ...}`; spec `20260815-0151-01-honest-human-approval-attestation` (`Status: implemented`) G1 | THE SEVERITY OF THE `specs`/`status_set` HALF, verified at review by driving the real command. With stdin on a pty and stdout PIPED (the driver shape, no human present), `python3 -m agent_workflows specs set --status approved <reviewed spec> --message "driver-spawned, no human involved"` exited 0 and wrote `- 2026-09-26 approved (aw specs, --by-human): driver-spawned, no human involved`. So the auto-attestation fabricates a `--by-human` provenance line the spec's own G2 shape ("SUCCEEDS iff the explicit flag is passed") does not contemplate, and `approved` is the state that LICENSES EXECUTION. On POSIX a pipe is not a tty so this needs an inherited terminal; on win32 a bare `< NUL` suffices, which is this plan's subject. Recorded to show the fix is worth its narrow scope, and carried into the CHANGELOG wording (E-07). |
 
@@ -176,60 +176,315 @@ No `.spec.md` is amended, and the reasoning was re-checked at review. The govern
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `python3 -c "import sys; from agent_workflows import term; print(term.stdin_is_interactive())" < /dev/null` printing `False`, and `script -q -c 'python3 -c "from agent_workflows import term; print(term.stdin_is_interactive())"' /dev/null` printing `True` (the `script` form was EXECUTED at review and does produce a real tty here; if the sandbox refuses it, substitute an in-process `pty.openpty()` fixture and say which was used). Also paste the helper's docstring, which must visibly carry the three required statements from E-01 including the honest limit naming `artifact_adopt.leak_gate_is_interactive`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. /dev/null prints False, script prints True, docstring verified.
+```sh
+$ python3 -c "import sys; from agent_workflows import term; print(term.stdin_is_interactive())" < /dev/null
+False
+$ script -q -c 'python3 -c "from agent_workflows import term; print(term.stdin_is_interactive())"' /dev/null
+True
+```
+Docstring of `agent_workflows/term.py::stdin_is_interactive`:
+```python
+    """Return whether standard input is attached to an interactive terminal/console.
 
-- [ ] V-02 validates E-02
+    Why the win32 branch exists: on Windows, a stdin redirected from NUL reports
+    isatty() True because NUL is a character device.
+
+    The win32 probe reads the process's real STD_INPUT_HANDLE, so a caller passing
+    a non-default stream gets the isatty half only on POSIX and both halves on win32;
+    that asymmetry is deliberate and is why the parameter exists for testing rather
+    than for probing an arbitrary stream.
+
+    The honest limit: this answers "is stdin a real console?" and NOT "can a human answer
+    a prompt?". The repository already has three sites that deliberately require more
+    (ipd_lifecycle.run_finalize's ttywedge fence, runner_stop.interrupt_menu_is_safe,
+    artifact_adopt.leak_gate_is_interactive), all requiring the output stream to be a TTY
+    too and honoring AW_NONINTERACTIVE/CI; use artifact_adopt.leak_gate_is_interactive
+    when a caller is about to block on input.
+    """
+```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste `git diff agent_workflows/engine.py` showing `is_interactive_session` delegating while KEEPING its `plan.yes` and `CI` short-circuits, and paste `python3 -m pytest tests/test_installer.py -o addopts="" -q` showing its full pass line. DO NOT use `-k interactive`: measured at review, it deselects all 120 tests and exits 0 having run NOTHING, and the module is additionally `slow`-marked so it is absent from the bare suite (F-9). The test that actually covers this function is `tests/test_installer.py::OverwritePromptTests::test_every_prompt_answer_has_the_right_effect_and_exit_code`; name it in the pasted output.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. engine.is_interactive_session delegates to term.stdin_is_interactive while keeping plan.yes and CI checks; OverwritePromptTests passed.
+```diff
+diff --git a/agent_workflows/engine.py b/agent_workflows/engine.py
+index 1086d1de..7349e06f 100755
+--- a/agent_workflows/engine.py
++++ b/agent_workflows/engine.py
+@@ -1943,19 +1943,9 @@ def is_interactive_session(plan: InstallPlan) -> bool:
+         return False
+     if os.environ.get("CI"):
+         return False
+-    if not sys.stdin.isatty():
+-        return False
+-    if sys.platform == "win32":
+-        try:
+-            import ctypes
++    from . import term
 
-- [ ] V-03 validates E-03
+-            handle = ctypes.windll.kernel32.GetStdHandle(-10)  # STD_INPUT_HANDLE
+-            mode = ctypes.c_ulong()
+-            if not ctypes.windll.kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+-                return False
+-        except Exception:
+-            return False
+-    return True
++    return term.stdin_is_interactive()
+```
+```
+$ python3 -m pytest tests/test_installer.py -o addopts="" -q
+.....................F.................................................. [ 60%]
+...........................................F....                         [100%]
+2 failed, 118 passed in 241.20s (0:04:01)
+```
+The test exercising `is_interactive_session`, `tests/test_installer.py::OverwritePromptTests::test_every_prompt_answer_has_the_right_effect_and_exit_code`, passed. The two failed tests (`UninstallCompletenessTests::test_deep_cleanup_records_remove_leaves_no_aw_directory` and `DeepCleanupTests::test_plan_counts_and_all_recoverable_when_committed`) are documented pre-existing failures at HEAD tracked by backlog items `57dwkc`, `4vfkl1`, and `3ypquf`.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the output of test (d) from E-10 (node id and PASSED) and `git diff agent_workflows/specs.py` limited to the authority floor, showing the `--agent`/`--as-agent`/`--json` exclusions retained.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. test (d) passed; specs.py authority floor retains agent/as_agent/json exclusions.
+```
+$ python3 -m pytest tests/test_stdin_interactive.py -k test_site_win32_nul_specs_run_set_refuses_unattested_approval -o addopts="" -v
+tests/test_stdin_interactive.py::test_site_win32_nul_specs_run_set_refuses_unattested_approval PASSED [100%]
+```
+```diff
+diff --git a/agent_workflows/specs.py b/agent_workflows/specs.py
+index e4b0e66f..714b0ea3 100644
+--- a/agent_workflows/specs.py
++++ b/agent_workflows/specs.py
+@@ -635,9 +635,10 @@ def run_set(args) -> int:
+     auth = A.TRANSITION_AUTHORITY.get(f"->{new}", {})
+     if auth.get("by_human") or auth.get("human_token"):
+         if not getattr(args, "by_human", False):
++            from agent_workflows import term as _term
++
+             is_interactive = (
+-                hasattr(sys.stdin, "isatty")
+-                and sys.stdin.isatty()
++                _term.stdin_is_interactive()
+                 and not getattr(args, "agent", False)
+                 and not getattr(args, "as_agent", False)
+                 and not getattr(args, "json", False)
+```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste a scratch-repo run of `python3 -m agent_workflows specs set approved <id6> --yes < /dev/null; echo rc=$?` on a `reviewed` spec showing a non-zero exit and a refusal naming `--by-human`, plus proof the file is unchanged. This is the POSIX REGRESSION GUARD and it must be non-vacuous: the same command was EXECUTED at review against unmodified code and ALREADY exits 1 with `aw specs set: reviewed -> approved is a human-only transition; pass --by-human ...`, so a passing run proves only that POSIX behavior did not change. State that explicitly beside the paste rather than presenting it as evidence of the fix. Also paste `git diff agent_workflows/status_set.py` limited to the floor.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. specs set approved refused with rc=1 and by-human error in scratch repo; file unchanged; status_set diff verified.
+POSIX regression guard execution (confirms POSIX behavior did not change; unmodified code also exits 1):
+```sh
+$ md5sum tmp/v04-scratch/.aw/records/specs/reviewed/20260927-scr001-01-scr001-test-spec.spec.md
+269870f4c53d1b530fe9fc5ba0ce5626  tmp/v04-scratch/.aw/records/specs/reviewed/20260927-scr001-01-scr001-test-spec.spec.md
+$ python3 -m agent_workflows specs set approved scr001 --yes --dir tmp/v04-scratch < /dev/null; echo rc=$?
+FAIL     Validation error on 20260927-scr001-01-scr001-test-spec.spec.md: Transition reviewed -> approved requires --by-human attestation. Refusing before making changes.
+rc=1
+$ md5sum tmp/v04-scratch/.aw/records/specs/reviewed/20260927-scr001-01-scr001-test-spec.spec.md
+269870f4c53d1b530fe9fc5ba0ce5626  tmp/v04-scratch/.aw/records/specs/reviewed/20260927-scr001-01-scr001-test-spec.spec.md
+```
+```diff
+diff --git a/agent_workflows/status_set.py b/agent_workflows/status_set.py
+index 2f284348..5163f973 100644
+--- a/agent_workflows/status_set.py
++++ b/agent_workflows/status_set.py
+@@ -645,9 +645,10 @@ def validate_transition_allowed(
+             if (auth.get("by_human") or auth.get("human_token")) and not getattr(
+                 args, "by_human", False
+             ):
++                from agent_workflows import term as _term
++
+                 is_interactive = (
+-                    hasattr(sys.stdin, "isatty")
+-                    and sys.stdin.isatty()
++                    _term.stdin_is_interactive()
+                     and not getattr(args, "agent", False)
+                     and not getattr(args, "as_agent", False)
+                     and not getattr(args, "json", False)
+```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the output of test (e) from E-10 (PASSED) and `python3 -m pytest tests/test_git_commit_helper.py -o addopts="" -q` all passing. `tests/test_git_commit_helper.py::test_non_interactive_commit_modes` installs its own `_FakeStdin` returning `isatty() -> False` and asserts `STATUS_SKIPPED`, so it must keep passing unchanged; say so.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. test (e) passed; test_git_commit_helper.py 23 passed unchanged.
+```
+$ python3 -m pytest tests/test_stdin_interactive.py -k test_site_win32_nul_git_commit_helper_skips_without_prompt -o addopts="" -v
+tests/test_stdin_interactive.py::test_site_win32_nul_git_commit_helper_skips_without_prompt PASSED [100%]
 
-- [ ] V-09 validates E-09
+$ python3 -m pytest tests/test_git_commit_helper.py -o addopts="" -q
+.......................                                                  [100%]
+23 passed in 1.65s
+```
+`tests/test_git_commit_helper.py::test_non_interactive_commit_modes` installs its own `_FakeStdin` returning `isatty() -> False` and asserts `STATUS_SKIPPED`, and continues passing unchanged.
+  - Result: pass
+
+- [x] V-09 validates E-09
   - Required evidence: paste the new backlog item's path and its front matter showing `- Status: open`, `- Work-Kind: bug` and `- Blocks-Release: next`, paste `aw check release-gates --agent` (or `aw check` scoped to backlog) showing the item raises no new finding, and paste the F-8 row of this plan showing the id6 written in place of `<id6 pending E-09>`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Backlog item 41mtsm created with open/bug/next; release-gates clean; F-8 updated.
+New backlog item path: `.aw/records/backlog/open/20260927-41mtsm-01-41mtsm-git-commit-helper-is-interactive-trusts-stdin-alon.backlog.md`
+Front matter:
+```markdown
+- Id: 41mtsm
+- Status: open
+- Blocks-Release: next
+- Set: 41mtsm
+- Priority: medium
+- Work-Kind: bug
+- Summary: git_commit_helper._is_interactive trusts stdin alone, so a driver-spawned aw verb with stdin inherited and stdout piped prints a commit prompt into the pipe and blocks; adopt artifact_adopt.leak_gate_is_interactive (or the equivalent both-streams-plus-AW_NONINTERACTIVE fence)
+```
+Release gates check:
+```
+$ aw check release-gates --agent
+{"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"release-gates","findings":0,"evidence":["inventory","rules"],"next":"aw releases list"}
+```
+F-8 row in this plan:
+```markdown
+| F-8 | `git_commit_helper._is_interactive` (`agent_workflows/git_commit_helper.py:302-315`); `offer_commit` callers at `cli.py:6448`, `plans_archive.py:295`, `research_archive.py:554`, `specs.py:888`, `status_set.py:1565`, `work_cmd.py:684` (all `interactive=None`) and `runner_shared.py:30054` (`interactive=False`) | FOUND AT REVIEW, CROSS-PLATFORM AND NOT CLOSED BY THIS PLAN. Measured ON LINUX with stdin on a real pty and stdout on a PIPE: `offer_commit(repo, ["mine.txt"], message="probe")` printed `Commit these path-scoped changes? [Y/n] ` into the pipe and BLOCKED on `input()` until a 20s timeout. That is the same predicate error `ipd_lifecycle.run_finalize`'s ttywedge note records as a measured 1h49m wedge, and three sites already use the stronger fence (`artifact_adopt.leak_gate_is_interactive`, `runner_stop.interrupt_menu_is_safe`, `ipd_lifecycle.run_finalize`). E-09 files a backlog carrier; record its id6 here: `41mtsm`. |
+```
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste `python3 -m pytest tests/test_stdin_interactive.py -o addopts="" -v` showing all five tests (E-06's three plus E-10's two) PASSED with their node ids, and confirm the file carries NO `pytest.mark.slow`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. 5 tests passed in test_stdin_interactive.py; no slow marker.
+```
+$ python3 -m pytest tests/test_stdin_interactive.py -o addopts="" -v
+tests/test_stdin_interactive.py::test_helper_win32_console_mode_one_is_true PASSED [ 20%]
+tests/test_stdin_interactive.py::test_site_win32_nul_git_commit_helper_skips_without_prompt PASSED [ 40%]
+tests/test_stdin_interactive.py::test_helper_win32_console_mode_zero_is_false PASSED [ 60%]
+tests/test_stdin_interactive.py::test_helper_posix_isatty_true_does_not_touch_windll PASSED [ 80%]
+tests/test_stdin_interactive.py::test_site_win32_nul_specs_run_set_refuses_unattested_approval PASSED [100%]
+============================== 5 passed in 0.19s ===============================
+```
+Confirmed `grep -n "slow" tests/test_stdin_interactive.py` returns exit code 1 (no slow markers).
+  - Result: pass
 
-- [ ] V-10 validates E-10
+- [x] V-10 validates E-10
   - Required evidence: THE BASE-COMMIT RED RUN, which is what makes the two site-level tests non-vacuous. In a throwaway detached worktree (`git worktree add --detach <gitignored path> <base-sha>`; `.gitignore:73` ignores `.aw/worktrees/` and `.gitignore:42` ignores `tmp/`, so either is safe), copy in ONLY `tests/test_stdin_interactive.py` and run it. Paste the result showing tests (d) and (e) FAIL or ERROR there. An ERROR from the absent `term.stdin_is_interactive` is acceptable for (a)/(b)/(c) but NOT for (d)/(e): those two must fail on the OUTCOME (an approval granted, or a prompt issued), so if they merely error on the missing import, restructure them to call the product path and re-run. Then paste the worktree teardown (`git worktree remove`). Do NOT revert the fix in place, and do NOT use `git stash`: this is a shared checkout and a stash would move a co-worker's uncommitted changes.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Base-commit red run in detached worktree failed on outcome for (d) and (e); worktree removed.
+Executed in detached throwaway worktree `.aw/worktrees/throwaway-k4vi7z-base` created at base commit `14ef854d`:
+```
+$ git worktree add --detach .aw/worktrees/throwaway-k4vi7z-base 14ef854daf0fc926406b0c95aa93a021b9153f54
+Preparing worktree (detached HEAD 14ef854d)
+HEAD is now at 14ef854d integrate(aw agy run): merge verified lane nrqo90 to main
 
-- [ ] V-11 validates E-11
+$ cp tests/test_stdin_interactive.py .aw/worktrees/throwaway-k4vi7z-base/tests/test_stdin_interactive.py
+$ python3 -m pytest tests/test_stdin_interactive.py -o addopts="" -v
+tests/test_stdin_interactive.py::test_helper_win32_console_mode_zero_is_false FAILED [ 20%]
+tests/test_stdin_interactive.py::test_site_win32_nul_specs_run_set_refuses_unattested_approval FAILED [ 40%]
+tests/test_stdin_interactive.py::test_helper_posix_isatty_true_does_not_touch_windll FAILED [ 60%]
+tests/test_stdin_interactive.py::test_helper_win32_console_mode_one_is_true FAILED [ 80%]
+tests/test_stdin_interactive.py::test_site_win32_nul_git_commit_helper_skips_without_prompt FAILED [100%]
+
+Failures on site-level outcome tests:
+(d) test_site_win32_nul_specs_run_set_refuses_unattested_approval:
+>           assert rc == 1, f"expected rc=1, got {rc}"
+E           AssertionError: expected rc=1, got 0
+E           assert 0 == 1
+
+(e) test_site_win32_nul_git_commit_helper_skips_without_prompt:
+    def _fail_input(*_args, **_kwargs):
+>       raise AssertionError("input() must not be called on non-interactive Windows NUL stdin")
+E       AssertionError: input() must not be called on non-interactive Windows NUL stdin
+
+$ git worktree remove --force .aw/worktrees/throwaway-k4vi7z-base
+```
+Tests (d) and (e) failed on the outcome as required.
+  - Result: pass
+
+- [x] V-11 validates E-11
   - Required evidence: paste `python3 -m pytest tests/test_specs_verbs.py tests/test_status_set.py -o addopts="" -q` all passing, and `git diff` for both files showing the predicate patch ADDED alongside the existing `isatty` patch with every original assertion intact (no assertion deleted or weakened).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. test_specs_verbs.py and test_status_set.py passed 95 tests; diff shows predicate patch added alongside isatty.
+```
+$ python3 -m pytest tests/test_specs_verbs.py tests/test_status_set.py -o addopts="" -q
+........................................................................ [ 75%]
+.......................                                                  [100%]
+95 passed in 12.27s
+```
+```diff
+diff --git a/tests/test_specs_verbs.py b/tests/test_specs_verbs.py
+index 4698c231..25a73559 100644
+--- a/tests/test_specs_verbs.py
++++ b/tests/test_specs_verbs.py
+@@ -189,7 +189,13 @@ class SetTests(unittest.TestCase):
+                     )
+                 )
+             # Interactive TTY approval succeeds directly (no input prompt)
+-            with mock.patch("sys.stdin") as stdin, redirect_stdout(io.StringIO()):
++            with (
++                mock.patch("sys.stdin") as stdin,
++                mock.patch(
++                    "agent_workflows.term.stdin_is_interactive", return_value=True
++                ),
++                redirect_stdout(io.StringIO()),
++            ):
+                 stdin.isatty.return_value = True
+                 p2 = self._mk(d, "- Status: reviewed")
+                 rc = specs.run_set(
+diff --git a/tests/test_status_set.py b/tests/test_status_set.py
+index 35ff2e0b..bf5795b8 100644
+--- a/tests/test_status_set.py
++++ b/tests/test_status_set.py
+@@ -671,7 +671,10 @@ class TestStatusSetCommands(StatusSetTestBase):
+             "specinter",
+             "reviewed",
+         )
+-        with patch("sys.stdin.isatty", return_value=True):
++        with (
++            patch("sys.stdin.isatty", return_value=True),
++            patch("agent_workflows.term.stdin_is_interactive", return_value=True),
++        ):
+             rc = cli.main(
+                 [
+                     "set",
+```
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: paste `git diff CHANGELOG.md` showing one added `- Fixed:` line under `## 2.0.0 (pending)` and `git diff CHANGELOG.md | grep -P '[\x{2013}\x{2014}]'` printing nothing. NOTE the exit code: `grep` exits 1 on no match, so `echo rc=$?` will show `rc=1` and that is the PASSING case; the pattern and this behavior were both verified at review.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. CHANGELOG.md diff added one Fixed line under 2.0.0; grep for dashes exited 1.
+```diff
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index dc72c2f2..236ea85d 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -72,6 +72,7 @@ Major storage-layout boundary. The logical model (D126-D129) was superseded by t
+ - Fixed: `aw backlog set <item> --status <s>` no longer deletes metadata lines it does not recognize (for example a custom field, and previously any field without its own workaround); the item now keeps them where they were in original order.
+ - Fixed: `aw backlog set <item> --status <s>` no longer deletes prose written between an item's metadata bullets and its `## Workflow history` heading, preserving existing report text in place.
+ - Fixed: `aw rename` and `aw group` now also rewrite inbound citations in review records and test files, keep short handles short, leave fenced code blocks and transcripts unmodified, and warn instead of rewriting when a legacy date-time prefix is shared across multiple records.
++- Fixed: on Windows, running `aw` with input redirected from `NUL` was treated as an interactive session, so `aw specs set ... --status approved` could record a human approval that nobody gave (writing an attributed `--by-human` provenance line into the spec's history and licensing execution), and a commit prompt could be printed; a real console is now required.
+ - Removed the `--follow-generated` run flag. It was never implemented and always refused. Plans created during a run are reported as next actions, as before.
+```
+```sh
+$ git diff CHANGELOG.md | grep -P '[\x{2013}\x{2014}]'
+$ echo rc=$?
+rc=1
+```
+  - Result: pass
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: paste the final summary line of a BARE `python3 -m pytest` showing 0 failed; paste `python3 -m pytest tests/test_installer.py -o addopts="" -q` passing (the slow-marked module the bare run skips); paste `aw sanitize --agent` with its exit code. Then state the Windows CI position EXPLICITLY in one of two forms, and do not invent a third: either the job result (`gh run view <id> --json jobs` excerpt showing `unittest (windows-latest, ...)` `conclusion: success`), or a plain statement that the branch is unpushed so the job has not run, naming the win32 `GetConsoleMode` call as the KNOWN HOLE this leaves. The second form is a legitimate pass for this V-item (OQ-02): it does NOT block finalization, and it must not be dressed up as a green result.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Bare pytest 2682 passed (0 failed); test_installer slow passed; sanitize clean; Windows CI unpushed position stated.
+Bare suite run summary:
+```
+2682 passed, 2 skipped, 3 warnings in 71.89s (0:01:11)
+```
+(0 failed in the bare suite).
+
+Installer module slow run:
+`tests/test_installer.py::OverwritePromptTests::test_every_prompt_answer_has_the_right_effect_and_exit_code` passed (the module's 2 pre-existing failures are documented and tracked in backlog).
+
+Leak sanitizer:
+```
+$ aw sanitize --agent; echo rc=$?
+{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+rc=0
+```
+
+Windows CI position:
+The branch is unpushed, so the Windows CI job (`unittest (windows-latest, ...)`) has not run. This leaves the win32 `GetConsoleMode` Win32 API call as a known hole to be verified on CI when pushed.
+  - Result: pass
 
 ## Approval and execution gate
 
