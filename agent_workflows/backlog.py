@@ -1063,25 +1063,7 @@ def run_set(args) -> int:
     rendered = _reattach_history(
         text, rendered, f"{new_status}", getattr(args, "message", "") or ""
     )
-    # Append this transition to the GLOBAL sidecar as well (awhistory Order 02). The inline block now
-    # keeps the FULL history (plan `vhbvwz` E-08 stopped slimming it), so this is an additional
-    # machine-local activity-log entry rather than the only durable copy.
-    #
-    # plan `vhbvwz` E-04: a failure here is REPORTED, never swallowed, and it can never affect the
-    # inline record, which `_reattach_history` has already assembled into `rendered` above and which is
-    # written by the `atomic_write` below regardless of what this call returns.
-    if item.id:
-        from agent_workflows import record_history as _rh
 
-        _rh.append_advisory(
-            repo_root,
-            id6=item.id,
-            tree="backlog",
-            workflow="aw backlog set",
-            actor="aw backlog",
-            message=(getattr(args, "message", "") or f"status -> {new_status}").strip(),
-            artifact=src.name,
-        )
     # awrelease Order 02: set/clear the Blocks-Release gate field when requested (a release id6,
     # 'next', or '-' to clear). Applied after render so _render_item stays untouched. If the item
     # already carries one and --blocks-release is not given, preserve it.
@@ -1197,9 +1179,28 @@ def run_set(args) -> int:
         "backlog", new_status
     )
     dest = dest_dir / src.name
-    if not getattr(args, "apply", True):  # set applies by default
+    if getattr(args, "dry_run", False) or not getattr(args, "apply", True):
         sys.stdout.write(f"--- would move {src} -> {dest} (status {new_status}) ---\n")
         return 0
+    # Append this transition to the GLOBAL sidecar as well (awhistory Order 02). The inline block now
+    # keeps the FULL history (plan `vhbvwz` E-08 stopped slimming it), so this is an additional
+    # machine-local activity-log entry rather than the only durable copy.
+    #
+    # plan `vhbvwz` E-04: a failure here is REPORTED, never swallowed, and it can never affect the
+    # inline record, which `_reattach_history` has already assembled into `rendered` above and which is
+    # written by the `atomic_write` below regardless of what this call returns.
+    if item.id:
+        from agent_workflows import record_history as _rh
+
+        _rh.append_advisory(
+            repo_root,
+            id6=item.id,
+            tree="backlog",
+            workflow="aw backlog set",
+            actor="aw backlog",
+            message=(getattr(args, "message", "") or f"status -> {new_status}").strip(),
+            artifact=src.name,
+        )
     dest_dir.mkdir(parents=True, exist_ok=True)
     core.atomic_write(dest, rendered)
     if dest.resolve() != src.resolve():
