@@ -1,5 +1,5 @@
 - Id: j4wz6b
-- Status: graduated
+- Status: done
 - Graduated-To: oqproof
 - Blocks-Release: next
 - Set: oqproof
@@ -8,6 +8,7 @@
 - Summary: An agent can mark a plan's open question resolved with an answer nobody tested, so an approved plan can carry an unworkable instruction that only execution discovers
 
 ## Workflow history
+- 2026-09-27 set (aw backlog): closed by aw oc run: IPD 7nghg8 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260926-oqproof-01-7nghg8-require-plan-review-to-prove-a-chosen-mechanism-works-before.ipd.md); evidence .aw/records/plans/executed/20260926-oqproof-01-7nghg8-require-plan-review-to-prove-a-chosen-mechanism-works-before.ipd.md
 - 2026-09-26 graduated (aw set): graduated into plan 7nghg8 (oqproof-01), which carries From-Backlog: j4wz6b and Blocks-Release: next
 - 2026-09-26 created (aw backlog): Filed from vtkfq8 triage 2026-09-26: OQ-03 was resolved at review with a mechanism that could not work; the run spent a turn discovering it.
 
