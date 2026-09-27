@@ -1,5 +1,5 @@
 - Id: qivywd
-- Status: graduated
+- Status: done
 - Graduated-To: commitmsg
 - Set: commitmsg
 - Priority: low
@@ -7,10 +7,11 @@
 - Summary: aw commit with a plan and no -m writes 'work: <full plan path>' as the whole commit message, which is uninformative and repo-style-nonconforming
 
 ## Workflow history
+- 2026-09-26 set (aw backlog): closed by aw oc run: IPD isgno7 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260926-commitmsg-01-isgno7-derive-aw-commit-s-default-message-as-work-id6-plan-title-in.ipd.md); evidence .aw/records/plans/executed/20260926-commitmsg-01-isgno7-derive-aw-commit-s-default-message-as-work-id6-plan-title-in.ipd.md
 - 2026-09-26 graduated (aw set): Graduated 2026-09-26 into plan isgno7 (Set commitmsg), re-verified live at HEAD.
 - 2026-09-23 created (aw backlog): MEASURED while executing plan n9na1c on 2026-09-23. I ran 'aw commit <plan> -- <paths>' without -m, and the resulting commit message was exactly one line:
 
-    work: .aw/records/plans/pending/20260922-gateinert-01-n9na1c-make-a-usable-not-mine-gate-answer-actually-release-the-inte.ipd.md
+work: .aw/records/plans/pending/20260922-gateinert-01-n9na1c-make-a-usable-not-mine-gate-answer-actually-release-the-inte.ipd.md
 
 WHERE IT COMES FROM: work_cmd, at the commit call, 'message = getattr(args, "message", None) or f"work: {plan_rel}"'.
 
