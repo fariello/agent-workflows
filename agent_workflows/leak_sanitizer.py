@@ -580,9 +580,17 @@ def _staged_files(repo_root: Path) -> list[str]:
     return [line for line in out.stdout.splitlines() if line]
 
 
-def scan_working_tree(repo_root: Path, *, include_warn: bool = False) -> list[Finding]:
+def scan_working_tree_counted(
+    repo_root: Path, *, include_warn: bool = False
+) -> tuple[list[Finding], int]:
+    """Scan tracked working tree for maintainer or machine identifying leaks.
+
+    Returns (findings, count). Count is files actually read and scanned; excludes
+    _ALLOWED_PATHS and unreadable paths.
+    """
     ruleset = build_ruleset(repo_root, include_warn=include_warn)
     findings: list[Finding] = []
+    scanned_count = 0
     for rel in _tracked_files(repo_root):
         if rel in _ALLOWED_PATHS:
             continue
@@ -599,8 +607,13 @@ def scan_working_tree(repo_root: Path, *, include_warn: bool = False) -> list[Fi
                 text = blob.stdout.decode("utf-8", "replace")
             except Exception:
                 continue
+        scanned_count += 1
         findings.extend(scan_text(text, rel, ruleset, include_warn=include_warn))
-    return findings
+    return findings, scanned_count
+
+
+def scan_working_tree(repo_root: Path, *, include_warn: bool = False) -> list[Finding]:
+    return scan_working_tree_counted(repo_root, include_warn=include_warn)[0]
 
 
 def scan_staged(repo_root: Path, *, include_warn: bool = False) -> list[Finding]:

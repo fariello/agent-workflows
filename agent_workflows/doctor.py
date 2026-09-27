@@ -677,8 +677,9 @@ def probe_sanitizer(repo_root: Path) -> SanitizerProbeResult:
     """Scan tracked working tree for maintainer or machine identifying leaks."""
     res = SanitizerProbeResult()
     try:
-        findings = leak_sanitizer.scan_working_tree(repo_root)
+        findings, count = leak_sanitizer.scan_working_tree_counted(repo_root)
         res.findings = findings
+        res.scanned_files = count
     except Exception as exc:
         res.drift.append(
             core.Drift("<sanitizer>", "doctor.probe-failed", str(exc)[:120])

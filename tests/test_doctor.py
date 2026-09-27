@@ -225,6 +225,31 @@ class DoctorTests(unittest.TestCase):
         self.assertTrue(len(actions) > 0)
         self.assertTrue(any(a.command == "aw sanitize --fix" for a in actions))
 
+    def test_probe_sanitizer_scanned_files_count_and_failure_pin(self) -> None:
+        """E-03/E-04: probe_sanitizer reports scanned_files count and failure pin."""
+        with tempfile.TemporaryDirectory() as tmp_git:
+            repo = Path(tmp_git)
+            _git(repo, "init", "-q")
+            _git(repo, "config", "user.email", "t@e.com")
+            _git(repo, "config", "user.name", "T")
+            (repo / "clean.txt").write_text("clean\n", encoding="utf-8")
+            planted = "/home/" + "someuser" + "/x"
+            (repo / "leak.txt").write_text(planted + "\n", encoding="utf-8")
+            _git(repo, "add", "clean.txt", "leak.txt")
+            _git(repo, "commit", "-qm", "add two files")
+
+            res = doctor.probe_sanitizer(repo)
+            self.assertEqual(res.scanned_files, 2)
+            self.assertEqual(len(res.findings), 1)
+
+        with tempfile.TemporaryDirectory() as tmp_not_git:
+            not_git = Path(tmp_not_git)
+            res_fail = doctor.probe_sanitizer(not_git)
+            self.assertEqual(res_fail.scanned_files, 0)
+            self.assertTrue(
+                any(d.rule == "doctor.probe-failed" for d in res_fail.drift)
+            )
+
 
 class DoctorEnvironmentProbeReadsCanonicalPathsTests(unittest.TestCase):
     """h90ij1: doctor's environment probe must read the paths a real install actually writes.

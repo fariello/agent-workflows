@@ -38,30 +38,30 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: count, wire, test
 
-- [ ] E-01 In `agent_workflows/leak_sanitizer.py`, add `scan_working_tree_counted(repo_root: Path, *, include_warn: bool = False) -> tuple[list[Finding], int]` containing the current body of `scan_working_tree`, incrementing a counter each time a file's text is obtained and passed to `scan_text` (the on-disk read OR the `git show HEAD:<rel>` fallback). A path in `_ALLOWED_PATHS` is skipped and NOT counted; a path whose read and fallback both fail (`continue`) is NOT counted. Replace `scan_working_tree`'s body with `return scan_working_tree_counted(repo_root, include_warn=include_warn)[0]`, keeping its signature and return type, so its callers (`leak_sanitizer.run`, which calls `scan_working_tree(repo_root, include_warn=include_warn)` in its final `else` branch, `security_hardening.scan_artifact_for_leaks`, and the `local_leaks` re-export) are unchanged. State the counting rule in the new function's docstring: "files actually read and scanned; excludes `_ALLOWED_PATHS` and unreadable paths".
+- [x] E-01 In `agent_workflows/leak_sanitizer.py`, add `scan_working_tree_counted(repo_root: Path, *, include_warn: bool = False) -> tuple[list[Finding], int]` containing the current body of `scan_working_tree`, incrementing a counter each time a file's text is obtained and passed to `scan_text` (the on-disk read OR the `git show HEAD:<rel>` fallback). A path in `_ALLOWED_PATHS` is skipped and NOT counted; a path whose read and fallback both fail (`continue`) is NOT counted. Replace `scan_working_tree`'s body with `return scan_working_tree_counted(repo_root, include_warn=include_warn)[0]`, keeping its signature and return type, so its callers (`leak_sanitizer.run`, which calls `scan_working_tree(repo_root, include_warn=include_warn)` in its final `else` branch, `security_hardening.scan_artifact_for_leaks`, and the `local_leaks` re-export) are unchanged. State the counting rule in the new function's docstring: "files actually read and scanned; excludes `_ALLOWED_PATHS` and unreadable paths".
   - THE "READ AND FALLBACK BOTH FAIL" BRANCH IS NEARLY UNREACHABLE, AND KNOWING THAT PREVENTS A WRONG PLACEMENT OF THE INCREMENT. The fallback runs `subprocess.run(..., check=False)` inside its own `try`, so a git failure does NOT raise and does NOT reach the `continue`: it returns a nonzero exit with empty stdout, and `text` becomes `""`, which IS then passed to `scan_text`. Measured at review with a binary file staged but never committed: `git show HEAD:bin.dat` exits 128 with 0 bytes, `scan_text` is called with `''`, and the `except Exception: continue` is not taken. So the branch the docstring excludes is reached only if `subprocess.run` itself raises (a missing `git` binary, an OS-level spawn failure). PLACE THE INCREMENT IMMEDIATELY BEFORE THE `findings.extend(scan_text(...))` CALL, which makes the docstring true by construction rather than by reasoning about which `except` fires. Note the honest consequence: an unreadable file whose blob fetch yields empty IS counted, because it was scanned (of empty text). That is the correct reading of "files actually read and scanned" and it is why the docstring says "unreadable paths" rather than "binary files".
   - Depends on: none
   - Expected outcome: identical findings from both functions; the counted one also returns the read count.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `doctor.probe_sanitizer`, call `leak_sanitizer.scan_working_tree_counted(repo_root)` and set `res.scanned_files` from its count and `res.findings` from its findings. rpqv4q restructures this function first (only the scan call inside the `try`); keep that structure: unpack the tuple inside the `try`, build drift outside it. If rpqv4q has not landed, stop (see gate).
+- [x] E-02 In `doctor.probe_sanitizer`, call `leak_sanitizer.scan_working_tree_counted(repo_root)` and set `res.scanned_files` from its count and `res.findings` from its findings. rpqv4q restructures this function first (only the scan call inside the `try`); keep that structure: unpack the tuple inside the `try`, build drift outside it. If rpqv4q has not landed, stop (see gate).
   - LEAVE `res.scanned_files` AT ITS DEFAULT 0 ON THE FAILURE PATH, which is what the early `return res` in the `except` branch already does; do NOT set a partial count there. A probe that raised scanned an unknown number of files, and reporting a partial count as the coverage figure would assert coverage the scan does not have. 0 plus the `doctor.probe-failed` drift is the honest pair, and it is exactly the state E-04 pins.
   - Depends on: E-01
   - Expected outcome: `aw doctor --json` sanitizer evidence shows a nonzero `scanned_files` on any repo with tracked files (the `--agent` COMPACT record does not carry the value at all; see F-3).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Add a test to `tests/test_doctor.py`: a fresh `tempfile.TemporaryDirectory` git repo (use the file's `_git` helper; do NOT reuse `DoctorTests.setUp`, which commits an installed fixture of its own) with exactly two committed files, one containing a home-directory path built at runtime from pieces (`"/home/" + "someuser" + "/x"`, never one literal, since `tests/test_doctor.py` is not in `_ALLOWED_PATHS` and a literal would itself be a leak finding; see rpqv4q E-02) and one clean. Assert `probe_sanitizer(repo).scanned_files == 2` and `len(probe_sanitizer(repo).findings) == 1`. Outcomes only.
+- [x] E-03 Add a test to `tests/test_doctor.py`: a fresh `tempfile.TemporaryDirectory` git repo (use the file's `_git` helper; do NOT reuse `DoctorTests.setUp`, which commits an installed fixture of its own) with exactly two committed files, one containing a home-directory path built at runtime from pieces (`"/home/" + "someuser" + "/x"`, never one literal, since `tests/test_doctor.py` is not in `_ALLOWED_PATHS` and a literal would itself be a leak finding; see rpqv4q E-02) and one clean. Assert `probe_sanitizer(repo).scanned_files == 2` and `len(probe_sanitizer(repo).findings) == 1`. Outcomes only.
   - USE A FRESH FIXTURE FOR THE REASON STATED HERE, NOT THE ONE THE PLAN FIRST GAVE. `DoctorTests.setUp` tracks THREE files, not "many" (measured at review by re-running its exact body: `['.aw/system/VERSION', '.aw/system/layout.json', '.aw/system/layout.schema.json']`), so the original justification was wrong on the number. The real reason stands and is stronger: `engine.emit_layout_artifacts` decides that count, so an exact-count assertion in a shared fixture would break the moment the installer emits one more file, which is a fixture-coupling defect rather than a size problem.
   - THE COUNT 2 IS AN AUTHORED STABLE FACT, NOT A LIVE-ARTIFACT COUNT: the test commits exactly two files into a throwaway repo it controls, so the number cannot drift and no re-derivation rule applies. Do NOT "generalize" it to a derived expression; a literal 2 against a two-file fixture is the whole assertion.
   - Depends on: E-02
   - Expected outcome: the test passes; against the pre-change doctor it fails with `0 != 2`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 In the SAME test method added by E-03 (one method, two assertions; do not add a second fixture), also pin the FAILURE pair: call `doctor.probe_sanitizer` on a path that is NOT a git repository (a second `tempfile.TemporaryDirectory`, never `git init`ed) and assert `res.scanned_files == 0` AND that `res.drift` contains a `doctor.probe-failed` rule. Outcomes only. Then run the bare suite.
+- [x] E-04 In the SAME test method added by E-03 (one method, two assertions; do not add a second fixture), also pin the FAILURE pair: call `doctor.probe_sanitizer` on a path that is NOT a git repository (a second `tempfile.TemporaryDirectory`, never `git init`ed) and assert `res.scanned_files == 0` AND that `res.drift` contains a `doctor.probe-failed` rule. Outcomes only. Then run the bare suite.
   - WHY THIS PIN IS THE ONE THAT MAKES THE FIELD MEAN SOMETHING. E-03 alone proves a nonzero count appears; it does NOT prove 0 still means "did not scan", which is the distinction the Goal claims to deliver. Without this, a later refactor could make `scanned_files` nonzero on a failed probe and no test would notice, and the field would then be actively misleading rather than merely useless. Measured at review on a non-git temp dir at HEAD: `drift=[('doctor.probe-failed', ...)]` with `scanned_files: 0`, so the assertion passes BEFORE the change too. That is correct and expected: this is a CHARACTERIZATION pin protecting the invariant E-02's failure path relies on, not a regression test for the defect, and E-03 is the item that fails pre-change.
   - Depends on: E-02
   - Expected outcome: the failure pair is asserted; the bare suite passes.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -130,27 +130,175 @@ No `.spec.md` is amended and none needs to be. No spec documents doctor's eviden
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the diff; paste `python3 -c 'from pathlib import Path; from agent_workflows import leak_sanitizer as L; a=L.scan_working_tree(Path(".")); b,n=L.scan_working_tree_counted(Path(".")); print(len(a)==len(b), n, n==len([p for p in L._tracked_files(Path(".")) if p not in L._ALLOWED_PATHS]))'` on this repo showing `True <n> True` (or, if unreadable paths exist, the difference explained). At review this repo had 2880 tracked and 2876 eligible with zero on-disk read failures, so `True 2876 True` is the expected shape; RE-DERIVE it rather than pasting that number, since the tree grows.
   - ALSO show the delegation is real rather than a copied body, because the whole safety argument for E-01 is that `scan_working_tree` keeps one implementation: paste the `scan_working_tree` body from the diff showing it is a single `return scan_working_tree_counted(...)[0]` with its signature unchanged.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified diff, delegation, and counted scan re-derivation:
+    1. Diff of `agent_workflows/leak_sanitizer.py`:
+    ```diff
+@@ -580,9 +580,17 @@ def _staged_files(repo_root: Path) -> list[str]:
+     return [line for line in out.stdout.splitlines() if line]
 
-- [ ] V-02 validates E-02
+
+-def scan_working_tree(repo_root: Path, *, include_warn: bool = False) -> list[Finding]:
++def scan_working_tree_counted(
++    repo_root: Path, *, include_warn: bool = False
++) -> tuple[list[Finding], int]:
++    """Scan tracked working tree for maintainer or machine identifying leaks.
++
++    Returns (findings, count). Count is files actually read and scanned; excludes
++    _ALLOWED_PATHS and unreadable paths.
++    """
+     ruleset = build_ruleset(repo_root, include_warn=include_warn)
+     findings: list[Finding] = []
++    scanned_count = 0
+     for rel in _tracked_files(repo_root):
+         if rel in _ALLOWED_PATHS:
+             continue
+@@ -599,8 +607,13 @@ def scan_working_tree(repo_root: Path, *, include_warn: bool = False) -> list[Fi
+                 text = blob.stdout.decode("utf-8", "replace")
+             except Exception:
+                 continue
++        scanned_count += 1
+         findings.extend(scan_text(text, rel, ruleset, include_warn=include_warn))
+-    return findings
++    return findings, scanned_count
++
++
++def scan_working_tree(repo_root: Path, *, include_warn: bool = False) -> list[Finding]:
++    return scan_working_tree_counted(repo_root, include_warn=include_warn)[0]
+    ```
+    2. Re-derived validation command on this repository:
+    ```
+    $ python3 -c 'from pathlib import Path; from agent_workflows import leak_sanitizer as L; a=L.scan_working_tree(Path(".")); b,n=L.scan_working_tree_counted(Path(".")); print(len(a)==len(b), n, n==len([p for p in L._tracked_files(Path(".")) if p not in L._ALLOWED_PATHS]))'
+    True 2930 True
+    ```
+    3. Delegation in `scan_working_tree`:
+    ```python
+    def scan_working_tree(repo_root: Path, *, include_warn: bool = False) -> list[Finding]:
+        return scan_working_tree_counted(repo_root, include_warn=include_warn)[0]
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the doctor diff; paste the `sanitizer` evidence object from `python3 -m agent_workflows doctor --json` on this repo showing `scanned_files` nonzero. USE `--json`, NOT `--agent`: the compact `--agent` record does not carry the value at all (F-3), so an `--agent` paste cannot evidence this item and its absence there is expected, not a failure.
   - ALSO paste the `--agent` first record showing `evidence` as the bare key list, and state in one line that the value's absence there is F-3 and is deliberate. This is required so the executor cannot mistake F-3 for a bug they introduced, and so the record shows both surfaces were looked at.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified doctor diff, doctor --json evidence, and doctor --agent compact reduction:
+    1. Diff of `agent_workflows/doctor.py`:
+    ```diff
+@@ -677,8 +677,9 @@ def probe_sanitizer(repo_root: Path) -> SanitizerProbeResult:
+     """Scan tracked working tree for maintainer or machine identifying leaks."""
+     res = SanitizerProbeResult()
+     try:
+-        findings = leak_sanitizer.scan_working_tree(repo_root)
++        findings, count = leak_sanitizer.scan_working_tree_counted(repo_root)
+         res.findings = findings
++        res.scanned_files = count
+     except Exception as exc:
+         res.drift.append(
+             core.Drift("<sanitizer>", "doctor.probe-failed", str(exc)[:120])
+    ```
+    2. Sanitizer evidence object from `python3 -m agent_workflows doctor --json` on this repo:
+    ```json
+    {
+      "key": "sanitizer",
+      "value": {
+        "scanned_files": 2930,
+        "findings": 0
+      },
+      "status": "clean",
+      "detail": ""
+    }
+    ```
+    `data.report.sanitizer`:
+    ```json
+    {
+      "scanned_files": 2930,
+      "findings": [],
+      "drift": []
+    }
+    ```
+    3. `python3 -m agent_workflows doctor --agent` first record evidence list:
+    ```json
+    "evidence": ["git", "env", "attention", "sanitizer", "artifacts"]
+    ```
+    The count's absence in the `aw doctor --agent` compact record is deliberate per F-3 (`agent_schema.sanitize_evidence_item` reduces dict-valued Evidence to key alone).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the test run passing (name the `-k` selector you actually used); revert the E-02 hunk IN THE WORKTREE and paste the test FAILING with `0 != 2`; restore. Paste `aw sanitize --agent` showing no finding in `tests/test_doctor.py`, and the final summary line of a BARE `python3 -m pytest` showing 0 failed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified passing test, failure on reversion, clean sanitize, and bare pytest suite:
+    1. Passing test run using selector `-k test_probe_sanitizer_scanned_files_count_and_failure_pin`:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_doctor.py -v -k test_probe_sanitizer_scanned_files_count_and_failure_pin
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <venv>/bin/python3
+    cachedir: .pytest_cache
+    Using --randomly-seed=991819952
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 28 items / 27 deselected / 1 selected
 
-- [ ] V-04 validates E-04
+    tests/test_doctor.py::DoctorTests::test_probe_sanitizer_scanned_files_count_and_failure_pin PASSED [100%]
+
+    NOTE: 27 tests were deselected by -m/-k and did not run (the default run skips 'slow' and 'livecorpus'); run everything with: make test-all
+    ======================= 1 passed, 27 deselected in 0.20s =======================
+    ```
+    2. Test failing when reverting E-02 hunk in worktree (`0 != 2`):
+    ```
+    =================================== FAILURES ===================================
+    _____ DoctorTests.test_probe_sanitizer_scanned_files_count_and_failure_pin _____
+
+    self = <tests.test_doctor.DoctorTests testMethod=test_probe_sanitizer_scanned_files_count_and_failure_pin>
+
+        def test_probe_sanitizer_scanned_files_count_and_failure_pin(self) -> None:
+            """E-03/E-04: probe_sanitizer reports scanned_files count and failure pin."""
+            with tempfile.TemporaryDirectory() as tmp_git:
+                repo = Path(tmp_git)
+                _git(repo, "init", "-q")
+                _git(repo, "config", "user.email", "t@e.com")
+                _git(repo, "config", "user.name", "T")
+                (repo / "clean.txt").write_text("clean\n", encoding="utf-8")
+                planted = "/home/" + "someuser" + "/x"
+                (repo / "leak.txt").write_text(planted + "\n", encoding="utf-8")
+                _git(repo, "add", "clean.txt", "leak.txt")
+                _git(repo, "commit", "-qm", "add two files")
+
+                res = doctor.probe_sanitizer(repo)
+    >           self.assertEqual(res.scanned_files, 2)
+    E           AssertionError: 0 != 2
+
+    tests/test_doctor.py:242: AssertionError
+    NOTE: 27 tests were deselected by -m/-k and did not run (the default run skips 'slow' and 'livecorpus'); run everything with: make test-all
+    =========================== short test summary info ============================
+    FAILED tests/test_doctor.py::DoctorTests::test_probe_sanitizer_scanned_files_count_and_failure_pin
+    ======================= 1 failed, 27 deselected in 0.28s =======================
+    ```
+    3. `aw sanitize --agent` (`python3 -m agent_workflows check-local-leaks . --agent`) on worktree showing clean findings:
+    ```
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+    4. Summary line of bare `python3 -m pytest`:
+    ```
+    2602 passed, 2 skipped, 3 warnings in 52.50s
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the two failure-pair assertions from the diff, and paste the passing run. Then state explicitly that this assertion ALSO passes against the pre-change code and why that is correct (it is a characterization pin on the invariant `0` means "did not scan"; E-03 is the item that fails pre-change). Do NOT claim E-04 as evidence that the defect was fixed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified two failure-pair assertions and characterized invariant:
+    1. Two failure-pair assertions from the diff of `tests/test_doctor.py`:
+    ```python
+            self.assertEqual(res_fail.scanned_files, 0)
+            self.assertTrue(any(d.rule == "doctor.probe-failed" for d in res_fail.drift))
+    ```
+    2. Passing test run output:
+    ```
+    tests/test_doctor.py::DoctorTests::test_probe_sanitizer_scanned_files_count_and_failure_pin PASSED [100%]
+    ```
+    3. Explicit statement: This assertion ALSO passes against the pre-change code, and that is correct: it is a characterization pin protecting the invariant that `0` means "did not scan" (on a path that is not a git repository where git ls-files fails, leaving `scanned_files` at default 0 with a `doctor.probe-failed` drift item), not evidence of the defect fix (E-03 is the item that fails pre-change with `0 != 2`).
+  - Result: pass
 
 ## Approval and execution gate
 
