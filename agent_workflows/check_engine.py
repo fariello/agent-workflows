@@ -554,6 +554,15 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.ipd-uncarried-obligation": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
     ),
+    # carrierwarn Order 01 (`cnzrxb`) E-01: an IPD records an outstanding obligation that names
+    # a carrier that is FINISHED (executed or done) but not yet verified with Carrier-Evidence.
+    #
+    # `info`, THE ONLY NON-FAILING SEVERITY (OQ-01, F-5, DECISION 07-rnkqrc-D2). `drift_exit_code`
+    # exempts ONLY `info`, so `info` is required so `aw check plans` and CI do not go red on a finished
+    # owner. The compensating control is the agent verification turn in a run, not CI failure.
+    "check.ipd-carrier-finished-unverified": RuleSpec(
+        "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
+    ),
     # findtier Order 02 (`3i6rso`) E-04: a record whose declared `- Id:` or `- Set:` is ABSENT from
     # its own filename. This is the EXCEPTION SET that forces `aw find`'s content fallback, and the
     # rule exists so the set is COUNTABLE (and provably not growing) rather than invisible.
@@ -3716,6 +3725,7 @@ class CloseVerdict(NamedTuple):
     reason:     machine/human explanation.
     fixes:      the concrete remedies to offer on an error.
     path:       HANDOFF|SATISFIED|DE-GATED|None (which legitimacy path matched).
+    rule:       the diagnostic rule ID associated with this verdict (or None).
     """
 
     legitimate: bool
@@ -3723,6 +3733,7 @@ class CloseVerdict(NamedTuple):
     reason: str
     fixes: Tuple[str, ...]
     path: Optional[str]
+    rule: Optional[str] = None
 
 
 def _same_release(
@@ -5790,6 +5801,7 @@ def check_review_decision_unescalated(
 # ======================================================================================
 
 _CARRIER_RULE = "check.ipd-uncarried-obligation"
+_CARRIER_FINISHED_RULE = "check.ipd-carrier-finished-unverified"
 
 #: HANDOFF targets: the record types a `- Carrier:` id6 may resolve to. TWO entries, per the ruling
 #: above. `specs` is deliberately ABSENT: accepting a spec was offered to the maintainer and REJECTED
@@ -5797,15 +5809,17 @@ _CARRIER_RULE = "check.ipd-uncarried-obligation"
 #: rule exists to remove. Adding it back needs a maintainer decision, not a tweak.
 _CARRIER_TARGET_TYPES = ("backlog", "plans")
 
-#: A carrier target's status that means the obligation is ALREADY HIDDEN, so pointing at it is not a
-#: handoff. `executed` is the whole point of this plan (an executed plan classes `done` in
-#: `aw attention`, which is the hiding place); `superseded`/`not-executed` are the plans tree's other
-#: terminal dirs; `done` is the backlog's. `parked` is included because `attention_contract` maps it to
-#: the `parked` class, which the default board HIDES, so a parked carrier is invisible by construction
-#: exactly as an executed plan is. `graduated` is NOT here: it maps to `active`, so it is revisited.
-_CARRIER_TERMINAL_STATUSES = frozenset(
-    ("executed", "superseded", "not-executed", "done", "parked")
-)
+#: Carrier target statuses that mean the owner FINISHED its lifecycle.
+#: When a carrier reaches one of these, an agent in a run must confirm it performed the work and record
+#: `- Carrier-Evidence:`, or re-point the row. In aw check this yields an advisory `info` finding.
+_CARRIER_FINISHED_STATUSES = frozenset(("executed", "done"))
+
+#: Carrier target statuses that mean the owner was ABANDONED without finishing.
+#: Work handed off here has truly lost its owner and fails-closed at `error`.
+_CARRIER_ABANDONED_STATUSES = frozenset(("superseded", "not-executed", "parked"))
+
+#: Combined terminal statuses.
+_CARRIER_TERMINAL_STATUSES = _CARRIER_FINISHED_STATUSES | _CARRIER_ABANDONED_STATUSES
 
 #: The cutover boundary for the `error` tier (E-05 option (c), DECISION 07-rnkqrc-D3). Compared against
 #: the PLAN'S OWN `- Date:`, so no configuration is required and the boundary cannot silently be
@@ -5855,6 +5869,19 @@ class CarrierObligation(NamedTuple):
     locator: str
     line: int
     fields: Dict[str, str]
+
+
+class CarriedObligation(NamedTuple):
+    """An outstanding obligation in another pending plan that names a given carrier id6.
+
+    carrierwarn Order 01 (`cnzrxb`) E-02.
+    """
+
+    plan_path: Path
+    plan_id6: str
+    locator: str
+    line_no: int
+    row_text: str
 
 
 def _plan_date_compact(text: str) -> Optional[str]:
@@ -6005,7 +6032,7 @@ def _resolve_carrier(
     repo_root: Optional[Path] = None,
 ) -> Tuple[str, str, List[str]]:
     """Resolve one carrier id6. Returns (verdict, detail, finished_relpaths) with verdict in
-    {"ok", "dangling", "terminal"}.
+    {"ok", "dangling", "finished", "terminal"}.
 
     RESOLVES, DOES NOT MERELY PARSE (E-02). A dangling id6 FAILS, exactly as
     `check.from-backlog-dangling` fails a `From-Backlog` pointing at nothing. A target whose status is
@@ -6028,9 +6055,6 @@ def _resolve_carrier(
     if live:
         return "ok", "", []
     statuses = ", ".join(sorted({(o[1] or "?").strip().lower() for o in owners}))
-    detail = "carrier {0} resolves only to a terminal/hidden artifact ({1}); nothing revisits it".format(
-        id6, statuses
-    )
     finished_relpaths: List[str] = []
     if repo_root is not None:
         for o in owners:
@@ -6046,7 +6070,99 @@ def _resolve_carrier(
                         finished_relpaths.append(rel)
                 except Exception:
                     pass
+
+    all_finished = all(
+        (o[1] or "").strip().lower() in _CARRIER_FINISHED_STATUSES for o in owners
+    )
+    if all_finished:
+        detail = (
+            "carrier {0} finished ({1}); an agent must confirm it did this work "
+            "and record Carrier-Evidence, or re-point the row"
+        ).format(id6, statuses)
+        return "finished", detail, finished_relpaths
+
+    detail = (
+        "carrier {0} resolves only to an abandoned artifact ({1}); nothing revisits it"
+    ).format(id6, statuses)
     return "terminal", detail, finished_relpaths
+
+
+def find_obligations_carried_by(
+    repo_root: Path, id6: str, *, include_untracked: bool = False
+) -> List[CarriedObligation]:
+    """Find all outstanding obligations in pending plans that name `id6` as a Carrier.
+
+    Iterates pending plans the way check_durable_carrier does.
+    Uses substring pre-filter on `id6` before parsing.
+    Obligations are collected from _deferred_section_obligations + _question_obligations.
+    Keeps rows whose parse_carrier_ids good tokens include `id6` and that carry no
+    Carrier-Evidence or Carrier-Declined.
+    Never raises (returns []).
+    """
+    out: List[CarriedObligation] = []
+    try:
+        from agent_workflows import ipd_lint as _lint
+
+        for p in _iter_type_files(
+            repo_root, "plans", include_untracked=include_untracked
+        ):
+            if "pending" not in p.parts:
+                continue
+            try:
+                text = p.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            if id6 not in text:
+                continue
+
+            try:
+                doc = _lint.parse(text)
+                open_questions = doc.open_questions
+                plan_id6 = (doc.meta_fields.get("Id") or "").strip()
+            except Exception:
+                open_questions = []
+                plan_id6 = ""
+
+            if not plan_id6:
+                m = _re.search(r"(?m)^- Id:\s*([a-z0-9]{6})\b", text)
+                if m:
+                    plan_id6 = m.group(1)
+                else:
+                    plan_id6 = p.name[:6]
+
+            lines = text.splitlines()
+            obligations = _deferred_section_obligations(text) + _question_obligations(
+                open_questions, plan_text=text
+            )
+            for ob in obligations:
+                fields = ob.fields or {}
+                if (fields.get(_S.CARRIER_DECLINED_FIELD) or "").strip():
+                    continue
+                if (fields.get(_S.CARRIER_EVIDENCE_FIELD) or "").strip():
+                    continue
+                raw_carrier = (fields.get(_S.CARRIER_FIELD) or "").strip()
+                if not raw_carrier:
+                    continue
+                good, _bad = _S.parse_carrier_ids(raw_carrier)
+                if id6 in good:
+                    line_no = ob.line
+                    row_text = ""
+                    if 0 < line_no <= len(lines):
+                        row_text = lines[line_no - 1].strip()
+                    if not row_text and ob.kind == "question":
+                        row_text = (fields.get("heading") or ob.locator).strip()
+                    out.append(
+                        CarriedObligation(
+                            plan_path=p,
+                            plan_id6=plan_id6,
+                            locator=ob.locator,
+                            line_no=line_no,
+                            row_text=row_text,
+                        )
+                    )
+    except Exception:
+        return []
+    return out
 
 
 def evaluate_carrier_obligation(
@@ -6112,6 +6228,7 @@ def evaluate_carrier_obligation(
                 ),
                 fixes,
                 None,
+                rule=_CARRIER_RULE,
             )
         try:
             resolved = resolve_evidence_artifact(repo_root, evidence)
@@ -6133,6 +6250,7 @@ def evaluate_carrier_obligation(
             ),
             fixes,
             None,
+            rule=_CARRIER_RULE,
         )
 
     raw_carrier = (fields.get(_S.CARRIER_FIELD) or "").strip()
@@ -6147,9 +6265,13 @@ def evaluate_carrier_obligation(
                 ),
                 fixes,
                 None,
+                rule=_CARRIER_RULE,
             )
         problems: List[str] = []
         all_finished: List[str] = []
+        finished_verdicts = []
+        terminal_verdicts = []
+        dangling_verdicts = []
         for id6 in good:
             verdict, detail, finished = _resolve_carrier(
                 carrier_index, id6, repo_root=repo_root
@@ -6162,10 +6284,51 @@ def evaluate_carrier_obligation(
                     (),
                     "HANDOFF",
                 )
+            if verdict == "finished":
+                finished_verdicts.append((id6, detail, finished))
+            elif verdict == "terminal":
+                terminal_verdicts.append((id6, detail, finished))
+            else:
+                dangling_verdicts.append((id6, detail, finished))
             problems.append(detail)
             for p in finished:
                 if p not in all_finished:
                     all_finished.append(p)
+        if finished_verdicts and not terminal_verdicts and not dangling_verdicts:
+            if all_finished:
+                first_path = all_finished[0]
+                more_count = len(all_finished) - 1
+                evidence_line = "- Carrier-Evidence: {0}{1}".format(
+                    first_path,
+                    ""
+                    if more_count == 0
+                    else " (and {0} more finished owner(s))".format(more_count),
+                )
+                reason = (
+                    "{0}: {1}\n"
+                    "this obligation was discharged by finished work; cite it instead of the carrier:\n"
+                    "{2}\n"
+                    "do NOT use `Carrier-Declined` here: the work shipped, so declining it would record it as needing no carrier"
+                ).format(obligation.locator, "; ".join(problems), evidence_line)
+                remedy_fix = "cite evidence it was discharged by finished work: add `- Carrier-Evidence: {0}`".format(
+                    first_path
+                )
+                return CloseVerdict(
+                    False,
+                    "info",
+                    reason,
+                    (remedy_fix,) + fixes,
+                    None,
+                    rule=_CARRIER_FINISHED_RULE,
+                )
+            return CloseVerdict(
+                False,
+                "info",
+                "{0}: {1}".format(obligation.locator, "; ".join(problems)),
+                fixes,
+                None,
+                rule=_CARRIER_FINISHED_RULE,
+            )
         if all_finished:
             first_path = all_finished[0]
             more_count = len(all_finished) - 1
@@ -6190,6 +6353,7 @@ def evaluate_carrier_obligation(
                 reason,
                 (remedy_fix,) + fixes,
                 None,
+                rule=_CARRIER_RULE,
             )
         return CloseVerdict(
             False,
@@ -6197,6 +6361,7 @@ def evaluate_carrier_obligation(
             "{0}: {1}".format(obligation.locator, "; ".join(problems)),
             fixes,
             None,
+            rule=_CARRIER_RULE,
         )
 
     return CloseVerdict(
@@ -6210,6 +6375,7 @@ def evaluate_carrier_obligation(
         ),
         fixes,
         None,
+        rule=_CARRIER_RULE,
     )
 
 
@@ -6229,13 +6395,13 @@ def evaluate_durable_carrier(
     intent of the nearest precedent (:func:`evaluate_review_finding_escalation`) and is asserted
     directly by ``tests/test_durable_capture.py``.
 
-    Returns AT MOST ONE Drift per plan, enumerating up to five offending locators plus the total count
-    (DECISION 07-rnkqrc-D4). Measured 2026-09-18: 664 offending rows live in 106 pending plans, so a
-    per-row Drift would add 664 lines to every clean `aw check plans`; the per-row verdicts still exist
-    inside :func:`evaluate_carrier_obligation` and are what the tests assert on.
+    Returns AT MOST ONE Drift per plan per rule (at most two: finished unverified at `info`, and
+    uncarried/abandoned at `error`), enumerating up to five offending locators plus the total count
+    (DECISION 07-rnkqrc-D4, plan cnzrxb E-01).
 
-    Severity is per plan via :func:`carrier_severity_for_plan` (post-cutover `error`, else the
-    grandfathered advisory tier). Never raises.
+    Severity is per plan via :func:`carrier_severity_for_plan` for `check.ipd-uncarried-obligation`
+    (post-cutover `error`, else the grandfathered advisory tier). `check.ipd-carrier-finished-unverified`
+    is always `info` (advisory). Never raises.
     """
     drift: List[_core.Drift] = []
     if open_questions is None:
@@ -6266,30 +6432,61 @@ def evaluate_durable_carrier(
     if not failures:
         return drift
 
-    severity = carrier_severity_for_plan(plan_text, repo_root=repo_root)
-    shown = failures[:5]
-    detail = "{0} obligation(s) name no durable carrier: {1}{2}".format(
-        len(failures),
-        "; ".join(v.reason for _ob, v in shown),
-        ""
-        if len(failures) == len(shown)
-        else " (and {0} more)".format(len(failures) - len(shown)),
-    )
-    fixes = shown[0][1].fixes
-    drift.append(
-        enrich_drift(
-            _core.Drift(str(plan_path), _CARRIER_RULE, detail, severity=severity),
-            observed="{0} row(s)/question(s) with no `Carrier`, `Carrier-Evidence`, or "
-            "`Carrier-Declined` field".format(len(failures)),
-            required=(
-                "every outstanding obligation an IPD records must name a durable carrier: an OPEN "
-                "backlog item or a NON-TERMINAL plan (`- Carrier:`), resolvable evidence "
-                "(`- Carrier-Evidence:`), or an explicit reason for declining "
-                "(`- Carrier-Declined:`)"
-            ),
-            recovery=fixes[0] if fixes else "",
-        )
-    )
+    failures_by_rule: Dict[str, List[Tuple[CarrierObligation, CloseVerdict]]] = {}
+    for ob, v in failures:
+        r = v.rule or _CARRIER_RULE
+        failures_by_rule.setdefault(r, []).append((ob, v))
+
+    for rule in (_CARRIER_FINISHED_RULE, _CARRIER_RULE):
+        rule_failures = failures_by_rule.get(rule)
+        if not rule_failures:
+            continue
+        shown = rule_failures[:5]
+        fixes = shown[0][1].fixes
+        if rule == _CARRIER_FINISHED_RULE:
+            detail = "{0} obligation(s) name a finished carrier needing verification: {1}{2}".format(
+                len(rule_failures),
+                "; ".join(v.reason for _ob, v in shown),
+                ""
+                if len(rule_failures) == len(shown)
+                else " (and {0} more)".format(len(rule_failures) - len(shown)),
+            )
+            drift.append(
+                enrich_drift(
+                    _core.Drift(str(plan_path), rule, detail, severity="info"),
+                    observed="{0} row(s)/question(s) name a finished carrier whose work has not been verified".format(
+                        len(rule_failures)
+                    ),
+                    required=(
+                        "when a carrier finishes, an agent must confirm it did this work and record "
+                        "`- Carrier-Evidence:`, or re-point the row"
+                    ),
+                    recovery=fixes[0] if fixes else "",
+                )
+            )
+        else:
+            severity = carrier_severity_for_plan(plan_text, repo_root=repo_root)
+            detail = "{0} obligation(s) name no durable carrier: {1}{2}".format(
+                len(rule_failures),
+                "; ".join(v.reason for _ob, v in shown),
+                ""
+                if len(rule_failures) == len(shown)
+                else " (and {0} more)".format(len(rule_failures) - len(shown)),
+            )
+            drift.append(
+                enrich_drift(
+                    _core.Drift(str(plan_path), rule, detail, severity=severity),
+                    observed="{0} row(s)/question(s) with no `Carrier`, `Carrier-Evidence`, or "
+                    "`Carrier-Declined` field".format(len(rule_failures)),
+                    required=(
+                        "every outstanding obligation an IPD records must name a durable carrier: an OPEN "
+                        "backlog item or a NON-TERMINAL plan (`- Carrier:`), resolvable evidence "
+                        "(`- Carrier-Evidence:`), or an explicit reason for declining "
+                        "(`- Carrier-Declined:`)"
+                    ),
+                    recovery=fixes[0] if fixes else "",
+                )
+            )
     return drift
 
 
