@@ -1,5 +1,5 @@
 - Id: gyw4gp
-- Status: graduated
+- Status: done
 - Graduated-To: carrierauth
 - Set: carriergate
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: A deferral whose carrier is DISCHARGED before the plan executes refuses the pre-transition gate, so an executor must hand-edit a correct row
 
 ## Workflow history
+- 2026-09-26 set (aw backlog): closed by aw oc run: IPD xz59ai executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260926-carrierauth-02-xz59ai-lead-the-discharged-carrier-refusal-with-a-pasteable-carrier.ipd.md); evidence .aw/records/plans/executed/20260926-carrierauth-02-xz59ai-lead-the-discharged-carrier-refusal-with-a-pasteable-carrier.ipd.md
 - 2026-09-26 graduated (aw set): Graduated 2026-09-26 into plan xz59ai (Set carrierauth), re-verified live at HEAD.
 - 2026-09-23 created (aw backlog): MEASURED while executing plan n9na1c on 2026-09-23. The plan's deferred row named '- Carrier: fuk1mr' for the baseline-subtraction work its sibling tgyfs2 owned. That was CORRECT AT AUTHORING TIME: fuk1mr was open and tgyfs2 was pending. By the time n9na1c executed, tgyfs2 had executed and fuk1mr had closed done - which is exactly what n9na1c's own '- Item-Dependencies: executed:tgyfs2' REQUIRED before it could start. 'aw ipd lint --phase pre-transition' then refused the plan: 'check.ipd-uncarried-obligation: 1 obligation(s) name no durable carrier: deferred row 1: carrier fuk1mr resolves only to a terminal/hidden artifact (done); nothing revisits it'.
 
