@@ -6,7 +6,7 @@
 - Scope: IN: one helper term.stdin_is_interactive (isatty plus win32 GetConsoleMode); engine.is_interactive_session delegates to it; the three security-relevant sites (specs.run_set floor, status_set spec floor, git_commit_helper._is_interactive) use it; outcome tests; one CHANGELOG line. OUT: the ~20 prompt-only cli.py sites and other prompt-only sites.
 - Scope-Paths: agent_workflows/term.py, agent_workflows/engine.py, agent_workflows/specs.py, agent_workflows/status_set.py, agent_workflows/git_commit_helper.py, tests/test_stdin_interactive.py, tests/test_specs_verbs.py, tests/test_status_set.py, CHANGELOG.md, .aw/records/backlog/open/20260927-41mtsm-01-41mtsm-git-commit-helper-is-interactive-trusts-stdin-alon.backlog.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 11
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: k4vi7z
-- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: k4vi7z verified (set wintty, attempt 1). [Scope reconciliation - widened-scope .aw/records/backlog/open/20260927-41mtsm-01-41mtsm-git-commit-helper-is-interactive-trusts-stdin-alon.backlog.md: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw agy run)]
 - 2026-09-27 approved (aw set): status set to approved
 - 2026-09-27 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 to PR-006 all FIXED. Re-derived every cited construct at HEAD 48e8c097 and drove the real commands: a pty-stdin plus piped-stdout run of 'aw specs set --status approved' already fabricates a --by-human provenance line (F-10); git_commit_helper blocks on input() in that same shape ON LINUX (F-8, now carried by E-09); V-02's prescribed command deselected all 120 tests in a module the bare suite skips entirely (F-9). Split E-06 into E-06/E-10/E-11, added E-09, rewrote all eight V-items, and resolved OQ-02 so an unpushable Windows CI job no longer strands a completed plan. Findings in .aw/records/reviews/20260926-wintty-01-k4vi7z-treat-a-windows-nul-stdin-as-non-interactive-at-the-human-at.review.md
 - 2026-09-26 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog ddo56m: require a real console (GetConsoleMode) on win32 at the three stdin gates that grant human attestation or print a commit prompt.
