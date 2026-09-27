@@ -3669,6 +3669,81 @@ def build_graduation_reverse_index(
     return index
 
 
+def build_plan_setid_index(
+    repo_root: Path,
+) -> Dict[str, List[GraduationArtifact]]:
+    """Map every plan setid to the list of plan artifacts declaring it.
+
+    This represents the plan-Set UNIVERSE (every setid on any plan in ANY lifecycle
+    directory) and is deliberately NOT the reverse index, which indexes only artifacts
+    carrying a `From-*` bullet (F-4).
+    """
+    index: Dict[str, List[GraduationArtifact]] = {}
+    for path, text in _iter_plan_ipds(repo_root):
+        setid, _descriptive = _parse_setid(text)
+        if not setid:
+            continue
+        declared_id = _read_declared_id(text) or ""
+        status_match = _PLAN_STATUS_RE.search(_metadata_region(text))
+        try:
+            rel = str(Path(path).resolve().relative_to(Path(repo_root).resolve()))
+        except ValueError:
+            rel = str(path)
+        record = GraduationArtifact(
+            artifact_type="plan",
+            id6=declared_id,
+            status=status_match.group(1) if status_match else "",
+            setid=setid,
+            path=rel,
+        )
+        bucket = index.setdefault(setid, [])
+        if record not in bucket:
+            bucket.append(record)
+    return index
+
+
+_GRADUATION_KIND_TO_SELECTOR_TYPE: Dict[str, str] = {
+    "backlog": "backlog",
+    "spec": "specs",
+    "specs": "specs",
+}
+
+
+def read_source_graduated_to(
+    repo_root: Path,
+    source_id6: str,
+    *,
+    source_kind: Optional[str] = None,
+) -> List[str]:
+    """Find the source record for ``source_id6`` and return its ``- Graduated-To:`` entries.
+
+    Resolves with ``selectors.resolve`` using plural record type names ('specs' not 'spec')
+    and extracts entries in written order via ``releases.parse_graduated_to``.
+    """
+    from agent_workflows import releases as _releases  # lazy import avoids cycle
+    from agent_workflows import selectors as _selectors
+
+    types: Tuple[str, ...]
+    if source_kind:
+        mapped = _GRADUATION_KIND_TO_SELECTOR_TYPE.get(source_kind, source_kind)
+        types = (mapped,)
+    else:
+        types = ("backlog", "specs")
+
+    for t in types:
+        res = _selectors.resolve(repo_root, t, source_id6)
+        if res.kind == "id6" and res.paths:
+            try:
+                text = res.paths[0].read_text(encoding="utf-8")
+            except OSError:
+                return []
+            return _releases.parse_graduated_to(text)
+    return []
+
+
+find_source_graduated_to = read_source_graduated_to
+
+
 class GraduationCluster(NamedTuple):
     """What the pre-graduation view knows about ONE source.
 
@@ -3677,12 +3752,16 @@ class GraduationCluster(NamedTuple):
                             reassuring answer, not an error).
     setids:                 the distinct Sets those artifacts belong to, sorted. One Set is
                             decomposition; several is the partly-visible duplication case.
+    forward_setids:         the source's own `- Graduated-To:` setids in written order.
+    forward_artifacts:      the plan artifacts of those Sets from the plan-setid index, path-sorted.
     """
 
     source_kind: str
     source_id6: str
     artifacts: Tuple[GraduationArtifact, ...]
     setids: Tuple[str, ...]
+    forward_setids: Tuple[str, ...] = ()
+    forward_artifacts: Tuple[GraduationArtifact, ...] = ()
 
     @property
     def artifact_count(self) -> int:
@@ -3699,6 +3778,22 @@ class GraduationCluster(NamedTuple):
         return tuple(
             a for a in self.artifacts if a.status in GRADUATION_TERMINAL_STATUSES
         )
+
+    @property
+    def forward_unresolved(self) -> Tuple[str, ...]:
+        """Entries in forward_setids that resolve to no plan Set."""
+        resolved = {a.setid for a in self.forward_artifacts if a.setid}
+        return tuple(sid for sid in self.forward_setids if sid not in resolved)
+
+    @property
+    def forward_count(self) -> int:
+        """How many forward artifacts belong to this source's Graduated-To Sets."""
+        return len(self.forward_artifacts)
+
+    @property
+    def has_any_link(self) -> bool:
+        """True if the source has any linked artifacts in either direction."""
+        return bool(self.artifact_count or self.forward_setids)
 
 
 #: Statuses that mean the artifact's work is OVER (in either direction). Used only to HIGHLIGHT the
@@ -3722,6 +3817,7 @@ def graduation_cluster(
     *,
     source_kind: Optional[str] = None,
     index: Optional[Dict[Tuple[str, str], List[GraduationArtifact]]] = None,
+    plan_setids: Optional[Dict[str, List[GraduationArtifact]]] = None,
 ) -> GraduationCluster:
     """Every plan and spec already citing ``source_id6``, for the pre-graduation view.
 
@@ -3730,8 +3826,9 @@ def graduation_cluster(
     token naming a backlog item cannot also name a spec.
 
     Pass ``index`` to reuse an already-built reverse index (the whole-corpus shape); otherwise one
-    pass is built here. READ-ONLY: it reports and decides nothing, and it applies no
-    ``count > 1`` judgement, because multiple artifacts per source is legitimate decomposition.
+    pass is built here. Pass ``plan_setids`` to reuse an already-built plan-setid index. READ-ONLY:
+    it reports and decides nothing, and it applies no ``count > 1`` judgement, because multiple
+    artifacts per source is legitimate decomposition.
     """
     idx = index if index is not None else build_graduation_reverse_index(repo_root)
     kinds = (source_kind,) if source_kind else GRADUATION_SOURCE_KINDS
@@ -3741,11 +3838,28 @@ def graduation_cluster(
             if record not in artifacts:
                 artifacts.append(record)
     setids = tuple(sorted({a.setid for a in artifacts if a.setid}))
+
+    fwd_setids_list = read_source_graduated_to(
+        repo_root, source_id6, source_kind=source_kind
+    )
+    forward_setids = tuple(fwd_setids_list)
+
+    psi = plan_setids if plan_setids is not None else build_plan_setid_index(repo_root)
+    fwd_arts: List[GraduationArtifact] = []
+    for sid in forward_setids:
+        for plan_art in psi.get(sid, []):
+            if plan_art not in fwd_arts:
+                fwd_arts.append(plan_art)
+    fwd_arts.sort(key=lambda a: a.path)
+    forward_artifacts = tuple(fwd_arts)
+
     return GraduationCluster(
         source_kind=source_kind or "any",
         source_id6=source_id6,
         artifacts=tuple(artifacts),
         setids=setids,
+        forward_setids=forward_setids,
+        forward_artifacts=forward_artifacts,
     )
 
 
@@ -3785,9 +3899,9 @@ GRADUATION_VIEW_LIMITS: Tuple[Tuple[str, str, str], ...] = (
 #: cause the very duplication the view exists to prevent.
 GRADUATION_VIEW_COVERAGE: str = (
     "Searched: PLANS and SPECS (every lifecycle directory, including executed/ and the other "
-    "terminal ones), matched by their `- From-Backlog:` / `- From-Spec:` bullet. Work that "
-    "addresses this source WITHOUT carrying such a bullet is invisible here, so 'no artifacts' "
-    "means 'nothing LINKED to it', never 'nothing exists'."
+    "terminal ones), matched by their `- From-Backlog:` / `- From-Spec:` bullet, and this "
+    "source's own `- Graduated-To:` field. Work that addresses this source WITHOUT carrying such "
+    "a link is invisible here, so 'no artifacts' means 'nothing LINKED to it', never 'nothing exists'."
 )
 
 

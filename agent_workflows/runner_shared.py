@@ -12270,12 +12270,40 @@ def summarize_graduation_cluster(repo: Path | None, source_id6: str) -> str:
         cluster = _ce.graduation_cluster(root, source_id6)
     except Exception:
         return ""
-    if not cluster.artifact_count:
+    if not cluster.has_any_link:
         return (
             f"PRE-GRADUATION VIEW (advisory): nothing yet links to {source_id6}, so no earlier "
             "artifact would be duplicated. Note this means 'nothing LINKED to it' rather than "
             "'nothing exists': work carrying no `- From-*` bullet is invisible to the view."
         )
+
+    fwd_desc = (
+        f"; Graduated-To: {', '.join(cluster.forward_setids)}"
+        if cluster.forward_setids
+        else ""
+    )
+    if not cluster.artifact_count:
+        fwd_terminal = [
+            a
+            for a in cluster.forward_artifacts
+            if a.status in _ce.GRADUATION_TERMINAL_STATUSES
+        ]
+        fwd_members = ", ".join(
+            f"{a.id6 or a.path}[{a.status or '-'}]"
+            for a in cluster.forward_artifacts[:8]
+        )
+        fwd_more = (
+            "" if cluster.forward_count <= 8 else f", +{cluster.forward_count - 8} more"
+        )
+        members_str = f": {fwd_members}{fwd_more}" if fwd_members else ""
+        return (
+            f"PRE-GRADUATION VIEW (advisory, refuses nothing): {source_id6} graduated to Set(s) "
+            f"{', '.join(cluster.forward_setids)} ({cluster.forward_count} artifact(s), "
+            f"{len(fwd_terminal)} already terminal){members_str}. Several artifacts for one source is "
+            "LEGITIMATE decomposition, not a defect; read the terminal ones before authoring another, "
+            f"since re-doing landed work is the costly case. Full view: aw graduation {source_id6}"
+        )
+
     terminal = cluster.terminal_artifacts
     members = ", ".join(
         f"{a.id6 or a.path}[{a.status or '-'}]" for a in cluster.artifacts[:8]
@@ -12285,7 +12313,7 @@ def summarize_graduation_cluster(repo: Path | None, source_id6: str) -> str:
     )
     return (
         f"PRE-GRADUATION VIEW (advisory, refuses nothing): {source_id6} already has "
-        f"{cluster.artifact_count} linked artifact(s) across {len(cluster.setids) or 0} Set(s), "
+        f"{cluster.artifact_count} linked artifact(s) across {len(cluster.setids) or 0} Set(s){fwd_desc}, "
         f"{len(terminal)} already terminal: {members}{more}. Several artifacts for one source is "
         "LEGITIMATE decomposition, not a defect; read the terminal ones before authoring another, "
         f"since re-doing landed work is the costly case. Full view: aw graduation {source_id6}"
