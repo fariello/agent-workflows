@@ -7194,12 +7194,12 @@ def turn_correction_packet(
     packet", and 5.5 requires each correction to carry "a new attempt number and idempotency key" and
     to invalidate stale evidence.
 
-    WHICH CONSTRUCTION PATH CARRIES IT, stated because the plan's E-04 demands the path be NAMED
-    rather than described. It is the EXISTING recovery-prompt channel and NO new packet format:
-    `build_prompt` interpolates `Prior attempt: {json.dumps(prior)}` from
-    `lane_containment.prior_attempt_summary`, which projects an allowlisted subset of the last
-    attempt. This dict is recorded on the ATTEMPT under the allowlisted `turn_correction` key, so it
-    reaches the next turn's prompt through that one channel. `run_packet.build_step_packet` is
+    WHICH CONSTRUCTION PATH CARRIES IT, stated because xipfy1's E-04 demands the path be NAMED
+    rather than described. The packet is recorded on the attempt under `turn_correction` for the
+    RECORD, and it reaches the next turn through `build_correction_notice`, which `build_prompt`
+    renders as its own notice; `turn_correction` is deliberately NOT in
+    `lane_containment._PRIOR_ATTEMPT_SAFE_KEYS`, so the `Prior attempt:` line does not carry it on an
+    isolated turn (the first shape tried, measured inert by `xipfy1`). `run_packet.build_step_packet` is
     deliberately NOT used: it builds from a WORKFLOW mapping and a `step_id`, neither of which a
     driver queue item has.
 

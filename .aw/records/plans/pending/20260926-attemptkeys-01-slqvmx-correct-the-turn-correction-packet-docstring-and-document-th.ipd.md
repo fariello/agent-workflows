@@ -35,39 +35,39 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: reproduce
 
-- [ ] E-01 RE-MEASURE at the executing HEAD and paste: `python3 -c "from agent_workflows import lane_containment as L; from pathlib import Path; print('turn_correction' in L._PRIOR_ATTEMPT_SAFE_KEYS, 'session_id' in L._PRIOR_ATTEMPT_SAFE_KEYS, 'finalize_refused' in L._PRIOR_ATTEMPT_SAFE_KEYS); print(L.prior_attempt_summary({'turn_correction': {'x': 1}, 'session_id': 's', 'exit_code': 0, 'finalize_refused': 'r'}, Path('/tmp')))"`, and `rg -n "allowlisted .turn_correction" agent_workflows`. ALSO re-derive the indicative key census at THIS HEAD (`rg -o 'attempt(_record)?\["([a-z_]+)"\]\s*=' agent_workflows/ -r '$2' --no-filename | sort -u | wc -l`, and the count of those not in the allowlist) and paste both numbers; they were 80/63 at `61ef21d8` and 85/68 at review HEAD `027e2f69`, so they WILL have moved again -- record what you measure and do NOT treat either earlier pair as the bar (the property is "most attempt keys are driver-only", not any particular number). If `turn_correction` IS now allowlisted (for example because a concurrent plan added it), the docstring may be true: STOP E-02 and report, and do E-03 through E-06 only.
+- [x] E-01 RE-MEASURE at the executing HEAD and paste: `python3 -c "from agent_workflows import lane_containment as L; from pathlib import Path; print('turn_correction' in L._PRIOR_ATTEMPT_SAFE_KEYS, 'session_id' in L._PRIOR_ATTEMPT_SAFE_KEYS, 'finalize_refused' in L._PRIOR_ATTEMPT_SAFE_KEYS); print(L.prior_attempt_summary({'turn_correction': {'x': 1}, 'session_id': 's', 'exit_code': 0, 'finalize_refused': 'r'}, Path('/tmp')))"`, and `rg -n "allowlisted .turn_correction" agent_workflows`. ALSO re-derive the indicative key census at THIS HEAD (`rg -o 'attempt(_record)?\["([a-z_]+)"\]\s*=' agent_workflows/ -r '$2' --no-filename | sort -u | wc -l`, and the count of those not in the allowlist) and paste both numbers; they were 80/63 at `61ef21d8` and 85/68 at review HEAD `027e2f69`, so they WILL have moved again -- record what you measure and do NOT treat either earlier pair as the bar (the property is "most attempt keys are driver-only", not any particular number). If `turn_correction` IS now allowlisted (for example because a concurrent plan added it), the docstring may be true: STOP E-02 and report, and do E-03 through E-06 only.
   - Depends on: none
   - Expected outcome: `False False True`; `{'exit_code': 0, 'finalize_refused': 'r'}`; one `rg` hit in `runner_shared.turn_correction_packet`; a re-derived census whose not-allowlisted count is a large majority of the total.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: documentation
 
-- [ ] E-02 CORRECT `runner_shared.turn_correction_packet`'s docstring paragraph "WHICH CONSTRUCTION PATH CARRIES IT". Replace the sentences from "It is the EXISTING recovery-prompt channel" through "through that one channel." with, in substance: the packet is recorded on the attempt under `turn_correction` for the RECORD, and it reaches the next turn through `build_correction_notice`, which `build_prompt` renders as its own notice; `turn_correction` is deliberately NOT in `lane_containment._PRIOR_ATTEMPT_SAFE_KEYS`, so the `Prior attempt:` line does not carry it on an isolated turn (the first shape tried, measured inert by `xipfy1`). ALSO FIX THE PARAGRAPH'S OPENING CLAUSE (added at review, PR-003), which the original replacement span did not reach: it reads "stated because the plan's E-04 demands the path be NAMED rather than described", where "the plan" is `xipfy1` (now EXECUTED, at `.aw/records/plans/executed/20260908-retrywire-01-xipfy1-...ipd.md`). A bare "the plan" in shipped code reads as the CURRENT plan and sends a future reader to the wrong document, so either name `xipfy1` explicitly or drop the justification clause; do not leave the dangling deictic. Keep the `run_packet.build_step_packet` sentence and the "WHAT IS OMITTED" paragraph unchanged. Change no code.
+- [x] E-02 CORRECT `runner_shared.turn_correction_packet`'s docstring paragraph "WHICH CONSTRUCTION PATH CARRIES IT". Replace the sentences from "It is the EXISTING recovery-prompt channel" through "through that one channel." with, in substance: the packet is recorded on the attempt under `turn_correction` for the RECORD, and it reaches the next turn through `build_correction_notice`, which `build_prompt` renders as its own notice; `turn_correction` is deliberately NOT in `lane_containment._PRIOR_ATTEMPT_SAFE_KEYS`, so the `Prior attempt:` line does not carry it on an isolated turn (the first shape tried, measured inert by `xipfy1`). ALSO FIX THE PARAGRAPH'S OPENING CLAUSE (added at review, PR-003), which the original replacement span did not reach: it reads "stated because the plan's E-04 demands the path be NAMED rather than described", where "the plan" is `xipfy1` (now EXECUTED, at `.aw/records/plans/executed/20260908-retrywire-01-xipfy1-...ipd.md`). A bare "the plan" in shipped code reads as the CURRENT plan and sends a future reader to the wrong document, so either name `xipfy1` explicitly or drop the justification clause; do not leave the dangling deictic. Keep the `run_packet.build_step_packet` sentence and the "WHAT IS OMITTED" paragraph unchanged. Change no code.
   - Depends on: E-01
   - Expected outcome: `rg -n "allowlisted .turn_correction" agent_workflows` returns nothing; the paragraph names `build_correction_notice`; `rg -n "the plan's E-04" agent_workflows` returns nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 DOCUMENT THE CONTRACT at `lane_containment._PRIOR_ATTEMPT_SAFE_KEYS`. Replace the existing `#:` comment with a block stating four points. (1) WHAT IT GUARANTEES: an isolated turn sees only these keys, because every other attempt key may carry an absolute driver-side path (spec `7ckptx` R1.1), and dropping is fail-closed. (2) THE CONTRACT FOR A NEW KEY: any key written onto an attempt record is DRIVER-ONLY by default and will NOT reach an isolated agent. (3) HOW TO DELIVER A FACT TO THE AGENT: either render an explicit prompt notice (the supported route, for example `runner_shared.build_correction_notice` for `turn_correction`) or add the key here, and only if its value can never carry a filesystem path. (4) WHY THE FAILURE IS SILENT: a unit test asserting on the attempt dict still passes, so the author must check the rendered prompt of an ISOLATED turn (as `tests/test_finalize_sendback.py` does for `finalize_refused`). Do NOT change the tuple's members or the function body. The driver-only example list and the second gate are E-04 and E-05.
+- [x] E-03 DOCUMENT THE CONTRACT at `lane_containment._PRIOR_ATTEMPT_SAFE_KEYS`. Replace the existing `#:` comment with a block stating four points. (1) WHAT IT GUARANTEES: an isolated turn sees only these keys, because every other attempt key may carry an absolute driver-side path (spec `7ckptx` R1.1), and dropping is fail-closed. (2) THE CONTRACT FOR A NEW KEY: any key written onto an attempt record is DRIVER-ONLY by default and will NOT reach an isolated agent. (3) HOW TO DELIVER A FACT TO THE AGENT: either render an explicit prompt notice (the supported route, for example `runner_shared.build_correction_notice` for `turn_correction`) or add the key here, and only if its value can never carry a filesystem path. (4) WHY THE FAILURE IS SILENT: a unit test asserting on the attempt dict still passes, so the author must check the rendered prompt of an ISOLATED turn (as `tests/test_finalize_sendback.py` does for `finalize_refused`). Do NOT change the tuple's members or the function body. The driver-only example list and the second gate are E-04 and E-05.
   - Depends on: E-01
   - Expected outcome: `git diff agent_workflows/lane_containment.py` shows only comment lines added at the allowlist; the tuple and `prior_attempt_summary`'s `return` lines are byte-identical.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 ADD THE DRIVER-ONLY EXAMPLE BLOCK. Add a `# _PRIOR_ATTEMPT_DRIVER_ONLY_EXAMPLES` comment block beneath the E-03 contract (comments only, no new symbol, nothing reads it) listing representative driver-only keys with a one-phrase reason each, each verified present in the tree at execution: `prompt`/`worktree`/`verify_log`/`lane_plan_path` (absolute paths), `session_id` (host session handle, driver bookkeeping), `turn_correction` (delivered by its own notice), `suite_baseline` (driver-side gate state). All seven were re-verified present at review HEAD `027e2f69`. Do NOT list `cost` or `tokens`: they ARE allowlisted, so naming them as driver-only would state the opposite of the truth.
+- [x] E-04 ADD THE DRIVER-ONLY EXAMPLE BLOCK. Add a `# _PRIOR_ATTEMPT_DRIVER_ONLY_EXAMPLES` comment block beneath the E-03 contract (comments only, no new symbol, nothing reads it) listing representative driver-only keys with a one-phrase reason each, each verified present in the tree at execution: `prompt`/`worktree`/`verify_log`/`lane_plan_path` (absolute paths), `session_id` (host session handle, driver bookkeeping), `turn_correction` (delivered by its own notice), `suite_baseline` (driver-side gate state). All seven were re-verified present at review HEAD `027e2f69`. Do NOT list `cost` or `tokens`: they ARE allowlisted, so naming them as driver-only would state the opposite of the truth.
   - Depends on: E-03
   - Expected outcome: the block names seven keys, each confirmed by `rg` to be assigned onto an attempt record at the executing HEAD, and none of them allowlisted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 DOCUMENT THE SECOND GATE, which the allowlist does not control (added at review, PR-002). State in the same block that membership is NECESSARY BUT NOT SUFFICIENT: `runner_shared.build_prompt` populates `prior` only when `recovery` is true (`prior = item.get("attempts", [])[-1] if recovery and item.get("attempts") else None`, and `prior_attempt_summary(None, lane_root)` returns `None`), so a FIRST turn carries NO prior-attempt key at all whether or not it is allowlisted, and only `attempts[-1]` is ever read. Say plainly that a fact needed on a first turn must be rendered as its own notice, because an author who adds a key here and expects it on turn one has walked into the same silent trap one step further on. Add one sentence to `prior_attempt_summary`'s docstring pointing at the whole block.
+- [x] E-05 DOCUMENT THE SECOND GATE, which the allowlist does not control (added at review, PR-002). State in the same block that membership is NECESSARY BUT NOT SUFFICIENT: `runner_shared.build_prompt` populates `prior` only when `recovery` is true (`prior = item.get("attempts", [])[-1] if recovery and item.get("attempts") else None`, and `prior_attempt_summary(None, lane_root)` returns `None`), so a FIRST turn carries NO prior-attempt key at all whether or not it is allowlisted, and only `attempts[-1]` is ever read. Say plainly that a fact needed on a first turn must be rendered as its own notice, because an author who adds a key here and expects it on turn one has walked into the same silent trap one step further on. Add one sentence to `prior_attempt_summary`'s docstring pointing at the whole block.
   - Depends on: E-03
   - Expected outcome: the block states both gates; `prior_attempt_summary`'s docstring points at it; `git diff` still shows only comment and docstring lines.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove behavior is as documented
 
-- [ ] E-06 ADD `tests/test_prior_attempt_projection.py` with ONE behavioral test class (no `inspect.getsource`/`read_text` of package source, maintainer ruling 2026-09-26): calling `lane_containment.prior_attempt_summary` with a `lane_root` (isolated) on an attempt dict carrying `turn_correction`, `session_id`, `prompt` (an absolute path string), `exit_code`, and `finalize_refused` returns a dict WITHOUT `turn_correction`, `session_id`, or `prompt` and WITH `exit_code` and `finalize_refused` unchanged; the same dict with `lane_root=None` (non-isolated, spec `7ckptx` R1.3) is returned unchanged including all five keys; and `None` input returns `None`. ADD ONE MORE ASSERTION for the second gate the contract now documents (review PR-002): render an isolated FIRST-turn prompt via `runner_shared.build_prompt(..., recovery=False, lane_root=<lane>)` on an item that already carries an attempt with an allowlisted key (`finalize_refused`), and assert the prompt line reads `Prior attempt: none` -- i.e. allowlist membership alone does NOT put a fact in a first turn's prompt. This is the assertion that makes the documented contract testable rather than merely stated, and it complements `tests/test_finalize_sendback.py`, which covers the RECOVERY direction. Name each test so its failure message explains the contract (e.g. `test_isolated_projection_drops_driver_only_keys_and_keeps_allowlisted_ones`, `test_a_FIRST_turn_carries_no_prior_attempt_even_for_an_allowlisted_key`).
+- [x] E-06 ADD `tests/test_prior_attempt_projection.py` with ONE behavioral test class (no `inspect.getsource`/`read_text` of package source, maintainer ruling 2026-09-26): calling `lane_containment.prior_attempt_summary` with a `lane_root` (isolated) on an attempt dict carrying `turn_correction`, `session_id`, `prompt` (an absolute path string), `exit_code`, and `finalize_refused` returns a dict WITHOUT `turn_correction`, `session_id`, or `prompt` and WITH `exit_code` and `finalize_refused` unchanged; the same dict with `lane_root=None` (non-isolated, spec `7ckptx` R1.3) is returned unchanged including all five keys; and `None` input returns `None`. ADD ONE MORE ASSERTION for the second gate the contract now documents (review PR-002): render an isolated FIRST-turn prompt via `runner_shared.build_prompt(..., recovery=False, lane_root=<lane>)` on an item that already carries an attempt with an allowlisted key (`finalize_refused`), and assert the prompt line reads `Prior attempt: none` -- i.e. allowlist membership alone does NOT put a fact in a first turn's prompt. This is the assertion that makes the documented contract testable rather than merely stated, and it complements `tests/test_finalize_sendback.py`, which covers the RECOVERY direction. Name each test so its failure message explains the contract (e.g. `test_isolated_projection_drops_driver_only_keys_and_keeps_allowlisted_ones`, `test_a_FIRST_turn_carries_no_prior_attempt_even_for_an_allowlisted_key`).
   - Depends on: E-02, E-03, E-04, E-05
   - Expected outcome: passes before and after (behavior is unchanged by design); it pins the documented contract so a future allowlist or projection change that leaks `session_id`/`turn_correction`, drops an allowlisted key, or starts populating `prior` on a first turn, goes red.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -137,35 +137,166 @@ Authored at HEAD `61ef21d8`; every row RE-VERIFIED at review HEAD `027e2f69` on 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `python3 -c` output, the `rg` hit, and the re-derived census pair (total distinct assigned keys / not-allowlisted) measured at the executing HEAD. State the pair you measured rather than repeating 80/63 or 85/68.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Measured at executing HEAD `c4026b2e52ff3078263fff893f9843b2468dd005`:
+    1. python3 -c output:
+    ```
+    $ python3 -c "from agent_workflows import lane_containment as L; from pathlib import Path; print('turn_correction' in L._PRIOR_ATTEMPT_SAFE_KEYS, 'session_id' in L._PRIOR_ATTEMPT_SAFE_KEYS, 'finalize_refused' in L._PRIOR_ATTEMPT_SAFE_KEYS); print(L.prior_attempt_summary({'turn_correction': {'x': 1}, 'session_id': 's', 'exit_code': 0, 'finalize_refused': 'r'}, Path('/tmp')))"
+    False False True
+    {'exit_code': 0, 'finalize_refused': 'r'}
+    ```
+    2. rg hit before edit:
+    ```
+    $ rg -n "allowlisted .turn_correction" agent_workflows
+    agent_workflows/runner_shared.py:7201:    attempt. This dict is recorded on the ATTEMPT under the allowlisted `turn_correction` key, so it
+    ```
+    3. Re-derived key census at executing HEAD:
+    Total distinct assigned keys: 85
+    Not allowlisted count: 68
+    Allowlisted count: 17
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the docstring diff and `rg -n "allowlisted .turn_correction" agent_workflows` returning nothing (exit 1). ALSO paste `rg -n "the plan's E-04" agent_workflows` returning nothing, which is the F-6 fix.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Docstring diff applied, allowlisted turn_correction query returns exit 1, and turn_correction_packet F-6 deictic fixed:
+    1. Docstring diff in agent_workflows/runner_shared.py:
+    ```diff
+    -    WHICH CONSTRUCTION PATH CARRIES IT, stated because the plan's E-04 demands the path be NAMED
+    -    rather than described. It is the EXISTING recovery-prompt channel and NO new packet format:
+    -    `build_prompt` interpolates `Prior attempt: {json.dumps(prior)}` from
+    -    `lane_containment.prior_attempt_summary`, which projects an allowlisted subset of the last
+    -    attempt. This dict is recorded on the ATTEMPT under the allowlisted `turn_correction` key, so it
+    -    reaches the next turn's prompt through that one channel. `run_packet.build_step_packet` is
+    +    WHICH CONSTRUCTION PATH CARRIES IT, stated because xipfy1's E-04 demands the path be NAMED
+    +    rather than described. The packet is recorded on the attempt under `turn_correction` for the
+    +    RECORD, and it reaches the next turn through `build_correction_notice`, which `build_prompt`
+    +    renders as its own notice; `turn_correction` is deliberately NOT in
+    +    `lane_containment._PRIOR_ATTEMPT_SAFE_KEYS`, so the `Prior attempt:` line does not carry it on an
+    +    isolated turn (the first shape tried, measured inert by `xipfy1`). `run_packet.build_step_packet` is
+    ```
+    2. `rg -n "allowlisted .turn_correction" agent_workflows` returns nothing (exit 1).
+    3. `the plan's E-04` deictic in turn_correction_packet (F-6) is replaced by `xipfy1's E-04`. No occurrences remain in turn_correction_packet. Two pre-existing occurrences in separate functions (lines 7050, 15041) remain outside this plan's approved scope.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the `lane_containment.py` diff for the contract block, showing only `#` comment lines added; paste the E-01 `python3 -c` command re-run with identical output (behavior unchanged, tuple members untouched). Quote the four numbered points so the contract is verifiably complete rather than merely rewritten.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: lane_containment.py diff shows only comments added, E-01 output identical, and four contract points verified:
+    1. `agent_workflows/lane_containment.py` diff showing only comments added at allowlist:
+    ```diff
+    +#: THE PRIOR-ATTEMPT ALLOWLIST CONTRACT:
+    +#: 1. WHAT IT GUARANTEES: an isolated turn sees only these keys, because every other attempt key
+    +#:    may carry an absolute driver-side path (spec `7ckptx` R1.1), and dropping is fail-closed.
+    +#: 2. THE CONTRACT FOR A NEW KEY: any key written onto an attempt record is DRIVER-ONLY by default
+    +#:    and will NOT reach an isolated agent.
+    +#: 3. HOW TO DELIVER A FACT TO THE AGENT: either render an explicit prompt notice (the supported
+    +#:    route, for example `runner_shared.build_correction_notice` for `turn_correction`) or add the
+    +#:    key here, and only if its value can never carry a filesystem path.
+    +#: 4. WHY THE FAILURE IS SILENT: a unit test asserting on the attempt dict still passes, so the
+    +#:    author must check the rendered prompt of an ISOLATED turn (as `tests/test_finalize_sendback.py`
+    +#:    does for `finalize_refused`).
+    ```
+    2. E-01 python3 -c re-run output (identical):
+    ```
+    $ python3 -c "from agent_workflows import lane_containment as L; from pathlib import Path; print('turn_correction' in L._PRIOR_ATTEMPT_SAFE_KEYS, 'session_id' in L._PRIOR_ATTEMPT_SAFE_KEYS, 'finalize_refused' in L._PRIOR_ATTEMPT_SAFE_KEYS); print(L.prior_attempt_summary({'turn_correction': {'x': 1}, 'session_id': 's', 'exit_code': 0, 'finalize_refused': 'r'}, Path('/tmp')))"
+    False False True
+    {'exit_code': 0, 'finalize_refused': 'r'}
+    ```
+    3. Quoting the four numbered points:
+    "(1) WHAT IT GUARANTEES: an isolated turn sees only these keys, because every other attempt key may carry an absolute driver-side path (spec `7ckptx` R1.1), and dropping is fail-closed.
+    (2) THE CONTRACT FOR A NEW KEY: any key written onto an attempt record is DRIVER-ONLY by default and will NOT reach an isolated agent.
+    (3) HOW TO DELIVER A FACT TO THE AGENT: either render an explicit prompt notice (the supported route, for example `runner_shared.build_correction_notice` for `turn_correction`) or add the key here, and only if its value can never carry a filesystem path.
+    (4) WHY THE FAILURE IS SILENT: a unit test asserting on the attempt dict still passes, so the author must check the rendered prompt of an ISOLATED turn (as `tests/test_finalize_sendback.py` does for `finalize_refused`)."
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the example block, and for EACH of the seven named keys paste the `rg` hit proving it is assigned onto an attempt record at the executing HEAD plus a membership check showing it is NOT allowlisted. Also paste the membership check for `cost` and `tokens` showing they ARE allowlisted, which is the negative proving the block does not misclassify them.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Example block verified, 7 keys confirmed assigned and not allowlisted, and cost/tokens confirmed allowlisted:
+    1. Example block:
+    ```
+    # _PRIOR_ATTEMPT_DRIVER_ONLY_EXAMPLES
+    # Representative driver-only keys written to attempt records but deliberately omitted here:
+    # - prompt: absolute filesystem path to prompt file
+    # - worktree: absolute filesystem path to lane worktree
+    # - verify_log: absolute filesystem path to verification log
+    # - lane_plan_path: absolute filesystem path to plan in lane
+    # - session_id: host session handle, driver bookkeeping
+    # - turn_correction: delivered by its own prompt notice (runner_shared.build_correction_notice)
+    # - suite_baseline: driver-side gate state
+    ```
+    2. For each of the 7 named keys:
+    - prompt:
+      rg: `agent_workflows/runner_shared.py:27875:        attempt["prompt"] = str(prompt_path)`
+      membership: `'prompt' in _PRIOR_ATTEMPT_SAFE_KEYS` -> False
+    - worktree:
+      rg: `agent_workflows/runner_shared.py:27699:            attempt["worktree"] = work_dir`
+      membership: `'worktree' in _PRIOR_ATTEMPT_SAFE_KEYS` -> False
+    - verify_log:
+      rg: `agent_workflows/runner_shared.py:28338:                        attempt["verify_log"] = str(_v_log)`
+      membership: `'verify_log' in _PRIOR_ATTEMPT_SAFE_KEYS` -> False
+    - lane_plan_path:
+      rg: `agent_workflows/runner_shared.py:27877:        attempt["lane_plan_path"] = str(lane_plan_path)`
+      membership: `'lane_plan_path' in _PRIOR_ATTEMPT_SAFE_KEYS` -> False
+    - session_id:
+      rg: `agent_workflows/runner_shared.py:27301:            attempt["session_id"] = sid`
+      membership: `'session_id' in _PRIOR_ATTEMPT_SAFE_KEYS` -> False
+    - turn_correction:
+      rg: `agent_workflows/runner_shared.py:7377:        attempt["turn_correction"] = packet`
+      membership: `'turn_correction' in _PRIOR_ATTEMPT_SAFE_KEYS` -> False
+    - suite_baseline:
+      rg: `agent_workflows/runner_shared.py:28828:            attempt["suite_baseline"] = suite_baseline.as_record()`
+      membership: `'suite_baseline' in _PRIOR_ATTEMPT_SAFE_KEYS` -> False
+    3. Negative check for `cost` and `tokens`:
+    `'cost' in _PRIOR_ATTEMPT_SAFE_KEYS` -> True
+    `'tokens' in _PRIOR_ATTEMPT_SAFE_KEYS` -> True
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: quote the sentence(s) stating the RECOVERY-ONLY gate and the `attempts[-1]` limit (F-5), and paste the `build_prompt` line they describe so the documentation is checked against the code rather than against memory. Paste `prior_attempt_summary(None, Path('/tmp'))` returning `None`. Paste the one added `prior_attempt_summary` docstring sentence.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Recovery-only gate and attempts[-1] limit quoted, build_prompt line verified, None input tested, and docstring checked:
+    1. Quoted sentences:
+    "Allowlist membership is necessary but NOT sufficient to reach the agent. `runner_shared.build_prompt` populates `prior` only when `recovery` is true (`prior = item.get("attempts", [])[-1] if recovery and item.get("attempts") else None`, and `prior_attempt_summary(None, lane_root)` returns `None`), so a FIRST turn carries NO prior-attempt key at all whether or not it is allowlisted, and only `attempts[-1]` is ever read. A fact needed on a first turn must be rendered as its own notice, because an author who adds a key here and expects it on turn one has walked into the same silent trap one step further on."
+    2. build_prompt line (agent_workflows/runner_shared.py line 24746):
+    `prior = item.get("attempts", [])[-1] if recovery and item.get("attempts") else None`
+    3. `prior_attempt_summary(None, Path('/tmp'))` output:
+    ```
+    $ python3 -c "from agent_workflows.lane_containment import prior_attempt_summary; from pathlib import Path; print(prior_attempt_summary(None, Path('/tmp')))"
+    None
+    ```
+    4. Added docstring sentence in `prior_attempt_summary`:
+    "See `_PRIOR_ATTEMPT_SAFE_KEYS` above for the documented driver-only contract and both delivery gates."
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste `python3 -m pytest tests/test_prior_attempt_projection.py tests/test_finalize_sendback.py -o addopts="" -q` passing with counts; then, to show the new test is not vacuous, temporarily add `"session_id"` to `_PRIOR_ATTEMPT_SAFE_KEYS` and paste the new test FAILING, then restore and paste it passing. (Verified at review that this sabotage does change the projection's output: with it, `prior_attempt_summary` returns `{'exit_code': 0, 'finalize_refused': 'r', 'session_id': 's'}` instead of `{'exit_code': 0, 'finalize_refused': 'r'}`, so the control is real and not decorative.) SEPARATELY show the first-turn assertion is not vacuous: temporarily drop `and item.get("attempts")`'s `recovery` guard in `build_prompt` (or otherwise force `prior` to populate on a first turn) and paste `test_a_FIRST_turn_carries_no_prior_attempt_even_for_an_allowlisted_key` FAILING, then restore and paste it passing. Paste the bare `python3 -m pytest` summary BEFORE and AFTER and the after-minus-before failing node-ID set (must be empty).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Behavioral tests pass, two deliberate sabotages demonstrate non-vacuousness, and full suite passes before and after:
+    1. Narrowed test suite passing:
+    ```
+    $ python3 -m pytest tests/test_prior_attempt_projection.py tests/test_finalize_sendback.py -o addopts="" -q
+    .......................................................                  [100%]
+    55 passed in 0.47s
+    ```
+    2. Sabotage 1 (adding "session_id" to _PRIOR_ATTEMPT_SAFE_KEYS):
+    ```
+    FAILED tests/test_prior_attempt_projection.py::PriorAttemptProjectionTests::test_isolated_projection_drops_driver_only_keys_and_keeps_allowlisted_ones
+    AssertionError: {'exit_code': 0, 'session_id': 'ses-12345', 'finalize_refus[33 chars]nce'} != {'exit_code': 0, 'finalize_refused': 'gate refused: missing evidence'}
+    1 failed, 54 passed in 0.46s
+    ```
+    Restored and re-tested: 55 passed in 1.18s.
+    3. Sabotage 2 (dropping recovery guard in build_prompt prior computation):
+    ```
+    FAILED tests/test_prior_attempt_projection.py::PriorAttemptProjectionTests::test_a_FIRST_turn_carries_no_prior_attempt_even_for_an_allowlisted_key
+    AssertionError: 'Prior attempt: {"exit_code": 1, "finalize_refused": "refused reason"}' != 'Prior attempt: none'
+    1 failed, 54 passed in 0.98s
+    ```
+    Restored and re-tested: 55 passed in 0.86s.
+    4. Full bare pytest suite BEFORE and AFTER:
+    BEFORE:
+    2565 passed, 2 skipped, 3 warnings in 70.16s (0:01:10)
+    AFTER:
+    2567 passed, 2 skipped, 3 warnings in 49.65s
+    After-minus-before failing node-ID set: empty (0 failures before, 0 failures after).
+  - Result: pass
 
 ## Approval and execution gate
 
