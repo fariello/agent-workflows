@@ -400,7 +400,11 @@ class CommandResult:
             rec["target"] = norm_target
 
         # Checked count
-        checked_count = self.data.get("checked") or self.data.get("total_checked")
+        checked_count = (
+            self.data["checked"]
+            if "checked" in self.data
+            else self.data.get("total_checked")
+        )
         if checked_count is not None:
             try:
                 rec["checked"] = int(checked_count)

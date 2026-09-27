@@ -36,27 +36,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Reproduce, audit, fix
 
-- [ ] E-01 Reproduce at HEAD: in a temp dir with `git init` and empty `.aw/records/specs/` and `.aw/records/backlog/open/`, run `aw specs check --agent` and `aw backlog check --agent` and confirm neither record has a `checked` key. Audit emitters and consumers: `git grep -n '"checked"' agent_workflows/` and `git grep -n '"checked" not in\|checked.*not in\|assertNotIn("checked"' tests/` to confirm which commands put `checked` in `data` and that no test relies on its omission.
+- [x] E-01 Reproduce at HEAD: in a temp dir with `git init` and empty `.aw/records/specs/` and `.aw/records/backlog/open/`, run `aw specs check --agent` and `aw backlog check --agent` and confirm neither record has a `checked` key. Audit emitters and consumers: `git grep -n '"checked"' agent_workflows/` and `git grep -n '"checked" not in\|checked.*not in\|assertNotIn("checked"' tests/` to confirm which commands put `checked` in `data` and that no test relies on its omission.
   - Depends on: none
   - Expected outcome: both records lack `checked` (measured at authoring). Emitters putting `checked` into `CommandResult.data`: `specs.run_check` (`data={"checked": len(paths), ...}`) and `backlog.run_check` (`data={"checked": items_count, ...}`) only; no `data` anywhere sets `total_checked`. No test asserts the key's absence.
-  - Execution state: pending
-- [ ] E-02 In `result_types.CommandResult.to_agent_record`, replace `checked_count = self.data.get("checked") or self.data.get("total_checked")` with a presence test: `checked_count = self.data["checked"] if "checked" in self.data else self.data.get("total_checked")`. Keep the existing `if checked_count is not None` / `int(...)` guard unchanged, so a command that omits the key still emits none (no behavior change for commands with no count).
+  - Execution state: performed
+- [x] E-02 In `result_types.CommandResult.to_agent_record`, replace `checked_count = self.data.get("checked") or self.data.get("total_checked")` with a presence test: `checked_count = self.data["checked"] if "checked" in self.data else self.data.get("total_checked")`. Keep the existing `if checked_count is not None` / `int(...)` guard unchanged, so a command that omits the key still emits none (no behavior change for commands with no count).
   - Depends on: E-01
   - Expected outcome: a present `0` is emitted as `"checked":0`; an absent key still emits nothing.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Outcome tests
 
-- [ ] E-03 Add `tests/test_agent_checked_count.py` with two outcome tests that run the real CLI (`tests.support.run_cli`) in a temp git repo with empty specs and backlog trees (`.aw/records/specs/` and `.aw/records/backlog/open/` created, `git init` run): `aw specs check --agent` emits a result record with `"checked": 0`; `aw backlog check --agent` emits a result record with `"checked": 0`. Parse the JSONL line, assert `schema == "aw.agent/v1"` and BOTH `"checked" in rec` and `rec["checked"] == 0` -- assert the key's PRESENCE separately from its value, because `rec.get("checked") == 0` is not a valid substitute (a `.get` default of `None` fails the comparison but an author writing `rec.get("checked", 0)` would re-create the exact vacuous pass this plan exists to remove). Add one non-zero control in the same file asserting `checked == 1`, so the test is not satisfied by a hard-coded 0.
+- [x] E-03 Add `tests/test_agent_checked_count.py` with two outcome tests that run the real CLI (`tests.support.run_cli`) in a temp git repo with empty specs and backlog trees (`.aw/records/specs/` and `.aw/records/backlog/open/` created, `git init` run): `aw specs check --agent` emits a result record with `"checked": 0`; `aw backlog check --agent` emits a result record with `"checked": 0`. Parse the JSONL line, assert `schema == "aw.agent/v1"` and BOTH `"checked" in rec` and `rec["checked"] == 0` -- assert the key's PRESENCE separately from its value, because `rec.get("checked") == 0` is not a valid substitute (a `.get` default of `None` fails the comparison but an author writing `rec.get("checked", 0)` would re-create the exact vacuous pass this plan exists to remove). Add one non-zero control in the same file asserting `checked == 1`, so the test is not satisfied by a hard-coded 0.
   - Depends on: E-02
   - Expected outcome: all three pass after E-02; the two zero-case tests FAIL at HEAD (key absent).
-  - Execution state: pending
+  - Execution state: performed
   - Control-fixture argv, MEASURED at review so the executor spends no round trip on a usage error: `aw specs new --title <t> --slug <s> --apply` writes one spec and `aw specs check --agent` then reports `"checked":1`. For backlog, `aw backlog new` REFUSES without `--priority` (`--priority required: decide the item's priority ... and work kind`) and without `--apply` it only PREVIEWS and writes nothing, so the count stays 0 and the control would pass vacuously; the working form is `aw backlog new --summary <s> --work-kind chore --priority low --apply`, after which `aw backlog check --agent` reports `"checked":1`. A hand-written minimal fixture file is equally acceptable if it conforms (a non-conforming fixture turns the control's `outcome` to `findings`, which is a different assertion, so prefer the verbs).
-- [ ] E-04 Run the bare suite `python3 -m pytest`.
+- [x] E-04 Run the bare suite `python3 -m pytest`.
   - Depends on: E-03
   - Expected outcome: suite green with no failure attributable to the new `checked` key. Baseline measured at review on this tree, bare run: `2458 passed, 2 skipped`. Re-derive the baseline at execution time rather than treating that number as the bar (the suite is a live population); the property to hold is "no test fails that passed before this change".
   - What this step does and does not prove (corrected at review, PR-001): its value is the ABSENCE of a consumer relying on the omitted key (F-5), not a positive assertion of the new field, which is E-03's job alone. There is no live CLI-conformance gate behind it: `tests/conformance_matrix.py` lists `specs check` / `backlog check` in `LIVE_SAFE_LEAVES`, but the harness is INERT (F-7) -- both of its consumer modules were deleted in commit `19313eed`, nothing imports it, and pytest collects zero tests from it. The bare suite is therefore the whole regression surface for this change.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -117,24 +117,124 @@ None.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the two `--agent` lines from the empty temp repo at HEAD (no `checked` key) and the two `git grep` outputs (emitters list; empty absence-reliance grep).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Result: pass
+  - Observed evidence: PASS. Confirmed empty repo lacks checked key at HEAD; emitters and consumers audited.
+```
+Empty temp repo at starting HEAD (408f6a89):
+$ aw specs check --agent
+{"schema":"aw.agent/v1","kind":"result","cmd":"specs check","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["specs"],"next":null}
+$ aw backlog check --agent
+{"schema":"aw.agent/v1","kind":"result","cmd":"backlog check","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["backlog"],"next":null}
+
+$ git grep -n '"checked"' agent_workflows/
+agent_workflows/backlog.py:1592:                value={"checked": items_count, "violations": len(drift)},
+agent_workflows/backlog.py:1603:            data={"checked": items_count, "violations": len(drift)},
+agent_workflows/cli.py:12578:                else {"checked": total_checked},
+agent_workflows/result_types.py:403:        checked_count = self.data.get("checked") or self.data.get("total_checked")
+agent_workflows/result_types.py:406:                rec["checked"] = int(checked_count)
+agent_workflows/run_analytics_pricing.py:625:                "checked": 0,
+agent_workflows/run_analytics_pricing.py:632:        bucket["checked"] += 1
+agent_workflows/specs.py:574:                value={"checked": len(paths), "violations": len(drift)},
+agent_workflows/specs.py:585:            data={"checked": len(paths), "violations": len(drift)},
+
+$ git grep -n '"checked" not in\|checked.*not in\|assertNotIn("checked"' tests/
+(exit 1, no matches)
+```
+- [x] V-02 validates E-02
   - Required evidence: paste `git diff agent_workflows/result_types.py` (one expression changed) and the same two `--agent` lines re-run after the fix, each now containing `"checked":0`.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Result: pass
+  - Observed evidence: PASS. git diff verified; post-fix empty repo runs emit checked:0.
+```
+$ git diff agent_workflows/result_types.py
+diff --git a/agent_workflows/result_types.py b/agent_workflows/result_types.py
+index 4a916f19..d24c4f62 100644
+--- a/agent_workflows/result_types.py
++++ b/agent_workflows/result_types.py
+@@ -400,7 +400,9 @@ class CommandResult:
+             rec["target"] = norm_target
+
+         # Checked count
+-        checked_count = self.data.get("checked") or self.data.get("total_checked")
++        checked_count = (
++            self.data["checked"] if "checked" in self.data else self.data.get("total_checked")
++        )
+         if checked_count is not None:
+             try:
+                 rec["checked"] = int(checked_count)
+
+Empty temp repo after fix:
+$ aw specs check --agent
+{"schema":"aw.agent/v1","kind":"result","cmd":"specs check","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":0,"findings":0,"evidence":["specs"],"next":null}
+$ aw backlog check --agent
+{"schema":"aw.agent/v1","kind":"result","cmd":"backlog check","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":0,"findings":0,"evidence":["backlog"],"next":null}
+```
+- [x] V-03 validates E-03
   - Required evidence: paste `python3 -m pytest -o addopts="" tests/test_agent_checked_count.py` passing (3 passed), AND the same file's output run against UNFIXED code, showing the two zero-count tests FAIL (on the key's absence) and the control PASSES. A control that also fails means the test is broken rather than the bug being demonstrated, so report instead of proceeding.
   - How to get the before-fix run WITHOUT touching your own edit (method corrected at review, PR-003; the previous copy-the-file-aside-and-restore dance risked losing the fix if anything failed between the two steps, which is the one irreversible outcome in this plan): create a throwaway worktree pinned at the pre-change commit and run the NEW test file against it, e.g. `git worktree add --detach .aw/tmp/kifrou-head <pre-change-commit>`, then `PYTHONPATH=.aw/tmp/kifrou-head python3 -m pytest -o addopts="" tests/test_agent_checked_count.py` (the test file itself stays in your tree; only the imported package is the old one). Remove it with `git worktree remove --force .aw/tmp/kifrou-head` when done. `.aw/tmp/` is gitignored, so nothing is committed. Verified at review that such a worktree does carry HEAD's unfixed `checked_count = self.data.get("checked") or ...` line. `git stash` remains FORBIDDEN here (shared checkout; it moves a co-worker's unstaged work).
   - CAVEAT, so a clean before-fix run is not misread: `tests.support.run_cli` PREPENDS its own `REPO_ROOT` to `PYTHONPATH`, so a test using that helper resolves the CLI from THIS tree regardless of the variable above and would show the FIXED behavior. For the before-fix run, invoke the old tree's package explicitly (e.g. run the subprocess with `cwd` in the temp repo and `PYTHONPATH` set to the throwaway worktree, bypassing `run_cli`), or run the before-fix check as a direct two-command reproduction (the V-01 commands executed against the old worktree's package) and paste that instead. Either is acceptable; what is NOT acceptable is pasting a "failure" you did not actually observe, or a pass you obtained from the fixed tree while labelling it before-fix.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Result: pass
+  - Observed evidence: PASS. 3 tests pass on fixed tree; against unfixed tree the two zero-case tests fail and control passes.
+```
+$ python3 -m pytest -o addopts="" tests/test_agent_checked_count.py
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+Using --randomly-seed=1052393139
+rootdir: .
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 3 items
+
+tests/test_agent_checked_count.py ...                                    [100%]
+
+============================== 3 passed in 1.49s ===============================
+
+Run against UNFIXED tree (throwaway worktree pinned at pre-change HEAD 408f6a89):
+$ AW_UNFIXED_TREE=.aw/tmp/kifrou-head python3 -m pytest -o addopts="" tests/test_agent_checked_count.py
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+Using --randomly-seed=3552674431
+rootdir: .
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 3 items
+
+tests/test_agent_checked_count.py F.F                                    [100%]
+
+=================================== FAILURES ===================================
+_ AgentCheckedCountTests.test_specs_check_agent_emits_checked_zero_on_empty_tree _
+...
+>           self.assertIn("checked", rec)
+E           AssertionError: 'checked' not found in {'schema': 'aw.agent/v1', 'kind': 'result', 'cmd': 'specs check', 'outcome': 'clean', 'exit': 0, 'verified': True, 'complete': True, 'findings': 0, 'evidence': ['specs'], 'next': None}
+
+tests/test_agent_checked_count.py:61: AssertionError
+_ AgentCheckedCountTests.test_backlog_check_agent_emits_checked_zero_on_empty_tree _
+...
+>           self.assertIn("checked", rec)
+E           AssertionError: 'checked' not found in {'schema': 'aw.agent/v1', 'kind': 'result', 'cmd': 'backlog check', 'outcome': 'clean', 'exit': 0, 'verified': True, 'complete': True, 'findings': 0, 'evidence': ['backlog'], 'next': None}
+
+tests/test_agent_checked_count.py:73: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_agent_checked_count.py::AgentCheckedCountTests::test_specs_check_agent_emits_checked_zero_on_empty_tree
+FAILED tests/test_agent_checked_count.py::AgentCheckedCountTests::test_backlog_check_agent_emits_checked_zero_on_empty_tree
+========================= 2 failed, 1 passed in 1.44s ==========================
+```
+- [x] V-04 validates E-04
   - Required evidence: paste the final summary line of bare `python3 -m pytest` (`N passed`, no failures). Compare against the review baseline `2458 passed, 2 skipped` (measured on this tree at HEAD `457bad3c`) and expect it to RISE by the three tests E-03 adds; the bar is that no test which passed before now fails, NOT that the number matches, since the suite is a live population.
-  - Observed evidence:
-  - Result: pending
+  - Result: pass
+  - Observed evidence: PASS. Full bare pytest suite passed with 2830 passed (exact +3 from baseline 2827 passed).
+```
+$ python3 -m pytest
+...
+NOTE: 200 tests were deselected by -m/-k and did not run (the default run skips 'slow' and 'livecorpus'); run everything with: make test-all
+2830 passed, 2 skipped, 3 warnings in 163.86s (0:02:43)
+
+Starting HEAD baseline (408f6a89):
+2827 passed, 2 skipped, 3 warnings in 143.35s (0:02:23)
+
+Net change: exactly +3 passed tests (the 3 tests added in tests/test_agent_checked_count.py), 0 failures.
+```
 
 ## Approval and execution gate
 
