@@ -2145,8 +2145,11 @@ def _build_parser() -> argparse.ArgumentParser:
                 "a ledger.jsonl; the drivers' own events.jsonl is a different format."
             ),
         )
+        # tqaxjw: accept --repo as an additive alias of --dir matching aw oc run.
         _pr.add_argument(
             "--dir",
+            "--repo",
+            dest="dir",
             default=None,
             help="Repo root directory (default: current directory).",
         )
@@ -2205,8 +2208,11 @@ def _build_parser() -> argparse.ArgumentParser:
     # `aw run`. The viewer's flags live on this shared parent so the bare form and the `aw runs list`
     # leaf are registered from ONE definition and cannot drift apart.
     _runs_viewer_flags = _AwArgumentParser(add_help=False)
+    # tqaxjw: accept --repo as an additive alias of --dir matching aw oc run.
     _runs_viewer_flags.add_argument(
         "--dir",
+        "--repo",
+        dest="dir",
         default=None,
         help="Target Git repository root (default: current directory).",
     )
@@ -2561,8 +2567,13 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Zero or more run IDs, directory paths, or set IDs (default: every canonical run).",
     )
+    # tqaxjw: accept --repo as an additive alias of --dir matching aw oc run.
     _p_runs_analyze.add_argument(
-        "--dir", default=None, help="Repo root directory (default: current directory)."
+        "--dir",
+        "--repo",
+        dest="dir",
+        default=None,
+        help="Repo root directory (default: current directory).",
     )
     # --path/--list are read-only reporting modes and are mutually exclusive with each other and with
     # the sweep-modifying flags, so a contradictory invocation is a NATIVE argparse usage error
@@ -2642,8 +2653,13 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="The view to return. `aw runs query schema` lists every view.",
     )
+    # tqaxjw: accept --repo as an additive alias of --dir matching aw oc run.
     _p_runs_query.add_argument(
-        "--dir", default=None, help="Repo root directory (default: current directory)."
+        "--dir",
+        "--repo",
+        dest="dir",
+        default=None,
+        help="Repo root directory (default: current directory).",
     )
     _p_runs_query.add_argument(
         "--filter",
@@ -2758,8 +2774,13 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Zero or more run IDs, directory paths, or set IDs (default: every cached run).",
     )
+    # tqaxjw: accept --repo as an additive alias of --dir matching aw oc run.
     _p_runs_export.add_argument(
-        "--dir", default=None, help="Repo root directory (default: current directory)."
+        "--dir",
+        "--repo",
+        dest="dir",
+        default=None,
+        help="Repo root directory (default: current directory).",
     )
     _p_runs_export.add_argument(
         "--tier",
@@ -2843,8 +2864,13 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="The exported bundle DIRECTORY (the one holding manifest.json).",
     )
+    # tqaxjw: accept --repo as an additive alias of --dir matching aw oc run.
     _p_runs_submit.add_argument(
-        "--dir", default=None, help="Repo root directory (default: current directory)."
+        "--dir",
+        "--repo",
+        dest="dir",
+        default=None,
+        help="Repo root directory (default: current directory).",
     )
     _p_runs_submit.add_argument(
         "--tier",

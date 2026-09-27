@@ -917,6 +917,7 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         empty_error_renderer="shared_empty_result",
         legacy_flags=(
             "--dir",
+            "--repo",
             "--last",
             "--active",
             "--failed",
