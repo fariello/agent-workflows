@@ -9855,6 +9855,9 @@ class ReintegrationOutcome(NamedTuple):
     suite: Any | None = None
     #: Populated only for `REINTEGRATE_AMBIGUOUS_LANE`: the candidates the operator must choose from.
     candidates: tuple[LaneCandidate, ...] = ()
+    #: True when the landed lane RETIRED its plan (superseded/not-executed) rather than executing it,
+    #: so the recorder writes `retired` instead of `executed` (see `RETIRED_STATUS`).
+    retired: bool = False
 
 
 def iter_run_states(repo: Path) -> list[tuple[Path, dict[str, Any]]]:
@@ -9938,26 +9941,49 @@ def lane_holds_finalized_plan(repo: Path, branch: str, id6: str) -> tuple[bool, 
     own tree, never a re-reading of the plan's `- Status:` field.
     """
 
+    bucket, detail = lane_plan_terminal_bucket(repo, branch, id6)
+    return bucket == "executed", detail
+
+
+def lane_plan_terminal_bucket(
+    repo: Path, branch: str, id6: str
+) -> tuple[str | None, str]:
+    """Which TERMINAL bucket ``id6``'s plan reached ON ``branch``: `executed`, a retired bucket
+    (`superseded`/`not-executed`, see `RETIRED_STATUS`), or None. Returns (bucket, detail).
+
+    The shared read behind :func:`lane_holds_finalized_plan`, widened so an out-of-band
+    re-integration can also land a lane whose turn RETIRED its plan (measured: `xts8ux`, whose
+    verified retirement `aw <host> run integrate` refused as "not finalized").
+    """
+
     rc, out, err = _run_git(repo, ["ls-tree", "-r", "--name-only", branch])
     if rc != 0:
-        return False, "could not read the lane branch tree: {0}".format(
+        return None, "could not read the lane branch tree: {0}".format(
             (err or out).strip()
         )
     needle = "-{0}-".format(id6)
     seen: list[str] = []
+    retired_at: tuple[str, str] | None = None
     for line in out.splitlines():
         name = line.strip()
         if not name.endswith(".ipd.md") or needle not in Path(name).name:
             continue
         seen.append(name)
-        if plan_bucket(Path(name)) == "executed":
-            return True, "the plan is finalized on the lane at {0}".format(name)
+        bucket = plan_bucket(Path(name))
+        if bucket == "executed":
+            return "executed", "the plan is finalized on the lane at {0}".format(name)
+        if bucket in RETIRED_PLAN_BUCKETS and retired_at is None:
+            retired_at = (bucket, name)
+    if retired_at is not None:
+        return retired_at[0], "the plan was retired ({0}) on the lane at {1}".format(
+            retired_at[0], retired_at[1]
+        )
     if not seen:
-        return False, (
+        return None, (
             "no plan file for {0} exists on the lane at all, so this lane never finalized "
             "it".format(id6)
         )
-    return False, (
+    return None, (
         "the plan for {0} is on the lane but NOT in executed/ ({1}), so the lane's turn never "
         "finalized it and there is no verified work to integrate".format(
             id6, ", ".join(sorted(seen))
@@ -10106,8 +10132,14 @@ def reintegrate_lane(
             candidate=candidate,
         )
 
-    finalized, detail = lane_holds_finalized_plan(repo, candidate.branch, candidate.id6)
-    if not finalized:
+    # A lane whose turn RETIRED its plan (superseded/not-executed) is landable too: it carries a
+    # verified, tooled lifecycle move and nothing to finalize (see `RETIRED_STATUS`). It still passes
+    # through the SAME suite-revalidated, lock-serialized gate below.
+    terminal_bucket, detail = lane_plan_terminal_bucket(
+        repo, candidate.branch, candidate.id6
+    )
+    retired = terminal_bucket in RETIRED_PLAN_BUCKETS
+    if terminal_bucket != "executed" and not retired:
         return ReintegrationOutcome(
             integrated=False,
             code=REINTEGRATE_PLAN_NOT_FINALIZED,
@@ -10197,6 +10229,7 @@ def reintegrate_lane(
         kind=kind,
         candidate=candidate,
         suite=suite,
+        retired=retired,
     )
 
 
@@ -10228,13 +10261,16 @@ def finish_reintegrated_item(
     it), and this module may not import either runner. Passing None simply skips the close.
     """
 
-    item["status"] = "executed"
+    # A retired lane records `retired`, never `executed`: its plan was decided against, and an
+    # `executed` record would let an `executed:` edge on it be believed (see `RETIRED_STATUS`).
+    landed_status = RETIRED_STATUS if outcome.retired else "executed"
+    item["status"] = landed_status
     item["integrated"] = outcome.reason
     item.pop("recovery_next", None)
     item.pop("requeue_from_status", None)
     attempts = item.get("attempts") or []
     if attempts:
-        attempts[-1]["disposition"] = "executed"
+        attempts[-1]["disposition"] = landed_status
         attempts[-1]["integrated"] = outcome.reason
     with contextlib.suppress(DriverError, OSError):
         item["last_plan_path"] = str(
@@ -10247,7 +10283,7 @@ def finish_reintegrated_item(
         run_dir / "events.jsonl",
         {
             "at": utc_now(),
-            "event": "ipd-finalized",
+            "event": "ipd-retired-integrated" if outcome.retired else "ipd-finalized",
             "id6": item.get("id6"),
             "setid": item.get("setid"),
             "integration": outcome.reason,

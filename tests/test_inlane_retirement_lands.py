@@ -175,3 +175,93 @@ class InLaneRetirementLandsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RetiredLaneReintegrationTests(unittest.TestCase):
+    """`aw <host> run integrate <id6>` lands a lane whose turn RETIRED its plan (measured: `xts8ux`
+    was refused as 'not finalized'), and still refuses a lane whose plan is merely pending."""
+
+    def _retired_lane(self, bucket: str):
+        import pathlib
+        import subprocess
+
+        from tests.test_runner_shared import (
+            _repo_with_pending_plan,
+            _verified_lane,
+            _write_run_state,
+            _stranded_item,
+        )
+
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        root = pathlib.Path(temp.name)
+        repo = _repo_with_pending_plan(root, "rr0001")
+        lane = _verified_lane(repo, root, "rr0001", finalize=False)
+        lane_dir = pathlib.Path(lane["worktree"])
+        name = "20260906-demo-01-rr0001-demo.ipd.md"
+        src = lane_dir / ".aw" / "records" / "plans" / "pending" / name
+        dst = lane_dir / ".aw" / "records" / "plans" / bucket / name
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["git", "mv", str(src), str(dst)], cwd=lane_dir, check=True)
+        subprocess.run(
+            ["git", "commit", "-qm", "retire rr0001"], cwd=lane_dir, check=True
+        )
+        _write_run_state(
+            repo, {"repo": str(repo), "queue": [_stranded_item(lane, "fail-gate")]}
+        )
+        return repo, name
+
+    def _integrate(self, repo, handle, id6, validation_runner):
+        return oc_runipd.integrate_lane_branch(repo, handle, id6, validation_runner)
+
+    def test_retired_lane_reintegrates_and_is_marked_retired(self):
+        from tests.test_runner_shared import _passing_suite
+
+        for bucket in ("superseded", "not-executed"):
+            with self.subTest(bucket=bucket):
+                repo, name = self._retired_lane(bucket)
+                outcome = runner_shared.reintegrate_lane(
+                    repo,
+                    "rr0001",
+                    integrate=self._integrate,
+                    suite_check=_passing_suite,
+                )
+                self.assertTrue(outcome.integrated, outcome.reason)
+                self.assertTrue(outcome.retired)
+                self.assertTrue(
+                    (repo / ".aw" / "records" / "plans" / bucket / name).is_file(),
+                    "the retirement must land on main",
+                )
+                self.assertFalse(
+                    (repo / ".aw" / "records" / "plans" / "executed" / name).exists()
+                )
+
+    def test_finish_records_retired_not_executed(self):
+        item = {
+            "id6": "rr0001",
+            "status": "fail-gate",
+            "attempts": [{"disposition": "fail-gate"}],
+        }
+        state = {"queue": [item]}
+        outcome = runner_shared.ReintegrationOutcome(
+            integrated=True,
+            code=runner_shared.REINTEGRATE_OK,
+            reason="ff",
+            retired=True,
+        )
+        events: list = []
+        with tempfile.TemporaryDirectory() as d:
+            runner_shared.finish_reintegrated_item(
+                repo=Path(d),
+                run_dir=Path(d),
+                state=state,
+                item=item,
+                outcome=outcome,
+                save_state=lambda *a, **k: None,
+                append_jsonl=lambda _p, e: events.append(e),
+            )
+        self.assertEqual(item["status"], runner_shared.RETIRED_STATUS)
+        self.assertEqual(
+            item["attempts"][-1]["disposition"], runner_shared.RETIRED_STATUS
+        )
+        self.assertEqual(events[0]["event"], "ipd-retired-integrated")
