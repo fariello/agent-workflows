@@ -310,6 +310,18 @@ from agent_workflows.runner_shared import (
     queue_plan_path as queue_plan_path,
 )
 from agent_workflows.runner_shared import (
+    queue_entry_type as queue_entry_type,
+)
+from agent_workflows.runner_shared import (
+    queue_artifact_path as queue_artifact_path,
+)
+from agent_workflows.runner_shared import (
+    queue_plan_path_for as queue_plan_path_for,
+)
+from agent_workflows.runner_shared import (
+    refuse_undispatchable_typed_entry as refuse_undispatchable_typed_entry,
+)
+from agent_workflows.runner_shared import (
     queue_with_plan_paths as queue_with_plan_paths,
 )
 from agent_workflows.runner_shared import (
@@ -3768,6 +3780,16 @@ def run_queue(
             save_state(run_dir, state)
             continue
         if runner_shared.skip_dispatch_if_already_landed(
+            Path(state["repo"]),
+            run_dir,
+            state,
+            runnable,
+            save_state=save_state,
+            append_jsonl=append_jsonl,
+        ):
+            save_state(run_dir, state)
+            continue
+        if runner_shared.refuse_undispatchable_typed_entry(
             Path(state["repo"]),
             run_dir,
             state,

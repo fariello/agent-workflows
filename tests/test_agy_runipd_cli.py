@@ -1564,13 +1564,19 @@ class AgyActionLegalityTests(unittest.TestCase):
                     )
                 self.assertIn("illegal", str(ctx.exception))
 
-        for action in ("plan", "execute"):
-            with self.subTest(action=action):
-                with self.assertRaises(agy_runipd.DriverError) as ctx:
-                    agy_runipd.enforce_requested_action(
-                        action, [("a", "to-review", "review")]
-                    )
-                self.assertIn("not implemented", str(ctx.exception))
+        # `plan` has no dispatcher yet, so it is refused as unimplemented.
+        with self.assertRaises(agy_runipd.DriverError) as ctx:
+            agy_runipd.enforce_requested_action("plan", [("a", "to-review", "review")])
+        self.assertIn("not implemented", str(ctx.exception))
+
+        # `execute` over an item whose derived action is not execute is refused as ILLEGAL,
+        # naming the item's real status (8l8dgb E-06), ahead of the not-implemented check.
+        with self.assertRaises(agy_runipd.DriverError) as ctx:
+            agy_runipd.enforce_requested_action(
+                "execute", [("a", "to-review", "review")]
+            )
+        self.assertIn("illegal", str(ctx.exception))
+        self.assertIn("'to-review'", str(ctx.exception))
 
 
 class AgyEmptyReviewSweepTests(unittest.TestCase):

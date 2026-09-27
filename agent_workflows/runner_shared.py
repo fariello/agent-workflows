@@ -2265,6 +2265,60 @@ def skip_dispatch_if_already_landed(
     return True
 
 
+def refuse_undispatchable_typed_entry(
+    repo: Path,
+    run_dir: Path,
+    state: MutableMapping[str, Any],
+    item: dict[str, Any],
+    *,
+    save_state: Callable[[Path, Any], Any],
+    append_jsonl: Callable[..., Any],
+) -> bool:
+    """Refuse a non-IPD entry whose action has no dispatcher yet (artdispatch 8l8dgb E-09).
+
+    One shared definition for both runner hosts (oc_runipd and agy_runipd).
+    Sited ahead of execute_item (before lane allocation, session creation, or agent turns).
+    Returns True if the item was refused item-locally (caller should save_state and continue loop),
+    False if normal dispatch should proceed.
+    """
+    atype = queue_entry_type(item)
+    if atype == "ipd":
+        return False
+
+    action = item.get("action")
+    id6 = str(item.get("id6") or "").strip()
+
+    if atype == "spec" and action == "review":
+        code = "missing-dispatcher-2ptgds"
+        reason = f"spec review for '{id6}' has no dispatcher in this runner version; owned by plan 2ptgds"
+        remedy = "wait for plan 2ptgds to land spec review dispatch or review manually with `aw specs set`"
+    elif action == "plan":
+        code = "missing-dispatcher-aeq7f8-y3p3p5"
+        reason = f"production dispatch (action 'plan') for {atype} '{id6}' has no dispatcher in this runner version; owned by plans aeq7f8/y3p3p5"
+        remedy = "wait for plans aeq7f8/y3p3p5 to land production dispatch"
+    else:
+        code = f"missing-dispatcher-{atype}-{action}"
+        reason = f"{atype} action '{action}' for '{id6}' has no dispatcher in this runner version"
+        remedy = "wait for the corresponding dispatcher plan to land"
+
+    item["status"] = "failed-safely"
+    item["driver_error"] = reason
+    record_refusal(item, code=code, reason=reason, remedy=remedy)
+    append_jsonl(
+        run_dir / "events.jsonl",
+        {
+            "at": utc_now(),
+            "event": "item-refused",
+            "id6": id6,
+            "status": "failed-safely",
+            "code": code,
+            "reason": reason,
+        },
+    )
+    print(f"[{id6}] refused: {reason}", file=sys.stderr)
+    return True
+
+
 # ---- the REVIEW SWEEP LANE ------------------------------------------------------------------------
 # dirtygates Order 05 (`ajxr5d`) E-02/E-04/E-11, OQ-02 + OQ-04 (both resolved by the maintainer).
 #
@@ -11226,6 +11280,83 @@ def build_dynamic_manifest(
     }
 
 
+def populate_manifest_specs(manifest: dict[str, Any], repo: Path) -> dict[str, Any]:
+    """Populate manifest['specs'] lazily from discover_specs (artdispatch 8l8dgb E-03)."""
+    if "specs" in manifest:
+        return manifest["specs"]
+    specs_dict: dict[str, Any] = {}
+    from agent_workflows import check_engine as _ce
+
+    for id6, rec in discover_specs(repo).items():
+        blocks_release = None
+        try:
+            text = (repo / rec.file).read_text(encoding="utf-8")
+            mbr = _ce._META_BLOCKS_RELEASE_RE.search(text)
+            if mbr:
+                blocks_release = mbr.group(1).strip()
+        except OSError:
+            pass
+        specs_dict[id6] = {
+            "file": rec.file,
+            "status": rec.status,
+            "set": "",
+            "blocks_release": blocks_release,
+        }
+    manifest["specs"] = specs_dict
+    return specs_dict
+
+
+def populate_manifest_backlog(manifest: dict[str, Any], repo: Path) -> dict[str, Any]:
+    """Populate manifest['backlog'] lazily from backlog._iter_items + parse_item (artdispatch 8l8dgb E-03)."""
+    if "backlog" in manifest:
+        return manifest["backlog"]
+    backlog_dict: dict[str, Any] = {}
+    from agent_workflows import backlog as _backlog
+
+    root = repo.resolve()
+    for p in _backlog._iter_items(root):
+        try:
+            text = p.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        item = _backlog.parse_item(text)
+        if not item or not item.id:
+            continue
+        try:
+            rel = str(p.resolve().relative_to(root)).replace("\\", "/")
+        except (ValueError, OSError):
+            rel = p.name
+        backlog_dict[item.id] = {
+            "file": rel,
+            "status": item.status or "",
+            "set": item.set or "",
+            "blocks_release": item.blocks_release,
+        }
+    manifest["backlog"] = backlog_dict
+    return backlog_dict
+
+
+def lookup_manifest_artifact(
+    manifest: dict[str, Any], repo: Path, id6: str
+) -> tuple[str, dict[str, Any]]:
+    """Look up an artifact across plans, specs, and backlog maps, populating lazily if needed (artdispatch 8l8dgb E-03)."""
+    if "plans" in manifest and id6 in manifest["plans"]:
+        return "ipd", manifest["plans"][id6]
+    if "specs" in manifest and id6 in manifest["specs"]:
+        return "spec", manifest["specs"][id6]
+    if "backlog" in manifest and id6 in manifest["backlog"]:
+        return "backlog", manifest["backlog"][id6]
+    if "specs" not in manifest:
+        populate_manifest_specs(manifest, repo)
+        if id6 in manifest.get("specs", {}):
+            return "spec", manifest["specs"][id6]
+    if "backlog" not in manifest:
+        populate_manifest_backlog(manifest, repo)
+        if id6 in manifest.get("backlog", {}):
+            return "backlog", manifest["backlog"][id6]
+    raise DriverError(f"No manifest entry found for artifact '{id6}'")
+
+
 def discover_plans(
     repo: Path,
 ) -> dict[str, Any]:
@@ -11538,22 +11669,15 @@ def resolve_run_types(values: Any) -> tuple[str, ...]:
     return tuple(t for t in RUN_TYPE_CHOICES if t in named)
 
 
-def refuse_unsweepable_run_types(types: Any) -> None:
-    """REFUSE a `--type` the review sweep cannot enumerate, before any durable state exists.
+def refuse_unsweepable_run_types(types: Any, selectors: Any = None) -> None:
+    """REFUSE a type the review sweep cannot enumerate, before any state is written.
 
-    Spec 2.1 DECLARES seven types and the shipped sweep serves two, so the grammar is deliberately
-    wider than the implementation. This is the same shape `--action` already ships
-    (:data:`ACTION_CHOICES` is three values, :data:`ACTION_IMPLEMENTED` is one, and
-    `enforce_requested_action` refuses the rest by name): argparse accepts what the SPEC declares, so
-    an operator reading the spec is not told the flag does not exist, and the refusal then states the
-    real reason.
-
-    THE ALTERNATIVE THAT MUST NEVER BE CHOSEN is accepting the value and sweeping nothing, which
-    `sweep_review_candidates_for_type`'s fail-safe `return []` would do on its own. An operator who
-    types `--type research` and gets a successful empty `reviews` has been told a falsehood about
-    what the run enforced - the exact failure :func:`refuse_unimplemented_run_flags` exists to
-    prevent, and it would be perverse to reintroduce it in a quieter form.
+    Narrowed (artdispatch 8l8dgb E-05) to fire only for a review selector: backlog has no review
+    action in spec 25kzda 3.4, so `reviews --type backlog` stays a refusal, while `all --type backlog`
+    is admitted.
     """
+    if selectors is not None and not is_review_selector(selectors):
+        return
 
     unsupported = [t for t in (types or ()) if t not in RUN_TYPE_SWEEPABLE]
     if not unsupported:
@@ -11599,19 +11723,10 @@ def resolve_selected_artifact_paths(
 ) -> TypedSelection:
     """Resolve selected ids to files, keeping PLAN paths distinguishable from the rest.
 
-    ``types`` is the effective type set (:func:`resolve_run_types`); for the IPD-only default this
-    resolves exactly as the single-list code it replaces did, through `resolve_plan_path` against the
-    manifest entry, so no existing invocation's behavior moves.
-
-    A SPEC IS RESOLVED THROUGH `discover_specs`, NOT THROUGH `resolve_plan_path`, and that is a
-    correctness requirement rather than tidiness: `resolve_plan_path` FAILS OPEN. Its `selectors`
-    branch can return a `.spec.md` path with no diagnostic (measured and recorded in superseded plan
-    `mng63x`'s review), so routing a spec through it would produce a spec path that every later
-    plan-shaped reader treats as a plan, silently. Resolving each type through its OWN discovery
-    authority keeps the type of a path a fact rather than an inference.
+    Gated on the typed entry's OWN type rather than on the --type set (artdispatch 8l8dgb E-05),
+    so a spec or backlog item named without --type resolves to its real path and is visible to
+    the mixed-type gate.
     """
-
-    effective = resolve_run_types(types)
     plan_paths: list[Path] = []
     all_paths: list[Path] = []
     unresolved: list[str] = []
@@ -11619,7 +11734,8 @@ def resolve_selected_artifact_paths(
 
     for id6 in list(queue_ids or ()):
         resolved: Path | None = None
-        if "ipd" in effective and id6 in manifest.get("plans", {}):
+
+        if "plans" in manifest and id6 in manifest["plans"]:
             try:
                 resolved = resolve_plan_path(
                     repo, manifest["plans"][id6].get("file", ""), id6
@@ -11628,12 +11744,37 @@ def resolve_selected_artifact_paths(
                 resolved = None
             if resolved is not None:
                 plan_paths.append(resolved)
-        if resolved is None and "spec" in effective:
-            if specs is None:
-                specs = discover_specs(repo)
-            record = specs.get(id6)
-            if record is not None:
-                resolved = record.path
+
+        if resolved is None:
+            if "specs" in manifest and id6 in manifest["specs"]:
+                try:
+                    f = manifest["specs"][id6].get("file", "")
+                    cand = repo / f
+                    if cand.is_file():
+                        resolved = cand.resolve()
+                except Exception:
+                    resolved = None
+            if resolved is None:
+                if specs is None:
+                    specs = discover_specs(repo)
+                record = specs.get(id6)
+                if record is not None:
+                    resolved = record.path.resolve()
+
+        if resolved is None:
+            if "backlog" in manifest and id6 in manifest["backlog"]:
+                try:
+                    f = manifest["backlog"][id6].get("file", "")
+                    cand = repo / f
+                    if cand.is_file():
+                        resolved = cand.resolve()
+                except Exception:
+                    resolved = None
+            if resolved is None:
+                resolved = resolve_backlog_item(repo, id6)
+                if resolved is not None:
+                    resolved = resolved.resolve()
+
         if resolved is None:
             unresolved.append(id6)
             continue
@@ -11646,31 +11787,16 @@ def resolve_selected_artifact_paths(
     )
 
 
+QUEUEABLE_TYPES: frozenset[str] = frozenset({"ipd", "spec", "backlog"})
+
+
 def refuse_unrunnable_selected_types(types: Any, selection: TypedSelection) -> None:
-    """REFUSE a selection holding an artifact the runner can SELECT but cannot RUN, before any state.
+    """REFUSE a selection holding an artifact with no queue representation (artdispatch 8l8dgb E-05).
 
-    THE HONEST LIMIT OF specsweep-01 (`ui8b9b`), enforced rather than merely documented. That plan
-    delivers REACHABILITY: `--type spec` now selects the specs awaiting review. It deliberately does
-    NOT deliver EXECUTION, because a queue entry is PLAN-SHAPED - the manifest is compiled from
-    discovered plans only, `initialize_run_core`'s queue build reads `manifest["plans"][id6]`, and
-    `resolve_plan_path` fails open on a non-plan path. Spec `z7nbn1` (universal artifact dispatch)
-    owns that remainder and carries its own release gate.
-
-    SO THE CHOICE HERE IS BETWEEN THREE HONEST-TO-VARYING-DEGREES OUTCOMES, and the refusal is the
-    only one that is honest at all. Letting the queue build proceed raises `KeyError` - an unhandled
-    traceback out of a flag we just shipped. Synthesizing a plan-shaped entry for the spec hands it to
-    code that assumes a plan at many call sites, and because `resolve_plan_path` fails OPEN that
-    failure would be SILENT rather than loud, which is strictly worse than the crash. Refusing states
-    the real boundary at the one moment an operator could otherwise mistake selection for execution.
-
-    IT IS SITED AFTER THE MIXED-TYPE GATE ON PURPOSE (`initialize_run_core`). A genuinely mixed
-    selection must meet spec 2.5's `[RUN-MIXED-TYPES]` refusal FIRST, because that gate is about the
-    operator's INTENT ("did you mean to span two types?") while this refusal is about the runner's
-    CAPABILITY. Pre-empting the gate would hide the intent question behind an implementation limit.
+    Narrowed to refuse only types that have no queue representation: prompt, research, release, walkthrough.
     """
-
     effective = tuple(types or ())
-    unrunnable = [t for t in effective if t != "ipd"]
+    unrunnable = [t for t in effective if t not in QUEUEABLE_TYPES]
     if not unrunnable:
         return
     named = ", ".join(p.name for p in selection.all_paths) or "(none resolved)"
@@ -11685,37 +11811,31 @@ def refuse_unrunnable_selected_types(types: Any, selection: TypedSelection) -> N
     )
 
 
+RUN_TYPE_ALLOWED_OUTSIDE_REVIEW: frozenset[str] = frozenset({"ipd", "spec", "backlog"})
+
+
 def refuse_type_scoping_outside_the_review_sweep(types: Any, selectors: Any) -> None:
-    """REFUSE `--type` on a selector that does not honor it yet, rather than ignoring it silently.
+    """REFUSE `--type` on a selector that does not honor it yet (artdispatch 8l8dgb E-05).
 
-    Spec 2.3 step 2 gives `--type` meaning for `all` and for a bare selector as well as for the
-    review sweep, and only the REVIEW sweep is type-scoped in shipped code: both hosts' `all` branch
-    and named-selector branch read the manifest, which `build_dynamic_manifest` compiles from
-    discovered PLANS only.
-
-    THIS REFUSAL IS MORE IMPORTANT THAN THE UNSWEEPABLE-TYPE ONE ABOVE, and the reason is the
-    asymmetry: `--type spec` genuinely WORKS on `reviews`, so an operator has every reason to believe
-    it worked on `all` too, and a silent no-op there would quietly hand them an IPD-only run they
-    believe was type-scoped. A flag that works on one selector and is ignored on another is worse
-    than a flag that does not exist.
-
-    An explicitly DEFAULT type set (`ipd`, i.e. no flag passed) is never refused: the default is what
-    every selector already means.
+    Admits --type spec and --type backlog on `all` and on named selectors. Still refuses
+    prompt, research, release, walkthrough.
     """
-
     effective = tuple(types or ())
     if not effective or effective == RUN_TYPE_DEFAULT:
         return
     if is_review_selector(selectors):
         return
+    unsupported = [t for t in effective if t not in RUN_TYPE_ALLOWED_OUTSIDE_REVIEW]
+    if not unsupported:
+        return
     raise RunFlagRefusal(
-        f"--type {', '.join(effective)} is not honored by this selector. Only the needs-review "
+        f"--type {', '.join(unsupported)} is not honored by this selector. Only the needs-review "
         "sweep (`reviews`/`review`/`to-review`) is type-scoped today; `all` and a named selector "
         "resolve against the run manifest, which is compiled from the plans trees only, so a type "
         "here would be silently ignored rather than applied. Spec 25kzda 2.3's type scoping for "
         "those selectors is owned by spec z7nbn1 (universal artifact dispatch). To sweep another "
         "type's review queue, run: aw <host> run reviews --type "
-        f"{effective[0]}. No work started"
+        f"{unsupported[0]}. No work started"
     )
 
 
@@ -12095,31 +12215,46 @@ def expand_selectors(
         return expanded
 
     if len(selectors_list) == 1 and selectors_list[0].lower() == "all":
+        effective = tuple(
+            resolve_run_types(types) if types is not None else RUN_TYPE_DEFAULT
+        )
         expanded: list[str] = []
         seen: set[str] = set()
-        # setidsel (`7ap6ku`): `all` keeps its OWN, STRICTER test, and the difference from the
-        # selector admission test below is deliberate rather than an oversight. `all` means "sweep
-        # everything actionable", so it must additionally exclude a plan that is finished
-        # (`executed`) or standing (`reusable`) or status-less, none of which anyone asked for by
-        # name. A NAMED selector cannot use this stricter rule: an `executed` plan is a legitimate
-        # queue member when a dependent declares `executed:<id6>` on it, and a status-less entry is
-        # normal in a hand-written manifest. So the shared predicate refuses only the DELIBERATELY
-        # RETIRED, and this branch narrows further on its own behalf.
-        _is_actionable = manifest_entry_is_sweepable
+        effective_repo = Path(repo) if repo is not None else Path(".")
 
-        # 1. Walk sets in manifest in defined order
-        for _setid, group in sets.items():
-            for id6 in group.get("order", []):
-                p = plans.get(id6, {})
-                if _is_actionable(p):
-                    if id6 not in seen:
+        if "spec" in effective:
+            populate_manifest_specs(manifest, effective_repo)
+            from agent_workflows import run_selection_policy as _policy
+
+            for id6, s_info in manifest.get("specs", {}).items():
+                act = _policy.runner_action("spec", s_info.get("status", ""))
+                if act != "skip" and id6 not in seen:
+                    expanded.append(id6)
+                    seen.add(id6)
+
+        if "backlog" in effective:
+            populate_manifest_backlog(manifest, effective_repo)
+            from agent_workflows import run_selection_policy as _policy
+
+            for id6, b_info in manifest.get("backlog", {}).items():
+                act = _policy.runner_action("backlog", b_info.get("status", ""))
+                if act != "skip" and id6 not in seen:
+                    expanded.append(id6)
+                    seen.add(id6)
+
+        if "ipd" in effective:
+            _is_actionable = manifest_entry_is_sweepable
+            # 1. Walk sets in manifest in defined order
+            for _setid, group in sets.items():
+                for id6 in group.get("order", []):
+                    p = plans.get(id6, {})
+                    if _is_actionable(p) and id6 not in seen:
                         expanded.append(id6)
                         seen.add(id6)
 
-        # 2. Standalone plans in manifest
-        for id6, p in plans.items():
-            if id6 not in seen:
-                if _is_actionable(p):
+            # 2. Standalone plans in manifest
+            for id6, p in plans.items():
+                if id6 not in seen and _is_actionable(p):
                     expanded.append(id6)
                     seen.add(id6)
 
@@ -12164,9 +12299,30 @@ def expand_selectors(
             except OSError:
                 pass
 
+        effective_repo = Path(repo) if repo is not None else Path(".")
+        from agent_workflows import selectors as _sel
+
         if matched_file_id:
             candidates = [matched_file_id]
         elif sel_str in plans:
+            candidates = [sel_str]
+        elif (
+            len(sel_str) == 6
+            and sel_str.isalnum()
+            and _sel.resolve(
+                effective_repo, "specs", sel_str, allow=frozenset({_sel.MATCH_ID6})
+            ).paths
+        ):
+            populate_manifest_specs(manifest, effective_repo)
+            candidates = [sel_str]
+        elif (
+            len(sel_str) == 6
+            and sel_str.isalnum()
+            and _sel.resolve(
+                effective_repo, "backlog", sel_str, allow=frozenset({_sel.MATCH_ID6})
+            ).paths
+        ):
+            populate_manifest_backlog(manifest, effective_repo)
             candidates = [sel_str]
         elif sel_str in sets:
             matched_set = sel_str
@@ -12181,34 +12337,27 @@ def expand_selectors(
                     f"Ambiguous Set selector prefix: {sel_str} matches {prefix_matches}"
                 )
             else:
-                # graduate-02 (`iuxtjy`) E-02: THE TYPED SPEC BRANCH, AHEAD OF THE FILENAME-SUBSTRING
-                # FALLBACK BELOW, and the ORDER is the correctness content rather than the branch
-                # (F-13). The fallback matches a spec's own id6 inside an adopting plan's filename, so
-                # naming a spec selected a PLAN ABOUT it - measured at execution time for five
-                # discoverable spec id6s, two of them silently. Sited after the exact-plan and Set
-                # branches (verified: no discoverable spec id6 is a plan id6, a Set name, or a Set
-                # prefix, so this steals nothing) and before the fallback, where it is the only
-                # position that actually fixes the unambiguous cases. Shared with the agy host; do not
-                # fork the logic here.
                 spec_match = match_spec_selector(repo, sel_str, plans)
                 if spec_match is not None:
-                    raise DriverError(
-                        describe_spec_selector_refusal(spec_match, labels=labels)
-                    )
-                matching_plans = [
-                    id6
-                    for id6, p in plans.items()
-                    if sel_str in p.get("file", "")
-                    or sel_str in Path(p.get("file", "")).name
-                ]
-                if len(matching_plans) == 1:
-                    candidates = matching_plans
-                elif len(matching_plans) > 1:
-                    raise DriverError(
-                        f"Ambiguous filename selector: {sel_str} matches multiple plans: {matching_plans}"
-                    )
+                    populate_manifest_specs(manifest, effective_repo)
+                    candidates = [spec_match.id6]
                 else:
-                    raise DriverError(describe_unresolved_plan_selector(repo, sel_str))
+                    matching_plans = [
+                        id6
+                        for id6, p in plans.items()
+                        if sel_str in p.get("file", "")
+                        or sel_str in Path(p.get("file", "")).name
+                    ]
+                    if len(matching_plans) == 1:
+                        candidates = matching_plans
+                    elif len(matching_plans) > 1:
+                        raise DriverError(
+                            f"Ambiguous filename selector: {sel_str} matches multiple plans: {matching_plans}"
+                        )
+                    else:
+                        raise DriverError(
+                            describe_unresolved_plan_selector(repo, sel_str)
+                        )
 
         if matched_set is not None and not candidates:
             raise DriverError(
@@ -12236,6 +12385,13 @@ def expand_selectors(
         explicit_plan = matched_set is None and len(candidates) == 1
         for id6 in candidates:
             if id6 in seen:
+                continue
+            is_non_plan = (manifest.get("specs") and id6 in manifest["specs"]) or (
+                manifest.get("backlog") and id6 in manifest["backlog"]
+            )
+            if is_non_plan:
+                expanded.append(id6)
+                seen.add(id6)
                 continue
             if not manifest_entry_is_selectable(plans.get(id6, {})):
                 if explicit_plan:
@@ -14921,15 +15077,32 @@ def enforce_no_active_runner_conflict(
         except Exception:
             pass
 
-    if manifest and "plans" in manifest:
+    if manifest:
         for id6 in queue_ids:
-            if id6 not in id_to_path and id6 in manifest["plans"]:
-                try:
-                    f = manifest["plans"][id6].get("file", "")
-                    if f:
-                        id_to_path[id6] = resolve_plan_path(repo, f, id6)
-                except Exception:
-                    pass
+            if id6 not in id_to_path:
+                if "plans" in manifest and id6 in manifest["plans"]:
+                    try:
+                        f = manifest["plans"][id6].get("file", "")
+                        if f:
+                            id_to_path[id6] = resolve_plan_path(repo, f, id6)
+                    except Exception:
+                        pass
+                elif "specs" in manifest and id6 in manifest["specs"]:
+                    try:
+                        f = manifest["specs"][id6].get("file", "")
+                        cand = repo / f
+                        if cand.is_file():
+                            id_to_path[id6] = cand.resolve()
+                    except Exception:
+                        pass
+                elif "backlog" in manifest and id6 in manifest["backlog"]:
+                    try:
+                        f = manifest["backlog"][id6].get("file", "")
+                        cand = repo / f
+                        if cand.is_file():
+                            id_to_path[id6] = cand.resolve()
+                    except Exception:
+                        pass
 
     for id6 in queue_ids:
         path = id_to_path.get(id6)
@@ -14964,18 +15137,30 @@ def enforce_no_active_runner_conflict(
     found_ids = {it.id for it in items}
     for id6 in conflicting_ids:
         if id6 not in found_ids:
-            plan_info = (
-                manifest["plans"].get(id6, {})
-                if manifest and "plans" in manifest
-                else {}
-            )
-            cfg = plan_info.get("file", "")
-            st = plan_info.get("status", "to-review")
+            if manifest and "plans" in manifest and id6 in manifest["plans"]:
+                plan_info = manifest["plans"].get(id6, {})
+                cfg = plan_info.get("file", "")
+                st = plan_info.get("status", "to-review")
+                tree = "plans"
+            elif manifest and "specs" in manifest and id6 in manifest["specs"]:
+                spec_info = manifest["specs"].get(id6, {})
+                cfg = spec_info.get("file", "")
+                st = spec_info.get("status", "to-review")
+                tree = "specs"
+            elif manifest and "backlog" in manifest and id6 in manifest["backlog"]:
+                bk_info = manifest["backlog"].get(id6, {})
+                cfg = bk_info.get("file", "")
+                st = bk_info.get("status", "open")
+                tree = "backlog"
+            else:
+                cfg = ""
+                st = "unknown"
+                tree = "plans"
             items.append(
                 attention.Item(
                     id=id6,
                     path=cfg,
-                    tree="plans",
+                    tree=tree,
                     native_status=st,
                     attention_class="ready",
                     gate=None,
@@ -17409,6 +17594,8 @@ def enforce_spec_edit_ack_gate(
     # Fail-closed accounting for unlocatable/unreadable plan files
     unreadable_items: list[dict[str, Any]] = []
     for item in queue:
+        if queue_entry_type(item) != "ipd":
+            continue
         p = queue_plan_path(repo, item)
         if p is None:
             unreadable_items.append(item)
@@ -17955,8 +18142,17 @@ def initial_queue_status(status: str | None, *, action: str | None = None) -> st
     An entry with action `skip` that would otherwise start `queued` is therefore frozen as `not-run`.
     """
     norm = (status or "").lower().strip()
-    if action == "skip" and norm in NON_TERMINAL_QUEUE_STATUSES:
-        return "not-run"
+    # A plan with status 'reviewed' waiting for human approval is frozen 'reviewed' (not dispatched).
+    if norm == "reviewed" and action != "review":
+        return "reviewed"
+    if action == "skip":
+        if norm in NON_TERMINAL_QUEUE_STATUSES:
+            return "not-run"
+        if norm in TERMINAL_QUEUE_STATUSES:
+            return norm
+        return "reviewed"
+    if action in {"review", "execute", "plan", "orchestrate", "undetermined"}:
+        return "queued"
     if norm in NON_TERMINAL_QUEUE_STATUSES:
         return "queued"
     if norm in TERMINAL_QUEUE_STATUSES:
@@ -24034,6 +24230,12 @@ SKIP_REPORTING_SUCCESS_STATES: frozenset[str] = frozenset(
     {"not-run", "executed", "reviewed", "superseded", "not-executed"}
 )
 
+#: The reporting success bar for a `plan` action (artdispatch 8l8dgb E-07). A production turn that
+#: successfully produced a plan leaves it reviewed (or approved/executed).
+PLAN_REPORTING_SUCCESS_STATES: frozenset[str] = frozenset(
+    {"reviewed", "approved", "executed"}
+)
+
 
 def success_states_for_action(action: str | None) -> Container[str]:
     """The REPORTING success bar for ONE item, given the ACTION it was queued for (zz5yxq E-02, 7icz68 E-07).
@@ -24071,6 +24273,8 @@ def success_states_for_action(action: str | None) -> Container[str]:
         return SUCCESS_STATES
     if action == "skip":
         return SKIP_REPORTING_SUCCESS_STATES
+    if action == "plan":
+        return PLAN_REPORTING_SUCCESS_STATES
     return EXECUTE_REPORTING_SUCCESS_STATES
 
 
@@ -24580,6 +24784,19 @@ def enforce_requested_action(
         raise DriverError(
             f"Unknown --action {action!r}; expected one of: {', '.join(ACTION_CHOICES)}"
         )
+    illegal = [
+        (id6, status, derived) for id6, status, derived in items if derived != action
+    ]
+    if illegal and action == "execute":
+        detail = ", ".join(
+            f"{id6} (status {status!r} -> action {derived!r})"
+            for id6, status, derived in illegal
+        )
+        raise DriverError(
+            f"--action execute is illegal for {len(illegal)} selected item(s): {detail}. "
+            "Execute is legal only for approved, auto-approved, or reusable IPDs. "
+            f"No run was started. To review instead, run: {labels.review_command} <selector>"
+        )
     if action not in ACTION_IMPLEMENTED:
         raise DriverError(
             f"--action {action} is not implemented yet. Only --action review is available; "
@@ -24587,9 +24804,6 @@ def enforce_requested_action(
             "this runner does not have. No run was started. To review instead, run: "
             f"{labels.review_command} <selector>"
         )
-    illegal = [
-        (id6, status, derived) for id6, status, derived in items if derived != action
-    ]
     if illegal:
         detail = ", ".join(
             f"{id6} (status {status!r} -> action {derived!r})"
@@ -25436,7 +25650,7 @@ def initialize_run_core(
     # Resolved ONCE here and threaded, rather than re-derived per consumer, because a second
     # resolution is a second place the normative IPD-only default could be widened by omission.
     run_types = resolve_run_types(getattr(args, "types", None))
-    refuse_unsweepable_run_types(run_types)
+    refuse_unsweepable_run_types(run_types, args.selectors)
     refuse_type_scoping_outside_the_review_sweep(run_types, args.selectors)
     report_untracked_dirt_at_run_start(repo)
     report_invalid_board_at_run_start(repo)
@@ -25515,36 +25729,39 @@ def initialize_run_core(
 
     requested_action = getattr(args, "action", None)
     if requested_action is not None:
+        # artdispatch 8l8dgb E-06: Preflight reads each id's status and action from its own typed map,
+        # so legality agrees with dispatch and `--action review` on a spec or backlog item checks its real
+        # action rather than fabricating `approved` -> `execute`.
+        from agent_workflows import run_selection_policy as _policy
+
         preflight_items: list[tuple[str, str, str]] = []
         for id6 in queue_ids:
-            plan_info = manifest["plans"].get(id6, {})
-            st = plan_info.get("status")
-            probe_path = None
-            try:
-                probe_path = resolve_plan_path(repo, plan_info.get("file", ""), id6)
-            except Exception:
+            atype, item_info = lookup_manifest_artifact(manifest, repo, id6)
+            if atype == "ipd":
+                st = item_info.get("status")
                 probe_path = None
-            if not st and probe_path is not None:
                 try:
-                    rec_probe = parse_plan_file(probe_path, repo)
-                    st = rec_probe.status if rec_probe else None
+                    probe_path = resolve_plan_path(repo, item_info.get("file", ""), id6)
                 except Exception:
-                    st = None
-            st = st or "approved"
-            # E-05 (F-11): Legality check deliberately treats draft as review so `aw oc review <id6>`
-            # (expanding to `--action review`) starts rather than raising DriverError on a named draft.
-            # Dispatch (the queue loop below) derives `skip` for an incomplete draft.
-            preflight_items.append(
-                (
-                    id6,
+                    probe_path = None
+                if not st and probe_path is not None:
+                    try:
+                        rec_probe = parse_plan_file(probe_path, repo)
+                        st = rec_probe.status if rec_probe else None
+                    except Exception:
+                        st = None
+                st = st or "approved"
+                act = action_for(
+                    resolve_manifest_kind(item_info, probe_path),
                     st,
-                    action_for(
-                        resolve_manifest_kind(plan_info, probe_path),
-                        st,
-                        for_legality=True,
-                    ),
+                    for_legality=True,
                 )
-            )
+            else:
+                st = item_info.get("status") or (
+                    "to-review" if atype == "spec" else "open"
+                )
+                act = _policy.runner_action(atype, st, for_legality=True)
+            preflight_items.append((id6, st, act))
         action_labels = (
             labels
             if labels is not None
@@ -25586,62 +25803,94 @@ def initialize_run_core(
     queue: list[dict[str, Any]] = []
     full_auto = getattr(args, "full_auto", False)
     for position, id6 in enumerate(queue_ids, start=1):
-        plan = manifest["plans"][id6]
-        setid = plan["set"]
-        if initial_session:
-            set_sessions[setid] = initial_session
+        atype, item_info = lookup_manifest_artifact(manifest, repo, id6)
+        if atype == "ipd":
+            plan = item_info
+            setid = plan.get("set", "")
+            if initial_session and setid:
+                set_sessions[setid] = initial_session
 
-        status = plan.get("status")
-        p_path = None
-        rec = None
-        try:
-            p_path = resolve_plan_path(repo, plan.get("file", ""), id6)
-            rec = parse_plan_file(p_path, repo)
-            if rec and not status:
-                status = rec.status
-        except Exception:
-            if not status:
-                status = "approved"
-
-        if status == "reviewed" and full_auto and p_path:
+            status = plan.get("status")
+            p_path = None
+            rec = None
             try:
-                if is_plan_review_approved_fn(p_path):
-                    set_plan_approved_fn(repo, id6)
-                    status = "auto-approved"
+                p_path = resolve_plan_path(repo, plan.get("file", ""), id6)
+                rec = parse_plan_file(p_path, repo)
+                if rec and not status:
+                    status = rec.status
             except Exception:
-                pass
+                if not status:
+                    status = "approved"
 
-        kind = resolve_manifest_kind(plan, p_path)
-        norm_st = (status or "approved").strip().lower()
-        complete = None
-        if norm_st == "draft":
-            complete = plan_authoring_complete(repo, str(plan.get("file", "")))
-        action = action_for(kind, status or "approved", authoring_complete=complete)
-        queue.append(
-            {
-                "position": position,
-                "id6": id6,
-                "setid": setid,
-                "configured_file": plan["file"],
-                "dependencies": plan.get("dependencies", []),
-                "kind": kind,
-                "order": plan.get("order"),
-                "from_backlog": plan.get("from_backlog")
-                or (getattr(rec, "from_backlog", None) if p_path else None),
-                "initial_status": status or "approved",
-                "action": action,
-                "status": initial_queue_status(status, action=action),
-                "attempts": [],
-                # zz5yxq E-03: the needs-approval fact, made EXPLICIT and DURABLE at queue-build time
-                # rather than left implicit in the queue status. It was already implicit here (an item
-                # whose plan status is outside `NON_TERMINAL_QUEUE_STATUSES` is frozen `reviewed` and
-                # never dispatched), but a fact a reporting surface has to INFER is a fact that gets
-                # reported differently by each surface. Children 02/03 of this Set print and count it,
-                # so it is named once, here, under the token the package already ships for this
-                # meaning (`run_gates.GATE_STATUS_NEEDS_INPUT`).
-                NEEDS_INPUT_KEY: item_needs_approval(status, action),
-            }
-        )
+            if status == "reviewed" and full_auto and p_path:
+                try:
+                    if is_plan_review_approved_fn(p_path):
+                        set_plan_approved_fn(repo, id6)
+                        status = "auto-approved"
+                except Exception:
+                    pass
+
+            kind = resolve_manifest_kind(plan, p_path)
+            norm_st = (status or "approved").strip().lower()
+            complete = None
+            if norm_st == "draft":
+                complete = plan_authoring_complete(repo, str(plan.get("file", "")))
+            action = action_for(kind, status or "approved", authoring_complete=complete)
+            queue.append(
+                {
+                    "position": position,
+                    "id6": id6,
+                    "setid": setid,
+                    "configured_file": plan["file"],
+                    "artifact_type": "ipd",
+                    "dependencies": plan.get("dependencies", []),
+                    "kind": kind,
+                    "order": plan.get("order"),
+                    "from_backlog": plan.get("from_backlog")
+                    or (getattr(rec, "from_backlog", None) if p_path else None),
+                    "initial_status": status or "approved",
+                    "action": action,
+                    "status": initial_queue_status(status, action=action),
+                    "attempts": [],
+                    # zz5yxq E-03: the needs-approval fact, made EXPLICIT and DURABLE at queue-build time
+                    # rather than left implicit in the queue status. It was already implicit here (an item
+                    # whose plan status is outside `NON_TERMINAL_QUEUE_STATUSES` is frozen `reviewed` and
+                    # never dispatched), but a fact a reporting surface has to INFER is a fact that gets
+                    # reported differently by each surface. Children 02/03 of this Set print and count it,
+                    # so it is named once, here, under the token the package already ships for this
+                    # meaning (`run_gates.GATE_STATUS_NEEDS_INPUT`).
+                    NEEDS_INPUT_KEY: item_needs_approval(status, action),
+                }
+            )
+        else:
+            # artdispatch 8l8dgb E-03: Typed non-plan artifact (spec or backlog)
+            status = item_info.get("status") or (
+                "to-review" if atype == "spec" else "open"
+            )
+            setid = item_info.get("set", "")
+            if initial_session and setid:
+                set_sessions[setid] = initial_session
+            from agent_workflows import run_selection_policy as _policy
+
+            action = _policy.runner_action(atype, status)
+            queue.append(
+                {
+                    "position": position,
+                    "id6": id6,
+                    "setid": setid,
+                    "configured_file": item_info.get("file", ""),
+                    "artifact_type": atype,
+                    "dependencies": [],
+                    "kind": None,
+                    "order": None,
+                    "from_backlog": None,
+                    "initial_status": status,
+                    "action": action,
+                    "status": initial_queue_status(status, action=action),
+                    "attempts": [],
+                    NEEDS_INPUT_KEY: False,
+                }
+            )
 
     # orchtyped-03 (`0xmk4e`) E-01/E-02: THE PRE-QUEUE ORCHESTRATOR SHAPE GATE, sited HERE ahead
     # of run directory creation, sessions, worktrees, and ahead of the semantic coverage probe.
@@ -28175,7 +28424,7 @@ def execute_item_core(
         raise DriverError(
             f"Cannot execute item {item.get('id6', '<unknown>')}: invalid action {action!r} (expected 'review' or 'execute')"
         )
-    plan_path = resolve_plan_path(repo, item.get("configured_file", ""), item["id6"])
+    plan_path = queue_plan_path_for(repo, item)
     attempt_no = len(item.get("attempts", [])) + 1
     is_review = action == "review"
 
@@ -32550,6 +32799,15 @@ def dependency_depth(id6: str, by_id: dict[str, dict[str, Any]]) -> int:
     return _depth(id6, frozenset())
 
 
+#: Type rank for queue ordering (spec 25kzda 5.4 rule 4, artdispatch 8l8dgb E-03).
+TYPE_RANK: dict[str, int] = {
+    "spec": 0,
+    "backlog": 1,
+    "ipd": 2,
+    "prompt": 3,
+}
+
+
 def queue_sort_key(item: dict[str, Any], by_id: dict[str, dict[str, Any]]) -> tuple:
     """Deterministic ordering key for READY nodes (spec 25kzda 5.4 rules 4-5).
 
@@ -32580,19 +32838,16 @@ def queue_sort_key(item: dict[str, Any], by_id: dict[str, dict[str, Any]]) -> tu
     the MANIFEST, so callers that report ordering to a human must say "requested order" rather than
     claim a typed one (see `run_order_rationale`).
 
-    Spec 5.4 rule 4 also lists a TYPE RANK (`spec`, `backlog`, `ipd`, `prompt`) ahead of Set. It is
-    deliberately NOT implemented: this runner's queue is homogeneous (IPDs only), so a rank over types
-    that cannot appear would be untestable dead code. Recorded rather than silently skipped.
-
-    THE HOMOGENEITY SURVIVED `--with-dependencies` SHIPPING (depclosure 01, `dhycim`), which is worth
-    stating because this note previously rested on the closure not existing. The closure now exists,
-    and it REFUSES a `spec` or `backlog` dependency target precisely because the manifest cannot carry
-    one, so every id it can add is still an IPD. A later plan that admits non-plan targets is what
-    would make this rank reachable, and it must revisit this note.
+    Spec 5.4 rule 4 also lists a TYPE RANK (`spec`, `backlog`, `ipd`, `prompt`) ahead of Set.
+    Implemented by plan 8l8dgb (universal artifact dispatch): the queue carries typed entries
+    (`artifact_type: spec|backlog|ipd`), so among equally-ready independent nodes at the same
+    requested position, a spec ranks ahead of a backlog item, which ranks ahead of an IPD plan,
+    which ranks ahead of a prompt.
     """
     return (
         dependency_depth(item["id6"], by_id),
         item.get("position", 0),
+        TYPE_RANK.get(queue_entry_type(item), 99),
         str(item.get("setid") or ""),
         item.get("order") if isinstance(item.get("order"), int) else 999,
         item["id6"],
@@ -33014,6 +33269,41 @@ def announce_run_order(
 # copy in the other driver is precisely how `Heartbeat` and `_read_deps` came to disagree.
 
 
+def queue_entry_type(item: "Mapping[str, Any]") -> str:
+    """The entry's artifact type, defaulting to 'ipd' when absent (spec z7nbn1 5a)."""
+    return str(item.get("artifact_type") or "ipd").strip().lower() or "ipd"
+
+
+def queue_artifact_path(repo: Path, item: "Mapping[str, Any]") -> Path:
+    """The artifact path for a queue entry, resolved through its own type's authority (artdispatch 8l8dgb E-02)."""
+    atype = queue_entry_type(item)
+    id6 = str(item.get("id6") or "").strip()
+    if atype == "ipd":
+        cfg = str(item.get("configured_file") or "").strip()
+        return resolve_plan_path(repo, cfg, id6)
+    if atype == "spec":
+        specs = discover_specs(repo)
+        if id6 in specs:
+            return Path(specs[id6].path)
+        raise DriverError(f"Spec '{id6}' not found in {repo}")
+    if atype == "backlog":
+        found = resolve_backlog_item(repo, id6)
+        if found is not None:
+            return found
+        raise DriverError(f"Backlog item '{id6}' not found in {repo}")
+    raise DriverError(f"Unsupported artifact_type '{atype}' for queue entry '{id6}'")
+
+
+def queue_plan_path_for(repo: Path, item: "Mapping[str, Any]") -> Path:
+    """The plan path for an IPD queue entry, raising DriverError if not an IPD entry (artdispatch 8l8dgb E-02)."""
+    atype = queue_entry_type(item)
+    id6 = str(item.get("id6") or "").strip()
+    if atype != "ipd":
+        raise DriverError(f"{id6} is a {atype}, not an IPD plan")
+    cfg = str(item.get("configured_file") or "").strip()
+    return resolve_plan_path(repo, cfg, id6)
+
+
 def queue_plan_path(repo: Path, item: "Mapping[str, Any]") -> Path | None:
     """The plan FILE a runner queue entry refers to, or None when it cannot be located.
 
@@ -33038,6 +33328,8 @@ def queue_plan_path(repo: Path, item: "Mapping[str, Any]") -> Path | None:
     Returns None rather than raising: every caller is an ADVISORY reporting surface, and refusing a run
     because a report could not name a file would be a worse failure than the unnamed file.
     """
+    if queue_entry_type(item) != "ipd":
+        return None
     for key in ("path", "plan_path", "last_plan_path", "configured_file"):
         raw = item.get(key)
         if not raw:
