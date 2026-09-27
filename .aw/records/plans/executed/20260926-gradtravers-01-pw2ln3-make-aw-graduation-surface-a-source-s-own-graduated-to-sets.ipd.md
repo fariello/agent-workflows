@@ -6,7 +6,7 @@
 - Scope: IN: (a) factor the plan-setid sweep out of `releases.check_graduated_to` into ONE `check_engine` helper returning `setid -> [plan artifacts]`, and reroute `check_graduated_to` to consume it (its live findings must stay 0 and its resolution semantics, "ANY setid carried by at least one plan file in ANY lifecycle directory", unchanged); (b) make `check_engine.graduation_cluster` also read the SOURCE's own `Graduated-To` (via `releases.parse_graduated_to`) and return those Sets and their plans as FORWARD links, labelled distinctly from the reverse `From-*` links; (c) make `cli._run_graduation`'s human, `--json` and `--agent` outputs report forward links, so a source with only a forward link no longer gets "Proceed"; (d) make `runner_shared.summarize_graduation_cluster` stop saying "nothing yet links" for such a source; (e) behavioral tests. OUT: substituting the reverse index for the setid sweep (measured wrong, see F-4); unifying the two relationships into one store (spec `4sd62s` does that by construction); any new `aw check` rule; changing `GRADUATION_VIEW_LIMITS` verdicts.
 - Scope-Paths: agent_workflows/check_engine.py, agent_workflows/releases.py, agent_workflows/cli.py, agent_workflows/runner_shared.py, tests/test_graduation_forward_links.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 09
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: pw2ln3
-- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: pw2ln3 verified (set gradtravers, attempt 1).
 - 2026-09-27 approved (aw set): status set to approved
 - 2026-09-27 reviewed (aw set): Reviewed by /plan-review: 9 findings (3 HIGH, 4 MEDIUM, 2 LOW), all FIXED in place; readiness go-pending-approval. Three defects that would have shipped silently: E-04 passed the graduation kind 'spec' to selectors.resolve whose type is 'specs', which returns an EMPTY resolution with no error, so every spec source would be forward-linkless; the --agent Evidence used a dict value, which sanitize_evidence_item compacts to its KEY ALONE, dropping the count and setids it exists to carry, and the test asserted only the key so it passed in that state; and the claim that 0 specs carry Graduated-To is false (z7nbn1 -> artdispatch, a live both-directions agreement case), so the first two defects would have masked each other. All baseline counts had drifted and are now re-derive-at-execution properties. Checklist split 7 -> 9 items, clearing the IPD-Z602 density advisory. Findings and 6 decisions in .aw/records/reviews/20260926-gradtravers-01-pw2ln3-*.review.md
 
