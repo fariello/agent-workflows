@@ -1,5 +1,5 @@
 - Id: 7oql4z
-- Status: graduated
+- Status: done
 - Graduated-To: renamescan
 - Blocks-Release: next
 - Set: renamescan
@@ -8,6 +8,7 @@
 - Summary: aw rename never rewrites citations under .aw/records/reviews/ or tests/, so renaming a cited artifact leaves tracked reviews and test fixtures pointing at a file that no longer exists
 
 ## Workflow history
+- 2026-09-27 set (aw backlog): closed by aw oc run: IPD 5xzld0 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260926-renamescan-01-5xzld0-make-aw-rename-rewrite-citations-in-reviews-and-tests-withou.ipd.md); evidence .aw/records/plans/executed/20260926-renamescan-01-5xzld0-make-aw-rename-rewrite-citations-in-reviews-and-tests-withou.ipd.md
 - 2026-09-26 graduated (aw set): Graduated 2026-09-26 into to-review plan Set renamescan (commit 2c7068ca).
 - 2026-09-24 created (aw backlog): aw rename never rewrites citations under .aw/records/reviews/ or tests/, so renaming a cited artifact leaves tracked reviews and test fixtures pointing at a file that no longer exists
 
