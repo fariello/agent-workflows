@@ -146,3 +146,20 @@ User-facing tool output SHOULD tag severity lines with a bracketed, fixed-width 
 This is a preference for the SEVERITY class of messages, not a mandate that every line of every tool be tagged: plain informational body text, tables, boards, and prompts stay untagged. Apply it where a line is specifically reporting an error, a warning, or a notable informational status.
 
 Enforced/implemented in `agent_workflows/term.py` (the shared `Term` label helper); all `aw` verbs render severity through it rather than hand-rolling ANSI, so the convention stays consistent and honors the `should_color` policy (TTY / `FORCE_COLOR` / `NO_COLOR`). When updating a tool's output to this convention, route it through the `Term` helper; do not emit raw escape codes.
+
+## 15. Guard against honest mistakes, never against a malicious agent
+
+We mitigate SLOPPINESS, not MALICE. Every check, gate, and refusal exists to catch an honest actor (a human or an agent acting in good faith) who is about to make a mistake. None of them exists to stop an agent that is deliberately evading the rules.
+
+WHY. An agent runs as the same user with the same access we have. It can edit the tool, the gate, the test, the instructions, or the record the gate reads. Any defense against a deliberately hostile agent is therefore futile by construction, and each one we build becomes brittle machinery (secret tokens, location guesses, forgery checks) that trips up honest work and costs real recovery time. Measured examples: the per-run driver token (plan `u27oh3`) blocked a human's own feature worktree under `.aw/worktrees/` while its own honest-limits note conceded a same-user agent could read the token file; a proposed baseline gate for suite failures was rejected because "a gate cannot detect deception" and "a genuinely malicious agent would rewrite the gate" (maintainer ruling 2026-09-08, `daexj1` OQ-02, reaffirmed 2026-09-20).
+
+WHAT TO BUILD INSTEAD:
+- Tell the actor early and plainly whose step something is (for example the runner's turn-start notice and the `AW-LIFECYCLE-ROLE-001` message).
+- Refuse with a clear message that names the cause and the remedy, and offer a deliberate, recorded override where a human may legitimately need one.
+- Key checks on the real condition (is a live run working on this plan?) rather than on a proxy (does this folder look like a lane?).
+- Make recovery easy: tolerate work finished by someone else, and never strand it.
+- Keep honest records and speed bumps: attributions, history lines, and attestations such as `--by-human` are a conscious pause and an honest record, not a lock (spec `honest-human-approval-attestation`).
+
+WHAT NOT TO BUILD: secrets or tokens meant to be hidden from an agent, forgery or tamper detection aimed at an agent, and any mechanism whose justification is "in case the agent lies". If real isolation is ever required, it comes from the operating system (a separate user, a sandbox such as the opt-in hardened profile), never from checks in our own code.
+
+When a review touches an existing gate, apply this principle to it: keep it, simplify it into a clear refusal, or delete it.
