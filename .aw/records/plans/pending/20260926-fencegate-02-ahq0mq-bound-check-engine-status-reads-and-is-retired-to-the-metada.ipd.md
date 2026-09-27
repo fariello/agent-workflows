@@ -6,7 +6,8 @@
 - Scope: IN: one helper returning the first `- Status:` value inside `selectors.metadata_region(text)`; `_status_meta` and `is_retired` use it; outcome tests; a before/after diff of `aw attention` and `aw check all`. OUT: other `_PLAN_STATUS_RE` readers (they already search `_metadata_region`); YAML `status:` reading; the hook (kecxnb).
 - Scope-Paths: agent_workflows/check_engine.py, tests/test_check_engine_status_meta.py
 - Item-Dependencies: executed:kecxnb
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
 - From-Backlog: pyk78c
@@ -18,6 +19,7 @@
 - Id: ahq0mq
 
 ## Workflow history
+- 2026-09-27 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 all FIXED. Every source claim verified exact and the defect demonstrated (whole-file read returns executed where the region-bounded read returns None). PR-002 is the main correction: the plan's predicted effect does not exist, measured by simulating the change, aw attention is BYTE-IDENTICAL and never calls is_retired, ebh1ap is already in that view classified from its YAML front matter, and aw check all reports the same 4 pre-existing findings; the only change is internal (_iter_type_files research 91 to 92, producing no finding). Reframed as correctness-by-construction with E-03 now confirming the ABSENCE of a diff. PR-003 adds the _iter_type_files count as the only positive proof, since an empty diff is otherwise indistinguishable from work never done. PR-001: only case (a) of five discriminates, so the other four are relabelled controls and V-02 may no longer claim (c) fails. PR-004 corrects the 10-vs-7 record count (three are gitignored run records). Findings and decisions D-1..D-3 in .aw/records/reviews/20260926-fencegate-02-ahq0mq-bound-check-engine-status-reads-and-is-retired-to-the-metada.review.md
 - 2026-09-26 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog pyk78c: bound _status_meta and is_retired to the metadata region's first Status bullet; measured corpus impact is one research record (ebh1ap).
 
 - 2026-09-26 draft (opencode/its_direct/pt3-claude-opus-5.5-1m-us): created.
