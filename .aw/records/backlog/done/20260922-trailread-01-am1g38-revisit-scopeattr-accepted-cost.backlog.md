@@ -1,5 +1,5 @@
 - Id: am1g38
-- Status: graduated
+- Status: done
 - Graduated-To: trailread
 - Set: trailread
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Revisit h9cn0y's accepted attribution cost now that the driver-side run ownership trailer writer exists
 
 ## Workflow history
+- 2026-09-27 set (aw backlog): closed by aw oc run: IPD 199u11 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260926-trailread-02-199u11-make-finalize-read-aw-run-and-aw-item-trailers-so-a-committe.ipd.md); evidence .aw/records/plans/executed/20260926-trailread-02-199u11-make-finalize-read-aw-run-and-aw-item-trailers-so-a-committe.ipd.md
 - 2026-09-26 graduated (aw set): Graduated 2026-09-26 into plan 199u11 (Set trailread), re-verified live at HEAD.
 - 2026-09-22 created (aw backlog): Revisit h9cn0y's accepted attribution cost now that the driver-side run ownership trailer writer exists
 
