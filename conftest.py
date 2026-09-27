@@ -22,12 +22,15 @@ parsing happens). It is a no-op on the common path where xdist is already instal
 from __future__ import annotations
 
 import atexit as _atexit
+import faulthandler as _faulthandler
 import importlib.util
 import os
 import shutil as _shutil
+import signal as _signal
 import subprocess
 import sys
 import tempfile as _tempfile
+import threading as _threading
 
 import pytest
 
@@ -150,6 +153,109 @@ def _restore_home_sandbox():
     os.environ.update(_SANDBOX_ENV)
     yield
     os.environ.update(_SANDBOX_ENV)
+
+
+# --------------------------------------------------------------------------------------
+# Per-test hang guard: a test that never returns FAILS with a stack dump instead of hanging.
+# --------------------------------------------------------------------------------------
+#
+# WHY, measured 2026-09-27 (run `run-20260927T174631Z-291785`, plan `8l8dgb`). A new test's
+# fake `execute_item` updated an item's status only in memory; `run_queue` reloads state from
+# disk each iteration, so it re-dispatched the same item forever. Nothing bounded the test, so
+# the executing agent's `pytest` call sat silent until the runner's 600s stall timeout killed the
+# whole turn (48 minutes of a four-link dependency chain, which then took the other three links
+# down with it). A hung test must cost seconds and name itself, not the turn.
+#
+# HOW. Stdlib only, deliberately, so this adds no dependency and cannot fall over the way a
+# missing plugin does. On POSIX a `SIGALRM` timer (`signal.setitimer`) fires in the MAIN thread,
+# first dumps every thread's stack (`faulthandler`, so the hang site is IN the failure output),
+# then raises `TestHangTimeout` inside the running test, which pytest records as that test's
+# ordinary failure and moves on. A `KeyboardInterrupt` is deliberately NOT used: pytest treats it
+# as a request to abort the whole session. Where `SIGALRM` does not exist (Windows) the guard is a
+# no-op rather than a flaky thread-based imitation. The default is set from the measured duration
+# spread: the slowest fast-suite test is ~13s and the slowest `slow`-marked test ~29s, so 90s is
+# ~3x headroom and still ~7x below the runner's 600s stall budget. Override per run with
+# `AW_TEST_TIMEOUT=<seconds>` (`0` disables), or per test with `@pytest.mark.timeout(<seconds>)`.
+# The guard also stands down when a test has already installed its own SIGALRM handler, so it
+# never clobbers a test that is exercising alarms itself.
+_DEFAULT_TEST_TIMEOUT = 90.0
+
+
+class TestHangTimeout(BaseException):
+    """Raised inside a test that exceeded its hang-guard budget.
+
+    A `BaseException`, NOT an `Exception`, and that is the fix for a measured miss: the `8l8dgb`
+    hang looped through `except Exception:` handlers that swallowed an `Exception`-based timeout
+    for ~20s. Deriving from `BaseException` (as `KeyboardInterrupt` and `SystemExit` do) walks
+    straight past every `except Exception`, while pytest still records it as this test's failure.
+    """
+
+    __test__ = False  # not a test class, despite the name
+
+
+def _test_timeout_seconds(item) -> float:
+    marker = item.get_closest_marker("timeout")
+    if marker is not None and marker.args:
+        return float(marker.args[0])
+    raw = os.environ.get("AW_TEST_TIMEOUT", "").strip()
+    if raw:
+        try:
+            return float(raw)
+        except ValueError:
+            pass
+    return _DEFAULT_TEST_TIMEOUT
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "timeout(seconds): per-test hang-guard budget (default 90s; 0 disables).",
+    )
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_call(item):
+    budget = _test_timeout_seconds(item)
+    usable = (
+        budget > 0
+        and hasattr(_signal, "SIGALRM")
+        and _threading.current_thread() is _threading.main_thread()
+        and _signal.getsignal(_signal.SIGALRM)
+        in (_signal.SIG_DFL, _signal.SIG_IGN, None)
+    )
+    if not usable:
+        yield
+        return
+
+    fired = {"n": 0}
+
+    def _on_alarm(_signum, _frame):
+        fired["n"] += 1
+        if fired["n"] == 1:
+            sys.stderr.write(
+                f"\n[conftest] TEST HANG GUARD: {item.nodeid} exceeded {budget:g}s; "
+                "stacks of every thread at expiry follow.\n"
+            )
+            _faulthandler.dump_traceback(file=sys.stderr, all_threads=True)
+            sys.stderr.flush()
+        raise TestHangTimeout(
+            f"TEST HANG GUARD: {item.nodeid} exceeded its {budget:g}s per-test budget. The frame "
+            "that did not return is in the stack dump in captured stderr. Raise the budget for a "
+            "legitimately slow test with @pytest.mark.timeout(<seconds>)."
+        )
+
+    previous = _signal.signal(_signal.SIGALRM, _on_alarm)
+    # REPEATING, not one-shot, and that is measured rather than cautious: in the very hang this
+    # guard exists for (`8l8dgb`), the first raise landed inside `subprocess.run` beneath an
+    # `except Exception: return []` in `runner_shared.already_landed_lanes`, which swallowed it and
+    # let `run_queue` keep looping. A one-shot alarm therefore did NOT stop the test. Re-raising
+    # every second after expiry guarantees one lands outside any broad handler.
+    _signal.setitimer(_signal.ITIMER_REAL, budget, 1.0)
+    try:
+        yield
+    finally:
+        _signal.setitimer(_signal.ITIMER_REAL, 0)
+        _signal.signal(_signal.SIGALRM, previous)
 
 
 def _ensure_xdist_then_reexec() -> None:

@@ -2750,7 +2750,11 @@ class TheSharedGatesActuallyFireOnTheRollupPath(RollupTransitionCase):
             json.dumps({"plan_id": "someone-else", "pid": os.getppid()}),
             encoding="utf-8",
         )
-        res = self.retire(orch, "locked", apply=True)
+        # The refusal is what is under test, not the production wait budget: without this the test
+        # sat out the full 120s FINALIZE_LOCK_WAIT_SECONDS, making it by far the slowest test in the
+        # fast suite (measured 120.25s; next slowest 13s).
+        with mock.patch.object(LC, "FINALIZE_LOCK_WAIT_SECONDS", 0.5):
+            res = self.retire(orch, "locked", apply=True)
         self.assertEqual(res.exit_code, LC.EXIT_CANNOT_RUN, res.message)
         self.assertIn("writer lock held by active PID", res.message)
         self.assertTrue(orch.is_file(), "a lock-refused rollup must not move the plan")
