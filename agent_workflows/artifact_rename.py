@@ -234,6 +234,13 @@ def plan_reference_rewrites(
     return _refs.plan_reference_rewrites(repo_root, {old_name: new_name})
 
 
+def plan_reference_rewrites_with_warnings(
+    repo_root: Path, old_name: str, new_name: str
+) -> Tuple[List[RefEdit], List[str]]:
+    """Find inbound references and collect shared legacy prefix warnings (delegates to unified matcher)."""
+    return _refs.plan_reference_rewrites_with_warnings(repo_root, {old_name: new_name})
+
+
 def apply_reference_rewrites(edits: List[RefEdit]) -> None:
     """Apply reference rewrites (unified applier: full-name first, then hyphen-boundaried stem)."""
 
@@ -424,11 +431,14 @@ def find_unrewritable_path_citations(
     # A path-citation is a run of path chars ending in `/<old_name>`.
     path_re = re.compile(r"[A-Za-z0-9._/\-]*/" + re.escape(old_name))
     out: List[Tuple[str, str]] = []
-    for f in _core.iter_scan_files(repo_root):
+    for f in _core.iter_scan_files(
+        repo_root, _core.REFERENCE_SCAN_ROOTS, _core._REFERENCE_TEXT_SUFFIXES
+    ):
         try:
             text = f.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
+        text, _ = _refs._mask_fenced_code(text)
         for m in path_re.finditer(text):
             cited = m.group(0)
             # A permalink pinned to a commit (`.../blob/<sha>/...`) names the file AS IT WAS at that
@@ -654,8 +664,10 @@ def run_rename_generic(
         print(f"error: destination file already exists: {dst.name}")
         return MutationResult(2)
 
-    ref_edits = (
-        plan_reference_rewrites(repo_root, src.name, new_name) if update_refs else []
+    ref_edits, warnings = (
+        plan_reference_rewrites_with_warnings(repo_root, src.name, new_name)
+        if update_refs
+        else ([], [])
     )
 
     # IPD ha55fi E-05: surface full-path citations that a filename-only rewrite cannot safely fix.
@@ -688,6 +700,8 @@ def run_rename_generic(
                 else f"'- Id: {minted_id6}'"
             )
             print(f"--- reuses existing {existing_label} (no re-mint) ---")
+        for w in warnings:
+            print(w)
         if update_refs:
             for e in ref_edits:
                 try:
@@ -754,6 +768,12 @@ def run_rename_generic(
             )
         touched.append(_rel_to_repo(dst, repo_root))
 
+    for w in warnings:
+        print(w)
+    if update_refs and ref_edits:
+        ref_edits = _refs.filter_test_edits_interactive(
+            repo_root, ref_edits, yes=bool(getattr(args, "yes", False))
+        )
     if update_refs and ref_edits:
         apply_reference_rewrites(ref_edits)
         for e in ref_edits:
@@ -848,6 +868,7 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> "Mutation
 
     targets: List[Tuple[Path, Path, Optional[int]]] = []
     all_edits: List[RefEdit] = []
+    all_warnings: List[str] = []
 
     for i, sel in enumerate(selectors_list):
         src = find_target_record(repo_root, artifact_type, sel)
@@ -878,7 +899,13 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> "Mutation
 
         targets.append((src, dst, order_val))
         if update_refs and src.name != dst.name:
-            all_edits.extend(plan_reference_rewrites(repo_root, src.name, dst.name))
+            edits, warns = plan_reference_rewrites_with_warnings(
+                repo_root, src.name, dst.name
+            )
+            all_edits.extend(edits)
+            for w in warns:
+                if w not in all_warnings:
+                    all_warnings.append(w)
 
     if not apply:
         for src, dst, _order_val in targets:
@@ -886,6 +913,8 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> "Mutation
             if src.resolve() != dst.resolve():
                 print(f"--- would rename {src_rel} -> {dst.name} ---")
             print(f"--- would set metadata Set: {set_k} in {src_rel} ---")
+        for w in all_warnings:
+            print(w)
         if update_refs:
             for e in all_edits:
                 try:
@@ -921,6 +950,12 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> "Mutation
         print(f"set metadata Set: {set_k} in {dst_rel}")
         touched.append(dst_rel)
 
+    for w in all_warnings:
+        print(w)
+    if update_refs and all_edits:
+        all_edits = _refs.filter_test_edits_interactive(
+            repo_root, all_edits, yes=bool(getattr(args, "yes", False))
+        )
     if update_refs and all_edits:
         apply_reference_rewrites(all_edits)
         for e in all_edits:

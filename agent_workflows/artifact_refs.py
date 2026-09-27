@@ -39,7 +39,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Dict, List, NamedTuple, Optional
+from typing import Dict, List, NamedTuple, Optional, Tuple
 
 from agent_workflows import artifact_core as _core
 from agent_workflows import artifact_naming as _naming
@@ -104,6 +104,52 @@ _PINNED_PERMALINK_RE = re.compile(
 )
 
 
+_FENCE_RE = re.compile(r"^(\s*)(```|~~~)")
+
+
+def _mask_fenced_code(text: str):
+    """Return (masked_text, restore) where every fenced code block is replaced by an inert token."""
+
+    saved: List[str] = []
+    lines = text.splitlines(keepends=True)
+    out_parts: List[str] = []
+    in_fence = False
+    fence_marker = ""
+    current_block: List[str] = []
+
+    for line in lines:
+        if not in_fence:
+            m = _FENCE_RE.match(line)
+            if m:
+                in_fence = True
+                fence_marker = m.group(2)
+                current_block = [line]
+            else:
+                out_parts.append(line)
+        else:
+            current_block.append(line)
+            m = _FENCE_RE.match(line)
+            if m and m.group(2) == fence_marker:
+                in_fence = False
+                fence_marker = ""
+                idx = len(saved)
+                saved.append("".join(current_block))
+                out_parts.append(f"\x00AWFENCEDCODE{idx}\x00")
+                current_block = []
+
+    if in_fence and current_block:
+        idx = len(saved)
+        saved.append("".join(current_block))
+        out_parts.append(f"\x00AWFENCEDCODE{idx}\x00")
+
+    masked = "".join(out_parts)
+
+    def _restore(s: str) -> str:
+        return re.sub(r"\x00AWFENCEDCODE(\d+)\x00", lambda m: saved[int(m.group(1))], s)
+
+    return masked, _restore
+
+
 def _mask_permalinks(text: str):
     """Return (masked_text, restore) where every pinned permalink is replaced by an inert token."""
 
@@ -121,21 +167,40 @@ def _mask_permalinks(text: str):
     return masked, _restore
 
 
-def plan_reference_rewrites(
-    repo_root: Path, name_map: Dict[str, str], scan_roots=_core.SCAN_ROOTS
-) -> List[RefEdit]:
-    """Plan every FILENAME-derived citation rewrite for a ``name_map`` (old filename -> new filename).
+def count_legacy_prefix_records(repo_root: Path, prefix: str) -> int:
+    """Count files under .aw/records/** starting with prefix + '-'."""
+    records_dir = repo_root / ".aw" / "records"
+    if not records_dir.is_dir():
+        records_dir = repo_root / ".agents"
+        if not records_dir.is_dir():
+            return 0
+    target_prefix = prefix + "-"
+    ignored_dirs = _core.get_ignored_dirs(repo_root)
+    count = 0
+    for p in records_dir.rglob("*"):
+        if not p.is_file():
+            continue
+        if _core.is_ignored_path(p, repo_root, ignored_dirs):
+            continue
+        if p.name.startswith(target_prefix):
+            count += 1
+    return count
 
-    Emits, per changed entry: (a) the full-name rewrite; (b) the whole-stem rewrite (old name minus
-    ``.md`` -> new name minus ``.md``), which also covers the range shorthand ``<stem>..NN``; and
-    (c) the legacy ``YYYYMMDD-HHMM-NN`` prefix-stem rewrite when the old name has that prefix. Stem
-    rewrites are map-driven and hyphen-boundaried, so an unrelated same-grammar stem or an embedded
-    stem inside a longer token is never matched. A bare id6/setid is never emitted.
+
+def plan_reference_rewrites_with_warnings(
+    repo_root: Path,
+    name_map: Dict[str, str],
+    scan_roots=_core.REFERENCE_SCAN_ROOTS,
+    suffixes: Tuple[str, ...] = _core._REFERENCE_TEXT_SUFFIXES,
+) -> Tuple[List[RefEdit], List[str]]:
+    """Plan reference rewrites and collect warnings for skipped shared legacy prefixes.
+
+    Returns (edits, warnings).
     """
-
-    # Precompute the stem maps once (old-stem -> new-stem), from the map only.
     whole_stem_map: Dict[str, str] = {}
     legacy_stem_map: Dict[str, str] = {}
+    warnings: List[str] = []
+
     for old_name, new_name in name_map.items():
         if old_name == new_name:
             continue
@@ -144,11 +209,24 @@ def plan_reference_rewrites(
             whole_stem_map[o_whole] = n_whole
         o_leg = _legacy_prefix_stem(old_name)
         if o_leg is not None:
-            # The plans engine rewrites a legacy prefix to the NEW whole stem (new name minus .md).
-            legacy_stem_map[o_leg] = n_whole
+            rec_count = count_legacy_prefix_records(repo_root, o_leg)
+            if rec_count > 1:
+                warn_msg = (
+                    f"--- WARNING: legacy prefix '{o_leg}' is shared by {rec_count} artifacts; "
+                    f"short-handle citations of it were NOT rewritten ---"
+                )
+                if warn_msg not in warnings:
+                    warnings.append(warn_msg)
+            else:
+                m = _naming.parse_clustered_prefix(new_name)
+                if m:
+                    # Map a short legacy handle to the new short handle <date>-<set>-<nn>.
+                    legacy_stem_map[o_leg] = (
+                        f"{m.group('date')}-{m.group('set')}-{m.group('nn')}"
+                    )
 
     edits: List[RefEdit] = []
-    for f in _core.iter_scan_files(repo_root, scan_roots):
+    for f in _core.iter_scan_files(repo_root, scan_roots, suffixes=suffixes):
         # NEVER rewrite a GENERATED manifest (INDEX.md/README.md/STATUS.md). Doing so is both
         # pointless and harmful: the caller REGENERATES the manifest from the renamed corpus
         # immediately after this rewrite, so the edit is overwritten anyway, and meanwhile the
@@ -162,7 +240,8 @@ def plan_reference_rewrites(
             text = f.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
-        text, _restore = _mask_permalinks(text)
+        text, _restore_fenced = _mask_fenced_code(text)
+        text, _restore_permalinks = _mask_permalinks(text)
         # (a) full filename.
         for old_name, new_name in name_map.items():
             if old_name != new_name and old_name in text:
@@ -176,6 +255,26 @@ def plan_reference_rewrites(
                 n = len(_boundaried(old_stem).findall(text))
                 if n:
                     edits.append(RefEdit(f, BARE_STEM, old_stem, new_stem, n))
+    return edits, warnings
+
+
+def plan_reference_rewrites(
+    repo_root: Path,
+    name_map: Dict[str, str],
+    scan_roots=_core.REFERENCE_SCAN_ROOTS,
+    suffixes: Tuple[str, ...] = _core._REFERENCE_TEXT_SUFFIXES,
+) -> List[RefEdit]:
+    """Plan every FILENAME-derived citation rewrite for a ``name_map`` (old filename -> new filename).
+
+    Emits, per changed entry: (a) the full-name rewrite; (b) the whole-stem rewrite (old name minus
+    ``.md`` -> new name minus ``.md``), which also covers the range shorthand ``<stem>..NN``; and
+    (c) the legacy ``YYYYMMDD-HHMM-NN`` prefix-stem rewrite when the old name has that prefix. Stem
+    rewrites are map-driven and hyphen-boundaried, so an unrelated same-grammar stem or an embedded
+    stem inside a longer token is never matched. A bare id6/setid is never emitted.
+    """
+    edits, _ = plan_reference_rewrites_with_warnings(
+        repo_root, name_map, scan_roots=scan_roots, suffixes=suffixes
+    )
     return edits
 
 
@@ -190,13 +289,65 @@ def apply_reference_rewrites(edits: List[RefEdit], *, prefix: str = ".aw-ref-") 
             text = f.read_text(encoding="utf-8")
         except OSError:
             continue
-        text, _restore = _mask_permalinks(text)
+        text, restore_fenced = _mask_fenced_code(text)
+        text, restore_permalinks = _mask_permalinks(text)
         for e in sorted(file_edits, key=lambda x: 0 if x.kind == FULL_NAME else 1):
             if e.kind == FULL_NAME:
                 text = text.replace(e.old, e.new)
             else:
                 text = _boundaried(e.old).sub(e.new, text)
-        _core.atomic_write(f, _restore(text), prefix=prefix)
+        restored = restore_fenced(restore_permalinks(text))
+        _core.atomic_write(f, restored, prefix=prefix)
+
+
+def is_test_path(path: Path, repo_root: Path) -> bool:
+    """True iff path lies under tests/."""
+    try:
+        rel = path.resolve().relative_to(repo_root.resolve()).as_posix()
+    except ValueError:
+        rel = path.as_posix()
+    return rel == "tests" or rel.startswith("tests/")
+
+
+def filter_test_edits_interactive(
+    repo_root: Path,
+    ref_edits: List[RefEdit],
+    *,
+    yes: bool = False,
+) -> List[RefEdit]:
+    """Partition ref_edits into tests/ and non-tests; if interactive and not yes, prompt before rewriting tests."""
+    from agent_workflows.artifact_adopt import leak_gate_is_interactive
+
+    test_edits = [e for e in ref_edits if is_test_path(e.file, repo_root)]
+    if not test_edits:
+        return ref_edits
+
+    if yes or not leak_gate_is_interactive():
+        return ref_edits
+
+    other_edits = [e for e in ref_edits if not is_test_path(e.file, repo_root)]
+    affected_files = sorted(
+        {
+            (
+                e.file.resolve().relative_to(repo_root.resolve()).as_posix()
+                if repo_root.resolve() in e.file.resolve().parents
+                else e.file.as_posix()
+            )
+            for e in test_edits
+        }
+    )
+    for f in affected_files:
+        print(f"  {f}")
+    try:
+        ans = input("Rewrite citations in these test files? [Y/n] ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        ans = "n"
+
+    if ans in ("", "y", "yes"):
+        return ref_edits
+
+    print("Dropped test file citation rewrites.")
+    return other_edits
 
 
 # ----------------------------------------------------------------------------------------------

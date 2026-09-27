@@ -27,7 +27,7 @@ import secrets
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Callable, List, NamedTuple, Optional
+from typing import Callable, List, NamedTuple, Optional, Tuple
 
 # --------------------------------------------------------------------------------------
 # Identity: the stable, greppable ``<id6>``
@@ -417,7 +417,10 @@ SCAN_ROOTS = (
     ".aw/records/prompts",
 )
 
+REFERENCE_SCAN_ROOTS = SCAN_ROOTS + (".aw/records/reviews", "tests")
+
 _TEXT_SUFFIXES = (".md", ".txt")
+_REFERENCE_TEXT_SUFFIXES = _TEXT_SUFFIXES + (".py",)
 
 DEFAULT_IGNORED_DIR_NAMES = frozenset(
     {
@@ -545,7 +548,11 @@ def is_ignored_path(
     return False
 
 
-def iter_scan_files(repo_root: Path, scan_roots=SCAN_ROOTS) -> List[Path]:
+def iter_scan_files(
+    repo_root: Path,
+    scan_roots=SCAN_ROOTS,
+    suffixes: Tuple[str, ...] = _TEXT_SUFFIXES,
+) -> List[Path]:
     """Return every tracked-text file under the given scan roots (deterministic, sorted), skipping ignored dirs."""
 
     ignored_dirs = get_ignored_dirs(repo_root)
@@ -560,7 +567,7 @@ def iter_scan_files(repo_root: Path, scan_roots=SCAN_ROOTS) -> List[Path]:
             for f in sorted(p.rglob("*")):
                 if is_ignored_path(f, repo_root, ignored_dirs):
                     continue
-                if f.is_file() and f.suffix in _TEXT_SUFFIXES:
+                if f.is_file() and f.suffix in suffixes:
                     files.append(f)
     return sorted(set(files))
 
