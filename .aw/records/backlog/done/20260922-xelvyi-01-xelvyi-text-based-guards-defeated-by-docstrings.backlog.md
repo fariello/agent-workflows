@@ -1,5 +1,5 @@
 - Id: xelvyi
-- Status: graduated
+- Status: done
 - Graduated-To: srcguard
 - Work-Kind: chore
 - Set: xelvyi
@@ -7,6 +7,7 @@
 - Summary: The sole-blocking-caller guard was a text search a docstring could trip, so it went red against a correct tree
 
 ## Workflow history
+- 2026-09-27 set (aw backlog): closed by aw oc run: IPD 96xtmi executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260926-srcguard-01-96xtmi-delete-the-tests-that-pin-production-source-text-or-structur.ipd.md); evidence .aw/records/plans/executed/20260926-srcguard-01-96xtmi-delete-the-tests-that-pin-production-source-text-or-structur.ipd.md
 - 2026-09-26 graduated (aw set): Graduated 2026-09-26 into plan 96xtmi (Set srcguard), re-verified live at HEAD.
 - 2026-09-26 same-status (aw set): Reclassified chore, Blocks-Release cleared: maintainer ruling 2026-09-26 (see note).
 - 2026-09-26 note (aw backlog): Maintainer ruling 2026-09-26 (/askme during batch graduation): no tests that try to prevent text or code from changing. This item now means DELETE the source-reading tests (text or AST structure pins) and keep or add a BEHAVIORAL test only where real behavior is at stake. Reclassified chore, release gate removed (test-suite quality is not user-perceptible).
