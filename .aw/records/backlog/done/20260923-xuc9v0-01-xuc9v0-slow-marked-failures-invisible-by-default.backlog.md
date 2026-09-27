@@ -1,5 +1,5 @@
 - Id: xuc9v0
-- Status: graduated
+- Status: done
 - Graduated-To: slowvis
 - Blocks-Release: next
 - Set: xuc9v0
@@ -8,6 +8,7 @@
 - Summary: The default test command hides 33 real slow-marked failures, including every end-to-end runner-stop test; a green routine run proves less than it appears to
 
 ## Workflow history
+- 2026-09-26 set (aw backlog): closed by aw oc run: IPD 4petcj executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260926-slowvis-01-4petcj-make-slow-marked-tests-visible-ci-runs-them-the-default-run.ipd.md); evidence .aw/records/plans/executed/20260926-slowvis-01-4petcj-make-slow-marked-tests-visible-ci-runs-them-the-default-run.ipd.md
 - 2026-09-26 graduated (aw set): Graduated 2026-09-26 into to-review plan Set slowvis (commit 2c7068ca).
 - 2026-09-23 created (aw backlog): The default test command hides 33 real slow-marked failures, including every end-to-end runner-stop test; a green routine run proves less than it appears to
 
