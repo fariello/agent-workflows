@@ -24,8 +24,9 @@ install-dev:
 test:
 	python3 -m pytest tests/
 
-# FULL suite including the `slow` subprocess/integration tests. Use for release-review,
-# CI, or before shipping. `-m ""` clears the default `not slow` filter; still parallel.
+# FULL suite including the `slow` subprocess/integration tests (CI runs the fast
+# suite plus an advisory slow step). Use for release-review or before shipping.
+# `-m ""` clears the default `not slow` filter; still parallel.
 test-all:
 	python3 -m pytest tests/ -m ''
 
