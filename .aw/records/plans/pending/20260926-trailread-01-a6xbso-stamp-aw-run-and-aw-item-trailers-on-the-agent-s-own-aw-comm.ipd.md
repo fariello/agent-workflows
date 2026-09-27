@@ -35,58 +35,58 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: reproduce
 
-- [ ] E-01 RE-MEASURE THE GAP at the executing HEAD. In a scratch git repo under `/tmp/` (one committed file `f`, then modified), run `AW_RUN_ID=run-20260926T000000Z-1 AW_ITEM_ID6=abc123 python3 -m agent_workflows commit --no-plan -m x -- f` with `PYTHONPATH` pointing at this checkout, then `git log -1 --format='%B|%(trailers:key=AW-Run,valueonly)|%(trailers:key=AW-Item,valueonly)|'`. Also paste `git log --since=2026-09-22 --format='%(trailers:key=AW-Run,valueonly)' -- agent_workflows tests | rg -c run-` and the matching total commit count. If the scratch commit ALREADY carries both trailers, STOP and report that the channel exists.
+- [x] E-01 RE-MEASURE THE GAP at the executing HEAD. In a scratch git repo under `/tmp/` (one committed file `f`, then modified), run `AW_RUN_ID=run-20260926T000000Z-1 AW_ITEM_ID6=abc123 python3 -m agent_workflows commit --no-plan -m x -- f` with `PYTHONPATH` pointing at this checkout, then `git log -1 --format='%B|%(trailers:key=AW-Run,valueonly)|%(trailers:key=AW-Item,valueonly)|'`. Also paste `git log --since=2026-09-22 --format='%(trailers:key=AW-Run,valueonly)' -- agent_workflows tests | rg -c run-` and the matching total commit count. If the scratch commit ALREADY carries both trailers, STOP and report that the channel exists.
   - THE IN-REPO COUNTS ARE A LIVE POPULATION: RE-DERIVE THEM, DO NOT REPRODUCE THE NUMBERS. The required property is that essentially no AGENT CODE commit carries a trailer, and that whatever trailered commits exist are overwhelmingly DRIVER-SIDE (subject starting `closed by aw oc run`). The counts in the Concern and F-1 are authoring-time context and have already drifted: re-measured at review HEAD `fe9469d8`, the since-2026-09-22 population is 206 commits with 1 trailered (was 188 with 1), and the all-refs total is 71 (was 39). The SHAPE held at both measurements: of the 71, 77 subject-prefix occurrences group as `closed by aw oc run`, and the 9 `work(...)` commits, which ARE agent `aw commit` commits, carry NO trailers (verified individually). Report your own numbers and the grouping, not these.
   - THE STOP CONDITION IS THE SCRATCH COMMIT, NOT THE CORPUS. Do not read a trailered `work(...)` commit in the corpus as "the channel exists": it would mean some other plan landed the channel, which is worth reporting, but the authoritative test is the scratch-repo probe in this item.
   - Depends on: none
   - Expected outcome: the scratch commit message is exactly `x` with both trailer fields empty (measured at review: `git log -1` yields `'x\n|||\n'`, both trailer fields empty); the re-derived in-repo counts show the shape above.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the reading side
 
-- [ ] E-02 ADD THE ENV-NAME CONSTANTS to `git_commit_helper`, directly below `TRAILER_KEY_RUN`/`TRAILER_KEY_ITEM`: `RUN_ID_ENV = "AW_RUN_ID"` and `ITEM_ID6_ENV = "AW_ITEM_ID6"`, with a comment that these are the ONE channel by which a live run hands its ids to an agent's `aw commit`, that the runner writes them and `work_cmd` reads them, and that both sides import the names from here so the spelling is single-sourced exactly as the trailer keys are. Extend `run_item_trailers`' docstring paragraph "WHERE THE VALUES MUST COME FROM" with one sentence naming the env channel as the agent-commit route (still a live run's own state, written by the driver, never typed by a human), and an HONEST LIMIT sentence: like `AW_EXECUTION_ROLE`, an environment variable is a selector a same-user process can set, so a trailer is a consistency record, not tamper-proof provenance.
+- [x] E-02 ADD THE ENV-NAME CONSTANTS to `git_commit_helper`, directly below `TRAILER_KEY_RUN`/`TRAILER_KEY_ITEM`: `RUN_ID_ENV = "AW_RUN_ID"` and `ITEM_ID6_ENV = "AW_ITEM_ID6"`, with a comment that these are the ONE channel by which a live run hands its ids to an agent's `aw commit`, that the runner writes them and `work_cmd` reads them, and that both sides import the names from here so the spelling is single-sourced exactly as the trailer keys are. Extend `run_item_trailers`' docstring paragraph "WHERE THE VALUES MUST COME FROM" with one sentence naming the env channel as the agent-commit route (still a live run's own state, written by the driver, never typed by a human), and an HONEST LIMIT sentence: like `AW_EXECUTION_ROLE`, an environment variable is a selector a same-user process can set, so a trailer is a consistency record, not tamper-proof provenance.
   - Depends on: E-01
   - Expected outcome: `git_commit_helper.RUN_ID_ENV == "AW_RUN_ID"` and `ITEM_ID6_ENV == "AW_ITEM_ID6"`; `run_item_trailers` behavior unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 TEACH `work_cmd._trailers_from_args` THE ENV FALLBACK. Keep today's precedence: explicit `args.trailers` wins; then `args.run_id`/`args.item_id6` if EITHER is set; only when the namespace supplies none of the three, read `os.environ.get(_gch.RUN_ID_ENV)` and `os.environ.get(_gch.ITEM_ID6_ENV)`. Validate each independently: the run id must fully match `^run-\d{8}T\d{6}Z-\d+(-\d+)?$` (the `runner_shared.new_run_id` shape, plus the `-N` collision suffix `oc_runipd._fresh_audit_run_dir` appends; define the pattern as a module-level constant in `work_cmd` with a comment citing both producers, rather than importing `runner_shared`, which would pull the whole runner into every `aw commit`), and the item must match `_core.ID6_RE` (`work_cmd` already imports `artifact_core as _core`). A value that fails is DROPPED with one stderr line `aw commit: warning - ignoring malformed <VAR> value <repr>; that trailer is omitted (unknown ownership)`; a valid one is passed to `_gch.run_item_trailers`. An empty or whitespace-only var is treated as unset, silently. Rewrite the docstring: keep the "no public flag" reasoning, replace the paragraph saying the agent-commit half "remains deferred" with a statement that the runner now exports the ids into the agent turn and this function reads them, and keep the rule that the plan's own id6 is NEVER auto-derived into `AW-Item` (the item id comes only from the run's env).
+- [x] E-03 TEACH `work_cmd._trailers_from_args` THE ENV FALLBACK. Keep today's precedence: explicit `args.trailers` wins; then `args.run_id`/`args.item_id6` if EITHER is set; only when the namespace supplies none of the three, read `os.environ.get(_gch.RUN_ID_ENV)` and `os.environ.get(_gch.ITEM_ID6_ENV)`. Validate each independently: the run id must fully match `^run-\d{8}T\d{6}Z-\d+(-\d+)?$` (the `runner_shared.new_run_id` shape, plus the `-N` collision suffix `oc_runipd._fresh_audit_run_dir` appends; define the pattern as a module-level constant in `work_cmd` with a comment citing both producers, rather than importing `runner_shared`, which would pull the whole runner into every `aw commit`), and the item must match `_core.ID6_RE` (`work_cmd` already imports `artifact_core as _core`). A value that fails is DROPPED with one stderr line `aw commit: warning - ignoring malformed <VAR> value <repr>; that trailer is omitted (unknown ownership)`; a valid one is passed to `_gch.run_item_trailers`. An empty or whitespace-only var is treated as unset, silently. Rewrite the docstring: keep the "no public flag" reasoning, replace the paragraph saying the agent-commit half "remains deferred" with a statement that the runner now exports the ids into the agent turn and this function reads them, and keep the rule that the plan's own id6 is NEVER auto-derived into `AW-Item` (the item id comes only from the run's env).
   - Depends on: E-02
   - Expected outcome: with both vars valid, `_trailers_from_args(argparse.Namespace())` returns `["AW-Run: <id>", "AW-Item: <id6>"]`; with neither set it returns `[]`; with a malformed run id and a valid id6 it returns only the `AW-Item` trailer and prints the warning.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: the writing side
 
-- [ ] E-04 EXPORT THE IDS INTO THE OPENCODE AGENT TURN. In `oc_runipd.run_opencode`, in the ONE child-env construction (the block beginning `child_env = pinned_child_env()` that already pops `DRIVER_ATTEST_ENV` and sets or pops `EXECUTION_ROLE_ENV`), after the role handling: set `child_env[_gch.RUN_ID_ENV] = str(state["run_id"])` when `state.get("run_id")` is a non-empty string, else `child_env.pop(_gch.RUN_ID_ENV, None)`; likewise `ITEM_ID6_ENV` from `item.get("id6")`. Set them for isolated AND non-isolated turns (unlike the role marker, a trailer is truthful in both, because either way the commit is this turn's). Always overwrite or pop, never inherit: `pinned_child_env` copies `os.environ`, so a driver launched from inside another run's turn would otherwise stamp the OUTER run's id. Import `git_commit_helper` in the same local-import style the block already uses for `ipd_lifecycle`. Add a short comment citing `a6xbso` and the "overwrite or pop" reason.
+- [x] E-04 EXPORT THE IDS INTO THE OPENCODE AGENT TURN. In `oc_runipd.run_opencode`, in the ONE child-env construction (the block beginning `child_env = pinned_child_env()` that already pops `DRIVER_ATTEST_ENV` and sets or pops `EXECUTION_ROLE_ENV`), after the role handling: set `child_env[_gch.RUN_ID_ENV] = str(state["run_id"])` when `state.get("run_id")` is a non-empty string, else `child_env.pop(_gch.RUN_ID_ENV, None)`; likewise `ITEM_ID6_ENV` from `item.get("id6")`. Set them for isolated AND non-isolated turns (unlike the role marker, a trailer is truthful in both, because either way the commit is this turn's). Always overwrite or pop, never inherit: `pinned_child_env` copies `os.environ`, so a driver launched from inside another run's turn would otherwise stamp the OUTER run's id. Import `git_commit_helper` in the same local-import style the block already uses for `ipd_lifecycle`. Add a short comment citing `a6xbso` and the "overwrite or pop" reason.
   - DO NOT VALIDATE THE IDS HERE. Validation belongs at the READ side only (E-03), for a stated reason: the write side's job is to report what the live run actually calls itself, and a runner that silently dropped its own id would make a real run indistinguishable from no run. Export the value verbatim; if it is malformed, E-03's reader drops it and warns, which is the one place the judgement lives. THE CONSEQUENCE IS REAL AND MUST BE UNDERSTOOD BEFORE YOU WRITE E-07: `state["run_id"]` is exported unvalidated, so a test-shaped id like the existing harness's `run-test` IS exported and then REJECTED by the reader (measured at review: `run-test` fails the `new_run_id` pattern while all 283 real run dirs match it). That is correct behavior, not a bug, and E-07 case (5) must not be read as proving end-to-end usability. See E-08.
   - `state` and `item` ARE both in scope at this block (verified at review: they are the first and third parameters of `run_opencode`), so no plumbing is needed.
   - Depends on: E-02
   - Expected outcome: the `env` kwarg `run_opencode` hands to `subprocess.Popen` carries `AW_RUN_ID=<state run_id>` verbatim and `AW_ITEM_ID6=<item id6>`, and carries neither when the state has no run id even if the parent process exported them.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 MIRROR E-04 IN `agy_runipd.run_agy_turn`, in its twin block (`child_env = pinned_child_env()` ... `popen_kwargs["env"] = child_env`), identical logic and a comment pointing at the oc twin, so the two hosts cannot drift on this rule (the same discipline that block already states for the role marker).
+- [x] E-05 MIRROR E-04 IN `agy_runipd.run_agy_turn`, in its twin block (`child_env = pinned_child_env()` ... `popen_kwargs["env"] = child_env`), identical logic and a comment pointing at the oc twin, so the two hosts cannot drift on this rule (the same discipline that block already states for the role marker).
   - Depends on: E-02
   - Expected outcome: the same env facts as E-04 hold for the antigravity host.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 SCRUB BOTH VARS IN `conftest.py` at import time, immediately after the existing `os.environ.pop("AW_EXECUTION_ROLE", None)`, with a short comment: an agent turn now exports `AW_RUN_ID`/`AW_ITEM_ID6`, every plan tells that agent to run the suite, and without the scrub a test reaching `work_cmd._trailers_from_args` would read the OUTER run's ids and fail only inside a runner turn, the same evidence-corruption class the role scrub's comment documents. Tests that need the vars set them explicitly.
+- [x] E-06 SCRUB BOTH VARS IN `conftest.py` at import time, immediately after the existing `os.environ.pop("AW_EXECUTION_ROLE", None)`, with a short comment: an agent turn now exports `AW_RUN_ID`/`AW_ITEM_ID6`, every plan tells that agent to run the suite, and without the scrub a test reaching `work_cmd._trailers_from_args` would read the OUTER run's ids and fail only inside a runner turn, the same evidence-corruption class the role scrub's comment documents. Tests that need the vars set them explicitly.
   - NAME THE ACTUAL TEST THAT BREAKS, because the plan's original example was wrong and the right one is sharper. The example given was "the byte-identity assertions in `tests/test_git_commit_helper.py`"; those call `git_commit_helper.offer_commit` DIRECTLY with an explicit `trailers=` argument and never reach `_trailers_from_args`, so they are unaffected either way. The test that genuinely breaks is `tests/test_git_commit_helper.py::test_aw_commit_threads_trailers_and_lifecycle_delegates`, whose third assertion is literally `assert work_cmd._trailers_from_args(argparse.Namespace()) == []`. Driven at review with the env vars patched and the E-03 fallback prototyped, that call returns `['AW-Run: run-20260926T010203Z-4242', 'AW-Item: abc123']`, so the assertion FAILS. The conftest scrub is what keeps it passing; cite that test in the comment so the next reader can see what the scrub protects.
   - Depends on: E-04
   - Expected outcome: a test observing `os.environ` sees neither var even when pytest was launched with both exported (E-07 case (7), run as V-06 prescribes), and `test_aw_commit_threads_trailers_and_lifecycle_delegates` passes under a run launched with both vars set.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: prove it
 
-- [ ] E-07 ADD `tests/test_commit_run_trailers_env.py`, all behavioral (no source-text or structure assertions, per the 2026-09-26 maintainer ruling). Cases: (1) SCRATCH-REPO END TO END: a temp git repo, a modified file `f`, run `python3 -m agent_workflows commit --no-plan -m x -- f` as a SUBPROCESS with `env` = a copy of `os.environ` plus `AW_RUN_ID=run-20260926T010203Z-4242`, `AW_ITEM_ID6=abc123`, and `PYTHONPATH` at the repo root; assert `git log -1 --format=%(trailers:key=AW-Run,valueonly)` stripped equals the run id and the `AW-Item` equivalent equals `abc123`. (2) BYTE-IDENTITY WITHOUT ENV: the same with both vars removed; assert `git cat-file commit HEAD` message body is exactly `x\n` (read the stored bytes, as `test_git_commit_helper._raw_commit_message` does). (3) MALFORMED VALUES: `AW_RUN_ID=../evil` with a valid `AW_ITEM_ID6`: the commit carries `AW-Item` only, no `AW-Run`, and the subprocess stderr names `AW_RUN_ID`; and a malformed id6 (`ABC!23`) with a valid run id carries `AW-Run` only. (4) NAMESPACE PRECEDENCE: in-process, with the env vars patched via `mock.patch.dict(os.environ, ...)`, `work_cmd._trailers_from_args(argparse.Namespace(run_id="run-20260101T000000Z-1", item_id6="zzz999"))` returns the namespace values, not the env ones. (5) OC STUB-AGENT ENV DUMP: call `oc_runipd.run_opencode` with `subprocess.Popen` patched (the harness shape `tests/test_driver_attestation_gate.py` `test_child_env_scrubs_driver_attest_for_both_hosts` already uses, including patching `observe_opencode_policy` and `lane_containment.record_host_posture`), a state carrying `run_id` and an item carrying `id6`; assert the captured `env` kwarg has both vars with those values; then repeat with `mock.patch.dict(os.environ, {"AW_RUN_ID": "run-19990101T000000Z-1"})` and a state WITHOUT `run_id`, asserting `AW_RUN_ID` is ABSENT from the captured env. (6) AGY STUB-AGENT ENV DUMP: the same two assertions through `agy_runipd.run_agy_turn`. (7) CONFTEST SCRUB: an in-process test asserting `os.environ` holds neither `AW_RUN_ID` nor `AW_ITEM_ID6`; it is made NON-VACUOUS by V-06, which launches it with both vars exported.
+- [x] E-07 ADD `tests/test_commit_run_trailers_env.py`, all behavioral (no source-text or structure assertions, per the 2026-09-26 maintainer ruling). Cases: (1) SCRATCH-REPO END TO END: a temp git repo, a modified file `f`, run `python3 -m agent_workflows commit --no-plan -m x -- f` as a SUBPROCESS with `env` = a copy of `os.environ` plus `AW_RUN_ID=run-20260926T010203Z-4242`, `AW_ITEM_ID6=abc123`, and `PYTHONPATH` at the repo root; assert `git log -1 --format=%(trailers:key=AW-Run,valueonly)` stripped equals the run id and the `AW-Item` equivalent equals `abc123`. (2) BYTE-IDENTITY WITHOUT ENV: the same with both vars removed; assert `git cat-file commit HEAD` message body is exactly `x\n` (read the stored bytes, as `test_git_commit_helper._raw_commit_message` does). (3) MALFORMED VALUES: `AW_RUN_ID=../evil` with a valid `AW_ITEM_ID6`: the commit carries `AW-Item` only, no `AW-Run`, and the subprocess stderr names `AW_RUN_ID`; and a malformed id6 (`ABC!23`) with a valid run id carries `AW-Run` only. (4) NAMESPACE PRECEDENCE: in-process, with the env vars patched via `mock.patch.dict(os.environ, ...)`, `work_cmd._trailers_from_args(argparse.Namespace(run_id="run-20260101T000000Z-1", item_id6="zzz999"))` returns the namespace values, not the env ones. (5) OC STUB-AGENT ENV DUMP: call `oc_runipd.run_opencode` with `subprocess.Popen` patched (the harness shape `tests/test_driver_attestation_gate.py` `test_child_env_scrubs_driver_attest_for_both_hosts` already uses, including patching `observe_opencode_policy` and `lane_containment.record_host_posture`), a state carrying `run_id` and an item carrying `id6`; assert the captured `env` kwarg has both vars with those values; then repeat with `mock.patch.dict(os.environ, {"AW_RUN_ID": "run-19990101T000000Z-1"})` and a state WITHOUT `run_id`, asserting `AW_RUN_ID` is ABSENT from the captured env. (6) AGY STUB-AGENT ENV DUMP: the same two assertions through `agy_runipd.run_agy_turn`. (7) CONFTEST SCRUB: an in-process test asserting `os.environ` holds neither `AW_RUN_ID` nor `AW_ITEM_ID6`; it is made NON-VACUOUS by V-06, which launches it with both vars exported.
   - THE HARNESS YOU ARE REUSING CARRIES `run_id: "run-test"`, WHICH THE READER REJECTS. `tests/test_driver_attestation_gate.py::test_child_env_scrubs_driver_attest_for_both_hosts` builds `state = {"run_id": "run-test", ...}` and `item = {"position": 1, "id6": "abc123", ...}`. `abc123` is a valid id6, but `run-test` FAILS the run-id pattern E-03 validates against (measured at review). Because E-04/E-05 do not validate at the write side, cases (5) and (6) will PASS while asserting `AW_RUN_ID=run-test`, which the reader would then drop. That is consistent behavior, not a contradiction, but it means (5)/(6) prove ONLY that the var is exported and NOT that it is usable end to end. Either keep `run-test` and say so in the test's own docstring, or use a pattern-valid id in YOUR copy of the harness state; do NOT "fix" it by adding validation to E-04/E-05, which is explicitly out of scope. Case (1) is the only end-to-end proof, which is why E-08 exists.
   - Depends on: E-03, E-04, E-05, E-06
   - Expected outcome: all cases pass after the change; cases (1), (3), (5) and (6) FAIL before it (no trailer, no env var), while (2) and (4) pass both before and after.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 ADD ONE JOINED CASE that proves the WRITE and READ halves agree on a REAL run id, which no other item does: take the exact run id shape `runner_shared.new_run_id` produces, feed it through the oc child-env construction (the E-07 case (5) harness, with a pattern-valid `run_id` in the state), capture the exported `AW_RUN_ID`, then pass that captured string through `work_cmd._trailers_from_args(argparse.Namespace())` with the env patched to the captured value, and assert the resulting trailer list carries it. Assert the SAME for the `-N` collision suffix `oc_runipd._fresh_audit_run_dir` appends. Behavioral only.
+- [x] E-08 ADD ONE JOINED CASE that proves the WRITE and READ halves agree on a REAL run id, which no other item does: take the exact run id shape `runner_shared.new_run_id` produces, feed it through the oc child-env construction (the E-07 case (5) harness, with a pattern-valid `run_id` in the state), capture the exported `AW_RUN_ID`, then pass that captured string through `work_cmd._trailers_from_args(argparse.Namespace())` with the env patched to the captured value, and assert the resulting trailer list carries it. Assert the SAME for the `-N` collision suffix `oc_runipd._fresh_audit_run_dir` appends. Behavioral only.
   - WHY THIS IS NOT REDUNDANT WITH CASES (1), (5) AND (6). Case (1) exercises the reader through a real `aw commit` but sets the env BY HAND, so it never touches the writer. Cases (5) and (6) exercise the writer but assert only on the env dict, and (as noted) do so with a value the reader rejects. So nothing in the plan as authored proves that what the WRITER exports is a value the READER accepts, which is the entire contract this plan delivers. One test closes that gap, and it is the test that would catch a future divergence between `new_run_id`'s shape and `work_cmd`'s pattern, which are deliberately two separate definitions (E-03 chose not to import `runner_shared`, for good reason).
   - Depends on: E-03, E-04
   - Expected outcome: the exported run id round-trips into a trailer for both the plain and `-N`-suffixed shapes; the test fails before E-03/E-04 land.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -185,47 +185,313 @@ READ THE COUNTS IN F-1 AS AUTHORING CONTEXT, NOT AS THE BAR: the since-2026-09-2
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the scratch-repo `aw commit` output and the `git log -1 --format=...` line showing an untrailered `x`, plus the two in-repo counts.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Scratch commit produces 'x' with empty trailers '|||'; in-repo counts re-derived (1 trailered of 286 since 2026-09-22; all 16 work() commits have empty trailers).
+    Scratch repo commit probe output:
+    ```
+    aw commit exit code: 0
+    aw commit stdout: aw commit: no plan governs this commit (--no-plan), so two plan-derived protections are SKIPPED: Scope-Paths enforcement and plan validation. Every other protection is unchanged: only the paths you named are staged, and the shared helper still snapshots the index first and commits only the intersection, so a co-worker's staged change cannot be swept in.
+    aw commit: committed 1 path(s): bcd1de6dd74d484c3dd7feb6ac94695d2de1faff
+    git log output: 'x\n|||\n'
+    ```
+    In-repo live counts at HEAD:
+    - since 2026-09-22 trailered count (agent_workflows tests): 1 (`8aabf15a`)
+    - since 2026-09-22 total count (agent_workflows tests): 286
+    - all-refs trailered count: 83 (140 `closed by aw oc run` commits, 16 `work(...)` agent code commits all carry empty trailers `||`)
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the diff adding `RUN_ID_ENV`/`ITEM_ID6_ENV` and the `run_item_trailers` docstring sentences; paste `python3 -c "from agent_workflows import git_commit_helper as g; print(g.RUN_ID_ENV, g.ITEM_ID6_ENV, g.run_item_trailers(None, None))"` printing `AW_RUN_ID AW_ITEM_ID6 []`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Added RUN_ID_ENV and ITEM_ID6_ENV constants to git_commit_helper and extended run_item_trailers docstring; probe prints 'AW_RUN_ID AW_ITEM_ID6 []'.
+    Diff:
+    ```diff
+    --- a/agent_workflows/git_commit_helper.py
+    +++ b/agent_workflows/git_commit_helper.py
+    @@ -48,6 +48,13 @@ from typing import List, NamedTuple, Optional, Sequence, Tuple
+     TRAILER_KEY_RUN = "AW-Run"
+     TRAILER_KEY_ITEM = "AW-Item"
 
-- [ ] V-03 validates E-03
+    +# Environment variable names by which a live run hands its ids to an agent's `aw commit`.
+    +# This is the ONE channel for that handover: the runner writes them and `work_cmd` reads
+    +# them, both importing the names from here so the spelling is single-sourced exactly as the
+    +# trailer keys are.
+    +RUN_ID_ENV = "AW_RUN_ID"
+    +ITEM_ID6_ENV = "AW_ITEM_ID6"
+    +
+     # A trailer token, per `git-interpret-trailers`: "there can be no whitespace before or inside the
+     # <key>, but any number of regular space and tab characters are allowed between the <key> and the
+     # separator". VERIFIED against git 2.43.0 by probing `git interpret-trailers --parse`: `AW-Run`
+    @@ -239,13 +246,17 @@ def run_item_trailers(run_id: Optional[str], item_id6: Optional[str]) -> List[st
+         WHERE THE VALUES MUST COME FROM (runtrailwire-01 ``wao266``, now that a real runner consumer
+         exists): a LIVE RUN'S OWN STATE. ``oc_runipd.process_backlog_close`` threads ``state["run_id"]``
+         and the queue item's ``id6``; ``aw commit`` takes them off a programmatic caller's namespace and
+    -    exposes NO public flag for them, deliberately. They must never come from a human, a timestamp, or
+    -    any other synthesized source. The reason is the whole point of the mechanism: these trailers are
+    -    IMMUTABLE once committed, so their value is exactly that a later reader can TRUST them, and a
+    -    fabricated one makes a false ownership claim permanent. An absent value therefore means UNKNOWN
+    -    ownership and must stay absent - which is what the skipping above is for, and why the tempting
+    -    future change (accepting the ids from a convenience argument so a caller need not thread state)
+    -    would be a regression rather than an improvement.
+    +    exposes NO public flag for them, deliberately. For agent commits inside a run, the runner exports
+    +    these ids into the agent turn's environment (``AW_RUN_ID`` and ``AW_ITEM_ID6``) where
+    +    ``work_cmd`` reads them: still a live run's own state, written by the driver, never typed by a
+    +    human. Like ``AW_EXECUTION_ROLE``, an environment variable is a selector a same-user process can
+    +    set, so a trailer is a consistency record, not tamper-proof provenance. They must never come from
+    +    a human, a timestamp, or any other synthesized source. The reason is the whole point of the
+    +    mechanism: these trailers are IMMUTABLE once committed, so their value is exactly that a later
+    +    reader can TRUST them, and a fabricated one makes a false ownership claim permanent. An absent
+    +    value therefore means UNKNOWN ownership and must stay absent - which is what the skipping above
+    +    is for, and why the tempting future change (accepting the ids from a convenience argument so a
+    +    caller need not thread state) would be a regression rather than an improvement.
+     ```
+     Command output:
+     ```
+     $ python3 -c "from agent_workflows import git_commit_helper as g; print(g.RUN_ID_ENV, g.ITEM_ID6_ENV, g.run_item_trailers(None, None))"
+     AW_RUN_ID AW_ITEM_ID6 []
+     ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the diff of `_trailers_from_args`; paste an in-process run printing the return value for (both valid env), (no env), and (malformed run id + valid id6), with the stderr warning line.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Diff adds _RUN_ID_RE constant and validated env fallback to _trailers_from_args; in-process run prints expected lists and stderr warning.
+    Diff:
+    ```diff
+    --- a/agent_workflows/work_cmd.py
+    +++ b/agent_workflows/work_cmd.py
+    @@ -59,6 +61,12 @@ _AUTHORITATIVE_STATUSES = frozenset({"executed", "done"})
+    +# The run-id shape minted by `runner_shared.new_run_id` (`run-<YYYYmmddTHHMMSSZ>-<pid>`), plus the
+    +# `-N` collision suffix `oc_runipd._fresh_audit_run_dir` appends. Defined here as a module-level
+    +# pattern rather than importing `runner_shared`, which would pull the whole runner into every
+    +# `aw commit`.
+    +_RUN_ID_RE = re.compile(r"^run-\d{8}T\d{6}Z-\d+(-\d+)?$")
+    +
+    @@ -445,7 +453,7 @@ def _in_scope(path: str, scope_paths: List[str], plan_rel: str) -> bool:
+     def _trailers_from_args(args: argparse.Namespace) -> List[str]:
+    -    """Resolve optional run-ownership trailers from ``args``, defaulting to NONE.
+    +    """Resolve optional run-ownership trailers from ``args``, defaulting to env or NONE.
+    ...
+    +    ns_run_id = getattr(args, "run_id", None)
+    +    ns_item_id6 = getattr(args, "item_id6", None)
+    +    if ns_run_id is not None or ns_item_id6 is not None:
+    +        return _gch.run_item_trailers(ns_run_id, ns_item_id6)
+    +
+    +    valid_run_id: Optional[str] = None
+    +    raw_run_id = os.environ.get(_gch.RUN_ID_ENV)
+    +    if raw_run_id is not None and raw_run_id.strip():
+    +        if _RUN_ID_RE.match(raw_run_id):
+    +            valid_run_id = raw_run_id
+    +        else:
+    +            sys.stderr.write(
+    +                f"aw commit: warning - ignoring malformed {_gch.RUN_ID_ENV} value {raw_run_id!r}; "
+    +                "that trailer is omitted (unknown ownership)\n"
+    +            )
+    +
+    +    valid_item_id6: Optional[str] = None
+    +    raw_item_id6 = os.environ.get(_gch.ITEM_ID6_ENV)
+    +    if raw_item_id6 is not None and raw_item_id6.strip():
+    +        if _core.ID6_RE.match(raw_item_id6):
+    +            valid_item_id6 = raw_item_id6
+    +        else:
+    +            sys.stderr.write(
+    +                f"aw commit: warning - ignoring malformed {_gch.ITEM_ID6_ENV} value {raw_item_id6!r}; "
+    +                "that trailer is omitted (unknown ownership)\n"
+    +            )
+    +
+    +    return _gch.run_item_trailers(valid_run_id, valid_item_id6)
+    ```
+    In-process test output:
+    ```
+    both valid: ['AW-Run: run-20260926T010203Z-4242', 'AW-Item: abc123']
+    no env: []
+    aw commit: warning - ignoring malformed AW_RUN_ID value '../evil'; that trailer is omitted (unknown ownership)
+    malformed run_id + valid id6: ['AW-Item: abc123']
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the diff of the oc child-env block, and the passing output of E-07 case (5) naming the test.
   - The diff must show NO validation of either id at the write side, and must show the overwrite-or-pop shape for both vars. State in one line which run-id value case (5) asserts and whether the reader would accept it (F-8), so the record cannot be mistaken for end-to-end proof.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Diff shows overwrite-or-pop without write-side validation; test_oc_stub_agent_env_dump passed.
+    Diff:
+    ```diff
+    --- a/agent_workflows/oc_runipd.py
+    +++ b/agent_workflows/oc_runipd.py
+    @@ -2807,6 +2807,7 @@ def run_opencode(
+    +    from agent_workflows import git_commit_helper as _gch
+         from agent_workflows import ipd_lifecycle
 
-- [ ] V-05 validates E-05
+         child_env = pinned_child_env()
+    @@ -2816,6 +2817,22 @@ def run_opencode(
+         else:
+             child_env.pop(ipd_lifecycle.EXECUTION_ROLE_ENV, None)
+
+    +    # trailread (a6xbso) E-04: export live run and item ids to the agent turn so `aw commit`
+    +    # can stamp AW-Run and AW-Item trailers. Set for both isolated and non-isolated turns
+    +    # (unlike the role marker, a trailer is truthful in both). Always overwrite or pop, never
+    +    # inherit: `pinned_child_env` copies `os.environ`, so a driver launched from inside
+    # another run's turn would otherwise stamp the outer run's id. Unvalidated at the write
+    # side: reporting what the live run actually calls itself belongs here, while validation
+    # lives at the read side in `work_cmd`.
+    +    if state.get("run_id"):
+    +        child_env[_gch.RUN_ID_ENV] = str(state["run_id"])
+    +    else:
+    +        child_env.pop(_gch.RUN_ID_ENV, None)
+    +    if item.get("id6"):
+    +        child_env[_gch.ITEM_ID6_ENV] = str(item["id6"])
+    +    else:
+    +        child_env.pop(_gch.ITEM_ID6_ENV, None)
+    ```
+    Case (5) asserts run_id 'run-test', which the writer exports verbatim but the work_cmd reader would reject (F-8), proving export of live run state rather than end-to-end usability.
+    Test run:
+    ```
+    tests/test_commit_run_trailers_env.py::test_oc_stub_agent_env_dump PASSED [100%]
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the diff of the agy child-env block, and the passing output of E-07 case (6) naming the test.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Mirror child-env block in agy_runipd.py; test_agy_stub_agent_env_dump passed.
+    Diff:
+    ```diff
+    --- a/agent_workflows/agy_runipd.py
+    +++ b/agent_workflows/agy_runipd.py
+    @@ -2215,6 +2215,7 @@ def run_agy_turn(
+    +    from agent_workflows import git_commit_helper as _gch
+         from agent_workflows import ipd_lifecycle
 
-- [ ] V-06 validates E-06
+         child_env = pinned_child_env()
+    @@ -2223,6 +2224,20 @@ def run_agy_turn(
+             child_env[ipd_lifecycle.EXECUTION_ROLE_ENV] = ipd_lifecycle.ROLE_WORKER
+         else:
+             child_env.pop(ipd_lifecycle.EXECUTION_ROLE_ENV, None)
+    +
+    +    # trailread (a6xbso) E-05: mirror of the oc twin (oc_runipd.run_opencode). Export live
+    +    # run and item ids to the agent turn so `aw commit` can stamp AW-Run and AW-Item trailers.
+    +    # Set for both isolated and non-isolated turns. Always overwrite or pop, never inherit.
+    +    # Unvalidated at the write side: reporting what the live run actually calls itself belongs
+    +    # here, while validation lives at the read side in `work_cmd`.
+    +    if state.get("run_id"):
+    +        child_env[_gch.RUN_ID_ENV] = str(state["run_id"])
+    +    else:
+    +        child_env.pop(_gch.RUN_ID_ENV, None)
+    +    if item.get("id6"):
+    +        child_env[_gch.ITEM_ID6_ENV] = str(item["id6"])
+    +    else:
+    +        child_env.pop(_gch.ITEM_ID6_ENV, None)
+         popen_kwargs["env"] = child_env
+     ```
+    Test run:
+    ```
+    tests/test_commit_run_trailers_env.py::test_agy_stub_agent_env_dump PASSED [100%]
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the `conftest.py` diff; paste `AW_RUN_ID=run-20260926T000000Z-1 AW_ITEM_ID6=abc123 python3 -m pytest tests/test_commit_run_trailers_env.py tests/test_git_commit_helper.py -o addopts="" -q` passing, with case (7) among the passes; then the same with the `conftest.py` hunk temporarily reverted, showing case (7) FAILING; then passing again after restoring.
   - THE REVERTED RUN MUST ALSO SHOW `test_aw_commit_threads_trailers_and_lifecycle_delegates` FAILING, which is the shipped assertion the scrub protects (F-7). If it passes with the scrub reverted, either the env fallback is not wired or that test was edited; say which, because an edited assertion there means the scrub is not carrying its weight.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. conftest scrubs AW_RUN_ID and AW_ITEM_ID6; reverted run shows test_aw_commit_threads_trailers_and_lifecycle_delegates and case 7 failing; restored run passes 31 tests.
+    Diff:
+    ```diff
+    --- a/conftest.py
+    +++ b/conftest.py
+    @@ -94,6 +94,16 @@ pytest_plugins = ["tests.deselect_notice"]
+     # which is the common case for a human-typed run.
+     os.environ.pop("AW_EXECUTION_ROLE", None)
 
-- [ ] V-07 validates E-07
+    +# trailread (a6xbso) E-06: an agent turn now exports AW_RUN_ID and AW_ITEM_ID6, every
+    +# plan tells that agent to run the suite, and without this scrub a test reaching
+    +# work_cmd._trailers_from_args would read the outer run's ids and fail only inside a
+    +# runner turn (the same evidence-corruption class documented above). Specifically,
+    +# tests/test_git_commit_helper.py::test_aw_commit_threads_trailers_and_lifecycle_delegates
+    +# asserts work_cmd._trailers_from_args(argparse.Namespace()) == [], which fails if
+    +# outer run trailers leak in. Tests that need the vars set them explicitly.
+    +os.environ.pop("AW_RUN_ID", None)
+    +os.environ.pop("AW_ITEM_ID6", None)
+    +
+     # --------------------------------------------------------------------------------------
+     # Tree-relative import root: guarantee the test session and its subprocesses measure THIS
+     # repository tree, not an editable install pin to another checkout (IPD `lhjsu0`).
+    ```
+    Reverted conftest run showing test_aw_commit_threads_trailers_and_lifecycle_delegates and case (7) failing:
+    ```
+    $ AW_RUN_ID=run-20260926T000000Z-1 AW_ITEM_ID6=abc123 python3 -m pytest tests/test_commit_run_trailers_env.py tests/test_git_commit_helper.py -o addopts="" -q
+    ......................F......F.                                          [100%]
+    =================================== FAILURES ===================================
+    ___________ test_aw_commit_threads_trailers_and_lifecycle_delegates ____________
+    >       assert work_cmd._trailers_from_args(argparse.Namespace()) == []
+    E       AssertionError: assert ['AW-Run: run...Item: abc123'] == []
+    tests/test_git_commit_helper.py:577: AssertionError
+    __________________ test_conftest_scrubs_run_and_item_env_vars __________________
+    >       assert _gch.RUN_ID_ENV not in os.environ
+    E       AssertionError: assert 'AW_RUN_ID' not in environ({...})
+    tests/test_commit_run_trailers_env.py:388: AssertionError
+    2 failed, 29 passed in 5.43s
+    ```
+    Restored conftest run passing all 31 tests:
+    ```
+    $ AW_RUN_ID=run-20260926T000000Z-1 AW_ITEM_ID6=abc123 python3 -m pytest tests/test_commit_run_trailers_env.py tests/test_git_commit_helper.py -o addopts="" -q
+    ...............................                                          [100%]
+    31 passed in 5.48s
+    ```
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste `python3 -m pytest tests/test_commit_run_trailers_env.py -o addopts="" -q` passing with the case count; then the same run with the E-03/E-04/E-05 hunks temporarily reverted, showing cases (1), (3), (5), (6) FAILING and (2), (4) passing; then passing again after restoring. Paste the bare `python3 -m pytest` summary line BEFORE and AFTER and the after-minus-before failing node-ID set (must be empty).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. test_commit_run_trailers_env.py passes 8 tests; pre-change run failed cases 1, 3, 5, 6, 8; full suite 2665 passed before -> 2673 passed after (+8 new tests), 0 regressions.
+    Passing test run:
+    ```
+    $ python3 -m pytest tests/test_commit_run_trailers_env.py -o addopts="" -q
+    ........                                                                 [100%]
+    8 passed in 1.88s
+    ```
+    Pre-change / reverted run showing cases (1), (3), (5), (6), and (8) failing and (2), (4), (7) passing:
+    ```
+    FAILED tests/test_commit_run_trailers_env.py::test_oc_stub_agent_env_dump
+    FAILED tests/test_commit_run_trailers_env.py::test_scratch_repo_end_to_end_stamps_trailers
+    FAILED tests/test_commit_run_trailers_env.py::test_malformed_values_dropped_with_warning
+    FAILED tests/test_commit_run_trailers_env.py::test_agy_stub_agent_env_dump
+    FAILED tests/test_commit_run_trailers_env.py::test_round_trip_writer_export_to_reader_trailers
+    5 failed, 3 passed in 1.55s
+    ```
+    Full bare pytest before changes:
+    `2665 passed, 2 skipped, 3 warnings in 92.44s (0:01:32)`
+    Full bare pytest after changes:
+    `2673 passed, 2 skipped, 3 warnings in 80.92s (0:01:20)`
+    After-minus-before failing node-ID set: `set()` (empty).
+  - Result: pass
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: paste the round-trip test source's assertions and its passing run, for BOTH the plain `new_run_id` shape and the `-N` suffixed shape. State in one line that the run id asserted came from the CAPTURED env (the writer's output) and was not re-typed in the test body, since a re-typed literal would test the reader twice and prove nothing about agreement.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Writer-exported AW_RUN_ID round-trips into work_cmd trailers for both plain and -N suffixed shapes; test passed.
+    The run id asserted in both plain and suffixed shapes came directly from the captured child env (mock_popen.call_args[1]['env'][_gch.RUN_ID_ENV]) and was not re-typed in the test body.
+    Assertions from `test_round_trip_writer_export_to_reader_trailers`:
+    ```python
+        # 8a: plain new_run_id shape
+        child_env = mock_popen.call_args[1].get("env", {})
+        captured_run_id = child_env.get(_gch.RUN_ID_ENV)
+        captured_item_id = child_env.get(_gch.ITEM_ID6_ENV)
+        assert captured_run_id == plain_id
+        assert captured_item_id == "abc123"
+        with mock.patch.dict(os.environ, {_gch.RUN_ID_ENV: captured_run_id, _gch.ITEM_ID6_ENV: captured_item_id}):
+            trailers_plain = work_cmd._trailers_from_args(argparse.Namespace())
+            assert f"AW-Run: {captured_run_id}" in trailers_plain
+            assert f"AW-Item: {captured_item_id}" in trailers_plain
+
+        # 8b: -N collision suffix shape
+        child_env = mock_popen.call_args[1].get("env", {})
+        captured_suffixed_id = child_env.get(_gch.RUN_ID_ENV)
+        assert captured_suffixed_id == suffixed_id
+        with mock.patch.dict(os.environ, {_gch.RUN_ID_ENV: captured_suffixed_id, _gch.ITEM_ID6_ENV: captured_item_id}):
+            trailers_suffixed = work_cmd._trailers_from_args(argparse.Namespace())
+            assert f"AW-Run: {captured_suffixed_id}" in trailers_suffixed
+            assert f"AW-Item: {captured_item_id}" in trailers_suffixed
+    ```
+    Passing test run:
+    ```
+    tests/test_commit_run_trailers_env.py::test_round_trip_writer_export_to_reader_trailers PASSED [100%]
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

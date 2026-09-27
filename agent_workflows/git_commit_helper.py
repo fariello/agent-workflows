@@ -48,6 +48,13 @@ from typing import List, NamedTuple, Optional, Sequence, Tuple
 TRAILER_KEY_RUN = "AW-Run"
 TRAILER_KEY_ITEM = "AW-Item"
 
+# Environment variable names by which a live run hands its ids to an agent's `aw commit`.
+# This is the ONE channel for that handover: the runner writes them and `work_cmd` reads
+# them, both importing the names from here so the spelling is single-sourced exactly as the
+# trailer keys are.
+RUN_ID_ENV = "AW_RUN_ID"
+ITEM_ID6_ENV = "AW_ITEM_ID6"
+
 # A trailer token, per `git-interpret-trailers`: "there can be no whitespace before or inside the
 # <key>, but any number of regular space and tab characters are allowed between the <key> and the
 # separator". VERIFIED against git 2.43.0 by probing `git interpret-trailers --parse`: `AW-Run`
@@ -232,13 +239,17 @@ def run_item_trailers(run_id: Optional[str], item_id6: Optional[str]) -> List[st
     WHERE THE VALUES MUST COME FROM (runtrailwire-01 ``wao266``, now that a real runner consumer
     exists): a LIVE RUN'S OWN STATE. ``oc_runipd.process_backlog_close`` threads ``state["run_id"]``
     and the queue item's ``id6``; ``aw commit`` takes them off a programmatic caller's namespace and
-    exposes NO public flag for them, deliberately. They must never come from a human, a timestamp, or
-    any other synthesized source. The reason is the whole point of the mechanism: these trailers are
-    IMMUTABLE once committed, so their value is exactly that a later reader can TRUST them, and a
-    fabricated one makes a false ownership claim permanent. An absent value therefore means UNKNOWN
-    ownership and must stay absent - which is what the skipping above is for, and why the tempting
-    future change (accepting the ids from a convenience argument so a caller need not thread state)
-    would be a regression rather than an improvement.
+    exposes NO public flag for them, deliberately. For agent commits inside a run, the runner exports
+    these ids into the agent turn's environment (``AW_RUN_ID`` and ``AW_ITEM_ID6``) where
+    ``work_cmd`` reads them: still a live run's own state, written by the driver, never typed by a
+    human. Like ``AW_EXECUTION_ROLE``, an environment variable is a selector a same-user process can
+    set, so a trailer is a consistency record, not tamper-proof provenance. They must never come from
+    a human, a timestamp, or any other synthesized source. The reason is the whole point of the
+    mechanism: these trailers are IMMUTABLE once committed, so their value is exactly that a later
+    reader can TRUST them, and a fabricated one makes a false ownership claim permanent. An absent
+    value therefore means UNKNOWN ownership and must stay absent - which is what the skipping above
+    is for, and why the tempting future change (accepting the ids from a convenience argument so a
+    caller need not thread state) would be a regression rather than an improvement.
     """
 
     out: List[str] = []

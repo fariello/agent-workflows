@@ -37,7 +37,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
+import sys
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -56,6 +58,12 @@ _WORK_STATE_SUBDIR = ".aw/state/work"
 # Terminal/authoritative statuses `aw finish` must NEVER set (that authority stays with
 # `aw ipd finalize`). Everything else in the plan status sequence is a valid non-authoritative step.
 _AUTHORITATIVE_STATUSES = frozenset({"executed", "done"})
+
+# The run-id shape minted by `runner_shared.new_run_id` (`run-<YYYYmmddTHHMMSSZ>-<pid>`), plus the
+# `-N` collision suffix `oc_runipd._fresh_audit_run_dir` appends. Defined here as a module-level
+# pattern rather than importing `runner_shared`, which would pull the whole runner into every
+# `aw commit`.
+_RUN_ID_RE = re.compile(r"^run-\d{8}T\d{6}Z-\d+(-\d+)?$")
 
 
 # --------------------------------------------------------------------------------------
@@ -437,42 +445,62 @@ def _in_scope(path: str, scope_paths: List[str], plan_rel: str) -> bool:
 
 
 def _trailers_from_args(args: argparse.Namespace) -> List[str]:
-    """Resolve optional run-ownership trailers from ``args``, defaulting to NONE.
+    """Resolve optional run-ownership trailers from ``args``, defaulting to env or NONE.
 
     Threading only (IPD m73aet E-03): NO new CLI flag is added, because the values come from a live
     run and never from a human - a public flag for a value no human can correctly supply is a contract
     taken on for nothing. That reasoning is unchanged and still holds.
 
-    THE RUNNER WIRING IS NOW PARTLY LANDED, AND THE HALVES MATTER (runtrailwire-01 ``wao266``). WHAT
-    IS WIRED: the runner's own DRIVER-SIDE commit, `oc_runipd.commit_backlog_close`, which both hosts
-    reach and which now passes `run_item_trailers(run_id, plan_id6)`. WHAT REMAINS DEFERRED, and it is
-    the half that would matter to attribution: the AGENT's own code commits, which is the range
-    `ipd_lifecycle` actually reads (`base_head..HEAD`). Those are made by the agent running raw
-    `git commit -m msg -- <path>` per the runbook directive, pass through no `offer_commit` call, and
-    so cannot be reached by wiring one; trailering them means changing what the runner INSTRUCTS the
-    agent to do, or routing agent commits through `aw commit` (whose namespace already accepts the
-    ids below). Read the sentence "the runner wires trailers" as covering ONLY the first half: a
-    reader who takes it as covering both will not understand why finalize still cannot attribute a
-    committed path.
+    AGENT COMMITS INSIDE A RUN (IPD a6xbso). For agent commits made inside an ``aw oc run`` or
+    ``aw agy run`` turn, the runner exports the live run id and item id6 into the agent turn's
+    environment (``AW_RUN_ID`` and ``AW_ITEM_ID6``). When the caller namespace supplies neither
+    explicit trailers nor explicit ids, this function falls back to reading and validating those
+    environment variables. A malformed value is ignored with a warning on stderr (unknown ownership);
+    valid values are formatted into canonical ``AW-Run`` and ``AW-Item`` trailers.
 
-    A programmatic caller (a runner, or the agent-commit route if it is ever built) supplies them on
-    the namespace instead:
+    A programmatic caller supplies them on the namespace instead:
 
       * ``trailers`` - preformatted ``"Key: value"`` strings, used as-is; or
       * ``run_id`` / ``item_id6`` - the raw ids, formatted into the canonical ``AW-Run``/``AW-Item``
         keys by ``git_commit_helper.run_item_trailers`` so the key spelling is single-sourced.
 
-    Absent both, this returns ``[]`` and ``aw commit`` composes its message exactly as before. In
-    particular the plan's own id6 is NOT auto-derived into an ``AW-Item`` trailer: that would change
-    the default behavior of an existing caller, which this plan's scope excludes.
+    Absent explicit namespace values and valid environment variables, this returns ``[]`` and
+    ``aw commit`` composes its message exactly as before. In particular the plan's own id6 is NEVER
+    auto-derived into an ``AW-Item`` trailer: that would change the default behavior of an existing
+    caller, which this plan's scope excludes (the item id comes only from the run's env).
     """
-
     explicit = list(getattr(args, "trailers", None) or [])
     if explicit:
         return explicit
-    return _gch.run_item_trailers(
-        getattr(args, "run_id", None), getattr(args, "item_id6", None)
-    )
+
+    ns_run_id = getattr(args, "run_id", None)
+    ns_item_id6 = getattr(args, "item_id6", None)
+    if ns_run_id is not None or ns_item_id6 is not None:
+        return _gch.run_item_trailers(ns_run_id, ns_item_id6)
+
+    valid_run_id: Optional[str] = None
+    raw_run_id = os.environ.get(_gch.RUN_ID_ENV)
+    if raw_run_id is not None and raw_run_id.strip():
+        if _RUN_ID_RE.match(raw_run_id):
+            valid_run_id = raw_run_id
+        else:
+            sys.stderr.write(
+                f"aw commit: warning - ignoring malformed {_gch.RUN_ID_ENV} value {raw_run_id!r}; "
+                "that trailer is omitted (unknown ownership)\n"
+            )
+
+    valid_item_id6: Optional[str] = None
+    raw_item_id6 = os.environ.get(_gch.ITEM_ID6_ENV)
+    if raw_item_id6 is not None and raw_item_id6.strip():
+        if _core.ID6_RE.match(raw_item_id6):
+            valid_item_id6 = raw_item_id6
+        else:
+            sys.stderr.write(
+                f"aw commit: warning - ignoring malformed {_gch.ITEM_ID6_ENV} value {raw_item_id6!r}; "
+                "that trailer is omitted (unknown ownership)\n"
+            )
+
+    return _gch.run_item_trailers(valid_run_id, valid_item_id6)
 
 
 def _default_commit_message(plan_text: str, plan_rel: str) -> str:

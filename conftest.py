@@ -94,6 +94,16 @@ pytest_plugins = ["tests.deselect_notice"]
 # which is the common case for a human-typed run.
 os.environ.pop("AW_EXECUTION_ROLE", None)
 
+# trailread (a6xbso) E-06: an agent turn now exports AW_RUN_ID and AW_ITEM_ID6, every
+# plan tells that agent to run the suite, and without this scrub a test reaching
+# work_cmd._trailers_from_args would read the outer run's ids and fail only inside a
+# runner turn (the same evidence-corruption class documented above). Specifically,
+# tests/test_git_commit_helper.py::test_aw_commit_threads_trailers_and_lifecycle_delegates
+# asserts work_cmd._trailers_from_args(argparse.Namespace()) == [], which fails if
+# outer run trailers leak in. Tests that need the vars set them explicitly.
+os.environ.pop("AW_RUN_ID", None)
+os.environ.pop("AW_ITEM_ID6", None)
+
 # --------------------------------------------------------------------------------------
 # Tree-relative import root: guarantee the test session and its subprocesses measure THIS
 # repository tree, not an editable install pin to another checkout (IPD `lhjsu0`).

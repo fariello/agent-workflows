@@ -2807,6 +2807,7 @@ def run_opencode(
     # HONEST LIMIT: this is an environment SELECTOR, not a hardened boundary. A same-user worker with
     # shell access can unset it. It stops an agent that is FOLLOWING the contract (the actual i452hf
     # case), not a determined one; hard enforcement is an OS sandbox / separate principal.
+    from agent_workflows import git_commit_helper as _gch
     from agent_workflows import ipd_lifecycle
 
     child_env = pinned_child_env()
@@ -2815,6 +2816,22 @@ def run_opencode(
         child_env[ipd_lifecycle.EXECUTION_ROLE_ENV] = ipd_lifecycle.ROLE_WORKER
     else:
         child_env.pop(ipd_lifecycle.EXECUTION_ROLE_ENV, None)
+
+    # trailread (a6xbso) E-04: export live run and item ids to the agent turn so `aw commit`
+    # can stamp AW-Run and AW-Item trailers. Set for both isolated and non-isolated turns
+    # (unlike the role marker, a trailer is truthful in both). Always overwrite or pop, never
+    # inherit: `pinned_child_env` copies `os.environ`, so a driver launched from inside
+    # another run's turn would otherwise stamp the outer run's id. Unvalidated at the write
+    # side: reporting what the live run actually calls itself belongs here, while validation
+    # lives at the read side in `work_cmd`.
+    if state.get("run_id"):
+        child_env[_gch.RUN_ID_ENV] = str(state["run_id"])
+    else:
+        child_env.pop(_gch.RUN_ID_ENV, None)
+    if item.get("id6"):
+        child_env[_gch.ITEM_ID6_ENV] = str(item["id6"])
+    else:
+        child_env.pop(_gch.ITEM_ID6_ENV, None)
 
     # lanectn Order 03 (`lhmrhx`) E-01/E-02/E-03, spec R4.1/R4.2/R4.3/R4.6: ask THIS host for the
     # strongest permission posture it actually supports, then OBSERVE what took effect.

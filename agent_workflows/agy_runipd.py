@@ -2215,6 +2215,7 @@ def run_agy_turn(
     # `work_dir` key, same single env construction via the shared `pinned_child_env` - the two host
     # drivers must not drift on an authority rule. See the oc twin for the full rationale and for the
     # honest limit (an environment selector, not a hardened boundary).
+    from agent_workflows import git_commit_helper as _gch
     from agent_workflows import ipd_lifecycle
 
     child_env = pinned_child_env()
@@ -2223,6 +2224,20 @@ def run_agy_turn(
         child_env[ipd_lifecycle.EXECUTION_ROLE_ENV] = ipd_lifecycle.ROLE_WORKER
     else:
         child_env.pop(ipd_lifecycle.EXECUTION_ROLE_ENV, None)
+
+    # trailread (a6xbso) E-05: mirror of the oc twin (oc_runipd.run_opencode). Export live
+    # run and item ids to the agent turn so `aw commit` can stamp AW-Run and AW-Item trailers.
+    # Set for both isolated and non-isolated turns. Always overwrite or pop, never inherit.
+    # Unvalidated at the write side: reporting what the live run actually calls itself belongs
+    # here, while validation lives at the read side in `work_cmd`.
+    if state.get("run_id"):
+        child_env[_gch.RUN_ID_ENV] = str(state["run_id"])
+    else:
+        child_env.pop(_gch.RUN_ID_ENV, None)
+    if item.get("id6"):
+        child_env[_gch.ITEM_ID6_ENV] = str(item["id6"])
+    else:
+        child_env.pop(_gch.ITEM_ID6_ENV, None)
     popen_kwargs["env"] = child_env
 
     # lanectn Order 03 (`lhmrhx`) E-06, spec R4.1a/R4.1b/R4.1c: the SANCTIONED ASYMMETRY with the oc
