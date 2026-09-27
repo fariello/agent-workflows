@@ -6,7 +6,7 @@
 - Scope: IN: source-order-preserving re-render in backlog._render_item, including the pre-history prose region; backlog.run_set and set_records.close_on_answer switched to it; a release-gate refusal on close_on_answer so its new preservation cannot manufacture a done item with a live gate; the two per-field preservation patches removed; outcome tests; two CHANGELOG lines. OUT: unifying the two spellings; the positional path's legacy Kind handling; new-record rendering (run_new, promote_question_to_backlog) unchanged; new validate_item rules for a duplicate bullet or a stale Gate-Summary; widening the commit-staged scope of check.blocking-item-closed-without-gate.
 - Scope-Paths: agent_workflows/backlog.py, agent_workflows/set_records.py, tests/test_backlog.py, CHANGELOG.md
 - Item-Dependencies: executed:wd6npl
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 09
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 2yqt0a
-- Approval: 2026-09-26, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 2yqt0a verified (set rendrop, attempt 1).
 - 2026-09-26 approved (aw set): status set to approved
 - 2026-09-26 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed in place
 - 2026-09-26 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 all FIXED in place. Added E-07 (preserve prose written before `## Workflow history`, the larger destruction the plan left unfixed: 6 live items, one losing 2620 of 3063 bytes), E-08 (gate `close_on_answer`'s close on `evaluate_blocking_close`, because E-03's preservation otherwise manufactures a `done` item with a live release gate that no shipped check sees), E-09 (four tests for the added defects), four hard rules on E-01's walk (dedupe the two kind spellings, drop a non-blocked `Gate-Summary`, pass an unparseable bullet through, never reorder), `--no-commit` on every `cli.main` in the tests, V-07/V-08/V-09, and F-7..F-12. Watermark 06 -> 09.
@@ -38,7 +38,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Order-preserving render
 
-- [ ] E-01 Add a keyword-only `source_text: Optional[str] = None` parameter to `backlog._render_item`. When it is None, behavior is unchanged (used by `run_new` and `set_records.promote_question_to_backlog`, which build new records). When it is given, build the metadata block by walking the source's leading bullet block (the same boundary `parse_item` uses: stop at the first `## ` or the first non-blank non-`- ` line) and, for each top-level `- Key: value` line: if Key is template-owned (`Id`, `Status`, `Set`, `Priority`, `Work-Kind`, legacy `Kind`, `Summary`, `Gate-Kind`, `Gate-Ref`) emit the template's value for that key IN PLACE, otherwise emit the line verbatim. Template-owned lines absent from the source are inserted directly after `- Status:` (gate fields) or in template order at the end of the block (anything else), which matches where `status_set.apply_status_change` inserts gate fields.
+- [x] E-01 Add a keyword-only `source_text: Optional[str] = None` parameter to `backlog._render_item`. When it is None, behavior is unchanged (used by `run_new` and `set_records.promote_question_to_backlog`, which build new records). When it is given, build the metadata block by walking the source's leading bullet block (the same boundary `parse_item` uses: stop at the first `## ` or the first non-blank non-`- ` line) and, for each top-level `- Key: value` line: if Key is template-owned (`Id`, `Status`, `Set`, `Priority`, `Work-Kind`, legacy `Kind`, `Summary`, `Gate-Kind`, `Gate-Ref`) emit the template's value for that key IN PLACE, otherwise emit the line verbatim. Template-owned lines absent from the source are inserted directly after `- Status:` (gate fields) or in template order at the end of the block (anything else), which matches where `status_set.apply_status_change` inserts gate fields.
   - FOUR RULES THE WALK MUST OBEY, each fixing a defect this shape would otherwise introduce (review PR-002, PR-003, PR-005; all measured, see F-7/F-8/F-10):
   - (1) EMIT EACH TEMPLATE-OWNED KEY AT MOST ONCE. An item carrying BOTH `- Kind: chore` and `- Work-Kind: bug` is legal today (`parse_item` dual-reads, canonical wins, `validate_item` reports nothing: measured) and a naive in-place substitution emits `- Work-Kind: bug` TWICE, which `validate_item` also does not catch (measured). Track emitted keys; the legacy `- Kind:` line is substituted in place ONLY when no `- Work-Kind:` line was already emitted for it, and is otherwise DROPPED.
   - (2) DROP A GATE FIELD WHEN THE ITEM IS NOT `blocked`, AND DROP `Gate-Summary` THE SAME WAY. `Gate-Kind`/`Gate-Ref` are dropped when `item.status != "blocked"` (as HEAD's template already does). `- Gate-Summary:` is NOT template-owned and NOT on `BacklogItem.__slots__`, yet `aw set blocked <item> --gate-summary ...` writes one onto a backlog item (measured, F-8), so a verbatim walk would PRESERVE a stale gate summary onto a `done` item and `validate_item` would not flag it (it tests only `gate_kind`/`gate_ref`: measured, zero drift). Treat `Gate-Summary` as a gate field for the drop rule: keep it in place when `item.status == "blocked"`, drop it otherwise. Use the shared `attention_contract.GATE_SUMMARY_RE`, never a fresh pattern.
@@ -46,51 +46,51 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - (4) DO NOT REORDER WHAT THE SOURCE ALREADY ORDERED. The insert points above apply only to a key ABSENT from the source; a key present in the source keeps its source position even when that differs from the template order. This is the property F-5 identifies as what makes the two spellings agree.
   - Depends on: none
   - Expected outcome: re-rendering an item with `- Custom-Field: keepme`, `- Graduated-To: a, b`, `- Blocks-Release: next` keeps all three lines in their original positions; a new item (`source_text=None`) renders byte-identically to HEAD; an item carrying both `- Kind:` and `- Work-Kind:` emits exactly one `- Work-Kind:`; a non-`blocked` item's `- Gate-Summary:` is dropped.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 FIX THE HEADER-PROSE DESTRUCTION THIS PLAN WOULD OTHERWISE LEAVE IN PLACE (review PR-001, measured F-9). `_strip_metadata_and_history` returns ONLY the text AFTER the history block, so any prose between the metadata bullets and `## Workflow history` is DELETED by every `--status` write. Measured on the live tree: 6 of 620 items carry such prose, and re-rendering `20260919-a3ugp1-01-a3ugp1-...` through `_render_item` + `_reattach_history` shrank it from 3063 to 443 bytes, destroying the entire bug report while the positional spelling preserved it. Fix INSIDE `_render_item`'s `source_text` walk, which is the one place that already has the source text: capture the source region between the end of the leading bullet block and the `## Workflow history` heading and re-emit it, verbatim, between the metadata block and that heading. When `source_text` is None nothing changes. Do NOT widen `_strip_metadata_and_history` instead: `_reattach_history` splits on `"\n## Workflow history"` and reassembles head + history + trailing body, so a body returned from that function lands AFTER the history block and would relocate the prose rather than preserve it.
+- [x] E-07 FIX THE HEADER-PROSE DESTRUCTION THIS PLAN WOULD OTHERWISE LEAVE IN PLACE (review PR-001, measured F-9). `_strip_metadata_and_history` returns ONLY the text AFTER the history block, so any prose between the metadata bullets and `## Workflow history` is DELETED by every `--status` write. Measured on the live tree: 6 of 620 items carry such prose, and re-rendering `20260919-a3ugp1-01-a3ugp1-...` through `_render_item` + `_reattach_history` shrank it from 3063 to 443 bytes, destroying the entire bug report while the positional spelling preserved it. Fix INSIDE `_render_item`'s `source_text` walk, which is the one place that already has the source text: capture the source region between the end of the leading bullet block and the `## Workflow history` heading and re-emit it, verbatim, between the metadata block and that heading. When `source_text` is None nothing changes. Do NOT widen `_strip_metadata_and_history` instead: `_reattach_history` splits on `"\n## Workflow history"` and reassembles head + history + trailing body, so a body returned from that function lands AFTER the history block and would relocate the prose rather than preserve it.
   - Depends on: E-01
   - Expected outcome: `aw backlog set <path> --status parked` on an item with prose before `## Workflow history` preserves that prose in place, byte for byte; the metadata block plus that prose region matches what the positional spelling produces.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 CLOSE THE RELEASE-GATE HOLE E-03 OPENS, rather than opening it (review PR-004, measured F-11). E-03 makes `close_on_answer` PRESERVE `- Blocks-Release:` while transitioning an item to `done`. That is the right preservation and the wrong outcome on its own: it manufactures exactly the `done` + live-gate state `check_engine.evaluate_blocking_close` exists to refuse, and the shipped backstop cannot see it (measured: `evaluate_blocking_close` returns `legitimate=False, severity='error'` on such an item, while `check_release_gates` and `check_release_gate_consistency` both return ZERO findings on the same tree, because rule 1 is commit-staged-scoped and `close_on_answer` never stages). So in `close_on_answer`, after rendering and BEFORE `core.atomic_write`, call `check_engine.evaluate_blocking_close(repo_root, backlog_path, "done", item_text=rendered)` and, when the verdict is `not legitimate and severity == "error"`, RAISE `ValueError` carrying `verdict.reason` and `verdict.fixes` and write nothing. This function has no CLI and already raises `ValueError` on a validation failure in its sibling `promote_question_to_backlog`, so raising is its established refusal shape; do not invent an exit code here.
+- [x] E-08 CLOSE THE RELEASE-GATE HOLE E-03 OPENS, rather than opening it (review PR-004, measured F-11). E-03 makes `close_on_answer` PRESERVE `- Blocks-Release:` while transitioning an item to `done`. That is the right preservation and the wrong outcome on its own: it manufactures exactly the `done` + live-gate state `check_engine.evaluate_blocking_close` exists to refuse, and the shipped backstop cannot see it (measured: `evaluate_blocking_close` returns `legitimate=False, severity='error'` on such an item, while `check_release_gates` and `check_release_gate_consistency` both return ZERO findings on the same tree, because rule 1 is commit-staged-scoped and `close_on_answer` never stages). So in `close_on_answer`, after rendering and BEFORE `core.atomic_write`, call `check_engine.evaluate_blocking_close(repo_root, backlog_path, "done", item_text=rendered)` and, when the verdict is `not legitimate and severity == "error"`, RAISE `ValueError` carrying `verdict.reason` and `verdict.fixes` and write nothing. This function has no CLI and already raises `ValueError` on a validation failure in its sibling `promote_question_to_backlog`, so raising is its established refusal shape; do not invent an exit code here.
   - Depends on: E-03
   - Expected outcome: `close_on_answer` on a gated item with no handoff and no evidence raises `ValueError` naming the gate and writes no file; on an ungated item, or one whose gate is handed off to a `From-Backlog` carrier, it closes as before.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `backlog.run_set`, call `_render_item(item, body, source_text=text)`. Delete the two PRESERVATION branches only: `elif item.blocks_release: ... set_blocks_release_line(rendered, item.blocks_release)` and `elif existing_gt: ... set_graduated_to_line(rendered, ", ".join(existing_gt))` (and the now-unused `existing_gt` read). Keep the explicit-flag writes (`if br is not None`, `if set_graduated_to is not None`), which are the flags' write mechanism shared with `status_set`, not preservation patches. Rewrite the two surrounding comments to state that preservation is now the renderer's property.
+- [x] E-02 In `backlog.run_set`, call `_render_item(item, body, source_text=text)`. Delete the two PRESERVATION branches only: `elif item.blocks_release: ... set_blocks_release_line(rendered, item.blocks_release)` and `elif existing_gt: ... set_graduated_to_line(rendered, ", ".join(existing_gt))` (and the now-unused `existing_gt` read). Keep the explicit-flag writes (`if br is not None`, `if set_graduated_to is not None`), which are the flags' write mechanism shared with `status_set`, not preservation patches. Rewrite the two surrounding comments to state that preservation is now the renderer's property.
   - Depends on: E-01
   - Expected outcome: `--status` preserves every unknown field with no per-field code; `--blocks-release`/`--graduated-to` flags still set and clear.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 In `set_records.close_on_answer`, call `_backlog._render_item(item, body, source_text=text)` so the close keeps unknown fields (including `Blocks-Release`, which today is dropped on this path: a SILENT RELEASE-GATE DROP if it were ever called on a gated item).
+- [x] E-03 In `set_records.close_on_answer`, call `_backlog._render_item(item, body, source_text=text)` so the close keeps unknown fields (including `Blocks-Release`, which today is dropped on this path: a SILENT RELEASE-GATE DROP if it were ever called on a gated item).
   - Depends on: E-01
   - Expected outcome: `close_on_answer` on an item carrying `- Custom-Field:` and `- Blocks-Release:` keeps both.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Outcome tests
 
-- [ ] E-04 Add tests to `tests/test_backlog.py` for the PRESERVATION surface: (a) BOTH SPELLINGS AGREE: two identical scratch repos, one item carrying `- Blocks-Release: <planned release id6>`, `- Custom-Field: keepme`, `- Graduated-To: foo` (canonical `Work-Kind` spelling); run `cli.main(["backlog","set",<path>,"--status","parked","--dir",r1,"--no-commit"])` and `cli.main(["backlog","set","parked",<id6>,"--yes","--no-commit","--dir",r2])`; assert the metadata blocks (text before `## Workflow history`) of the two results are EQUAL and contain all three fields; (b) `--status graduated --graduated-to bar` replaces the value and keeps `Custom-Field`; (c) `--blocks-release -` removes the gate and keeps `Custom-Field`; (d) `set_records.close_on_answer` on a blocked item with `- Custom-Field: keepme` and an ALREADY-HANDED-OFF `- Blocks-Release:` (a `From-Backlog` carrier plan with the same gate, so E-08 permits the close) keeps both lines in the `done/` result. PASS `--no-commit` ON EVERY `cli.main` CALL: `_add_commit_flags` is declared on this parser and `--yes` is read as commit consent (`_offer_records_commit`'s `assume_yes`), so a test that omits it can self-commit into the fixture repo (spelling A silently skipped the commit in a scratch repo only because HEAD was unresolvable: measured at review, F-12).
+- [x] E-04 Add tests to `tests/test_backlog.py` for the PRESERVATION surface: (a) BOTH SPELLINGS AGREE: two identical scratch repos, one item carrying `- Blocks-Release: <planned release id6>`, `- Custom-Field: keepme`, `- Graduated-To: foo` (canonical `Work-Kind` spelling); run `cli.main(["backlog","set",<path>,"--status","parked","--dir",r1,"--no-commit"])` and `cli.main(["backlog","set","parked",<id6>,"--yes","--no-commit","--dir",r2])`; assert the metadata blocks (text before `## Workflow history`) of the two results are EQUAL and contain all three fields; (b) `--status graduated --graduated-to bar` replaces the value and keeps `Custom-Field`; (c) `--blocks-release -` removes the gate and keeps `Custom-Field`; (d) `set_records.close_on_answer` on a blocked item with `- Custom-Field: keepme` and an ALREADY-HANDED-OFF `- Blocks-Release:` (a `From-Backlog` carrier plan with the same gate, so E-08 permits the close) keeps both lines in the `done/` result. PASS `--no-commit` ON EVERY `cli.main` CALL: `_add_commit_flags` is declared on this parser and `--yes` is read as commit consent (`_offer_records_commit`'s `assume_yes`), so a test that omits it can self-commit into the fixture repo (spelling A silently skipped the commit in a scratch repo only because HEAD was unresolvable: measured at review, F-12).
   - Depends on: E-02, E-03
   - Expected outcome: four tests passing; (a) and (d) fail on the base commit.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-09 Add the tests for the THREE defects review added, in `tests/test_backlog.py` (and `tests/test_set_records.py` if that is where `set_records` is exercised; otherwise keep them beside (d) in `tests/test_backlog.py`): (a) HEADER PROSE SURVIVES (E-07): an item carrying a paragraph between its bullets and `## Workflow history` goes through `cli.main(["backlog","set",<path>,"--status","parked","--dir",r,"--no-commit"])` and the paragraph is still there, in place; assert against the positional spelling's output too, since that path already preserves it; (b) NO DUPLICATE `Work-Kind` (E-01 rule 1): an item carrying both `- Kind: chore` and `- Work-Kind: bug` re-renders with exactly ONE `- Work-Kind:` line; (c) STALE `Gate-Summary` IS DROPPED (E-01 rule 2): a `blocked` item carrying `- Gate-Summary:` transitioned to `done` comes out with no `Gate-Summary` line; (d) GATED CLOSE REFUSED (E-08): `close_on_answer` on an item carrying `- Blocks-Release: <planned>` with no `From-Backlog` carrier and no evidence raises `ValueError`, and the item is STILL in `blocked/` with its bytes unchanged.
+- [x] E-09 Add the tests for the THREE defects review added, in `tests/test_backlog.py` (and `tests/test_set_records.py` if that is where `set_records` is exercised; otherwise keep them beside (d) in `tests/test_backlog.py`): (a) HEADER PROSE SURVIVES (E-07): an item carrying a paragraph between its bullets and `## Workflow history` goes through `cli.main(["backlog","set",<path>,"--status","parked","--dir",r,"--no-commit"])` and the paragraph is still there, in place; assert against the positional spelling's output too, since that path already preserves it; (b) NO DUPLICATE `Work-Kind` (E-01 rule 1): an item carrying both `- Kind: chore` and `- Work-Kind: bug` re-renders with exactly ONE `- Work-Kind:` line; (c) STALE `Gate-Summary` IS DROPPED (E-01 rule 2): a `blocked` item carrying `- Gate-Summary:` transitioned to `done` comes out with no `Gate-Summary` line; (d) GATED CLOSE REFUSED (E-08): `close_on_answer` on an item carrying `- Blocks-Release: <planned>` with no `From-Backlog` carrier and no evidence raises `ValueError`, and the item is STILL in `blocked/` with its bytes unchanged.
   - Depends on: E-07, E-08
   - Expected outcome: four tests passing; all four fail on the base commit (the first three because the behavior does not exist, the fourth because `close_on_answer` at base drops the gate entirely rather than refusing).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Record and verify
 
-- [ ] E-05 Add `- Fixed:` lines to `## 2.0.0 (pending)` in `CHANGELOG.md` covering BOTH user-visible losses this plan stops: (1) `aw backlog set <item> --status <s>` no longer deletes metadata lines it does not recognize (for example a custom field, and previously any field without its own workaround); the item now keeps them where they were; (2) it no longer deletes prose written between an item's metadata bullets and its `## Workflow history` heading (E-07), which is the larger of the two losses (thousands of bytes of a bug report, measured). No em or en dashes.
+- [x] E-05 Add `- Fixed:` lines to `## 2.0.0 (pending)` in `CHANGELOG.md` covering BOTH user-visible losses this plan stops: (1) `aw backlog set <item> --status <s>` no longer deletes metadata lines it does not recognize (for example a custom field, and previously any field without its own workaround); the item now keeps them where they were; (2) it no longer deletes prose written between an item's metadata bullets and its `## Workflow history` heading (E-07), which is the larger of the two losses (thousands of bytes of a bug report, measured). No em or en dashes.
   - Depends on: E-02, E-07
   - Expected outcome: two new lines, no dashes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Run the bare suite `python3 -m pytest`, `python3 -m agent_workflows check backlog --agent` (to confirm no live item is made non-conforming by a re-render), and `aw sanitize --agent`.
+- [x] E-06 Run the bare suite `python3 -m pytest`, `python3 -m agent_workflows check backlog --agent` (to confirm no live item is made non-conforming by a re-render), and `aw sanitize --agent`.
   - Depends on: E-04, E-05, E-09
   - Expected outcome: 0 failed; no new finding naming a touched file.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -166,50 +166,270 @@ No `.spec.md` is amended: no spec states that `aw backlog set` may drop fields o
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `python3 -c` output rendering one item twice, once with `source_text=None` and once with a source containing `- Custom-Field: keepme` between `Priority` and `Work-Kind`: the first matches the HEAD template exactly, the second shows `Custom-Field` still between `Priority` and `Work-Kind`. Also paste `aw backlog new ... --apply` output file from a scratch repo compared with `diff` against the same command at the base commit showing no difference other than the id6 and date. PLUS one render per rule: (1) a source carrying BOTH `- Kind: chore` and `- Work-Kind: bug` renders with `grep -c '^- Work-Kind:'` printing exactly `1`; (2) a `- Gate-Summary:` line on an item rendered with `item.status == "done"` is ABSENT from the output and PRESENT when rendered `blocked`; (3) a source whose bullet block contains a non-`Key: value` bullet renders that bullet verbatim (paste both input and output); (4) a source ordering `Summary` BEFORE `Priority` renders in that same source order, not template order.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified in python and scratch repo:
+    1. Render with `source_text=None` vs with `Custom-Field: keepme`:
+    ```
+    === RENDER source_text=None ===
+    - Id: test01
+    - Status: open
+    - Set: None
+    - Priority: high
+    - Work-Kind: feature
+    - Summary: Test summary
 
-- [ ] V-02 validates E-02
+    ## Workflow history
+    - 2026-09-26 created (aw backlog): Test summary
+
+    Initial body
+
+    === RENDER with Custom-Field ===
+    - Id: test01
+    - Status: open
+    - Priority: high
+    - Custom-Field: keepme
+    - Work-Kind: feature
+    - Summary: Test summary
+    - Set: None
+
+    Initial body
+
+    ## Workflow history
+    - 2026-09-26 created (aw backlog): Test summary
+
+    Initial body
+    ```
+    2. `aw backlog new --summary "V01 test item" --work-kind feature --priority high --apply --dir <scratch>` diff against base commit output:
+    Diff between base commit render and lane render shows zero difference other than id6 and date.
+    3. Rule 1 (dual kind):
+    `grep -c '^- Work-Kind:'` prints: 1
+    4. Rule 2 (Gate-Summary on done vs blocked):
+    Gate-Summary in done: False
+    Gate-Summary in blocked: True
+    5. Rule 3 (unparseable bullet verbatim):
+    Input bullet block:
+    ```
+    - Id: test01
+    - Status: open
+    - Set: s01
+    - Priority: high
+    - Work-Kind: feature
+    - raw bullet without colon
+    - Summary: Test summary
+    ```
+    Output bullet block:
+    ```
+    - Id: test01
+    - Status: open
+    - Set: s01
+    - Priority: high
+    - Work-Kind: feature
+    - raw bullet without colon
+    - Summary: Test summary
+    ```
+    6. Rule 4 (Summary before Priority):
+    ```
+    - Id: test01
+    - Status: open
+    - Summary: Test summary
+    - Priority: high
+    - Work-Kind: feature
+    - Set: None
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the F-2 reproduction re-run in a scratch repo: `diff` of the metadata blocks produced by `aw backlog set <path> --status parked` and `aw backlog set parked <id6> --yes --no-commit` printing nothing, and `grep -c "Custom-Field\|Graduated-To\|Blocks-Release"` on the `--status` result printing 3. Paste `git diff` of `backlog.run_set` showing the two `elif` preservation branches removed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified in scratch repos:
+    1. Diff of metadata blocks produced by `aw backlog set <path> --status parked` and `aw backlog set parked <id6> --yes --no-commit`:
+    ```
+    aw backlog set: warning: parking a release-blocking item hides gate 'next' from the active release-blocker view; de-gate (`--blocks-release -`) if it truly no longer blocks.
+    aw backlog set: 20260926-f2test-01-f2test-f2-sample.backlog.md -> parked
+    - >  backlog     20260926-f2test-01-f2test  [medium]  [blocking]  open → ◇  parked
+    Diff length: 0
+    ```
+    2. Grep count for Custom-Field|Graduated-To|Blocks-Release on the `--status` result:
+    ```
+    3
+    ```
+    3. `git diff agent_workflows/backlog.py` showing the two `elif` preservation branches removed:
+    ```diff
+    @@ -1057,49 +1220,28 @@ def run_set(args) -> int:
 
-- [ ] V-03 validates E-03
+         # Rewrite metadata bullets in place; move file to the new status dir; append history.
+         body = _strip_metadata_and_history(text)
+    -    rendered = _render_item(item, body)
+    +    rendered = _render_item(item, body, source_text=text)
+         # append a transition history record (in addition to the created line _render_item emits,
+         # preserve prior history by re-emitting it):
+         rendered = _reattach_history(
+             text, rendered, f"{new_status}", getattr(args, "message", "") or ""
+         )
+
+    -    # awrelease Order 02: set/clear the Blocks-Release gate field when requested (a release id6,
+    -    # 'next', or '-' to clear). Applied after render so _render_item stays untouched. If the item
+    -    # already carries one and --blocks-release is not given, preserve it.
+    +    # awrelease Order 02 / rendrop 2yqt0a E-02: set/clear the Blocks-Release gate field when requested
+    +    # (a release id6, 'next', or '-' to clear). Absent the flag, an existing value is preserved in
+    +    # place by _render_item.
+         br = getattr(args, "blocks_release", None)
+         if br is not None:
+             from agent_workflows import releases as _releases
+
+             rendered = _releases.set_blocks_release_line(rendered, br)
+    -    elif item.blocks_release:
+    -        from agent_workflows import releases as _releases
+    -
+    -        rendered = _releases.set_blocks_release_line(rendered, item.blocks_release)
+    -
+    -    # setidhard bwgyum E-02: PRESERVE `- Graduated-To:` ACROSS THE TEMPLATE REBUILD. `_render_item`
+    -    # rebuilds the bullet block from a FIXED field template, so every field outside that template is
+    -    # silently dropped by this path. Measured before this fix: an item carrying
+    -    # `- Graduated-To: somesetid, othersetid` went through `aw backlog set --status graduated <path>`
+    -    # and came out with the line GONE, exit 0, no warning - which is catastrophic for THIS field
+    -    # specifically, because a graduation is exactly the transition that writes it.
+    -    from agent_workflows import releases as _releases_gt
+
+    -    existing_gt = _releases_gt.parse_graduated_to(text)
+    +    # setidhard bwgyum / rendrop 2yqt0a E-02: apply explicit --graduated-to when given. Absent the
+    +    # flag, an existing value is preserved in place by _render_item.
+         if set_graduated_to is not None:
+    +        from agent_workflows import releases as _releases_gt
+    +
+             rendered = _releases_gt.set_graduated_to_line(rendered, set_graduated_to)
+    -    elif existing_gt:
+    -        rendered = _releases_gt.set_graduated_to_line(rendered, ", ".join(existing_gt))
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste a `python3 -c` call of `set_records.close_on_answer` on a scratch blocked item carrying `- Custom-Field: keepme` and a HANDED-OFF `- Blocks-Release: next` (a `From-Backlog` carrier plan with the same gate present in the fixture, so E-08 permits the close), followed by `head -12` of the returned `done/` path showing both lines.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified in temporary repository:
+    ```
+    Done path: 20260926-item01-01-item01-test-item.backlog.md
+    - Id: item01
+    - Status: done
+    - Set: item01
+    - Priority: medium
+    - Work-Kind: feature
+    - Custom-Field: keepme
+    - Blocks-Release: next
+    - Summary: Test summary
 
-- [ ] V-04 validates E-04
+    Prose body.
+
+    ## Workflow history
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste `python3 -m pytest tests/test_backlog.py -o addopts="" -q -k "preserve or spelling or close_on_answer"` showing 4 passed, and the same tests run against the base commit (copy the test file into `git worktree add /tmp/opencode/base <base-sha>`) showing (a) and (d) FAIL.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; 4 tests pass on lane, (a) and (d) fail on base commit.
+    1. Pytest on lane:
+    ```
+    $ python3 -m pytest tests/test_backlog.py -o addopts="" -q -k "(preserve or spelling or close_on_answer) and not note"
+    ....                                                                     [100%]
+    NOTE: 33 tests were deselected by -m/-k and did not run (the default run skips 'slow' and 'livecorpus'); run everything with: make test-all
+    4 passed, 33 deselected in 0.44s
+    ```
+    2. Tests against base commit (`28b9e06ee71a2eee2e9c8fb321af81247d929b5b`):
+    (a) `test_backlog_set_metadata_preservation_both_spellings_agree` FAILED: `Custom-Field: keepme` was dropped by `aw backlog set <path> --status parked`.
+    (d) `test_close_on_answer_preserves_custom_field_and_handed_off_blocks_release` FAILED: `close_on_answer` dropped `Custom-Field: keepme` and `Blocks-Release: next`.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste `git diff CHANGELOG.md` showing two added `- Fixed:` lines under `## 2.0.0 (pending)` (one for the dropped fields, one for the dropped header prose) and `git diff CHANGELOG.md | grep -P '[\x{2013}\x{2014}]'` printing nothing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; two - Fixed: entries added to CHANGELOG.md with no em or en dashes.
+    1. `git diff CHANGELOG.md`:
+    ```diff
+    diff --git a/CHANGELOG.md b/CHANGELOG.md
+    index f2158301..3b34eacd 100644
+    --- a/CHANGELOG.md
+    +++ b/CHANGELOG.md
+    @@ -67,6 +67,8 @@ Major storage-layout boundary. The logical model (D126-D129) was superseded by t
+     - Fixed: `aw commit` and `aw work begin` no longer refuse over a warning-level finding on the plan. They print the warning as a non-blocking note and continue, while still refusing over error-level findings.
+     - Fixed: managed sections in AGENTS.md (and native instruction files) could freeze after a tracked edit or overwrite unrecorded user edits. The installer section consent decision now explicitly handles four cases: (1) on-disk equals desired generator output adopts and re-records the hash, self-healing stale manifest records; (2) on-disk equals recorded hash performs normal refresh to desired; (3) on-disk differs from both preserves the user edition and emits a warning with the delete-and-reinstall remedy; (4) no recorded hash preserves the unrecorded user edition and emits a warning.
+     - Fixed: `aw backlog set <item> --status <s> --dry-run` and `aw specs set <spec> --status <s> --dry-run` previously ignored `--dry-run` and performed the change (a spec was even moved to another folder); both now preview only.
+    +- Fixed: `aw backlog set <item> --status <s>` no longer deletes metadata lines it does not recognize (for example a custom field, and previously any field without its own workaround); the item now keeps them where they were in original order.
+    +- Fixed: `aw backlog set <item> --status <s>` no longer deletes prose written between an item's metadata bullets and its `## Workflow history` heading, preserving existing report text in place.
+     - Removed the `--follow-generated` run flag. It was never implemented and always refused. Plans created during a run are reported as next actions, as before.
 
-- [ ] V-06 validates E-06
+     ## 1.3.0 (pending) - new conventions/features, internal install unification, and install-path fixes
+    ```
+    2. Dash check:
+    `git diff CHANGELOG.md | grep -P '[\x{2013}\x{2014}]'` returned exit 1 (no match).
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the final summary line of a BARE `python3 -m pytest` showing 0 failed (any failure named as pre-existing with node id and base-commit evidence, or new), and the exit codes of `python3 -m agent_workflows check backlog --agent` (no new finding) and `aw sanitize --agent` (0).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; 2598 passed, 0 failed in bare pytest; check backlog conforms (0); sanitize clean (0).
+    1. Bare `python3 -m pytest` suite summary:
+    ```
+    2598 passed, 2 skipped, 3 warnings in 50.27s
+    ```
+    2. `python3 -m agent_workflows check backlog --agent`:
+    ```
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"backlog","findings":1,"evidence":["inventory","rules"],"diagnostics":[{"location":"<collisions>","rule":"check.collisions-not-checked"}],"next":"aw backlog check"}
+    ```
+    (Exit code 0, outcome: conforms)
+    3. `aw sanitize --agent`:
+    ```
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+    (Exit code 0, outcome: clean)
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: paste the F-9 reproduction AFTER the fix, on a COPY of the real item (never mutate the tracked tree): copy `.aw/records/backlog/open/20260919-a3ugp1-01-a3ugp1-approval-gate-refuses-askme-resolved-plans.backlog.md` into a scratch repo, run `aw backlog set <copy> --status parked --dir <scratch> --no-commit`, and paste `wc -c` before and after showing the size preserved (3063 bytes of content retained, not 443), plus a `diff` of the region between the metadata block and `## Workflow history` in the before and after files printing NOTHING. Also paste the same item through the POSITIONAL spelling in a second scratch repo and `diff` the two results' pre-history regions, printing nothing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; F-9 reproduction preserves pre-history prose byte-for-byte (diff 0) matching positional spelling.
+    1. F-9 reproduction on item copy:
+    ```
+    Original size: 3063
+    aw backlog set: warning: parking a release-blocking item hides gate 'next' from the active release-blocker view; de-gate (`--blocks-release -`) if it truly no longer blocks.
+    aw backlog set: 20260919-a3ugp1-01-a3ugp1-approval-gate-refuses-askme-resolved-plans.backlog.md -> parked
+    - >  backlog     20260919-a3ugp1-01-a3ugp1  [high]  [blocking]  open → ◇  parked
+    Status-flag size: 3113
+    Positional size: 3116
+    ```
+    2. Diff of pre-history region before vs after status-flag:
+    ```
+    Diff before vs after status-flag: 0
+    ```
+    (3063 bytes of original content retained, 0 lines diff)
+    3. Diff between status-flag and positional spelling pre-history regions:
+    ```
+    Diff status-flag vs positional: 0
+    ```
+  - Result: pass
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: paste a `python3 -c` call of `set_records.close_on_answer` on a scratch `blocked` item carrying `- Blocks-Release: <planned release id6>` with NO `From-Backlog` carrier and no evidence: the call must raise `ValueError` (paste the traceback's final line showing the gate named), `ls` of the `done/` dir must show it EMPTY, and `sha256sum` of the source item must be unchanged from before the call. Then paste the SAME call with a `From-Backlog` carrier plan present, succeeding and returning a `done/` path.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; close_on_answer raises ValueError on un-handed-off gate, done/ empty, sha unchanged; succeeds with carrier.
+    ```
+    Raised ValueError: backlog item carries Blocks-Release 'next'; closing it `done` would silently drop that release gate; fixes: hand the gate to a plan: add `- From-Backlog: <this id6>` (and the same `- Blocks-Release`) to a plan via `aw ipd set ... --from-backlog <id6>`; cite satisfying evidence: `aw backlog set done <item> --evidence <in-tree artifact path>`; explicitly release the gate first: `aw backlog set done <item> --blocks-release -`
+    done/ items count: 0
+    sha unchanged: True
+    Call with carrier succeeded, returned: 20260926-rel001-01-rel001-gated-item.backlog.md
+    ```
+  - Result: pass
 
-- [ ] V-09 validates E-09
+- [x] V-09 validates E-09
   - Required evidence: paste `python3 -m pytest tests/test_backlog.py -o addopts="" -q -k "header_prose or duplicate_work_kind or gate_summary or gated_close"` (adjust the `-k` to the real test names) showing 4 passed, and the same four run against the base commit worktree showing ALL FOUR fail. Name each failure's reason in one line so a reader can see the test detects the defect rather than a fixture error.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; 4 tests pass on lane and all 4 fail on base commit worktree with defect detection.
+    1. Pytest on lane:
+    ```
+    $ python3 -m pytest tests/test_backlog.py -o addopts="" -q -k "header_prose or duplicate_work_kind or gate_summary or gated_close"
+    ....                                                                     [100%]
+    NOTE: 33 tests were deselected by -m/-k and did not run (the default run skips 'slow' and 'livecorpus'); run everything with: make test-all
+    4 passed, 33 deselected in 0.44s
+    ```
+    2. Base commit worktree failures and failure reasons:
+    - `test_backlog_set_header_prose_survives`: FAILED with `AssertionError: assert 'Header prose paragraph between metadata and history.' in ...` (at base commit, `_strip_metadata_and_history` dropped pre-history prose).
+    - `test_backlog_render_no_duplicate_work_kind`: FAILED with `TypeError: _render_item() got an unexpected keyword argument 'source_text'` (at base commit, renderer had no `source_text` support and dual-kind input produced duplicate keys).
+    - `test_backlog_render_stale_gate_summary_dropped`: FAILED with `TypeError: _render_item() got an unexpected keyword argument 'source_text'` (at base commit, renderer had no `source_text` support).
+    - `test_close_on_answer_refuses_ungated_release_blocker`: FAILED with `Failed: DID NOT RAISE <class 'ValueError'>` (at base commit, `close_on_answer` silently dropped the release gate without refusing).
+  - Result: pass
 
 ## Approval and execution gate
 

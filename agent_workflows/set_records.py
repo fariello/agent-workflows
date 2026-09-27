@@ -333,9 +333,22 @@ def close_on_answer(repo_root: Path, backlog_path: Path) -> Path:
     body = _extract_body(text)
     today = datetime.date.today().isoformat()
     close_note = "- {0} done (aw set): question answered; close-on-answer".format(today)
-    rendered = _backlog._render_item(item, body)
+    rendered = _backlog._render_item(item, body, source_text=text)
     # Append the close-on-answer history line right after the created line.
     rendered = _inject_history_line(rendered, close_note)
+
+    # rendrop 2yqt0a E-08 (review PR-004, F-11): refuse closing an item that carries a live release
+    # gate with no handoff and no evidence, so close_on_answer cannot manufacture a done item
+    # carrying a dropped release gate that escapes the commit-staged check.
+    from agent_workflows import check_engine as _check_engine
+
+    verdict = _check_engine.evaluate_blocking_close(
+        repo_root, backlog_path, "done", item_text=rendered
+    )
+    if not verdict.legitimate and verdict.severity == "error":
+        fixes = "; ".join(verdict.fixes)
+        msg = f"{verdict.reason}; fixes: {fixes}" if fixes else verdict.reason
+        raise ValueError(msg)
 
     root = _backlog._resolve_backlog_root(repo_root)
     dest = root / "done" / backlog_path.name

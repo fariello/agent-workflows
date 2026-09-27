@@ -1,5 +1,5 @@
 - Id: f2kqas
-- Status: graduated
+- Status: done
 - Graduated-To: rendrop
 - Blocks-Release: next
 - Set: rendrop
@@ -8,6 +8,7 @@
 - Summary: fixed-template record renderers silently drop unrecognized metadata fields, patched per field instead of at the root
 
 ## Workflow history
+- 2026-09-26 set (aw backlog): closed by aw oc run: IPD 2yqt0a executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260926-rendrop-01-2yqt0a-preserve-unrecognized-metadata-bullets-when-backlog-records.ipd.md); evidence .aw/records/plans/executed/20260926-rendrop-01-2yqt0a-preserve-unrecognized-metadata-bullets-when-backlog-records.ipd.md
 - 2026-09-26 graduated (aw set): Graduated 2026-09-26 into to-review plan Set rendrop (commit 2c7068ca).
 - 2026-09-23 created (aw backlog): fixed-template record renderers silently drop unrecognized metadata fields, patched per field instead of at the root
 
