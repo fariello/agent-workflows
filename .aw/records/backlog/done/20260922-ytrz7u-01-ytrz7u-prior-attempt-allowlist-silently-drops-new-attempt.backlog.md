@@ -1,5 +1,5 @@
 - Id: ytrz7u
-- Status: graduated
+- Status: done
 - Graduated-To: attemptkeys
 - Set: ytrz7u
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: prior_attempt_summary's allowlist silently drops any NEW attempt key, so a per-attempt record added for the agent is inert on the default isolated path
 
 ## Workflow history
+- 2026-09-27 done (aw set): Done: plan slqvmx executed (manual recovery of its stranded lane, 2026-09-27).
 - 2026-09-26 graduated (aw set): Graduated 2026-09-26 into plan slqvmx (Set attemptkeys), re-verified live at HEAD.
 - 2026-09-26 note (aw backlog): Maintainer ruling 2026-09-26 (/askme during batch graduation): no source-scanning tests. The proposed key-enumerator test is dropped; the plan fixes the false turn_correction_packet docstring and documents the driver-only keys next to the allowlist, with behavior unchanged.
 - 2026-09-22 created (aw backlog): prior_attempt_summary's allowlist silently drops any NEW attempt key, so a per-attempt record added for the agent is inert on the default isolated path
