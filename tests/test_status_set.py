@@ -11,7 +11,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from agent_workflows import cli
+from agent_workflows import check_engine, cli
+from tests import support
 
 
 class StatusSetTestBase(unittest.TestCase):
@@ -2510,6 +2511,213 @@ class ResearchStatusSetTests(StatusSetTestBase):
             "a research-prompt carries no hot status; its pipeline position is derived",
             buf.getvalue(),
         )
+
+
+class UntooledStatusRemediationTests(unittest.TestCase):
+    """Outcome tests for check.status-untooled remediation via aw set (IPD 9aqrzu E-02)."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp(prefix="aw_test_untooled_")
+        self.repo_root = Path(self.temp_dir)
+        support.init_repo(self.repo_root)
+        (self.repo_root / ".aw" / "records" / "plans" / "pending").mkdir(
+            parents=True, exist_ok=True
+        )
+        (self.repo_root / ".aw" / "records" / "plans" / "executed").mkdir(
+            parents=True, exist_ok=True
+        )
+        (self.repo_root / ".aw" / "records" / "plans" / "not-executed").mkdir(
+            parents=True, exist_ok=True
+        )
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def _create_committed_plan(
+        self,
+        id6: str = "ut0001",
+        status: str = "to-review",
+        filename: str | None = None,
+    ) -> Path:
+        if filename is None:
+            filename = f"20260927-untooled-01-{id6}-test-plan.ipd.md"
+        plan_path = self.repo_root / ".aw" / "records" / "plans" / "pending" / filename
+        plan_path.parent.mkdir(parents=True, exist_ok=True)
+        content = f"""# IPD: Test Untooled Plan {id6}
+
+- Date: 2026-09-27
+- Kind: child
+- Status: {status}
+- Work-Kind: chore
+- Priority: medium
+- Set: untooled
+- Order: 1
+- Id: {id6}
+
+## Workflow history
+
+- 2026-09-27 {status} (author): initial.
+
+## Goal
+Test goal.
+"""
+        plan_path.write_text(content, encoding="utf-8")
+        support.git(self.repo_root, "add", str(plan_path))
+        support.git(self.repo_root, "commit", "-m", f"add plan {id6}")
+        return plan_path
+
+    def _history_tokens(self, path: Path) -> list[str]:
+        from agent_workflows import ipd_lint as lint
+
+        text = path.read_text(encoding="utf-8")
+        tokens = []
+        doc = lint.parse(text)
+        for _lineno, line_text in doc.history_lines:
+            m = lint._HISTORY_LINE_RE.match(line_text.strip())
+            if m:
+                tokens.append(m.group(1).rstrip(":").lower())
+        return tokens
+
+    def _newest_history_token(self, path: Path) -> str | None:
+        tokens = self._history_tokens(path)
+        return tokens[0] if tokens else None
+
+    def test_untooled_hand_edit_cleared_by_setter(self):
+        """Case (a): hand-edit to-review -> reviewed, finding fires, aw set clears it and writes reviewed token."""
+        plan_path = self._create_committed_plan("ut0001", status="to-review")
+        text = plan_path.read_text(encoding="utf-8").replace(
+            "- Status: to-review", "- Status: reviewed"
+        )
+        plan_path.write_text(text, encoding="utf-8")
+        support.git(self.repo_root, "add", str(plan_path))
+
+        drift = check_engine.check_status_untooled(self.repo_root)
+        self.assertEqual([d.rule for d in drift], ["check.status-untooled"])
+
+        res = support.run_cli(
+            "set", "reviewed", "ut0001", "--yes", "--no-commit", cwd=self.repo_root
+        )
+        self.assertEqual(res.returncode, 0)
+        support.git(self.repo_root, "add", str(plan_path))
+
+        drift_after = check_engine.check_status_untooled(self.repo_root)
+        self.assertEqual(drift_after, [])
+        self.assertEqual(self._newest_history_token(plan_path), "reviewed")
+
+    def test_untooled_true_same_status_writes_same_status_token(self):
+        """Case (b): True same-status (HEAD == staged): aw set --message note writes same-status token."""
+        plan_path = self._create_committed_plan("ut0002", status="reviewed")
+        res = support.run_cli(
+            "set",
+            "reviewed",
+            "ut0002",
+            "--yes",
+            "--no-commit",
+            "--message",
+            "note",
+            cwd=self.repo_root,
+        )
+        self.assertEqual(res.returncode, 0)
+        self.assertEqual(self._newest_history_token(plan_path), "same-status")
+
+    def test_untooled_outside_git_same_status_unchanged(self):
+        """Case (c): Outside git repo: same-status behavior is unchanged."""
+        plain_temp = tempfile.mkdtemp(prefix="aw_test_outside_git_")
+        try:
+            root = Path(plain_temp)
+            pdir = root / ".aw" / "records" / "plans" / "pending"
+            pdir.mkdir(parents=True, exist_ok=True)
+            plan_path = pdir / "20260927-untooled-01-ut0003-outside.ipd.md"
+            content = """# IPD: Test Untooled Plan ut0003
+
+- Date: 2026-09-27
+- Kind: child
+- Status: reviewed
+- Work-Kind: chore
+- Priority: medium
+- Set: untooled
+- Order: 1
+- Id: ut0003
+
+## Workflow history
+
+- 2026-09-27 reviewed (author): initial.
+
+## Goal
+Test goal.
+"""
+            plan_path.write_text(content, encoding="utf-8")
+            res = support.run_cli(
+                "set",
+                "reviewed",
+                "ut0003",
+                "--yes",
+                "--no-commit",
+                "--message",
+                "note",
+                cwd=root,
+            )
+            self.assertEqual(res.returncode, 0)
+            self.assertEqual(self._newest_history_token(plan_path), "same-status")
+        finally:
+            shutil.rmtree(plain_temp, ignore_errors=True)
+
+    def test_untooled_idempotent_rerun_records_exactly_once(self):
+        """Case (d): Idempotence guards against duplicate history accumulation (1i300e / vhbvwz)."""
+        plan_path = self._create_committed_plan("ut0004", status="to-review")
+        text = plan_path.read_text(encoding="utf-8").replace(
+            "- Status: to-review", "- Status: reviewed"
+        )
+        plan_path.write_text(text, encoding="utf-8")
+        support.git(self.repo_root, "add", str(plan_path))
+
+        res1 = support.run_cli(
+            "set", "reviewed", "ut0004", "--yes", "--no-commit", cwd=self.repo_root
+        )
+        self.assertEqual(res1.returncode, 0)
+
+        # Second run without committing
+        res2 = support.run_cli(
+            "set", "reviewed", "ut0004", "--yes", "--no-commit", cwd=self.repo_root
+        )
+        self.assertEqual(res2.returncode, 0)
+
+        reviewed_tokens = [
+            t for t in self._history_tokens(plan_path) if t == "reviewed"
+        ]
+        self.assertEqual(len(reviewed_tokens), 1)
+
+    def test_untooled_terminal_status_hand_edit_relocates_and_clears(self):
+        """Case (e): Hand-edit to terminal status relocates to not-executed/ and clears finding."""
+        plan_path = self._create_committed_plan("ut0005", status="to-review")
+        text = plan_path.read_text(encoding="utf-8").replace(
+            "- Status: to-review", "- Status: not-executed"
+        )
+        plan_path.write_text(text, encoding="utf-8")
+        support.git(self.repo_root, "add", str(plan_path))
+
+        drift = check_engine.check_status_untooled(self.repo_root)
+        self.assertEqual([d.rule for d in drift], ["check.status-untooled"])
+
+        res = support.run_cli(
+            "set", "not-executed", "ut0005", "--yes", "--no-commit", cwd=self.repo_root
+        )
+        self.assertEqual(res.returncode, 0)
+
+        dest_path = (
+            self.repo_root
+            / ".aw"
+            / "records"
+            / "plans"
+            / "not-executed"
+            / plan_path.name
+        )
+        self.assertTrue(dest_path.is_file())
+        support.git(self.repo_root, "add", "-A")
+
+        drift_after = check_engine.check_status_untooled(self.repo_root)
+        self.assertEqual(drift_after, [])
+        self.assertEqual(self._newest_history_token(dest_path), "not-executed")
 
 
 if __name__ == "__main__":

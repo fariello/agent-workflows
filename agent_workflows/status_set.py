@@ -840,11 +840,14 @@ def apply_status_change(
     PREPENDED under the `## Workflow history` heading, not appended) and moving the file if needed.
 
     For a genuine status transition (old != target), the status token is the target status and the
-    default message is `status set to <status>`. For a same-status write (old == target), the history
-    record is tagged with `same-status` so verdict readers do not mistake it for a review record, and
-    its default message is `status unchanged (<status>)`. Pure no-ops (no field or message changes)
-    write nothing. Same-status writes (both defaulted and explicit messages) are deduplicated against
-    the newest record via `same_status_message_is_duplicate`."""
+    default message is `status set to <status>`. For an untooled status change on a plan (old ==
+    target on disk, but HEAD status differs), the change is treated as a genuine transition from
+    HEAD: the status token is the target status and the default message is `status set to <status>`,
+    while preserving duplicate suppression. For a true same-status write (old == target and HEAD
+    matches), the history record is tagged with `same-status` so verdict readers do not mistake it
+    for a review record, and its default message is `status unchanged (<status>)`. Pure no-ops (no
+    field or message changes) write nothing. Same-status writes (both defaulted and explicit messages)
+    are deduplicated against the newest record via `same_status_message_is_duplicate`."""
     norm_status = normalize_target_status(target_status, rec.record_type)
     old_status = (
         normalize_target_status((rec.status or "draft"), rec.record_type)
@@ -854,9 +857,30 @@ def apply_status_change(
     is_same_status = old_status == norm_status.strip().lower()
     today = datetime.datetime.now(datetime.timezone.utc).date().strftime("%Y-%m-%d")
 
+    untooled_transition = False
     if is_same_status:
         status_tag = "same-status"
         default_message = f"status unchanged ({norm_status})"
+        if rec.record_type == "plans":
+            try:
+                from agent_workflows import check_engine as _ce
+
+                try:
+                    rel = rec.path.resolve().relative_to(repo_root.resolve()).as_posix()
+                except ValueError:
+                    rel = str(rec.path)
+                head_text = _ce._blob_text(repo_root, "HEAD", rel)
+                head_status = _ce._status_meta(head_text)
+                if head_status is not None:
+                    norm_head = (
+                        normalize_target_status(head_status, "plans").strip().lower()
+                    )
+                    if norm_head != norm_status.strip().lower():
+                        status_tag = norm_status
+                        default_message = f"status set to {norm_status}"
+                        untooled_transition = True
+            except Exception:
+                pass
     else:
         status_tag = norm_status
         default_message = f"status set to {norm_status}"
@@ -1247,7 +1271,9 @@ def apply_status_change(
         if is_same_status
         else False
     )
-    _write_history_anyway = bool(_explicit_message) and not is_dup
+    _write_history_anyway = (
+        bool(_explicit_message) or untooled_transition
+    ) and not is_dup
 
     if not content_changed and not path_changed and not _write_history_anyway:
         return rec.path, norm_status

@@ -36,37 +36,37 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: setter writes a genuine record for an untooled status
 
-- [ ] E-01 In `status_set.apply_status_change`, after `is_same_status` is computed: if `is_same_status` and `rec.record_type == "plans"`, read the plan's status at HEAD (repo-relative path of `rec.path`; `check_engine._blob_text(repo_root, "HEAD", rel)` then `check_engine._status_meta(...)`, imported locally as `status_set` already does for `check_engine` elsewhere, or an equivalent single `git show HEAD:<rel>`). Only on this path, and only when git succeeds and yields a status that DIFFERS from the target, set `status_tag = norm_status` and `default_message = f"status set to {norm_status}"`, and record the fact in a NEW local flag (name it `untooled_transition`). On any git failure (not a repo, path untracked at HEAD, blob has no status), keep today's same-status behavior. Do not change the approval-line or gate-field logic; note that the `- Approval:` writer keys on `norm_status == "approved"` and NOT on `is_same_status`, so its text changes automatically with `message` (measured today: a same-status `approved` call writes `- Approval: <date>, recorded via aw ipd set: status unchanged (approved)`; after the change it reads `status set to approved`).
+- [x] E-01 In `status_set.apply_status_change`, after `is_same_status` is computed: if `is_same_status` and `rec.record_type == "plans"`, read the plan's status at HEAD (repo-relative path of `rec.path`; `check_engine._blob_text(repo_root, "HEAD", rel)` then `check_engine._status_meta(...)`, imported locally as `status_set` already does for `check_engine` elsewhere, or an equivalent single `git show HEAD:<rel>`). Only on this path, and only when git succeeds and yields a status that DIFFERS from the target, set `status_tag = norm_status` and `default_message = f"status set to {norm_status}"`, and record the fact in a NEW local flag (name it `untooled_transition`). On any git failure (not a repo, path untracked at HEAD, blob has no status), keep today's same-status behavior. Do not change the approval-line or gate-field logic; note that the `- Approval:` writer keys on `norm_status == "approved"` and NOT on `is_same_status`, so its text changes automatically with `message` (measured today: a same-status `approved` call writes `- Approval: <date>, recorded via aw ipd set: status unchanged (approved)`; after the change it reads `status set to approved`).
   - DO NOT SET `is_same_status = False`, WHICH IS WHAT THE PLAN ORIGINALLY SAID, AND DO NOT ADD A SEPARATE ESCAPE HATCH TO THE EARLY RETURN. Both would re-open a defect the repository already fixed. The mechanism, read at review: `is_dup = same_status_message_is_duplicate(...) if is_same_status else False` is evaluated MUCH LATER in the function than where the plan told you to flip the flag, and `should_write_history = not (is_same_status and is_dup)`. So flipping `is_same_status` at the top makes `is_dup` unconditionally `False` hundreds of lines later, the duplicate suppression becomes UNREACHABLE on exactly this path, and every re-run appends another identical record. Measured at review: two runs of the fix path produce two byte-identical `- 2026-09-27 reviewed (aw set): status set to reviewed` lines. That is the accumulating-duplicate-history defect plan `1i300e` (E-02/E-03) and `vhbvwz` exist to prevent, and `same_status_message_is_duplicate`'s own docstring names idempotent re-assertion as the case it protects.
   - THE CORRECT SHAPE, WHICH KEEPS ONE DEDUP DECISION: leave `is_same_status` TRUE so the existing `is_dup` call still runs (it compares the newest record's status token, date and message, and `same-status` matching is symmetric so a real `<status>` token compares correctly), then widen the two write decisions to admit the new path: `_write_history_anyway = (bool(_explicit_message) or untooled_transition) and not is_dup`, and `should_write_history = not (is_same_status and is_dup)` unchanged. Verified at review that this still clears the finding: the FIRST run writes the real token (`check_status_untooled` then reports `[]`) and a SECOND identical run is suppressed by the dedup (`same_status_message_is_duplicate(..., status="reviewed", date=<today>, message="status set to reviewed")` returns `True`), while a genuinely different `--message` is still recorded (returns `False`).
   - Depends on: none
   - Expected outcome: `aw set <status> <id6>` on a staged hand-edited plan writes `- <date> <status> (aw set): status set to <status>`; running it a SECOND time writes no duplicate.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add outcome tests to `tests/test_status_set.py` in a new class using a real temp git repo (init, config user, commit a plan at `to-review` with `Work-Kind`/`Priority`, `## Workflow history`): (a) hand-edit `- Status:` to `reviewed`, `git add`, assert `check_engine.check_status_untooled(repo)` reports `check.status-untooled`; run the setter for `reviewed` (via `status_set.run_set_command` with the same args the CLI builds, or `support.run_cli("set", "reviewed", "<id6>", "--yes", "--no-commit", cwd=repo)`); `git add`; assert the finding is gone and the newest history record's status token is `reviewed`. (b) True same-status: commit the plan at `reviewed` (HEAD == staged), run `aw set reviewed <id6> --message note`, assert the newest record's token is `same-status`. (c) Outside git (plain temp dir, no repo): same-status behavior unchanged. Outcomes only: assert findings and written history tokens, never source text.
+- [x] E-02 Add outcome tests to `tests/test_status_set.py` in a new class using a real temp git repo (init, config user, commit a plan at `to-review` with `Work-Kind`/`Priority`, `## Workflow history`): (a) hand-edit `- Status:` to `reviewed`, `git add`, assert `check_engine.check_status_untooled(repo)` reports `check.status-untooled`; run the setter for `reviewed` (via `status_set.run_set_command` with the same args the CLI builds, or `support.run_cli("set", "reviewed", "<id6>", "--yes", "--no-commit", cwd=repo)`); `git add`; assert the finding is gone and the newest history record's status token is `reviewed`. (b) True same-status: commit the plan at `reviewed` (HEAD == staged), run `aw set reviewed <id6> --message note`, assert the newest record's token is `same-status`. (c) Outside git (plain temp dir, no repo): same-status behavior unchanged. Outcomes only: assert findings and written history tokens, never source text.
   - ADD A FOURTH CASE (d), IDEMPOTENCE, WHICH IS THE ONE THAT GUARDS THE REGRESSION E-01 NOW AVOIDS: from case (a)'s post-fix state, run the SAME setter command again without committing, and assert the count of history records carrying the `<status>` token is still exactly ONE. Without this the wrong E-01 implementation passes every other case in this item while silently accumulating duplicate records, which is precisely how `1i300e`'s defect would return unnoticed.
   - ALSO ADD (e), THE TERMINAL-STATUS CASE, because it behaves differently today and the plan never mentioned it: hand-edit a committed `to-review` plan to `not-executed` (leaving the file in `pending/`), stage, then run the setter. Measured at review at HEAD: the file DOES relocate to `not-executed/` (so `path_changed` is true and a `same-status` record IS written even with no `--message`), the command still reports `unchanged`, and `check.status-untooled` STILL fires. Assert the finding clears after the fix and that the file lands in `not-executed/`. This is the case that proves F-1's "writes NOTHING" is specific to a status whose directory does not change.
   - Depends on: E-01
   - Expected outcome: five cases pass; (a) and (e) fail against the pre-change setter; (d) fails against the rejected `is_same_status = False` implementation.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Doctor text: reword the `status-untooled` branch of `doctor.build_remediation`. THE CONDITIONAL IS ALREADY RESOLVED, at review, against the code 6k7xot actually shipped: BOTH strings make reverting REQUIRED, so this edit IS needed and `doctor.py` must NOT be `--scope-ack`ed. Measured verbatim: `summary_fix` reads "revert the hand edit and apply status change via '<cmd>' so an attributed history entry is appended", and `detailed_fix` reads "... revert the hand edit so the status returns to its previous value, then apply the change via '<cmd>' ...". 6k7xot's own E-04 says in as many words to "make `detailed_fix` state the two-step recovery ... revert the hand edit (so the status returns to its previous value), then apply the transition", so the revert wording is deliberate there and becomes false here. Reword both to say the finding clears by running `aw ipd set <status> <id6>` directly on the hand-edited plan, keeping `command=None` (unchanged: the id6 is best-effort via `_extract_record_id6` and the branch is deliberately advisory per 6k7xot's E-04).
+- [x] E-03 Doctor text: reword the `status-untooled` branch of `doctor.build_remediation`. THE CONDITIONAL IS ALREADY RESOLVED, at review, against the code 6k7xot actually shipped: BOTH strings make reverting REQUIRED, so this edit IS needed and `doctor.py` must NOT be `--scope-ack`ed. Measured verbatim: `summary_fix` reads "revert the hand edit and apply status change via '<cmd>' so an attributed history entry is appended", and `detailed_fix` reads "... revert the hand edit so the status returns to its previous value, then apply the change via '<cmd>' ...". 6k7xot's own E-04 says in as many words to "make `detailed_fix` state the two-step recovery ... revert the hand edit (so the status returns to its previous value), then apply the transition", so the revert wording is deliberate there and becomes false here. Reword both to say the finding clears by running `aw ipd set <status> <id6>` directly on the hand-edited plan, keeping `command=None` (unchanged: the id6 is best-effort via `_extract_record_id6` and the branch is deliberately advisory per 6k7xot's E-04).
   - YOU MUST ALSO UPDATE THE TEST THAT PINS THE OLD WORDING, and it is in a file the plan did not originally declare: `tests/test_doctor.py::DoctorRemediationTests::test_remediation_status_untooled` asserts `self.assertIn("revert the hand edit", rem.detailed_fix)`. Rewording `doctor.py` without editing that test FAILS THE SUITE, which would have been discovered only at E-04's bare run with the cause several items behind. `tests/test_doctor.py` is now in `- Scope-Paths:`. Change the assertion to pin the NEW contract (the fix names `aw ipd set` and does NOT require a revert), keep the `assertIsNone(rem.command)` assertion exactly as it is (6k7xot's advisory decision is not being reversed), and do not touch any other test in that file. Note `assertIn("aw ipd set", ...)` remains true either way and is therefore not the assertion that matters.
   - DO NOT REWORD THE CHECKER'S OWN DRIFT DETAIL. `check_engine.check_status_untooled` emits "... apply it via `aw set <status> <id6>` (or `aw ipd set <status> <id6>`) so the transition is attributed", which never mentioned reverting and becomes TRUE once E-01 lands. It is out of scope and needs no edit.
   - Depends on: E-01
   - Expected outcome: no doctor text contradicts the fixed behavior, and `tests/test_doctor.py` passes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Reproduce end to end in a scratch repo (the Concern's recipe) and run the bare suite.
+- [x] E-04 Reproduce end to end in a scratch repo (the Concern's recipe) and run the bare suite.
   - Depends on: E-02, E-03
   - Expected outcome: drift before; exit 0 and drift gone after; bare suite green.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 CONFIRM THE TWO OTHER CALLERS OF `apply_status_change` ARE UNAFFECTED, by reasoning stated against the code and one narrowed test run, not by assumption. The callers are `status_set.run_set_command` (the CLI) and `ipd_lifecycle`'s finalize (`_ss.apply_status_change(wt_rec, "executed", coord.path, ns)`). Argue and show: (a) finalize passes target `executed` against a plan whose on-disk status is a pre-terminal value, so `is_same_status` is FALSE and the new branch is inert; and (b) finalize cannot reach it with a terminal status because the pre-transition gate refuses first ("carries Status ... which is already terminal; there is nothing to retire"). Then run `python3 -m pytest -o addopts="" tests/test_status_set.py tests/test_ipd_lifecycle.py -q` (or the lifecycle test module that exists) and paste the counts.
+- [x] E-05 CONFIRM THE TWO OTHER CALLERS OF `apply_status_change` ARE UNAFFECTED, by reasoning stated against the code and one narrowed test run, not by assumption. The callers are `status_set.run_set_command` (the CLI) and `ipd_lifecycle`'s finalize (`_ss.apply_status_change(wt_rec, "executed", coord.path, ns)`). Argue and show: (a) finalize passes target `executed` against a plan whose on-disk status is a pre-terminal value, so `is_same_status` is FALSE and the new branch is inert; and (b) finalize cannot reach it with a terminal status because the pre-transition gate refuses first ("carries Status ... which is already terminal; there is nothing to retire"). Then run `python3 -m pytest -o addopts="" tests/test_status_set.py tests/test_ipd_lifecycle.py -q` (or the lifecycle test module that exists) and paste the counts.
   - WHY THIS ITEM EXISTS RATHER THAN BEING ASSUMED: the new branch runs a `git show` inside a function that finalize calls inside a COORDINATOR WORKTREE, whose HEAD is not the caller's HEAD. If the branch ever did fire there it would read a different commit's status, so the claim that it cannot fire needs to be stated and checked rather than believed. Measured at review: `status_set` does not import `check_engine` at module level and `check_engine` does not import `status_set` at module level, so the local import E-01 prescribes introduces no cycle (this is also the gate's stop condition, and it is expected NOT to fire).
   - Depends on: E-01
   - Expected outcome: both callers demonstrably unaffected; the named test modules pass.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -137,33 +137,265 @@ REVIEW NOTE (2026-09-26), recorded because this question's state is load-bearing
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the diff of `apply_status_change`; state which code path now runs `git show` and paste a grep showing it is inside the `is_same_status and record_type == "plans"` branch only.
   - THE DIFF MUST SHOW `is_same_status` IS NOT REASSIGNED, and must show the widened `_write_history_anyway` still carrying the `and not is_dup` term. Paste a grep for `is_same_status` across the function proving the only assignment is the original `old_status == norm_status...` one. This is the single most important line of evidence in the plan: the rejected implementation passes every behavioral assertion except idempotence (F-5).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Diff verified showing untooled_transition inside is_same_status & plans check, is_same_status not reassigned, and _write_history_anyway retaining and not is_dup.
+    Diff of `apply_status_change`:
+    ```diff
+    --- a/agent_workflows/status_set.py
+    +++ b/agent_workflows/status_set.py
+    @@ -840,11 +840,14 @@ def apply_status_change(
+         PREPENDED under the `## Workflow history` heading, not appended) and moving the file if needed.
 
-- [ ] V-02 validates E-02
+         For a genuine status transition (old != target), the status token is the target status and the
+    -    default message is `status set to <status>`. For a same-status write (old == target), the history
+    -    record is tagged with `same-status` so verdict readers do not mistake it for a review record, and
+    -    its default message is `status unchanged (<status>)`. Pure no-ops (no field or message changes)
+    -    write nothing. Same-status writes (both defaulted and explicit messages) are deduplicated against
+    -    the newest record via `same_status_message_is_duplicate`."""
+    +    default message is `status set to <status>`. For an untooled status change on a plan (old ==
+    +    target on disk, but HEAD status differs), the change is treated as a genuine transition from
+    +    HEAD: the status token is the target status and the default message is `status set to <status>`,
+    +    while preserving duplicate suppression. For a true same-status write (old == target and HEAD
+    +    matches), the history record is tagged with `same-status` so verdict readers do not mistake it
+    +    for a review record, and its default message is `status unchanged (<status>)`. Pure no-ops (no
+    +    field or message changes) write nothing. Same-status writes (both defaulted and explicit messages)
+    +    are deduplicated against the newest record via `same_status_message_is_duplicate`."""
+         norm_status = normalize_target_status(target_status, rec.record_type)
+         old_status = (
+             normalize_target_status((rec.status or "draft"), rec.record_type)
+    @@ -854,9 +857,30 @@ def apply_status_change(
+         is_same_status = old_status == norm_status.strip().lower()
+         today = datetime.datetime.now(datetime.timezone.utc).date().strftime("%Y-%m-%d")
+
+    +    untooled_transition = False
+         if is_same_status:
+             status_tag = "same-status"
+             default_message = f"status unchanged ({norm_status})"
+    +        if rec.record_type == "plans":
+    +            try:
+    +                from agent_workflows import check_engine as _ce
+    +
+    +                try:
+    +                    rel = rec.path.resolve().relative_to(repo_root.resolve()).as_posix()
+    +                except ValueError:
+                    rel = str(rec.path)
+    +                head_text = _ce._blob_text(repo_root, "HEAD", rel)
+    +                head_status = _ce._status_meta(head_text)
+    +                if head_status is not None:
+    +                    norm_head = (
+    +                        normalize_target_status(head_status, "plans").strip().lower()
+    +                    )
+    +                    if norm_head != norm_status.strip().lower():
+    +                        status_tag = norm_status
+    +                        default_message = f"status set to {norm_status}"
+    +                        untooled_transition = True
+    +            except Exception:
+    +                pass
+         else:
+             status_tag = norm_status
+             default_message = f"status set to {norm_status}"
+    @@ -1247,7 +1271,7 @@ def apply_status_change(
+             if is_same_status
+             else False
+         )
+    -    _write_history_anyway = bool(_explicit_message) and not is_dup
+    +    _write_history_anyway = (bool(_explicit_message) or untooled_transition) and not is_dup
+
+         if not content_changed and not path_changed and not _write_history_anyway:
+             return rec.path, norm_status
+    ```
+    Code path running `git show`: `_ce._blob_text(repo_root, "HEAD", rel)` runs `_git_capture(repo_root, ["show", f"HEAD:{path}"])`. It is called inside `apply_status_change` only under the `if is_same_status:` and `if rec.record_type == "plans":` block.
+    Grep showing `_blob_text` inside `apply_status_change`:
+    ```
+    agent_workflows/status_set.py:872:                head_text = _ce._blob_text(repo_root, "HEAD", rel)
+    ```
+    Grep for `is_same_status` across `apply_status_change` demonstrating only the initial assignment:
+    ```
+    $ python3 -c 'from agent_workflows import status_set; import inspect; src = inspect.getsource(status_set.apply_status_change); [print(l) for l in src.splitlines() if "is_same_status" in l]'
+        is_same_status = old_status == norm_status.strip().lower()
+        if is_same_status:
+            if is_same_status
+        should_write_history = not (is_same_status and is_dup)
+    ```
+    `is_same_status` is never reassigned; `_write_history_anyway` retains `and not is_dup`.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste `python3 -m pytest -o addopts="" tests/test_status_set.py -v -k untooled` showing all five cases passed; revert E-01 IN THE WORKTREE and paste cases (a) and (e) FAILING on the persisting `check.status-untooled` finding; restore.
   - ALSO paste case (d)'s actual record COUNT after the second setter run (it must be 1), and case (e)'s resulting file path under `not-executed/`. A statement that the count is one is not acceptable; paste the count.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: 5 of 5 tests passed; cases (a) and (e) failed when E-01 was reverted; case (d) count is 1; case (e) file path verified.
+    Running `python3 -m pytest -o addopts="" tests/test_status_set.py -v -k untooled`:
+    ```
+    collecting ... collected 75 items / 70 deselected / 5 selected
 
-- [ ] V-03 validates E-03
+    tests/test_status_set.py::UntooledStatusRemediationTests::test_untooled_idempotent_rerun_records_exactly_once PASSED [ 20%]
+    tests/test_status_set.py::UntooledStatusRemediationTests::test_untooled_terminal_status_hand_edit_relocates_and_clears PASSED [ 40%]
+    tests/test_status_set.py::UntooledStatusRemediationTests::test_untooled_true_same_status_writes_same_status_token PASSED [ 60%]
+    tests/test_status_set.py::UntooledStatusRemediationTests::test_untooled_hand_edit_cleared_by_setter PASSED [ 80%]
+    tests/test_status_set.py::UntooledStatusRemediationTests::test_untooled_outside_git_same_status_unchanged PASSED [100%]
+
+    ======================= 5 passed, 70 deselected in 2.34s =======================
+    ```
+    Reverting E-01 in worktree (`git checkout agent_workflows/status_set.py`) and running cases (a) and (e):
+    ```
+    =================================== FAILURES ===================================
+    ___ UntooledStatusRemediationTests.test_untooled_hand_edit_cleared_by_setter ___
+    AssertionError: Lists differ: [Drift(location='.aw/records/plans/pending[375 chars]='')] != []
+    First extra element 0:
+    Drift(location='.aw/records/plans/pending/20260927-untooled-01-ut0001-test-plan.ipd.md', rule='check.status-untooled', detail="'- Status:' changed to 'reviewed' in this commit with no matching tool-authored '## Workflow history' line; apply it via `aw set reviewed <id6>` (or `aw ipd set reviewed <id6>`) so the transition is attributed", observed='', required='', recovery='', assurance='', determinism='', severity='')
+    - [Drift(location='.aw/records/plans/pending/20260927-untooled-01-ut0001-test-plan.ipd.md', rule='check.status-untooled', detail="'- Status:' changed to 'reviewed' in this commit with no matching tool-authored '## Workflow history' line; apply it via `aw set reviewed <id6>` (or `aw ipd set reviewed <id6>`) so the transition is attributed", observed='', required='', recovery='', assurance='', determinism='', severity='')]
+    + []
+
+    _ UntooledStatusRemediationTests.test_untooled_terminal_status_hand_edit_relocates_and_clears _
+    AssertionError: Lists differ: [Drift(location='.aw/records/plans/not-exe[392 chars]='')] != []
+    First extra element 0:
+    Drift(location='.aw/records/plans/not-executed/20260927-untooled-01-ut0005-test-plan.ipd.md', rule='check.status-untooled', detail="'- Status:' changed to 'not-executed' in this commit with no matching tool-authored '## Workflow history' line; apply it via `aw set not-executed <id6>` (or `aw ipd set not-executed <id6>`) so the transition is attributed", observed='', required='', recovery='', assurance='', determinism='', severity='')
+    - [Drift(location='.aw/records/plans/not-executed/20260927-untooled-01-ut0005-test-plan.ipd.md', rule='check.status-untooled', detail="'- Status:' changed to 'not-executed' in this commit with no matching tool-authored '## Workflow history' line; apply it via `aw set not-executed <id6>` (or `aw ipd set not-executed <id6>`) so the transition is attributed", observed='', required='', recovery='', assurance='', determinism='', severity='')]
+    + []
+    ======================= 2 failed, 73 deselected in 2.51s =======================
+    ```
+    E-01 was restored afterwards.
+    Actual case (d) record COUNT after second setter run:
+    ```
+    CASE_D_RECORD_COUNT: 1
+    ```
+    Actual case (e) resulting file path under `not-executed/`:
+    ```
+    CASE_E_FILE_PATH: .aw/records/plans/not-executed/20260927-untooled-01-ut0005-test-plan.ipd.md
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the `status-untooled` branch's `summary_fix` and `detailed_fix` strings BEFORE and AFTER, and the diff that reworded them. The "why they needed no change" alternative is REMOVED: review resolved the conditional and the edit is required (F-7).
   - ALSO paste the diff of `tests/test_doctor.py::test_remediation_status_untooled` showing the wording assertion updated and `assertIsNone(rem.command)` retained, plus that file's test run passing. A green `tests/test_doctor.py` without a diff to that test means `doctor.py` was not actually reworded.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: summary_fix and detailed_fix updated to remove revert requirement; test_remediation_status_untooled updated and 28 doctor tests pass.
+    `summary_fix` BEFORE:
+    "revert the hand edit and apply status change via '{cmd_shape}' so an attributed history entry is appended."
+    `summary_fix` AFTER:
+    "apply the status change via '{cmd_shape}' so an attributed history entry is appended."
 
-- [ ] V-04 validates E-04
+    `detailed_fix` BEFORE:
+    "the '- Status:' of {loc} changed in this commit with no matching tool-authored '## Workflow history' transition line; revert the hand edit so the status returns to its previous value, then apply the change via '{cmd_shape}' so an attributed history entry is appended. This is the intermediate-transition sibling of the terminal 'aw ipd finalize' gate; it is a LOCAL commit-scoped detector (--no-verify bypasses the hook)."
+    `detailed_fix` AFTER:
+    "the '- Status:' of {loc} changed in this commit with no matching tool-authored '## Workflow history' transition line; apply the change directly via '{cmd_shape}' so an attributed history entry is appended. This is the intermediate-transition sibling of the terminal 'aw ipd finalize' gate; it is a LOCAL commit-scoped detector (--no-verify bypasses the hook)."
+
+    Diff of `agent_workflows/doctor.py`:
+    ```diff
+    --- a/agent_workflows/doctor.py
+    +++ b/agent_workflows/doctor.py
+    @@ -955,14 +955,12 @@ def build_remediation(d: core.Drift, repo_root: Path) -> Remediation:
+             return Remediation(
+                 title=title,
+                 summary_fix=(
+    -                f"revert the hand edit and apply status change via '{cmd_shape}' so an "
+    -                "attributed history entry is appended."
+    +                f"apply the status change via '{cmd_shape}' so an attributed history entry is appended."
+                 ),
+                 detailed_fix=(
+                     f"the '- Status:' of {loc} changed in this commit with no matching tool-authored "
+    -                f"'## Workflow history' transition line; revert the hand edit so the status returns "
+    -                f"to its previous value, then apply the change via '{cmd_shape}' so an attributed "
+    -                "history entry is appended. This is the intermediate-transition sibling of the terminal "
+    +                f"'## Workflow history' transition line; apply the change directly via '{cmd_shape}' "
+    +                "so an attributed history entry is appended. This is the intermediate-transition sibling of the terminal "
+                     "'aw ipd finalize' gate; it is a LOCAL commit-scoped detector (--no-verify bypasses the hook)."
+                 ),
+                 command=None,
+    ```
+
+    Diff of `tests/test_doctor.py::test_remediation_status_untooled`:
+    ```diff
+    --- a/tests/test_doctor.py
+    +++ b/tests/test_doctor.py
+    @@ -676,7 +676,7 @@ class DoctorRemediationTests(unittest.TestCase):
+             self.assertIn("'- Blocks-Release:'", rem_r.detailed_fix)
+
+         def test_remediation_status_untooled(self) -> None:
+    -        """E-04/V-04: status-untooled is advisory; detailed_fix names reverting hand edit AND aw ipd set."""
+    +        """E-03/V-03: status-untooled is advisory; detailed_fix names aw ipd set directly without requiring revert."""
+             root = Path(".")
+             d = core.Drift(
+                 ".aw/records/plans/pending/20260925-doctorhint-01-6k7xot-test.ipd.md",
+    @@ -685,7 +685,7 @@ class DoctorRemediationTests(unittest.TestCase):
+             )
+             rem = doctor.build_remediation(d, root)
+             self.assertIsNone(rem.command)
+    -        self.assertIn("revert the hand edit", rem.detailed_fix)
+    +        self.assertNotIn("revert the hand edit", rem.detailed_fix)
+             self.assertIn("aw ipd set", rem.detailed_fix)
+
+         def test_remediation_git_dirty_and_staged(self) -> None:
+    ```
+
+    Test run passing:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_doctor.py -q
+    ............................                                             [100%]
+    28 passed in 7.85s
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the scratch-repo transcript: drift list before, the `aw set <status> <id6> --yes --no-commit` output and exit code, the newest history line, and the empty drift list after; paste the final summary line of a BARE `python3 -m pytest` showing 0 failed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Scratch-repo reproduction showed finding cleared and exit 0; bare pytest suite passed 2666 tests with 0 failed.
+    Scratch repo reproduction transcript:
+    ```
+    DRIFT_LIST_BEFORE: ['check.status-untooled']
+    AW_SET_EXIT_CODE: 0
+    AW_SET_OUTPUT: -    plan        20260926-demo-01-aaa111  [medium]  unchanged
+    NEWEST_HISTORY_LINE: - 2026-09-27 reviewed (aw set): status set to reviewed
+    DRIFT_LIST_AFTER: []
+    ```
+    Final summary line of BARE `python3 -m pytest`:
+    ```
+    2666 passed, 2 skipped, 3 warnings in 47.67s
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the two-part argument with its code citations (finalize's target versus the plan's on-disk status; the pre-transition terminal refusal string), and the narrowed run of `tests/test_status_set.py` plus the lifecycle test module with their counts. Also paste the module-level import check showing no cycle exists.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Finalize passes executed against non-terminal plan (is_same_status False); pre-transition gate refuses already terminal plans; 113 narrowed tests pass; no import cycle exists.
+    Two-part argument:
+    (a) Finalize passes target `executed` against a plan whose on-disk status is a pre-terminal value:
+    In `agent_workflows/ipd_lifecycle.py:4438`:
+    ```python
+    wt_dest, _norm = _ss.apply_status_change(wt_rec, "executed", coord.path, ns)
+    ```
+    The plan inside the coordinator worktree (`wt_rec`) carries a pre-terminal status (`"approved"` or `"executing"`), so `old_status` != `norm_status` (`"executed"`), making `is_same_status` False. The new untooled transition branch is therefore inactive and inert during normal finalization.
+    (b) Finalize cannot reach `apply_status_change` with a plan that is already terminal because the pre-transition gate check refuses first:
+    In `agent_workflows/ipd_lifecycle.py:3836-3845`:
+    ```python
+    status = (meta.get("Status") or "").strip()
+    if not _schema.checkpoint_allows_status("pre-transition", status):
+        return FinalizeResult(
+            EXIT_FINDINGS,
+            None,
+            f"REFUSED: {plan_id} carries Status {status!r}, which is already terminal; there is "
+            "nothing to retire.",
+            evidence,
+            (ROLLUP_REFUSED_ALREADY_TERMINAL,),
+        )
+    ```
+    Pre-transition refusal string: `f"REFUSED: {plan_id} carries Status {status!r}, which is already terminal; there is nothing to retire."`.
+
+    Narrowed run of `tests/test_status_set.py` and `tests/test_ipd_lifecycle_cli.py`:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_status_set.py tests/test_ipd_lifecycle_cli.py -q
+    ........................................................................ [ 63%]
+    .........................................                                [100%]
+    113 passed in 16.70s
+    ```
+
+    Module-level import check proving no import cycle exists:
+    ```
+    $ python3 -c 'import sys; from agent_workflows import status_set; print("check_engine in sys.modules:", "agent_workflows.check_engine" in sys.modules)'
+    check_engine in sys.modules: False
+    $ python3 -c 'import sys; from agent_workflows import check_engine; print("status_set in sys.modules:", "agent_workflows.status_set" in sys.modules)'
+    status_set in sys.modules: False
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
