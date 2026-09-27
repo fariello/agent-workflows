@@ -6,7 +6,7 @@
 - Scope: IN: every unpinned `-m agent_workflows...` spawn in `tests/test_comms_acks.py` (5), `tests/test_completion.py` (2), `tests/test_concurrent_driver_guard.py` (2), `tests/test_project_context.py` (2), `tests/test_project_registry.py` (4), `tests/test_records_untracked_backend.py` (4) goes through `tests/support.py`; `support` gains the two small hooks needed (a module argument and a pinned-env helper); PLUS the ONE unpinned spawn review found in `tests/test_driver_attestation_gate.py` (`CliNoTokenFlagTests.test_finalize_help_has_no_token_flag` passes no `env` and no `cwd`, so F-5's "not defective" verdict is false for it), making 20 sites in seven files. OUT: the spawns in those two files that DO pin explicitly (19 of 20 in `test_oc_runipd.py` and 4 of 5 in `test_driver_attestation_gate.py`); a guard test; changing test assertions.
 - Scope-Paths: tests/support.py, tests/test_comms_acks.py, tests/test_completion.py, tests/test_concurrent_driver_guard.py, tests/test_driver_attestation_gate.py, tests/test_project_context.py, tests/test_project_registry.py, tests/test_records_untracked_backend.py, CONTRIBUTING.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: tcx2ok
-- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: tcx2ok verified (set testhyg, attempt 1).
 - 2026-09-27 approved (aw set): status set to approved
 - 2026-09-27 reviewed (aw set): Reviewed by /plan-review: 8 findings (3 HIGH, 4 MEDIUM, 1 LOW), all FIXED in place; readiness go-pending-approval. The 19-site census, 10 bare-python3 sites, both F-3 decoy reproductions and F-4 all re-verified exactly. Three corrections: a SEVENTH file was excluded on a false whole-file premise (test_driver_attestation_gate.py has 5 agent_workflows spawns, only 4 pinned, and the unpinned one's assertNotIn assertions pass VACUOUSLY when hijacked, so it goes green while testing nothing); 'drop kwargs run_cli already defaults' would have turned two check=True spawns into silently non-raising ones; and the 19 sites are not equally exposed (12 already pass cwd=REPO_ROOT, which outranks PYTHONPATH). Also widened the prescribed AST census, which misses six variable-assigned argv sites. Findings and 6 decisions in .aw/records/reviews/20260926-testhyg-02-tcx2ok-*.review.md
 - 2026-09-26 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-801..PR-808. Reviewed in an isolated lane worktree at HEAD bfdd8821. The 19-site census, the 10 bare-`python3` sites, F-3's two decoy reproductions and F-4 all re-verified exactly. Three corrections: F-5's "not defective" claim is WRONG for one spawn (`test_driver_attestation_gate.CliNoTokenFlagTests.test_finalize_help_has_no_token_flag` passes NO env at all, and its `assertNotIn` assertions pass VACUOUSLY against a decoy); the 19 sites are NOT equally exposed (12 already have `cwd=REPO_ROOT`, which outranks `PYTHONPATH`, so they are defence-in-depth, while only `test_completion`'s 2 are live-exposed via `PYTHONPATH` and `test_comms_acks`'s 5 via cwd inheritance); and E-02's "drop kwargs `run_cli` already defaults" would silently turn two `check=True` spawns into non-raising ones. Also added an AST census that does not miss a variable-assigned argv, which my own first pass did.
