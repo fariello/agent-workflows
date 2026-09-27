@@ -6,7 +6,7 @@
 - Scope: IN: (a) a committed-free, reproducible census (E-01; the script lives under `/tmp/`, not in the repo, and is pasted in V-01); (b) for every hit, one recorded disposition: DELETE (pure source/structure pin), REPLACE (behavior is at stake: a new test calls the code and checks its effect), or KEEP-NOT-A-PIN (the subject is not production code shape; each justified); (c) performing those deletions and replacements; (d) re-running the census to show zero unresolved hits. OUT: the `tests/test_runner_shared.py` move-fingerprint prose, `INJECTED`, `SUPERSEDED_SINCE_MOVE` and `tests/fixtures/runner_shared_premove_fingerprints.json` (EXEMPT, see Deferred); any production code change; tests that read NON-production files (specs, workflow bodies, READMEs, the test module's own file) unless the census flags them as reading `agent_workflows/*`.
 - Scope-Paths: tests/test_check_engine_release_gate.py, tests/test_finalize_sendback.py, tests/test_hostdedup_third_host.py, tests/test_ipd_authoring.py, tests/test_ipd_lint.py, tests/test_ipd_schema.py, tests/test_leak_sanitizer.py, tests/test_lifecycle_dirs.py, tests/test_lift_drift_scan.py, tests/test_local_leaks.py, tests/test_oc_runipd.py, tests/test_orchestrator_shape_composed.py, tests/test_orchestrator_shape_gate.py, tests/test_platform_lock.py, tests/test_project_context.py, tests/test_review_record_classifier.py, tests/test_runner_finalize_message.py, tests/test_spec_edit_ack_gate.py, tests/test_terminal_status_vocabulary.py, tests/test_runner_shared.py, tests/test_isolation_per_action.py, tests/test_lane_input_manifest.py, tests/test_aw_upgrade_test.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 96xtmi
-- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 96xtmi verified (set srcguard, attempt 1). [Scope reconciliation - in-scope-unmodified tests/test_leak_sanitizer.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified tests/test_local_leaks.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified tests/test_runner_shared.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-09-27 approved (aw set): status set to approved
 - 2026-09-27 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-401..PR-408 all FIXED. Census was incomplete by three live pins that were also outside the fence, so E-06 would have reported success with all three alive; every 'already covered by X' now requires per-row sabotage per this repo's own precedent.
 
