@@ -7600,9 +7600,13 @@ def turn_attempted_nothing(
 
       1. NO OUTCOME FILE WAS WRITTEN - load-bearing in BOTH modes.
       2. `starting_head == ending_head` - load-bearing ONLY for a SHARED-TREE turn. Both fields are
-         written as `git_head(repo)` on the MAIN CHECKOUT while an isolated turn works in `work_dir`,
-         so on an isolated turn a lane agent never moves the main checkout's HEAD and this is TRUE BY
-         CONSTRUCTION - true even for a lane that committed substantial real work.
+         written as `git_head(repo)` on the MAIN CHECKOUT by design, while an isolated attempt's own
+         facts live in `lane_starting_head`/`lane_ending_head`/`lane_ending_status` (the predicate continues
+         to read the lane via `describe_lane` below for compatibility with older records). On an isolated
+         turn a lane agent never moves the main checkout's HEAD at the sample, but on a successful integrated
+         turn `ending_head` is re-recorded post-merge and equals the lane tip (so `starting_head != ending_head`).
+         The equality `starting_head == ending_head` holds by construction only on shapes where the lane is NOT
+         merged, which is also where the lane fields are the only true reading.
       3. NO COMMIT BEYOND THE BASE - load-bearing in BOTH modes, but READ FROM DIFFERENT PLACES: the
          LANE's own `commits_ahead` for an isolated turn (the only source that answers "did THIS lane
          commit anything"), and condition 2 for a shared-tree turn.
@@ -27415,6 +27419,26 @@ def _call_driver_finalize(
 # ---- rununify: execute_item_core -----------------------------------------------------------------
 
 
+def _record_lane_ending_facts(
+    attempt: dict[str, Any],
+    work_dir: str | Path | None,
+    *,
+    git_head_fn: Callable[[Path], str],
+    git_status_fn: Callable[[Path], str],
+) -> None:
+    """Record or refresh lane_ending_head and lane_ending_status from work_dir if reachable."""
+    if not work_dir:
+        return
+    lane_path = Path(work_dir)
+    try:
+        head = git_head_fn(lane_path)
+        status = git_status_fn(lane_path)
+    except (DriverError, OSError):
+        return
+    attempt["lane_ending_head"] = head
+    attempt["lane_ending_status"] = status
+
+
 def execute_item_core(
     run_dir: Path,
     state: dict[str, Any],
@@ -27799,6 +27823,8 @@ def execute_item_core(
                 attempt["worktree_branch"] = wt_handle.branch
                 attempt["worktree_lane_id"] = wt_handle.lane_id
                 attempt["worktree_base"] = wt_handle.base_commit
+                with contextlib.suppress(DriverError, OSError):
+                    attempt["lane_starting_head"] = git_head(Path(work_dir))
                 attempt["worktree_disposition"] = getattr(
                     wt_handle, "disposition", "created"
                 )
@@ -28183,6 +28209,9 @@ def execute_item_core(
                 state["session_id"] = session_id
                 counts[session_id] = counts.get(session_id, 0) + 1
 
+        # ending_head is deliberately main's HEAD (OQ-01); on the SUCCESS path it is
+        # re-recorded post-merge and therefore coincides with the lane tip, while the
+        # lane_* keys are the lane's own reading on every path including the refused ones.
         attempt.update(
             {
                 "ended_at": utc_now(),
@@ -28194,6 +28223,13 @@ def execute_item_core(
                 "argv": argv,
             }
         )
+        if work_dir and not is_review:
+            _record_lane_ending_facts(
+                attempt,
+                work_dir,
+                git_head_fn=git_head,
+                git_status_fn=git_status,
+            )
         from agent_workflows.run_viewer import extract_log_metrics
 
         att_cost, att_toks = extract_log_metrics(log_path)
@@ -29448,6 +29484,12 @@ def execute_item_core(
                         )
                     )
                     if not integrated:
+                        _record_lane_ending_facts(
+                            attempt,
+                            work_dir,
+                            git_head_fn=git_head,
+                            git_status_fn=git_status,
+                        )
                         with contextlib.suppress(Exception):
                             item["integration_changed_files"] = list(
                                 build_lane_outcome(
@@ -29491,6 +29533,12 @@ def execute_item_core(
                             )
                         disposition = fail_status
                     else:
+                        _record_lane_ending_facts(
+                            attempt,
+                            work_dir,
+                            git_head_fn=git_head,
+                            git_status_fn=git_status,
+                        )
                         attempt["ending_head"] = git_head(repo)
                         attempt["ending_status"] = git_status(repo)
                         if (
@@ -29577,6 +29625,12 @@ def execute_item_core(
                             },
                         )
                 else:
+                    _record_lane_ending_facts(
+                        attempt,
+                        work_dir,
+                        git_head_fn=git_head,
+                        git_status_fn=git_status,
+                    )
                     attempt["ending_head"] = git_head(repo)
                     attempt["ending_status"] = git_status(repo)
                     # finalback (`zzcrlo`): the refusal is CORRECT and unchanged; what changes is what
@@ -29853,13 +29907,22 @@ def collect_earned_paths(
 ) -> list[str]:
     """The repo-relative paths one item's turn produced: its diff plus its finalized plan path.
 
+    Prefers `lane_starting_head..lane_ending_head` when both are present and differ, because that
+    range describes what the lane itself committed (including on non-integrated turns where
+    starting_head == ending_head == main HEAD). Falls back to `starting_head..ending_head`.
+
     Best-effort by design (E-04 fails closed): a git failure yields fewer earned paths, which can
     only ever WITHHOLD a close, never manufacture one."""
     earned: list[str] = []
     attempts = item.get("attempts") or []
     for attempt in attempts:
-        start = attempt.get("starting_head")
-        end = attempt.get("ending_head")
+        lane_start = attempt.get("lane_starting_head")
+        lane_end = attempt.get("lane_ending_head")
+        if lane_start and lane_end and lane_start != lane_end:
+            start, end = lane_start, lane_end
+        else:
+            start = attempt.get("starting_head")
+            end = attempt.get("ending_head")
         if not start or not end or start == end:
             continue
         try:
@@ -30114,11 +30177,10 @@ def process_backlog_close(
     write_repo = Path(lane_repo) if lane_repo is not None else repo
     isolated = write_repo.resolve() != repo.resolve()
     # THE EARNED SET, AND THE TRAP IN IT (E-03; the plan's F-7, corrected by measurement).
-    # `collect_earned_paths` diffs the ATTEMPT's `starting_head..ending_head`, and both of those are
-    # MAIN's HEAD sampled around the turn. For an ISOLATED turn main's HEAD never moves, so that range
-    # is `X..X` and yields NOTHING -- and because the earned gate can only ever WITHHOLD a close, the
-    # visible symptom would not be an error but a close that silently never happens again. So the lane
-    # branch's own range is added, which is where the work actually is. It is read with `cwd=repo`
+    # `collect_earned_paths` diffs the attempt's lane range when present (or `starting_head..ending_head`),
+    # covering a lane attempt recorded after this change. The trap it describes was real and is measured
+    # on the NON-INTEGRATED shapes specifically (where starting_head == ending_head on main), so the
+    # handle-based range remains for older records. It is read with `cwd=repo`
     # deliberately: a linked worktree shares the object database and refs with its parent, so the range
     # resolves identically from either cwd (measured; the cwd was never the issue, the RANGE was).
     earned_paths = collect_earned_paths(repo, item, run_checked=run_checked)

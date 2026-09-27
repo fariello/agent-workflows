@@ -6,7 +6,7 @@
 - Scope: IN: (a) when `work_dir` is set, ALSO record `lane_starting_head` (at worktree allocation), `lane_ending_head` and `lane_ending_status` (read with `git_head`/`git_status` against `Path(work_dir)`) at the post-turn site and at the three lane re-record sites reachable while the lane still exists -- INCLUDING the integration-REFUSAL arm, which is where the record is actually vacuous and which writes no head field today; `ending_head`/`ending_status`/`starting_head` are left EXACTLY as they are; (b) add the three keys to `lane_containment._PRIOR_ATTEMPT_SAFE_KEYS` (justified in OQ-02); (c) make `runner_shared.collect_earned_paths` prefer `lane_starting_head..lane_ending_head` when both are present; (d) update `turn_attempted_nothing`'s docstring condition 2 to name the new fields and to state the sample-versus-field distinction above; (e) behavioral tests driving a real isolated turn that commits in a lane on both hosts, covering BOTH the integrated and the refused shape, plus direct tests of `collect_earned_paths` and the prior-attempt projection. OUT: redefining `ending_head` (see OQ-01: `artifact_audit` depends on main-reachability); changing `turn_attempted_nothing`'s LOGIC (it already reads the lane correctly through `describe_lane`); removing the `collect_lane_earned_paths` workaround in `process_backlog_close` (it is keyed on the lane HANDLE, is correct, and stays as a belt for attempts recorded before this change); the agent-facing outcome JSON schema's `starting_head`/`ending_head` in `build_prompt` (agent-authored, a different record); review-sweep turns (`is_review`), which do not run the execute arms.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/lane_containment.py, tests/test_attempt_lane_facts.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: s6ne9d
-- Approval: 2026-09-26, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: s6ne9d verified (set attemptfacts, attempt 1).
 - 2026-09-26 approved (aw set): status set to approved
 - 2026-09-26 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 all FIXED, none deferred, no open question raised. Reviewed at HEAD `863220b8`; `aw ipd lint --phase author` conformed before revision. Drove real isolated turns on the OC host and MEASURED that the plan's "vacuous BY CONSTRUCTION" premise is FALSE for the integrated shape (the success arm re-records `ending_head` post-merge, so `starting_head != ending_head` and the earned set is correct) and TRUE for the non-integrated shapes, where a preserved lane holding a finalize commit records `start == end`, empty status and an empty earned set. Re-aimed the plan accordingly: Concern and Scope corrected with the measurements, E-01 now reproduces both shapes, E-03 adds the `if not integrated:` integration-refusal arm as the primary site (it writes no head field today and was omitted), E-07 no longer pins the false belief and gains a refused-shape case plus a success-arm-only control, and the dead `test_no_call_site_was_rewritten` census citation in E-05 was replaced with the real justification. F-2/F-3/F-4 corrected in place; F-9/F-10 added. OQ-01, OQ-02 and OQ-03 independently verified correct and left as resolved. Findings recorded in `.aw/records/reviews/20260926-attemptfacts-01-s6ne9d-record-the-lane-s-own-head-and-status-on-an-isolated-attempt.review.md`.
 - 2026-09-26 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog jt0mny. Design decision the backlog item left open (redefine the field vs add distinct lane fields) resolved from repository evidence as ADD (OQ-01: artifact_audit's UNKNOWN_HEAD_UNREACHABLE requires ending_head reachable from main). All sites and consumers re-measured at HEAD ea206c49.
@@ -37,46 +37,46 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: reproduce
 
-- [ ] E-01 REPRODUCE BOTH ISOLATED SHAPES at the executing HEAD, and establish which one is vacuous. Using the `tests/test_oc_runipd.py::WorktreeIsolationTests` harness shape (`_init_repo_with_conforming_plan`, `_state_and_item`, `_fake_agent_commits_in_worktree` patched over `driver.run_opencode`, then `driver.execute_item(run_dir, state, item, recovery=False)`), drive TWO isolated execute turns whose fake agent COMMITS `src/demo.txt` in the lane, and for EACH paste `item["attempts"][0]` keys `starting_head`, `ending_head`, `ending_status`, `worktree_base`, `worktree_branch`, plus `item["status"]`, the lane branch tip (`git rev-parse aw/lane/<id6>`, or the integrated commit when the lane is gone), and `collect_earned_paths`'s result. (a) THE INTEGRATED SHAPE: the harness as-is. EXPECT `starting_head != ending_head`, with `ending_head` equal to the lane tip, because the success arm re-records after the merge; this shape is NOT the defect and the point is to confirm it is self-correcting so no later step tries to "fix" it. (b) THE REFUSED SHAPE, WHICH IS THE DEFECT: additionally patch `driver.make_integration_validation_runner` to `lambda *a, **k: (lambda _d, _f: False)` (the shape `tests/test_oc_runipd.py::WorktreeIsolationTests::test_non_passing_gate_defers_not_faked_executed` already uses) so the gate goes combined-red. EXPECT item `fail-merge`, `starting_head == ending_head`, `ending_status == ''`, `collect_earned_paths() == []`, while the preserved lane holds TWO commits beyond base including the `lifecycle(<id6>): finalize <id6> -> executed` commit. Also enumerate every `attempt["ending_head"]` / `attempt["ending_status"]` assignment in `execute_item_core` by AST (not grep, so a commented or quoted occurrence cannot inflate the count) and paste the list with line numbers; expected THREE assignment sites (integration-success arm, lane finalize-refusal arm, no-lane self-finalize arm) plus the post-turn `attempt.update({...})`, and confirm that the `if not integrated:` / `record_integration_refusal` arm that shape (b) traverses assigns NEITHER.
+- [x] E-01 REPRODUCE BOTH ISOLATED SHAPES at the executing HEAD, and establish which one is vacuous. Using the `tests/test_oc_runipd.py::WorktreeIsolationTests` harness shape (`_init_repo_with_conforming_plan`, `_state_and_item`, `_fake_agent_commits_in_worktree` patched over `driver.run_opencode`, then `driver.execute_item(run_dir, state, item, recovery=False)`), drive TWO isolated execute turns whose fake agent COMMITS `src/demo.txt` in the lane, and for EACH paste `item["attempts"][0]` keys `starting_head`, `ending_head`, `ending_status`, `worktree_base`, `worktree_branch`, plus `item["status"]`, the lane branch tip (`git rev-parse aw/lane/<id6>`, or the integrated commit when the lane is gone), and `collect_earned_paths`'s result. (a) THE INTEGRATED SHAPE: the harness as-is. EXPECT `starting_head != ending_head`, with `ending_head` equal to the lane tip, because the success arm re-records after the merge; this shape is NOT the defect and the point is to confirm it is self-correcting so no later step tries to "fix" it. (b) THE REFUSED SHAPE, WHICH IS THE DEFECT: additionally patch `driver.make_integration_validation_runner` to `lambda *a, **k: (lambda _d, _f: False)` (the shape `tests/test_oc_runipd.py::WorktreeIsolationTests::test_non_passing_gate_defers_not_faked_executed` already uses) so the gate goes combined-red. EXPECT item `fail-merge`, `starting_head == ending_head`, `ending_status == ''`, `collect_earned_paths() == []`, while the preserved lane holds TWO commits beyond base including the `lifecycle(<id6>): finalize <id6> -> executed` commit. Also enumerate every `attempt["ending_head"]` / `attempt["ending_status"]` assignment in `execute_item_core` by AST (not grep, so a commented or quoted occurrence cannot inflate the count) and paste the list with line numbers; expected THREE assignment sites (integration-success arm, lane finalize-refusal arm, no-lane self-finalize arm) plus the post-turn `attempt.update({...})`, and confirm that the `if not integrated:` / `record_integration_refusal` arm that shape (b) traverses assigns NEITHER.
   - Depends on: none
   - Expected outcome: shape (a) reproduces a CORRECT `ending_head`; shape (b) reproduces the vacuous record with a lane holding real commits; the write-site inventory confirms the refusal arm records no head at all.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: record the lane facts
 
-- [ ] E-02 RECORD `lane_starting_head` AT ALLOCATION. In `execute_item_core`'s execute-isolation arm (the `if isolate:` block that sets `attempt["worktree_base"] = wt_handle.base_commit` after `allocate_isolation_worktree`), set `attempt["lane_starting_head"] = git_head(Path(work_dir))`. Read it from the lane rather than copying `worktree_base`, because a REUSED lane (`worktree_disposition` other than `created`) may already hold commits beyond its base, and "where did THIS attempt start" is the lane's HEAD now, not its creation base. Do not add it to the review-sweep arm. Wrap the read so a failure records nothing rather than raising (the field is informational; an absent field means "unknown", and E-05's consumer falls back).
+- [x] E-02 RECORD `lane_starting_head` AT ALLOCATION. In `execute_item_core`'s execute-isolation arm (the `if isolate:` block that sets `attempt["worktree_base"] = wt_handle.base_commit` after `allocate_isolation_worktree`), set `attempt["lane_starting_head"] = git_head(Path(work_dir))`. Read it from the lane rather than copying `worktree_base`, because a REUSED lane (`worktree_disposition` other than `created`) may already hold commits beyond its base, and "where did THIS attempt start" is the lane's HEAD now, not its creation base. Do not add it to the review-sweep arm. Wrap the read so a failure records nothing rather than raising (the field is informational; an absent field means "unknown", and E-05's consumer falls back).
   - Depends on: E-01
   - Expected outcome: an isolated attempt carries `lane_starting_head` equal to the lane's HEAD at dispatch; a non-isolated attempt carries no such key.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 RECORD `lane_ending_head` / `lane_ending_status` AT THE POST-TURN SITE AND AT ALL THREE LANE ARMS, THE REFUSAL ARM FIRST. (0) In the post-turn `attempt.update({... "ending_head": git_head(repo), ...})`, when `work_dir` is set and the turn is not a review, add `lane_ending_head = git_head(Path(work_dir))` and `lane_ending_status = git_status(Path(work_dir))`. THEN refresh the two lane keys from `Path(work_dir)` at each arm below, BEFORE any teardown in that arm. THE REFRESH IS NOT OPTIONAL POLISH: the lane-side finalize adds a `lifecycle(<id6>): finalize <id6> -> executed` commit to the lane AFTER the post-turn sample (measured at review: exactly one such commit), so an arm left un-refreshed strands a `lane_ending_head` that is one commit short of the lane tip -- silently incomplete rather than wrong, which is the harder kind to notice. (1) THE INTEGRATION-REFUSAL ARM, `if not integrated:` (the branch reaching `record_integration_refusal`), inside the `self_finalize and work_dir and wt_handle is not None and integration.earned` branch. THIS IS THE PRIMARY SITE AND IT IS THE ONE THE ORIGINAL PLAN OMITTED (review PR-002): it writes NEITHER `ending_head` nor `ending_status` today, and it is the arm the measured vacuous `fail-merge` shape traverses, with the lane preserved and holding the work. Record both lane keys here; the lane still exists on this path by construction (it is preserved precisely so the work is not lost). (2) The lane integration SUCCESS `else:` arm, which already writes `attempt["ending_head"] = git_head(repo)`. (3) The lane finalize-REFUSAL `else:` arm, likewise. Guard each read so a lane already removed leaves the previously recorded value in place (catch `DriverError`/`OSError`, do not overwrite). The no-lane self-finalize arm (`elif self_finalize and not work_dir ...`) is NOT touched: there is no lane. Leave every existing `ending_head`/`ending_status`/`starting_head` write byte-unchanged. Add a comment at the post-turn site stating that `ending_head` is deliberately main's HEAD (OQ-01), that on the SUCCESS path it is re-recorded post-merge and therefore coincides with the lane tip, and that the `lane_*` keys are the lane's own reading on every path including the refused ones.
+- [x] E-03 RECORD `lane_ending_head` / `lane_ending_status` AT THE POST-TURN SITE AND AT ALL THREE LANE ARMS, THE REFUSAL ARM FIRST. (0) In the post-turn `attempt.update({... "ending_head": git_head(repo), ...})`, when `work_dir` is set and the turn is not a review, add `lane_ending_head = git_head(Path(work_dir))` and `lane_ending_status = git_status(Path(work_dir))`. THEN refresh the two lane keys from `Path(work_dir)` at each arm below, BEFORE any teardown in that arm. THE REFRESH IS NOT OPTIONAL POLISH: the lane-side finalize adds a `lifecycle(<id6>): finalize <id6> -> executed` commit to the lane AFTER the post-turn sample (measured at review: exactly one such commit), so an arm left un-refreshed strands a `lane_ending_head` that is one commit short of the lane tip -- silently incomplete rather than wrong, which is the harder kind to notice. (1) THE INTEGRATION-REFUSAL ARM, `if not integrated:` (the branch reaching `record_integration_refusal`), inside the `self_finalize and work_dir and wt_handle is not None and integration.earned` branch. THIS IS THE PRIMARY SITE AND IT IS THE ONE THE ORIGINAL PLAN OMITTED (review PR-002): it writes NEITHER `ending_head` nor `ending_status` today, and it is the arm the measured vacuous `fail-merge` shape traverses, with the lane preserved and holding the work. Record both lane keys here; the lane still exists on this path by construction (it is preserved precisely so the work is not lost). (2) The lane integration SUCCESS `else:` arm, which already writes `attempt["ending_head"] = git_head(repo)`. (3) The lane finalize-REFUSAL `else:` arm, likewise. Guard each read so a lane already removed leaves the previously recorded value in place (catch `DriverError`/`OSError`, do not overwrite). The no-lane self-finalize arm (`elif self_finalize and not work_dir ...`) is NOT touched: there is no lane. Leave every existing `ending_head`/`ending_status`/`starting_head` write byte-unchanged. Add a comment at the post-turn site stating that `ending_head` is deliberately main's HEAD (OQ-01), that on the SUCCESS path it is re-recorded post-merge and therefore coincides with the lane tip, and that the `lane_*` keys are the lane's own reading on every path including the refused ones.
   - Depends on: E-02
   - Expected outcome: after an isolated turn that commits in the lane, `lane_ending_head` is the lane branch's tip INCLUDING the finalize commit, on the integrated shape AND on the refused shape; on the refused shape it is the only field naming the lane's work, and `ending_head` is unchanged in meaning everywhere.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 ALLOWLIST THE THREE KEYS for an isolated recovery prompt: append `lane_starting_head`, `lane_ending_head`, `lane_ending_status` to `lane_containment._PRIOR_ATTEMPT_SAFE_KEYS`, with a comment giving OQ-02's justification (they describe the worker's OWN lane: two commit hashes it can `git show` from inside the lane, and a `git status --short` listing whose paths are lane-relative, so none carries a driver-side absolute path, which is the property the allowlist exists to enforce).
+- [x] E-04 ALLOWLIST THE THREE KEYS for an isolated recovery prompt: append `lane_starting_head`, `lane_ending_head`, `lane_ending_status` to `lane_containment._PRIOR_ATTEMPT_SAFE_KEYS`, with a comment giving OQ-02's justification (they describe the worker's OWN lane: two commit hashes it can `git show` from inside the lane, and a `git status --short` listing whose paths are lane-relative, so none carries a driver-side absolute path, which is the property the allowlist exists to enforce).
   - Depends on: E-03
   - Expected outcome: `prior_attempt_summary(prior, lane_root)` keeps the three keys for an isolated turn and still drops `prompt`, `log`, `worktree`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: consumers
 
-- [ ] E-05 MAKE `collect_earned_paths` PREFER THE LANE RANGE. In `runner_shared.collect_earned_paths`, per attempt: when both `lane_starting_head` and `lane_ending_head` are present and differ, diff that range; otherwise fall back to today's `starting_head..ending_head`. Keep the function best-effort and non-raising. KEEP IT AT ONE `run_checked` CALL PER ATTEMPT -- choose the range first, then make the single call -- but note the reason has been CORRECTED at review (PR-004): the justification is NOT a census test. `RELOCATED_RUN_CHECKED_CALLERS["collect_earned_paths"] == 1` still sits in `tests/test_runner_shared.py`, but its only reader, `test_no_call_site_was_rewritten`, was DELETED in commit `19313eed` ("test: trim test suite from 9,136 to under 2,000 tests"); `grep -rn 'def test_no_call_site_was_rewritten' tests/` finds nothing and a whole-suite collect matches the name nowhere, so that table is inert data and protects nothing. The constraint stands on its own merit: this runs per attempt on a path an operator waits on, and a second `git diff` per attempt is user-perceptible waste this repository classifies as a defect. Do NOT add a second call in order to keep the two ranges "symmetrical". Update its docstring to say the lane range is preferred and why. Do NOT remove the `collect_lane_earned_paths` addition in `process_backlog_close`; update the comment there ("THE EARNED SET, AND THE TRAP IN IT") to say the attempt range now covers a lane attempt recorded after this change, that the trap it describes was real and is measured on the NON-INTEGRATED shapes specifically, and that the handle-based range remains for older records.
+- [x] E-05 MAKE `collect_earned_paths` PREFER THE LANE RANGE. In `runner_shared.collect_earned_paths`, per attempt: when both `lane_starting_head` and `lane_ending_head` are present and differ, diff that range; otherwise fall back to today's `starting_head..ending_head`. Keep the function best-effort and non-raising. KEEP IT AT ONE `run_checked` CALL PER ATTEMPT -- choose the range first, then make the single call -- but note the reason has been CORRECTED at review (PR-004): the justification is NOT a census test. `RELOCATED_RUN_CHECKED_CALLERS["collect_earned_paths"] == 1` still sits in `tests/test_runner_shared.py`, but its only reader, `test_no_call_site_was_rewritten`, was DELETED in commit `19313eed` ("test: trim test suite from 9,136 to under 2,000 tests"); `grep -rn 'def test_no_call_site_was_rewritten' tests/` finds nothing and a whole-suite collect matches the name nowhere, so that table is inert data and protects nothing. The constraint stands on its own merit: this runs per attempt on a path an operator waits on, and a second `git diff` per attempt is user-perceptible waste this repository classifies as a defect. Do NOT add a second call in order to keep the two ranges "symmetrical". Update its docstring to say the lane range is preferred and why. Do NOT remove the `collect_lane_earned_paths` addition in `process_backlog_close`; update the comment there ("THE EARNED SET, AND THE TRAP IN IT") to say the attempt range now covers a lane attempt recorded after this change, that the trap it describes was real and is measured on the NON-INTEGRATED shapes specifically, and that the handle-based range remains for older records.
   - Depends on: E-03
   - Expected outcome: for an isolated attempt with lane fields, `collect_earned_paths` returns the lane's changed paths without the handle -- including on the refused shape, where it returns `[]` today; for an attempt without them the result is byte-identical to today; exactly one `run_checked` call site remains in the body.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 UPDATE THE ZERO-WORK DOCSTRING. In `runner_shared.turn_attempted_nothing`, rewrite condition 2's text: it stays "load-bearing ONLY for a SHARED-TREE turn" (the logic is unchanged), but state that `starting_head`/`ending_head` are main's HEAD by design and that an isolated attempt's own head facts now live in `lane_starting_head`/`lane_ending_head`/`lane_ending_status`, while the predicate continues to read the lane through `describe_lane` (condition 3/4) because that reading is also available on attempts recorded before this change. ALSO CORRECT THE OVER-BROAD CLAIM IN THE EXISTING TEXT (review PR-001): the sentence "so on an isolated turn a lane agent never moves the main checkout's HEAD and this is TRUE BY CONSTRUCTION" is true of the SAMPLE but not of the FIELD, because the integration-success arm re-records `ending_head` AFTER the merge, at which point it equals the lane tip and `starting_head != ending_head` on a productive integrated turn (measured at review). State that the equality holds by construction only on the shapes where the lane is NOT merged, which is also where the lane fields are the only true reading. This correction matters for the predicate's honesty even though its logic is unchanged: a reader who trusts the unqualified claim would wrongly conclude condition 2 can never refuse on an isolated turn. No executable change.
+- [x] E-06 UPDATE THE ZERO-WORK DOCSTRING. In `runner_shared.turn_attempted_nothing`, rewrite condition 2's text: it stays "load-bearing ONLY for a SHARED-TREE turn" (the logic is unchanged), but state that `starting_head`/`ending_head` are main's HEAD by design and that an isolated attempt's own head facts now live in `lane_starting_head`/`lane_ending_head`/`lane_ending_status`, while the predicate continues to read the lane through `describe_lane` (condition 3/4) because that reading is also available on attempts recorded before this change. ALSO CORRECT THE OVER-BROAD CLAIM IN THE EXISTING TEXT (review PR-001): the sentence "so on an isolated turn a lane agent never moves the main checkout's HEAD and this is TRUE BY CONSTRUCTION" is true of the SAMPLE but not of the FIELD, because the integration-success arm re-records `ending_head` AFTER the merge, at which point it equals the lane tip and `starting_head != ending_head` on a productive integrated turn (measured at review). State that the equality holds by construction only on the shapes where the lane is NOT merged, which is also where the lane fields are the only true reading. This correction matters for the predicate's honesty even though its logic is unchanged: a reader who trusts the unqualified claim would wrongly conclude condition 2 can never refuse on an isolated turn. No executable change.
   - Depends on: E-03
   - Expected outcome: the docstring names the new fields; `git diff` of the function shows docstring lines only.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: prove it
 
-- [ ] E-07 ADD `tests/test_attempt_lane_facts.py` (behavioral only; no source-text or AST assertions). Cases: (1) OC host, INTEGRATED isolated turn whose fake agent commits `src/demo.txt` in the lane (reuse `tests.test_oc_runipd._init_repo_with_conforming_plan` and the `WorktreeIsolationTests` fake-turn shape, patched over `oc_runipd.run_opencode`, with `support.declare_execution_role(self)` in `setUp`): assert `lane_starting_head` equals the lane base, `lane_ending_head != lane_starting_head`, `git diff --name-only lane_starting_head..lane_ending_head` includes `src/demo.txt`, and `starting_head` equals main's HEAD BEFORE the turn. DO NOT assert that `ending_head` is unchanged on this shape (review PR-003): it is re-recorded post-merge and therefore EQUALS the lane tip, so assert exactly that (`ending_head == lane_ending_head` here) and comment that the two coincide on this path only because integration succeeded, which is what case (2) separates. (2) THE REFUSED SHAPE, OC host, which is the defect's home: same turn plus `make_integration_validation_runner` patched to `lambda *a, **k: (lambda _d, _f: False)`, and assert item `fail-merge`, `starting_head == ending_head` (main never moved, unchanged behavior), `ending_status == ''`, AND `lane_ending_head != lane_starting_head` with the lane range including BOTH `src/demo.txt` and the `lifecycle(<id6>)` finalize commit -- so the lane fields carry the reading the main fields cannot. This is the case that fails hardest against pre-change code, where no lane key exists at all. (3) the integrated shape on the AGY host (reuse `tests.test_agy_runipd_cli._init_repo_with_conforming_plan` and patch `agy_runipd.run_agy_turn`); (4) a NON-isolated turn (`isolate_worktree: False`) carries none of the three keys; (5) `collect_earned_paths` on a synthetic item whose attempt has `starting_head == ending_head` but a real lane range returns the lane paths, and on an attempt without lane keys returns exactly today's result; (6) `lane_containment.prior_attempt_summary` with a lane root keeps the three keys and drops `worktree`/`log`/`prompt`, AND `lane_containment.absolute_paths_outside_lane` finds no out-of-lane path in a rendered recovery prompt carrying a realistic `lane_ending_status` (the property check that backs OQ-02's claim rather than restating it); (7) a lane whose worktree path no longer exists at a re-record site leaves the post-turn value in place (drive the guard by calling the site's helper if E-03 factors one out, otherwise by removing the worktree inside a patched `integrate_lane_branch` stub before the re-record).
+- [x] E-07 ADD `tests/test_attempt_lane_facts.py` (behavioral only; no source-text or AST assertions). Cases: (1) OC host, INTEGRATED isolated turn whose fake agent commits `src/demo.txt` in the lane (reuse `tests.test_oc_runipd._init_repo_with_conforming_plan` and the `WorktreeIsolationTests` fake-turn shape, patched over `oc_runipd.run_opencode`, with `support.declare_execution_role(self)` in `setUp`): assert `lane_starting_head` equals the lane base, `lane_ending_head != lane_starting_head`, `git diff --name-only lane_starting_head..lane_ending_head` includes `src/demo.txt`, and `starting_head` equals main's HEAD BEFORE the turn. DO NOT assert that `ending_head` is unchanged on this shape (review PR-003): it is re-recorded post-merge and therefore EQUALS the lane tip, so assert exactly that (`ending_head == lane_ending_head` here) and comment that the two coincide on this path only because integration succeeded, which is what case (2) separates. (2) THE REFUSED SHAPE, OC host, which is the defect's home: same turn plus `make_integration_validation_runner` patched to `lambda *a, **k: (lambda _d, _f: False)`, and assert item `fail-merge`, `starting_head == ending_head` (main never moved, unchanged behavior), `ending_status == ''`, AND `lane_ending_head != lane_starting_head` with the lane range including BOTH `src/demo.txt` and the `lifecycle(<id6>)` finalize commit -- so the lane fields carry the reading the main fields cannot. This is the case that fails hardest against pre-change code, where no lane key exists at all. (3) the integrated shape on the AGY host (reuse `tests.test_agy_runipd_cli._init_repo_with_conforming_plan` and patch `agy_runipd.run_agy_turn`); (4) a NON-isolated turn (`isolate_worktree: False`) carries none of the three keys; (5) `collect_earned_paths` on a synthetic item whose attempt has `starting_head == ending_head` but a real lane range returns the lane paths, and on an attempt without lane keys returns exactly today's result; (6) `lane_containment.prior_attempt_summary` with a lane root keeps the three keys and drops `worktree`/`log`/`prompt`, AND `lane_containment.absolute_paths_outside_lane` finds no out-of-lane path in a rendered recovery prompt carrying a realistic `lane_ending_status` (the property check that backs OQ-02's claim rather than restating it); (7) a lane whose worktree path no longer exists at a re-record site leaves the post-turn value in place (drive the guard by calling the site's helper if E-03 factors one out, otherwise by removing the worktree inside a patched `integrate_lane_branch` stub before the re-record).
   - Depends on: E-04, E-05, E-06
   - Expected outcome: all cases pass; (1), (2), (3), (5)-lane-branch and (6) fail against the pre-change code, and (2) additionally fails against a change that instruments only the integration-SUCCESS arm.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -168,40 +168,311 @@ Measured at HEAD `ea206c49` (2026-09-26).
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste, FOR BOTH SHAPES SEPARATELY and labelled, the attempt's `starting_head`, `ending_head`, `ending_status`, `worktree_base`, `worktree_branch`, `item["status"]`, the lane branch tip (`git rev-parse aw/lane/<id6>` or the integrated commit), and `collect_earned_paths`'s result. The INTEGRATED shape must show `starting_head != ending_head` with `ending_head` equal to the lane tip and a NON-empty earned set; the REFUSED shape must show `starting_head == ending_head`, empty `ending_status`, an empty earned set, and a lane holding two commits beyond base including the finalize commit (paste `git log --format='%s' <base>..<tip>`). Also paste the AST write-site inventory with line numbers and the explicit confirmation that the `if not integrated:` arm assigns neither field. A reproduction that pastes only one shape does NOT satisfy this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified both integrated and refused shapes; confirmed starting_head != ending_head when integrated and starting_head == ending_head with empty ending_status when refused; AST write-site inventory confirms if not integrated assigns neither.
+    (a) THE INTEGRATED SHAPE:
+    ```
+    starting_head:   f601dd35735f08293130daef66dc9bbf99a8de69
+    ending_head:     a019e73e138beca636ac69a2d95aea4ca31a597f
+    ending_status:   ''
+    worktree_base:   f601dd35735f08293130daef66dc9bbf99a8de69
+    worktree_branch: aw/lane/wir001
+    item status:     executed
+    lane tip:        a019e73e138beca636ac69a2d95aea4ca31a597f
+    earned paths:    ['.aw/records/plans/executed/20260828-demo-01-wir001-demo.ipd.md', 'src/demo.txt']
+    starting_head != ending_head: True
+    ending_head == lane tip:      True
+    ```
 
-- [ ] V-02 validates E-02
+    (b) THE REFUSED SHAPE (THE DEFECT):
+    ```
+    starting_head:   f747e6d592380061b5fd0a6d77d4391f05d8aadf
+    ending_head:     f747e6d592380061b5fd0a6d77d4391f05d8aadf
+    ending_status:   ''
+    worktree_base:   f747e6d592380061b5fd0a6d77d4391f05d8aadf
+    worktree_branch: aw/lane/wir001
+    item status:     fail-merge
+    lane tip:        693f6d5c12be2e9b0a15018d5c9df7653c04dc16
+    earned paths:    []
+    starting_head == ending_head: True
+    commits beyond base (f747e6d592380061b5fd0a6d77d4391f05d8aadf..693f6d5c12be2e9b0a15018d5c9df7653c04dc16):
+      - lifecycle(wir001): finalize wir001 -> executed
+      - demo: create src/demo.txt
+    ```
+
+    AST write-site inventory for attempt["ending_head"] / attempt["ending_status"] in execute_item_core:
+    ```
+    Found execute_item_core at line 27418
+    attempt.update with ending_head/status at line 28186
+    ending_head assigned at line 29494: attempt['ending_head'] = git_head(repo)
+    ending_status assigned at line 29495: attempt['ending_status'] = git_status(repo)
+    ending_head assigned at line 29580: attempt['ending_head'] = git_head(repo)
+    ending_status assigned at line 29581: attempt['ending_status'] = git_status(repo)
+    ending_head assigned at line 29625: attempt['ending_head'] = git_head(repo)
+    ending_status assigned at line 29626: attempt['ending_status'] = git_status(repo)
+    ```
+    Explicit confirmation: The `if not integrated:` arm (lines 29450-29493) assigns neither `ending_head` nor `ending_status`.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the diff of the allocation arm, and from a reproduction run the attempt's `lane_starting_head` next to `git rev-parse` of the lane at dispatch.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified lane_starting_head recorded at allocation matches git rev-parse of lane at dispatch.
+    Allocation arm diff:
+    ```diff
+    @@ -27819,6 +27819,8 @@ def execute_item_core(
+                     attempt["worktree_branch"] = wt_handle.branch
+                     attempt["worktree_lane_id"] = wt_handle.lane_id
+                     attempt["worktree_base"] = wt_handle.base_commit
+    +                with contextlib.suppress(DriverError, OSError):
+    +                    attempt["lane_starting_head"] = git_head(Path(work_dir))
+                     attempt["worktree_disposition"] = getattr(
+                         wt_handle, "disposition", "created"
+                     )
+    ```
+    Reproduction run:
+    `lane_starting_head`: `791eb3ccde734202d319302cd4dad1a3ed8d1073`
+    `git rev-parse` of lane at dispatch (`worktree_base`): `791eb3ccde734202d319302cd4dad1a3ed8d1073`
+    Matches exactly.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the diff of the post-turn site and ALL THREE lane arms, INCLUDING the `if not integrated:` integration-refusal arm, showing every pre-existing `ending_head`/`ending_status` line unchanged. Paste a REFUSED-shape attempt record showing `starting_head == ending_head` (main untouched) alongside `lane_ending_head != lane_starting_head`, and show the recorded lane range CONTAINS the `lifecycle(<id6>)` finalize commit (`git log --format='%s' lane_starting_head..lane_ending_head`), which is what proves the refresh happened after the lane-side finalize rather than at the post-turn sample. Paste an INTEGRATED-shape record too, showing `ending_head` unchanged in meaning. A diff that does not touch the refusal arm does NOT satisfy this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified post-turn site and all three lane arms refreshed lane_ending_head and lane_ending_status; refused shape contains finalize commit.
+    Post-turn site diff:
+    ```diff
+    @@ -28205,6 +28207,9 @@ def execute_item_core(
+                     state["session_id"] = session_id
+                     counts[session_id] = counts.get(session_id, 0) + 1
 
-- [ ] V-04 validates E-04
+    +        # ending_head is deliberately main's HEAD (OQ-01); on the SUCCESS path it is
+    +        # re-recorded post-merge and therefore coincides with the lane tip, while the
+    +        # lane_* keys are the lane's own reading on every path including the refused ones.
+             attempt.update(
+                 {
+                     "ended_at": utc_now(),
+                     "exit_code": exit_code,
+                     "ending_head": git_head(repo),
+                     "ending_branch": git_branch(repo),
+                     "ending_status": git_status(repo),
+                     "log": str(log_path),
+                     "argv": argv,
+                 }
+             )
+    +        if work_dir and not is_review:
+    +            _record_lane_ending_facts(
+    +                attempt,
+    +                work_dir,
+    +                git_head_fn=git_head,
+    +                git_status_fn=git_status,
+    +            )
+             from agent_workflows.run_viewer import extract_log_metrics
+    ```
+
+    Integration-refusal arm (1) and Integration-success arm (2) diff:
+    ```diff
+    @@ -29480,6 +29492,12 @@ def execute_item_core(
+                             )
+                         )
+                         if not integrated:
+    +                        _record_lane_ending_facts(
+    +                            attempt,
+    +                            work_dir,
+    +                            git_head_fn=git_head,
+    +                            git_status_fn=git_status,
+    +                        )
+                             with contextlib.suppress(Exception):
+                                 item["integration_changed_files"] = list(
+                                     build_lane_outcome(
+    @@ -29522,6 +29540,12 @@ def execute_item_core(
+                                 )
+                             disposition = fail_status
+                         else:
+    +                        _record_lane_ending_facts(
+    +                            attempt,
+    +                            work_dir,
+    +                            git_head_fn=git_head,
+    +                            git_status_fn=git_status,
+    +                        )
+                             attempt["ending_head"] = git_head(repo)
+                             attempt["ending_status"] = git_status(repo)
+                             if (
+    ```
+
+    Lane finalize-refusal arm (3) diff:
+    ```diff
+    @@ -29621,6 +29645,12 @@ def execute_item_core(
+                                 },
+                             )
+                     else:
+    +                    _record_lane_ending_facts(
+    +                        attempt,
+    +                        work_dir,
+    +                        git_head_fn=git_head,
+    +                        git_status_fn=git_status,
+    +                    )
+                         attempt["ending_head"] = git_head(repo)
+                         attempt["ending_status"] = git_status(repo)
+    ```
+    All pre-existing `ending_head` / `ending_status` lines remain byte-unchanged.
+
+    REFUSED-shape attempt record:
+    ```
+    starting_head:      791eb3ccde734202d319302cd4dad1a3ed8d1073
+    ending_head:        791eb3ccde734202d319302cd4dad1a3ed8d1073 (main untouched, start == end)
+    lane_starting_head: 791eb3ccde734202d319302cd4dad1a3ed8d1073
+    lane_ending_head:   7517b40aeca3ffc6da066526c92ee9d4a9119f2d (lane_ending_head != lane_starting_head)
+    ```
+    `git log --format='%s' lane_starting_head..lane_ending_head`:
+    ```
+      * lifecycle(wir001): finalize wir001 -> executed
+      * demo: create src/demo.txt
+    ```
+    Contains the `lifecycle(wir001)` finalize commit.
+
+    INTEGRATED-shape record:
+    ```
+    starting_head:      8990880a56ce467727d040095f5285373c2deefe
+    ending_head:        5c6a8d766de6b36e41feb3049ce3b47bfb000401
+    lane_starting_head: 8990880a56ce467727d040095f5285373c2deefe
+    lane_ending_head:   5c6a8d766de6b36e41feb3049ce3b47bfb000401
+    ```
+    `ending_head` is unchanged in meaning: it is main's HEAD, which post-merge coincides with the lane tip.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the allowlist diff and the output of `prior_attempt_summary` for a sample attempt with a lane root, showing the three keys kept and `worktree`/`log`/`prompt` dropped.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified lane_starting_head, lane_ending_head, lane_ending_status added to _PRIOR_ATTEMPT_SAFE_KEYS, summary carries them, and lane containment checks pass.
+    Allowlist diff:
+    ```diff
+    @@ -200,6 +200,12 @@ _PRIOR_ATTEMPT_SAFE_KEYS = (
+         "begin_refused",
+         "cost",
+         "tokens",
+    +    # OQ-02: these describe the worker's OWN lane: two commit hashes it can `git show`
+    +    # from inside the lane, and a `git status --short` listing whose paths are lane-relative,
+    +    # so none carries a driver-side absolute path (the property this allowlist enforces).
+    +    "lane_starting_head",
+    +    "lane_ending_head",
+    +    "lane_ending_status",
+     )
+    ```
+    `prior_attempt_summary(prior, lane_root=Path('/tmp/fake-lane'))` output:
+    ```python
+    {
+        'number': 1,
+        'starting_head': '111111',
+        'ending_head': '222222',
+        'lane_starting_head': '333333',
+        'lane_ending_head': '444444',
+        'lane_ending_status': ' M src/demo.txt\n?? src/untracked.txt\n',
+    }
+    ```
+    The three lane keys are kept; `worktree`, `log`, and `prompt` are dropped.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the `collect_earned_paths` diff and state the number of `run_checked` call sites in the body (must be one). Paste `python3 -m pytest -o addopts="" tests/test_runner_shared.py -q` passing with its count (a regression check on a real suite; NOT a census check, see E-05). Paste the earned set for a REFUSED-shape attempt before and after the change (expected `[]` before, the lane's paths after), which is the consumer-visible proof the fix reaches the defect.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified collect_earned_paths uses lane_starting_head..lane_ending_head when present and differing with single run_checked invocation.
+    `collect_earned_paths` diff:
+    ```diff
+    @@ -29903,6 +29903,10 @@ def collect_earned_paths(
+     ) -> list[str]:
+         """The repo-relative paths one item's turn produced: its diff plus its finalized plan path.
 
-- [ ] V-06 validates E-06
+    +    Prefers `lane_starting_head..lane_ending_head` when both are present and differ, because that
+    +    range describes what the lane itself committed (including on non-integrated turns where
+    +    starting_head == ending_head == main HEAD). Falls back to `starting_head..ending_head`.
+    +
+         Best-effort by design (E-04 fails closed): a git failure yields fewer earned paths, which can
+         only ever WITHHOLD a close, never manufacture one."""
+         earned: list[str] = []
+    @@ -29909,6 +29913,11 @@ def collect_earned_paths(
+         for attempt in attempts:
+    -        start = attempt.get("starting_head")
+    -        end = attempt.get("ending_head")
+    +        lane_start = attempt.get("lane_starting_head")
+    +        lane_end = attempt.get("lane_ending_head")
+    +        if lane_start and lane_end and lane_start != lane_end:
+    +            start, end = lane_start, lane_end
+    +        else:
+    +            start = attempt.get("starting_head")
+    +            end = attempt.get("ending_head")
+             if not start or not end or start == end:
+                 continue
+    ```
+    Number of `run_checked` call sites in `collect_earned_paths`: exactly 1 (`out = run_checked(...)` on line 29923).
+    `python3 -m pytest -o addopts="" tests/test_runner_shared.py -q`:
+    ```
+    ......................................................................................... [ 93%]
+    ......                                                                                    [100%]
+    93 passed in 14.07s
+    ```
+    Earned set for REFUSED-shape attempt:
+    Before change: `[]`
+    After change:  `['.aw/records/plans/executed/20260828-demo-01-wir001-demo.ipd.md', 'src/demo.txt']`
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste `git diff` of `turn_attempted_nothing` showing docstring-only lines, and confirm the corrected condition-2 text no longer states the unqualified "TRUE BY CONSTRUCTION" claim for every isolated turn.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified turn_attempted_nothing docstring condition 2 explains sample vs ending_status distinction.
+    `git diff` of `turn_attempted_nothing`:
+    ```diff
+    @@ -7600,9 +7600,13 @@ def turn_attempted_nothing(
 
-- [ ] V-07 validates E-07
+           1. NO OUTCOME FILE WAS WRITTEN - load-bearing in BOTH modes.
+           2. `starting_head == ending_head` - load-bearing ONLY for a SHARED-TREE turn. Both fields are
+    -         written as `git_head(repo)` on the MAIN CHECKOUT while an isolated turn works in `work_dir`,
+    -         so on an isolated turn a lane agent never moves the main checkout's HEAD and this is TRUE BY
+    -         CONSTRUCTION - true even for a lane that committed substantial real work.
+    +         written as `git_head(repo)` on the MAIN CHECKOUT by design, while an isolated attempt's own
+    +         facts live in `lane_starting_head`/`lane_ending_head`/`lane_ending_status` (the predicate continues
+    +         to read the lane via `describe_lane` below for compatibility with older records). On an isolated
+    +         turn a lane agent never moves the main checkout's HEAD at the sample, but on a successful integrated
+    +         turn `ending_head` is re-recorded post-merge and equals the lane tip (so `starting_head != ending_head`).
+    +         The equality `starting_head == ending_head` holds by construction only on shapes where the lane is NOT
+    +         merged, which is also where the lane fields are the only true reading.
+           3. NO COMMIT BEYOND THE BASE - load-bearing in BOTH modes, but READ FROM DIFFERENT PLACES: the
+              LANE's own `commits_ahead` for an isolated turn (the only source that answers "did THIS lane
+    ```
+    Confirms docstring-only lines and corrected condition-2 text no longer states the unqualified "TRUE BY CONSTRUCTION" claim for every isolated turn.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste `python3 -m pytest -o addopts="" tests/test_attempt_lane_facts.py -q` passing with the count; then with the E-02..E-05 hunks temporarily reverted, the same command showing cases (1), (2), (3), (5)-lane and (6) FAILING; then passing again after restoring. ADDITIONALLY, to prove case (2) is not decoration, temporarily restore ONLY the integration-SUCCESS arm's refresh (leaving the refusal arm un-instrumented) and paste case (2) still FAILING; that is the control which distinguishes this change from one that instruments the already-correct path. Paste the bare `python3 -m pytest` summary line BEFORE and AFTER the change and the after-minus-before failing node-ID set (must be empty).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified tests/test_attempt_lane_facts.py passes (7 passed), control/reversion tests confirmed, and full test suite passes with zero regressions.
+    Passing test suite:
+    ```
+    python3 -m pytest -o addopts="" tests/test_attempt_lane_facts.py -q
+    .......                                                                  [100%]
+    7 passed in 5.41s
+    ```
+    With E-02..E-05 hunks temporarily reverted:
+    ```
+    FAILED tests/test_attempt_lane_facts.py::AttemptLaneFactsTests::test_case_7_removed_lane_leaves_post_turn_value_in_place
+    FAILED tests/test_attempt_lane_facts.py::AttemptLaneFactsTests::test_case_2_oc_host_refused_isolated_turn
+    FAILED tests/test_attempt_lane_facts.py::AttemptLaneFactsTests::test_case_5_collect_earned_paths_prefers_lane_range
+    FAILED tests/test_attempt_lane_facts.py::AttemptLaneFactsTests::test_case_3_agy_host_integrated_isolated_turn
+    FAILED tests/test_attempt_lane_facts.py::AttemptLaneFactsTests::test_case_1_oc_host_integrated_isolated_turn
+    FAILED tests/test_attempt_lane_facts.py::AttemptLaneFactsTests::test_case_6_prior_attempt_summary_and_path_hygiene
+    6 failed, 1 passed in 6.51s
+    ```
+    With hunks restored:
+    ```
+    .......                                                                  [100%]
+    7 passed in 15.69s
+    ```
+    Control test: With ONLY integration-SUCCESS arm refresh restored (refusal arm left un-instrumented):
+    ```
+    FAILED tests/test_attempt_lane_facts.py::AttemptLaneFactsTests::test_case_2_oc_host_refused_isolated_turn
+    AssertionError: False is not true (failed: any("finalize wir001 -> executed" in msg for msg in log))
+    1 failed, 6 deselected in 3.14s
+    ```
+    Bare `python3 -m pytest` summary lines:
+    BEFORE: `2565 passed, 2 skipped, 3 warnings in 144.40s (0:02:24)`
+    AFTER:  `2572 passed, 2 skipped, 3 warnings in 43.99s`
+    After-minus-before failing node-ID set: empty (0 failures before, 0 failures after).
+  - Result: pass
 
 ## Approval and execution gate
 
