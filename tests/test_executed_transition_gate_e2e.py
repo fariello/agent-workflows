@@ -829,6 +829,22 @@ class MergeAwareInTreeEvidenceTests(unittest.TestCase):
             + "\n".join(wrong),
         )
 
+    def test_githead_variable_is_found_when_the_os_uppercases_env_keys(self):
+        """Windows CI regression: `os.environ` UPPER-CASES keys on Windows, so git's `GITHEAD_<sha>`
+        is seen as `GITHEAD_<SHA>`. A lowercase-only match found no incoming side at
+        `pre-merge-commit` and refused every legitimate automated merge. Simulate the uppercased key."""
+        from unittest import mock
+
+        branch = self._make_lane("abc123", finalize_commit=True)
+        self._diverge("d1")
+        lane_head = self._out("rev-parse", branch)
+        env = {
+            k: v for k, v in os.environ.items() if not k.upper().startswith("GITHEAD_")
+        }
+        env["GITHEAD_" + lane_head.upper()] = branch
+        with mock.patch.dict(os.environ, env, clear=True):
+            self.assertEqual(GATE._merge_incoming_commits(self.root), [lane_head])
+
     # ================================== E-02 / E-03 / E-04: what `check` decides given merge state
     #: (case, build(self) -> None leaving the repo staged, expected exit code, substrings that must ALL
     #: appear, substrings that must appear in NO message, why this row exists)

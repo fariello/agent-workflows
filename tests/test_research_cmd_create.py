@@ -332,6 +332,28 @@ class SetOutcomeTests(unittest.TestCase):
         self.assertEqual(fm["outcome"], "adopted")
         self.assertEqual(fm["consumed-by"], ["pln001"])
 
+    def test_run_set_outcome_tolerates_two_spellings_of_one_dir(self):
+        """Windows CI regression: ``--dir`` given as an 8.3 short path while the resolver returns the
+        long path made ``relative_to`` raise AFTER a successful plan. A symlink is the portable twin
+        of the short-vs-long mismatch, so this reproduces on every host that allows symlinks."""
+        import argparse
+        import os
+
+        alias = Path(tempfile.mkdtemp()) / "alias"
+        try:
+            os.symlink(self.root, alias, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            self.skipTest(
+                "symlinks unavailable (unprivileged Windows); CI covers it natively"
+            )
+        args = argparse.Namespace(
+            id=self.id6, to="adopted", consumed_by=None, dir=str(alias), apply=True
+        )
+        rc = C.run_set_outcome(args)
+        self.assertEqual(rc, 0)
+        fm = R.parse_frontmatter(self.doc.read_text(encoding="utf-8"))
+        self.assertEqual(fm["outcome"], "adopted")
+
 
 if __name__ == "__main__":
     unittest.main()

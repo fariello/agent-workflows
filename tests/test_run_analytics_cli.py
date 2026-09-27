@@ -113,6 +113,18 @@ class RunAnalyticsCliUxTests(unittest.TestCase):
         self.assertIn("aw runs query overview", out)
         self.assertIn("aw runs analyze --open", out)
 
+    def test_repo_rel_renders_posix_separators_on_windows(self) -> None:
+        """Windows CI regression: `os.path.relpath` emits backslashes there, so `aw runs analyze`
+        printed `.aw\\records\\...`. Drive the real formatter with Windows path semantics."""
+        import ntpath
+
+        rel = analytics_cli._repo_rel(
+            "C:\\repo\\.aw\\records\\runs\\analytics\\latest\\index.html",
+            "C:\\repo",
+            _pathmod=ntpath,
+        )
+        self.assertEqual(rel, ".aw/records/runs/analytics/latest/index.html")
+
     def test_run_analyze_path_and_list_emit_relative_paths(self) -> None:
         """`aw runs analyze --path` and `--list` return repo-relative paths."""
         # First ensure a report is published

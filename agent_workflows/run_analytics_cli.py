@@ -176,14 +176,16 @@ def _repo_root(args: argparse.Namespace) -> Path:
     return Path(getattr(args, "dir", None) or ".")
 
 
-def _repo_rel(path: Path | str, repo: Path | str) -> str:
+def _repo_rel(path: Path | str, repo: Path | str, *, _pathmod: Any = os.path) -> str:
     """Format ``path`` relative to ``repo`` for display, without resolving symlinks.
 
     Section 9 and user rules require repo-relative paths rather than absolute paths,
     and symlinks (like ``latest/``) should be preserved rather than followed to internal version directories.
+    The result always uses ``/`` separators: ``os.path.relpath`` emits ``\\`` on Windows, and a
+    repo-relative path is rendered in POSIX form on every host so output is identical everywhere.
     """
     try:
-        return os.path.relpath(path, repo)
+        return _pathmod.relpath(path, repo).replace(_pathmod.sep, "/")
     except (ValueError, OSError):
         return str(path)
 
