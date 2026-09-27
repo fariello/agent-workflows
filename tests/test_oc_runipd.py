@@ -4719,6 +4719,109 @@ def _repo_with_statuses(root: Path, statuses: dict) -> Path:
     return repo
 
 
+class TurnBudgetPromptTests(unittest.TestCase):
+    """tb6wh7: state the stall timeout and per-turn ceiling in the shared execute prompt."""
+
+    def test_turn_budget_prompt_renders_configured_and_legacy_bounds(self):
+        """tb6wh7 E-04: prompt states distinctive bounds, pure ASCII, no 'remaining', and handles legacy state."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            run_dir = repo / ".aw" / "records" / "runs" / "run-x"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            plan = repo / "plan.ipd.md"
+            plan.write_text("# IPD: x\n\n- Id: aaaaaa\n", encoding="utf-8")
+            item = {
+                "id6": "aaaaaa",
+                "setid": "demo",
+                "position": 1,
+                "configured_file": "plan.ipd.md",
+                "attempts": [],
+                "action": "execute",
+            }
+
+            # 1. Distinctive values (417, 9876) on both oc and agy
+            distinctive_state = {
+                "run_id": "run-x",
+                "repo": str(repo),
+                "options": {"stall_timeout": 417, "turn_ceiling": 9876},
+            }
+            for builder, host_name in [
+                (driver.build_prompt, "oc"),
+                (agy_runipd.build_prompt, "agy"),
+            ]:
+                prompt = builder(item, distinctive_state, run_dir, plan, False)
+                self.assertIn(
+                    "417",
+                    prompt,
+                    f"{host_name} prompt missing distinctive stall timeout 417",
+                )
+                self.assertIn(
+                    "9876",
+                    prompt,
+                    f"{host_name} prompt missing distinctive turn ceiling 9876",
+                )
+                self.assertTrue(
+                    all(ord(c) < 128 for c in prompt),
+                    f"{host_name} prompt contains non-ASCII characters",
+                )
+                self.assertNotIn("remaining", prompt.lower())
+                self.assertNotIn(".0 seconds", prompt)
+
+            # 2. Legacy state (options: {}) defaults to 600 stall and 14400 ceiling
+            legacy_state = {
+                "run_id": "run-x",
+                "repo": str(repo),
+                "options": {},
+            }
+            for builder, host_name in [
+                (driver.build_prompt, "oc"),
+                (agy_runipd.build_prompt, "agy"),
+            ]:
+                prompt = builder(item, legacy_state, run_dir, plan, False)
+                self.assertIn(
+                    "600",
+                    prompt,
+                    f"{host_name} legacy prompt missing default stall timeout 600",
+                )
+                self.assertIn(
+                    "14400",
+                    prompt,
+                    f"{host_name} legacy prompt missing default ceiling 14400",
+                )
+                self.assertTrue(
+                    all(ord(c) < 128 for c in prompt),
+                    f"{host_name} legacy prompt contains non-ASCII characters",
+                )
+                self.assertNotIn("remaining", prompt.lower())
+                self.assertNotIn(".0 seconds", prompt)
+
+    def test_resolved_ceiling_reaches_run_state_on_both_hosts(self):
+        """tb6wh7 E-05: --prepare-only resolves and freezes options.turn_ceiling (14400.0 oc, 14100.0 agy)."""
+        # Test OC host
+        with tempfile.TemporaryDirectory() as temp:
+            repo = _repo_with_statuses(Path(temp), {"appr01": "approved"})
+            rc = driver.main(["appr01", "--repo", str(repo), "--prepare-only"])
+            self.assertEqual(rc, 0)
+            runs = list((repo / ".aw" / "records" / "runs").iterdir())
+            self.assertEqual(len(runs), 1)
+            state_data = json.loads(
+                (runs[0] / "state.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(state_data.get("options", {}).get("turn_ceiling"), 14400.0)
+
+        # Test AGY host
+        with tempfile.TemporaryDirectory() as temp:
+            repo = _repo_with_statuses(Path(temp), {"appr01": "approved"})
+            rc = agy_runipd.main(["appr01", "--repo", str(repo), "--prepare-only"])
+            self.assertEqual(rc, 0)
+            runs = list((repo / ".aw" / "records" / "runs").iterdir())
+            self.assertEqual(len(runs), 1)
+            state_data = json.loads(
+                (runs[0] / "state.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(state_data.get("options", {}).get("turn_ceiling"), 14100.0)
+
+
 class ReviewsSelectorDocumentedTests(unittest.TestCase):
     """revsweep 76gsmv E-01/V-01: the sweep worked and was invisible. Help must name it.
 

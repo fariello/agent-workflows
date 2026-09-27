@@ -24931,7 +24931,60 @@ def build_verify_and_continue_notice(repo: Path, decision: RecoveryDisposition) 
             "   and their evidence, not your conclusion.",
         ]
     )
-    return "\n".join(lines)
+
+
+def build_turn_budget_notice(state: dict[str, Any]) -> str:
+    """Render the per-turn budget notice for the execute turn prompt.
+
+    States the stall timeout and the hard per-turn ceiling as a per-turn budget,
+    formatted as integer seconds and rounded hours.
+    Falls back to `DEFAULT_STALL_TIMEOUT` and `lane_containment.MAX_TURN_TIMEOUT`
+    when missing (legacy state), and omits disabled bounds (<= 0 or None).
+    If both bounds are disabled, returns an empty string.
+    """
+    from agent_workflows import lane_containment
+
+    options = state.get("options")
+    if not isinstance(options, dict):
+        options = {}
+
+    if "stall_timeout" in options:
+        raw_stall = options["stall_timeout"]
+        stall_val = float(raw_stall) if raw_stall is not None else None
+    else:
+        stall_val = DEFAULT_STALL_TIMEOUT
+
+    if "turn_ceiling" in options:
+        raw_ceiling = options["turn_ceiling"]
+        ceiling_val = float(raw_ceiling) if raw_ceiling is not None else None
+    else:
+        ceiling_val = lane_containment.MAX_TURN_TIMEOUT
+
+    stall_active = stall_val is not None and stall_val > 0
+    ceiling_active = ceiling_val is not None and ceiling_val > 0
+
+    if not stall_active and not ceiling_active:
+        return ""
+
+    clauses: list[str] = []
+    if stall_active:
+        stall_sec = int(round(stall_val))
+        clauses.append(f"after {stall_sec} seconds with no observed progress")
+    if ceiling_active:
+        ceiling_sec = int(round(ceiling_val))
+        hours = round(ceiling_sec / 3600.0, 1)
+        hours_str = f"{hours:g}"
+        hours_unit = "hour" if hours == 1.0 else "hours"
+        clauses.append(
+            f"after {ceiling_sec} seconds (about {hours_str} {hours_unit}) in total regardless of progress"
+        )
+
+    bound_text = ", and ".join(clauses)
+    return (
+        f"Turn budget: this turn is terminated {bound_text}; before starting a long command, "
+        "estimate whether it fits; if it cannot fit, record a deferred question with the "
+        "preserved state instead of starting it."
+    )
 
 
 def build_prompt(
@@ -25030,6 +25083,8 @@ def build_prompt(
         bool(state.get("options", {}).get("self_finalize", True))
     )
     role_block = f"\n{role_notice}" if role_notice else ""
+    budget_notice = build_turn_budget_notice(state)
+    budget_block = f"\n\n{budget_notice}" if budget_notice else ""
     # retrywire (`xipfy1`) E-04: the CORRECTION packet, reaching the agent through the prompt.
     #
     # WHY THIS IS RENDERED HERE RATHER THAN CARRIED BY `Prior attempt:`, which was the first shape
@@ -25098,7 +25153,7 @@ processes are terminated when it ends, so a backgrounded test suite is killed un
 you will have produced nothing. This applies above all to the validation suite, which takes
 minutes in this repository. Never end your turn while waiting for a command you started. If a
 command genuinely cannot finish in this turn, treat that as a deferred question and record the
-preserved state, rather than exiting with the work outstanding.
+preserved state, rather than exiting with the work outstanding.{budget_block}
 {role_block}
 Before exiting, write valid JSON to {outcome} with at least:
 {{
@@ -25147,6 +25202,7 @@ def initialize_run_core(
     parse_dependency_token_fn: Any = None,
     default_runbook_text: str | None = None,
     default_stall_timeout: float | None = None,
+    turn_ceiling_seconds: float | None = None,
 ) -> Path:
     """Shared core initialization for all runner hosts.
 
@@ -25452,6 +25508,12 @@ def initialize_run_core(
         if default_stall_timeout is not None
         else getattr(args, "stall_timeout", 600.0)
     )
+    if turn_ceiling_seconds is None:
+        from agent_workflows import lane_containment
+
+        turn_ceiling = lane_containment.driver_bound_for_host(None)
+    else:
+        turn_ceiling = float(turn_ceiling_seconds)
 
     isolation = resolve_isolation(args, repo=repo)
     isolate_execute = isolation.get("execute", True)
@@ -25478,6 +25540,7 @@ def initialize_run_core(
             "output_mode": getattr(args, "output_mode", "clean"),
             "verbosity": getattr(args, "verbosity", 0) or 0,
             "stall_timeout": stall_timeout,
+            "turn_ceiling": turn_ceiling,
             "full_auto": full_auto,
             "self_finalize": getattr(args, "self_finalize", True),
             "isolate_worktree": isolate_execute,
