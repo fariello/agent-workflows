@@ -1,5 +1,5 @@
 - Id: m10mrs
-- Status: graduated
+- Status: done
 - Graduated-To: planpathtype
 - Blocks-Release: next
 - Set: m10mrs
@@ -8,6 +8,7 @@
 - Summary: resolve_plan_path fails OPEN and returns a non-plan path with no diagnostic, so a mistyped selection reaches plan-shaped code silently
 
 ## Workflow history
+- 2026-09-27 set (aw backlog): closed by aw oc run: IPD mxzogk executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260926-planpathtype-01-mxzogk-make-resolve-plan-path-fail-closed-on-a-non-plan-path-a-ment.ipd.md); evidence .aw/records/plans/executed/20260926-planpathtype-01-mxzogk-make-resolve-plan-path-fail-closed-on-a-non-plan-path-a-ment.ipd.md
 - 2026-09-26 graduated (aw set): Graduated 2026-09-26 into plan mxzogk (Set planpathtype), re-verified live at HEAD.
 - 2026-09-23 created (aw backlog): MEASURED while executing plan ui8b9b on 2026-09-23, and previously measured and recorded by superseded plan mng63x's review (which counted 48 plan-shaped call sites): runner_shared.resolve_plan_path's selectors branch can RETURN a path that is not an IPD (for example a .spec.md file) with no diagnostic at all, because it resolves an id6 through selectors.resolve_selectors and accepts any single file match. Every caller treats the result as a plan.
 
