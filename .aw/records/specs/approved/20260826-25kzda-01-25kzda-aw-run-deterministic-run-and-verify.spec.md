@@ -254,6 +254,20 @@ IT IS REPORTED AS ITS OWN OUTCOME, NEITHER A PLAIN SUCCESS NOR THE EXISTING REFU
 
 WHY THIS EXISTS, measured rather than reasoned. A plan whose job is to edit front matter across a whole pending population contends by construction with every execute item in its own run, so the more successful the run the more conflicts it causes. Item `8u6770` in run `run-20260922T024054Z-2245533` ended `merge-refused` on a real git conflict; re-measured on 2026-09-23 from the lane's surviving finalize commit the conflict set is 34 paths, every one a plan file, 30 of them already moved to `executed/`, and all 34 classify as this one shape. The lane's own history line reads "status unchanged (no lifecycle transition)", so the two sides were never in opposition. A human resolved the same shape by hand and the resolution was mechanical in every file.
 
+### 2.1b A merge-back conflict on an execute lane is sent back to the agent to resolve in its lane
+
+Amended 2026-09-27 (maintainer decision of 2026-09-27, recorded in plan `ounhsn` OQ-01). This section is a sibling carve-out alongside Section 2.1a and it changes nothing else in this spec.
+
+WHAT SECTION 2.1 SAYS AND WHY THAT REMAINS TRUE. That section states the `--on-integration-blocked` ladder "never applies to a genuine merge conflict, a stale base, a non-passing combined revalidation, or a scope violation, none of which repetition fixes", and that no rung "reclassifies a failure as a deferral". Every word of that stands. The prohibition's stated reason is that REPETITION does not fix those classes, and that reasoning is correct: re-running a merge that conflicted produces the same conflict.
+
+THE DISTINCTION: AN AGENT CORRECTION TURN CHANGES THE INPUTS. The send-back is neither a ladder re-attempt nor a re-derivation. It is an AGENT CORRECTION TURN that changes the inputs before the merge is retried: main is merged into the lane worktree (leaving conflict markers for the agent), the agent resolves the conflict on its merits and commits the resolution from the merge state, and the runner then re-runs the ordinary merge-back under the repository integration lock. Because the lane branch now incorporates main, the subsequent merge is not a repetition of the conflicting merge. Section 2.1's stated reason ("repetition does not fix those classes") therefore does not reach it, exactly as Section 2.1a's recomputed-versus-retried distinction does not.
+
+THE FOUR BOUNDING PROPERTIES:
+1. Scope: it applies ONLY to the `git-merge-conflict` cause on an EXECUTE lane. Review lanes, stale bases, scope violations, and non-passing combined revalidations are untouched by this section and remain terminal on their first attempt.
+2. Budget: it is bounded by `--retry-budget` and NOT by `--integration-retry-limit`, preserving the two-quantity distinction drawn in Section 2.1.
+3. Ladder unchanged: the integration deferral ladder is untouched (`classify_integration_refusal` still returns False for `fail-merge`, and `decide_integration_deferral` remains terminal on attempt 1).
+4. Terminal safety: an exhausted or unresolved send-back reaches `fail-merge` with today's reason and remedy, and any in-progress lane merge is aborted so the lane remains integrable by human tools.
+
 ### 2.2 Type vocabulary
 
 The selector layer returns exactly one of these types for every file:
@@ -1561,6 +1575,7 @@ This example demonstrates the revised guarantees: `all` is safely bounded; depen
 
 ## Workflow history
 
+- 2026-09-27 note (aw specs): AMENDED 2026-09-27 (plan ounhsn): Added Section 2.1b recording maintainer ruling that merge-back conflicts on execute lanes are sent back to the agent to resolve in lane under retry-budget.
 - 2026-09-27 note (aw specs): amend Section 5.7 failure taxonomy with stale scope target refusal (plan 6h8j1r)
 - 2026-09-26 note (aw specs): AMENDED 2026-09-26 (plan olkeju, backlog j0ag0u): corrected the infrastructure paragraph's false 'NOTHING PASSES THEM' trailer clause; driver-side commit sites (wao266's backlog-close and 8apjpp's review-output commit) pass AW-Run/AW-Item, agent code commits are generally untrailered (j2srcc), nothing reads trailers back (am1g38); the trailers also moved out of the STILL NET-NEW list because the writer is shipped; worded without counts; Section 4.2 untouched. NOTE backlog sbh1o1 quoted the removed sentence as its surviving-fact evidence
 - 2026-09-25 note (aw specs): AMENDED 2026-09-24 (plan 01reg8, backlog aagh7v): removed unshipped supports_deny_push flag and three unconsumed action verdicts on maintainer ruling 4h7tt0 OQ-02
