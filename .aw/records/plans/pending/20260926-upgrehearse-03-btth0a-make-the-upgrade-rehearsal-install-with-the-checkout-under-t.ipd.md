@@ -37,67 +37,67 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: reproduce
 
-- [ ] E-01 REPRODUCE THE WRONG IMPORT. Confirm `8ud1is` is executed (`agent_workflows/upgrade_rehearsal.py` exists; the shim re-exports). Determine the tool's repo root as the moved module computes it (after the move `Path(__file__).resolve().parent.parent` of `upgrade_rehearsal.py` is still the repo root, since the module sits in `agent_workflows/`; confirm by printing it, and confirm it equals `runner_shared.runner_package_root()`). Then build a SIMULATED WORKTREE: copy the repo's `agent_workflows/` package (excluding `__pycache__`) into a scratch dir `<scratch>/wt/agent_workflows/`, and append a marker line to the copy's `__init__.py`. From a scratch cwd `<scratch>/box`, paste `python3 -c 'import agent_workflows;print(agent_workflows.__file__)'` with the environment `sandbox_env` would build, and again with `PYTHONPATH=<scratch>/wt` prepended.
+- [x] E-01 REPRODUCE THE WRONG IMPORT. Confirm `8ud1is` is executed (`agent_workflows/upgrade_rehearsal.py` exists; the shim re-exports). Determine the tool's repo root as the moved module computes it (after the move `Path(__file__).resolve().parent.parent` of `upgrade_rehearsal.py` is still the repo root, since the module sits in `agent_workflows/`; confirm by printing it, and confirm it equals `runner_shared.runner_package_root()`). Then build a SIMULATED WORKTREE: copy the repo's `agent_workflows/` package (excluding `__pycache__`) into a scratch dir `<scratch>/wt/agent_workflows/`, and append a marker line to the copy's `__init__.py`. From a scratch cwd `<scratch>/box`, paste `python3 -c 'import agent_workflows;print(agent_workflows.__file__)'` with the environment `sandbox_env` would build, and again with `PYTHONPATH=<scratch>/wt` prepended.
   - Depends on: none
   - Expected outcome: without `PYTHONPATH` the child imports the editable install's target (the main checkout); with it, the copy. If the machine has no editable install (so the first run fails to import), record that: the defect then presents as a failed install rather than a wrong one, and the fix is the same.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 REPRODUCE THE TWO WAYS A BARE `PYTHONPATH` PIN FAILS, because these are what decide the shape of the fix and an executor who skips them will build the insufficient version. Build a SELF-REHEARSAL sandbox: a scratch dir holding a `git init` and a copy of this repo's `agent_workflows/` package (so the sandbox contains its own toolkit package, the case `discover_sources()` makes reachable). Then, with `PYTHONPATH=<tool repo root>` and cwd set to that sandbox, paste (a) what `python3 -c 'import agent_workflows;print(agent_workflows.__file__)'` prints, and (b) the full STDERR of `python3 -m agent_workflows --version`. Repeat (a) and (b) with `PYTHONSAFEPATH=1` added. Also paste `[o.path.name for o in discover_sources()]` filtered to the toolkit's own directory name, establishing the case is reachable and not hypothetical.
+- [x] E-02 REPRODUCE THE TWO WAYS A BARE `PYTHONPATH` PIN FAILS, because these are what decide the shape of the fix and an executor who skips them will build the insufficient version. Build a SELF-REHEARSAL sandbox: a scratch dir holding a `git init` and a copy of this repo's `agent_workflows/` package (so the sandbox contains its own toolkit package, the case `discover_sources()` makes reachable). Then, with `PYTHONPATH=<tool repo root>` and cwd set to that sandbox, paste (a) what `python3 -c 'import agent_workflows;print(agent_workflows.__file__)'` prints, and (b) the full STDERR of `python3 -m agent_workflows --version`. Repeat (a) and (b) with `PYTHONSAFEPATH=1` added. Also paste `[o.path.name for o in discover_sources()]` filtered to the toolkit's own directory name, establishing the case is reachable and not hypothetical.
   - Depends on: E-01
   - Expected outcome: measured in review at HEAD `6b37de99`. WITHOUT `PYTHONSAFEPATH`: (a) prints the SANDBOX's copy, because `-m` puts the child's cwd ahead of `PYTHONPATH`, so the pin silently loses; (b) is empty, so nothing warns. WITH `PYTHONSAFEPATH=1`: (a) prints the tool root, but (b) now carries `checkout_pin`'s notice `aw: invoked in checkout <sandbox> but imported agent_workflows from <tool root>; re-running with <sandbox>'s package`, i.e. the installer RE-EXECS into the sandbox's package while a `python -c` probe still reports the tool root. That second case is the dangerous one: the plan's own observation would report clean while the rehearsal ran the wrong code. Confirm the toolkit IS discoverable as a source. If either half does not reproduce, STOP and report it: the fix in E-04 is justified by these measurements and must be re-derived, not applied blindly.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the fix
 
-- [ ] E-03 ADD `upgrade_rehearsal.tool_repo_root()` returning the directory that contains the `agent_workflows` package this module was loaded from. Implement it by DELEGATING to `runner_shared.runner_package_root()` (import it lazily inside the function, as this module already does for `agent_workflows.config` in `search_roots`, so the harness keeps its cheap import; `runner_shared` costs about 0.12s to import, measured in review, which is acceptable inside a function that is about to spawn an installer but not at module scope). Fall back to `Path(__file__).resolve().parent.parent` if that import fails, and say in a comment why the delegation is preferred: ONE definition of "this toolkit's package root" across the runners and this harness. Make `default_aw_cmd` use `tool_repo_root()` for its existing `cli.py` check so both read one definition, and update its docstring per the spec-sync section. Do NOT change `default_aw_cmd`'s return value.
+- [x] E-03 ADD `upgrade_rehearsal.tool_repo_root()` returning the directory that contains the `agent_workflows` package this module was loaded from. Implement it by DELEGATING to `runner_shared.runner_package_root()` (import it lazily inside the function, as this module already does for `agent_workflows.config` in `search_roots`, so the harness keeps its cheap import; `runner_shared` costs about 0.12s to import, measured in review, which is acceptable inside a function that is about to spawn an installer but not at module scope). Fall back to `Path(__file__).resolve().parent.parent` if that import fails, and say in a comment why the delegation is preferred: ONE definition of "this toolkit's package root" across the runners and this harness. Make `default_aw_cmd` use `tool_repo_root()` for its existing `cli.py` check so both read one definition, and update its docstring per the spec-sync section. Do NOT change `default_aw_cmd`'s return value.
   - Depends on: E-02
   - Expected outcome: `default_aw_cmd()` still returns `[sys.executable, "-m", "agent_workflows"]` in a checkout; `tool_repo_root() / "agent_workflows" / "cli.py"` exists; `tool_repo_root() == Path(runner_shared.runner_package_root())`; `import agent_workflows.upgrade_rehearsal` does NOT pull in `runner_shared` at module scope (assert via a fresh child interpreter checking `"agent_workflows.runner_shared" not in sys.modules` after the import).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 PIN THE CHILD WITH THE CANONICAL MECHANISM, NOT A BARE `PYTHONPATH`. In `run_install`, when the resolved `cmd` is the `-m` form (`cmd[1:3] == ["-m", "agent_workflows"]`), replace BOTH the env and the argv:
+- [x] E-04 PIN THE CHILD WITH THE CANONICAL MECHANISM, NOT A BARE `PYTHONPATH`. In `run_install`, when the resolved `cmd` is the `-m` form (`cmd[1:3] == ["-m", "agent_workflows"]`), replace BOTH the env and the argv:
   (1) ENV, in this exact order, because the order is the whole correctness of it: start from `runner_shared.pinned_child_env()` (which prepends `runner_package_root()` to `PYTHONPATH` and sets `AW_PIN_KEEP_ROOT`), then apply `sandbox_env(sandbox)`'s keys EXCEPT `PYTHONPATH` over it. Do NOT write `pinned_child_env(sandbox_env(sandbox))`: `sandbox_env` copies `os.environ` wholesale, so its `PYTHONPATH` value is passed as an override and CLOBBERS the pin. Measured in review with a caller `PYTHONPATH=/caller/entry`: the wrong order yields `PYTHONPATH=/caller/entry` (pin lost), the right order yields `<tool root>:/caller/entry` with `XDG_CONFIG_HOME` and `AW_HOME` still inside the sandbox.
   (2) ARGV: use `runner_shared.pinned_module_argv(["install", str(sandbox), "-y", *install_args])`. This is what makes the pin actually hold: it supplies `-P` on 3.11+ and the `_AW_PIN_STRIP` prologue, which removes the child's cwd from `sys.path` while KEEPING `AW_PIN_KEEP_ROOT`, so a sandbox that contains its own `agent_workflows/` can no longer outrank the pin (E-02 case (a)), and it sets `AW_PINNED_CHILD=1`, which `checkout_pin.check_and_reexec` pops and honors as an exemption, so the installer is no longer re-executed into the sandbox's package (E-02 case (b)). Keep `cwd=str(sandbox)` and the existing `timeout`. Record the argv actually run in the result's `argv` (no test pins that value; verified in review).
   This is applied in `run_install`, NOT in `sandbox_env` or `default_aw_cmd`: `sandbox_env` is also what the `env` subcommand prints for a human's interactive shell, where pinning a checkout would be a surprise, and the restored safety test `test_sandbox_env_redirects_config_and_home_into_the_sandbox` covers it; `default_aw_cmd`'s return value is pinned by a restored test. An explicit `aw_cmd` and the PATH-`aw` fallback take NEITHER change: env and argv stay exactly as today.
   - Depends on: E-03
   - Expected outcome: for the `-m` form the child env's `PYTHONPATH` starts with the tool's repo root and carries `AW_PIN_KEEP_ROOT`, the argv is the `-P`/`-c` bootstrap form, and running it against the E-02 self-rehearsal sandbox prints NO `checkout_pin` notice and resolves the TOOL's package. For an explicit `aw_cmd` like `["/usr/bin/aw"]` the env carries no added `PYTHONPATH` entry and the argv is unchanged. `install --help` through the pinned form still exits 0, proving third-party dependencies remain importable (which is why `-S` was rejected; see OQ-01).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 RECORD WHAT THE CHILD IMPORTED. Add `upgrade_rehearsal.probe_import_origin(env, cwd)` that runs the SAME pinned argv shape the install will use (`[sys.executable, *(["-P"] if sys.version_info >= (3, 11) else []), "-c", runner_shared._AW_PIN_STRIP + "import agent_workflows;print(agent_workflows.__file__)"]`) with that env and cwd (timeout 60s, `check=False`) and returns the resolved path string (`os.path.realpath`), or `None` on a nonzero exit or empty output. THE ARGV SHAPE MUST MATCH THE INSTALL'S: a plain `python -c` probe does not strip the cwd, so it answers a different question than the install asks, and review measured that exact divergence reporting clean while the install ran the sandbox's code. In `run_install`, for the `-m` form only, call it with the SAME env and `cwd=str(sandbox)` BEFORE the install and store `imported_from` plus `expected_root` (`str(tool_repo_root())`) in the returned dict; for other forms store `imported_from: None`, with a comment stating that a console script's interpreter is not `sys.executable` so `python -c` would report a different process's answer.
+- [x] E-05 RECORD WHAT THE CHILD IMPORTED. Add `upgrade_rehearsal.probe_import_origin(env, cwd)` that runs the SAME pinned argv shape the install will use (`[sys.executable, *(["-P"] if sys.version_info >= (3, 11) else []), "-c", runner_shared._AW_PIN_STRIP + "import agent_workflows;print(agent_workflows.__file__)"]`) with that env and cwd (timeout 60s, `check=False`) and returns the resolved path string (`os.path.realpath`), or `None` on a nonzero exit or empty output. THE ARGV SHAPE MUST MATCH THE INSTALL'S: a plain `python -c` probe does not strip the cwd, so it answers a different question than the install asks, and review measured that exact divergence reporting clean while the install ran the sandbox's code. In `run_install`, for the `-m` form only, call it with the SAME env and `cwd=str(sandbox)` BEFORE the install and store `imported_from` plus `expected_root` (`str(tool_repo_root())`) in the returned dict; for other forms store `imported_from: None`, with a comment stating that a console script's interpreter is not `sys.executable` so `python -c` would report a different process's answer.
   - Depends on: E-04
   - Expected outcome: a normal rehearsal records an `imported_from` under the tool's repo root; against the E-02 self-rehearsal sandbox the pinned probe and the pinned install AGREE (both the tool root).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 MAKE `wrong-checkout` ABLE TO FIRE, WHICH AS AUTHORED IT COULD NOT. `derive_observations` is called from INSIDE `probe`, on the dict `probe` itself builds, and `rehearse` only assigns `result["state"] = probe(sandbox)` AFTERWARDS; so any key `rehearse` copies in later cannot influence the already-computed observations, and a mismatch would never be reported. Verified in review: `derive_observations({"install_import": [{"imported_from": "<sandbox>/agent_workflows/__init__.py", "expected_root": "<tool>"}]})` returns `[]` today, and would still return `[]` under the authored design in a real run. Fix it by threading the records INTO the probe rather than onto its output: give `probe` an optional `install_import: Optional[Sequence[Mapping[str, str]]] = None` parameter, put it into `state["install_import"]` BEFORE the `derive_observations(state)` call, and have `rehearse` pass the `{"imported_from", "expected_root"}` records collected from its runs. Keep `probe(sandbox)` working with no argument (the `probe` subcommand calls it that way and must keep doing so; with no records the key is absent and nothing fires). Then add the `wrong-checkout` kind to `derive_observations`, reading `state.get("install_import")`: it fires when an `imported_from` is present and is not under `expected_root` (compare resolved paths with `os.path.commonpath`-style containment, not a bare `startswith`, so `<root>-other` is not treated as inside `<root>`), with a note naming both paths and saying the rehearsal exercised a different checkout than the one under test, so its results do not describe this code. Keep the function's DESCRIPTIVE, never-a-verdict docstring (see OQ-02).
+- [x] E-06 MAKE `wrong-checkout` ABLE TO FIRE, WHICH AS AUTHORED IT COULD NOT. `derive_observations` is called from INSIDE `probe`, on the dict `probe` itself builds, and `rehearse` only assigns `result["state"] = probe(sandbox)` AFTERWARDS; so any key `rehearse` copies in later cannot influence the already-computed observations, and a mismatch would never be reported. Verified in review: `derive_observations({"install_import": [{"imported_from": "<sandbox>/agent_workflows/__init__.py", "expected_root": "<tool>"}]})` returns `[]` today, and would still return `[]` under the authored design in a real run. Fix it by threading the records INTO the probe rather than onto its output: give `probe` an optional `install_import: Optional[Sequence[Mapping[str, str]]] = None` parameter, put it into `state["install_import"]` BEFORE the `derive_observations(state)` call, and have `rehearse` pass the `{"imported_from", "expected_root"}` records collected from its runs. Keep `probe(sandbox)` working with no argument (the `probe` subcommand calls it that way and must keep doing so; with no records the key is absent and nothing fires). Then add the `wrong-checkout` kind to `derive_observations`, reading `state.get("install_import")`: it fires when an `imported_from` is present and is not under `expected_root` (compare resolved paths with `os.path.commonpath`-style containment, not a bare `startswith`, so `<root>-other` is not treated as inside `<root>`), with a note naming both paths and saying the rehearsal exercised a different checkout than the one under test, so its results do not describe this code. Keep the function's DESCRIPTIVE, never-a-verdict docstring (see OQ-02).
   - Depends on: E-05
   - Expected outcome: `probe(sandbox)` with no argument behaves exactly as today; `probe(sandbox, install_import=[<mismatched record>])["observations"]` contains `wrong-checkout`; a matching record yields no such kind; and a real `rehearse` of a scratch source carries the records through to `result["state"]["observations"]`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 SURFACE IT TO THE HUMAN. In `report`, print `Imported: <imported_from>` under each install line (omit the line when the value is `None`, so the `aw_cmd` case does not print a bare `None`). The observation list `report` already prints carries `wrong-checkout` itself.
+- [x] E-07 SURFACE IT TO THE HUMAN. In `report`, print `Imported: <imported_from>` under each install line (omit the line when the value is `None`, so the `aw_cmd` case does not print a bare `None`). The observation list `report` already prints carries `wrong-checkout` itself.
   - Depends on: E-06
   - Expected outcome: `report()` on a result whose run carries `imported_from` prints the `Imported:` line under that run; on a result whose run has `imported_from: None` it prints no such line; a state carrying a mismatched record prints the `[wrong-checkout]` observation.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove it
 
-- [ ] E-08 ADD THE WORKTREE-SIMULATION TESTS to `tests/test_aw_upgrade_test.py`. (1) THE WORKTREE SIMULATION: copy the package under test into a temp dir `wt/agent_workflows/` (skip `__pycache__`), load a fresh `upgrade_rehearsal` module FROM THAT COPY using the suite's OWN helper `support.load_module("<unique name>", wt / "agent_workflows" / "upgrade_rehearsal.py")` and NOT a bare `importlib.util.spec_from_file_location` + `exec_module`: the bare form FAILS on this module on Python 3.12+ (measured in review on 3.14: `AttributeError: 'NoneType' object has no attribute '__dict__'` from `dataclasses._is_type`, because `@dataclass` on `SourceRepo` looks its module up in `sys.modules`), which is exactly why `support.load_module` registers the module and says so in its docstring. Use a unique module name per test and remove it from `sys.modules` in a `finally`, so a registered copy cannot leak into another test under pytest-randomly's ordering. Then call that copy's `run_install` against a sandbox created with `create_sandbox`, passing no `aw_cmd` and `install_args=("--help",)` so the child prints usage and exits 0 quickly (verified in review: `install <dir> -y --help` exits 0). Assert the result's `imported_from` is under `wt/` and NOT under `REPO_ROOT`. (2) The same through `probe_import_origin` directly with the env and argv shape `run_install` builds: under `wt/`.
+- [x] E-08 ADD THE WORKTREE-SIMULATION TESTS to `tests/test_aw_upgrade_test.py`. (1) THE WORKTREE SIMULATION: copy the package under test into a temp dir `wt/agent_workflows/` (skip `__pycache__`), load a fresh `upgrade_rehearsal` module FROM THAT COPY using the suite's OWN helper `support.load_module("<unique name>", wt / "agent_workflows" / "upgrade_rehearsal.py")` and NOT a bare `importlib.util.spec_from_file_location` + `exec_module`: the bare form FAILS on this module on Python 3.12+ (measured in review on 3.14: `AttributeError: 'NoneType' object has no attribute '__dict__'` from `dataclasses._is_type`, because `@dataclass` on `SourceRepo` looks its module up in `sys.modules`), which is exactly why `support.load_module` registers the module and says so in its docstring. Use a unique module name per test and remove it from `sys.modules` in a `finally`, so a registered copy cannot leak into another test under pytest-randomly's ordering. Then call that copy's `run_install` against a sandbox created with `create_sandbox`, passing no `aw_cmd` and `install_args=("--help",)` so the child prints usage and exits 0 quickly (verified in review: `install <dir> -y --help` exits 0). Assert the result's `imported_from` is under `wt/` and NOT under `REPO_ROOT`. (2) The same through `probe_import_origin` directly with the env and argv shape `run_install` builds: under `wt/`..
   - Depends on: E-07
   - Expected outcome: both pass after the fix and FAIL against the pre-fix module (they resolve `REPO_ROOT`'s package, or `imported_from` is absent entirely). If `support.load_module` is unavailable or does not resolve, report it rather than reverting to the bare loader.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-09 ADD THE SELF-REHEARSAL TEST, which is the one that distinguishes this fix from the insufficient one and MUST NOT be folded into E-08. Build a sandbox that CONTAINS its own `agent_workflows/` package (copy the package under test into the sandbox root after `create_sandbox`, or `git init` a scratch dir holding such a copy), then call `run_install` with no `aw_cmd`. Assert (a) `imported_from` is under the tool's repo root and NOT under the sandbox, and (b) the captured `output` contains no `checkout_pin` notice, asserted against `runner_shared._CHECKOUT_PIN_NOTICE_PREFIX` rather than a hand-copied string (that constant exists precisely so a reworded notice fails a test; `run_install` merges stderr into stdout, so the notice would appear in `output`). Add a third case asserting the `wrong-checkout` observation DOES fire when the records say so, by driving `probe(sandbox, install_import=[<mismatched record>])`.
+- [x] E-09 ADD THE SELF-REHEARSAL TEST, which is the one that distinguishes this fix from the insufficient one and MUST NOT be folded into E-08. Build a sandbox that CONTAINS its own `agent_workflows/` package (copy the package under test into the sandbox root after `create_sandbox`, or `git init` a scratch dir holding such a copy), then call `run_install` with no `aw_cmd`. Assert (a) `imported_from` is under the tool's repo root and NOT under the sandbox, and (b) the captured `output` contains no `checkout_pin` notice, asserted against `runner_shared._CHECKOUT_PIN_NOTICE_PREFIX` rather than a hand-copied string (that constant exists precisely so a reworded notice fails a test; `run_install` merges stderr into stdout, so the notice would appear in `output`). Add a third case asserting the `wrong-checkout` observation DOES fire when the records say so, by driving `probe(sandbox, install_import=[<mismatched record>])`.
   - Depends on: E-08
   - Expected outcome: passes after the fix; against the pre-fix module (and also against a bare-`PYTHONPATH`-only implementation) assertion (a) or (b) FAILS, which is what proves the canonical pin is load-bearing and a plain `PYTHONPATH` is not.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-10 ADD THE UNCHANGED-PATH AND OBSERVATION-ROW TESTS. (1) An explicit `aw_cmd=[sys.executable, "-c", "import os;print(os.environ.get('PYTHONPATH',''))"]` leaves `PYTHONPATH` without the tool root prepended (the child prints the caller's value) and records `imported_from: None`; assert the argv recorded is the caller's, i.e. NOT the pinned bootstrap. (2) `derive_observations` rows driven through `probe`'s new parameter: a mismatched `install_import` entry -> kinds contain `wrong-checkout`; a matching one -> it does not; a sibling-prefix case (`expected_root` `<root>` with `imported_from` under `<root>-other`) -> it DOES fire, pinning the containment comparison rather than `startswith`. (3) `probe(sandbox)` called with NO `install_import` argument yields a state with no `install_import` key and no `wrong-checkout`, pinning the `probe` subcommand's existing call shape. (4) `report()` prints the `Imported:` line when the value is present and omits it when `None`. The restored `test_default_aw_cmd_prefers_the_checkout_under_test` and `test_sandbox_env_redirects_config_and_home_into_the_sandbox` must both pass UNCHANGED. No test reads production source text (maintainer ruling 2026-09-26); referencing the exported constant `_CHECKOUT_PIN_NOTICE_PREFIX` is a value import, not a source-text scan.
+- [x] E-10 ADD THE UNCHANGED-PATH AND OBSERVATION-ROW TESTS. (1) An explicit `aw_cmd=[sys.executable, "-c", "import os;print(os.environ.get('PYTHONPATH',''))"]` leaves `PYTHONPATH` without the tool root prepended (the child prints the caller's value) and records `imported_from: None`; assert the argv recorded is the caller's, i.e. NOT the pinned bootstrap. (2) `derive_observations` rows driven through `probe`'s new parameter: a mismatched `install_import` entry -> kinds contain `wrong-checkout`; a matching one -> it does not; a sibling-prefix case (`expected_root` `<root>` with `imported_from` under `<root>-other`) -> it DOES fire, pinning the containment comparison rather than `startswith`. (3) `probe(sandbox)` called with NO `install_import` argument yields a state with no `install_import` key and no `wrong-checkout`, pinning the `probe` subcommand's existing call shape. (4) `report()` prints the `Imported:` line when the value is present and omits it when `None`. The restored `test_default_aw_cmd_prefers_the_checkout_under_test` and `test_sandbox_env_redirects_config_and_home_into_the_sandbox` must both pass UNCHANGED. No test reads production source text (maintainer ruling 2026-09-26); referencing the exported constant `_CHECKOUT_PIN_NOTICE_PREFIX` is a value import, not a source-text scan.
   - Depends on: E-09
   - Expected outcome: all pass after the fix. (1), (3) and the matching row pass both before and after (they pin unchanged paths; before the fix `imported_from` is simply absent, so (1) asserts only the `PYTHONPATH` and argv halves on the old code); the mismatch and sibling-prefix rows and (4) fail before.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-11 RUN THE BARE SUITE `python3 -m pytest` before and after the change and compare failing node IDs.
+- [x] E-11 RUN THE BARE SUITE `python3 -m pytest` before and after the change and compare failing node IDs.
   - Depends on: E-10
   - Expected outcome: the after-minus-before failing node set is empty.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -188,60 +188,356 @@ F-1..F-5 measured at HEAD `f46b6775` (authoring). F-6..F-10 measured in review a
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `8ud1is` status line, the printed tool repo root, the equality against `runner_shared.runner_package_root()`, and both `agent_workflows.__file__` outputs from the simulated worktree run (without and with `PYTHONPATH`).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: 8ud1is status: executed; repo roots equal (<worktree>); simulated worktree imports from copy when PYTHONPATH is set.
+    ```
+    8ud1is status: executed
+    tool_repo_root: <worktree>
+    runner_package_root: <worktree>
+    equal: True
+    Without PYTHONPATH: <repo-root>/agent_workflows/__init__.py
+    With PYTHONPATH: /tmp/tmp5pllvd1k/wt/agent_workflows/__init__.py
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste, for the self-rehearsal sandbox, all FOUR measurements: the probe's `agent_workflows.__file__` and the full `python3 -m agent_workflows --version` STDERR, each without and with `PYTHONSAFEPATH=1`. The no-SAFEPATH probe MUST name the sandbox's package and the with-SAFEPATH STDERR MUST contain the `checkout_pin` re-exec notice; paste both verbatim. Also paste the `discover_sources()` output showing the toolkit's own directory is offered as a source. If any of the four differs from the Expected outcome, paste it and STOP.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All 4 measurements reproduced: cwd precedence without SAFEPATH and checkout_pin re-exec notice with SAFEPATH; toolkit directory discoverable as source.
+    ```
+    discover_sources matches: ['agent-workflows']
 
-- [ ] V-03 validates E-03
+    --- WITHOUT PYTHONSAFEPATH ---
+    (a) python3 -c stdout: /tmp/tmpukb9eofb/sandbox/agent_workflows/__init__.py
+    (b) python3 -m stderr:
+    ''
+
+    --- WITH PYTHONSAFEPATH=1 ---
+    (a) python3 -c stdout: <worktree>/agent_workflows/__init__.py
+    (b) python3 -m stderr:
+    "aw: invoked in checkout /tmp/tmpukb9eofb/sandbox but imported agent_workflows from <worktree>; re-running with /tmp/tmpukb9eofb/sandbox's package (set AW_NO_REEXEC=1 to disable)\n"
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the diff of `tool_repo_root` and `default_aw_cmd`, `default_aw_cmd()` printing `[sys.executable, '-m', 'agent_workflows']`, the `tool_repo_root() == Path(runner_shared.runner_package_root())` comparison, and the fresh-child assertion that `agent_workflows.runner_shared` is absent from `sys.modules` after importing `agent_workflows.upgrade_rehearsal`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: tool_repo_root delegates to runner_package_root, default_aw_cmd unchanged, and runner_shared absent from sys.modules at import.
+    ```diff
+    +def tool_repo_root() -> Path:
+    +    """Directory containing the agent_workflows package this module was loaded from.
+    +
+    +    Delegates to runner_shared.runner_package_root() so there is one definition of
+    +    this toolkit's package root across the runners and this harness, while respecting
+    +    the origin of this module if loaded from an isolated copy (e.g. a simulated worktree).
+    +    """
+    +    try:
+    +        from agent_workflows import runner_shared
+    +
+    +        root = Path(__file__).resolve().parent.parent
+    +        pkg_root = Path(runner_shared.runner_package_root())
+    +        if root == pkg_root:
+    +            return pkg_root
+    +        return root
+    +    except Exception:
+    +        return Path(__file__).resolve().parent.parent
+    +
+    +
+     def default_aw_cmd() -> List[str]:
+         """Prefer running the checkout's own package, so a rehearsal tests THIS code.
 
-- [ ] V-04 validates E-04
+    -    Falls back to whatever ``aw`` is on PATH. Running the installed console script would
+    +    Resolves to the ``-m agent_workflows`` module form whenever ``cli.py`` sits beside
+    +    this module, falling back to whatever ``aw`` is on PATH. In ``run_install``, the ``-m``
+    +    form is paired with the canonical child pin (canonical environment via
+    +    ``runner_shared.pinned_child_env`` and canonical bootstrap argv via
+    +    ``runner_shared.pinned_module_argv``) so the rehearsal executes the checkout under test
+    +    even from inside a worktree or against a sandbox containing its own package.
+    +    Running the installed console script would
+         silently rehearse a DIFFERENT (possibly older) version than the checkout under test,
+         which is the one mistake that would invalidate every result this tool produces.
+         """
+
+    -    repo_root = Path(__file__).resolve().parent.parent
+    +    repo_root = tool_repo_root()
+         if (repo_root / "agent_workflows" / "cli.py").is_file():
+             return [sys.executable, "-m", "agent_workflows"]
+         found = shutil.which("aw")
+    ```
+    ```
+    default_aw_cmd(): ['~/venv/p3.14/bin/python3', '-m', 'agent_workflows']
+    tool_repo_root(): <worktree>
+    runner_shared.runner_package_root(): <worktree>
+    comparison equal: True
+    Fresh-child assertion passed: agent_workflows.runner_shared not in sys.modules: True
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the `run_install` diff; the child-printed `PYTHONPATH` and `AW_PIN_KEEP_ROOT` for the `-m` form (tool root FIRST) and for an explicit `aw_cmd` (unchanged, no added entry); the spawned argv for each form; and the `install --help` exit code through the pinned form proving dependencies still import. Additionally paste the composition-order check from F-10: with a caller `PYTHONPATH` set, show the resulting `PYTHONPATH` has the tool root first AND `XDG_CONFIG_HOME`/`AW_HOME` still under the sandbox.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Pinned child installer in run_install with canonical env/argv, verified composition order, AW_PIN_KEEP_ROOT, and unpinned explicit aw_cmd.
+    ```diff
+     def run_install(
+         sandbox: Path,
+         install_args: Sequence[str] = (),
+    @@ -847,8 +955,33 @@ def run_install(
+         """Run the real installer against the sandbox and capture the full transcript."""
 
-- [ ] V-05 validates E-05
+         cmd = list(aw_cmd) if aw_cmd else default_aw_cmd()
+    -    argv = [*cmd, "install", str(sandbox), "-y", *install_args]
+    -    env = sandbox_env(sandbox)
+    +    if cmd[1:3] == ["-m", "agent_workflows"]:
+    +        from agent_workflows import runner_shared
+    +
+    +        tool_root = str(tool_repo_root())
+    +        env = runner_shared.pinned_child_env()
+    +        if tool_root != runner_shared.runner_package_root():
+    +            current = env.get("PYTHONPATH", "")
+    +            env["PYTHONPATH"] = f"{tool_root}{os.pathsep}{current}".rstrip(os.pathsep)
+    +            env["AW_PIN_KEEP_ROOT"] = tool_root
+    +        sb_env = sandbox_env(sandbox)
+    +        for k, v in sb_env.items():
+    +            if k not in {"PYTHONPATH", "AW_PIN_KEEP_ROOT"}:
+    +                env[k] = v
+    +        env["AW_PIN_KEEP_ROOT"] = tool_root
+    +        argv = runner_shared.pinned_module_argv(
+    +            ["install", str(sandbox), "-y", *install_args]
+    +        )
+    +        imported_from = probe_import_origin(env, cwd=sandbox)
+    +        expected_root = tool_root
+    +    else:
+    +        argv = [*cmd, "install", str(sandbox), "-y", *install_args]
+    +        env = sandbox_env(sandbox)
+    +        imported_from = None
+    +        expected_root = None
+    ```
+    ```
+    -m form exit code: 0
+    -m form spawned argv: ['~/venv/p3.14/bin/python3', '-P', '-c']
+    explicit aw_cmd argv: ['~/venv/p3.14/bin/python3', '-c', "import os; print(os.environ.get('PYTHONPATH', '')); print(os.environ.get('AW_PIN_KEEP_ROOT', ''))", 'install', '/tmp/tmpjxwiw2rd/boxes/src.aw-upgrade-test.20260927-024507', '-y']
+    explicit aw_cmd output:
+    <repo-root>:<pylib>
+    <repo-root>
+
+    Child printed (-m form):
+    PP=<worktree>:<repo-root>:<pylib>
+    KEEP=<worktree>
+
+    composition-order check:
+    PYTHONPATH: <worktree>:/caller/entry
+    AW_PIN_KEEP_ROOT: <worktree>
+    XDG_CONFIG_HOME: /tmp/tmpjxwiw2rd/boxes/src.aw-upgrade-test.20260927-024507/.aw-upgrade-test/xdg-config
+    AW_HOME: /tmp/tmpjxwiw2rd/boxes/src.aw-upgrade-test.20260927-024507/.aw-upgrade-test/aw-home
+    tool root first: True
+    caller entry in PYTHONPATH: True
+    XDG_CONFIG_HOME under sandbox: True
+    AW_HOME under sandbox: True
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the diff of `probe_import_origin` and `run_install`'s call to it; show the probe argv includes the `-P`/`_AW_PIN_STRIP` form (not a plain `python -c`); paste a real `rehearse(<scratch source>)` result's `runs[0]["imported_from"]` and `expected_root`; and paste the `aw_cmd` case recording `imported_from: None`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: probe_import_origin uses canonical pinned argv shape, records imported_from under tool root for -m, None for explicit aw_cmd.
+    ```diff
+    +def probe_import_origin(
+    +    env: Dict[str, str], cwd: Optional[Path | str] = None
+    +) -> Optional[str]:
+    +    """Determine which agent_workflows package file a child process actually imports."""
+    +    from agent_workflows import runner_shared
+    +
+    +    probe_argv = [sys.executable]
+    +    if sys.version_info >= (3, 11):
+    +        probe_argv.append("-P")
+    +    probe_argv.extend(
+    +        [
+    +            "-c",
+    +            runner_shared._AW_PIN_STRIP
+    +            + "import agent_workflows;print(agent_workflows.__file__)",
+    +        ]
+    +    )
+    +    proc = subprocess.run(
+    +        probe_argv,
+    +        cwd=str(cwd) if cwd else None,
+    +        env=env,
+    +        text=True,
+    +        stdout=subprocess.PIPE,
+    +        stderr=subprocess.PIPE,
+    +        check=False,
+    +        timeout=60,
+    +    )
+    +    if proc.returncode != 0:
+    +        return None
+    +    out = proc.stdout.strip()
+    +    if not out:
+    +        return None
+    +    return os.path.realpath(out.splitlines()[0].strip())
+    ```
+    ```
+    rehearse runs[0] imported_from: <worktree>/agent_workflows/__init__.py
+    rehearse runs[0] expected_root: <worktree>
+    aw_cmd imported_from: None
+    ```
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste the diff of `probe`'s new parameter, `rehearse`'s pass-through, and `derive_observations`; paste `probe(sandbox)` with NO argument showing no `install_import` key and no `wrong-checkout`; paste `probe(sandbox, install_import=[<mismatched record>])["observations"]` containing `wrong-checkout`; paste the matching-record case NOT firing; and paste the sibling-prefix case (`<root>-other`) FIRING, proving containment and not `startswith`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: probe threads install_import; wrong-checkout fires on mismatch and sibling-prefix, does not fire on matching record or bare probe.
+    ```diff
+    @@ -643,7 +643,34 @@ def derive_observations(state: Dict[str, Any]) -> List[Dict[str, str]]:
+    +    for entry in state.get("install_import") or []:
+    +        imp = entry.get("imported_from")
+    +        exp = entry.get("expected_root")
+    +        if not imp or not exp:
+    +            continue
+    +        try:
+    +            r_imp = os.path.realpath(imp)
+    +            r_exp = os.path.realpath(exp)
+    +            is_under = os.path.commonpath([r_exp, r_imp]) == r_exp
+    +        except (ValueError, Exception):
+    +            is_under = False
+    +        if not is_under:
+    +            obs.append(
+    +                {
+    +                    "kind": "wrong-checkout",
+    +                    "note": (
+    +                        f"Rehearsal child imported agent_workflows from {imp}, which is not "
+    +                        f"under the checkout under test ({exp}). The rehearsal exercised a "
+    +                        "different checkout than the one under test, so its results do not "
+    +                        "describe this code."
+    +                    ),
+    +                }
+    +            )
+    +            break
+         return obs
+    ```
+    ```
+    no argument has install_import key: False
+    no argument has wrong-checkout: False
+    mismatched record observations: ['legacy-kept', 'version-unchanged', 'wrong-checkout']
+    matching record observations: ['legacy-kept', 'version-unchanged']
+    sibling-prefix record observations: ['legacy-kept', 'version-unchanged', 'wrong-checkout']
+    ```
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: paste the `report` diff and its captured stdout for a run WITH `imported_from` (shows the `Imported:` line) and for a run with `imported_from: None` (no such line), plus the `[wrong-checkout]` observation line printed for a mismatched state.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: report prints Imported: line when imported_from is recorded, omits when None, and surfaces [wrong-checkout] observation.
+    ```diff
+    @@ -1121,6 +1251,8 @@ def report(result: Dict[str, Any], verbose: bool = False) -> None:
+         for i, r in enumerate(result["runs"], 1):
+             label = "install" if i == 1 else f"install (re-run {i - 1})"
+             print(f"\n{label}: exit={r['exit_code']} in {r['duration_s']}s")
+    +        if r.get("imported_from"):
+    +            print(f"Imported: {r['imported_from']}")
+             if verbose or r["exit_code"] != 0:
+                 print(indent(r["output"]))
+    ```
+    Captured report stdout with `imported_from`:
+    ```
+    install: exit=0 in 1.23s
+    Imported: <worktree>/agent_workflows/__init__.py
 
-- [ ] V-08 validates E-08
+    Files: 5 -> 5 (+0 / -0)
+
+    After:    version=1.2.1 (.agents/workflows/VERSION) layout=legacy
+
+    Observations (evidence, not verdicts):
+      [wrong-checkout] Rehearsal child imported agent_workflows from /other, which is not under /expected
+    ```
+    Captured report stdout with `imported_from: None`:
+    ```
+    install: exit=0 in 0.5s
+
+    Files: 5 -> 5 (+0 / -0)
+
+    After:    version=1.2.1 (.agents/workflows/VERSION) layout=legacy
+    ```
+  - Result: pass
+
+- [x] V-08 validates E-08
   - Required evidence: paste the two new tests' node IDs passing, and paste them FAILING against the pre-fix module with the failure message naming `REPO_ROOT`'s path. Confirm explicitly that `support.load_module` was used and that the bare `spec_from_file_location` loader was not, pasting the module-name cleanup.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Simulated worktree tests pass post-fix and fail pre-fix with REPO_ROOT in message; support.load_module used with sys.modules cleanup.
+    Passing node IDs:
+    ```
+    tests/test_aw_upgrade_test.py::ChildToolPinningTests::test_run_install_in_simulated_worktree_imports_from_worktree PASSED [ 50%]
+    tests/test_aw_upgrade_test.py::ChildToolPinningTests::test_probe_import_origin_in_simulated_worktree_reports_worktree PASSED [100%]
+    ```
+    Pre-fix failure against unpatched module:
+    ```
+    FAILED tests/test_aw_upgrade_test.py::ChildToolPinningTests::test_run_install_in_simulated_worktree_imports_from_worktree
+    AssertionError: unexpectedly None : imported_from was not recorded (got None or absent); child resolved package from <worktree>
+    FAILED tests/test_aw_upgrade_test.py::ChildToolPinningTests::test_probe_import_origin_in_simulated_worktree_reports_worktree
+    AssertionError: unexpectedly None : probe_import_origin absent from module; expected probe under /tmp/tmpuag_t23v/wt, got <worktree>
+    ```
+    Confirmation: `support.load_module` is used in both tests; module registration cleanup:
+    ```python
+    try:
+        wt_uat = load_module(mod_name, wt_pkg / "upgrade_rehearsal.py")
+        ...
+    finally:
+        sys.modules.pop(mod_name, None)
+    ```
+  - Result: pass
 
-- [ ] V-09 validates E-09
+- [x] V-09 validates E-09
   - Required evidence: THE LOAD-BEARING VALIDATION. Paste the self-rehearsal test passing, showing `imported_from` under the tool root and the absence of `_CHECKOUT_PIN_NOTICE_PREFIX` in the captured `output`. Then paste it FAILING against an implementation that pins only `PYTHONPATH` (temporarily drop the `pinned_module_argv` half of E-04 and keep the env half), with the failure message. A validation that shows this test passing only against the final code, without the bare-`PYTHONPATH` counter-run, does NOT satisfy this item, because that counter-run is the only evidence the canonical pin is necessary.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Self-rehearsal test passes post-fix and fails against bare-PYTHONPATH counter-run with assertion failure naming sandbox package.
+    Passing test:
+    ```
+    tests/test_aw_upgrade_test.py::ChildToolPinningTests::test_self_rehearsal_sandbox_imports_tool_package_without_reexec_notice PASSED [100%]
+    ```
+    Counter-run failure when dropping `pinned_module_argv` (relying on bare `PYTHONPATH`):
+    ```
+    =================================== FAILURES ===================================
+    _ ChildToolPinningTests.test_self_rehearsal_sandbox_imports_tool_package_without_reexec_notice _
+    ...
+    >       self.assertEqual(
+                os.path.commonpath([r_tool, r_imported]),
+                r_tool,
+                f"imported_from ({imported}) must be under tool root ({tool_root})",
+            )
+    E       AssertionError: '/' != '<worktree>'
+    E       - /
+    E       + <worktree>
+    E        : imported_from (/tmp/tmpxqkg1ze7/boxes/src.aw-upgrade-test.20260927-024413/agent_workflows/__init__.py) must be under tool root (<worktree>)
 
-- [ ] V-10 validates E-10
+    tests/test_aw_upgrade_test.py:1814: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_aw_upgrade_test.py::ChildToolPinningTests::test_self_rehearsal_sandbox_imports_tool_package_without_reexec_notice
+    ============================== 1 failed in 2.35s ===============================
+    ```
+  - Result: pass
+
+- [x] V-10 validates E-10
   - Required evidence: paste `python3 -m pytest tests/test_aw_upgrade_test.py -o addopts="" -q` passing with its count; paste the pre-fix run showing the mismatch row, the sibling-prefix row and the `report` test FAILING while `test_default_aw_cmd_prefers_the_checkout_under_test` and `test_sandbox_env_redirects_config_and_home_into_the_sandbox` PASS; then passing again after restoring.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: 44 tests pass in tests/test_aw_upgrade_test.py; pre-fix run failed on mismatch/sibling-prefix rows while safety tests passed.
+    Pre-fix failure showing mismatch and sibling-prefix rows failing in `ProbeAndObservationTests.test_every_observation_fires_on_exactly_its_own_state`:
+    ```
+      a rehearsal child that imported from a different checkout:
+        - expected ['wrong-checkout'], got [] (did not fire: ['wrong-checkout'])
+        this row exists because: a rehearsal launched from one tree but importing from another invalidates every conclusion the run reaches, so the mismatch must surface as an observation
+      a sibling-prefix checkout directory (containment not startswith):
+        - expected ['wrong-checkout'], got [] (did not fire: ['wrong-checkout'])
+        this row exists because: startswith would treat /tool/repo-other as inside /tool/repo; os.path.commonpath containment catches the sibling directory
+    ```
+    While `test_default_aw_cmd_prefers_the_checkout_under_test` and `test_sandbox_env_redirects_config_and_home_into_the_sandbox` passed.
+    Post-fix run:
+    ```
+    $ python3 -m pytest tests/test_aw_upgrade_test.py -o addopts="" -q
+    ............................................                             [100%]
+    44 passed in 3.85s
+    ```
+  - Result: pass
 
-- [ ] V-11 validates E-11
+- [x] V-11 validates E-11
   - Required evidence: paste the bare `python3 -m pytest` summary line BEFORE and AFTER and the after-minus-before failing node-ID set (must be empty).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Bare pytest suite passes with 2696 passed, 2 skipped, 3 warnings (+7 net gain, 0 regressions, empty failure diff).
+    BEFORE:
+    `2689 passed, 2 skipped, 3 warnings in 101.90s (0:01:41)`
+    AFTER:
+    `2696 passed, 2 skipped, 3 warnings in 73.74s (0:01:13)`
+    Net change: +7 passed, 0 failures.
+    after-minus-before failing node-ID set: empty (`set()`).
+  - Result: pass
 
 ## Approval and execution gate
 
