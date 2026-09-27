@@ -911,3 +911,163 @@ class RefreezeBeforeCorrectionFinalizeTests(unittest.TestCase):
                     run_dir=Path(temp),
                 )
             )
+
+
+class FinalizeLockContentionTests(unittest.TestCase):
+    """finlockwait-01 (`y2vzit`): lock contention retry and classification."""
+
+    LOCK_BUSY_REFUSAL = (
+        "ipd finalize writer lock held by active PID 402458 "
+        "(owner git_commit_helper.offer_commit) for longer than 120s; "
+        "wait for it to finish or, if that process is dead, remove .aw/state/ipd-finalize.lock"
+    )
+
+    MIXED_BUSY_REFUSAL = (
+        "refused: pre-transition gate did NOT conform (error); plan left unmoved.\n"
+        "  IPD-S404 E-01: not 'performed' at pre-transition\n"
+        "ipd finalize writer lock held by active PID 402458 (owner git_commit_helper.offer_commit)"
+    )
+
+    def test_lock_busy_is_classified_as_contention_and_NOT_agent_sendback(self):
+        item = _item()
+        state = _state([item], retry_budget=2)
+        dec = runner_shared.finalize_retry_decision(item, state, self.LOCK_BUSY_REFUSAL)
+        self.assertTrue(dec.lock_contention, "must be classified as lock contention")
+        self.assertFalse(
+            dec.retry, "lock contention must NOT trigger an agent send-back turn"
+        )
+        self.assertFalse(dec.exhausted, "first contention is not budget-exhausted")
+        self.assertFalse(
+            runner_shared.finalize_refusal_is_retryable(self.LOCK_BUSY_REFUSAL),
+            "finalize_refusal_is_retryable allowlist must not include lock contention",
+        )
+
+    def test_mixed_message_with_ipd_finding_is_NOT_treated_as_contention(self):
+        item = _item()
+        state = _state([item], retry_budget=2)
+        dec = runner_shared.finalize_retry_decision(
+            item, state, self.MIXED_BUSY_REFUSAL
+        )
+        self.assertFalse(
+            dec.lock_contention,
+            "mixed messages carrying IPD- findings must NOT be classified as contention",
+        )
+
+    def test_contention_reattempt_succeeds_leaves_item_executed_with_budget_unchanged(
+        self,
+    ):
+        item = _item()
+        item[runner_shared.FINALIZE_RETRY_COUNT_KEY] = 0
+        events = []
+        call_count = [0]
+
+        def fake_driver_finalize(repo, plan_path, id6, actor, msg, attestation=None):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return 1, self.LOCK_BUSY_REFUSAL
+            return 0, "ok"
+
+        with tempfile.TemporaryDirectory() as temp:
+            run_dir = Path(temp)
+            rc, msg = runner_shared.finalize_with_contention_retry(
+                fake_driver_finalize,
+                Path("/fake/repo"),
+                Path("/fake/repo/plan.ipd.md"),
+                item["id6"],
+                "actor",
+                "message",
+                item=item,
+                run_dir=run_dir,
+                append_jsonl=lambda p, ev: events.append(ev),
+                backoff_seconds=0.0,
+            )
+
+        self.assertEqual(0, rc)
+        self.assertEqual("ok", msg)
+        self.assertEqual(2, call_count[0], "re-attempted driver_finalize")
+        self.assertEqual(
+            0,
+            item[runner_shared.FINALIZE_RETRY_COUNT_KEY],
+            "correction budget counter must remain untouched",
+        )
+        self.assertEqual(1, len(events))
+        self.assertEqual("ipd-finalize-lock-wait", events[0]["event"])
+        self.assertEqual(1, events[0]["attempt"])
+        self.assertEqual(402458, events[0]["pid"])
+        self.assertEqual("git_commit_helper.offer_commit", events[0]["owner"])
+
+    def test_exhausted_contention_ends_in_terminal_failure_status_with_cause_lock_contention(
+        self,
+    ):
+        item = _item()
+        item[runner_shared.FINALIZE_RETRY_COUNT_KEY] = 0
+        state = _state([item], retry_budget=2)
+        saved = []
+        events = []
+
+        with tempfile.TemporaryDirectory() as temp:
+            run_dir = Path(temp)
+            disposition = runner_shared.handle_finalize_refusal(
+                run_dir=run_dir,
+                state=state,
+                item=item,
+                attempt=item["attempts"][-1],
+                fin_rc=1,
+                fin_msg=self.LOCK_BUSY_REFUSAL,
+                disposition="substantially-complete",
+                host_labels=None,
+                save_state=lambda rd, st: saved.append(st),
+                append_jsonl=lambda path, rec: events.append(rec),
+            )
+
+        self.assertEqual(runner_shared.FINALIZE_RETRY_EXHAUSTED_STATUS, disposition)
+        self.assertEqual("failed-safely", item["status"])
+        self.assertEqual(
+            0, item[runner_shared.FINALIZE_RETRY_COUNT_KEY], "budget unchanged"
+        )
+        self.assertEqual(1, len(events))
+        refused_event = events[0]
+        self.assertEqual("ipd-finalize-refused", refused_event["event"])
+        self.assertEqual("lock-contention", refused_event.get("cause"))
+        self.assertTrue(refused_event["retryable"])
+        self.assertFalse(refused_event["retry_scheduled"])
+
+    def test_lane_arm_reattempt_keeps_lane_repo_argument(self):
+        """The LANE arm re-attempts driver_finalize with the LANE worktree repo, never re-resolving to main."""
+        lane_repo = Path("/tmp/lane_worktree_123")
+        called_repos = []
+
+        def fake_driver_finalize(repo, plan_path, id6, actor, msg, attestation=None):
+            called_repos.append(repo)
+            return 1, self.LOCK_BUSY_REFUSAL
+
+        item = _item()
+        events = []
+        with tempfile.TemporaryDirectory() as temp:
+            run_dir = Path(temp)
+            rc, _msg = runner_shared.finalize_with_contention_retry(
+                fake_driver_finalize,
+                lane_repo,
+                lane_repo / "plan.ipd.md",
+                item["id6"],
+                "actor",
+                "message",
+                item=item,
+                run_dir=run_dir,
+                append_jsonl=lambda p, ev: events.append(ev),
+                max_reattempts=3,
+                backoff_seconds=0.0,
+            )
+
+        self.assertEqual(1, rc)
+        self.assertEqual(4, len(called_repos), "initial attempt + 3 reattempts")
+        for r in called_repos:
+            self.assertEqual(
+                lane_repo, r, "all attempts must keep the lane repo argument"
+            )
+        self.assertEqual(3, len(events))
+        for idx, ev in enumerate(events, start=1):
+            self.assertEqual("ipd-finalize-lock-wait", ev["event"])
+            self.assertEqual(idx, ev["attempt"])
+            self.assertEqual(402458, ev["pid"])
+            self.assertEqual("git_commit_helper.offer_commit", ev["owner"])

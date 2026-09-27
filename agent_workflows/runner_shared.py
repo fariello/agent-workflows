@@ -6355,6 +6355,42 @@ FINALIZE_RETRY_COUNT_KEY: str = "finalize_retry_attempts"
 #: budget is gone (see `finalize_retry_decision`).
 FINALIZE_RETRY_EXHAUSTED_STATUS: str = "failed-safely"
 
+#: finlockwait-01 (`y2vzit`) E-03: Bounded re-attempts for finalize writer lock contention.
+FINALIZE_LOCK_REATTEMPTS: int = 3
+FINALIZE_LOCK_BACKOFF_SECONDS: float = 1.0
+
+
+def finalize_refusal_is_lock_contention(fin_msg: str) -> bool:
+    """Is this refusal due to writer lock contention and safe to retry without an agent turn?"""
+    from agent_workflows.ipd_lifecycle import FINALIZE_LOCK_BUSY_SUMMARY
+
+    text = (fin_msg or "").strip()
+    if not text or FINALIZE_LOCK_BUSY_SUMMARY not in text:
+        return False
+    # If there are any IPD- finding lines, it is a mixed gate failure, not pure contention
+    if any(line.strip().startswith("IPD-") for line in text.splitlines()):
+        return False
+    return True
+
+
+def parse_finalize_lock_holder(fin_msg: str) -> tuple[int | None, str | None]:
+    """Extract (pid, owner) from a finalize writer lock contention message."""
+    m = re.search(
+        r"held by active PID (?P<pid>\d+)\s*\((?P<desc>[^)]+)\)", fin_msg or ""
+    )
+    if not m:
+        return None, None
+    try:
+        pid: int | None = int(m.group("pid"))
+    except ValueError:
+        pid = None
+    desc = m.group("desc").strip()
+    if desc.startswith("owner "):
+        return pid, desc[6:].strip()
+    if "; owner " in desc:
+        return pid, desc.split("; owner ", 1)[1].strip()
+    return pid, desc
+
 
 def finalize_refusal_is_retryable(fin_msg: str) -> bool:
     """Is this finalize refusal in the RETRYABLE class a correction turn can safely fix?
@@ -6479,11 +6515,12 @@ def frozen_retry_budget(state: Mapping[str, Any]) -> int:
 class FinalizeRetryDecision(NamedTuple):
     """What to do about ONE refused finalize. DECIDES ONLY: no state write, no print, no dispatch.
 
-    retry:     re-dispatch this item in recovery mode (budget remains and the class is retryable).
-    exhausted: the class was retryable but the budget is gone, so the item must be FAILED.
-    reason:    the human sentence, recorded as the `Refusal.reason`.
-    attempts:  send-back retries consumed BEFORE this decision.
-    budget:    the run's frozen budget, for the message and for tests.
+    retry:           re-dispatch this item in recovery mode (budget remains and the class is retryable).
+    exhausted:       the class was retryable but the budget is gone, so the item must be FAILED.
+    reason:          the human sentence, recorded as the `Refusal.reason`.
+    attempts:        send-back retries consumed BEFORE this decision.
+    budget:          the run's frozen budget, for the message and for tests.
+    lock_contention: writer lock was busy; runner re-attempts without an agent turn.
     """
 
     retry: bool
@@ -6491,6 +6528,7 @@ class FinalizeRetryDecision(NamedTuple):
     reason: str
     attempts: int
     budget: int
+    lock_contention: bool = False
 
 
 def finalize_retry_decision(
@@ -6527,6 +6565,15 @@ def finalize_retry_decision(
 
     used = finalize_retry_attempts(item)
     budget = frozen_retry_budget(state)
+    if finalize_refusal_is_lock_contention(fin_msg):
+        return FinalizeRetryDecision(
+            retry=False,
+            exhausted=False,
+            reason=f"the finalize lock was busy: {fin_msg.strip()}",
+            attempts=used,
+            budget=budget,
+            lock_contention=True,
+        )
     if not finalize_refusal_is_retryable(fin_msg):
         return FinalizeRetryDecision(
             retry=False,
@@ -6534,6 +6581,7 @@ def finalize_retry_decision(
             reason="",
             attempts=used,
             budget=budget,
+            lock_contention=False,
         )
     if used >= budget:
         return FinalizeRetryDecision(
@@ -6547,6 +6595,7 @@ def finalize_retry_decision(
             ),
             attempts=used,
             budget=budget,
+            lock_contention=False,
         )
     return FinalizeRetryDecision(
         retry=True,
@@ -6558,6 +6607,7 @@ def finalize_retry_decision(
         ),
         attempts=used,
         budget=budget,
+        lock_contention=False,
     )
 
 
@@ -6612,9 +6662,10 @@ def handle_finalize_refusal(
         item["recovery_next"] = True
         item["requeue_from_status"] = disposition
         outcome_disposition = "queued"
-    elif decision.exhausted:
-        # FAIL ITEM (spec 4.6's second half). Without this the run would still end up reporting a
-        # non-landing as success, which is the defect this whole section exists to fix.
+    elif decision.exhausted or decision.lock_contention:
+        # FAIL ITEM (spec 4.6's second half / finlockwait-01 E-03). Without this the run would still
+        # end up reporting a non-landing as success, which is the defect this whole section exists to
+        # fix.
         item["status"] = FINALIZE_RETRY_EXHAUSTED_STATUS
         item.pop("recovery_next", None)
         outcome_disposition = FINALIZE_RETRY_EXHAUSTED_STATUS
@@ -6632,29 +6683,34 @@ def handle_finalize_refusal(
             or f"the finalize gate refused and the plan was left unmoved: {fin_msg}"
         ),
         remedy=finalize_retry_remedy(
-            host_labels, str(item.get("id6") or "?"), retry=decision.retry
+            host_labels,
+            str(item.get("id6") or "?"),
+            retry=decision.retry,
+            lock_contention=decision.lock_contention,
         ),
     )
 
     save_state(run_dir, state)
-    append_jsonl(
-        run_dir / "events.jsonl",
-        {
-            "at": utc_now(),
-            "event": "ipd-finalize-refused",
-            "id6": item["id6"],
-            "exit_code": fin_rc,
-            "detail": fin_msg,
-            # Additive: the three facts a later reader needs to tell a retried refusal from an
-            # abandoned one without re-deriving the classification.
-            "retryable": bool(decision.retry or decision.exhausted),
-            "retry_scheduled": decision.retry,
-            "retry_attempts_used": (
-                decision.attempts + 1 if decision.retry else decision.attempts
-            ),
-            "retry_budget": decision.budget,
-        },
-    )
+    refused_event: dict[str, Any] = {
+        "at": utc_now(),
+        "event": "ipd-finalize-refused",
+        "id6": item["id6"],
+        "exit_code": fin_rc,
+        "detail": fin_msg,
+        # Additive: the three facts a later reader needs to tell a retried refusal from an
+        # abandoned one without re-deriving the classification.
+        "retryable": bool(
+            decision.retry or decision.exhausted or decision.lock_contention
+        ),
+        "retry_scheduled": decision.retry,
+        "retry_attempts_used": (
+            decision.attempts + 1 if decision.retry else decision.attempts
+        ),
+        "retry_budget": decision.budget,
+    }
+    if decision.lock_contention:
+        refused_event["cause"] = "lock-contention"
+    append_jsonl(run_dir / "events.jsonl", refused_event)
     print(
         pal(
             f"  ! IPD {item['id6']} finalize refused (left {outcome_disposition}, not forced): "
@@ -6672,11 +6728,16 @@ def handle_finalize_refusal(
             ),
             file=sys.stderr,
         )
-    elif decision.exhausted:
+    elif decision.exhausted or decision.lock_contention:
         print(
             pal(
-                f"  ! IPD {item['id6']} FAILED: correction budget exhausted "
-                f"({decision.attempts} of {decision.budget} spent); the plan did NOT land",
+                f"  ! IPD {item['id6']} FAILED: "
+                + (
+                    f"correction budget exhausted ({decision.attempts} of {decision.budget} spent); "
+                    if decision.exhausted
+                    else "writer lock contention exhausted; "
+                )
+                + "the plan did NOT land",
                 "red",
             ),
             file=sys.stderr,
@@ -6684,13 +6745,25 @@ def handle_finalize_refusal(
     return outcome_disposition
 
 
-def finalize_retry_remedy(labels: "HostLabels | None", id6: str, retry: bool) -> str:
+def finalize_retry_remedy(
+    labels: "HostLabels | None",
+    id6: str,
+    retry: bool,
+    *,
+    lock_contention: bool = False,
+) -> str:
     """What a reader should DO about a refused finalize. Required by the `Refusal` contract.
 
-    Two wordings, because the two situations need different actions: a PENDING retry needs the reader
-    to do nothing and wait, while an EXHAUSTED one needs a human to complete the bookkeeping. Saying
+    Three wordings, because the three situations need different actions: a PENDING retry needs the reader
+    to do nothing and wait, an EXHAUSTED gate retry needs a human to complete the bookkeeping, and
+    an EXHAUSTED lock contention needs the user to wait for or remove a stuck lock. Saying
     "re-run it" in the first case would invite a duplicate turn.
     """
+    if lock_contention:
+        return (
+            "wait for the active process holding the writer lock to finish and release it, "
+            "or remove the stale lock file if the recorded process is dead"
+        )
 
     command = getattr(labels, "command", None) or "aw oc"
     if retry:
@@ -27839,6 +27912,71 @@ def _call_driver_finalize(
     )
 
 
+def finalize_with_contention_retry(
+    driver_finalize_fn: Any,
+    repo: Path,
+    plan_path: Path,
+    id6: str,
+    actor: str,
+    message: str,
+    *,
+    attestation: str | None = None,
+    item: dict[str, Any],
+    run_dir: Path,
+    append_jsonl: Callable[..., Any],
+    max_reattempts: int = FINALIZE_LOCK_REATTEMPTS,
+    backoff_seconds: float = FINALIZE_LOCK_BACKOFF_SECONDS,
+    sleep_fn: Callable[[float], None] = time.sleep,
+) -> tuple[int, str]:
+    """Execute driver_finalize, boundedly re-attempting on writer-lock contention.
+
+    Only writer-lock contention (ipd_lifecycle.FINALIZE_LOCK_BUSY_SUMMARY with no IPD- findings)
+    is re-attempted. A conforming or other refusal returns immediately.
+    Each contention re-attempt appends an ``ipd-finalize-lock-wait`` event.
+    Correction budget is not touched.
+    """
+    fin_rc, fin_msg = _call_driver_finalize(
+        driver_finalize_fn,
+        repo,
+        plan_path,
+        id6,
+        actor,
+        message,
+        attestation=attestation,
+    )
+    if fin_rc == 0 or not finalize_refusal_is_lock_contention(fin_msg):
+        return fin_rc, fin_msg
+
+    for attempt_no in range(1, max_reattempts + 1):
+        holder_pid, holder_owner = parse_finalize_lock_holder(fin_msg)
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "ipd-finalize-lock-wait",
+                "id6": id6,
+                "attempt": attempt_no,
+                "pid": holder_pid,
+                "owner": holder_owner,
+            },
+        )
+        if backoff_seconds > 0:
+            sleep_fn(backoff_seconds)
+        fin_rc, fin_msg = _call_driver_finalize(
+            driver_finalize_fn,
+            repo,
+            plan_path,
+            id6,
+            actor,
+            message,
+            attestation=attestation,
+        )
+        if fin_rc == 0 or not finalize_refusal_is_lock_contention(fin_msg):
+            return fin_rc, fin_msg
+
+    return fin_rc, fin_msg
+
+
 # ---- rununify: execute_item_core -----------------------------------------------------------------
 
 
@@ -29891,7 +30029,12 @@ def execute_item_core(
                     actor=actor,
                     run_dir=run_dir,
                 )
-                fin_rc, fin_msg = _call_driver_finalize(
+                # finlockwait-01 (`y2vzit`) E-03: Lane arm finalize (first handle_finalize_refusal
+                # call site). If driver_finalize meets writer-lock contention, re-attempt bounded times
+                # (FINALIZE_LOCK_REATTEMPTS) keeping the LANE worktree `finalize_repo` argument.
+                # Re-attempts ONLY the driver_finalize subprocess; never re-runs the surrounding
+                # integration or merge step, and keeps the lane repo.
+                fin_rc, fin_msg = finalize_with_contention_retry(
                     driver_finalize,
                     finalize_repo,
                     current_plan_for_finalize,
@@ -29899,6 +30042,9 @@ def execute_item_core(
                     actor,
                     fin_message,
                     attestation=get_run_attestation(run_dir),
+                    item=item,
+                    run_dir=run_dir,
+                    append_jsonl=append_jsonl,
                 )
                 if fin_rc == 0:
                     perform_carrier_verification(
@@ -30157,7 +30303,10 @@ def execute_item_core(
                     actor=actor,
                     run_dir=run_dir,
                 )
-                fin_rc, fin_msg = _call_driver_finalize(
+                # finlockwait-01 (`y2vzit`) E-03: Non-lane arm finalize (second handle_finalize_refusal
+                # call site). If driver_finalize meets writer-lock contention, re-attempt bounded times
+                # (FINALIZE_LOCK_REATTEMPTS) keeping `repo`.
+                fin_rc, fin_msg = finalize_with_contention_retry(
                     driver_finalize,
                     repo,
                     current_plan_for_finalize,
@@ -30165,6 +30314,9 @@ def execute_item_core(
                     actor,
                     fin_message,
                     attestation=get_run_attestation(run_dir),
+                    item=item,
+                    run_dir=run_dir,
+                    append_jsonl=append_jsonl,
                 )
                 attempt["ending_head"] = git_head(repo)
                 attempt["ending_status"] = git_status(repo)
