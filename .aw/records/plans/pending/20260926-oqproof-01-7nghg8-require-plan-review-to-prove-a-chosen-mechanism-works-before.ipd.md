@@ -6,7 +6,8 @@
 - Scope: IN: the plan-review workflow text (single-file `plan-review.md`, its long-form sibling `plan-review-long/03-resolve-and-finalize.md`, and the spec-review sibling `spec-review.md`, which inherits the same "resolve from evidence" step): (a) a question resolved by choosing a MECHANISM must cite a demonstration that the mechanism produces the required result, or it is not resolved; (b) where it cannot be demonstrated at review, the question stays open or becomes an explicit spike E-item with a stop condition, and the verdict states the feasibility risk; (c) `Owner: maintainer` only when the maintainer actually answered; (d) a behavioral test that the installed workflow text carries the rule. OUT: a lint rule that tries to judge whether a demonstration is real (see Deferred).
 - Scope-Paths: .aw/system/workflows/plan-review/plan-review.md, .aw/system/workflows/plan-review-long/03-resolve-and-finalize.md, .aw/system/workflows/spec-review/spec-review.md, tests/test_plan_review_feasibility_rule.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: j4wz6b
@@ -18,6 +19,7 @@
 - Id: 7nghg8
 
 ## Workflow history
+- 2026-09-27 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 all FIXED. The vtkfq8 case verified verbatim and all three insertion points confirmed at HEAD 78a40cc9. PR-002 is the self-application finding: E-01 point (3) prescribed a fallback nobody had tried, so it was RUN, inserting a Blocking: yes question into this plan flipped ipd_lint from conforming to error at all three checkpoints with IPD-Q501, and the rule now states that. PR-001: E-02's reference-or-copy conditional measured to COPY (the long form references nothing in 246 lines and duplicates the sibling Decisions rule), now mandated with a parity pointer. PR-003: E-04 split into E-04 + E-06 via aw ipd sync, clearing the IPD-Z602 advisory, with both negative controls required. PR-004 records the 96xtmi text-pin exemption and the verified scope completeness; PR-005 states that no gate checks Owner. Findings and decisions D-1..D-4 in .aw/records/reviews/20260926-oqproof-01-7nghg8-require-plan-review-to-prove-a-chosen-mechanism-works-before.review.md
 
 - 2026-09-26 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog j4wz6b at the maintainer's request. Evidence re-read from plan vtkfq8's OQ-03 text, its review history, and run run-20260926T051642Z-116672's decisions-and-questions.md (06-vtkfq8-DQ1).
 - 2026-09-26 draft (opencode/its_direct/pt3-claude-opus-5.5-1m-us): created.
