@@ -189,12 +189,13 @@ and coaching).
 
 ### CLI output modes (human and agent)
 
-The `aw` CLI serves two audiences from one code path. At an interactive terminal you get a
-styled, scannable human view; when stdout is a pipe, a file, or an agent, you get the
-`aw.agent/v1` JSONL machine format automatically. As of 2.0.0 this is a HARD CUTOVER: piped
-output is machine JSONL, not the old plain text. Override with `--agent` (force machine JSONL),
-`--json` (pretty structured), or `--no-color` (human, no ANSI). Exit codes are uniform: `0`
-clean, `1` findings, `2` cannot run. See the [Human TTY guide](docs/cli-human-guide.md), the
+The `aw` CLI serves two audiences from one code path. By default, `aw` emits human-readable
+text whether stdout is a terminal, a pipe, or a file. The earlier proposal for an automatic
+non-TTY hard cutover to machine JSONL was RETRACTED (maintainer ruling, 2026-09-10): piped
+output remains human text, and `--agent` is the explicit way to select machine JSONL. Non-TTY
+stdout affects color only. Select formats with `--agent` (machine JSONL), `--json` (pretty
+structured), or `--no-color` (human, no ANSI). Exit codes are uniform: `0` clean, `1` findings,
+`2` cannot run. See the [Human TTY guide](docs/cli-human-guide.md), the
 [Agent protocol reference](docs/cli-agent-protocol.md), the
 [migration guide](docs/cli-migration.md), and the normative
 [CLI Output Mode Contract](docs/cli-output-contract.md).

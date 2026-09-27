@@ -1,10 +1,19 @@
-# CLI output migration guide (2.0.0 hard cutover)
+# CLI output migration guide (2.0.0 machine output)
+
+> [!NOTE]
+> **POLICY RETRACTED (2026-09-10)**: The automatic non-TTY switch to JSONL announced for
+> 2.0.0 was retracted by maintainer ruling (ttyflags `yaxr4i` OQ-01). Piped output stays human
+> text. Explicit flags (`--agent` for `aw.agent/v1` JSONL, `--json` for full structured JSON)
+> are the only way to obtain machine output. See section 9 of the
+> [CLI Output Mode Contract](cli-output-contract.md).
 
 ## Read this if you scrape `aw` output in a script
 
-The 2.0.0 release changes what `aw` writes to a pipe. This is a HARD CUTOVER with NO
-compatibility window. If any script, CI step, or agent parses `aw` output as text, it may break
-until you update it. This guide names every byte-level break and gives you the recipe to fix it.
+The 2.0.0 release introduces the canonical `aw.agent/v1` machine format. An earlier proposal for
+an automatic non-TTY hard cutover to JSONL was RETRACTED (maintainer ruling, 2026-09-10): piped
+output remains human text. If any script, CI step, or agent parses `aw` output, update it to pass
+`--agent` explicitly instead of scraping text. This guide explains how to migrate scrapers to
+`--agent`.
 
 The full normative rules live in the [CLI Output Mode Contract](cli-output-contract.md); the
 day-to-day references are the [Human TTY guide](cli-human-guide.md) and the
@@ -13,10 +22,11 @@ day-to-day references are the [Human TTY guide](cli-human-guide.md) and the
 ## The break, stated loudly
 
 Before 2.0.0, piping `aw` produced human-oriented plain text (and a few commands produced ad
-hoc TSV). As of 2.0.0:
+hoc TSV). The earlier proposal for an automatic non-TTY switch was retracted; piped output
+remains human text. Passing `--agent` selects the canonical machine format.
 
-- When stdout is not a terminal (piped, redirected, captured, or agent-driven), `aw` emits
-  `aw.agent/v1` JSONL, not plain text. This is automatic and immediate.
+Under `--agent`, legacy byte forms are replaced by `aw.agent/v1` JSONL:
+
 - Specifically, these three legacy byte forms are GONE and are now `aw.agent/v1`:
   1. Piped `aw status` JSON. The old shape is replaced by the `aw.agent/v1` result record.
   2. The `render_agent_drift` TSV lines (`location<TAB>rule<TAB>detail`) that check and doctor
@@ -24,26 +34,34 @@ hoc TSV). As of 2.0.0:
   3. The `aw find` and `aw search` path lines (bare `path` or `path:line` text). They are now
      `aw.agent/v1` `item` records followed by a `summary` record.
 
-If you depended on any of those three text shapes, you MUST migrate. There is no flag that
-brings the old bytes back.
+Note: The accuracy of these three legacy byte-form claims is under separate review (see backlog `qczq5r`).
 
-## Why a hard cutover
+If you depended on text scraping, you should migrate to `--agent`. There is no flag that
+restores legacy shapes under `--agent`.
 
-`agent-workflows` is pre-wide-adoption, and the maintainer chose one clean machine convention
-over carrying legacy wire forms forever (recorded in the awcliux program open question OQ-01 and
-consistent with the command-surface spec `20260818-1525-01`). One format, validated by a schema,
-is cheaper to consume and impossible to silently diverge from.
+## Why a hard cutover: RETRACTED
+
+> Historical rationale (retracted):
+> "`agent-workflows` is pre-wide-adoption, and the maintainer chose one clean machine convention
+> over carrying legacy wire forms forever (recorded in the awcliux program open question OQ-01 and
+> consistent with the command-surface spec `20260818-1525-01`). One format, validated by a schema,
+> is cheaper to consume and impossible to silently diverge from."
+
+This policy was retracted on 2026-09-10 (maintainer ruling, ttyflags `yaxr4i` OQ-01) because the
+automatic switch never shipped, existing scripts relied on human text in pipes, and switching would
+break them with no gain; see [CLI Output Mode Contract](cli-output-contract.md) section 9.
 
 ## Migration recipes
 
-### 1. "I just want the human text back at my terminal"
+### 1. "I just want the human text back"
 
-Nothing to do. At an interactive terminal you still get the human view. The cutover only affects
-non-terminal stdout.
+Nothing to do. Interactive terminals and pipes both default to human-readable text. The proposed
+automatic non-TTY switch was retracted (maintainer ruling, 2026-09-10).
 
 ### 2. "My script parsed piped text"
 
-Switch to the machine format explicitly and parse JSON:
+Piped stdout is still human text, but human text is not a stable programmatic contract. Switch to
+the machine format explicitly and parse JSON:
 
 ```bash
 # Before (fragile text scraping):
@@ -89,8 +107,7 @@ Use `--json` for the full, pretty-printed structure (more verbose than `--agent`
 
 ## Rollback
 
-There is no in-CLI rollback to the old bytes; that is what "hard cutover" means. Your options
-are:
+There is no in-CLI rollback to legacy byte formats under `--agent`. Your options are:
 
 - Update the consumer to parse `aw.agent/v1` (recommended, permanent).
 - Pin to a pre-2.0.0 release of `agent-workflows` until you can update the consumer. Note that
@@ -101,7 +118,7 @@ are:
 | Milestone | State |
 | --- | --- |
 | Before 2.0.0 | Piped output was human text and ad hoc TSV. |
-| 2.0.0 (this release) | Hard cutover. Non-terminal stdout is `aw.agent/v1` JSONL. No legacy text or TSV on migrated commands. `--agent` and `--json` are the explicit overrides. |
+| 2.0.0 (this release) | Automatic non-TTY switch RETRACTED 2026-09-10. Piped output remains human text. `--agent` and `--json` select machine output. |
 | `aw.agent/v1` lifetime | Additive, optional fields only. Existing field names and meanings are stable. |
 | A future `aw.agent/v2` | Reserved for any breaking record-shape change. It would ship with its own migration notes. Pin your parser to the `schema` string and tolerate unknown fields so an additive change never breaks you. |
 
