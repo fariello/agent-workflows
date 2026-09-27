@@ -6,7 +6,7 @@
 - Scope: IN: one schema constant naming the absent sentinels; all FOUR readers consult it (the three `From-Backlog` ones plus the `From-Spec` twin, which AGENTS.md calls "an equally valid gate carrier" and whose severity parity is stated in its own docstring); outcome tests for both fields; a regression guard proving no reader keeps a private sentinel set; flip the release-gates CI step to fail-closed and replace its stale comment. OUT: multi-valued `From-Backlog` (backlog 6os96s, which needs a single-vs-multi decision first); the setter `releases.set_from_backlog_line`; the SEPARATE fragility that a shipped-but-not-replaced planned release turns all 608 `Blocks-Release: next` records into `check.blocks-release-dangling` findings (F-8, carried by backlog item `cnn7au`; it is a property of the flip's operational cost, not of the sentinel disagreement).
 - Scope-Paths: agent_workflows/ipd_schema.py, agent_workflows/releases.py, agent_workflows/check_engine.py, agent_workflows/runner_shared.py, tests/test_check_engine_release_gate.py, .github/workflows/tests.yml
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 08
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 3cs7qg
-- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 3cs7qg verified (set frombacklog, attempt 1). [Scope reconciliation - out-of-scope AGENTS.md: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-09-27 approved (aw set): status set to approved
 - 2026-09-27 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-009 all FIXED (fourth reader From-Spec added as E-04; release-transition cost disclosed; regression guard E-06; V-02 evidence command corrected)
 - 2026-09-26 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog 7dcw6z: one sentinel set shared by all three From-Backlog readers, outcome tests, and the release-gates CI step flipped to fail-closed (0 findings at HEAD 61ef21d8).
