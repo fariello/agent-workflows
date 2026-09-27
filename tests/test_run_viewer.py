@@ -992,8 +992,46 @@ class RunViewerTests(TestCase):
         out = run_viewer.format_run_human(run, term)
         lines = out.splitlines()
         self.assertIn("run-20260829T100000Z-12345", lines[0])
-        self.assertIn("pid: 12345 [exited]", lines[1])
-        self.assertIn("runtime: 2m 05s", lines[1])
+        self.assertNotIn("2026-08-29", lines[0])
+        self.assertEqual("  pid: 12345 [exited]", lines[1])
+        self.assertIn("start: 2026-08-29 10:00:00", lines[2])
+        self.assertIn("end: 2026-08-29 10:02:05", lines[2])
+        self.assertIn("duration: 2m 05s", lines[2])
+
+        # Live run: end is reported as 'live'
+        run_live = run_viewer.RunSummary(
+            run_id="run-20260829T100000Z-12345",
+            run_dir=Path("."),
+            created_at="2026-08-29T10:00:00+00:00",
+            pid=12345,
+            pid_state="live",
+            is_live=True,
+            runtime_seconds=45.0,
+            runtime_str="45s",
+        )
+        out_live = run_viewer.format_run_human(run_live, term)
+        lines_live = out_live.splitlines()
+        self.assertEqual("  pid: 12345 [live]", lines_live[1])
+        self.assertEqual(
+            "  start: 2026-08-29 10:00:00, end: live, duration: 45s",
+            lines_live[2],
+        )
+
+        # Run without pid: timing line is lines[1]
+        run_nopid = run_viewer.RunSummary(
+            run_id="run-20260829T100000Z-12345",
+            run_dir=Path("."),
+            created_at="2026-08-29T10:00:00+00:00",
+            updated_at="2026-08-29T10:05:00+00:00",
+            runtime_seconds=300.0,
+            runtime_str="5m 00s",
+        )
+        out_nopid = run_viewer.format_run_human(run_nopid, term)
+        lines_nopid = out_nopid.splitlines()
+        self.assertEqual(
+            "  start: 2026-08-29 10:00:00, end: 2026-08-29 10:05:00, duration: 5m 00s",
+            lines_nopid[1],
+        )
 
     def test_audit_step_artifact_and_verdicts(self):
         with tempfile.TemporaryDirectory() as td:

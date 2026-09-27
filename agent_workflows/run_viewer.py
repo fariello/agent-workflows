@@ -2226,13 +2226,10 @@ def format_run_human(
         sets_joined = ", ".join(run.setids)
         set_txt = f"  [{sets_joined}]"
 
-    date_str = _clean_timestamp(run.created_at or run.updated_at)
-    date_txt = f"  {date_str}" if date_str else ""
+    # Line 1: identity, targets
+    lines.append(f"{run_id_txt}{set_txt}")
 
-    # Line 1: identity, targets, start timestamp
-    lines.append(f"{run_id_txt}{set_txt}{date_txt}")
-
-    # Line 2: PID and runtime info (if present)
+    # Line 2: PID info (if present)
     meta_parts = []
     if run.pid is not None:
         p_state = run.pid_state or "unknown"
@@ -2249,11 +2246,54 @@ def format_run_human(
         else:
             p_state_txt = f"[{p_state}]"
         meta_parts.append(f"pid: {run.pid} {p_state_txt}")
-    if run.runtime_str:
-        meta_parts.append(f"runtime: {run.runtime_str}")
 
     if meta_parts:
         lines.append(f"  {', '.join(meta_parts)}")
+
+    # Line 3: Timing (start timestamp, end timestamp, duration)
+    start_dt = run.timestamp_dt
+    start_str = _clean_timestamp(run.created_at)
+    if not start_str:
+        m = re.search(r"(\d{8})T(\d{6})", run.run_id)
+        if m:
+            try:
+                run_id_dt = datetime.strptime(
+                    f"{m.group(1)}T{m.group(2)}", "%Y%m%dT%H%M%S"
+                ).replace(tzinfo=timezone.utc)
+                start_str = _clean_timestamp(run_id_dt.strftime("%Y-%m-%d %H:%M:%S"))
+                if not start_dt:
+                    start_dt = run_id_dt
+            except (ValueError, TypeError):
+                pass
+        if not start_str and start_dt:
+            start_str = _clean_timestamp(start_dt.strftime("%Y-%m-%d %H:%M:%S"))
+
+    end_str = _clean_timestamp(run.updated_at)
+    if not end_str:
+        if run.is_live:
+            end_str = "live"
+        elif start_dt and run.runtime_seconds is not None:
+            end_dt = start_dt + timedelta(seconds=run.runtime_seconds)
+            end_str = _clean_timestamp(end_dt.strftime("%Y-%m-%d %H:%M:%S"))
+        else:
+            end_str = "-"
+
+    duration_str = run.runtime_str
+    if not duration_str:
+        if run.runtime_seconds is not None:
+            duration_str = format_duration(run.runtime_seconds)
+        else:
+            duration_str = "-"
+
+    if not (
+        start_str in ("", "-") and end_str in ("", "-") and duration_str in ("", "-")
+    ):
+        timing_parts = [
+            f"start: {start_str or '-'}",
+            f"end: {end_str or '-'}",
+            f"duration: {duration_str or '-'}",
+        ]
+        lines.append(f"  {', '.join(timing_parts)}")
 
     # Line 3: Step count and status tally
     tally_parts = []
