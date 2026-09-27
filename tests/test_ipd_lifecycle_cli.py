@@ -88,6 +88,7 @@ def _write_plan(root: Path, text: str, name: str) -> Path:
 
 class BeginHappyPathTests(unittest.TestCase):
     def setUp(self) -> None:
+        support.declare_execution_role(self)
         self._tmp = tempfile.TemporaryDirectory()
         self.root = Path(self._tmp.name)
         _init_git(self.root)
@@ -188,6 +189,7 @@ class BeginHappyPathTests(unittest.TestCase):
 
 class BeginFailClosedTests(unittest.TestCase):
     def setUp(self) -> None:
+        support.declare_execution_role(self)
         self._tmp = tempfile.TemporaryDirectory()
         self.root = Path(self._tmp.name)
         _init_git(self.root)
@@ -346,6 +348,7 @@ class FinalizeTests(unittest.TestCase):
     """ipdgates Order v7e88a: the atomic terminal transaction with scope comparison + evidence."""
 
     def setUp(self) -> None:
+        support.declare_execution_role(self)
         self._tmp = tempfile.TemporaryDirectory()
         self.root = Path(self._tmp.name)
         _init_git(self.root)
@@ -582,6 +585,7 @@ class ReconciliationTests(unittest.TestCase):
     """ipdgates Order qmt3yk: the finalize two-way scope reconciliation (surface + attribute)."""
 
     def setUp(self) -> None:
+        support.declare_execution_role(self)
         self._tmp = tempfile.TemporaryDirectory()
         self.root = Path(self._tmp.name)
         _init_git(self.root)
@@ -769,6 +773,7 @@ class AdditiveScopeWideningTests(unittest.TestCase):
     """
 
     def setUp(self) -> None:
+        support.declare_execution_role(self)
         self._tmp = tempfile.TemporaryDirectory()
         self.root = Path(self._tmp.name)
         _init_git(self.root)
@@ -1070,6 +1075,7 @@ class RollbackFailureSemanticsTests(unittest.TestCase):
     """ipdgates Order 3xh53a: crash-safe two-phase failure semantics for aw ipd finalize."""
 
     def setUp(self) -> None:
+        support.declare_execution_role(self)
         self._tmp = tempfile.TemporaryDirectory()
         self.root = Path(self._tmp.name)
         _init_git(self.root)
@@ -1521,6 +1527,7 @@ class TheORDINARYFinalizeAlsoMutatesOffTheSharedCheckout(unittest.TestCase):
     """
 
     def setUp(self) -> None:
+        support.declare_execution_role(self)
         self._tmp = tempfile.TemporaryDirectory()
         self.root = Path(self._tmp.name)
         _init_git(self.root)
@@ -1756,6 +1763,7 @@ class DelegationAndBypassRemovalTests(unittest.TestCase):
     """ipdgates Order wezhxg: `aw set executed <plan>` delegates into aw ipd finalize (no raw bypass)."""
 
     def setUp(self) -> None:
+        support.declare_execution_role(self)
         self._tmp = tempfile.TemporaryDirectory()
         self.root = Path(self._tmp.name)
         _init_git(self.root)
@@ -1937,6 +1945,7 @@ class ParenthesizedActorIsRefusedBeforeAnyWrite(unittest.TestCase):
     GOOD = "opencode/its_direct/some-model"
 
     def setUp(self) -> None:
+        support.declare_execution_role(self)
         self._tmp = tempfile.TemporaryDirectory()
         self.root = Path(self._tmp.name)
         _init_git(self.root)
@@ -2071,6 +2080,9 @@ class ScaffoldStopsWritingTheShapeItsOwnSetterRefuses(unittest.TestCase):
 
     BAD = "opencode (its_direct/some-model)"
     WANT = "opencode model=its_direct/some-model"
+
+    def setUp(self) -> None:
+        support.declare_execution_role(self)
 
     def test_author_normalization_and_contract_acceptance(self):
         from agent_workflows import attention_contract as AC

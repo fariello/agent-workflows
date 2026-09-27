@@ -47,8 +47,8 @@ pytest_plugins = ["tests.deselect_notice"]
 # (`worker_role_active(os.environ)`, ipd_lifecycle.py:4105 and :4285), so every in-process
 # test that drives those CLI wrappers gets the worker refusal instead of the behavior it
 # asserts. Measured suite-wide: `31 failed, 8080 passed` with the marking present versus
-# `0 failed, 7993 passed` without it (re-measured at IPD `8i0xa7`: 42 tests in protected files
-# fail under the re-assert probe, because role declaration was incomplete; see backlog `owi0no`).
+# `0 failed, 7993 passed` without it (the gap where tests inherited the ambient role was
+# closed by plan yx9xsa).
 #
 # WHY IT MATTERS EVEN THOUGH IT CANNOT SHIP A BUG. The driver's own merge gate
 # (`oc_runipd.run_suite_check`) runs in the PRIMARY checkout inheriting the DRIVER's
@@ -69,25 +69,18 @@ pytest_plugins = ["tests.deselect_notice"]
 # individual fixture, and it makes a bare `python3 -m pytest` mean the same thing whether a
 # human or a runner turn typed it.
 #
-# WHY NOT RELAX THE GUARD TEST. `tests/test_worker_role_refusal.py` asserts that the
-# driver's own process is not worker-marked and is CORRECT as written; backlog `1uq1cu`
-# names relaxing it as the wrong fix. This scrub is what makes that assertion true again
-# inside a runner turn, rather than weakening it.
+# NO SHIPPED GUARD TEST. The scrub's invariance is not asserted by any shipped test today
+# (the guard file that did so was deleted), which is why a one-off re-assert probe is the
+# check.
 #
-# HONEST LIMITS, both deliberate. (1) A test that needs the marking must set it ITSELF, on
-# an explicit env dict passed to the code under test (or declare its role with
-# `support.declare_execution_role`). Note that `test_driver_own_process_is_not_worker_role`
-# is the one exception whose subject IS the ambient environment: because of this scrub,
-# that test cannot fail via ordinary shell export, but it remains falsifiable via a
-# `pytest_configure` re-assert plugin (see `tests/test_role_declaration_guard.py`).
-# Note also that compliance across the suite is incomplete (e.g. 42 tests in
-# `tests/test_ipd_lifecycle_cli.py` still inherit the ambient role, tracked in backlog
-# `owi0no`). (2) This scrubs the CURRENT process only; a subprocess a test spawns
-# inherits this already-cleaned environment, which is the intended propagation.
-#
-# CROSS-REFERENCE: `tests/test_role_declaration_guard.py` asserts behavioral outcome
-# invariance under both roles across protected files by injecting a `pytest_configure`
-# plugin that re-asserts the marking after this scrub and before test collection.
+# HONEST LIMITS, both deliberate. (1) Tests that drive lifecycle wrappers declare their
+# role with `support.declare_execution_role`, and a test that needs the worker marking sets
+# it on an explicit env dict passed to the code under test; re-asserting the marker with a
+# throwaway `pytest_runtest_setup` plugin is how to check a file (as plan yx9xsa did). The scrub
+# is pytest-only, so `make test-serial` (`python3 -m unittest`) never loads this file and is
+# protected only by the per-class declarations. (2) This scrubs the CURRENT process only;
+# a subprocess a test spawns inherits this already-cleaned environment, which is the
+# intended propagation.
 #
 # Done at import time, before any test module is collected, so no test can observe the
 # marked value. `pop` is unconditional and side-effect-free when the variable is absent,

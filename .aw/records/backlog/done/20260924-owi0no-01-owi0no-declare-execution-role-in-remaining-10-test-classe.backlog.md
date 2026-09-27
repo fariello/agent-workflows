@@ -1,5 +1,5 @@
 - Id: owi0no
-- Status: graduated
+- Status: done
 - Graduated-To: testhyg
 - Blocks-Release: next
 - Set: owi0no
@@ -8,6 +8,7 @@
 - Summary: Declare execution role in remaining 10 test classes of test_ipd_lifecycle_cli.py
 
 ## Workflow history
+- 2026-09-27 set (aw backlog): closed by aw oc run: IPD yx9xsa executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260926-testhyg-01-yx9xsa-declare-the-execution-role-in-the-ten-undeclared-test-classe.ipd.md); evidence .aw/records/plans/executed/20260926-testhyg-01-yx9xsa-declare-the-execution-role-in-the-ten-undeclared-test-classe.ipd.md
 - 2026-09-26 graduated (aw set): Graduated 2026-09-26 into to-review plan Set testhyg (commit 2c7068ca).
 - 2026-09-24 created (aw backlog): Declare execution role in remaining 10 test classes of test_ipd_lifecycle_cli.py
 
