@@ -76,6 +76,18 @@ jobs:
         # equivalent serial fallback (see `make test-serial`).
         run: python -m pytest tests/ -n auto -rfEs
 
+      # Advisory step running slow-marked tests: currently advisory because of known pre-existing
+      # slow failures tracked by backlog items:
+      # - 57dwkc & 4vfkl1: installer deep-cleanup leaves .aw/ directory
+      # - 3ypquf: installer deep-cleanup README classified at-risk
+      # - g0bdgg: subcommand description gaps in CLI parser
+      # Flip condition: remove continue-on-error once -m slow reports 0 failed on the ubuntu leg,
+      # i.e. once every owning item is done.
+      - name: Run slow-marked tests (ADVISORY until the known slow failures are fixed)
+        shell: bash
+        continue-on-error: true
+        run: python -m pytest tests/ -n auto -m slow
+
   wheel:
     name: build + import wheel (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

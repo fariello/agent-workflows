@@ -163,8 +163,9 @@ markers = [
 #     `--dist=worksteal` lets idle workers steal queued tests so one straggler cannot
 #     stall the whole run.
 #  2) `-m "not slow"` so the DEFAULT run is the FAST subset (pure-logic unit tests, ~24s).
-#     The ~9 subprocess-heavy files are marked `slow` and excluded here; run the FULL
-#     suite for release-review / CI with `make test-all` (which passes `-m ""`).
+#     The ~9 subprocess-heavy files are marked `slow` and excluded here; CI runs the
+#     fast suite plus an advisory slow step; run the FULL suite for release-review
+#     with `make test-all` (which passes `-m ""`).
 # To force serial when debugging a test-isolation issue: `make test-serial`
 # (`python -m unittest discover -s tests -t .`).
 addopts = "-q -n auto --dist=worksteal -m 'not slow and not livecorpus'"
