@@ -622,14 +622,10 @@ class SelectorErrorTests(unittest.TestCase):
                 "- Id: item01\n- Status: open\n", encoding="utf-8"
             )
             manifest = {"schema_version": 1, "plans": {}, "sets": {}}
-            with self.assertRaises(driver.DriverError) as ctx:
-                driver.expand_selectors(manifest, ["item01"], repo=repo)
-            msg = str(ctx.exception)
-            self.assertIn("'item01' is a backlog item", msg)
-            self.assertIn(
-                ".aw/records/backlog/open/20260829-test-01-item01.backlog.md", msg
-            )
-            self.assertIn("not an IPD plan", msg)
+            selected = driver.expand_selectors(manifest, ["item01"], repo=repo)
+            self.assertEqual(selected, ["item01"])
+            self.assertIn("backlog", manifest)
+            self.assertIn("item01", manifest["backlog"])
 
     def test_unresolved_selector_identifies_spec(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -640,11 +636,10 @@ class SelectorErrorTests(unittest.TestCase):
                 "- Id: spec01\n- Status: approved\n", encoding="utf-8"
             )
             manifest = {"schema_version": 1, "plans": {}, "sets": {}}
-            with self.assertRaises(driver.DriverError) as ctx:
-                driver.expand_selectors(manifest, ["spec01"], repo=repo)
-            msg = str(ctx.exception)
-            self.assertIn("'spec01' is a spec", msg)
-            self.assertIn("not an IPD plan", msg)
+            selected = driver.expand_selectors(manifest, ["spec01"], repo=repo)
+            self.assertEqual(selected, ["spec01"])
+            self.assertIn("specs", manifest)
+            self.assertIn("spec01", manifest["specs"])
 
     def test_unresolved_selector_identifies_missing_file_or_id6(self):
         manifest = {"schema_version": 1, "plans": {}, "sets": {}}

@@ -736,6 +736,10 @@ from agent_workflows.runner_shared import (
     SPEC_RECONCILED as SPEC_RECONCILED,
     SPEC_RECONCILE_REFUSED as SPEC_RECONCILE_REFUSED,
     queue_plan_path as queue_plan_path,
+    queue_entry_type as queue_entry_type,
+    queue_artifact_path as queue_artifact_path,
+    queue_plan_path_for as queue_plan_path_for,
+    refuse_undispatchable_typed_entry as refuse_undispatchable_typed_entry,
     queue_with_plan_paths as queue_with_plan_paths,
     record_item_spec_edits as record_item_spec_edits,
     report_driver_committed_reviews as report_driver_committed_reviews,
@@ -3104,6 +3108,16 @@ def run_queue(
             save_state(run_dir, state)
             continue
         if runner_shared.skip_dispatch_if_already_landed(
+            Path(state["repo"]),
+            run_dir,
+            state,
+            runnable,
+            save_state=save_state,
+            append_jsonl=append_jsonl,
+        ):
+            save_state(run_dir, state)
+            continue
+        if runner_shared.refuse_undispatchable_typed_entry(
             Path(state["repo"]),
             run_dir,
             state,
