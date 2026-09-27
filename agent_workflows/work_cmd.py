@@ -475,6 +475,60 @@ def _trailers_from_args(args: argparse.Namespace) -> List[str]:
     )
 
 
+def _default_commit_message(plan_text: str, plan_rel: str) -> str:
+    """Derive the default commit message for ``aw commit <plan>`` (backlog qivywd, IPD isgno7).
+
+    Derives:
+      1. ``work({id6}): {title}`` when both id6 and title exist.
+      2. ``work({id6}): {slug}`` when only id6 exists (title missing/empty), where slug is
+         the clustered filename's slug group or the filename stem.
+      3. ``work: {plan_rel}`` when no valid id6 is found.
+
+    Pure (no I/O); never raises (any parse failure falls through to the next rung).
+    """
+    id6 = _plan_id6(plan_text)
+    if not (id6 and _core.is_valid_id6(id6)):
+        id6 = None
+        try:
+            from agent_workflows import artifact_naming as _an
+
+            m_prefix = _an.parse_clustered_prefix(Path(plan_rel).name)
+            if m_prefix:
+                cand = m_prefix.group("id6")
+                if cand and _core.is_valid_id6(cand):
+                    id6 = cand
+        except Exception:
+            id6 = None
+
+    if not id6:
+        return f"work: {plan_rel}"
+
+    title = ""
+    try:
+        from agent_workflows import ipd_lint as _lint
+
+        parsed = _lint.parse(plan_text)
+        raw_title = parsed.title.strip() if parsed and parsed.title else ""
+        if raw_title.startswith("IPD:"):
+            raw_title = raw_title[4:].strip()
+        title = raw_title
+    except Exception:
+        title = ""
+
+    if title:
+        return f"work({id6}): {title}"
+
+    try:
+        from agent_workflows import artifact_naming as _an
+
+        m_clustered = _an.parse_clustered(Path(plan_rel).name)
+        slug = m_clustered.group("slug") if m_clustered else Path(plan_rel).stem
+    except Exception:
+        slug = Path(plan_rel).stem
+
+    return f"work({id6}): {slug}"
+
+
 def run_commit(args: argparse.Namespace) -> int:
     """`aw commit <ipd> -- <paths>`: scope-refuse out-of-scope staged, run the engine, commit in-scope
     paths via the SHARED git_commit_helper (no forked commit path, no add -A, no push).
@@ -626,7 +680,7 @@ def run_commit(args: argparse.Namespace) -> int:
             return 1
 
     # Commit ONLY the requested paths by REUSING the shared path-scoped helper.
-    message = getattr(args, "message", None) or f"work: {plan_rel}"
+    message = getattr(args, "message", None) or _default_commit_message(text, plan_rel)
     outcome = _gch.offer_commit(
         repo_root,
         paths,
