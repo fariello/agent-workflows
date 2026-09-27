@@ -282,10 +282,13 @@ def _merge_incoming_commits(repo_root: Path) -> List[str]:
     import re
 
     for name in os.environ:
-        m = re.fullmatch(r"GITHEAD_([0-9a-f]{7,64})", name)
+        # CASE-INSENSITIVE on purpose: on Windows `os.environ` UPPER-CASES every key, so git's
+        # `GITHEAD_<sha>` arrives as `GITHEAD_<SHA>`; a lowercase-only pattern silently found no
+        # incoming side there and refused every legitimate automated merge. Normalize to lowercase.
+        m = re.fullmatch(r"GITHEAD_([0-9a-fA-F]{7,64})", name, flags=re.IGNORECASE)
         if not m:
             continue
-        sha = m.group(1)
+        sha = m.group(1).lower()
         rc, out, _err = _git(repo_root, ["cat-file", "-t", sha])
         if rc != 0 or out.strip() != "commit":
             continue

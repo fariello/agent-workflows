@@ -317,6 +317,20 @@ def plan_new_comparison(
 # --------------------------------------------------------------------------------------
 
 
+def _rel_posix(target: Path, root: Path) -> str:
+    """``target`` relative to ``root`` as a POSIX string, tolerant of two spellings of one directory.
+
+    ``root`` comes back RESOLVED from the repo-root resolver while ``target`` may be built from the
+    caller's unresolved ``--dir``. On Windows those differ as an 8.3 short name versus the long name
+    (``RUNNER~1`` vs the full profile name), and on POSIX as a symlinked TMPDIR, so a bare
+    ``relative_to`` raised ValueError AFTER a successful plan. Fall back to resolving both sides.
+    """
+    try:
+        return target.relative_to(root).as_posix()
+    except ValueError:
+        return target.resolve().relative_to(root.resolve()).as_posix()
+
+
 def _research_root(args: argparse.Namespace) -> Path:
     from agent_workflows.project_context import resolve_verb_repo_root
 
@@ -525,7 +539,7 @@ def run_set_outcome(args: argparse.Namespace) -> int:
     if err or target is None or new_text is None:
         print(f"error: {err or 'could not plan update'}")
         return 2
-    rel = target.relative_to(root).as_posix()
+    rel = _rel_posix(target, root)
     if not getattr(args, "apply", False):
         bits = []
         if getattr(args, "to", None) is not None:
@@ -643,7 +657,7 @@ def run_set_priority(args: argparse.Namespace) -> int:
     if err or target is None or new_text is None:
         print(f"error: {err or 'could not plan update'}")
         return 2
-    rel = target.relative_to(root).as_posix()
+    rel = _rel_posix(target, root)
     if not getattr(args, "apply", False):
         label = "priority=[] (cleared)" if to in (None, "-") else f"priority={to}"
         print(f"--- would update {rel}: {label} ---")
