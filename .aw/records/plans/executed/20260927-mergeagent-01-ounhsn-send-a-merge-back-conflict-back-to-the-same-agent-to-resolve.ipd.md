@@ -6,7 +6,7 @@
 - Scope: IN: on a git merge conflict at merge-back of an EXECUTE lane, bring main into the lane (in the lane worktree, conflicts left for the agent), give the SAME agent a correction turn on its SAME session to resolve and commit, then re-run the normal merge-back (gate + suite + merge) under the integration lock; bounded by the run's existing `--retry-budget`; exhausted or refused = `fail-merge` exactly as today; both hosts; outcome tests; one CHANGELOG line. OUT: auto-resolving conflicts without an agent; review-lane conflicts; changing the gate, the suite or the integration lock; `aw <host> integrate` (the human path stays as is).
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_merge_conflict_sendback.py, tests/test_runner_shared.py, CHANGELOG.md, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Blocks-Release: next
 - From-Backlog: xyv75i
@@ -17,9 +17,9 @@
 - Highest E allocated: 08
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: ounhsn
-- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: ounhsn verified (set mergeagent, attempt 1). [Scope reconciliation - in-scope-unmodified tests/test_runner_shared.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-09-27 approved (aw set): status set to approved
 - 2026-09-27 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-009 all fixed. Three authored instructions were measured non-functional (the aw commit resolution cannot conclude a merge, classify_conflict_hunk_shape returns unknown on a default-style working-tree conflict, git rev-parse main exits 128 off a main branch); the consummation check was widened by the condition that detects the first of those; the required 25kzda spec amendment was added as E-07; the test item was split into E-05 (unit) and E-08 (driver), clearing IPD-Z602. Findings recorded in .aw/records/reviews/20260927-mergeagent-01-ounhsn-send-a-merge-back-conflict-back-to-the-same-agent-to-resolve.review.md
 - 2026-09-27 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog xyv75i per maintainer ruling 2026-09-27: send a merge-back conflict back to the same agent under the existing retry budget.
