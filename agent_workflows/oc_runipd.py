@@ -1978,6 +1978,7 @@ def initialize_run(args: argparse.Namespace) -> Path:
         driver_path=Path(__file__),
         host_options=host_options,
         labels=runner_shared.OC_HOST_LABELS,
+        turn_ceiling_seconds=lane_containment.driver_bound_for_host(None),
         expand_selectors_fn=expand_selectors,
         enforce_dependency_preflight_fn=enforce_dependency_preflight,
         # depclosure 01 (`dhycim`): the closure asks THIS host's satisfaction predicate

@@ -6,7 +6,7 @@
 - Scope: IN: (a) resolve the host's per-turn ceiling once at run init and freeze it into `state["options"]` so the shared prompt stays host-neutral; (b) a short "Turn budget" paragraph in `runner_shared.build_prompt` next to the FOREGROUND paragraph, stating the stall timeout and the per-turn ceiling as a per-turn budget; (c) outcome tests in `tests/test_oc_runipd.py`. OUT: computing a REMAINING budget (the prompt is rendered before the turn starts, so it can only state the per-turn budget, never what is left); changing either bound's value; the verifier prompt; the review prompt; x7wfyx item B.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_oc_runipd.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: tb6wh7
-- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: tb6wh7 verified (set turnbudget, attempt 1).
 - 2026-09-27 approved (aw set): status set to approved
 - 2026-09-27 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 to PR-006 all FIXED. Re-derived every number by driving the real code (driver_bound_for_host(None)=14400.0, driver_bound_for_host(parse('240m'))=14100.0) and both hosts' prompts. Found and fixed: a FOURTH build_prompt caller the plan did not name (tests/test_attempt_lane_facts.py asserts absolute_paths_outside_lane == [] over the whole prompt, a property check that fails on a new line); a fixture passing state with NO options key at all, so E-02's fallback needed state.get not state[...]; both bounds are FLOATS so a naive render says '600.0 seconds' and a truncated hours value would tell an agy agent 'about 3 hours' when it has 3.9, understating the budget the paragraph exists to make computable; the host-neutrality premise was false (build_prompt already imports lane_containment); and E-05's agy --prepare-only hedge was unnecessary (measured working offline). Findings in .aw/records/reviews/20260926-turnbudget-01-tb6wh7-state-the-per-turn-budget-in-the-shared-execute-prompt.review.md
 - 2026-09-26 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog 4bhxni: State the stall timeout and per-turn ceiling in the shared execute prompt; carries Blocks-Release next by maintainer decision.
@@ -36,48 +36,48 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Freeze the resolved ceiling into run state
 
-- [ ] E-01 In `runner_shared.initialize_run_core`, add an optional keyword parameter (for example `turn_ceiling_seconds: float | None = None`) and write it into `state["options"]` as `"turn_ceiling"` beside `"stall_timeout"`. Pass it from each host's `initialize_run`: `oc_runipd.initialize_run` passes `lane_containment.driver_bound_for_host(None)`; `agy_runipd.initialize_run` passes `lane_containment.driver_bound_for_host(lane_containment.parse_host_ceiling_seconds(host_options["timeout"]))`. Use the SAME expressions the two supervision sites use (`oc_runipd` `TurnBoundWatch(... max_turn_timeout=lane_containment.driver_bound_for_host(None))`, `agy_runipd` `max_turn_timeout=lane_containment.driver_bound_for_host(lane_containment.parse_host_ceiling_seconds(timeout))`) so the prompt states the bound that actually fires.
+- [x] E-01 In `runner_shared.initialize_run_core`, add an optional keyword parameter (for example `turn_ceiling_seconds: float | None = None`) and write it into `state["options"]` as `"turn_ceiling"` beside `"stall_timeout"`. Pass it from each host's `initialize_run`: `oc_runipd.initialize_run` passes `lane_containment.driver_bound_for_host(None)`; `agy_runipd.initialize_run` passes `lane_containment.driver_bound_for_host(lane_containment.parse_host_ceiling_seconds(host_options["timeout"]))`. Use the SAME expressions the two supervision sites use (`oc_runipd` `TurnBoundWatch(... max_turn_timeout=lane_containment.driver_bound_for_host(None))`, `agy_runipd` `max_turn_timeout=lane_containment.driver_bound_for_host(lane_containment.parse_host_ceiling_seconds(timeout))`) so the prompt states the bound that actually fires.
   - Depends on: none
   - Expected outcome: a freshly initialized oc run has `options.turn_ceiling == 14400.0`; an agy run with default `--timeout 240m` has `options.turn_ceiling == 14100.0` (240m minus the 300s `HOST_CEILING_OFFSET_SECONDS`). Measured at authoring: `driver_bound_for_host(None) == 14400.0`, `driver_bound_for_host(parse_host_ceiling_seconds('240m')) == 14100.0`.
-  - Execution state: pending
-- [ ] E-02 Make the prompt robust to a state that predates this plan (a resumed run whose frozen `options` has no `turn_ceiling`): `build_prompt` must fall back to `lane_containment.MAX_TURN_TIMEOUT` when the key is absent, and must omit the corresponding sentence (not print `0`) when a bound is disabled (`stall_timeout` of `0`/`None`, or ceiling `0.0`, which `driver_bound_for_host` returns when `MAX_TURN_TIMEOUT <= 0`).
+  - Execution state: performed
+- [x] E-02 Make the prompt robust to a state that predates this plan (a resumed run whose frozen `options` has no `turn_ceiling`): `build_prompt` must fall back to `lane_containment.MAX_TURN_TIMEOUT` when the key is absent, and must omit the corresponding sentence (not print `0`) when a bound is disabled (`stall_timeout` of `0`/`None`, or ceiling `0.0`, which `driver_bound_for_host` returns when `MAX_TURN_TIMEOUT <= 0`).
   - Depends on: E-01
   - Expected outcome: no `KeyError` and no "0 seconds" budget on a legacy or disabled-bound state.
   - TOLERATE A MISSING `options` KEY ENTIRELY, not just a missing `turn_ceiling` within it. Measured at review: `tests/test_defect_report.py`'s fixture calls `build_prompt` with `{"run_id": "run-x", "repo": "."}`, which has NO `options` key, and both hosts render successfully today. So read through `state.get("options", {})` (or an equivalent); `state["options"]["turn_ceiling"]` would raise `KeyError` and turn a currently-passing test red.
   - IF BOTH BOUNDS ARE DISABLED, OMIT THE WHOLE PARAGRAPH rather than emitting a heading with no content. A "Turn budget" label followed by nothing is worse than silence: it tells the agent a budget exists and then declines to state it.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: The prompt paragraph
 
-- [ ] E-03 In `runner_shared.build_prompt`, add a "Turn budget" paragraph directly after the paragraph beginning "Run every command you need the RESULT of in the FOREGROUND", rendered from `state["options"]["stall_timeout"]` (default `DEFAULT_STALL_TIMEOUT`) and `state["options"]["turn_ceiling"]`. Wording, ASCII only, stating it as a PER-TURN budget (never "remaining"): this turn is terminated after N seconds with no observed progress, and after M seconds (about H hours) in total regardless of progress; before starting a long command, estimate whether it fits; if it cannot fit, record a deferred question with the preserved state instead of starting it.
+- [x] E-03 In `runner_shared.build_prompt`, add a "Turn budget" paragraph directly after the paragraph beginning "Run every command you need the RESULT of in the FOREGROUND", rendered from `state["options"]["stall_timeout"]` (default `DEFAULT_STALL_TIMEOUT`) and `state["options"]["turn_ceiling"]`. Wording, ASCII only, stating it as a PER-TURN budget (never "remaining"): this turn is terminated after N seconds with no observed progress, and after M seconds (about H hours) in total regardless of progress; before starting a long command, estimate whether it fits; if it cannot fit, record a deferred question with the preserved state instead of starting it.
   - Depends on: E-02
   - Expected outcome: both hosts' prompts carry the paragraph with the host's own numbers; the prompt stays pure ASCII.
   - PLACE IT BEFORE `{role_block}`, NOT AFTER THE PARAGRAPH'S LAST LINE BLINDLY. Verified at review: the FOREGROUND paragraph is immediately followed by `{role_block}` and then the outcome-JSON block. Inserting between the FOREGROUND text and `{role_block}` keeps the lifecycle-role notice and the JSON schema contiguous; inserting after `{role_block}` would split them. Nothing may be added AFTER the reporting contract, which `tests/test_defect_report.py::PromptDemandTests::test_prompt_integration_and_format` asserts by comparing `prompt[start:]` to `reporting_contract.contract_text()` exactly.
   - FORMAT THE NUMBERS, do not interpolate the raw floats. Both values are FLOATS (`DEFAULT_STALL_TIMEOUT: float = 600.0`; `driver_bound_for_host` returns `14400.0`/`14100.0`), so a bare f-string renders "600.0 seconds" and "14400.0 seconds" to the agent. Use an integer-seconds rendering (for example `f"{stall:g}"` or `int(round(...))`, both verified at review to give `600` and `14400`). For the parenthetical hours, ROUND rather than truncate: `int(14100/3600)` is `3`, so "about 3 hours" would UNDERSTATE the agy ceiling by nearly an hour, while `round(14100/3600, 1)` is `3.9`. An understated budget is the wrong direction for a paragraph whose purpose is arithmetic, so state the rounded value or omit the parenthetical entirely when it would mislead.
   - HOST-NEUTRALITY, CORRECTED. The plan's original claim that `build_prompt` "never [reads] a host module" is FALSE as written: the function already opens with `from agent_workflows import ipd_lifecycle, lane_containment, reporting_contract`, and E-02's own fallback requires `lane_containment.MAX_TURN_TIMEOUT`. The real invariant, stated in this module's standing rule, is that `runner_shared` must not import EITHER RUNNER (`oc_runipd`/`agy_runipd`); `lane_containment` is host-neutral and already imported here. So keep reading the per-run number from `state["options"]` (which is what makes the agy `--timeout` case work) and use the existing `lane_containment` import for the fallback constant, without claiming an import restriction that does not exist.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Outcome tests
 
-- [ ] E-04 In `tests/test_oc_runipd.py`, near `TestIsolatedTurnPromptPointsAtTheLane`, add a test that renders the prompt through BOTH `oc_runipd.build_prompt` and `agy_runipd.build_prompt` from a state whose options carry a distinctive `stall_timeout` (for example `417`) and `turn_ceiling` (for example `9876`), and asserts each prompt contains `417` and `9876` in the budget paragraph, contains no non-ASCII character, and does not contain the word "remaining". Add a second case with `options: {}` (legacy state) asserting the prompt renders, states `600` for the stall timeout and `14400` for the ceiling.
+- [x] E-04 In `tests/test_oc_runipd.py`, near `TestIsolatedTurnPromptPointsAtTheLane`, add a test that renders the prompt through BOTH `oc_runipd.build_prompt` and `agy_runipd.build_prompt` from a state whose options carry a distinctive `stall_timeout` (for example `417`) and `turn_ceiling` (for example `9876`), and asserts each prompt contains `417` and `9876` in the budget paragraph, contains no non-ASCII character, and does not contain the word "remaining". Add a second case with `options: {}` (legacy state) asserting the prompt renders, states `600` for the stall timeout and `14400` for the ceiling.
   - Depends on: E-03
   - Expected outcome: new tests pass; each fails if the paragraph is removed or reads a hard-coded number.
-  - Execution state: pending
-- [ ] E-05 In `tests/test_oc_runipd.py`, add one test that the resolved ceiling reaches run state on each host: initialize a run with `--prepare-only` in a temp git repo (the pattern of `test_default_start_command_invocation` for oc; `agy_runipd.main([..., "--prepare-only"])` as in `tests/test_agy_runipd_cli.py` for agy), load the run's `state.json`, and assert `options.turn_ceiling` is `14400.0` on oc and `14100.0` on agy with default `--timeout`.
+  - Execution state: performed
+- [x] E-05 In `tests/test_oc_runipd.py`, add one test that the resolved ceiling reaches run state on each host: initialize a run with `--prepare-only` in a temp git repo (the pattern of `test_default_start_command_invocation` for oc; `agy_runipd.main([..., "--prepare-only"])` as in `tests/test_agy_runipd_cli.py` for agy), load the run's `state.json`, and assert `options.turn_ceiling` is `14400.0` on oc and `14100.0` on agy with default `--timeout`.
   - Depends on: E-01
   - Expected outcome: the value the prompt reads is the value the driver enforces, on both hosts.
   - THE HEDGE IS REMOVED BECAUSE IT WAS TESTED. The plan offered a fallback ("if an agy `--prepare-only` fixture turns out to need host resolution that cannot run offline, assert via `initialize_run` with a patched model resolver"). Driven at review: `agy_runipd.main(["appr01", "--repo", <tmp>, "--prepare-only"])` returned `0` OFFLINE, created the run directory, and wrote `options.timeout = 240m` with `options.stall_timeout = 600.0`. So the direct fixture works and no patched resolver is needed; use it. Note the two existing agy `--prepare-only` cases in `tests/test_agy_runipd_cli.py` (`test_main_exit_codes_for_empty_sweep_and_missing_id6`) deliberately assert NO run dir is created, so they are not a usable model for reading `state.json`; the plan's own oc pattern plus a real selector is.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: Full suite
 
-- [ ] E-06 Run the bare suite `python3 -m pytest`. Fix a failure only if it is a genuine consequence of this change, never by weakening an assertion.
+- [x] E-06 Run the bare suite `python3 -m pytest`. Fix a failure only if it is a genuine consequence of this change, never by weakening an assertion.
   - Depends on: E-04, E-05
   - Expected outcome: suite green.
   - THE COMPLETE SET OF EXISTING `build_prompt` CALLERS IN THE SUITE IS FOUR FILES, not the two the plan named. Enumerated at review with `rg -n "build_prompt" tests/`: `tests/test_defect_report.py:72`, `tests/test_finalize_sendback.py:557` and `:592`, `tests/test_oc_runipd.py:4561`/`:4593`/`:4640`, and `tests/test_attempt_lane_facts.py:456`. Check ALL FOUR, and note none of the four carries `pytest.mark.slow`, so all run in the bare suite.
   - THE ONE WITH A NON-OBVIOUS FAILURE MODE is `tests/test_attempt_lane_facts.py:456`, which feeds the rendered prompt to `lane_containment.absolute_paths_outside_lane` and asserts the list is EMPTY. That is a PROPERTY check over the whole prompt whose own docstring says "a newly added line ... fail[s] it", so any absolute path in the new paragraph breaks it. Verified at review that a numbers-only paragraph is safe (`absolute_paths_outside_lane` on the proposed wording returns `[]`), so the rule for E-03 is concrete: the budget paragraph must contain NO absolute path. If one is ever wanted there, that test is the gate it must pass.
   - THE SECOND NON-OBVIOUS ONE is `tests/test_defect_report.py:72`, whose fixture passes `{"run_id": "run-x", "repo": "."}` with NO `options` KEY AT ALL, not merely an empty one. So E-02's fallback must tolerate a MISSING `options` key, not just a missing `turn_ceiling` inside it; `state.get("options", {})` rather than `state["options"]`. Verified at review that both hosts' `build_prompt` render successfully from that state today (7833 and 7836 characters), so a `KeyError` introduced here would be a NEW failure in a test that passes now.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -163,35 +163,181 @@ No `.spec.md` is amended. Spec `7ckptx` (worker lane containment) R4.4 defines t
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the diff of `initialize_run_core` and both hosts' `initialize_run` call sites, plus the E-05 test output (or a `python3 -c` that initializes each host with `--prepare-only` and prints `options.turn_ceiling`) showing `14400.0` for oc and `14100.0` for agy.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: Verified. Diff and prepare-only output:
+```diff
+diff --git a/agent_workflows/agy_runipd.py b/agent_workflows/agy_runipd.py
+@@ -1909,6 +1909,9 @@ def initialize_run(args: argparse.Namespace) -> Path:
+         driver_path=Path(__file__),
+         host_options=host_options,
+         labels=runner_shared.AGY_HOST_LABELS,
++        turn_ceiling_seconds=lane_containment.driver_bound_for_host(
++            lane_containment.parse_host_ceiling_seconds(host_options["timeout"])
++        ),
+         expand_selectors_fn=expand_selectors,
+diff --git a/agent_workflows/oc_runipd.py b/agent_workflows/oc_runipd.py
+@@ -1978,6 +1978,7 @@ def initialize_run(args: argparse.Namespace) -> Path:
+         driver_path=Path(__file__),
+         host_options=host_options,
+         labels=runner_shared.OC_HOST_LABELS,
++        turn_ceiling_seconds=lane_containment.driver_bound_for_host(None),
+         expand_selectors_fn=expand_selectors,
+diff --git a/agent_workflows/runner_shared.py b/agent_workflows/runner_shared.py
+@@ -25147,6 +25202,7 @@ def initialize_run_core(
+     default_runbook_text: str | None = None,
+     default_stall_timeout: float | None = None,
++    turn_ceiling_seconds: float | None = None,
+ ) -> Path:
+@@ -25452,6 +25508,12 @@ def initialize_run_core(
++    if turn_ceiling_seconds is None:
++        from agent_workflows import lane_containment
++
++        turn_ceiling = lane_containment.driver_bound_for_host(None)
++    else:
++        turn_ceiling = float(turn_ceiling_seconds)
+@@ -25478,6 +25540,7 @@ def initialize_run_core(
+             "stall_timeout": stall_timeout,
++            "turn_ceiling": turn_ceiling,
+             "full_auto": full_auto,
+```
+Direct run initializing each host with `--prepare-only` and reading `options.turn_ceiling`:
+```
+Host oc options.turn_ceiling: 14400.0
+Host agy options.turn_ceiling: 14100.0
+```
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste the output of the E-04 legacy-state case (`options: {}`) passing, and a `python3 -c` rendering a prompt with `options={"stall_timeout": 0, "turn_ceiling": 0.0}` then `grep -c "0 seconds"` on it returning 0.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: Verified. Test pass and grep count output:
+E-04 test passing legacy-state case (`options: {}`):
+```
+$ python3 -m pytest -o addopts="" -q tests/test_oc_runipd.py -k "test_turn_budget_prompt_renders_configured_and_legacy_bounds"
+.                                                                        [100%]
+1 passed, 166 deselected in 0.40s
+```
+Rendering prompt with `options={"stall_timeout": 0, "turn_ceiling": 0.0}` and checking `grep -c "0 seconds"`:
+```
+$ python3 -c '
+from agent_workflows import runner_shared
+from pathlib import Path
+import subprocess
+
+item = {"id6": "tst001", "setid": "demo", "position": 1, "attempts": []}
+state = {"run_id": "run-test", "repo": ".", "options": {"stall_timeout": 0, "turn_ceiling": 0.0}}
+prompt = runner_shared.build_prompt(
+    item, state, Path("some/run"), Path("some/plan.ipd.md"), False, labels=runner_shared.OC_HOST_LABELS
+)
+res = subprocess.run(["grep", "-c", "0 seconds"], input=prompt, text=True, capture_output=True)
+print("grep -c returncode:", res.returncode)
+print("grep -c count:", res.stdout.strip())
+'
+grep -c returncode: 1
+grep -c count: 0
+```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: paste the rendered "Turn budget" paragraph from an oc prompt and from an agy prompt (default options), showing `600` and `14400` on oc, `600` and `14100` on agy, and no word "remaining".
   - ALSO REQUIRED, because E-04's substring assertions cannot catch it (F-11): the pasted paragraphs must show INTEGER seconds (`600`, not `600.0`; `14400`, not `14400.0`) and, if an hours parenthetical is present, a value that does not UNDERSTATE the bound (`3.9` or "nearly 4" for the agy 14100s case, never a truncated `3`). Paste the agy paragraph specifically, since that is the case truncation would get wrong.
   - ALSO REQUIRED: paste the paragraph's position, showing it sits between the FOREGROUND paragraph and the lifecycle-role block, and that `tests/test_defect_report.py::PromptDemandTests::test_prompt_integration_and_format` still passes (nothing added after the reporting contract).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: Verified. Rendered paragraphs and format test:
+Rendered OC prompt Turn budget paragraph:
+```
+Turn budget: this turn is terminated after 600 seconds with no observed progress, and after 14400 seconds (about 4 hours) in total regardless of progress; before starting a long command, estimate whether it fits; if it cannot fit, record a deferred question with the preserved state instead of starting it.
+```
+Rendered AGY prompt Turn budget paragraph (shows integer seconds 600 and 14100, and rounded hours 3.9, no word "remaining"):
+```
+Turn budget: this turn is terminated after 600 seconds with no observed progress, and after 14100 seconds (about 3.9 hours) in total regardless of progress; before starting a long command, estimate whether it fits; if it cannot fit, record a deferred question with the preserved state instead of starting it.
+```
+Paragraph position (between FOREGROUND paragraph and lifecycle-role block):
+```
+Run every command you need the RESULT of in the FOREGROUND and wait for it to finish. Do not
+start a long command as a background or scheduled task and then end your turn: your turn's
+processes are terminated when it ends, so a backgrounded test suite is killed unfinished and
+you will have produced nothing. This applies above all to the validation suite, which takes
+minutes in this repository. Never end your turn while waiting for a command you started. If a
+command genuinely cannot finish in this turn, treat that as a deferred question and record the
+preserved state, rather than exiting with the work outstanding.
+
+Turn budget: this turn is terminated after 600 seconds with no observed progress, and after 14400 seconds (about 4 hours) in total regardless of progress; before starting a long command, estimate whether it fits; if it cannot fit, record a deferred question with the preserved state instead of starting it.
+
+## Who performs the lifecycle transition
+
+The runner performs `aw ipd begin` and `aw ipd finalize` f
+```
+Contract test passing:
+```
+$ python3 -m pytest -o addopts="" -q tests/test_defect_report.py -k "test_prompt_integration_and_format"
+.                                                                        [100%]
+1 passed, 22 deselected in 0.21s
+```
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: paste `python3 -m pytest -o addopts="" -q tests/test_oc_runipd.py -k <new test names>` output with the new tests passing, AND the same command's failing output after temporarily replacing the rendered stall value with a literal `600`, proving the distinctive-value assertion bites.
   - DO THE MUTATION IN A THROWAWAY WORKTREE, NOT IN THIS CHECKOUT. Use `git worktree add --detach <gitignored path> HEAD` (`.gitignore` ignores `.aw/worktrees/` and `tmp/`), apply the mutation there, run, paste, and `git worktree remove`. This is a SHARED checkout: a mutate-then-revert in place is the one step in this plan that can lose work if interrupted, and the obvious wrong reflex (`git stash`) would move a co-worker's uncommitted changes. If an in-place mutation is used anyway, revert it in the very next command and say so in the evidence.
   - ALSO CONFIRM `-k <names>` ACTUALLY SELECTS SOMETHING: paste the selection line and check it does not read `N deselected` with `0` collected. A `-k` pattern matching no test exits 0 having run nothing, which would make this V-item vacuous.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: Verified. Passing test, selection check, and throwaway worktree mutation check:
+Passing run on new tests (selecting 1 test, 166 deselected):
+```
+$ python3 -m pytest -o addopts="" -q tests/test_oc_runipd.py -k "test_turn_budget_prompt_renders_configured_and_legacy_bounds"
+.                                                                        [100%]
+NOTE: 166 tests were deselected by -m/-k and did not run (the default run skips 'slow' and 'livecorpus'); run everything with: make test-all
+1 passed, 166 deselected in 0.40s
+```
+Failing output in throwaway detached worktree `tmp/throwaway-mut` with stall mutated to literal 600 (proving assertion bites):
+```
+$ git worktree add --detach tmp/throwaway-mut HEAD
+Preparing worktree (detached HEAD 041ee46c)
+HEAD is now at 041ee46c work(tb6wh7): State the per-turn budget in the shared execute prompt
+# mutate runner_shared.py: stall_sec = 600
+$ python3 -m pytest -o addopts="" -q tests/test_oc_runipd.py -k "test_turn_budget_prompt_renders_configured_and_legacy_bounds"
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ TurnBudgetPromptTests.test_turn_budget_prompt_renders_configured_and_legacy_bounds _
+...
+AssertionError: '417' not found in '... Turn budget: this turn is terminated after 600 seconds with no observed progress ...'
+=========================== short test summary info ============================
+FAILED tests/test_oc_runipd.py::TurnBudgetPromptTests::test_turn_budget_prompt_renders_configured_and_legacy_bounds
+1 failed, 166 deselected in 1.41s
+$ git worktree remove --force tmp/throwaway-mut
+```
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: paste the new state test passing for both hosts, naming both in the output.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+  - Observed evidence: Verified. State test and direct host check naming both hosts:
+```
+$ python3 -m pytest -o addopts="" -v tests/test_oc_runipd.py -k "test_resolved_ceiling_reaches_run_state_on_both_hosts"
+============================= test session starts ==============================
+collecting ... collected 167 items / 166 deselected / 1 selected
+
+tests/test_oc_runipd.py::TurnBudgetPromptTests::test_resolved_ceiling_reaches_run_state_on_both_hosts PASSED [100%]
+
+====================== 1 passed, 166 deselected in 0.55s =======================
+```
+Direct run verifying both hosts naming each in output:
+```
+Host oc options.turn_ceiling: 14400.0
+Host agy options.turn_ceiling: 14100.0
+```
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: paste the final summary line of bare `python3 -m pytest` (`N passed`, no failures).
   - ALSO REQUIRED, naming the four affected files explicitly (F-9): paste `python3 -m pytest -o addopts="" -q tests/test_defect_report.py tests/test_finalize_sendback.py tests/test_oc_runipd.py tests/test_attempt_lane_facts.py` all passing. The bare run covers them, but naming them makes the prompt-caller surface auditable rather than trusting that a green total included the one property test (`tests/test_attempt_lane_facts.py`) most likely to break.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Explicit four files run and full test suite run:
+Four affected files explicitly all passing:
+```
+$ python3 -m pytest -o addopts="" -q tests/test_defect_report.py tests/test_finalize_sendback.py tests/test_oc_runipd.py tests/test_attempt_lane_facts.py
+........................................................................ [ 28%]
+........................................................................ [ 57%]
+........................................................................ [ 86%]
+.................................                                        [100%]
+249 passed in 60.23s (0:01:00)
+```
+Final summary line of bare `python3 -m pytest`:
+```
+2691 passed, 2 skipped, 3 warnings in 102.04s (0:01:42)
+```
+  - Result: pass
 
 ## Approval and execution gate
 
