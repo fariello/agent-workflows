@@ -16,11 +16,9 @@ Validates:
 from __future__ import annotations
 
 import contextlib
-import inspect
 import io
 import json
 from pathlib import Path
-import re
 import tempfile
 import unittest
 
@@ -278,25 +276,69 @@ Test.
             self.assertEqual(frozen["ack_spec_edits"], "valid justification")
 
     def test_gate_is_wired_once_before_announcement(self) -> None:
-        """Case (g): initialize_run_core calls enforce_spec_edit_ack_gate exactly once, ahead of announcements."""
-        # Check symbol exists
-        _ = getattr(runner_shared, "enforce_spec_edit_ack_gate")
-        src = inspect.getsource(runner_shared.initialize_run_core)
-        self.assertEqual(
-            src.count("enforce_spec_edit_ack_gate("),
-            1,
-            "enforce_spec_edit_ack_gate( must appear exactly once in initialize_run_core",
+        """Case (g): initialize_run enforces spec edit ack gate before announcing run order."""
+        import subprocess
+        from unittest import mock
+
+        subprocess.run(["git", "init", "-q", str(self.repo)], check=True)
+        plan_rel = (
+            ".aw/records/plans/pending/20260924-testset-01-tst001-test-plan.ipd.md"
         )
-        call_pos = src.find("enforce_spec_edit_ack_gate(")
-        announce_positions = [
-            m.start() for m in re.finditer(r"announce_run_order_fn\(", src)
-        ]
-        self.assertGreaterEqual(len(announce_positions), 1)
-        for pos in announce_positions:
-            self.assertLess(
-                call_pos,
-                pos,
-                "enforce_spec_edit_ack_gate( must precede every announce_run_order_fn(",
+        plan_path = self.repo / plan_rel
+        plan_content = """# IPD: Test plan for spec ack gate
+- Date: 2026-09-24
+- Kind: child
+- Concern: test.
+- Scope: test.
+- Scope-Paths: x.spec.md
+- Item-Dependencies: none
+- Status: approved
+- Set: testset
+- Order: 1
+- Highest E allocated: 01
+- Author: test
+- Id: tst001
+
+## Goal
+Test.
+
+## Detailed Implementation Checklist (TODO)
+- [ ] E-01 Do test
+  - Execution state: pending
+"""
+        plan_path.write_text(plan_content, encoding="utf-8")
+
+        for host_mod in (oc_runipd, agy_runipd):
+            parser = host_mod.build_parser()
+            args = parser.parse_args(
+                [
+                    "start",
+                    "tst001",
+                    "--repo",
+                    str(self.repo),
+                    "--unattended",
+                    "--full-auto",
+                    "--run-id",
+                    f"run-test-{host_mod.__name__}",
+                ]
+            )
+            announced = []
+            with (
+                mock.patch.object(
+                    host_mod,
+                    "announce_run_order",
+                    side_effect=lambda *a, **k: announced.append(a),
+                ),
+                contextlib.redirect_stdout(io.StringIO()),
+                contextlib.redirect_stderr(io.StringIO()),
+            ):
+                with self.assertRaises(runner_shared.DriverError) as cm:
+                    host_mod.initialize_run(args)
+                self.assertIn("spec", str(cm.exception).lower())
+            self.assertEqual(
+                announced,
+                [],
+                f"{host_mod.__name__} announced order before spec ack gate",
             )
 
     def test_an_unreadable_declaring_plan_REFUSES_rather_than_proceeding(self) -> None:

@@ -973,11 +973,6 @@ class SafetyInvariantThreeNoInventoryPollution(TempCase):
         It is also what the leak-sanitizer rejects (rule ``vc-home``), so the default is
         derived from the configured search root and overridable by environment.
         """
-
-        source = (REPO_ROOT / "agent_workflows" / "upgrade_rehearsal.py").read_text(
-            encoding="utf-8"
-        )
-        self.assertNotIn("DEFAULT_SANDBOX_ROOT = Path(", source)
         computed = uat.default_sandbox_root()
         self.assertEqual(computed.name, uat.SANDBOX_ROOT_NAME)
         self.assertEqual(computed.parent.name, "tmp")

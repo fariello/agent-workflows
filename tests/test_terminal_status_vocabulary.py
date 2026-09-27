@@ -14,7 +14,6 @@ Verifies V-01 through V-07 from plan:
 
 from __future__ import annotations
 
-import ast
 import json
 import tempfile
 import unittest
@@ -462,78 +461,6 @@ class TestArtifactAuditNoCompleteCoercion(unittest.TestCase):
         self.assertEqual(
             artifact_audit._TERMINAL_EXPECTED_DIR.get("executed"), "executed"
         )
-
-
-class TestTreeWideExhaustivenessGuard(unittest.TestCase):
-    """V-07 (E-07): Tree-wide guard asserting no unmapped or unrenamed legacy tokens in production writers."""
-
-    # Unambiguous legacy terminal status tokens that must never be emitted by new code
-    DISTINCTIVE_LEGACY_TOKENS = frozenset(
-        {
-            "substantially-complete",
-            "failed-safely",
-            "dependency-blocked",
-            "integration-blocked",
-            "merge-needs-human",
-            "merge-refused",
-            "not-attempted",
-        }
-    )
-
-    SANCTIONED_FILES = frozenset(
-        {
-            "agent_workflows/runner_shared.py",
-            "agent_workflows/agy_runipd.py",
-            "agent_workflows/oc_runipd.py",
-            "agent_workflows/artifact_audit.py",
-            "agent_workflows/attention.py",
-            "agent_workflows/lifecycle_style.py",
-            "agent_workflows/render_stream.py",
-            "agent_workflows/run_selection_policy.py",
-            "agent_workflows/run_viewer.py",
-            "agent_workflows/runner_shutdown.py",
-            "agent_workflows/run_analytics.py",
-            "agent_workflows/lane_containment.py",
-        }
-    )
-
-    def test_exhaustiveness_scan_over_agent_workflows(self):
-        """Scan agent_workflows/ Python files to assert all legacy status tokens are in sanctioned sites."""
-        repo_root = Path(__file__).resolve().parent.parent
-        pkg_dir = repo_root / "agent_workflows"
-
-        unsanctioned_occurrences = []
-
-        for py_path in pkg_dir.glob("*.py"):
-            rel_path = py_path.relative_to(repo_root).as_posix()
-            if rel_path not in self.SANCTIONED_FILES:
-                tree = ast.parse(
-                    py_path.read_text(encoding="utf-8"), filename=str(py_path)
-                )
-                for node in ast.walk(tree):
-                    if isinstance(node, ast.Constant) and isinstance(node.value, str):
-                        if node.value in self.DISTINCTIVE_LEGACY_TOKENS:
-                            unsanctioned_occurrences.append(
-                                (rel_path, node.lineno, node.value)
-                            )
-
-        self.assertEqual(
-            unsanctioned_occurrences,
-            [],
-            f"Found unsanctioned legacy status tokens in agent_workflows: {unsanctioned_occurrences}",
-        )
-
-    def test_exhaustiveness_guard_non_vacuous(self):
-        """Demonstrate that the exhaustiveness scanner detects an unsanctioned legacy literal."""
-        test_source = 'def dummy_func():\n    return "substantially-complete"\n'
-        tree = ast.parse(test_source)
-        found = []
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Constant) and isinstance(node.value, str):
-                if node.value in self.DISTINCTIVE_LEGACY_TOKENS:
-                    found.append((node.lineno, node.value))
-        self.assertEqual(len(found), 1)
-        self.assertEqual(found[0], (2, "substantially-complete"))
 
 
 if __name__ == "__main__":

@@ -40,7 +40,8 @@ structural about the module itself (its import allowlist) rather than about a sc
 
 from __future__ import annotations
 
-import re
+import subprocess
+import sys
 import unittest
 from pathlib import Path
 
@@ -3025,25 +3026,26 @@ class DensityHeuristicTests(unittest.TestCase):
 
 class NoDependencyTests(unittest.TestCase):
     def test_module_is_stdlib_only(self):
-        """Kept separate: inspects the module's own SOURCE for an import allowlist, not a schema value.
-
-        The claim is structural (zero runtime dependencies, D46) and its subject is the text of
-        `ipd_schema.py`, so it shares no input, no predicate, and no failure mode with any table here.
-        """
-        # The module must not import third-party packages (zero runtime deps, D46).
-        src = (REPO_ROOT / "agent_workflows" / "ipd_schema.py").read_text(
-            encoding="utf-8"
+        """Kept separate: behavioral test that the module imports with only stdlib available."""
+        code = (
+            "import sys\n"
+            "class StrictStdlibFinder:\n"
+            "    def find_spec(self, fullname, path, target=None):\n"
+            "        top = fullname.split('.')[0]\n"
+            "        if top not in sys.stdlib_module_names and top != 'agent_workflows':\n"
+            "            raise ImportError(f'Non-stdlib import attempted: {fullname}')\n"
+            "        return None\n"
+            "sys.meta_path.insert(0, StrictStdlibFinder())\n"
+            "import agent_workflows.ipd_schema\n"
         )
-        for line in src.splitlines():
-            m = re.match(r"^(?:from|import)\s+([a-zA-Z0-9_.]+)", line.strip())
-            if not m:
-                continue
-            top = m.group(1).split(".")[0]
-            self.assertIn(
-                top,
-                {"__future__", "re", "typing", "agent_workflows"},
-                "unexpected import: " + line,
-            )
+        res = subprocess.run(
+            [sys.executable, "-c", code], capture_output=True, text=True
+        )
+        self.assertEqual(
+            res.returncode,
+            0,
+            f"Module import failed or attempted non-stdlib import: {res.stderr}",
+        )
 
 
 if __name__ == "__main__":

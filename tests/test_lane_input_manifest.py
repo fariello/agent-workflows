@@ -5,9 +5,10 @@ and followup plan `dmxc5h`.
 
 Trimmed restoration of the `19313eed` deletion (plan dmxc5h) keeping outcome tests only.
 Four deletions from the original 21-test file were verified safe:
-  1. The revision-mechanism docstring-pin test class - replaced per PR-802 with an
-     outcome test (`test_revise_lane_inputs_has_no_production_caller`) verifying zero
-     production call sites exist in `agent_workflows/`, rather than pinning docstring wording.
+  1. The revision-mechanism docstring-pin test class (and its subsequent AST caller scan
+     `test_revise_lane_inputs_has_no_production_caller`) was retired per the 2026-09-26 ruling
+     under IPD 96xtmi: spec 7ckptx R3.4 is a prose obligation that revise_lane_inputs has no
+     production caller, not a source AST pin.
   2. The driver argv test class - empty class with docstring and no test methods.
   3. `test_part_i_the_manifest_file_has_no_write_bit` and
      `test_part_ii_every_materialized_input_has_no_write_bit` - mode-bit inspection tests whose
@@ -39,7 +40,6 @@ spec calls insufficient:
 
 from __future__ import annotations
 
-import ast
 import json
 import os
 import unittest
@@ -334,30 +334,6 @@ class SealTests(unittest.TestCase):
         result = lane_containment.verify_lane_input_seal(self.lane)
         self.assertFalse(result.sealed)
         self.assertTrue(any("write bit" in v for v in result.violations), result)
-
-
-class ProductionCallerTests(unittest.TestCase):
-    """Spec `7ckptx` R3.4: the revision mechanism has no production consumer."""
-
-    def test_revise_lane_inputs_has_no_production_caller(self):
-        package_dir = Path(lane_containment.__file__).parent
-        call_sites: list[str] = []
-        for path in package_dir.rglob("*.py"):
-            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-            for node in ast.walk(tree):
-                if isinstance(node, ast.Call):
-                    func = node.func
-                    is_target = False
-                    if isinstance(func, ast.Name) and func.id == "revise_lane_inputs":
-                        is_target = True
-                    elif (
-                        isinstance(func, ast.Attribute)
-                        and func.attr == "revise_lane_inputs"
-                    ):
-                        is_target = True
-                    if is_target:
-                        call_sites.append(f"{path.name}:{node.lineno}")
-        self.assertEqual(call_sites, [])
 
 
 class AttachmentLocalizationTests(unittest.TestCase):

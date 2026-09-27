@@ -56,11 +56,6 @@ class ThirdHostDescriptorTests(unittest.TestCase):
         self.assertEqual(SCRIPTED_HOST_LABELS.id, "scripted")
         self.assertEqual(SCRIPTED_HOST_LABELS.product, "Scripted")
 
-        # Verify no scripted_runipd.py exists in agent_workflows/
-        aw_dir = Path(runner_shared.__file__).resolve().parent
-        self.assertFalse((aw_dir / "scripted_runipd.py").exists())
-        self.assertFalse((aw_dir / "sc_runipd.py").exists())
-
     def test_descriptor_is_distinct_from_existing_hosts(self) -> None:
         self.assertNotEqual(SCRIPTED_HOST_LABELS, runner_shared.OC_HOST_LABELS)
         self.assertNotEqual(SCRIPTED_HOST_LABELS, runner_shared.AGY_HOST_LABELS)

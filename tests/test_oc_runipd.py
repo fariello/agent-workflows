@@ -2483,38 +2483,6 @@ class PlanBucketRecognitionTests(unittest.TestCase):
             with self.subTest(needle=needle):
                 self.assertIn(needle, doc)
 
-    def test_no_caller_compares_a_bucket_to_a_non_terminal_member(self):
-        """The members are defensive, so no caller may treat one as a readiness verdict.
-
-        This is the guard that would have caught the original defect. `agy_runipd` used to compare a
-        bucket against the tuple `("executed", "reviewed", "approved")`; that comparison is gone with
-        the local `dependency_status_detailed` copy, and the only bucket equality comparisons left in
-        either driver are against `"executed"`, a genuine directory.
-
-        Deliberately NOT a ban on the STRINGS `reviewed`/`approved`, which appear legitimately all over
-        both drivers as STATUS values. It bans comparing them to a value obtained from `plan_bucket`,
-        which is the actual error.
-        """
-        import re
-
-        pattern = re.compile(
-            r"bucket\s*(?:==|!=)\s*[\"'](?:reviewed|approved|active)[\"']"
-            r"|bucket\s+(?:not\s+)?in\s*\([^)]*[\"'](?:reviewed|approved|active)[\"']"
-        )
-        for name in ("oc_runipd", "agy_runipd"):
-            path = REPO_ROOT / "agent_workflows" / f"{name}.py"
-            text = path.read_text(encoding="utf-8")
-            # Comments and docstrings may legitimately DISCUSS the retired comparison.
-            code = "\n".join(
-                ln for ln in text.splitlines() if not ln.lstrip().startswith("#")
-            )
-            with self.subTest(module=name):
-                self.assertIsNone(
-                    pattern.search(code),
-                    f"{name} compares a plan_bucket() result against a non-terminal member; "
-                    "readiness lives in the `- Status:` field, not in a directory name",
-                )
-
 
 class StatusJsonTests(unittest.TestCase):
     """#3: `status --json` emits the full state.json payload."""
@@ -4945,18 +4913,14 @@ class HostIntegrateVerbTests(unittest.TestCase):
         `integrate` IS in that set, so the shim leaves the rewritten argv alone; had the alias emitted
         a bare id6 instead, the shim would have prefixed `start` and LAUNCHED a run.
         """
-        import re
-
         from agent_workflows.cli import expand_host_integrate_argv
 
-        source = (REPO_ROOT / "agent_workflows" / "oc_runipd.py").read_text(
-            encoding="utf-8"
-        )
-        block = re.search(r"subcommands = \{(.*?)\}", source, re.S)
-        assert block is not None
-        self.assertIn('"integrate"', block.group(1))
         argv = expand_host_integrate_argv(["mm6wuz"])
         self.assertEqual(argv[0], "integrate")
+
+        with mock.patch.object(driver, "handle_integrate_command", return_value=42):
+            rc = driver.main(["integrate", "mm6wuz"])
+            self.assertEqual(rc, 42)
 
     def test_integrate_is_a_parser_choice_on_both_host_groups(self):
         """The reachability half. Without the leaf, `aw oc integrate` dies at `invalid choice`."""

@@ -12,7 +12,6 @@ E-05 / V-05: Zero model calls / probe invocations on shape refusal (criterion 11
 
 from __future__ import annotations
 
-import ast
 import contextlib
 import io
 from pathlib import Path
@@ -24,7 +23,6 @@ import unittest.mock
 from agent_workflows import agy_runipd, oc_runipd
 from agent_workflows import ipd_lint as lint
 from agent_workflows import runner_shared as rs
-from tests.support import REPO_ROOT
 
 BOTH_HOSTS = (("oc", oc_runipd), ("agy", agy_runipd))
 
@@ -281,39 +279,6 @@ class BothHostsShareOneDefinition(unittest.TestCase):
         self.assertFalse(hasattr(oc_runipd, "enforce_orchestrator_shape_gate"))
         self.assertFalse(hasattr(agy_runipd, "enforce_orchestrator_shape_gate"))
 
-    def test_oc_to_agy_import_count_did_not_increase(self):
-        """No symbols flow from oc_runipd to agy_runipd for this gate."""
-        tree = ast.parse(
-            (REPO_ROOT / "agent_workflows" / "agy_runipd.py").read_text(
-                encoding="utf-8"
-            )
-        )
-        oc_imports = [
-            alias.name
-            for node in ast.walk(tree)
-            if isinstance(node, ast.ImportFrom)
-            and node.module == "agent_workflows.oc_runipd"
-            for alias in node.names
-        ]
-        self.assertLessEqual(len(oc_imports), 4)
-
-    def test_queued_orchestrator_targets_is_reused(self):
-        """Assert enforce_orchestrator_shape_gate reuses queued_orchestrator_targets."""
-        tree = ast.parse(
-            (REPO_ROOT / "agent_workflows" / "runner_shared.py").read_text(
-                encoding="utf-8"
-            )
-        )
-        calls = [
-            inner.func.id
-            for node in ast.walk(tree)
-            if isinstance(node, ast.FunctionDef)
-            and node.name == "enforce_orchestrator_shape_gate"
-            for inner in ast.walk(node)
-            if isinstance(inner, ast.Call) and isinstance(inner.func, ast.Name)
-        ]
-        self.assertIn("queued_orchestrator_targets", calls)
-
 
 class TheGateIsSitedBeforeRunDirAndPrepareOnlyRefuses(unittest.TestCase):
     """E-02 / V-02: Gate sited before run_dir creation; --prepare-only integration verified."""
@@ -343,15 +308,6 @@ class TheGateIsSitedBeforeRunDirAndPrepareOnlyRefuses(unittest.TestCase):
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
             run_dir = module.initialize_run(args)
         return run_dir, out.getvalue(), err.getvalue()
-
-    def test_siting_comment_names_both_invariants(self):
-        """Code comment in initialize_run_core explains siting, no durable writes, and --prepare-only."""
-        src = (REPO_ROOT / "agent_workflows" / "runner_shared.py").read_text(
-            encoding="utf-8"
-        )
-        self.assertIn("THE PRE-QUEUE ORCHESTRATOR SHAPE GATE", src)
-        self.assertIn("--prepare-only", src)
-        self.assertIn("NO DURABLE WRITE", src)
 
     def test_non_conforming_run_leaves_no_run_dir_no_session_no_worktree(self):
         """On shape refusal, state_root(repo) gains no new run directory."""

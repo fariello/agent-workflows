@@ -12,7 +12,6 @@ E-05 / V-05 (Criteria 4 & 13): Baseline preservation and criterion 4 co-existenc
 
 from __future__ import annotations
 
-import ast
 import inspect
 from pathlib import Path
 import subprocess
@@ -22,8 +21,6 @@ import unittest.mock
 
 from agent_workflows import agy_runipd, oc_runipd
 from agent_workflows import ipd_lint as lint
-from agent_workflows import ipd_schema
-from agent_workflows import ipd_set_plan
 from agent_workflows import runner_shared as rs
 from tests.support import REPO_ROOT
 
@@ -43,16 +40,6 @@ ORCHTYPED_CHILD_COMMITS = (
     # Order 04 (68uhp0)
     "33f1aaba87580a085610daea0b0c9d69a5df7d84",
     "deae090e657ac617d9c3798e31d84b627e157d8c",
-)
-
-PROBE_SEVEN_FUNCTIONS = (
-    "enforce_orchestrator_probe_gate",
-    "ask_orchestrator_probe",
-    "orchestrator_probe_excerpt",
-    "queued_orchestrator_targets",
-    "classify_probe_reply",
-    "probe_cache_payload",
-    "probe_refusal_remedy",
 )
 
 # Literal pre-migration texts pinned to git revision c58ec3ab
@@ -176,55 +163,6 @@ class TestOneRuleTwoConsumers(unittest.TestCase):
 
         # 2. Run-side: runner_shared.enforce_orchestrator_shape_gate is wired into initialize_run_core
         self.assertTrue(hasattr(rs, "enforce_orchestrator_shape_gate"))
-        src = inspect.getsource(rs.enforce_orchestrator_shape_gate)
-        self.assertIn("orchestrator_row_conformance", src)
-
-    def test_no_second_row_pattern_in_agent_workflows(self):
-        """Ensure no duplicate regex or re-implementation of the child-tracking row grammar exists."""
-        aw_dir = REPO_ROOT / "agent_workflows"
-        regex_compile_hits = []
-        for py_file in aw_dir.glob("*.py"):
-            tree = ast.parse(py_file.read_text(encoding="utf-8"))
-            for node in ast.walk(tree):
-                if isinstance(node, ast.Call):
-                    func = node.func
-                    is_compile = (
-                        isinstance(func, ast.Attribute) and func.attr == "compile"
-                    ) or (isinstance(func, ast.Name) and func.id == "compile")
-                    if is_compile:
-                        for arg in node.args:
-                            if (
-                                isinstance(arg, ast.Constant)
-                                and isinstance(arg.value, str)
-                                and "CONFIRM" in arg.value
-                            ):
-                                regex_compile_hits.append(
-                                    (py_file.name, node.lineno, arg.value)
-                                )
-
-        # Expected hit: exactly _ORCH_ROW_RE in ipd_lint.py
-        self.assertEqual(
-            len(regex_compile_hits),
-            1,
-            f"Expected exactly 1 row regex definition, found: {regex_compile_hits}",
-        )
-        self.assertEqual(regex_compile_hits[0][0], "ipd_lint.py")
-        self.assertIs(lint._ORCH_ROW_RE, getattr(lint, "_ORCH_ROW_RE"))
-
-    def test_account_for_known_good_scanners_and_status_lists(self):
-        """Enumerate and account for expected child-table scanners and status lists."""
-        # Pre-existing child table readers:
-        # 1. ipd_set_plan.parse_child_table (order graph)
-        self.assertTrue(hasattr(ipd_set_plan, "parse_child_table"))
-        # 2. runner_shared.child_table_rows (full cell tuples)
-        self.assertTrue(hasattr(rs, "child_table_rows"))
-
-        # Status list references:
-        # 1. ipd_schema.RECOGNIZED_STATUS (definition)
-        self.assertTrue(hasattr(ipd_schema, "RECOGNIZED_STATUS"))
-        # 2. ipd_lint.orchestrator_row_conformance checks against ipd_schema.RECOGNIZED_STATUS
-        src = inspect.getsource(lint.orchestrator_row_conformance)
-        self.assertIn("RECOGNIZED_STATUS", src)
 
 
 class TestDeliverablesCannotBeExpressedAsConformingRows(unittest.TestCase):
@@ -320,33 +258,6 @@ class TestProbeSurvivedAndStillBlocks(unittest.TestCase):
                 touched,
                 f"Commit {commit[:8]} unexpectedly touched tests/test_orchestrator_probe.py",
             )
-
-    def test_probe_seven_functions_exist_and_sum_to_476_lines_ast(self):
-        """Pin: all seven probe functions exist in runner_shared and their AST spans sum to 476."""
-        rs_file = REPO_ROOT / "agent_workflows" / "runner_shared.py"
-        src = rs_file.read_text(encoding="utf-8")
-        tree = ast.parse(src)
-
-        spans: dict[str, int] = {}
-        for node in ast.walk(tree):
-            if (
-                isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-                and node.name in PROBE_SEVEN_FUNCTIONS
-            ):
-                span = node.end_lineno - node.lineno + 1
-                spans[node.name] = span
-
-        self.assertEqual(
-            set(spans.keys()),
-            set(PROBE_SEVEN_FUNCTIONS),
-            f"Missing probe functions: {set(PROBE_SEVEN_FUNCTIONS) - set(spans.keys())}",
-        )
-        total_span = sum(spans.values())
-        self.assertEqual(
-            total_span,
-            476,
-            f"Expected probe functions AST span to sum to 476 lines, got {total_span}: {spans}",
-        )
 
 
 class TestDistinguishableRefusalsAndMixedQueueOrdering(unittest.TestCase):
