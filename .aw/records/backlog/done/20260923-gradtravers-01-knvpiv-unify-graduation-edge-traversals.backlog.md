@@ -1,5 +1,5 @@
 - Id: knvpiv
-- Status: graduated
+- Status: done
 - Graduated-To: gradtravers
 - Work-Kind: bug
 - Blocks-Release: next
@@ -67,6 +67,7 @@ Found by plan `yv4tb1` (Set `graduate`, Order 03) discharging orchestrator `y9s4
 check in one unreviewed change.
 
 ## Workflow history
+- 2026-09-27 set (aw backlog): closed by aw oc run: IPD pw2ln3 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260926-gradtravers-01-pw2ln3-make-aw-graduation-surface-a-source-s-own-graduated-to-sets.ipd.md); evidence .aw/records/plans/executed/20260926-gradtravers-01-pw2ln3-make-aw-graduation-surface-a-source-s-own-graduated-to-sets.ipd.md
 - 2026-09-26 graduated (aw set): Graduated 2026-09-26 into plan pw2ln3 (Set gradtravers), re-verified live at HEAD.
 - 2026-09-26 same-status (aw set): Reclassified bug + Blocks-Release next on measurement (2026-09-26): 101 records now declare Graduated-To; 40 graduated backlog items get 'nothing yet ... Proceed' from aw graduation (e.g. cfgj8s -> envhermet, executed), a user-visible wrong answer on the verb whose purpose is avoiding duplicate graduation.
 - 2026-09-23 created (aw backlog): Filed by plan yv4tb1 (graduate Order 03) while verifying orchestrator y9s4vm's CID-7.
