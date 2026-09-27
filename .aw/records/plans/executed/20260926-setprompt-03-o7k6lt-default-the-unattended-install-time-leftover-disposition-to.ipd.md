@@ -6,7 +6,7 @@
 - Scope: IN: (a) tighten `_is_removable_leftover` so `remove` deletes a path only if it exists in `HEAD` and is unmodified against `HEAD` (index and worktree), which is exactly "recoverable from history"; everything else is preserved; (b) change the built-in default in `cli._install_leftover_disposition` from `defer` to `remove`, keeping precedence explicit `--leftovers` > saved `defaults.leftovers` (added by `je74a0`) > built-in, and keeping an unrecognized explicit value fail-safe at `defer` (OQ-03); (c) update the install `--leftovers` help (it promises "Never deletes without an explicit 'remove'") and the resolver's docstring; (d) a CHANGELOG entry; (e) amend the migration spec's non-interactive-default sentences for the install-driven case, declared; (f) behavioral tests and the existing tests that pin the old default; (g) a compressed backup of every file `remove` deletes, under gitignored `.aw/state/`, and an ATTENDED-install prompt defaulting to remove (maintainer ruling 2026-09-26, OQ-02); (h) ONE user-visible report line naming what `remove` deleted and how to restore it, because the operation is currently silent (added at review, E-08/E-09). OUT: `aw migrate-layout`'s own default (its `_run_migrate_layout` resolution stays `defer`, OQ-02); any prompt for the disposition (OQ-02 option iii, which would re-scope this plan); the classifier (`vv6y7e`).
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/layout_migration.py, CHANGELOG.md, tests/test_installer.py, .aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md
 - Item-Dependencies: executed:je74a0
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 13
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: o7k6lt
-- Approval: 2026-09-26, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: o7k6lt verified (set setprompt, attempt 1).
 - 2026-09-26 approved (aw set): status set to approved
 - 2026-09-26 readiness re-check (opencode/its_direct/pt3-claude-opus-5.5-1m-us): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: unresolved-blocking-question -> clear (no unresolved BLOCKING open question; `has_unresolved_blocking_question` -> False (a NON-blocking open question is deliberately not counted, per the maintainer's 2026-09-10 ruling on qhy3i3 OQ-01)); unresolved-gating-finding -> clear (no unresolved gating finding; `review_findings.subject_gating_blocks` -> empty (an ABSENT review artifact is silent by that predicate's documented contract)); negative-review-verdict -> clear (the newest review record's verdict is not negative; `newest_verdict` -> neutral). RE-CHECKED REVIEW: the review of 2026-09-26, findings PR-002..OQ-02. Recomputed at HEAD `29bfb033`. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
 - 2026-09-26 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: REVIEWED - OPEN QUESTIONS; PR-002..PR-007 fixed, PR-001 escalated to blocking OQ-02
