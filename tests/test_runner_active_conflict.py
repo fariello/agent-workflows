@@ -242,14 +242,16 @@ class EnforceActiveRunnerConflictTests(unittest.TestCase):
         plans_dir = self.repo / ".aw" / "records" / "plans" / "pending"
         plans_dir.mkdir(parents=True)
 
+        from tests.test_oc_runipd import _CONFORMING_PLAN
+
         self.plan1 = plans_dir / "20260925-test01-01-aaaaaa-item-one.ipd.md"
         self.plan1.write_text(
-            "---\n- Id: aaaaaa\n- Status: approved\n- Set: test01\n---\n# Plan 1\n",
+            _CONFORMING_PLAN.format(id6="aaaaaa"),
             encoding="utf-8",
         )
         self.plan2 = plans_dir / "20260925-test01-02-bbbbbb-item-two.ipd.md"
         self.plan2.write_text(
-            "---\n- Id: bbbbbb\n- Status: approved\n- Set: test01\n---\n# Plan 2\n",
+            _CONFORMING_PLAN.format(id6="bbbbbb"),
             encoding="utf-8",
         )
 

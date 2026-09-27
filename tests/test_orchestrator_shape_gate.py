@@ -30,6 +30,43 @@ BOTH_HOSTS = (("oc", oc_runipd), ("agy", agy_runipd))
 # FIXTURES
 # ==================================================================================================
 
+_ORCH_TAIL_ONE_ITEM = """\
+## Completion criteria (the whole Set is done only when)
+
+- None.
+
+## Cross-IPD validation
+
+- None.
+
+## Deferred / out of scope (with reason)
+
+- None.
+
+## Scope check
+
+- None.
+
+## Required tests / validation
+
+- None.
+
+## Open questions
+
+- None.
+
+## Validation and cross-check (verify before reporting the Set complete)
+
+- [ ] V-01 validates E-01
+  - Required evidence: check baseline.
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+
+- None.
+"""
+
 CONFORMING_ORCH_TEXT = """# IPD: Conforming orchestrator fixture
 
 - Date: 2026-09-24
@@ -37,6 +74,8 @@ CONFORMING_ORCH_TEXT = """# IPD: Conforming orchestrator fixture
 - Concern: fixture.
 - Scope: fixture.
 - Scope-Paths: none
+- Priority: medium
+- Work-Kind: chore
 - Status: approved
 - Set: fixconf
 - Order: 0
@@ -53,13 +92,6 @@ CONFORMING_ORCH_TEXT = """# IPD: Conforming orchestrator fixture
 
 Fixture.
 
-## Child IPDs, sequence, and dependencies
-
-| Order | Id | Status | Plan | Depends on |
-| --- | --- | --- | --- | --- |
-| 01 | chd001 | pending | .aw/records/plans/pending/20260924-fixconf-01-chd001.ipd.md | none |
-| 02 | chd002 | pending | .aw/records/plans/pending/20260924-fixconf-02-chd002.ipd.md | 01 |
-
 ## Detailed Implementation Checklist (TODO)
 
 - [ ] E-01 CONFIRM chd001 REACHED executed
@@ -71,7 +103,38 @@ Fixture.
   - Expected outcome: chd002 reads `- Status: executed` on disk.
   - Execution state: pending
 
-## Validation and cross-check (verify before reporting done)
+## Child IPDs, sequence, and dependencies
+
+| Order | Id | Status | Plan | Depends on |
+| --- | --- | --- | --- | --- |
+| 01 | chd001 | pending | .aw/records/plans/pending/20260924-fixconf-01-chd001.ipd.md | none |
+| 02 | chd002 | pending | .aw/records/plans/pending/20260924-fixconf-02-chd002.ipd.md | 01 |
+
+## Completion criteria (the whole Set is done only when)
+
+- None.
+
+## Cross-IPD validation
+
+- None.
+
+## Deferred / out of scope (with reason)
+
+- None.
+
+## Scope check
+
+- None.
+
+## Required tests / validation
+
+- None.
+
+## Open questions
+
+- None.
+
+## Validation and cross-check (verify before reporting the Set complete)
 
 - [ ] V-01 validates E-01
   - Required evidence: check status.
@@ -81,15 +144,21 @@ Fixture.
   - Required evidence: check status.
   - Observed evidence:
   - Result: pending
+
+## Approval and execution gate
+
+- None.
 """
 
-NON_CONFORMING_ORCH_1_TEXT = """# IPD: Non-conforming orchestrator 1 (untyped prose row)
+NON_CONFORMING_ORCH_1_TEXT = f"""# IPD: Non-conforming orchestrator 1 (untyped prose row)
 
 - Date: 2026-09-24
 - Kind: orchestrator
 - Concern: fixture.
 - Scope: fixture.
 - Scope-Paths: none
+- Priority: medium
+- Work-Kind: chore
 - Status: approved
 - Set: fixbad
 - Order: 0
@@ -106,12 +175,6 @@ NON_CONFORMING_ORCH_1_TEXT = """# IPD: Non-conforming orchestrator 1 (untyped pr
 
 Fixture.
 
-## Child IPDs, sequence, and dependencies
-
-| Order | Id | Status | Plan | Depends on |
-| --- | --- | --- | --- | --- |
-| 01 | chd001 | pending | .aw/records/plans/pending/20260924-fixbad-01-chd001.ipd.md | none |
-
 ## Detailed Implementation Checklist (TODO)
 
 - [ ] E-01 Establish the characterization baseline before any child runs
@@ -119,21 +182,23 @@ Fixture.
   - Expected outcome: baseline established.
   - Execution state: pending
 
-## Validation and cross-check (verify before reporting done)
+## Child IPDs, sequence, and dependencies
 
-- [ ] V-01 validates E-01
-  - Required evidence: check baseline.
-  - Observed evidence:
-  - Result: pending
-"""
+| Order | Id | Status | Plan | Depends on |
+| --- | --- | --- | --- | --- |
+| 01 | chd001 | pending | .aw/records/plans/pending/20260924-fixbad-01-chd001.ipd.md | none |
 
-NON_CONFORMING_ORCH_2_TEXT = """# IPD: Non-conforming orchestrator 2 (unknown child id6)
+{_ORCH_TAIL_ONE_ITEM}"""
+
+NON_CONFORMING_ORCH_2_TEXT = f"""# IPD: Non-conforming orchestrator 2 (unknown child id6)
 
 - Date: 2026-09-24
 - Kind: orchestrator
 - Concern: fixture.
 - Scope: fixture.
 - Scope-Paths: none
+- Priority: medium
+- Work-Kind: chore
 - Status: approved
 - Set: fixbad2
 - Order: 0
@@ -150,12 +215,6 @@ NON_CONFORMING_ORCH_2_TEXT = """# IPD: Non-conforming orchestrator 2 (unknown ch
 
 Fixture.
 
-## Child IPDs, sequence, and dependencies
-
-| Order | Id | Status | Plan | Depends on |
-| --- | --- | --- | --- | --- |
-| 01 | chd001 | pending | .aw/records/plans/pending/20260924-fixbad2-01-chd001.ipd.md | none |
-
 ## Detailed Implementation Checklist (TODO)
 
 - [ ] E-01 CONFIRM unk999 REACHED executed
@@ -163,21 +222,23 @@ Fixture.
   - Expected outcome: unk999 reads `- Status: executed` on disk.
   - Execution state: pending
 
-## Validation and cross-check (verify before reporting done)
+## Child IPDs, sequence, and dependencies
 
-- [ ] V-01 validates E-01
-  - Required evidence: check status.
-  - Observed evidence:
-  - Result: pending
-"""
+| Order | Id | Status | Plan | Depends on |
+| --- | --- | --- | --- | --- |
+| 01 | chd001 | pending | .aw/records/plans/pending/20260924-fixbad2-01-chd001.ipd.md | none |
 
-NON_CONFORMING_ORCH_3_TEXT = """# IPD: Non-conforming orchestrator 3 (missing depends on)
+{_ORCH_TAIL_ONE_ITEM}"""
+
+NON_CONFORMING_ORCH_3_TEXT = f"""# IPD: Non-conforming orchestrator 3 (missing depends on)
 
 - Date: 2026-09-24
 - Kind: orchestrator
 - Concern: fixture.
 - Scope: fixture.
 - Scope-Paths: none
+- Priority: medium
+- Work-Kind: chore
 - Status: approved
 - Set: fixbad3
 - Order: 0
@@ -194,33 +255,29 @@ NON_CONFORMING_ORCH_3_TEXT = """# IPD: Non-conforming orchestrator 3 (missing de
 
 Fixture.
 
-## Child IPDs, sequence, and dependencies
-
-| Order | Id | Status | Plan | Depends on |
-| --- | --- | --- | --- | --- |
-| 01 | chd001 | pending | .aw/records/plans/pending/20260924-fixbad3-01-chd001.ipd.md | none |
-
 ## Detailed Implementation Checklist (TODO)
 
 - [ ] E-01 CONFIRM chd001 REACHED executed
   - Expected outcome: chd001 reads `- Status: executed` on disk.
   - Execution state: pending
 
-## Validation and cross-check (verify before reporting done)
+## Child IPDs, sequence, and dependencies
 
-- [ ] V-01 validates E-01
-  - Required evidence: check status.
-  - Observed evidence:
-  - Result: pending
-"""
+| Order | Id | Status | Plan | Depends on |
+| --- | --- | --- | --- | --- |
+| 01 | chd001 | pending | .aw/records/plans/pending/20260924-fixbad3-01-chd001.ipd.md | none |
 
-CONFORMING_WITH_BARE_INDENTED_PROSE_TEXT = """# IPD: Conforming rows with bare indented prose obligation
+{_ORCH_TAIL_ONE_ITEM}"""
+
+CONFORMING_WITH_BARE_INDENTED_PROSE_TEXT = f"""# IPD: Conforming rows with bare indented prose obligation
 
 - Date: 2026-09-24
 - Kind: orchestrator
 - Concern: fixture.
 - Scope: fixture.
 - Scope-Paths: none
+- Priority: medium
+- Work-Kind: chore
 - Status: approved
 - Set: fixprose
 - Order: 0
@@ -237,12 +294,6 @@ CONFORMING_WITH_BARE_INDENTED_PROSE_TEXT = """# IPD: Conforming rows with bare i
 
 Fixture.
 
-## Child IPDs, sequence, and dependencies
-
-| Order | Id | Status | Plan | Depends on |
-| --- | --- | --- | --- | --- |
-| 01 | chd001 | pending | .aw/records/plans/pending/20260924-fixprose-01-chd001.ipd.md | none |
-
 ## Detailed Implementation Checklist (TODO)
 
 - [ ] E-01 CONFIRM chd001 REACHED executed
@@ -251,13 +302,13 @@ Fixture.
   - Expected outcome: chd001 reads `- Status: executed` on disk.
   - Execution state: pending
 
-## Validation and cross-check (verify before reporting done)
+## Child IPDs, sequence, and dependencies
 
-- [ ] V-01 validates E-01
-  - Required evidence: check status.
-  - Observed evidence:
-  - Result: pending
-"""
+| Order | Id | Status | Plan | Depends on |
+| --- | --- | --- | --- | --- |
+| 01 | chd001 | pending | .aw/records/plans/pending/20260924-fixprose-01-chd001.ipd.md | none |
+
+{_ORCH_TAIL_ONE_ITEM}"""
 
 
 class BothHostsShareOneDefinition(unittest.TestCase):

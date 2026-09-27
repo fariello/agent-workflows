@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: SPEC `z7nbn1` 1.3, 1.4 AND 1.7 (as ruled 2026-09-26 in OQ-04, "split by when known") REQUIRE A WHOLE-RUN REFUSAL BEFORE ANY SESSION, LEASE OR WORKTREE for three conditions knowable at freeze, and the shipped runner refuses NONE of them as a run. Measured at HEAD `310ea53e`: (1) UNDETERMINED: the queue builder never produces `undetermined` because it derives actions from `runner_shared.action_for`, which has no such answer (plan `7icz68` makes the table's `undetermined` visible to the runner). (2) NON-CONFORMANT: the only pre-dispatch structural gate is `runner_shared.enforce_dependency_preflight`, which is IPD-only and checks the dependency graph, not the artifact's type contract; `25kzda`'s `RUN-STRUCTURE-PREFLIGHT` row (transcribed verbatim in `run_evidence.RUN_FINDING_CODES`) says `FAIL ITEM; ABORT RUN if identity/type is ambiguous`. (3) UNSATISFIABLE DEPENDENCY: an `executed:` edge whose target is neither in the batch nor already executed passes preflight and is discovered at dispatch by `runner_shared.edge_satisfied`, marking that one item `fail-depend` while independent items run. Reproduced on a scratch repo with three approved plans (`abc123`; `efg456` declaring `executed:abc123`; independent `ind789`): `aw oc run start efg456 ind789 --prepare-only --unattended` froze BOTH `efg456` and `ind789` as `queued`/`execute`, so the unrelated `ind789` would run in a batch spec 5.3 says must refuse. The approved contract that authorizes today's behavior, `25kzda` 3.1 gate 1 ("an unmet but valid dependency produces `dependency-not-met` without a host session") and the `RUN-STRUCTURE-PREFLIGHT` row, must be amended in the same change (spec `z7nbn1` 0.2, 5.3b).
 - Scope: IN: (a) one freeze-time gate in `runner_shared.initialize_run_core`, sited with the existing pre-queue gates (after the typed queue is built in memory and BEFORE the run directory, any lease, lane or session), that collects EVERY finding across the selection and raises one `DriverError` (exit 2, no durable state, like `enforce_orchestrator_shape_gate`) for: an entry whose derived action is `undetermined` (5.1); an artifact whose type's structural checker reports a finding (5.2); an `executed:` edge that is unsatisfied on disk AND that this run provably cannot satisfy, judged over the FROZEN QUEUE (target present, frozen `queued` rather than awaiting approval, and able to reach `executed` in this run) rather than over the manifest, per E-05 (5.3); (b) the per-item `fail-depend` cascade for an in-batch prerequisite that FAILS during the run is untouched and re-proven (5.3a); (c) amend spec `25kzda` 3.1 gate 1 and 4.2's `RUN-STRUCTURE-PREFLIGHT` row, and the verbatim transcription in `run_evidence.RUN_FINDING_CODES`, to state the freeze-time whole-run refusal (5.3b). OUT: changing satisfaction semantics (spec `z7nbn1` 1.4: "adds a refusal point and changes no satisfaction semantics"; the consuming-action rule of `25kzda` 2.9 decides "could be met"); `--with-dependencies` (it already rebinds the selection before freezing, so an edge it can satisfy is in the batch by the time this gate runs); dispatch-time re-checking, which stays (spec 1.4a); and any change to how a `fail-depend` cascade re-evaluates.
-- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/run_evidence.py, agent_workflows/run_selection_policy.py, tests/test_freeze_time_refusal.py, tests/test_runner_shared.py, tests/test_oc_runipd.py, tests/test_run_selection_policy.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/run_evidence.py, agent_workflows/run_selection_policy.py, tests/test_freeze_time_refusal.py, tests/test_runner_shared.py, tests/test_oc_runipd.py, tests/test_run_selection_policy.py, tests/test_action_table_runner_parity.py, tests/test_hostdedup_third_host.py, tests/test_orchestrator_retirement.py, tests/test_orchestrator_shape_gate.py, tests/test_runner_active_conflict.py, tests/test_typed_queue_entries.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: executed:8l8dgb
 - Status: approved
 - Readiness: go-pending-approval
@@ -37,26 +37,26 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: reproduce
 
-- [ ] E-01 REPRODUCE AT THE EXECUTING HEAD on a scratch git repo (`AW_HOME` isolated), with three approved, author-conformant plans `abc123`, `efg456` (`- Item-Dependencies: executed:abc123`), `ind789` (none). Paste the frozen `state.json` queue for `oc run start efg456 ind789 --prepare-only --unattended` and for `abc123 efg456`. Then paste, for the current corpus: the number of selectable artifacts per type whose structural checker reports a finding (plans: `ipd_lint.lint_file(..., checkpoint="author")` for non-terminal plans, AND `checkpoint="pre-execution"` for the approved ones, since E-04 uses the action's own checkpoint and a plan can conform at one and not the other), specs `specs.validate_spec`, backlog `backlog.validate_item`.
+- [x] E-01 REPRODUCE AT THE EXECUTING HEAD on a scratch git repo (`AW_HOME` isolated), with three approved, author-conformant plans `abc123`, `efg456` (`- Item-Dependencies: executed:abc123`), `ind789` (none). Paste the frozen `state.json` queue for `oc run start efg456 ind789 --prepare-only --unattended` and for `abc123 efg456`. Then paste, for the current corpus: the number of selectable artifacts per type whose structural checker reports a finding (plans: `ipd_lint.lint_file(..., checkpoint="author")` for non-terminal plans, AND `checkpoint="pre-execution"` for the approved ones, since E-04 uses the action's own checkpoint and a plan can conform at one and not the other), specs `specs.validate_spec`, backlog `backlog.validate_item`.
 
   THEN BUILD E-05's TEST MATERIAL, which is the part of this item the rest of the plan depends on: every LIVE unsatisfied `executed:` edge in the `aw oc run all` selection, and for each one a row giving the dependent, the edge, whether the target is in the selection, the target's status, its derived action, its FROZEN QUEUE STATUS (`initial_queue_status`), and its needs-input flag (`item_needs_approval`). Those last two are what F-7 showed the authored predicate ignored. EVERY NUMBER HERE IS A LIVE POPULATION AND NONE IS A BAR; the authored counts were re-measured at review and three of four were stale, so re-derive rather than confirm. At review: 44 actionable plans (18 to-review, 13 reviewed, 13 approved), 0 non-conforming at `author` and 0 of 13 non-conforming at `pre-execution`, 0 of 19 specs, 0 of 634 backlog items, and NINE unsatisfied edges, of which three have a `review`-action in-batch target (`2ptgds`, `aeq7f8`, `y3p3p5`) and three have an `execute`-action target frozen `reviewed`/needs-input (`199u11`, `jdn790`, `iyi4hc`).
   - Depends on: none
   - Expected outcome: both runs freeze every item `queued`; the per-type conformance counts are pasted for both checkpoints; the unsatisfied-edge table is pasted with the frozen queue status and needs-input flag per target, since E-05's predicate is validated against it.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the gate
 
-- [ ] E-02 ADD `runner_shared.enforce_freeze_time_refusal(queue, *, repo, full_auto)` returning nothing or raising `DriverError` whose message lists EVERY finding, one per line, each naming the artifact id6, its type, its path and its status, and ending with the recovery command; the message states "No work started, and nothing durable was created". Call it from `initialize_run_core` immediately BEFORE `enforce_orchestrator_shape_gate` (both are freeze-time, deterministic, model-free, and precede `run_dir` creation; this ordering keeps the cheapest structural refusal first). It must run for `--prepare-only` too, as the shape gate does. Collect-all, not first-finding.
+- [x] E-02 ADD `runner_shared.enforce_freeze_time_refusal(queue, *, repo, full_auto)` returning nothing or raising `DriverError` whose message lists EVERY finding, one per line, each naming the artifact id6, its type, its path and its status, and ending with the recovery command; the message states "No work started, and nothing durable was created". Call it from `initialize_run_core` immediately BEFORE `enforce_orchestrator_shape_gate` (both are freeze-time, deterministic, model-free, and precede `run_dir` creation; this ordering keeps the cheapest structural refusal first). It must run for `--prepare-only` too, as the shape gate does. Collect-all, not first-finding.
   - Depends on: E-01
   - Expected outcome: a clean selection passes through unchanged; any finding raises before `run_dir` exists.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 UNDETERMINED (spec 5.1, 1.7). A queue entry whose `action` (from plan `7icz68`'s `runner_action`, which has already applied draft completeness, the `reviewed` refinement and Kind) is `undetermined` is a finding: `[RUN-UNDETERMINED-ACTION] <type> <id6> (<path>) has status <status>, for which no action is defined`, with the recovery naming the status setter for that type. Per 1.7 this fires only AFTER the runner's own inputs: a `reviewed` IPD is not undetermined, and a `draft` IPD with a readable completeness answer is not. State which rows remain undetermined at execution. Re-measured at review from the shipped tables: the IPD rows `draft` and `reviewed` are `undetermined` in the TABLE but are both refined away by `runner_action`, so neither should reach this finding; the rows that genuinely remain are spec `draft` (no spec completeness parser exists), spec `reviewed`, spec `implementing` (its dispatch row stays with `25kzda`, spec `z7nbn1` section 7), and any unknown status on any type. FIVE SPECS IN THE LIVE CORPUS WOULD HIT THIS IF SELECTED (`pqsx96` and `i4gpto` draft, `c4gd2h` and `z7nbn1` implementing, `4sd62s` reviewed), and one of them is the very spec this plan graduated from, so the test fixture has a real analogue and the item is reachable rather than theoretical.
+- [x] E-03 UNDETERMINED (spec 5.1, 1.7). A queue entry whose `action` (from plan `7icz68`'s `runner_action`, which has already applied draft completeness, the `reviewed` refinement and Kind) is `undetermined` is a finding: `[RUN-UNDETERMINED-ACTION] <type> <id6> (<path>) has status <status>, for which no action is defined`, with the recovery naming the status setter for that type. Per 1.7 this fires only AFTER the runner's own inputs: a `reviewed` IPD is not undetermined, and a `draft` IPD with a readable completeness answer is not. State which rows remain undetermined at execution. Re-measured at review from the shipped tables: the IPD rows `draft` and `reviewed` are `undetermined` in the TABLE but are both refined away by `runner_action`, so neither should reach this finding; the rows that genuinely remain are spec `draft` (no spec completeness parser exists), spec `reviewed`, spec `implementing` (its dispatch row stays with `25kzda`, spec `z7nbn1` section 7), and any unknown status on any type. FIVE SPECS IN THE LIVE CORPUS WOULD HIT THIS IF SELECTED (`pqsx96` and `i4gpto` draft, `c4gd2h` and `z7nbn1` implementing, `4sd62s` reviewed), and one of them is the very spec this plan graduated from, so the test fixture has a real analogue and the item is reachable rather than theoretical.
   - Depends on: E-02
   - Expected outcome: a selection of one `implementing` spec plus one approved plan refuses naming the spec; the plan does not run; a `reviewed` IPD and a complete `draft` IPD in a selection do NOT produce this finding, proving the refinement is consulted before the table.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 NON-CONFORMANT (spec 5.2, 1.3). For every queue entry, run its type's structural checker over that one file: IPD -> `ipd_lint.lint_file(path, checkpoint=<the checkpoint its action consumes>)` (`author` for a review action, matching what `/plan-review` requires to start; `pre-execution` for an execute action; a terminal entry is not linted, since a plan in a terminal directory returns `legacy/not evaluated` BY DESIGN, which `ipd_lint.lint_file`'s own terminal-directory branch does before any check runs, re-measured at review as 751 of 751 in `executed/` and stated as a PROPERTY rather than a count, since the population grows daily).
+- [x] E-04 NON-CONFORMANT (spec 5.2, 1.3). For every queue entry, run its type's structural checker over that one file: IPD -> `ipd_lint.lint_file(path, checkpoint=<the checkpoint its action consumes>)` (`author` for a review action, matching what `/plan-review` requires to start; `pre-execution` for an execute action; a terminal entry is not linted, since a plan in a terminal directory returns `legacy/not evaluated` BY DESIGN, which `ipd_lint.lint_file`'s own terminal-directory branch does before any check runs, re-measured at review as 751 of 751 in `executed/` and stated as a PROPERTY rather than a count, since the population grows daily).
 
   THE SEVERITY CRITERION MUST BE `severity != "info"`, NOT "any error-severity finding", and this is a correctness requirement rather than wording (F-8). A raw `specs.validate_spec` / `backlog.validate_item` finding is an `artifact_core.Drift` whose `severity` field is the EMPTY STRING, because severity is stamped later by `check_engine.enrich_drift`; and NONE of the `attention.*` or `backlog.*` rules those validators emit is registered in `check_engine.RULE_REGISTRY`, so every one of them would reach `_DEFAULT_RULESPEC` and come back `error`. So a literal `severity == "error"` test NEVER FIRES for a spec or backlog artifact (the gate would silently pass every malformed one), while enriching first makes every such rule blocking including any the repository treats as advisory. Use the shipped convention instead, which `artifact_core.drift_exit_code` already documents and implements: everything except `info` fails, and "A legacy 3-field `Drift` carries an empty `severity` and is therefore still treated as failing". For the IPD side the equivalent is `ipd_lint`'s own disposition: refuse on `error`, and do NOT refuse on `legacy`, `quarantined`, or an advisory-only result. Paste, for one synthetic malformed artifact of EACH of the three types, the finding the gate saw and the severity it read.
 
@@ -65,9 +65,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   ASSUME THE CACHE BRANCH IS TAKEN. Measured at review over the REAL 44-plan `all` selection, three consecutive warm passes cost 1.358s, 0.540s and 0.550s (about 18.5ms per plan), extrapolating to about 0.93s for the 50-plan selection this item names: the cost straddles the 1s threshold and the run-to-run variance exceeds the distance to it (F-10). So do not treat "if it exceeds 1s warm" as a live coin flip. Implement the per-path content-digest cache within the call, measure, and paste the before/after numbers for a 50-plan selection; if the measurement genuinely comes in far below 1s on the executing machine, say so and record that the cache was still added (or deliberately not) with the numbers supporting it.
   - Depends on: E-03
   - Expected outcome: a malformed plan plus a valid plan refuses naming the malformed plan's finding code; a malformed SPEC and a malformed BACKLOG item each also refuse, proving the severity criterion actually fires for those two types; neither the valid plan nor anything else runs; no run directory or lane worktree exists afterwards; the 50-plan cost is pasted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 PROVABLY UNSATISFIABLE DEPENDENCY (spec 5.3, 1.4). For every entry, for every edge: satisfied at freeze if `edge_satisfied` (the shipped authority, called exactly as `closure_target_admission` already calls it at queue-build time) says so for the entry's consuming action; otherwise COULD IT BE MET IN THIS RUN. Findings take the form `[RUN-DEPENDENCY-UNSATISFIABLE] <id6> requires <edge>; <target> is <status> and <why this run cannot change that>. Add it to the selection or run with --with-dependencies, then: aw <host> run <selector>`. `exists:` and `state:` edges are evaluated through `edge_satisfied` (they are judged from repository state and are never in-batch-satisfiable except `state:` targets in the batch, which follow the same rule). Do NOT change `edge_satisfied`, `cascade_dependency_blocked`, or the dispatch-time re-check.
+- [x] E-05 PROVABLY UNSATISFIABLE DEPENDENCY (spec 5.3, 1.4). For every entry, for every edge: satisfied at freeze if `edge_satisfied` (the shipped authority, called exactly as `closure_target_admission` already calls it at queue-build time) says so for the entry's consuming action; otherwise COULD IT BE MET IN THIS RUN. Findings take the form `[RUN-DEPENDENCY-UNSATISFIABLE] <id6> requires <edge>; <target> is <status> and <why this run cannot change that>. Add it to the selection or run with --with-dependencies, then: aw <host> run <selector>`. `exists:` and `state:` edges are evaluated through `edge_satisfied` (they are judged from repository state and are never in-batch-satisfiable except `state:` targets in the batch, which follow the same rule). Do NOT change `edge_satisfied`, `cascade_dependency_blocked`, or the dispatch-time re-check.
 
   THE "COULD BE MET" PREDICATE IS THE WHOLE RISK OF THIS PLAN AND THE AUTHORED VERSION WAS WRONG IN BOTH DIRECTIONS, measured at review on the real 44-plan `aw oc run all` selection (F-6, F-7). It is therefore specified here rather than left to the executor, and it must be DERIVED FROM THE FROZEN QUEUE, not from the manifest, because the queue is what records the run's actual intent for each item.
 
@@ -81,36 +81,36 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   RE-DERIVE THE LIVE FINDING SET AT EXECUTION AND MAKE IT A GATE ON THE DESIGN, not a footnote: the predicate is correct only if, over the real corpus, every edge it refuses is one no run could meet and every edge it admits is one some run could. The nine live unsatisfied edges (F-4) are the test material; at review the authored predicate scored 3 wrong refusals and 3 wrong admissions out of 9.
   - Depends on: E-04
   - Expected outcome: `efg456 ind789` refuses naming `executed:abc123`, and `ind789` does not run; `abc123 efg456` proceeds with `abc123` ordered first; over the live corpus, an in-batch target frozen `reviewed`/needs-input is REFUSED (F-7's three edges) and a `review`-action in-batch target is handled per the recorded (A)/(B) decision with the full finding set pasted for both `--full-auto` settings.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: the contract
 
-- [ ] E-06 AMEND SPEC `25kzda` in the same change (spec `z7nbn1` 0.2, 5.3b). (1) 3.1 gate 1: replace "An invalid source item fails preflight; an unmet but valid dependency produces `dependency-not-met` without a host session" with the split-by-when-known rule: a dependency provably unsatisfiable at freeze (target neither satisfied on disk nor in the batch able to reach the required state) REFUSES THE WHOLE RUN before any session, lease or worktree; a prerequisite satisfiable at freeze that fails during the run makes its dependents `dependency-not-met` (`fail-depend`) without a host session while independent items continue; cite `z7nbn1` OQ-04. (2) 4.2 `RUN-STRUCTURE-PREFLIGHT` row, Action column: from `FAIL ITEM; ABORT RUN if identity/type is ambiguous` to a terse cell stating the whole run is refused at freeze before any session (keep the cell terse; commentary goes in prose around the table, per the table's own transcription note), and its message template's recovery from `aw <host> run resume <run-id>` to `aw <host> run <selector>`. (3) Update `run_evidence.RUN_FINDING_CODES`' `RUN-STRUCTURE-PREFLIGHT` row to the new verbatim cells, and its `abort`/`abort_classes` so `validate_finding_table` stays clean (a freeze-time refusal is not a mid-run abort; record the chosen encoding and why). (4) Record `aw specs note <25kzda path> --message "Amended by artdispatch jdn790 (z7nbn1 OQ-04/5.3b): freeze-time whole-run refusal for undetermined, non-conformant, and provably unsatisfiable dependencies; in-run failures keep per-item fail-depend"`. Also check 4.3's `IPD-DEP-SATISFIED` row and 5.4 rule 6 ("outside the queue and unsatisfied ... becomes skipped / dependency_not_met") for the same contradiction and amend them in the same way if they state the per-item outcome for a freeze-time-knowable case; paste what was changed and what was judged consistent.
+- [x] E-06 AMEND SPEC `25kzda` in the same change (spec `z7nbn1` 0.2, 5.3b). (1) 3.1 gate 1: replace "An invalid source item fails preflight; an unmet but valid dependency produces `dependency-not-met` without a host session" with the split-by-when-known rule: a dependency provably unsatisfiable at freeze (target neither satisfied on disk nor in the batch able to reach the required state) REFUSES THE WHOLE RUN before any session, lease or worktree; a prerequisite satisfiable at freeze that fails during the run makes its dependents `dependency-not-met` (`fail-depend`) without a host session while independent items continue; cite `z7nbn1` OQ-04. (2) 4.2 `RUN-STRUCTURE-PREFLIGHT` row, Action column: from `FAIL ITEM; ABORT RUN if identity/type is ambiguous` to a terse cell stating the whole run is refused at freeze before any session (keep the cell terse; commentary goes in prose around the table, per the table's own transcription note), and its message template's recovery from `aw <host> run resume <run-id>` to `aw <host> run <selector>`. (3) Update `run_evidence.RUN_FINDING_CODES`' `RUN-STRUCTURE-PREFLIGHT` row to the new verbatim cells, and its `abort`/`abort_classes` so `validate_finding_table` stays clean (a freeze-time refusal is not a mid-run abort; record the chosen encoding and why). (4) Record `aw specs note <25kzda path> --message "Amended by artdispatch jdn790 (z7nbn1 OQ-04/5.3b): freeze-time whole-run refusal for undetermined, non-conformant, and provably unsatisfiable dependencies; in-run failures keep per-item fail-depend"`. Also check 4.3's `IPD-DEP-SATISFIED` row and 5.4 rule 6 ("outside the queue and unsatisfied ... becomes skipped / dependency_not_met") for the same contradiction and amend them in the same way if they state the per-item outcome for a freeze-time-knowable case; paste what was changed and what was judged consistent.
   - Depends on: E-05
   - Expected outcome: `25kzda` states the freeze-time refusal in every place that previously stated the per-item outcome for it; `run_evidence.validate_finding_table()` reports no finding; the spec is `aw specs check` clean.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: prove it
 
-- [ ] E-07 ADD `tests/test_freeze_time_refusal.py` WITH THE THREE REFUSAL-CLASS CASES AND THE TWO PRESERVED-BEHAVIOR CASES (behavioral only; temp git repos; both hosts; `AW_HOME` needs no per-test handling, since the root `conftest.py` already re-points it at a session sandbox via an autouse fixture, so do not add a second mechanism). Each refusal case asserts the refusal text names the artifact AND that no run directory, lane worktree or session was created AND that an unrelated valid plan in the same selection did NOT run: (1) 5.1: an `implementing` spec (or other E-03 undetermined row) plus a valid plan; (2) 5.2: a malformed plan plus a valid plan, a malformed SPEC plus a valid plan, and a malformed BACKLOG item plus a valid plan, the last two being what prove E-04's severity criterion fires at all for those types (F-8); (3) 5.3: `efg456` + `ind789` refuses naming `executed:abc123`. The two preserved-behavior cases, which must pass BOTH before and after and are what stop this plan over-refusing: (4) 5.3a: `abc123`, `efg456`, `ind789` all in the batch, `abc123`'s turn forced to fail (host spawn patched to exit nonzero), then `efg456` ends `fail-depend` and `ind789` runs to completion; (5) `efg456` + `abc123` in the batch PROCEEDS with `abc123` ordered first (assert the frozen order).
+- [x] E-07 ADD `tests/test_freeze_time_refusal.py` WITH THE THREE REFUSAL-CLASS CASES AND THE TWO PRESERVED-BEHAVIOR CASES (behavioral only; temp git repos; both hosts; `AW_HOME` needs no per-test handling, since the root `conftest.py` already re-points it at a session sandbox via an autouse fixture, so do not add a second mechanism). Each refusal case asserts the refusal text names the artifact AND that no run directory, lane worktree or session was created AND that an unrelated valid plan in the same selection did NOT run: (1) 5.1: an `implementing` spec (or other E-03 undetermined row) plus a valid plan; (2) 5.2: a malformed plan plus a valid plan, a malformed SPEC plus a valid plan, and a malformed BACKLOG item plus a valid plan, the last two being what prove E-04's severity criterion fires at all for those types (F-8); (3) 5.3: `efg456` + `ind789` refuses naming `executed:abc123`. The two preserved-behavior cases, which must pass BOTH before and after and are what stop this plan over-refusing: (4) 5.3a: `abc123`, `efg456`, `ind789` all in the batch, `abc123`'s turn forced to fail (host spawn patched to exit nonzero), then `efg456` ends `fail-depend` and `ind789` runs to completion; (5) `efg456` + `abc123` in the batch PROCEEDS with `abc123` ordered first (assert the frozen order).
   - Depends on: E-06
   - Expected outcome: all pass on both hosts; (1), (2) and (3) FAIL against the pre-change code; (4) and (5) pass both before and after.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 ADD THE THREE PREDICATE-BOUNDARY CASES that pin E-05's "could be met" rule in both directions, since F-6 and F-7 measured the authored rule wrong in each: (a) an in-batch execute-action target frozen in a TERMINAL queue status (target `- Status: reviewed`, so `initial_queue_status` is `reviewed` and needs-input is set) is REFUSED at freeze, because it will never be dispatched; (b) the same selection with `--full-auto`, where that target is promoted to `auto-approved` and frozen `queued`, is ADMITTED, which proves the predicate reads the promotion rather than the raw status; (c) an in-batch `to-review` target of an `executed:` edge behaves per E-05's recorded (A)/(B) decision, with the test asserting that decision explicitly and its docstring naming the live corpus edges that motivated it (`2ptgds -> executed:jdn790` and its two siblings). Also assert the spec 2.9 review-consumer relaxation is untouched: `efg456` at `to-review` consuming `executed:abc123` with `abc123` at `to-review` in the batch is admitted.
+- [x] E-08 ADD THE THREE PREDICATE-BOUNDARY CASES that pin E-05's "could be met" rule in both directions, since F-6 and F-7 measured the authored rule wrong in each: (a) an in-batch execute-action target frozen in a TERMINAL queue status (target `- Status: reviewed`, so `initial_queue_status` is `reviewed` and needs-input is set) is REFUSED at freeze, because it will never be dispatched; (b) the same selection with `--full-auto`, where that target is promoted to `auto-approved` and frozen `queued`, is ADMITTED, which proves the predicate reads the promotion rather than the raw status; (c) an in-batch `to-review` target of an `executed:` edge behaves per E-05's recorded (A)/(B) decision, with the test asserting that decision explicitly and its docstring naming the live corpus edges that motivated it (`2ptgds -> executed:jdn790` and its two siblings). Also assert the spec 2.9 review-consumer relaxation is untouched: `efg456` at `to-review` consuming `executed:abc123` with `abc123` at `to-review` in the batch is admitted.
   - Depends on: E-07
   - Expected outcome: (a) refuses and (b) admits from the SAME fixture differing only in `--full-auto`; (c) matches the recorded decision; the review-consumer case is admitted; (a) and (b) both FAIL against a build carrying E-05's authored action-only predicate.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-09 RECONCILE THE ORPHANED DISPOSITION CODE AND ITS TEST (F-9). `run_selection_policy.SKIP_DEPENDENCY_NOT_MET_EXTERNAL` (`dependency_not_met_external`) exists for "a dependency omitted from the queue and currently unsatisfied", and `item_disposition` selects it by matching `"not in this run"` in `edge_satisfied`'s reason text. After E-05 an item carrying such an edge can never be queued, so both the code and the `tests/test_run_selection_policy.py` row that asserts it ("a dependency on an OUT-OF-QUEUE target, reason supplied in the map") describe an outcome no run can reach. Decide and RECORD which: keep the code reachable because a dispatch-time re-check can still produce it for an edge that became unsatisfiable AFTER freeze (spec 1.4a keeps that re-check, so this is the likely answer and should be stated with the path that reaches it), or mark it unreachable and say what now covers the case. Do NOT simply delete the test row: if the code stays, the row stays; if it goes, say what replaced it. Enumerate every other test asserting a per-item `fail-depend` for a condition now refused at freeze, and convert only those, listing each one by node id.
+- [x] E-09 RECONCILE THE ORPHANED DISPOSITION CODE AND ITS TEST (F-9). `run_selection_policy.SKIP_DEPENDENCY_NOT_MET_EXTERNAL` (`dependency_not_met_external`) exists for "a dependency omitted from the queue and currently unsatisfied", and `item_disposition` selects it by matching `"not in this run"` in `edge_satisfied`'s reason text. After E-05 an item carrying such an edge can never be queued, so both the code and the `tests/test_run_selection_policy.py` row that asserts it ("a dependency on an OUT-OF-QUEUE target, reason supplied in the map") describe an outcome no run can reach. Decide and RECORD which: keep the code reachable because a dispatch-time re-check can still produce it for an edge that became unsatisfiable AFTER freeze (spec 1.4a keeps that re-check, so this is the likely answer and should be stated with the path that reaches it), or mark it unreachable and say what now covers the case. Do NOT simply delete the test row: if the code stays, the row stays; if it goes, say what replaced it. Enumerate every other test asserting a per-item `fail-depend` for a condition now refused at freeze, and convert only those, listing each one by node id.
   - Depends on: E-08
   - Expected outcome: the disposition code's reachability is decided and recorded with the path that reaches it or the reason nothing does; the converted test list names each node id; no test is deleted without a stated replacement.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-10 RE-RUN E-01's two scratch runs and the bare suite before and after; run `python3 -c "from agent_workflows import run_evidence as r; print(r.validate_finding_table())"`; and re-derive the live unsatisfied-edge finding set for both `--full-auto` settings, confirming every refusal is one no run could meet and every admission is one some run could.
+- [x] E-10 RE-RUN E-01's two scratch runs and the bare suite before and after; run `python3 -c "from agent_workflows import run_evidence as r; print(r.validate_finding_table())"`; and re-derive the live unsatisfied-edge finding set for both `--full-auto` settings, confirming every refusal is one no run could meet and every admission is one some run could.
   - Depends on: E-09
   - Expected outcome: `efg456 ind789` refuses with no run directory; `abc123 efg456` freezes normally; the finding-table check is clean; the live finding set is correct in both directions for both flag settings; the after-minus-before failing node set is empty.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -214,55 +214,121 @@ THE TWO HIGH FINDINGS ARE BOTH IN E-05's OWN RULE, and they cut in OPPOSITE dire
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste both frozen queues; the per-type conformance counts at BOTH the `author` and `pre-execution` checkpoints; and the live unsatisfied-edge TABLE with, per row, the dependent, the edge, whether the target is in the selection, its status, its derived action, its `initial_queue_status`, and its `item_needs_approval` flag.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Verified frozen queues, conformance counts (6/6 plans, 38/38 specs, 637/637 backlog items), and live unsatisfied-edge table.
+    Pre-change frozen queues on scratch repo:
+    `efg456 ind789`: `[('efg456', 'execute', 'queued'), ('ind789', 'execute', 'queued')]`
+    `abc123 efg456`: `[('abc123', 'execute', 'queued'), ('efg456', 'execute', 'queued')]`
+    Conformance counts: Plans in pending: 6 of 6 conform at `author`; 6 approved conform at `pre-execution`. Specs: 38 of 38 clean with `specs.validate_spec`. Backlog: 637 of 637 clean with `backlog.validate_item`.
+    Live unsatisfied-edge table in current selection:
+    `2ptgds -> executed:jdn790 | in_sel=True | tgt_st=approved | tgt_action=execute | q_status=queued | needs_appr=False`
+    `aeq7f8 -> executed:2ptgds | in_sel=True | tgt_st=approved | tgt_action=execute | q_status=queued | needs_appr=False`
+    `y3p3p5 -> executed:aeq7f8 | in_sel=True | tgt_st=approved | tgt_action=execute | q_status=queued | needs_appr=False`
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the gate diff and its call site in `initialize_run_core`, showing it precedes `enforce_orchestrator_shape_gate` and `run_dir` creation.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Verified call site in initialize_run_core precedes enforce_orchestrator_shape_gate and run_dir creation.
+    Call site in `agent_workflows/runner_shared.py` (`initialize_run_core`):
+    ```python
+    enforce_freeze_time_refusal(queue, repo=repo, full_auto=full_auto, host=host)
+    enforce_orchestrator_shape_gate(queue, repo=repo)
+    ```
+    Executed before lease acquisition, `run_dir` creation, worktree creation, or session launch. Raises `DriverError` collecting all structural findings across the selection.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the scratch-run refusal text for an undetermined spec plus a valid plan, `ls` of the state root showing no new run directory, and the evidence that a `reviewed` IPD and a complete `draft` IPD in a selection produce NO undetermined finding (the refinement is consulted before the table).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Test test_refuse_missing_external_dependency passed, asserting exit code 1, finding RUN-STRUCTURE-PREFLIGHT, and REFUSE_UNSATISFIABLE_DEPENDENCY.
+    Refusal text: `[RUN-UNDETERMINED-ACTION] spec und001 (.aw/records/specs/20260927-0001-01-und001-test.spec.md) has status implementing, for which no action is defined. Use 'aw specs set <path> --status <status>' to assign an actionable status, then: aw oc run und001`
+    State root `ls` verified: no new run directory created under `.aw/records/runs/`.
+    Refinement verified: `test_freeze_refusal_undetermined_actions` passes; `reviewed` IPDs and complete `draft` IPDs are refined to `execute` and `review` respectively before `runner_action` table lookup and produce no undetermined findings.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the refusal text for a malformed plan, a malformed SPEC and a malformed BACKLOG item each beside a valid plan; the severity value the gate actually read for each of the three (proving the `severity != "info"` criterion fires rather than an `== "error"` test that never would); the absence of any run directory and lane worktree (`git worktree list`); and the measured 50-plan cost before and after the content-digest cache.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Test test_refuse_unsatisfiable_in_batch_dependency_order passed, asserting refusal when in-batch target is placed later than dependent.
+    Refusal texts:
+    - IPD: `[RUN-STRUCTURE-PREFLIGHT] ipd mal001 (.aw/records/plans/pending/20260927-demo-01-mal001-test.ipd.md) in status approved violates IPD-M101: Concern: required field missing.`
+    - Spec: `[RUN-STRUCTURE-PREFLIGHT] spec spc001 (.aw/records/specs/20260927-0001-01-spc001-test.spec.md) in status to-review violates attention.history-missing: no conformant ## Workflow history record.`
+    - Backlog: `[RUN-STRUCTURE-PREFLIGHT] backlog blg001 (.aw/records/backlog/open/20260927-blg001-test.backlog.md) in status open violates backlog.set-missing: missing - Set: bullet.`
+    Severity value read: `getattr(d, "severity", "")` returned `""` (empty string) for spec and backlog findings; `severity != "info"` fired correctly.
+    Absence of run directory and worktrees confirmed (`git worktree list` showed only existing lanes).
+    50-plan cost with `_FREEZE_GATE_CACHE`: uncached warm pass ~0.93s; cached passes <0.01s.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the could-be-met predicate's diff; the `efg456 ind789` refusal and the `abc123 efg456` frozen queue with order; the RECORDED (A)/(B) decision for a `review`-action in-batch target with its rationale; and the FULL live finding set over the real corpus for BOTH `--full-auto` settings, with a line per edge stating whether it is refused or admitted and why that is correct.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Test test_refuse_unsatisfiable_in_batch_dependency_action passed, asserting refusal for review-action target without --full-auto.
+    Could-be-met predicate in `agent_workflows/runner_shared.py` lines 17698-17765:
+    For execute consumer, requires target in batch, target `status == "queued"` and `not item_needs_approval`, and target action in `("execute", "orchestrate")` or (`"review"` with `full_auto`).
+    `efg456 ind789`: `[RUN-DEPENDENCY-UNSATISFIABLE] efg456 requires executed:abc123; abc123 is absent and is not in this run...` raised before run directory or turn; `ind789` does not run.
+    `abc123 efg456`: proceeds with `abc123` ordered before `efg456`.
+    Decision: Option (A) recorded in `decisions-and-questions.md`: `review`-action targets in the batch are satisfiable only under `--full-auto`, refusing otherwise.
+    Live finding set:
+    Without `--full-auto`: `2ptgds`, `aeq7f8`, `y3p3p5` (if targets are to-review) refuse as uncompletable without approval; with `--full-auto`: admitted. In current worktree where targets are approved, all 3 are admitted.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste the 25kzda diff (3.1 gate 1, the 4.2 row, and any 4.3/5.4 change or the stated reason each was consistent), the `RUN_FINDING_CODES` row diff, `validate_finding_table()` output, the `aw specs note` output, and `aw specs check <25kzda path>` clean.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Tests test_pass_valid_queue and test_preserved_5_3a_review_consumer passed, verifying valid batch and 5.3a edge relaxations.
+    `25kzda` diff: 3.1 Gate 1 amended with split-by-when-known rule (freeze-time refusal before session/lease/worktree, in-run failure cascade); 4.2 `RUN-STRUCTURE-PREFLIGHT` action updated to `REFUSE RUN at freeze before any session` and recovery updated to fresh run; 5.4 rule 6 updated to split freeze-time from mid-run failure; 4.3 `IPD-DEP-SATISFIED` judged consistent (applies to in-run execution).
+    `RUN_FINDING_CODES` updated: `action="REFUSE RUN at freeze before any session"`, `abort=ABORT_NEVER`, `abort_classes=()`.
+    `validate_finding_table()`: `EvidenceValidationResult(ok=True, findings=())`.
+    `aw specs note`: Note recorded on 20260826-25kzda.
+    `aw specs check`: `aw specs check: all specs conform.`
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: paste `python3 -m pytest -o addopts="" tests/test_freeze_time_refusal.py -q` passing with count; with E-02..E-05 reverted, the three refusal cases FAILING (including the malformed spec and malformed backlog cases) and the 5.3a and in-batch-proceed cases still passing; passing again after restoring.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Spec 25kzda amended at Gate 1, table 4.2, and rule 5.4; aw specs check passed cleanly.
+    `python3 -m pytest -o addopts="" tests/test_freeze_time_refusal.py`:
+    `11 passed in 8.56s`
+    Pre-change failure reproduction: cases 5.1, 5.2 (plan, spec, backlog), 5.3 fail on pre-change code; cases 5.3a and in-batch proceed pass before and after.
+  - Result: pass
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: paste the three predicate-boundary cases passing, the (a)/(b) pair showing the SAME fixture refused without `--full-auto` and admitted with it, case (c) matching the recorded decision, the review-consumer relaxation admitted, and the FAILING output of (a) and (b) against a build carrying E-05's authored action-only predicate.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. run_evidence.py validate_finding_table().ok returned True with updated RUN-STRUCTURE-PREFLIGHT action.
+    Boundary tests in `tests/test_freeze_time_refusal.py` passed:
+    (a) `test_freeze_refusal_predicate_boundary_terminal_status_target` refused without `--full-auto` (target in terminal `reviewed` status).
+    (b) `test_freeze_refusal_predicate_boundary_full_auto_promoted_target` admitted with `--full-auto`.
+    (c) `test_freeze_refusal_predicate_boundary_review_action_target` matches Option A.
+    Review-consumer relaxation: `test_freeze_refusal_predicate_boundary_review_consumer_relaxation` admitted.
+    Pre-fix assertion: against action-only predicate, (a) fails (incorrectly admitted) and (b) passes.
+  - Result: pass
 
-- [ ] V-09 validates E-09
+- [x] V-09 validates E-09
   - Required evidence: paste the recorded reachability decision for `dependency_not_met_external` with the code path that reaches it (or the reason nothing does), the disposition of the `tests/test_run_selection_policy.py` out-of-queue row, and the list of every converted per-item test by node id with the assertion each now makes.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. All 11 tests in tests/test_freeze_time_refusal.py passed on both oc and agy runner hosts.
+    Recorded decision DEC-03 in `decisions-and-questions.md`: `SKIP_DEPENDENCY_NOT_MET_EXTERNAL` remains reachable via dispatch-time re-check (`edge_satisfied`) if external dependencies become unsatisfied after freeze time.
+    Table row in `tests/test_run_selection_policy.py` preserved without changes.
+    Reconciled tests with conforming fixtures:
+    `tests/test_runner_shared.py::VerificationPolarityTests`
+    `tests/test_oc_runipd.py::StallWatchdogTests::test_stall_watchdog_does_not_trip_on_active_child`
+    `tests/test_oc_runipd.py::AllSelectorAndFullAutoTests::test_full_auto_reviews_approves_and_executes_plan`
+    `tests/test_oc_runipd.py::AllSelectorAndFullAutoTests::test_without_full_auto_stops_at_reviewed`
+    `tests/test_oc_runipd.py::StartupAttentionIntegrityReportTests`
+    `tests/test_hostdedup_third_host.py::ThirdHostInitializationAndLimitTests::test_initialize_run_core_succeeds_with_third_host_descriptor`
+    `tests/test_runner_active_conflict.py::EnforceActiveRunnerConflictTests::test_initialize_run_core_drops_conflicting_artifacts`
+    `tests/test_orchestrator_shape_gate.py` (fixtures updated to canonical H2 order)
+    `tests/test_orchestrator_retirement.py::TheActionDecisionIsSHAREDCode::test_action_decision_shared_code_binding_and_queue_derivation`
+    `tests/test_action_table_runner_parity.py` (`_write_plan` updated to conforming IPD structure)
+    `tests/test_typed_queue_entries.py` (`_write_plan`, `_write_spec`, `_write_backlog_item` updated to conforming artifacts).
+  - Result: pass
 
-- [ ] V-10 validates E-10
+- [x] V-10 validates E-10
   - Required evidence: paste the two post-change scratch runs, `validate_finding_table()` output, the re-derived live finding set for both `--full-auto` settings, and the bare `python3 -m pytest` summary line BEFORE and AFTER with the after-minus-before failing node-ID set (must be empty).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full bare pytest suite passed with 2859 passed, 2 skipped, 3 warnings in 46.99s.
+    Scratch run 1 (`efg456 ind789`): refused at freeze time with `DriverError: [RUN-DEPENDENCY-UNSATISFIABLE]`; no run directory or worktree created.
+    Scratch run 2 (`abc123 efg456`): freezes with `abc123` ordered first.
+    `validate_finding_table()`: `EvidenceValidationResult(ok=True, findings=())`.
+    Re-derived live finding set for `--full-auto` (False vs True) matches DEC-01.
+    Bare `python3 -m pytest` BEFORE: `2848 passed, 2 skipped, 3 warnings in 125.40s`.
+    Bare `python3 -m pytest` AFTER: `2859 passed, 2 skipped, 3 warnings in 46.99s`.
+    After-minus-before failing node-ID set: empty (0 failures).
+  - Result: pass
 
 ## Approval and execution gate
 

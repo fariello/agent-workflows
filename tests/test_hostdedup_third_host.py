@@ -201,8 +201,10 @@ class ThirdHostInitializationAndLimitTests(unittest.TestCase):
             subprocess.run(cmd, cwd=self.root, check=True)
         pending = self.root / ".aw" / "records" / "plans" / "pending"
         pending.mkdir(parents=True, exist_ok=True)
+        from tests.test_oc_runipd import _CONFORMING_PLAN
+
         (pending / "20260924-test-01-tst001-test.ipd.md").write_text(
-            "# IPD: Test\n\n- Date: 2026-09-24\n- Status: approved\n- Set: test\n- Order: 1\n- Id: tst001\n",
+            _CONFORMING_PLAN.format(id6="tst001"),
             encoding="utf-8",
         )
         subprocess.run(["git", "add", "-A"], cwd=self.root, check=True)

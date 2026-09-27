@@ -51,8 +51,11 @@ def _write_plan(
         bucket = status
     dir_path = repo / ".aw" / "records" / "plans" / bucket
     dir_path.mkdir(parents=True, exist_ok=True)
+    if kind == "orchestrator":
+        order = 0
     file_path = dir_path / f"20260927-{setid}-{order:02d}-{id6}-{slug}.ipd.md"
 
+    k = kind or "child"
     lines = [
         f"# IPD: Test {id6}",
         "",
@@ -61,16 +64,120 @@ def _write_plan(
         f"- Set: {setid}",
         f"- Order: {order}",
         f"- Status: {status}",
+        f"- Kind: {k}",
+        "- Concern: Test concern for typed queue entry tests.",
+        "- Scope: Typed queue entry test scope.",
+        "- Scope-Paths: none",
+        "- Priority: medium",
+        "- Work-Kind: feature",
+        "- Author: test",
+        "- Highest E allocated: 01",
     ]
-    if kind:
-        lines.append(f"- Kind: {kind}")
+    if status == "approved":
+        lines.append("- Approval: 2026-09-27, test approved")
+    lines.append("- Item-Dependencies: none")
+    lines.append("")
+    lines.append("## Workflow history")
+    lines.append("")
+    lines.append(f"- 2026-09-27 {status} (test): created.")
+    lines.append("")
+    lines.append("## Goal")
+    lines.append("")
+    lines.append("A synthetic plan for typed queue entry tests.")
+    lines.append("")
+    lines.append("## Detailed Implementation Checklist (TODO)")
+    lines.append("")
+    if k == "orchestrator":
+        lines.extend(
+            [
+                "- [ ] E-01 CONFIRM chld01 REACHED executed",
+                "  - Depends on: none",
+                "  - Expected outcome: done",
+                "  - Execution state: pending",
+                "",
+                "## Child IPDs, sequence, and dependencies",
+                "",
+                "| Order | Id | Status | Plan | Depends on |",
+                "|---|---|---|---|---|",
+                f"| 01 | chld01 | pending | .aw/records/plans/pending/20260927-{setid}-01-chld01-test.ipd.md | none |",
+                "",
+                "## Completion criteria (the whole Set is done only when)",
+                "",
+                "- None.",
+                "",
+                "## Cross-IPD validation",
+                "",
+                "- None.",
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                "- [ ] E-01 Test item.",
+                "  - Depends on: none",
+                "  - Expected outcome: done",
+                "  - Execution state: pending",
+                "",
+                "## Project conventions discovered (Step 0)",
+                "",
+                "- None.",
+                "",
+                "## Findings",
+                "",
+                "- None.",
+                "",
+                "## Proposed changes (ordered, validatable)",
+                "",
+                "- None.",
+            ]
+        )
     lines.extend(
         [
-            "- Work-Kind: feature",
             "",
-            "## Goal",
+            "## Deferred / out of scope (with reason)",
             "",
-            "A synthetic plan for typed queue entry tests.",
+            "- None.",
+            "",
+            "## Scope check",
+            "",
+            "- None.",
+            "",
+            "## Required tests / validation",
+            "",
+            "- None.",
+        ]
+    )
+    if k != "orchestrator":
+        lines.extend(
+            [
+                "",
+                "## Spec / documentation sync",
+                "",
+                "- None.",
+            ]
+        )
+    val_header = (
+        "## Validation and cross-check (verify before reporting the Set complete)"
+        if k == "orchestrator"
+        else "## Validation and cross-check (verify before reporting done)"
+    )
+    lines.extend(
+        [
+            "",
+            "## Open questions",
+            "",
+            "- None.",
+            "",
+            val_header,
+            "",
+            "- [ ] V-01 validates E-01",
+            "  - Required evidence: check.",
+            "  - Observed evidence:",
+            "  - Result: pending",
+            "",
+            "## Approval and execution gate",
+            "",
+            "- None.",
             "",
         ]
     )
@@ -97,6 +204,10 @@ def _write_spec(
         f"- Id: {id6}",
         f"- Status: {status}",
         "",
+        "## Workflow history",
+        "",
+        f"- 2026-09-27 {status} (test): created.",
+        "",
         "## Goal",
         "",
         "A synthetic spec for typed queue entry tests.",
@@ -111,7 +222,7 @@ def _write_backlog_item(
     *,
     id6: str,
     status: str = "open",
-    setid: str = "",
+    setid: str = "test",
     title: str = "Test Backlog Item",
     slug: str = "test-item",
 ) -> Path:
@@ -119,25 +230,21 @@ def _write_backlog_item(
     backlog_dir.mkdir(parents=True, exist_ok=True)
     file_path = backlog_dir / f"20260927-{id6}-{slug}.backlog.md"
 
+    sid = setid or "test"
     lines = [
         f"- Id: {id6}",
+        f"- Set: {sid}",
         f"- Status: {status}",
         "- Work-Kind: feature",
         "- Priority: medium",
         f"- Summary: {title}",
+        "",
+        "## Workflow history",
+        f"- 2026-09-27 created: {title}",
+        "",
+        "A synthetic backlog item for typed queue entry tests.",
+        "",
     ]
-    if setid:
-        lines.append(f"- Set: {setid}")
-    lines.extend(
-        [
-            "",
-            "## Workflow history",
-            f"- 2026-09-27 created: {title}",
-            "",
-            "A synthetic backlog item for typed queue entry tests.",
-            "",
-        ]
-    )
     file_path.write_text("\n".join(lines), encoding="utf-8")
     return file_path
 

@@ -12,6 +12,7 @@ import contextlib
 import io
 import json
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -146,8 +147,14 @@ class DriverTests(unittest.TestCase):
             pending = repo / ".aw" / "records" / "plans" / "pending"
             pending.mkdir(parents=True)
             for order, id6 in enumerate(("aaaaaa", "bbbbbb"), start=1):
+                text = _CONFORMING_PLAN.format(id6=id6)
+                if id6 == "bbbbbb":
+                    text = text.replace(
+                        "- Item-Dependencies: none",
+                        "- Item-Dependencies: executed:aaaaaa",
+                    )
                 (pending / f"20260824-demo-{order:02d}-{id6}-test.ipd.md").write_text(
-                    f"- Id: {id6}\n- Status: approved\n- Set: demo\n# {id6}\n",
+                    text,
                     encoding="utf-8",
                 )
             manifest = {
@@ -263,16 +270,21 @@ class ReviewPlanRoutingTests(unittest.TestCase):
 
             pending = repo / ".aw" / "records" / "plans" / "pending"
             pending.mkdir(parents=True)
+
+            def _to_review_text(ident: str) -> str:
+                t = _CONFORMING_PLAN.format(id6=ident).replace(
+                    "- Status: approved", "- Status: to-review"
+                )
+                import re as _re
+
+                t = _re.sub(r"- Approval:[^\n]*\n", "", t)
+                t = _re.sub(r"- \d{4}-\d{2}-\d{2} approved[^\n]*\n", "", t)
+                return t
+
             p1 = pending / "20260824-demo-01-rev001-test.ipd.md"
-            p1.write_text(
-                "- Id: rev001\n- Set: demo\n- Status: to-review\n# Plan 1\n",
-                encoding="utf-8",
-            )
+            p1.write_text(_to_review_text("rev001"), encoding="utf-8")
             p2 = pending / "20260824-demo-02-rev002-test.ipd.md"
-            p2.write_text(
-                "- Id: rev002\n- Set: demo\n- Status: to-review\n# Plan 2\n",
-                encoding="utf-8",
-            )
+            p2.write_text(_to_review_text("rev002"), encoding="utf-8")
 
             fake = support.make_fake_executable(
                 root / "fake_opencode",
@@ -398,9 +410,9 @@ class SelectorResolutionTests(unittest.TestCase):
             subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
             pending = repo / ".aw" / "records" / "plans" / "pending"
             pending.mkdir(parents=True)
-            p = pending / "20260824-seta-01-tst001-test.ipd.md"
+            p = pending / "20260824-demo-01-tst001-test.ipd.md"
             p.write_text(
-                "- Id: tst001\n- Set: seta\n- Status: approved\n# Test\n",
+                _CONFORMING_PLAN.format(id6="tst001"),
                 encoding="utf-8",
             )
 
@@ -1681,7 +1693,7 @@ class StallWatchdogTests(unittest.TestCase):
             pending.mkdir(parents=True)
             plan = pending / "20260824-demo-01-stall1-test.ipd.md"
             plan.write_text(
-                "- Id: stall1\n- Set: demo\n- Status: approved\n# Stall Plan\n",
+                _CONFORMING_PLAN.format(id6="stall1"),
                 encoding="utf-8",
             )
 
@@ -1770,7 +1782,7 @@ class StallWatchdogTests(unittest.TestCase):
             pending.mkdir(parents=True)
             plan = pending / "20260824-demo-01-activ1-test.ipd.md"
             plan.write_text(
-                "- Id: activ1\n- Set: demo\n- Status: approved\n# Active Plan\n",
+                _CONFORMING_PLAN.format(id6="activ1"),
                 encoding="utf-8",
             )
 
@@ -2094,22 +2106,12 @@ class AllSelectorAndFullAutoTests(unittest.TestCase):
             pending = repo / ".aw" / "records" / "plans" / "pending"
             pending.mkdir(parents=True)
             p1 = pending / "20260824-demo-01-fa0001-test.ipd.md"
-            p1.write_text(
-                textwrap.dedent(
-                    """\
-                    - Id: fa0001
-                    - Set: demo
-                    - Status: to-review
-                    - Work-Kind: chore
-                    - Priority: medium
-                    # Full Auto Plan
-
-                    ## Workflow history
-                    - 2026-08-24 created: test stub
-                    """
-                ),
-                encoding="utf-8",
+            t = _CONFORMING_PLAN.format(id6="fa0001").replace(
+                "- Status: approved\n", "- Status: to-review\n"
             )
+            t = re.sub(r"- Approval:[^\n]*\n", "", t)
+            t = re.sub(r"- \d{4}-\d{2}-\d{2} approved[^\n]*\n", "", t)
+            p1.write_text(t, encoding="utf-8")
 
             fake = root / "fake_opencode"
             # fullauto 97df1z E-04: a reviewer following the updated workflow writes the STRUCTURED
@@ -2225,20 +2227,12 @@ class AllSelectorAndFullAutoTests(unittest.TestCase):
             pending = repo / ".aw" / "records" / "plans" / "pending"
             pending.mkdir(parents=True)
             p1 = pending / "20260824-demo-01-nofa01-test.ipd.md"
-            p1.write_text(
-                textwrap.dedent(
-                    """\
-                    - Id: nofa01
-                    - Set: demo
-                    - Status: to-review
-                    # No Full Auto Plan
-
-                    ## Workflow history
-                    - 2026-08-24 created: test stub
-                    """
-                ),
-                encoding="utf-8",
+            t = _CONFORMING_PLAN.format(id6="nofa01").replace(
+                "- Status: approved\n", "- Status: to-review\n"
             )
+            t = re.sub(r"- Approval:[^\n]*\n", "", t)
+            t = re.sub(r"- \d{4}-\d{2}-\d{2} approved[^\n]*\n", "", t)
+            p1.write_text(t, encoding="utf-8")
 
             fake = support.make_fake_executable(
                 root / "fake_opencode",
@@ -4692,6 +4686,11 @@ def _repo_with_statuses(root: Path, statuses: dict) -> Path:
         text = _CONFORMING_PLAN.format(id6=id6).replace(
             "- Status: approved", f"- Status: {status}", 1
         )
+        if status != "approved":
+            import re as _re
+
+            text = _re.sub(r"- Approval:[^\n]*\n", "", text)
+            text = _re.sub(r"- \d{4}-\d{2}-\d{2} approved[^\n]*\n", "", text)
         if status == "reviewed":
             # The `--full-auto` danger path needs an APPROVING readiness to be auto-cleared.
             text = text.replace("- Author: test", "- Author: test\n- Readiness: go", 1)
@@ -7659,10 +7658,49 @@ class StartupAttentionIntegrityReportTests(unittest.TestCase):
             root = Path(tmp)
             (root / ".aw/records/plans/pending").mkdir(parents=True, exist_ok=True)
             plan = root / ".aw/records/plans/pending/20260101-demo-01-abc123-p.ipd.md"
-            plan.write_text(
-                "# IPD: abc123\n- Date: 2026-01-01\n- Kind: child\n- Status: approved\n- Set: demo\n- Order: 1\n- Id: abc123\n\n## Goal\n",
-                encoding="utf-8",
+            conforming_plan = (
+                "# IPD: abc123\n"
+                "- Date: 2026-01-01\n"
+                "- Kind: child\n"
+                "- Status: approved\n"
+                "- Set: demo\n"
+                "- Order: 1\n"
+                "- Id: abc123\n"
+                "- Author: test\n"
+                "- Priority: medium\n"
+                "- Work-Kind: feature\n"
+                "- Scope: test\n"
+                "- Scope-Paths: README.md\n"
+                "- Concern: test\n"
+                "- Highest E allocated: 01\n"
+                "- Approval: 2026-01-01, test\n\n"
+                "## Workflow history\n"
+                "- 2026-01-01 approved (test): approved\n\n"
+                "## Goal\nGoal.\n\n"
+                "## Detailed Implementation Checklist (TODO)\n"
+                "### Task group 1: work\n"
+                "- [ ] E-01 Step 1\n"
+                "  - Depends on: none\n"
+                "  - Expected outcome: done\n"
+                "  - Execution state: pending\n\n"
+                "## Project conventions discovered (Step 0)\nNone.\n\n"
+                "## Findings\nNone.\n\n"
+                "## Proposed changes (ordered, validatable)\nNone.\n\n"
+                "## Deferred / out of scope (with reason)\nNone.\n\n"
+                "## Scope check\nNone.\n\n"
+                "## Required tests / validation\nNone.\n\n"
+                "## Spec / documentation sync\nNone.\n\n"
+                "## Open questions\nNone.\n\n"
+                "## Validation and cross-check (verify before reporting done)\n"
+                "- [ ] V-01 validates E-01\n"
+                "  - Required evidence: done\n"
+                "  - Observed evidence:\n"
+                "  - Result: pending\n\n"
+                "## Approval and execution gate\n"
+                "- Size assessment: standard\n"
+                "- Cohesion rationale: not required\n"
             )
+            plan.write_text(conforming_plan, encoding="utf-8")
             subprocess.run(["git", "init", "-q"], cwd=root, check=True)
             subprocess.run(["git", "add", "-A"], cwd=root, check=True)
             subprocess.run(

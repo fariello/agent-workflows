@@ -1318,11 +1318,11 @@ RUN_FINDING_CODES: Tuple[RunFindingCode, ...] = (
         ),
         message=(
             "[RUN-STRUCTURE-PREFLIGHT] <item> violates <finding-code>: <detail>. Repair it, run "
-            "aw check <type> <selector>, then: aw <host> run resume <run-id>"
+            "aw check <type> <selector>, then: aw <host> run <selector>"
         ),
-        action="FAIL ITEM; ABORT RUN if identity/type is ambiguous",
-        abort=ABORT_CONDITIONAL,
-        abort_classes=("Identity or type ambiguity",),
+        action="REFUSE RUN at freeze before any session",
+        abort=ABORT_NEVER,
+        abort_classes=(),
         binding=BOUND,
         predicates=(
             "ipd_lint.lint_text",

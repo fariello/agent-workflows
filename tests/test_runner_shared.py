@@ -1676,11 +1676,58 @@ class VerificationPolarityTests(unittest.TestCase):
 - Set: polarity
 - Order: 1
 - Highest E allocated: 01
+- Author: test
+- Priority: medium
+- Work-Kind: feature
 - Id: {id6}
 - Approval: 2026-09-13, fixture
 
 ## Workflow history
 - 2026-09-13 reviewed (test): APPROVE; no blocking findings.
+
+## Goal
+Goal.
+
+## Detailed Implementation Checklist (TODO)
+### Task group 1: work
+- [ ] E-01 Step 1
+  - Depends on: none
+  - Expected outcome: done
+  - Execution state: pending
+
+## Project conventions discovered (Step 0)
+None.
+
+## Findings
+None.
+
+## Proposed changes (ordered, validatable)
+None.
+
+## Deferred / out of scope (with reason)
+None.
+
+## Scope check
+None.
+
+## Required tests / validation
+None.
+
+## Spec / documentation sync
+None.
+
+## Open questions
+None.
+
+## Validation and cross-check (verify before reporting done)
+- [ ] V-01 validates E-01
+  - Required evidence: done
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+- Size assessment: standard
+- Cohesion rationale: not required
 """
 
     def make_repo(self, root: pathlib.Path, id6: str = "pol001"):

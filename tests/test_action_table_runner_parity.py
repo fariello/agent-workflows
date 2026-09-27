@@ -53,6 +53,8 @@ def _write_plan(
         bucket = status
     dir_path = repo / ".aw" / "records" / "plans" / bucket
     dir_path.mkdir(parents=True, exist_ok=True)
+    if kind == "orchestrator":
+        order = 0
     file_path = dir_path / f"20260927-{setid}-{order:02d}-{id6}-test.ipd.md"
 
     lines = [
@@ -66,29 +68,124 @@ def _write_plan(
     ]
     if kind:
         lines.append(f"- Kind: {kind}")
+    lines.append("- Concern: Test concern for parity tests.")
+    lines.append("- Scope: Parity test scope.")
+    lines.append("- Scope-Paths: none")
+    lines.append("- Priority: medium")
     if incomplete:
         lines.append("- Work-Kind: unresolved")
     else:
         lines.append("- Work-Kind: feature")
+    lines.append("- Author: test")
+    lines.append("- Highest E allocated: 01")
+    if status == "approved":
+        lines.append("- Approval: 2026-09-27, test approved")
     if dependencies:
         lines.append(f"- Item-Dependencies: {', '.join(dependencies)}")
+    else:
+        lines.append("- Item-Dependencies: none")
+    lines.append("")
+    lines.append("## Workflow history")
+    lines.append("")
+    lines.append(f"- 2026-09-27 {status} (test): created.")
+    lines.append("")
+    lines.append("## Goal")
+    lines.append("")
+    lines.append("A synthetic plan for parity tests.")
+    lines.append("")
+    lines.append("## Detailed Implementation Checklist (TODO)")
     lines.append("")
     if kind == "orchestrator":
         lines.extend(
             [
+                "- [ ] E-01 CONFIRM chld01 REACHED executed",
+                "  - Depends on: none",
+                "  - Expected outcome: done",
+                "  - Execution state: pending",
+                "",
                 "## Child IPDs, sequence, and dependencies",
                 "",
-                "| Order | Id | Child | Depends on |",
-                "|---|---|---|---|",
-                "| 01 | chld01 | Child plan | - |",
+                "| Order | Id | Status | Plan | Depends on |",
+                "|---|---|---|---|---|",
+                "| 01 | chld01 | pending | .aw/records/plans/pending/20260927-demo-01-chld01-test.ipd.md | none |",
                 "",
+                "## Completion criteria (the whole Set is done only when)",
+                "",
+                "- None.",
+                "",
+                "## Cross-IPD validation",
+                "",
+                "- None.",
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                "- [ ] E-01 Test item.",
+                "  - Depends on: none",
+                "  - Expected outcome: done",
+                "  - Execution state: pending",
+                "",
+                "## Project conventions discovered (Step 0)",
+                "",
+                "- None.",
+                "",
+                "## Findings",
+                "",
+                "- None.",
+                "",
+                "## Proposed changes (ordered, validatable)",
+                "",
+                "- None.",
             ]
         )
     lines.extend(
         [
-            "## Goal",
             "",
-            "A synthetic plan for parity tests.",
+            "## Deferred / out of scope (with reason)",
+            "",
+            "- None.",
+            "",
+            "## Scope check",
+            "",
+            "- None.",
+            "",
+            "## Required tests / validation",
+            "",
+            "- None.",
+        ]
+    )
+    if kind != "orchestrator":
+        lines.extend(
+            [
+                "",
+                "## Spec / documentation sync",
+                "",
+                "- None.",
+            ]
+        )
+    val_header = (
+        "## Validation and cross-check (verify before reporting the Set complete)"
+        if kind == "orchestrator"
+        else "## Validation and cross-check (verify before reporting done)"
+    )
+    lines.extend(
+        [
+            "",
+            "## Open questions",
+            "",
+            "- None.",
+            "",
+            val_header,
+            "",
+            "- [ ] V-01 validates E-01",
+            "  - Required evidence: check.",
+            "  - Observed evidence:",
+            "  - Result: pending",
+            "",
+            "## Approval and execution gate",
+            "",
+            "- None.",
             "",
         ]
     )
@@ -174,7 +271,7 @@ class TestActionTableRunnerParity(unittest.TestCase):
             ("reusable", True),
             ("executed", True),
         ]
-        kinds = ["child", "orchestrator", None]
+        kinds = ["child", "orchestrator"]
 
         for label, mod in _HOSTS:
             with tempfile.TemporaryDirectory() as td:

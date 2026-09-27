@@ -3299,23 +3299,41 @@ class TheActionDecisionIsSHAREDCode(unittest.TestCase):
                     subprocess.run(
                         ["git", "config", "user.name", "T"], cwd=root, check=True
                     )
-                    for bucket, id6, order, status, kind in (
-                        ("pending", "orcq01", 0, "approved", "orchestrator"),
-                        ("executed", "chiq01", 1, "executed", "child"),
-                    ):
-                        d = root / ".aw" / "records" / "plans" / bucket
-                        d.mkdir(parents=True, exist_ok=True)
-                        (
-                            d / f"20260906-qbuild-{order:02d}-{id6}-synthetic.ipd.md"
-                        ).write_text(
-                            "# IPD: synthetic\n\n"
-                            f"- Date: 2026-09-06\n- Kind: {kind}\n- Id: {id6}\n"
-                            f"- Set: qbuild\n- Order: {order}\n- Status: {status}\n\n"
-                            "## Child IPDs, sequence, and dependencies\n\n"
-                            "| Order | Id | Child | Depends on |\n|---|---|---|---|\n"
-                            "| 01 | x | x | x |\n",
-                            encoding="utf-8",
-                        )
+                    d_pending = root / ".aw" / "records" / "plans" / "pending"
+                    d_pending.mkdir(parents=True, exist_ok=True)
+                    (
+                        d_pending / "20260906-qbuild-00-orcq01-synthetic.ipd.md"
+                    ).write_text(
+                        "# IPD: synthetic\n\n"
+                        "- Date: 2026-09-06\n- Kind: orchestrator\n- Concern: synthetic.\n- Scope: synthetic.\n"
+                        "- Scope-Paths: none\n- Priority: medium\n- Work-Kind: chore\n- Status: approved\n"
+                        "- Set: qbuild\n- Order: 0\n- Highest E allocated: 01\n- Author: synthetic\n- Id: orcq01\n"
+                        "- Approval: 2026-09-06, synthetic\n\n"
+                        "## Workflow history\n\n- 2026-09-06 approved (synthetic): created.\n\n"
+                        "## Goal\n\nSynthetic goal.\n\n"
+                        "## Detailed Implementation Checklist (TODO)\n\n"
+                        "- [ ] E-01 CONFIRM chiq01 REACHED executed\n  - Depends on: none\n  - Expected outcome: done\n  - Execution state: pending\n\n"
+                        "## Child IPDs, sequence, and dependencies\n\n"
+                        "| Order | Id | Status | Plan | Depends on |\n|---|---|---|---|---|\n"
+                        "| 01 | chiq01 | executed | .aw/records/plans/executed/20260906-qbuild-01-chiq01-synthetic.ipd.md | none |\n\n"
+                        "## Completion criteria (the whole Set is done only when)\n\n- None.\n\n"
+                        "## Cross-IPD validation\n\n- None.\n\n"
+                        "## Deferred / out of scope (with reason)\n\n- None.\n\n"
+                        "## Scope check\n\n- None.\n\n"
+                        "## Required tests / validation\n\n- None.\n\n"
+                        "## Open questions\n\n- None.\n\n"
+                        "## Validation and cross-check (verify before reporting the Set complete)\n\n"
+                        "- [ ] V-01 validates E-01\n  - Required evidence: check.\n  - Observed evidence:\n  - Result: pending\n\n"
+                        "## Approval and execution gate\n\n- None.\n",
+                        encoding="utf-8",
+                    )
+                    d_exec = root / ".aw" / "records" / "plans" / "executed"
+                    d_exec.mkdir(parents=True, exist_ok=True)
+                    (d_exec / "20260906-qbuild-01-chiq01-synthetic.ipd.md").write_text(
+                        "# IPD: synthetic child\n\n"
+                        "- Date: 2026-09-06\n- Kind: child\n- Id: chiq01\n- Set: qbuild\n- Order: 1\n- Status: executed\n",
+                        encoding="utf-8",
+                    )
                     subprocess.run(["git", "add", "-A"], cwd=root, check=True)
                     subprocess.run(["git", "commit", "-qm", "s"], cwd=root, check=True)
 

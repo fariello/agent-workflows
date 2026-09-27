@@ -17535,6 +17535,283 @@ def enforce_orchestrator_probe_gate(
     )
 
 
+_FREEZE_GATE_CACHE: dict[tuple[Path, str, str], Any] = {}
+
+
+def enforce_freeze_time_refusal(
+    queue: Sequence[Mapping[str, Any]],
+    *,
+    repo: Path,
+    full_auto: bool = False,
+    host: str = "oc",
+) -> None:
+    """Freeze-time whole-run refusal gate (spec `z7nbn1` 1.3, 1.4, 1.7; plan `jdn790`).
+
+    Refuses the WHOLE RUN before any session, lane worktree, lease, or run directory
+    is created if any selected artifact has:
+    1. Undetermined action (spec 5.1, 1.7)
+    2. Non-conformant artifact structure (spec 5.2, 1.3)
+    3. Provably unsatisfiable dependency (spec 5.3, 1.4)
+
+    Collects EVERY finding across all queued items and raises a single DriverError.
+    """
+    if not queue:
+        return
+
+    from agent_workflows import backlog, ipd_lint, specs
+    from agent_workflows import run_selection_policy as _policy
+    from agent_workflows.selectors import read_front_matter_status as _read_status
+
+    findings: list[str] = []
+    queue_by_id = {str(entry.get("id6")): entry for entry in queue if entry.get("id6")}
+
+    for entry in queue:
+        id6 = str(entry.get("id6") or "")
+        atype = str(entry.get("artifact_type") or "")
+        status = str(entry.get("initial_status") or entry.get("status") or "")
+        action = str(entry.get("action") or "")
+        conf_file = entry.get("configured_file") or ""
+        file_path = Path(conf_file) if conf_file else None
+
+        if file_path:
+            if not file_path.is_absolute():
+                abs_path = (repo / file_path).resolve()
+                rel_path = str(file_path)
+            else:
+                abs_path = file_path.resolve()
+                try:
+                    rel_path = str(abs_path.relative_to(repo.resolve()))
+                except ValueError:
+                    rel_path = str(abs_path)
+        else:
+            abs_path = None
+            rel_path = ""
+
+        # -------------------------------------------------------------------------
+        # 1. Undetermined action (spec 5.1, 1.7, E-03)
+        # -------------------------------------------------------------------------
+        if action == "undetermined":
+            if atype == "ipd":
+                setter = f"aw ipd set <status> {id6}"
+            elif atype == "spec":
+                setter = f"aw specs set <status> {id6}"
+            elif atype == "backlog":
+                setter = f"aw backlog set <status> {id6}"
+            else:
+                setter = f"aw set <status> {id6}"
+            findings.append(
+                f"[RUN-UNDETERMINED-ACTION] {atype} {id6} ({rel_path}) has status {status}, "
+                f"for which no action is defined. Set a defined status with {setter}, then: aw {host} run {id6}"
+            )
+
+        # -------------------------------------------------------------------------
+        # 2. Non-conformant artifact (spec 5.2, 1.3, E-04)
+        # -------------------------------------------------------------------------
+        if abs_path is None or not abs_path.is_file():
+            findings.append(
+                f"[RUN-STRUCTURE-PREFLIGHT] {atype} {id6} ({rel_path}) in status {status} "
+                f"violates RUN-NOT-FOUND: artifact file '{rel_path}' does not exist on disk. "
+                f"Repair it, run aw check all {id6}, then: aw {host} run {id6}"
+            )
+        elif atype not in ("ipd", "spec", "backlog"):
+            findings.append(
+                f"[RUN-STRUCTURE-PREFLIGHT] {atype} {id6} ({rel_path}) in status {status} "
+                f"violates RUN-TYPE-UNKNOWN: unrecognized artifact type '{atype}'. "
+                f"Repair it, run aw check all {id6}, then: aw {host} run {id6}"
+            )
+        elif atype == "ipd":
+            if not _policy.is_in_terminal_directory(str(abs_path)):
+                if action in ("review", "execute", "orchestrate"):
+                    checkpoint = (
+                        "pre-execution"
+                        if status in ("approved", "auto-approved")
+                        else "author"
+                    )
+                    try:
+                        content_bytes = abs_path.read_bytes()
+                        digest = hashlib.sha256(content_bytes).hexdigest()
+                        cache_key = (abs_path, digest, checkpoint)
+                        if cache_key in _FREEZE_GATE_CACHE:
+                            lint_res = _FREEZE_GATE_CACHE[cache_key]
+                        else:
+                            lint_res = ipd_lint.lint_file(
+                                abs_path, checkpoint=checkpoint
+                            )
+                            _FREEZE_GATE_CACHE[cache_key] = lint_res
+                        if lint_res.disposition == "error":
+                            if lint_res.diagnostics:
+                                for d in lint_res.diagnostics:
+                                    findings.append(
+                                        f"[RUN-STRUCTURE-PREFLIGHT] ipd {id6} ({rel_path}) in status {status} "
+                                        f"violates {d.code}: {d.message}. Repair it, run aw check plans {id6}, then: aw {host} run {id6}"
+                                    )
+                            else:
+                                findings.append(
+                                    f"[RUN-STRUCTURE-PREFLIGHT] ipd {id6} ({rel_path}) in status {status} "
+                                    f"violates IPD-ERROR: structural checker error. Repair it, run aw check plans {id6}, then: aw {host} run {id6}"
+                                )
+                    except Exception as exc:
+                        findings.append(
+                            f"[RUN-STRUCTURE-PREFLIGHT] ipd {id6} ({rel_path}) in status {status} "
+                            f"violates IPD-READ-ERROR: {exc}. Repair it, run aw check plans {id6}, then: aw {host} run {id6}"
+                        )
+        elif atype == "spec":
+            try:
+                content_bytes = abs_path.read_bytes()
+                digest = hashlib.sha256(content_bytes).hexdigest()
+                cache_key = (abs_path, digest, "spec")
+                if cache_key in _FREEZE_GATE_CACHE:
+                    drifts = _FREEZE_GATE_CACHE[cache_key]
+                else:
+                    text = content_bytes.decode("utf-8", errors="replace")
+                    drifts = specs.validate_spec(abs_path, text)
+                    _FREEZE_GATE_CACHE[cache_key] = drifts
+                for d in drifts:
+                    if getattr(d, "severity", "") != "info":
+                        findings.append(
+                            f"[RUN-STRUCTURE-PREFLIGHT] spec {id6} ({rel_path}) in status {status} "
+                            f"violates {d.rule}: {d.detail}. Repair it, run aw check specs {id6}, then: aw {host} run {id6}"
+                        )
+            except Exception as exc:
+                findings.append(
+                    f"[RUN-STRUCTURE-PREFLIGHT] spec {id6} ({rel_path}) in status {status} "
+                    f"violates SPEC-READ-ERROR: {exc}. Repair it, run aw check specs {id6}, then: aw {host} run {id6}"
+                )
+        elif atype == "backlog":
+            try:
+                content_bytes = abs_path.read_bytes()
+                digest = hashlib.sha256(content_bytes).hexdigest()
+                cache_key = (abs_path, digest, "backlog")
+                if cache_key in _FREEZE_GATE_CACHE:
+                    drifts = _FREEZE_GATE_CACHE[cache_key]
+                else:
+                    text = content_bytes.decode("utf-8", errors="replace")
+                    drifts = backlog.validate_item(abs_path, text)
+                    _FREEZE_GATE_CACHE[cache_key] = drifts
+                for d in drifts:
+                    if getattr(d, "severity", "") != "info":
+                        findings.append(
+                            f"[RUN-STRUCTURE-PREFLIGHT] backlog {id6} ({rel_path}) in status {status} "
+                            f"violates {d.rule}: {d.detail}. Repair it, run aw check backlog {id6}, then: aw {host} run {id6}"
+                        )
+            except Exception as exc:
+                findings.append(
+                    f"[RUN-STRUCTURE-PREFLIGHT] backlog {id6} ({rel_path}) in status {status} "
+                    f"violates BACKLOG-READ-ERROR: {exc}. Repair it, run aw check backlog {id6}, then: aw {host} run {id6}"
+                )
+
+        # -------------------------------------------------------------------------
+        # 3. Provably unsatisfiable dependency (spec 5.3, 1.4, E-05)
+        # -------------------------------------------------------------------------
+        deps = entry.get("dependencies", [])
+        for dep in deps:
+            edge = parse_dependency_token(dep)
+            if edge is None:
+                continue
+            consumer_item = dict(entry)
+            state = {"repo": repo, "queue": queue}
+            satisfied, edge_reason = edge_satisfied(
+                edge, consumer_item, state, queue_by_id
+            )
+            if not satisfied:
+                could_be_met = False
+                why = ""
+                target_id6 = getattr(edge, "id6", "")
+                target_status = "absent"
+
+                if edge.kind == "executed":
+                    if target_id6 in queue_by_id:
+                        target_entry = queue_by_id[target_id6]
+                        target_status = str(
+                            target_entry.get("initial_status")
+                            or target_entry.get("status")
+                            or ""
+                        )
+                    else:
+                        try:
+                            dep_path = resolve_plan_path(repo, "", target_id6)
+                            target_status = (
+                                _read_status(dep_path.read_text(encoding="utf-8"))
+                                or "unknown"
+                            )
+                        except Exception:
+                            target_status = "absent"
+
+                    if action == "review":
+                        # Review consumer relaxation
+                        if target_id6 not in queue_by_id:
+                            why = "is not in this run"
+                        else:
+                            target_entry = queue_by_id[target_id6]
+                            t_q_status = target_entry.get("status")
+                            t_needs_input = target_entry.get(
+                                NEEDS_INPUT_KEY, False
+                            ) or target_entry.get("needs_input", False)
+                            if t_q_status != "queued" or t_needs_input:
+                                why = f"is frozen in status '{t_q_status}' awaiting approval and will not be dispatched"
+                            elif target_entry.get("action") in (
+                                "review",
+                                "execute",
+                                "orchestrate",
+                            ):
+                                could_be_met = True
+                            else:
+                                why = f"is queued with action '{target_entry.get('action')}' which cannot reach reviewed/executed"
+                    else:
+                        # Execute consumer
+                        if target_id6 not in queue_by_id:
+                            why = "is not in this run"
+                        else:
+                            target_entry = queue_by_id[target_id6]
+                            t_q_status = target_entry.get("status")
+                            t_needs_input = target_entry.get(
+                                NEEDS_INPUT_KEY, False
+                            ) or target_entry.get("needs_input", False)
+                            if t_q_status != "queued" or t_needs_input:
+                                why = f"is frozen in status '{t_q_status}' awaiting approval and will not be dispatched"
+                            else:
+                                t_action = target_entry.get("action")
+                                if t_action in ("execute", "orchestrate"):
+                                    could_be_met = True
+                                elif t_action == "review":
+                                    # Decision (A): only under full_auto
+                                    if full_auto:
+                                        could_be_met = True
+                                    else:
+                                        why = "is queued for review only and this run is not --full-auto"
+                                else:
+                                    why = f"is queued with action '{t_action}' which cannot reach executed"
+
+                elif edge.kind in ("exists", "state"):
+                    if target_id6 in queue_by_id:
+                        target_entry = queue_by_id[target_id6]
+                        target_status = str(
+                            target_entry.get("initial_status")
+                            or target_entry.get("status")
+                            or ""
+                        )
+                    else:
+                        target_status = "absent"
+                    why = (
+                        edge_reason
+                        or "is not satisfied and this run cannot change that"
+                    )
+
+                if not could_be_met:
+                    edge_tok = getattr(edge, "canonical", lambda: str(dep))()
+                    recovery = f"Add it to the selection or run with --with-dependencies, then: aw {host} run {id6}"
+                    findings.append(
+                        f"[RUN-DEPENDENCY-UNSATISFIABLE] {id6} requires {edge_tok}; {target_id6} is {target_status} and {why} "
+                        f"[{atype} {id6} at {rel_path}, status: {status}]. {recovery}"
+                    )
+
+    if findings:
+        message = (
+            "\n".join(findings) + "\nNo work started, and nothing durable was created."
+        )
+        raise DriverError(message)
+
+
 def enforce_orchestrator_shape_gate(
     state: Mapping[str, Any],
     *,
@@ -25957,8 +26234,19 @@ def initialize_run_core(
     #    and the probe gate. Siting this deterministic, free check before the run directory ensures
     #    `--prepare-only` evaluates orchestrator shape conformance and refuses invalid queues rather
     #    than printing a non-runnable queue.
-    # 3. ZERO MODEL CALLS: because this gate sits ahead of the probe gate, non-conforming queues
-    #    refuse without ever invoking the model coverage probe (criterion 11).
+    # artdispatch jdn790: THE FREEZE-TIME WHOLE-RUN REFUSAL GATE (spec z7nbn1 1.3, 1.4, 1.7)
+    # Refuses before any durable state (run_dir, sessions, leases, worktrees) if any item has:
+    # 1. Undetermined action (spec 5.1, 1.7)
+    # 2. Non-conformant artifact structure (spec 5.2, 1.3)
+    # 3. Provably unsatisfiable dependency in this run (spec 5.3, 1.4)
+    # Sited immediately ahead of enforce_orchestrator_shape_gate.
+    enforce_freeze_time_refusal(
+        queue,
+        repo=repo,
+        full_auto=full_auto,
+        host=host,
+    )
+
     enforce_orchestrator_shape_gate({"queue": queue}, repo=repo)
 
     run_id = getattr(args, "run_id", None) or new_run_id()
