@@ -6,7 +6,7 @@
 - Scope: IN: the one expression in `to_agent_record` (use `data["checked"]` when the key is present, else fall back to `total_checked`); outcome tests for `aw specs check --agent` and `aw backlog check --agent` on empty trees. OUT: adding `checked` to commands that do not put it in `data` today; the human renderer; the `--json` renderer (already emits `data.checked` verbatim); `aw check <target>` (its `data` carries no `checked` key, only an `inventory` evidence value, so it is unaffected and unchanged).
 - Scope-Paths: agent_workflows/result_types.py, tests/test_agent_checked_count.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: kifrou
-- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: kifrou verified (set specsread, attempt 1).
 - 2026-09-27 approved (aw set): status set to approved
 - 2026-09-26 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 PR-002 PR-003 fixed in place
 - 2026-09-26 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog an3vqw: Emit checked:0 in --agent records instead of dropping it.
