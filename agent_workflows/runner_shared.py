@@ -10866,7 +10866,7 @@ def _read_from_backlog(text: str) -> str | None:
     except Exception:
         return None
     raw = (fields.get(_schema.META_FROM_BACKLOG) or "").strip()
-    if not raw or raw in {"-", "none", "unresolved"}:
+    if _schema.source_link_is_absent(raw):
         return None
     token = raw.split()[0].strip("\"'").strip()
     return token if ID6_RE.fullmatch(token) else None

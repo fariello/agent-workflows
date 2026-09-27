@@ -28,6 +28,9 @@ from tempfile import TemporaryDirectory
 from agent_workflows import artifact_core as _core
 from agent_workflows import check_engine
 from agent_workflows import cli
+from agent_workflows import ipd_schema
+from agent_workflows import releases
+from agent_workflows import runner_shared
 from agent_workflows.term import Term
 
 
@@ -923,6 +926,300 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
             self.assertEqual(warns2[0].rule, "check.orphaned-live-blocker")
             self.assertIn("aw backlog set bug001 --status done", warns2[0].detail)
             self.assertNotIn("set done bug001", warns2[0].detail)
+
+    def test_from_backlog_sentinels_treated_as_absent(self) -> None:
+        """E-05: -, none, unresolved on From-Backlog are treated as absent across all readers."""
+        for sentinel in ("-", "none", "unresolved"):
+            with self.subTest(sentinel=sentinel):
+                with TemporaryDirectory() as tmp:
+                    repo = _create_minimal_repo(Path(tmp))
+                    plan_text = (
+                        f"# IPD: Test\n\n"
+                        f"- Id: pln001\n"
+                        f"- Status: approved\n"
+                        f"- From-Backlog: {sentinel}\n"
+                        f"- Set: pln001\n"
+                        f"- Scope: Fix\n"
+                        f"- Scope-Paths: foo.py\n"
+                    )
+                    plan_file = (
+                        repo
+                        / ".aw"
+                        / "records"
+                        / "plans"
+                        / "pending"
+                        / "20260901-pln001-01-pln001-test.ipd.md"
+                    )
+                    plan_file.write_text(plan_text, encoding="utf-8")
+
+                    # 1. 0 check.from-backlog-dangling from check_release_gates(repo)
+                    findings = check_engine.check_release_gates(repo)
+                    dangling = [
+                        d for d in findings if d.rule == "check.from-backlog-dangling"
+                    ]
+                    self.assertEqual(dangling, [])
+
+                    # 2. find_from_backlog_artifacts returns empty
+                    artifacts = check_engine.find_from_backlog_artifacts(repo, sentinel)
+                    self.assertEqual(artifacts, [])
+
+                    # 3. _from_backlog_carrier_index has no key for the sentinel
+                    c_idx = check_engine._from_backlog_carrier_index(repo)
+                    self.assertNotIn(sentinel, c_idx)
+
+                    # 4. build_graduation_reverse_index has no ('backlog', sentinel) key
+                    r_idx = check_engine.build_graduation_reverse_index(repo)
+                    self.assertNotIn(("backlog", sentinel), r_idx)
+
+                    # 5. runner_shared._read_from_backlog returns None
+                    self.assertIsNone(runner_shared._read_from_backlog(plan_text))
+
+    def test_from_spec_sentinels_treated_as_absent(self) -> None:
+        """E-05: -, none, unresolved on From-Spec yield 0 check.from-spec-dangling."""
+        for sentinel in ("-", "none", "unresolved"):
+            with self.subTest(sentinel=sentinel):
+                with TemporaryDirectory() as tmp:
+                    repo = _create_minimal_repo(Path(tmp))
+                    # Spec with - Id: so known-id set is non-empty
+                    spec_file = (
+                        repo
+                        / ".aw"
+                        / "records"
+                        / "specs"
+                        / "approved"
+                        / "20260901-spc001-01-spc001-v1.spec.md"
+                    )
+                    spec_file.write_text(
+                        "# Spec\n\n- Id: spc001\n- Status: approved\n",
+                        encoding="utf-8",
+                    )
+                    plan_file = (
+                        repo
+                        / ".aw"
+                        / "records"
+                        / "plans"
+                        / "pending"
+                        / "20260901-pln001-01-pln001-test.ipd.md"
+                    )
+                    plan_file.write_text(
+                        f"# IPD: Test\n\n"
+                        f"- Id: pln001\n"
+                        f"- Status: approved\n"
+                        f"- From-Spec: {sentinel}\n"
+                        f"- Set: pln001\n"
+                        f"- Scope: Fix\n"
+                        f"- Scope-Paths: foo.py\n",
+                        encoding="utf-8",
+                    )
+                    findings = check_engine.check_from_spec_dangling(repo)
+                    dangling = [
+                        d for d in findings if d.rule == "check.from-spec-dangling"
+                    ]
+                    self.assertEqual(dangling, [])
+
+    def test_unknown_id6_still_flags_dangling(self) -> None:
+        """E-05 negative cases: a real-shaped but unknown id6 (zz9zz9) yields exactly 1 dangling finding for both From-Backlog and From-Spec."""
+        with TemporaryDirectory() as tmp:
+            repo = _create_minimal_repo(Path(tmp))
+            # Negative case 1: From-Backlog: zz9zz9
+            plan_file = (
+                repo
+                / ".aw"
+                / "records"
+                / "plans"
+                / "pending"
+                / "20260901-pln001-01-pln001-test.ipd.md"
+            )
+            plan_file.write_text(
+                "# IPD: Test\n\n"
+                "- Id: pln001\n"
+                "- Status: approved\n"
+                "- From-Backlog: zz9zz9\n"
+                "- Set: pln001\n"
+                "- Scope: Fix\n"
+                "- Scope-Paths: foo.py\n",
+                encoding="utf-8",
+            )
+            findings = check_engine.check_release_gates(repo)
+            dangling = [d for d in findings if d.rule == "check.from-backlog-dangling"]
+            self.assertEqual(len(dangling), 1)
+
+            # Negative case 2: From-Spec: zz9zz9
+            spec_file = (
+                repo
+                / ".aw"
+                / "records"
+                / "specs"
+                / "approved"
+                / "20260901-spc001-01-spc001-v1.spec.md"
+            )
+            spec_file.write_text(
+                "# Spec\n\n- Id: spc001\n- Status: approved\n",
+                encoding="utf-8",
+            )
+            plan_file2 = (
+                repo
+                / ".aw"
+                / "records"
+                / "plans"
+                / "pending"
+                / "20260901-pln002-01-pln002-test.ipd.md"
+            )
+            plan_file2.write_text(
+                "# IPD: Test\n\n"
+                "- Id: pln002\n"
+                "- Status: approved\n"
+                "- From-Spec: zz9zz9\n"
+                "- Set: pln002\n"
+                "- Scope: Fix\n"
+                "- Scope-Paths: foo.py\n",
+                encoding="utf-8",
+            )
+            spec_findings = check_engine.check_from_spec_dangling(repo)
+            spec_dangling = [
+                d for d in spec_findings if d.rule == "check.from-spec-dangling"
+            ]
+            self.assertEqual(len(spec_dangling), 1)
+
+    def test_regression_guard_all_readers_honor_schema_sentinels(self) -> None:
+        """E-06: Behavioral regression guard ensuring all six public readers treat every member
+
+        of ipd_schema.SOURCE_LINK_ABSENT_SENTINELS as absent.
+        """
+        for sentinel in ipd_schema.SOURCE_LINK_ABSENT_SENTINELS:
+            with TemporaryDirectory() as tmp:
+                repo = _create_minimal_repo(Path(tmp))
+                # Valid spec so check_from_spec_dangling doesn't short-circuit
+                spec_file = (
+                    repo
+                    / ".aw"
+                    / "records"
+                    / "specs"
+                    / "approved"
+                    / "20260901-spc001-01-spc001-v1.spec.md"
+                )
+                spec_file.write_text(
+                    "# Spec\n\n- Id: spc001\n- Status: approved\n",
+                    encoding="utf-8",
+                )
+                plan_bkl_text = (
+                    f"# IPD: Test\n\n"
+                    f"- Id: plnbkl\n"
+                    f"- Status: approved\n"
+                    f"- From-Backlog: {sentinel}\n"
+                    f"- Set: plnbkl\n"
+                    f"- Scope: Fix\n"
+                    f"- Scope-Paths: foo.py\n"
+                )
+                plan_bkl_file = (
+                    repo
+                    / ".aw"
+                    / "records"
+                    / "plans"
+                    / "pending"
+                    / "20260901-plnbkl-01-plnbkl-test.ipd.md"
+                )
+                plan_bkl_file.write_text(plan_bkl_text, encoding="utf-8")
+
+                plan_spc_file = (
+                    repo
+                    / ".aw"
+                    / "records"
+                    / "plans"
+                    / "pending"
+                    / "20260901-plnspc-01-plnspc-test.ipd.md"
+                )
+                plan_spc_file.write_text(
+                    f"# IPD: Test\n\n"
+                    f"- Id: plnspc\n"
+                    f"- Status: approved\n"
+                    f"- From-Spec: {sentinel}\n"
+                    f"- Set: plnspc\n"
+                    f"- Scope: Fix\n"
+                    f"- Scope-Paths: foo.py\n",
+                    encoding="utf-8",
+                )
+
+                # 1. runner_shared._read_from_backlog
+                with self.subTest(
+                    reader="runner_shared._read_from_backlog", sentinel=sentinel
+                ):
+                    res = runner_shared._read_from_backlog(plan_bkl_text)
+                    self.assertIsNone(
+                        res,
+                        f"runner_shared._read_from_backlog did not treat sentinel {sentinel!r} as absent, got {res!r}",
+                    )
+
+                # 2. check_engine.find_from_backlog_artifacts
+                with self.subTest(
+                    reader="check_engine.find_from_backlog_artifacts", sentinel=sentinel
+                ):
+                    arts = check_engine.find_from_backlog_artifacts(repo, sentinel)
+                    self.assertEqual(
+                        arts,
+                        [],
+                        f"check_engine.find_from_backlog_artifacts did not treat sentinel {sentinel!r} as absent",
+                    )
+
+                # 3. check_engine._from_backlog_carrier_index
+                with self.subTest(
+                    reader="check_engine._from_backlog_carrier_index", sentinel=sentinel
+                ):
+                    c_idx = check_engine._from_backlog_carrier_index(repo)
+                    self.assertNotIn(
+                        sentinel,
+                        c_idx,
+                        f"check_engine._from_backlog_carrier_index indexed sentinel {sentinel!r}",
+                    )
+
+                # 4. check_engine.build_graduation_reverse_index
+                with self.subTest(
+                    reader="check_engine.build_graduation_reverse_index",
+                    sentinel=sentinel,
+                ):
+                    r_idx = check_engine.build_graduation_reverse_index(repo)
+                    self.assertNotIn(
+                        ("backlog", sentinel),
+                        r_idx,
+                        f"check_engine.build_graduation_reverse_index indexed ('backlog', {sentinel!r})",
+                    )
+                    self.assertNotIn(
+                        ("spec", sentinel),
+                        r_idx,
+                        f"check_engine.build_graduation_reverse_index indexed ('spec', {sentinel!r})",
+                    )
+
+                # 5. releases.check_from_backlog
+                with self.subTest(
+                    reader="releases.check_from_backlog", sentinel=sentinel
+                ):
+                    bkl_drift = [
+                        d
+                        for d in releases.check_from_backlog(repo)
+                        if d.rule == "check.from-backlog-dangling"
+                        and d.location == str(plan_bkl_file)
+                    ]
+                    self.assertEqual(
+                        bkl_drift,
+                        [],
+                        f"releases.check_from_backlog reported dangling finding for sentinel {sentinel!r}",
+                    )
+
+                # 6. check_engine.check_from_spec_dangling
+                with self.subTest(
+                    reader="check_engine.check_from_spec_dangling", sentinel=sentinel
+                ):
+                    spc_drift = [
+                        d
+                        for d in check_engine.check_from_spec_dangling(repo)
+                        if d.rule == "check.from-spec-dangling"
+                        and d.location == str(plan_spc_file)
+                    ]
+                    self.assertEqual(
+                        spc_drift,
+                        [],
+                        f"check_engine.check_from_spec_dangling reported dangling finding for sentinel {sentinel!r}",
+                    )
 
 
 if __name__ == "__main__":

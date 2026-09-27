@@ -190,6 +190,22 @@ META_BLOCKS_RELEASE = "Blocks-Release"
 # lint error; value validation (does the target resolve to a backlog item id6) lives in the
 # `aw check` surface (check.from-backlog-dangling), not the schema layer.
 META_FROM_BACKLOG = "From-Backlog"
+# Graduation-source link absent sentinels (plan 3cs7qg): these literal values mean "no source item"
+# and every reader of a graduation-source link (`From-Backlog` AND `From-Spec`) treats them as if
+# the field were absent; comparison is case-insensitive after stripping surrounding quotes.
+SOURCE_LINK_ABSENT_SENTINELS: FrozenSet[str] = frozenset({"-", "none", "unresolved"})
+
+
+def source_link_is_absent(value: Optional[str]) -> bool:
+    """Return True if the graduation-source link value is None, empty, or an absent sentinel."""
+    if value is None:
+        return True
+    cleaned = value.strip().strip("\"'").strip()
+    if not cleaned:
+        return True
+    return cleaned.lower() in SOURCE_LINK_ABSENT_SENTINELS
+
+
 # From-Spec (detrun Order bmh754, spec 25kzda; the surviving residue of an otherwise-shipped Set): the
 # SPEC-side sibling of META_FROM_BACKLOG - an optional, single-valued link field naming the spec id6
 # this plan graduated from, so the spec->plan graduation relationship is machine-readable in the same

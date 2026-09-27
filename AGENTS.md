@@ -236,10 +236,10 @@ it with `engine.create_backlog_close_gate_hook(repo, install=True)` (idempotent,
 to the same `evaluate_blocking_close` predicate and gates the `done` case only. Honest limits: git hooks
 are local, not cloned by default, and skippable with `--no-verify`; the portable authority is the
 `aw check release-gates` rule family (`aw check` / `aw check all`) and CI, never the local hook alone.
-In CI, `aw check release-gates` runs as a named advisory step in `tests.yml` until pre-existing
-baseline findings are resolved, and flips to fail-closed once clean.
+In CI, `aw check release-gates` runs as a named fail-closed step in `tests.yml`.
 
 ## Research prompts about THIS repository (repo-local rule)
+
 
 THIS SECTION IS REPO-LOCAL AND MUST NOT BE INSTALLED INTO A MANAGED TARGET REPO. It sits
 deliberately BELOW the `<!-- /aw:block -->` marker, outside every managed block, because it names

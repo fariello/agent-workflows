@@ -3366,6 +3366,18 @@ _META_BLOCKS_RELEASE_RE = _re.compile(r"(?m)^- Blocks-Release:[ \t]*(\S+)[ \t]*$
 _META_FROM_BACKLOG_RE = _re.compile(r"(?m)^- From-Backlog:[ \t]*(\S+)[ \t]*$")
 _PLAN_STATUS_RE = _re.compile(r"(?m)^- Status:[ \t]*(\S+)[ \t]*$")
 
+
+def _from_backlog_value(text: str) -> Optional[str]:
+    """Return the captured `- From-Backlog:` value, or None if absent or an absent sentinel (plan 3cs7qg)."""
+    m = _META_FROM_BACKLOG_RE.search(text)
+    if not m:
+        return None
+    val = m.group(1)
+    if _S.source_link_is_absent(val):
+        return None
+    return val
+
+
 _PRIORITY_RANK = {"low": 0, "medium": 1, "high": 2}
 
 
@@ -3449,8 +3461,8 @@ def find_from_backlog_plans(repo_root: Path, item_id6: str) -> List[Tuple[Path, 
     """Every plan whose `- From-Backlog:` names `item_id6`. Returns [(path, blocks_release_or_'')]."""
     out: List[Tuple[Path, str]] = []
     for p, text in _iter_plan_ipds(repo_root):
-        mfb = _META_FROM_BACKLOG_RE.search(text)
-        if mfb and mfb.group(1) == item_id6:
+        val = _from_backlog_value(text)
+        if val == item_id6:
             mbr = _META_BLOCKS_RELEASE_RE.search(text)
             out.append((p, mbr.group(1) if mbr else ""))
     return out
@@ -3460,8 +3472,8 @@ def find_from_backlog_specs(repo_root: Path, item_id6: str) -> List[Tuple[Path, 
     """Every spec whose `- From-Backlog:` names `item_id6`. Returns [(path, blocks_release_or_'')]."""
     out: List[Tuple[Path, str]] = []
     for p, text in _iter_spec_records(repo_root):
-        mfb = _META_FROM_BACKLOG_RE.search(text)
-        if mfb and mfb.group(1) == item_id6:
+        val = _from_backlog_value(text)
+        if val == item_id6:
             mbr = _META_BLOCKS_RELEASE_RE.search(text)
             out.append((p, mbr.group(1) if mbr else ""))
     return out
@@ -3561,8 +3573,15 @@ def build_graduation_reverse_index(
     ):
         for path, text in iterator(repo_root):
             sources: List[Tuple[str, str]] = [
-                ("backlog", m.group(1)) for m in _META_FROM_BACKLOG_RE.finditer(text)
-            ] + [("spec", m.group(1)) for m in _ITEM_FROM_SPEC_RE.finditer(text)]
+                ("backlog", m.group(1))
+                for m in _META_FROM_BACKLOG_RE.finditer(text)
+                if not _S.source_link_is_absent(m.group(1))
+            ] + [
+                ("spec", m.group(1))
+                for m in _ITEM_FROM_SPEC_RE.finditer(text)
+                if not _S.source_link_is_absent(m.group(1))
+            ]
+
             if not sources:
                 continue
             declared_id = _read_declared_id(text) or ""
@@ -4029,13 +4048,11 @@ def _from_backlog_carrier_index(
     index: Dict[str, List[Tuple[Path, Optional[str]]]] = {}
     for iterator in (_iter_plan_ipds, _iter_spec_records):
         for p, text in iterator(repo_root):
-            mfb = _META_FROM_BACKLOG_RE.search(text)
-            if not mfb:
+            val = _from_backlog_value(text)
+            if not val:
                 continue
             mbr = _META_BLOCKS_RELEASE_RE.search(text)
-            index.setdefault(mfb.group(1), []).append(
-                (p, mbr.group(1) if mbr else None)
-            )
+            index.setdefault(val, []).append((p, mbr.group(1) if mbr else None))
     return index
 
 
@@ -4327,12 +4344,11 @@ def release_gate_warnings(repo_root: Path) -> List[_core.Drift]:
     # We record whether at least one same-gate plan is executed (closescope 2a6phj E-05).
     plan_gates_by_backlog: Dict[str, Dict[str, bool]] = {}
     for _p, text in _iter_plan_ipds(repo_root):
-        mfb = _META_FROM_BACKLOG_RE.search(text)
-        if not mfb:
+        backlog_id = _from_backlog_value(text)
+        if not backlog_id:
             continue
         mbr = _META_BLOCKS_RELEASE_RE.search(text)
         gate = mbr.group(1) if mbr else ""
-        backlog_id = mfb.group(1)
         is_exec = _carrier_is_executed(_p)
         gates_map = plan_gates_by_backlog.setdefault(backlog_id, {})
         gates_map[gate] = gates_map.get(gate, False) or is_exec
@@ -5175,6 +5191,8 @@ def check_from_spec_dangling(repo_root: Path) -> List[_core.Drift]:
             if m is None:
                 continue
             target = m.group(1)
+            if _S.source_link_is_absent(target):
+                continue
             if target in known:
                 continue
             drift.append(
