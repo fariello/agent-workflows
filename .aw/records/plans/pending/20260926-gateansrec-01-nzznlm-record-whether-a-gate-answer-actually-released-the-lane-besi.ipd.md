@@ -37,37 +37,37 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: reproduce
 
-- [ ] E-01 RE-MEASURE at the executing HEAD. For each token in `runner_shared.GATE_ANSWERS` (`not-mine`, `fixed`, `mine`, `needs-human`), write `{GATE_ANSWER_KEY: {"answer": tok, "reason": "because"}}` to a temp `outcome.json` and call `runner_shared.perform_gate_answer(suite_result=<failing stub>, ask=lambda s: None, outcome_path=<file>, rerun_suite=lambda: <passing stub>, retry_budget=1)` (stubs are `types.SimpleNamespace(passing=..., failures=..., summary=...)`). Paste `tok, outcome.release, record["integrates"], record.get("released", "<absent>"), record["recheck_passed"]`.
+- [x] E-01 RE-MEASURE at the executing HEAD. For each token in `runner_shared.GATE_ANSWERS` (`not-mine`, `fixed`, `mine`, `needs-human`), write `{GATE_ANSWER_KEY: {"answer": tok, "reason": "because"}}` to a temp `outcome.json` and call `runner_shared.perform_gate_answer(suite_result=<failing stub>, ask=lambda s: None, outcome_path=<file>, rerun_suite=lambda: <passing stub>, retry_budget=1)` (stubs are `types.SimpleNamespace(passing=..., failures=..., summary=...)`). Paste `tok, outcome.release, record["integrates"], record.get("released", "<absent>"), record["recheck_passed"]`.
   - Depends on: none
   - Expected outcome: `fixed` shows `release True`, `integrates False`, `released <absent>`, `recheck_passed True`; the other three show `release == integrates`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: record the outcome
 
-- [ ] E-02 ADD THE FIELD to `runner_shared.gate_answer_record`: a keyword-only `released: bool | None = None` parameter persisted as `"released": released if released is None else bool(released)`, placed immediately after `"integrates"` in the returned dict. Extend the docstring's contract paragraph: `integrates` is whether the TOKEN releases on the answer alone (only `not-mine`), `released` is whether THIS answer actually released the lane (it is what `GateAnswerOutcome.release` was), and `None` means the producer did not decide a release. Cite `w51mpv`. Do NOT rename or drop `integrates`.
+- [x] E-02 ADD THE FIELD to `runner_shared.gate_answer_record`: a keyword-only `released: bool | None = None` parameter persisted as `"released": released if released is None else bool(released)`, placed immediately after `"integrates"` in the returned dict. Extend the docstring's contract paragraph: `integrates` is whether the TOKEN releases on the answer alone (only `not-mine`), `released` is whether THIS answer actually released the lane (it is what `GateAnswerOutcome.release` was), and `None` means the producer did not decide a release. Cite `w51mpv`. Do NOT rename or drop `integrates`.
   - Depends on: E-01
   - Expected outcome: `gate_answer_record(verdict, asked=True, ask_reason="")` carries `"released": None`; with `released=True` it carries `True`.
   - THE DOCSTRING MUST ALSO CARRY THE FAIL-OPEN WARNING, and this is the highest-risk sentence in the plan. `GATE_ANSWER_RECORD_KEY`'s guard (c) and `unattributed_merged_failures`'s guard list record a MEASURED fail-open hazard: a post-merge reader keyed on the wrong record field "would release on two answers designed to refuse", because `fixed` carries `release: True` beside its PRE-REPAIR `failing_tests`. `released` is exactly the field that makes that mistake easy to reach, since a reader who wants "did this integrate?" now finds a field that says yes for `fixed` too. So state plainly: `released` is FOR AUDIT AND NOTHING ELSE, it is NOT an admissibility signal, and the gate-2 attribution channel keys on the ANSWER TOKEN (`attributed_away_failure_ids` refuses anything but `not-mine`) and MUST NOT be changed to key on `released`. Use the same "WRITING IT IS NOT READING IT" framing the `suite_baseline` paragraph already uses, which is this record's established precedent for an audit-only key.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 PASS THE OUTCOME at both producers in `runner_shared`: in `perform_gate_answer`, add `released=release` to the `gate_answer_record(...)` call that follows the `release = ...` conjunction; at the interrupted-follow-up site (the `except (KeyboardInterrupt, StallTimeout):` block that builds `GateAnswerOutcome(release=False, record=gate_answer_record(GateAnswerVerdict("", "", "the follow-up turn was interrupted before it answered"), ...))`), add `released=False`. Verified at review by `rg -n "gate_answer_record\(" agent_workflows/ tests/`: exactly the definition plus those two calls, one docstring mention, and NO test call site, so no third producer exists at this HEAD; re-run the grep and paste it, and if a third producer has appeared, pass the `release` value it pairs with.
+- [x] E-03 PASS THE OUTCOME at both producers in `runner_shared`: in `perform_gate_answer`, add `released=release` to the `gate_answer_record(...)` call that follows the `release = ...` conjunction; at the interrupted-follow-up site (the `except (KeyboardInterrupt, StallTimeout):` block that builds `GateAnswerOutcome(release=False, record=gate_answer_record(GateAnswerVerdict("", "", "the follow-up turn was interrupted before it answered"), ...))`), add `released=False`. Verified at review by `rg -n "gate_answer_record\(" agent_workflows/ tests/`: exactly the definition plus those two calls, one docstring mention, and NO test call site, so no third producer exists at this HEAD; re-run the grep and paste it, and if a third producer has appeared, pass the `release` value it pairs with.
   - Depends on: E-02
   - Expected outcome: E-01's probe now shows `released` equal to `outcome.release` for all four tokens.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove it
 
-- [ ] E-04 ADD `tests/test_gate_answer_record_released.py`, behavioral only (maintainer's 2026-09-26 ruling: no source-text pins). Drive the REAL `perform_gate_answer` as in E-01. Cases: (1) for each of the four tokens, `outcome.record["released"] == outcome.release`; (2) `fixed` with a PASSING re-run -> `released is True` and `integrates is False` (the contradiction resolved, both fields kept); (3) `fixed` with a re-run that keeps FAILING until the budget is spent -> `released is False`; (4) `fixed` with `rerun_suite=None` -> `released is False`; (5) `not-mine` -> `released is True` and `integrates is True`; (6) the record still carries every pre-existing key (`answer`, `reason`, `violation`, `usable`, `integrates`, `refuses`, `awaits_human_decision`, `asked`, `ask_reason`, `session_id`, `signal`, `failing_tests`, `recheck_attempts`, `recheck_budget`, `recheck_passed`, `recheck_summary`, `suite_baseline`), so the change is additive; (7) `gate_answer_record` called directly with no `released` argument yields `"released": None`; (8) the record round-trips through `json.dumps`/`json.loads` unchanged, since it is persisted in `state.json`.
+- [x] E-04 ADD `tests/test_gate_answer_record_released.py`, behavioral only (maintainer's 2026-09-26 ruling: no source-text pins). Drive the REAL `perform_gate_answer` as in E-01. Cases: (1) for each of the four tokens, `outcome.record["released"] == outcome.release`; (2) `fixed` with a PASSING re-run -> `released is True` and `integrates is False` (the contradiction resolved, both fields kept); (3) `fixed` with a re-run that keeps FAILING until the budget is spent -> `released is False`; (4) `fixed` with `rerun_suite=None` -> `released is False`; (5) `not-mine` -> `released is True` and `integrates is True`; (6) the record still carries every pre-existing key (`answer`, `reason`, `violation`, `usable`, `integrates`, `refuses`, `awaits_human_decision`, `asked`, `ask_reason`, `session_id`, `signal`, `failing_tests`, `recheck_attempts`, `recheck_budget`, `recheck_passed`, `recheck_summary`, `suite_baseline`), so the change is additive; (7) `gate_answer_record` called directly with no `released` argument yields `"released": None`; (8) the record round-trips through `json.dumps`/`json.loads` unchanged, since it is persisted in `state.json`.
   - Depends on: E-03
   - Expected outcome: all pass; cases (1), (2), (3), (4), (5), (7) FAIL before the change (the key is absent); (6) and (8) pass before and after (controls).
   - THE PRE-CHANGE FAILURE MODE IS AN ERROR, NOT AN ASSERTION FAILURE, and the tests must be written so that is unambiguous. Measured at review: `record["released"]` on unmodified code raises `KeyError: 'released'`. pytest counts that as a failing test, which satisfies the plan's intent, but a case written as `record.get("released") == outcome.release` would SILENTLY PASS for `mine` and `needs-human` (both `None == False` is False, so it fails) while `assert record.get("released") is outcome.release` would pass vacuously for neither; the trap is `.get()` with a default. So each of cases (1) to (5) MUST subscript (`record["released"]`) or assert the key's presence explicitly (`assert "released" in record`), never `.get("released", <default>)`.
   - CASES (6) AND (8) ARE CONTROLS THAT ALREADY PASS, verified at review: the 17-key list in case (6) is EXACTLY `gate_answer_record`'s current key set (checked by set comparison, no extras and none missing) and `json.loads(json.dumps(record)) == record` is already True. Label them in the test file as controls proving ADDITIVITY, so a reader does not mistake a green control for evidence of the fix.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 ADD THE CASE THE PLAN'S OWN CONCERN IMPLIES BUT DID NOT COVER: the INTERRUPTED-FOLLOW-UP record E-03 touches. That site is not reachable through `perform_gate_answer`, so cases (1) to (5) cannot exercise it and E-03's second edit would ship with NO test. Call `gate_answer_record` directly with the verdict that site builds (`GateAnswerVerdict("", "", "the follow-up turn was interrupted before it answered")`, `asked=True`) plus `released=False`, and assert `record["released"] is False`. Assert alongside it that this record is distinguishable from a genuine refusal: measured at review, it carries `usable: False`, `answer: ""`, `integrates: False` AND `refuses: False` (an unusable verdict refuses nothing by the `refuses` property, since `""` is not in `GATE_ANSWERS_REFUSING`), so before this change the record's four boolean fields were ALL False and a reader could not tell "interrupted before answering" from "answered nothing". `released: False` is the field that makes the fail-closed outcome explicit, which is the whole point of E-03's second edit.
+- [x] E-05 ADD THE CASE THE PLAN'S OWN CONCERN IMPLIES BUT DID NOT COVER: the INTERRUPTED-FOLLOW-UP record E-03 touches. That site is not reachable through `perform_gate_answer`, so cases (1) to (5) cannot exercise it and E-03's second edit would ship with NO test. Call `gate_answer_record` directly with the verdict that site builds (`GateAnswerVerdict("", "", "the follow-up turn was interrupted before it answered")`, `asked=True`) plus `released=False`, and assert `record["released"] is False`. Assert alongside it that this record is distinguishable from a genuine refusal: measured at review, it carries `usable: False`, `answer: ""`, `integrates: False` AND `refuses: False` (an unusable verdict refuses nothing by the `refuses` property, since `""` is not in `GATE_ANSWERS_REFUSING`), so before this change the record's four boolean fields were ALL False and a reader could not tell "interrupted before answering" from "answered nothing". `released: False` is the field that makes the fail-closed outcome explicit, which is the whole point of E-03's second edit.
   - Depends on: E-03
   - Expected outcome: two assertions passing; both FAIL before the change (the key is absent).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -146,33 +146,175 @@ All measured at HEAD `61ef21d8`.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the four probe lines with the HEAD hash.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Executed probe at HEAD `dd25636f4e90eea0a75fd14b557f46a71b4f3cb9`:
+    ```
+    HEAD: dd25636f4e90eea0a75fd14b557f46a71b4f3cb9
+    not-mine release True integrates True released <absent> recheck_passed None
+    fixed release True integrates False released <absent> recheck_passed True
+    mine release False integrates False released <absent> recheck_passed None
+    needs-human release False integrates False released <absent> recheck_passed None
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the `gate_answer_record` diff (signature, dict, docstring) and a direct call's `released` value with and without the argument. The pasted DOCSTRING must visibly contain the F-6 fail-open warning: that `released` is audit-only, that it is NOT an admissibility signal, and that the gate-2 attribution channel keys on the ANSWER TOKEN and must not be repointed at it. Also confirm the docstring adds NO citation to `tests/test_suite_baseline.py` or `tests/test_suite_adjudication.py`, neither of which exists (F-7).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. `gate_answer_record` diff in `agent_workflows/runner_shared.py`:
+    ```diff
+    @@ -21579,6 +21579,7 @@ def gate_answer_record(
+         recheck_passed: bool | None = None,
+         recheck_summary: str = "",
+         baseline: SuiteBaseline | None = None,
+    +    released: bool | None = None,
+     ) -> dict[str, Any]:
+         """The NORMALIZED record persisted on the run record, beside the integration signal.
 
-- [ ] V-03 validates E-03
+    @@ -21606,6 +21607,21 @@ def gate_answer_record(
+
+         WRITING IT IS NOT READING IT. Nothing in this package compares `suite_baseline["failures"]` to
+         `failing_tests`; a record is not a check. See `SUITE_BASELINE_SUBDIR`.
+    +
+    +    `released` IS gateansrec-01 (`nzznlm` / backlog `w51mpv`), AND IT IS HERE FOR AUDIT AND NOTHING ELSE.
+    +    `integrates` is whether the TOKEN releases on the answer alone (only `not-mine` is True; `fixed` is
+    +    False because a repair claim earns a suite re-run and only an observed passing re-run releases).
+    +    `released` records whether THIS answer actually released the lane (what `GateAnswerOutcome.release`
+    +    evaluated to), resolving the legibility contradiction where an auditor reading a verified `fixed`
+    +    answer saw `integrates: False` on an item that integrated. `None` means the producer did not
+    +    decide a release (e.g. an unadorned direct call).
+    +
+    +    WRITING IT IS NOT READING IT, AND IT IS NOT AN ADMISSIBILITY SIGNAL. Guard (c) at
+    +    `GATE_ANSWER_RECORD_KEY` records a measured fail-open hazard: a post-merge reader keyed on
+    +    an outcome field rather than the token would release on two answers designed to refuse, because
+    +    `fixed` carries `release: True` beside pre-repair `failing_tests`. The gate-2 attribution channel
+    +    keys strictly on the ANSWER TOKEN (`attributed_away_failure_ids` refuses anything other than
+    +    `not-mine`) and MUST NOT be changed to key on `released`.
+         """
+
+         return {
+    @@ -21623,6 +21639,7 @@ def gate_answer_record(
+             "violation": verdict.violation,
+             "usable": bool(verdict.usable),
+             "integrates": bool(verdict.integrates),
+    +        "released": released if released is None else bool(released),
+             "refuses": bool(verdict.refuses),
+             "awaits_human_decision": bool(verdict.awaits_human_decision),
+             "asked": bool(asked),
+    ```
+    Direct call values with and without argument:
+    ```
+    without arg: None
+    with released=True: True
+    with released=False: False
+    ```
+    The docstring visibly contains the F-6 fail-open warning and adds NO citations to nonexistent test classes `test_suite_baseline.py` or `test_suite_adjudication.py`.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the re-run of `rg -n "gate_answer_record\(" agent_workflows/ tests/` showing the call-site set (expected at this HEAD: the definition, one docstring mention, and exactly two calls), the diff at each of the two calls, and the re-run probe showing `released == release` for all four tokens.
   - ALSO REQUIRED, the ANTI-REGRESSION CHECK for F-6, because this is the one way this plan could do harm: paste `rg -n 'record.get\("released"\)|record\["released"\]|\.get\("released"' agent_workflows/` and show that `attributed_away_failure_ids`, `unattributed_merged_failures` and `_relative_revalidation_verdict` contain NO read of the new key, i.e. the gate-2 channel still keys on the answer token. A hit inside any of those three is a fail-open regression and must be removed, not explained.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS.
+    Call-site set via `rg -n "gate_answer_record\(" agent_workflows/ tests/`:
+    ```
+    agent_workflows/runner_shared.py:21569:def gate_answer_record(
+    agent_workflows/runner_shared.py:21721:    call and the `gate_answer_record(...)` call. It is absent from every `if`, from the `release`
+    agent_workflows/runner_shared.py:21811:    record = gate_answer_record(
+    agent_workflows/runner_shared.py:29386:                    record=gate_answer_record(
+    tests/test_gate_answer_record_released.py:129:        rec = runner_shared.gate_answer_record(verdict, asked=True, ask_reason="")
+    tests/test_gate_answer_record_released.py:146:        rec_unadorned = runner_shared.gate_answer_record(
+    tests/test_gate_answer_record_released.py:157:            rec = runner_shared.gate_answer_record(
+    ```
+    Diffs at the two production call sites:
+    ```diff
+    @@ -21803,6 +21820,7 @@ def perform_gate_answer(
+             recheck_passed=recheck_passed,
+             recheck_summary=recheck_summary,
+             baseline=baseline,
+    +        released=release,
+         )
+         return GateAnswerOutcome(
+             release=release,
+    @@ -29377,6 +29395,7 @@ def execute_item_core(
+                             integration_signal=integration.signal,
+                             failures=getattr(suite_result, "failures", ()) or (),
+                             baseline=suite_baseline,
+    +                        released=False,
+                         ),
+                     )
+                 attempt[GATE_ANSWER_RECORD_KEY] = gate_outcome.record
+    ```
+    Re-run probe showing `released == release` for all four tokens:
+    ```
+    not-mine release True integrates True released True recheck_passed None
+    fixed release True integrates False released True recheck_passed True
+    mine release False integrates False released False recheck_passed None
+    needs-human release False integrates False released False recheck_passed None
+    ```
+    Anti-regression check for F-6:
+    `rg -n 'record.get\("released"\)|record\["released"\]|\.get\("released"' agent_workflows/`
+    Exit code 1 (no hits). `attributed_away_failure_ids`, `unattributed_merged_failures`, and `_relative_revalidation_verdict` contain no read of `released`.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `python3 -m pytest -o addopts="" -q tests/test_gate_answer_record_released.py` passing with its count; the BEFORE-CHANGE run showing cases (1) through (5) and (7) FAILING and (6), (8) passing; `python3 -m pytest -o addopts="" -q tests/test_runner_shared.py` passing with at least the 93 measured at review; and the bare `python3 -m pytest` summary line before and after with the after-minus-before failing node-ID set (must be empty).
   - HOW TO GET THE BEFORE-CHANGE RUN, prescribed because the obvious route is unsafe in a shared checkout: use a throwaway detached worktree (`git worktree add --detach <gitignored path> <base-sha>`; `.gitignore` ignores `.aw/worktrees/` and `tmp/`) and copy the new test file into it, then `git worktree remove`. Do NOT revert E-02/E-03 in place and do NOT use `git stash`: a stash moves a co-worker's uncommitted changes. If an in-place revert is used anyway, restore it in the very next command and say so in the evidence.
   - STATE THE FAILURE MODE HONESTLY: on unmodified code `record["released"]` raises `KeyError: 'released'` (measured at review), so the pre-change result is an ERROR rather than an assertion failure. pytest counts it as failing, which satisfies the bar; say which it was rather than implying a clean assertion failure.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS.
+    Before-change run of `tests/test_gate_answer_record_released.py` (executed directly against unmodified `runner_shared.py` prior to editing):
+    Cases (1) through (5), (7), and (9) FAILED with `KeyError: 'released'` (error on absent key), while controls (6) and (8) passed:
+    ```
+    .FF.FFFFF                                                                [100%]
+    =================================== FAILURES ===================================
+    ...
+    FAILED tests/test_gate_answer_record_released.py::GateAnswerRecordReleasedTests::test_case_5_not_mine_releases_and_integrates
+    FAILED tests/test_gate_answer_record_released.py::GateAnswerRecordReleasedTests::test_case_2_fixed_passing_rerun_contradiction_resolved
+    FAILED tests/test_gate_answer_record_released.py::GateAnswerRecordReleasedTests::test_case_3_fixed_failing_rerun_exhausted_budget
+    FAILED tests/test_gate_answer_record_released.py::GateAnswerRecordReleasedTests::test_case_7_direct_call_without_released_yields_none
+    FAILED tests/test_gate_answer_record_released.py::GateAnswerRecordReleasedTests::test_case_1_four_tokens_released_matches_outcome_release
+    FAILED tests/test_gate_answer_record_released.py::GateAnswerRecordReleasedTests::test_case_4_fixed_rerun_suite_none
+    FAILED tests/test_gate_answer_record_released.py::GateAnswerRecordReleasedTests::test_case_9_interrupted_follow_up_record
+    7 failed, 2 passed in 0.17s
+    ```
+    All 7 failures were ERRORS due to `KeyError: 'released'`.
+    After-change run:
+    ```
+    python3 -m pytest -o addopts="" -q tests/test_gate_answer_record_released.py
+    .........                                                                [100%]
+    9 passed in 0.12s
+    ```
+    `tests/test_runner_shared.py` run:
+    ```
+    python3 -m pytest -o addopts="" -q tests/test_runner_shared.py
+    ........................................................................ [ 77%]
+    .....................                                                    [100%]
+    93 passed in 19.54s
+    ```
+    Bare `python3 -m pytest` before change:
+    `2689 passed, 2 skipped, 3 warnings in 83.98s (0:01:23)`
+    Bare `python3 -m pytest` after change:
+    `2698 passed, 2 skipped, 3 warnings in 93.72s (0:01:33)`
+    After-minus-before failing node-ID set: empty (0 failing before, 0 failing after; exactly 9 new tests passed).
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the interrupted-follow-up case PASSING after the change and FAILING (or erroring on the absent key) before it, plus the assertion output showing that record's `usable`/`integrates`/`refuses` values so the "all four booleans were False" claim in OQ-01 is visible rather than asserted.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS.
+    Before change: errored with `KeyError: 'released'` on `rec["released"]` after asserting baseline record properties:
+    ```
+    FAILED tests/test_gate_answer_record_released.py::GateAnswerRecordReleasedTests::test_case_9_interrupted_follow_up_record
+    KeyError: 'released'
+    ```
+    After change:
+    `test_case_9_interrupted_follow_up_record` passed cleanly in the 9-passed suite.
+    Assertion output showing interrupted follow-up record values (proving all four booleans were False):
+    ```
+    usable: False
+    answer: ''
+    integrates: False
+    refuses: False
+    released: False
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

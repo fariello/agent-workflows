@@ -21579,6 +21579,7 @@ def gate_answer_record(
     recheck_passed: bool | None = None,
     recheck_summary: str = "",
     baseline: SuiteBaseline | None = None,
+    released: bool | None = None,
 ) -> dict[str, Any]:
     """The NORMALIZED record persisted on the run record, beside the integration signal.
 
@@ -21606,6 +21607,21 @@ def gate_answer_record(
 
     WRITING IT IS NOT READING IT. Nothing in this package compares `suite_baseline["failures"]` to
     `failing_tests`; a record is not a check. See `SUITE_BASELINE_SUBDIR`.
+
+    `released` IS gateansrec-01 (`nzznlm` / backlog `w51mpv`), AND IT IS HERE FOR AUDIT AND NOTHING ELSE.
+    `integrates` is whether the TOKEN releases on the answer alone (only `not-mine` is True; `fixed` is
+    False because a repair claim earns a suite re-run and only an observed passing re-run releases).
+    `released` records whether THIS answer actually released the lane (what `GateAnswerOutcome.release`
+    evaluated to), resolving the legibility contradiction where an auditor reading a verified `fixed`
+    answer saw `integrates: False` on an item that integrated. `None` means the producer did not
+    decide a release (e.g. an unadorned direct call).
+
+    WRITING IT IS NOT READING IT, AND IT IS NOT AN ADMISSIBILITY SIGNAL. Guard (c) at
+    `GATE_ANSWER_RECORD_KEY` records a measured fail-open hazard: a post-merge reader keyed on
+    an outcome field rather than the token would release on two answers designed to refuse, because
+    `fixed` carries `release: True` beside pre-repair `failing_tests`. The gate-2 attribution channel
+    keys strictly on the ANSWER TOKEN (`attributed_away_failure_ids` refuses anything other than
+    `not-mine`) and MUST NOT be changed to key on `released`.
     """
 
     return {
@@ -21623,6 +21639,7 @@ def gate_answer_record(
         "violation": verdict.violation,
         "usable": bool(verdict.usable),
         "integrates": bool(verdict.integrates),
+        "released": released if released is None else bool(released),
         "refuses": bool(verdict.refuses),
         "awaits_human_decision": bool(verdict.awaits_human_decision),
         "asked": bool(asked),
@@ -21803,6 +21820,7 @@ def perform_gate_answer(
         recheck_passed=recheck_passed,
         recheck_summary=recheck_summary,
         baseline=baseline,
+        released=release,
     )
     return GateAnswerOutcome(
         release=release,
@@ -29377,6 +29395,7 @@ def execute_item_core(
                         integration_signal=integration.signal,
                         failures=getattr(suite_result, "failures", ()) or (),
                         baseline=suite_baseline,
+                        released=False,
                     ),
                 )
             attempt[GATE_ANSWER_RECORD_KEY] = gate_outcome.record
