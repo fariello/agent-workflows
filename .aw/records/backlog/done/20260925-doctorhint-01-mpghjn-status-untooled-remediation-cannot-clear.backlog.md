@@ -1,5 +1,5 @@
 - Id: mpghjn
-- Status: graduated
+- Status: done
 - Graduated-To: doctorhint
 - Blocks-Release: next
 - Set: doctorhint
@@ -8,6 +8,7 @@
 - Summary: aw doctor's status-untooled remediation can never clear its own finding: a re-applied status writes a same-status history token that check_engine._has_matching_history_line rejects
 
 ## Workflow history
+- 2026-09-27 set (aw backlog): closed by aw oc run: IPD 9aqrzu executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260926-doctorhint-02-9aqrzu-make-the-status-untooled-remediation-clear-its-own-finding-b.ipd.md); evidence .aw/records/plans/executed/20260926-doctorhint-02-9aqrzu-make-the-status-untooled-remediation-clear-its-own-finding-b.ipd.md
 - 2026-09-26 graduated (aw set): Graduated 2026-09-26 into to-review plan Set doctorhint (commit 2c7068ca).
 - 2026-09-25 created (aw backlog): aw doctor's status-untooled remediation can never clear its own finding: a re-applied status writes a same-status history token that check_engine._has_matching_history_line rejects
 
