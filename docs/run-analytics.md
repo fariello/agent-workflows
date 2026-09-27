@@ -71,8 +71,8 @@ a disallowed query, or a refused slice).
 ## The agent surface
 
 `aw runs query` exists so an agent never has to parse the report HTML. Add `--agent` for
-`aw.agent/v1` JSONL, or `--json` for the full structured representation; `--agent` is automatic when
-the output is piped.
+`aw.agent/v1` JSONL, or `--json` for the full structured representation; `--agent` must be passed
+explicitly, and piping affects color only.
 
 The views are `overview`, `schema`, `metrics`, `distributions`, `slices`, `findings`, `evidence`,
 `data-quality`, `cache-status` and `explain`. Run `aw runs query schema` to print the live list along
