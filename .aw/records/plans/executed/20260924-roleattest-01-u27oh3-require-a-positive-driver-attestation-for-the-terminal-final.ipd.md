@@ -19,6 +19,7 @@
 - Work-Kind: security
 
 ## Workflow history
+- 2026-09-26 note (opencode/its_direct/pt3-claude-opus-5.5-1m-us): POINTER ONLY, this record is unchanged. The per-run driver attestation token and the lane-location check this plan added are being REPLACED by backlog `dvonrn` (lifegate): one plan-scoped 'a live run holds this plan' check, begin/finalize allowed anywhere, no secret token, under the new GUIDING_PRINCIPLES P15 (guard against honest mistakes, never against a malicious agent). Measured trigger: the location check refused a human's own feature worktree under `.aw/worktrees/` (feat-partition, 2026-09-26). See `dvonrn` for the decisions D1-D8.
 - 2026-09-25 executed (opencode manual-landing run=run-20260925T174509Z-636951): Manual finalize: lane work verified by the run (verification_status verified); the run's finalize was refused only because the pre-wj5b53 driver's pinned finalize re-executed into this lane's new attestation gate (fixed in 146c8e2b). Lane merged with main; full suite 2173 passed.
 - 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us step=plan-review): plan-review complete: 8 findings (1 BLOCKER) all FIXED, 5 recorded decisions, none irreversible; review-finalize lint clean
