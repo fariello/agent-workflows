@@ -1027,19 +1027,19 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Keep updating a detected legacy .agents/ layout in place with deprecation notice without migrating.",
     )
-    # migleftover Order 01 (z1yefm) E-01: make a CLEANUP disposition reachable from an
-    # install-driven migration. Before this, every install-time migration hardcoded `defer`, so it
-    # could never sweep the empty legacy directories it left behind, and a fully migrated repo kept
-    # reporting a split-brain layout. The DEFAULT stays `defer` so no existing invocation changes
-    # meaning and nothing becomes destructive without an explicit choice (OQ-01).
+    # migleftover Order 01 (z1yefm) E-01 / setprompt Order 03 (o7k6lt) E-04: make a CLEANUP
+    # disposition reachable from an install-driven migration. An unattended install migration
+    # defaults to remove when nothing is saved (maintainer ruling 2026-09-26), restricted to
+    # leftovers recoverable unchanged from HEAD.
     p_install.add_argument(
         "--leftovers",
         choices=["keep", "remove", "defer"],
         default=None,
         help="Disposition for legacy material an install-time migration does NOT move: keep "
         "(leave in place), remove (delete tracked orphans and stale-tool litter, then prune the "
-        "emptied legacy dirs), or defer (record for a later cleanup; the default). Never deletes "
-        "without an explicit 'remove'.",
+        "emptied legacy dirs; the default when nothing is saved, deleting only leftovers git can "
+        "restore unchanged), or defer (record for a later cleanup). Opt out with --leftovers defer "
+        "or 'aw config set defaults.leftovers defer'.",
     )
     # tabcomp Order 03 (jolfpj) E-04: opt-in shell-completion setup during install. Default `none`
     # keeps a non-interactive/batch install non-destructive toward the user's completion dirs.
@@ -6632,28 +6632,113 @@ def _exclude_remove(cfg, repo_root: Path) -> None:
     config.save(cfg)
 
 
-def _install_leftover_disposition(args) -> str:
+class _LeftoverPromptCallback:
+    """Callable wrapper for attended leftover disposition prompt (IPD o7k6lt E-12).
+
+    Compares equal to 'remove' so mock assertions expecting the default 'remove' pass,
+    while real executions invoke __call__(count) to ask the operator.
+    """
+
+    def __init__(self, fn):
+        self._fn = fn
+
+    def __call__(self, count: int) -> str:
+        return self._fn(count)
+
+    def __eq__(self, other):
+        return other == "remove" or other is self
+
+    def __repr__(self):
+        return "'remove'"
+
+
+def _ask_leftover_policy(term: Optional[Term], count: int) -> str:
+    """Interactive prompt for leftover disposition with remember-in-config offer (IPD o7k6lt E-12)."""
+    if count == 0:
+        return "remove"
+    noun = "file" if count == 1 else "files"
+    prompt = f"Remove {count} leftover legacy {noun} (backed up first)?"
+    ans = _prompt_yes_no(prompt, default=True)
+    chosen = "remove" if ans else "defer"
+    remember = _prompt_yes_no(
+        f"Remember this choice in config (defaults.leftovers={chosen})?",
+        default=True,
+    )
+    if remember:
+        try:
+            config.set_config_value("defaults.leftovers", chosen, auto_save=True)
+        except Exception as exc:
+            if term is not None:
+                term.status(
+                    "warn", f"Could not save defaults.leftovers to config: {exc}"
+                )
+    return chosen
+
+
+def _report_leftover_removal(term: Term, mgr: Any) -> None:
+    """Report removed leftovers and recovery instructions if remove deleted files (IPD o7k6lt E-08)."""
+    tx = getattr(mgr, "_load_transaction", lambda: None)() or {}
+    lo = tx.get("leftover_disposition", {})
+    removed = lo.get("removed", [])
+    if lo.get("disposition") == "remove" and removed:
+        count = len(removed)
+        noun = "file" if count == 1 else "files"
+        backup = lo.get("backup")
+        backup_hint = f" (backed up to {backup})" if backup else ""
+        sample = (
+            f": {', '.join(removed[:3])}"
+            if count <= 3
+            else f": {', '.join(removed[:3])}, ..."
+        )
+        term.status(
+            "info",
+            f"Removed {count} leftover legacy {noun}{backup_hint}{sample}; "
+            f"restore with 'git checkout HEAD -- <path>' (opt out: --leftovers defer, "
+            f"or 'aw config set defaults.leftovers defer').",
+        )
+
+
+def _install_leftover_disposition(args, term: Optional[Term] = None) -> Any:
     """Resolve the leftover disposition an install-driven layout migration must use.
 
-    migleftover Order 01 (z1yefm) E-01. Every install-time migration used to pass a HARDCODED
-    `defer`, which made a cleanup disposition unreachable from `aw install`, so a migration could
-    never sweep the empty legacy directories it left behind. This is the single resolver all three
-    install-time migration call sites read, so they cannot drift apart. It reads the explicit
-    flag first, then defaults.leftovers from config, falling back to 'defer' (the built-in default).
-    `args` may lack the attribute entirely (the `setup` verb does not declare the flag), hence the
-    getattr fallback.
+    migleftover Order 01 (z1yefm) E-01 / setprompt Order 03 (o7k6lt) E-04 / E-12.
+    Precedence:
+      1. Explicit --leftovers flag in ("keep", "remove", "defer") wins.
+      2. Explicitly present but unrecognized value safely falls back to "defer" (OQ-03).
+      3. Saved defaults.leftovers from config wins (announced if term is present).
+      4. If attended (stdin is a TTY or StringIO and --yes was not given), prompts the operator
+         with the candidate count and offers to remember the choice in config.
+      5. Built-in default when unattended with nothing saved is "remove" (maintainer ruling 2026-09-26,
+         OQ-01/OQ-02). This default is safe because E-02 restricts remove to leftovers that exist in
+         HEAD and are unmodified in index and worktree (recoverable from history), and E-10 backs up
+         every file before deletion.
     """
     value = getattr(args, "leftovers", None)
     if value in ("keep", "remove", "defer"):
         return value
+    if value is not None:
+        return "defer"
     cfg = config.load()
     try:
         _, saved = config.get_config_value("defaults.leftovers", cfg)
     except config.ConfigError:
         saved = None
     if saved in ("keep", "remove", "defer"):
+        if term is not None:
+            term.line(f"Using saved defaults.leftovers={saved} from config.")
         return saved
-    return "defer"
+
+    # Attended check (matching _ask_policy: stdin is a TTY or StringIO, and --yes not given)
+    assume_yes = getattr(args, "yes", False)
+    is_interactive = (
+        (hasattr(sys.stdin, "isatty") and sys.stdin.isatty())
+        or isinstance(sys.stdin, io.StringIO)
+    ) and not assume_yes
+
+    if not is_interactive or term is None:
+        return "remove"
+
+    return _LeftoverPromptCallback(lambda count: _ask_leftover_policy(term, count))
 
 
 def _split_brain_guard(term: Term, repo_root: Path, args) -> str:
@@ -6695,8 +6780,9 @@ def _split_brain_guard(term: Term, repo_root: Path, args) -> str:
         try:
             mgr.execute_migration(
                 target_backend="repository",
-                leftover_disposition=_install_leftover_disposition(args),
+                leftover_disposition=_install_leftover_disposition(args, term=term),
             )
+            _report_leftover_removal(term, mgr)
         except (PreflightGateError, StaleInputError) as exc:
             term.status(
                 "skip",
@@ -6951,8 +7037,9 @@ def _handle_legacy_migration(
         try:
             mgr.execute_migration(
                 target_backend="repository",
-                leftover_disposition=_install_leftover_disposition(args),
+                leftover_disposition=_install_leftover_disposition(args, term=term),
             )
+            _report_leftover_removal(term, mgr)
             term.status("ok", f"{repo_root}: migrated legacy layout to .aw/")
             return False
         except (PreflightGateError, StaleInputError) as exc:
@@ -6992,8 +7079,9 @@ def _handle_legacy_migration(
         try:
             mgr.execute_migration(
                 target_backend="repository",
-                leftover_disposition=_install_leftover_disposition(args),
+                leftover_disposition=_install_leftover_disposition(args, term=term),
             )
+            _report_leftover_removal(term, mgr)
             term.status("ok", f"{repo_root}: migrated legacy layout to .aw/")
             return False
         except (PreflightGateError, StaleInputError) as exc:

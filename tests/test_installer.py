@@ -4372,7 +4372,7 @@ class InstallLeftoverDispositionThreadingTests(unittest.TestCase):
         self.assertIn("--leftovers", install_decl.legacy_flags)
 
         # Resolver defaults and junk rejection
-        self.assertEqual(CLI._install_leftover_disposition(self._args()), "defer")
+        self.assertEqual(CLI._install_leftover_disposition(self._args()), "remove")
         self.assertEqual(
             CLI._install_leftover_disposition(self._args(leftovers="remove")), "remove"
         )
@@ -4380,7 +4380,7 @@ class InstallLeftoverDispositionThreadingTests(unittest.TestCase):
             CLI._install_leftover_disposition(self._args(leftovers="keep")), "keep"
         )
         self.assertEqual(
-            CLI._install_leftover_disposition(argparse.Namespace()), "defer"
+            CLI._install_leftover_disposition(argparse.Namespace()), "remove"
         )
         self.assertEqual(
             CLI._install_leftover_disposition(self._args(leftovers="rm -rf")), "defer"
@@ -4395,7 +4395,7 @@ class InstallLeftoverDispositionThreadingTests(unittest.TestCase):
         )
         # Clear restores built-in default
         CFG.unset_config_value("defaults.leftovers")
-        self.assertEqual(CLI._install_leftover_disposition(self._args()), "defer")
+        self.assertEqual(CLI._install_leftover_disposition(self._args()), "remove")
 
     def test_migration_paths_thread_requested_disposition(self):
         """All three migration paths (--to-aw, interactive confirm, split-brain migrate-now) thread leftovers disposition."""
@@ -4403,7 +4403,7 @@ class InstallLeftoverDispositionThreadingTests(unittest.TestCase):
         for requested, expected in (
             ("remove", "remove"),
             ("keep", "keep"),
-            (None, "defer"),
+            (None, "remove"),
         ):
             with self.subTest(site="to_aw", leftovers=requested):
                 repo = self._legacy_repo(f"to-aw-{requested}")
@@ -4418,7 +4418,7 @@ class InstallLeftoverDispositionThreadingTests(unittest.TestCase):
                 )
 
         # 2. interactive confirm path
-        for requested, expected in (("remove", "remove"), (None, "defer")):
+        for requested, expected in (("remove", "remove"), (None, "remove")):
             with self.subTest(site="interactive", leftovers=requested):
                 repo = self._legacy_repo(f"interactive-{requested}")
                 with mock.patch("sys.stdin.isatty", return_value=True):
@@ -4506,7 +4506,7 @@ class InstallLeftoverDispositionThreadingTests(unittest.TestCase):
             self.assertFalse((repo / ".aw" / "system").exists())
 
         # 3. split-brain migrate-now path
-        for requested, expected in (("remove", "remove"), (None, "defer")):
+        for requested, expected in (("remove", "remove"), (None, "remove")):
             with self.subTest(site="split_brain", leftovers=requested):
                 repo = self._split_brain_repo(f"sb-{requested}")
                 with mock.patch("sys.stdin.isatty", return_value=True):
@@ -4533,6 +4533,420 @@ class InstallLeftoverDispositionThreadingTests(unittest.TestCase):
                 MockMgr.return_value.execute_migration.assert_called_once_with(
                     target_backend="repository", leftover_disposition=expected
                 )
+
+
+class InstallLeftoverDefaultRemoveTests(InstallLeftoverDispositionThreadingTests):
+    """Behavioral tests for leftover disposition safety and default remove (IPD o7k6lt E-03)."""
+
+    def _committed_legacy_repo(self, name: str) -> Path:
+        repo = self._legacy_repo(name)
+        (repo / ".gitignore").write_text(".aw/state/\n", encoding="utf-8")
+        (repo / ".agents" / "README.md").write_text(
+            "# Legacy Readme\n", encoding="utf-8"
+        )
+        git(repo, "add", "-A")
+        res = git(repo, "commit", "-m", "base")
+        self.assertEqual(res.returncode, 0, f"git commit failed: {res.stderr}")
+        return repo
+
+    def test_safety_case_a_staged_never_committed_survives_remove(self):
+        """(a) A staged-never-committed leftover survives remove (E-03)."""
+        from agent_workflows.layout_migration import MigrationManager
+
+        repo = self._legacy_repo("safety_a")
+        git(repo, "add", "-A")
+        res = git(repo, "commit", "-m", "base without leftover")
+        self.assertEqual(res.returncode, 0, f"git commit failed: {res.stderr}")
+        (repo / ".agents" / "README.md").write_text(
+            "# Staged never committed\n", encoding="utf-8"
+        )
+        git(repo, "add", ".agents/README.md")
+        log_res = git(repo, "log", "--all", "--", ".agents/README.md")
+        self.assertEqual(log_res.stdout.strip(), "")
+        mgr = MigrationManager(str(repo))
+        mgr.execute_migration(
+            target_backend="repository", leftover_disposition="remove"
+        )
+        self.assertTrue(
+            (repo / ".agents" / "README.md").is_file(),
+            "staged-never-committed leftover must survive remove",
+        )
+        tx = mgr._load_transaction() or {}
+        result = tx.get("leftover_disposition", {})
+        self.assertIn(".agents/README.md", result.get("preserved", []))
+        self.assertNotIn(".agents/README.md", result.get("removed", []))
+
+    def test_safety_case_b_committed_leftover_with_uncommitted_edit_survives_remove(
+        self,
+    ):
+        """(b) A committed leftover with an uncommitted edit survives remove with edit intact (E-03)."""
+        from agent_workflows.layout_migration import MigrationManager
+
+        repo = self._committed_legacy_repo("safety_b")
+        (repo / ".agents" / "README.md").write_text(
+            "# Uncommitted edit\n", encoding="utf-8"
+        )
+        mgr = MigrationManager(str(repo))
+        mgr.execute_migration(
+            target_backend="repository", leftover_disposition="remove"
+        )
+        self.assertTrue(
+            (repo / ".agents" / "README.md").is_file(),
+            "locally modified leftover must survive remove",
+        )
+        self.assertEqual(
+            (repo / ".agents" / "README.md").read_text(encoding="utf-8"),
+            "# Uncommitted edit\n",
+        )
+        tx = mgr._load_transaction() or {}
+        result = tx.get("leftover_disposition", {})
+        self.assertIn(".agents/README.md", result.get("preserved", []))
+        self.assertNotIn(".agents/README.md", result.get("removed", []))
+
+    def test_safety_case_b2_committed_leftover_with_staged_edit_survives_remove(self):
+        """(b2) A committed leftover with a staged edit survives remove with edit intact (E-03)."""
+        from agent_workflows.layout_migration import MigrationManager
+
+        repo = self._committed_legacy_repo("safety_b2")
+        (repo / ".agents" / "README.md").write_text("# Staged edit\n", encoding="utf-8")
+        git(repo, "add", ".agents/README.md")
+        mgr = MigrationManager(str(repo))
+        mgr.execute_migration(
+            target_backend="repository", leftover_disposition="remove"
+        )
+        self.assertTrue(
+            (repo / ".agents" / "README.md").is_file(),
+            "staged-modified leftover must survive remove",
+        )
+        self.assertEqual(
+            (repo / ".agents" / "README.md").read_text(encoding="utf-8"),
+            "# Staged edit\n",
+        )
+        tx = mgr._load_transaction() or {}
+        result = tx.get("leftover_disposition", {})
+        self.assertIn(".agents/README.md", result.get("preserved", []))
+        self.assertNotIn(".agents/README.md", result.get("removed", []))
+
+    def test_control_case_c_clean_committed_leftover_is_removed(self):
+        """(c) A clean committed leftover is removed by remove (E-03)."""
+        from agent_workflows.layout_migration import MigrationManager
+
+        repo = self._committed_legacy_repo("control_c")
+        head_rev = git(repo, "rev-parse", "HEAD").stdout.strip()
+        self.assertTrue(
+            head_rev and len(head_rev) == 40,
+            f"Fixture must have real HEAD: {head_rev}",
+        )
+        mgr = MigrationManager(str(repo))
+        mgr.execute_migration(
+            target_backend="repository", leftover_disposition="remove"
+        )
+        self.assertFalse(
+            (repo / ".agents" / "README.md").exists(),
+            "clean committed leftover must be removed",
+        )
+        tx = mgr._load_transaction() or {}
+        result = tx.get("leftover_disposition", {})
+        self.assertIn(".agents/README.md", result.get("removed", []))
+        self.assertNotIn(".agents/README.md", result.get("preserved", []))
+
+    def test_control_case_d_untracked_file_survives(self):
+        """(d) An untracked file under .agents/ survives remove (E-03)."""
+        from agent_workflows.layout_migration import MigrationManager
+
+        repo = self._committed_legacy_repo("control_d")
+        untracked = repo / ".agents" / "plans" / "untracked" / "notes.txt"
+        untracked.parent.mkdir(parents=True, exist_ok=True)
+        untracked.write_text("untracked notes\n", encoding="utf-8")
+        mgr = MigrationManager(str(repo))
+        mgr.execute_migration(
+            target_backend="repository", leftover_disposition="remove"
+        )
+        migrated = repo / ".aw" / "records" / "plans" / "untracked" / "notes.txt"
+        self.assertTrue(migrated.is_file(), "untracked file must survive migration")
+        tx = mgr._load_transaction() or {}
+        result = tx.get("leftover_disposition", {})
+        self.assertNotIn(".agents/plans/untracked/notes.txt", result.get("removed", []))
+
+    def test_control_case_e_skills_assess_survives_byte_identical(self):
+        """(e) .agents/skills/assess/SKILL.md survives byte-identical under remove (E-03)."""
+        from agent_workflows.layout_migration import MigrationManager
+
+        repo = self._committed_legacy_repo("control_e")
+        skill_p = repo / ".agents" / "skills" / "assess" / "SKILL.md"
+        before_bytes = skill_p.read_bytes()
+        mgr = MigrationManager(str(repo))
+        mgr.execute_migration(
+            target_backend="repository", leftover_disposition="remove"
+        )
+        self.assertTrue(skill_p.is_file(), "skill package must survive")
+        self.assertEqual(skill_p.read_bytes(), before_bytes)
+        tx = mgr._load_transaction() or {}
+        result = tx.get("leftover_disposition", {})
+        self.assertNotIn(".agents/skills/assess/SKILL.md", result.get("removed", []))
+
+    def test_backup_case_m_tarball_created_and_verified(self):
+        """(m) After remove, the tarball exists under leftover-backups, is gitignored, and members match (E-11)."""
+        import tarfile
+        from agent_workflows.layout_migration import MigrationManager
+
+        repo = self._committed_legacy_repo("backup_m")
+        mgr = MigrationManager(str(repo))
+        mgr.execute_migration(
+            target_backend="repository", leftover_disposition="remove"
+        )
+        tx = mgr._load_transaction() or {}
+        res = tx.get("leftover_disposition", {})
+        backup_rel = res.get("backup")
+        self.assertIsNotNone(
+            backup_rel, "tx leftover_disposition must record backup path"
+        )
+        self.assertTrue(
+            backup_rel.startswith(
+                ".aw/state/durable/migrations/leftover-backups/leftovers-"
+            ),
+            f"backup path must be under leftover-backups, got {backup_rel}",
+        )
+        backup_path = repo / backup_rel
+        self.assertTrue(
+            backup_path.is_file(), f"backup tarball must exist at {backup_path}"
+        )
+
+        # Gitignored check
+        check_ignore = git(repo, "check-ignore", "-q", "--", backup_rel)
+        self.assertEqual(
+            check_ignore.returncode, 0, "backup tarball must be gitignored"
+        )
+
+        # Tar members and bytes match
+        with tarfile.open(backup_path, "r:gz") as tar:
+            members = sorted(tar.getnames())
+            self.assertEqual(members, sorted(res.get("removed", [])))
+            member_bytes = tar.extractfile(".agents/README.md").read()
+            committed_bytes = git(repo, "show", "HEAD:.agents/README.md").stdout.encode(
+                "utf-8"
+            )
+            self.assertEqual(member_bytes, committed_bytes)
+
+    def test_backup_case_n_remove_with_nothing_removable_writes_no_tarball(self):
+        """(n) A remove with nothing removable writes no tarball (E-11)."""
+        from agent_workflows.layout_migration import MigrationManager
+
+        repo = self._legacy_repo("backup_n")
+        git(repo, "add", "-A")
+        git(repo, "commit", "-m", "base without removable leftover")
+        mgr = MigrationManager(str(repo))
+        mgr.execute_migration(
+            target_backend="repository", leftover_disposition="remove"
+        )
+        tx = mgr._load_transaction() or {}
+        res = tx.get("leftover_disposition", {})
+        self.assertIsNone(res.get("backup"))
+        backups_dir = (
+            repo / ".aw" / "state" / "durable" / "migrations" / "leftover-backups"
+        )
+        if backups_dir.exists():
+            self.assertEqual(list(backups_dir.glob("*.tar.gz")), [])
+
+    def test_backup_case_o_backup_failure_prevents_deletion(self):
+        """(o) When backup fails, deletion is aborted, leftover survives, and backup_error is set (E-11)."""
+        from agent_workflows.layout_migration import MigrationManager
+
+        repo = self._committed_legacy_repo("backup_o")
+        mgr = MigrationManager(str(repo))
+        with mock.patch("tarfile.open", side_effect=OSError("Disk full")):
+            mgr.execute_migration(
+                target_backend="repository", leftover_disposition="remove"
+            )
+        self.assertTrue(
+            (repo / ".agents" / "README.md").is_file(),
+            "leftover must survive when backup fails",
+        )
+        tx = mgr._load_transaction() or {}
+        res = tx.get("leftover_disposition", {})
+        self.assertEqual(res.get("removed", []), [], "removed list must be empty")
+        self.assertIn(".agents/README.md", res.get("preserved", []))
+        self.assertIn("backup_error", res)
+        self.assertIn("Disk full", res["backup_error"])
+
+    def test_default_case_f_unattended_install_with_nothing_saved_removes_leftover(
+        self,
+    ):
+        """(f) aw install --to-aw --yes with nothing saved removes a clean tracked leftover (E-05)."""
+        repo = self._committed_legacy_repo("default_f")
+        # Plant untracked file and check .agents/skills survives (case i)
+        (repo / ".agents" / "plans" / "untracked").mkdir(parents=True, exist_ok=True)
+        (repo / ".agents" / "plans" / "untracked" / "notes.txt").write_text(
+            "untracked notes\n", encoding="utf-8"
+        )
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            code = CLI.main(["install", str(repo), "--to-aw", "--yes"])
+        self.assertEqual(code, 0)
+        self.assertFalse(
+            (repo / ".agents" / "README.md").exists(),
+            "clean tracked leftover must be removed by default in unattended install",
+        )
+        # (i) untracked file and skills survive
+        migrated = repo / ".aw" / "records" / "plans" / "untracked" / "notes.txt"
+        self.assertTrue(migrated.is_file(), "untracked file must survive")
+        self.assertTrue(
+            (repo / ".agents" / "skills" / "assess" / "SKILL.md").is_file(),
+            "skills must survive",
+        )
+
+    def test_default_case_g_saved_defer_keeps_leftover(self):
+        """(g) After aw config set defaults.leftovers defer, unattended install keeps leftover (E-05)."""
+        from agent_workflows import config as CFG
+
+        CFG.set_config_value("defaults.leftovers", "defer")
+        repo = self._committed_legacy_repo("default_g")
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            code = CLI.main(["install", str(repo), "--to-aw", "--yes"])
+        self.assertEqual(code, 0)
+        self.assertTrue(
+            (repo / ".agents" / "README.md").is_file(),
+            "saved defaults.leftovers defer must keep leftover",
+        )
+
+    def test_default_case_h_explicit_flag_overrides_saved_remove(self):
+        """(h) --leftovers defer keeps leftover even when defaults.leftovers is remove (E-05)."""
+        from agent_workflows import config as CFG
+
+        CFG.set_config_value("defaults.leftovers", "remove")
+        repo = self._committed_legacy_repo("default_h")
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            code = CLI.main(
+                ["install", str(repo), "--to-aw", "--yes", "--leftovers", "defer"]
+            )
+        self.assertEqual(code, 0)
+        self.assertTrue(
+            (repo / ".agents" / "README.md").is_file(),
+            "explicit --leftovers defer must keep leftover even with remove saved",
+        )
+
+    def test_report_case_j_unattended_install_reports_removal_and_recovery(self):
+        """(j) Captured output of unattended install contains count, backup path, and recovery hint (E-09)."""
+        repo = self._committed_legacy_repo("report_j")
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            code = CLI.main(["install", str(repo), "--to-aw", "--yes"])
+        self.assertEqual(code, 0)
+        output = buf.getvalue()
+        self.assertIn("Removed 1 leftover legacy file", output)
+        self.assertIn("restore with 'git checkout HEAD -- <path>'", output)
+        self.assertIn(
+            ".aw/state/durable/migrations/leftover-backups/leftovers-", output
+        )
+        self.assertIn(".agents/README.md", output)
+        self.assertIn("--leftovers defer", output)
+
+    def test_report_case_k_saved_defer_install_emits_no_removal_report(self):
+        """(k) Install with saved defer emits no removal report line (E-09)."""
+        from agent_workflows import config as CFG
+
+        CFG.set_config_value("defaults.leftovers", "defer")
+        repo = self._committed_legacy_repo("report_k")
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            code = CLI.main(["install", str(repo), "--to-aw", "--yes"])
+        self.assertEqual(code, 0)
+        output = buf.getvalue()
+        self.assertNotIn("Removed", output)
+        self.assertNotIn("restore with 'git checkout HEAD", output)
+
+    def test_report_case_l_no_leftovers_emits_no_removal_report(self):
+        """(l) Install over legacy repo with no removable leftovers emits no removal report line (E-09)."""
+        repo = self._legacy_repo("report_l")
+        git(repo, "add", "-A")
+        git(repo, "commit", "-m", "base without leftovers")
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            code = CLI.main(["install", str(repo), "--to-aw", "--yes"])
+        self.assertEqual(code, 0)
+        output = buf.getvalue()
+        self.assertNotIn("Removed", output)
+        self.assertNotIn("restore with 'git checkout HEAD", output)
+
+    def test_prompt_case_p_attended_empty_answer_removes_leftover(self):
+        """(p) Attended install with empty answer (Enter) defaults to YES and removes leftover (E-13)."""
+        repo = self._committed_legacy_repo("prompt_p")
+        buf = io.StringIO()
+        with mock.patch("sys.stdin", io.StringIO("\n\n")), redirect_stdout(buf):
+            code = CLI.main(["install", str(repo), "--to-aw"])
+        self.assertEqual(code, 0)
+        output = buf.getvalue()
+        self.assertIn("Remove 1 leftover legacy file (backed up first)? [Y/n]", output)
+        self.assertFalse((repo / ".agents" / "README.md").exists())
+
+    def test_prompt_case_q_attended_n_keeps_leftover_and_reports_defer(self):
+        """(q) Attended install answering 'n' keeps leftover and records defer (E-13)."""
+        repo = self._committed_legacy_repo("prompt_q")
+        buf = io.StringIO()
+        with mock.patch("sys.stdin", io.StringIO("n\n\n")), redirect_stdout(buf):
+            code = CLI.main(["install", str(repo), "--to-aw"])
+        self.assertEqual(code, 0)
+        output = buf.getvalue()
+        self.assertIn("Remove 1 leftover legacy file (backed up first)? [Y/n]", output)
+        self.assertTrue((repo / ".agents" / "README.md").is_file())
+        from agent_workflows.layout_migration import MigrationManager
+
+        mgr = MigrationManager(str(repo))
+        tx = mgr._load_transaction() or {}
+        self.assertEqual(tx.get("leftover_disposition", {}).get("disposition"), "defer")
+
+    def test_prompt_case_r_yes_flag_never_prompts_and_removes(self):
+        """(r) --yes never prompts and removes leftover (E-13)."""
+        repo = self._committed_legacy_repo("prompt_r")
+        buf = io.StringIO()
+        with mock.patch("sys.stdin", io.StringIO("")), redirect_stdout(buf):
+            code = CLI.main(["install", str(repo), "--to-aw", "--yes"])
+        self.assertEqual(code, 0)
+        output = buf.getvalue()
+        self.assertNotIn("(backed up first)?", output)
+        self.assertFalse((repo / ".agents" / "README.md").exists())
+
+    def test_prompt_case_s_saved_defer_never_prompts_and_keeps(self):
+        """(s) A saved defaults.leftovers=defer never prompts and keeps leftover (E-13)."""
+        from agent_workflows import config as CFG
+
+        CFG.set_config_value("defaults.leftovers", "defer")
+        repo = self._committed_legacy_repo("prompt_s")
+        buf = io.StringIO()
+        with mock.patch("sys.stdin", io.StringIO("")), redirect_stdout(buf):
+            code = CLI.main(["install", str(repo), "--to-aw"])
+        self.assertEqual(code, 0)
+        output = buf.getvalue()
+        self.assertNotIn("(backed up first)?", output)
+        self.assertTrue((repo / ".agents" / "README.md").is_file())
+
+    def test_prompt_case_t_remember_offer_writes_defaults_leftovers_config(self):
+        """(t) Remember offer writes defaults.leftovers with chosen value in config (E-13)."""
+        from agent_workflows import config as CFG
+
+        repo = self._committed_legacy_repo("prompt_t")
+        buf = io.StringIO()
+        # Answer 'n' to remove, then 'y' to remember
+        with mock.patch("sys.stdin", io.StringIO("n\ny\n")), redirect_stdout(buf):
+            code = CLI.main(["install", str(repo), "--to-aw"])
+        self.assertEqual(code, 0)
+        cfg = CFG.load()
+        _, saved = CFG.get_config_value("defaults.leftovers", cfg)
+        self.assertEqual(saved, "defer")
+
+    def test_prompt_case_u_zero_removable_leftovers_prompts_nothing(self):
+        """(u) With zero removable leftovers no prompt text appears in output (E-13)."""
+        repo = self._legacy_repo("prompt_u")
+        git(repo, "add", "-A")
+        git(repo, "commit", "-m", "base without leftovers")
+        buf = io.StringIO()
+        with mock.patch("sys.stdin", io.StringIO("")), redirect_stdout(buf):
+            code = CLI.main(["install", str(repo), "--to-aw"])
+        self.assertEqual(code, 0)
+        output = buf.getvalue()
+        self.assertNotIn("(backed up first)?", output)
 
 
 class UninstallCompletenessTests(unittest.TestCase):
