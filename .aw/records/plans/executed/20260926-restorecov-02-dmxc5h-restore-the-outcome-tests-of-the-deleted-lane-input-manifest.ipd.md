@@ -6,7 +6,7 @@
 - Scope: IN: restore a SUBSET of the recovered file as `tests/test_lane_input_manifest.py`: the outcome tests that each prove a distinct refusal or guarantee; drop the empty class, the write-bit mode-bit pair whose consequence a kept test proves, and the round-trip test that calls another test method; REPLACE the R3.4 docstring pin with an outcome-form test rather than dropping the requirement it guards (review PR-802); and PROVE collection by the bare-suite test count (review PR-804). Review reinstated four tests the plan had classed as redundant, having measured each to be the only test that catches its defect (review PR-801/F-5). OUT: any PERMANENT change to `lane_containment` (E-05's sabotages are temporary, reverted, and never committed).
 - Scope-Paths: tests/test_lane_input_manifest.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: dmxc5h
-- Approval: 2026-09-26, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: dmxc5h verified (set restorecov, attempt 1).
 - 2026-09-26 approved (aw set): status set to approved
 - 2026-09-26 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-801..PR-806 all FIXED. The plan's premise and all four of its findings hold (the coverage gap is real; the recovered file passes 21/21 under both runners; `DriverArgvTests` is genuinely empty). THE FINDING THAT MATTERS INVERTS THE USUAL DIRECTION: the plan deletes too MUCH. Sabotaging `lane_containment` one branch at a time showed FOUR of its eight proposed drops are each the ONLY test in the file that catches their defect (`test_an_unrecognized_mode_is_refused`, `test_a_missing_digest_is_caught`, `test_an_absent_source_records_no_entry...`, `test_materialized_paths_are_inside_the_lane_and_relative`), each giving `1 failed, 20 passed` while every kept test passed; the "same verifier refusal path" justification is false, since that verifier has three independent branches with three distinct violation strings. Kept count is now 17, not 13, and E-05 requires each reinstatement be proven load-bearing. Also: the R3.4 docstring pin is REPLACED by an outcome test rather than dropped, because approved spec `7ckptx` R3.4 still requires the statement and this was its only guard (E-02); collection is now proven by test COUNT, not a green summary (E-04, the same defect found in sibling plan `6vozur`). The drops the plan got RIGHT were verified too: sabotaging `SEALED_FILE_MODE` to `0o644` failed the kept `test_an_accidental_in_place_write_fails`, so the write-bit pair is safely droppable. 3 items -> 6 with a 6:6 E/V bijection. `agent_workflows/lane_containment.py` left byte-unchanged. Baseline for the executor: `2436 passed, 1 skipped in 41.39s`; with the full 21-test file, `2457 passed`. Review record: `.aw/records/reviews/20260926-restorecov-02-dmxc5h-restore-the-outcome-tests-of-the-deleted-lane-input-manifest.review.md`.
 - 2026-09-26 reviewed (aw set): plan-review: APPROVE WITH REVISIONS APPLIED; PR-801..PR-806 all FIXED. Sabotage measurement found 4 of the 8 proposed drops are each the ONLY test catching their defect, so the kept count is 17 not 13; the R3.4 docstring pin is replaced rather than dropped. 3 items -> 6.
