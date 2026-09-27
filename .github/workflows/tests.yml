@@ -8,7 +8,7 @@ name: tests
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, "fix/gate-causes"]
   pull_request:
 
 permissions:

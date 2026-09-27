@@ -236,9 +236,21 @@ class TheRetryTriggerIsAPositiveAllowlist(unittest.TestCase):
             runner_shared.finalize_refusal_is_retryable(REDUCTION_REFUSAL_PLURAL)
         )
 
-    def test_a_fence_widening_rewrite_is_NOT_retryable(self):
-        """spec 5.5's changed frozen requirements / contract rewrite remains terminal."""
-        self.assertFalse(runner_shared.finalize_refusal_is_retryable(REWRITE_REFUSAL))
+    def test_a_contract_rewrite_IS_retryable_so_the_agent_can_justify_or_undo(self):
+        """Maintainer ruling 2026-09-27: a changed frozen requirement is handed back, not terminal.
+
+        Measured: `olkeju` was refused for appending the id6 its own E-05 told it to record. The agent
+        is asked to restore the text or justify it; the driver re-freezes before re-finalizing.
+        """
+        self.assertTrue(runner_shared.finalize_refusal_is_retryable(REWRITE_REFUSAL))
+        no_scope_delta = (
+            "refused: the begin receipt for 787hb4 is STALE: the plan content changed since begin; "
+            "re-run `aw ipd begin`.\n"
+            "  plan content digest no longer matches the receipt\n"
+            "  Scope-Paths unchanged but a frozen REQUIREMENT changed, so this is a contract rewrite "
+            "of the reviewed plan"
+        )
+        self.assertTrue(runner_shared.finalize_refusal_is_retryable(no_scope_delta))
 
     def test_a_scope_reconciliation_refusal_is_NOT_retryable(self):
         """spec 5.5's FIRST never-retry entry, out-of-scope mutation."""
@@ -251,10 +263,12 @@ class TheRetryTriggerIsAPositiveAllowlist(unittest.TestCase):
             + "\n  IPD-S404 out-of-scope path needs a --scope-reason: agent_workflows/cli.py"
         )
         self.assertFalse(runner_shared.finalize_refusal_is_retryable(mixed_pre))
+        # A stale receipt mixed with a finding OUTSIDE the answerable stale class (here a directory
+        # widening, which neuters the fence) must still NOT be retried.
         mixed_stale = (
             STALE_RECEIPT_REFUSAL
-            + "\n  Scope-Paths gained agent_workflows/cli.py but a frozen REQUIREMENT also changed, "
-            "so this is a contract rewrite rather than an additive widening"
+            + "\n  added Scope-Paths entry would widen the fence to a DIRECTORY or GLOB rather than a "
+            "literal file: agent_workflows/"
         )
         self.assertFalse(runner_shared.finalize_refusal_is_retryable(mixed_stale))
 
@@ -601,6 +615,42 @@ class TheRefusalArmPerformsTheSendBack(unittest.TestCase):
             self.assertIn("plan content digest no longer matches the receipt", prompt)
             self.assertIn("Scope-Paths entry REMOVED since begin", prompt)
 
+    def test_a_REWRITE_refusal_is_requeued_with_the_justify_or_undo_notice(self):
+        """The contract-rewrite class now reaches the agent, with instructions, not a dead end."""
+        _disposition, item, _events = self._run(REWRITE_REFUSAL, budget=2)
+        self.assertEqual("queued", item["status"])
+        self.assertTrue(item.get("recovery_next"))
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp)
+            run_dir = repo / "run"
+            run_dir.mkdir(parents=True)
+            plan = repo / "plan.ipd.md"
+            plan.write_text("# IPD: x\n\n- Id: xbwq8n\n", encoding="utf-8")
+            state = _state([item], retry_budget=2)
+            state["repo"] = str(repo)
+            prompt = runner_shared.build_prompt(
+                item,
+                state,
+                run_dir,
+                plan,
+                recovery=True,
+                labels=runner_shared.AGY_HOST_LABELS,
+            )
+            self.assertIn("The plan text changed after `begin`", prompt)
+            self.assertIn("Change after begin:", prompt)
+            self.assertIn(
+                "Do NOT run `aw ipd begin` or `aw ipd finalize` yourself", prompt
+            )
+            first = runner_shared.build_prompt(
+                item,
+                state,
+                run_dir,
+                plan,
+                recovery=False,
+                labels=runner_shared.AGY_HOST_LABELS,
+            )
+            self.assertNotIn("The plan text changed after `begin`", first)
+
     def test_finalize_refused_is_an_ALLOWLISTED_prior_attempt_key(self):
         from agent_workflows import lane_containment
 
@@ -816,3 +866,67 @@ class ARefusedItemDoesNotSatisfyADependentEdge(unittest.TestCase):
 
 if __name__ == "__main__":  # pragma: no cover
     unittest.main()
+
+
+class RefreezeBeforeCorrectionFinalizeTests(unittest.TestCase):
+    """The driver re-freezes ONLY after a STALE refusal, and never silently (ruling 2026-09-27)."""
+
+    def _item(self, previous_refusal):
+        return {
+            "id6": "xbwq8n",
+            "attempts": [
+                {"number": 1, "finalize_refused": previous_refusal},
+                {"number": 2},
+            ],
+        }
+
+    def test_fires_only_when_the_previous_attempt_was_refused_STALE(self):
+        from unittest import mock
+
+        calls = []
+
+        def fake_refreeze(repo, plan, **kw):
+            calls.append(kw)
+            return True, "re-frozen"
+
+        with tempfile.TemporaryDirectory() as temp:
+            run_dir = Path(temp)
+            with mock.patch(
+                "agent_workflows.ipd_lifecycle.refreeze_receipt",
+                side_effect=fake_refreeze,
+            ):
+                for refusal, expected in (
+                    (REWRITE_REFUSAL, True),
+                    (MEASURED_REFUSAL, False),
+                    ("", False),
+                ):
+                    with self.subTest(refusal=refusal[:40]):
+                        item = self._item(refusal)
+                        attempt = item["attempts"][-1]
+                        did = runner_shared.refreeze_stale_receipt_for_correction(
+                            run_dir,
+                            run_dir / "p.ipd.md",
+                            item,
+                            attempt,
+                            actor="a",
+                            run_dir=run_dir,
+                        )
+                        self.assertEqual(expected, did)
+                        self.assertEqual(expected, "receipt_refrozen" in attempt)
+            self.assertEqual(1, len(calls), "exactly the STALE case re-froze")
+            events = (run_dir / "events.jsonl").read_text(encoding="utf-8")
+            self.assertIn("ipd-receipt-refrozen", events)
+
+    def test_a_first_attempt_never_refreezes(self):
+        item = {"id6": "xbwq8n", "attempts": [{"number": 1}]}
+        with tempfile.TemporaryDirectory() as temp:
+            self.assertFalse(
+                runner_shared.refreeze_stale_receipt_for_correction(
+                    Path(temp),
+                    Path(temp) / "p",
+                    item,
+                    item["attempts"][0],
+                    actor="a",
+                    run_dir=Path(temp),
+                )
+            )

@@ -473,36 +473,79 @@ def _atomic_write_json_at(path: Path, payload: Dict[str, Any]) -> None:
         raise
 
 
-def acquire_finalize_lock(repo_root: Path, plan_id: str) -> None:
-    """Acquire the exclusive finalize lock, reclaiming a STALE lock (dead PID) after consulting it.
+#: How long ``acquire_finalize_lock`` WAITS for a LIVE holder before refusing, in seconds.
+#:
+#: WHY IT WAITS AT ALL. This lock file is SHARED with ``commit_lock.writer_lock`` (``aw commit``,
+#: ``aw set``, the runners' self-commits), whose holders keep it for well under a second, and it used
+#: to be checked exactly ONCE. With several drivers in one checkout that single check lost ordinary
+#: races: measured 2026-09-27, run ``run-20260927T001634Z-258437`` had TWO verified items (``8y13kn``,
+#: ``cnzrxb``) refused ``fail-gate`` because a peer's sub-second commit held the lock at the instant
+#: finalize looked, and both holder PIDs had exited moments later. ``writer_lock`` already waits
+#: (default 5 s, polling every 50 ms), so finalize was the one party that would not queue.
+#:
+#: WHY LONGER THAN ``writer_lock``'s 5 s. A FINALIZE also holds this lock (for its whole journaled
+#: transaction, which runs hooks and lint and measured several seconds), so a finalizer queued behind
+#: another finalizer needs more than a commit's budget. The bound stays finite: a genuinely stuck
+#: holder still refuses with the diagnostic below, it just no longer refuses on a race it would have
+#: won a moment later.
+FINALIZE_LOCK_WAIT_SECONDS = 60.0
+FINALIZE_LOCK_POLL_SECONDS = 0.1
 
-    Raises TransactionLockError with an actionable owner/retry diagnostic when a LIVE process holds
-    it. A stale lock (its recorded PID is not alive) is reclaimed rather than blindly deleted.
+
+def _finalize_lock_live_holder(lock: Path) -> Optional[Dict[str, Any]]:
+    """The recorded holder of ``lock`` if it is ANOTHER LIVE process, else None (free or stale)."""
+    if not lock.exists():
+        return None
+    try:
+        data = json.loads(lock.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    pid = data.get("pid") if isinstance(data, dict) else None
+    if not pid or pid == os.getpid():
+        return None
+    # `platform_lock.pid_alive`, NOT `os.kill(pid, 0)`: on Windows `os.kill` calls TerminateProcess,
+    # so the liveness idiom would KILL the live lock holder. Same POSIX classification as before (EPERM
+    # alive, ESRCH stale); an undeterminable answer stays "stale", exactly as the old catch-all
+    # `except OSError` did.
+    from agent_workflows import platform_lock as _platform_lock
+
+    return data if _platform_lock.pid_alive(pid) is True else None
+
+
+def acquire_finalize_lock(
+    repo_root: Path, plan_id: str, *, timeout: Optional[float] = None
+) -> None:
+    """Acquire the exclusive finalize lock, WAITING (bounded) for a live holder to finish.
+
+    Polls every :data:`FINALIZE_LOCK_POLL_SECONDS` for up to ``timeout`` seconds (default
+    :data:`FINALIZE_LOCK_WAIT_SECONDS`) while ANOTHER LIVE process holds it, then raises
+    TransactionLockError with an actionable owner/retry diagnostic. ``timeout=0`` restores the old
+    check-once behavior. A stale lock (its recorded PID is not alive) is reclaimed at once rather than
+    blindly deleted.
     """
+    import time as _time
+
     lock = finalize_lock_path(repo_root)
     lock.parent.mkdir(parents=True, exist_ok=True)
-    if lock.exists():
-        try:
-            data = json.loads(lock.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            data = {}
-        pid = data.get("pid")
-        if pid and pid != os.getpid():
-            # `platform_lock.pid_alive`, NOT `os.kill(pid, 0)`: on Windows `os.kill` calls
-            # TerminateProcess, so the liveness idiom would KILL the live lock holder. Same POSIX
-            # classification as before (EPERM alive, ESRCH stale); an undeterminable answer stays
-            # "stale", exactly as the old catch-all `except OSError` did.
-            from agent_workflows import platform_lock as _platform_lock
-
-            alive = _platform_lock.pid_alive(pid) is True
-            if alive:
-                raise TransactionLockError(
-                    "ipd finalize writer lock held by active PID {0} (plan {1}); wait for it to "
-                    "finish or, if that process is dead, remove {2}".format(
-                        pid, data.get("plan_id"), lock
-                    )
+    budget = FINALIZE_LOCK_WAIT_SECONDS if timeout is None else max(0.0, float(timeout))
+    deadline = _time.monotonic() + budget
+    while True:
+        holder = _finalize_lock_live_holder(lock)
+        if holder is None:
+            break  # free, ours, or stale (dead PID): reclaim below
+        if _time.monotonic() >= deadline:
+            raise TransactionLockError(
+                "ipd finalize writer lock held by active PID {0} (plan {1}; owner {2}) for longer "
+                "than {3:.0f}s; wait for it to finish or, if that process is dead, remove {4}".format(
+                    holder.get("pid"),
+                    holder.get("plan_id"),
+                    holder.get("owner"),
+                    budget,
+                    lock,
                 )
-        # else: stale (dead PID) - reclaim below (recovery consults the journal, not this file).
+            )
+        _time.sleep(FINALIZE_LOCK_POLL_SECONDS)
+    # Free or stale (dead PID): take it. Recovery consults the journal, not this file.
     payload = {
         "plan_id": plan_id,
         "pid": os.getpid(),
@@ -1219,6 +1262,14 @@ FINDING_SCOPE_REDUCED_INVARIANT = (
 )
 FINDING_SCOPE_REDUCED = FINDING_SCOPE_REDUCED_INVARIANT
 
+#: THE CONTRACT-REWRITE FINDING'S INVARIANT TEXT, named so a caller can branch on it (same precedent as
+#: the two constants above). Emitted when Scope-Paths gained entries AND a frozen requirement changed.
+#: It is ANSWERABLE, not terminal (maintainer ruling 2026-09-27): the runner hands it back to the agent
+#: to justify or undo rather than stranding verified work.
+FINDING_CONTRACT_REWRITE = (
+    "a frozen REQUIREMENT also changed, so this is a contract rewrite"
+)
+
 
 class AlreadyFinalizedVerdict(NamedTuple):
     """Did this plan's terminal transition ALREADY happen? Plus the evidence that says so.
@@ -1847,6 +1898,66 @@ def begin(
     )
 
 
+def refreeze_receipt(
+    repo_root: Path, plan_path: Path, *, actor: str, reason: str, timestamp: str
+) -> Tuple[bool, str]:
+    """Re-freeze an EXISTING begin receipt to the plan as it stands NOW, keeping its ``base_head``.
+
+    The DRIVER's half of the justify-or-undo loop (maintainer ruling 2026-09-27). When finalize
+    refuses a receipt as STALE, the runner hands the item back to the agent with the findings; the
+    agent either restores the original text or keeps the change and records why. Before that
+    correction turn is finalized, the driver calls this so finalize compares against the plan the
+    agent chose to defend rather than against the one it changed.
+
+    WHY NOT JUST RE-RUN ``begin``, which would also rewrite the digest: ``begin`` records the CURRENT
+    HEAD as ``base_head``, and finalize attributes changed paths by ``base_head..HEAD``. In a lane that
+    has already committed its work, a fresh ``begin`` would therefore make every path the item changed
+    INVISIBLE to the scope reconciliation. So this keeps ``base_head``, ``actor`` and the original
+    timestamp, rewrites only the digests and ``scope_paths``, and appends an auditable
+    ``refrozen`` record carrying the previous digests and the reason, so the change is never silent.
+
+    Returns ``(ok, detail)``. Refuses (``ok=False``) when no receipt exists, because re-freezing is only
+    meaningful for a plan the driver already began.
+    """
+    from agent_workflows import ipd_lint as _lint
+    from agent_workflows import run_freeze
+
+    try:
+        plan_text = plan_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        return False, f"could not read plan {plan_path}: {exc}"
+    plan_id = (_lint.parse(plan_text).meta_fields.get("Id") or "").strip()
+    if not plan_id:
+        return False, f"plan {plan_path} has no '- Id:'; cannot locate its receipt"
+    rcpt_path = receipt_path_for(repo_root, plan_id)
+    try:
+        receipt = json.loads(rcpt_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False, f"no readable begin receipt at {rcpt_path} to re-freeze"
+    try:
+        frozen = run_freeze.freeze_requirements(_requirements_from_plan(plan_text))
+    except ValueError as exc:
+        return False, f"the plan's requirements could not be frozen: {exc}"
+    previous = {
+        "plan_content_digest": receipt.get("plan_content_digest"),
+        "frozen_region_digest": receipt.get("frozen_region_digest"),
+        "requirement_digest": receipt.get("requirement_digest"),
+        "scope_paths": receipt.get("scope_paths"),
+    }
+    receipt["plan_content_digest"] = plan_content_digest(plan_text)
+    receipt["frozen_region_digest"] = frozen_region_digest(plan_text)
+    receipt["requirement_digest"] = frozen.requirement_digest
+    receipt["scope_paths"] = _frozen_scope_paths(plan_text)
+    receipt.setdefault("refrozen", []).append(
+        {"at": timestamp, "actor": actor, "reason": reason, "previous": previous}
+    )
+    _atomic_write_json(rcpt_path, receipt)
+    return (
+        True,
+        f"begin receipt re-frozen for {plan_id} (base_head kept); reason: {reason}",
+    )
+
+
 def _repo_relative(repo_root: Path, path: Path) -> str:
     """Return ``path`` relative to ``repo_root`` (POSIX), or the resolved absolute path if outside."""
     try:
@@ -2431,6 +2542,19 @@ def finalize_precheck(
                     + ("ies" if len(cmp_result.removed) > 1 else "y")
                     + f" {FINDING_SCOPE_REDUCED_INVARIANT}: "
                     + ", ".join(cmp_result.removed)
+                )
+            if (
+                not cmp_result.added
+                and not cmp_result.removed
+                and not cmp_result.ineligible_reason
+            ):
+                # A frozen requirement changed with NO scope delta at all. Name it with the SAME
+                # invariant text as the widening case, so the runner's answerable class recognises it
+                # and hands it back to the agent to justify or undo (maintainer ruling 2026-09-27).
+                stale_findings.append(
+                    "Scope-Paths unchanged but "
+                    + FINDING_CONTRACT_REWRITE.replace("also changed", "changed")
+                    + " of the reviewed plan"
                 )
             if cmp_result.added and not cmp_result.non_scope_identical:
                 stale_findings.append(

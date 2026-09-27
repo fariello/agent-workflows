@@ -764,6 +764,109 @@ class RescoreAfterAReaskTests(unittest.TestCase):
             self.assertEqual("fail-verify", rescored[0]["before"])
             self.assertEqual("fail-gate", rescored[0]["after"])
 
+    def test_a_rescued_item_is_VERIFIED_when_validation_is_on(self) -> None:
+        """Measured `run-20260927T001634Z-258437` item `slqvmx`: rescued, green, then `fail-gate`.
+
+        The verifier runs BEFORE the defect re-ask, against the pre-re-ask `fail-verify` score, which
+        it does not verify, so it never launched. With validation ON `integration_is_earned` refuses
+        any `verify_disp` but `verified`, so the rescued item was stranded as `verifier-declined` by a
+        verifier that never ran. After the fix the rescore runs the verifier for the rescored item.
+        """
+
+        from agent_workflows import lane_containment
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            repo, run_dir, state, item = self._fixture(root)
+            state["options"].pop("no_audit", None)
+            state["options"]["validate"] = True
+            launches: list[dict[str, Any]] = []
+            gate_kwargs: dict[str, Any] = {}
+
+            def _lane_write(work_dir: Any, payload: dict[str, Any]) -> None:
+                lane_root = lane_containment.lane_submission_root(
+                    Path(work_dir), state["run_id"], item, 1
+                )
+                target = (
+                    lane_root / "outcomes" / f"{lane_containment.item_slug(item)}.json"
+                )
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(json.dumps(payload), encoding="utf-8")
+
+            def _launch(*args: Any, **kwargs: Any):
+                launches.append(kwargs)
+                if kwargs.get("fresh_session"):
+                    # The verifier turn: write a verdict with real test evidence.
+                    (
+                        run_dir
+                        / "outcomes"
+                        / f"{item['position']:02d}-{item['id6']}-verification.json"
+                    ).write_text(
+                        json.dumps(
+                            {
+                                "verdict": "verified",
+                                "tests_run": [
+                                    {
+                                        "command": "python3 -m pytest tests/",
+                                        "result": "1 passed",
+                                    }
+                                ],
+                            }
+                        ),
+                        encoding="utf-8",
+                    )
+                    return 0, "ses-v", run_dir / "verify.jsonl", ["probe"]
+                executor_turns = [k for k in launches if not k.get("fresh_session")]
+                payload = None if len(executor_turns) == 1 else self.REASK_COMPLETE
+                if payload is not None and kwargs.get("work_dir"):
+                    _lane_write(kwargs["work_dir"], payload)
+                return 0, "ses-1", run_dir / "log.jsonl", ["probe"]
+
+            def _gate(**kwargs: Any):
+                gate_kwargs.update(kwargs)
+                return oc_runipd.IntegrationVerdict(
+                    False,
+                    oc_runipd.INTEGRATION_REFUSED_NO_SIGNAL,
+                    "stub: keep main untouched",
+                )
+
+            with contextlib.ExitStack() as stack:
+                for patch in (
+                    mock.patch.object(oc_runipd, "run_opencode", _launch),
+                    mock.patch.object(
+                        oc_runipd, "driver_begin", lambda *a, **k: (0, "ok")
+                    ),
+                    mock.patch.object(
+                        oc_runipd, "driver_finalize", lambda *a, **k: (0, "ok")
+                    ),
+                    mock.patch.object(
+                        oc_runipd, "assert_child_tool_identity", lambda *a, **k: None
+                    ),
+                    mock.patch.object(oc_runipd, "extract_suite_failures", None),
+                    mock.patch.object(
+                        oc_runipd, "run_suite_check", lambda *a, **k: self._suite(True)
+                    ),
+                    mock.patch.object(oc_runipd, "integration_is_earned", _gate),
+                ):
+                    stack.enter_context(patch)
+                stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+                stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
+                oc_runipd.execute_item(run_dir, state, item, recovery=False)
+
+            verifier_turns = [k for k in launches if k.get("fresh_session")]
+            self.assertEqual(
+                1,
+                len(verifier_turns),
+                "the rescued item must get exactly one verifier turn",
+            )
+            self.assertTrue(gate_kwargs.get("validate"))
+            self.assertEqual(
+                "verified",
+                gate_kwargs.get("verify_disp"),
+                "the integration gate must see the rescued item's verifier verdict, not None",
+            )
+            self.assertEqual("verified", item.get("verification_status"))
+
     def test_controls_refuse(self) -> None:
         from agent_workflows import lane_containment
 

@@ -866,6 +866,75 @@ class AdditiveScopeWideningTests(unittest.TestCase):
                 )
                 self.tearDown()
 
+    def test_a_widening_WITH_a_changed_requirement_finalizes_after_a_refreeze(self):
+        """Maintainer ruling 2026-09-27: justify-or-undo, not a hard stop (measured `olkeju`).
+
+        The agent widened Scope-Paths AND appended to an E-item's text as its instructions said to.
+        Finalize still refuses that as STALE (so the change is surfaced, never silent), the runner
+        hands it back, and after the driver's `refreeze_receipt` the same plan finalizes. The
+        re-freeze keeps `base_head`, so the lane's own work is still attributed to this execution.
+        """
+        import json as _json
+
+        self._do_the_work_and_widen(commit=True)
+        text = self.plan.read_text()
+        marker = next(
+            line for line in text.splitlines() if line.startswith("- [x] E-01 ")
+        )
+        self.plan.write_text(
+            text.replace(marker, marker + " (`oye21y`)", 1), encoding="utf-8"
+        )
+        _commit_all(self.root, "record the id the item told me to record")
+        receipt_path = LC.receipt_path_for(self.root, "abc123")
+        base_before = _json.loads(receipt_path.read_text())["base_head"]
+
+        refused = LC.finalize(
+            self.root,
+            self.plan,
+            "opencode/test",
+            "did the work",
+            apply=True,
+            scope_reasons={"tests/test_extra.py": "needed"},
+        )
+        self.assertNotEqual(refused.exit_code, LC.EXIT_OK)
+        self.assertIn(LC.FINDING_CONTRACT_REWRITE, "\n".join(refused.findings))
+
+        ok, detail = LC.refreeze_receipt(
+            self.root,
+            self.plan,
+            actor="opencode/test",
+            reason="agent justified it",
+            timestamp="t2",
+        )
+        self.assertTrue(ok, detail)
+        receipt = _json.loads(receipt_path.read_text())
+        self.assertEqual(
+            receipt["base_head"], base_before, "a re-freeze must keep base_head"
+        )
+        self.assertEqual(receipt["refrozen"][-1]["reason"], "agent justified it")
+        self.assertIn("frozen_region_digest", receipt["refrozen"][-1]["previous"])
+
+        done = LC.finalize(
+            self.root,
+            self.plan,
+            "opencode/test",
+            "did the work",
+            apply=True,
+            scope_reasons={"tests/test_extra.py": "needed"},
+        )
+        self.assertEqual(
+            done.exit_code, LC.EXIT_OK, f"{done.message} / {done.findings}"
+        )
+
+    def test_refreeze_refuses_without_a_receipt(self):
+        receipt_path = LC.receipt_path_for(self.root, "abc123")
+        receipt_path.unlink()
+        ok, detail = LC.refreeze_receipt(
+            self.root, self.plan, actor="opencode/test", reason="x", timestamp="t"
+        )
+        self.assertFalse(ok)
+        self.assertIn("no readable begin receipt", detail)
+
     def test_widening_audit_and_deduplication(self):
         """Audits widened paths and verifies one reason satisfies both out-of-scope and widened demands."""
         # Uncommitted added path: in widened_paths, not out_of_scope_paths
@@ -1093,7 +1162,7 @@ class RollbackFailureSemanticsTests(unittest.TestCase):
         data["pid"] = other.pid
         lock.write_text(_json.dumps(data), encoding="utf-8")
         with self.assertRaises(LC.TransactionLockError):
-            LC.acquire_finalize_lock(self.root, "abc123")
+            LC.acquire_finalize_lock(self.root, "abc123", timeout=0.3)
         self.assertIsNone(
             other.poll(), "the liveness probe must OBSERVE the holder, never kill it"
         )
@@ -1104,6 +1173,45 @@ class RollbackFailureSemanticsTests(unittest.TestCase):
         )
         LC.acquire_finalize_lock(self.root, "abc123")
         self.assertEqual(_json.loads(lock.read_text())["pid"], _os.getpid())
+        LC.release_finalize_lock(self.root)
+
+    def test_finalize_lock_WAITS_for_a_short_lived_live_holder(self):
+        """A peer's sub-second hold must not refuse finalize (run-20260927T001634Z-258437)."""
+        import json as _json
+        import os as _os
+        import subprocess as _subprocess
+        import sys as _sys
+        import threading as _threading
+        import time as _time
+
+        lock = LC.finalize_lock_path(self.root)
+        lock.parent.mkdir(parents=True, exist_ok=True)
+        holder = _subprocess.Popen(
+            [_sys.executable, "-c", "import time; time.sleep(60)"]
+        )
+        self.addCleanup(holder.wait)
+        self.addCleanup(holder.kill)
+        lock.write_text(
+            _json.dumps({"owner": "git_commit_helper.offer_commit", "pid": holder.pid}),
+            encoding="utf-8",
+        )
+
+        def _finish_the_peer_commit():
+            _time.sleep(0.5)
+            lock.unlink()  # the peer's `commit_lock.release`
+
+        t = _threading.Thread(target=_finish_the_peer_commit)
+        t.start()
+        started = _time.monotonic()
+        LC.acquire_finalize_lock(self.root, "abc123", timeout=10)
+        waited = _time.monotonic() - started
+        t.join()
+        self.assertGreaterEqual(waited, 0.4, "it must have WAITED for the live holder")
+        self.assertLess(
+            waited, 5, "it must take the lock as soon as the holder releases it"
+        )
+        self.assertEqual(_json.loads(lock.read_text())["pid"], _os.getpid())
+        self.assertIsNone(holder.poll(), "waiting must never kill the holder")
         LC.release_finalize_lock(self.root)
 
     def test_precommit_fault_rollback_and_recovery(self):
