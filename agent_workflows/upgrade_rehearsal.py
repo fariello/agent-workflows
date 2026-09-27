@@ -194,6 +194,22 @@ def installed_version(repo: Path) -> Tuple[Optional[str], Optional[str]]:
     return None, None
 
 
+def resolve_skills_dir(layout: str = "aw") -> str:
+    """Return the repo-relative skills directory from the engine authority.
+
+    Imported lazily (inside the function) rather than at module import time to keep this
+    module's import graph unchanged: `engine` is a large module. Read from
+    `engine.resolve_skills_dir` rather than re-spelling `.agents/skills`, so a future
+    relocation moves this check with it.
+    """
+    from agent_workflows import engine as _engine
+
+    target = (
+        "aw" if (layout and (layout.startswith("aw") or layout == "dual")) else "legacy"
+    )
+    return _engine.resolve_skills_dir(target)
+
+
 def has_files(path: Path) -> bool:
     """True if ``path`` is a directory containing at least one FILE at any depth.
 
@@ -668,6 +684,13 @@ def probe(sandbox: Path) -> Dict[str, Any]:
     # different defects with different fixes, so a single count would hide both.
     state["legacy_breakdown"] = legacy_breakdown(sandbox)
     state["empty_dirs"] = count_empty_dirs(sandbox / ".agents")
+    state["skills_dir"] = resolve_skills_dir(state["layout"])
+    skills_path = sandbox / state["skills_dir"]
+    state["skills_files"] = (
+        sum(1 for p in skills_path.rglob("*") if p.is_file())
+        if skills_path.is_dir()
+        else 0
+    )
     state["observations"] = derive_observations(state)
     return state
 
@@ -726,7 +749,7 @@ def derive_observations(state: Dict[str, Any]) -> List[Dict[str, str]]:
                 "split-brain layout, though 'aw doctor' may still call it dual.",
             }
         )
-    breakdown = state.get("legacy_breakdown") or {}
+    breakdown = dict(state.get("legacy_breakdown") or {})
     remaining = state.get("legacy_files_remaining") or 0
     # Leftovers are only a FINDING when the run actually migrated. A non-interactive install
     # deliberately KEEPS a legacy layout in place (``--keep-legacy`` is the default without
@@ -735,23 +758,34 @@ def derive_observations(state: Dict[str, Any]) -> List[Dict[str, str]]:
     migrated = state.get("baseline_layout") in {"legacy", "dual"} and state.get(
         "layout"
     ) in {"aw", "aw+litter", "dual"}
-    if remaining and migrated:
-        detail = ", ".join(f"{k}={v}" for k, v in sorted(breakdown.items()))
+    skills_dir = state.get("skills_dir") or resolve_skills_dir(
+        state.get("layout") or "aw"
+    )
+    skills_parts = Path(skills_dir).parts
+    if skills_parts and skills_parts[0] == ".agents" and len(skills_parts) > 1:
+        skills_subtree_key = skills_parts[1]
+        leftover_count = remaining - breakdown.get(skills_subtree_key, 0)
+        detail_items = {k: v for k, v in breakdown.items() if k != skills_subtree_key}
+    else:
+        leftover_count = remaining
+        detail_items = breakdown
+    if leftover_count > 0 and migrated:
+        detail = ", ".join(f"{k}={v}" for k, v in sorted(detail_items.items()))
         obs.append(
             {
                 "kind": "legacy-leftovers",
-                "note": f"{remaining} file(s) still under .agents/ after a MIGRATING run "
+                "note": f"{leftover_count} file(s) still under .agents/ after a MIGRATING run "
                 f"({detail}). Check whether they are deferred leftovers or missed "
                 "material.",
             }
         )
-    if migrated and breakdown.get("skills"):
+    if migrated and "skills_files" in state and state.get("skills_files") == 0:
         obs.append(
             {
-                "kind": "orphaned-skills",
-                "note": f"{breakdown['skills']} file(s) remain under .agents/skills/ while the "
-                "framework now installs skills under the .aw layout, so the old copies "
-                "are unreferenced duplicates a host may still discover.",
+                "kind": "skills-missing",
+                "note": f"No files found under {skills_dir} after a MIGRATING run. "
+                f"The installer writes skills to {skills_dir} for every layout, "
+                "so their absence after a migration is the reportable defect.",
             }
         )
     if remaining and not migrated and state.get("baseline_layout") == "legacy":
@@ -1153,9 +1187,19 @@ def report(result: Dict[str, Any], verbose: bool = False) -> None:
     if state.get("legacy_files_remaining"):
         breakdown = state.get("legacy_breakdown") or {}
         detail = ", ".join(f"{k}={v}" for k, v in sorted(breakdown.items()))
+        skills_files = state.get("skills_files") or 0
+        skills_dir = state.get("skills_dir") or resolve_skills_dir(
+            state.get("layout") or "aw"
+        )
+        skills_info = (
+            f", of which {skills_files} are the live skills install under {skills_dir}"
+            if skills_files > 0
+            else ""
+        )
         print(
             f"Legacy:   {state['legacy_files_remaining']} file(s) still under .agents/"
             + (f" ({detail})" if detail else "")
+            + skills_info
         )
 
     obs = state.get("observations") or []

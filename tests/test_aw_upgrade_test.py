@@ -32,8 +32,11 @@ comparison.
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -1393,11 +1396,45 @@ class ProbeAndObservationTests(TempCase):
                 "legacy_files_remaining": 92,
                 "legacy_breakdown": {"skills": 92},
             },
-            ["empty-legacy-dirs", "legacy-leftovers", "orphaned-skills"],
-            "THREE FINDINGS FROM ONE STATE, which no single-membership test could state: the same "
-            "state is simultaneously littered, holding leftovers, and holding ORPHANED SKILLS a host "
-            "may still discover. The ORDER is pinned too, because the report prints them in "
-            "sequence and reordering changes what a human reads first",
+            ["empty-legacy-dirs"],
+            ".agents/skills surviving a migration is the CORRECT outcome and firing on it pushes "
+            "a reviewer to delete live install output (backlog izfscm). The skills directory is the "
+            "intended install location for both layouts, so remaining skills files are not leftovers",
+        ),
+        (
+            "skills plus three workflows leftovers after a migration",
+            {
+                "baseline_layout": "legacy",
+                "layout": "aw",
+                "legacy_files_remaining": 95,
+                "legacy_breakdown": {"skills": 92, "workflows": 3},
+            },
+            ["legacy-leftovers"],
+            "the subtraction excludes the 92 skills files under .agents/skills/ while the 3 "
+            "workflows files are genuine leftovers that must still fire",
+        ),
+        (
+            "a migrated state with zero skills files",
+            {
+                "baseline_layout": "legacy",
+                "layout": "aw",
+                "skills_files": 0,
+            },
+            ["skills-missing"],
+            "a migration that left zero files under the skills directory is a reportable defect "
+            "because host tools discover skills there for both layouts",
+        ),
+        (
+            "a NOT-migrated legacy-kept state with zero skills files",
+            {
+                "baseline_layout": "legacy",
+                "layout": "legacy",
+                "legacy_files_remaining": 5,
+                "skills_files": 0,
+            },
+            ["legacy-kept"],
+            "proves skills-missing keys on the migration, not on the count; a run that deliberately "
+            "kept the legacy layout reports legacy-kept even with zero skills files",
         ),
         (
             "an unbumped version",
@@ -1564,6 +1601,83 @@ class ProbeAndObservationTests(TempCase):
         second = uat.probe(sandbox)
         for key in ("installed_version", "layout", "legacy_files_remaining"):
             self.assertEqual(first[key], second[key])
+
+    def test_real_probe_distinguishes_live_skills_from_leftovers_and_reports_missing(
+        self,
+    ) -> None:
+        """Real sandbox probe: live skills are not leftovers, but their loss is reported.
+
+        THE FIXTURE MUST ENGAGE MIGRATED: `create_sandbox` from a legacy source repo writes the
+        marker that `probe` reads `baseline_layout='legacy'` from, ensuring `migrated` is True
+        once the layout is updated to `aw`.
+        """
+        source = make_source_repo(self.tmp / "src", "1.2.1", "legacy")
+        sandbox = uat.create_sandbox(uat.SourceRepo.inspect(source), self.tmp / "boxes")
+        wf = sandbox / ".agents" / "workflows"
+        if wf.is_dir():
+            shutil.rmtree(wf)
+        sysd = sandbox / ".aw" / "system"
+        sysd.mkdir(parents=True, exist_ok=True)
+        (sysd / "VERSION").write_text("1.3.0\n", encoding="utf-8")
+
+        skill_dir = sandbox / ".agents" / "skills" / "x"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text("# Skill\n", encoding="utf-8")
+        (skill_dir / "tool.py").write_text("# Tool\n", encoding="utf-8")
+
+        state = uat.probe(sandbox)
+        self.assertEqual(state["baseline_layout"], "legacy")
+        self.assertEqual(state["layout"], "aw")
+        self.assertEqual(state.get("skills_files"), 2)
+
+        kinds = [o["kind"] for o in state["observations"]]
+        self.assertNotIn("orphaned-skills", kinds)
+        self.assertNotIn("legacy-leftovers", kinds)
+
+        shutil.rmtree(sandbox / ".agents" / "skills")
+        state_after_delete = uat.probe(sandbox)
+        kinds_after_delete = [o["kind"] for o in state_after_delete["observations"]]
+        self.assertIn("skills-missing", kinds_after_delete)
+
+    def test_report_names_live_skills_count(self) -> None:
+        """`report()` output (captured stdout) names the skills count per E-04."""
+        result = {
+            "sandbox": str(self.tmp / "sandbox"),
+            "source": {
+                "path": str(self.tmp / "source"),
+                "version": "1.2.1",
+                "layout": "legacy",
+                "dirty": False,
+            },
+            "strategy": "full",
+            "runs": [],
+            "files_before": 100,
+            "files_after": 105,
+            "added": [],
+            "removed": [],
+            "state": {
+                "installed_version": "1.3.0",
+                "installed_version_path": ".aw/system/VERSION",
+                "layout": "aw",
+                "legacy_files_remaining": 95,
+                "legacy_breakdown": {"skills": 92, "workflows": 3},
+                "skills_files": 92,
+                "skills_dir": ".agents/skills",
+                "observations": [],
+            },
+        }
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            uat.report(result)
+        legacy_lines = [
+            ln for ln in buf.getvalue().splitlines() if ln.startswith("Legacy:")
+        ]
+        self.assertEqual(len(legacy_lines), 1)
+        line = legacy_lines[0]
+        self.assertIn("95 file(s)", line)
+        self.assertIn(
+            "of which 92 are the live skills install under .agents/skills", line
+        )
 
 
 class CliTests(TempCase):

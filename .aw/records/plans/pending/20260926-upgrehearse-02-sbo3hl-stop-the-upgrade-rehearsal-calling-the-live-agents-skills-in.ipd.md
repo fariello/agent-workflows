@@ -36,44 +36,44 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: reproduce on the moved code
 
-- [ ] E-01 CONFIRM THE PRECONDITION AND REPRODUCE. Confirm plan `8ud1is` is executed: `agent_workflows/upgrade_rehearsal.py` exists, `tools/aw_upgrade_test.py` is a re-exporting shim, and `tests/test_aw_upgrade_test.py` is restored with the `ProbeAndObservationTests.OBSERVATIONS` row "a migrating run that left the skills tree behind" expecting `["empty-legacy-dirs", "legacy-leftovers", "orphaned-skills"]`. Then paste the kinds `upgrade_rehearsal.derive_observations` returns for (a) that row's exact state dict, and (b) `{"baseline_layout":"legacy","layout":"aw","legacy_files_remaining":95,"legacy_breakdown":{"skills":92,"workflows":3}}`, and paste `engine.resolve_skills_dir("aw")` and `engine.resolve_skills_dir("legacy")`. ALSO record the CURRENT kinds for the two OTHER rows this plan's arithmetic touches (added in review, F-7), so a regression in either is caught here and not at V-05: the row "a MIGRATING run that left files under `.agents/`" (`legacy_files_remaining: 5`, NO `legacy_breakdown`) and the row "a run that deliberately KEPT the legacy layout" (`remaining: 331`, `skills: 92`, `workflows: 158`).
+- [x] E-01 CONFIRM THE PRECONDITION AND REPRODUCE. Confirm plan `8ud1is` is executed: `agent_workflows/upgrade_rehearsal.py` exists, `tools/aw_upgrade_test.py` is a re-exporting shim, and `tests/test_aw_upgrade_test.py` is restored with the `ProbeAndObservationTests.OBSERVATIONS` row "a migrating run that left the skills tree behind" expecting `["empty-legacy-dirs", "legacy-leftovers", "orphaned-skills"]`. Then paste the kinds `upgrade_rehearsal.derive_observations` returns for (a) that row's exact state dict, and (b) `{"baseline_layout":"legacy","layout":"aw","legacy_files_remaining":95,"legacy_breakdown":{"skills":92,"workflows":3}}`, and paste `engine.resolve_skills_dir("aw")` and `engine.resolve_skills_dir("legacy")`. ALSO record the CURRENT kinds for the two OTHER rows this plan's arithmetic touches (added in review, F-7), so a regression in either is caught here and not at V-05: the row "a MIGRATING run that left files under `.agents/`" (`legacy_files_remaining: 5`, NO `legacy_breakdown`) and the row "a run that deliberately KEPT the legacy layout" (`remaining: 331`, `skills: 92`, `workflows: 158`).
   - Depends on: none
   - Expected outcome: (a) `['empty-legacy-dirs', 'legacy-leftovers', 'orphaned-skills']`; (b) `['legacy-leftovers', 'orphaned-skills']` with a note counting 95 files; both resolver calls return `.agents/skills`. The two added rows must read `['legacy-leftovers']` and `['legacy-kept']` respectively, and BOTH MUST STILL READ THAT AFTER E-03. Measured in review why each survives, so the executor can check the arithmetic rather than just the output: the 5-file row has no `skills` breakdown entry, so the subtraction is `5 - 0 = 5`, still positive, still fires; the legacy-kept row is NOT migrated, so `legacy-leftovers` never evaluates for it at all (`331 - 92 = 239` is irrelevant). If `orphaned-skills` no longer fires, report that and narrow E-03 to what still reproduces.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the fix
 
-- [ ] E-02 RECORD THE LIVE SKILLS COUNT IN THE PROBE. In `upgrade_rehearsal.probe`, add `state["skills_dir"]` (the repo-relative path from `engine.resolve_skills_dir`, passing `"aw"` when `detect_layout` starts with `aw` or is `dual`, else `"legacy"`) and `state["skills_files"]` (the count of files at any depth under that directory, 0 when absent). Import `engine` LAZILY inside the helper, as `layout_migration._skills_prefix` does and for its stated reason (keep the import graph unchanged; read the ONE authority so a relocation moves this check with it). Do NOT change `legacy_breakdown` or the meaning of `legacy_files_remaining` (still every file under `.agents/`): the restored `test_legacy_breakdown_attributes_leftovers_to_subtrees` and the `PROBES` table pin both, and they are correct as attribution.
+- [x] E-02 RECORD THE LIVE SKILLS COUNT IN THE PROBE. In `upgrade_rehearsal.probe`, add `state["skills_dir"]` (the repo-relative path from `engine.resolve_skills_dir`, passing `"aw"` when `detect_layout` starts with `aw` or is `dual`, else `"legacy"`) and `state["skills_files"]` (the count of files at any depth under that directory, 0 when absent). Import `engine` LAZILY inside the helper, as `layout_migration._skills_prefix` does and for its stated reason (keep the import graph unchanged; read the ONE authority so a relocation moves this check with it). Do NOT change `legacy_breakdown` or the meaning of `legacy_files_remaining` (still every file under `.agents/`): the restored `test_legacy_breakdown_attributes_leftovers_to_subtrees` and the `PROBES` table pin both, and they are correct as attribution.
   - Depends on: E-01
   - Expected outcome: a probe of a sandbox holding `.agents/skills/a/SKILL.md` reports `skills_dir == ".agents/skills"` and `skills_files == 1`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 FIX `derive_observations`. (1) DELETE the `orphaned-skills` block entirely: both of its clauses are false (skills are not installed "under the .aw layout", and the files are current manifest rows, verified by `z1yefm`). (2) In the `legacy-leftovers` block, compute the leftover count as `legacy_files_remaining` minus the breakdown entry for the skills subtree, where the subtree key is the first path component of `engine.resolve_skills_dir(...)` BELOW `.agents/` (today `skills`), and drop that key from the printed `detail`; if the resolved skills dir is not under `.agents/`, subtract nothing. Fire only when the remaining count is positive. Computing this in `derive_observations` (rather than only in `probe`) is deliberate: the restored table hands state dicts straight to `derive_observations`, so that is where the behavior must live to be tested. (3) ADD `skills-missing`: fires when the run MIGRATED (the existing `migrated` predicate) AND `state.get("skills_files") == 0` with the key PRESENT; its note says the installer writes skills to `<skills_dir>` for every layout, so their absence after a migration is the reportable defect. The key-present condition keeps every existing row that omits `skills_files` silent. Keep the kind order the report prints (`dual-layout`, `empty-legacy-dirs`, `legacy-leftovers`, `skills-missing`, `legacy-kept`, then the version and remote kinds) and keep the function's DESCRIPTIVE, never-a-verdict docstring.
+- [x] E-03 FIX `derive_observations`. (1) DELETE the `orphaned-skills` block entirely: both of its clauses are false (skills are not installed "under the .aw layout", and the files are current manifest rows, verified by `z1yefm`). (2) In the `legacy-leftovers` block, compute the leftover count as `legacy_files_remaining` minus the breakdown entry for the skills subtree, where the subtree key is the first path component of `engine.resolve_skills_dir(...)` BELOW `.agents/` (today `skills`), and drop that key from the printed `detail`; if the resolved skills dir is not under `.agents/`, subtract nothing. Fire only when the remaining count is positive. Computing this in `derive_observations` (rather than only in `probe`) is deliberate: the restored table hands state dicts straight to `derive_observations`, so that is where the behavior must live to be tested. (3) ADD `skills-missing`: fires when the run MIGRATED (the existing `migrated` predicate) AND `state.get("skills_files") == 0` with the key PRESENT; its note says the installer writes skills to `<skills_dir>` for every layout, so their absence after a migration is the reportable defect. The key-present condition keeps every existing row that omits `skills_files` silent. Keep the kind order the report prints (`dual-layout`, `empty-legacy-dirs`, `legacy-leftovers`, `skills-missing`, `legacy-kept`, then the version and remote kinds) and keep the function's DESCRIPTIVE, never-a-verdict docstring.
   - Depends on: E-02
   - Expected outcome: state (a) from E-01 yields `['empty-legacy-dirs']`; state (b) yields `['legacy-leftovers']` with a note counting 3 files and a detail of `workflows=3`; a migrated state with `skills_files: 0` yields `['skills-missing']`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 MAKE THE HUMAN REPORT HONEST. In `upgrade_rehearsal.report`, when `skills_files` is positive, extend the `Legacy:` line with `of which <n> are the live skills install under <skills_dir>`, so a reader of the raw count is not left to infer that those files are leftovers.
+- [x] E-04 MAKE THE HUMAN REPORT HONEST. In `upgrade_rehearsal.report`, when `skills_files` is positive, extend the `Legacy:` line with `of which <n> are the live skills install under <skills_dir>`, so a reader of the raw count is not left to infer that those files are leftovers.
   - Depends on: E-02
   - Expected outcome: `report()` on a result whose state has `legacy_files_remaining: 95, skills_files: 92` prints a `Legacy:` line naming both numbers and the skills directory.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove it
 
-- [ ] E-05 CORRECT AND EXTEND THE RESTORED OBSERVATION TABLE in `tests/test_aw_upgrade_test.py` (state-dict surface only; the live-sandbox tests are E-07, split in review). (1) Change the row "a migrating run that left the skills tree behind" to expect `["empty-legacy-dirs"]` and rewrite its `why` to state that `.agents/skills` surviving a migration is the CORRECT outcome and firing on it pushes a reviewer to delete live install output (backlog `izfscm`). Changing this expectation is the point of the plan, not a relaxation: the old expectation pinned the defect. (2) Add rows: skills plus three `workflows` leftovers after a migration -> `["legacy-leftovers"]`; a migrated state with `skills_files: 0` -> `["skills-missing"]`; a NOT-migrated legacy-kept state with `skills_files: 0` -> `["legacy-kept"]` (proving `skills-missing` keys on the migration, not on the count; verified in review that this row reads `['legacy-kept']` today, so it is a control that passes both before and after). The two rows named in E-01 stay textually unchanged and must still pass, since they are what proves the new subtraction did not silence a true leftover. No test reads source text.
+- [x] E-05 CORRECT AND EXTEND THE RESTORED OBSERVATION TABLE in `tests/test_aw_upgrade_test.py` (state-dict surface only; the live-sandbox tests are E-07, split in review). (1) Change the row "a migrating run that left the skills tree behind" to expect `["empty-legacy-dirs"]` and rewrite its `why` to state that `.agents/skills` surviving a migration is the CORRECT outcome and firing on it pushes a reviewer to delete live install output (backlog `izfscm`). Changing this expectation is the point of the plan, not a relaxation: the old expectation pinned the defect. (2) Add rows: skills plus three `workflows` leftovers after a migration -> `["legacy-leftovers"]`; a migrated state with `skills_files: 0` -> `["skills-missing"]`; a NOT-migrated legacy-kept state with `skills_files: 0` -> `["legacy-kept"]` (proving `skills-missing` keys on the migration, not on the count; verified in review that this row reads `['legacy-kept']` today, so it is a control that passes both before and after). The two rows named in E-01 stay textually unchanged and must still pass, since they are what proves the new subtraction did not silence a true leftover. No test reads source text.
   - Depends on: E-03, E-04
   - Expected outcome: the changed row and the three new rows pass after the fix; against the pre-fix module the changed row, the three-leftover row and the skills-missing row FAIL while the legacy-kept row and the two E-01 rows pass both before and after.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 ADD THE TWO LIVE-BEHAVIOR TESTS in `tests/test_aw_upgrade_test.py` (split from E-05 in review, F-8: a real sandbox and captured stdout are two surfaces the state-dict table cannot reach). (1) A REAL-PROBE test: build a sandbox with `create_sandbox(SourceRepo.inspect(src), ...)` from a source whose layout is `legacy`, then in the sandbox delete `.agents/workflows`, write `.aw/system/VERSION`, and write two files under `.agents/skills/x/`; assert `probe(sandbox)["observations"]` kinds contain neither `orphaned-skills` nor `legacy-leftovers`, and that `skills_files == 2`; then delete `.agents/skills` and assert `skills-missing` appears. THE SOURCE MUST BE LEGACY AND THE SANDBOX MUST BE BUILT BY `create_sandbox`, and this is load-bearing rather than stylistic (measured in review): `probe` reads `baseline_layout` from the `.aw-upgrade-test.json` marker, `create_sandbox` is what writes that marker from `source.to_dict()`, and with no marker `baseline_layout` is `None`, so `migrated` is False and NOTHING fires. A hand-built sandbox would make this test pass vacuously, asserting absence against a deriver that was never engaged. Driven in review on the real functions: marker present + legacy source + `.aw` layout gives `baseline_layout='legacy'`, `layout='aw'`, and pre-fix observations `['legacy-leftovers', 'orphaned-skills']`, which is exactly the state this test must see turn silent. (2) A test that `report()` output (captured stdout) names the skills count per E-04.
+- [x] E-07 ADD THE TWO LIVE-BEHAVIOR TESTS in `tests/test_aw_upgrade_test.py` (split from E-05 in review, F-8: a real sandbox and captured stdout are two surfaces the state-dict table cannot reach). (1) A REAL-PROBE test: build a sandbox with `create_sandbox(SourceRepo.inspect(src), ...)` from a source whose layout is `legacy`, then in the sandbox delete `.agents/workflows`, write `.aw/system/VERSION`, and write two files under `.agents/skills/x/`; assert `probe(sandbox)["observations"]` kinds contain neither `orphaned-skills` nor `legacy-leftovers`, and that `skills_files == 2`; then delete `.agents/skills` and assert `skills-missing` appears. THE SOURCE MUST BE LEGACY AND THE SANDBOX MUST BE BUILT BY `create_sandbox`, and this is load-bearing rather than stylistic (measured in review): `probe` reads `baseline_layout` from the `.aw-upgrade-test.json` marker, `create_sandbox` is what writes that marker from `source.to_dict()`, and with no marker `baseline_layout` is `None`, so `migrated` is False and NOTHING fires. A hand-built sandbox would make this test pass vacuously, asserting absence against a deriver that was never engaged. Driven in review on the real functions: marker present + legacy source + `.aw` layout gives `baseline_layout='legacy'`, `layout='aw'`, and pre-fix observations `['legacy-leftovers', 'orphaned-skills']`, which is exactly the state this test must see turn silent. (2) A test that `report()` output (captured stdout) names the skills count per E-04.
   - Depends on: E-05
   - Expected outcome: both pass after the fix and both FAIL against the pre-fix module (the real-probe test on the two spurious kinds, the report test on the missing skills clause). Paste the pre-fix `baseline_layout`/`layout` pair to prove the fixture actually engaged `migrated`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 RUN THE BARE SUITE `python3 -m pytest` before and after the change and compare failing node IDs.
+- [x] E-06 RUN THE BARE SUITE `python3 -m pytest` before and after the change and compare failing node IDs.
   - Depends on: E-05, E-07
   - Expected outcome: the after-minus-before failing node set is empty.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -155,40 +155,247 @@ Measured at HEAD `f46b6775` against `tools/aw_upgrade_test.py` (the pre-move loc
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `ls agent_workflows/upgrade_rehearsal.py`, the `8ud1is` plan's `- Status:` line, the restored row as it reads before the edit, the two `derive_observations` outputs, and the two `resolve_skills_dir` outputs.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: agent_workflows/upgrade_rehearsal.py exists; 8ud1is is executed; restored row reproduces defect with 3 findings; derive_observations reproduces defect on state (a) and (b); resolve_skills_dir returns .agents/skills; controls pass.
+    `ls agent_workflows/upgrade_rehearsal.py`:
+    `agent_workflows/upgrade_rehearsal.py`
 
-- [ ] V-02 validates E-02
+    `grep "^\- Status:" .aw/records/plans/executed/20260925-upgrehearse-01-8ud1is-...`:
+    `- Status: executed`
+
+    Restored row before edit:
+    ```python
+        (
+            "a migrating run that left the skills tree behind",
+            {
+                "baseline_layout": "legacy",
+                "layout": "aw+litter",
+                "legacy_files_remaining": 92,
+                "legacy_breakdown": {"skills": 92},
+            },
+            ["empty-legacy-dirs", "legacy-leftovers", "orphaned-skills"],
+            "THREE FINDINGS FROM ONE STATE, which no single-membership test could state: the same "
+            "state is simultaneously littered, holding leftovers, and holding ORPHANED SKILLS a host "
+            "may still discover. The ORDER is pinned too, because the report prints them in "
+            "sequence and reordering changes what a human reads first",
+        ),
+    ```
+
+    `derive_observations` outputs (pre-fix):
+    state (a) kinds: `['empty-legacy-dirs', 'legacy-leftovers', 'orphaned-skills']`
+    state (b) kinds: `['legacy-leftovers', 'orphaned-skills']`
+    state (b) notes: `['95 file(s) still under .agents/ after a MIGRATING run (skills=92, workflows=3). Check whether they are deferred leftovers or missed material.', '92 file(s) remain under .agents/skills/ while the framework now installs skills under the .aw layout, so the old copies are unreferenced duplicates a host may still discover.']`
+
+    `engine.resolve_skills_dir` outputs:
+    `engine.resolve_skills_dir("aw")`: `.agents/skills`
+    `engine.resolve_skills_dir("legacy")`: `.agents/skills`
+
+    Two other rows checked:
+    Row 1 ("a MIGRATING run that left files under .agents/", remaining: 5, no breakdown): `['legacy-leftovers']`
+    Row 2 ("a run that deliberately KEPT the legacy layout", remaining: 331, skills: 92, workflows: 158): `['legacy-kept']`
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the diff of `probe` and the new helper showing the lazy `engine` import; paste a `probe(...)` run on a scratch sandbox holding one skills file printing `skills_dir` and `skills_files`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: probe updated with resolve_skills_dir helper importing engine lazily; probe on scratch sandbox holding one skills file reports skills_dir=".agents/skills" and skills_files=1.
+    `resolve_skills_dir` helper:
+    ```python
+    def resolve_skills_dir(layout: str = "aw") -> str:
+        """Return the repo-relative skills directory from the engine authority.
 
-- [ ] V-03 validates E-03
+        Imported lazily (inside the function) rather than at module import time to keep this
+        module's import graph unchanged: `engine` is a large module. Read from
+        `engine.resolve_skills_dir` rather than re-spelling `.agents/skills`, so a future
+        relocation moves this check with it.
+        """
+        from agent_workflows import engine as _engine
+
+        target = "aw" if (layout and (layout.startswith("aw") or layout == "dual")) else "legacy"
+        return _engine.resolve_skills_dir(target)
+    ```
+
+    Diff in `probe`:
+    ```python
+         state["legacy_breakdown"] = legacy_breakdown(sandbox)
+         state["empty_dirs"] = count_empty_dirs(sandbox / ".agents")
+    +    state["skills_dir"] = resolve_skills_dir(state["layout"])
+    +    skills_path = sandbox / state["skills_dir"]
+    +    state["skills_files"] = (
+    +        sum(1 for p in skills_path.rglob("*") if p.is_file())
+    +        if skills_path.is_dir()
+    +        else 0
+    +    )
+         state["observations"] = derive_observations(state)
+         return state
+    ```
+
+    `probe(...)` run on scratch sandbox with `.agents/skills/a/SKILL.md`:
+    ```text
+    probe skills_dir: .agents/skills
+    probe skills_files: 1
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the `derive_observations` diff showing the `orphaned-skills` block removed and `skills-missing` added; paste the kinds for state (a), state (b) (with the note text showing 3 files and `workflows=3`), and a migrated `skills_files: 0` state.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: orphaned-skills deleted; skills subtree excluded from legacy-leftovers count and detail; skills-missing added; state (a) yields empty-legacy-dirs; state (b) yields legacy-leftovers with workflows=3 (3 files); migrated skills_files:0 yields skills-missing.
+    Diff in `derive_observations`:
+    ```python
+    -    breakdown = state.get("legacy_breakdown") or {}
+    +    breakdown = dict(state.get("legacy_breakdown") or {})
+         remaining = state.get("legacy_files_remaining") or 0
+    -    if remaining and migrated:
+    -        detail = ", ".join(f"{k}={v}" for k, v in sorted(breakdown.items()))
+    +    skills_dir = state.get("skills_dir") or resolve_skills_dir(state.get("layout") or "aw")
+    +    skills_parts = Path(skills_dir).parts
+    +    if skills_parts and skills_parts[0] == ".agents" and len(skills_parts) > 1:
+    +        skills_subtree_key = skills_parts[1]
+    +        leftover_count = remaining - breakdown.get(skills_subtree_key, 0)
+    +        detail_items = {k: v for k, v in breakdown.items() if k != skills_subtree_key}
+    +    else:
+    +        leftover_count = remaining
+    +        detail_items = breakdown
+    +    if leftover_count > 0 and migrated:
+    +        detail = ", ".join(f"{k}={v}" for k, v in sorted(detail_items.items()))
+             obs.append(
+                 {
+                     "kind": "legacy-leftovers",
+    -                "note": f"{remaining} file(s) still under .agents/ after a MIGRATING run "
+    +                "note": f"{leftover_count} file(s) still under .agents/ after a MIGRATING run "
+                     f"({detail}). Check whether they are deferred leftovers or missed "
+                     "material.",
+                 }
+             )
+    -    if migrated and breakdown.get("skills"):
+    -        obs.append(
+    -            {
+    -                "kind": "orphaned-skills",
+    -                "note": f"{breakdown['skills']} file(s) remain under .agents/skills/ while the "
+    -                "framework now installs skills under the .aw layout, so the old copies "
+    -                "are unreferenced duplicates a host may still discover.",
+    -            }
+    -        )
+    +    if migrated and "skills_files" in state and state.get("skills_files") == 0:
+    +        obs.append(
+    +            {
+    +                "kind": "skills-missing",
+    +                "note": f"No files found under {skills_dir} after a MIGRATING run. "
+    +                f"The installer writes skills to {skills_dir} for every layout, "
+    +                "so their absence after a migration is the reportable defect.",
+    +            }
+    +        )
+    ```
 
-- [ ] V-04 validates E-04
+    Derived kinds and notes:
+    - State (a) kinds: `['empty-legacy-dirs']`
+    - State (b) kinds: `['legacy-leftovers']`
+      State (b) note: `3 file(s) still under .agents/ after a MIGRATING run (workflows=3). Check whether they are deferred leftovers or missed material.`
+    - Migrated state with `skills_files: 0` kinds: `['skills-missing']`
+      Note: `No files found under .agents/skills after a MIGRATING run. The installer writes skills to .agents/skills for every layout, so their absence after a migration is the reportable defect.`
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the `report` diff and the captured `Legacy:` line for a result with 95 legacy files of which 92 are skills.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: report() prints skills install clause when skills_files is positive; captured line: Legacy: 95 file(s) still under .agents/ (skills=92, workflows=3), of which 92 are the live skills install under .agents/skills.
+    Diff in `report`:
+    ```python
+         if state.get("legacy_files_remaining"):
+             breakdown = state.get("legacy_breakdown") or {}
+             detail = ", ".join(f"{k}={v}" for k, v in sorted(breakdown.items()))
+    +        skills_files = state.get("skills_files") or 0
+    +        skills_dir = state.get("skills_dir") or resolve_skills_dir(state.get("layout") or "aw")
+    +        skills_info = (
+    +            f", of which {skills_files} are the live skills install under {skills_dir}"
+    +            if skills_files > 0
+    +            else ""
+    +        )
+             print(
+                 f"Legacy:   {state['legacy_files_remaining']} file(s) still under .agents/"
+                 + (f" ({detail})" if detail else "")
+    +            + skills_info
+             )
+    ```
 
-- [ ] V-05 validates E-05
+    Captured `Legacy:` line:
+    `Legacy:   95 file(s) still under .agents/ (skills=92, workflows=3), of which 92 are the live skills install under .agents/skills`
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste `python3 -m pytest tests/test_aw_upgrade_test.py -o addopts="" -q` passing with its count; then the same run with the E-02/E-03/E-04 hunks temporarily reverted, showing the changed row, the three-leftover row and the skills-missing row FAILING while the legacy-kept row AND the two rows named in E-01 pass; then passing again after restoring. Naming those two rows explicitly is the point: they are what proves the new subtraction did not silence a genuine leftover report.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: test_aw_upgrade_test.py 39 passed; with E-02/E-03/E-04 reverted, changed row, three-leftover row, and skills-missing row all failed while control rows passed; 39 passed after restore.
+    Passing test count after fix:
+    ```text
+    $ python3 -m pytest tests/test_aw_upgrade_test.py -o addopts="" -q
+    .......................................                                  [100%]
+    39 passed in 2.01s
+    ```
 
-- [ ] V-07 validates E-07
+    Pre-fix run failures with E-02/E-03/E-04 reverted (3 failures in table):
+    ```text
+    FAILED tests/test_aw_upgrade_test.py::ProbeAndObservationTests::test_every_observation_fires_on_exactly_its_own_state
+      a migrating run that left the skills tree behind:
+        - expected ['empty-legacy-dirs'], got ['empty-legacy-dirs', 'legacy-leftovers', 'orphaned-skills'] (fired but must not: ['legacy-leftovers', 'orphaned-skills'])
+        this row exists because: .agents/skills surviving a migration is the CORRECT outcome and firing on it pushes a reviewer to delete live install output (backlog izfscm). The skills directory is the intended install location for both layouts, so remaining skills files are not leftovers
+      skills plus three workflows leftovers after a migration:
+        - expected ['legacy-leftovers'], got ['legacy-leftovers', 'orphaned-skills'] (fired but must not: ['orphaned-skills'])
+        this row exists because: the subtraction excludes the 92 skills files under .agents/skills/ while the 3 workflows files are genuine leftovers that must still fire
+      a migrated state with zero skills files:
+        - expected ['skills-missing'], got [] (did not fire: ['skills-missing'])
+        this row exists because: a migration that left zero files under the skills directory is a reportable defect because host tools discover skills there for both layouts
+    ```
+
+    Controls passing both before and after:
+    - "a MIGRATING run that left files under .agents/" (5 leftovers, no breakdown) -> passed (`['legacy-leftovers']`)
+    - "a run that deliberately KEPT the legacy layout" (331 leftovers, breakdown present) -> passed (`['legacy-kept']`)
+    - "a NOT-migrated legacy-kept state with zero skills files" (5 leftovers, skills_files: 0) -> passed (`['legacy-kept']`)
+
+    Passing again after restoring:
+    ```text
+    $ python3 -m pytest tests/test_aw_upgrade_test.py -o addopts="" -q
+    .......................................                                  [100%]
+    39 passed in 2.01s
+    ```
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste the two tests passing; paste the pre-fix run showing BOTH failing; and paste the probed `baseline_layout` and `layout` from the real-probe fixture, which must read `'legacy'` and `'aw'`. A real-probe test whose `baseline_layout` is `None` is a FAILED validation even if its assertions pass, because `migrated` was never true and the test proved nothing (measured in review: no marker -> `baseline_layout=None` -> zero observations).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: test_real_probe_distinguishes_live_skills_from_leftovers_and_reports_missing and test_report_names_live_skills_count pass; both fail against pre-fix code; probed baseline_layout='legacy' and layout='aw' confirmed.
+    Two live behavior tests passing:
+    `test_real_probe_distinguishes_live_skills_from_leftovers_and_reports_missing` and `test_report_names_live_skills_count` both pass in `39 passed in 2.01s`.
 
-- [ ] V-06 validates E-06
+    Pre-fix run showing both failing:
+    ```text
+    FAILED tests/test_aw_upgrade_test.py::ProbeAndObservationTests::test_real_probe_distinguishes_live_skills_from_leftovers_and_reports_missing
+    FAILED tests/test_aw_upgrade_test.py::ProbeAndObservationTests::test_report_names_live_skills_count
+    AssertionError: 'of which 92 are the live skills install under .agents/skills' not found in 'Legacy:   95 file(s) still under .agents/ (skills=92, workflows=3)'
+    AssertionError: None != 2
+    ```
+
+    Probed `baseline_layout` and `layout` from the real-probe fixture:
+    ```text
+    Pre-fix probed baseline_layout: legacy
+    Pre-fix probed layout: aw
+    Pre-fix probed observations: ['legacy-leftovers', 'orphaned-skills']
+    ```
+    Fixtures engaged `migrated`=True with `'legacy'` baseline and `'aw'` layout; observations emitted `legacy-leftovers` and `orphaned-skills` pre-fix, and cleared both after the fix.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the bare `python3 -m pytest` summary line BEFORE and AFTER and the after-minus-before failing node-ID set (must be empty).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Bare pytest before: 2698 passed, 2 skipped, 3 warnings in 95.53s; after: 2700 passed, 2 skipped, 3 warnings in 75.95s; failing node IDs before and after: set(), after-minus-before failing node-ID set is empty.
+    Bare pytest BEFORE:
+    ```text
+    2698 passed, 2 skipped, 3 warnings in 95.53s (0:01:35)
+    ```
+    Bare pytest AFTER:
+    ```text
+    2700 passed, 2 skipped, 3 warnings in 75.95s (0:01:15)
+    ```
+    Failing node-IDs before: set()
+    Failing node-IDs after: set()
+    After-minus-before failing node-ID set: set() (empty)
+  - Result: pass
 
 ## Approval and execution gate
 
