@@ -6,7 +6,7 @@
 - Scope: IN: mint the walkthrough's own id6 in `write_walkthrough` and record the plan as `- Target-Id:`; a `walkthrough_id6` feature cutover with a `_walkthrough_requires_id6` checker twin; correct the stale `artifact_naming` docstring; re-id the 3 D140 walkthroughs and update their live citations; README, shipped template and uniform-grammar spec row. OUT: renaming the 11 grandfathered legacy walkthroughs; releases and roadmaps (already id6-bearing); any new rename verb.
 - Scope-Paths: agent_workflows/set_records.py, agent_workflows/config.py, agent_workflows/check_engine.py, agent_workflows/artifact_naming.py, .aw/config/project.json, tests/test_walkthrough_id6.py, .aw/records/walkthroughs/, .aw/records/plans/executed/20260829-runstop-00-zpbx7o-runner-graceful-quit-protocol-adopt-spec-c4gd2h.ipd.md, .aw/records/plans/executed/20260901-lanectn-04-y5od1h-bounded-missing-input-repair-without-original-checkout-acces.ipd.md, .aw/records/plans/executed/20260916-lanectn-07-4fodkt-demonstrate-the-whole-set-acceptance-criteria-of-spec-7ckptx.ipd.md, .aw/system/workflows/templates/agents-docs-walkthroughs-README.md, .aw/records/specs/implemented/20260817-2147-01-uniform-artifact-naming-grammar.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 09
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: nrqo90
-- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: nrqo90 verified (set wkthid6, attempt 1).
 - 2026-09-27 approved (aw set): status set to approved
 - 2026-09-27 reviewed (aw set): Reviewed by /plan-review: 9 findings (3 HIGH, 4 MEDIUM, 2 LOW), all FIXED in place; readiness go-pending-approval. Three verification defects fixed: the check.id6-identity-slot proof was satisfied by renaming alone (new E-06 asserts the '- Id:' half with a test that can fail); the 'aw find returns only the plan' assertion was false for y5od1h/4fodkt; and the citation census named 5 of 8 files, one a recorded transcript a wholesale rewrite would corrupt. HEAD finding baseline corrected (5, not 9) and E-03's cutover rationale corrected against the documented two-date contract. Findings and 6 decisions in .aw/records/reviews/20260926-wkthid6-01-nrqo90-*.review.md
 - 2026-09-26 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-601..PR-609. Reviewed in an isolated lane worktree at HEAD 74e672a2. Every claim re-measured: F-1/F-2/F-5/F-6 confirmed, F-3's count corrected (5 total findings at HEAD, not 9) and its `e2j5w4` status corrected (still `open`). Three verification defects fixed: E-09's `check.id6-identity-slot` proof is satisfied by RENAMING ALONE (measured: rule (b) exempts a renamed file with no `- Id:`), so the `- Id:` half of E-05 had no failing assertion; E-09's `aw find` assertion is FALSE as written for `y5od1h`/`4fodkt` (a review record shares the plan's stem); and E-07's citation census missed 2 of 8 citing files. E-03's cutover rationale contradicted the documented two-date contract and was corrected.
