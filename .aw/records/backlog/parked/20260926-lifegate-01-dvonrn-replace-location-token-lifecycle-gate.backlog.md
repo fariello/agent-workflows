@@ -48,7 +48,23 @@ Stale owner files are moot after D2 (liveness comes from driver.lock plus proces
   3. Same machine, or an older record with no `host=`: apply D2 (lock held AND process exists).
 - HONEST LIMIT: on a shared drive the OS file lock may or may not work across machines, depending on the filesystem (NFS, SMB, cluster filesystems differ). The recorded machine name is what makes the cross-machine case safe regardless.
 
-### D4 (OPEN): every entry point (aw ipd begin/finalize, aw set executed, orchestrator retirement) passes the one check at a shared choke point.
+### D4 (DECIDED 2026-09-26): every entry point passes the one check, placed in the core functions
+
+Entry points measured 2026-09-26:
+
+| Entry point | Lands in | Worker-label check today |
+| --- | --- | --- |
+| `aw ipd begin` | CLI handler -> `ipd_lifecycle.begin` | CLI handler only (`_refuse_worker_role_verb("begin")`) |
+| `aw ipd finalize` | CLI handler -> `ipd_lifecycle.finalize` | CLI handler AND inside `finalize` |
+| `aw set executed` / `aw ipd set executed` | `status_set._delegate_plan_executed_to_finalize` -> `ipd_lifecycle.finalize` | inside `finalize` |
+| orchestrator retirement (runner or `aw set`) | `ipd_lifecycle.retire_orchestrator` | inside `retire_orchestrator` |
+| the runner's own begin/finalize | subprocess `aw ipd begin` / `aw ipd finalize` | via the CLI handlers |
+
+Finalize, `aw set executed` and retirement converge on `_finalize_transaction`; `begin` has no shared layer below its CLI handler, so a direct `ipd_lifecycle.begin` caller skips the label check today (none exists yet).
+
+- Place BOTH the worker-label check and the new 'held by a live run' check INSIDE the core functions `ipd_lifecycle.begin`, `ipd_lifecycle.finalize` (which covers `aw set executed`), and `ipd_lifecycle.retire_orchestrator`. The CLI handlers only pass through the caller's run id and any `--take-over` reason, so no caller can route around the check.
+- Retirement: a runner retiring an orchestrator is itself the live holder of that plan, so it passes its own run id exactly as its begin/finalize calls do.
+- TEST: one test drives EVERY entry point in the table against a plan held by a live run and asserts each refuses identically (and that each proceeds when the caller passes the holder's run id), so a future new caller cannot silently skip the check.
 
 ### D5 (OPEN): what to do with other gates that exist only against malicious agents (wtiso_gate, runner_shared comments, host_sandbox_profile, the --by-human attestation).
 
