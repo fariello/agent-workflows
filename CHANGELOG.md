@@ -69,6 +69,7 @@ Major storage-layout boundary. The logical model (D126-D129) was superseded by t
 - Fixed: `aw backlog set <item> --status <s> --dry-run` and `aw specs set <spec> --status <s> --dry-run` previously ignored `--dry-run` and performed the change (a spec was even moved to another folder); both now preview only.
 - Fixed: `aw backlog set <item> --status <s>` no longer deletes metadata lines it does not recognize (for example a custom field, and previously any field without its own workaround); the item now keeps them where they were in original order.
 - Fixed: `aw backlog set <item> --status <s>` no longer deletes prose written between an item's metadata bullets and its `## Workflow history` heading, preserving existing report text in place.
+- Fixed: `aw rename` and `aw group` now also rewrite inbound citations in review records and test files, keep short handles short, leave fenced code blocks and transcripts unmodified, and warn instead of rewriting when a legacy date-time prefix is shared across multiple records.
 - Removed the `--follow-generated` run flag. It was never implemented and always refused. Plans created during a run are reported as next actions, as before.
 
 ## 1.3.0 (pending) - new conventions/features, internal install unification, and install-path fixes

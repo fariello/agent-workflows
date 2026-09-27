@@ -69,6 +69,14 @@ def plan_reference_rewrites(repo_root: Path, renames: Dict[str, str]) -> List[Re
     return [RefEdit(e.file, e.old, e.new, e.hits) for e in unified]
 
 
+def plan_reference_rewrites_with_warnings(
+    repo_root: Path, renames: Dict[str, str]
+) -> Tuple[List[RefEdit], List[str]]:
+    """Plan rewrites and collect shared legacy prefix warnings for renames."""
+    unified, warnings = _refs.plan_reference_rewrites_with_warnings(repo_root, renames)
+    return [RefEdit(e.file, e.old, e.new, e.hits) for e in unified], warnings
+
+
 def apply_reference_rewrites(edits: List[RefEdit]) -> None:
     """Apply planned rewrites via the unified applier (full-name first, then hyphen-boundaried stem)."""
 
@@ -277,7 +285,11 @@ def _repo_root(args: argparse.Namespace) -> Path:
 
 
 def _apply_renames(
-    repo_root: Path, plans: List[RenamePlan], apply: bool, verb: str = "group"
+    repo_root: Path,
+    plans: List[RenamePlan],
+    apply: bool,
+    verb: str = "group",
+    yes: bool = False,
 ) -> Tuple[str, ...]:
     """Apply the file renames as tracked git moves plus the reference rewrites.
 
@@ -285,9 +297,17 @@ def _apply_renames(
     empty on preview. The CALLER adds the regenerated INDEX paths and drives the self-commit offer
     (selfcommit jgcm68 E-03: the backend RETURNS its touched set, it does NOT commit)."""
 
-    renames = {p.old_path.name: p.new_path.name for p in plans}
-    ref_edits = plan_reference_rewrites(repo_root, renames)
+    renames = {
+        p.old_path.name: p.new_path.name for p in plans if p.old_path != p.new_path
+    }
+    ref_edits, warnings = (
+        plan_reference_rewrites_with_warnings(repo_root, renames)
+        if renames
+        else ([], [])
+    )
     if not apply:
+        for w in warnings:
+            print(w)
         for p in plans:
             print(f"--- would rename {p.old_path} -> {p.new_path.name} ---")
         for e in ref_edits:
@@ -319,10 +339,29 @@ def _apply_renames(
         )
         touched.append(src_rel)
         touched.append(dst_rel)
-    apply_reference_rewrites(ref_edits)
-    for e in ref_edits:
-        print(f"rewrote {e.hits}x '{e.old_name}' -> '{e.new_name}' in {e.file}")
-        touched.append(_rel(e.file))
+    for w in warnings:
+        print(w)
+    if ref_edits:
+        unified_edits = [
+            _refs.RefEdit(
+                e.file,
+                _refs.FULL_NAME if e.old_name.endswith(".md") else _refs.BARE_STEM,
+                e.old_name,
+                e.new_name,
+                e.hits,
+            )
+            for e in ref_edits
+        ]
+        filtered_unified = _refs.filter_test_edits_interactive(
+            repo_root, unified_edits, yes=yes
+        )
+        kept = {(e.file, e.old, e.new) for e in filtered_unified}
+        ref_edits = [e for e in ref_edits if (e.file, e.old_name, e.new_name) in kept]
+    if ref_edits:
+        apply_reference_rewrites(ref_edits)
+        for e in ref_edits:
+            print(f"rewrote {e.hits}x '{e.old_name}' -> '{e.new_name}' in {e.file}")
+            touched.append(_rel(e.file))
     try:
         from agent_workflows import research_index as _ridx
 
@@ -378,7 +417,12 @@ def run_set_assign(args: argparse.Namespace) -> "MutationResult":
     if err:
         print(f"error: {err}")
         return MutationResult(2)
-    touched = _apply_renames(repo_root, plans or [], getattr(args, "apply", False))
+    touched = _apply_renames(
+        repo_root,
+        plans or [],
+        getattr(args, "apply", False),
+        yes=bool(getattr(args, "yes", False)),
+    )
     return MutationResult(0, touched)
 
 
@@ -397,7 +441,11 @@ def run_mv(args: argparse.Namespace) -> "MutationResult":
         print(f"error: {err}")
         return MutationResult(2)
     touched = _apply_renames(
-        repo_root, [plan] if plan else [], getattr(args, "apply", False), verb="rename"
+        repo_root,
+        [plan] if plan else [],
+        getattr(args, "apply", False),
+        verb="rename",
+        yes=bool(getattr(args, "yes", False)),
     )
     return MutationResult(0, touched)
 

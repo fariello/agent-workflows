@@ -307,6 +307,13 @@ def plan_reference_rewrites(
     return _refs.plan_reference_rewrites(repo_root, name_map)
 
 
+def plan_reference_rewrites_with_warnings(
+    repo_root: Path, name_map: Dict[str, str], plans_dir: Path
+) -> Tuple[List[RefEdit], List[str]]:
+    """Plan citation rewrites and collect warnings for a PLAN name_map (old -> new)."""
+    return _refs.plan_reference_rewrites_with_warnings(repo_root, name_map)
+
+
 def apply_reference_rewrites(edits: List[RefEdit]) -> None:
     """Apply planned rewrites via the unified applier (full-name first, then hyphen-boundaried stem)."""
 
@@ -328,6 +335,7 @@ def apply_renames(
     descriptive: Optional[str] = None,
     update_refs: bool = True,
     verb: str = "group",
+    yes: bool = False,
 ) -> Tuple[str, ...]:
     """Set metadata + (optional) clustering rename + citation rewrite. Preview when not apply.
     update_refs=False (from `--no-refs`, awcmdsurf Order 03) renames the file only, leaving citing
@@ -340,12 +348,14 @@ def apply_renames(
     name_map = {
         p.old_path.name: p.new_path.name for p in plans if p.old_path != p.new_path
     }
-    ref_edits = (
-        plan_reference_rewrites(repo_root, name_map, plans_dir)
+    ref_edits, warnings = (
+        plan_reference_rewrites_with_warnings(repo_root, name_map, plans_dir)
         if (name_map and update_refs)
-        else []
+        else ([], [])
     )
     if not apply:
+        for w in warnings:
+            print(w)
         for i, p in enumerate(plans):
             if p.old_path == p.new_path:
                 # e3hzyc: preview the Order that would ACTUALLY be written (the plan's own, when
@@ -400,10 +410,15 @@ def apply_renames(
             touched.append(dst_rel)
         else:
             touched.append(_rel(p.old_path))
-    apply_reference_rewrites(ref_edits)
-    for e in ref_edits:
-        print(f"rewrote {e.hits}x [{e.kind}] in {e.file}")
-        touched.append(_rel(e.file))
+    for w in warnings:
+        print(w)
+    if update_refs and ref_edits:
+        ref_edits = _refs.filter_test_edits_interactive(repo_root, ref_edits, yes=yes)
+    if update_refs and ref_edits:
+        apply_reference_rewrites(ref_edits)
+        for e in ref_edits:
+            print(f"rewrote {e.hits}x [{e.kind}] in {e.file}")
+            touched.append(_rel(e.file))
     try:
         _idx.run_index(
             argparse.Namespace(
@@ -492,6 +507,7 @@ def run_set_assign(args: argparse.Namespace) -> "MutationResult":
         getattr(args, "set", ""),
         apply=getattr(args, "apply", False),
         update_refs=not getattr(args, "no_refs", False),
+        yes=bool(getattr(args, "yes", False)),
     )
     return MutationResult(0, touched)
 
@@ -539,5 +555,6 @@ def run_mv(args: argparse.Namespace) -> "MutationResult":
         apply=getattr(args, "apply", False),
         update_refs=not getattr(args, "no_refs", False),
         verb="rename",
+        yes=bool(getattr(args, "yes", False)),
     )
     return MutationResult(0, touched)
