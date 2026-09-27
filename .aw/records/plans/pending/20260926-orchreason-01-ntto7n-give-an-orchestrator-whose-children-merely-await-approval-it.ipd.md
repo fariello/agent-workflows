@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_orchestrator_not_approved_reason.py
 - Item-Dependencies: none
 - Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
 - From-Backlog: swk6r8
