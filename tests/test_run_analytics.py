@@ -1089,5 +1089,203 @@ class CacheHandoffTests(unittest.TestCase):
         self.assertEqual(rep_dam.totals["total"], 2)
 
 
+class ModelAttributionTests(unittest.TestCase):
+    """Behavioral tests for model label widening, fallback, and verify attribution (IPD 7hek98 E-05)."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.tmp = Path(self._tmp.name)
+        self.addCleanup(self._tmp.cleanup)
+        self.root = self.tmp / "runs"
+        self.root.mkdir(parents=True)
+
+    def test_case_1_display_name_model_preserved_on_all_grains_and_projected(self):
+        # (1) a display-name run yields that model on every non-event grain AND survives
+        # build_cache_facts / project_run_facts (persisted model equals display name)
+        run = _write_run(
+            self.root,
+            "run-20260926T013533Z-1",
+            state_extra={"options": {"model": "Gemini 3.8 Flash (High)"}},
+        )
+        facts = ingest.build_run_facts(run)
+        non_event_facts = [f for f in facts.facts if f.grain != Grain.EVENT]
+        self.assertTrue(non_event_facts)
+        for f in non_event_facts:
+            self.assertEqual(f.model, "Gemini 3.8 Flash (High)", f"grain {f.grain}")
+
+        metric_facts, event_facts, flags, warnings = ingest.build_cache_facts(run)
+        self.assertEqual(metric_facts.get("model"), "Gemini 3.8 Flash (High)")
+
+        projected = ingest.project_run_facts(facts)
+        for grain, records in projected.items():
+            if grain == "event":
+                for r in records:
+                    self.assertNotIn("model", r)
+            else:
+                for r in records:
+                    self.assertEqual(
+                        r.get("model"), "Gemini 3.8 Flash (High)", f"grain {grain}"
+                    )
+
+    def test_case_2_cost_attribution_fallback(self):
+        # (2) options.model = None with cost_attribution.model = "provider/model" yields "provider/model"
+        run = _write_run(
+            self.root,
+            "run-20260926T013533Z-2",
+            state_extra={
+                "options": {
+                    "model": None,
+                    "cost_attribution": {"model": "provider/model"},
+                }
+            },
+        )
+        facts = ingest.build_run_facts(run)
+        non_event_facts = [f for f in facts.facts if f.grain != Grain.EVENT]
+        self.assertTrue(non_event_facts)
+        for f in non_event_facts:
+            self.assertEqual(f.model, "provider/model", f"grain {f.grain}")
+
+    def test_case_3_verifier_model_attribution(self):
+        # (3) a verifier run yields a VERIFY phase fact with the verifier model and an EXECUTE
+        # phase fact with the executor model (tested with verify_cost_attribution and verify_model)
+        run_vca = _write_run(
+            self.root,
+            "run-20260926T013533Z-3a",
+            items=[_item(attempts=[_attempt(verify=True)])],
+            state_extra={
+                "options": {
+                    "model": "provider/executor",
+                    "verify_cost_attribution": {"model": "other/verifier"},
+                }
+            },
+        )
+        facts_vca = ingest.build_run_facts(run_vca)
+        phase_facts_vca = [f for f in facts_vca.facts if f.grain == Grain.PHASE]
+        exec_phases_vca = [f for f in phase_facts_vca if f.phase == Phase.EXECUTE]
+        verify_phases_vca = [f for f in phase_facts_vca if f.phase == Phase.VERIFY]
+        self.assertTrue(exec_phases_vca)
+        self.assertTrue(verify_phases_vca)
+        for f in exec_phases_vca:
+            self.assertEqual(f.model, "provider/executor")
+        for f in verify_phases_vca:
+            self.assertEqual(f.model, "other/verifier")
+
+        # Separately with only verify_model = "other/verifier"
+        run_vm = _write_run(
+            self.root,
+            "run-20260926T013533Z-3b",
+            items=[_item(attempts=[_attempt(verify=True)])],
+            state_extra={
+                "options": {
+                    "model": "provider/executor",
+                    "verify_model": "other/verifier",
+                }
+            },
+        )
+        facts_vm = ingest.build_run_facts(run_vm)
+        phase_facts_vm = [f for f in facts_vm.facts if f.grain == Grain.PHASE]
+        exec_phases_vm = [f for f in phase_facts_vm if f.phase == Phase.EXECUTE]
+        verify_phases_vm = [f for f in phase_facts_vm if f.phase == Phase.VERIFY]
+        self.assertTrue(exec_phases_vm)
+        self.assertTrue(verify_phases_vm)
+        for f in exec_phases_vm:
+            self.assertEqual(f.model, "provider/executor")
+        for f in verify_phases_vm:
+            self.assertEqual(f.model, "other/verifier")
+
+        # Review action item check (F-9): first loop entry is Phase.REVIEW, keeps executor model
+        run_rev = _write_run(
+            self.root,
+            "run-20260926T013533Z-3rev",
+            items=[_item(action="review", attempts=[_attempt(verify=True)])],
+            state_extra={
+                "options": {
+                    "model": "provider/executor",
+                    "verify_cost_attribution": {"model": "other/verifier"},
+                }
+            },
+        )
+        facts_rev = ingest.build_run_facts(run_rev)
+        phase_facts_rev = [f for f in facts_rev.facts if f.grain == Grain.PHASE]
+        rev_phases = [f for f in phase_facts_rev if f.phase == Phase.REVIEW]
+        verify_phases_rev = [f for f in phase_facts_rev if f.phase == Phase.VERIFY]
+        self.assertTrue(rev_phases)
+        self.assertTrue(verify_phases_rev)
+        for f in rev_phases:
+            self.assertEqual(f.model, "provider/executor")
+        for f in verify_phases_rev:
+            self.assertEqual(f.model, "other/verifier")
+
+    def test_case_4_no_verifier_run(self):
+        # (4) a no-verifier run yields the executor model on both phases
+        run = _write_run(
+            self.root,
+            "run-20260926T013533Z-4",
+            items=[_item(attempts=[_attempt(verify=True)])],
+            state_extra={"options": {"model": "provider/executor"}},
+        )
+        facts = ingest.build_run_facts(run)
+        phase_facts = [f for f in facts.facts if f.grain == Grain.PHASE]
+        self.assertTrue(phase_facts)
+        for f in phase_facts:
+            self.assertEqual(f.model, "provider/executor")
+
+    def test_case_5_path_refusal(self):
+        # (5) PATH REFUSAL: options.model set to each of _ABS_HOME, "x " + _ABS_HOME,
+        # "../escape", "~/m" yields model == "" from build_run_facts and the serialized
+        # projected facts contain neither _ABS_HOME nor _HANDLE
+        for idx, bad_model in enumerate(
+            (_ABS_HOME, "x " + _ABS_HOME, "../escape", "~/m"), 1
+        ):
+            run = _write_run(
+                self.root,
+                f"run-20260908T100000Z-500{idx}",
+                state_extra={"options": {"model": bad_model}},
+            )
+            facts = ingest.build_run_facts(run)
+            for f in facts.facts:
+                self.assertEqual(
+                    f.model, "", f"bad model {bad_model} yielded {f.model!r}"
+                )
+            projected = ingest.project_run_facts(facts)
+            serialized = json.dumps(projected)
+            self.assertNotIn(_ABS_HOME, serialized)
+            self.assertNotIn(_HANDLE, serialized)
+            for grain, records in projected.items():
+                for r in records:
+                    self.assertNotIn("model", r)
+
+    def test_case_6_projector_direct_cases(self):
+        # (6) projector direct cases from E-04's expected outcome
+        self.assertEqual(
+            privacy.project_metric_facts({"model": "Gemini 3.8 Flash (High)"}),
+            {"model": "Gemini 3.8 Flash (High)"},
+        )
+        for bad_model in (
+            "/abs/x",
+            "x /abs/y",
+            "a ~/b",
+            "../m",
+            "rm -rf; x",
+            'a "b"',
+            "x C:/" + "Users/alice",
+        ):
+            with self.assertRaises(privacy.PrivacyRefusal, msg=f"model={bad_model!r}"):
+                privacy.project_metric_facts({"model": bad_model})
+
+    def test_case_6_non_model_space_refusal(self):
+        # Non-model key with spaces still refused
+        with self.assertRaises(privacy.PrivacyRefusal):
+            privacy.project_metric_facts({"outcome": "has spaces"})
+
+    def test_case_7_cost_attribution_key_agreement(self):
+        # (7) _COST_ATTRIBUTION_KEY agreement assertion E-02 requires
+        from agent_workflows import runner_shared
+
+        self.assertEqual(
+            ingest._COST_ATTRIBUTION_KEY, runner_shared.COST_ATTRIBUTION_KEY
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

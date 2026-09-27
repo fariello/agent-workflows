@@ -36,56 +36,57 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: reproduce
 
-- [ ] E-01 RE-MEASURE at the executing HEAD. (a) For every run `state.json` carrying `options.cost_attribution` or `options.verify_cost_attribution`, paste `options.model`, `cost_attribution.model`, `options.verify_model`, `verify_cost_attribution.model`, and `run_analytics._model_of(state)`. (b) Paste the set of `(grain, model)` pairs from `run_analytics.build_run_facts` on one display-name agy run. (c) Paste the outcome of `run_analytics_privacy.project_metric_facts({"model": "Gemini 3.8 Flash (High)"})`. If every display-name run already yields its model, drop cause (1) and say so.
+- [x] E-01 RE-MEASURE at the executing HEAD. (a) For every run `state.json` carrying `options.cost_attribution` or `options.verify_cost_attribution`, paste `options.model`, `cost_attribution.model`, `options.verify_model`, `verify_cost_attribution.model`, and `run_analytics._model_of(state)`. (b) Paste the set of `(grain, model)` pairs from `run_analytics.build_run_facts` on one display-name agy run. (c) Paste the outcome of `run_analytics_privacy.project_metric_facts({"model": "Gemini 3.8 Flash (High)"})`. If every display-name run already yields its model, drop cause (1) and say so.
   - RESOLVE THE RUNS ROOT; DO NOT GLOB `.aw/records/runs/` FROM THE CWD. THIS IS THE ITEM MOST LIKELY TO BE REPORTED AS "NO RUNS FOUND" AND SILENTLY SKIPPED, because an execute turn runs in an ISOLATED LANE WORKTREE by default and `records/runs/` is GITIGNORED (`.aw/.gitignore`: `records/runs/`), so a lane has NO runs tree at all. Use the shipped resolver, `runner_shared.runs_repo_root(Path("."))` (which delegates to `attention._resolve_runs_repo_root`), and enumerate under THAT root, or equivalently `run_viewer.discover_run_dirs(runner_shared.runs_repo_root(Path(".")))`. Measured FROM THIS REVIEW'S OWN LANE: the lane's `.aw/records/runs` does not exist, `run_viewer.discover_run_dirs(Path("."))` returns 0, and the resolved root returns 283. The identical trap is already documented twice in `runner_shared` (`runs_repo_root`'s docstring records `0` versus `246` from lane `vddpml`, and the `_SESSION_ID_KEYS` census notes "this lane has no `.aw/records/runs` corpus").
   - PARTS (b) AND (c) DO NOT DEPEND ON THE CORPUS AND MUST BE PASTED EVEN IF (a) FINDS NOTHING: (c) is a pure function call, and (b) can use any display-name run the resolver finds. If the resolved root genuinely holds NO run with `cost_attribution`, say so explicitly, paste the resolver's own answer and the run count proving you looked in the right place, and proceed on (b)/(c) plus E-05's fixtures; a synthetic `state.json` built with the `tests/test_run_analytics.py` fixtures is an acceptable substitute for (a) PROVIDED you label it synthetic. Do NOT report the whole item blocked, and do NOT record "0 runs" as evidence that the defect is absent.
   - Depends on: none
   - Expected outcome: the display-name runs give `_model_of == ''` and every fact `model == ''`; the projector raises `PrivacyRefusal` for the display name.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: readers
 
-- [ ] E-02 ADD THE COST-ATTRIBUTION FALLBACK to `run_analytics._model_of`: read `options.model`; if it yields an empty label, read `options.get(COST_ATTRIBUTION_KEY)` and, when it is a mapping, its `"model"`. Both reads go through the model label rule of E-04.
+- [x] E-02 ADD THE COST-ATTRIBUTION FALLBACK to `run_analytics._model_of`: read `options.model`; if it yields an empty label, read `options.get(COST_ATTRIBUTION_KEY)` and, when it is a mapping, its `"model"`. Both reads go through the model label rule of E-04.
   - DO NOT IMPORT `runner_shared`; DEFINE THE KEY LOCALLY AS A STRING AND PIN THE AGREEMENT IN A TEST. The plan originally said to import the constant, lazily if needed, and to keep the import graph unchanged. That instruction is self-defeating: a LAZY import still adds `runner_shared` to `sys.modules` the first time `_model_of` runs, so the stated check cannot pass while the import exists, and it makes the answer depend on whether the function has been called yet. Measured at review: `import agent_workflows.run_analytics` leaves `agent_workflows.runner_shared` ABSENT from `sys.modules` today; `runner_shared.py` is 32452 lines against `run_analytics.py`'s 888, and adding it costs about 48ms of import time (118ms -> 166ms for the two-module import, min of 3). So write `_COST_ATTRIBUTION_KEY = "cost_attribution"` in `run_analytics` with a comment naming `runner_shared.COST_ATTRIBUTION_KEY` as the contract it mirrors, and add ONE assertion to E-05 that the two are equal (importing `runner_shared` inside the TEST, where the cost is irrelevant and the drift is what matters). This is the same "one definition, pinned by a test" posture the repo already uses for cross-module string contracts, and it keeps the analytics import graph free of the runner.
   - Depends on: E-01
   - Expected outcome: a state with `options.model = None` and `cost_attribution.model = "provider/model"` yields `"provider/model"`; a state with both empty yields `""`; `import agent_workflows.run_analytics` still leaves `runner_shared` out of `sys.modules`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 ADD `run_analytics._verify_model_of(state, executor_model)`: return the first non-empty model label of `options["verify_" + _COST_ATTRIBUTION_KEY]["model"]`, `options["verify_model"]`, else `executor_model`. In `build_run_facts`, compute it once per run beside `model = _model_of(state)` and pass it as `model=` for the `Phase.VERIFY` entry of the PHASE-grain loop only (the loop over `(Phase.EXECUTE ..., exec_usage), (Phase.VERIFY, verify_usage)`), keeping the executor model on every other fact. The IPD, ATTEMPT and RUN grains keep the executor model: they merge or precede the phases and have no single verifier identity.
+- [x] E-03 ADD `run_analytics._verify_model_of(state, executor_model)`: return the first non-empty model label of `options["verify_" + _COST_ATTRIBUTION_KEY]["model"]`, `options["verify_model"]`, else `executor_model`. In `build_run_facts`, compute it once per run beside `model = _model_of(state)` and pass it as `model=` for the `Phase.VERIFY` entry of the PHASE-grain loop only (the loop over `(Phase.EXECUTE ..., exec_usage), (Phase.VERIFY, verify_usage)`), keeping the executor model on every other fact. The IPD, ATTEMPT and RUN grains keep the executor model: they merge or precede the phases and have no single verifier identity.
   - MIND THE FIRST LOOP ENTRY: it is NOT unconditionally `Phase.EXECUTE`. Its expression is `Phase.EXECUTE if item_phase is Phase.EXECUTE else item_phase`, so a `review` item yields `Phase.REVIEW` there (`_phase_of` returns `Phase.REVIEW` for `action == "review"`). Bind the verifier model to the SECOND entry, whose phase is the literal `Phase.VERIFY`, rather than writing a conditional on the loop variable that could also catch `Phase.REVIEW`. The simplest correct form is to put the model in the loop tuple beside the usage, so each entry carries its own.
   - Depends on: E-02
   - Expected outcome: a run whose options carry `verify_cost_attribution.model = "other/verifier"` yields a VERIFY phase fact with `model == "other/verifier"` and an EXECUTE phase fact with the executor model; a run with no verifier fields yields the executor model on both; a `review` item's first-entry phase fact still carries the executor model.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: admit display names for the model field only
 
-- [ ] E-04 DEFINE ONE MODEL LABEL RULE in `run_analytics_privacy` and use it in both places. Add `_MODEL_LABEL_RE` permitting `_LABEL_RE`'s character class plus single interior spaces and parentheses (for example `^[A-Za-z0-9][A-Za-z0-9._:+@/()-]*(?: [A-Za-z0-9()][A-Za-z0-9._:+@/()-]*)*$`, max 128 chars), and a `_is_model_label(text)` that is true only when `_MODEL_LABEL_RE` matches AND `_looks_like_path(text)` is false AND no whitespace-separated token of the text satisfies `_looks_like_path` (measured at authoring: `_looks_like_path("x /srv/y")` is `False`, so a space would otherwise let an embedded absolute path through) AND the text contains no quote or shell metacharacter (the regex already excludes them). In `_project_scalar`, add a branch BEFORE the generic `_CLOSED_VOCABULARY_KEYS` check: `if key == "model":` accept a pseudonym or `_is_model_label`, else raise `PrivacyRefusal` naming the reason (path vs not-a-label, matching the existing messages). In `run_analytics`, add `_model_label(value)` returning the stripped text when `privacy._is_model_label` holds and `""` otherwise, used by `_model_of` and `_verify_model_of` only; `_label` itself is unchanged. Put a comment on `_MODEL_LABEL_RE` citing the `_LABEL_RE` comment ("It may NOT contain a path separator, a space, a quote or a shell metacharacter, which is what keeps a command line or an absolute path out of a categorical field") as the basis: the space exclusion exists to keep command lines and paths out, which the path checks here still do for this one key, and `_LABEL_RE` already relaxes `/` for `model` for the same reason.
+- [x] E-04 DEFINE ONE MODEL LABEL RULE in `run_analytics_privacy` and use it in both places. Add `_MODEL_LABEL_RE` permitting `_LABEL_RE`'s character class plus single interior spaces and parentheses (for example `^[A-Za-z0-9][A-Za-z0-9._:+@/()-]*(?: [A-Za-z0-9()][A-Za-z0-9._:+@/()-]*)*$`, max 128 chars), and a `_is_model_label(text)` that is true only when `_MODEL_LABEL_RE` matches AND `_looks_like_path(text)` is false AND no whitespace-separated token of the text satisfies `_looks_like_path` (measured at authoring: `_looks_like_path("x /srv/y")` is `False`, so a space would otherwise let an embedded absolute path through) AND the text contains no quote or shell metacharacter (the regex already excludes them). In `_project_scalar`, add a branch BEFORE the generic `_CLOSED_VOCABULARY_KEYS` check: `if key == "model":` accept a pseudonym or `_is_model_label`, else raise `PrivacyRefusal` naming the reason (path vs not-a-label, matching the existing messages). In `run_analytics`, add `_model_label(value)` returning the stripped text when `privacy._is_model_label` holds and `""` otherwise, used by `_model_of` and `_verify_model_of` only; `_label` itself is unchanged. Put a comment on `_MODEL_LABEL_RE` citing the `_LABEL_RE` comment ("It may NOT contain a path separator, a space, a quote or a shell metacharacter, which is what keeps a command line or an absolute path out of a categorical field") as the basis: the space exclusion exists to keep command lines and paths out, which the path checks here still do for this one key, and `_LABEL_RE` already relaxes `/` for `model` for the same reason.
   - THE PROPOSED REGEX WAS PROTOTYPED AT REVIEW AND ADMITS/REFUSES EXACTLY THE LISTED SET, so it is a measured starting point and not a guess. Verified with the literal pattern above plus the three guards: `Gemini 3.8 Flash (High)`, `provider/model` and `its_direct/pt3-claude-opus-5-1m-us` are admitted; `/abs/x`, `x /abs/y`, `a ~/b`, `../m`, `rm -rf; x`, `a "b"`, `C:\Users\<name>`, `x C:/Users/<name>` and a double space are all refused. Driven through a patched `_project_scalar`, `project_metric_facts({"model": "Gemini 3.8 Flash (High)"})` returned it unchanged and `{"outcome": "has spaces"}` still raised.
   - WHICH GUARD EARNS ITS PLACE, because the plan's stated rationale for the per-token check is slightly wrong and the correction matters for anyone tempted to simplify. The regex ALONE already refuses `x /srv/y`, `a ~/b` and `x ../y`, because a space-separated continuation token must START with `[A-Za-z0-9()]` and so cannot start with `/`, `~` or `.`. Of the listed cases the per-token check is load-bearing for exactly ONE, `x C:/Users/<name>` (a Windows drive path mid-string, which the regex admits since `C:/Users/<name>` is all label characters). KEEP THE PER-TOKEN CHECK: it is the guard covering the Windows form and it is cheap defense in depth. Do NOT drop it on the grounds that the regex "already handles" the POSIX cases, and do NOT drop the whole-string `_looks_like_path` either (it catches a bare leading `~` or `..` that the regex's first-character class also rejects, so the two overlap deliberately).
   - THE HONEST LIMIT OF THIS WIDENING, WHICH E-05 CASE (5) MUST NOT BE READ AS COVERING. Admitting spaces means the `model` key can now carry a bare IDENTIFIER that is not path-shaped, and the leak sanitizer would flag it. Measured at review: the bare maintainer handle (no path, no separator) IS admitted by this rule and IS reported by `leak_sanitizer.scan_text` as rule `handle`, as is `Gemini 3.8 Flash (High) <handle>`. That is a REAL narrowing of the boundary and it is accepted here for a stated reason: the value is host-reported and the alternative (blanking every Antigravity model) is the defect being fixed. It is bounded by the fact that `model` is written from `options.model` / `cost_attribution.model` only, both of which a HOST supplies, never a human free-text field. The path class, which is what `_LABEL_RE`'s comment names as the thing to keep out, remains fully refused and is strictly tightened. State this limit in the `_MODEL_LABEL_RE` comment so the next reader does not believe spaces are free.
   - Depends on: E-01
   - Expected outcome: `project_metric_facts({"model": "Gemini 3.8 Flash (High)"})` returns it unchanged; `{"model": "/abs/x"}`, `{"model": "x /abs/y"}`, `{"model": "a ~/b"}`, `{"model": "../m"}`, `{"model": "rm -rf; x"}`, `{"model": 'a "b"'}` all raise `PrivacyRefusal`; `{"outcome": "has spaces"}` still raises (other keys unchanged). A Windows drive path after a space (`x C:/Users/<name>`) also raises, which is the per-token check's own case.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: prove it
 
-- [ ] E-05 ADD BEHAVIORAL TESTS to `tests/test_run_analytics.py` using the existing `_write_run`/`_core_state` fixtures (pass `state_extra={"options": {...}}`): (1) a display-name run (`options.model = "Gemini 3.8 Flash (High)"`) yields that model on every non-event grain AND survives `build_cache_facts` / `project_run_facts` (the persisted `model` equals the display name); (2) `options.model = None` with `cost_attribution.model = "provider/model"` yields `"provider/model"`; (3) a verifier run (`verify_cost_attribution.model = "other/verifier"`, and separately only `verify_model = "other/verifier"`) yields a VERIFY phase fact with the verifier model and an EXECUTE phase fact with the executor model; (4) a no-verifier run yields the executor model on both phases; (5) PATH REFUSAL: `options.model` set to each of `_ABS_HOME`, `"x " + _ABS_HOME`, `"../escape"`, `"~/m"` yields `model == ""` from `build_run_facts` and the serialized projected facts contain neither `_ABS_HOME` nor `_HANDLE`; (6) projector direct cases from E-04's expected outcome, including a non-model key with a space still refused.
+- [x] E-05 ADD BEHAVIORAL TESTS to `tests/test_run_analytics.py` using the existing `_write_run`/`_core_state` fixtures (pass `state_extra={"options": {...}}`): (1) a display-name run (`options.model = "Gemini 3.8 Flash (High)"`) yields that model on every non-event grain AND survives `build_cache_facts` / `project_run_facts` (the persisted `model` equals the display name); (2) `options.model = None` with `cost_attribution.model = "provider/model"` yields `"provider/model"`; (3) a verifier run (`verify_cost_attribution.model = "other/verifier"`, and separately only `verify_model = "other/verifier"`) yields a VERIFY phase fact with the verifier model and an EXECUTE phase fact with the executor model; (4) a no-verifier run yields the executor model on both phases; (5) PATH REFUSAL: `options.model` set to each of `_ABS_HOME`, `"x " + _ABS_HOME`, `"../escape"`, `"~/m"` yields `model == ""` from `build_run_facts` and the serialized projected facts contain neither `_ABS_HOME` nor `_HANDLE`; (6) projector direct cases from E-04's expected outcome, including a non-model key with a space still refused.
   - ALSO ADD, as case (7), the `_COST_ATTRIBUTION_KEY` agreement assertion E-02 requires: import `runner_shared` INSIDE the test and assert `run_analytics._COST_ATTRIBUTION_KEY == runner_shared.COST_ATTRIBUTION_KEY`. This is the single thing standing between the locally defined string and silent drift, and putting the import in the test keeps it out of the analytics import graph.
   - CASE (1) SAYS "EVERY NON-EVENT GRAIN" AND THAT WORDING IS CORRECT FOR A MEASURED REASON worth stating so nobody "fixes" it: `model` is in `run_analytics_privacy.ALLOWED_METRIC_KEYS` and is NOT in `ALLOWED_EVENT_KEYS` (verified at review), and `project_run_facts` routes the EVENT grain through `project_event_facts`. So an event-grain fact legitimately carries no model, and asserting one there would fail against a correct implementation. `_metric_payload` also OMITS the key entirely when `fact.model` is empty (`if fact.model:`), so case (5) should assert the key is ABSENT from the projected payload rather than present-and-empty.
   - Depends on: E-02, E-03, E-04
   - Expected outcome: all pass; (1), (2), (3) FAIL before the change; (4), (5), (7) and the non-model refusal in (6) pass before and after.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 CONFIRM THE EXISTING PRIVACY AND LABEL TESTS STAY GREEN, unchanged: `PrivacyBoundaryTests` (both tests, including the shipped leak detector reporting clean over projected facts), `UsageComponentMapTests.test_usage_component_label_safety_and_containment`, and `ProvenanceTests.test_value_validation_defaults_and_refusals`. Do not edit them.
+- [x] E-06 CONFIRM THE EXISTING PRIVACY AND LABEL TESTS STAY GREEN, unchanged: `PrivacyBoundaryTests` (both tests, including the shipped leak detector reporting clean over projected facts), `UsageComponentMapTests.test_usage_component_label_safety_and_containment`, and `ProvenanceTests.test_value_validation_defaults_and_refusals`. Do not edit them.
   - ALL FOUR WERE CONFIRMED PRESENT AT REVIEW and none of them can be satisfied by the widening, which is why they are the right guards: `ProvenanceTests` refuses a note with spaces through `run_analytics_schema._LABEL_RE`, a THIRD copy of the label rule in a different module that this plan deliberately does not touch; `UsageComponentMapTests` pins component NAMES through `_LABEL_RE` plus `_looks_like_path`; and `PrivacyBoundaryTests` runs the shipped detector over the serialized projected facts. That last one is the real safety net, and note what it does and does not prove: its fixture's model field is not a leaky value, so it proves the widening did not break the boundary for the values it exercises, NOT that no admissible model string could ever carry an identifier (see E-04's stated limit). Do not present a green run of it as proof of the latter.
   - Depends on: E-05
   - Expected outcome: all listed tests pass after the change, with no edits to them in the diff.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 RUN THE BARE SUITE `python3 -m pytest` before and after the change and compare failing node IDs; then re-run E-01(b) on the same real agy run.
+- [x] E-07 RUN THE BARE SUITE `python3 -m pytest` before and after the change and compare failing node IDs; then re-run E-01(b) on the same real agy run.
   - Depends on: E-06
   - Expected outcome: the after-minus-before failing node set is empty; the real run now yields `model == 'Gemini 3.8 Flash (High)'` on its non-event facts.
-  - Execution state: pending
+  - Execution state: performed
+
 
 ## Project conventions discovered (Step 0)
 
@@ -171,47 +172,293 @@ THE CORPUS ROWS OF F-1, F-3 AND F-4 COULD NOT BE RE-COUNTED AT REVIEW, and that 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the per-run survey rows, the `(grain, model)` set for one display-name run, and the projector refusal text, with the HEAD hash.
   - ALSO paste the resolved runs root and the run count found under it (`runner_shared.runs_repo_root(Path("."))` and the number of run dirs), so the record proves the survey looked at a populated tree rather than an empty lane. A survey reporting zero runs WITHOUT this pair is not acceptable evidence. If the populated root genuinely holds no `cost_attribution` run, say so and label the synthetic substitute as such.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Details below:
+    HEAD hash at measurement: 0ff3903286d7cffde26a39c0106c23a8db5c57a8
+    runner_shared.runs_repo_root(Path(".")): <repo-root>
+    run_viewer.discover_run_dirs(runs_root) count: 287 run dirs discovered
+    Runs carrying cost_attribution or verify_cost_attribution: 37
+    Per-run survey rows:
+    run-20260923T160649Z-824146: options.model='gemini-3.7-flash-high', ca.model='gemini-3.7-flash-high', verify_model=None, v_ca.model=None -> _model_of='gemini-3.7-flash-high'
+    run-20260924T010059Z-999731: options.model='gemini-3.7-flash-high', ca.model='gemini-3.7-flash-high', verify_model=None, v_ca.model=None -> _model_of='gemini-3.7-flash-high'
+    run-20260924T050407Z-3108751: options.model='gemini-3.7-flash-high', ca.model='gemini-3.7-flash-high', verify_model=None, v_ca.model=None -> _model_of='gemini-3.7-flash-high'
+    run-20260924T140016Z-599214: options.model='uri/its_direct/pt3-claude-opus-5-1m-us', ca.model='uri/its_direct/pt3-claude-opus-5-1m-us', verify_model=None, v_ca.model=None -> _model_of='uri/its_direct/pt3-claude-opus-5-1m-us'
+    run-20260924T165302Z-1635336: options.model='gemini-3.7-flash-high', ca.model='gemini-3.7-flash-high', verify_model=None, v_ca.model=None -> _model_of='gemini-3.7-flash-high'
+    run-20260924T171335Z-1981773: options.model='gemini-3.7-flash-high', ca.model='gemini-3.7-flash-high', verify_model=None, v_ca.model=None -> _model_of='gemini-3.7-flash-high'
+    run-20260924T202425Z-1606683: options.model='gemini-3.7-flash-high', ca.model='gemini-3.7-flash-high', verify_model=None, v_ca.model=None -> _model_of='gemini-3.7-flash-high'
+    run-20260924T212958Z-1704458: options.model='uri/its_direct/pt3-claude-opus-5-1m-us', ca.model='uri/its_direct/pt3-claude-opus-5-1m-us', verify_model=None, v_ca.model=None -> _model_of='uri/its_direct/pt3-claude-opus-5-1m-us'
+    run-20260924T213946Z-1813192: options.model='gemini-3.7-flash-high', ca.model='gemini-3.7-flash-high', verify_model=None, v_ca.model=None -> _model_of='gemini-3.7-flash-high'
+    run-20260924T214226Z-1845900: options.model='gemini-3.7-flash-high', ca.model='gemini-3.7-flash-high', verify_model=None, v_ca.model=None -> _model_of='gemini-3.7-flash-high'
+    run-20260924T214735Z-1864092: options.model='gemini-3.7-flash-high', ca.model='gemini-3.7-flash-high', verify_model=None, v_ca.model=None -> _model_of='gemini-3.7-flash-high'
+    run-20260925T023434Z-3349466: options.model='uri/its_direct/pt3-claude-opus-5-1m-us', ca.model='uri/its_direct/pt3-claude-opus-5-1m-us', verify_model=None, v_ca.model=None -> _model_of='uri/its_direct/pt3-claude-opus-5-1m-us'
+    run-20260925T042146Z-3604348: options.model='uri/its_direct/pt3-claude-opus-5-1m-us', ca.model='uri/its_direct/pt3-claude-opus-5-1m-us', verify_model=None, v_ca.model=None -> _model_of='uri/its_direct/pt3-claude-opus-5-1m-us'
+    run-20260925T050334Z-3687081: options.model='uri/its_direct/pt3-claude-opus-5-1m-us', ca.model='uri/its_direct/pt3-claude-opus-5-1m-us', verify_model=None, v_ca.model=None -> _model_of='uri/its_direct/pt3-claude-opus-5-1m-us'
+    run-20260925T051216Z-3704849: options.model='gemini-3.7-flash-high', ca.model='gemini-3.7-flash-high', verify_model=None, v_ca.model=None -> _model_of='gemini-3.7-flash-high'
+    run-20260925T140834Z-231908: options.model='uri/its_direct/pt3-claude-opus-5-1m-us', ca.model='uri/its_direct/pt3-claude-opus-5-1m-us', verify_model=None, v_ca.model=None -> _model_of='uri/its_direct/pt3-claude-opus-5-1m-us'
+    run-20260925T174509Z-636951: options.model='gemini-3.7-flash-high', ca.model='gemini-3.7-flash-high', verify_model=None, v_ca.model=None -> _model_of='gemini-3.7-flash-high'
+    run-20260926T005518Z-2915271: options.model='gemini-3.7-flash-high', ca.model='gemini-3.7-flash-high', verify_model=None, v_ca.model=None -> _model_of='gemini-3.7-flash-high'
+    run-20260926T005602Z-2915849: options.model='gemini-3.7-flash-high', ca.model='gemini-3.7-flash-high', verify_model=None, v_ca.model=None -> _model_of='gemini-3.7-flash-high'
+    run-20260926T013533Z-3116868: options.model='Gemini 3.8 Flash (High)', ca.model='Gemini 3.8 Flash (High)', verify_model=None, v_ca.model=None -> _model_of=''
+    run-20260926T025247Z-3448107: options.model='Gemini 3.8 Flash (High)', ca.model='Gemini 3.8 Flash (High)', verify_model=None, v_ca.model=None -> _model_of=''
+    run-20260926T042128Z-3748222: options.model='Gemini 3.8 Flash (High)', ca.model='Gemini 3.8 Flash (High)', verify_model=None, v_ca.model=None -> _model_of=''
+    run-20260926T051623Z-115951: options.model='Gemini 3.8 Flash (High)', ca.model='Gemini 3.8 Flash (High)', verify_model=None, v_ca.model=None -> _model_of=''
+    run-20260926T051642Z-116672: options.model='Gemini 3.8 Flash (High)', ca.model='Gemini 3.8 Flash (High)', verify_model=None, v_ca.model=None -> _model_of=''
+    run-20260926T143444Z-2573893: options.model='uri/its_direct/pt3-claude-opus-5-1m-us', ca.model='uri/its_direct/pt3-claude-opus-5-1m-us', verify_model=None, v_ca.model=None -> _model_of='uri/its_direct/pt3-claude-opus-5-1m-us'
+    run-20260926T143504Z-2574275: options.model='uri/its_direct/pt3-claude-opus-5-1m-us', ca.model='uri/its_direct/pt3-claude-opus-5-1m-us', verify_model=None, v_ca.model=None -> _model_of='uri/its_direct/pt3-claude-opus-5-1m-us'
+    run-20260926T143527Z-2574842: options.model='uri/its_direct/pt3-claude-opus-5-1m-us', ca.model='uri/its_direct/pt3-claude-opus-5-1m-us', verify_model=None, v_ca.model=None -> _model_of='uri/its_direct/pt3-claude-opus-5-1m-us'
+    run-20260927T001438Z-254097: options.model='uri/its_direct/pt3-claude-opus-5-1m-us', ca.model='uri/its_direct/pt3-claude-opus-5-1m-us', verify_model=None, v_ca.model=None -> _model_of='uri/its_direct/pt3-claude-opus-5-1m-us'
+    run-20260927T001446Z-254197: options.model='uri/its_direct/pt3-claude-opus-5-1m-us', ca.model='uri/its_direct/pt3-claude-opus-5-1m-us', verify_model=None, v_ca.model=None -> _model_of='uri/its_direct/pt3-claude-opus-5-1m-us'
+    run-20260927T001505Z-254516: options.model='uri/its_direct/pt3-claude-opus-5-1m-us', ca.model='uri/its_direct/pt3-claude-opus-5-1m-us', verify_model=None, v_ca.model=None -> _model_of='uri/its_direct/pt3-claude-opus-5-1m-us'
+    run-20260927T001532Z-255596: options.model='uri/its_direct/pt3-claude-opus-5-1m-us', ca.model='uri/its_direct/pt3-claude-opus-5-1m-us', verify_model=None, v_ca.model=None -> _model_of='uri/its_direct/pt3-claude-opus-5-1m-us'
+    run-20260927T001629Z-257965: options.model='Gemini 3.8 Flash (High)', ca.model='Gemini 3.8 Flash (High)', verify_model=None, v_ca.model=None -> _model_of=''
+    run-20260927T001634Z-258437: options.model='Gemini 3.8 Flash (High)', ca.model='Gemini 3.8 Flash (High)', verify_model=None, v_ca.model=None -> _model_of=''
+    run-20260927T050939Z-3263618: options.model='Gemini 3.8 Flash (High)', ca.model='Gemini 3.8 Flash (High)', verify_model=None, v_ca.model=None -> _model_of=''
+    run-20260927T051018Z-3267743: options.model='Gemini 3.8 Flash (High)', ca.model='Gemini 3.8 Flash (High)', verify_model=None, v_ca.model=None -> _model_of=''
+    run-20260927T051110Z-3282017: options.model='Gemini 3.8 Flash (High)', ca.model='Gemini 3.8 Flash (High)', verify_model=None, v_ca.model=None -> _model_of=''
+    run-20260927T051239Z-3346121: options.model='Gemini 3.8 Flash (High)', ca.model='Gemini 3.8 Flash (High)', verify_model=None, v_ca.model=None -> _model_of=''
+    (b) build_run_facts(run-20260926T042128Z-3748222):
+    grain_model_pairs: [('attempt', ''), ('event', ''), ('ipd', ''), ('phase', ''), ('run', '')]
+    (c) project_metric_facts({'model': 'Gemini 3.8 Flash (High)'}):
+    PrivacyRefusal: privacy refusal: key 'model' is not a short closed-vocabulary label (no spaces, quotes or free text)
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the diff of `_model_of` and of the `_COST_ATTRIBUTION_KEY` definition with its contract comment; paste `python3 -c "import agent_workflows.run_analytics, sys; print('agent_workflows.runner_shared' in sys.modules)"` showing `False` AFTER the change; paste `_model_of` results for the fallback and both-empty states; paste the case (7) key-agreement assertion passing.
   - The diff must show NO `runner_shared` import in `run_analytics.py`, lazy or otherwise. A lazy import is not an acceptable alternative here (F-8): it would make the `sys.modules` answer depend on whether `_model_of` had been called yet.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Details below:
+    Diff of _COST_ATTRIBUTION_KEY and _model_of in agent_workflows/run_analytics.py:
+    ```diff
+    +#: Key under ``options`` carrying runner-resolved cost attribution records.
+    +#: Defined locally to avoid importing runner_shared (see E-02 / F-8); mirrors
+    +#: runner_shared.COST_ATTRIBUTION_KEY and agreement is pinned in test_run_analytics.py.
+    +_COST_ATTRIBUTION_KEY = "cost_attribution"
+    ...
+     def _model_of(state: Mapping[str, Any]) -> str:
+         options = state.get("options")
+         if not isinstance(options, Mapping):
+             return ""
+    -    return _label(options.get("model"))
+    +    model = _model_label(options.get("model"))
+    +    if model:
+    +        return model
+    +    ca = options.get(_COST_ATTRIBUTION_KEY)
+    +    if isinstance(ca, Mapping):
+    +        return _model_label(ca.get("model"))
+    +    return ""
+    ```
+    No runner_shared import in run_analytics.py. Import check post-change:
+    $ python3 -c "import agent_workflows.run_analytics, sys; print('agent_workflows.runner_shared' in sys.modules)"
+    False
+    Fallback and both-empty states:
+    fallback state ({'options': {'model': None, 'cost_attribution': {'model': 'provider/model'}}}): 'provider/model'
+    both-empty state ({'options': {'model': None, 'cost_attribution': {'model': None}}}): ''
+    Case (7) key-agreement assertion:
+    assert run_analytics._COST_ATTRIBUTION_KEY == runner_shared.COST_ATTRIBUTION_KEY -> both equal 'cost_attribution'
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the diff of `_verify_model_of` and the PHASE loop; paste EXECUTE and VERIFY phase-fact models for a verifier run and a no-verifier run.
   - ALSO paste the phase-fact model for a `review`-action item, showing the first loop entry (whose phase is `Phase.REVIEW`, not `Phase.EXECUTE`) still carries the EXECUTOR model and was not bound to the verifier (F-9).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Details below:
+    Diff of _verify_model_of and PHASE loop in agent_workflows/run_analytics.py:
+    ```diff
+    +def _verify_model_of(state: Mapping[str, Any], executor_model: str) -> str:
+    +    """The model credited for the verify phase, falling back to ``executor_model``."""
+    +
+    +    options = state.get("options")
+    +    if isinstance(options, Mapping):
+    +        v_ca = options.get("verify_" + _COST_ATTRIBUTION_KEY)
+    +        if isinstance(v_ca, Mapping):
+    +            v_ca_model = _model_label(v_ca.get("model"))
+    +            if v_ca_model:
+    +                return v_ca_model
+    +        v_opt_model = _model_label(options.get("verify_model"))
+    +        if v_opt_model:
+    +            return v_opt_model
+    +    return executor_model
+    ...
+         model = _model_of(state)
+    +    verify_model = _verify_model_of(state, model)
+    ...
+    -    for phase, usage in (
+    -        (Phase.EXECUTE if item_phase is Phase.EXECUTE else item_phase, exec_usage),
+    -        (Phase.VERIFY, verify_usage),
+    +    for phase, usage, phase_model in (
+    +        (
+    +            Phase.EXECUTE if item_phase is Phase.EXECUTE else item_phase,
+    +            exec_usage,
+    +            model,
+    +        ),
+    +        (Phase.VERIFY, verify_usage, verify_model),
+         ):
+             facts.append(
+                 Fact(
+    ...
+    -                model=model,
+    +                model=phase_model,
+    ```
+    Verifier run models:
+    phase=execute model='provider/executor'
+    phase=verify model='other/verifier'
+    No-verifier run models:
+    phase=execute model='provider/executor'
+    phase=verify model='provider/executor'
+    Review-action item (F-9):
+    phase=review model='provider/executor'
+    phase=verify model='other/verifier'
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the diff of `run_analytics_privacy` (`_MODEL_LABEL_RE`, `_is_model_label`, the `model` branch) and of `_model_label`; paste the outcome of every projector call listed in E-04's expected outcome, INCLUDING the Windows `x C:/Users/<name>` case.
   - ALSO paste the per-guard attribution for the refusals: for each refused input, which of the three guards rejected it (regex, whole-string `_looks_like_path`, per-token). This is required because the per-token check is load-bearing for only one case (F-10) and a future reader must be able to see that rather than infer it, and because it proves the guards were actually wired rather than one of them being dead.
   - ALSO paste the `_MODEL_LABEL_RE` comment showing it states BOTH the basis (the `_LABEL_RE` comment's command-line/path rationale) AND the accepted limit from F-11 (a non-path identifier is now admissible on this key).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Details below:
+    Diff of run_analytics_privacy.py:
+    ```diff
+    +#: A model label may contain letters, digits, separators, single interior spaces and parentheses.
+    +#: Basis: _LABEL_RE excludes spaces to keep command lines and filesystem paths out of categorical
+    +#: fields ("It may NOT contain a path separator, a space, a quote or a shell metacharacter, which is
+    +#: what keeps a command line or an absolute path out of a categorical field"). For the model key,
+    +#: _LABEL_RE already relaxed '/' to admit provider/model, and here spaces and parentheses are
+    +#: admitted so host-reported display names (such as "Gemini 3.8 Flash (High)") are preserved.
+    +#: Path-shaped strings and embedded paths remain strictly refused by _looks_like_path and
+    +#: per-token path checks.
+    +#: Accepted limit (F-11): admitting spaces means a bare non-path identifier (such as a maintainer
+    +#: handle or "Gemini 3.8 Flash (High) <handle>") is now admissible under this rule and would be
+    +#: flagged by the leak sanitizer. This narrowing of the boundary is accepted because model is
+    +#: populated strictly from host-supplied options/cost_attribution fields, never human free text.
+    +_MODEL_LABEL_RE = re.compile(
+    +    r"^(?=.{1,128}$)[A-Za-z0-9][A-Za-z0-9._:+@/()-]*(?: [A-Za-z0-9()][A-Za-z0-9._:+@/()-]*)*$"
+    +)
+    ...
+    +def _is_model_label(text: str) -> bool:
+    +    """Whether ``text`` is a valid model label or display name.
+    +
+    +    True only when :data:`_MODEL_LABEL_RE` matches, :func:`_looks_like_path` is false for the
+    +    whole string, and no whitespace-separated token satisfies :func:`_looks_like_path`.
+    +    """
+    +
+    +    if len(text) > 128:
+    +        return False
+    +    if not _MODEL_LABEL_RE.match(text):
+    +        return False
+    +    if _looks_like_path(text):
+    +        return False
+    +    if any(_looks_like_path(token) for token in text.split()):
+    +        return False
+    +    return True
+    ...
+    +    if key == "model":
+    +        if _PSEUDONYM_RE.match(text):
+    +            return text
+    +        if _looks_like_path(text) or any(
+    +            _looks_like_path(token) for token in text.split()
+    +        ):
+    +            raise PrivacyRefusal(
+    +                key, "looks like a filesystem path, which no label may carry"
+    +            )
+    +        if not _is_model_label(text):
+    +            raise PrivacyRefusal(
+    +                key,
+    +                "is not a short closed-vocabulary label (no spaces, quotes or free text)",
+    +            )
+    +        return text
+    ```
+    Diff of _model_label in run_analytics.py:
+    ```diff
+    +def _model_label(value: Any, *, default: str = "") -> str:
+    +    """A model identifier or display-name label, or ``default``.
+    +
+    +    Admits display names with single interior spaces and parentheses via
+    +    :func:`run_analytics_privacy._is_model_label`, while strictly refusing filesystem paths,
+    +    quotes and shell metacharacters.
+    +    """
+    +
+    +    text = str(value or "").strip()
+    +    if not text:
+    +        return default
+    +    if not privacy._is_model_label(text):
+    +        return default
+    +    return text
+    ```
+    Projector calls:
+    {'model': 'Gemini 3.8 Flash (High)'} -> OK: {'model': 'Gemini 3.8 Flash (High)'}
+    {'model': '/abs/x'} -> PrivacyRefusal: privacy refusal: key 'model' looks like a filesystem path, which no label may carry
+    {'model': 'x /abs/y'} -> PrivacyRefusal: privacy refusal: key 'model' looks like a filesystem path, which no label may carry
+    {'model': 'a ~/b'} -> PrivacyRefusal: privacy refusal: key 'model' looks like a filesystem path, which no label may carry
+    {'model': '../m'} -> PrivacyRefusal: privacy refusal: key 'model' looks like a filesystem path, which no label may carry
+    {'model': 'rm -rf; x'} -> PrivacyRefusal: privacy refusal: key 'model' is not a short closed-vocabulary label (no spaces, quotes or free text)
+    {'model': 'a "b"'} -> PrivacyRefusal: privacy refusal: key 'model' is not a short closed-vocabulary label (no spaces, quotes or free text)
+    {'outcome': 'has spaces'} -> PrivacyRefusal: privacy refusal: key 'outcome' is not a short closed-vocabulary label (no spaces, quotes or free text)
+    {'model': 'x C:/Users/<name>'} -> PrivacyRefusal: privacy refusal: key 'model' looks like a filesystem path, which no label may carry
 
-- [ ] V-05 validates E-05
+    Per-guard attribution for refused inputs:
+    /abs/x           | regex=False | whole_path=True  | token_path=True  | Refusal guard: whole_string _looks_like_path, _MODEL_LABEL_RE
+    x /abs/y         | regex=False | whole_path=False | token_path=True  | Refusal guard: per-token _looks_like_path, _MODEL_LABEL_RE
+    a ~/b            | regex=False | whole_path=False | token_path=True  | Refusal guard: per-token _looks_like_path, _MODEL_LABEL_RE
+    ../m             | regex=False | whole_path=True  | token_path=True  | Refusal guard: whole_string _looks_like_path, _MODEL_LABEL_RE
+    rm -rf; x        | regex=False | whole_path=False | token_path=False | Refusal guard: _MODEL_LABEL_RE
+    a "b"            | regex=False | whole_path=False | token_path=False | Refusal guard: _MODEL_LABEL_RE
+    x C:/Users/<name>| regex=True  | whole_path=False | token_path=True  | Refusal guard: per-token _looks_like_path (load-bearing Windows case)
+
+    _MODEL_LABEL_RE comment states basis (citing _LABEL_RE comment's space/path/command-line rationale) and accepted limit (F-11 non-path identifier admissible on model key; accepted because model is host-supplied).
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste `python3 -m pytest tests/test_run_analytics.py -o addopts="" -q` passing with its count; then the same with the E-02, E-03 and E-04 hunks temporarily reverted, showing (1) to (3) FAILING and (4), (5) and the non-model refusal passing; then passing again after restoring.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Details below:
+    Tests before fix (E-02, E-03, E-04 not yet applied):
+    FAILED tests/test_run_analytics.py::ModelAttributionTests::test_case_3_verifier_model_attribution
+    FAILED tests/test_run_analytics.py::ModelAttributionTests::test_case_6_projector_direct_cases
+    FAILED tests/test_run_analytics.py::ModelAttributionTests::test_case_2_cost_attribution_fallback
+    FAILED tests/test_run_analytics.py::ModelAttributionTests::test_case_1_display_name_model_preserved_on_all_grains_and_projected
+    4 failed, 25 passed in 0.61s
+    Showing (1), (2), (3) and projector display-name case failing, while (4), (5), (7) and non-model space refusal in (6) passed.
 
-- [ ] V-06 validates E-06
+    Tests after E-02, E-03, E-04 implementation:
+    $ python3 -m pytest tests/test_run_analytics.py -o addopts="" -q
+    .............................                                            [100%]
+    29 passed in 0.50s
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste a narrowed run of the four named existing tests passing, and `git diff --stat` / a diff excerpt showing none of them was edited.
   - STATE WHAT THE GREEN DETECTOR TEST DOES NOT PROVE, in one line: that its fixture's model is not a leaky value, so the pass shows the boundary intact for the values exercised and NOT that no admissible model string could carry an identifier (F-11). Do not present it as the latter.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Details below:
+    $ python3 -m pytest tests/test_run_analytics.py -o addopts="" -k "PrivacyBoundaryTests or test_usage_component_label_safety_and_containment or test_value_validation_defaults_and_refusals" -q
+    ....                                                                     [100%]
+    4 passed, 25 deselected in 0.54s
 
-- [ ] V-07 validates E-07
+    git diff --stat tests/test_run_analytics.py:
+     tests/test_run_analytics.py | 196 +++++++++++++++++++++++++++++++++++++++++++
+     1 file changed, 196 insertions(+)
+    (Only new ModelAttributionTests class appended; none of the existing test classes or methods modified)
+
+    The green detector test proves that its fixture's model is not a leaky value, so the pass shows the boundary intact for the values exercised and NOT that no admissible model string could carry an identifier (F-11).
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste the bare `python3 -m pytest` summary line BEFORE and AFTER, the after-minus-before failing node-ID set (must be empty), and the post-change `(grain, model)` set for the same real agy run (resolved through `runs_repo_root`, per E-01).
   - The post-change `(grain, model)` set must show the model on the metric grains and NO model key on the `event` grain, which is correct by allowlist design and not a miss.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Details below:
+    Bare pytest BEFORE:
+    2602 passed, 2 skipped, 3 warnings in 78.09s (0:01:18)
+    Bare pytest AFTER:
+    2610 passed, 2 skipped, 3 warnings in 86.25s (0:01:26)
+    After-minus-before failing node-ID set: empty (set())
+
+    Post-change (grain, model) set on real agy run run-20260926T042128Z-3748222 (resolved via runs_repo_root):
+    post-change grain_model_pairs: [('attempt', 'Gemini 3.8 Flash (High)'), ('event', ''), ('ipd', 'Gemini 3.8 Flash (High)'), ('phase', 'Gemini 3.8 Flash (High)'), ('run', 'Gemini 3.8 Flash (High)')]
+    Projected facts on disk:
+    projected attempt model: 'Gemini 3.8 Flash (High)'
+    projected event model: None (key absent from payload by allowlist design)
+    projected ipd model: 'Gemini 3.8 Flash (High)'
+    projected phase model: 'Gemini 3.8 Flash (High)'
+    projected run model: 'Gemini 3.8 Flash (High)'
+  - Result: pass
+
 
 ## Approval and execution gate
 
