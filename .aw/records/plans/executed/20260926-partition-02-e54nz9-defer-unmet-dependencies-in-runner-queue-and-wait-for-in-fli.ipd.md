@@ -6,7 +6,7 @@
 - Scope: IN: (a) one shared, read-only predicate in `runner_shared` answering "is this external `executed:` prerequisite still live in a peer run", built on the EXISTING `peer_drivers` (OS-lock liveness) and the peer's `state.json` queue; (b) one shared bounded wait that, at drain time only, polls until every such edge is satisfied on disk, its peer stops holding it live, a stop is requested, or the bound expires; (c) wiring it into BOTH hosts' drain arms (`oc_runipd.run_queue`, `agy_runipd.run_queue`) BEFORE the existing classification, so a satisfied item re-enters dispatch and anything else falls through to today's unchanged labelling; (d) behavioral tests. OUT: changing `edge_satisfied`'s disk-authority rule or `classify_drain_block`'s verdicts; waiting on a `spec`/`backlog` edge or on a prerequisite no live peer holds; in-queue reordering (already how selection works); cross-machine coordination.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_runner_peer_dependency.py, CHANGELOG.md
 - Item-Dependencies: executed:xu3yxw
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: medium
@@ -15,9 +15,9 @@
 - Highest E allocated: 05
 - Author: antigravity
 - Id: e54nz9
-- Approval: 2026-09-26, human ("approved"): Human approved in chat: 'OK, They're reviewed. I approve them both. Please do 01.'
 
 ## Workflow history
+- 2026-09-27 executed (antigravity): finalize e54nz9: defer unmet dependencies and wait for live peer runs [Scope reconciliation - in-scope-unmodified CHANGELOG.md: committed in a7adb1c3; in-scope-unmodified agent_workflows/agy_runipd.py: committed in a7adb1c3; in-scope-unmodified agent_workflows/oc_runipd.py: committed in a7adb1c3; in-scope-unmodified agent_workflows/runner_shared.py: committed in a7adb1c3; in-scope-unmodified tests/test_runner_peer_dependency.py: committed in a7adb1c3]
 - 2026-09-26 approved (aw set, --by-human): Human approved in chat: 'OK, They're reviewed. I approve them both. Please do 01.'
 - 2026-09-26 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 FIXED
 
