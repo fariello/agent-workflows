@@ -77,7 +77,11 @@ Finalize, `aw set executed` and retirement converge on `_finalize_transaction`; 
 
 Added as GUIDING_PRINCIPLES.md section 15, "Guard against honest mistakes, never against a malicious agent" (commit `40868bb1`). It records the earlier rulings it generalizes (2026-09-08 `daexj1` OQ-02 'mitigating sloppiness, not malice', reaffirmed 2026-09-20; spec `honest-human-approval-attestation`).
 
-### D7 (OPEN): fate of the 1o4eif / x03wgn sandbox work.
+### D7 (DECIDED 2026-09-26): the opt-in OS sandbox (1o4eif) stays, as optional isolation only
+
+- KEEP `host_sandbox_profile` and the hardened profile (plan `1o4eif`, executed) exactly as shipped: opt-in, off by default, Linux only, selected by an explicit request (`oc_runipd` wraps argv only "iff the hardened profile was explicitly requested").
+- REFRAME, do not rebuild: it is OPTIONAL ISOLATION an operator may choose, NOT "the real fix for malicious agents" and NOT something any gate relies on. Nothing in this design (and nothing new) may depend on it being on. This matches P15: if real isolation is ever required it comes from the OS, never from our own checks.
+- Documentation that frames it as the answer to a 'determined same-user agent' (for example `ipd_lifecycle`'s honest-limit comments pointing at `1o4eif`) is updated when the token code it sits beside is deleted in this design, and elsewhere by the `ariaau` audit.
 
 ### D8 (OPEN): specs to amend (c4gd2h at least) and the Scope-Paths declaration.
 
