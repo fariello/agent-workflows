@@ -21,7 +21,7 @@ th[scope="col"] { background: #f1f4f7; }
 button { font: inherit; padding: 0.3rem 0.7rem; border: 1px solid var(--line);
   background: #f7f9fb; border-radius: 4px; cursor: pointer; }
 button[aria-pressed="true"] { background: #0b4f9e; color: #fff; border-color: #08386f; }
-button[aria-pressed="true"]::before { content: "\\2713\\00a0"; }
+button[aria-pressed="true"]::before { content: "\2713\00a0"; }
 button[disabled], button[aria-disabled="true"] { opacity: 0.6; cursor: not-allowed; }
 :focus-visible { outline: 3px solid #0b4f9e; outline-offset: 2px; }
 .series-0 { stroke-dasharray: none; }

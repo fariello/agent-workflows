@@ -284,6 +284,62 @@ class RunAnalyticsCliUxTests(unittest.TestCase):
         self.assertEqual(summary.get("cmd"), "runs query")
         self.assertEqual(summary.get("exit"), 0)
 
+    def test_app_css_no_double_escaped_checkmark(self) -> None:
+        """`app.css` uses single-escaped CSS character entity for button checkmarks."""
+        from agent_workflows import run_analytics_spa as spa
+
+        css = spa.read_asset("app.css")
+        self.assertNotIn(
+            r'content: "\\2713',
+            css,
+            "Found double backslash in app.css checkmark escape!",
+        )
+        self.assertIn(
+            'content: "\\2713\\00a0";',
+            css,
+            "Expected single-escaped unicode character escape in app.css",
+        )
+
+    def test_render_report_html_rich_data_and_charts(self) -> None:
+        """`_render_report_html` produces an informative document with charts, data and refusals."""
+        # Create enough synthetic runs to meet the minimum sample size (12)
+        extra_runs = [
+            write_run(
+                self.runs_root,
+                f"run-20260901T0{i:02d}00Z-{i}111111",
+                repo=str(self.repo),
+            )
+            for i in range(2, 16)
+        ]
+        all_runs = [self.run1, self.run2] + extra_runs
+        cache_mod.update_cache(
+            all_runs,
+            build_facts=run_analytics.build_cache_facts,
+            repo=self.repo,
+        )
+
+        html = analytics_cli._render_report_html(
+            self.repo, generated_label="test-rich-report"
+        )
+        self.assertIn("<!DOCTYPE html>", html)
+        self.assertIn("Computed analyses", html)
+        self.assertIn("Analyses this corpus cannot support", html)
+        self.assertIn("Refused analysis: Failed merge waste and retry cost", html)
+        self.assertIn(
+            'button[aria-pressed="true"]::before { content: "\\2713\\00a0"; }', html
+        )
+        self.assertNotIn(
+            'button[aria-pressed="true"]::before { content: "\\\\2713\\\\00a0"; }', html
+        )
+        self.assertNotIn('<span class="recorded">no value</span>', html)
+        self.assertIn("era-a", html)
+        self.assertIn("era-b", html)
+        self.assertIn("cost_usd", html)
+        self.assertIn("wall_seconds", html)
+        self.assertIn("total_tokens", html)
+        self.assertIn("Overview", html)
+        self.assertNotIn("0 of 0 required analyses were computed", html)
+
 
 if __name__ == "__main__":
     unittest.main()

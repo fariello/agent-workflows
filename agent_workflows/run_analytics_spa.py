@@ -862,18 +862,60 @@ def build_view_model(
     for result in results:
         if getattr(result, "renderable", False):
             table_columns = ("metric", "value")
-            table_rows = tuple(
-                (str(k), v)
-                for k, v in sorted((getattr(result, "values", None) or {}).items())
-            )
+            rows_list: list[tuple[Any, Any]] = []
+            for k, v in sorted((getattr(result, "values", None) or {}).items()):
+                if k == "series":
+                    continue
+                if isinstance(v, Mapping):
+                    for sub_k, sub_v in sorted(v.items()):
+                        if not isinstance(sub_v, Mapping):
+                            rows_list.append((f"{k}.{sub_k}", sub_v))
+                else:
+                    rows_list.append((str(k), v))
+            table_rows = tuple(rows_list)
+
+            chart_values = series_values
+            chart_metric = metric_column
+            res_name = getattr(result, "name", "")
+            target_metric = ""
+            for candidate in (
+                getattr(result, "metric", ""),
+                res_name,
+                res_name.replace("-distribution", ""),
+                res_name.replace("-", "_"),
+                res_name.replace("-distribution", "").replace("-", "_"),
+            ):
+                if candidate and candidate in payload["data"]:
+                    target_metric = candidate
+                    break
+            if target_metric:
+                col = payload["data"].get(target_metric) or []
+                extracted = [
+                    float(v)
+                    for v in col
+                    if isinstance(v, (int, float)) and not isinstance(v, bool)
+                ]
+                if extracted:
+                    chart_values = extracted
+                    chart_metric = target_metric
+            elif (
+                isinstance(getattr(result, "values", None), Mapping)
+                and "series" in result.values
+            ):
+                chart_values = [
+                    float(v)
+                    for v in result.values["series"]
+                    if isinstance(v, (int, float)) and not isinstance(v, bool)
+                ]
+
             charts.append(
                 chart_from_result(
                     result,
                     row_indices=indices,
-                    values=series_values,
+                    values=chart_values,
                     table_columns=table_columns,
                     table_rows=table_rows,
-                    metric=metric_column,
+                    metric=chart_metric,
                 )
             )
         else:
