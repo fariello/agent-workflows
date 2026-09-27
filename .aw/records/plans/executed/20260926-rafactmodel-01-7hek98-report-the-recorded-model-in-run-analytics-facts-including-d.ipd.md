@@ -6,7 +6,7 @@
 - Scope: IN: (a) `run_analytics._model_of` falls back to `options[COST_ATTRIBUTION_KEY]["model"]` when `options.model` is empty; (b) a new `run_analytics._verify_model_of` (`options["verify_" + COST_ATTRIBUTION_KEY]["model"]`, then `options.verify_model`, then the executor model) used for the `Phase.VERIFY` phase fact; (c) a MODEL-ONLY label rule admitting a display name (letters, digits, the existing separators, plus single spaces and parentheses) in both `run_analytics` (a `_model_label` used by the two model readers) and `run_analytics_privacy._project_scalar` (a `model`-key branch), while `_looks_like_path` and an embedded-path check still refuse paths; (d) behavioral tests in `tests/test_run_analytics.py`. OUT: widening any other label key; changing `runner_shared.cost_attribution_record`, the runners, or `driver_actor`; normalizing stored display names; recomputing cost; changing `aw runs` rendering.
 - Scope-Paths: agent_workflows/run_analytics.py, agent_workflows/run_analytics_privacy.py, tests/test_run_analytics.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 7hek98
-- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 7hek98 verified (set rafactmodel, attempt 1).
 - 2026-09-27 approved (aw set): status set to approved
 - 2026-09-27 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; 8 findings PR-1001..PR-1008 all FIXED, 4 decisions D-1..D-4 recorded; review record written. Re-drove every code claim (F-1..F-5 hold) and PROTOTYPED E-04's regex: it admits the display name and refuses all listed paths. PR-1001 (HIGH): E-01's corpus survey finds 0 runs from a lane because records/runs/ is gitignored and execute turns are isolated, and 0 is indistinguishable from 'defect absent'; now mandates runner_shared.runs_repo_root (measured 0 vs 283). PR-1002: E-02's lazy-import instruction was unsatisfiable; key now defined locally and pinned by a test. PR-1003: the loop's first entry is Phase.REVIEW for a review item. PR-1005: OQ-01's flat 'no weakening' was wrong (a bare handle is admitted and sanitizer-flagged); limit now stated in E-04, OQ-01 and the gate with the producer-normalization alternative named for the human. aw ipd lint --phase review-finalize conforming; aw check plans clean for this plan.
 
