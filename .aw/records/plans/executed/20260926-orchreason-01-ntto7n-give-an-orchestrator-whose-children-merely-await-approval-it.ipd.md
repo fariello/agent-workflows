@@ -6,7 +6,7 @@
 - Scope: IN: (a) a new constant `ORCH_REASON_CHILDREN_NOT_APPROVED = "children-not-approved"` beside the other `ORCH_REASON_*` values; (b) in `decide_orchestrator_dispatch`'s `if dead:` branch, return the new reason ONLY when EVERY dead child's run status is in `{"reviewed", "approved"}`, with a `detail` sentence saying the children await approval and were never dispatched; a mixed set keeps `ORCH_REASON_DEAD_CHILDREN` (a real failure is the stronger fact, and the remedy for it already mentions approval); outcome stays `ORCH_DISPATCH_TERMINATE` in both cases; (c) a new `_ORCH_REASON_TEXT` entry for the new code whose remedy names `aw ipd set approved <id6> --by-human --message ...` and does NOT name `--full-auto`; (d) narrowing the `ORCH_REASON_DEAD_CHILDREN` entry's prose to the failure case now that approval has its own code, while keeping the key so historical run records (`.aw/records/runs/*/state.json` carry `orchestrator_refusal_reason: children-terminally-failed`) still render their mapped text; (e) behavioral tests in a new test file. OUT: changing WHAT the dispatch decides (TERMINATE vs RECONSIDER) for any status; changing `TERMINAL_STATES` or either success set; rewriting historical run records; the `RETIRE_REFUSED_*` vocabulary of `evaluate_set_retirement`.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_orchestrator_not_approved_reason.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: ntto7n
-- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: ntto7n verified (set orchreason, attempt 1).
 - 2026-09-27 approved (aw set): status set to approved
 - 2026-09-27 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-401..PR-405 all FIXED. Premise re-driven at HEAD 61ef21d8. Swept all 23 terminal statuses and found four other never-dispatched statuses keeping the failure code (declared as Deferred with the extension seam named); corrected F-2's false EXECUTION_SUCCESS_STATES claim; pinned the unasserted TERMINATE outcome and the no-Status overload as new test cases; re-grounded a gitignored run-record citation on the code.
 
