@@ -1,5 +1,5 @@
 - Id: tqaxjw
-- Status: graduated
+- Status: done
 - Graduated-To: runsrepo
 - Set: tqaxjw
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: aw oc run takes --repo while aw runs takes --dir for the same repository root, so a copy-pasted invocation fails
 
 ## Workflow history
+- 2026-09-27 done (aw set): Done: plan 8y13kn executed (manual recovery of its stranded lane, 2026-09-27).
 - 2026-09-26 graduated (aw set): Graduated 2026-09-26 into plan 8y13kn (Set runsrepo), re-verified live at HEAD.
 - 2026-09-22 created (aw backlog): Filed by aw oc run while executing plan zyw4n3.
 
