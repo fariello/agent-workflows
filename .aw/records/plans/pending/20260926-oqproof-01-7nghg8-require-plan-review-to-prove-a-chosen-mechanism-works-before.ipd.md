@@ -13,7 +13,7 @@
 - Blocks-Release: next
 - Set: oqproof
 - Order: 1
-- Highest E allocated: 05
+- Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 7nghg8
 
@@ -26,20 +26,22 @@
 
 A plan that reaches `reviewed` with a question marked `resolved` by a chosen mechanism has evidence that the mechanism works, or else carries the uncertainty visibly (an open question or an explicit spike step) instead of hiding it inside a resolution.
 
+THIS PLAN'S OWN ESCAPE ROUTE IS DEMONSTRATED, NOT ASSERTED, because a rule that prescribes an unproven fallback would commit the very defect it exists to stop (added at review, PR-002). E-01 point (3) tells a reviewer who cannot demonstrate a mechanism to leave the question `open` with `- Blocking: yes`. That instruction is only worth giving if such a question actually HOLDS the plan, so it was executed at review against this very plan's text: inserting one `- Blocking: yes` / `- Status: open` question turned `aw ipd lint`'s disposition from `conforming` to `error` at ALL THREE checkpoints, with the diagnostic `IPD-Q501: OQ-01: BLOCKING question is still 'open'. Ask the human and record the answer`. The unmodified plan is `conforming` at `author`. So the fallback is mechanically load-bearing at author time and not merely advisory.
+
 ## Detailed Implementation Checklist (TODO)
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
 
 ### Task group 1: the rule
 
-- [ ] E-01 In `.aw/system/workflows/plan-review/plan-review.md` section "3.1 Build the question set", immediately after "Resolve questions from authoritative evidence first. Cite the source.", add a subsection `#### Resolving HOW questions: demonstrate, do not describe`. It must say, in substance: (1) a question is a HOW question when its resolution chooses a MECHANISM (a code shape, a placeholder form, a flag, an algorithm) rather than a fact or a scope; (2) a HOW question may be marked `resolved` only when the resolution cites a DEMONSTRATION that the mechanism produces the required outcome on a concrete case (a scratch-repo run, a probe, a test, pasted output), held to the same evidence standard as a Findings row; (3) if the reviewer cannot demonstrate it, they MUST instead either leave the question `open` (with `Blocking: yes` when execution depends on it) or convert it into a first spike E-item whose Expected outcome is the demonstration and whose stop condition names the question, and the review verdict MUST name the feasibility risk; (4) a resolution containing its own "confirm empirically / if no form works, stop" clause is BY DEFINITION undemonstrated and falls under (3); (5) `- Owner: maintainer` on a resolved question means the maintainer answered; a reviewer's own choice records the reviewer (or `plan author`) as owner and gets a `### Decisions` row as 3.1 already requires. Cite the `vtkfq8` OQ-03 case as the measured example in one or two sentences.
+- [ ] E-01 In `.aw/system/workflows/plan-review/plan-review.md` section "3.1 Build the question set", immediately after "Resolve questions from authoritative evidence first. Cite the source.", add a subsection `#### Resolving HOW questions: demonstrate, do not describe`. It must say, in substance: (1) a question is a HOW question when its resolution chooses a MECHANISM (a code shape, a placeholder form, a flag, an algorithm) rather than a fact or a scope; (2) a HOW question may be marked `resolved` only when the resolution cites a DEMONSTRATION that the mechanism produces the required outcome on a concrete case (a scratch-repo run, a probe, a test, pasted output), held to the same evidence standard as a Findings row; (3) if the reviewer cannot demonstrate it, they MUST instead either leave the question `open` (with `Blocking: yes` when execution depends on it) or convert it into a first spike E-item whose Expected outcome is the demonstration and whose stop condition names the question, and the review verdict MUST name the feasibility risk. STATE WHY THE FIRST BRANCH BITES, since a reviewer who thinks it is merely advisory will not use it: an open question carrying `- Blocking: yes` makes `aw ipd lint` report `error` with `IPD-Q501` at EVERY checkpoint including `author`, so the plan cannot reach `approved` or be dispatched until a human answers. Verified at review by inserting such a question into this plan: disposition went `conforming` -> `error` at `author`, `review-finalize` and `pre-execution` alike; (4) a resolution containing its own "confirm empirically / if no form works, stop" clause is BY DEFINITION undemonstrated and falls under (3); (5) `- Owner: maintainer` on a resolved question means the maintainer answered; a reviewer's own choice records the reviewer (or `plan author`) as owner and gets a `### Decisions` row as 3.1 already requires. Write point (5) so a HUMAN applies it, and say plainly that NO GATE CHECKS IT: the linter only verifies the `Owner` field is non-empty and not `none` (`ipd_lint`'s `has_owner`, passed to `ipd_schema.open_question_error` as a bare boolean that never sees the VALUE), so a false `Owner: maintainer` passes every mechanical check, which is exactly how F-2's measured instance survived (F-5). Cite the `vtkfq8` OQ-03 case as the measured example in one or two sentences.
   - Depends on: none
   - Expected outcome: the subsection exists in 3.1 and states all five points.
   - Execution state: pending
 
-- [ ] E-02 Mirror E-01 in `.aw/system/workflows/plan-review-long/03-resolve-and-finalize.md` section "1. Resolve open questions", after "Resolve questions already answered by authoritative evidence and cite it.", by REFERENCE to the single-file text rather than a second full copy if the long form already defers to it elsewhere; otherwise copy the five points verbatim so the two forms cannot disagree. Record which you did in V-02 and why.
+- [ ] E-02 Mirror E-01 in `.aw/system/workflows/plan-review-long/03-resolve-and-finalize.md` section "1. Resolve open questions", after "Resolve questions already answered by authoritative evidence and cite it.". COPY the five points; do NOT write a bare cross-file reference. The conditional this item used to carry ("by REFERENCE ... if the long form already defers to it elsewhere") was RESOLVED AT REVIEW BY MEASUREMENT (PR-001) and the answer is that it does not: `03-resolve-and-finalize.md` contains exactly ONE reference to another file in its 246 lines (`Read report-template.md in full and use it exactly.`) and NO reference to `../plan-review/plan-review.md` at all, and it fully DUPLICATES the `### Decisions` rule including the `Reversible` judgement rather than pointing at it. So copying is what this file's established shape requires. Follow the parity convention the bundle already uses for exactly this case: state the rule in full, then add the pointer sentence naming the single-file form as the parity twin, as `plan-review-long.md`'s Readiness bullet does ("this is kept identical to the single-file `../plan-review/plan-review.md` per the parity note above"). That pointer is what makes a future divergence visible.
   - Depends on: E-01
-  - Expected outcome: the long-form reviewer is bound by the same rule.
+  - Expected outcome: the long-form reviewer is bound by the same five points, stated in full, with a parity pointer to the single-file subsection.
   - Execution state: pending
 
 - [ ] E-03 In `.aw/system/workflows/spec-review/spec-review.md` "3.1 Build the question set", after "Resolve from authoritative evidence first and cite the source", add one short paragraph binding spec review to the same rule by reference to plan-review's new subsection (spec-review already defers shared rules to plan-review, per its "What is SHARED" table, so a reference is the correct form).
@@ -49,9 +51,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: test and changelog
 
-- [ ] E-04 Add `tests/test_plan_review_feasibility_rule.py` asserting on the SHIPPED workflow files (read from the repo `.aw/system/workflows/` tree, the same tree the wheel force-includes per `pyproject.toml`): the plan-review subsection heading exists inside section 3.1; each of the five points is present (assert on a distinctive phrase per point, chosen in E-01 and listed in the test); the long form carries the rule or an explicit reference to the single-file subsection; spec-review references it. This is a documentation-contract test, the kind the repo already uses for workflow text; keep it to presence of the rule, not exact wording beyond the one anchor phrase per point.
-  - Depends on: E-01, E-02, E-03
+- [ ] E-04 Add `tests/test_plan_review_feasibility_rule.py` covering the SINGLE-FILE rule: read `.aw/system/workflows/plan-review/plan-review.md` from the repo `.aw/system/` tree (the tree the wheel force-includes, `pyproject.toml` `[tool.hatch.build.targets.wheel.force-include]` `".aw/system" = "agent_workflows/_data/.aw/system"`), assert the new `####` subsection heading exists and sits INSIDE section 3.1, and assert each of the five points is present via one distinctive anchor phrase per point (the five phrases chosen in E-01 and listed once at the top of the test module). Locate the section by HEADING BOUNDARIES, not by line number: take the span from the `### 3.1 ` heading to the next `### ` heading and assert the `####` heading falls within it. Measured at review: `plan-review.md` has `### 3.1 Build the question set` followed by `### 3.2 Ask interactively`, and the file already uses `####` subsections in two places, so the heading level and the boundary method are both established.
+
+  THIS TEST IS EXPLICITLY OUTSIDE THE SOURCE-TEXT-PIN PROHIBITION, verified at review (PR-004) rather than assumed, because the concurrent plan `96xtmi` (srcguard-01) is deleting text-pinning tests under the maintainer's 2026-09-26 ruling and a new one would be born condemned. That plan's own `- Scope:` excludes "tests that read NON-production files (specs, workflow bodies, READMEs, the test module's own file) unless the census flags them as reading `agent_workflows/*`". A workflow body is a WORKFLOW BODY, the artifact under change, and this test reads no `agent_workflows/*` source, so it is out of scope for that deletion. Cite that exemption in the test module's docstring so a future census reader does not have to re-derive it.
+  - Depends on: E-01
   - Expected outcome: the test passes, and FAILS with E-01's subsection removed.
+  - Execution state: pending
+
+- [ ] E-06 Extend `tests/test_plan_review_feasibility_rule.py` to the TWO SIBLING files, which are a different surface with a different assertion shape: the long form (`plan-review-long/03-resolve-and-finalize.md`) carries the five points IN FULL plus a parity pointer naming the single-file form, and `spec-review/spec-review.md` REFERENCES plan-review's subsection WITHOUT restating the five points. Assert the spec-review case in BOTH directions, since the interesting failure is a copy rather than an absence: the reference is present AND at most one of the five anchor phrases appears there (spec-review's own rule is "Anything else you find duplicated here is a defect; fix it by deleting the copy"). Split from E-04 at review (PR-003) because the lint density check flagged the combined item and because these two files' assertions can only be written after E-02 and E-03 land, while E-04's can be written after E-01.
+  - Depends on: E-02, E-03, E-04
+  - Expected outcome: both sibling assertions pass; the spec-review no-copy assertion FAILS if the five points are pasted into `spec-review.md`, and the long-form assertion FAILS if only a bare reference is written there.
   - Execution state: pending
 
 - [ ] E-05 `CHANGELOG.md` unreleased entry in plain user-facing language, no dashes: plan reviews no longer mark a question answered by a fix nobody tried; an untried fix stays an open question or becomes a first test step.
@@ -73,14 +82,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | --- | --- | --- | --- | --- |
 | F-1 | HIGH | plan `vtkfq8` OQ-03 | Resolved with a mechanism that cannot work; the resolution itself admitted feasibility was unconfirmed. | OQ-03 text: "Emit the carrier line as a COMMENTED / inert placeholder ... The executor must confirm the chosen form empirically"; run `run-20260926T051642Z-116672` `decisions-and-questions.md` 06-vtkfq8-DQ1: "Emitting an inert / commented placeholder ... does NOT suppress the obligation because `Status: open` remains active" |
 | F-2 | MEDIUM | plan `vtkfq8` OQ-03 | `Owner: maintainer` on a resolution the reviewer chose. | OQ-03 said "it is the ruled intent rather than a reviewer's invention", citing the source backlog item's candidate list, which its own text calls "CANDIDATE SHAPES (not decided here)" (backlog `dtrect`) |
-| F-3 | MEDIUM | `plan-review.md` 3.1 | No rule distinguishes a fact question (resolve by citation) from a mechanism question (resolve only by demonstration). | 3.1 text: "Resolve questions from authoritative evidence first. Cite the source." with no mechanism case |
+| F-3 | MEDIUM | `plan-review.md` 3.1 | No rule distinguishes a fact question (resolve by citation) from a mechanism question (resolve only by demonstration). | 3.1 text: "Resolve questions from authoritative evidence first. Cite the source." with no mechanism case. CONFIRMED AT REVIEW: `rg 'HOW question|mechanism' plan-review.md` finds only three unrelated rubric lines ("existing canonical mechanisms", "reuse existing mechanisms", "existing mechanisms to reuse"); no rule of this kind exists. |
+| F-4 | INFO (added at review, PR-002) | `ipd_lint` / `ipd_schema` | E-01 point (3)'s first branch is MECHANICALLY LOAD-BEARING, not advisory, which is what makes the fallback an honest instruction rather than a second undemonstrated mechanism. Demonstrated, not assumed. | Inserted one `- Blocking: yes` / `- Status: open` question into this plan's own text and ran the real linter: disposition `conforming` -> `error` at `author`, `review-finalize` AND `pre-execution`, diagnostic `IPD-Q501: OQ-01: BLOCKING question is still 'open'. Ask the human and record the answer`. The `author`-onward reach is deliberate: the comment above the check records that the narrow `pre-execution`-only version was "measured insufficient on 2026-09-08". |
+| F-5 | LOW (added at review, PR-005) | `ipd_lint.check` open-question rule / `ipd_schema.open_question_error` | E-01 point (5) (`Owner: maintainer` only when the maintainer answered) is REVIEWER JUDGEMENT ONLY and no gate can catch a violation, so the rule must be written to be read and applied by a human rather than relied on as enforced. The `Owner` field is free text: the linter checks only that it is non-empty and not `none` (`has_owner`), and `open_question_error` receives just that boolean, never the value. This is not a defect to fix here (an `Owner` enum would be a schema change well outside this plan), but stating it prevents a false sense of coverage. | `ipd_lint` computes `has_owner = bool(oq.get("Owner","").strip()) and ... != "none"`; `ipd_schema.open_question_error(blocking, status, has_rationale, has_owner)` takes no owner VALUE; `ipd_authoring` seeds `- Owner: none`. F-2's measured violation on `vtkfq8` therefore passed every gate. |
+| F-7 | MEDIUM (added at review, PR-001) | `plan-review-long/03-resolve-and-finalize.md` | E-02's conditional ("by REFERENCE ... if the long form already defers to it elsewhere; otherwise copy") resolves to COPY, and leaving the executor to decide invited the wrong branch. That file defers to nothing: in 246 lines it carries exactly ONE cross-file reference (`Read report-template.md in full and use it exactly.`) and NO mention of `../plan-review/plan-review.md`, and it DUPLICATES the `### Decisions` rule in full including the `Reversible` judgement section. The bundle's convention for this case is state-in-full-plus-parity-pointer, as `plan-review-long.md`'s Readiness bullet shows ("this is kept identical to the single-file `../plan-review/plan-review.md` per the parity note above"). | `rg '\.\./|\.md' 03-resolve-and-finalize.md` -> one hit, line 231; `rg 'plan-review/plan-review.md' 03-resolve-and-finalize.md` -> no hits; `rg 'Decisions\|Reversible' 03-resolve-and-finalize.md` -> lines 24, 27, 36, 45, 47, 53, 65; parity language at `plan-review.md` line 17 and `plan-review-long.md` lines 7, 93. |
+| F-8 | INFO (added at review, PR-004) | `tests/` and concurrent plan `96xtmi` (srcguard-01) | E-04's test would be born condemned unless it is provably outside the source-text-pin prohibition, and it IS. Plan `96xtmi` is deleting text-pinning tests under the maintainer's 2026-09-26 ruling, but its own `- Scope:` excludes "tests that read NON-production files (specs, workflow bodies, READMEs, the test module's own file) unless the census flags them as reading `agent_workflows/*`". This test reads a workflow body and no `agent_workflows/*` source, so it is exempt. Worth recording in the test's docstring so a future census reader does not re-litigate it. | `96xtmi`'s `- Scope:` line, quoted verbatim; `96xtmi` `- Status: to-review` (concurrent, not yet executed). |
+| F-6 | INFO (added at review, PR-004) | scope completeness across the workflow bundle | The plan's three-file scope is COMPLETE for this rule, verified rather than assumed. The `citesym` precedent (`f9166bfb`) touched a fourth and fifth file (`verify-execution.md`, `plan-review-long/01` and `/02`), so the natural worry is an omitted sibling. None of them carries a question-resolution step: `verify-execution.md`'s only `question` hits are its GO/NO-GO prose and a corrective-plan clause, and `plan-review-long/01` and `/02` have no "resolve questions" section at all (`rg 'Resolve.*question|question set'` returns nothing in both). So `03-resolve-and-finalize.md` is the long form's only home for this rule. | `rg 'question|resolve' verify-execution.md` -> lines 154, 176 only; `rg 'Resolve.*question\|question set' 01-discover-and-snapshot.md 02-review-and-revise.md` -> no matches; `git show f9166bfb --stat` for the file list. |
 
 ## Proposed changes (ordered, validatable)
 
-1. E-01: the rule in single-file plan-review 3.1 (F-3, F-1, F-2).
-2. E-02: the long form, kept in step.
-3. E-03: spec-review, by reference.
-4. E-04: documentation-contract test.
+1. E-01: the rule in single-file plan-review 3.1 (F-3, F-1, F-2), with point (3)'s first branch stated as the mechanically load-bearing one (F-4) and point (5) stated as unenforced-by-design (F-5).
+2. E-02: the long form, points stated IN FULL plus a parity pointer (measured: that file references nothing and duplicates the sibling Decisions rule, F-7).
+3. E-03: spec-review, by reference only.
+4. E-04: documentation-contract test for the single-file rule; E-06: the two sibling files, with both negative controls.
 5. E-05: changelog.
 
 ## Deferred / out of scope (with reason)
@@ -93,12 +107,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Scope check
 
 - Over-scope: none.
-- Under-scope: none known; the spec-review mirror (E-03) is included because it shares the same "resolve from evidence" step and would otherwise keep the gap for specs.
+- Under-scope: none known, and this was CHECKED AT REVIEW rather than asserted (F-6). The `citesym` precedent touched two files this plan does not (`verify-execution.md`, `plan-review-long/01` and `/02`), but none of them has a question-resolution step, so `03-resolve-and-finalize.md` is the long form's only home for this rule and the three declared workflow files are the complete set.
+- Scope-Paths note: `tests/test_plan_review_feasibility_rule.py` is the only NEW file and is written by E-04 then extended by E-06; no second module is created. No `.spec.md` is in `- Scope-Paths:`, so this run declares no spec edit.
 
 ## Required tests / validation
 
-- `python3 -m pytest tests/test_plan_review_feasibility_rule.py -o addopts=""`, plus the removal check in V-04.
-- Bare `python3 -m pytest`.
+- `python3 -m pytest tests/test_plan_review_feasibility_rule.py -o addopts=""`, plus the removal check in V-04 and BOTH negative controls in V-06 (a spec-review copy must fail the no-copy assertion; a bare long-form reference must fail the long-form assertion). A test whose negative control was never run is not known to be non-vacuous, which is the same standard this plan is asking reviewers to meet.
+- Bare `python3 -m pytest`; do not add `-n0`, a second `-q` (it compounds into `-qq` and suppresses the `N passed` line the evidence requires), or `-p no:randomly`. Baseline measured at review on this lane: `2501 passed, 2 skipped, 3 warnings in 59.95s`. RE-DERIVE it rather than matching the number; the BAR is that the after-minus-before failing node set is empty.
+- The new test module must carry NO `pytestmark = pytest.mark.slow`, or it will be excluded from the bare run by the configured `-m 'not slow'` and E-04's gate will never execute it.
 - `python3 -m agent_workflows check all --agent`, naming pre-existing findings as pre-existing.
 
 ## Spec / documentation sync
@@ -107,14 +123,26 @@ No spec amendment: the IPD structure spec already assigns semantic judgement to 
 
 ## Open questions
 
-No open questions.
+### OQ-01: Should the long form carry the five points in full, or reference the single-file subsection?
+
+- Blocking: no
+- Status: resolved
+- Owner: reviewer (raised and resolved at review from F-7)
+- Resolution or deferral rationale: IN FULL, plus a parity pointer. Resolved BY DEMONSTRATION rather than by preference, which is the standard this plan itself is introducing: `03-resolve-and-finalize.md` defers to nothing today (one cross-file reference in 246 lines, none to `plan-review.md`) and already duplicates the sibling `### Decisions` rule including its `Reversible` section, so a bare reference would be the only one of its kind in that file and would read as an omission. The bundle's convention for a rule that must not drift is state-in-full-then-point-at-the-twin, which `plan-review-long.md`'s Readiness bullet demonstrates verbatim. E-02 was rewritten to mandate this rather than leaving the executor a conditional whose measurable answer the plan had not measured.
+
+### OQ-02: Does E-04's documentation-contract test violate the maintainer's 2026-09-26 no-text-pinning ruling?
+
+- Blocking: no
+- Status: resolved
+- Owner: reviewer (raised and resolved at review from F-8)
+- Resolution or deferral rationale: No, and the exemption is explicit rather than inferred. The concurrent plan `96xtmi` (srcguard-01) that implements that ruling scopes itself OUT of "tests that read NON-production files (specs, workflow bodies, READMEs, the test module's own file) unless the census flags them as reading `agent_workflows/*`". E-04 reads a workflow body, which is the artifact this plan changes, and reads no `agent_workflows/*` source, so it is exempt by that plan's own words. The test is also asserting a DOCUMENTED CONTRACT (does the shipped reviewer instruction contain the rule) rather than pinning production code shape, which is the distinction the ruling draws. E-04 now cites this in the test module's docstring so a future census reader does not re-litigate it. RESIDUAL RISK, stated honestly: `96xtmi` is `to-review`, not executed, so its scope wording could still change; if it does, this test is the kind of thing its census should reclassify deliberately rather than silently.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste the new subsection as committed, with the five points identifiable, and `grep -n` output showing it sits inside section 3.1 of `plan-review.md`.
+  - Required evidence: paste the new subsection as committed, with the five points identifiable, and `rg -n '^#{3,4} '` output over `plan-review.md` showing the new `####` heading's line number falls BETWEEN `### 3.1 Build the question set` and the next `### ` heading (at review those were `### 3.1` and `### 3.2 Ask interactively`; re-derive both, since line numbers move). Also paste the five anchor phrases you chose, as a list, since E-04's test asserts on exactly those strings and a mismatch between the prose and the test is the likeliest way this pair silently rots.
   - Observed evidence:
   - Result: pending
 
@@ -137,10 +165,23 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Required evidence: paste the CHANGELOG entry.
   - Observed evidence:
   - Result: pending
+- [ ] V-06 validates E-06
+  - Required evidence: paste `python3 -m pytest tests/test_plan_review_feasibility_rule.py -o addopts="" -v` showing the two sibling cases PASSING by name. Then paste BOTH negative controls, each as actual failing output, because each guards a different mistake: (a) with the five anchor phrases pasted into `spec-review.md`, the no-copy assertion FAILS (guards against a duplicate that would drift); (b) with the long form's five points replaced by a bare cross-file reference, the long-form assertion FAILS (guards against the shape PR-001 showed that file does not use). Restore the tree after each control and paste a final passing run. State explicitly that the long form carries the points IN FULL plus a parity pointer, and quote the pointer sentence as committed.
+  - Observed evidence:
+  - Result: pending
+
 
 ## Approval and execution gate
 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after explicit human approval (`Status: approved`). Commit through `aw commit <plan> -- <paths>` limited to `- Scope-Paths:`; never push. Finalize with `aw ipd finalize` only after `aw ipd lint --phase pre-transition` conforms and every `V-*` carries pasted evidence; the plan then moves to `.aw/records/plans/executed/`. On completion close backlog `j4wz6b` through the handoff (this plan carries `From-Backlog: j4wz6b` and its `Blocks-Release: next`).
+WHAT A HUMAN IS APPROVING (added at review). A change to the REVIEWER'S OWN INSTRUCTIONS, in three workflow files plus one new test and one changelog line. After it, a reviewer may not mark a question `resolved` by naming a mechanism nobody tried: it must cite a demonstration, or the question stays open (which mechanically blocks the plan) or becomes a first spike step, and the verdict must name the feasibility risk. The measured cost of not having this rule was one 13-minute, 762k-token turn plus a human round trip on plan `vtkfq8`. No production code changes. Two things a human should know about the limits: point (5) about `Owner:` is reviewer judgement that NO gate can check (F-5), and no lint rule is added to judge whether a pasted demonstration is genuine (deliberately, see Deferred).
+
+Execute only after explicit human approval (`Status: approved`).
+
+SCOPE FENCE, a DECLARATION for reconciliation and NOT a stop directive: the `- Scope-Paths:` list, i.e. the three workflow files, the one new test module, and `CHANGELOG.md`. If an edit outside it proves genuinely necessary, MAKE it and justify it at finalize with `--scope-reason` per out-of-scope path, plus `--scope-ack` per declared-but-unmodified path. Note two paths that are deliberately NOT in the fence and were checked at review: `verify-execution.md` and `plan-review-long/01`-`/02` carry no question-resolution step (F-6), so touching them would be over-scope.
+
+HONESTY RULE (hard MUST): every test claim pastes the ACTUAL runner output. Run the suite BARE as `python3 -m pytest`. V-04's removal check and BOTH of V-06's negative controls must show REAL failing output, not a described expectation: a documentation test whose negative control was never run is exactly the undemonstrated mechanism this plan exists to forbid, and shipping one here would be self-refuting. Restore the tree after each control.
+
+Commit through `aw commit 7nghg8 -- <paths>` limited to `- Scope-Paths:`; never `git add -A`, never push. Finalize only after `aw ipd lint --phase pre-transition` conforms and every `V-*` carries pasted evidence; the plan then moves to `.aw/records/plans/executed/`. Ownership of that transition is CONDITIONAL: under `aw oc run` / `aw agy run` the RUNNER performs the finalize transaction, so the executing agent does NOT invoke it; for a hand-run execution outside a runner, the executor runs `aw ipd finalize` itself. On completion close backlog `j4wz6b` through the handoff (this plan carries `From-Backlog: j4wz6b` and its `Blocks-Release: next`).
