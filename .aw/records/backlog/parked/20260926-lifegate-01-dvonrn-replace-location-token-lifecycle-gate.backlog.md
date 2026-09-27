@@ -66,9 +66,16 @@ Finalize, `aw set executed` and retirement converge on `_finalize_transaction`; 
 - Retirement: a runner retiring an orchestrator is itself the live holder of that plan, so it passes its own run id exactly as its begin/finalize calls do.
 - TEST: one test drives EVERY entry point in the table against a plan held by a live run and asserts each refuses identically (and that each proceeds when the caller passes the holder's run id), so a future new caller cannot silently skip the check.
 
-### D5 (OPEN): what to do with other gates that exist only against malicious agents (wtiso_gate, runner_shared comments, host_sandbox_profile, the --by-human attestation).
+### D5 (DECIDED 2026-09-26): other gates that exist only against malicious agents
 
-### D6 (OPEN): wording of the new guiding principle (GUIDING_PRINCIPLES.md P15).
+- REMOVE the driver token as part of THIS design (confirmed by the maintainer).
+- Do NOT sweep other gates here. They are audited separately in backlog `ariaau` (malgate), handed off to another agent: keep / simplify / delete each, starting with `wtiso_gate.py`'s raising stubs, the `8zgybk`/`x03wgn` adversarial scaffolding, and 'determined same-user agent' justifications.
+- Already kept as honest: `--by-human` (its spec calls it a speed bump), suite-baseline adjudication (refuses nothing).
+- Going forward: any review that touches a gate applies P15.
+
+### D6 (DECIDED 2026-09-26): the principle is written
+
+Added as GUIDING_PRINCIPLES.md section 15, "Guard against honest mistakes, never against a malicious agent" (commit `40868bb1`). It records the earlier rulings it generalizes (2026-09-08 `daexj1` OQ-02 'mitigating sloppiness, not malice', reaffirmed 2026-09-20; spec `honest-human-approval-attestation`).
 
 ### D7 (OPEN): fate of the 1o4eif / x03wgn sandbox work.
 
