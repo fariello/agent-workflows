@@ -1391,12 +1391,15 @@ Run exit codes:
 | Unknown external outcome | Non-idempotent action may have occurred but cannot be proved | Abort run; require human reconciliation | `unknown_outcome`, AS DEFINED BY SPEC `c4gd2h` Section 0.0, which OWNS this term. Cross-reference added 2026-09-05: `c4gd2h` 0.0 names this spec's source research (`ig9bai`) explicitly and requires that any adoption REFERENCE its definition rather than restate it, because two definitions of one token violate GUIDING_PRINCIPLES P8. This row previously restated it. The shipped code follows `c4gd2h` (`runner_stop.py:1038` reserves the term for level 4's indeterminate case; `:1277-1281` names `run_recovery` as the realization and forbids reimplementation). If the external-side-effect case needs a disposition distinct from level-4 indeterminacy, `c4gd2h` requires it be given a DISTINCT NAME. |
 | Human gate | Required human receipt absent | Persist and stop | `needs_human_approval` |
 | Non-runnable state/type | Valid terminal/gated/narrative record | Skip without a session | `type_or_status_not_runnable` |
+| Stale scope target | A literal Scope-Paths entry under .aw/records/ no longer exists and its artifact is RETIRED or unresolvable | Refuse the item before session start; cascade dependents; continue independent items | `scope_target_stale` |
 | Unverifiable prompt | No valid run contract | Refuse, or explicitly run as `ran`/`unavailable`; aggregate non-success by default or neutral only under frozen `--unverifiable-ok` | `verification_unavailable` |
 | Push attempt | Tool policy sees push-capable action | Terminate worker and abort run | `push_attempt` |
 | Host guarantee unavailable | Capability descriptor lacks current positive proof for an action requirement | Refuse the item before session start; cascade dependents; continue independent items | `host_capability_unavailable` |
 | Invalid dependency statement | Shared predicate reports missing/unresolved/malformed/dangling statement | Fail source item before session; cascade dependents | `dependency_graph_invalid` |
 | Dependency cycle | Shared predicate returns a cyclic component | Fail cycle members; cascade dependents; continue disconnected components | `dependency_cycle` |
 | Dependency not met | Required edge's target failed, stopped, was unsatisfied, or could not be met in this run | Skip without session; record and propagate root chain | `dependency_not_met` |
+
+Only literal `.aw/records/` scope paths are checked because non-records paths (new code or test files) are legitimately absent before execution. The shared predicate (`check_engine.stale_record_scope_paths`) reports three classifications (`moved-terminal`, `moved`, and `vanished`), but the runner refuses only `moved-terminal` and `vanished`. A plain `moved` target (an artifact that merely changed status directory, such as an approved spec advancing to implementing) remains fully editable; refusing it would cause false refusals on runnable plans. `aw check` reports all three classifications so a maintainer can correct the declared path.
 
 ### 5.8 Interactive and unattended parity
 
@@ -1558,6 +1561,7 @@ This example demonstrates the revised guarantees: `all` is safely bounded; depen
 
 ## Workflow history
 
+- 2026-09-27 note (aw specs): amend Section 5.7 failure taxonomy with stale scope target refusal (plan 6h8j1r)
 - 2026-09-26 note (aw specs): AMENDED 2026-09-26 (plan olkeju, backlog j0ag0u): corrected the infrastructure paragraph's false 'NOTHING PASSES THEM' trailer clause; driver-side commit sites (wao266's backlog-close and 8apjpp's review-output commit) pass AW-Run/AW-Item, agent code commits are generally untrailered (j2srcc), nothing reads trailers back (am1g38); the trailers also moved out of the STILL NET-NEW list because the writer is shipped; worded without counts; Section 4.2 untouched. NOTE backlog sbh1o1 quoted the removed sentence as its surviving-fact evidence
 - 2026-09-25 note (aw specs): AMENDED 2026-09-24 (plan 01reg8, backlog aagh7v): removed unshipped supports_deny_push flag and three unconsumed action verdicts on maintainer ruling 4h7tt0 OQ-02
 - 2026-09-25 note (aw specs): AMENDED 2026-09-25 (plan hzdq8y, backlog ceauac): Removed the never-built flag for following generated IPDs from Section 2.1 command grammar, Section 2.6 overrides, Section 3 dispatch tables, Section 5 consent table, DAG rule 10, and worked example spec09. Generated IPDs are always reported as generated next actions and never join the frozen run.
