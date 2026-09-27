@@ -1,5 +1,5 @@
 - Id: qzo6dn
-- Status: graduated
+- Status: done
 - Graduated-To: backedge
 - Blocks-Release: next
 - Set: awcommithist
@@ -8,6 +8,7 @@
 - Summary: aw commit refuses any edit to three plans whose PRE-EXISTING history records a backwards reviewed->to-review transition, so the tooled commit path is unusable on them
 
 ## Workflow history
+- 2026-09-26 set (aw backlog): closed by aw oc run: IPD pyuhnl executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260926-backedge-01-pyuhnl-make-reviewed-to-to-review-a-legal-backward-plan-edge-so-aw.ipd.md); evidence .aw/records/plans/executed/20260926-backedge-01-pyuhnl-make-reviewed-to-to-review-a-legal-backward-plan-edge-so-aw.ipd.md
 - 2026-09-26 graduated (aw set): Graduated 2026-09-26 into plan pyuhnl (Set backedge), re-verified live at HEAD.
 - 2026-09-26 note (aw backlog): Maintainer ruling 2026-09-26 (/askme during batch graduation): reviewed -> to-review IS a legal backward edge for plans (re-review after revision). Implement by adding it to ipd_lifecycle._LEGAL_BACKWARD_EDGES and amending the IPD spec; the setter already allows it.
 - 2026-09-23 created (aw backlog): filed while executing m7gvuz: aw commit's plan half refuses on a pre-existing backwards history transition, forcing agents onto --no-plan and thereby skipping Scope-Paths enforcement
