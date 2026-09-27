@@ -1,5 +1,5 @@
 - Id: xyv75i
-- Status: graduated
+- Status: done
 - Graduated-To: mergeagent
 - Blocks-Release: next
 - Set: mergeagent
@@ -8,6 +8,7 @@
 - Summary: A merge-back conflict fails the item (fail-merge, terminal) instead of sending it back to the agent to resolve in its lane
 
 ## Workflow history
+- 2026-09-27 set (aw backlog): closed by aw oc run: IPD ounhsn executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260927-mergeagent-01-ounhsn-send-a-merge-back-conflict-back-to-the-same-agent-to-resolve.ipd.md); evidence .aw/records/plans/executed/20260927-mergeagent-01-ounhsn-send-a-merge-back-conflict-back-to-the-same-agent-to-resolve.ipd.md
 - 2026-09-27 graduated (aw set): Graduated 2026-09-27 into to-review plan ounhsn (Set mergeagent).
 - 2026-09-27 created (aw backlog): A merge-back conflict fails the item (fail-merge, terminal) instead of sending it back to the agent to resolve in its lane
 
