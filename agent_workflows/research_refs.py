@@ -148,12 +148,25 @@ class RenamePlan(NamedTuple):
     new_path: Path
 
 
-def _find_by_id6(research_root: Path, id6: str) -> Optional[Path]:
-    for p in research_root.rglob("*.md"):
-        parsed, _err = R.parse_name(p.name)
-        if parsed is not None and parsed.id6 == id6:
-            return p
-    return None
+def _find_by_id6(
+    repo_root_or_research: Path,
+    research_root_or_selector: Path | str,
+    selector_opt: Optional[str] = None,
+) -> Tuple[Optional[Path], Optional[str]]:
+    from agent_workflows.research_archive import _resolve_one_research
+
+    if selector_opt is not None:
+        repo_root = repo_root_or_research
+        research_root = Path(research_root_or_selector)
+        selector = selector_opt
+    else:
+        research_root = repo_root_or_research
+        selector = str(research_root_or_selector)
+        repo_root = _core.repo_root_of(research_root)
+
+    return _resolve_one_research(
+        repo_root, research_root, selector, verb="rename/group"
+    )
 
 
 def plan_set_assign(
@@ -162,18 +175,29 @@ def plan_set_assign(
     set_id: str,
     date_str: str,
     start_order: int = 0,
+    *,
+    repo_root: Optional[Path] = None,
 ) -> Tuple[Optional[List[RenamePlan]], Optional[str]]:
     """Plan renaming the given docs into a set (shared date + set-id, assigned NN), keeping id6."""
 
     set_k = R.kebab(set_id)
     if not set_k:
         return None, "a --set id is required"
+    if repo_root is None:
+        repo_root = _core.repo_root_of(research_root)
     plans: List[RenamePlan] = []
     for i, id6 in enumerate(id6s):
-        src = _find_by_id6(research_root, id6)
+        src, err = _find_by_id6(repo_root, research_root, id6)
+        if err:
+            return None, err
         if src is None:
             return None, f"no research file has id6 '{id6}'"
-        parsed, _err = R.parse_name(src.name)
+        parsed, parse_err = R.parse_name(src.name)
+        if parsed is None:
+            return (
+                None,
+                f"file '{src.name}' is not a conformant research document: {parse_err}",
+            )
         new_name = R.format_name(
             R.ResearchName(
                 date=date_str,
@@ -195,13 +219,24 @@ def plan_mv(
     slug: Optional[str] = None,
     kind: Optional[str] = None,
     model: Optional[str] = None,
+    *,
+    repo_root: Optional[Path] = None,
 ) -> Tuple[Optional[RenamePlan], Optional[str]]:
     """Plan renaming/re-slugging one doc within the grammar, keeping id6."""
 
-    src = _find_by_id6(research_root, id6)
+    if repo_root is None:
+        repo_root = _core.repo_root_of(research_root)
+    src, err = _find_by_id6(repo_root, research_root, id6)
+    if err:
+        return None, err
     if src is None:
         return None, f"no research file has id6 '{id6}'"
-    parsed, _err = R.parse_name(src.name)
+    parsed, parse_err = R.parse_name(src.name)
+    if parsed is None:
+        return (
+            None,
+            f"file '{src.name}' is not a conformant research document: {parse_err}",
+        )
     new_kind = parsed.kind
     if kind is not None:
         kr = R.normalize_kind(kind)
@@ -338,6 +373,7 @@ def run_set_assign(args: argparse.Namespace) -> "MutationResult":
         getattr(args, "set", "") or "",
         date_str,
         start_order=start if start is not None else 0,
+        repo_root=repo_root,
     )
     if err:
         print(f"error: {err}")
@@ -355,6 +391,7 @@ def run_mv(args: argparse.Namespace) -> "MutationResult":
         slug=getattr(args, "slug", None),
         kind=getattr(args, "kind", None),
         model=getattr(args, "model", None),
+        repo_root=repo_root,
     )
     if err:
         print(f"error: {err}")

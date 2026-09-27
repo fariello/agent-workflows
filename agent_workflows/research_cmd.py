@@ -460,6 +460,8 @@ def plan_set_outcome(
     outcome: Optional[str],
     consumed_by: Optional[List[str]],
     clear_consumed: bool = False,
+    *,
+    repo_root: Optional[Path] = None,
 ) -> Tuple[Optional[Path], Optional[str], Optional[str]]:
     """Plan an outcome/consumed-by update for one doc; returns (path, new_text, error).
 
@@ -470,12 +472,15 @@ def plan_set_outcome(
 
     if outcome is not None and outcome not in R.OUTCOMES:
         return None, None, f"outcome must be one of {sorted(R.OUTCOMES)}"
-    target: Optional[Path] = None
-    for p in sorted(research_root.rglob("*.md")):
-        parsed, _err = R.parse_name(p.name)
-        if parsed is not None and parsed.id6 == id6:
-            target = p
-            break
+    if repo_root is None:
+        repo_root = _core.repo_root_of(research_root)
+    from agent_workflows.research_archive import _resolve_one_research
+
+    target, err = _resolve_one_research(
+        repo_root, research_root, id6, verb="set-outcome"
+    )
+    if err:
+        return None, None, err
     if target is None:
         return None, None, f"no research file has id6 '{id6}'"
     text = target.read_text(encoding="utf-8")
@@ -504,12 +509,18 @@ def run_set_outcome(args: argparse.Namespace) -> int:
     consumed_list: Optional[List[str]] = None
     if raw_consumed is not None and not clear:
         consumed_list = [c.strip() for c in raw_consumed.split(",") if c.strip()]
+    repo_root = getattr(args, "dir", None)
+    if repo_root is not None:
+        repo_root = Path(repo_root)
+    else:
+        repo_root = _core.repo_root_of(root)
     target, new_text, err = plan_set_outcome(
         root,
         id6,
         getattr(args, "to", None),
         consumed_list,
         clear_consumed=clear,
+        repo_root=repo_root,
     )
     if err or target is None or new_text is None:
         print(f"error: {err or 'could not plan update'}")
@@ -586,21 +597,27 @@ def _set_priority_line(text: str, value: Optional[str]) -> str:
 
 
 def plan_set_priority(
-    research_root: Path, id6: str, to: Optional[str]
+    research_root: Path,
+    id6: str,
+    to: Optional[str],
+    *,
+    repo_root: Optional[Path] = None,
 ) -> Tuple[Optional[Path], Optional[str], Optional[str]]:
     """Plan a priority set/clear for one doc; returns (path, new_text, error). Mirrors
     ``plan_set_outcome``. ``to`` must be in the shared vocab (or '-'/None to clear)."""
     from agent_workflows import backlog as _backlog
+    from agent_workflows.research_archive import _resolve_one_research
 
     clearing = to in (None, "-")
     if not clearing and to not in _backlog.PRIORITIES:
         return None, None, f"priority must be one of {sorted(_backlog.PRIORITIES)}"
-    target: Optional[Path] = None
-    for p in sorted(research_root.rglob("*.md")):
-        parsed, _err = R.parse_name(p.name)
-        if parsed is not None and parsed.id6 == id6:
-            target = p
-            break
+    if repo_root is None:
+        repo_root = _core.repo_root_of(research_root)
+    target, err = _resolve_one_research(
+        repo_root, research_root, id6, verb="set-priority"
+    )
+    if err:
+        return None, None, err
     if target is None:
         return None, None, f"no research file has id6 '{id6}'"
     text = target.read_text(encoding="utf-8")
@@ -617,7 +634,12 @@ def run_set_priority(args: argparse.Namespace) -> int:
         print("error: an <id6> is required")
         return 2
     to = getattr(args, "to", None)
-    target, new_text, err = plan_set_priority(root, id6, to)
+    repo_root = getattr(args, "dir", None)
+    if repo_root is not None:
+        repo_root = Path(repo_root)
+    else:
+        repo_root = _core.repo_root_of(root)
+    target, new_text, err = plan_set_priority(root, id6, to, repo_root=repo_root)
     if err or target is None or new_text is None:
         print(f"error: {err or 'could not plan update'}")
         return 2

@@ -300,6 +300,10 @@ def _record_dirs_cached(repo_root_str: str, record_type: str) -> tuple[Path, ...
     # the RecordClass resolver rejects).
     _add(repo_root / ".aw" / "records" / record_type)
     _add(repo_root / ".agents" / record_type)
+    if record_type == "research":
+        # Research-specific legacy nesting: record_producers._LEGACY_RECORD_CLASS_SUBPATHS["research"] == "docs/research"
+        # is the authority for the subpath and research_contract.resolve_research_root is the authority that research reads it.
+        _add(repo_root / ".agents" / "docs" / "research")
     return tuple(out)
 
 

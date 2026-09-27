@@ -105,6 +105,18 @@ class CliFindResearchStatusTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertIn("rpt001", buf.getvalue())
 
+    def test_record_dirs_non_research_does_not_leak_legacy_research_nesting(self):
+        """E-03/E-10: selectors.record_dirs for non-research types does not include .agents/docs/research."""
+        from agent_workflows import selectors
+
+        legacy_research = self.repo_root / ".agents" / "docs" / "research"
+        legacy_research.mkdir(parents=True, exist_ok=True)
+        # Clear cache to ensure fresh resolution
+        selectors._record_dirs_cached.cache_clear()
+        for rtype in ["plans", "specs", "prompts", "backlog"]:
+            dirs = selectors.record_dirs(self.repo_root, rtype)
+            self.assertNotIn(legacy_research.resolve(), [d.resolve() for d in dirs])
+
 
 if __name__ == "__main__":
     unittest.main()
