@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/work_cmd.py
 - Item-Dependencies: none
 - Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: t5ycse
