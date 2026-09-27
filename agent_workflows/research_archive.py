@@ -122,29 +122,110 @@ def _rewrite_status_in_text(text: str, new_status: str) -> str:
     return "".join(lines)
 
 
-def plan_transition(
-    research_root: Path, id6: str, new_status: str
-) -> Tuple[Optional[Move], Optional[str]]:
-    """Plan a status transition + move for one doc (keeping id6). No writing."""
+def _resolve_research_for_mutation(
+    repo_root: Path,
+    research_root: Path,
+    selector: str,
+    *,
+    force: bool = False,
+) -> Tuple[List[Path], Optional[str]]:
+    """One confined research resolver denying MATCH_PATH and confining to research_root (IPD me227c E-04)."""
+    from agent_workflows import selectors
 
+    paths, err = selectors.resolve_for_mutation(
+        repo_root,
+        "research",
+        selector,
+        force=force,
+        deny=frozenset({selectors.MATCH_PATH}),
+    )
+    if err is not None:
+        return list(paths), err
+
+    # Confinement: DROP any resolved path not under research_root and any whose R.parse_name(p.name) does not parse
+    confined: List[Path] = []
+    rroot_resolved = research_root.resolve()
+    for p in paths:
+        try:
+            p.resolve().relative_to(rroot_resolved)
+        except ValueError:
+            continue
+        parsed, _ = R.parse_name(p.name)
+        if parsed is None:
+            continue
+        confined.append(p)
+
+    if paths and not confined:
+        return (
+            [],
+            f"selector '{selector}' matched no research files within the research root",
+        )
+    return confined, None
+
+
+def _resolve_one_research(
+    repo_root: Path,
+    research_root: Path,
+    selector: str,
+    *,
+    verb: str = "rename/group",
+) -> Tuple[Optional[Path], Optional[str]]:
+    """Resolve exactly one research document for a mutating verb, or return an error (IPD me227c E-04)."""
+    paths, err = _resolve_research_for_mutation(
+        repo_root, research_root, selector, force=False
+    )
+    if err is not None:
+        return None, err
+    if not paths:
+        return None, f"no research doc matches '{selector}'"
+    if len(paths) > 1:
+        return (
+            None,
+            f"selector '{selector}' matched {len(paths)} research files; {verb} target one document per token",
+        )
+    return paths[0], None
+
+
+def plan_transition_for_path(
+    research_root: Path, path: Path, new_status: str
+) -> Tuple[Optional[Move], Optional[str]]:
+    """Plan a status transition + move for a document at ``path``. No writing."""
     if new_status not in R.STATUSES:
         return None, f"status must be one of {sorted(R.STATUSES)}"
-    match = None
-    for p, parsed, fm in _all_docs(research_root):
-        if parsed.id6 == id6:
-            match = (p, parsed, fm)
-            break
-    if match is None:
-        return None, f"no research file has id6 '{id6}'"
-    p, parsed, fm = match
+    parsed, _err = R.parse_name(path.name)
+    if parsed is None:
+        return None, f"file '{path.name}' is not a conformant research document"
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        return None, f"cannot read {path.name}: {exc}"
+    fm = R.parse_frontmatter(text)
+    if fm is None:
+        return None, f"file '{path.name}' carries no valid YAML front matter"
     if parsed.kind == "research-prompt" and new_status in R.HOT_STATUSES:
         return (
             None,
             "a research-prompt carries no hot status; its pipeline position is derived",
         )
     created = str(fm.get("created", parsed.date))
-    new_path = _target_path(research_root, p.name, new_status, created)
-    return Move(id6, p, new_path, new_status), None
+    new_path = _target_path(research_root, path.name, new_status, created)
+    return Move(parsed.id6, path, new_path, new_status), None
+
+
+def plan_transition(
+    research_root: Path, id6: str, new_status: str
+) -> Tuple[Optional[Move], Optional[str]]:
+    """Plan a status transition + move for one doc (keeping id6). No writing."""
+    if new_status not in R.STATUSES:
+        return None, f"status must be one of {sorted(R.STATUSES)}"
+    match = None
+    for p, parsed, _fm in _all_docs(research_root):
+        if parsed.id6 == id6:
+            match = p
+            break
+    if match is None:
+        return None, f"no research file has id6 '{id6}'"
+    return plan_transition_for_path(research_root, match, new_status)
 
 
 def _collect_all_citations(repo_root: Path, research_root: Path) -> set[str]:
@@ -334,16 +415,28 @@ def run_archive(args: argparse.Namespace) -> int:
     raw_age = getattr(args, "age", None)
 
     if target:
-        # Targeted: archive a specific doc (by id6) or a whole set (by set-id).
-        moves: List[Move] = []
-        for p, parsed, fm in _all_docs(research_root):
-            if parsed.id6 == target or parsed.set_id == target:
-                mv, err = plan_transition(research_root, parsed.id6, "archive")
-                if err:
-                    print(f"error: {err}")
-                    return 2
-                moves.append(mv)
-        if not moves:
+        # Targeted: archive documents matching selector (id6, set-id, status with --force, etc.)
+        force = bool(getattr(args, "force", False))
+        paths, err = _resolve_research_for_mutation(
+            repo_root, research_root, target, force=force
+        )
+        if err:
+            if err.startswith("no research artifact matched"):
+                from agent_workflows.term import Term
+                from agent_workflows.result_types import NextAction
+
+                Term().empty_result(
+                    summary=f"no research doc or set matches '{target}'",
+                    filters={"target": target},
+                    next_action=NextAction(
+                        command="aw research find", description="find research docs"
+                    ),
+                )
+                return 0
+            print(f"error: {err}")
+            return 2
+
+        if not paths:
             from agent_workflows.term import Term
             from agent_workflows.result_types import NextAction
 
@@ -355,10 +448,40 @@ def run_archive(args: argparse.Namespace) -> int:
                 ),
             )
             return 0
+
+        moves: List[Move] = []
+        already_archived: List[Path] = []
+        for p in paths:
+            mv, err = plan_transition_for_path(research_root, p, "archive")
+            if err:
+                print(f"error: {err}")
+                return 2
+            if mv.old_path.resolve() == mv.new_path.resolve():
+                already_archived.append(p)
+                continue
+            moves.append(mv)
+
+        if not moves and not already_archived:
+            from agent_workflows.term import Term
+            from agent_workflows.result_types import NextAction
+
+            Term().empty_result(
+                summary=f"no research doc or set matches '{target}'",
+                filters={"target": target},
+                next_action=NextAction(
+                    command="aw research find", description="find research docs"
+                ),
+            )
+            return 0
+
         if not apply:
             for m in moves:
                 print(
                     f"--- would archive {m.old_path.name} -> {m.new_path.parent.name}/ ---"
+                )
+            if already_archived:
+                print(
+                    f"note: {len(already_archived)} document(s) already in archive shelf"
                 )
             return 0
         touched = apply_moves(repo_root, research_root, moves)

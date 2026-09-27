@@ -563,7 +563,7 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         agent_record_kind="result",
         mutation_gate="dry_run_default",
         empty_error_renderer="renderer_boundary",
-        legacy_flags=("--keep", "--apply", "--keep-last"),
+        legacy_flags=("--keep", "--apply", "--keep-last", "--force"),
         exit_contract=(0, 2),
     ),
     CommandDeclaration(

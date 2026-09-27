@@ -6161,6 +6161,12 @@ EXAMPLES
         action="store_true",
         help="Perform the moves (default is preview only).",
     )
+    p_archive.add_argument(
+        "--force",
+        action="store_true",
+        help="Act on ALL matches when a status or filename-substring selector is ambiguous; "
+        "does not override a unique-id collision; a setid needs no force. (Ignored by plans archive.)",
+    )
     _add_commit_flags(p_archive)  # selfcommit jgcm68 E-01/E-02
 
     # awcmdsurf Order 05 (hard cutover): the old `plan-names` verb was REMOVED; name conformance is

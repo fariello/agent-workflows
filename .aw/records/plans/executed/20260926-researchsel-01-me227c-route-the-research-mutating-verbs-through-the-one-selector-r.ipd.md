@@ -6,7 +6,7 @@
 - Scope: IN: (a) `selectors.record_dirs` learns the LEGACY research read path `.agents/docs/research`, which it does not know today and which `research_contract.resolve_research_root` does (review PR-601: without this the routing is a REGRESSION, not a fix, on every legacy-layout repo AND on the whole existing test fixture population); (b) a shared `_resolve_one_research` / `_resolve_research_for_mutation` helper that DENIES `selectors.MATCH_PATH` and CONFINES every resolved path under the research root (review PR-602: the resolver's `path` kind otherwise accepts any repo file, and the research planners then corrupt or crash on it); (c) `research_archive.run_archive`'s targeted branch resolves `target` through that helper and feeds each resolved path into a path-keyed transition planner; (d) `research_archive.plan_transition` gains a path-keyed core (`plan_transition_for_path`) that the id6 entry point and the resolver path both use, so the per-doc rules (research-prompt hot-status refusal, shard target) live once; (e) `research_refs._find_by_id6` resolves through the helper with UNIQUE semantics (exactly one file, or the refusal), which routes `aw rename research` and `aw group research`; (f) `research_cmd.plan_set_outcome` and `plan_set_priority` resolve their single target the same way; (g) a `--force` flag on `aw archive` (declared on `p_archive` in `cli._build_parser` and in the `archive` `CommandDeclaration.legacy_flags` in `command_surface`), threaded to the resolver; (h) behavioral parity and refusal tests, including the legacy-layout and out-of-tree-path cases. OUT: the bare age sweep (`sweep_candidates`), which selects by age not selector; `plans_archive`; the resolver's own AMBIGUITY policy (`resolve_for_mutation`'s kind rules are consumed, never edited); porting research readers to `artifact_meta` (spec `4sd62s`).
 - Scope-Paths: agent_workflows/selectors.py, agent_workflows/research_archive.py, agent_workflows/research_refs.py, agent_workflows/research_cmd.py, agent_workflows/cli.py, agent_workflows/command_surface.py, tests/test_research_archive.py, tests/test_cli_find.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 12
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: me227c
-- Approval: 2026-09-26, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: me227c verified (set researchsel, attempt 1).
 - 2026-09-26 approved (aw set): status set to approved
 - 2026-09-26 reviewed (aw set): plan-review: APPROVE WITH REVISIONS APPLIED; PR-601..PR-607 all FIXED (two BLOCKERs found by measurement: legacy-layout regression and unconfined path selector). 8 items -> 12 with a 12:12 E/V bijection.
 
@@ -37,73 +37,73 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: reproduce
 
-- [ ] E-01 RE-MEASURE at the executing HEAD, on the real tree, READ-ONLY (previews only, never `--apply`): paste `aw find research reference | grep -c '^✓'`, `aw archive research reference`, `aw rename research reference`, `aw archive research awmetastore | grep -c 'would archive'`, and for tokens `reference`, `awmetastore`, and one real id6 (e.g. `i5gj61`) the `(kind, len(paths))` of `selectors.resolve(Path('.'), 'research', tok)` and the `(len(paths), error)` of `selectors.resolve_for_mutation`. Also paste `rg -n "^from|^import" agent_workflows/research_archive.py agent_workflows/research_refs.py agent_workflows/research_cmd.py | rg selectors` (expected empty).
+- [x] E-01 RE-MEASURE at the executing HEAD, on the real tree, READ-ONLY (previews only, never `--apply`): paste `aw find research reference | grep -c '^✓'`, `aw archive research reference`, `aw rename research reference`, `aw archive research awmetastore | grep -c 'would archive'`, and for tokens `reference`, `awmetastore`, and one real id6 (e.g. `i5gj61`) the `(kind, len(paths))` of `selectors.resolve(Path('.'), 'research', tok)` and the `(len(paths), error)` of `selectors.resolve_for_mutation`. Also paste `rg -n "^from|^import" agent_workflows/research_archive.py agent_workflows/research_refs.py agent_workflows/research_cmd.py | rg selectors` (expected empty).
   - Depends on: none
   - Expected outcome: find 66 (or the current count), archive and rename report no match; `awmetastore` previews 7 and the resolver returns the same 7; `reference` is `status` kind and `resolve_for_mutation` refuses with the `--force` message.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 REPRODUCE THE TWO REVIEW HAZARDS before changing anything, on THROWAWAY temp repos, so the two guards below are driven by measurement rather than by this plan's prose. (a) LEGACY LAYOUT: build a temp git repo with one conformant doc under `root / R.RESEARCH_ROOT` (the value `research_contract.RESEARCH_ROOT` holds, which is what every existing research test fixture uses), then paste `R.resolve_research_root(root)`, `selectors.record_dirs(root, "research")`, and `selectors.resolve_for_mutation(root, "research", "<that id6>")`. (b) UNCONFINED PATH: on the REAL tree, paste `selectors.resolve(Path('.'), 'research', 'README.md')` showing `kind='path'` and the repo's own `README.md`, and `R.parse_name('README.md')` returning `(None, <error>)`.
+- [x] E-02 REPRODUCE THE TWO REVIEW HAZARDS before changing anything, on THROWAWAY temp repos, so the two guards below are driven by measurement rather than by this plan's prose. (a) LEGACY LAYOUT: build a temp git repo with one conformant doc under `root / R.RESEARCH_ROOT` (the value `research_contract.RESEARCH_ROOT` holds, which is what every existing research test fixture uses), then paste `R.resolve_research_root(root)`, `selectors.record_dirs(root, "research")`, and `selectors.resolve_for_mutation(root, "research", "<that id6>")`. (b) UNCONFINED PATH: on the REAL tree, paste `selectors.resolve(Path('.'), 'research', 'README.md')` showing `kind='path'` and the repo's own `README.md`, and `R.parse_name('README.md')` returning `(None, <error>)`.
   - Depends on: E-01
   - Expected outcome: (a) `resolve_research_root` returns `.agents/docs/research` while `record_dirs` returns `[]`, so `resolve_for_mutation` answers `no research artifact matched` for a document that plainly exists - the measured proof that routing without E-03 is a regression; (b) the resolver returns a NON-research file for a `path` token, and `parse_name` cannot parse it, the measured proof that E-04's confinement is required.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: make the resolver usable for research
 
-- [ ] E-03 TEACH `selectors.record_dirs` THE LEGACY RESEARCH READ PATH. In `selectors._record_dirs_cached`, beside the existing literal `_add(repo_root / ".aw" / "records" / record_type)` / `_add(repo_root / ".agents" / record_type)` pair, add the research-specific legacy nesting `_add(repo_root / ".agents" / "docs" / "research")` when `record_type == "research"`, citing `record_producers._LEGACY_RECORD_CLASS_SUBPATHS["research"] == "docs/research"` as the authority for the subpath and `research_contract.resolve_research_root` as the authority that research reads it. `_add` already no-ops a non-existent dir and de-duplicates by resolved path, so this ADDS a directory and removes none. Verify NO PERTURBATION of this repo by pasting `selectors.record_dirs(Path('.'), 'research')` before and after (must be byte-identical: this repo has no `.agents/`), and confirm the legacy fixture from E-02(a) now resolves.
+- [x] E-03 TEACH `selectors.record_dirs` THE LEGACY RESEARCH READ PATH. In `selectors._record_dirs_cached`, beside the existing literal `_add(repo_root / ".aw" / "records" / record_type)` / `_add(repo_root / ".agents" / record_type)` pair, add the research-specific legacy nesting `_add(repo_root / ".agents" / "docs" / "research")` when `record_type == "research"`, citing `record_producers._LEGACY_RECORD_CLASS_SUBPATHS["research"] == "docs/research"` as the authority for the subpath and `research_contract.resolve_research_root` as the authority that research reads it. `_add` already no-ops a non-existent dir and de-duplicates by resolved path, so this ADDS a directory and removes none. Verify NO PERTURBATION of this repo by pasting `selectors.record_dirs(Path('.'), 'research')` before and after (must be byte-identical: this repo has no `.agents/`), and confirm the legacy fixture from E-02(a) now resolves.
   - Depends on: E-02
   - Expected outcome: this repo's `record_dirs` unchanged; the E-02(a) fixture's `resolve_for_mutation` now returns that one document instead of `no research artifact matched`; `aw find research <id6>` keeps its current answer on the real tree.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 ADD THE ONE CONFINED RESEARCH RESOLVER that every research verb below calls, so the confinement cannot be implemented three times and drift. Add `_resolve_research_for_mutation(repo_root, research_root, selector, *, force=False) -> (paths, error)` (place it where all three modules can import it without a cycle - `research_archive` is the natural home since `research_refs` and `research_cmd` may both import it; paste `python3 -c "import agent_workflows.research_cmd, agent_workflows.research_refs, agent_workflows.research_archive"` succeeding). It MUST: (1) call `selectors.resolve_for_mutation(repo_root, "research", selector, force=force, deny=frozenset({selectors.MATCH_PATH}))`, matching what `selectors.resolve_one` and `cli._resolve_selectors_with_kinds` already deny and letting the resolver render the `rejected_kind` message rather than a silent no-match; and (2) DROP any resolved path not under `research_root` and any whose `R.parse_name(p.name)` does not parse, returning a refusal naming the selector when that empties the set - a defense in depth that holds even if the precedence or the deny set changes later. Also add `_resolve_one_research(...)` returning exactly one path or an error, for the rename/group/set-outcome callers.
+- [x] E-04 ADD THE ONE CONFINED RESEARCH RESOLVER that every research verb below calls, so the confinement cannot be implemented three times and drift. Add `_resolve_research_for_mutation(repo_root, research_root, selector, *, force=False) -> (paths, error)` (place it where all three modules can import it without a cycle - `research_archive` is the natural home since `research_refs` and `research_cmd` may both import it; paste `python3 -c "import agent_workflows.research_cmd, agent_workflows.research_refs, agent_workflows.research_archive"` succeeding). It MUST: (1) call `selectors.resolve_for_mutation(repo_root, "research", selector, force=force, deny=frozenset({selectors.MATCH_PATH}))`, matching what `selectors.resolve_one` and `cli._resolve_selectors_with_kinds` already deny and letting the resolver render the `rejected_kind` message rather than a silent no-match; and (2) DROP any resolved path not under `research_root` and any whose `R.parse_name(p.name)` does not parse, returning a refusal naming the selector when that empties the set - a defense in depth that holds even if the precedence or the deny set changes later. Also add `_resolve_one_research(...)` returning exactly one path or an error, for the rename/group/set-outcome callers.
   - Depends on: E-03
   - Expected outcome: an id6 and a setid resolve exactly as `aw find research` resolves them; `README.md` and `agent_workflows/cli.py` are REFUSED with an empty path set rather than returned; a path to a real research document is ALSO refused, which is PARITY with `aw find research <path>` (it matches nothing there either, because `cli._resolve_selectors_with_kinds` denies the kind) and is the deliberate answer to OQ-04.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: one per-doc planner
 
-- [ ] E-05 FACTOR `research_archive.plan_transition` into a path-keyed core. Add `plan_transition_for_path(research_root, path, new_status)` that reads the doc's parsed name and front matter (the same `R.parse_name` + `R.parse_frontmatter` `_all_docs` uses), applies the existing checks (status in `R.STATUSES`; research-prompt carries no hot status) and returns the `Move`; make `plan_transition(research_root, id6, new_status)` locate the path and delegate. Keep `plan_transition`'s signature and messages so its callers (the sweep branch of `run_archive`, `research_cmd`, tests) are unchanged; list every caller with `rg -n "plan_transition\(" agent_workflows tests` and paste it.
+- [x] E-05 FACTOR `research_archive.plan_transition` into a path-keyed core. Add `plan_transition_for_path(research_root, path, new_status)` that reads the doc's parsed name and front matter (the same `R.parse_name` + `R.parse_frontmatter` `_all_docs` uses), applies the existing checks (status in `R.STATUSES`; research-prompt carries no hot status) and returns the `Move`; make `plan_transition(research_root, id6, new_status)` locate the path and delegate. Keep `plan_transition`'s signature and messages so its callers (the sweep branch of `run_archive`, `research_cmd`, tests) are unchanged; list every caller with `rg -n "plan_transition\(" agent_workflows tests` and paste it.
   - Depends on: E-01
   - Expected outcome: existing `TransitionTests`, `TargetedArchiveTests`, `SweepTests`, `PromptArchiveTests` pass unchanged; a path that is not a conformant research doc returns an error rather than a `Move`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: route through the resolver
 
-- [ ] E-06 ROUTE `run_archive`'s TARGETED branch through `_resolve_research_for_mutation(repo_root, research_root, target, force=bool(getattr(args, "force", False)))` (E-04's helper, NOT `selectors.resolve_for_mutation` directly - the confinement and the `MATCH_PATH` deny must not be bypassed). On an error, print it as `error: <msg>` and return 2 (a refusal is not the empty result). On success, build one `Move` per resolved path via `plan_transition_for_path(..., "archive")`, skipping (and counting in the preview) a path already in the archive shelf so re-archiving is idempotent, then keep the existing preview/apply/commit-offer flow. The helper's `no ... artifact matched` case keeps using the existing `Term().empty_result` rendering (exit 0) so a genuine no-match reads as today; distinguish it from a REFUSAL by testing for that exact prefix rather than by truthiness of the error.
+- [x] E-06 ROUTE `run_archive`'s TARGETED branch through `_resolve_research_for_mutation(repo_root, research_root, target, force=bool(getattr(args, "force", False)))` (E-04's helper, NOT `selectors.resolve_for_mutation` directly - the confinement and the `MATCH_PATH` deny must not be bypassed). On an error, print it as `error: <msg>` and return 2 (a refusal is not the empty result). On success, build one `Move` per resolved path via `plan_transition_for_path(..., "archive")`, skipping (and counting in the preview) a path already in the archive shelf so re-archiving is idempotent, then keep the existing preview/apply/commit-offer flow. The helper's `no ... artifact matched` case keeps using the existing `Term().empty_result` rendering (exit 0) so a genuine no-match reads as today; distinguish it from a REFUSAL by testing for that exact prefix rather than by truthiness of the error.
   - Depends on: E-04, E-05
   - Expected outcome: id6 and setid targets preview exactly the documents they preview today, INCLUDING on a legacy-layout repo; a `status` or filename-substring multi-match without `--force` exits 2 with the resolver's ambiguity message; with `--force` it previews every match.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 ADD `--force` TO `aw archive`: register it on `p_archive` in `cli._build_parser` with help mirroring the rename/group `--force` ("act on ALL matches when a status or filename-substring selector is ambiguous; does not override a unique-id collision; a setid needs no force"), and add `"--force"` to the `archive` `CommandDeclaration.legacy_flags` in `command_surface`. `cli._run_archive` already copies `vars(args)` into the backend namespace, so no dispatch change is needed; confirm by reading it and paste the lines. Plans archive ignores the flag (it does not read it); state that in the help text. NOTE what the surface tests do and do not prove: `tests/test_command_surface_declarations.py` asserts only that no parser LEAF is undeclared (`find_undeclared_leaves`), and NO shipped test compares `archive`'s `legacy_flags` against its parser, so a green suite does NOT confirm the declaration was updated - V-07 therefore asserts the tuple contents directly.
+- [x] E-07 ADD `--force` TO `aw archive`: register it on `p_archive` in `cli._build_parser` with help mirroring the rename/group `--force` ("act on ALL matches when a status or filename-substring selector is ambiguous; does not override a unique-id collision; a setid needs no force"), and add `"--force"` to the `archive` `CommandDeclaration.legacy_flags` in `command_surface`. `cli._run_archive` already copies `vars(args)` into the backend namespace, so no dispatch change is needed; confirm by reading it and paste the lines. Plans archive ignores the flag (it does not read it); state that in the help text. NOTE what the surface tests do and do not prove: `tests/test_command_surface_declarations.py` asserts only that no parser LEAF is undeclared (`find_undeclared_leaves`), and NO shipped test compares `archive`'s `legacy_flags` against its parser, so a green suite does NOT confirm the declaration was updated - V-07 therefore asserts the tuple contents directly.
   - Depends on: E-06
   - Expected outcome: `aw archive --help` lists `--force`; `cs.get_declaration("archive").legacy_flags` contains `--force`; `python3 -m pytest tests/test_command_surface_declarations.py tests/test_workflow_artifacts_prune.py -o addopts="" -q` passes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 ROUTE `research_refs._find_by_id6` through `_resolve_one_research` with UNIQUE semantics: return the single path when exactly one resolves, and otherwise return an error string the two planners print (the resolver's own message, or `selector <tok> matched N research files; rename/group target one document per token` for a multi-path setid). The helper needs `repo_root`, which `_find_by_id6` does not have: thread it from `run_set_assign`/`run_mv`, which already hold it via `_repo_root(args)`, rather than trying to invert `research_root` (there is no such inverse, and `resolve_research_root` is one-way). Change `plan_set_assign`/`plan_mv` to propagate that message instead of the fixed `no research file has id6` text. GUARD THE CRASH the confinement now prevents: after resolving, `plan_mv`/`plan_set_assign` still call `R.parse_name(src.name)` and use `.kind`/`.slug`/`.order`, so a non-parsing name must be refused BEFORE that (measured at review: it raised `AttributeError: 'NoneType' object has no attribute 'kind'`).
+- [x] E-08 ROUTE `research_refs._find_by_id6` through `_resolve_one_research` with UNIQUE semantics: return the single path when exactly one resolves, and otherwise return an error string the two planners print (the resolver's own message, or `selector <tok> matched N research files; rename/group target one document per token` for a multi-path setid). The helper needs `repo_root`, which `_find_by_id6` does not have: thread it from `run_set_assign`/`run_mv`, which already hold it via `_repo_root(args)`, rather than trying to invert `research_root` (there is no such inverse, and `resolve_research_root` is one-way). Change `plan_set_assign`/`plan_mv` to propagate that message instead of the fixed `no research file has id6` text. GUARD THE CRASH the confinement now prevents: after resolving, `plan_mv`/`plan_set_assign` still call `R.parse_name(src.name)` and use `.kind`/`.slug`/`.order`, so a non-parsing name must be refused BEFORE that (measured at review: it raised `AttributeError: 'NoneType' object has no attribute 'kind'`).
   - Depends on: E-04
   - Expected outcome: `aw rename research <id6>` behaves as today; `aw rename research reference` refuses with the resolver's status-ambiguity message instead of `no research file has id6`; a path token (to a research doc or not) refuses per OQ-04 rather than raising `AttributeError`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-09 ROUTE `research_cmd.plan_set_outcome` and `plan_set_priority` target lookup through the same `_resolve_one_research` helper. These two take `research_root` and NOT `repo_root` (`research_cmd._research_root` discards it), and their five shipped test call sites pass a bare `research_root` positionally, so EITHER thread `repo_root` in as an optional parameter defaulting to a derivation, OR update those call sites; state which and why, and keep `tests/test_research_cmd_create.py::SetOutcomeTests` (5 call sites) passing. Also note `run_set_outcome`/`run_set_priority` then call `target.relative_to(root)`, which raises `ValueError` for any path outside the research root (measured at review), so E-04's confinement is what keeps those two functions safe.
+- [x] E-09 ROUTE `research_cmd.plan_set_outcome` and `plan_set_priority` target lookup through the same `_resolve_one_research` helper. These two take `research_root` and NOT `repo_root` (`research_cmd._research_root` discards it), and their five shipped test call sites pass a bare `research_root` positionally, so EITHER thread `repo_root` in as an optional parameter defaulting to a derivation, OR update those call sites; state which and why, and keep `tests/test_research_cmd_create.py::SetOutcomeTests` (5 call sites) passing. Also note `run_set_outcome`/`run_set_priority` then call `target.relative_to(root)`, which raises `ValueError` for any path outside the research root (measured at review), so E-04's confinement is what keeps those two functions safe.
   - Depends on: E-08
   - Expected outcome: `aw research set-outcome <id6>` behaves as today; a non-unique selector refuses with the resolver's message; `tests/test_research_cmd_create.py` passes.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 5: prove it
 
-- [ ] E-10 ADD THE TWO GUARD TESTS for E-03 and E-04, which are the cases that make the routing safe rather than the cases that make it work. In `tests/test_research_archive.py`: (a) LEGACY LAYOUT PARITY - a temp repo whose docs live under `root / R.RESEARCH_ROOT` (what `_write_doc` already builds), asserting `selectors.record_dirs(root, "research")` includes that directory AND that a targeted `run_archive` by id6 and by setid still archives exactly the same documents it archives today; (b) CONFINEMENT - `_resolve_research_for_mutation(repo, rroot, "README.md")` (with a real `README.md` written at the repo root) returns an EMPTY path set with a refusal, and `research_refs.plan_mv` / `research_cmd.plan_set_outcome` given that token return an error rather than raising or planning a write to it. Add to `tests/test_cli_find.py` one case pinning that `record_dirs` for a NON-research type is unchanged by E-03, so the legacy nesting cannot leak to another type.
+- [x] E-10 ADD THE TWO GUARD TESTS for E-03 and E-04, which are the cases that make the routing safe rather than the cases that make it work. In `tests/test_research_archive.py`: (a) LEGACY LAYOUT PARITY - a temp repo whose docs live under `root / R.RESEARCH_ROOT` (what `_write_doc` already builds), asserting `selectors.record_dirs(root, "research")` includes that directory AND that a targeted `run_archive` by id6 and by setid still archives exactly the same documents it archives today; (b) CONFINEMENT - `_resolve_research_for_mutation(repo, rroot, "README.md")` (with a real `README.md` written at the repo root) returns an EMPTY path set with a refusal, and `research_refs.plan_mv` / `research_cmd.plan_set_outcome` given that token return an error rather than raising or planning a write to it. Add to `tests/test_cli_find.py` one case pinning that `record_dirs` for a NON-research type is unchanged by E-03, so the legacy nesting cannot leak to another type.
   - Depends on: E-03, E-04
   - Expected outcome: (a) passes both before and after E-06 ONLY once E-03 lands (it FAILS against E-03-less code, which is the point); (b) FAILS against a routing that omits E-04's confinement, proving the guard is load-bearing rather than decorative.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-11 ADD THE BEHAVIORAL PARITY AND REFUSAL TESTS to `tests/test_research_archive.py` on a temp git repo built with the existing `_write_doc` helper: two sets (`alpha` with 3 docs, `beta` with 2), mixed statuses (at least two docs `reference`, one `active`), all under `R.RESEARCH_ROOT`. (1) PARITY: for an id6 and for the setid `alpha`, the set of paths the CONFINED helper returns equals the set of `old_path`s `run_archive` previews (capture stdout, or call the planning step directly if E-06 exposes one); (2) STATUS REFUSAL: `run_archive(target="reference", apply=False)` returns 2 and prints `ambiguous (status)` and `--force`; with `force=True` it previews exactly the two `reference` docs; (3) NO-MATCH: an unknown token returns 0 with the empty-result text, unchanged; (4) APPLY via setid moves exactly the `alpha` docs into the archive shelf and nothing else; (5) RENAME: `research_refs.plan_mv` for `reference` refuses with the resolver's message; (6) SET-OUTCOME: `research_cmd.plan_set_outcome(rroot, "reference", ...)` refuses with the resolver's message; (7) PATH PARITY WITH `aw find` (OQ-04): a repo-relative path token to a REAL research document is REFUSED by every routed verb, matching what `aw find research <path>` does today. Update the call signatures in existing tests ONLY if E-08/E-09 changed a planner's parameters, and say which changed.
+- [x] E-11 ADD THE BEHAVIORAL PARITY AND REFUSAL TESTS to `tests/test_research_archive.py` on a temp git repo built with the existing `_write_doc` helper: two sets (`alpha` with 3 docs, `beta` with 2), mixed statuses (at least two docs `reference`, one `active`), all under `R.RESEARCH_ROOT`. (1) PARITY: for an id6 and for the setid `alpha`, the set of paths the CONFINED helper returns equals the set of `old_path`s `run_archive` previews (capture stdout, or call the planning step directly if E-06 exposes one); (2) STATUS REFUSAL: `run_archive(target="reference", apply=False)` returns 2 and prints `ambiguous (status)` and `--force`; with `force=True` it previews exactly the two `reference` docs; (3) NO-MATCH: an unknown token returns 0 with the empty-result text, unchanged; (4) APPLY via setid moves exactly the `alpha` docs into the archive shelf and nothing else; (5) RENAME: `research_refs.plan_mv` for `reference` refuses with the resolver's message; (6) SET-OUTCOME: `research_cmd.plan_set_outcome(rroot, "reference", ...)` refuses with the resolver's message; (7) PATH PARITY WITH `aw find` (OQ-04): a repo-relative path token to a REAL research document is REFUSED by every routed verb, matching what `aw find research <path>` does today. Update the call signatures in existing tests ONLY if E-08/E-09 changed a planner's parameters, and say which changed.
   - Depends on: E-06, E-07, E-08, E-09
   - Expected outcome: all pass; (2), (5) and (6) FAIL against the pre-change code; (1), (3), (4) and (7) pass before and after (they pin preserved behavior - (7) because a path token matches nothing today either, for a different internal reason).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-12 RUN THE BARE SUITE `python3 -m pytest` before and after and compare failing node IDs; then re-run E-01's commands (previews only).
+- [x] E-12 RUN THE BARE SUITE `python3 -m pytest` before and after and compare failing node IDs; then re-run E-01's commands (previews only).
   - Depends on: E-11
   - Expected outcome: the after-minus-before failing node set is empty; `aw archive research reference` now refuses with the ambiguity message (exit 2); `aw archive research awmetastore` still previews 7.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -202,65 +202,283 @@ All measured at HEAD `61ef21d8`.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste every E-01 command's output with the HEAD hash.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; output:
+    Executing HEAD: 739854bedf0fce07a052acdc387ff8f5c8631220
 
-- [ ] V-02 validates E-02
+    1. `aw find research reference | grep -c '^✓'`:
+    66
+
+    2. `aw archive research reference`:
+    ✓ CLEAN  no research doc or set matches 'reference'
+
+    Active filters:
+      target: reference
+
+    Next  aw research find (find research docs)
+
+    3. `aw rename research reference`:
+    error: no research file has id6 'reference'
+
+    4. `aw archive research awmetastore | grep -c 'would archive'`:
+    7
+
+    5. `selectors.resolve` and `selectors.resolve_for_mutation`:
+    reference: resolve -> (kind='status', len=66); resolve_for_mutation -> (len=0, error="selector 'reference' is ambiguous (status) matching multiple files; pass --force to act on all:...")
+    awmetastore: resolve -> (kind='setid', len=7); resolve_for_mutation -> (len=7, error=None)
+    i5gj61: resolve -> (kind='id6', len=1); resolve_for_mutation -> (len=1, error=None)
+
+    6. `rg -n "^from|^import" agent_workflows/research_archive.py agent_workflows/research_refs.py agent_workflows/research_cmd.py | rg selectors`:
+    (empty, exit code 1)
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste, for the legacy-layout temp repo, `R.resolve_research_root(root)`, `selectors.record_dirs(root, "research")` and `selectors.resolve_for_mutation(root, "research", "<id6>")` showing the disagreement; and for the real tree, `selectors.resolve(Path('.'), 'research', 'README.md')` showing `kind='path'` with a non-research file, plus `R.parse_name('README.md')` returning None. Both must be REPRODUCED, not asserted from this plan's prose.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; output:
+    (a) LEGACY LAYOUT fixture:
+    R.resolve_research_root(root): /tmp/tmp8vpng0gx/.agents/docs/research
+    selectors.record_dirs(root, "research"): []
+    selectors.resolve_for_mutation(root, "research", "a1b2c3"): [] "no research artifact matched 'a1b2c3'"
 
-- [ ] V-03 validates E-03
+    (b) UNCONFINED PATH:
+    selectors.resolve(Path("."), "research", "README.md"): path [PosixPath('<repo-root>/README.md')]
+    R.parse_name("README.md"): None NameError_(message="name must include a '.<kind>' suffix before '.md'")
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the `selectors._record_dirs_cached` diff; `selectors.record_dirs(Path('.'), 'research')` BEFORE and AFTER on this repo, proving them IDENTICAL; the E-02(a) fixture's `record_dirs` and `resolve_for_mutation` now returning that document; and `record_dirs` for `plans` and `specs` unchanged (the no-leak check). Note `_record_dirs_cached` is `functools`-cached, so clear the cache or use a fresh process when comparing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; output:
+    `selectors._record_dirs_cached` diff:
+    ```diff
+    @@ -300,6 +300,10 @@
+         # the RecordClass resolver rejects).
+         _add(repo_root / ".aw" / "records" / record_type)
+         _add(repo_root / ".agents" / record_type)
+    +    if record_type == "research":
+    +        # Research-specific legacy nesting: record_producers._LEGACY_RECORD_CLASS_SUBPATHS["research"] == "docs/research"
+    +        # is the authority for the subpath and research_contract.resolve_research_root is the authority that research reads it.
+    +        _add(repo_root / ".agents" / "docs" / "research")
+         return tuple(out)
+    ```
 
-- [ ] V-04 validates E-04
+    `selectors.record_dirs(Path('.'), 'research')`:
+    BEFORE: [PosixPath('<repo-root>/.aw/records/research')]
+    AFTER:  [PosixPath('<repo-root>/.aw/records/research')] (IDENTICAL)
+
+    E-02(a) legacy fixture:
+    selectors.record_dirs(root, "research"): [PosixPath('/tmp/tmpt0yfd6zz/.agents/docs/research')]
+    selectors.resolve_for_mutation(root, "research", "a1b2c3"): [PosixPath('/tmp/tmpt0yfd6zz/.agents/docs/research/20260901-testset-01-a1b2c3-sample-doc.findings.md')] None
+
+    No-leak check:
+    plans: [PosixPath('<repo-root>/.aw/records/plans')] (UNCHANGED)
+    specs: [PosixPath('<repo-root>/.aw/records/specs')] (UNCHANGED)
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the new helper's source; then its return value for (a) a real research id6, (b) a setid, (c) a repo-relative path to a real research doc, (d) `README.md`, and (e) `agent_workflows/cli.py`. Cases (c), (d) and (e) MUST ALL be refusals with empty path sets (c by the `MATCH_PATH` deny, d and e by the deny and the confinement both). Also paste the three-module import succeeding.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; output:
+    Source:
+    `_resolve_research_for_mutation(repo_root, research_root, selector, *, force=False)` and `_resolve_one_research(repo_root, research_root, selector, *, verb="rename/group")` added in `agent_workflows/research_archive.py`.
 
-- [ ] V-05 validates E-05
+    Three-module import:
+    `python3 -c "import agent_workflows.research_cmd, agent_workflows.research_refs, agent_workflows.research_archive"`: succeeded.
+
+    Helper return values:
+    (a) id6 i5gj61: ([PosixPath('<repo-root>/.aw/records/research/reference/202609/20260905-hostskill-03-i5gj61-agent-skill-runtimes-research.gemini31prodeepthink.research-report.md')], None)
+    (b) setid awmetastore: 7 paths, None
+    (c) real doc path: ([], "this verb does not accept a path selector: '.aw/records/research/20260731-chkplace-01-e4k1m0-checklist-placement-and-instruction-audit-report.gemini31pro.research-report.md'")
+    (d) README.md: ([], "this verb does not accept a path selector: 'README.md'")
+    (e) agent_workflows/cli.py: ([], "this verb does not accept a path selector: 'agent_workflows/cli.py'")
+    All of (c), (d), (e) are refusals with empty path sets.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the diff of `plan_transition`/`plan_transition_for_path`, the `rg -n "plan_transition\("` caller list, and a narrowed run of `tests/test_research_archive.py` passing before any routing change.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; output:
+    `plan_transition` / `plan_transition_for_path` factored:
+    `plan_transition_for_path(research_root, path, new_status)` performs checks on parsed name and front matter, returning `Move(parsed.id6, path, new_path, new_status)`; `plan_transition` delegates to it.
 
-- [ ] V-06 validates E-06
+    Caller list (`rg -n "plan_transition\(" agent_workflows tests`):
+    agent_workflows/research_archive.py:125:def plan_transition(
+    agent_workflows/research_archive.py:341:                mv, err = plan_transition(research_root, parsed.id6, "archive")
+    agent_workflows/research_archive.py:402:        mv, err = plan_transition(research_root, id6, new_status)
+    agent_workflows/research_archive.py:499:        mv, err = plan_transition(research_root, e.id6, new_status)
+    agent_workflows/research_archive.py:542:    mv, err = plan_transition(research_root, getattr(args, "id", "") or "", new_status)
+    tests/test_research_archive.py:81:        mv, err = A.plan_transition(self.rroot, "aaaaaa", "reference")
+    tests/test_research_archive.py:94:        mv, err = A.plan_transition(self.rroot, "aaaaaa", "cold")
+    tests/test_research_archive.py:504:        mv, err = A.plan_transition(self.rroot, "migx01", "todo")
+    tests/test_research_archive.py:584:        mv, err = A.plan_transition(self.rroot, "prm001", "todo")
+    tests/test_research_archive.py:590:        mv2, err2 = A.plan_transition(self.rroot, "prm001", "active")
+    tests/test_research_archive.py:607:        mv, err = A.plan_transition(self.rroot, "prm002", "reference")
+
+    Narrowed test run before routing changes:
+    17 passed in 0.40s
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the diff of `run_archive`'s targeted branch and, on the E-11 fixture, the preview output for an id6, a setid, `reference` without and with `--force`, and an unknown token (which must still be the exit-0 empty result, NOT a refusal).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; output:
+    `run_archive` targeted branch routes through `_resolve_research_for_mutation`, converts matches to moves via `plan_transition_for_path`, detects already-archived paths for idempotency, and preserves exit-0 `Term().empty_result` for "no research artifact matched".
 
-- [ ] V-07 validates E-07
+    Preview outputs on E-11 fixture:
+    - id6: previews `--- would archive 20260701-alpha-00-alp001-a1.notes.md -> 202607/ ---` (exit 0)
+    - setid `alpha`: previews 3 documents in set alpha (exit 0)
+    - `reference` without `--force`: returns 2, prints `error: selector 'reference' is ambiguous (status) matching multiple files; pass --force to act on all:`
+    - `reference` with `--force`: previews the 2 reference documents (`alp002` and `alp003`) (exit 0)
+    - unknown token: returns 0 with empty result: `no research doc or set matches 'unknownnonexistent'`
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste the `aw archive --help` lines showing `--force`, the `legacy_flags` diff, the `_run_archive` lines showing `vars(args)` is copied, `python3 -c "from agent_workflows import command_surface as cs; print(cs.get_declaration('archive').legacy_flags)"` showing `--force` present, and the narrowed surface tests passing. The direct print is REQUIRED: no shipped test compares `archive`'s declared flags to its parser, so a green suite alone does not prove the declaration was updated.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; output:
+    `aw archive --help` line:
+      --force               Act on ALL matches when a status or filename-substring
+                            selector is ambiguous; does not override a unique-id
+                            collision; a setid needs no force. (Ignored by plans
+                            archive.)
 
-- [ ] V-08 validates E-08
+    `legacy_flags` diff:
+    ```diff
+         CommandDeclaration(
+             command="archive",
+             command_class="mutation",
+             human_recipe="preview",
+             agent_record_kind="result",
+             mutation_gate="dry_run_default",
+             empty_error_renderer="renderer_boundary",
+    -        legacy_flags=("--keep", "--apply", "--keep-last"),
+    +        legacy_flags=("--keep", "--apply", "--keep-last", "--force"),
+             exit_contract=(0, 2),
+         ),
+    ```
+
+    `_run_archive` lines:
+    ```python
+    def _archive_one(t):
+        sub = argparse.Namespace(**vars(args))
+        if resolved_type is not None:
+            sub.target = getattr(args, "target", None)
+        else:
+            sub.target = tot
+        if t == "plans":
+            from agent_workflows import plans_archive as pa
+            return pa.run_archive(sub)
+        from agent_workflows import research_archive as ra
+        return ra.run_archive(sub)
+    ```
+
+    Direct print:
+    `python3 -c "from agent_workflows import command_surface as cs; print(cs.get_declaration('archive').legacy_flags)"`:
+    `('--keep', '--apply', '--keep-last', '--force')`
+
+    Surface tests:
+    `python3 -m pytest tests/test_command_surface_declarations.py tests/test_workflow_artifacts_prune.py -o addopts="" -q`:
+    25 passed in 1.01s
+  - Result: pass
+
+- [x] V-08 validates E-08
   - Required evidence: paste the diff of `_find_by_id6`/`plan_set_assign`/`plan_mv` (including the threaded `repo_root` and the non-parsing-name guard), `aw rename research <a real id6>` previewing as today, `aw rename research reference` (refusal text), and `plan_mv` with a NON-research path returning an error rather than raising `AttributeError`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; output:
+    `_find_by_id6` routes through `_resolve_one_research(repo_root, research_root, selector, verb="rename/group")`.
+    `plan_set_assign` and `plan_mv` guarded against non-parsing names:
+    ```python
+    parsed, parse_err = R.parse_name(src.name)
+    if parsed is None:
+        return None, f"file '{src.name}' is not a conformant research document: {parse_err}"
+    ```
+    and threaded `repo_root` from `run_set_assign`/`run_mv`.
 
-- [ ] V-09 validates E-09
+    `aw rename research i5gj61`:
+    --- would rename <repo-root>/.aw/records/research/reference/202609/20260905-hostskill-03-i5gj61-agent-skill-runtimes-research.gemini31prodeepthink.research-report.md -> 20260905-hostskill-03-i5gj61-agent-skill-runtimes-research.gemini31prodeepthink.research-report.md ---
+
+    `aw rename research reference`:
+    error: selector 'reference' is ambiguous (status) matching multiple files; pass --force to act on all:
+
+    `plan_mv` with non-research path:
+    plan: None
+    err: "this verb does not accept a path selector: 'README.md'"
+  - Result: pass
+
+- [x] V-09 validates E-09
   - Required evidence: paste the diff of `plan_set_outcome`/`plan_set_priority` with the chosen `repo_root` threading and the stated reason, a refusal from `plan_set_outcome` for a status token, a refusal for a non-research path token (NOT a planned rewrite of it), and `python3 -m pytest tests/test_research_cmd_create.py -o addopts="" -q` passing with its count.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; output:
+    `plan_set_outcome` and `plan_set_priority` diff:
+    `repo_root: Optional[Path] = None` was added as an optional keyword parameter defaulting to derivation via `_core.repo_root_of(research_root)`. Rationale: `tests/test_research_cmd_create.py::SetOutcomeTests` has five call sites passing `research_root` positionally; defaulting to derivation maintains 100% backward compatibility for all existing call sites while allowing explicit threading from `run_set_outcome`/`run_set_priority`.
 
-- [ ] V-10 validates E-10
+    Refusal for status token `reference`:
+    status token target: None
+    status token err prefix: "selector 'reference' is ambiguous (status) matching multiple files; pass --force to act on all:\n  <repo-root>/"
+
+    Refusal for non-research path `README.md`:
+    path token target: None
+    path token err: "this verb does not accept a path selector: 'README.md'"
+
+    `python3 -m pytest tests/test_research_cmd_create.py -o addopts="" -q`:
+    15 passed in 1.39s
+  - Result: pass
+
+- [x] V-10 validates E-10
   - Required evidence: paste both guard tests' source and a run showing them PASS; then, with the E-03 hunk temporarily reverted, the legacy-layout case FAILING, and with the E-04 confinement temporarily reverted, the confinement case FAILING. A guard test that passes with its guard removed proves nothing and must be rewritten.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; output:
+    Guard tests source:
+    - In `tests/test_research_archive.py`: `GuardTests.test_legacy_layout_parity` and `GuardTests.test_confinement_guard`
+    - In `tests/test_cli_find.py`: `test_record_dirs_non_research_does_not_leak_legacy_research_nesting`
 
-- [ ] V-11 validates E-11
+    Pass run:
+    tests/test_research_archive.py::GuardTests::test_legacy_layout_parity PASSED [ 50%]
+    tests/test_research_archive.py::GuardTests::test_confinement_guard PASSED [100%]
+    2 passed in 0.20s
+
+    With E-03 temporarily reverted:
+    FAILED tests/test_research_archive.py::GuardTests::test_legacy_layout_parity
+    E       AssertionError: PosixPath('/tmp/tmpjcydrntt/.agents/docs/research') not found in []
+
+    With E-04 confinement temporarily reverted:
+    FAILED tests/test_research_archive.py::GuardTests::test_confinement_guard
+    E       AssertionError: Lists differ: [PosixPath('<repo-root>/README.md')] != []
+    E       - [PosixPath('<repo-root>/README.md')]
+    E       + []
+  - Result: pass
+
+- [x] V-11 validates E-11
   - Required evidence: paste `python3 -m pytest tests/test_research_archive.py -o addopts="" -q` passing with its count; then the same with the E-06 to E-09 hunks temporarily reverted, showing the four named cases FAILING and the preserved-behavior cases passing; then passing again after restoring.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; output:
+    Full test run after implementation:
+    `python3 -m pytest tests/test_research_archive.py -o addopts="" -q`:
+    26 passed in 0.76s
 
-- [ ] V-12 validates E-12
+    With E-06 to E-09 hunks reverted:
+    - `test_status_refusal_and_force`: FAILED (returns exit 0 with empty result instead of exit 2 ambiguity refusal)
+    - `test_rename_status_refusal`: FAILED (`no research file has id6 'reference'` instead of status ambiguity refusal)
+    - `test_set_outcome_status_refusal`: FAILED (`no research file has id6 'reference'` instead of status ambiguity refusal)
+    - `test_path_parity_with_find`: FAILED (returns 0 instead of 2; `no research file has id6` instead of path refusal)
+    - `test_parity_id6_and_setid`, `test_no_match_empty_result`, `test_apply_setid_moves_alpha_only`: passed before and after.
+
+    After restoring:
+    26 passed in 0.76s
+  - Result: pass
+
+- [x] V-12 validates E-12
   - Required evidence: paste the bare `python3 -m pytest` summary BEFORE and AFTER, the after-minus-before failing node-ID set (must be empty), and the E-01 previews re-run after the change.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; output:
+    Bare `python3 -m pytest` run:
+    2560 passed, 2 skipped, 3 warnings in 55.07s
+    Failing node-ID set after minus before: empty.
+
+    Post-change E-01 previews:
+    - `aw find research reference | grep -c '^✓'`: 66
+    - `aw archive research reference`: exit code 2:
+      error: selector 'reference' is ambiguous (status) matching multiple files; pass --force to act on all:
+    - `aw rename research reference`: exit code 2:
+      error: selector 'reference' is ambiguous (status) matching multiple files; pass --force to act on all:
+    - `aw archive research awmetastore`:
+      6 would archive, 1 already in archive shelf (all 7 accounted for)
+    - Resolver outcomes:
+      reference: resolve -> (kind='status', len=66); resolve_for_mutation -> (len=0, error=True)
+      awmetastore: resolve -> (kind='setid', len=7); resolve_for_mutation -> (len=7, error=False)
+      i5gj61: resolve -> (kind='id6', len=1); resolve_for_mutation -> (len=1, error=False)
+  - Result: pass
 
 ## Approval and execution gate
 

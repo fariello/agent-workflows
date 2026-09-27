@@ -8,16 +8,21 @@ reference in).
 
 from __future__ import annotations
 
+import argparse
+import io
 import subprocess
 import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
+from unittest.mock import patch
 
 from agent_workflows import research_archive as A
 from agent_workflows import research_cmd as C
 from agent_workflows import research_contract as R
 from agent_workflows import research_index as I
+from agent_workflows import research_refs as RF
+from agent_workflows import selectors
 
 
 def _init_git(root: Path) -> None:
@@ -617,6 +622,299 @@ class PromptArchiveTests(unittest.TestCase):
         self.assertEqual(fm["status"], "reference")
         errs = R.validate_frontmatter(fm)
         self.assertEqual(errs, [])
+
+
+class GuardTests(unittest.TestCase):
+    def test_legacy_layout_parity(self):
+        """E-10(a): Legacy layout .agents/docs/research is known to selectors.record_dirs and targeted archive works."""
+        root = Path(tempfile.mkdtemp())
+        _init_git(root)
+        rroot = root / R.RESEARCH_ROOT
+        _write_doc(
+            root,
+            set_id="legset",
+            order=0,
+            id6="leg001",
+            slug="doc1",
+            status="active",
+            created="20260701",
+        )
+        _write_doc(
+            root,
+            set_id="legset",
+            order=1,
+            id6="leg002",
+            slug="doc2",
+            status="active",
+            created="20260701",
+        )
+        dirs = selectors.record_dirs(root, "research")
+        self.assertIn(rroot.resolve(), [d.resolve() for d in dirs])
+
+        # targeted archive by id6
+        args1 = argparse.Namespace(
+            target="leg001", dir=str(root), apply=True, force=False, keep=None
+        )
+        rc1 = A.run_archive(args1)
+        self.assertEqual(rc1, 0)
+        archived1 = list((rroot / R.ARCHIVE_DIR).rglob("*leg001*.md"))
+        self.assertEqual(len(archived1), 1)
+
+        # targeted archive by setid
+        args2 = argparse.Namespace(
+            target="legset", dir=str(root), apply=True, force=False, keep=None
+        )
+        rc2 = A.run_archive(args2)
+        self.assertEqual(rc2, 0)
+        archived2 = list((rroot / R.ARCHIVE_DIR).rglob("*leg002*.md"))
+        self.assertEqual(len(archived2), 1)
+
+    def test_confinement_guard(self):
+        """E-10(b): Non-research path (e.g. README.md) is refused and planners do not raise or rewrite."""
+        root = Path(tempfile.mkdtemp())
+        _init_git(root)
+        rroot = root / R.RESEARCH_ROOT
+        readme = root / "README.md"
+        readme.write_text("# Repo Readme\n", encoding="utf-8")
+        _write_doc(
+            root,
+            set_id="confset",
+            order=0,
+            id6="cnf001",
+            slug="doc",
+            status="active",
+            created="20260701",
+        )
+        paths, err = A._resolve_research_for_mutation(root, rroot, "README.md")
+        self.assertEqual(paths, [])
+        self.assertIsNotNone(err)
+
+        plan, err_mv = RF.plan_mv(rroot, "README.md", repo_root=root)
+        self.assertIsNone(plan)
+        self.assertIsNotNone(err_mv)
+
+        target, text, err_cmd = C.plan_set_outcome(
+            rroot, "README.md", "adopted", None, repo_root=root
+        )
+        self.assertIsNone(target)
+        self.assertIsNone(text)
+        self.assertIsNotNone(err_cmd)
+        self.assertEqual(readme.read_text(encoding="utf-8"), "# Repo Readme\n")
+
+
+class BehavioralParityAndRefusalTests(unittest.TestCase):
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        _init_git(self.root)
+        self.rroot = self.root / R.RESEARCH_ROOT
+        self.a1 = _write_doc(
+            self.root,
+            set_id="alpha",
+            order=0,
+            id6="alp001",
+            slug="a1",
+            status="active",
+            created="20260701",
+        )
+        self.a2 = _write_doc(
+            self.root,
+            set_id="alpha",
+            order=1,
+            id6="alp002",
+            slug="a2",
+            status="reference",
+            created="20260702",
+        )
+        self.a3 = _write_doc(
+            self.root,
+            set_id="alpha",
+            order=2,
+            id6="alp003",
+            slug="a3",
+            status="reference",
+            created="20260703",
+        )
+        self.b1 = _write_doc(
+            self.root,
+            set_id="beta",
+            order=0,
+            id6="bet001",
+            slug="b1",
+            status="todo",
+            created="20260704",
+        )
+        self.b2 = _write_doc(
+            self.root,
+            set_id="beta",
+            order=1,
+            id6="bet002",
+            slug="b2",
+            status="active",
+            created="20260705",
+        )
+
+    def test_parity_id6_and_setid(self):
+        # (1) PARITY: id6 and setid alpha
+        paths_id, err = A._resolve_research_for_mutation(
+            self.root, self.rroot, "alp001"
+        )
+        self.assertIsNone(err)
+        self.assertEqual(len(paths_id), 1)
+        buf = io.StringIO()
+        with patch("sys.stdout", buf):
+            rc = A.run_archive(
+                argparse.Namespace(
+                    target="alp001",
+                    dir=str(self.root),
+                    apply=False,
+                    force=False,
+                    keep=None,
+                )
+            )
+        self.assertEqual(rc, 0)
+        self.assertIn(paths_id[0].name, buf.getvalue())
+
+        paths_set, err = A._resolve_research_for_mutation(
+            self.root, self.rroot, "alpha"
+        )
+        self.assertIsNone(err)
+        self.assertEqual(len(paths_set), 3)
+        buf2 = io.StringIO()
+        with patch("sys.stdout", buf2):
+            rc = A.run_archive(
+                argparse.Namespace(
+                    target="alpha",
+                    dir=str(self.root),
+                    apply=False,
+                    force=False,
+                    keep=None,
+                )
+            )
+        self.assertEqual(rc, 0)
+        out2 = buf2.getvalue()
+        for p in paths_set:
+            self.assertIn(p.name, out2)
+
+    def test_status_refusal_and_force(self):
+        # (2) STATUS REFUSAL
+        buf = io.StringIO()
+        with patch("sys.stdout", buf):
+            rc = A.run_archive(
+                argparse.Namespace(
+                    target="reference",
+                    dir=str(self.root),
+                    apply=False,
+                    force=False,
+                    keep=None,
+                )
+            )
+        self.assertEqual(rc, 2)
+        out = buf.getvalue()
+        self.assertIn("ambiguous (status)", out)
+        self.assertIn("--force", out)
+
+        # with force=True
+        buf2 = io.StringIO()
+        with patch("sys.stdout", buf2):
+            rc = A.run_archive(
+                argparse.Namespace(
+                    target="reference",
+                    dir=str(self.root),
+                    apply=False,
+                    force=True,
+                    keep=None,
+                )
+            )
+        self.assertEqual(rc, 0)
+        out2 = buf2.getvalue()
+        self.assertIn(self.a2.name, out2)
+        self.assertIn(self.a3.name, out2)
+        self.assertNotIn(self.a1.name, out2)
+        self.assertNotIn(self.b1.name, out2)
+        self.assertNotIn(self.b2.name, out2)
+
+    def test_no_match_empty_result(self):
+        # (3) NO-MATCH
+        buf = io.StringIO()
+        with patch("sys.stdout", buf):
+            rc = A.run_archive(
+                argparse.Namespace(
+                    target="unknownnonexistent",
+                    dir=str(self.root),
+                    apply=False,
+                    force=False,
+                    keep=None,
+                )
+            )
+        self.assertEqual(rc, 0)
+        self.assertIn(
+            "no research doc or set matches 'unknownnonexistent'", buf.getvalue()
+        )
+
+    def test_apply_setid_moves_alpha_only(self):
+        # (4) APPLY via setid
+        rc = A.run_archive(
+            argparse.Namespace(
+                target="alpha", dir=str(self.root), apply=True, force=False, keep=None
+            )
+        )
+        self.assertEqual(rc, 0)
+        archived = [p.name for p in (self.rroot / R.ARCHIVE_DIR).rglob("*.md")]
+        self.assertEqual(len(archived), 3)
+        self.assertIn(self.a1.name, archived)
+        self.assertIn(self.a2.name, archived)
+        self.assertIn(self.a3.name, archived)
+        self.assertNotIn(self.b1.name, archived)
+        self.assertNotIn(self.b2.name, archived)
+
+    def test_rename_status_refusal(self):
+        # (5) RENAME
+        plan, err = RF.plan_mv(self.rroot, "reference", repo_root=self.root)
+        self.assertIsNone(plan)
+        self.assertIn("ambiguous (status)", err)
+        self.assertIn("--force", err)
+
+    def test_set_outcome_status_refusal(self):
+        # (6) SET-OUTCOME
+        target, text, err = C.plan_set_outcome(
+            self.rroot, "reference", "adopted", None, repo_root=self.root
+        )
+        self.assertIsNone(target)
+        self.assertIsNone(text)
+        self.assertIn("ambiguous (status)", err)
+        self.assertIn("--force", err)
+
+    def test_path_parity_with_find(self):
+        # (7) PATH PARITY WITH aw find (OQ-04)
+        rel_path = str(self.a1.relative_to(self.root))
+
+        paths, err = A._resolve_research_for_mutation(self.root, self.rroot, rel_path)
+        self.assertEqual(paths, [])
+        self.assertIn("this verb does not accept a path selector", err)
+
+        buf = io.StringIO()
+        with patch("sys.stdout", buf):
+            rc = A.run_archive(
+                argparse.Namespace(
+                    target=rel_path,
+                    dir=str(self.root),
+                    apply=False,
+                    force=False,
+                    keep=None,
+                )
+            )
+        self.assertEqual(rc, 2)
+        self.assertIn("this verb does not accept a path selector", buf.getvalue())
+
+        plan, err_mv = RF.plan_mv(self.rroot, rel_path, repo_root=self.root)
+        self.assertIsNone(plan)
+        self.assertIn("this verb does not accept a path selector", err_mv)
+
+        target, text, err_cmd = C.plan_set_outcome(
+            self.rroot, rel_path, "adopted", None, repo_root=self.root
+        )
+        self.assertIsNone(target)
+        self.assertIn("this verb does not accept a path selector", err_cmd)
 
 
 if __name__ == "__main__":
