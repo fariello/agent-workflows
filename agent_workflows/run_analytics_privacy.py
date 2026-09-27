@@ -216,6 +216,22 @@ _LABEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:+@/-]{0,127}$")
 #: ``model`` values legitimately carry ``/`` (``provider/model``), so the separator is permitted
 #: above; an absolute path is still refused because a leading ``/`` fails the first character
 #: class and ``..`` fails the label check via :func:`_looks_like_path`.
+
+#: A model label may contain letters, digits, separators, single interior spaces and parentheses.
+#: Basis: _LABEL_RE excludes spaces to keep command lines and filesystem paths out of categorical
+#: fields ("It may NOT contain a path separator, a space, a quote or a shell metacharacter, which is
+#: what keeps a command line or an absolute path out of a categorical field"). For the model key,
+#: _LABEL_RE already relaxed '/' to admit provider/model, and here spaces and parentheses are
+#: admitted so host-reported display names (such as "Gemini 3.8 Flash (High)") are preserved.
+#: Path-shaped strings and embedded paths remain strictly refused by _looks_like_path and
+#: per-token path checks.
+#: Accepted limit (F-11): admitting spaces means a bare non-path identifier (such as a maintainer
+#: handle or "Gemini 3.8 Flash (High) <handle>") is now admissible under this rule and would be
+#: flagged by the leak sanitizer. This narrowing of the boundary is accepted because model is
+#: populated strictly from host-supplied options/cost_attribution fields, never human free text.
+_MODEL_LABEL_RE = re.compile(
+    r"^(?=.{1,128}$)[A-Za-z0-9][A-Za-z0-9._:+@/()-]*(?: [A-Za-z0-9()][A-Za-z0-9._:+@/()-]*)*$"
+)
 _TIMESTAMP_RE = re.compile(
     r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?$"
 )
@@ -350,6 +366,24 @@ def _looks_like_path(text: str) -> bool:
     return False
 
 
+def _is_model_label(text: str) -> bool:
+    """Whether ``text`` is a valid model label or display name.
+
+    True only when :data:`_MODEL_LABEL_RE` matches, :func:`_looks_like_path` is false for the
+    whole string, and no whitespace-separated token satisfies :func:`_looks_like_path`.
+    """
+
+    if len(text) > 128:
+        return False
+    if not _MODEL_LABEL_RE.match(text):
+        return False
+    if _looks_like_path(text):
+        return False
+    if any(_looks_like_path(token) for token in text.split()):
+        return False
+    return True
+
+
 def _project_scalar(key: str, value: Any) -> Any:
     """Pass one allowlisted scalar or REFUSE it. The type check alone is not the boundary."""
 
@@ -385,6 +419,21 @@ def _project_scalar(key: str, value: Any) -> Any:
     if key == "run_id":
         if not _RUN_ID_RE.match(text) and not _PSEUDONYM_RE.match(text):
             raise PrivacyRefusal(key, "must be a driver run id or a pseudonym")
+        return text
+    if key == "model":
+        if _PSEUDONYM_RE.match(text):
+            return text
+        if _looks_like_path(text) or any(
+            _looks_like_path(token) for token in text.split()
+        ):
+            raise PrivacyRefusal(
+                key, "looks like a filesystem path, which no label may carry"
+            )
+        if not _is_model_label(text):
+            raise PrivacyRefusal(
+                key,
+                "is not a short closed-vocabulary label (no spaces, quotes or free text)",
+            )
         return text
     if key in _CLOSED_VOCABULARY_KEYS:
         if _PSEUDONYM_RE.match(text):

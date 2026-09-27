@@ -86,6 +86,11 @@ INGEST_SCHEMA_VERSION = 1
 #: to decide whether a fact exists.
 _TERMINAL_OK = frozenset({"executed", "reviewed", "auto-approved"})
 
+#: Key under ``options`` carrying runner-resolved cost attribution records.
+#: Defined locally to avoid importing runner_shared (see E-02 / F-8); mirrors
+#: runner_shared.COST_ATTRIBUTION_KEY and agreement is pinned in test_run_analytics.py.
+_COST_ATTRIBUTION_KEY = "cost_attribution"
+
 
 @dataclass(frozen=True)
 class RunFacts:
@@ -165,11 +170,49 @@ def _label(value: Any, *, default: str = "") -> str:
     return text
 
 
+def _model_label(value: Any, *, default: str = "") -> str:
+    """A model identifier or display-name label, or ``default``.
+
+    Admits display names with single interior spaces and parentheses via
+    :func:`run_analytics_privacy._is_model_label`, while strictly refusing filesystem paths,
+    quotes and shell metacharacters.
+    """
+
+    text = str(value or "").strip()
+    if not text:
+        return default
+    if not privacy._is_model_label(text):
+        return default
+    return text
+
+
 def _model_of(state: Mapping[str, Any]) -> str:
     options = state.get("options")
     if not isinstance(options, Mapping):
         return ""
-    return _label(options.get("model"))
+    model = _model_label(options.get("model"))
+    if model:
+        return model
+    ca = options.get(_COST_ATTRIBUTION_KEY)
+    if isinstance(ca, Mapping):
+        return _model_label(ca.get("model"))
+    return ""
+
+
+def _verify_model_of(state: Mapping[str, Any], executor_model: str) -> str:
+    """The model credited for the verify phase, falling back to ``executor_model``."""
+
+    options = state.get("options")
+    if isinstance(options, Mapping):
+        v_ca = options.get("verify_" + _COST_ATTRIBUTION_KEY)
+        if isinstance(v_ca, Mapping):
+            v_ca_model = _model_label(v_ca.get("model"))
+            if v_ca_model:
+                return v_ca_model
+        v_opt_model = _model_label(options.get("verify_model"))
+        if v_opt_model:
+            return v_opt_model
+    return executor_model
 
 
 def _phase_of(item: Mapping[str, Any]) -> Phase:
@@ -345,6 +388,7 @@ def build_run_facts(run_dir: Path | str) -> RunFacts:
     generation = inventory.generation
     host = inventory.host
     model = _model_of(state)
+    verify_model = _verify_model_of(state, model)
     warnings: list[str] = list(inventory.warnings)
 
     facts: list[Fact] = []
@@ -468,9 +512,13 @@ def build_run_facts(run_dir: Path | str) -> RunFacts:
 
         # PHASE grain: execute and verify kept separate, which existing run summaries already do and
         # the fact schema must retain rather than merging into one number.
-        for phase, usage in (
-            (Phase.EXECUTE if item_phase is Phase.EXECUTE else item_phase, exec_usage),
-            (Phase.VERIFY, verify_usage),
+        for phase, usage, phase_model in (
+            (
+                Phase.EXECUTE if item_phase is Phase.EXECUTE else item_phase,
+                exec_usage,
+                model,
+            ),
+            (Phase.VERIFY, verify_usage, verify_model),
         ):
             facts.append(
                 Fact(
@@ -483,7 +531,7 @@ def build_run_facts(run_dir: Path | str) -> RunFacts:
                     source="state",
                     driver_generation=generation,
                     host=host,
-                    model=model,
+                    model=phase_model,
                     outcome=outcome,
                     usage=usage,
                 )
