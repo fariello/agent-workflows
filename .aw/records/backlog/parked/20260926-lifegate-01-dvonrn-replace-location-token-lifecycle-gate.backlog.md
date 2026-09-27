@@ -27,11 +27,16 @@ The terminal lifecycle gate added by executed plan u27oh3 (spec c4gd2h) blocks a
 - NUDGE, never a refusal: when begin/finalize runs in main and a lane or feature branch for the same plan exists, print one line such as 'a lane for this plan exists; finalizing there keeps main cleaner'.
 - Delete: the per-run token (driver-attest.token), minting/passing/withholding it, verify_driver_attestation, and lane_worktree_active's path/branch guess as a gate.
 
-### D2 (OPEN): what 'holds this plan' means and how it is found
+### D2 (DECIDED 2026-09-26): what 'holds this plan' means and how it is found
 
-Draft direction: key on the PLAN, not the folder (is any live runner holding this id6?), which covers inside-a-lane, main-while-a-lane-runs, and neither. Needs the lookup source and the stale-owner-file rules.
+- HELD = some run is ALIVE and has this plan's id6 in its queue with a status that is NOT finished (not in TERMINAL_STATES). 'Not finished' INCLUDES merely waiting to run (queued): otherwise a person could finalize it and the runner would later pick it up again.
+- ALIVE = BOTH (a) the run's driver.lock is held (the OS file-lock probe, run_viewer.driver_holder_state, which the OS releases when the holder dies) AND (b) the process recorded in that driver.lock still exists. (b) catches a runner that died while something it started still holds the lock file open.
+- Keyed on the PLAN, not the folder, so one check covers: inside a lane, in main while a lane for that plan runs, and on a feature branch.
+- Source is the RUN records (.aw/records/runs/<run>/state.json + driver.lock), reusing runner_shared.peer_drivers and the queue lookup plan e54nz9 added. The lane owner files (.aw/worktrees/.owners/) are NOT used for this: they record a lane rather than a plan, survive after a run ends, and judge liveness by process number alone.
+- THE RUNNER'S OWN CALL: when the runner calls begin/finalize it passes its own run id; the check IGNORES that one run when looking for holders, so the runner does not block itself. This is a plain label, not a secret: anyone could pass it, which is accepted because we only guard against honest mistakes and nobody passes another run's id by accident. It replaces the random token.
+- ORDER: the existing worker-label check (AW_EXECUTION_ROLE=worker, 'this is the runner's step, you are done') runs FIRST. The runner's own agent never receives the run id, so it never gets the exception.
 
-### D3 (OPEN): stale owner files and platforms (reused process numbers are only detected on Linux via /proc start time).
+### D3 (OPEN): stale owner files and platforms. LARGELY RESOLVED BY D2: liveness now comes from driver.lock (released by the OS on death) plus process existence, not from owner files, so stale owner files cannot block anyone. Remaining question, if any: behavior when liveness cannot be determined (for example a run record from another machine).
 
 ### D4 (OPEN): every entry point (aw ipd begin/finalize, aw set executed, orchestrator retirement) passes the one check at a shared choke point.
 
