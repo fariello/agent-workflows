@@ -6,7 +6,7 @@
 - Scope: IN: `docs/cli-migration.md` (retitle, RETRACTED banner, reframe recipes as "`--agent` is the only way to get machine output", mark the rationale section and the 2.0.0 schedule row retracted rather than deleting them); `docs/cli-agent-protocol.md` "When you get machine output" section (drop the auto-switch claim and the false "This is the default when piped"); `README.md` "CLI output modes" paragraph; `docs/README.md` index line for the migration guide; `CHANGELOG.md` 2.0.0 (pending) entry that announces the cutover; `docs/run-analytics.md` "The agent surface" sentence (added in review, F-8). OUT: `docs/cli-output-contract.md` and `docs/cli-human-guide.md` (already correct, they are the reference wording); ANY code change, including the `renderers.py` hint line and its four conformance goldens (carried by backlog `zdjhug`); the three legacy byte-form claims, which are STALE IN THEIR OWN RIGHT but on a different axis than the auto-switch (measured in review: `render_agent_drift` still exists with three live callers, so "GONE" is false) and are carried by backlog `qczq5r` rather than silently reframed here.
 - Scope-Paths: docs/cli-migration.md, docs/cli-agent-protocol.md, README.md, docs/README.md, CHANGELOG.md, docs/run-analytics.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 10
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 3rsdbj
-- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 executed (opencode manual-recovery model=its_direct/pt3-claude-opus-5.5-1m-us): Recovered stranded lane: work completed in run-20260927T051239Z-3346121; driver finalize refused only because another run held the finalize writer lock (backlog duac3v). Lane merged onto current main; no unretracted HARD CUTOVER claims remain in the 6 files; no dashes added; sanitize exit 0; full suite 2641 passed.
 - 2026-09-27 approved (aw set): status set to approved
 - 2026-09-27 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-201..PR-209 all FIXED (CLI prints the same false claim, carried to zdjhug; byte-form list would have been re-asserted falsely, carried to qczq5r; sixth doc run-analytics.md added; verification grep widened)
 - 2026-09-26 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog sm0vgn: Mark the retracted non-TTY JSONL cutover as retracted in five user docs.
