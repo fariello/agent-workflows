@@ -1,5 +1,5 @@
 - Id: swk6r8
-- Status: graduated
+- Status: done
 - Graduated-To: orchreason
 - Set: swk6r8
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: The orchestrator refusal reason children-terminally-failed fires for a child merely awaiting approval, so its name misleads
 
 ## Workflow history
+- 2026-09-27 set (aw backlog): closed by aw oc run: IPD ntto7n executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260926-orchreason-01-ntto7n-give-an-orchestrator-whose-children-merely-await-approval-it.ipd.md); evidence .aw/records/plans/executed/20260926-orchreason-01-ntto7n-give-an-orchestrator-whose-children-merely-await-approval-it.ipd.md
 - 2026-09-26 graduated (aw set): Graduated 2026-09-26 into plan ntto7n (Set orchreason), re-verified live at HEAD.
 - 2026-09-22 created (aw backlog): Filed by aw oc run while executing plan zyw4n3.
 

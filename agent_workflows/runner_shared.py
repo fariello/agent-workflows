@@ -17596,6 +17596,22 @@ ORCH_DISPATCH_TERMINATE = "terminate"
 #: `reason` field, so the record names the actual cause.
 ORCH_REASON_UNFINISHED_CHILDREN = "children-unfinished"
 ORCH_REASON_DEAD_CHILDREN = "children-terminally-failed"
+#: Unfinished children that are awaiting human approval and were never dispatched (swk6r8).
+#: A SUBSET of the dead-children condition (terminal, not success, but never dispatched).
+#: Justified from repository evidence: `initial_queue_status` freezes any plan status outside
+#: `NON_TERMINAL_QUEUE_STATUSES` as `reviewed` (never dispatched), and an `approved` queue status
+#: is only ever a REVIEW item's disposition (`SUCCESS_STATES = {"executed", "reviewed", "approved"}`
+#: is the review bar; verified in review that `reconcile_disposition` returns `status` for a review
+#: item when `status in ("reviewed", "approved")`), so for an `execute` child neither status means
+#: the child ran.
+#: The ONE overload of `reviewed` that reaches this branch is a plan carrying NO `- Status:` line,
+#: which `initial_queue_status(None)` maps to `reviewed`; for that plan, "approve it" is still correct.
+#: The dangerous-looking overload cannot reach here: `initial_queue_status` maps `superseded`/`not-executed`
+#: to `reviewed` as well, but a retired child is not UNFINISHED (`set_retirement_terminal_statuses()` is
+#: `{executed, not-executed, superseded}`), so `evaluate_set_retirement(...).unfinished` is empty and
+#: the dead branch is never reached (a child in `superseded/` yields `unfinished=()`, no dead-children reason).
+ORCH_REASON_CHILDREN_NOT_APPROVED = "children-not-approved"
+_NOT_APPROVED_CHILD_STATUSES: frozenset[str] = frozenset({"reviewed", "approved"})
 #: Unfinished children that THIS RUN will not act on (absent from its queue, or already terminal in it
 #: without reaching `executed` on disk). A FIFTH reason beyond the spec's four, added because E-03
 #: MEASURED a spin the spec's four could not express: the run cannot finish them, so reconsidering
@@ -17653,23 +17669,25 @@ _ORCH_REASON_TEXT: dict[str, tuple[str, str]] = {
         "usual cause - approve it with `aw ipd set approved <id6> --by-human --message ...` and "
         "run the Set again. Nothing is wrong with this orchestrator and no plan file needs editing",
     ),
-    # THE REASON NAME IS NARROWER THAN THE CONDITION, AND THE REMEDY MUST MATCH THE CONDITION.
-    # `children-terminally-failed` sounds like a crash, but the branch producing it fires whenever a
-    # child's status is in `TERMINAL_STATES` and not in `success_states` - and MEASURED end to end on
-    # the backlog item's own scenario, the status that actually arrives here is `reviewed`, because
-    # `reviewed` is terminal (an unapproved plan is frozen, never dispatched). So the COMMON case is a
-    # child AWAITING HUMAN APPROVAL, not a failure, and a remedy saying "fix what failed" would send
-    # an operator hunting a failure that does not exist. Both cases are therefore named, approval
-    # first, since that is the one the item complained about.
+    ORCH_REASON_CHILDREN_NOT_APPROVED: (
+        "this orchestrator can NEVER be retired by this run: its child plans are frozen awaiting "
+        "human approval and were never dispatched, so they cannot become `executed`. Nothing failed",
+        "approve each unapproved child named in the reason above with `aw ipd set approved <id6> "
+        "--by-human --message ...` and run the Set again. Do NOT remove the child's row from the "
+        "orchestrator's table to clear this, which would retire the parent over work that never completed",
+    ),
+    # After swk6r8 / ntto7n, an unapproved child has its own code ORCH_REASON_CHILDREN_NOT_APPROVED.
+    # ORCH_REASON_DEAD_CHILDREN is returned when a child actually ran and failed (or when failed
+    # children are mixed with unapproved ones). The key is kept so historical run records
+    # (`orchestrator_refusal_reason: children-terminally-failed`) still render their mapped text.
     ORCH_REASON_DEAD_CHILDREN: (
-        "this orchestrator can NEVER be retired by this run: a child is in a terminal state that is "
-        "not success, so the Set cannot complete however long the run waits. The usual cause is a "
-        "child that was never dispatched because it is not approved, NOT a child that crashed",
-        "look at the child's status named in the reason above. `reviewed` means it is frozen awaiting "
-        "human approval and was never dispatched: approve it with `aw ipd set approved <id6> "
-        "--by-human --message ...` and run the Set again. Any other non-success status means it ran "
-        "and did not finish: read that child's own outcome record, fix what it reports, then re-run "
-        "it. Either way do NOT remove the child's row from the orchestrator's table to clear this, "
+        "this orchestrator can NEVER be retired by this run: a child ran and did not reach success, "
+        "so the Set cannot complete however long the run waits. If unapproved children are also present, "
+        "they cannot complete either",
+        "look at each child's status named in the reason above. For any child that ran and did not "
+        "finish: read that child's own outcome record, fix what it reports, then re-run it. For a "
+        "child awaiting approval: approve it with `aw ipd set approved <id6> --by-human --message ...`. "
+        "Either way do NOT remove the child's row from the orchestrator's table to clear this, "
         "which would retire the parent over work that never completed",
     ),
     ORCH_REASON_CHILDREN_NOT_IN_RUN: (
@@ -17984,6 +18002,22 @@ def decide_orchestrator_dispatch(
         listed = ", ".join(f"{i} ({s})" for i, s in dead)
         rest = actionable + stranded
         also = f"; {len(rest)} other child(ren) are also unfinished" if rest else ""
+        unapproved = [(i, s) for i, s in dead if s in _NOT_APPROVED_CHILD_STATUSES]
+        if len(unapproved) == len(dead):
+            return OrchestratorDispatch(
+                outcome=ORCH_DISPATCH_TERMINATE,
+                reason=ORCH_REASON_CHILDREN_NOT_APPROVED,
+                detail=(
+                    f"Set {decision.setid!r} can never complete in this run: child(ren) {listed} "
+                    f"are awaiting human approval and were never dispatched, so they cannot become "
+                    f"{SET_RETIREMENT_DONE_STATUS}{also}"
+                ),
+                unfinished=tuple(dead) + tuple(rest),
+                eligibility=decision,
+            )
+        # A mixed set of unapproved and failed children keeps ORCH_REASON_DEAD_CHILDREN:
+        # a child that actually failed is the stronger fact and needs investigation,
+        # and the failure remedy already covers approval.
         return OrchestratorDispatch(
             outcome=ORCH_DISPATCH_TERMINATE,
             reason=ORCH_REASON_DEAD_CHILDREN,

@@ -6,7 +6,7 @@
 - Scope: IN: (a) a new constant `ORCH_REASON_CHILDREN_NOT_APPROVED = "children-not-approved"` beside the other `ORCH_REASON_*` values; (b) in `decide_orchestrator_dispatch`'s `if dead:` branch, return the new reason ONLY when EVERY dead child's run status is in `{"reviewed", "approved"}`, with a `detail` sentence saying the children await approval and were never dispatched; a mixed set keeps `ORCH_REASON_DEAD_CHILDREN` (a real failure is the stronger fact, and the remedy for it already mentions approval); outcome stays `ORCH_DISPATCH_TERMINATE` in both cases; (c) a new `_ORCH_REASON_TEXT` entry for the new code whose remedy names `aw ipd set approved <id6> --by-human --message ...` and does NOT name `--full-auto`; (d) narrowing the `ORCH_REASON_DEAD_CHILDREN` entry's prose to the failure case now that approval has its own code, while keeping the key so historical run records (`.aw/records/runs/*/state.json` carry `orchestrator_refusal_reason: children-terminally-failed`) still render their mapped text; (e) behavioral tests in a new test file. OUT: changing WHAT the dispatch decides (TERMINATE vs RECONSIDER) for any status; changing `TERMINAL_STATES` or either success set; rewriting historical run records; the `RETIRE_REFUSED_*` vocabulary of `evaluate_set_retirement`.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_orchestrator_not_approved_reason.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: ntto7n
-- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: ntto7n verified (set orchreason, attempt 1).
 - 2026-09-27 approved (aw set): status set to approved
 - 2026-09-27 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-401..PR-405 all FIXED. Premise re-driven at HEAD 61ef21d8. Swept all 23 terminal statuses and found four other never-dispatched statuses keeping the failure code (declared as Deferred with the extension seam named); corrected F-2's false EXECUTION_SUCCESS_STATES claim; pinned the unasserted TERMINATE outcome and the no-Status overload as new test cases; re-grounded a gitignored run-record citation on the code.
 
@@ -35,34 +35,34 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: reproduce
 
-- [ ] E-01 RE-MEASURE the misclassification at the executing HEAD. On a temp repo holding `.aw/records/plans/pending/20260908-finalback-00-par001-orch.ipd.md` (`- Kind: orchestrator`, `- Order: 0`) and `...-01-kid001-child.ipd.md` (`- Kind: child`, `- Order: 1`), the same fixture `tests/test_finalize_sendback.py::TheOrchestratorBarIsNotKilledWhileRetryBudgetRemains._repo_with_unfinished_child` builds, call `runner_shared.decide_orchestrator_dispatch(repo, "finalback", "par001", [{"id6": "kid001", "setid": "finalback", "status": S, "action": "execute"}], terminal_states=runner_shared.TERMINAL_STATES, success_states=oc_runipd.EXECUTION_SUCCESS_STATES)` for S in `reviewed`, `approved`, `failed-safely`, `queued`, and paste `(S, outcome, reason)`. ALSO sweep EVERY member of `runner_shared.TERMINAL_STATES` the same way and paste the table (added in review, F-7): that is what shows WHICH statuses this plan changes and which it deliberately leaves on the failure code, and it is nine lines of output. If `reviewed`/`approved` already yield a non-failure code, STOP and report that the defect is fixed.
+- [x] E-01 RE-MEASURE the misclassification at the executing HEAD. On a temp repo holding `.aw/records/plans/pending/20260908-finalback-00-par001-orch.ipd.md` (`- Kind: orchestrator`, `- Order: 0`) and `...-01-kid001-child.ipd.md` (`- Kind: child`, `- Order: 1`), the same fixture `tests/test_finalize_sendback.py::TheOrchestratorBarIsNotKilledWhileRetryBudgetRemains._repo_with_unfinished_child` builds, call `runner_shared.decide_orchestrator_dispatch(repo, "finalback", "par001", [{"id6": "kid001", "setid": "finalback", "status": S, "action": "execute"}], terminal_states=runner_shared.TERMINAL_STATES, success_states=oc_runipd.EXECUTION_SUCCESS_STATES)` for S in `reviewed`, `approved`, `failed-safely`, `queued`, and paste `(S, outcome, reason)`. ALSO sweep EVERY member of `runner_shared.TERMINAL_STATES` the same way and paste the table (added in review, F-7): that is what shows WHICH statuses this plan changes and which it deliberately leaves on the failure code, and it is nine lines of output. If `reviewed`/`approved` already yield a non-failure code, STOP and report that the defect is fixed.
   - Depends on: none
   - Expected outcome: `reviewed`, `approved`, `failed-safely` all -> `terminate children-terminally-failed`; `queued` -> `reconsider children-unfinished`. From the full sweep, measured in review at HEAD `61ef21d8`: `executed` -> `terminate children-not-in-this-run` (it is a terminal SUCCESS, so it is stranded, not dead), and every other terminal status -> `terminate children-terminally-failed`, INCLUDING the four that also never ran (`blocked`, `dependency-blocked`, `not-attempted`, `not-run`). Those four are OUT OF SCOPE here (see the Deferred section) and keeping them on the failure code is the authored, reviewed decision, not an oversight.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: split the reason
 
-- [ ] E-02 ADD `ORCH_REASON_CHILDREN_NOT_APPROVED = "children-not-approved"` immediately after `ORCH_REASON_DEAD_CHILDREN` in `runner_shared`, with a `#:` comment citing `swk6r8` and stating that it is a SUBSET of the dead-children condition (terminal, not success, but never dispatched), and a module constant `_NOT_APPROVED_CHILD_STATUSES = frozenset({"reviewed", "approved"})`. Justify the set in the comment from repository evidence: `initial_queue_status` freezes any plan status outside `NON_TERMINAL_QUEUE_STATUSES` as `reviewed` (never dispatched), and an `approved` queue status is only ever a REVIEW item's disposition (`SUCCESS_STATES = {"executed", "reviewed", "approved"}` is the review bar; verified in review that `reconcile_disposition` returns `status` for a review item when `status in ("reviewed", "approved")`), so for an `execute` child neither status means the child ran. ALSO record in that comment the ONE overload of `reviewed` that reaches this branch and why it is still correct (added in review, F-6): a plan carrying NO `- Status:` line also maps to `reviewed`, and "approve it" is right for that plan too. And record why the DANGEROUS-looking overload cannot reach here, so a later reader does not re-litigate it: `initial_queue_status` maps `superseded`/`not-executed` to `reviewed` as well, but a retired child is not UNFINISHED (`set_retirement_terminal_statuses()` is `{executed, not-executed, superseded}`), so `evaluate_set_retirement(...).unfinished` is empty and the dead branch is never reached. Measured in review: a child in `superseded/` yields `unfinished=()` and no dead-children reason at all.
+- [x] E-02 ADD `ORCH_REASON_CHILDREN_NOT_APPROVED = "children-not-approved"` immediately after `ORCH_REASON_DEAD_CHILDREN` in `runner_shared`, with a `#:` comment citing `swk6r8` and stating that it is a SUBSET of the dead-children condition (terminal, not success, but never dispatched), and a module constant `_NOT_APPROVED_CHILD_STATUSES = frozenset({"reviewed", "approved"})`. Justify the set in the comment from repository evidence: `initial_queue_status` freezes any plan status outside `NON_TERMINAL_QUEUE_STATUSES` as `reviewed` (never dispatched), and an `approved` queue status is only ever a REVIEW item's disposition (`SUCCESS_STATES = {"executed", "reviewed", "approved"}` is the review bar; verified in review that `reconcile_disposition` returns `status` for a review item when `status in ("reviewed", "approved")`), so for an `execute` child neither status means the child ran. ALSO record in that comment the ONE overload of `reviewed` that reaches this branch and why it is still correct (added in review, F-6): a plan carrying NO `- Status:` line also maps to `reviewed`, and "approve it" is right for that plan too. And record why the DANGEROUS-looking overload cannot reach here, so a later reader does not re-litigate it: `initial_queue_status` maps `superseded`/`not-executed` to `reviewed` as well, but a retired child is not UNFINISHED (`set_retirement_terminal_statuses()` is `{executed, not-executed, superseded}`), so `evaluate_set_retirement(...).unfinished` is empty and the dead branch is never reached. Measured in review: a child in `superseded/` yields `unfinished=()` and no dead-children reason at all.
   - Depends on: E-01
   - Expected outcome: both names importable from `agent_workflows.runner_shared`; `ORCH_REASON_DEAD_CHILDREN` unchanged at `"children-terminally-failed"`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 SPLIT THE `if dead:` BRANCH of `runner_shared.decide_orchestrator_dispatch`. Compute `unapproved = [(i, s) for i, s in dead if s in _NOT_APPROVED_CHILD_STATUSES]`. When `len(unapproved) == len(dead)`, return `ORCH_DISPATCH_TERMINATE` with `reason=ORCH_REASON_CHILDREN_NOT_APPROVED` and a `detail` of the shape `"Set {setid!r} can never complete in this run: child(ren) {listed} are awaiting human approval and were never dispatched, so they cannot become executed{also}"`. Otherwise keep the existing return byte-for-byte (`ORCH_REASON_DEAD_CHILDREN`, existing detail). The `unfinished` tuple and `eligibility` are populated identically in both arms. Carry a comment saying WHY a mixed set keeps the failure code: a child that actually failed is the stronger fact and needs investigation, and the failure remedy already covers approval.
+- [x] E-03 SPLIT THE `if dead:` BRANCH of `runner_shared.decide_orchestrator_dispatch`. Compute `unapproved = [(i, s) for i, s in dead if s in _NOT_APPROVED_CHILD_STATUSES]`. When `len(unapproved) == len(dead)`, return `ORCH_DISPATCH_TERMINATE` with `reason=ORCH_REASON_CHILDREN_NOT_APPROVED` and a `detail` of the shape `"Set {setid!r} can never complete in this run: child(ren) {listed} are awaiting human approval and were never dispatched, so they cannot become executed{also}"`. Otherwise keep the existing return byte-for-byte (`ORCH_REASON_DEAD_CHILDREN`, existing detail). The `unfinished` tuple and `eligibility` are populated identically in both arms. Carry a comment saying WHY a mixed set keeps the failure code: a child that actually failed is the stronger fact and needs investigation, and the failure remedy already covers approval.
   - Depends on: E-02
   - Expected outcome: E-01's probe now prints `reviewed`/`approved` -> `terminate children-not-approved`, `failed-safely` -> `terminate children-terminally-failed`, `queued` -> `reconsider children-unfinished`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 ADD THE REMEDY ENTRY and NARROW THE OLD ONE in `runner_shared._ORCH_REASON_TEXT`. New key `ORCH_REASON_CHILDREN_NOT_APPROVED`: reason text saying the orchestrator can never be retired by this run because its children are frozen awaiting human approval and were never dispatched, and that nothing failed. Its remedy names `aw ipd set approved <id6> --by-human --message ...` for each child named in the reason, then re-running the Set, and repeating the existing "do NOT remove the child's row" warning. It MUST NOT contain `--full-auto` (the block comment above `_ORCH_REASON_TEXT`, "NO REMEDY NAMES `--full-auto`", states why). Then rewrite the `ORCH_REASON_DEAD_CHILDREN` entry's reason to lead with "a child ran and did not reach success" and keep a SHORT approval sentence for the mixed case. The key itself is KEPT, so `orchestrator_refusal_text("children-terminally-failed")` still returns mapped text for historical run records rather than the unknown-code fallback. Update the comment above that entry, which currently explains the name/condition mismatch this plan removes.
+- [x] E-04 ADD THE REMEDY ENTRY and NARROW THE OLD ONE in `runner_shared._ORCH_REASON_TEXT`. New key `ORCH_REASON_CHILDREN_NOT_APPROVED`: reason text saying the orchestrator can never be retired by this run because its children are frozen awaiting human approval and were never dispatched, and that nothing failed. Its remedy names `aw ipd set approved <id6> --by-human --message ...` for each child named in the reason, then re-running the Set, and repeating the existing "do NOT remove the child's row" warning. It MUST NOT contain `--full-auto` (the block comment above `_ORCH_REASON_TEXT`, "NO REMEDY NAMES `--full-auto`", states why). Then rewrite the `ORCH_REASON_DEAD_CHILDREN` entry's reason to lead with "a child ran and did not reach success" and keep a SHORT approval sentence for the mixed case. The key itself is KEPT, so `orchestrator_refusal_text("children-terminally-failed")` still returns mapped text for historical run records rather than the unknown-code fallback. Update the comment above that entry, which currently explains the name/condition mismatch this plan removes.
   - Depends on: E-03
   - Expected outcome: `orchestrator_refusal_text("children-not-approved")` returns a non-empty mapped pair whose remedy contains `aw ipd set approved` and not `--full-auto`; `orchestrator_refusal_text("children-terminally-failed")` still returns a mapped pair (not the "DOES NOT RECOGNIZE" fallback).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove it
 
-- [ ] E-05 ADD `tests/test_orchestrator_not_approved_reason.py`, behavioral only (no source-text or structure pins, per the maintainer's 2026-09-26 test-policy ruling). Build the E-01 fixture in a `tempfile.TemporaryDirectory` and call the REAL `decide_orchestrator_dispatch`. Cases: (1) a single child `reviewed` -> TERMINATE + `children-not-approved`, and `detail` names `kid001`; (2) single child `approved` -> same; (3) single child `failed-safely` (also `runner_shared.FINALIZE_RETRY_EXHAUSTED_STATUS`) -> TERMINATE + `children-terminally-failed`; (4) MIXED: two children, one `reviewed` and one `failed-safely` -> `children-terminally-failed`, and `unfinished` names both; (5) `queued` -> RECONSIDER + `children-unfinished` (unchanged); (6) `orchestrator_refusal_text` for the new code is mapped, non-empty, contains `aw ipd set approved`, and does not contain `--full-auto`; (7) `orchestrator_refusal_text("children-terminally-failed")` is still mapped (its reason does not contain `DOES NOT RECOGNIZE`); (8) through `dispatch_orchestrator_item` on a minimal run dir (the `DispatchRunCase` helpers in `tests/test_orchestrator_retirement.py` show the shape, and its `write_plan`/`make_run`/`item` methods are the ones to mirror), a `reviewed` child leaves the item's recorded refusal (`render_stream.refusal_of_item(item).code`) equal to `children-not-approved`, proving the new code reaches the read surface. ADD TWO MORE CASES, both found in review: (9) the OUTCOME IS UNCHANGED for the new code, asserting `ORCH_DISPATCH_TERMINATE` explicitly in cases (1) and (2), because the Scope promises "outcome stays `ORCH_DISPATCH_TERMINATE` in both cases" and nothing else pins it, so a future edit could flip a terminate to a reconsider and reintroduce the 201-iteration spin the `if dead:` branch's own comment records; and (10) a child with NO `- Status:` line (queue status `reviewed` via `initial_queue_status(None)`, measured unfinished in review) -> `children-not-approved`, which pins the one legitimate `reviewed` overload that reaches this branch (F-6) so a later reader does not "fix" it by narrowing the status set.
+- [x] E-05 ADD `tests/test_orchestrator_not_approved_reason.py`, behavioral only (no source-text or structure pins, per the maintainer's 2026-09-26 test-policy ruling). Build the E-01 fixture in a `tempfile.TemporaryDirectory` and call the REAL `decide_orchestrator_dispatch`. Cases: (1) a single child `reviewed` -> TERMINATE + `children-not-approved`, and `detail` names `kid001`; (2) single child `approved` -> same; (3) single child `failed-safely` (also `runner_shared.FINALIZE_RETRY_EXHAUSTED_STATUS`) -> TERMINATE + `children-terminally-failed`; (4) MIXED: two children, one `reviewed` and one `failed-safely` -> `children-terminally-failed`, and `unfinished` names both; (5) `queued` -> RECONSIDER + `children-unfinished` (unchanged); (6) `orchestrator_refusal_text` for the new code is mapped, non-empty, contains `aw ipd set approved`, and does not contain `--full-auto`; (7) `orchestrator_refusal_text("children-terminally-failed")` is still mapped (its reason does not contain `DOES NOT RECOGNIZE`); (8) through `dispatch_orchestrator_item` on a minimal run dir (the `DispatchRunCase` helpers in `tests/test_orchestrator_retirement.py` show the shape, and its `write_plan`/`make_run`/`item` methods are the ones to mirror), a `reviewed` child leaves the item's recorded refusal (`render_stream.refusal_of_item(item).code`) equal to `children-not-approved`, proving the new code reaches the read surface. ADD TWO MORE CASES, both found in review: (9) the OUTCOME IS UNCHANGED for the new code, asserting `ORCH_DISPATCH_TERMINATE` explicitly in cases (1) and (2), because the Scope promises "outcome stays `ORCH_DISPATCH_TERMINATE` in both cases" and nothing else pins it, so a future edit could flip a terminate to a reconsider and reintroduce the 201-iteration spin the `if dead:` branch's own comment records; and (10) a child with NO `- Status:` line (queue status `reviewed` via `initial_queue_status(None)`, measured unfinished in review) -> `children-not-approved`, which pins the one legitimate `reviewed` overload that reaches this branch (F-6) so a later reader does not "fix" it by narrowing the status set.
   - Depends on: E-04
   - Expected outcome: all cases pass; cases (1), (2), (6), (8) and (10) FAIL against the pre-change code; (3), (4), (5), (7), (9) pass both before and after (controls; note (9) is a control for the OUTCOME while (1)/(2) change the REASON, which is why it passes both ways).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -142,30 +142,126 @@ All measured at HEAD `61ef21d8`.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the four `(status, outcome, reason)` lines from the probe at the executing HEAD, and the HEAD hash.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Measured at executing HEAD dd25636f4e90eea0a75fd14b557f46a71b4f3cb9:
+    Executing HEAD: dd25636f4e90eea0a75fd14b557f46a71b4f3cb9
+    Probe output:
+    ('reviewed', 'terminate', 'children-terminally-failed')
+    ('approved', 'terminate', 'children-terminally-failed')
+    ('failed-safely', 'terminate', 'children-terminally-failed')
+    ('queued', 'reconsider', 'children-unfinished')
 
-- [ ] V-02 validates E-02
+    Full TERMINAL_STATES sweep at HEAD dd25636f4e90eea0a75fd14b557f46a71b4f3cb9:
+    already-landed         -> ('terminate', 'children-terminally-failed')
+    approved               -> ('terminate', 'children-terminally-failed')
+    blocked                -> ('terminate', 'children-terminally-failed')
+    dependency-blocked     -> ('terminate', 'children-terminally-failed')
+    executed               -> ('terminate', 'children-not-in-this-run')
+    fail-begin             -> ('terminate', 'children-terminally-failed')
+    fail-depend            -> ('terminate', 'children-terminally-failed')
+    fail-gate              -> ('terminate', 'children-terminally-failed')
+    fail-lane              -> ('terminate', 'children-terminally-failed')
+    fail-merge             -> ('terminate', 'children-terminally-failed')
+    fail-verify            -> ('terminate', 'children-terminally-failed')
+    failed                 -> ('terminate', 'children-terminally-failed')
+    failed-safely          -> ('terminate', 'children-terminally-failed')
+    integration-blocked    -> ('terminate', 'children-terminally-failed')
+    interrupted            -> ('terminate', 'children-terminally-failed')
+    merge-conflict         -> ('terminate', 'children-terminally-failed')
+    merge-needs-human      -> ('terminate', 'children-terminally-failed')
+    merge-refused          -> ('terminate', 'children-terminally-failed')
+    not-attempted          -> ('terminate', 'children-terminally-failed')
+    not-run                -> ('terminate', 'children-terminally-failed')
+    partial                -> ('terminate', 'children-terminally-failed')
+    reviewed               -> ('terminate', 'children-terminally-failed')
+    substantially-complete -> ('terminate', 'children-terminally-failed')
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste `python3 -c "from agent_workflows import runner_shared as r; print(r.ORCH_REASON_CHILDREN_NOT_APPROVED, r.ORCH_REASON_DEAD_CHILDREN, sorted(r._NOT_APPROVED_CHILD_STATUSES))"` output.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Output confirms ORCH_REASON_CHILDREN_NOT_APPROVED, ORCH_REASON_DEAD_CHILDREN, and _NOT_APPROVED_CHILD_STATUSES:
+    $ python3 -c "from agent_workflows import runner_shared as r; print(r.ORCH_REASON_CHILDREN_NOT_APPROVED, r.ORCH_REASON_DEAD_CHILDREN, sorted(r._NOT_APPROVED_CHILD_STATUSES))"
+    children-not-approved children-terminally-failed ['approved', 'reviewed']
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the diff of the `if dead:` branch and the re-run of the E-01 probe showing `reviewed`/`approved` -> `children-not-approved`, `failed-safely` -> `children-terminally-failed`, `queued` -> `children-unfinished`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Diff of dead branch and probe rerun confirm reviewed/approved -> children-not-approved:
+    Diff of if dead: branch in agent_workflows/runner_shared.py:
+    ```diff
+    @@ -18002,6 +18002,22 @@ def decide_orchestrator_dispatch(
+             listed = ", ".join(f"{i} ({s})" for i, s in dead)
+             rest = actionable + stranded
+             also = f"; {len(rest)} other child(ren) are also unfinished" if rest else ""
+    +        unapproved = [(i, s) for i, s in dead if s in _NOT_APPROVED_CHILD_STATUSES]
+    +        if len(unapproved) == len(dead):
+    +            return OrchestratorDispatch(
+    +                outcome=ORCH_DISPATCH_TERMINATE,
+    +                reason=ORCH_REASON_CHILDREN_NOT_APPROVED,
+    +                detail=(
+    +                    f"Set {decision.setid!r} can never complete in this run: child(ren) {listed} "
+    +                    f"are awaiting human approval and were never dispatched, so they cannot become "
+    +                    f"{SET_RETIREMENT_DONE_STATUS}{also}"
+    +                ),
+    +                unfinished=tuple(dead) + tuple(rest),
+    +                eligibility=decision,
+    +            )
+    +        # A mixed set of unapproved and failed children keeps ORCH_REASON_DEAD_CHILDREN:
+    +        # a child that actually failed is the stronger fact and needs investigation,
+    +        # and the failure remedy already covers approval.
+             return OrchestratorDispatch(
+                 outcome=ORCH_DISPATCH_TERMINATE,
+                 reason=ORCH_REASON_DEAD_CHILDREN,
+    ```
+    Re-run of E-01 probe:
+    ('reviewed', 'terminate', 'children-not-approved')
+    ('approved', 'terminate', 'children-not-approved')
+    ('failed-safely', 'terminate', 'children-terminally-failed')
+    ('queued', 'reconsider', 'children-unfinished')
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the output of calling `orchestrator_refusal_text` for `children-not-approved` and `children-terminally-failed`, showing both mapped, the first containing `aw ipd set approved` and neither containing `--full-auto`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Refusal text mapped for both codes, contains aw ipd set approved, no --full-auto:
+    === children-not-approved ===
+    Reason: this orchestrator can NEVER be retired by this run: its child plans are frozen awaiting human approval and were never dispatched, so they cannot become `executed`. Nothing failed
+    Remedy: approve each unapproved child named in the reason above with `aw ipd set approved <id6> --by-human --message ...` and run the Set again. Do NOT remove the child's row from the orchestrator's table to clear this, which would retire the parent over work that never completed
+    Has aw ipd set approved: True
+    Contains --full-auto: False
 
-- [ ] V-05 validates E-05
+    === children-terminally-failed ===
+    Reason: this orchestrator can NEVER be retired by this run: a child ran and did not reach success, so the Set cannot complete however long the run waits. If unapproved children are also present, they cannot complete either
+    Remedy: look at each child's status named in the reason above. For any child that ran and did not finish: read that child's own outcome record, fix what it reports, then re-run it. For a child awaiting approval: approve it with `aw ipd set approved <id6> --by-human --message ...`. Either way do NOT remove the child's row from the orchestrator's table to clear this, which would retire the parent over work that never completed
+    Has aw ipd set approved: True
+    Contains --full-auto: False
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste `python3 -m pytest -o addopts="" -q tests/test_orchestrator_not_approved_reason.py` passing with its count; the same run with the E-03/E-04 hunks temporarily reverted showing cases (1), (2), (6), (8), (10) FAILING and the controls passing; then `python3 -m pytest -o addopts="" -q tests/test_finalize_sendback.py tests/test_orchestrator_retirement.py` passing; then the bare `python3 -m pytest` summary line before and after with the after-minus-before failing node-ID set (must be empty). The before-and-after bare run is REQUIRED and not optional here: `decide_orchestrator_dispatch` is shared by both hosts and `tests/test_finalize_sendback.py` asserts `ORCH_REASON_DEAD_CHILDREN` for `failed-safely`, so a too-wide status set breaks an existing test rather than merely under-delivering.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. All 10 cases pass, 5 fail pre-fix, related tests pass, and full suite is clean:
+    1) python3 -m pytest -o addopts="" -q tests/test_orchestrator_not_approved_reason.py:
+    ..........                                                               [100%]
+    10 passed in 0.74s
+
+    2) Same run before E-03/E-04 hunks (cases 1, 2, 6, 8, 10 failing, controls passing):
+    FAILED tests/test_orchestrator_not_approved_reason.py::TestOrchestratorNotApprovedReason::test_case_10_child_with_no_status_line
+    FAILED tests/test_orchestrator_not_approved_reason.py::TestOrchestratorNotApprovedReason::test_case_06_orchestrator_refusal_text_new_code
+    FAILED tests/test_orchestrator_not_approved_reason.py::TestOrchestratorNotApprovedReason::test_case_08_read_surface_via_dispatch_orchestrator_item
+    FAILED tests/test_orchestrator_not_approved_reason.py::TestOrchestratorNotApprovedReason::test_case_02_single_child_approved
+    FAILED tests/test_orchestrator_not_approved_reason.py::TestOrchestratorNotApprovedReason::test_case_01_single_child_reviewed
+    5 failed, 5 passed in 0.26s
+
+    3) python3 -m pytest -o addopts="" -q tests/test_finalize_sendback.py tests/test_orchestrator_retirement.py:
+    ........................................................................ [ 76%]
+    ......................                                                   [100%]
+    94 passed in 68.15s (0:01:08)
+
+    4) Bare pytest before and after summary lines:
+    Before: 2689 passed, 2 skipped, 3 warnings in 123.15s (0:02:03)
+    After:  2699 passed, 2 skipped, 3 warnings in 77.87s (0:01:17)
+    After-minus-before failing node-ID set: set() (0 failing before, 0 failing after).
+  - Result: pass
 
 ## Approval and execution gate
 
