@@ -7,12 +7,13 @@ the wire format and links to the full normative rules in the
 
 ## When you get machine output
 
-`aw` emits the machine format whenever stdout is not a terminal (piped, redirected, or driven
-by an agent), and whenever you pass `--agent` explicitly. This is a HARD CUTOVER as of the
-2.0.0 release: there is no compatibility window and no legacy plain-text or TSV form on the
-migrated commands. If you previously scraped text, read the [migration guide](cli-migration.md).
+`aw` emits the machine format only when you pass `--agent` (or `--json`) explicitly. Piping or
+redirecting stdout does not switch the format; piped stdout remains human-readable text. (An
+earlier proposal for an automatic non-TTY hard cutover was RETRACTED on 2026-09-10; see
+[CLI Output Mode Contract](cli-output-contract.md) section 9). If you previously scraped text, read
+the [migration guide](cli-migration.md).
 
-- `--agent`: compact `aw.agent/v1` JSONL (one record per line). This is the default when piped.
+- `--agent`: compact `aw.agent/v1` JSONL (one record per line).
 - `--json`: pretty-printed full `CommandResult` JSON (a debugging view, more verbose).
 - `--agent` and `--json` (or `--format`) together is a usage error and exits `2`.
 
