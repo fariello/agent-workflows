@@ -854,7 +854,17 @@ def test_sweep_membership_equals_dispatch_routing_for_every_status(
             "order": n,
             "dependencies": [],
         }
-        if driver.determine_action(status) == "review" and bucket == "pending":
+        from agent_workflows import runner_shared
+
+        complete = (
+            runner_shared.plan_authoring_complete(tmp_path, rel)
+            if status == "draft"
+            else None
+        )
+        if (
+            driver.determine_action(status, authoring_complete=complete) == "review"
+            and bucket == "pending"
+        ):
             routed_to_review.add(id6)
 
     swept = _sweep_members(driver, plans_by_id, tmp_path)
