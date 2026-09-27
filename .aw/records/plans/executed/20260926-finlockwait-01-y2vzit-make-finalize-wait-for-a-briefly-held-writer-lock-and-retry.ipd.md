@@ -6,7 +6,7 @@
 - Scope: IN: (a) a bounded wait inside `acquire_finalize_lock` before it refuses; (b) a distinct, machine-recognizable lock-contention refusal and its classification as retryable-without-an-agent-turn in the runner, deferred and re-attempted rather than sent back to the agent or failed; (c) naming the holder's `owner` in the refusal when `plan_id` is absent; (d) tests for all three. OUT: changing `commit_lock.writer_lock`'s own 5s budget or its docstring's hold-time claim (see Deferred), and the integration lock, which already waits.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/runner_shared.py, tests/test_ipd_lifecycle_cli.py, tests/test_finalize_sendback.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: y2vzit
-- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: y2vzit verified (set finlockwait, attempt 1).
 - 2026-09-27 approved (aw set): status set to approved
 - 2026-09-27 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 to PR-005 all FIXED. Verified the whole mechanism in code: acquire_finalize_lock has no loop, data.get('plan_id') is None for a writer_lock holder, finalize_refusal_is_retryable has no lock arm, the shared lock file and the integration-lock precedent are exactly as described, and nothing is mutated before the lock at any of the three call sites. Found and fixed: E-01's 120s DEFAULT would hang an existing test that spawns a real 60s sleeper and passes in 0.25s today, adding two minutes to every bare suite run; the plan said 'ends fail-gate' but the writer writes failed-safely and only READS as fail-gate through TERMINAL_STATUS_ALIASES; the re-attempt design did not say which of the TWO refusal arms it runs under, one of which finalizes against a LANE worktree; the CHANGELOG has two pending sections and the plan named neither. Agreed with the plan that spec 25kzda 5.5 is silent here and recorded why. Findings in .aw/records/reviews/20260926-finlockwait-01-y2vzit-make-finalize-wait-for-a-briefly-held-writer-lock-and-retry.review.md
 
