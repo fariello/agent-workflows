@@ -1,5 +1,5 @@
 - Id: ovjx46
-- Status: graduated
+- Status: done
 - Graduated-To: statuslayout
 - Work-Kind: bug
 - Blocks-Release: next
@@ -8,6 +8,7 @@
 - Summary: Audit check_engine's own layout rules for the same bare-existence split-brain false positive that doctor.probe_environment carried
 
 ## Workflow history
+- 2026-09-27 done (aw set): Done: plan 4eecvh executed (manual recovery of its stranded lane, 2026-09-27).
 - 2026-09-26 graduated (aw set): Graduated 2026-09-26 into plan 4eecvh (Set statuslayout), re-verified live at HEAD.
 - 2026-09-26 same-status (aw set): Reclassified bug + Blocks-Release next on measurement (2026-09-26): the audit found check_engine clean, but aw status (cli._collect_repo_status_details) flags split-brain whenever .aw and .agents both exist, so every correctly migrated repo with .agents/skills shows a wrong orange 'run aw migrate-layout' warning while aw doctor says clean.
 - 2026-09-23 created (aw backlog): Audit check_engine's own layout rules for the same bare-existence split-brain false positive that doctor.probe_environment carried
