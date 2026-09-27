@@ -831,6 +831,20 @@ class RunnerPeerDependencyTests(unittest.TestCase):
         self.assertTrue(res.waited)
         self.assertIn("[peer-dependency]", err.getvalue())
         self.assertIn("prereq", err.getvalue())
+        # The limit renders as an HH:MM:SS clock, not raw float seconds.
+        self.assertIn("waiting up to 00:00:00", err.getvalue())
+        self.assertNotIn("0.05s", err.getvalue())
+
+
+class FormatClockTests(unittest.TestCase):
+    def test_format_clock(self) -> None:
+        self.assertEqual(runner_shared.format_clock(1022.6), "00:17:02")
+        self.assertEqual(runner_shared.format_clock(1800.0), "00:30:00")
+        self.assertEqual(runner_shared.format_clock(18000), "05:00:00")
+        self.assertEqual(runner_shared.format_clock(0), "00:00:00")
+        self.assertEqual(runner_shared.format_clock(None), "00:00:00")
+        self.assertEqual(runner_shared.format_clock(-5), "00:00:00")
+        self.assertEqual(runner_shared.format_clock(360000), "100:00:00")
 
 
 if __name__ == "__main__":

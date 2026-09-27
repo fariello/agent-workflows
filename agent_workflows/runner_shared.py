@@ -5031,6 +5031,21 @@ INTEGRATION_LOCK_PROGRESS_SECONDS = 30.0
 PEER_DEPENDENCY_WAIT_SECONDS: float = 1800.0
 PEER_DEPENDENCY_POLL_SECONDS: float = 5.0
 
+
+def format_clock(seconds: float | None) -> str:
+    """Format seconds as a fixed-width ``HH:MM:SS`` clock (e.g. ``00:17:06``, ``05:00:00``).
+
+    Used for elapsed/limit progress lines, where an operator compares two values at a glance; the
+    hours field widens past 99 rather than wrapping. Negative or None renders as ``00:00:00``.
+    """
+    if seconds is None or seconds < 0:
+        seconds = 0
+    total = int(seconds)
+    hrs, rem = divmod(total, 3600)
+    mins, secs = divmod(rem, 60)
+    return f"{hrs:02d}:{mins:02d}:{secs:02d}"
+
+
 #: :func:`peer_drivers`'s three-valued liveness vocabulary, mirroring `run_viewer`'s rather than
 #: inventing a second one. UNKNOWN is a REAL answer and must never be collapsed into NONE: failing to
 #: prove a holder is alive is not proof that it is dead.
@@ -5402,7 +5417,7 @@ def wait_for_peer_prerequisites(
     last_say_elapsed = 0.0
     for prereq_id, hold in initial_held.items():
         _say(
-            f"waiting up to {timeout:.0f}s for prerequisite {prereq_id}, which live peer run "
+            f"waiting up to {format_clock(timeout)} for prerequisite {prereq_id}, which live peer run "
             f"{hold.run_id} has {hold.item_status!r}"
         )
 
@@ -5451,7 +5466,7 @@ def wait_for_peer_prerequisites(
             for prereq_id, hold in initial_held.items():
                 _say(
                     f"Waiting for peer prerequisite {prereq_id} (peer {hold.run_id}) "
-                    f"({elapsed:.1f}s / {timeout:.1f}s)"
+                    f"({format_clock(elapsed)} / {format_clock(timeout)})"
                 )
 
         # 2. Has any waited item's dependency_status become satisfied on disk?
