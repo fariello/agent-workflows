@@ -676,7 +676,7 @@ class DoctorRemediationTests(unittest.TestCase):
         self.assertIn("'- Blocks-Release:'", rem_r.detailed_fix)
 
     def test_remediation_status_untooled(self) -> None:
-        """E-04/V-04: status-untooled is advisory; detailed_fix names reverting hand edit AND aw ipd set."""
+        """E-03/V-03: status-untooled is advisory; detailed_fix names aw ipd set directly without requiring revert."""
         root = Path(".")
         d = core.Drift(
             ".aw/records/plans/pending/20260925-doctorhint-01-6k7xot-test.ipd.md",
@@ -685,7 +685,7 @@ class DoctorRemediationTests(unittest.TestCase):
         )
         rem = doctor.build_remediation(d, root)
         self.assertIsNone(rem.command)
-        self.assertIn("revert the hand edit", rem.detailed_fix)
+        self.assertNotIn("revert the hand edit", rem.detailed_fix)
         self.assertIn("aw ipd set", rem.detailed_fix)
 
     def test_remediation_git_dirty_and_staged(self) -> None:

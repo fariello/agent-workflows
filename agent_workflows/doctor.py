@@ -955,14 +955,12 @@ def build_remediation(d: core.Drift, repo_root: Path) -> Remediation:
         return Remediation(
             title=title,
             summary_fix=(
-                f"revert the hand edit and apply status change via '{cmd_shape}' so an "
-                "attributed history entry is appended."
+                f"apply the status change via '{cmd_shape}' so an attributed history entry is appended."
             ),
             detailed_fix=(
                 f"the '- Status:' of {loc} changed in this commit with no matching tool-authored "
-                f"'## Workflow history' transition line; revert the hand edit so the status returns "
-                f"to its previous value, then apply the change via '{cmd_shape}' so an attributed "
-                "history entry is appended. This is the intermediate-transition sibling of the terminal "
+                f"'## Workflow history' transition line; apply the change directly via '{cmd_shape}' "
+                "so an attributed history entry is appended. This is the intermediate-transition sibling of the terminal "
                 "'aw ipd finalize' gate; it is a LOCAL commit-scoped detector (--no-verify bypasses the hook)."
             ),
             command=None,
