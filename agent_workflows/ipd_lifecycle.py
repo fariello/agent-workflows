@@ -2174,8 +2174,9 @@ def _run_record_committed_paths(
     note above), and because the failure mode is ASYMMETRIC: a corrupted record can only cause a
     MISSING demand for a path the plan did commit, which is the same false EXCUSE cohesion already
     accepts and documents, never a false CLAIM written into permanent history. Non-forgeable
-    attribution stays the deferred item it already is (commit trailers, backlog ``a8eufb``, whose
-    WRITER is plan ``wao266``; when those land they become a third and better source ahead of this one).
+    attribution is supplemented by commit trailers (stamped via ``a6xbso`` and read via ``199u11``),
+    which land as an additive demand source ahead of cohesion; they compose with the run record
+    instead of deciding alone because a trailer can only ADD a demand.
     """
     if not id6:
         return CommittedAttribution(False, frozenset())
@@ -2264,8 +2265,9 @@ def _execution_cohesive_committed_paths(
       identity (measured: identical ``%an``/``%ae`` across the incident's own and foreign commits);
     * the RUN RECORD (``last_outcome.commits[].sha``) is unreachable, being gitignored, absent from a
       lane worktree, and never handed a run id by finalize; and
-    * COMMIT TRAILERS (``AW-Run:``/``AW-Item:``) would settle it exactly, but essentially no commit in
-      history carries one yet, so nothing can be consumed today (backlog ``a8eufb``).
+    * COMMIT TRAILERS (``AW-Item:`` stamped by ``aw commit`` and read via
+      :func:`_trailer_owned_committed_paths`) are now read ahead of cohesion as an additive
+      demand-only source; untrailered and foreign commits still fall back to cohesion.
 
     WHAT GIT DOES RECORD is the COMMIT BOUNDARY, and that is enough to be useful. A commit is one
     atomic act by one actor, so the paths inside it share an author whoever that author was. This
@@ -2330,6 +2332,120 @@ def _execution_cohesive_committed_paths(
     # `anchored` is exactly "at least one commit touched declared territory", which is what a non-empty
     # cohesive set means: `_flush` only ever adds paths from an anchored commit.
     return CommittedAttribution(bool(cohesive), frozenset(cohesive))
+
+
+class TrailerAttribution(NamedTuple):
+    """Counts and paths classified by commit trailers in base_head..HEAD (Set trailread, 199u11)."""
+
+    paths: FrozenSet[str]
+    owned: int
+    foreign: int
+    unknown: int
+
+
+def _classify_item_trailer_value(raw_item: str, plan_id6: str) -> str:
+    """Classify an extracted AW-Item trailer value as 'owned', 'foreign', or 'unknown'.
+
+    Splits on ',' and on newlines, strips whitespace, and drops empty tokens to handle
+    multi-valued (comma-separated) and folded (continuation lines) trailers.
+    """
+    tokens = [
+        tok.strip()
+        for part in raw_item.split(",")
+        for tok in part.splitlines()
+        if tok.strip()
+    ]
+    if not tokens:
+        return "unknown"
+    if plan_id6 and any(tok == plan_id6 for tok in tokens):
+        return "owned"
+    return "foreign"
+
+
+def _commit_run_ownership(repo_root: Path, sha: str, plan_id6: str) -> str:
+    """Classify commit SHA as 'owned', 'foreign', or 'unknown' for plan_id6.
+
+    Reads AW-Item and AW-Run trailers via git log. Rules:
+    - no AW-Item value -> 'unknown' (whatever AW-Run says, because an ownership claim
+      without an item cannot name this plan);
+    - any AW-Item value equal to plan_id6 -> 'owned';
+    - AW-Item present but none equal -> 'foreign';
+    - a git failure -> 'unknown'.
+
+    AW-Run is parsed and returned in evidence only: finalize is never handed a run id
+    (the run record is never handed a run id by finalize), so the ITEM is the key that
+    names this execution.
+
+    FAIL-CLOSED RULE: 'unknown' is NEVER treated as 'foreign', because the corpus
+    permanently contains untrailered commits (backlog j2srcc, wao266 OQ-03), and a trailer
+    is a consistency record, not tamper-proof provenance (the same honest limit
+    _run_record_committed_paths states).
+    """
+    if not plan_id6 or not sha:
+        return "unknown"
+    from .git_commit_helper import TRAILER_KEY_ITEM, TRAILER_KEY_RUN
+
+    fmt = f"%(trailers:key={TRAILER_KEY_ITEM},valueonly,separator=%x2C)%x00%(trailers:key={TRAILER_KEY_RUN},valueonly,separator=%x2C)"
+    rc, out, _err = _git(repo_root, ["log", "-1", f"--format={fmt}", sha])
+    if rc != 0:
+        return "unknown"
+    parts = out.split("\x00", 1)
+    raw_item = parts[0]
+    return _classify_item_trailer_value(raw_item, plan_id6)
+
+
+def _trailer_owned_committed_paths(
+    repo_root: Path, base_head: str, plan_id6: str
+) -> TrailerAttribution:
+    """Committed paths in base_head..HEAD from commits classified 'owned' by AW-Item trailer.
+
+    Uses a single git log invocation with a record-delimited format (0x1e record separator,
+    0x1f field separator) to avoid multi-line trailer folding corrupting commit boundaries.
+    Classifies each commit via _classify_item_trailer_value.
+
+    Empty plan_id6, no range, or a git failure returns an empty result with zero counts
+    (no demand added, preserving existing behavior).
+    """
+    if not plan_id6 or not base_head or base_head == "unversioned":
+        return TrailerAttribution(frozenset(), 0, 0, 0)
+    from .git_commit_helper import TRAILER_KEY_ITEM
+
+    fmt = f"%x1e%H%x00%(trailers:key={TRAILER_KEY_ITEM},valueonly,separator=%x2C)%x1f"
+    rc, out, _err = _git(
+        repo_root,
+        ["log", "--no-merges", f"--format={fmt}", "--name-only", f"{base_head}..HEAD"],
+    )
+    if rc != 0:
+        return TrailerAttribution(frozenset(), 0, 0, 0)
+
+    owned_paths: Set[str] = set()
+    owned_count = 0
+    foreign_count = 0
+    unknown_count = 0
+
+    records = out.split("\x1e")
+    for r in records:
+        if not r.strip():
+            continue
+        parts = r.split("\x1f", 1)
+        header = parts[0]
+        body = parts[1] if len(parts) > 1 else ""
+        h_parts = header.split("\x00", 1)
+        raw_item = h_parts[1] if len(h_parts) > 1 else ""
+        classification = _classify_item_trailer_value(raw_item, plan_id6)
+        paths = [ln.strip() for ln in body.splitlines() if ln.strip()]
+
+        if classification == "owned":
+            owned_count += 1
+            owned_paths.update(paths)
+        elif classification == "foreign":
+            foreign_count += 1
+        else:
+            unknown_count += 1
+
+    return TrailerAttribution(
+        frozenset(owned_paths), owned_count, foreign_count, unknown_count
+    )
 
 
 @lru_cache(maxsize=1024)
@@ -2452,12 +2568,13 @@ def _working_tree_path_is_owned(
     * (Order 01 OQ-01/F3) an executor's OWN uncommitted out-of-scope edit is byte-identical to a
       co-worker's, so it is disregarded too; and
     * (scopeattr `h9cn0y`) an executor's own COMMITTED out-of-scope path escapes the reason
-      requirement when it rides in a commit containing no declared path.
+      requirement when it rides in an UNTRAILERED commit containing no declared path.
 
     The mitigation for both is the execution contract's path-scoped commits, which keep a plan's real
     work in commits anchored by its declared paths, where the reason requirement still fires. The
-    exact fix that would remove the second cost is commit trailers (backlog ``a8eufb``); until those
-    exist, this is the strongest attribution available, and it is deliberately weaker than a proof.
+    second cost is now removed for trailered commits (read via ``_trailer_owned_committed_paths``, Set
+    ``trailread``, ``199u11``), but remains for untrailered commits and for raw ``git commit``; this
+    is the strongest attribution available, and it is deliberately weaker than a proof.
     """
     if _is_implicitly_allowed(path, plan_rel):
         return True
@@ -2665,8 +2782,16 @@ def finalize_precheck(
     #     files it never touched. Cohesion reduces that same case to the TWO genuinely its own.
     #     ACCEPTED COST (the honest bound, see `_working_tree_path_is_owned`): cohesion is a heuristic,
     #     not proof of authorship, so an executor's OWN committed out-of-scope path escapes the reason
-    #     requirement when it rides in a commit containing no declared path. The mitigation is
-    #     path-scoped commits; the real fix is commit trailers (backlog `a8eufb`).
+    #     requirement when it rides in an UNTRAILERED commit containing no declared path. With commit
+    #     trailers (Set `trailread`, `199u11`), this cost applies ONLY to untrailered commits.
+    #     Under a runner/driver, `runner_shared.compute_scope_reconciliation` maps every path in
+    #     `out_of_scope_paths` to a standard reconciliation reason and hands it to finalize, so under
+    #     `aw oc run` / `aw agy run` the newly-demanded path is satisfied without stopping the run.
+    #     This auto-reasoning is correct rather than a hole: a trailer-owned path IS this execution's
+    #     own work and the auto-reason asserts exactly that (unlike cohesion, where auto-reasoning could
+    #     assert a co-worker's path). The user-visible effect of this plan under a runner is therefore
+    #     a truer permanent record (the path is recorded as reconciled rather than silently disregarded),
+    #     not a new stop.
     #     This is also what makes finalize CONSISTENT with begin, which already ignores disjoint
     #     uncommitted work so a concurrent multi-agent workflow is not thrashed.
     out_of_scope: List[str] = []
@@ -2691,6 +2816,13 @@ def finalize_precheck(
             if exact.anchored
             else _execution_cohesive_committed_paths(repo_root, base_head, scope_paths)
         )
+        trailered = _trailer_owned_committed_paths(repo_root, base_head, plan_id)
+        evidence["trailer_attribution"] = {
+            "owned_commits": trailered.owned,
+            "foreign_commits": trailered.foreign,
+            "unknown_commits": trailered.unknown,
+            "owned_paths": sorted(trailered.paths),
+        }
         # E-03: record WHICH evidence decided, so a human reading a demanded `--scope-reason` can tell
         # an exact attribution from a heuristic one. A demand backed by cohesion may legitimately name
         # a co-worker's path and is worth a second look; one backed by the run record should not.
@@ -2705,7 +2837,8 @@ def finalize_precheck(
             if any(_scope_match(p, pat) for pat in scope_paths):
                 continue
             if p in committed_set:
-                # COMMITTED half: cohesion is the only positive evidence available. `committed=()`
+                # COMMITTED half: trailer ownership comes first and is demand-only (E-04);
+                # cohesion is the fallback for untrailered and foreign commits. `committed=()`
                 # avoids the self-referential clause (see the predicate's docstring).
                 #
                 # FAIL CLOSED WHEN COHESION KNOWS NOTHING. With no anchored commit this execution has
@@ -2713,15 +2846,19 @@ def finalize_precheck(
                 # fix (owned, therefore reason required) rather than excusing it on absent evidence.
                 # This is what keeps a plan whose ONLY commit is out-of-scope refused.
                 owned = (
-                    _working_tree_path_is_owned(
-                        p,
-                        scope_paths=scope_paths,
-                        committed=(),
-                        plan_rel=plan_rel,
-                        cohesive_committed=cohesive.paths,
+                    True
+                    if p in trailered.paths
+                    else (
+                        _working_tree_path_is_owned(
+                            p,
+                            scope_paths=scope_paths,
+                            committed=(),
+                            plan_rel=plan_rel,
+                            cohesive_committed=cohesive.paths,
+                        )
+                        if cohesive.anchored
+                        else True
                     )
-                    if cohesive.anchored
-                    else True
                 )
             else:
                 owned = _working_tree_path_is_owned(
