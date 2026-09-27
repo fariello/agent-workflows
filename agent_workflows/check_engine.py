@@ -801,11 +801,7 @@ def is_retired(path: Path, record_type: str = "") -> bool:
     except OSError:
         return False
 
-    m = _STATUS_META_RE.search(text)
-    if m and m.group(1).strip().lower() in _RETIRED_STATUSES:
-        return True
-
-    return False
+    return _metadata_status(text) in _RETIRED_STATUSES
 
 
 def _iter_type_files(
@@ -2336,12 +2332,17 @@ def _blob_text(repo_root: Path, ref: str, path: str) -> "str | None":
     return out if rc == 0 else None
 
 
-def _status_meta(text: "str | None") -> "str | None":
-    """The metadata ``- Status: <value>`` value (lowercased), or None."""
+def _metadata_status(text: "str | None") -> "str | None":
+    """The first ``- Status:`` value in the metadata region (lowercased), or None."""
     if not text:
         return None
-    m = _STATUS_META_RE.search(text)
+    m = _STATUS_META_RE.search(_metadata_region(text))
     return m.group(1).strip().lower() if m else None
+
+
+def _status_meta(text: "str | None") -> "str | None":
+    """The metadata ``- Status: <value>`` value (lowercased), or None."""
+    return _metadata_status(text)
 
 
 def _is_plan_ipd_path(path: str) -> bool:
