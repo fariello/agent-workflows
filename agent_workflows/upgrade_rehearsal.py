@@ -73,7 +73,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -643,7 +643,10 @@ def git_state(repo: Path) -> Dict[str, Any]:
     }
 
 
-def probe(sandbox: Path) -> Dict[str, Any]:
+def probe(
+    sandbox: Path,
+    install_import: Optional[Sequence[Mapping[str, str]]] = None,
+) -> Dict[str, Any]:
     """Capture the sandbox's current framework state. Read-only and idempotent."""
 
     version, version_path = installed_version(sandbox)
@@ -668,6 +671,8 @@ def probe(sandbox: Path) -> Dict[str, Any]:
     # different defects with different fixes, so a single count would hide both.
     state["legacy_breakdown"] = legacy_breakdown(sandbox)
     state["empty_dirs"] = count_empty_dirs(sandbox / ".agents")
+    if install_import is not None:
+        state["install_import"] = list(install_import)
     state["observations"] = derive_observations(state)
     return state
 
@@ -794,6 +799,30 @@ def derive_observations(state: Dict[str, Any]) -> List[Dict[str, str]]:
                     "note": f"SAFETY: sandbox has remotes {real}; it should have none.",
                 }
             )
+    for entry in state.get("install_import") or []:
+        imp = entry.get("imported_from")
+        exp = entry.get("expected_root")
+        if not imp or not exp:
+            continue
+        try:
+            r_imp = os.path.realpath(imp)
+            r_exp = os.path.realpath(exp)
+            is_under = os.path.commonpath([r_exp, r_imp]) == r_exp
+        except (ValueError, Exception):
+            is_under = False
+        if not is_under:
+            obs.append(
+                {
+                    "kind": "wrong-checkout",
+                    "note": (
+                        f"Rehearsal child imported agent_workflows from {imp}, which is not "
+                        f"under the checkout under test ({exp}). The rehearsal exercised a "
+                        "different checkout than the one under test, so its results do not "
+                        "describe this code."
+                    ),
+                }
+            )
+            break
     return obs
 
 
@@ -838,6 +867,85 @@ def create_sandbox(
     return sandbox
 
 
+def tool_repo_root() -> Path:
+    """Directory containing the agent_workflows package this module was loaded from.
+
+    Delegates to runner_shared.runner_package_root() so there is one definition of
+    this toolkit's package root across the runners and this harness, while respecting
+    the origin of this module if loaded from an isolated copy (e.g. a simulated worktree).
+    """
+    try:
+        from agent_workflows import runner_shared
+
+        root = Path(__file__).resolve().parent.parent
+        pkg_root = Path(runner_shared.runner_package_root())
+        if root == pkg_root:
+            return pkg_root
+        return root
+    except Exception:
+        return Path(__file__).resolve().parent.parent
+
+
+def default_aw_cmd() -> List[str]:
+    """Prefer running the checkout's own package, so a rehearsal tests THIS code.
+
+    Resolves to the ``-m agent_workflows`` module form whenever ``cli.py`` sits beside
+    this module, falling back to whatever ``aw`` is on PATH. In ``run_install``, the ``-m``
+    form is paired with the canonical child pin (canonical environment via
+    ``runner_shared.pinned_child_env`` and canonical bootstrap argv via
+    ``runner_shared.pinned_module_argv``) so the rehearsal executes the checkout under test
+    even from inside a worktree or against a sandbox containing its own package.
+    Running the installed console script would silently rehearse a DIFFERENT (possibly older)
+    version than the checkout under test, which is the one mistake that would invalidate
+    every result this tool produces.
+    """
+
+    repo_root = tool_repo_root()
+    if (repo_root / "agent_workflows" / "cli.py").is_file():
+        return [sys.executable, "-m", "agent_workflows"]
+    found = shutil.which("aw")
+    return [found] if found else [sys.executable, "-m", "agent_workflows"]
+
+
+def probe_import_origin(
+    env: Dict[str, str], cwd: Optional[Path | str] = None
+) -> Optional[str]:
+    """Determine which agent_workflows package file a child process actually imports.
+
+    Runs the same pinned argv shape the installer uses (-P on 3.11+, and the _AW_PIN_STRIP
+    prologue) with the given environment and working directory, so the probe answers
+    the same question the install does.
+    """
+    from agent_workflows import runner_shared
+
+    probe_argv = [sys.executable]
+    if sys.version_info >= (3, 11):
+        probe_argv.append("-P")
+    probe_argv.extend(
+        [
+            "-c",
+            runner_shared._AW_PIN_STRIP
+            + "import agent_workflows;print(agent_workflows.__file__)",
+        ]
+    )
+    proc = subprocess.run(
+        probe_argv,
+        cwd=str(cwd) if cwd else None,
+        env=env,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+        timeout=60,
+    )
+    if proc.returncode != 0:
+        return None
+    out = proc.stdout.strip()
+    if not out:
+        return None
+    return os.path.realpath(out.splitlines()[0].strip())
+
+
 def run_install(
     sandbox: Path,
     install_args: Sequence[str] = (),
@@ -847,8 +955,33 @@ def run_install(
     """Run the real installer against the sandbox and capture the full transcript."""
 
     cmd = list(aw_cmd) if aw_cmd else default_aw_cmd()
-    argv = [*cmd, "install", str(sandbox), "-y", *install_args]
-    env = sandbox_env(sandbox)
+    if cmd[1:3] == ["-m", "agent_workflows"]:
+        from agent_workflows import runner_shared
+
+        tool_root = str(tool_repo_root())
+        env = runner_shared.pinned_child_env()
+        if tool_root != runner_shared.runner_package_root():
+            current = env.get("PYTHONPATH", "")
+            env["PYTHONPATH"] = f"{tool_root}{os.pathsep}{current}".rstrip(os.pathsep)
+            env["AW_PIN_KEEP_ROOT"] = tool_root
+        sb_env = sandbox_env(sandbox)
+        for k, v in sb_env.items():
+            if k not in {"PYTHONPATH", "AW_PIN_KEEP_ROOT"}:
+                env[k] = v
+        env["AW_PIN_KEEP_ROOT"] = tool_root
+        argv = runner_shared.pinned_module_argv(
+            ["install", str(sandbox), "-y", *install_args]
+        )
+        imported_from = probe_import_origin(env, cwd=sandbox)
+        expected_root = tool_root
+    else:
+        argv = [*cmd, "install", str(sandbox), "-y", *install_args]
+        env = sandbox_env(sandbox)
+        # An explicit console script or PATH aw does not run sys.executable, so
+        # python -c would report a different process's answer.
+        imported_from = None
+        expected_root = None
+
     started = time.time()
     proc = subprocess.run(
         argv,
@@ -860,27 +993,16 @@ def run_install(
         check=False,
         timeout=timeout,
     )
-    return {
+    res: Dict[str, Any] = {
         "argv": argv,
         "exit_code": proc.returncode,
         "duration_s": round(time.time() - started, 2),
         "output": proc.stdout,
+        "imported_from": imported_from,
     }
-
-
-def default_aw_cmd() -> List[str]:
-    """Prefer running the checkout's own package, so a rehearsal tests THIS code.
-
-    Falls back to whatever ``aw`` is on PATH. Running the installed console script would
-    silently rehearse a DIFFERENT (possibly older) version than the checkout under test,
-    which is the one mistake that would invalidate every result this tool produces.
-    """
-
-    repo_root = Path(__file__).resolve().parent.parent
-    if (repo_root / "agent_workflows" / "cli.py").is_file():
-        return [sys.executable, "-m", "agent_workflows"]
-    found = shutil.which("aw")
-    return [found] if found else [sys.executable, "-m", "agent_workflows"]
+    if expected_root is not None:
+        res["expected_root"] = expected_root
+    return res
 
 
 def rehearse(
@@ -921,7 +1043,15 @@ def rehearse(
     result["files_after"] = len(after)
     result["added"] = sorted(after_set - before_set)
     result["removed"] = sorted(before_set - after_set)
-    result["state"] = probe(sandbox)
+    install_import = [
+        {
+            "imported_from": r["imported_from"],
+            "expected_root": r.get("expected_root", ""),
+        }
+        for r in result["runs"]
+        if r.get("imported_from")
+    ]
+    result["state"] = probe(sandbox, install_import=install_import or None)
 
     marker = read_marker(sandbox) or {}
     marker["rehearsal"] = {k: v for k, v in result.items() if k not in {"state"}}
@@ -1121,6 +1251,8 @@ def report(result: Dict[str, Any], verbose: bool = False) -> None:
     for i, r in enumerate(result["runs"], 1):
         label = "install" if i == 1 else f"install (re-run {i - 1})"
         print(f"\n{label}: exit={r['exit_code']} in {r['duration_s']}s")
+        if r.get("imported_from"):
+            print(f"Imported: {r['imported_from']}")
         if verbose or r["exit_code"] != 0:
             print(indent(r["output"]))
 

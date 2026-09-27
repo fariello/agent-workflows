@@ -32,8 +32,10 @@ comparison.
 
 from __future__ import annotations
 
+import io
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -1436,6 +1438,47 @@ class ProbeAndObservationTests(TempCase):
             "neutralized sandbox would raise a false safety finding and the one real case would be "
             "lost in the noise",
         ),
+        (
+            "a rehearsal child that imported from a different checkout",
+            {
+                "install_import": [
+                    {
+                        "imported_from": "/other/checkout/agent_workflows/__init__.py",
+                        "expected_root": "/tool/repo",
+                    }
+                ],
+            },
+            ["wrong-checkout"],
+            "a rehearsal launched from one tree but importing from another invalidates every "
+            "conclusion the run reaches, so the mismatch must surface as an observation",
+        ),
+        (
+            "a rehearsal child that imported from the expected checkout",
+            {
+                "install_import": [
+                    {
+                        "imported_from": "/tool/repo/agent_workflows/__init__.py",
+                        "expected_root": "/tool/repo",
+                    }
+                ],
+            },
+            [],
+            "the matching case produces silence, so correct checkouts do not raise false findings",
+        ),
+        (
+            "a sibling-prefix checkout directory (containment not startswith)",
+            {
+                "install_import": [
+                    {
+                        "imported_from": "/tool/repo-other/agent_workflows/__init__.py",
+                        "expected_root": "/tool/repo",
+                    }
+                ],
+            },
+            ["wrong-checkout"],
+            "startswith would treat /tool/repo-other as inside /tool/repo; os.path.commonpath "
+            "containment catches the sibling directory",
+        ),
     )
 
     def test_every_observation_fires_on_exactly_its_own_state(self) -> None:
@@ -1569,6 +1612,249 @@ class ProbeAndObservationTests(TempCase):
         second = uat.probe(sandbox)
         for key in ("installed_version", "layout", "legacy_files_remaining"):
             self.assertEqual(first[key], second[key])
+
+    def test_probe_with_no_install_import_argument_omits_key_and_observation(
+        self,
+    ) -> None:
+        """probe(sandbox) with no argument leaves install_import absent and fires nothing."""
+        source = make_source_repo(self.tmp / "src", "1.2.1", "legacy")
+        sandbox = uat.create_sandbox(uat.SourceRepo.inspect(source), self.tmp / "boxes")
+        state = uat.probe(sandbox)
+        self.assertNotIn("install_import", state)
+        kinds = [o["kind"] for o in state.get("observations", [])]
+        self.assertNotIn("wrong-checkout", kinds)
+
+    def test_probe_threads_install_import_into_observations(self) -> None:
+        """probe(sandbox, install_import=...) threads records into derive_observations."""
+        source = make_source_repo(self.tmp / "src", "1.2.1", "legacy")
+        sandbox = uat.create_sandbox(uat.SourceRepo.inspect(source), self.tmp / "boxes")
+        mismatch_record = [
+            {
+                "imported_from": str(
+                    self.tmp / "other" / "agent_workflows" / "__init__.py"
+                ),
+                "expected_root": str(self.tmp / "expected"),
+            }
+        ]
+        state = uat.probe(sandbox, install_import=mismatch_record)
+        kinds = [o["kind"] for o in state.get("observations", [])]
+        self.assertIn("wrong-checkout", kinds)
+
+    def test_report_surfaces_imported_from_and_wrong_checkout(self) -> None:
+        """report() prints Imported: when present, omits when None, and prints [wrong-checkout]."""
+        source = make_source_repo(self.tmp / "src", "1.2.1", "legacy")
+        sandbox = uat.create_sandbox(uat.SourceRepo.inspect(source), self.tmp / "boxes")
+        from contextlib import redirect_stdout
+
+        # Case 1: run with imported_from
+        res_with_import = {
+            "sandbox": str(sandbox),
+            "source": uat.SourceRepo.inspect(source).to_dict(),
+            "strategy": "full",
+            "files_before": 5,
+            "files_after": 5,
+            "added": [],
+            "removed": [],
+            "runs": [
+                {
+                    "argv": ["aw", "install"],
+                    "exit_code": 0,
+                    "duration_s": 0.5,
+                    "output": "ok",
+                    "imported_from": "/path/to/imported/agent_workflows/__init__.py",
+                }
+            ],
+            "state": {
+                "installed_version": "1.2.1",
+                "installed_version_path": ".agents/workflows/VERSION",
+                "layout": "legacy",
+                "observations": [
+                    {
+                        "kind": "wrong-checkout",
+                        "note": "Rehearsal child imported agent_workflows from elsewhere",
+                    }
+                ],
+            },
+        }
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            uat.report(res_with_import)
+        out_with = buf.getvalue()
+        self.assertIn(
+            "Imported: /path/to/imported/agent_workflows/__init__.py", out_with
+        )
+        self.assertIn("[wrong-checkout]", out_with)
+
+        # Case 2: run with imported_from: None
+        res_without_import = dict(res_with_import)
+        res_without_import["runs"] = [
+            {
+                "argv": ["aw", "install"],
+                "exit_code": 0,
+                "duration_s": 0.5,
+                "output": "ok",
+                "imported_from": None,
+            }
+        ]
+        res_without_import["state"] = {
+            "installed_version": "1.2.1",
+            "installed_version_path": ".agents/workflows/VERSION",
+            "layout": "legacy",
+            "observations": [],
+        }
+        buf2 = io.StringIO()
+        with redirect_stdout(buf2):
+            uat.report(res_without_import)
+        out_without = buf2.getvalue()
+        self.assertNotIn("Imported:", out_without)
+        self.assertNotIn("[wrong-checkout]", out_without)
+
+
+class ChildToolPinningTests(TempCase):
+    """Pinning the child installer to the toolkit checkout under test."""
+
+    def test_run_install_in_simulated_worktree_imports_from_worktree(self) -> None:
+        """A rehearsal executed from a copied worktree must install using the copy's package."""
+        wt = self.tmp / "wt"
+        wt_pkg = wt / "agent_workflows"
+        shutil.copytree(
+            REPO_ROOT / "agent_workflows",
+            wt_pkg,
+            ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+        )
+        mod_name = f"upgrade_rehearsal_wt_{self._testMethodName}"
+        try:
+            wt_uat = load_module(mod_name, wt_pkg / "upgrade_rehearsal.py")
+            src_repo = make_source_repo(self.tmp / "src")
+            sandbox = wt_uat.create_sandbox(
+                wt_uat.SourceRepo.inspect(src_repo), self.tmp / "boxes"
+            )
+            res = wt_uat.run_install(sandbox, install_args=("--help",))
+            self.assertEqual(res["exit_code"], 0)
+            imported = res.get("imported_from")
+            self.assertIsNotNone(
+                imported,
+                f"imported_from was not recorded (got None or absent); child resolved package from {REPO_ROOT}",
+            )
+            r_imported = os.path.realpath(imported)
+            r_wt = os.path.realpath(str(wt))
+            r_repo = os.path.realpath(str(REPO_ROOT))
+            self.assertEqual(
+                os.path.commonpath([r_wt, r_imported]),
+                r_wt,
+                f"expected imported_from under worktree {wt}, got {imported}",
+            )
+            self.assertNotEqual(
+                os.path.commonpath([r_repo, r_imported]),
+                r_repo,
+                f"imported_from unexpectedly under REPO_ROOT: {imported}",
+            )
+        finally:
+            sys.modules.pop(mod_name, None)
+
+    def test_probe_import_origin_in_simulated_worktree_reports_worktree(self) -> None:
+        """probe_import_origin directly reports the worktree package for matching env/argv."""
+        wt = self.tmp / "wt"
+        wt_pkg = wt / "agent_workflows"
+        shutil.copytree(
+            REPO_ROOT / "agent_workflows",
+            wt_pkg,
+            ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+        )
+        mod_name = f"upgrade_rehearsal_wt_probe_{self._testMethodName}"
+        try:
+            wt_uat = load_module(mod_name, wt_pkg / "upgrade_rehearsal.py")
+            probe_fn = getattr(wt_uat, "probe_import_origin", None)
+            self.assertIsNotNone(
+                probe_fn,
+                f"probe_import_origin absent from module; expected probe under {wt}, got {REPO_ROOT}",
+            )
+            from agent_workflows import runner_shared
+
+            tool_root = str(wt)
+            env = runner_shared.pinned_child_env()
+            current = env.get("PYTHONPATH", "")
+            env["PYTHONPATH"] = f"{tool_root}{os.pathsep}{current}".rstrip(os.pathsep)
+            env["AW_PIN_KEEP_ROOT"] = tool_root
+            sb = self.tmp / "sb"
+            sb.mkdir()
+            imported = probe_fn(env, cwd=sb)
+            self.assertIsNotNone(imported)
+            r_imported = os.path.realpath(imported)
+            r_wt = os.path.realpath(str(wt))
+            r_repo = os.path.realpath(str(REPO_ROOT))
+            self.assertEqual(os.path.commonpath([r_wt, r_imported]), r_wt)
+            self.assertNotEqual(os.path.commonpath([r_repo, r_imported]), r_repo)
+        finally:
+            sys.modules.pop(mod_name, None)
+
+    def test_self_rehearsal_sandbox_imports_tool_package_without_reexec_notice(
+        self,
+    ) -> None:
+        """A sandbox containing its own agent_workflows/ must not outrank the pin or trigger re-exec."""
+        from agent_workflows import runner_shared
+
+        src = make_source_repo(self.tmp / "src")
+        sandbox = uat.create_sandbox(uat.SourceRepo.inspect(src), self.tmp / "boxes")
+        # Seed the sandbox with its own copy of agent_workflows/
+        sb_pkg = sandbox / "agent_workflows"
+        shutil.copytree(
+            REPO_ROOT / "agent_workflows",
+            sb_pkg,
+            ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+        )
+        res = uat.run_install(sandbox, install_args=("--help",))
+        self.assertEqual(res["exit_code"], 0)
+        imported = res.get("imported_from")
+        self.assertIsNotNone(imported, "imported_from must be recorded")
+        r_imported = os.path.realpath(imported)
+        tool_root = getattr(uat, "tool_repo_root", lambda: REPO_ROOT)()
+        r_tool = os.path.realpath(str(tool_root))
+        r_sandbox = os.path.realpath(str(sandbox))
+        self.assertEqual(
+            os.path.commonpath([r_tool, r_imported]),
+            r_tool,
+            f"imported_from ({imported}) must be under tool root ({tool_root})",
+        )
+        self.assertNotEqual(
+            os.path.commonpath([r_sandbox, r_imported]),
+            r_sandbox,
+            f"imported_from ({imported}) must NOT be under sandbox ({sandbox})",
+        )
+        self.assertNotIn(
+            runner_shared._CHECKOUT_PIN_NOTICE_PREFIX,
+            res["output"],
+            "installer output must not contain checkout_pin re-exec notice",
+        )
+        # Probe observation check
+        state = uat.probe(
+            sandbox,
+            install_import=[
+                {
+                    "imported_from": str(sb_pkg / "__init__.py"),
+                    "expected_root": str(tool_root),
+                }
+            ],
+        )
+        kinds = [o["kind"] for o in state.get("observations", [])]
+        self.assertIn("wrong-checkout", kinds)
+
+    def test_explicit_aw_cmd_leaves_pythonpath_unpinned_and_records_none(self) -> None:
+        """Explicit aw_cmd leaves PYTHONPATH without tool root and records imported_from: None."""
+        src = make_source_repo(self.tmp / "src")
+        sandbox = uat.create_sandbox(uat.SourceRepo.inspect(src), self.tmp / "boxes")
+        caller_code = (
+            "import os, sys; print(os.environ.get('PYTHONPATH', '')); sys.exit(0)"
+        )
+        cmd = [sys.executable, "-c", caller_code]
+        import unittest.mock
+
+        with unittest.mock.patch.dict(os.environ, {"PYTHONPATH": "caller_entry"}):
+            res = uat.run_install(sandbox, aw_cmd=cmd)
+        self.assertEqual(res["exit_code"], 0)
+        self.assertIsNone(res.get("imported_from"))
+        self.assertEqual(res["argv"][: len(cmd)], cmd)
+        self.assertEqual(res["output"].strip(), "caller_entry")
 
 
 class CliTests(TempCase):
