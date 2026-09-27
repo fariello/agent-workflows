@@ -6,7 +6,8 @@
 - Scope: IN: a separate reference-scan root list (NOT `SCAN_ROOTS`) that adds `.aw/records/reviews` and `tests`, with `.py` scanned only under it; short-handle to short-handle mapping; fenced-code masking in plan and apply; skip-and-warn for a legacy prefix that is not unique across `.aw/records`; an interactive confirmation for `tests/` edits (default yes, non-interactive rewrites); outcome tests. OUT: widening `artifact_core.SCAN_ROOTS` or `_TEXT_SUFFIXES` (read by `aw attention` and the dangling detectors); masking indented code or quoted prose outside fences; repairing citations already broken by past renames.
 - Scope-Paths: agent_workflows/artifact_core.py, agent_workflows/artifact_refs.py, agent_workflows/artifact_rename.py, agent_workflows/plans_refs.py, agent_workflows/research_refs.py, tests/test_artifact_refs_rewrite.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: 7oql4z
@@ -18,6 +19,7 @@
 - Id: 5xzld0
 
 ## Workflow history
+- 2026-09-27 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 all FIXED. All four defects reproduced end to end in one run at HEAD 8e96d348. PR-001 (HIGH): E-01's own fixture, as specified, made the rename exit 2 with nothing done, so five cases would have failed for an unrelated reason; fixture now mandates real directories plus per-test exit-code assertions. PR-002: F-5's premise measured FALSE (widening newly blocks 0 of 60 legacy targets; its example spec already exits 2 today), downgraded and E-07's expectation corrected. PR-005: E-05 split into E-05 + E-10 via aw ipd sync, clearing the IPD-Z602 density advisory. PR-003/PR-004 carried as new Blocks-Release bugs p0a5kr and zftbta; Goal narrowed so it no longer claims to reach every citation. Findings and decisions D-1..D-4 in .aw/records/reviews/20260926-renamescan-01-5xzld0-make-aw-rename-rewrite-citations-in-reviews-and-tests-withou.review.md
 - 2026-09-26 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog 7oql4z: aw rename gains reviews/tests reference roots, short-handle mapping, fenced-code masking and a shared-legacy-prefix skip.
 
 - 2026-09-26 draft (opencode/its_direct/pt3-claude-opus-5.5-1m-us): created.
