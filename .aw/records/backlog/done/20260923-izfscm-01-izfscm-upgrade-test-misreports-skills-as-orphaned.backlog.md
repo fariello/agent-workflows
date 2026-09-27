@@ -1,5 +1,5 @@
 - Id: izfscm
-- Status: graduated
+- Status: done
 - Graduated-To: upgrehearse
 - Blocks-Release: next
 - Set: izfscm
@@ -8,6 +8,7 @@
 - Summary: aw_upgrade_test.py probe reports .agents/skills as 'orphaned-skills ... unreferenced duplicates' but that directory is the INTENDED skills location for both layouts, so the harness advises deleting live install output
 
 ## Workflow history
+- 2026-09-27 set (aw backlog): closed by aw oc run: IPD sbo3hl executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260926-upgrehearse-02-sbo3hl-stop-the-upgrade-rehearsal-calling-the-live-agents-skills-in.ipd.md); evidence .aw/records/plans/executed/20260926-upgrehearse-02-sbo3hl-stop-the-upgrade-rehearsal-calling-the-live-agents-skills-in.ipd.md
 - 2026-09-26 graduated (aw set): Graduated 2026-09-26 into plan sbo3hl (Set upgrehearse), re-verified live at HEAD.
 - 2026-09-23 created (aw backlog): aw_upgrade_test.py probe reports .agents/skills as 'orphaned-skills ... unreferenced duplicates' but that directory is the INTENDED skills location for both layouts, so the harness advises deleting live install output
 
