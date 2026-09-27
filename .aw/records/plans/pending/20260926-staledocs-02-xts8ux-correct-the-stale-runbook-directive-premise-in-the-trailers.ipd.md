@@ -6,7 +6,7 @@
 - Scope: IN: the docstring of `agent_workflows/work_cmd._trailers_from_args` only. OUT: any behavior change, any new flag, wiring run/item ids into the agent's `aw commit` (that is the gap the docstring documents, and closing it is a separate design decision), the driver prompts.
 - Scope-Paths: agent_workflows/work_cmd.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 03
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: xts8ux
+- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 approved (aw set): status set to approved
 - 2026-09-27 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-601..PR-605 all FIXED. Premise re-measured: the stale phrase occurs exactly once in the package and aw commit exposes no id flag. Found that deferral carrier a6xbso is a live reviewed plan rewriting this same paragraph to the opposite conclusion, so added a premise-check E-01 that stops and retires if it landed first; replaced V-01's positive grep, which passed before any edit, with a four-probe docstring check measured to flip.
 - 2026-09-26 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog t5ycse: Rewrite the _trailers_from_args docstring to name the real gap (aw commit gets no run/item ids).
 

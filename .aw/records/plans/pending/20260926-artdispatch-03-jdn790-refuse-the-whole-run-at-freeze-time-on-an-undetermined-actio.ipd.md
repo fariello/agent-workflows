@@ -6,7 +6,7 @@
 - Scope: IN: (a) one freeze-time gate in `runner_shared.initialize_run_core`, sited with the existing pre-queue gates (after the typed queue is built in memory and BEFORE the run directory, any lease, lane or session), that collects EVERY finding across the selection and raises one `DriverError` (exit 2, no durable state, like `enforce_orchestrator_shape_gate`) for: an entry whose derived action is `undetermined` (5.1); an artifact whose type's structural checker reports a finding (5.2); an `executed:` edge that is unsatisfied on disk AND that this run provably cannot satisfy, judged over the FROZEN QUEUE (target present, frozen `queued` rather than awaiting approval, and able to reach `executed` in this run) rather than over the manifest, per E-05 (5.3); (b) the per-item `fail-depend` cascade for an in-batch prerequisite that FAILS during the run is untouched and re-proven (5.3a); (c) amend spec `25kzda` 3.1 gate 1 and 4.2's `RUN-STRUCTURE-PREFLIGHT` row, and the verbatim transcription in `run_evidence.RUN_FINDING_CODES`, to state the freeze-time whole-run refusal (5.3b). OUT: changing satisfaction semantics (spec `z7nbn1` 1.4: "adds a refusal point and changes no satisfaction semantics"; the consuming-action rule of `25kzda` 2.9 decides "could be met"); `--with-dependencies` (it already rebinds the selection before freezing, so an edge it can satisfy is in the batch by the time this gate runs); dispatch-time re-checking, which stays (spec 1.4a); and any change to how a `fail-depend` cascade re-evaluates.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/run_evidence.py, agent_workflows/run_selection_policy.py, tests/test_freeze_time_refusal.py, tests/test_runner_shared.py, tests/test_oc_runipd.py, tests/test_run_selection_policy.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: executed:8l8dgb
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: high
@@ -17,8 +17,10 @@
 - Highest E allocated: 10
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: jdn790
+- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 approved (aw set): status set to approved
 
 - 2026-09-26 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-011 all FIXED; review record `.aw/records/reviews/20260926-artdispatch-03-jdn790-refuse-the-whole-run-at-freeze-time-on-an-undetermined-actio.review.md`. Re-verified F-1..F-5 at lane HEAD bdbb4025: every seam reproduced, and F-4's counts CORRECTED (44 actionable plans not 55, with a different status split; 634 backlog items not 620; NINE live unsatisfied edges not four). ADDED two HIGH findings IN E-05's OWN could-be-met predicate, measured on the real 44-plan `aw oc run all` selection and cutting in OPPOSITE directions: it would REFUSE three legitimate in-batch edges whose target is `to-review` (F-6, all three inside this plan's own Set, so `aw oc run all` would refuse today) and ADMIT three that provably cannot be met because the target is frozen `reviewed`/needs-input and never dispatched (F-7, one of them this plan's own edge on 8l8dgb). E-05 now specifies the predicate over the FROZEN QUEUE with a recorded `--full-auto` decision. Also fixed an unimplementable severity criterion (F-8: spec/backlog validators return `severity=''` and no rule is registered, so `== "error"` would never fire), an orphaned shipped disposition code (F-9), a cost budget straddling its own threshold (F-10, re-measured 0.54-1.36s warm over 44 plans), and a stale terminal-lint count stated as a bar (F-11). Split the four over-dense items into six new ones (E-01..E-10) and rebuilt the V checklist to a 10-item bijection. `aw ipd lint --phase review-finalize` conforming, 0 findings.
 

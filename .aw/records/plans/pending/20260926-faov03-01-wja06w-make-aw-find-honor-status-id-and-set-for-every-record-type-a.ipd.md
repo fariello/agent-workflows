@@ -6,7 +6,7 @@
 - Scope: IN: (a) filter the generic branch on `--status` (via `selectors._read_status`), `--id` (`selectors._read_id`) and `--set` (`selectors._read_setid`), both with and without positional selectors, reusing the text the branch already reads; (b) validate `--status` in `cli._run_find` BEFORE any scan against the type's canonical enum, refusing with exit 2 and a message listing the valid values, for `specs` (`attention_contract.SPEC_STATUSES`), `backlog` (`backlog.STATUSES`), `releases` (`releases.RELEASE_STATUSES`), `plans` (`plans.RECOGNIZED` plus the plans disposition words `aw find plans` accepts today, see OQ-02) and `research` (`research_contract.normalize_status`, which already accepts the legacy `intake` spelling); for `all`, refuse only a value in NO type's enum; (c) a new `tests/test_find_filters.py` on a temp repo. OUT: types with no canonical status enum (`prompts`, `walkthroughs`, `roadmaps`, `comms`, `reviews`, `other`) are FILTERED but not validated (OQ-01); the plans and research SELECTOR-branch read restructuring (plan `qfpnrm`); `--topic` for non-research types; the SQLite cache (spec `4sd62s`).
 - Scope-Paths: agent_workflows/cli.py, tests/test_find_filters.py
 - Item-Dependencies: executed:qfpnrm
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: wja06w
+- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 approved (aw set): status set to approved
 
 - 2026-09-26 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 all FIXED; review record `.aw/records/reviews/20260926-faov03-01-wja06w-make-aw-find-honor-status-id-and-set-for-every-record-type-a.review.md`. All of F-1..F-6 re-verified at lane HEAD 9f33c5c4 and every fail-open mode reproduced (specs --status/--id and backlog --set each return the unfiltered count; plans/research bogus statuses exit 0); the dependency `executed:qfpnrm` is satisfied and the post-qfpnrm generic branch is shaped as E-03 assumes; all five status enums and the `intake` normalization exist as named; the `cannot-run` exit-2 refusal shape E-04 wants has a working precedent in the sibling `search` verb. THREE SUBSTANTIVE FIXES: E-04's `all` rule contradicted the plan's own OQ-01 and would have refused a value its single-type query accepts, because `ARTIFACT_TYPES` always spans the six enum-less types (F-7, rule corrected so any enum-less type disables validation, and E-02 case (9) reversed to assert acceptance); for six of the nine generic types NO record has a readable `- Status:`, so `--status` now returns ZERO there and case (10) asserted the opposite (F-8, with the same shape for `--id` on reviews/comms, F-9); and `_read_status` neither case-normalizes nor survives a prose-carrying status line, so the filter now compares case-insensitively (F-10). Also de-counted three drifted live figures and corrected the stale test-file inventory (F-11). `aw ipd lint --phase review-finalize` conforming, 0 findings.
 - 2026-09-26 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog faov03. Re-measured at HEAD f46b6775: specs --status to-review/bogusvalue/--id 4sd62s each 38 rows (unfiltered 38), backlog --set closescope 617 (unfiltered 617), plans --status bogusvalue and research --status bogus both exit 0 "no matching". Ordered after qfpnrm (Set findonce), which restructures the plans/research branches of the same function.

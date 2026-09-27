@@ -6,7 +6,7 @@
 - Scope: IN: (a) `ipd_lifecycle._commit_run_ownership(repo_root, sha, plan_id6) -> "owned" | "foreign" | "unknown"`, reading `AW-Item`/`AW-Run` via `git log -1 --format=%(trailers:key=...,valueonly)`; (b) a range helper `_trailer_owned_committed_paths(repo_root, base_head, plan_id6)` returning the paths of every non-merge commit in `base_head..HEAD` classified `owned`, plus per-class commit counts for evidence, using ONE `git log` call; (c) in `finalize_precheck`'s committed-half branch, a path in the trailer-owned set is ALWAYS owned (reason required), consulted BEFORE and independently of cohesion or the run record; `unknown` and `foreign` commits fall through to today's predicate unchanged; (d) a `trailer_attribution` evidence block; (e) updating the accepted-cost prose in `_working_tree_path_is_owned`, `_execution_cohesive_committed_paths`, `_run_record_committed_paths` and the `finalize_precheck` comment; (f) behavioral tests on scratch repos. OUT: binding `RUN-COMMIT-CONTENTS`/`RUN-COMMIT-GATEWAY` (Carrier-Declined); using a `foreign` trailer to EXCUSE a path (deferred, see OQ-02); any change to `check_engine.check_scope_drift`, which deliberately reads the unfiltered window.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, tests/test_finalize_trailer_attribution.py
 - Item-Dependencies: executed:a6xbso
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
@@ -16,8 +16,10 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 199u11
+- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 approved (aw set): status set to approved
 
 - 2026-09-27 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; 8 findings PR-1301..PR-1308 all FIXED (3 HIGH), 4 decisions D-1..D-4 recorded; review record written. F-1 RE-REPRODUCED at review HEAD f94dc07f on three scratch repos (trailered-own, untrailered and foreign all yield commit-cohesion / out_of_scope=[] / disregarded=['other.py'], i.e. indistinguishable today). PR-1301 (HIGH): E-03's line-oriented one-call parse is unsound because a folded trailer value puts a newline INSIDE the field (measured), so a continuation line is indistinguishable from a path; replaced with a record-delimited \x1e/\x1f parse, verified. PR-1302 (HIGH): a trailers field is multi-valued AND multi-line (two AW-Item trailers -> 'aaa111,zzz999'), so E-02 must split on both axes before comparing. PR-1303 (HIGH): the runner auto-answers every demand this plan adds via compute_scope_reconciliation, so the gate's 'always needs a reason' does not describe the automated path; added E-07/V-07 (comment-only) and a gate paragraph. PR-1304: V-05's grep exits 1 on the UNMODIFIED file (the phrase wraps), so it would pass an unperformed E-05; replaced with three anchors each measured exiting 0 today. PR-1305: case (6) can pass having written no trailer. Also corrected the spec-sync claim (the spec has no 'nothing reads trailers back' sentence) and verified no shipped test is forced into scope. aw ipd lint --phase review-finalize conforming.
 

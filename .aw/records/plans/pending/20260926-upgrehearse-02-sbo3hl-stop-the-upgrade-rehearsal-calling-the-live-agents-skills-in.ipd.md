@@ -6,7 +6,7 @@
 - Scope: IN: in `agent_workflows/upgrade_rehearsal.py` (the post-`8ud1is` home of the harness logic): delete the `orphaned-skills` observation; exclude the `engine.resolve_skills_dir(layout)` subtree from the `legacy-leftovers` count and its breakdown detail; record the live skills-file count in the probe state; add the inverse observation `skills-missing` (a migrated run with no files under the skills directory); make the human `report` line say how many of the `.agents/` files are the live skills install; update the restored `ProbeAndObservationTests.OBSERVATIONS` row that pins the defect and add rows plus one real-probe test. OUT: changing `legacy_breakdown`'s attribution rule (a restored test pins it and it stays correct); changing where the installer writes skills; the tool's other observations; the `tools/aw_upgrade_test.py` shim (it re-exports, so it needs no edit).
 - Scope-Paths: agent_workflows/upgrade_rehearsal.py, tests/test_aw_upgrade_test.py
 - Item-Dependencies: executed:8ud1is
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: sbo3hl
+- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 approved (aw set): status set to approved
 - 2026-09-27 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-501..PR-505 all FIXED. Premise re-driven two ways (state table and a real create_sandbox probe). Caught that the real-probe test would have passed vacuously against the unfixed module (probe reads baseline_layout from the sandbox marker, so a hand-built fixture yields zero observations); named the two other pinned rows the new subtraction reaches with their arithmetic; split E-05's three bundled test surfaces into E-05 plus E-07 per IPD-Z602.
 
 - 2026-09-26 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog izfscm. Re-measured at HEAD f46b6775: the skills-only migrated state emits empty-legacy-dirs, legacy-leftovers AND orphaned-skills; engine.resolve_skills_dir returns .agents/skills for every layout. Ordered after 8ud1is (the package move plus the full test restore) because this plan edits the post-move module and the restored test row that pins the defect.

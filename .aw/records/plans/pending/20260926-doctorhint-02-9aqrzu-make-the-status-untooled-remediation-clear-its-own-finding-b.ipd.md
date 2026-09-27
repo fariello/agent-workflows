@@ -6,7 +6,7 @@
 - Scope: IN: in `status_set.apply_status_change`, when the target equals the on-disk status AND the record is a plan whose HEAD blob status differs, treat the change as a genuine transition from the HEAD status (write a `<status>` history token and the transition's default message) WHILE KEEPING the same-status duplicate suppression reachable on that path; outcome tests including a double-run idempotence test; the doctor remediation text and the ONE existing test that pins its current wording. OUT: relaxing `check_engine._has_matching_history_line`; non-plan record types; the approval-floor rules; the checker's own drift-detail wording.
 - Scope-Paths: agent_workflows/status_set.py, tests/test_status_set.py, agent_workflows/doctor.py, tests/test_doctor.py
 - Item-Dependencies: executed:6k7xot
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 9aqrzu
+- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 approved (aw set): status set to approved
 - 2026-09-27 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; 8 findings PR-1101..PR-1108 all FIXED (2 HIGH), 4 decisions D-1..D-4 recorded; review record written. Reproduced F-1..F-3 and proved the fix premise (a real status token clears the finding). PR-1101 (HIGH): E-01's 'is_same_status = False' makes the duplicate suppression unreachable and duplicates history on every re-run, re-opening the 1i300e/vhbvwz defect (measured two identical records); rewritten to keep the flag and widen _write_history_anyway. PR-1102 (HIGH): the E-03 reword breaks a pinned assertion in tests/test_doctor.py, which was undeclared; path added. PR-1103: E-03's conditional resolved (both doctor strings require reverting, so the edit is mandatory). PR-1104: the gate claimed the plan was blocked on a question carrying Blocking: no and Status: resolved; corrected. Added E-05/V-05 for the ipd_lifecycle caller. aw ipd lint --phase review-finalize conforming; aw check plans clean for this plan.
 - 2026-09-26 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog mpghjn: implement option 2 (setter writes a genuine transition record when HEAD status differs); blocked on maintainer choice among three fixes (OQ-01).
 

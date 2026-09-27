@@ -6,7 +6,7 @@
 - Scope: IN: (a) resolve the host's per-turn ceiling once at run init and freeze it into `state["options"]` so the shared prompt stays host-neutral; (b) a short "Turn budget" paragraph in `runner_shared.build_prompt` next to the FOREGROUND paragraph, stating the stall timeout and the per-turn ceiling as a per-turn budget; (c) outcome tests in `tests/test_oc_runipd.py`. OUT: computing a REMAINING budget (the prompt is rendered before the turn starts, so it can only state the per-turn budget, never what is left); changing either bound's value; the verifier prompt; the review prompt; x7wfyx item B.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_oc_runipd.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: tb6wh7
+- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 approved (aw set): status set to approved
 - 2026-09-27 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 to PR-006 all FIXED. Re-derived every number by driving the real code (driver_bound_for_host(None)=14400.0, driver_bound_for_host(parse('240m'))=14100.0) and both hosts' prompts. Found and fixed: a FOURTH build_prompt caller the plan did not name (tests/test_attempt_lane_facts.py asserts absolute_paths_outside_lane == [] over the whole prompt, a property check that fails on a new line); a fixture passing state with NO options key at all, so E-02's fallback needed state.get not state[...]; both bounds are FLOATS so a naive render says '600.0 seconds' and a truncated hours value would tell an agy agent 'about 3 hours' when it has 3.9, understating the budget the paragraph exists to make computable; the host-neutrality premise was false (build_prompt already imports lane_containment); and E-05's agy --prepare-only hedge was unnecessary (measured working offline). Findings in .aw/records/reviews/20260926-turnbudget-01-tb6wh7-state-the-per-turn-budget-in-the-shared-execute-prompt.review.md
 - 2026-09-26 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog 4bhxni: State the stall timeout and per-turn ceiling in the shared execute prompt; carries Blocks-Release next by maintainer decision.
 

@@ -6,7 +6,7 @@
 - Scope: IN: (a) two env-var NAME constants beside the trailer keys in `git_commit_helper` (`RUN_ID_ENV = "AW_RUN_ID"`, `ITEM_ID6_ENV = "AW_ITEM_ID6"`); (b) `work_cmd._trailers_from_args` falls back to those env vars ONLY when the namespace supplies neither `trailers` nor `run_id`/`item_id6`, validating the run id against the `new_run_id` shape and the item id against `artifact_core.ID6_RE`, ignoring a malformed value with a one-line stderr warning; (c) both hosts' agent-turn env construction sets the two vars from the live `state["run_id"]` and `item["id6"]`, and REMOVES any inherited value when the live run has none, so a stale outer value can never be stamped; (d) `conftest.py` scrubs both vars at session start, exactly as it already scrubs `AW_EXECUTION_ROLE`, so a suite run INSIDE an agent turn does not stamp trailers onto its scratch commits; (e) docstring updates on `_trailers_from_args` and `run_item_trailers`; (f) behavioral tests. OUT: refusing raw `git commit` inside a run (Carrier-Declined, see Deferred); any trailer READER (Order 2 of this Set, plan `199u11` from backlog `am1g38`); a public CLI flag (rejected by `_trailers_from_args`'s own docstring); validating the ids at the WRITE side (see E-04).
 - Scope-Paths: agent_workflows/git_commit_helper.py, agent_workflows/work_cmd.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, conftest.py, tests/test_commit_run_trailers_env.py, tests/test_git_commit_helper.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: medium
@@ -16,8 +16,10 @@
 - Highest E allocated: 08
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: a6xbso
+- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 approved (aw set): status set to approved
 - 2026-09-27 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; 9 findings PR-1201..PR-1209 all FIXED (2 HIGH), 4 decisions D-1..D-4 recorded; review record written. Reproduced F-2 exactly (scratch aw commit yields 'x' with both trailers empty) and re-verified F-3/F-4 in code. PR-1201 (HIGH): F-5 named the wrong test; the assertion that actually breaks is test_aw_commit_threads_trailers_and_lifecycle_delegates's _trailers_from_args(Namespace()) == [], in an undeclared file, kept green only by the E-06 scrub; path declared and the coupling stated. PR-1202 (HIGH): nothing proved the writer's exported id is one the reader accepts (the two validate against two deliberate separate definitions of the run-id shape); added E-08/V-08 round trip. PR-1203: the reused harness exports run-test, which the reader rejects, so cases (5)/(6) prove export not usability. PR-1204: stated why validation lives at the reader only. Corrected the drifting corpus counts to a re-derived property, the Order-2 plan id (199u11, not backlog am1g38), and 8apjpp's status. aw ipd lint --phase review-finalize conforming.
 
 - 2026-09-26 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog j2srcc on the maintainer's batch-graduation instruction choosing route B (env channel into `aw commit`); raw-commit refusal declined. Every claim re-measured at HEAD 61ef21d8, including a scratch-repo `aw commit` with AW_RUN_ID set producing no trailer today.

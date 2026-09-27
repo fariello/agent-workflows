@@ -6,7 +6,7 @@
 - Scope: IN: (a) one shared pure-ish predicate `check_engine.stale_record_scope_paths(repo_root, plan_text)` that returns, for each LITERAL (no `*`, `?`, `[`) `Scope-Paths` entry under `.aw/records/` that does not exist, a classification `moved-terminal` (the artifact's id6 now resolves to exactly one artifact that is retired), `moved` (resolves to exactly one non-retired artifact at a different path), or `vanished` (resolves to none); paths outside `.aw/records/`, globs, directory entries that exist, and grandfathered plans are ignored; (b) a new `aw check` rule `check.scope-path-target-stale` over approved (and reviewed/to-review) PENDING plans, riding the `aw check all` full-sweep seam beside `check.from-spec-dangling`, reporting ALL THREE classifications; (c) a dispatch-time refusal in `runner_shared.execute_item_core` for an `execute` action, before any clean-base check, lane allocation, begin, or agent turn, that marks ONLY that item `fail-gate` with a recorded `scope_target_refusal` reason naming each stale path and its classification, emits a `scope-target-stale` event, and returns so the run continues (the item-local-refusal precedent of `clean_base_refusal`) - BUT THE REFUSAL FIRES ON `moved-terminal` AND `vanished` ONLY, never on plain `moved` (corrected in review, F-8: a non-retired artifact that merely changed status directory is still fully editable, so refusing it would be a FALSE REFUSAL of a runnable plan; `aw check` still reports it so a human fixes the path); (d) amend spec `25kzda` Section 5.7's failure taxonomy with one row for this refusal; (e) behavioral tests and a real-corpus zero-false-positive scan. OUT: checking non-records paths (new files are legitimate); checking glob entries; auto-rewriting a plan's scope to the moved path (a human decides whether the plan is still meaningful); review-action dispatch (a review of a stale plan is how a human finds out; the `aw check` rule covers it); retiring `tgop8e`-style plans already in terminal directories (they are history); making the REFUSAL fire on `moved` (F-8).
 - Scope-Paths: agent_workflows/check_engine.py, agent_workflows/runner_shared.py, tests/test_scope_path_target_stale.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 6h8j1r
+- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 approved (aw set): status set to approved
 - 2026-09-27 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-301..PR-307 FIXED, PR-308 OPEN as non-blocking OQ-04 (severity of a 'moved' finding is a maintainer call). Central fix: the refusal no longer fires on a non-retired 'moved' target, which would have fail-gated 7 live pending plans including this one when a cited spec advances status.
 
 - 2026-09-26 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog mlc6mj. Design constraint measured at HEAD ea206c49 (16 legitimate not-yet-existing code/test paths across 13 approved pending plans; 0 missing literal .aw/records paths), so only literal .aw/records entries are checked. Classification prototyped against every plan's Scope-Paths corpus-wide: 58 missing literal records entries, all in executed/superseded plans, 40 moved-terminal and 18 moved, 0 vanished.

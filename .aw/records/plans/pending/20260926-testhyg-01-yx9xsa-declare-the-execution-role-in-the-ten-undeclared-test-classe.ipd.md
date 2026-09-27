@@ -6,7 +6,7 @@
 - Scope: IN: declare the role first in `setUp` of the ten undeclared classes of `tests/test_ipd_lifecycle_cli.py` (adding a `setUp` to the one that has none); declare it once in `tests/test_orchestrator_retirement.py`'s shared `RollupTransitionCase.setUp`, which review measured as the ONE remaining suite-wide failure of exactly this defect class (review F-6); correct the stale `conftest.py` comment. OUT: a permanent guard test (maintainer declined structural guards); any OTHER test file, and any change to an assertion body in either declared test file.
 - Scope-Paths: tests/test_ipd_lifecycle_cli.py, tests/test_orchestrator_retirement.py, conftest.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,8 +17,10 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: yx9xsa
+- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 approved (aw set): status set to approved
 - 2026-09-27 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-901..PR-908; added tests/test_orchestrator_retirement.py (one base-class declaration closing the suite's only other instance) and the unittest/test-serial verification path; corrected a third dead reference in the conftest comment
 - 2026-09-26 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog owi0no: declare the execution role in the ten undeclared classes of test_ipd_lifecycle_cli.py; re-measured 22 failures under a re-asserted worker marker at HEAD 61ef21d8.
 
