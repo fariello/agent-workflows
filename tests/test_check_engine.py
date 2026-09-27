@@ -1505,7 +1505,8 @@ class CarrierDischargedRemedyTests(unittest.TestCase):
             )
 
             self.assertFalse(verdict.legitimate)
-            self.assertEqual(verdict.severity, "error")
+            self.assertEqual(verdict.severity, "info")
+            self.assertEqual(verdict.rule, "check.ipd-carrier-finished-unverified")
             expected_line = "- Carrier-Evidence: .aw/records/backlog/done/20260101-backlog-01-bk0001-sample.backlog.md"
             self.assertIn(expected_line, verdict.reason)
             self.assertIn("Carrier-Declined", verdict.reason)
@@ -1526,7 +1527,8 @@ class CarrierDischargedRemedyTests(unittest.TestCase):
             )
 
             self.assertFalse(verdict.legitimate)
-            self.assertEqual(verdict.severity, "error")
+            self.assertEqual(verdict.severity, "info")
+            self.assertEqual(verdict.rule, "check.ipd-carrier-finished-unverified")
             expected_line = "- Carrier-Evidence: .aw/records/plans/executed/20260101-plans-01-pl0001-sample.ipd.md"
             self.assertIn(expected_line, verdict.reason)
             self.assertIn("Carrier-Declined", verdict.reason)
@@ -1642,7 +1644,8 @@ class CarrierDischargedRemedyTests(unittest.TestCase):
                 carrier_index=carrier_index,
             )
             self.assertEqual(len(drifts), 1)
-            self.assertEqual(drifts[0].rule, "check.ipd-uncarried-obligation")
+            self.assertEqual(drifts[0].rule, "check.ipd-carrier-finished-unverified")
+            self.assertEqual(drifts[0].severity, "info")
             expected_line = "- Carrier-Evidence: .aw/records/plans/executed/20260101-plans-01-pl0001-sample.ipd.md"
             self.assertIn(expected_line, drifts[0].detail)
             self.assertIn(expected_line, drifts[0].recovery)
@@ -1688,16 +1691,70 @@ class CarrierDischargedRemedyTests(unittest.TestCase):
 
             # Driven through check_content so the bare except is in the path
             drifts = ce.check_content(repo, "plans")
-            uncarried = [
-                d for d in drifts if d.rule == "check.ipd-uncarried-obligation"
+            finished_drifts = [
+                d for d in drifts if d.rule == "check.ipd-carrier-finished-unverified"
             ]
-            self.assertEqual(len(uncarried), 1)
-            self.assertEqual(uncarried[0].severity, "error")
+            self.assertEqual(len(finished_drifts), 1)
+            self.assertEqual(finished_drifts[0].severity, "info")
             self.assertIn(
-                "carrier pl0001 resolves only to a terminal/hidden artifact",
-                uncarried[0].detail,
+                "carrier pl0001 finished (executed)",
+                finished_drifts[0].detail,
             )
-            self.assertNotIn("- Carrier-Evidence: ", uncarried[0].detail)
+            self.assertNotIn("- Carrier-Evidence: ", finished_drifts[0].detail)
+
+    def test_case_7_mixed_finished_and_uncarried_carrier_rows_split_into_two_drifts(
+        self,
+    ):
+        """E-08: single pending plan with BOTH a finished carrier row and an uncarried/abandoned row
+        emits TWO Drifts: check.ipd-carrier-finished-unverified at info and
+        check.ipd-uncarried-obligation at error, and aw check plans exits 1."""
+        with tempfile.TemporaryDirectory() as td:
+            root = self._setup_scratch_repo(td)
+            cfg = root / ".aw" / "config"
+            cfg.mkdir(parents=True, exist_ok=True)
+            (cfg / "project.json").write_text(
+                json.dumps({"cutovers": {"carrier_obligations": "20260901"}}),
+                encoding="utf-8",
+            )
+            plan_path = (
+                root
+                / ".aw"
+                / "records"
+                / "plans"
+                / "pending"
+                / "20260926-sample-01-pl9999-sample.ipd.md"
+            )
+            plan_text = (
+                "# IPD: Mixed\n\n"
+                "- Date: 2026-09-26\n"
+                "- Id: pl9999\n"
+                "- Status: pending\n\n"
+                "## Deferred / out of scope (with reason)\n"
+                "- Row 1 finished\n"
+                "  - Carrier: pl0001\n"
+                "- Row 2 uncarried\n"
+                "  - Carrier: pl0002\n"
+            )
+            plan_path.write_text(plan_text, encoding="utf-8")
+            carrier_index = ce._carrier_index(root)
+            drifts = ce.evaluate_durable_carrier(
+                root,
+                plan_path=plan_path,
+                plan_text=plan_text,
+                carrier_index=carrier_index,
+            )
+            self.assertEqual(len(drifts), 2)
+            rules = {d.rule: d.severity for d in drifts}
+            self.assertEqual(
+                rules,
+                {
+                    "check.ipd-carrier-finished-unverified": "info",
+                    "check.ipd-uncarried-obligation": "error",
+                },
+            )
+            from agent_workflows import artifact_core as _core
+
+            self.assertEqual(_core.drift_exit_code(drifts), 1)
 
 
 if __name__ == "__main__":

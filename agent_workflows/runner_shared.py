@@ -23475,6 +23475,130 @@ AGY_HOST_LABELS = HostLabels(
     full_auto_actor="aw agy run --full-auto",
 )
 
+CARRIER_VERIFICATION_REFUSAL_CODE: str = "carrier-verification-unresolved"
+
+
+def build_carrier_verification_prompt(
+    b_id6: str,
+    rows: Sequence[Any],
+    executed_path: str | None = None,
+) -> str:
+    """Build the prompt asking an agent to verify obligations deferred to finished carrier `b_id6`.
+
+    carrierwarn Order 01 (`cnzrxb`) E-03.
+    """
+    row_lines = []
+    for r in rows:
+        row_lines.append(f"- {r.plan_id6} ({r.locator}): {r.row_text}")
+    rows_block = "\n".join(row_lines)
+    ev_target = executed_path or f"<path of executed {b_id6}>"
+    return (
+        f"Plan {b_id6} just finished. These pending plans named it as the owner of work they deferred:\n"
+        f"{rows_block}\n\n"
+        f"For each: if {b_id6} did this work, add `- Carrier-Evidence: {ev_target}` under the row; "
+        f"if it did not, re-point `- Carrier:` to a live backlog item or plan (file one with `aw backlog new` if needed) "
+        f"or do the work.\n\n"
+        f"These edits are outside your plan's scope: commit them with `aw commit --no-plan -m <why>` naming each path, "
+        f"and state the reason. Report yes/no per row."
+    )
+
+
+def perform_carrier_verification(
+    *,
+    target_repo: Path,
+    b_id6: str,
+    item: dict[str, Any],
+    attempt: dict[str, Any],
+    state: Any,
+    run_dir: Path,
+    plan_path: Path,
+    attempt_no: int,
+    raw_launcher: Any,
+    host_labels: Any,
+    tracker: Any,
+    work_dir: Path | str,
+    session_turn_counts: dict[str, int] | None = None,
+) -> list[Any]:
+    """Spend at most one follow-up turn in the same session asking the agent to verify finished carrier obligations.
+
+    carrierwarn Order 01 (`cnzrxb`) E-03.
+    """
+    from agent_workflows import check_engine as _ce
+
+    rows = _ce.find_obligations_carried_by(target_repo, b_id6)
+    if not rows:
+        return []
+
+    session_id = attempt.get("session_id")
+    already_asked = bool(attempt.get("carrier_verification_asked"))
+    if session_id and not already_asked:
+        attempt["carrier_verification_asked"] = True
+        prompt_text = build_carrier_verification_prompt(b_id6, rows)
+        prompt_path = write_prompt(
+            run_dir, item, prompt_text, attempt_no, suffix="carrier-verification"
+        )
+        attempt["carrier_verification_prompt"] = str(prompt_path)
+        try:
+            if host_labels == OC_HOST_LABELS:
+                resume_via_launcher(
+                    raw_launcher,
+                    (
+                        state,
+                        run_dir,
+                        item,
+                        plan_path,
+                        prompt_path,
+                        attempt_no,
+                    ),
+                    {
+                        "log_suffix": "carrier-verification",
+                        "label_suffix": "carrier-verification",
+                        "tracker": tracker,
+                        "work_dir": work_dir,
+                        "resume_session": session_id,
+                    },
+                )
+            else:
+                resume_via_launcher(
+                    raw_launcher,
+                    (
+                        state,
+                        run_dir,
+                        item,
+                        prompt_path,
+                        attempt_no,
+                    ),
+                    {
+                        "session_id": session_id,
+                        "use_continue": False,
+                        "log_suffix": "carrier-verification",
+                        "label_suffix": "carrier-verification",
+                        "work_dir": work_dir,
+                        "tracker": tracker,
+                    },
+                )
+            if session_turn_counts is not None and session_id:
+                session_turn_counts[session_id] = (
+                    session_turn_counts.get(session_id, 0) + 1
+                )
+        except Exception:
+            pass
+    elif not session_id:
+        attempt["carrier_verification_asked"] = False
+
+    # Re-run find_obligations_carried_by on the lane or repo
+    remaining = _ce.find_obligations_carried_by(target_repo, b_id6)
+    attempt["carrier_verification_remaining"] = len(remaining)
+    if remaining:
+        row_desc = ", ".join(f"{r.plan_id6} ({r.locator})" for r in remaining)
+        record_refusal(
+            item,
+            code=CARRIER_VERIFICATION_REFUSAL_CODE,
+            reason=f"pending plan(s) still point at finished carrier {b_id6} without Carrier-Evidence: {row_desc}",
+            remedy=f"add `- Carrier-Evidence: <path>` or re-point `- Carrier:` on {row_desc}",
+        )
+    return remaining
+
 
 # ---- constants the lifted bodies close over ------------------------------------------------------
 # All three were BYTE-IDENTICAL in both runners, so this is a relocation and not a reconciliation.
@@ -29434,6 +29558,21 @@ def execute_item_core(
                     attestation=get_run_attestation(run_dir),
                 )
                 if fin_rc == 0:
+                    perform_carrier_verification(
+                        target_repo=finalize_repo,
+                        b_id6=item["id6"],
+                        item=item,
+                        attempt=attempt,
+                        state=state,
+                        run_dir=run_dir,
+                        plan_path=current_plan_for_finalize,
+                        attempt_no=attempt_no,
+                        raw_launcher=raw_launcher,
+                        host_labels=host_labels,
+                        tracker=tracker,
+                        work_dir=work_dir,
+                        session_turn_counts=None,
+                    )
                     process_backlog_close(
                         run_dir,
                         state,
@@ -29679,6 +29818,21 @@ def execute_item_core(
                 attempt["ending_head"] = git_head(repo)
                 attempt["ending_status"] = git_status(repo)
                 if fin_rc == 0:
+                    perform_carrier_verification(
+                        target_repo=repo,
+                        b_id6=item["id6"],
+                        item=item,
+                        attempt=attempt,
+                        state=state,
+                        run_dir=run_dir,
+                        plan_path=current_plan_for_finalize,
+                        attempt_no=attempt_no,
+                        raw_launcher=raw_launcher,
+                        host_labels=host_labels,
+                        tracker=tracker,
+                        work_dir=work_dir,
+                        session_turn_counts=state.setdefault("session_turn_counts", {}),
+                    )
                     attempt["disposition"] = "executed"
                     attempt["finalized"] = True
                     disposition = "executed"
