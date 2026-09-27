@@ -6,7 +6,7 @@
 - Scope: IN: (a) a keyword-only parameter `released: bool | None = None` on `gate_answer_record`, persisted as a new `"released"` key (None meaning "not decided by this record's producer", e.g. an interrupted follow-up); (b) `perform_gate_answer` passes `released=release`; (c) the interrupted-follow-up site in `runner_shared` that builds `GateAnswerOutcome(release=False, record=gate_answer_record(...))` passes `released=False`, so the record agrees with the outcome it is paired with; (d) the `gate_answer_record` docstring states that `integrates` is the TOKEN's property and `released` is the OUTCOME; (e) behavioral tests over all four tokens. OUT: renaming or removing `integrates` (existing `state.json` corpora and any external reader keep working); changing any release decision; changing what `attributed_away_failure_ids` or any other reader reads.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_gate_answer_record_released.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: nzznlm
-- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: nzznlm verified (set gateansrec, attempt 1).
 - 2026-09-27 approved (aw set): status set to approved
 - 2026-09-27 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 to PR-005 all FIXED. Re-derived the four-token contradiction and all three edge cases by driving the real perform_gate_answer. Found and fixed: a fail-open hazard the new 'released' field makes easier to reach (guard (c) at GATE_ANSWER_RECORD_KEY: a reader keyed on the wrong field releases on two answers designed to refuse), so E-02 must warn in the docstring and V-03 must prove no gate-2 reader consults it; the plan's claim was wider than its defect (the outcome is already in events.jsonl and integration_released_by_answer, which render_stream reads), so the Goal is narrowed; E-03's interrupted-follow-up edit had no test surface, so E-05 was added; and neither edited function has ANY existing test coverage. Findings in .aw/records/reviews/20260926-gateansrec-01-nzznlm-record-whether-a-gate-answer-actually-released-the-lane-besi.review.md
 
