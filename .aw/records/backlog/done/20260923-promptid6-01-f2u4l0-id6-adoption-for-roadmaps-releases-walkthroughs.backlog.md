@@ -1,5 +1,5 @@
 - Id: f2u4l0
-- Status: graduated
+- Status: done
 - Graduated-To: wkthid6
 - Set: promptid6
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Roadmaps, releases and walkthroughs still carry no id6, so the uniform artifact grammar has three remaining holdouts
 
 ## Workflow history
+- 2026-09-27 set (aw backlog): closed by aw oc run: IPD nrqo90 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260926-wkthid6-01-nrqo90-mint-a-walkthrough-s-own-id6-in-write-walkthrough-add-the-wa.ipd.md); evidence .aw/records/plans/executed/20260926-wkthid6-01-nrqo90-mint-a-walkthrough-s-own-id6-in-write-walkthrough-add-the-wa.ipd.md
 - 2026-09-26 graduated (aw set): Graduated 2026-09-26 into to-review plan Set wkthid6 (commit 2c7068ca).
 - 2026-09-23 created (aw backlog): Roadmaps, releases and walkthroughs still carry no id6, so the uniform artifact grammar has three remaining holdouts
 

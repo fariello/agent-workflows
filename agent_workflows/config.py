@@ -1306,6 +1306,14 @@ KNOWN_FEATURE_CUTOVERS: Dict[str, str] = {
     # forever instead of a per-repo stamped boundary. The value is the FEATURE INTRODUCTION date, not
     # the enforcement boundary; `sync_cutovers_on_install` stamps the per-repo boundary from it.
     "prompt_id6": "2026-09-21",
+    # walkthroughid6 `nrqo90` E-03. The walkthroughs id6-in-filename adoption, the exact twin of
+    # `prompt_id6` and `spec_id6` above. Registered for the reason the block comment gives: WITHOUT
+    # the entry `resolve_cutover_date` falls through to its tier-3 `None` in any repository that has
+    # not hand written the key, and `check_engine._walkthrough_requires_id6` would then lean on its
+    # module fallback forever instead of a per-repo stamped boundary. The value is the FEATURE
+    # INTRODUCTION date, not the enforcement boundary; `sync_cutovers_on_install` stamps the per-repo
+    # boundary from it.
+    "walkthrough_id6": "2026-09-27",
 }
 
 

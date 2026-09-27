@@ -28,6 +28,7 @@ never marks an IPD executed.
 from __future__ import annotations
 
 import datetime
+import re
 from pathlib import Path
 from typing import List, Mapping, NamedTuple, Optional, Sequence
 
@@ -197,19 +198,45 @@ def render_walkthrough(
     return "\n".join(lines).rstrip() + "\n"
 
 
+def _existing_walkthrough_ids(wdir: Path) -> set:
+    from agent_workflows import artifact_naming as _naming
+
+    ids: set = set()
+    if not wdir.is_dir():
+        return ids
+    for p in wdir.rglob("*.md"):
+        if not p.is_file():
+            continue
+        m = _naming.parse_clustered(p.name)
+        if m:
+            ids.add(m.group("id6"))
+        try:
+            content = p.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        for line in content.splitlines():
+            line = line.strip()
+            if line.startswith("- Id:"):
+                val = line.split(":", 1)[1].strip()
+                if val:
+                    ids.add(val)
+    return ids
+
+
 def write_walkthrough(
     repo_root: Path,
     *,
     set_id: str,
     order: int,
-    id6: str,
+    target_id6: str,
     slug: str,
     body: str,
 ) -> Path:
     """Write a TRACKED walkthrough to ``.aw/records/walkthroughs/`` using the clustered grammar.
 
-    There is no programmatic walkthrough writer to reuse, so we resolve the dir, build the clustered
-    name (``YYYYMMDD-<set>-NN-<id6>-<slug>.walkthrough.md``), and atomic-write.
+    Mints the walkthrough's own id6 (collision-checked repository-wide), records the documented
+    plan as ``- Target-Id: <target_id6>`` in the metadata block per DECISIONS.md D140, builds the
+    clustered name (``YYYYMMDD-<set>-NN-<id6>-<slug>.walkthrough.md``), and atomic-writes.
     """
     from agent_workflows import artifact_naming as _naming
     from agent_workflows.record_producers import resolve_record_path
@@ -218,12 +245,31 @@ def write_walkthrough(
         wdir = resolve_record_path("walkthroughs", target_repo=str(repo_root))
     except Exception:
         wdir = repo_root / ".aw" / "records" / "walkthroughs"
+
+    minted_id6 = _core.mint_id6(repo_root, _existing_walkthrough_ids(wdir))
+
+    meta = f"- Id: {minted_id6}\n- Target-Id: {target_id6}"
+    if re.search(r"(?m)^- Set:[ \t]*.*$", body):
+        body = re.sub(
+            r"(?m)^(- Set:[ \t]*.*)$",
+            rf"\1\n{meta}",
+            body,
+            count=1,
+        )
+    else:
+        m = re.search(r"(?m)^(#[ \t]+[^\n]*\n+)", body)
+        if m:
+            idx = m.end()
+            body = body[:idx] + f"{meta}\n\n" + body[idx:]
+        else:
+            body = f"{meta}\n\n" + body
+
     date = datetime.date.today().strftime("%Y%m%d")
     name = _naming.build_clustered_name(
         date=date,
         set_id=set_id,
         order=order,
-        id6=id6,
+        id6=minted_id6,
         slug=slug,
         artifact_type="walkthrough",
     )
@@ -431,7 +477,7 @@ def promote_local_checkpoints(
     run_id: str,
     set_id: str,
     order: int,
-    id6: str,
+    target_id6: str,
     records: Sequence[Mapping],
 ) -> RecoveryPromotion:
     """On recovery, promote any untracked local decision/question checkpoint into a tracked walkthrough.
@@ -462,7 +508,7 @@ def promote_local_checkpoints(
         repo_root,
         set_id=set_id,
         order=order,
-        id6=id6,
+        target_id6=target_id6,
         slug="recovery-checkpoint",
         body=body,
     )

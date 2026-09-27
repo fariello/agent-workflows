@@ -1,6 +1,7 @@
 # Walkthrough: `lanectn` whole-Set verification (spec `7ckptx` worker lane containment)
 
 - Date: 2026-09-17
+- Id: v0nmuv
 - Kind: whole-Set verification record
 - Target-Id: 4fodkt
 - Spec: `7ckptx` (worker lane containment: one authoritative signal per instruction)

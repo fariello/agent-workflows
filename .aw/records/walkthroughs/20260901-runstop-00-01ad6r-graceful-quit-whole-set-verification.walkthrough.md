@@ -1,6 +1,7 @@
 # Walkthrough: `runstop` whole-Set verification (spec `c4gd2h` graceful quit)
 
 - Date: 2026-09-01
+- Id: 01ad6r
 - Kind: whole-Set verification record
 - Target-Id: zpbx7o
 - Spec: `c4gd2h` (runner lifecycle graceful quit)

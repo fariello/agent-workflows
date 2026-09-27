@@ -238,7 +238,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     check: `.env` IS still refused (everything is), but its rule is `withdrawn-repair-path`, NOT a
     secret classification - so the refusal provably does not come from a vocabulary.
     WALKTHROUGH STATEMENT, quoted verbatim from
-    `.aw/records/walkthroughs/20260906-lanectn-04-y5od1h-missing-input-report-and-refuse-walkthrough.md`:
+    `.aw/records/walkthroughs/20260906-lanectn-04-cceh3w-missing-input-report-and-refuse.walkthrough.md`:
     "E-03 was WITHDRAWN by spec amendment `R3.3a`, not skipped and not forgotten. No secret vocabulary
     was added to the shared predicate, and none may be: implementing one would ship the liability the
     maintainer explicitly declined and would assert behavior the amended spec forbids."

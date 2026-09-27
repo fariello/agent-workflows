@@ -35,11 +35,11 @@ reference matcher, and ``artifact_core`` never imports THIS module - the import 
 toward core (orchestrator g6mbht module-placement principle). Pure, stdlib-only, Python 3.9
 compatible.
 
-id6-less legacy types (OQ documentation requirement): roadmaps, releases, and walkthroughs do not yet
-carry an id6 in most on-disk names; they are represented here through the same clustered grammar when
-they DO have an id6 (e.g. a ``.spec.md`` faceted clustered name) and through the legacy
-``YYYYMMDD-HHMM-NN`` and dated-slug forms when they do not. This module still does NOT add an id6 to
-those types (out of scope); it only represents whatever shape they already use.
+id6-less legacy types (OQ documentation requirement): walkthroughs adopt the id6-clustered
+grammar going forward under the ``walkthrough_id6`` cutover with pre-cutover legacy names
+grandfathered, releases mint an id6 at creation (``releases.render_release`` calls ``_core.mint_id6``),
+and roadmaps have no producer and are clustered by convention (the checker does not enforce id6
+for roadmaps).
 
 Specs are NO LONGER in that id6-less set going forward (IPD ha55fi): ``aw specs new`` mints an id6
 and emits the id6-clustered ``.spec.md`` name via :func:`build_clustered_name`, and the checker
