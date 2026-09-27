@@ -174,6 +174,36 @@ def prepare_lane_submission_dir(paths: WorkerPaths) -> None:
 #: Keys of a prior-attempt record that are safe to show an ISOLATED worker: none of them can carry a
 #: filesystem path. Everything else is dropped rather than rewritten, because a truncated or
 #: relativized path would be a claim about a location the worker cannot reach.
+#:
+#: THE PRIOR-ATTEMPT ALLOWLIST CONTRACT:
+#: 1. WHAT IT GUARANTEES: an isolated turn sees only these keys, because every other attempt key
+#:    may carry an absolute driver-side path (spec `7ckptx` R1.1), and dropping is fail-closed.
+#: 2. THE CONTRACT FOR A NEW KEY: any key written onto an attempt record is DRIVER-ONLY by default
+#:    and will NOT reach an isolated agent.
+#: 3. HOW TO DELIVER A FACT TO THE AGENT: either render an explicit prompt notice (the supported
+#:    route, for example `runner_shared.build_correction_notice` for `turn_correction`) or add the
+#:    key here, and only if its value can never carry a filesystem path.
+#: 4. WHY THE FAILURE IS SILENT: a unit test asserting on the attempt dict still passes, so the
+#:    author must check the rendered prompt of an ISOLATED turn (as `tests/test_finalize_sendback.py`
+#:    does for `finalize_refused`).
+#:
+#: THE SECOND GATE (RECOVERY-ONLY, NECESSARY BUT NOT SUFFICIENT):
+#: Allowlist membership is necessary but NOT sufficient to reach the agent. `runner_shared.build_prompt`
+#: populates `prior` only when `recovery` is true (`prior = item.get("attempts", [])[-1] if recovery and item.get("attempts") else None`,
+#: and `prior_attempt_summary(None, lane_root)` returns `None`), so a FIRST turn carries NO
+#: prior-attempt key at all whether or not it is allowlisted, and only `attempts[-1]` is ever read.
+#: A fact needed on a first turn must be rendered as its own notice, because an author who adds a
+#: key here and expects it on turn one has walked into the same silent trap one step further on.
+#:
+# _PRIOR_ATTEMPT_DRIVER_ONLY_EXAMPLES
+# Representative driver-only keys written to attempt records but deliberately omitted here:
+# - prompt: absolute filesystem path to prompt file
+# - worktree: absolute filesystem path to lane worktree
+# - verify_log: absolute filesystem path to verification log
+# - lane_plan_path: absolute filesystem path to plan in lane
+# - session_id: host session handle, driver bookkeeping
+# - turn_correction: delivered by its own prompt notice (runner_shared.build_correction_notice)
+# - suite_baseline: driver-side gate state
 _PRIOR_ATTEMPT_SAFE_KEYS = (
     "number",
     "started_at",
@@ -223,6 +253,7 @@ def prior_attempt_summary(
     A non-isolated turn gets the record UNCHANGED (spec R1.3). An isolated turn gets an allow-listed
     projection: timing, exit code, disposition, commit shas, and the lane BRANCH identity, which are
     the facts a resuming worker can actually act on. Path-valued keys are DROPPED, not rewritten.
+    See `_PRIOR_ATTEMPT_SAFE_KEYS` above for the documented driver-only contract and both delivery gates.
     """
     if prior is None:
         return None
