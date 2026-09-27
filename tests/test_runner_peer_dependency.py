@@ -21,7 +21,6 @@ import subprocess
 import sys
 import tempfile
 import threading
-import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -81,6 +80,29 @@ class _HolderProcess:
 
     def __exit__(self, *args: object) -> None:
         self.stop()
+
+
+@contextlib.contextmanager
+def _held_observed():
+    """Yield an Event set the first time the waiter SEES a prerequisite held by a live peer.
+
+    The release tests used to move the plan after a fixed `time.sleep(0.15)`, racing a wall-clock
+    timer against the waiter's own setup (driver-lock probe, peer discovery, state read). On a slow
+    runner (measured on the Windows CI runner, and reproduced by delaying the first probe 400 ms) the
+    plan moved BEFORE the first check, the waiter correctly found nothing to wait for, and the test
+    failed. Gating the move on this event guarantees the order the tests assert: held, then released.
+    """
+    seen = threading.Event()
+    real = runner_shared.peer_held_prerequisites
+
+    def observing(*args: object, **kwargs: object):
+        held = real(*args, **kwargs)
+        if held:
+            seen.set()
+        return held
+
+    with mock.patch.object(runner_shared, "peer_held_prerequisites", observing):
+        yield seen
 
 
 def _setup_repo_and_runs(
@@ -266,7 +288,7 @@ class RunnerPeerDependencyTests(unittest.TestCase):
         with _HolderProcess(peer_run_dir / "driver.lock"):
 
             def _move_prereq() -> None:
-                time.sleep(0.15)
+                assert held_seen.wait(timeout=10), "the waiter never saw the peer hold"
                 plan_executed = (
                     repo
                     / ".aw"
@@ -277,18 +299,19 @@ class RunnerPeerDependencyTests(unittest.TestCase):
                 )
                 plan_pending.rename(plan_executed)
 
-            t = threading.Thread(target=_move_prereq)
-            t.start()
-            try:
-                res = runner_shared.wait_for_peer_prerequisites(
-                    current_run_dir,
-                    current_state,
-                    [item],
-                    poll=0.05,
-                    timeout=5.0,
-                )
-            finally:
-                t.join()
+            with _held_observed() as held_seen:
+                t = threading.Thread(target=_move_prereq)
+                t.start()
+                try:
+                    res = runner_shared.wait_for_peer_prerequisites(
+                        current_run_dir,
+                        current_state,
+                        [item],
+                        poll=0.05,
+                        timeout=5.0,
+                    )
+                finally:
+                    t.join()
 
             self.assertTrue(res.waited)
             self.assertTrue(res.released)
@@ -345,23 +368,25 @@ class RunnerPeerDependencyTests(unittest.TestCase):
         holder = _HolderProcess(peer_run_dir / "driver.lock")
         holder.start()
 
-        def _stop_holder() -> None:
-            time.sleep(0.15)
-            holder.stop()
+        with _held_observed() as held_seen:
 
-        t = threading.Thread(target=_stop_holder)
-        t.start()
-        try:
-            res = runner_shared.wait_for_peer_prerequisites(
-                current_run_dir,
-                current_state,
-                [item],
-                poll=0.05,
-                timeout=10.0,
-            )
-        finally:
-            t.join()
-            holder.stop()
+            def _stop_holder() -> None:
+                assert held_seen.wait(timeout=10), "the waiter never saw the peer hold"
+                holder.stop()
+
+            t = threading.Thread(target=_stop_holder)
+            t.start()
+            try:
+                res = runner_shared.wait_for_peer_prerequisites(
+                    current_run_dir,
+                    current_state,
+                    [item],
+                    poll=0.05,
+                    timeout=10.0,
+                )
+            finally:
+                t.join()
+                holder.stop()
 
         self.assertTrue(res.waited)
         self.assertFalse(res.released)
@@ -641,10 +666,14 @@ class RunnerPeerDependencyTests(unittest.TestCase):
                     it["status"] = "executed"
                     module.save_state(rd, st)
 
-                with _HolderProcess(peer_run_dir / "driver.lock"):
+                with _HolderProcess(
+                    peer_run_dir / "driver.lock"
+                ), _held_observed() as held_seen:
 
                     def _release_prereq() -> None:
-                        time.sleep(0.15)
+                        assert held_seen.wait(
+                            timeout=10
+                        ), "the waiter never saw the peer hold"
                         prereq_exec = (
                             repo
                             / ".aw"
@@ -764,10 +793,15 @@ class RunnerPeerDependencyTests(unittest.TestCase):
                     return orig(*a, **k)
 
                 def stopper() -> None:
-                    time.sleep(0.2)
+                    # Stop only once the wait is genuinely in progress (see `_held_observed`).
+                    assert held_seen.wait(
+                        timeout=10
+                    ), "the waiter never saw the peer hold"
                     runner_stop.request_stop(rd, runner_stop.LEVEL_NOW, "test")
 
-                with _HolderProcess(peer / "driver.lock"):
+                with _HolderProcess(
+                    peer / "driver.lock"
+                ), _held_observed() as held_seen:
                     th = threading.Thread(target=stopper)
                     th.start()
                     try:
