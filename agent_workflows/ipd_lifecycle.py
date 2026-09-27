@@ -836,12 +836,14 @@ _FINALIZE_ACTORS: FrozenSet[str] = frozenset(
 )
 
 # The legal backward lifecycle transitions (spec 2vev8j Section 4.8).
-# Permits recovery of an approved or auto-approved plan back to reviewed (spec 25kzda Section 4.5).
+# Permits recovery of an approved or auto-approved plan back to reviewed (spec 25kzda Section 4.5),
+# and re-review of a reviewed plan back to to-review (maintainer ruling 2026-09-26, backlog qzo6dn).
 # All other backwards transitions fail closed.
 _LEGAL_BACKWARD_EDGES: FrozenSet[Tuple[str, str]] = frozenset(
     (
         ("approved", "reviewed"),
         ("auto-approved", "reviewed"),
+        ("reviewed", "to-review"),
     )
 )
 

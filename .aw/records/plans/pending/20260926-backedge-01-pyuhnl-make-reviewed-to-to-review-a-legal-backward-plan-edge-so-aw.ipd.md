@@ -35,39 +35,39 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: reproduce and prove the failure
 
-- [ ] E-01 RE-MEASURE THE DEFECT at the executing HEAD. Paste `python3 -c` output of `ipd_lifecycle.validate_transition(a, b)` for the four pairs `(reviewed, to-review)`, `(approved, to-review)`, `(reviewed, draft)`, `(approved, reviewed)`. Then on a scratch git repo (a single conforming `reviewed` plan under `.aw/records/plans/pending/` plus one tracked `src/f.py`, committed; the fixture shape of `tests/test_work_gate_severity.py`'s `_PLAN` with `- Status: reviewed` and one `reviewed` history line), run `aw ipd set to-review <id6> --dir <repo> --message revise --yes`, modify `src/f.py`, and run `aw commit <id6> --dir <repo> -m x -- src/f.py`; paste both outputs and exit codes. If `aw commit` already succeeds, STOP and report the defect fixed.
+- [x] E-01 RE-MEASURE THE DEFECT at the executing HEAD. Paste `python3 -c` output of `ipd_lifecycle.validate_transition(a, b)` for the four pairs `(reviewed, to-review)`, `(approved, to-review)`, `(reviewed, draft)`, `(approved, reviewed)`. Then on a scratch git repo (a single conforming `reviewed` plan under `.aw/records/plans/pending/` plus one tracked `src/f.py`, committed; the fixture shape of `tests/test_work_gate_severity.py`'s `_PLAN` with `- Status: reviewed` and one `reviewed` history line), run `aw ipd set to-review <id6> --dir <repo> --message revise --yes`, modify `src/f.py`, and run `aw commit <id6> --dir <repo> -m x -- src/f.py`; paste both outputs and exit codes. If `aw commit` already succeeds, STOP and report the defect fixed.
   - Depends on: none
   - Expected outcome: only `(approved, reviewed)` is ok; the setter exits 0 and records `to-review`; `aw commit` exits 1 with `check.lifecycle-transition-invalid: recorded lifecycle transition 'reviewed' -> 'to-review' is invalid`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 ADD `tests/test_ipd_lifecycle_backward_edges.py` (new) BEFORE the fix, driving BEHAVIOR only (no source-text or AST assertions, per the 2026-09-26 test-policy ruling). Cases: (1) THE REPRO, end to end through `cli.main`: the E-01 scratch repo, `ipd set to-review ... --yes` exits 0, then `commit <id6> ... -- src/f.py` exits 0 and `git show --stat HEAD` names `src/f.py`; (2) `check_engine.check_type(repo, "plans")` on that repo yields NO `check.lifecycle-transition-invalid` finding for the plan; (3) a direct `ipd_lifecycle.validate_transition("reviewed", "to-review").ok` is True; (4) CONTROLS, still refused: `validate_transition("approved", "to-review")` and `validate_transition("reviewed", "draft")` return `ok=False` with `backwards transition` in the reason, AND a scratch plan whose history records `reviewed` then `draft` still makes `aw commit <id6> -- src/f.py` exit 1 naming `check.lifecycle-transition-invalid`, so the gate provably still bites on an un-enumerated edge; (5) the existing edges `approved -> reviewed` and `auto-approved -> reviewed` remain ok. Write the history lines in the order the setter itself writes them (newest first), and build the repo with `git init` in a `tempfile.TemporaryDirectory`, isolating `AW_HOME` to a temp dir.
+- [x] E-02 ADD `tests/test_ipd_lifecycle_backward_edges.py` (new) BEFORE the fix, driving BEHAVIOR only (no source-text or AST assertions, per the 2026-09-26 test-policy ruling). Cases: (1) THE REPRO, end to end through `cli.main`: the E-01 scratch repo, `ipd set to-review ... --yes` exits 0, then `commit <id6> ... -- src/f.py` exits 0 and `git show --stat HEAD` names `src/f.py`; (2) `check_engine.check_type(repo, "plans")` on that repo yields NO `check.lifecycle-transition-invalid` finding for the plan; (3) a direct `ipd_lifecycle.validate_transition("reviewed", "to-review").ok` is True; (4) CONTROLS, still refused: `validate_transition("approved", "to-review")` and `validate_transition("reviewed", "draft")` return `ok=False` with `backwards transition` in the reason, AND a scratch plan whose history records `reviewed` then `draft` still makes `aw commit <id6> -- src/f.py` exit 1 naming `check.lifecycle-transition-invalid`, so the gate provably still bites on an un-enumerated edge; (5) the existing edges `approved -> reviewed` and `auto-approved -> reviewed` remain ok. Write the history lines in the order the setter itself writes them (newest first), and build the repo with `git init` in a `tempfile.TemporaryDirectory`, isolating `AW_HOME` to a temp dir.
   - Depends on: E-01
   - Expected outcome: cases (1) to (3) FAIL against the unchanged code; cases (4) and (5) PASS both before and after.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the fix
 
-- [ ] E-03 ADD `("reviewed", "to-review")` to `ipd_lifecycle._LEGAL_BACKWARD_EDGES`, and update the comment above it: it currently reads "Permits recovery of an approved or auto-approved plan back to reviewed ... All other backwards transitions fail closed". Name the new edge, cite the maintainer ruling of 2026-09-26 and backlog `qzo6dn`, and keep the fail-closed sentence. Do NOT touch the rank comparison in `validate_transition`: spec `2vev8j` 4.8 point 2 says an implementation that removes it "would permit EVERY backward edge, which is NOT what was decided", and E-02 case (4) pins that.
+- [x] E-03 ADD `("reviewed", "to-review")` to `ipd_lifecycle._LEGAL_BACKWARD_EDGES`, and update the comment above it: it currently reads "Permits recovery of an approved or auto-approved plan back to reviewed ... All other backwards transitions fail closed". Name the new edge, cite the maintainer ruling of 2026-09-26 and backlog `qzo6dn`, and keep the fail-closed sentence. Do NOT touch the rank comparison in `validate_transition`: spec `2vev8j` 4.8 point 2 says an implementation that removes it "would permit EVERY backward edge, which is NOT what was decided", and E-02 case (4) pins that.
   - Depends on: E-02
   - Expected outcome: `validate_transition("reviewed", "to-review")` returns `TransitionCheck(ok=True, reason='')`; the E-02 file passes in full. PROVEN SUFFICIENT AT REVIEW (F-6): the one-line addition, applied in-process, cleared the `check.lifecycle-transition-invalid` finding and made `aw commit` exit 0 on the reproduction, while five un-enumerated backward edges stayed refused. So no companion change is expected; if one proves necessary, that is a signal something else regressed and should be reported rather than absorbed.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: contract and docs
 
-- [ ] E-04 AMEND THE IPD SPEC `.aw/records/specs/implemented/20260726-1340-01-ipd-spec.spec.md`. THE SENTENCE IS IN THE BULLET THAT DESCRIBES `## Workflow history`, inside the `## What an IPD MUST contain` section -- NOT inside the spec's own `## Workflow history` section, which is a different section further down (location corrected at review, PR-002; searching the wrong section wastes a pass or risks editing the history log). Find it by its content: the bullet beginning "`## Workflow history` (append one dated line per workflow touch...", whose last sentence reads "The only legal backward lifecycle transitions are `approved -> reviewed` and `auto-approved -> reviewed` (spec `2vev8j` 4.8 / spec `25kzda` 4.5); every other backwards move fails closed." Add `reviewed -> to-review` (re-review after revision, maintainer ruling 2026-09-26) to that enumeration and keep the fail-closed clause verbatim. Record the amendment on the spec through the tool rather than hand-writing a history line: `aw specs note <spec path> --message "..."` naming this plan `pyuhnl` and the ruling. IT WILL NOT REFUSE (verified at review): `specs.run_note` reads no status, so the authored hedge about an `implemented` spec was unnecessary; if it nevertheless errors, paste the output and add no history line by hand. Note the tool writes a `note (aw specs)` label while this spec's one prior amendment used `amended (tgop8e)`; the `note` label is what the tool produces and is correct, so do not hand-edit it to match the older line.
+- [x] E-04 AMEND THE IPD SPEC `.aw/records/specs/implemented/20260726-1340-01-ipd-spec.spec.md`. THE SENTENCE IS IN THE BULLET THAT DESCRIBES `## Workflow history`, inside the `## What an IPD MUST contain` section -- NOT inside the spec's own `## Workflow history` section, which is a different section further down (location corrected at review, PR-002; searching the wrong section wastes a pass or risks editing the history log). Find it by its content: the bullet beginning "`## Workflow history` (append one dated line per workflow touch...", whose last sentence reads "The only legal backward lifecycle transitions are `approved -> reviewed` and `auto-approved -> reviewed` (spec `2vev8j` 4.8 / spec `25kzda` 4.5); every other backwards move fails closed." Add `reviewed -> to-review` (re-review after revision, maintainer ruling 2026-09-26) to that enumeration and keep the fail-closed clause verbatim. Record the amendment on the spec through the tool rather than hand-writing a history line: `aw specs note <spec path> --message "..."` naming this plan `pyuhnl` and the ruling. IT WILL NOT REFUSE (verified at review): `specs.run_note` reads no status, so the authored hedge about an `implemented` spec was unnecessary; if it nevertheless errors, paste the output and add no history line by hand. Note the tool writes a `note (aw specs)` label while this spec's one prior amendment used `amended (tgop8e)`; the `note` label is what the tool produces and is correct, so do not hand-edit it to match the older line.
   - Depends on: E-03
   - Expected outcome: the spec sentence enumerates exactly three legal backward edges, the fail-closed clause is byte-unchanged, and a `note` history line is appended by the tool.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 CORRECT `docs/artifact-lifecycles.md`, plans section, paragraph beginning "**Moving backwards.** A plan may step back (for example `approved` -> `to-review`) for revision." That example names an edge the recorded-history check refuses both before and after this plan (E-02 case 4), so the doc teaches a move that disables `aw commit`. Replace it with the enumerated set (`reviewed` -> `to-review` to re-review after revision; `approved` -> `reviewed` to recover an approval) and say that any other backward move is refused by `aw check`. User-facing prose: NO em or en dashes (AGENTS.md execution contract); the existing `->` arrows are ASCII and fine.
+- [x] E-05 CORRECT `docs/artifact-lifecycles.md`, plans section, paragraph beginning "**Moving backwards.** A plan may step back (for example `approved` -> `to-review`) for revision." That example names an edge the recorded-history check refuses both before and after this plan (E-02 case 4), so the doc teaches a move that disables `aw commit`. Replace it with the enumerated set (`reviewed` -> `to-review` to re-review after revision; `approved` -> `reviewed` to recover an approval) and say that any other backward move is refused by `aw check`. User-facing prose: NO em or en dashes (AGENTS.md execution contract); the existing `->` arrows are ASCII and fine.
   - Depends on: E-03
   - Expected outcome: the paragraph names only edges `validate_transition` accepts; `grep -nP "[\x{2013}\x{2014}]" docs/artifact-lifecycles.md` shows no new hit in the edited paragraph.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 RUN THE BARE SUITE `python3 -m pytest` before the change (at E-01) and after E-05, and compare failing node IDs.
+- [x] E-06 RUN THE BARE SUITE `python3 -m pytest` before the change (at E-01) and after E-05, and compare failing node IDs.
   - Depends on: E-05
   - Expected outcome: the after-minus-before failing node set is empty.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -148,35 +148,269 @@ Authored at HEAD `61ef21d8`; F-1 through F-5 RE-VERIFIED at review HEAD `5a6b144
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the four `validate_transition` results and the scratch-repo `ipd set` and `aw commit` outputs with exit codes, showing the refusal names `check.lifecycle-transition-invalid` and `'reviewed' -> 'to-review'`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Direct validate_transition results and scratch-repo reproduction matched expected outputs.
+    Direct `validate_transition` on the 4 pairs:
+    ```
+    ('reviewed', 'to-review') -> TransitionCheck(ok=False, reason="missing predecessor: backwards transition 'reviewed' -> 'to-review'")
+    ('approved', 'to-review') -> TransitionCheck(ok=False, reason="missing predecessor: backwards transition 'approved' -> 'to-review'")
+    ('reviewed', 'draft') -> TransitionCheck(ok=False, reason="missing predecessor: backwards transition 'reviewed' -> 'draft'")
+    ('approved', 'reviewed') -> TransitionCheck(ok=True, reason='')
+    ```
+    Scratch repo reproduction (`aw ipd set to-review` then `aw commit`):
+    ```
+    --- Running aw ipd set to-review ---
+    exit code: 0
+    -    plan        20260828-wk-01-wk0001  [medium]  reviewed → ◔  to-review
+    Committed 1 path(s): a0cd49b88452ccdffb224f2ca3db41d4ad7d72e8:
+    .aw/records/plans/pending/20260828-wk-01-wk0001-demo.ipd.md
 
-- [ ] V-02 validates E-02
+    --- Running aw commit ---
+    exit code: 1
+    aw commit: refusing - 1 finding(s) on 20260828-wk-01-wk0001-demo.ipd.md:
+      check.lifecycle-transition-invalid: recorded lifecycle transition 'reviewed' -> 'to-review' is invalid: missing predecessor: backwards transition 'reviewed' -> 'to-review'
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste `python3 -m pytest tests/test_ipd_lifecycle_backward_edges.py -o addopts="" -q` run BEFORE E-03, showing cases (1) to (3) FAILING and cases (4) and (5) passing, with the failure messages.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Pytest run before E-03 fix showed cases 1-3 failing and cases 4-5 passing (3 failed, 2 passed in 1.71s).
+    `python3 -m pytest tests/test_ipd_lifecycle_backward_edges.py -o addopts="" -q` output before E-03 fix:
+    ```
+    FFF..                                                                    [100%]
+    =================================== FAILURES ===================================
+    _ IpdLifecycleBackwardEdgesTest.test_case_3_direct_validate_transition_reviewed_to_to_review _
 
-- [ ] V-03 validates E-03
+    self = <tests.test_ipd_lifecycle_backward_edges.IpdLifecycleBackwardEdgesTest testMethod=test_case_3_direct_validate_transition_reviewed_to_to_review>
+
+        def test_case_3_direct_validate_transition_reviewed_to_to_review(self):
+            """Case 3: direct `ipd_lifecycle.validate_transition('reviewed', 'to-review').ok` is True."""
+            check = ipd_lifecycle.validate_transition("reviewed", "to-review")
+    >       self.assertTrue(
+                check.ok,
+                f"Expected validate_transition('reviewed', 'to-review').ok to be True, got {check}",
+            )
+    E       AssertionError: False is not true : Expected validate_transition('reviewed', 'to-review').ok to be True, got TransitionCheck(ok=False, reason="missing predecessor: backwards transition 'reviewed' -> 'to-review'")
+
+    tests/test_ipd_lifecycle_backward_edges.py:185: AssertionError
+    _ IpdLifecycleBackwardEdgesTest.test_case_2_check_engine_no_invalid_transition _
+
+    self = <tests.test_ipd_lifecycle_backward_edges.IpdLifecycleBackwardEdgesTest testMethod=test_case_2_check_engine_no_invalid_transition>
+
+        def test_case_2_check_engine_no_invalid_transition(self):
+            """Case 2: `check_engine.check_type(repo, 'plans')` yields no lifecycle-transition-invalid."""
+            rc, out = self._run(
+                [
+                    "ipd",
+                    "set",
+                    "to-review",
+                    "wk0001",
+                    "--dir",
+                    str(self.root),
+                    "--message",
+                    "revise",
+                    "--yes",
+                ]
+            )
+            self.assertEqual(rc, 0, f"ipd set failed: {out}")
+
+            drifts = check_engine.check_type(self.root, "plans")
+            target = str(self.plan_path.resolve())
+            plan_invalid = [
+                d
+                for d in drifts
+                if str(Path(d.location).resolve()) == target
+                and d.rule == "check.lifecycle-transition-invalid"
+            ]
+    >       self.assertEqual(
+                plan_invalid,
+                [],
+                f"Expected no check.lifecycle-transition-invalid finding for plan, got: {plan_invalid}",
+            )
+    E       AssertionError: Lists differ: [Drift(location='/tmp/tmpwaxttq73/.aw/reco[543 chars]or')] != []
+    E
+    E       First list contains 1 additional elements.
+    E       First extra element 0:
+    E       Drift(location='/tmp/tmpwaxttq73/.aw/records/plans/pending/20260828-wk-01-wk0001-demo.ipd.md', rule='check.lifecycle-transition-invalid', detail="recorded lifecycle transition 'reviewed' -> 'to-review' is invalid: missing predecessor: backwards transition 'reviewed' -> 'to-review'", observed='reviewed -> to-review (actor aw set)', required='a valid forward transition authored by the correct actor', recovery='correct the plan history via `aw set <status> <id6>` (or `aw ipd finalize` for the terminal transition)', assurance='repository', determinism='deterministic', severity='error')
+    E
+    E       - [Drift(location='/tmp/tmpwaxttq73/.aw/records/plans/pending/20260828-wk-01-wk0001-demo.ipd.md', rule='check.lifecycle-transition-invalid', detail="recorded lifecycle transition 'reviewed' -> 'to-review' is invalid: missing predecessor: backwards transition 'reviewed' -> 'to-review'", observed='reviewed -> to-review (actor aw set)', required='a valid forward transition authored by the correct actor', recovery='correct the plan history via `aw set <status> <id6>` (or `aw ipd finalize` for the terminal transition)', assurance='repository', determinism='deterministic', severity='error')]
+    E       + [] : Expected no check.lifecycle-transition-invalid finding for plan, got: [Drift(location='/tmp/tmpwaxttq73/.aw/records/plans/pending/20260828-wk-01-wk0001-demo.ipd.md', rule='check.lifecycle-transition-invalid', detail="recorded lifecycle transition 'reviewed' -> 'to-review' is invalid: missing predecessor: backwards transition 'reviewed' -> 'to-review'", observed='reviewed -> to-review (actor aw set)', required='a valid forward transition authored by the correct actor', recovery='correct the plan history via `aw set <status> <id6>` (or `aw ipd finalize` for the terminal transition)', assurance='repository', determinism='deterministic', severity='error')]
+
+    tests/test_ipd_lifecycle_backward_edges.py:176: AssertionError
+    _ IpdLifecycleBackwardEdgesTest.test_case_1_end_to_end_repro_commit_after_to_review _
+
+    self = <tests.test_ipd_lifecycle_backward_edges.IpdLifecycleBackwardEdgesTest testMethod=test_case_1_end_to_end_repro_commit_after_to_review>
+
+        def test_case_1_end_to_end_repro_commit_after_to_review(self):
+            """Case 1: `ipd set to-review` then `commit` exits 0 and HEAD touches src/f.py."""
+            rc, out = self._run(
+                [
+                    "ipd",
+                    "set",
+                    "to-review",
+                    "wk0001",
+                    "--dir",
+                    str(self.root),
+                    "--message",
+                    "revise",
+                    "--yes",
+                ]
+            )
+            self.assertEqual(rc, 0, f"ipd set failed: {out}")
+
+            (self.root / "src" / "f.py").write_text("print('modified')\n", encoding="utf-8")
+            rc, out = self._run(
+                [
+                    "commit",
+                    "wk0001",
+                    "--dir",
+                    str(self.root),
+                    "-m",
+                    "x",
+                    "--",
+                    "src/f.py",
+                ]
+            )
+    >       self.assertEqual(rc, 0, f"aw commit failed: {out}")
+    E       AssertionError: 1 != 0 : aw commit failed: aw commit: refusing - 1 finding(s) on 20260828-wk-01-wk0001-demo.ipd.md:
+    E         check.lifecycle-transition-invalid: recorded lifecycle transition 'reviewed' -> 'to-review' is invalid: missing predecessor: backwards transition 'reviewed' -> 'to-review'
+
+    tests/test_ipd_lifecycle_backward_edges.py:145: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_ipd_lifecycle_backward_edges.py::IpdLifecycleBackwardEdgesTest::test_case_3_direct_validate_transition_reviewed_to_to_review
+    FAILED tests/test_ipd_lifecycle_backward_edges.py::IpdLifecycleBackwardEdgesTest::test_case_2_check_engine_no_invalid_transition
+    FAILED tests/test_ipd_lifecycle_backward_edges.py::IpdLifecycleBackwardEdgesTest::test_case_1_end_to_end_repro_commit_after_to_review
+    3 failed, 2 passed in 1.71s
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the `ipd_lifecycle.py` diff; paste the same pytest command AFTER E-03 passing in full with the count; paste `python3 -m pytest tests/test_work_gate_severity.py -o addopts="" -q` passing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Applied one-line addition to _LEGAL_BACKWARD_EDGES; test_ipd_lifecycle_backward_edges.py passed (5 passed) and test_work_gate_severity.py passed (8 passed).
+    `agent_workflows/ipd_lifecycle.py` diff:
+    ```diff
+    diff --git a/agent_workflows/ipd_lifecycle.py b/agent_workflows/ipd_lifecycle.py
+    index f34102fc..a8586ba7 100644
+    --- a/agent_workflows/ipd_lifecycle.py
+    +++ b/agent_workflows/ipd_lifecycle.py
+    @@ -836,12 +836,14 @@ _FINALIZE_ACTORS: FrozenSet[str] = frozenset(
+     )
 
-- [ ] V-04 validates E-04
+     # The legal backward lifecycle transitions (spec 2vev8j Section 4.8).
+    -# Permits recovery of an approved or auto-approved plan back to reviewed (spec 25kzda Section 4.5).
+    +# Permits recovery of an approved or auto-approved plan back to reviewed (spec 25kzda Section 4.5),
+    +# and re-review of a reviewed plan back to to-review (maintainer ruling 2026-09-26, backlog qzo6dn).
+     # All other backwards transitions fail closed.
+     _LEGAL_BACKWARD_EDGES: FrozenSet[Tuple[str, str]] = frozenset(
+         (
+             ("approved", "reviewed"),
+             ("auto-approved", "reviewed"),
+    +        ("reviewed", "to-review"),
+         )
+     )
+    ```
+    Pytest after E-03 fix:
+    ```
+    $ python3 -m pytest tests/test_ipd_lifecycle_backward_edges.py -o addopts="" -q
+    .....                                                                    [100%]
+    5 passed in 1.87s
+    ```
+    Precedent work-gate severity tests passing:
+    ```
+    $ python3 -m pytest tests/test_work_gate_severity.py -o addopts="" -q
+    ........                                                                 [100%]
+    8 passed in 1.97s
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the spec diff showing three enumerated edges and the unchanged fail-closed clause, and confirm the diff touches the `## What an IPD MUST contain` bullet rather than the spec's `## Workflow history` section (PR-002). Paste the `aw specs note` output and the appended history line. Paste `aw check specs` and compare it against the BASELINE measured at review: `20 specs checked, errors 1, warnings 0`, where the single error is the generic `cross-tree collisions NOT checked by a per-type run` notice that names `<collisions>` and NOT any spec file. The bar is that this count does not RISE and that no finding names the IPD spec; do NOT read the pre-existing 1 as a regression you caused.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: IPD spec amended at line 23 with 3 legal backward edges; aw specs note appended history record; aw check specs matched baseline (20 checked, 1 error for generic <collisions>).
+    Spec diff (touching the `## What an IPD MUST contain` section, line 23):
+    ```diff
+    diff --git a/.aw/records/specs/implemented/20260726-1340-01-ipd-spec.spec.md b/.aw/records/specs/implemented/20260726-1340-01-ipd-spec.spec.md
+    index e06ad90e..bfebe7d8 100644
+    --- a/.aw/records/specs/implemented/20260726-1340-01-ipd-spec.spec.md
+    +++ b/.aw/records/specs/implemented/20260726-1340-01-ipd-spec.spec.md
+    @@ -20,7 +20,7 @@ Author from the template (`assess/templates/ipd.md`), or generate a conformant s
 
-- [ ] V-05 validates E-05
+     - Metadata block (a bullet `- Field: value` list after the H1 title, NOT YAML front matter; "YAML front matter" means only actual `---` YAML, which the parser ignores): required `Date`, `Kind` (`child` or `orchestrator`), `Concern`, `Scope`, `Status`, `Author`; `Set` and `Order` together when in an ordered Set (`Order: 0` for an orchestrator, `>= 1` for a child); `Approval` when and only when `Status: approved`; `Highest E allocated` once any `E-*` exists (the allocation watermark); the `Quarantine`/`Quarantine owner`/`Quarantine follow-up` trio only on a quarantined nonterminal plan.
+     - The H2 SECTION ORDER is exact and per-kind (child and orchestrator differ), enumerated in the schema. In BOTH kinds `## Detailed Implementation Checklist (TODO)` is the H2 IMMEDIATELY AFTER `## Goal` and `## Validation and cross-check ...` is the H2 IMMEDIATELY BEFORE `## Approval and execution gate`. (There is no "near the top/end"; placement is exact.)
+    -- `## Workflow history` (append one dated line per workflow touch; never rewrite prior lines). Line direction in the file is NOT normative (writers prepend, authors append); readers derive order from record dates plus per-block direction and treat an unresolvable same-date tie as unordered. The durable fix is the `seq` journal of spec `2vev8j` 4.3. The only legal backward lifecycle transitions are `approved -> reviewed` and `auto-approved -> reviewed` (spec `2vev8j` 4.8 / spec `25kzda` 4.5); every other backwards move fails closed.
+    +- `## Workflow history` (append one dated line per workflow touch; never rewrite prior lines). Line direction in the file is NOT normative (writers prepend, authors append); readers derive order from record dates plus per-block direction and treat an unresolvable same-date tie as unordered. The durable fix is the `seq` journal of spec `2vev8j` 4.3. The only legal backward lifecycle transitions are `approved -> reviewed`, `auto-approved -> reviewed` (spec `2vev8j` 4.8 / spec `25kzda` 4.5), and `reviewed -> to-review` (re-review after revision, maintainer ruling 2026-09-26); every other backwards move fails closed.
+     - `## Detailed Implementation Checklist (TODO)` (mandatory): the EXECUTION checklist. Only executable leaves are checkboxes; each carries a unique `E-NN` id, `Depends on:` (`none` or comma-separated `E-*`), `Expected outcome:`, and `Execution state:` (`pending`|`performed`|`blocked`|`failed`). `E-* checked` means the action was PERFORMED, not that it was verified (F-07). The terminal lifecycle transition is NOT an `E-*` item (F-08); it is a post-gate transaction (see the lifecycle line). An `Expected outcome` counting live artifacts must state a property rather than an authored count; see `.aw/system/workflows/plan-review/plan-review.md` Rubric G for the re-derivation convention and code-facts exemptions.
+     - `## Validation and cross-check` (mandatory): a SEPARATE evidence pass. Exactly one `V-NN validates E-NN` row per `E-NN` (a 1:1 bijection), each with `Required evidence:`, `Observed evidence:`, and `Result:` (`pending`|`pass`|`blocked`|`failed`). `V-* pass` means the evidence was INSPECTED and supports the expected outcome. Both the CREATOR (authors both checklists) and the REVIEWER (assesses both) are responsible for it (DECISIONS D115).
+     - `## Open questions`: each question is an `### OQ-NN:` with `Blocking:` (`yes`|`no`), `Status:` (`open`|`resolved`|`deferred`), `Owner:`, and a resolution/deferral rationale. A blocking question may not be deferred and must be resolved before `pre-execution` (F-09).
+    @@ -44,5 +44,7 @@ Size thresholds are WARNINGS and review triggers, not caps: the defaults are mor
+     `draft` -> `to-review` -> `reviewed` (via `/plan-review`) -> `approved` (human) -> execute, validate, sync docs -> then, as a POST-GATE transaction (NOT an `E-*`/`V-*` checklist item, F-08): append the workflow-history line, set the terminal `Status:`, `git mv` from `.agents/plans/pending/` to `.agents/plans/executed/` (or `superseded/`/`not-executed/` with a `RETIRED ...` header; never delete), and make the path-scoped lifecycle commit. Recurring plans live in `reusable/`.
+
+     ## Workflow history
+    +
+    +- 2026-09-26 note (aw specs): plan pyuhnl: added reviewed -> to-review to legal backward transitions enumeration per maintainer ruling 2026-09-26
+     - 2026-09-24 amended (tgop8e): added one-sentence pointer in checklist requirements to plan-review Rubric G for the live-artifact re-derivation convention.
+     - 2026-08-08 migrated (aw specs): normalized status to `implemented` (was: canonical reference; produced by IPD `20260726-ipdcomplete-02-h409oe-ipd-spec-and-always-loaded-directive` (Set `ipd-completeness-guardrails`, Order 2))
+    ```
+    Output from `aw specs note`:
+    ```
+    aw specs note: appended a history record to .aw/records/specs/implemented/20260726-1340-01-ipd-spec.spec.md
+    ```
+    Appended history line:
+    `- 2026-09-26 note (aw specs): plan pyuhnl: added reviewed -> to-review to legal backward transitions enumeration per maintainer ruling 2026-09-26`
+
+    `aw check specs` output:
+    ```
+    AW check  specs                                                            52 ms
+    ✓ CONFORMS  20 specs checked
+
+    Findings:
+      Issue: cross-tree collisions NOT checked by a per-type run
+      - <collisions>
+        1. <collisions>
+        Fix: inspect <collisions> frontmatter and schema conformity.
+
+    Evidence
+      checked  20
+      errors  1   warnings  0
+    ```
+    Matches baseline: error count did not rise (still 1 generic <collisions>), and no finding names the IPD spec.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the `docs/artifact-lifecycles.md` diff and the dash grep over the edited paragraph showing no em or en dash.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: docs/artifact-lifecycles.md amended to state enumerated legal backward edges; grep for em/en dashes returned 0 matches.
+    `docs/artifact-lifecycles.md` diff:
+    ```diff
+    diff --git a/docs/artifact-lifecycles.md b/docs/artifact-lifecycles.md
+    index a3e668c0..6dee1a5d 100644
+    --- a/docs/artifact-lifecycles.md
+    +++ b/docs/artifact-lifecycles.md
+    @@ -177,9 +177,7 @@ while the plan still reads `approved`.
+        `RETIRED YYYY-MM-DD: <reason>; superseded by <path/commit>` header and move the file, either with
+        `aw set superseded <id6> -m "..."` or `git mv`. Never file an un-run plan under `executed/`.
 
-- [ ] V-06 validates E-06
+    -**Moving backwards.** A plan may step back (for example `approved` -> `to-review`) for revision.
+    -Leaving a terminal directory is refused unless `--allow-terminal-reopen` is given. Do not use it to
+    -patch finished work; write a new corrective plan instead.
+    +**Moving backwards.** A plan may step back only along enumerated legal backward edges (`reviewed` -> `to-review` to re-review after revision; `approved` -> `reviewed` to recover an approval). Any other backward move is refused by `aw check`. Leaving a terminal directory is refused unless `--allow-terminal-reopen` is given. Do not use it to patch finished work; write a new corrective plan instead.
+
+     **Runners.** `aw oc run` and `aw agy run` automate steps 3 to 5 for every `approved` plan. They order
+     the queue by dependency, give each plan its own isolated worktree, and retire an orchestrator once
+    ```
+    Dash grep output:
+    `grep -nP "[\x{2013}\x{2014}]" docs/artifact-lifecycles.md` returned exit 1 with 0 matches (no em or en dash).
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the bare `python3 -m pytest` summary line BEFORE and AFTER and the after-minus-before failing node-ID set (must be empty).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Bare python3 -m pytest passed before (2550 passed) and after (2555 passed); after-minus-before failing node-ID set is empty.
+    Summary line BEFORE:
+    `2550 passed, 2 skipped, 3 warnings in 81.82s (0:01:21)`
+    Summary line AFTER:
+    `2555 passed, 2 skipped, 3 warnings in 47.20s`
+    After-minus-before failing node-ID set:
+    `empty` (0 failing tests before, 0 failing tests after).
+  - Result: pass
 
 ## Approval and execution gate
 

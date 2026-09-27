@@ -177,9 +177,7 @@ while the plan still reads `approved`.
    `RETIRED YYYY-MM-DD: <reason>; superseded by <path/commit>` header and move the file, either with
    `aw set superseded <id6> -m "..."` or `git mv`. Never file an un-run plan under `executed/`.
 
-**Moving backwards.** A plan may step back (for example `approved` -> `to-review`) for revision.
-Leaving a terminal directory is refused unless `--allow-terminal-reopen` is given. Do not use it to
-patch finished work; write a new corrective plan instead.
+**Moving backwards.** A plan may step back only along enumerated legal backward edges (`reviewed` -> `to-review` to re-review after revision; `approved` -> `reviewed` to recover an approval). Any other backward move is refused by `aw check`. Leaving a terminal directory is refused unless `--allow-terminal-reopen` is given. Do not use it to patch finished work; write a new corrective plan instead.
 
 **Runners.** `aw oc run` and `aw agy run` automate steps 3 to 5 for every `approved` plan. They order
 the queue by dependency, give each plan its own isolated worktree, and retire an orchestrator once
