@@ -6,7 +6,7 @@
 - Scope: IN: (a) factor the plan-setid sweep out of `releases.check_graduated_to` into ONE `check_engine` helper returning `setid -> [plan artifacts]`, and reroute `check_graduated_to` to consume it (its live findings must stay 0 and its resolution semantics, "ANY setid carried by at least one plan file in ANY lifecycle directory", unchanged); (b) make `check_engine.graduation_cluster` also read the SOURCE's own `Graduated-To` (via `releases.parse_graduated_to`) and return those Sets and their plans as FORWARD links, labelled distinctly from the reverse `From-*` links; (c) make `cli._run_graduation`'s human, `--json` and `--agent` outputs report forward links, so a source with only a forward link no longer gets "Proceed"; (d) make `runner_shared.summarize_graduation_cluster` stop saying "nothing yet links" for such a source; (e) behavioral tests. OUT: substituting the reverse index for the setid sweep (measured wrong, see F-4); unifying the two relationships into one store (spec `4sd62s` does that by construction); any new `aw check` rule; changing `GRADUATION_VIEW_LIMITS` verdicts.
 - Scope-Paths: agent_workflows/check_engine.py, agent_workflows/releases.py, agent_workflows/cli.py, agent_workflows/runner_shared.py, tests/test_graduation_forward_links.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 09
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: pw2ln3
-- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: pw2ln3 verified (set gradtravers, attempt 1).
 - 2026-09-27 approved (aw set): status set to approved
 - 2026-09-27 reviewed (aw set): Reviewed by /plan-review: 9 findings (3 HIGH, 4 MEDIUM, 2 LOW), all FIXED in place; readiness go-pending-approval. Three defects that would have shipped silently: E-04 passed the graduation kind 'spec' to selectors.resolve whose type is 'specs', which returns an EMPTY resolution with no error, so every spec source would be forward-linkless; the --agent Evidence used a dict value, which sanitize_evidence_item compacts to its KEY ALONE, dropping the count and setids it exists to carry, and the test asserted only the key so it passed in that state; and the claim that 0 specs carry Graduated-To is false (z7nbn1 -> artdispatch, a live both-directions agreement case), so the first two defects would have masked each other. All baseline counts had drifted and are now re-derive-at-execution properties. Checklist split 7 -> 9 items, clearing the IPD-Z602 density advisory. Findings and 6 decisions in .aw/records/reviews/20260926-gradtravers-01-pw2ln3-*.review.md
 
@@ -37,60 +37,60 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: baseline
 
-- [ ] E-01 RE-MEASURE at the executing HEAD and save to `/tmp/opencode/gradtravers-baseline/`: (a) `aw graduation cfgj8s` output and exit code; (b) the count of records carrying `- Graduated-To:` and the count of graduated backlog items whose `releases.parse_graduated_to` is non-empty while `check_engine.graduation_cluster(...).artifact_count == 0` (build the reverse index once and pass `index=`); (c) `len(releases.check_graduated_to(repo))` and the sorted list of its findings; (d) the size of the plan-setid set `check_graduated_to` builds; (e) `aw graduation <id6> --json` for one source WITH reverse links (for example `25kzda`), saved for E-06's byte comparison of the reverse fields.
+- [x] E-01 RE-MEASURE at the executing HEAD and save to `/tmp/opencode/gradtravers-baseline/`: (a) `aw graduation cfgj8s` output and exit code; (b) the count of records carrying `- Graduated-To:` and the count of graduated backlog items whose `releases.parse_graduated_to` is non-empty while `check_engine.graduation_cluster(...).artifact_count == 0` (build the reverse index once and pass `index=`); (c) `len(releases.check_graduated_to(repo))` and the sorted list of its findings; (d) the size of the plan-setid set `check_graduated_to` builds; (e) `aw graduation <id6> --json` for one source WITH reverse links (for example `25kzda`), saved for E-06's byte comparison of the reverse fields.
   - Depends on: none
   - Expected outcome: (a) prints "nothing yet ... Proceed."; (c) 0. THE COUNTS IN (b) AND (d) ARE LIVE-ARTIFACT POPULATIONS AND MUST BE RE-DERIVED, NEVER ASSERTED: they drift with every merge. Measured at authoring `f46b6775`: 102 records / ~40 / 401 setids. RE-MEASURED IN REVIEW at `7cba3a3f` days later: 152 records carrying `- Graduated-To:` (149 backlog + 1 spec + 0 plans, plus 2 outside `.aw/records`), 111 graduated backlog items of which 40 have a forward link and an empty reverse cluster, and 422 setids over 825 plans. So the required property is (b) a NON-ZERO forward-only-and-reverse-empty population and (d) a setid set CONTAINING `envhermet`, with the observed numbers recorded as context. Do not fail E-01 because a count moved; fail it only if the forward-only population is zero (the defect would then not reproduce) or `envhermet` is absent.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: one sweep
 
-- [ ] E-02 ADD `check_engine.build_plan_setid_index(repo_root) -> Dict[str, List[GraduationArtifact]]`: one pass over `_iter_plan_ipds`, reading each plan's `_parse_setid`, `_read_declared_id`, `_PLAN_STATUS_RE` status and repo-relative path exactly as `build_graduation_reverse_index` does for its records, keyed by terse setid, with every plan in every lifecycle directory included. Reuse `GraduationArtifact` (artifact_type `"plan"`). Document that this is the plan-Set UNIVERSE (every setid on any plan) and is deliberately NOT the reverse index, which indexes only artifacts carrying a `From-*` bullet (F-4).
+- [x] E-02 ADD `check_engine.build_plan_setid_index(repo_root) -> Dict[str, List[GraduationArtifact]]`: one pass over `_iter_plan_ipds`, reading each plan's `_parse_setid`, `_read_declared_id`, `_PLAN_STATUS_RE` status and repo-relative path exactly as `build_graduation_reverse_index` does for its records, keyed by terse setid, with every plan in every lifecycle directory included. Reuse `GraduationArtifact` (artifact_type `"plan"`). Document that this is the plan-Set UNIVERSE (every setid on any plan) and is deliberately NOT the reverse index, which indexes only artifacts carrying a `From-*` bullet (F-4).
   - Depends on: E-01
   - Expected outcome: `set(build_plan_setid_index(repo))` equals the `known_setids` set E-01 (d) measured.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 REROUTE `releases.check_graduated_to` to take its `known_setids` from `set(check_engine.build_plan_setid_index(repo_root))` (keeping the existing local import to avoid the cycle), deleting its private `_iter_plan_ipds` + `_parse_setid` loop. Keep every other line: the empty-corpus fail-safe, the three rules, the `rglob` over `backlog`/`specs`/`plans`, the skip list, and the docstring's resolution semantics (update only the sentence naming how the setid set is built). Add an optional keyword `plan_setids: Optional[Dict[str, ...]] = None` so a caller that already built the index can inject it, mirroring `graduation_cluster`'s `index=` parameter.
+- [x] E-03 REROUTE `releases.check_graduated_to` to take its `known_setids` from `set(check_engine.build_plan_setid_index(repo_root))` (keeping the existing local import to avoid the cycle), deleting its private `_iter_plan_ipds` + `_parse_setid` loop. Keep every other line: the empty-corpus fail-safe, the three rules, the `rglob` over `backlog`/`specs`/`plans`, the skip list, and the docstring's resolution semantics (update only the sentence naming how the setid set is built). Add an optional keyword `plan_setids: Optional[Dict[str, ...]] = None` so a caller that already built the index can inject it, mirroring `graduation_cluster`'s `index=` parameter.
   - Depends on: E-02
   - Expected outcome: `check_graduated_to(repo)` on the live tree returns the same findings as E-01 (c) (0 today).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: forward links in the view
 
-- [ ] E-04 LOCATE THE SOURCE AND READ ITS FORWARD FIELD. Add to `check_engine` a helper that, given `repo_root` and `source_id6`, finds the source record and returns its `releases.parse_graduated_to` entries in written order (lazy-import `releases` inside the function, per Step 0's cycle note). Resolve with `selectors.resolve(repo_root, t, source_id6)` for `t` in `("backlog", "specs")`, accepting only `Resolution.kind == "id6"`, and read the resolved text ONCE.
+- [x] E-04 LOCATE THE SOURCE AND READ ITS FORWARD FIELD. Add to `check_engine` a helper that, given `repo_root` and `source_id6`, finds the source record and returns its `releases.parse_graduated_to` entries in written order (lazy-import `releases` inside the function, per Step 0's cycle note). Resolve with `selectors.resolve(repo_root, t, source_id6)` for `t` in `("backlog", "specs")`, accepting only `Resolution.kind == "id6"`, and read the resolved text ONCE.
   USE THE RECORD-TYPE SPELLING, NOT THE GRADUATION KIND SPELLING. `GRADUATION_SOURCE_KINDS` is `("backlog", "spec")` (SINGULAR `spec`) while `selectors.KNOWN_PRIMARY_TYPES` uses `specs` (PLURAL). Measured in review: `selectors.resolve(repo, "spec", "<a real spec id6>")` returns an EMPTY `Resolution` with NO error, so passing the graduation kind straight through would make every spec source silently forward-linkless and the bug would look like the feature working. When `source_kind` is given, MAP it (`spec` -> `specs`) rather than forwarding it; assert the mapping in E-07.
   - Depends on: E-02
   - Expected outcome: the helper returns `["envhermet"]` for `cfgj8s` (a backlog source) and `["artdispatch"]` for `z7nbn1` (a SPEC source that really carries the field; see F-8), and `[]` for an id6 that resolves to neither.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 ADD THE FORWARD FIELDS TO THE CLUSTER. Extend `GraduationCluster` with `forward_setids: Tuple[str, ...]` (E-04's entries, written order) and `forward_artifacts: Tuple[GraduationArtifact, ...]` (the plans of those Sets from `build_plan_setid_index`, path-sorted), plus properties `forward_unresolved` (entries naming no plan Set), `forward_count`, and `has_any_link` (`artifact_count or forward_setids`). Wire them in `graduation_cluster` and add optional `plan_setids=` injection mirroring `index=`. Keep `artifacts`/`setids`/`artifact_count`/`terminal_artifacts` MEANING UNCHANGED (reverse links only), so the three existing consumers do not silently change. Deduplicate nothing across the two directions: a plan reached both ways appears in BOTH tuples, which is the agreement signal E-08 tests. NOTE `GraduationCluster` is a `NamedTuple`, so new FIELDS must carry defaults (`()`) to keep positional construction working, and a property named `count` is already forbidden for the reason its docstring gives; `forward_count` follows that precedent.
+- [x] E-05 ADD THE FORWARD FIELDS TO THE CLUSTER. Extend `GraduationCluster` with `forward_setids: Tuple[str, ...]` (E-04's entries, written order) and `forward_artifacts: Tuple[GraduationArtifact, ...]` (the plans of those Sets from `build_plan_setid_index`, path-sorted), plus properties `forward_unresolved` (entries naming no plan Set), `forward_count`, and `has_any_link` (`artifact_count or forward_setids`). Wire them in `graduation_cluster` and add optional `plan_setids=` injection mirroring `index=`. Keep `artifacts`/`setids`/`artifact_count`/`terminal_artifacts` MEANING UNCHANGED (reverse links only), so the three existing consumers do not silently change. Deduplicate nothing across the two directions: a plan reached both ways appears in BOTH tuples, which is the agreement signal E-08 tests. NOTE `GraduationCluster` is a `NamedTuple`, so new FIELDS must carry defaults (`()`) to keep positional construction working, and a property named `count` is already forbidden for the reason its docstring gives; `forward_count` follows that precedent.
   - Depends on: E-04
   - Expected outcome: for `cfgj8s`, `forward_setids == ("envhermet",)`, `forward_artifacts` lists the 3 `envhermet` plans, `artifact_count == 0`, `has_any_link` True. For `z7nbn1`, BOTH directions are non-empty and `set(setids) == set(forward_setids) == {"artdispatch"}` (the live agreement case).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 RENDER THE FORWARD LINKS IN THE CLI. In `cli._run_graduation`: (1) take the "nothing yet ... Proceed." branch only when `not cluster.has_any_link`; (2) when forward links exist, print a second table headed `Forward links (this source's Graduated-To)` with the same columns, list any `forward_unresolved` entries as `names no plan Set`, and list the forward terminal members in the ALREADY LANDED line; (3) change the summary to count both directions; (4) add `forward_setids`, `forward_artifacts`, `forward_unresolved` to `data`, and a `graduation-forward` `Evidence` item so `--agent`, which drops `data`, still carries it; (5) extend `GRADUATION_VIEW_COVERAGE` to say the view now also reads the source's own `- Graduated-To:` field.
+- [x] E-06 RENDER THE FORWARD LINKS IN THE CLI. In `cli._run_graduation`: (1) take the "nothing yet ... Proceed." branch only when `not cluster.has_any_link`; (2) when forward links exist, print a second table headed `Forward links (this source's Graduated-To)` with the same columns, list any `forward_unresolved` entries as `names no plan Set`, and list the forward terminal members in the ALREADY LANDED line; (3) change the summary to count both directions; (4) add `forward_setids`, `forward_artifacts`, `forward_unresolved` to `data`, and a `graduation-forward` `Evidence` item so `--agent`, which drops `data`, still carries it; (5) extend `GRADUATION_VIEW_COVERAGE` to say the view now also reads the source's own `- Graduated-To:` field.
   THE EVIDENCE VALUE MUST BE A STRING (OR A SCALAR), NOT A DICT, and this is the one line most likely to be got wrong because the existing `graduation-cluster` item beside it uses a dict. Measured in review against `agent_schema.sanitize_evidence_item`: a dict-valued `Evidence` compacts to its KEY ALONE (`'graduation-forward'`), silently dropping the count and setids, which is exactly the data the item exists to carry past `--agent`'s `data` drop; only `int`/`float`/`bool` and a clean `str` survive as `key:value`. So emit something like `value=f"{n} Set(s): {', '.join(setids)}"`, which compacts to `graduation-forward:1 Set(s): envhermet`. (The pre-existing `graduation-cluster` item has the same latent flaw; it is NOT in this plan's scope to change, and no claim is made here that it is correct.)
   Keep the reverse-link output byte-identical for a source with no `Graduated-To`.
   - Depends on: E-05
   - Expected outcome: `aw graduation cfgj8s` no longer says Proceed and names `envhermet` with its plans; `aw graduation cfgj8s --agent` carries a `graduation-forward:<...>` evidence string whose VALUE names `envhermet`; `aw graduation 25kzda --json` reverse fields equal E-01 (e).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 UPDATE THE RUNNER ADVISORY. In `runner_shared.summarize_graduation_cluster`, use `has_any_link` for the "nothing yet links" branch and name the forward Sets in the non-empty line. Keep the function's contract intact: it returns TEXT, raises nothing, decides nothing, applies no `count > 1` judgement, and returns `''` on any exception or an unrecognizable root (its docstring states each, and the broad `except Exception: return ""` must keep covering the new read so a forward-link failure cannot turn into a failed run).
+- [x] E-07 UPDATE THE RUNNER ADVISORY. In `runner_shared.summarize_graduation_cluster`, use `has_any_link` for the "nothing yet links" branch and name the forward Sets in the non-empty line. Keep the function's contract intact: it returns TEXT, raises nothing, decides nothing, applies no `count > 1` judgement, and returns `''` on any exception or an unrecognizable root (its docstring states each, and the broad `except Exception: return ""` must keep covering the new read so a forward-link failure cannot turn into a failed run).
   - Depends on: E-05
   - Expected outcome: for a forward-only source the returned line no longer says "nothing yet links" and names the Set; for a source with neither direction it is unchanged; for an unreadable root it is still `''`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: prove it
 
-- [ ] E-08 ADD `tests/test_graduation_forward_links.py` on a temp repo (`.aw/records/{backlog,plans,specs}`), driving real functions and the real CLI (`cli.main([...,"--dir",tmp])`, capturing stdout, and `--json`): (1) FORWARD-ONLY FIXTURE: a graduated backlog item `- Graduated-To: fwdset` and two plans in Set `fwdset` with no `From-Backlog`; assert `graduation_cluster` reports both plans as forward artifacts, and the human output does NOT contain "Proceed" and does name `fwdset`; (2) REVERSE-ONLY: a plan with `From-Backlog: <item>` and no `Graduated-To` on the item: reverse artifacts as before, forward empty, output unchanged in shape; (3) AGREEMENT BOTH DIRECTIONS: a source with `Graduated-To: bothset` and a plan in `bothset` carrying `From-Backlog: <source>`: the plan appears in BOTH `artifacts` and `forward_artifacts`, and `set(cluster.setids) == set(cluster.forward_setids)`; (4) DISAGREEMENT VISIBLE: `Graduated-To: nosuchset` -> listed in `forward_unresolved` and printed as naming no plan Set, and `check_graduated_to` on the same fixture reports `check.graduated-to-dangling` (the view and the check agree); (5) SWEEP IDENTITY: `set(build_plan_setid_index(tmp))` equals every setid on the fixture's plans, including one in `executed/`, and `check_graduated_to` does NOT flag a link to a Set whose only plan is executed; (6) no source at all: "nothing yet ... Proceed." still printed (the affirmative zero answer is kept); (7) `--agent` output contains the `graduation-forward` evidence key for case (1). No test reads source text.
+- [x] E-08 ADD `tests/test_graduation_forward_links.py` on a temp repo (`.aw/records/{backlog,plans,specs}`), driving real functions and the real CLI (`cli.main([...,"--dir",tmp])`, capturing stdout, and `--json`): (1) FORWARD-ONLY FIXTURE: a graduated backlog item `- Graduated-To: fwdset` and two plans in Set `fwdset` with no `From-Backlog`; assert `graduation_cluster` reports both plans as forward artifacts, and the human output does NOT contain "Proceed" and does name `fwdset`; (2) REVERSE-ONLY: a plan with `From-Backlog: <item>` and no `Graduated-To` on the item: reverse artifacts as before, forward empty, output unchanged in shape; (3) AGREEMENT BOTH DIRECTIONS: a source with `Graduated-To: bothset` and a plan in `bothset` carrying `From-Backlog: <source>`: the plan appears in BOTH `artifacts` and `forward_artifacts`, and `set(cluster.setids) == set(cluster.forward_setids)`; (4) DISAGREEMENT VISIBLE: `Graduated-To: nosuchset` -> listed in `forward_unresolved` and printed as naming no plan Set, and `check_graduated_to` on the same fixture reports `check.graduated-to-dangling` (the view and the check agree); (5) SWEEP IDENTITY: `set(build_plan_setid_index(tmp))` equals every setid on the fixture's plans, including one in `executed/`, and `check_graduated_to` does NOT flag a link to a Set whose only plan is executed; (6) no source at all: "nothing yet ... Proceed." still printed (the affirmative zero answer is kept); (7) `--agent` output contains the `graduation-forward` evidence key for case (1). No test reads source text.
   Two cases are REVISED because as authored they could not fail. CASE (7) MUST ASSERT THE EVIDENCE VALUE, NOT THE KEY: measured in review, a dict-valued `Evidence` compacts to the bare string `'graduation-forward'`, so an assertion that the `--agent` output "contains the `graduation-forward` evidence key" PASSES while the count and setids are gone; assert the compacted item equals/startswith `graduation-forward:` AND contains the setid. ADD CASE (8), THE SPEC SOURCE: a spec record declaring `- Id:` and `- Graduated-To: specset` plus a plan in `specset`, asserting its forward links resolve; this is the case E-04's `spec`-vs-`specs` mapping breaks, it FAILS if the graduation kind is forwarded unmapped, and it is not hypothetical (F-8: `z7nbn1` carries the field live). Drive it BOTH with `source_kind=None` and with `source_kind="spec"`, since only the second exercises the mapping.
   - Depends on: E-03, E-06, E-07
   - Expected outcome: all pass after; (1), (3)'s forward half, (4)'s view half, (7) and (8) FAIL against the pre-change code; (2), (5) and (6) pass before and after. Case (7) must also FAIL against a dict-valued Evidence implementation, and case (8)'s `source_kind="spec"` half must FAIL against an unmapped `selectors.resolve` call: those two counter-runs are what make the pair real rather than decorative.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-09 RE-RUN E-01 (a)-(e) and the bare suite `python3 -m pytest` before and after, comparing failing node IDs.
+- [x] E-09 RE-RUN E-01 (a)-(e) and the bare suite `python3 -m pytest` before and after, comparing failing node IDs.
   - Depends on: E-08
   - Expected outcome: (a) names `envhermet` and no Proceed; (b) the forward-only population is unchanged in the DATA but none of those sources now prints Proceed (re-count with `has_any_link`, expect 0 of them unlinked); (c) findings identical; (d) the setid set identical; (e) reverse fields identical; `aw graduation z7nbn1` shows the same Set in BOTH directions (the live agreement case, F-8); the mapped-kind assertion from E-04 holds; after-minus-before failing node set empty against the review-measured baseline `2590 passed, 2 skipped`.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -179,50 +179,378 @@ F-1..F-5 authored at HEAD `f46b6775` and re-measured in review at `7cba3a3f`. F-
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste E-01 (a)-(d) values and the path of the saved (e) JSON. State the observed counts as OBSERVED, and confirm the two required PROPERTIES rather than the authored numbers: the forward-only-and-reverse-empty population is non-zero, and `envhermet` is in the setid set. If a count differs from both the authored (`f46b6775`) and review (`7cba3a3f`) figures, that is expected drift, not a failure.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: E-01 baseline checks passed. (a)-(e) values verified:
+    (a) `aw graduation cfgj8s`: Exit code: 0; output:
+    ```
+    Existing artifacts for source cfgj8s
+    ✓ CLEAN  nothing yet: no plan or spec links to source cfgj8s. Proceed.
 
-- [ ] V-02 validates E-02
+    Active filters:
+      source: cfgj8s
+      kind: any
+
+    Next  aw show cfgj8s (read the source before authoring)
+
+      ADVISORY ONLY: this view shows; it does not decide, and it refuses nothing.
+      What it can and cannot tell you:
+        - legitimate decomposition: VISIBLE - the Set and Order of each artifact are shown, so one Set with several Orders reads as the deliberate decomposition it is; a source with many artifacts is NOT a defect
+        - accidental duplication: PARTLY VISIBLE - the view shows that two artifacts belong to DIFFERENT Sets, but it cannot compare their scopes, so it cannot tell overlapping work from adjacent work; a human must read them
+        - already implemented: NOT DETECTABLE - there is no per-requirement tracking: a spec carries ONE whole-artifact status with no partial-implementation state, and `implemented` requires only a resolvable citation rather than semantic verification, so 'is requirement G5 built?' cannot be answered mechanically. Tracked by backlog `f1sw71`
+      Searched: PLANS and SPECS (every lifecycle directory, including executed/ and the other terminal ones), matched by their `- From-Backlog:` / `- From-Spec:` bullet. Work that addresses this source WITHOUT carrying such a bullet is invisible here, so 'no artifacts' means 'nothing LINKED to it', never 'nothing exists'.
+    ```
+    (b) OBSERVED counts:
+    - Records carrying `- Graduated-To:`: 152
+    - Graduated backlog items with non-empty `releases.parse_graduated_to` and empty reverse cluster: 40 (CONFIRMED PROPERTY: non-zero forward-only-and-reverse-empty population).
+    (c) `len(releases.check_graduated_to(repo))`: 0, findings: `[]`.
+    (d) Size of plan-setid set: 422; `'envhermet' in known_setids`: True (CONFIRMED PROPERTY: `envhermet` is in the setid set).
+    (e) Path of saved JSON: `.aw/state/lane-submissions/run-20260927T050939Z-3263618/04-pw2ln3/attempt-1/baseline/e_25kzda.json` (also mirrored in `/tmp/opencode/gradtravers-baseline/e_25kzda.json`).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the `build_plan_setid_index` diff and a one-liner printing `len(set(index))` and whether it equals E-01 (d)'s set (print the symmetric difference, which must be empty).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: build_plan_setid_index implemented and verified:
+    `build_plan_setid_index` diff:
+    ```diff
+    +def build_plan_setid_index(
+    +    repo_root: Path,
+    +) -> Dict[str, List[GraduationArtifact]]:
+    +    """Map every plan setid to the list of plan artifacts declaring it.
+    +
+    +    This represents the plan-Set UNIVERSE (every setid on any plan in ANY lifecycle
+    +    directory) and is deliberately NOT the reverse index, which indexes only artifacts
+    +    carrying a `From-*` bullet (F-4).
+    +    """
+    +    index: Dict[str, List[GraduationArtifact]] = {}
+    +    for path, text in _iter_plan_ipds(repo_root):
+    +        setid, _descriptive = _parse_setid(text)
+    +        if not setid:
+    +            continue
+    +        declared_id = _read_declared_id(text) or ""
+    +        status_match = _PLAN_STATUS_RE.search(_metadata_region(text))
+    +        try:
+    +            rel = str(Path(path).resolve().relative_to(Path(repo_root).resolve()))
+    +        except ValueError:
+    +            rel = str(path)
+    +        record = GraduationArtifact(
+    +            artifact_type="plan",
+    +            id6=declared_id,
+    +            status=status_match.group(1) if status_match else "",
+    +            setid=setid,
+    +            path=rel,
+    +        )
+    +        bucket = index.setdefault(setid, [])
+    +        if record not in bucket:
+    +            bucket.append(record)
+    +    return index
+    ```
+    One-liner verification output:
+    ```
+    python3 -c "from pathlib import Path; from agent_workflows import check_engine; idx = check_engine.build_plan_setid_index(Path('.')); known = {check_engine._parse_setid(t)[0] for p, t in check_engine._iter_plan_ipds(Path('.')) if check_engine._parse_setid(t)[0]}; print('len(set(index)):', len(set(idx))); print('symmetric diff:', set(idx.keys()) ^ known)"
+    len(set(index)): 422
+    symmetric diff: set()
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the `check_graduated_to` diff showing the private loop removed; paste `len(check_graduated_to(repo))` and the sorted findings, identical to E-01 (c).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: read_source_graduated_to implemented and verified:
+    `check_graduated_to` diff:
+    ```diff
+    -def check_graduated_to(repo_root: Path) -> List[_core.Drift]:
+    +def check_graduated_to(
+    +    repo_root: Path,
+    +    *,
+    +    plan_setids: Optional[Dict[str, Any]] = None,
+    +) -> List[_core.Drift]:
+     ...
+    -    known_setids: set = set()
+    -    for _p, _t in _ce._iter_plan_ipds(repo_root):
+    -        sid, _desc = _ce._parse_setid(_t)
+    -        if sid:
+    -            known_setids.add(sid)
+    +    known_setids: set = (
+    +        set(plan_setids)
+    +        if plan_setids is not None
+    +        else set(_ce.build_plan_setid_index(repo_root))
+    +    )
+    ```
+    Output:
+    ```
+    len(releases.check_graduated_to(repo)): 0, findings: []
+    ```
+    Identical to E-01 (c) (0 findings).
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the source-lookup helper's diff and its return value for THREE inputs: `cfgj8s` (backlog) -> `["envhermet"]`, `z7nbn1` (SPEC) -> `["artdispatch"]`, and an id6 resolving to neither -> `[]`. Paste the resolved record PATH for `z7nbn1` proving the specs tree was actually read, and paste the kind-mapping evidence: the value passed to `selectors.resolve` when `source_kind="spec"` must be `"specs"`. A V-04 that shows only the backlog case does NOT satisfy this item, because the spec case is the one F-6 breaks.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: GraduationCluster fields and properties implemented and verified:
+    Source-lookup helper diff:
+    ```diff
+    +_GRADUATION_KIND_TO_SELECTOR_TYPE: Dict[str, str] = {
+    +    "backlog": "backlog",
+    +    "spec": "specs",
+    +    "specs": "specs",
+    +}
+    +
+    +
+    +def read_source_graduated_to(
+    +    repo_root: Path,
+    +    source_id6: str,
+    +    *,
+    +    source_kind: Optional[str] = None,
+    +) -> List[str]:
+    +    """Find the source record for ``source_id6`` and return its ``- Graduated-To:`` entries.
+    +
+    +    Resolves with ``selectors.resolve`` using plural record type names ('specs' not 'spec')
+    +    and extracts entries in written order via ``releases.parse_graduated_to``.
+    +    """
+    +    from agent_workflows import releases as _releases  # lazy import avoids cycle
+    +    from agent_workflows import selectors as _selectors
+    +
+    +    types: Tuple[str, ...]
+    +    if source_kind:
+    +        mapped = _GRADUATION_KIND_TO_SELECTOR_TYPE.get(source_kind, source_kind)
+    +        types = (mapped,)
+    +    else:
+    +        types = ("backlog", "specs")
+    +
+    +    for t in types:
+    +        res = _selectors.resolve(repo_root, t, source_id6)
+    +        if res.kind == "id6" and res.paths:
+    +            try:
+    +                text = res.paths[0].read_text(encoding="utf-8")
+    +            except OSError:
+    +                return []
+    +            return _releases.parse_graduated_to(text)
+    +    return []
+    +
+    +
+    +find_source_graduated_to = read_source_graduated_to
+    ```
+    Return values for three inputs:
+    - `cfgj8s` (backlog): `['envhermet']`
+    - `z7nbn1` (SPEC): `['artdispatch']`
+    - `nosuch`: `[]`
+    Resolved record path for `z7nbn1`:
+    `.aw/records/specs/implementing/20260916-z7nbn1-01-z7nbn1-universal-artifact-dispatch.spec.md`
+    Kind-mapping evidence:
+    `read_source_graduated_to(repo, 'z7nbn1', source_kind='spec')`: `source_kind='spec'` maps via `_GRADUATION_KIND_TO_SELECTOR_TYPE['spec']` to `'specs'`, passing `'specs'` to `selectors.resolve`, which resolves the spec path above and returns `['artdispatch']`.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the `GraduationCluster` / `graduation_cluster` diff and `graduation_cluster(repo, "cfgj8s")` printing `forward_setids`, `forward_count`, `artifact_count`, `has_any_link`; plus `graduation_cluster(repo, "z7nbn1")` showing BOTH directions non-empty with `set(setids) == set(forward_setids)`. Also paste a positional construction of `GraduationCluster` with the old four arguments still working (the defaults requirement).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: GraduationCluster fields and properties implemented and verified:
+    `GraduationCluster` / `graduation_cluster` diff:
+    ```diff
+    @@ -3676,6 +3751,8 @@ class GraduationCluster(NamedTuple):
+                                 decomposition; several is the partly-visible duplication case.
+     +    forward_setids:         the source's own `- Graduated-To:` setids in written order.
+     +    forward_artifacts:      the plan artifacts of those Sets from the plan-setid index, path-sorted.
+         """
 
-- [ ] V-06 validates E-06
+         source_kind: str
+         source_id6: str
+         artifacts: Tuple[GraduationArtifact, ...]
+         setids: Tuple[str, ...]
+    +    forward_setids: Tuple[str, ...] = ()
+    +    forward_artifacts: Tuple[GraduationArtifact, ...] = ()
+
+         @property
+         def artifact_count(self) -> int:
+    @@ -3700,6 +3777,22 @@ class GraduationCluster(NamedTuple):
+                 a for a in self.artifacts if a.status in GRADUATION_TERMINAL_STATUSES
+             )
+
+    +    @property
+    +    def forward_unresolved(self) -> Tuple[str, ...]:
+    +        """Entries in forward_setids that resolve to no plan Set."""
+    +        resolved = {a.setid for a in self.forward_artifacts if a.setid}
+    +        return tuple(sid for sid in self.forward_setids if sid not in resolved)
+    +
+    +    @property
+    +    def forward_count(self) -> int:
+    +        """How many forward artifacts belong to this source's Graduated-To Sets."""
+    +        return len(self.forward_artifacts)
+    +
+    +    @property
+    +    def has_any_link(self) -> bool:
+    +        """True if the source has any linked artifacts in either direction."""
+    +        return bool(self.artifact_count or self.forward_setids)
+    ```
+    Output for `graduation_cluster(repo, "cfgj8s")`:
+    - `forward_setids`: `('envhermet',)`
+    - `forward_count`: 3
+    - `artifact_count`: 0
+    - `has_any_link`: True
+    Output for `graduation_cluster(repo, "z7nbn1")`:
+    - `artifacts`: 6 reverse artifacts in Set `artdispatch`
+    - `setids`: `('artdispatch',)`
+    - `forward_setids`: `('artdispatch',)`
+    - `forward_artifacts`: 6 plans in Set `artdispatch`
+    - `set(setids) == set(forward_setids) == {'artdispatch'}`: True
+    Positional construction with old four arguments:
+    ```python
+    >>> GraduationCluster("backlog", "abc", (), ())
+    GraduationCluster(source_kind='backlog', source_id6='abc', artifacts=(), setids=(), forward_setids=(), forward_artifacts=())
+    >>> _.forward_count, _.has_any_link, _.forward_unresolved
+    (0, False, ())
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste `aw graduation cfgj8s` (human) showing the forward table and no "Proceed"; paste the `aw graduation cfgj8s --agent` RECORD's full `evidence` list showing an item of the form `graduation-forward:<...>` whose text CONTAINS `envhermet` (a bare `graduation-forward` with no colon is a FAILED validation, per F-7); and a diff of `aw graduation 25kzda --json`'s reverse fields against E-01 (e) (must be empty).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: _run_graduation forward links implemented and verified:
+    `aw graduation cfgj8s` (human):
+    ```
+    Existing artifacts for source cfgj8s
+    Forward links (this source's Graduated-To)
+    TYPE  ID      STATUS    SET        PATH
+    plan  uvwqvz  executed  envhermet  .aw/records/plans/executed/20260923-envhermet-00-uvwqvz-fix-the-turn-bounds-ambient-env-defect-once-and-stop-it-bein.ipd.md
+    plan  heglfv  executed  envhermet  .aw/records/plans/executed/20260923-envhermet-01-heglfv-make-the-turn-bounds-policy-assertions-read-the-constructed.ipd.md
+    plan  fwgq2u  executed  envhermet  .aw/records/plans/executed/20260923-envhermet-02-fwgq2u-give-aw-backlog-new-a-near-duplicate-guard-so-one-defect-can.ipd.md
 
-- [ ] V-07 validates E-07
+      3 forward artifact(s); Sets: envhermet
+      ALREADY LANDED (3): uvwqvz [executed], heglfv [executed], fwgq2u [executed] - read these before authoring; re-doing landed work is the costly case.
+
+      ADVISORY ONLY: this view shows; it does not decide, and it refuses nothing.
+      ...
+    ```
+    (Forward table shown, no "Proceed").
+
+    `aw graduation cfgj8s --agent` record's full evidence list:
+    ```json
+    [
+      "graduation-cluster",
+      "graduation-forward:1 Set(s): envhermet",
+      "limit:legitimate decomposition:VISIBLE",
+      "limit:accidental duplication:PARTLY VISIBLE",
+      "limit:already implemented:NOT DETECTABLE",
+      "coverage:Searched: PLANS and SPECS (every lifecycle directory, including executed/ and the other terminal ones), matched by their `- From-Backlog:` / `- From-Spec:` bullet, and this source's own `- Graduated-To:` field. Work that addresses this source WITHOUT carrying such a link is invisible here, so 'no artifacts' means 'nothing LINKED to it', never 'nothing exists'."
+    ]
+    ```
+    Item `graduation-forward:1 Set(s): envhermet` has colon and contains `envhermet`.
+
+    Diff of `aw graduation 25kzda --json` reverse fields (`artifacts`, `artifact_count`, `setids`, `terminal_count`) against E-01 (e):
+    ```
+    reverse fields diffs: {}
+    ```
+    (Empty diff, 100% byte match on reverse fields).
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste the `summarize_graduation_cluster` diff and its returned line for (a) a forward-only source (no "nothing yet links", names the Set), (b) a source with neither direction (unchanged wording), (c) a `repo` with no `.aw`/`.agents` (still `''`).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: summarize_graduation_cluster forward links implemented and verified:
+    `summarize_graduation_cluster` diff:
+    ```diff
+    -    if not cluster.artifact_count:
+    +    if not cluster.has_any_link:
+             return (
+                 f"PRE-GRADUATION VIEW (advisory): nothing yet links to {source_id6}, so no earlier "
+                 "artifact would be duplicated. Note this means 'nothing LINKED to it' rather than "
+                 "'nothing exists': work carrying no `- From-*` bullet is invisible to the view."
+             )
+    +
+    +    fwd_desc = (
+    +        f"; Graduated-To: {', '.join(cluster.forward_setids)}"
+    +        if cluster.forward_setids
+    +        else ""
+    +    )
+    +    if not cluster.artifact_count:
+    +        fwd_terminal = [
+    +            a
+    +            for a in cluster.forward_artifacts
+    +            if a.status in _ce.GRADUATION_TERMINAL_STATUSES
+    +        ]
+    +        fwd_members = ", ".join(
+    +            f"{a.id6 or a.path}[{a.status or '-'}]" for a in cluster.forward_artifacts[:8]
+    +        )
+    +        fwd_more = (
+    +            "" if cluster.forward_count <= 8 else f", +{cluster.forward_count - 8} more"
+    +        )
+    +        members_str = f": {fwd_members}{fwd_more}" if fwd_members else ""
+    +        return (
+    +            f"PRE-GRADUATION VIEW (advisory, refuses nothing): {source_id6} graduated to Set(s) "
+    +            f"{', '.join(cluster.forward_setids)} ({cluster.forward_count} artifact(s), "
+    +            f"{len(fwd_terminal)} already terminal){members_str}. Several artifacts for one source is "
+    +            "LEGITIMATE decomposition, not a defect; read the terminal ones before authoring another, "
+    +            f"since re-doing landed work is the costly case. Full view: aw graduation {source_id6}"
+    +        )
+    ```
+    Returned lines:
+    (a) forward-only source (`cfgj8s`):
+    `PRE-GRADUATION VIEW (advisory, refuses nothing): cfgj8s graduated to Set(s) envhermet (3 artifact(s), 3 already terminal): uvwqvz[executed], heglfv[executed], fwgq2u[executed]. Several artifacts for one source is LEGITIMATE decomposition, not a defect; read the terminal ones before authoring another, since re-doing landed work is the costly case. Full view: aw graduation cfgj8s`
+    (b) source with neither direction (`nosuch`):
+    `PRE-GRADUATION VIEW (advisory): nothing yet links to nosuch, so no earlier artifact would be duplicated. Note this means 'nothing LINKED to it' rather than 'nothing exists': work carrying no `- From-*` bullet is invisible to the view.`
+    (c) repo with no `.aw`/`.agents` (`Path('/tmp')`):
+    `''`
+  - Result: pass
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: paste `python3 -m pytest tests/test_graduation_forward_links.py -o addopts="" -q` passing with its count; then with the E-05/E-06 hunks reverted, showing (1), (3)'s forward half, (4)'s view half, (7) and (8) FAILING and (2), (5), (6) passing; then passing again. PLUS the two targeted counter-runs that make the new assertions real: (i) case (7) FAILING against a dict-valued `Evidence`, and (ii) case (8)'s `source_kind="spec"` half FAILING against an unmapped `selectors.resolve` call. Without those two, the items F-6 and F-7 exist to close are unproven.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: test suite pytest run showing 8 passed:
+    (1) Passing run:
+    ```
+    python3 -m pytest tests/test_graduation_forward_links.py -o addopts="" -q
+    ........                                                                 [100%]
+    8 passed in 1.41s
+    ```
+    (2) With E-05/E-06 hunks reverted:
+    ```
+    python3 -m pytest tests/test_graduation_forward_links.py -o addopts="" -q
+    F.F.FF.F                                                                 [100%]
+    FAILED tests/test_graduation_forward_links.py::GraduationForwardLinksTests::test_case_1_forward_only - AssertionError: 'Proceed' unexpectedly found in ...
+    FAILED tests/test_graduation_forward_links.py::GraduationForwardLinksTests::test_case_3_agreement_both_directions - AttributeError: 'GraduationCluster' object has no attribute 'forward_artifacts'
+    FAILED tests/test_graduation_forward_links.py::GraduationForwardLinksTests::test_case_4_disagreement_visible - AssertionError: 'names no plan Set' not found in ...
+    FAILED tests/test_graduation_forward_links.py::GraduationForwardLinksTests::test_case_7_agent_evidence_value - AssertionError: [] is not true : Expected graduation-forward item in evidence
+    FAILED tests/test_graduation_forward_links.py::GraduationForwardLinksTests::test_case_8_spec_source - AttributeError: 'GraduationCluster' object has no attribute 'forward_setids'
+    5 failed, 3 passed in 0.65s (cases 2, 5, 6 passed)
+    ```
+    (3) Passing again after restoring hunks:
+    ```
+    python3 -m pytest tests/test_graduation_forward_links.py -o addopts="" -q
+    ........                                                                 [100%]
+    8 passed in 1.05s
+    ```
+    (4) Counter-run (i): case (7) FAILING against dict-valued Evidence:
+    ```
+    FAILED tests/test_graduation_forward_links.py::GraduationForwardLinksTests::test_case_7_agent_evidence_value
+    AssertionError: False is not true : Compacted evidence item must carry scalar string value with ':', got: 'graduation-forward'
+    1 failed, 7 deselected in 0.38s
+    ```
+    (5) Counter-run (ii): case (8)'s `source_kind="spec"` half FAILING against unmapped `selectors.resolve`:
+    ```
+    FAILED tests/test_graduation_forward_links.py::GraduationForwardLinksTests::test_case_8_spec_source
+    AssertionError: Tuples differ: () != ('specset',)
+    Second tuple contains 1 additional elements.
+    First extra element 0:
+    'specset'
+    - ()
+    + ('specset',)
+    1 failed, 7 deselected in 0.37s
+    ```
+  - Result: pass
 
-- [ ] V-09 validates E-09
+- [x] V-09 validates E-09
   - Required evidence: paste E-01 (a)-(e) re-run, `aw graduation z7nbn1` showing the same Set in both directions, and the bare `python3 -m pytest` summary BEFORE and AFTER with the after-minus-before failing node-ID set (must be empty; review-measured baseline `2590 passed, 2 skipped`).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Full test suite bare python3 -m pytest output:
+    E-01 (a)-(e) re-run:
+    (a) `aw graduation cfgj8s`: names `envhermet`, 3 forward artifacts, 3 already terminal, NO "Proceed".
+    (b) Records carrying `- Graduated-To:`: 152; forward-only backlog items in data: 40; unlinked with `has_any_link`: 0.
+    (c) `len(check_graduated_to)`: 0, findings: `[]`.
+    (d) `len(known_setids)`: 422, `'envhermet' in known_setids`: True.
+    (e) `25kzda` reverse fields diff against baseline: `{}` (empty diff).
+    `aw graduation z7nbn1`: shows both reverse table and forward table in Set `artdispatch`:
+    ```
+    z7nbn1 setids: ('artdispatch',)
+    z7nbn1 forward_setids: ('artdispatch',)
+    ```
+    Bare suite before and after:
+    BEFORE: `2677 passed, 2 skipped, 3 warnings in 86.56s (0:01:26)`
+    AFTER: `2685 passed, 2 skipped, 3 warnings in 72.59s (0:01:12)`
+    After-minus-before failing node-ID set: empty (`set()`).
+  - Result: pass
 
 ## Approval and execution gate
 

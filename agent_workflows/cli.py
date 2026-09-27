@@ -10879,16 +10879,33 @@ def _run_graduation(
     cluster = ce.graduation_cluster(repo_root, source, source_kind=source_kind)
     artifacts = [a._asdict() for a in cluster.artifacts]
     terminal = cluster.terminal_artifacts
+    fwd_terminal = [
+        a
+        for a in cluster.forward_artifacts
+        if a.status in ce.GRADUATION_TERMINAL_STATUSES
+    ]
     limits = [
         {"case": case, "verdict": verdict, "why": why}
         for case, verdict, why in ce.GRADUATION_VIEW_LIMITS
     ]
-    summary = (
-        f"{source}: {cluster.artifact_count} linked artifact(s)"
-        f" across {len(cluster.setids)} Set(s); {len(terminal)} already terminal"
-        if cluster.artifact_count
-        else f"{source}: no LINKED plan or spec yet (nothing carries a From-* bullet naming it)"
-    )
+    if cluster.artifact_count and cluster.forward_setids:
+        summary = (
+            f"{source}: {cluster.artifact_count} linked artifact(s) across {len(cluster.setids)} Set(s) (reverse); "
+            f"{len(cluster.forward_setids)} forward Set(s) with {cluster.forward_count} artifact(s)"
+        )
+    elif cluster.forward_setids:
+        summary = (
+            f"{source}: {cluster.forward_count} forward artifact(s) across {len(cluster.forward_setids)} Set(s); "
+            f"{len(fwd_terminal)} already terminal"
+        )
+    elif cluster.artifact_count:
+        summary = (
+            f"{source}: {cluster.artifact_count} linked artifact(s)"
+            f" across {len(cluster.setids)} Set(s); {len(terminal)} already terminal"
+        )
+    else:
+        summary = f"{source}: no LINKED plan or spec yet (nothing carries a From-* bullet naming it)"
+
     data = {
         "repo_root": str(repo_root),
         "source": source,
@@ -10897,6 +10914,9 @@ def _run_graduation(
         "artifact_count": cluster.artifact_count,
         "setids": list(cluster.setids),
         "terminal_count": len(terminal),
+        "forward_setids": list(cluster.forward_setids),
+        "forward_artifacts": [a._asdict() for a in cluster.forward_artifacts],
+        "forward_unresolved": list(cluster.forward_unresolved),
         # E-03: the honesty travels WITH the answer, in the machine surface too, so a consumer
         # cannot read the cluster without the statement of what it does and does not mean.
         "limits": limits,
@@ -10911,23 +10931,27 @@ def _run_graduation(
         # what it does and does not mean, which is the same over-claim the human output is forbidden
         # to make. `sanitize_evidence_item` renders a string-valued Evidence as `key:value`, so each
         # verdict survives compaction.
-        res = CommandResult(
-            command="graduation",
-            status="clean",
-            exit_code=0,
-            summary=summary,
-            evidence=[
+        evidence: List[Evidence] = [
+            Evidence(
+                key="graduation-cluster",
+                value={
+                    "source": source,
+                    "artifacts": cluster.artifact_count,
+                    "terminal": len(terminal),
+                },
+                status="verified",
+            )
+        ]
+        if cluster.forward_setids:
+            evidence.append(
                 Evidence(
-                    key="graduation-cluster",
-                    value={
-                        "source": source,
-                        "artifacts": cluster.artifact_count,
-                        "terminal": len(terminal),
-                    },
+                    key="graduation-forward",
+                    value=f"{len(cluster.forward_setids)} Set(s): {', '.join(cluster.forward_setids)}",
                     status="verified",
                 )
-            ]
-            + [
+            )
+        evidence.extend(
+            [
                 Evidence(
                     key=f"limit:{case}",
                     value=verdict,
@@ -10942,7 +10966,14 @@ def _run_graduation(
                     value=ce.GRADUATION_VIEW_COVERAGE,
                     status="verified",
                 )
-            ],
+            ]
+        )
+        res = CommandResult(
+            command="graduation",
+            status="clean",
+            exit_code=0,
+            summary=summary,
+            evidence=evidence,
             next_actions=[
                 NextAction(
                     command=f"aw show {source}",
@@ -10954,7 +10985,7 @@ def _run_graduation(
         return get_renderer(ctx).emit(res, ctx)
 
     term.heading(f"Existing artifacts for source {source}")
-    if not cluster.artifact_count:
+    if not cluster.has_any_link:
         # THE AFFIRMATIVE ZERO ANSWER (OQ-02). This is the most frequent honest answer and it is
         # good news, so it must not render like a failure or like empty output. Emitted through the
         # SHARED empty-result renderer, which is what this leaf's `empty_error_renderer=
@@ -10971,9 +11002,37 @@ def _run_graduation(
             status="clean",
         )
     else:
-        term.table(
-            ["TYPE", "ID", "STATUS", "SET", "PATH"],
-            [
+        if cluster.artifact_count:
+            term.table(
+                ["TYPE", "ID", "STATUS", "SET", "PATH"],
+                [
+                    [
+                        a.artifact_type,
+                        a.id6 or "-",
+                        a.status or "-",
+                        a.setid or "-",
+                        a.path,
+                    ]
+                    for a in cluster.artifacts
+                ],
+            )
+            term.line("")
+            term.line(
+                f"  {cluster.artifact_count} linked artifact(s); Sets: "
+                f"{', '.join(cluster.setids) if cluster.setids else '-'}"
+            )
+            if terminal:
+                term.line(
+                    f"  ALREADY LANDED ({len(terminal)}): "
+                    + ", ".join(f"{a.id6 or a.path} [{a.status}]" for a in terminal)
+                    + " - read these before authoring; re-doing landed work is the costly case."
+                )
+
+        if cluster.forward_setids:
+            if cluster.artifact_count:
+                term.line("")
+            term.heading("Forward links (this source's Graduated-To)")
+            fwd_rows = [
                 [
                     a.artifact_type,
                     a.id6 or "-",
@@ -10981,20 +11040,30 @@ def _run_graduation(
                     a.setid or "-",
                     a.path,
                 ]
-                for a in cluster.artifacts
-            ],
-        )
-        term.line("")
-        term.line(
-            f"  {cluster.artifact_count} linked artifact(s); Sets: "
-            f"{', '.join(cluster.setids) if cluster.setids else '-'}"
-        )
-        if terminal:
+                for a in cluster.forward_artifacts
+            ]
+            for sid in cluster.forward_unresolved:
+                fwd_rows.append(["-", "-", "names no plan Set", sid, "-"])
+            term.table(["TYPE", "ID", "STATUS", "SET", "PATH"], fwd_rows)
+            term.line("")
             term.line(
-                f"  ALREADY LANDED ({len(terminal)}): "
-                + ", ".join(f"{a.id6 or a.path} [{a.status}]" for a in terminal)
-                + " - read these before authoring; re-doing landed work is the costly case."
+                f"  {cluster.forward_count} forward artifact(s); Sets: "
+                f"{', '.join(cluster.forward_setids)}"
             )
+            if cluster.forward_unresolved:
+                term.line(
+                    f"  unresolved ({len(cluster.forward_unresolved)}): "
+                    + ", ".join(
+                        f"{sid} [names no plan Set]"
+                        for sid in cluster.forward_unresolved
+                    )
+                )
+            if fwd_terminal:
+                term.line(
+                    f"  ALREADY LANDED ({len(fwd_terminal)}): "
+                    + ", ".join(f"{a.id6 or a.path} [{a.status}]" for a in fwd_terminal)
+                    + " - read these before authoring; re-doing landed work is the costly case."
+                )
     term.line("")
     term.line(
         "  ADVISORY ONLY: this view shows; it does not decide, and it refuses nothing."

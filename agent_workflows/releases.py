@@ -771,7 +771,11 @@ GRADUATED_TO_MALFORMED_RULE = "check.graduated-to-malformed"
 GRADUATED_TO_REPEATED_RULE = "check.graduated-to-repeated"
 
 
-def check_graduated_to(repo_root: Path) -> List[_core.Drift]:
+def check_graduated_to(
+    repo_root: Path,
+    *,
+    plan_setids: Optional[Dict[str, Any]] = None,
+) -> List[_core.Drift]:
     """Flag a `- Graduated-To:` entry that names no real plan Set, is malformed, or repeats.
 
     setidhard Order bwgyum E-03: the DIRECT MIRROR of `check_from_backlog` directly above, in the same
@@ -793,15 +797,15 @@ def check_graduated_to(repo_root: Path) -> List[_core.Drift]:
     THE RESOLUTION IS PLANS-ONLY AND MUST STAY THAT WAY (spec `2lcqno` N3). A setid is a SHARED,
     cross-type TOPIC label, so a backlog item, a research report and a plan Set legitimately share one
     token; that is the EXPECTED case, not a collision. Reading the setid through
-    `check_engine._parse_setid` over `check_engine._iter_plan_ipds` is therefore inherently type-scoped.
+    `check_engine.build_plan_setid_index` is therefore inherently type-scoped.
     Do NOT "improve" it into an all-types search: `Graduated-To` names the plan Set a source became, and
     a search that also matched the SOURCE's own setid would make every link trivially self-resolving.
 
-    NO NEW SETID PARSER AND NO NEW PLANS-PATH LITERAL. The declared setid is read by the existing
-    `check_engine._parse_setid` (which already handles the `<terse> (<descriptive>)` bullet form and is
-    bounded to the metadata region), over the existing `check_engine._iter_plan_ipds` iterator. The token
-    SHAPE is judged by the existing `plans.is_set_id_valid`. A second mechanism for any of the three is
-    the drift GUIDING_PRINCIPLES P8 forbids.
+    NO NEW SETID PARSER AND NO NEW PLANS-PATH LITERAL. The declared setid is read by
+    `check_engine.build_plan_setid_index` (which uses the existing `check_engine._parse_setid` over
+    the existing `check_engine._iter_plan_ipds` iterator). The token SHAPE is judged by the existing
+    `plans.is_set_id_valid`. A second mechanism for any of the three is the drift GUIDING_PRINCIPLES P8
+    forbids.
 
     WHAT `_iter_plan_ipds` MISSES, stated because it decides whether a VALID link can be called dangling:
     it globs `*.ipd.md` ONLY. Measured on this repository, every plan file matches and the non-matching
@@ -841,11 +845,11 @@ def check_graduated_to(repo_root: Path) -> List[_core.Drift]:
     ignored_dirs = _core.get_ignored_dirs(repo_root)
     drift: List[_core.Drift] = []
 
-    known_setids: set = set()
-    for _p, _t in _ce._iter_plan_ipds(repo_root):
-        sid, _desc = _ce._parse_setid(_t)
-        if sid:
-            known_setids.add(sid)
+    known_setids: set = (
+        set(plan_setids)
+        if plan_setids is not None
+        else set(_ce.build_plan_setid_index(repo_root))
+    )
     if not known_setids:
         # No plan Set is discoverable at all (no plans tree, or an unreadable one). We cannot
         # distinguish a dangling link from an invisible plan corpus, so report nothing rather than flag
