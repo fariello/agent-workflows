@@ -1,5 +1,5 @@
 - Id: ddo56m
-- Status: graduated
+- Status: done
 - Graduated-To: wintty
 - Blocks-Release: next
 - Set: ddo56m
@@ -8,6 +8,7 @@
 - Summary: Windows: stdin redirected from NUL reports isatty() True, so human-only gates and prompts treat a non-interactive run as interactive
 
 ## Workflow history
+- 2026-09-27 set (aw backlog): closed by aw oc run: IPD k4vi7z executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260926-wintty-01-k4vi7z-treat-a-windows-nul-stdin-as-non-interactive-at-the-human-at.ipd.md); evidence .aw/records/plans/executed/20260926-wintty-01-k4vi7z-treat-a-windows-nul-stdin-as-non-interactive-at-the-human-at.ipd.md
 - 2026-09-26 graduated (aw set): Graduated 2026-09-26 into to-review plan Set wintty (commit 2c7068ca).
 - 2026-09-25 created (aw backlog): Windows: stdin redirected from NUL reports isatty() True, so human-only gates and prompts treat a non-interactive run as interactive
 

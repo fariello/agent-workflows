@@ -189,7 +189,13 @@ class SetTests(unittest.TestCase):
                     )
                 )
             # Interactive TTY approval succeeds directly (no input prompt)
-            with mock.patch("sys.stdin") as stdin, redirect_stdout(io.StringIO()):
+            with (
+                mock.patch("sys.stdin") as stdin,
+                mock.patch(
+                    "agent_workflows.term.stdin_is_interactive", return_value=True
+                ),
+                redirect_stdout(io.StringIO()),
+            ):
                 stdin.isatty.return_value = True
                 p2 = self._mk(d, "- Status: reviewed")
                 rc = specs.run_set(

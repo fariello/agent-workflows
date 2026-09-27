@@ -1724,3 +1724,50 @@ def yes_no_suffix(default: bool, *, term: Optional[Term] = None) -> str:
     if default:
         return "[" + t.colorize("Y", "bold") + "/n]"
     return "[y/" + t.colorize("N", "bold") + "]"
+
+
+def stdin_is_interactive(stream: Optional[Any] = None) -> bool:
+    """Return whether standard input is attached to an interactive terminal/console.
+
+    Why the win32 branch exists: on Windows, a stdin redirected from NUL reports
+    isatty() True because NUL is a character device.
+
+    The win32 probe reads the process's real STD_INPUT_HANDLE, so a caller passing
+    a non-default stream gets the isatty half only on POSIX and both halves on win32;
+    that asymmetry is deliberate and is why the parameter exists for testing rather
+    than for probing an arbitrary stream.
+
+    The honest limit: this answers "is stdin a real console?" and NOT "can a human answer
+    a prompt?". The repository already has three sites that deliberately require more
+    (ipd_lifecycle.run_finalize's ttywedge fence, runner_stop.interrupt_menu_is_safe,
+    artifact_adopt.leak_gate_is_interactive), all requiring the output stream to be a TTY
+    too and honoring AW_NONINTERACTIVE/CI; use artifact_adopt.leak_gate_is_interactive
+    when a caller is about to block on input.
+    """
+
+    target = sys.stdin if stream is None else stream
+    if target is None:
+        return False
+    isatty_fn = getattr(target, "isatty", None)
+    if not callable(isatty_fn):
+        return False
+    try:
+        if not isatty_fn():
+            return False
+    except (ValueError, OSError, AttributeError):
+        return False
+    except Exception:
+        return False
+
+    if sys.platform == "win32":
+        try:
+            import ctypes
+
+            handle = ctypes.windll.kernel32.GetStdHandle(-10)  # STD_INPUT_HANDLE
+            mode = ctypes.c_ulong()
+            if not ctypes.windll.kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+                return False
+        except Exception:
+            return False
+
+    return True
