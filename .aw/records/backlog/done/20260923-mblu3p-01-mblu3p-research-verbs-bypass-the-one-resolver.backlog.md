@@ -1,5 +1,5 @@
 - Id: mblu3p
-- Status: graduated
+- Status: done
 - Graduated-To: researchsel
 - Blocks-Release: next
 - Set: mblu3p
@@ -8,6 +8,7 @@
 - Summary: aw archive/rename/group for research bypass the ONE resolver, contradicting selectors.py's documented single-resolver claim
 
 ## Workflow history
+- 2026-09-26 set (aw backlog): closed by aw oc run: IPD me227c executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260926-researchsel-01-me227c-route-the-research-mutating-verbs-through-the-one-selector-r.ipd.md); evidence .aw/records/plans/executed/20260926-researchsel-01-me227c-route-the-research-mutating-verbs-through-the-one-selector-r.ipd.md
 - 2026-09-26 graduated (aw set): Graduated 2026-09-26 into plan me227c (Set researchsel), re-verified live at HEAD.
 - 2026-09-23 created (aw backlog): Found while executing IPD xo3244 (selector YAML dialect).
 
