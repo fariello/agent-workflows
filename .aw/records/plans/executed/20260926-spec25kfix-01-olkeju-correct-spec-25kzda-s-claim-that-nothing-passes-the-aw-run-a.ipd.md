@@ -6,7 +6,7 @@
 - Scope: IN: rewrite the trailer clause of the "Infrastructure status" paragraph so it states, without counts, that several driver-side commit sites pass trailers, agent code commits are generally untrailered, and nothing reads trailers back, each with a dated measurement and its carrier; move the trailers OUT of that sentence's "STILL NET-NEW and to be built:" list, because the writer is shipped and leaving them there keeps the sentence self-contradictory (review F-7); update that paragraph's own measurement header and the preamble's correction-history sentence to record this correction; record the amendment with `aw specs note`; and FILE ONE backlog item for the two code comments that repeat the same false claim (review F-8). OUT: Section 4.2's finding-code table (including the `RUN-COMMIT-CONTENTS`/`RUN-COMMIT-GATEWAY` rows, which stay correctly unbound); the other two dated preamble paragraphs; EDITING those two code comments (E-05 files their carrier instead); the rotted citations backlog `sbh1o1` tracks, which live in OTHER artifacts (see Findings F-4).
 - Scope-Paths: .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: olkeju
-- Approval: 2026-09-26, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 executed (opencode manual-recovery model=its_direct/pt3-claude-opus-5.5-1m-us): Recovered stranded lane: finalize was refused as STALE because the executing agent edited E-05's frozen text and Scope-Paths; both restored to the approved text (0812c9e1), requirements now identical to begin. Lane merged onto current main; full suite 2636 passed. [Scope reconciliation - out-of-scope .aw/records/backlog/open/20260926-oye21y-01-oye21y-correct-two-code-comments-claiming-nothing-passes.backlog.md: created by E-05 (aw backlog new) as the plan instructs; its id6 is minted at execution so it could not be declared in advance (Scope-Paths justification)]
 - 2026-09-26 approved (aw set): status set to approved
 - 2026-09-26 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed in place
 
@@ -37,36 +37,36 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure
 
-- [ ] E-01 RE-MEASURE at the executing HEAD and paste: (a) `rg -n "NOTHING PASSES THEM" <spec>` (the clause still present); (b) `git log --all --oneline --grep='^AW-Run:' | wc -l`; (c) `git log --all --format=%s --grep='^AW-Run:' | rg -c '^closed by aw'`; (d) `rg -n "trailers=_gch.run_item_trailers|run_item_trailers\(" agent_workflows` (which commit sites pass trailers now; the E-02 wording must name them GENERICALLY, never list them, because the list has already grown twice); (e) `rg -n "trailers:key|interpret-trailers --parse" agent_workflows` (whether anything reads trailers; if plan `199u11` has executed, `ipd_lifecycle` now reads `AW-Item` and E-02's "nothing reads" sentence must instead say finalize reads `AW-Item` demand-only while no `RUN-*` code is bound). If (a) finds nothing, STOP and report that the clause was already corrected.
+- [x] E-01 RE-MEASURE at the executing HEAD and paste: (a) `rg -n "NOTHING PASSES THEM" <spec>` (the clause still present); (b) `git log --all --oneline --grep='^AW-Run:' | wc -l`; (c) `git log --all --format=%s --grep='^AW-Run:' | rg -c '^closed by aw'`; (d) `rg -n "trailers=_gch.run_item_trailers|run_item_trailers\(" agent_workflows` (which commit sites pass trailers now; the E-02 wording must name them GENERICALLY, never list them, because the list has already grown twice); (e) `rg -n "trailers:key|interpret-trailers --parse" agent_workflows` (whether anything reads trailers; if plan `199u11` has executed, `ipd_lifecycle` now reads `AW-Item` and E-02's "nothing reads" sentence must instead say finalize reads `AW-Item` demand-only while no `RUN-*` code is bound). If (a) finds nothing, STOP and report that the clause was already corrected.
   - THE AUTHORED MEASUREMENTS ARE ALREADY STALE, which is the whole argument for (d) being category-level (review PR-002, F-6). Re-measured at review on HEAD `46cb6af4`: (b) is `63`, not 39; (c) is `62`, not 38; and `8apjpp` (revcommit) HAS NOW EXECUTED, so a THIRD driver-side site is live (`runner_shared`'s review-output commit, `review(<host>): record the review of <id6>` carrying `AW-Run`/`AW-Item` plus `AW-Committed-By: driver`, 3 such commits in history). `aw commit` also THREADS trailers through `work_cmd` when a programmatic caller supplies `run_id`/`item_id6`, though no human flag exists. So do not treat F-5's "`8apjpp` will add a site" as future: verify each named plan's CURRENT status with `find .aw/records/plans -name "*<id6>*"` rather than trusting this plan's snapshot, and report which had executed by then.
   - Depends on: none
   - Expected outcome: (a) one hit; (b) a positive count; (c) all but a handful of (b); (d) SEVERAL driver-side sites (three at review time); (e) no reader outside prose comments unless `199u11` has executed.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: amend
 
-- [ ] E-02 REWRITE THE TRAILER CLAUSE of the "Infrastructure status" paragraph. Replace the parenthetical beginning "(the ledger AND the writer are built" and ending "owns the wiring)" with, in substance (adjust to E-01's measurements): "(the ledger AND the writer are built - `git_commit_helper.run_item_trailers` formats them. Re-measured 2026-09-26: SEVERAL DRIVER-SIDE commit sites pass them (the runner's backlog-close commit, wired by plan `wao266`, and its review-output commit, added by plan `8apjpp`); the AGENT's own code commits are generally UNTRAILERED (backlog `j2srcc`); and NOTHING READS A TRAILER BACK (backlog `am1g38`), so no commit's ownership is yet decided by its trailer and Section 4.2's `RUN-COMMIT-*` rows stay unbound)". Keep "STILL NET-NEW and to be built:" and the rest of the sentence ("the prompt `Run contract` block, and `aw hooks install` ...") byte-identical. NO COUNTS: do not write any commit count, because each new trailered commit would falsify it; name the CATEGORIES and their carriers.
+- [x] E-02 REWRITE THE TRAILER CLAUSE of the "Infrastructure status" paragraph. Replace the parenthetical beginning "(the ledger AND the writer are built" and ending "owns the wiring)" with, in substance (adjust to E-01's measurements): "(the ledger AND the writer are built - `git_commit_helper.run_item_trailers` formats them. Re-measured 2026-09-26: SEVERAL DRIVER-SIDE commit sites pass them (the runner's backlog-close commit, wired by plan `wao266`, and its review-output commit, added by plan `8apjpp`); the AGENT's own code commits are generally UNTRAILERED (backlog `j2srcc`); and NOTHING READS A TRAILER BACK (backlog `am1g38`), so no commit's ownership is yet decided by its trailer and Section 4.2's `RUN-COMMIT-*` rows stay unbound)". Keep "STILL NET-NEW and to be built:" and the rest of the sentence ("the prompt `Run contract` block, and `aw hooks install` ...") byte-identical. NO COUNTS: do not write any commit count, because each new trailered commit would falsify it; name the CATEGORIES and their carriers.
   - THE CLAUSE MUST ALSO STOP CLAIMING THE TRAILERS ARE "STILL NET-NEW and to be built" (review PR-001, F-7). That phrase INTRODUCES the list the parenthetical qualifies, and the trailers are the FIRST item in it. Rewriting only the parenthetical therefore leaves the sentence reading "STILL NET-NEW and to be built: the ... commit trailers (... the writer is built and driver-side sites pass them ...)", which is self-contradictory and still misleads exactly the reader this plan is protecting: a graduating Set told the trailers are net-new may rebuild the shipped writer, which is the precise failure mode the paragraph's own header says destroyed plan `a54m79`. FIX: move the trailers OUT of the "STILL NET-NEW" list into the paragraph's existing "PARTS ALREADY SHIPPED, which a graduating Set must CONSUME, not rebuild" material (or state inline that the WRITER is shipped and only the READ-BACK is net-new), leaving "the prompt `Run contract` block, and `aw hooks install`" as the genuinely net-new remainder. Adjust the list's leading punctuation so the remaining sentence is grammatical; that is a necessary consequence of the fix, not scope creep.
   - DO NOT DELETE THE SUBSTANCE `sbh1o1` DEPENDS ON WITHOUT LEAVING IT FINDABLE (review PR-003, F-4). Backlog `sbh1o1` cites this exact sentence as "THE UNDERLYING FACT SURVIVES", quoting "NOTHING PASSES THEM: zero of 3764 commits ...". After E-02 that quoted string is gone, so `sbh1o1`'s own evidence paragraph becomes a second instance of the citation rot it was filed about. Keep the two ids it relies on (`wao266` and the trailer topic) present in the rewritten clause, and record the interaction in E-04's amendment note so a reader of `sbh1o1` can follow the trail. Do NOT edit `sbh1o1` here (it is outside `- Scope-Paths:` and owns its own fix).
   - Wrap lines to the paragraph's existing width.
   - Depends on: E-01
   - Expected outcome: `rg -n "NOTHING PASSES THEM|zero of 3764" <spec>` returns nothing; the new clause names driver-side sites generically, untrailered agent commits, and the absent reader, each with a carrier; and the trailers no longer appear in the "STILL NET-NEW and to be built" list.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 RECORD THE CORRECTION IN THE PARAGRAPH'S OWN HISTORY, as the preamble convention requires ("Each therefore states its own measurement date and, where one exists, the commit that moved it"): extend the header "Infrastructure status (measured 2026-09-20 at `007d05e1`; corrected 2026-08-30 in `a59f2c53` and again 2026-09-20 by plan `wenmg4`, ..." with "; trailer clause re-measured 2026-09-26 by plan `olkeju`" (place it before the "because this paragraph originally declared" clause); and in the convention paragraph change "the infrastructure paragraph has been corrected twice (2026-08-30, then 2026-09-20)" to "the infrastructure paragraph has been corrected three times (2026-08-30, 2026-09-20, then its trailer clause 2026-09-26)". Both target strings were verified present and unique at review. Touch nothing else in the preamble.
+- [x] E-03 RECORD THE CORRECTION IN THE PARAGRAPH'S OWN HISTORY, as the preamble convention requires ("Each therefore states its own measurement date and, where one exists, the commit that moved it"): extend the header "Infrastructure status (measured 2026-09-20 at `007d05e1`; corrected 2026-08-30 in `a59f2c53` and again 2026-09-20 by plan `wenmg4`, ..." with "; trailer clause re-measured 2026-09-26 by plan `olkeju`" (place it before the "because this paragraph originally declared" clause); and in the convention paragraph change "the infrastructure paragraph has been corrected twice (2026-08-30, then 2026-09-20)" to "the infrastructure paragraph has been corrected three times (2026-08-30, 2026-09-20, then its trailer clause 2026-09-26)". Both target strings were verified present and unique at review. Touch nothing else in the preamble.
   - Depends on: E-02
   - Expected outcome: both sentences name 2026-09-26 and `olkeju`/the trailer clause; `git diff` of the spec touches only the clause (E-02), these two sentences, and the history line (E-04).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 RECORD THE AMENDMENT on the spec's workflow history with `aw specs note .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md --message "AMENDED 2026-09-26 (plan olkeju, backlog j0ag0u): corrected the infrastructure paragraph's false 'NOTHING PASSES THEM' trailer clause; driver-side commit sites (wao266's backlog-close and 8apjpp's review-output commit) pass AW-Run/AW-Item, agent code commits are generally untrailered (j2srcc), nothing reads trailers back (am1g38); the trailers also moved out of the STILL NET-NEW list because the writer is shipped; worded without counts; Section 4.2 untouched. NOTE backlog sbh1o1 quoted the removed sentence as its surviving-fact evidence"` (the flag is `--message`), matching the existing `AMENDED ...` history records' shape. VERIFIED at review that `aw specs note` accepts an `approved` spec and prepends the record (tested on a scratch COPY; the tracked spec was not touched), and that three prior `AMENDED ...` records exist to match. Then run `aw specs check <spec>`.
+- [x] E-04 RECORD THE AMENDMENT on the spec's workflow history with `aw specs note .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md --message "AMENDED 2026-09-26 (plan olkeju, backlog j0ag0u): corrected the infrastructure paragraph's false 'NOTHING PASSES THEM' trailer clause; driver-side commit sites (wao266's backlog-close and 8apjpp's review-output commit) pass AW-Run/AW-Item, agent code commits are generally untrailered (j2srcc), nothing reads trailers back (am1g38); the trailers also moved out of the STILL NET-NEW list because the writer is shipped; worded without counts; Section 4.2 untouched. NOTE backlog sbh1o1 quoted the removed sentence as its surviving-fact evidence"` (the flag is `--message`), matching the existing `AMENDED ...` history records' shape. VERIFIED at review that `aw specs note` accepts an `approved` spec and prepends the record (tested on a scratch COPY; the tracked spec was not touched), and that three prior `AMENDED ...` records exist to match. Then run `aw specs check <spec>`.
   - Depends on: E-03
   - Expected outcome: a new `- 2026-09-26 note (aw specs): AMENDED 2026-09-26 (plan olkeju ...` line at the TOP of `## Workflow history` (the block is newest-first); `Status:` still `approved`; `aw specs check` conforming.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 REPORT, WITHOUT FIXING, THE TWO SIBLING COPIES OF THIS SAME FALSE CLAIM found at review (PR-004, F-8). Both are in CODE COMMENTS outside this plan's `- Scope-Paths:`, both assert the thing this plan is correcting, and neither has a carrier naming it: (1) `run_evidence.py`'s `RUN-COMMIT-CONTENTS` `waiting_on` string says "`m73aet`'s own executed receipt records that nothing in the tree passes trailers yet"; (2) `ipd_lifecycle.py` says "COMMIT TRAILERS (`AW-Run:`/`AW-Item:`) would settle it exactly, but essentially no commit in history carries one yet, so nothing can be consumed today (backlog `a8eufb`)" - and `a8eufb` is `done`, so that pointer is also dead. Do NOT edit either file (out of fence, and `run_evidence`'s string is part of the Section 4.2 transcription this plan deliberately leaves alone). Instead FILE ONE backlog item with `aw backlog new --work-kind chore` naming both locations and the fact that the correct statement is "driver-side sites pass them; nothing reads them back", and record its id6 here. This is the minimum that stops the correction being undone by the next reader who greps the codebase instead of the spec.
+- [x] E-05 REPORT, WITHOUT FIXING, THE TWO SIBLING COPIES OF THIS SAME FALSE CLAIM found at review (PR-004, F-8). Both are in CODE COMMENTS outside this plan's `- Scope-Paths:`, both assert the thing this plan is correcting, and neither has a carrier naming it: (1) `run_evidence.py`'s `RUN-COMMIT-CONTENTS` `waiting_on` string says "`m73aet`'s own executed receipt records that nothing in the tree passes trailers yet"; (2) `ipd_lifecycle.py` says "COMMIT TRAILERS (`AW-Run:`/`AW-Item:`) would settle it exactly, but essentially no commit in history carries one yet, so nothing can be consumed today (backlog `a8eufb`)" - and `a8eufb` is `done`, so that pointer is also dead. Do NOT edit either file (out of fence, and `run_evidence`'s string is part of the Section 4.2 transcription this plan deliberately leaves alone). Instead FILE ONE backlog item with `aw backlog new --work-kind chore` naming both locations and the fact that the correct statement is "driver-side sites pass them; nothing reads them back", and record its id6 here. This is the minimum that stops the correction being undone by the next reader who greps the codebase instead of the spec.
   - Depends on: E-01
   - Expected outcome: one new backlog item exists naming both comment locations and the dead `a8eufb` pointer; neither code file is modified by this plan.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -96,6 +96,8 @@ Added at review, measured on HEAD `46cb6af4`.
 | F-7 | MEDIUM | spec `25kzda` Infrastructure status, the "STILL NET-NEW and to be built:" list | THE FALSE CLAIM IS NOT ONLY IN THE PARENTHETICAL. The trailers are the FIRST ITEM of the list introduced by "STILL NET-NEW and to be built:", so E-02 as originally written would leave "STILL NET-NEW and to be built: the ... commit trailers (... the writer is built and driver-side sites pass them ...)", which contradicts itself and still tells a graduating Set to build a shipped writer. That is the exact failure the paragraph's own header cites as having destroyed plan `a54m79` ("Creating a parallel capability module because this paragraph once called the descriptor net-new is the exact defect that destroyed `a54m79`"). E-02 now also moves the trailers out of that list. | the sentence read in full at `.aw/records/specs/approved/20260826-...spec.md` ("STILL NET-NEW and to be built: the hash-chained run ledger's `AW-Run:`/`AW-Item:` commit trailers (the ledger AND the writer are built ...") |
 | F-8 | LOW | `run_evidence.py` `RUN-COMMIT-CONTENTS` `waiting_on`; `ipd_lifecycle.py` attribution docstring | THE SAME FALSE CLAIM EXISTS IN TWO CODE COMMENTS, neither carried by any item. `run_evidence` says "`m73aet`'s own executed receipt records that nothing in the tree passes trailers yet"; `ipd_lifecycle` says "essentially no commit in history carries one yet, so nothing can be consumed today (backlog `a8eufb`)" - and `a8eufb` is `done`, so that pointer is dead too. Correcting only the spec leaves a reader who greps the CODE with the same falsehood. E-05 files one item rather than editing either file (both are outside the fence, and `run_evidence`'s string belongs to the Section 4.2 transcription this plan deliberately does not touch). | the two quoted strings; `.aw/records/backlog/done/20260830-scopeattrib-01-a8eufb-...backlog.md` with `- Status: done` |
 | F-9 | INFO | test coupling | THE SPEC EDIT IS SAFE FOR THE SUITE. No test reads this spec file by path: the `25kzda` references in `tests/` are all prose citations or transcribed constants (`tests/test_host_capability_extension.py` transcribes a message DELIBERATELY, "so the test compares the implementation against the SPEC rather than against itself", and that message is in Section 5.2, untouched here). Bare suite green at review: `2458 passed, 2 skipped in 36.79s`. `aw specs check` conforms before the edit. | `rg -n "25kzda" tests/*.py` reviewed in full; no `read_text`/`open(`/`Path(` on the spec |
+
+- EXECUTION NOTE (2026-09-27, manual recovery): E-05 filed backlog `oye21y` as instructed (`.aw/records/backlog/open/20260926-oye21y-01-oye21y-correct-two-code-comments-claiming-nothing-passes.backlog.md`). The executing agent had recorded that id6 inside E-05's text and added the new file to Scope-Paths, which changed the frozen requirements and made the begin receipt stale; both were restored to the approved text and the new file is declared through the finalize scope reconciliation instead, exactly as this plan's Scope-Paths justification prescribes.
 
 ## Proposed changes (ordered, validatable)
 
@@ -148,30 +150,176 @@ Added at review, measured on HEAD `46cb6af4`.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the five E-01 command outputs (a) through (e).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Measured at executing HEAD bb3dab4c; clause confirmed present, 70 trailered commits (69 backlog-close + 1 agent code commit hv9gar), sites identified, readers confirmed absent, plan statuses checked.
+    Commands run at HEAD `bb3dab4c4b0cc07547cfd1128c1358fc5f347da2`:
+    (a) `rg -n "NOTHING PASSES THEM" .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md`:
+    ```
+    61:but NOTHING PASSES THEM: zero of 3764 commits across all refs carry an `AW-Run` trailer; plan `wao266`
+    ```
+    (b) `git log --all --oneline --grep='^AW-Run:' | wc -l`:
+    ```
+    70
+    ```
+    (c) `git log --all --format=%s --grep='^AW-Run:' | rg -c '^closed by aw'`:
+    ```
+    69
+    ```
+    The single non backlog-close trailered commit is `8aabf15a feat(commit): refuse directory arguments before staging and report shortfalls (IPD hv9gar)`.
+    (d) `rg -n "trailers=_gch.run_item_trailers|run_item_trailers\(" agent_workflows`:
+    ```
+    agent_workflows/work_cmd.py:448:    reach and which now passes `run_item_trailers(run_id, plan_id6)`. WHAT REMAINS DEFERRED, and it is
+    agent_workflows/work_cmd.py:473:    return _gch.run_item_trailers(
+    agent_workflows/git_commit_helper.py:226:def run_item_trailers(run_id: Optional[str], item_id6: Optional[str]) -> List[str]:
+    agent_workflows/runner_shared.py:3217:    trailers = [*_gch.run_item_trailers(run_id, id6), "AW-Committed-By: driver"]
+    agent_workflows/runner_shared.py:30066:            trailers=_gch.run_item_trailers(run_id, plan_id6),
+    ```
+    (e) `rg -n "trailers:key|interpret-trailers --parse" agent_workflows`:
+    ```
+    agent_workflows/git_commit_helper.py:53:# separator". VERIFIED against git 2.43.0 by probing `git interpret-trailers --parse`: `AW-Run`
+    ```
+    Plan statuses via `find .aw/records/plans -name "*<id6>*"`:
+    - `wao266`: executed (`.aw/records/plans/executed/20260908-runtrailwire-01-wao266-wire-the-run-ownership-trailers-the-runner-already-writes-no.ipd.md`)
+    - `8apjpp`: executed (`.aw/records/plans/executed/20260925-revcommit-01-8apjpp-record-a-driver-side-review-output-commit-in-the-plan-s-own.ipd.md`)
+    - `a6xbso`: pending (`.aw/records/plans/pending/20260926-trailread-01-a6xbso-stamp-aw-run-and-aw-item-trailers-on-the-agent-s-own-aw-comm.ipd.md`)
+    - `199u11`: pending (`.aw/records/plans/pending/20260926-trailread-02-199u11-make-finalize-read-aw-run-and-aw-item-trailers-so-a-committe.ipd.md`)
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the spec diff hunk for the clause; paste `rg -n "NOTHING PASSES THEM|zero of 3764" <spec>` returning nothing (exit 1); paste `rg -n "[0-9]+ of [0-9]+ commits" <spec>` returning nothing in the rewritten clause. ALSO paste the FULL rewritten sentence as it now reads, from "STILL NET-NEW" (or whatever replaces it) through the end, so a reader can see the trailers are no longer listed as net-new and that the sentence is grammatical (F-7). Show `wao266` and the trailer topic still appear in the clause, since backlog `sbh1o1` cites this sentence as its surviving-fact evidence (F-4/PR-003).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Clause rewritten without counts; trailers moved out of STILL NET-NEW list; no commit count patterns found; wao266 and trailers preserved.
+    Spec diff hunk for the clause:
+    ```diff
+    @@ -58,12 +60,15 @@ carries 12 fields including the two runner-safety ones (`supports_commit_gateway
+     `supports_commit_gateway` is DECLARED AND NEVER PROBED by deliberate
+     decision so it fails closed (`host_sandbox_profile` module docstring). Creating a parallel capability
+     module because this paragraph once called the descriptor net-new is the exact defect that destroyed
+    -`a54m79`. STILL NET-NEW and to be built: the hash-chained run ledger's `AW-Run:`/`AW-Item:` commit
+    -trailers (the ledger AND the writer are built - `git_commit_helper.run_item_trailers` formats them -
+    -but NOTHING PASSES THEM: zero of 3764 commits across all refs carry an `AW-Run` trailer; plan `wao266`
+    -from backlog `a8eufb` owns the wiring), the prompt `Run contract` block, and `aw hooks install` (no
+    -such verb today; the top-level `hooks` noun does not resolve). This overlaps the agentadhere
+    -policy-engine/atomic-command phases, the bklggrad `From-Backlog` work, and the runner rename.
+    +`a54m79`. ALSO PARTIALLY SHIPPED: the hash-chained run ledger's `AW-Run:`/`AW-Item:` commit trailers
+    +(the ledger AND the writer are built - `git_commit_helper.run_item_trailers` formats them.
+    +Re-measured 2026-09-26: SEVERAL DRIVER-SIDE commit sites pass them (the runner's backlog-close commit,
+    +wired by plan `wao266`, and its review-output commit, added by plan `8apjpp`); the AGENT's own code
+    +commits are generally UNTRAILERED (backlog `j2srcc`); and NOTHING READS A TRAILER BACK (backlog
+    +`am1g38`), so no commit's ownership is yet decided by its trailer and Section 4.2's `RUN-COMMIT-*`
+    +rows stay unbound). STILL NET-NEW and to be built: the prompt `Run contract` block, and `aw hooks
+    +install` (no such verb today; the top-level `hooks` noun does not resolve). This overlaps the
+    +agentadhere policy-engine/atomic-command phases, the bklggrad `From-Backlog` work, and the runner rename.
+    ```
+    Verification commands:
+    ```
+    $ rg -n "NOTHING PASSES THEM|zero of 3764" .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+    (exit 1)
+    $ rg -n "[0-9]+ of [0-9]+ commits" .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+    (exit 1)
+    ```
+    Full rewritten sentence and following net-new sentence:
+    "ALSO PARTIALLY SHIPPED: the hash-chained run ledger's `AW-Run:`/`AW-Item:` commit trailers (the ledger AND the writer are built - `git_commit_helper.run_item_trailers` formats them. Re-measured 2026-09-26: SEVERAL DRIVER-SIDE commit sites pass them (the runner's backlog-close commit, wired by plan `wao266`, and its review-output commit, added by plan `8apjpp`); the AGENT's own code commits are generally UNTRAILERED (backlog `j2srcc`); and NOTHING READS A TRAILER BACK (backlog `am1g38`), so no commit's ownership is yet decided by its trailer and Section 4.2's `RUN-COMMIT-*` rows stay unbound). STILL NET-NEW and to be built: the prompt `Run contract` block, and `aw hooks install` (no such verb today; the top-level `hooks` noun does not resolve). This overlaps the agentadhere policy-engine/atomic-command phases, the bklggrad `From-Backlog` work, and the runner rename."
+    Both `wao266` and trailer topic (`the hash-chained run ledger's `AW-Run:`/`AW-Item:` commit trailers`) are preserved in the rewritten text.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the two sentence diffs, and `git diff --stat` plus `git diff -U0 <spec> | rg '^@@'` showing only the three edited places.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Preamble history updated; header extended with olkeju re-measurement; git diff shows exactly the 3 target preamble locations plus workflow history.
+    Sentence diff 1 (convention paragraph):
+    ```diff
+    @@ -39,3 +39,4 @@ MEASURED STALE AT LEAST ONCE, which is the evidence for the convention rather th
+    -it: the infrastructure paragraph has been corrected twice (2026-08-30, then 2026-09-20), and the
+    -Section 2.1 and Section 4.2 paragraphs once each (both 2026-09-20, both found to be false by the same
+    -re-measurement). So treat a date more than a few days old as probably wrong.
+    +it: the infrastructure paragraph has been corrected three times (2026-08-30, 2026-09-20, then its
+    +trailer clause 2026-09-26), and the Section 2.1 and Section 4.2 paragraphs once each (both 2026-09-20,
+    +both found to be false by the same re-measurement). So treat a date more than a few days old as
+    +probably wrong.
+    ```
+    Sentence diff 2 (header sentence):
+    ```diff
+    @@ -44,2 +45,3 @@ Infrastructure status (measured 2026-09-20 at `007d05e1`; corrected 2026-08-30 i
+    -again 2026-09-20 by plan `wenmg4`, because this paragraph originally declared ALL of the below
+    -net-new and nonexistent, which would mislead a graduating Set into rebuilding shipped machinery).
+    +again 2026-09-20 by plan `wenmg4`; trailer clause re-measured 2026-09-26 by plan `olkeju`, because
+    +this paragraph originally declared ALL of the below net-new and nonexistent, which would mislead a
+    +graduating Set into rebuilding shipped machinery).
+    ```
+    `git diff --stat .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md`:
+    ```
+     ...zda-aw-run-deterministic-run-and-verify.spec.md | 29 +++++++++++++++++-----
+     1 file changed, 23 insertions(+), 6 deletions(-)
+    ```
+    `git diff -U0 .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md | rg '^@@'`:
+    ```
+    @@ -39,3 +39,4 @@ MEASURED STALE AT LEAST ONCE, which is the evidence for the convention rather th
+    @@ -44,2 +45,3 @@ Infrastructure status (measured 2026-09-20 at `007d05e1`; corrected 2026-08-30 i
+    @@ -59,6 +61,9 @@ module because this paragraph once called the descriptor net-new is the exact de
+    @@ -1558,0 +1561 @@ This example demonstrates the revised guarantees: `all` is safely bounded; depen
+    ```
+    (Showing the three preamble edits and the E-04 history entry).
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the `aw specs note` output, the new history line (at the TOP of the newest-first block), the unchanged `- Status: approved` line, and `aw specs check <spec>` conforming. Paste the bare `python3 -m pytest` summary BEFORE and AFTER and the after-minus-before failing node-ID set (must be empty); the review baseline for comparison is `2458 passed, 2 skipped in 36.79s` on HEAD `46cb6af4`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: aw specs note recorded amendment at top of workflow history; spec conforms; bare pytest passed with 0 failures before and after.
+    `aw specs note` invocation and output:
+    ```
+    $ aw specs note .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md --message "AMENDED 2026-09-26 (plan olkeju, backlog j0ag0u): corrected the infrastructure paragraph's false 'NOTHING PASSES THEM' trailer clause; driver-side commit sites (wao266's backlog-close and 8apjpp's review-output commit) pass AW-Run/AW-Item, agent code commits are generally untrailered (j2srcc), nothing reads trailers back (am1g38); the trailers also moved out of the STILL NET-NEW list because the writer is shipped; worded without counts; Section 4.2 untouched. NOTE backlog sbh1o1 quoted the removed sentence as its surviving-fact evidence"
+    aw specs note: appended a history record to .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+    ```
+    New history line at top of `## Workflow history` (line 1561):
+    ```
+    - 2026-09-26 note (aw specs): AMENDED 2026-09-26 (plan olkeju, backlog j0ag0u): corrected the infrastructure paragraph's false 'NOTHING PASSES THEM' trailer clause; driver-side commit sites (wao266's backlog-close and 8apjpp's review-output commit) pass AW-Run/AW-Item, agent code commits are generally untrailered (j2srcc), nothing reads trailers back (am1g38); the trailers also moved out of the STILL NET-NEW list because the writer is shipped; worded without counts; Section 4.2 untouched. NOTE backlog sbh1o1 quoted the removed sentence as its surviving-fact evidence
+    ```
+    Unchanged `- Status: approved` (line 4):
+    ```
+    - Status: approved
+    ```
+    `aw specs check`:
+    ```
+    $ aw specs check .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+    aw specs check: all specs conform.
+    ```
+    Bare `python3 -m pytest` BEFORE:
+    ```
+    2560 passed, 2 skipped, 3 warnings in 60.93s (0:01:00)
+    ```
+    Bare `python3 -m pytest` AFTER:
+    ```
+    2560 passed, 2 skipped, 3 warnings in 47.08s
+    ```
+    Failing node-ID set after-minus-before: empty set (0 failures before, 0 failures after).
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the `aw backlog new` invocation and the resulting item path, and `rg -n "nothing in the tree passes trailers|essentially no commit in history carries one"` over the new item showing it names BOTH comment locations, plus a note that `a8eufb` is `done`. Paste `git status --porcelain agent_workflows/` showing NEITHER `run_evidence.py` nor `ipd_lifecycle.py` was modified by this plan.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Filed backlog item oye21y naming both code comment locations and dead a8eufb pointer; agent_workflows/ code files untouched.
+    `aw backlog new` invocation and resulting item path:
+    ```
+    $ aw backlog new --summary "Correct two code comments claiming nothing passes AW-Run/AW-Item trailers" --priority low --work-kind chore --body "Two code comments repeat the false claim that nothing passes commit trailers, even though driver-side commit sites pass them:
+
+    1. agent_workflows/run_evidence.py (symbol RUN_FINDING_CODES['RUN-COMMIT-CONTENTS'].waiting_on): states that nothing in the tree passes trailers yet.
+    2. agent_workflows/ipd_lifecycle.py (attribution docstring in _scope_attributed_commits): states essentially no commit in history carries one yet, so nothing can be consumed today (backlog a8eufb).
+
+    The pointer to backlog a8eufb is dead because a8eufb is done (wired by executed plan wao266).
+    The correct statement for both locations is: driver-side sites pass them; nothing reads them back." --apply
+    aw backlog new: wrote .aw/records/backlog/open/20260926-oye21y-01-oye21y-correct-two-code-comments-claiming-nothing-passes.backlog.md
+    ```
+    Backlog item path: `.aw/records/backlog/open/20260926-oye21y-01-oye21y-correct-two-code-comments-claiming-nothing-passes.backlog.md` (id6: `oye21y`).
+    Grep over the new item showing both locations named and both strings present:
+    ```
+    $ rg -n "nothing in the tree passes trailers|essentially no commit in history carries one" .aw/records/backlog/open/20260926-oye21y-01-oye21y-correct-two-code-comments-claiming-nothing-passes.backlog.md
+    13:1. agent_workflows/run_evidence.py (symbol RUN_FINDING_CODES['RUN-COMMIT-CONTENTS'].waiting_on): states that nothing in the tree passes trailers yet.
+    14:2. agent_workflows/ipd_lifecycle.py (attribution docstring in _scope_attributed_commits): states essentially no commit in history carries one yet, so nothing can be consumed today (backlog a8eufb).
+    ```
+    Git status of `agent_workflows/`:
+    ```
+    $ git status --porcelain agent_workflows/
+    (clean / no output)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -6,7 +6,7 @@
 - Scope: IN: split the terminal verdict into FINISHED (executed, done) vs ABANDONED (superseded, not-executed, parked); in `aw check` a FINISHED carrier becomes a non-failing 'needs verification' finding while ABANDONED stays an error; a reverse lookup of pending plans that name a given carrier; in a run, after a plan finalizes, the driver gives the SAME agent (same lane, same session) a verification turn for each affected row with instructions to record `Carrier-Evidence` if the work was done or otherwise fix the row (re-point to a live owner, or do the work) and justify any out-of-lane edit; a 'no'/unresolved answer is sent back through the existing correction budget; the finalize-refusal retry path recognizes a FINISHED-carrier refusal as retryable with the same instructions; outcome tests; one CHANGELOG line. OUT: auto-editing other plans without an agent; aw attention surfacing.
 - Scope-Paths: agent_workflows/check_engine.py, agent_workflows/ipd_lint.py, agent_workflows/runner_shared.py, tests/test_carrier_reverse_lookup.py, tests/test_carrier_finished_verification.py, tests/test_check_engine.py, CHANGELOG.md
 - Item-Dependencies: executed:xz59ai
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 09
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: cnzrxb
-- Approval: 2026-09-26, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 executed (opencode manual-recovery model=its_direct/pt3-claude-opus-5.5-1m-us): Recovered stranded lane: work verified by run-20260927T001634Z-258437; driver finalize refused only because another run held the finalize writer lock (backlog duac3v). Lane merged onto current main; plan tests 47 passed; full suite 2636 passed. [Scope reconciliation - in-scope-unmodified agent_workflows/ipd_lint.py: not needed: E-04's finding was that E-01 removed the self-refusal, so ipd_lint needed no change]
 - 2026-09-26 approved (aw set): status set to approved
 - 2026-09-26 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 all FIXED, none deferred, none open; 6 decisions D-1..D-6 recorded. Reviewed at HEAD 21b22c3b. `aw ipd lint --phase author --agent` reported `clean`/`findings: 0` before revision; the lane-input copy was byte-identical to the tracked file and the tree was clean, so no pre-review snapshot. THE PROBLEM IS REAL AND BOTH CITED INCIDENTS VERIFIED (`b20b7a74` re-pointed 8ud1is off executed carrier 0yrtne, `e0581df0` re-pointed a6xbso off executed 8apjpp; each carrier HAD done the work), and the maintainer's finished-vs-abandoned ruling is the right shape. SIX SUBSTANTIVE CORRECTIONS, each measured, three of which would each have made the plan fail its own stated outcome. (1) `warning` SEVERITY STILL EXITS 1: `artifact_core.drift_exit_code` exempts ONLY `info`, measured, and the constant directly above the code E-01 edits says so verbatim ("a `warning` here would exit 1 ... and fail CI"). E-01's stated outcome, `aw check plans` exit 0 on a finished carrier, was therefore false as written; corrected to `info`, with the CI-red consequence and the honest cost stated. (2) ONE DRIFT PER PLAN, ONE RULE, ONE SEVERITY: `evaluate_durable_carrier` emits a single Drift whose severity is `carrier_severity_for_plan`, so a plan carrying BOTH a finished and an abandoned row cannot report two rules (driven: 2 failures collapsed into one `error` Drift). E-01 now owns splitting the emitter and partitioning failures, and a new E-08 pins the mixed-row case, which was the plan's largest unstated gap. (3) THE E-03/E-04 RETRY REUSE CANNOT FIRE, TWICE OVER: `finalize_refusal_is_retryable` locates findings by the literal `IPD-` prefix, and a `check.*` rule never carries it (driven: finding_lines `[]`, retryable False), and `finalize_retry_decision` keys on a FINALIZE REFUSAL message while E-03's case has NO refusal (finalize SUCCEEDED), so passing a synthetic string returns LEAVE-ALONE silently (driven). Both are now stated, E-04 is re-scoped to the one thing it can honestly do, and E-03 owns an explicit budget rather than pretending to reuse one. (4) A DIRECT COLLISION WITH PENDING PLAN `xz59ai`, which is `reviewed` and rewrites the SAME `_resolve_carrier` terminal branch on the OPPOSITE premise (keep the refusal, improve the message); declared `- Item-Dependencies: executed:xz59ai` and reconciled in a new F-9 so the two do not silently undo each other. (5) `tests/test_check_engine.py` IS UNDECLARED but holds the existing carrier tests this changes the verdicts of; added to Scope-Paths. (6) The claimed corpus size is wrong (47 pending plans, not ~65) and ZERO rows are in the finished or abandoned state today, so E-02's timing target and E-05's fixtures must be re-derived; recorded in F-10 with the measurement. Full record: `.aw/records/reviews/20260926-carrierwarn-01-cnzrxb-warn-at-transition-time-when-a-terminal-carrier-leaves-anoth.review.md`.
 - 2026-09-26 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): REDESIGNED per maintainer ruling 2026-09-26 (asked via question tool): a carrier that FINISHED is not an automatic error; an agent verifies it in the run (yes = record proof, no = fix it or send back), CI does not fail on a finished carrier but still fails on an abandoned one. Replaces the warn-only design.
@@ -36,74 +36,74 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Tell finished from abandoned
 
-- [ ] E-01 In `check_engine`, split `_CARRIER_TERMINAL_STATUSES` (the frozenset beside the comment "A carrier target's status that means the obligation is ALREADY HIDDEN") into `_CARRIER_FINISHED_STATUSES = {"executed", "done"}` and `_CARRIER_ABANDONED_STATUSES = {"superseded", "not-executed", "parked"}`. Make `_resolve_carrier` return a new verdict `"finished"` when every owner is finished (and none live), and keep `"terminal"` (detail text renamed to abandoned) when any owner is abandoned and none live or finished. Thread it through `evaluate_carrier_obligation` so a `finished` carrier yields a `CloseVerdict` under a new rule `check.ipd-carrier-finished-unverified` whose detail says: `carrier <id6> finished (<status>); an agent must confirm it did this work and record Carrier-Evidence, or re-point the row`.
+- [x] E-01 In `check_engine`, split `_CARRIER_TERMINAL_STATUSES` (the frozenset beside the comment "A carrier target's status that means the obligation is ALREADY HIDDEN") into `_CARRIER_FINISHED_STATUSES = {"executed", "done"}` and `_CARRIER_ABANDONED_STATUSES = {"superseded", "not-executed", "parked"}`. Make `_resolve_carrier` return a new verdict `"finished"` when every owner is finished (and none live), and keep `"terminal"` (detail text renamed to abandoned) when any owner is abandoned and none live or finished. Thread it through `evaluate_carrier_obligation` so a `finished` carrier yields a `CloseVerdict` under a new rule `check.ipd-carrier-finished-unverified` whose detail says: `carrier <id6> finished (<status>); an agent must confirm it did this work and record Carrier-Evidence, or re-point the row`.
   - Depends on: none
   - Expected outcome: `aw check plans` exits 0 on a tree whose only carrier problem is a FINISHED carrier, and still exits 1 on an ABANDONED one.
   - THE SEVERITY MUST BE `info`, NOT `warning`, OR THIS ITEM'S OWN EXPECTED OUTCOME IS FALSE. Measured at review: `artifact_core.drift_exit_code` returns 1 for `error`, `warning` AND `warn`, and 0 ONLY for `info`. The authority is not an inference: the comment on `_CARRIER_LEGACY_SEVERITY`, which sits a few lines above the frozenset this item edits, states it verbatim ("`artifact_core.drift_exit_code` exempts ONLY `info`, so a `warning` here would exit 1 ... and fail CI"), and cites `check.stale-index-missing` as the precedent ("`info`, the ONLY non-failing severity"). Register the new rule in `RULE_REGISTRY` beside `check.ipd-uncarried-obligation` at `info`. STATE THE COST HONESTLY in the CHANGELOG line (E-07) rather than papering over it: `info` means the finding does NOT fail CI and, per the render path, is easy for a human to skim past; that is the price of the maintainer's ruling that CI must not go red on a finished carrier, and the compensating control is the agent turn in E-03, not the severity.
   - EMITTING TWO RULES REQUIRES CHANGING THE EMITTER, which the plan did not say and which is the larger half of this item. Measured at review: `evaluate_durable_carrier` returns AT MOST ONE Drift per plan, with ONE hardcoded `_CARRIER_RULE` and ONE severity from `carrier_severity_for_plan`, and it joins up to five failing reasons into one detail. Driven on a plan carrying one finished row and one wholly uncarried row: ONE Drift, rule `check.ipd-uncarried-obligation`, severity `error`, both reasons concatenated. So a per-row verdict change alone cannot produce a non-failing finished finding: partition `failures` by the verdict's rule and emit ONE Drift PER RULE (at most two), each with its own severity and its own five-reason cap. E-08 pins the mixed case.
   - `ipd_lint._merge_durable_carrier` already routes `severity == "info"` to `advisories` and everything else to blocking `diagnostics`, so choosing `info` gives the advisory-not-error behavior this item wants at the pre-transition gate FOR FREE, with no edit to `ipd_lint.py`. Verify that rather than assuming it, and if no edit proves necessary, say so at finalize and `--scope-ack` the declared path.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add `check_engine.find_obligations_carried_by(repo_root, id6, *, include_untracked=False) -> List[CarriedObligation]` (`plan_path, plan_id6, locator, line_no, row_text`). Iterate pending plans the way `check_durable_carrier` does (via `_iter_type_files(repo_root, "plans")` filtered on a `pending` path part); substring pre-filter on `id6` before parsing; obligations from `_deferred_section_obligations` + `_question_obligations`; keep rows whose `parse_carrier_ids` good tokens include `id6` and that carry no `Carrier-Evidence`/`Carrier-Declined`. Never raises (return `[]`). Reuse only the existing parsers.
+- [x] E-02 Add `check_engine.find_obligations_carried_by(repo_root, id6, *, include_untracked=False) -> List[CarriedObligation]` (`plan_path, plan_id6, locator, line_no, row_text`). Iterate pending plans the way `check_durable_carrier` does (via `_iter_type_files(repo_root, "plans")` filtered on a `pending` path part); substring pre-filter on `id6` before parsing; obligations from `_deferred_section_obligations` + `_question_obligations`; keep rows whose `parse_carrier_ids` good tokens include `id6` and that carry no `Carrier-Evidence`/`Carrier-Declined`. Never raises (return `[]`). Reuse only the existing parsers.
   - Depends on: none
   - Expected outcome: one pure reverse lookup; measured cost re-derived at execution (see the timing note below).
   - RE-DERIVE THE CORPUS SIZE; DO NOT CARRY THE AUTHORED NUMBER. The item cited "~65 pending plans"; measured at review there are 47, and the population moves as lanes land. Treat the timing in E-07 as a re-derived measurement of whatever the tree then holds, and do not assert a threshold this plan cannot control.
   - NOTE `_question_obligations` NOW TAKES AN OPTIONAL `plan_text` KEYWORD (`def _question_obligations(open_questions, *, plan_text: Optional[str] = None)`), added by `vtkfq8`'s scaffold-placeholder skip and passed by `evaluate_durable_carrier` as `plan_text=plan_text`. It is keyword-only and defaulted, so a bare call still works, but OMITTING it changes behavior: an untouched scaffold placeholder question would then be reported as an obligation this lookup asks an agent about. Pass `plan_text=` and read the current signature before calling it.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Verify with an agent in the run
 
-- [ ] E-03 In `runner_shared.execute_item_core`, after a SUCCESSFUL finalize of plan B at BOTH finalize call sites (the two `_call_driver_finalize` calls, one inside the `finalize_repo = Path(work_dir)` isolated arm and one in the main-repo arm; locate them by that distinction, not by line number), call `find_obligations_carried_by(<lane or repo>, B)`. If rows exist and the attempt has a session id, dispatch ONE follow-up turn to the same agent in the same lane using a new builder `build_carrier_verification_prompt(b_id6, rows)` that says, in plain words: 'Plan <B> just finished. These pending plans named it as the owner of work they deferred: <plan, row, text>. For each: if <B> did this work, add `- Carrier-Evidence: <path of executed B>` under the row; if it did not, re-point `- Carrier:` to a live backlog item or plan (file one with `aw backlog new` if needed) or do the work. These edits are outside your plan's scope: commit them with `aw commit --no-plan -m <why>` naming each path, and state the reason. Report yes/no per row.' Then re-run `find_obligations_carried_by` on the lane and record the outcome per row.
+- [x] E-03 In `runner_shared.execute_item_core`, after a SUCCESSFUL finalize of plan B at BOTH finalize call sites (the two `_call_driver_finalize` calls, one inside the `finalize_repo = Path(work_dir)` isolated arm and one in the main-repo arm; locate them by that distinction, not by line number), call `find_obligations_carried_by(<lane or repo>, B)`. If rows exist and the attempt has a session id, dispatch ONE follow-up turn to the same agent in the same lane using a new builder `build_carrier_verification_prompt(b_id6, rows)` that says, in plain words: 'Plan <B> just finished. These pending plans named it as the owner of work they deferred: <plan, row, text>. For each: if <B> did this work, add `- Carrier-Evidence: <path of executed B>` under the row; if it did not, re-point `- Carrier:` to a live backlog item or plan (file one with `aw backlog new` if needed) or do the work. These edits are outside your plan's scope: commit them with `aw commit --no-plan -m <why>` naming each path, and state the reason. Report yes/no per row.' Then re-run `find_obligations_carried_by` on the lane and record the outcome per row.
   - Depends on: E-01, E-02
   - Expected outcome: finishing a carrier in a run leaves no other plan pointing at it unresolved, or the run says exactly which row it could not resolve.
   - USE THE ESTABLISHED FOLLOW-UP-TURN PRIMITIVE, WHICH EXISTS AND IS NOT `spawn_executor`. `runner_shared.resume_via_launcher` takes the host's own `raw_launcher` as a NAME and is already used by exactly two follow-up turns (the defect re-ask and the gate answer), each reading `attempt.get("session_id")` and passing `work_dir` plus a host-specific kwarg (`resume_session=<id>` on OpenCode, `session_id=<id>` + `use_continue=False` on Antigravity). Its docstring records WHY a third direct launcher call is forbidden: a test pins each host's launcher to EXACTLY TWO callers so no launch path can inherit the wrong frozen profile. So this item MUST route through `resume_via_launcher` and MUST branch on `host_labels == OC_HOST_LABELS` for the kwarg, exactly as both existing sites do. A plain `spawn_executor` call would also be wrong for a second measured reason: an isolated turn is ALWAYS a fresh session by design (`lanesess xd9sll`, four lanes lost), and `resume_session` is the one documented exception.
   - THE SEND-BACK PATH NAMED IN THIS ITEM CANNOT FIRE; THIS ITEM OWNS ITS OWN BOUND INSTEAD. Measured at review: `finalize_retry_decision(item, state, msg)` returns RETRY only when `finalize_refusal_is_retryable(msg)` is True, and that predicate requires either the literal summary `pre-transition gate did NOT conform` with every finding line prefixed `IPD-`, or the stale-receipt summary. Driven with `"carrier-verification-unresolved: ..."`: `retry=False, exhausted=False, reason=''`, i.e. LEAVE-ALONE, silently. And the deeper problem is that the premise does not hold at all: in THIS case finalize SUCCEEDED, so there is no refusal message and no refusal to classify. Therefore do NOT reuse `finalize_retry_decision`. Spend AT MOST ONE verification turn per attempt, bounded structurally by a per-attempt flag in the shape `attempt["defect_reasked"]` already uses (the defect re-ask's own docstring says "THIS FUNCTION NEVER LOOPS; boundedness is structural, not a counter"), and on an unresolved answer RECORD it (`record_refusal` with a new code plus a remedy naming the row) and let the run continue. Recording an asked-and-unanswered outcome is the precedent the defect re-ask sets verbatim: that outcome "is RECORDED rather than retried, because 'the agent was asked and did not answer' is itself a finding a human should see".
   - DO NOT BLOCK INTEGRATION ON AN UNRESOLVED ROW, and be deliberate about this because the item as authored implied a non-integration. The unresolved row is in ANOTHER plan, and plan B itself is finalized and verified; withholding B's integration would strand correct, validated work over a third party's row, which is the lane-stranding outcome the runner's whole send-back design exists to stop. Record the refusal, report it, integrate B. If the maintainer wants integration blocked, that is a policy change to raise explicitly rather than a side effect of this item.
   - THE OUT-OF-LANE EDIT IS SAFE AT THE INTEGRATION GATE AND NEEDS NO SCOPE PLEA, measured: `integrate_lane_branch` calls `execute_merge_and_revalidate_gate` WITHOUT `declared_scope`, so the gate's scope-fence arm (which would refuse an out-of-fence merged file) is not armed, and the lane commit rides the normal merge-and-revalidate path. What DOES see it is finalize's scope reconciliation, and it is already past: this turn runs AFTER `_call_driver_finalize` returned 0. Keep the edit in its OWN commit (`aw commit --no-plan`) so commit-boundary cohesion cannot attribute another plan's paths to B on a later finalize.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 PROVE, RATHER THAN PATCH, THAT A PLAN IS NO LONGER STUCK ON A FINISHED CARRIER IN ITS OWN DEFERRED SECTION. E-01's `info` severity routes the finished finding into `ipd_lint`'s `advisories`, which cannot move the disposition, so the pre-transition gate should no longer refuse for this cause at all and NOTHING needs adding to the retryable set. Demonstrate it: build a scratch plan whose own row names a finished carrier, run `aw ipd lint --phase pre-transition`, and show the finding reported as an advisory with a `conforming` disposition. Record the result in Findings. Only if a refusing path genuinely survives may the classifier be touched, and then it must be done the way the next bullet describes.
+- [x] E-04 PROVE, RATHER THAN PATCH, THAT A PLAN IS NO LONGER STUCK ON A FINISHED CARRIER IN ITS OWN DEFERRED SECTION. E-01's `info` severity routes the finished finding into `ipd_lint`'s `advisories`, which cannot move the disposition, so the pre-transition gate should no longer refuse for this cause at all and NOTHING needs adding to the retryable set. Demonstrate it: build a scratch plan whose own row names a finished carrier, run `aw ipd lint --phase pre-transition`, and show the finding reported as an advisory with a `conforming` disposition. Record the result in Findings. Only if a refusing path genuinely survives may the classifier be touched, and then it must be done the way the next bullet describes.
   - Depends on: E-01
   - Expected outcome: a plan never gets stuck on a finished carrier in its own Deferred section, shown by a conforming pre-transition lint rather than by a widened retry allowlist.
   - THE AUTHORED MECHANISM WOULD NOT HAVE WORKED, so do not fall back to it without re-reading it. `finalize_refusal_is_retryable` locates finding lines by `line.strip().startswith("IPD-")`, and `aw ipd finalize` prints findings as `  <rule> <detail>`, so a `check.ipd-carrier-finished-unverified` line begins `check.` and is INVISIBLE to that scanner. Driven at review on a realistic carrier refusal message: `finding_lines` is `[]` and the predicate returns False, and it returns False precisely BECAUSE an empty finding list is the documented fail-closed direction ("The summary alone ... tells us only that the gate refused and NOT which class"). Adding the rule to `RETRYABLE_FINALIZE_FINDING_TEXTS` alone therefore changes nothing; it would also require widening the line locator, which is pinned by a test on purpose so a wording change breaks loudly. Widening a fail-closed allowlist is a real risk and must not be done as a side effect of a message change.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Outcome tests
 
-- [ ] E-05 `tests/test_carrier_reverse_lookup.py` (scratch git repo, `tests/support.ready_plan_text` fixtures): (a) plan A defers to executed plan B -> `aw check plans` exit 0 with a `check.ipd-carrier-finished-unverified` finding naming A's row; (b) plan A defers to superseded plan B -> exit 1 with `check.ipd-uncarried-obligation`; (c) the same row with `- Carrier-Evidence:` -> no finding; (d) `find_obligations_carried_by(repo, B)` returns A's row, and `[]` for an id6 nobody names.
+- [x] E-05 `tests/test_carrier_reverse_lookup.py` (scratch git repo, `tests/support.ready_plan_text` fixtures): (a) plan A defers to executed plan B -> `aw check plans` exit 0 with a `check.ipd-carrier-finished-unverified` finding naming A's row; (b) plan A defers to superseded plan B -> exit 1 with `check.ipd-uncarried-obligation`; (c) the same row with `- Carrier-Evidence:` -> no finding; (d) `find_obligations_carried_by(repo, B)` returns A's row, and `[]` for an id6 nobody names.
   - Depends on: E-01, E-02
   - Expected outcome: four outcome tests.
   - BUILD THE FIXTURES; DO NOT LOOK FOR A LIVE EXAMPLE. Measured at review over all 47 pending plans: 9 carrier rows resolve to a LIVE owner and ZERO resolve to a finished or an abandoned one, so neither case (a) nor case (b) exists in the tree today. That is expected (the two incidents were fixed by hand in `b20b7a74` and `e0581df0`) and it is why these must be scratch fixtures. It also means the live `check plans` run in E-07 will show NO finding of the new rule, which is a pass and not a failure to reproduce.
   - THE SCRATCH REPO MUST SET THE CARRIER CUTOVER, or (b) may not report at `error` at all. `carrier_severity_for_plan` reads `resolve_cutover_date(repo_root, "carrier_obligations")` and falls back to the `CARRIER_CUTOVER_DATE` constant, comparing against the plan's OWN `- Date:`, and a pre-cutover plan is downgraded to `info` (non-failing). So give each fixture plan a post-cutover `- Date:` and write `.aw/config/project.json` with `cutovers.carrier_obligations`, as the existing carrier-severity test in `tests/test_check_engine.py` already does. Otherwise (b)'s expected exit 1 can pass or fail for a reason unrelated to this change.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 `tests/test_carrier_finished_verification.py`: drive `execute_item_core` with an injected host runner double (no real model; the suite forbids real spawns) on a scratch repo where pending plan A defers to plan B: (a) the double answers the verification turn by adding `Carrier-Evidence` -> B integrates, A's row resolved, no refusal; (b) the double changes nothing -> item B carries the unresolved-verification refusal record AND STILL INTEGRATES (per E-03's ruling that another plan's row must not strand B's verified work), with the refusal readable on the item; (c) no plan names B -> no verification turn is dispatched (the double's call count is unchanged).
+- [x] E-06 `tests/test_carrier_finished_verification.py`: drive `execute_item_core` with an injected host runner double (no real model; the suite forbids real spawns) on a scratch repo where pending plan A defers to plan B: (a) the double answers the verification turn by adding `Carrier-Evidence` -> B integrates, A's row resolved, no refusal; (b) the double changes nothing -> item B carries the unresolved-verification refusal record AND STILL INTEGRATES (per E-03's ruling that another plan's row must not strand B's verified work), with the refusal readable on the item; (c) no plan names B -> no verification turn is dispatched (the double's call count is unchanged).
   - Depends on: E-03
   - Expected outcome: three outcome tests of what the run does, not of prompt wording.
   - ADD A FOURTH CASE, the one that guards the launch-path invariant E-03 rides on: assert the verification turn goes through the SAME injected `raw_launcher` the executor and verifier use, and that it is dispatched with the attempt's session (OpenCode `resume_session`, Antigravity `session_id` + `use_continue=False`). Without it, a later refactor could turn this into a third direct launcher caller, which the existing two-caller test pins against and which would silently inherit the wrong launch profile.
   - CASE (b) MUST NOT BE WRITTEN AGAINST `budget 0`. The authored wording spent the finalize retry budget, which E-03 measured cannot fire here; assert instead that the per-attempt flag prevents a SECOND verification turn in the same attempt (drive it twice and show one dispatch), which is the structural bound E-03 actually adopts.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 PIN THE MIXED-ROW CASE in `tests/test_check_engine.py`, which is the one E-01's emitter split exists for and which no other item covers: a single pending plan carrying BOTH a row whose carrier FINISHED and a row that is wholly UNCARRIED must produce TWO findings, `check.ipd-carrier-finished-unverified` at `info` and `check.ipd-uncarried-obligation` at `error`, and `aw check plans` must exit 1 (the abandoned/uncarried half still fails). Assert the rules and severities, not the wording. Measured at review against the CURRENT code, this returns ONE Drift, rule `check.ipd-uncarried-obligation`, severity `error`, with both reasons concatenated into one detail, so this test FAILS before E-01 and is the proof the emitter was actually split.
+- [x] E-08 PIN THE MIXED-ROW CASE in `tests/test_check_engine.py`, which is the one E-01's emitter split exists for and which no other item covers: a single pending plan carrying BOTH a row whose carrier FINISHED and a row that is wholly UNCARRIED must produce TWO findings, `check.ipd-carrier-finished-unverified` at `info` and `check.ipd-uncarried-obligation` at `error`, and `aw check plans` must exit 1 (the abandoned/uncarried half still fails). Assert the rules and severities, not the wording. Measured at review against the CURRENT code, this returns ONE Drift, rule `check.ipd-uncarried-obligation`, severity `error`, with both reasons concatenated into one detail, so this test FAILS before E-01 and is the proof the emitter was actually split.
   - Depends on: E-01
   - Expected outcome: two findings with the two severities; the test fails against the pre-change emitter.
   - ALSO RE-RUN THE EXISTING CARRIER TESTS in `tests/test_check_engine.py` and reconcile them: they are the only tests that currently assert this rule's verdicts, so E-01 changes some of their expectations. Update them deliberately, naming each changed expectation in V-08, rather than discovering the breakage in E-07's bare suite.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: Record and verify
 
-- [ ] E-07 Add one `- Changed:` line under `## 2.0.0 (pending)` in `CHANGELOG.md`, plain words, no em or en dashes: when a plan or backlog item that other plans handed work to is finished, a run now asks the agent to confirm the work was done and records the proof, and `aw check plans` no longer fails on a finished owner (it still fails when the owner was abandoned). Then run the bare suite, `python3 -m agent_workflows check plans --agent`, `aw sanitize --agent`, and time `find_obligations_carried_by` warm on this repository.
+- [x] E-07 Add one `- Changed:` line under `## 2.0.0 (pending)` in `CHANGELOG.md`, plain words, no em or en dashes: when a plan or backlog item that other plans handed work to is finished, a run now asks the agent to confirm the work was done and records the proof, and `aw check plans` no longer fails on a finished owner (it still fails when the owner was abandoned). Then run the bare suite, `python3 -m agent_workflows check plans --agent`, `aw sanitize --agent`, and time `find_obligations_carried_by` warm on this repository.
   - Depends on: E-05, E-06, E-08, E-09
   - Expected outcome: 0 failed; timing recorded.
   - SAY IN THE CHANGELOG LINE THAT THE FINDING NO LONGER FAILS THE BUILD, since that is the user-visible consequence of E-01's `info` tier and a reader who is told only "no longer fails on a finished owner" will not know the finding is now easy to miss. One plain sentence, no em or en dashes.
   - EXPECT ZERO LIVE FINDINGS OF THE NEW RULE on this repository and do not treat that as a failure: measured at review, no pending plan currently names a finished or abandoned carrier. Paste the live `check plans` output and say so explicitly.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-09 RECONCILE WITH PENDING PLAN `xz59ai`, which edits the SAME `_resolve_carrier` terminal branch on the OPPOSITE premise and is already `reviewed` (F-9). Read the executed `xz59ai` first. Its shipped behavior is: a FINISHED carrier still refuses (`legitimate=False`, `error`) and the refusal prints a pasteable `- Carrier-Evidence: <path>` plus a warning against `Carrier-Declined`. This plan makes the same case non-failing. The two are NOT incompatible in substance and the combination is the better outcome, so PRESERVE the remedy text while changing the verdict tier: the `info` finding this plan emits MUST still carry `xz59ai`'s pasteable Carrier-Evidence line, so an agent or human reading it gets the exact fix. Verify `xz59ai`'s own tests (its Carrier-Evidence suggestion cases in `tests/test_check_engine.py`) still pass, and if any expectation genuinely must change, name it in V-09 with the reason.
+- [x] E-09 RECONCILE WITH PENDING PLAN `xz59ai`, which edits the SAME `_resolve_carrier` terminal branch on the OPPOSITE premise and is already `reviewed` (F-9). Read the executed `xz59ai` first. Its shipped behavior is: a FINISHED carrier still refuses (`legitimate=False`, `error`) and the refusal prints a pasteable `- Carrier-Evidence: <path>` plus a warning against `Carrier-Declined`. This plan makes the same case non-failing. The two are NOT incompatible in substance and the combination is the better outcome, so PRESERVE the remedy text while changing the verdict tier: the `info` finding this plan emits MUST still carry `xz59ai`'s pasteable Carrier-Evidence line, so an agent or human reading it gets the exact fix. Verify `xz59ai`'s own tests (its Carrier-Evidence suggestion cases in `tests/test_check_engine.py`) still pass, and if any expectation genuinely must change, name it in V-09 with the reason.
   - Depends on: E-01
   - Expected outcome: the finished-carrier finding is non-failing AND still prints the pasteable remedy; `xz59ai`'s tests pass or their changes are justified individually.
   - THIS IS WHY `- Item-Dependencies: executed:xz59ai` IS DECLARED. Both plans rewrite the branch that turns a terminal carrier into a verdict. Executing this one first would leave `xz59ai` editing a function whose shape it was reviewed against no longer matching, and `xz59ai` is the narrower, already-reviewed change. The runner enforces the edge; a human executing by hand must check it.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -186,50 +186,204 @@ No `.spec.md` is amended. The durable-carrier contract (plan `rnkqrc`) changes i
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `python3 -m agent_workflows check plans --agent` on the E-05 (a) and (b) scratch trees, showing exit 0 with the new finding for (a) and exit 1 with `check.ipd-uncarried-obligation` for (b). Paste the EXIT CODE of each explicitly, plus the `RULE_REGISTRY` entry showing the new rule at `info`, and state that `warning` was measured to exit 1 so `info` is required (F-5). Also paste `aw ipd lint --phase pre-transition` on the (a) tree showing the finding as an ADVISORY with a `conforming` disposition.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified: check plans exits 0 on tree (a) and 1 on tree (b), RULE_REGISTRY has info tier, and pre-transition lint on tree (a) reports advisory conforming.
+    Scratch tree (a) (finished carrier pl000b in executed/):
+    Command: python3 -m agent_workflows check plans --agent (cwd=tree_a)
+    Output:
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"plans","findings":1,"evidence":["inventory","rules"],"diagnostics":[{"location":".aw/records/plans/pending/20260926-sample-01-pl000a-plan-a.ipd.md","rule":"check.ipd-carrier-finished-unverified"}],"next":null}
+    EXIT CODE: 0
 
-- [ ] V-02 validates E-02
+    Scratch tree (b) (abandoned carrier pl000b in superseded/):
+    Command: python3 -m agent_workflows check plans --agent (cwd=tree_b)
+    Output:
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"findings","exit":1,"verified":true,"complete":true,"target":"plans","findings":1,"evidence":["inventory","rules"],"diagnostics":[{"location":".aw/records/plans/pending/20260926-sample-01-pl000a-plan-a.ipd.md","rule":"check.ipd-uncarried-obligation"}],"next":"inspect .aw/records/plans/pending/20260926-sample-01-pl000a-plan-a.ipd.md frontmatter and schema conformity."}
+    EXIT CODE: 1
+
+    RULE_REGISTRY entry:
+    "check.ipd-carrier-finished-unverified": (
+        "info",
+        "An obligation references a finished carrier whose work has not yet been confirmed by an agent turn",
+    ),
+    Note: warning was measured to exit 1 via artifact_core.drift_exit_code (any non-info severity returns 1), so info tier is required for exit 0.
+
+    Pre-transition lint on (a) tree:
+    Command: python3 -m agent_workflows ipd lint --phase pre-transition --detail .aw/records/plans/pending/20260926-sample-01-pl000a-plan-a.ipd.md
+    Output:
+    -    ◕  approved     plan        20260926-sample-01-pl000a  [medium]  advisory
+         ? advisory: check.ipd-carrier-finished-unverified: 1 obligation(s) name a finished carrier needing verification: deferred row 1: carrier pl000b finished (executed); an agent must confirm it did this work and record Carrier-Evidence, or re-point the row
+    this obligation was discharged by finished work; cite it instead of the carrier:
+    - Carrier-Evidence: .aw/records/plans/executed/20260926-sample-01-pl000b-plan-b.ipd.md
+    do NOT use `Carrier-Declined` here: the work shipped, so declining it would record it as needing no carrier
+
+    EXIT CODE: 0 (conforming / advisory disposition)
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste `python3 -c "from pathlib import Path; from agent_workflows import check_engine as ce; print(ce.find_obligations_carried_by(Path('.'), '<id6 some pending plan here names as Carrier>')); print(ce.find_obligations_carried_by(Path('.'), 'zzzzzz'))"` showing that plan's row, then `[]`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified: find_obligations_carried_by returns aeq7f8 row for vy20et and [] for zzzzzz.
+    Command: python3 -c "from pathlib import Path; from agent_workflows import check_engine as ce; print(ce.find_obligations_carried_by(Path('.'), 'vy20et')); print(ce.find_obligations_carried_by(Path('.'), 'zzzzzz'))"
+    Output:
+    [CarriedObligation(plan_path=PosixPath('.aw/records/plans/pending/20260926-artdispatch-05-aeq7f8-dispatch-an-approved-spec-as-a-report-only-production-action.ipd.md'), plan_id6='aeq7f8', locator='deferred row 1', line_no=115, row_text='- `SPEC-PLAN-TRACE` (requirement coverage).')]
+    []
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste E-06 tests (a), (b) and the launcher-path case passing (node ids), and the item's recorded refusal from test (b) with its code and remedy. Show that test (b)'s item STILL INTEGRATED (the refusal is recorded, not blocking), which is the behavior change this review required. Paste the dispatch kwargs proving the turn went through `resume_via_launcher` with the attempt's session, and paste the twice-driven case showing exactly ONE verification turn per attempt.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified: E-06 tests pass, refusal recorded and still integrated in test (b), resume_via_launcher kwargs match, twice-driven bounded to 1 turn.
+    Node IDs and pass status:
+    tests/test_carrier_finished_verification.py::CarrierFinishedVerificationTests::test_carrier_verification_resolved_integrates_without_refusal PASSED [ 25%]
+    tests/test_carrier_finished_verification.py::CarrierFinishedVerificationTests::test_carrier_verification_unresolved_records_refusal_and_still_integrates PASSED [100%]
+    tests/test_carrier_finished_verification.py::CarrierFinishedVerificationTests::test_launcher_path_invariant_and_session_continuity PASSED [ 50%]
 
-- [ ] V-04 validates E-04
+    Recorded refusal from test (b):
+    code: carrier-verification-unresolved
+    reason: pending plan(s) still point at finished carrier pl000b without Carrier-Evidence: pl000a (deferred row 1)
+    remedy: add `- Carrier-Evidence: <path>` or re-point `- Carrier:` on pl000a (deferred row 1)
+    Still integrated: item["status"] == "executed" (asserted in test_case_b).
+
+    Dispatch kwargs via resume_via_launcher:
+    OC host kwargs: {'log_suffix': 'carrier-verification', 'label_suffix': 'carrier-verification', 'tracker': None, 'work_dir': repo, 'resume_session': 'ses-oc-123'}
+    AGY host kwargs: {'session_id': 'ses-agy-456', 'use_continue': False, 'log_suffix': 'carrier-verification', 'label_suffix': 'carrier-verification', 'work_dir': repo, 'tracker': None}
+
+    Twice-driven case:
+    Second call to perform_carrier_verification with attempt["carrier_verification_asked"]=True resulted in len(verification_turn_called) == 1 (no second turn dispatched).
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste `aw ipd lint --phase pre-transition` on a scratch plan whose OWN row names a finished carrier, showing the finding as an advisory and the disposition `conforming`, and paste `git diff` over `RETRYABLE_FINALIZE_FINDING_TEXTS` and `finalize_refusal_is_retryable` showing them UNCHANGED. If either was changed, justify it here and paste the measurement that a refusing path genuinely survived, because F-7 measured the authored route to be inert and widening a fail-closed allowlist needs its own reason.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified: pre-transition lint on finished carrier scratch plan conforms as advisory (exit 0) and retryable finalize symbols unchanged.
+    Pre-transition lint on scratch plan naming finished carrier pl000b:
+    Command: python3 -m agent_workflows ipd lint --phase pre-transition --detail .aw/records/plans/pending/20260926-sample-01-pl000a-plan-a.ipd.md
+    Output:
+    -    ◕  approved     plan        20260926-sample-01-pl000a  [medium]  advisory
+         ? advisory: check.ipd-carrier-finished-unverified: 1 obligation(s) name a finished carrier needing verification: deferred row 1: carrier pl000b finished (executed); an agent must confirm it did this work and record Carrier-Evidence, or re-point the row
+    this obligation was discharged by finished work; cite it instead of the carrier:
+    - Carrier-Evidence: .aw/records/plans/executed/20260926-sample-01-pl000b-plan-b.ipd.md
+    do NOT use `Carrier-Declined` here: the work shipped, so declining it would record it as needing no carrier
 
-- [ ] V-05 validates E-05
+    EXIT CODE: 0 (disposition conforming / advisory)
+
+    git diff over retryable finalize symbols:
+    git diff agent_workflows/runner_shared.py | grep -E "RETRYABLE_FINALIZE_FINDING_TEXTS|finalize_refusal_is_retryable"
+    (prints nothing; symbols are completely unchanged)
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste `python3 -m pytest tests/test_carrier_reverse_lookup.py -o addopts="" -v` showing 4 passed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified: tests/test_carrier_reverse_lookup.py passed 4 tests in 0.17s.
+    Command: python3 -m pytest tests/test_carrier_reverse_lookup.py -o addopts="" -v
+    Output:
+    tests/test_carrier_reverse_lookup.py::CarrierReverseLookupTests::test_case_a_finished_carrier_exits_0_with_unverified_finding PASSED [ 25%]
+    tests/test_carrier_reverse_lookup.py::CarrierReverseLookupTests::test_case_b_abandoned_carrier_exits_1_with_uncarried_finding PASSED [ 50%]
+    tests/test_carrier_reverse_lookup.py::CarrierReverseLookupTests::test_case_c_carrier_evidence_produces_no_finding PASSED [ 75%]
+    tests/test_carrier_reverse_lookup.py::CarrierReverseLookupTests::test_case_d_find_obligations_carried_by PASSED [100%]
 
-- [ ] V-06 validates E-06
+    ============================== 4 passed in 0.17s ===============================
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste `python3 -m pytest tests/test_carrier_finished_verification.py -o addopts="" -v` showing 3 passed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified: tests/test_carrier_finished_verification.py passed 4 tests in 10.47s.
+    Command: python3 -m pytest tests/test_carrier_finished_verification.py -o addopts="" -v
+    Output:
+    tests/test_carrier_finished_verification.py::CarrierFinishedVerificationTests::test_carrier_verification_resolved_integrates_without_refusal PASSED [ 25%]
+    tests/test_carrier_finished_verification.py::CarrierFinishedVerificationTests::test_launcher_path_invariant_and_session_continuity PASSED [ 50%]
+    tests/test_carrier_finished_verification.py::CarrierFinishedVerificationTests::test_no_verification_turn_when_no_carrier_obligation PASSED [ 75%]
+    tests/test_carrier_finished_verification.py::CarrierFinishedVerificationTests::test_carrier_verification_unresolved_records_refusal_and_still_integrates PASSED [100%]
 
-- [ ] V-07 validates E-07
+    ============================== 4 passed in 10.47s ==============================
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste `git diff CHANGELOG.md`, `git diff CHANGELOG.md | grep -P '[\x{2013}\x{2014}]'` printing nothing, the final summary line of a BARE `python3 -m pytest` with 0 failed, `python3 -m agent_workflows check plans --agent` with its exit code, `aw sanitize --agent` exit 0, and three warm timings of the reverse lookup with the pending-plan COUNT they were measured over. Do NOT assert `check plans` exits 0 on the real tree: at review it exited 1 on a PRE-EXISTING `check.ipd-uncarried-obligation` (an uncarried row in plan `2yqt0a`) that this plan does not address, so name any surviving finding as pre-existing with its rule and plan, or show it gone with the reason.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified: CHANGELOG line added with no dashes, bare pytest passed 2593 tests with 0 failed, check plans exited 1 on pre-existing findings, sanitize passed exit 0, warm lookup measured across 44 plans.
+    git diff CHANGELOG.md:
+    diff --git a/CHANGELOG.md b/CHANGELOG.md
+    index 20509485..305a6d6a 100644
+    --- a/CHANGELOG.md
+    +++ b/CHANGELOG.md
+    @@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
 
-- [ ] V-08 validates E-08
+     Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
+
+    +- Changed: when a plan or backlog item that other plans handed work to is finished, a run now asks the agent to confirm the work was done and records the proof, and aw check plans no longer fails the build on a finished owner (the finding is advisory and no longer fails CI), while an abandoned owner still fails.
+     - Added: a new `aw partition` command splits approved plans into balanced groups for running in several terminals at once, keeping dependent plans together.
+     - Added: when two runs share a checkout, a run that has finished its other work now waits up to 30 minutes for a prerequisite the other run is still executing, instead of failing the dependent item.
+     - Added: `aw agy profile` (`add`, `list`, `show`, `remove`, `default`) verbs to manage Antigravity launch profiles, and `validate-default` under both `aw oc profile` and `aw agy profile` to configure the host-neutral `defaults.validate` verification posture. Profile names share a single flat namespace across runners, guarded against cross-host modifications.
+
+    Dashes check:
+    git diff CHANGELOG.md | grep -P '[\x{2013}\x{2014}]'
+    (prints nothing)
+
+    Final summary line of BARE python3 -m pytest:
+    2593 passed, 2 skipped, 3 warnings in 45.80s
+
+    Live check plans:
+    Command: python3 -m agent_workflows check plans --agent
+    Output:
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"findings","exit":1,"verified":true,"complete":true,"target":"plans","findings":2,"evidence":["inventory","rules"],"diagnostics":[{"location":".aw/records/plans/pending/20260926-spec25kfix-01-olkeju-correct-spec-25kzda-s-claim-that-nothing-passes-the-aw-run-a.ipd.md","rule":"check.scope-drift"},{"location":"<collisions>","rule":"check.collisions-not-checked"}],"next":"inspect .aw/records/plans/pending/20260926-spec25kfix-01-olkeju-correct-spec-25kzda-s-claim-that-nothing-passes-the-aw-run-a.ipd.md frontmatter and schema conformity."}
+    EXIT CODE: 1 (pre-existing findings on olkeju scope-drift and <collisions> collisions-not-checked; zero carrier findings in live pending tree).
+
+    aw sanitize --agent:
+    Command: python3 -m agent_workflows check-local-leaks . --agent
+    Output:
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    EXIT CODE: 0
+
+    Reverse lookup warm timings:
+    Pending plan count: 44
+    Warm run 1: 151.75 ms
+    Warm run 2: 148.15 ms
+    Warm run 3: 157.65 ms
+  - Result: pass
+
+- [x] V-08 validates E-08
   - Required evidence: paste the mixed-plan test FAILING against the pre-change emitter (the single `check.ipd-uncarried-obligation` `error` Drift with both reasons concatenated) and PASSING after, with both rules and both severities shown and the `aw check plans` exit code 1. Then list every existing `tests/test_check_engine.py` carrier expectation you changed, with the reason for each.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified: mixed-plan test failed with AssertionError 1 != 2 before emitter split and passed after with 2 drifts, check engine carrier expectations reconciled.
+    Pre-change failure against single-Drift emitter:
+    AssertionError: 1 != 2 : expected 2 drifts (one info for finished, one error for uncarried), got: [Drift(rule='check.ipd-uncarried-obligation', severity='error', ...)]
 
-- [ ] V-09 validates E-09
+    Post-change pass:
+    tests/test_check_engine.py::CarrierDischargedRemedyTests::test_case_7_mixed_finished_and_uncarried_carrier_rows_split_into_two_drifts PASSED
+    Output rules and severities:
+    Drift 1: rule='check.ipd-carrier-finished-unverified', severity='info'
+    Drift 2: rule='check.ipd-uncarried-obligation', severity='error'
+    aw check plans exit code: 1
+
+    Reconciled expectations in tests/test_check_engine.py:
+    1. test_case_1_done_backlog_carrier_suggests_carrier_evidence_and_warns_declined:
+       Updated expected rule from check.ipd-uncarried-obligation to check.ipd-carrier-finished-unverified, severity from error to info, detail prefix to carrier bk0001 finished (done). Reason: bk0001 is done (finished).
+    2. test_case_2_executed_plan_carrier_suggests_carrier_evidence_and_warns_declined:
+       Updated expected rule from check.ipd-uncarried-obligation to check.ipd-carrier-finished-unverified, severity from error to info, detail prefix to carrier pl0001 finished (executed). Reason: pl0001 is executed (finished).
+    3. test_case_6_evaluate_durable_carrier_end_to_end:
+       Updated single executed carrier case to expect check.ipd-carrier-finished-unverified at info severity, with exit code 0.
+    4. test_companion_backend_fixture_generic_remedy_non_raising:
+       Updated expected severity from error to info. Reason: done carrier returns info tier.
+  - Result: pass
+
+- [x] V-09 validates E-09
   - Required evidence: paste one full finished-carrier finding detail showing it STILL contains `xz59ai`'s pasteable `- Carrier-Evidence: <path>` line, and paste `xz59ai`'s own carrier tests passing. Name any of its expectations you changed with the reason. Also confirm `xz59ai` is in `executed/` before this plan's changes were made (`aw find plans xz59ai`), since the declared dependency requires it.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified: finished-carrier finding retains xz59ai Carrier-Evidence line, xz59ai tests pass (8 passed), and xz59ai confirmed executed.
+    Full finished-carrier finding detail:
+    1 obligation(s) name a finished carrier needing verification: deferred row 1: carrier pl000b finished (executed); an agent must confirm it did this work and record Carrier-Evidence, or re-point the row
+    this obligation was discharged by finished work; cite it instead of the carrier:
+    - Carrier-Evidence: .aw/records/plans/executed/20260926-sample-01-pl000b-plan-b.ipd.md
+    do NOT use `Carrier-Declined` here: the work shipped, so declining it would record it as needing no carrier
+
+    Contains xz59ai's pasteable line:
+    - Carrier-Evidence: .aw/records/plans/executed/20260926-sample-01-pl000b-plan-b.ipd.md
+
+    xz59ai's tests passing:
+    python3 -m pytest tests/test_check_engine.py -k "CarrierDischargedRemedyTests" -o addopts="" -v
+    8 passed in 0.30s (all 8 tests passed, including tests 1, 2, 3, 4, 5, 6, and companion fixture).
+    Changed expectations: tests 1, 2, 6, and companion fixture updated rule/severity from error to info as required by E-01 (reconciled in V-08).
+
+    xz59ai execution confirmation:
+    python3 -m agent_workflows find plans xz59ai
+    ✓  executed      xz59ai  carrierauth     .aw/records/plans/executed/20260926-carrierauth-02-xz59ai-lead-the-discharged-carrier-refusal-with-a-pasteable-carrier.ipd.md
+  - Result: pass
 
 ## Approval and execution gate
 
