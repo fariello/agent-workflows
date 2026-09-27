@@ -2857,7 +2857,13 @@ class OrchestratorNotAgentExecutedTests(unittest.TestCase):
         # A draft/to-review orchestrator MUST still get its /plan-review (it advances
         # like any reviewable IPD); it is NOT skipped as 'orchestrate'. Otherwise it
         # would stay stuck at draft/to-review whether run via aw oc run or manually.
-        self.assertEqual(driver.action_for("orchestrator", "draft"), "review")
+        # Under the unified action derivation (7icz68), a draft without completeness
+        # input is undetermined, and a complete draft is review; neither is orchestrate.
+        self.assertEqual(driver.action_for("orchestrator", "draft"), "undetermined")
+        self.assertEqual(
+            driver.action_for("orchestrator", "draft", authoring_complete=True),
+            "review",
+        )
         self.assertEqual(driver.action_for("orchestrator", "to-review"), "review")
 
     def test_orchestrator_past_review_is_orchestrate(self):

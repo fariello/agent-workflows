@@ -2789,6 +2789,10 @@ def run_queue(
             # the two routes cannot disagree (kept symmetric with `oc_runipd`).
             if runner_stop.is_indeterminate(item):
                 continue
+            # artdispatch 7icz68 (E-08): exclude a skip entry from requeue so a correctly skipped item
+            # is not flipped to queued and executed.
+            if item.get("action") == "skip":
+                continue
             if item["status"] in {
                 "interrupted",
                 "substantially-complete",

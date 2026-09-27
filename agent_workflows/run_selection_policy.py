@@ -110,6 +110,7 @@ ACTION_REVIEW = "review"
 ACTION_PLAN = "plan"
 ACTION_EXECUTE = "execute"
 ACTION_SKIP = "skip"
+ACTION_ORCHESTRATE = "orchestrate"
 # NOT an action: the honest answer when the action cannot be derived from STATUS alone, because the
 # spec's dispatch tables branch on something this module deliberately does not see (a completeness
 # check, `--full-auto`, `--action`, or a parsed run contract). A preview that guessed would be worse
@@ -329,22 +330,102 @@ ALLOW_MIXED_FLAG = "--allow-mixed"
 # --------------------------------------------------------------------------------------------------
 
 
-def _action_for(spec_type: Optional[str], status: Optional[str]) -> str:
-    """The previewed action for one item, from its TYPE and STATUS only (spec Sections 3.2-3.6)."""
+def action_for_status(spec_type: Optional[str], status: Optional[str]) -> str:
+    """THE status-to-action authority for every artifact type (spec `z7nbn1` 1.2/5.6).
 
+    Returns the previewed action for one item from its TYPE and STATUS only (spec 25kzda Sections
+    3.2-3.6). This function is the single public reader over `_ACTION_TABLES`. No other module may
+    carry a second status-to-action mapping.
+    """
     if spec_type is None:
         # No spec 2.2 type: not a runnable work item, so nothing would be dispatched for it.
         return ACTION_SKIP
+    spec_type = str(spec_type).strip().lower()
     if spec_type in _ALWAYS_SKIP_TYPES:
         return ACTION_SKIP  # spec 3.6 gray skip, from the type alone
+    norm_status = str(status).strip().lower() if status is not None else None
     if spec_type == "prompt":
-        if status is not None and status in _PROMPT_TERMINAL_SKIP:
+        if norm_status is not None and norm_status in _PROMPT_TERMINAL_SKIP:
             return ACTION_SKIP
         return ACTION_EXECUTE  # spec 3.5; contract validity is content, not status
     table = _ACTION_TABLES.get(spec_type)
-    if table is None or status is None:
+    if table is None or norm_status is None:
         return ACTION_UNDETERMINED
-    return table.get(status, ACTION_UNDETERMINED)
+    return table.get(norm_status, ACTION_UNDETERMINED)
+
+
+def _action_for(spec_type: Optional[str], status: Optional[str]) -> str:
+    """The previewed action for one item, from its TYPE and STATUS only (spec Sections 3.2-3.6).
+
+    Preserved as an alias for :func:`action_for_status` so existing callers and tests do not churn.
+    """
+    return action_for_status(spec_type, status)
+
+
+def runner_action(
+    spec_type: Optional[str],
+    status: Optional[str],
+    *,
+    kind: Optional[str] = None,
+    authoring_complete: Optional[bool] = None,
+    full_auto: bool = False,
+    for_legality: bool = False,
+) -> str:
+    """Derive the runner-side queue action by layering runner-only inputs over the public table reader.
+
+    This function calls :func:`action_for_status` and refines ONLY the rows the table deliberately
+    leaves `undetermined` because they depend on inputs the table does not see, plus the Kind refinement:
+
+    (i) `draft` -> `review` when `authoring_complete` is True (or when `for_legality` is True),
+        `skip` when `authoring_complete` is False (spec `25kzda` 3.2 row 1: an incomplete draft is a
+        "Yellow skip", and authoring it unattended is forbidden), and stays `undetermined` when
+        `authoring_complete` is None (unreadable, or a type with no completeness parser).
+        For legality checks (`for_legality=True`), `draft` is treated as `review` so that
+        `--action review` on a named draft is admitted without whole-run refusal (spec 25kzda 2.5a).
+    (ii) IPD `reviewed` -> `execute` (spec `25kzda` 3.2: the runner dispatches `reviewed` under
+        `--full-auto` or freezes it as `needs_input=True` pending human approval).
+    (iii) For `kind == "orchestrator"`, an answer of `execute` becomes `orchestrate` (spec `z7nbn1` 2.2).
+
+    THE THREE REFINEMENTS ARE ORDERED, NOT A SET:
+    Apply (i) and (ii) FIRST, then (iii) LAST over their result.
+    Order is load-bearing for the `reviewed` orchestrator row: reaching `orchestrate` requires the
+    chain table(`reviewed`)='undetermined' -> (ii) 'execute' -> (iii) 'orchestrate'. Applying (iii)
+    before (ii) would see 'undetermined', leave it untouched, and silently demote a reviewed orchestrator
+    to 'execute', spending an agent turn on a plan that authors no code.
+
+    THE ORCHESTRATE INVARIANT (E-04 / OQ-01):
+    The table is keyed on (type, status) by spec 1.2's definition, and `orchestrate` is a function of
+    (type, status, Kind) that is `execute` narrowed by one field, so it CONSUMES the table's answer
+    rather than competing with it; adding a Kind column to the table would make every other type carry
+    a dimension only IPDs have. `orchestrate` is produced from an `execute` answer that is EITHER the
+    table's own (`approved`, `auto-approved`, `reusable`) OR refinement (ii)'s for `reviewed`, which the
+    table answers `undetermined`. Both are legitimate; what the invariant forbids is `orchestrate` ever
+    displacing a row the table answers as `review` or `skip`.
+    """
+    action = action_for_status(spec_type, status)
+    norm_status = str(status).strip().lower() if status is not None else None
+    norm_type = str(spec_type).strip().lower() if spec_type is not None else None
+    norm_kind = str(kind).strip().lower() if kind is not None else None
+
+    # Refinement (i): draft completeness (or legality)
+    if norm_status == "draft":
+        if for_legality:
+            action = ACTION_REVIEW
+        elif authoring_complete is True:
+            action = ACTION_REVIEW
+        elif authoring_complete is False:
+            action = ACTION_SKIP
+        # elif authoring_complete is None: stays action (undetermined)
+
+    # Refinement (ii): IPD reviewed -> execute
+    elif norm_type == "ipd" and norm_status == "reviewed":
+        action = ACTION_EXECUTE
+
+    # Refinement (iii) applied LAST: orchestrator Kind refinement over execute
+    if norm_kind == "orchestrator" and action == ACTION_EXECUTE:
+        action = ACTION_ORCHESTRATE
+
+    return action
 
 
 def classify_paths(
