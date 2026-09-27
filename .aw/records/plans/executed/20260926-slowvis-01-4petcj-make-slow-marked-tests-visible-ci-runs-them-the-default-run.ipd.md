@@ -6,7 +6,7 @@
 - Scope: IN: an advisory CI step that runs the slow set; a notice on every default run naming how many tests were deselected and how to run them; the release-review final-validation section requiring the full-suite target; correcting the two comments that claim CI runs the full suite; recording the fail-closed flip condition on the three owning bug items. OUT: fixing the 3 slow failures (owned by 57dwkc, 3ypquf, 4vfkl1); changing `addopts` itself.
 - Scope-Paths: .github/workflows/tests.yml, conftest.py, tests/deselect_notice.py, tests/test_deselect_notice.py, .aw/system/workflows/release-review/08-final-ship-review.md, pyproject.toml, Makefile, .aw/records/backlog/open/20260918-57dwkc-01-57dwkc-deep-cleanup-orphans-layout-json.backlog.md, .aw/records/backlog/graduated/20260923-3ypquf-01-3ypquf-deep-cleanup-gitignored-readme-at-risk.backlog.md, .aw/records/backlog/open/20260918-4vfkl1-01-4vfkl1-installer-deep-cleanup-leaves-aw-dir.backlog.md, .aw/records/backlog/open/20260926-g0bdgg-01-g0bdgg-subcommand-description-gaps.backlog.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 4petcj
-- Approval: 2026-09-26, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 4petcj verified (set slowvis, attempt 1). [Scope reconciliation - widened-scope .aw/records/backlog/open/20260926-g0bdgg-01-g0bdgg-subcommand-description-gaps.backlog.md: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw agy run)]
 - 2026-09-26 approved (aw set): status set to approved
 - 2026-09-26 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed in place
 
