@@ -1672,6 +1672,47 @@ def format_step_line(
     return f"- {lead}{status_padded}  {type_prefix}{stem_padded}{badge_txt}{disp_txt}"
 
 
+_IDENTITY_PARTS_RE = re.compile(
+    r"^(\d{8})-([a-z0-9-]+?)-(\d{2})-([0-9a-z]{6})(?:-|\.|$)"
+)
+_LEGACY_SPEC_RE = re.compile(r"^(\d{8})-\d{4}-(\d{2})-([a-z0-9-]+)")
+_SHORT_STEM_RE = re.compile(r"^([a-z0-9-]+?)-([0-9a-z]{6})$")
+_FACET_STRIP_RE = re.compile(r"(\.[a-z0-9-]+)*\.md$")
+
+
+def extract_identity_parts(
+    raw_str: str = "",
+    id6: str = "",
+    setid: str = "",
+    path: str = "",
+) -> tuple[str, str, str, str]:
+    """Extract (Date, SetID, Num, ID6) from raw string, path, and metadata."""
+    base = (path or raw_str or "").replace("\\", "/").rsplit("/", 1)[-1]
+    m_leg = _LEGACY_SPEC_RE.match(base)
+    if m_leg:
+        return m_leg.group(1), m_leg.group(3), m_leg.group(2), id6 or "-"
+    m = _IDENTITY_PARTS_RE.match(base)
+    if m:
+        return m.group(1), m.group(2), m.group(3), id6 or m.group(4)
+    if raw_str and raw_str != base:
+        raw_base = raw_str.replace("\\", "/").rsplit("/", 1)[-1]
+        m_raw = _IDENTITY_PARTS_RE.match(raw_base)
+        if m_raw:
+            return m_raw.group(1), m_raw.group(2), m_raw.group(3), id6 or m_raw.group(4)
+        m_raw_short = _SHORT_STEM_RE.match(raw_base)
+        if m_raw_short:
+            return "-", setid or m_raw_short.group(1), "-", id6 or m_raw_short.group(2)
+    m_short = _SHORT_STEM_RE.match(base)
+    if m_short:
+        return "-", setid or m_short.group(1), "-", id6 or m_short.group(2)
+    date = base[:8] if len(base) >= 8 and base[:8].isdigit() else "-"
+    raw_stem = _FACET_STRIP_RE.sub("", base)
+    set_id = setid or (raw_stem if raw_stem else "-")
+    num = "-"
+    id6_val = id6 if id6 else "-"
+    return date, set_id, num, id6_val
+
+
 def render_box_table(
     title: str,
     headers: Sequence[str],
@@ -1679,17 +1720,7 @@ def render_box_table(
     term: Term,
     alignments: Sequence[str] | None = None,
 ) -> str:
-    """Render a table with rounded box art borders and headers, with no horizontal borders between data rows."""
-    use_unicode = getattr(term, "unicode", True)
-    if use_unicode:
-        tl, tm, tr = "╭", "┬", "╮"
-        ml, mm, mr = "├", "┼", "┤"
-        bl, bm, br = "╰", "┴", "╯"
-        vl, hl = "│", "─"
-    else:
-        tl = tm = tr = ml = mm = mr = bl = bm = br = "+"
-        vl, hl = "|", "-"
-
+    """Render a table with no border lines, bold headers, and single space between columns."""
     num_cols = len(headers)
     aligns = list(alignments) if alignments else ["left"] * num_cols
 
@@ -1697,23 +1728,20 @@ def render_box_table(
     max_hdr_lines = max((len(lines) for lines in hdr_lines_list), default=1)
 
     col_widths = [
-        max((len(line) for line in lines), default=0) for lines in hdr_lines_list
+        max((len(strip_ansi(line)) for line in lines), default=0)
+        for lines in hdr_lines_list
     ]
     for row in rows:
         for idx, cell in enumerate(row):
-            raw_len = len(strip_ansi(str(cell)))
-            col_widths[idx] = max(col_widths[idx], raw_len)
-
-    top_border = tl + tm.join(hl * (w + 2) for w in col_widths) + tr
-    sep_border = ml + mm.join(hl * (w + 2) for w in col_widths) + mr
-    bot_border = bl + bm.join(hl * (w + 2) for w in col_widths) + br
+            if idx < len(col_widths):
+                raw_len = len(strip_ansi(str(cell)))
+                col_widths[idx] = max(col_widths[idx], raw_len)
 
     lines = []
     if title:
         lines.append(
             term.colorize(title, "bold") if getattr(term, "color", False) else title
         )
-    lines.append(top_border)
 
     for l_idx in range(max_hdr_lines):
         hdr_cells = []
@@ -1726,29 +1754,27 @@ def render_box_table(
                 if (h_line and getattr(term, "color", False))
                 else h_line
             )
-            pad = w - len(h_line)
+            pad = max(0, w - len(strip_ansi(h_line)))
             spaces = " " * pad
             if align == "right":
-                hdr_cells.append(f" {spaces}{h_styled} ")
+                hdr_cells.append(f"{spaces}{h_styled}")
             else:
-                hdr_cells.append(f" {h_styled}{spaces} ")
-        lines.append(vl + vl.join(hdr_cells) + vl)
-    lines.append(sep_border)
+                hdr_cells.append(f"{h_styled}{spaces}")
+        lines.append(" ".join(hdr_cells).rstrip())
 
     for row in rows:
         row_cells = []
         for idx, (cell, w, align) in enumerate(zip(row, col_widths, aligns)):
             cell_str = str(cell)
             raw_len = len(strip_ansi(cell_str))
-            pad = w - raw_len
+            pad = max(0, w - raw_len)
             spaces = " " * pad
             if align == "right":
-                row_cells.append(f" {spaces}{cell_str} ")
+                row_cells.append(f"{spaces}{cell_str}")
             else:
-                row_cells.append(f" {cell_str}{spaces} ")
-        lines.append(vl + vl.join(row_cells) + vl)
+                row_cells.append(f"{cell_str}{spaces}")
+        lines.append(" ".join(row_cells).rstrip())
 
-    lines.append(bot_border)
     return "\n".join(lines)
 
 
@@ -1865,30 +1891,49 @@ def format_artifact_audit_summary(
         return "\n".join(x for x in (tail, refusal_block) if x)
 
     headers = [
-        "Item",
+        "Date",
+        "SetID",
+        "N",
+        "ID6",
         "Class",
-        "Expected\nLocation",
-        "Actual\nLocation",
-        "Expected\nStatus",
-        "Actual\nStatus",
+        "Expected Location",
+        "Actual Location",
+        "Expected Status",
+        "Actual Status",
         "Why",
     ]
-    aligns = ["left", "left", "left", "left", "left", "left", "left"]
+    aligns = ["left"] * 10
     rows = []
 
     for a in discrepancies:
-        raw_item_id = a.stem or a.id6
+        date, set_id, num, id6 = extract_identity_parts(
+            raw_str=a.stem,
+            id6=a.id6,
+            setid=getattr(a, "setid", ""),
+            path=str(a.actual_path or ""),
+        )
+        resolved = _resolve_item_status(a.run_status or a.file_status)
+
+        def _style_identity(val: str) -> str:
+            if not getattr(term, "color", False):
+                return val
+            if val == "-":
+                return term.color256("-", 244)
+            return term.style_lifecycle_text(val, resolved)
+
+        date_disp = _style_identity(date)
+        set_disp = _style_identity(set_id)
+        num_disp = _style_identity(num)
+        id6_disp = _style_identity(id6)
         if a.is_live:
-            # `[in flight]` MEANS WORK IS RUNNING, and it took a hardcoded 214 - which in spec Section
-            # 5 means `waiting-input` ONLY, i.e. "a human is being asked". The spec's stage for live
-            # work whose subtype is unavailable is `active` (220). This row knows the item is live but
-            # not WHAT it is doing, so generic `active` is the honest resolution.
-            flag_txt = term.style_lifecycle_text(
-                "[in flight]", _resolve_item_status("running")
+            flag_txt = (
+                term.style_lifecycle_text(
+                    "[in flight]", _resolve_item_status("running")
+                )
+                if getattr(term, "color", False)
+                else "[in flight]"
             )
-            item_id = f"{raw_item_id} {flag_txt}"
-        else:
-            item_id = raw_item_id
+            id6_disp = f"{id6_disp} {flag_txt}"
 
         # THE STYLING NOW FOLLOWS THE CLASS, NOT THE BOOLEANS. Reserving red for a difference that
         # indicates something actually wrong is the whole point: a red block that is mostly false
@@ -1922,7 +1967,10 @@ def format_artifact_audit_summary(
 
         rows.append(
             [
-                item_id,
+                date_disp,
+                set_disp,
+                num_disp,
+                id6_disp,
                 cls_disp,
                 exp_loc,
                 act_loc_disp,
@@ -2030,13 +2078,26 @@ def render_steps_table(
     if not steps:
         return ""
     if short:
-        headers = ["Status", "Landed", "Item", "Action", "Verified", "Issue"]
-        aligns = ["left", "left", "left", "left", "left", "left"]
+        headers = [
+            "Status",
+            "Landed",
+            "Date",
+            "SetID",
+            "N",
+            "ID6",
+            "Action",
+            "Verified",
+            "Issue",
+        ]
+        aligns = ["left"] * 9
     else:
         headers = [
             "Status",
             "Landed",
-            "Item",
+            "Date",
+            "SetID",
+            "N",
+            "ID6",
             "Action",
             "Attempts",
             "Elapsed",
@@ -2046,6 +2107,9 @@ def render_steps_table(
             "Issue",
         ]
         aligns = [
+            "left",
+            "left",
+            "left",
             "left",
             "left",
             "left",
@@ -2061,12 +2125,6 @@ def render_steps_table(
     for step in steps:
         audit = audit_step_artifact(step, repo_root)
         st_disp = canonical_terminal_status(step.status)
-        # THE AUDIT TABLE'S Status COLUMN, through the shared resolver (R10.3). Deliberately WITHOUT a
-        # glyph: `render_box_table` measures every cell with `len(strip_ansi(cell))`, not by rendered
-        # width, so a 2-code-point / 1-column grapheme (`⚠︎`, `↩︎`) would over-count its column by one
-        # and skew the box art. Section 11 item 2 makes that trade safe - glyph and color are
-        # REDUNDANT cues, either may be dropped - and the native word, which Section 0 makes the
-        # authority, is present in the cell either way.
         st_resolved = _resolve_item_status(step.status, action=step.action)
         st_styled = term.style_lifecycle_text(st_disp, st_resolved)
 
@@ -2091,9 +2149,24 @@ def render_steps_table(
                 else "unknown"
             )
 
-        item_disp = step.stem or (
-            f"{step.setid}-{step.id6}" if step.setid else step.id6
+        date, set_id, num, id6 = extract_identity_parts(
+            raw_str=step.stem,
+            id6=step.id6,
+            setid=step.setid,
+            path=step.configured_file,
         )
+
+        def _style_identity(val: str) -> str:
+            if not getattr(term, "color", False):
+                return val
+            if val == "-":
+                return term.color256("-", 244)
+            return term.style_lifecycle_text(val, st_resolved)
+
+        date_disp = _style_identity(date)
+        set_disp = _style_identity(set_id)
+        num_disp = _style_identity(num)
+        id6_disp = _style_identity(id6)
 
         att_disp = str(step.attempts_count) if step.attempts_count else "-"
         elapsed_disp = step.elapsed_str or "-"
@@ -2153,14 +2226,27 @@ def render_steps_table(
 
         if short:
             rows.append(
-                [st_styled, landed_disp, item_disp, step.action, v_disp, issue_disp]
+                [
+                    st_styled,
+                    landed_disp,
+                    date_disp,
+                    set_disp,
+                    num_disp,
+                    id6_disp,
+                    step.action,
+                    v_disp,
+                    issue_disp,
+                ]
             )
         else:
             rows.append(
                 [
                     st_styled,
                     landed_disp,
-                    item_disp,
+                    date_disp,
+                    set_disp,
+                    num_disp,
+                    id6_disp,
                     step.action,
                     att_disp,
                     elapsed_disp,

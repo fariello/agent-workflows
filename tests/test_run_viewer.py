@@ -373,9 +373,12 @@ class RunViewerTests(TestCase):
         self.assertIn("* summary:", formatted_detail)
 
         formatted_short = run_viewer.format_run_human(summary, term, short=True)
-        self.assertIn("│ Status", formatted_short)
+        self.assertIn("Status", formatted_short)
         self.assertIn("Landed", formatted_short)
-        self.assertIn("Item", formatted_short)
+        self.assertIn("Date", formatted_short)
+        self.assertIn("SetID", formatted_short)
+        self.assertIn("N", formatted_short)
+        self.assertIn("ID6", formatted_short)
         self.assertIn("Action", formatted_short)
         self.assertIn("Verified", formatted_short)
         self.assertNotIn("Attempts", formatted_short)
@@ -1347,7 +1350,9 @@ class RunViewerTests(TestCase):
                 self.assertEqual(run_viewer.run_viewer_cli(ns), 0)
             out = buf.getvalue()
             self.assertIn("Artifact & Status Differences", out)
-            self.assertIn("20260829-test-01-item01", out)
+            self.assertIn("item01", out)
+            self.assertIn("test", out)
+            self.assertIn("20260829", out)
 
         # 2. Empty state (clean repo)
         with tempfile.TemporaryDirectory() as td:

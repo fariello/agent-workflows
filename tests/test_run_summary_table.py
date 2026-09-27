@@ -268,7 +268,10 @@ class RunSummaryTableRenderingTests(TestCase):
         )
         self.assertIn("Status", table_full)
         self.assertIn("Landed", table_full)
-        self.assertIn("Item", table_full)
+        self.assertIn("Date", table_full)
+        self.assertIn("SetID", table_full)
+        self.assertIn("N", table_full)
+        self.assertIn("ID6", table_full)
         self.assertIn("Action", table_full)
         self.assertIn("Attempts", table_full)
         self.assertIn("Elapsed", table_full)
@@ -277,13 +280,16 @@ class RunSummaryTableRenderingTests(TestCase):
         self.assertIn("Verified", table_full)
         self.assertIn("Issue", table_full)
 
-        # Short 6-column variant
+        # Short 9-column variant
         table_short = run_viewer.render_steps_table(
             steps, term, short=True, repo_root=self.root
         )
         self.assertIn("Status", table_short)
         self.assertIn("Landed", table_short)
-        self.assertIn("Item", table_short)
+        self.assertIn("Date", table_short)
+        self.assertIn("SetID", table_short)
+        self.assertIn("N", table_short)
+        self.assertIn("ID6", table_short)
         self.assertIn("Action", table_short)
         self.assertIn("Verified", table_short)
         self.assertIn("Issue", table_short)
@@ -301,7 +307,7 @@ class RunSummaryTableRenderingTests(TestCase):
         plain = strip_ansi(table)
 
         # Verify plain text words appear in rows
-        lines = [line for line in plain.splitlines() if "│" in line]
+        lines = plain.splitlines()
         # Skip header and separator lines
         row_lines = [
             row_line for row_line in lines if any(s.id6 in row_line for s in steps)
