@@ -1,5 +1,5 @@
 - Id: j2srcc
-- Status: graduated
+- Status: done
 - Graduated-To: trailread
 - Set: trailread
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Make the agent's own code commits carry AW-Run/AW-Item trailers, which is the half that would let finalize attribute a committed path
 
 ## Workflow history
+- 2026-09-27 set (aw backlog): closed by aw oc run: IPD a6xbso executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260926-trailread-01-a6xbso-stamp-aw-run-and-aw-item-trailers-on-the-agent-s-own-aw-comm.ipd.md); evidence .aw/records/plans/executed/20260926-trailread-01-a6xbso-stamp-aw-run-and-aw-item-trailers-on-the-agent-s-own-aw-comm.ipd.md
 - 2026-09-26 graduated (aw set): Graduated 2026-09-26 into plan a6xbso (Set trailread), re-verified live at HEAD.
 - 2026-09-22 created (aw backlog): Make the agent's own code commits carry AW-Run/AW-Item trailers, which is the half that would let finalize attribute a committed path
 
