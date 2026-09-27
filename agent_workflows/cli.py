@@ -8389,7 +8389,10 @@ def _collect_repo_status_details(repo: Path, packaged: str) -> dict:
 
     has_aw = (repo / ".aw").is_dir()
     has_agents = (repo / ".agents").is_dir()
-    if has_aw and has_agents:
+    # ovjx46 / 4eecvh E-02: mirror doctor.probe_environment (z1yefm E-06). A bare
+    # existence check on `.agents/` reports split-brain forever on every migrated repo
+    # because `.agents/skills` is permanent. Ask the content-aware engine detector.
+    if has_aw and engine.detect_split_brain_layout(repo):
         layout = ".aw + .agents"
         split_brain = True
     elif has_aw:
