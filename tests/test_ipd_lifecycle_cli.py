@@ -1214,6 +1214,145 @@ class RollbackFailureSemanticsTests(unittest.TestCase):
         self.assertIsNone(holder.poll(), "waiting must never kill the holder")
         LC.release_finalize_lock(self.root)
 
+    def test_holder_releases_mid_wait_injected_clock(self):
+        """A holder that releases mid-wait (injected clock) succeeds."""
+        import json as _json
+        import os as _os
+        import subprocess as _subprocess
+        import sys as _sys
+
+        lock = LC.finalize_lock_path(self.root)
+        lock.parent.mkdir(parents=True, exist_ok=True)
+        holder = _subprocess.Popen(
+            [_sys.executable, "-c", "import time; time.sleep(60)"]
+        )
+        self.addCleanup(holder.wait)
+        self.addCleanup(holder.kill)
+
+        lock.write_text(
+            _json.dumps({"owner": "git_commit_helper.offer_commit", "pid": holder.pid}),
+            encoding="utf-8",
+        )
+
+        sim_now = [0.0]
+        sleep_calls = []
+
+        def fake_now():
+            return sim_now[0]
+
+        def fake_sleep(sec):
+            sleep_calls.append(sec)
+            sim_now[0] += sec
+            if len(sleep_calls) >= 2 and lock.exists():
+                lock.unlink()
+
+        LC.acquire_finalize_lock(
+            self.root, "abc123", timeout=30.0, sleep=fake_sleep, now=fake_now
+        )
+        self.assertGreaterEqual(len(sleep_calls), 2)
+        self.assertEqual(_json.loads(lock.read_text())["pid"], _os.getpid())
+        LC.release_finalize_lock(self.root)
+
+    def test_holder_outlives_budget_injected_clock(self):
+        """A holder that outlives budget raises TransactionLockError naming owner and prefix."""
+        import json as _json
+        import subprocess as _subprocess
+        import sys as _sys
+
+        lock = LC.finalize_lock_path(self.root)
+        lock.parent.mkdir(parents=True, exist_ok=True)
+        holder = _subprocess.Popen(
+            [_sys.executable, "-c", "import time; time.sleep(60)"]
+        )
+        self.addCleanup(holder.wait)
+        self.addCleanup(holder.kill)
+
+        lock.write_text(
+            _json.dumps({"owner": "git_commit_helper.offer_commit", "pid": holder.pid}),
+            encoding="utf-8",
+        )
+
+        sim_now = [0.0]
+
+        def fake_now():
+            return sim_now[0]
+
+        def fake_sleep(sec):
+            sim_now[0] += sec
+
+        with self.assertRaises(LC.TransactionLockError) as cm:
+            LC.acquire_finalize_lock(
+                self.root, "abc123", timeout=5.0, sleep=fake_sleep, now=fake_now
+            )
+        err = str(cm.exception)
+        self.assertIn(LC.FINALIZE_LOCK_BUSY_SUMMARY, err)
+        self.assertIn("owner git_commit_helper.offer_commit", err)
+        self.assertIn(str(holder.pid), err)
+
+    def test_stale_lock_reclaims_immediately_without_waiting(self):
+        """Stale lock (dead PID) is reclaimed immediately with 0 sleeps."""
+        import json as _json
+        import os as _os
+
+        lock = LC.finalize_lock_path(self.root)
+        lock.parent.mkdir(parents=True, exist_ok=True)
+        lock.write_text(
+            _json.dumps({"plan_id": "abc123", "pid": 2**31 - 1}), encoding="utf-8"
+        )
+        sleeps = []
+
+        def fail_sleep(sec):
+            sleeps.append(sec)
+
+        LC.acquire_finalize_lock(self.root, "abc123", timeout=120.0, sleep=fail_sleep)
+        self.assertEqual(
+            0, len(sleeps), "stale lock must be reclaimed immediately without polling"
+        )
+        self.assertEqual(_json.loads(lock.read_text())["pid"], _os.getpid())
+        LC.release_finalize_lock(self.root)
+
+    def test_two_process_lock_wait_succeeds(self):
+        """Two real processes: child holds lock for ~1s, parent waits and succeeds."""
+        import json as _json
+        import os as _os
+        import subprocess as _subprocess
+        import sys as _sys
+        import time as _time
+
+        lock = LC.finalize_lock_path(self.root)
+        lock.parent.mkdir(parents=True, exist_ok=True)
+
+        child_code = (
+            "import os, sys, time, json\n"
+            f"p = {repr(str(lock))}\n"
+            "with open(p, 'w') as f: json.dump({'owner': 'child_worker', 'pid': os.getpid()}, f)\n"
+            "time.sleep(1.0)\n"
+            "try: os.unlink(p)\n"
+            "except OSError: pass\n"
+        )
+        child = _subprocess.Popen([_sys.executable, "-c", child_code])
+        self.addCleanup(child.wait)
+        self.addCleanup(child.kill)
+
+        for _ in range(50):
+            if lock.exists():
+                break
+            _time.sleep(0.02)
+        self.assertTrue(lock.exists(), "child should have written the lock")
+
+        started = _time.monotonic()
+        LC.acquire_finalize_lock(self.root, "abc123", timeout=5.0)
+        elapsed = _time.monotonic() - started
+        child.wait(timeout=5)
+
+        self.assertGreater(
+            elapsed,
+            0.7,
+            f"parent must have WAITED longer than child's hold (elapsed={elapsed:.2f}s)",
+        )
+        self.assertEqual(_json.loads(lock.read_text())["pid"], _os.getpid())
+        LC.release_finalize_lock(self.root)
+
     def test_precommit_fault_rollback_and_recovery(self):
         """Pre-commit faults roll back plan and index, preserve disjoint work, and recover on restart."""
         self._begin_and_work()

@@ -38,6 +38,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import (
     Any,
+    Callable,
     Collection,
     Dict,
     FrozenSet,
@@ -488,8 +489,9 @@ def _atomic_write_json_at(path: Path, payload: Dict[str, Any]) -> None:
 #: another finalizer needs more than a commit's budget. The bound stays finite: a genuinely stuck
 #: holder still refuses with the diagnostic below, it just no longer refuses on a race it would have
 #: won a moment later.
-FINALIZE_LOCK_WAIT_SECONDS = 60.0
+FINALIZE_LOCK_WAIT_SECONDS = 120.0
 FINALIZE_LOCK_POLL_SECONDS = 0.1
+FINALIZE_LOCK_BUSY_SUMMARY = "ipd finalize writer lock held by active PID"
 
 
 def _finalize_lock_live_holder(lock: Path) -> Optional[Dict[str, Any]]:
@@ -513,7 +515,12 @@ def _finalize_lock_live_holder(lock: Path) -> Optional[Dict[str, Any]]:
 
 
 def acquire_finalize_lock(
-    repo_root: Path, plan_id: str, *, timeout: Optional[float] = None
+    repo_root: Path,
+    plan_id: str,
+    *,
+    timeout: Optional[float] = None,
+    sleep: Optional[Callable[[float], None]] = None,
+    now: Optional[Callable[[], float]] = None,
 ) -> None:
     """Acquire the exclusive finalize lock, WAITING (bounded) for a live holder to finish.
 
@@ -525,26 +532,34 @@ def acquire_finalize_lock(
     """
     import time as _time
 
+    _sleep = sleep if sleep is not None else _time.sleep
+    _now = now if now is not None else _time.monotonic
+
     lock = finalize_lock_path(repo_root)
     lock.parent.mkdir(parents=True, exist_ok=True)
     budget = FINALIZE_LOCK_WAIT_SECONDS if timeout is None else max(0.0, float(timeout))
-    deadline = _time.monotonic() + budget
+    deadline = _now() + budget
     while True:
         holder = _finalize_lock_live_holder(lock)
         if holder is None:
             break  # free, ours, or stale (dead PID): reclaim below
-        if _time.monotonic() >= deadline:
+        if _now() >= deadline:
+            pid = holder.get("pid")
+            plan = holder.get("plan_id")
+            owner = holder.get("owner")
+            if plan and owner:
+                holder_desc = f"plan {plan}; owner {owner}"
+            elif plan:
+                holder_desc = f"plan {plan}"
+            elif owner:
+                holder_desc = f"owner {owner}"
+            else:
+                holder_desc = "plan None"
             raise TransactionLockError(
-                "ipd finalize writer lock held by active PID {0} (plan {1}; owner {2}) for longer "
-                "than {3:.0f}s; wait for it to finish or, if that process is dead, remove {4}".format(
-                    holder.get("pid"),
-                    holder.get("plan_id"),
-                    holder.get("owner"),
-                    budget,
-                    lock,
-                )
+                f"{FINALIZE_LOCK_BUSY_SUMMARY} {pid} ({holder_desc}) for longer "
+                f"than {budget:.0f}s; wait for it to finish or, if that process is dead, remove {lock}"
             )
-        _time.sleep(FINALIZE_LOCK_POLL_SECONDS)
+        _sleep(FINALIZE_LOCK_POLL_SECONDS)
     # Free or stale (dead PID): take it. Recovery consults the journal, not this file.
     payload = {
         "plan_id": plan_id,

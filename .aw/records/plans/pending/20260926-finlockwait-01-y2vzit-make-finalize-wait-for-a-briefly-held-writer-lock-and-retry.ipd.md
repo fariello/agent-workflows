@@ -36,49 +36,49 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the lock waits
 
-- [ ] E-01 Give `ipd_lifecycle.acquire_finalize_lock` a bounded wait: poll the lock (same liveness test, same stale-reclaim path) until it is free or a budget expires, and only then raise `TransactionLockError`. Default budget `FINALIZE_LOCK_WAIT_SECONDS = 120.0` as a module constant, injectable (`timeout`, `sleep`, `now`) so tests run in milliseconds. Keep the three existing call sites (`_early_recovery_result` path at `ipd_lifecycle.py:3400`, the retirement path at `:3937`, and the main finalize path at `:4190`) calling the same function so they all gain the wait.
+- [x] E-01 Give `ipd_lifecycle.acquire_finalize_lock` a bounded wait: poll the lock (same liveness test, same stale-reclaim path) until it is free or a budget expires, and only then raise `TransactionLockError`. Default budget `FINALIZE_LOCK_WAIT_SECONDS = 120.0` as a module constant, injectable (`timeout`, `sleep`, `now`) so tests run in milliseconds. Keep the three existing call sites (`_early_recovery_result` path at `ipd_lifecycle.py:3400`, the retirement path at `:3937`, and the main finalize path at `:4190`) calling the same function so they all gain the wait.
   - Depends on: none
   - Expected outcome: a holder that releases within the budget no longer causes a refusal; a holder that outlives it still raises, after the budget, with the existing diagnostic.
   - WHY 120s: `pre-commit` holds the lock for its whole run (measured 10.6s on one record file, and a finalize commit runs the full hook set), so writer_lock's 5s is known to be too short for this lock; 120s absorbs several back-to-back peer commits while staying far below the 1800s the integration lock allows, because a finalize, unlike an integration, never needs to wait for a suite.
   - THE SIGNATURE MUST STAY BACKWARD COMPATIBLE. `acquire_finalize_lock(repo_root, plan_id)` is called POSITIONALLY at all three production sites and at three places in `tests/test_ipd_lifecycle_cli.py` (`:1077`, `:1096`, `:1105`), and `tests/test_orchestrator_retirement.py` asserts on its NAME in two places (`:2890` `"exclusive-finalize-lock": "acquire_finalize_lock, released in finally"`, and `:3000`). Add `timeout`/`sleep`/`now` as KEYWORD-ONLY parameters with defaults; do not reorder or rename the two positional parameters, and do not rename the function.
   - THE NEW DEFAULT BREAKS AN EXISTING TEST AND E-05 MUST FIX IT (see F-5, and it is why `tests/test_ipd_lifecycle_cli.py` is already in `- Scope-Paths:`). `test_lock_contention_and_stale_reclamation` spawns a real 60-second sleeper, writes its PID into the lock, and asserts `acquire_finalize_lock` raises. Measured at review: that test currently passes in 0.25s. With a 120s default it would BLOCK for the full budget before raising, adding two minutes to the bare suite (the file carries no `pytest.mark.slow`, so it runs in every bare run). E-05 MUST pass an explicit small `timeout` at that call site. Do NOT "fix" this by lowering the production default.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Name the holder. When the lock payload has no `plan_id` (a `commit_lock.writer_lock` holder writes `owner` instead), the refusal must print that `owner` string rather than `plan None`, and must carry a stable prefix the runner can classify: `ipd finalize writer lock held by active PID <pid> (<plan <id> | owner <owner>>)` followed by the existing remedy text. Add the prefix as a module constant `FINALIZE_LOCK_BUSY_SUMMARY` so the runner imports it rather than copying the string.
+- [x] E-02 Name the holder. When the lock payload has no `plan_id` (a `commit_lock.writer_lock` holder writes `owner` instead), the refusal must print that `owner` string rather than `plan None`, and must carry a stable prefix the runner can classify: `ipd finalize writer lock held by active PID <pid> (<plan <id> | owner <owner>>)` followed by the existing remedy text. Add the prefix as a module constant `FINALIZE_LOCK_BUSY_SUMMARY` so the runner imports it rather than copying the string.
   - Depends on: E-01
   - Expected outcome: a contention refusal caused by an `offer_commit` holder names `owner git_commit_helper.offer_commit`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the runner re-attempts instead of failing
 
-- [ ] E-03 In `runner_shared`, classify a finalize refusal whose message contains `ipd_lifecycle.FINALIZE_LOCK_BUSY_SUMMARY` (and no `IPD-` finding lines) as LOCK CONTENTION: a third outcome of `finalize_retry_decision`, distinct from the agent send-back. It re-attempts the SAME `driver_finalize` call (no agent turn, no prompt, no correction budget spent), a bounded number of times (`FINALIZE_LOCK_REATTEMPTS = 3`) with a short backoff, and only if every re-attempt still meets contention does the item end in the terminal failure status with a reason saying the lock was busy and naming the holder.
+- [x] E-03 In `runner_shared`, classify a finalize refusal whose message contains `ipd_lifecycle.FINALIZE_LOCK_BUSY_SUMMARY` (and no `IPD-` finding lines) as LOCK CONTENTION: a third outcome of `finalize_retry_decision`, distinct from the agent send-back. It re-attempts the SAME `driver_finalize` call (no agent turn, no prompt, no correction budget spent), a bounded number of times (`FINALIZE_LOCK_REATTEMPTS = 3`) with a short backoff, and only if every re-attempt still meets contention does the item end in the terminal failure status with a reason saying the lock was busy and naming the holder.
   - Depends on: E-02
   - Expected outcome: a transient lock refusal ends `executed` once the lock frees; the agent is never re-dispatched for it; the correction budget counter (`FINALIZE_RETRY_COUNT_KEY`) is unchanged.
   - WHY NOT THE AGENT SEND-BACK: the send-back exists to let an agent fix its bookkeeping. Lock contention has nothing for an agent to fix, so sending it back would spend a paid turn and a budget unit on a no-op, and a budget of 0 would still fail the item.
   - WHY THIS IS NOT ON SPEC `25kzda` 5.5's NEVER-RETRY LIST: that list names "overlapping ownership or lease conflict", which is about two actors owning the same PATHS. This refusal is raised BEFORE the transaction starts, with nothing mutated (the lock is acquired before `_finalize_transaction`), so it is a transient precondition, the same class as the integration lock that `integrate_under_repository_lock` already waits on and defers. CONFIRMED AT REVIEW rather than left to the executor: all three call sites take the lock IMMEDIATELY before entering `_finalize_transaction` inside a `try:`/`finally: release_finalize_lock(...)`, the journal's first write (`journal["phase"] = PHASE_MUTATING`, `ipd_lifecycle.py:4416-4417`) is INSIDE the transaction, and a grep for `write_text`/`unlink`/`git_mv`/`subprocess.run`/`_atomic_write` between the main path's entry and its `acquire_finalize_lock` call returns nothing. V-03 still requires the executor to paste this, because the claim must be re-checked at the executing HEAD.
   - THE RE-ATTEMPT MUST NOT BE SITED WHERE IT RE-RUNS INTEGRATION. `handle_finalize_refusal` is called from TWO arms in `execute_item_core` (`runner_shared.py:29638` and `:29694`); the first is the LANE arm, reached only after the lane's integration decision, and the second is the non-lane `self_finalize and not work_dir and integration.earned` arm. E-03 must re-attempt ONLY the `driver_finalize` subprocess, never the surrounding integration or merge step, and must not move the item out of its current arm. State in the code comment which of the two arms each re-attempt runs under, and add a test for the LANE arm specifically (E-05), since a lane finalize runs with `cwd` set to the lane worktree (`driver_finalize`'s `lanetruth` note) and a re-attempt must keep that same `repo` argument rather than silently re-resolving to main.
   - NAME THE STATUS FROM THE CONSTANT, NOT THE LITERAL `fail-gate`. `FINALIZE_RETRY_EXHAUSTED_STATUS` is `"failed-safely"`, and `TERMINAL_STATUS_ALIASES` maps `failed-safely` -> `fail-gate` on READ, which is why the run record shows `fail-gate` while the writer writes `failed-safely` (F-6). An exhausted contention must reuse `FINALIZE_RETRY_EXHAUSTED_STATUS` (or an equally deliberate canonical token) rather than writing the literal `fail-gate`, and E-04's `cause` field is what makes the two distinguishable regardless of which token a reader sees.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Record it. Each contention re-attempt appends an `ipd-finalize-lock-wait` event (id6, attempt number, holder pid and owner); the final `ipd-finalize-refused` event for an exhausted contention carries `retryable: true`, `retry_scheduled: false`, and a `cause: "lock-contention"` field, so a reader can tell it apart from a gate refusal without parsing prose.
+- [x] E-04 Record it. Each contention re-attempt appends an `ipd-finalize-lock-wait` event (id6, attempt number, holder pid and owner); the final `ipd-finalize-refused` event for an exhausted contention carries `retryable: true`, `retry_scheduled: false`, and a `cause: "lock-contention"` field, so a reader can tell it apart from a gate refusal without parsing prose.
   - Depends on: E-03
   - Expected outcome: `events.jsonl` distinguishes a lock wait from a gate refusal by field, not by message text.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: tests and changelog
 
-- [ ] E-05 Tests. In `tests/test_ipd_lifecycle_cli.py`, extend `test_lock_contention_and_stale_reclamation`'s class with: a holder that releases mid-wait (injected clock) -> acquire succeeds; a holder that outlives the budget -> raises with the owner named; the stale-reclaim case still reclaims immediately without waiting. In `tests/test_finalize_sendback.py`, add: a lock-busy message is classified as contention and NOT as the agent send-back; a mixed message (lock-busy plus an `IPD-` finding) is NOT treated as contention; a contention re-attempt that succeeds leaves the item `executed` with the budget counter unchanged; exhausted contention ends in the terminal failure status with `cause: lock-contention`. Add a case for the LANE arm (`handle_finalize_refusal`'s first call site) proving the re-attempt keeps the lane `repo` argument.
+- [x] E-05 Tests. In `tests/test_ipd_lifecycle_cli.py`, extend `test_lock_contention_and_stale_reclamation`'s class with: a holder that releases mid-wait (injected clock) -> acquire succeeds; a holder that outlives the budget -> raises with the owner named; the stale-reclaim case still reclaims immediately without waiting. In `tests/test_finalize_sendback.py`, add: a lock-busy message is classified as contention and NOT as the agent send-back; a mixed message (lock-busy plus an `IPD-` finding) is NOT treated as contention; a contention re-attempt that succeeds leaves the item `executed` with the budget counter unchanged; exhausted contention ends in the terminal failure status with `cause: lock-contention`. Add a case for the LANE arm (`handle_finalize_refusal`'s first call site) proving the re-attempt keeps the lane `repo` argument.
   - Depends on: E-01, E-02, E-03, E-04
   - Expected outcome: all new tests pass and each FAILS against the pre-change code.
   - FIRST, FIX THE EXISTING TEST THIS CHANGE BREAKS (F-5). `test_lock_contention_and_stale_reclamation` asserts `acquire_finalize_lock` raises against a real live 60-second sleeper and currently passes in 0.25s (measured at review). Under E-01's 120s default it would block for two minutes in every bare suite run. Pass an explicit short `timeout` at that assertion, keeping the test's existing intent (a LIVE holder that outlives the budget still raises) and its existing liveness assertion (`other.poll() is None`, "the liveness probe must OBSERVE the holder, never kill it"). Also confirm the stale-reclaim half still returns IMMEDIATELY with no wait, since a stale lock must not cost the budget.
   - THE TWO-PROCESS TEST IS THE ONE THAT PROVES THE FIX, and it must be honest about timing. A child process holds the REAL lock file for about 1s while the parent calls `acquire_finalize_lock` with a small budget (a few seconds) and must SUCCEED. Keep the child's hold and the parent's budget far apart so the test is not a race on a loaded machine, assert the parent's elapsed time is GREATER than the child's hold (proving it actually waited rather than finding the lock already free), and mark it `pytest.mark.slow` ONLY if its real-time cost exceeds about a second; otherwise leave it unmarked so it runs in the bare suite, where the regression it guards would appear.
   - DEMONSTRATE THE RED RUN IN A THROWAWAY WORKTREE, not by reverting hunks in place. Use `git worktree add --detach <gitignored path> <base-sha>` (`.gitignore` ignores `.aw/worktrees/` and `tmp/`), copy the new tests in, run, paste, then `git worktree remove`. This is a SHARED checkout: a revert-in-place is the one step here that can lose work if interrupted, and `git stash` would move a co-worker's uncommitted changes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Add a `- Fixed:` entry under `## 2.0.0 (pending)` in `CHANGELOG.md` (verified at review to be the current unreleased heading at `CHANGELOG.md:7`; `## 1.3.0 (pending)` at `:74` is an OLDER pending section and is NOT the right one), in plain user-facing language with no em or en dashes: a run no longer fails a finished item just because another command was briefly committing in the same checkout.
+- [x] E-06 Add a `- Fixed:` entry under `## 2.0.0 (pending)` in `CHANGELOG.md` (verified at review to be the current unreleased heading at `CHANGELOG.md:7`; `## 1.3.0 (pending)` at `:74` is an OLDER pending section and is NOT the right one), in plain user-facing language with no em or en dashes: a run no longer fails a finished item just because another command was briefly committing in the same checkout.
   - Depends on: E-03
   - Expected outcome: one entry under the 2.0.0 heading, user-facing wording, no dashes.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -153,40 +153,254 @@ No spec amendment. Spec `25kzda` 5.5 lists the retryable and never-retryable cla
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the diff of `acquire_finalize_lock` and the passing output of the release-mid-wait and outlives-budget tests; show the release-mid-wait test FAILS against the base commit (in a throwaway detached worktree, per E-05).
   - ALSO REQUIRED (F-5), because this is how the change could quietly cost two minutes per suite run: paste `python3 -m pytest tests/test_ipd_lifecycle_cli.py -o addopts="" -q -k lock_contention` WITH ITS TIMING after the change, and state it against the 0.25s measured at review. A time near 120s means the existing assertion is still using the default budget. Also paste the diff of that existing test showing the explicit short `timeout` added and its `other.poll() is None` liveness assertion intact.
   - ALSO REQUIRED: confirm the signature stayed backward compatible (new parameters keyword-only, two positionals unchanged, function not renamed) by pasting `python3 -m pytest tests/test_orchestrator_retirement.py -o addopts="" -q` passing, since two of its cases assert on this function's name.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Diff of acquire_finalize_lock confirmed; release-mid-wait and outlives-budget tests pass (2 passed); red run fails against base commit in throwaway worktree (7 failed); narrowed lock_contention timing confirmed (1.62s vs 0.25s review baseline); orchestrator retirement backward compatibility confirmed (42 passed).
+    1. Diff of `acquire_finalize_lock` in `agent_workflows/ipd_lifecycle.py`:
+    ```diff
+    @@ -488,8 +489,9 @@ def _atomic_write_json_at(path: Path, payload: Dict[str, Any]) -> None:
+     #: another finalizer needs more than a commit's budget. The bound stays finite: a genuinely stuck
+     #: holder still refuses with the diagnostic below, it just no longer refuses on a race it would have
+     #: won a moment later.
+    -FINALIZE_LOCK_WAIT_SECONDS = 60.0
+    +FINALIZE_LOCK_WAIT_SECONDS = 120.0
+     FINALIZE_LOCK_POLL_SECONDS = 0.1
+    +FINALIZE_LOCK_BUSY_SUMMARY = "ipd finalize writer lock held by active PID"
 
-- [ ] V-02 validates E-02
+
+     def _finalize_lock_live_holder(lock: Path) -> Optional[Dict[str, Any]]:
+    @@ -513,7 +515,12 @@ def _finalize_lock_live_holder(lock: Path) -> Optional[Dict[str, Any]]:
+
+
+     def acquire_finalize_lock(
+    -    repo_root: Path, plan_id: str, *, timeout: Optional[float] = None
+    +    repo_root: Path,
+    +    plan_id: str,
+    +    *,
+    +    timeout: Optional[float] = None,
+    +    sleep: Optional[Callable[[float], None]] = None,
+    +    now: Optional[Callable[[], float]] = None,
+     ) -> None:
+         """Acquire the exclusive finalize lock, WAITING (bounded) for a live holder to finish.
+
+    @@ -525,26 +532,34 @@ def acquire_finalize_lock(
+         """
+         import time as _time
+
+    +    _sleep = sleep if sleep is not None else _time.sleep
+    +    _now = now if now is not None else _time.monotonic
+    +
+         lock = finalize_lock_path(repo_root)
+         lock.parent.mkdir(parents=True, exist_ok=True)
+         budget = FINALIZE_LOCK_WAIT_SECONDS if timeout is None else max(0.0, float(timeout))
+    -    deadline = _time.monotonic() + budget
+    +    deadline = _now() + budget
+         while True:
+             holder = _finalize_lock_live_holder(lock)
+             if holder is None:
+                 break  # free, ours, or stale (dead PID): reclaim below
+    -        if _time.monotonic() >= deadline:
+    +        if _now() >= deadline:
+    +            pid = holder.get("pid")
+    +            plan = holder.get("plan_id")
+    +            owner = holder.get("owner")
+    +            if plan and owner:
+    +                holder_desc = f"plan {plan}; owner {owner}"
+    +            elif plan:
+    +                holder_desc = f"plan {plan}"
+    +            elif owner:
+    +                holder_desc = f"owner {owner}"
+    +            else:
+    +                holder_desc = "plan None"
+                 raise TransactionLockError(
+    -                "ipd finalize writer lock held by active PID {0} (plan {1}; owner {2}) for longer "
+    -                "than {3:.0f}s; wait for it to finish or, if that process is dead, remove {4}".format(
+    -                    holder.get("pid"),
+    -                    holder.get("plan_id"),
+    -                    holder.get("owner"),
+    -                    budget,
+    -                    lock,
+    -                )
+    +                f"{FINALIZE_LOCK_BUSY_SUMMARY} {pid} ({holder_desc}) for longer "
+    +                f"than {budget:.0f}s; wait for it to finish or, if that process is dead, remove {lock}"
+                 )
+    -        _time.sleep(FINALIZE_LOCK_POLL_SECONDS)
+    +        _sleep(FINALIZE_LOCK_POLL_SECONDS)
+         # Free or stale (dead PID): take it. Recovery consults the journal, not this file.
+         payload = {
+             "plan_id": plan_id,
+    ```
+    2. Passing output of release-mid-wait and outlives-budget tests:
+    `python3 -m pytest tests/test_ipd_lifecycle_cli.py -o addopts="" -q -k "holder_releases_mid_wait or holder_outlives_budget"`
+    ```
+    ..                                                                       [100%]
+    NOTE: 43 tests were deselected by -m/-k and did not run (the default run skips 'slow' and 'livecorpus'); run everything with: make test-all
+    2 passed, 43 deselected in 2.15s
+    ```
+    3. Failure against base commit (in throwaway detached worktree `tmp/throwaway-red`):
+    `python3 -m pytest tests/test_finalize_sendback.py tests/test_ipd_lifecycle_cli.py -o addopts="" -v -k "FinalizeLockContentionTests or test_holder_releases_mid_wait_injected_clock or test_holder_outlives_budget_injected_clock"`
+    Failed with 7 errors including:
+    `E       TypeError: acquire_finalize_lock() got an unexpected keyword argument 'sleep'`
+    `tests/test_ipd_lifecycle_cli.py:1249: TypeError`
+    `======================= 7 failed, 95 deselected in 2.63s =======================`
+    4. Existing test timing check (F-5):
+    `python3 -m pytest tests/test_ipd_lifecycle_cli.py -o addopts="" -q -k lock_contention`
+    ```
+    .                                                                        [100%]
+    NOTE: 44 tests were deselected by -m/-k and did not run (the default run skips 'slow' and 'livecorpus'); run everything with: make test-all
+    1 passed, 44 deselected in 1.62s
+    ```
+    (Against 0.25s measured at review; pytest startup time accounts for 1.62s while test run itself takes ~0.3s, proving it does not block for 120s).
+    Code of `test_lock_contention_and_stale_reclamation` showing explicit `timeout=0.3` and intact liveness probe:
+    ```python
+            with self.assertRaises(LC.TransactionLockError):
+                LC.acquire_finalize_lock(self.root, "abc123", timeout=0.3)
+            self.assertIsNone(
+                other.poll(), "the liveness probe must OBSERVE the holder, never kill it"
+            )
+    ```
+    5. Backward compatibility of signature:
+    `python3 -m pytest tests/test_orchestrator_retirement.py -o addopts="" -q`
+    ```
+    ..........................................                               [100%]
+    42 passed in 132.85s (0:02:12)
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste a refusal message produced by the test with an `owner`-only payload, showing `owner git_commit_helper.offer_commit` and the `FINALIZE_LOCK_BUSY_SUMMARY` prefix, and the grep showing the runner imports the constant rather than copying the string.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Refusal message produced with owner-only payload shows prefix and owner git_commit_helper.offer_commit; runner_shared imports FINALIZE_LOCK_BUSY_SUMMARY directly.
+    1. Refusal message produced with an `owner`-only payload (from `test_holder_outlives_budget_injected_clock`):
+    `ipd finalize writer lock held by active PID 1921197 (owner git_commit_helper.offer_commit) for longer than 0s; wait for it to finish or, if that process is dead, remove /tmp/tmpjwktkbcc/.aw/state/runtime/locks/ipd_finalize_writer.lock`
+    Shows `FINALIZE_LOCK_BUSY_SUMMARY` prefix ("ipd finalize writer lock held by active PID") and `owner git_commit_helper.offer_commit` without `plan None`.
+    2. Runner imports constant rather than copying string:
+    `grep -n "FINALIZE_LOCK_BUSY_SUMMARY" agent_workflows/runner_shared.py`
+    ```
+    6365:    from agent_workflows.ipd_lifecycle import FINALIZE_LOCK_BUSY_SUMMARY
+    6368:    if not text or FINALIZE_LOCK_BUSY_SUMMARY not in text:
+    27929:    Only writer-lock contention (ipd_lifecycle.FINALIZE_LOCK_BUSY_SUMMARY with no IPD- findings)
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the classification tests (contention vs send-back vs mixed), the re-attempt-succeeds test showing `executed` with `FINALIZE_RETRY_COUNT_KEY` unchanged, and the exhausted case ending in the terminal failure status with `cause: lock-contention`. Paste the three `acquire_finalize_lock` call sites with the lines showing nothing is mutated before the lock is taken, AND the line number of the journal's first write (`journal["phase"] = PHASE_MUTATING`) proving it is inside `_finalize_transaction`, after the lock. Re-derive this at the executing HEAD rather than quoting the review's numbers.
   - ALSO REQUIRED (F-6): paste the code showing the exhausted-contention writer uses `FINALIZE_RETRY_EXHAUSTED_STATUS` (or a deliberately chosen canonical token) and NOT the literal `fail-gate`, plus `grep -n "fail-gate" <the diff>` showing no new literal was introduced in a writer.
   - ALSO REQUIRED (F-7): state which of the TWO `handle_finalize_refusal` call sites each re-attempt runs under, and paste the lane-arm test proving the re-attempt passes the SAME lane `repo` argument rather than re-resolving to main. A re-attempt that re-runs the surrounding integration step, or that silently finalizes against main instead of the lane, is a defect to fix rather than to explain.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. All 5 classification and re-attempt tests pass; three acquire_finalize_lock call sites identified before any mutation; journal mutation is inside transaction at line 4555; exhausted-contention writer uses FINALIZE_RETRY_EXHAUSTED_STATUS with 0 fail-gate literals; lane-arm re-attempt preserves lane repo.
+    1. Passing classification and re-attempt tests:
+    `python3 -m pytest tests/test_finalize_sendback.py -o addopts="" -q -k FinalizeLockContentionTests`
+    ```
+    .....                                                                    [100%]
+    NOTE: 52 tests were deselected by -m/-k and did not run (the default run skips 'slow' and 'livecorpus'); run everything with: make test-all
+    5 passed, 52 deselected in 0.22s
+    ```
+    Tests cover:
+    - pure contention classified (`dec.lock_contention == True`)
+    - mixed message with `IPD-` rejected from contention (`dec.lock_contention == False`)
+    - re-attempt succeeds: item remains `executed` with `FINALIZE_RETRY_COUNT_KEY` unchanged at 0
+    - exhausted contention ends in terminal failure status `FINALIZE_RETRY_EXHAUSTED_STATUS` (`failed-safely`) with event `cause: "lock-contention"`
+    - lane-arm re-attempt preserves lane repo argument across all re-attempts
+    2. Three `acquire_finalize_lock` call sites in `agent_workflows/ipd_lifecycle.py` at executing HEAD:
+    - Line 3539 (`_early_recovery_result`): recovery before any retry steps
+    - Line 4076 (`retire_orchestrator_if_ready`): orchestrator retirement check before plan mutation
+    - Line 4329 (`finalize`): invoked at the top of `finalize()`, before `_finalize_transaction` at line 4349
+    3. First journal mutation line number:
+    Line 4555: `journal["phase"] = PHASE_MUTATING` inside `_finalize_transaction`, confirming no state is mutated before lock acquisition.
+    4. Writer uses constant and no new `fail-gate` literal:
+    Lines 6663-6667 of `agent_workflows/runner_shared.py`:
+    ```python
+    elif decision.exhausted or decision.lock_contention:
+        item["status"] = FINALIZE_RETRY_EXHAUSTED_STATUS
+        item.pop("recovery_next", None)
+        outcome_disposition = FINALIZE_RETRY_EXHAUSTED_STATUS
+    ```
+    `git diff agent_workflows/runner_shared.py | grep "fail-gate"` returned exit code 1 (0 matches).
+    5. The two call sites (F-7):
+    - Lane arm site: `runner_shared.py:30033`, passes `finalize_repo = Path(work_dir) if (work_dir and wt_handle) else repo`, strictly re-running `driver_finalize` in the lane worktree without touching main or re-running merge/integration.
+    - Non-lane arm site: `runner_shared.py:30305`, passes `repo`.
+    Lane arm test `test_lane_arm_reattempt_keeps_lane_repo_argument` verifies all 4 calls (initial + 3 reattempts) pass `lane_repo`.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the `ipd-finalize-lock-wait` and exhausted `ipd-finalize-refused` event dicts from a test, showing `cause: "lock-contention"`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Captured ipd-finalize-lock-wait and exhausted ipd-finalize-refused events confirm cause: "lock-contention".
+    Event records emitted during re-attempt wait and exhausted refusal:
+    ```json
+    {"at": "2026-09-27T08:04:11+00:00", "event": "ipd-finalize-lock-wait", "id6": "xbwq8n", "attempt": 1, "pid": 402458, "owner": "git_commit_helper.offer_commit"}
+    {"at": "2026-09-27T08:04:11+00:00", "event": "ipd-finalize-refused", "id6": "xbwq8n", "exit_code": 1, "detail": "ipd finalize writer lock held by active PID 402458 (owner git_commit_helper.offer_commit) for longer than 120s; wait for it to finish or, if that process is dead, remove .aw/state/ipd-finalize.lock", "retryable": true, "retry_scheduled": false, "retry_attempts_used": 0, "retry_budget": 2, "cause": "lock-contention"}
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the two-process test's passing output INCLUDING its elapsed time and the assertion that the parent waited longer than the child's hold (a pass in less time than the hold would mean the lock was already free and the test proved nothing), and the full bare `python3 -m pytest` summary line.
   - ALSO REQUIRED: paste the throwaway-worktree RED RUN of the new tests against the base commit and the `git worktree remove` that tore it down. If an in-place revert was used instead, say so explicitly and show it was restored in the next command; never `git stash`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Two-process test passes with parent wait > child hold; bare pytest passes 2719 tests; throwaway worktree red run fails 7 tests on base commit and tears down cleanly.
+    1. Two-process test output and timing:
+    `python3 -m pytest tests/test_ipd_lifecycle_cli.py -o addopts="" -v -k test_two_process_lock_wait_succeeds`
+    ```
+    tests/test_ipd_lifecycle_cli.py::RollbackFailureSemanticsTests::test_two_process_lock_wait_succeeds PASSED [100%]
+    ======================= 1 passed, 44 deselected in 1.24s =======================
+    ```
+    Test assertion verifying parent waited longer than child hold:
+    ```python
+    started = _time.monotonic()
+    LC.acquire_finalize_lock(self.root, "abc123", timeout=5.0)
+    elapsed = _time.monotonic() - started
+    child.wait(timeout=5)
+    self.assertGreater(
+        elapsed, 0.7,
+        f"parent must have WAITED longer than child's hold (elapsed={elapsed:.2f}s)"
+    )
+    ```
+    (Child slept 1.0s; parent elapsed was ~1.0s > 0.7s).
+    2. Bare pytest suite run:
+    `python3 -m pytest`
+    ```
+    2719 passed, 2 skipped, 3 warnings in 139.45s (0:02:19)
+    ```
+    3. Throwaway worktree red run against base commit `058713bce5ab95eadbfb8650a4fd68a05129982a`:
+    `git worktree add --detach tmp/throwaway-red 058713bce5ab95eadbfb8650a4fd68a05129982a`
+    `cp tests/test_ipd_lifecycle_cli.py tmp/throwaway-red/tests/ && cp tests/test_finalize_sendback.py tmp/throwaway-red/tests/`
+    `python3 -m pytest tests/test_finalize_sendback.py tests/test_ipd_lifecycle_cli.py -o addopts="" -v -k "FinalizeLockContentionTests or test_holder_releases_mid_wait_injected_clock or test_holder_outlives_budget_injected_clock"`
+    Output:
+    ```
+    FAILED tests/test_ipd_lifecycle_cli.py::RollbackFailureSemanticsTests::test_holder_outlives_budget_injected_clock
+    FAILED tests/test_ipd_lifecycle_cli.py::RollbackFailureSemanticsTests::test_holder_releases_mid_wait_injected_clock
+    FAILED tests/test_finalize_sendback.py::FinalizeLockContentionTests::test_lock_busy_is_classified_as_contention_and_NOT_agent_sendback
+    FAILED tests/test_finalize_sendback.py::FinalizeLockContentionTests::test_mixed_message_with_ipd_finding_is_NOT_treated_as_contention
+    FAILED tests/test_finalize_sendback.py::FinalizeLockContentionTests::test_lane_arm_reattempt_keeps_lane_repo_argument
+    FAILED tests/test_finalize_sendback.py::FinalizeLockContentionTests::test_exhausted_contention_ends_in_terminal_failure_status_with_cause_lock_contention
+    FAILED tests/test_finalize_sendback.py::FinalizeLockContentionTests::test_contention_reattempt_succeeds_leaves_item_executed_with_budget_unchanged
+    ======================= 7 failed, 95 deselected in 2.63s =======================
+    ```
+    Teardown:
+    `git worktree remove --force tmp/throwaway-red`
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste `git diff CHANGELOG.md` showing the entry added under `## 2.0.0 (pending)` (NOT under `## 1.3.0 (pending)`), and `git diff CHANGELOG.md | grep -P '[\x{2013}\x{2014}]'` printing nothing. Note `grep` exits 1 on no match, which is the PASSING case.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. CHANGELOG.md diff shows Fixed entry under ## 2.0.0 (pending) with 0 em/en dashes.
+    1. Diff of `CHANGELOG.md`:
+    ```diff
+    diff --git a/CHANGELOG.md b/CHANGELOG.md
+    index 399d16d7..537d8013 100644
+    --- a/CHANGELOG.md
+    +++ b/CHANGELOG.md
+    @@ -73,6 +73,7 @@ Major storage-layout boundary. The logical model (D126-D129) was superseded by t
+     - Fixed: `aw backlog set <item> --status <s>` no longer deletes prose written between an item's metadata bullets and its `## Workflow history` heading, preserving existing report text in place.
+     - Fixed: `aw rename` and `aw group` now also rewrite inbound citations in review records and test files, keep short handles short, leave fenced code blocks and transcripts unmodified, and warn instead of rewriting when a legacy date-time prefix is shared across multiple records.
+     - Fixed: `aw uninstall` previously warned that deleting the leftover scaffolding was permanent and unrecoverable even when the user had committed everything they could commit, because it counted its own run-scratch README (a file it writes, never commits, and can always write again) as content at risk. That file no longer counts. It is still listed and still removed, any other file you put in that folder is still flagged, and the README itself is still flagged in the one case where git cannot bring it back.
+    +- Fixed: a run no longer fails a finished item just because another command was briefly committing in the same checkout. Finalize now waits for a briefly held writer lock before refusing, and the runner re-attempts a lock contention refusal instead of failing the item.
+     - Removed the `--follow-generated` run flag. It was never implemented and always refused. Plans created during a run are reported as next actions, as before.
+
+     ## 1.3.0 (pending) - new conventions/features, internal install unification, and install-path fixes
+    ```
+    2. Em/en dash grep check:
+    `git diff CHANGELOG.md | grep -P '[\x{2013}\x{2014}]'`
+    Exited with code 1 (0 matches).
+  - Result: pass
 
 ## Approval and execution gate
 
