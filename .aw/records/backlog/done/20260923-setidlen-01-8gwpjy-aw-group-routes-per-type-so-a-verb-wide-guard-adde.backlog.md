@@ -1,5 +1,5 @@
 - Id: 8gwpjy
-- Status: graduated
+- Status: done
 - Graduated-To: grouptest
 - Blocks-Release: next
 - Set: setidlen
@@ -8,6 +8,7 @@
 - Summary: aw group routes per type, so a verb-wide guard added only to artifact_rename misses the plans and research backends
 
 ## Workflow history
+- 2026-09-27 set (aw backlog): closed by aw oc run: IPD qibtxq executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260926-grouptest-01-qibtxq-outcome-test-that-every-aw-group-backend-enforces-the-setid.ipd.md); evidence .aw/records/plans/executed/20260926-grouptest-01-qibtxq-outcome-test-that-every-aw-group-backend-enforces-the-setid.ipd.md
 - 2026-09-26 graduated (aw set): Graduated 2026-09-26 into to-review plan Set grouptest (commit 2c7068ca).
 - 2026-09-23 created (aw backlog): aw group routes per type, so a verb-wide guard added only to artifact_rename misses the plans and research backends
 
