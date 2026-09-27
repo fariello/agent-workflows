@@ -226,6 +226,8 @@ instruction conflicts, and any decision needed to repair or replan. Resolve from
 first and cite the source; do not ask the human what the repository already answers. Mark which
 questions block correctness, security, scope, or approval.
 
+For any question resolved by choosing a mechanism, follow `../plan-review/plan-review.md` section 3.1 ("Resolving HOW questions: demonstrate, do not describe"). That rule is shared and is deliberately not restated here: an unproven fix may not be marked resolved.
+
 A question you resolve yourself is a RECORDED DECISION, not a vanished one. For EVERY question you
 resolve from evidence instead of asking, add one row to the `### Decisions` section of the current
 `## Round <n>` in the typed review record, with the columns and the `Reversible` judgement rule defined

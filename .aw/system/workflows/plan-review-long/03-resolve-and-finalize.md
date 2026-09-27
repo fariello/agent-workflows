@@ -15,6 +15,17 @@ Collect:
 - decisions required for repair or replan.
 
 Resolve questions already answered by authoritative evidence and cite it.
+
+### Resolving HOW questions: demonstrate, do not describe
+
+1. A question is a HOW question when its resolution chooses a mechanism rather than a fact or a scope (such as a code shape, a placeholder form, a flag, an algorithm).
+2. A HOW question may be marked `resolved` only when the resolution cites a demonstration that the mechanism produces the required outcome on a concrete case (a scratch-repo run, a probe, a test, pasted output), held to the same evidence standard as a Findings row.
+3. If the reviewer cannot demonstrate it, they MUST instead either leave the question `open` (with `Blocking: yes` when execution depends on it) or convert it into a first spike E-item whose Expected outcome is the demonstration and whose stop condition names the question, and the review verdict MUST name the feasibility risk. State why the first branch bites: an open question carrying `- Blocking: yes` makes `aw ipd lint` report `error` with `IPD-Q501` at every checkpoint including `author`, so the plan cannot reach `approved` or be dispatched until a human answers (`IPD-Q501: OQ-01: BLOCKING question is still 'open'. Ask the human and record the answer`). Verified at review by inserting such a question into this plan: disposition went `conforming` -> `error` at `author`, `review-finalize` and `pre-execution` alike.
+4. A resolution containing its own "confirm empirically / if no form works, stop" clause is by definition undemonstrated and falls under (3).
+5. `- Owner: maintainer` on a resolved question means the maintainer answered; a reviewer's own choice records the reviewer (or `plan author`) as owner and gets a `### Decisions` row as 3.1 already requires. Write this so a human applies it: no gate checks it. The linter only verifies the `Owner` field is non-empty and not `none` (`ipd_lint`'s `has_owner`, passed to `ipd_schema.open_question_error` as a bare boolean that never sees the value), so a false `Owner: maintainer` passes every mechanical check. Measured example: plan `vtkfq8` OQ-03 resolved a carrier requirement with an inert placeholder and labelled it `Owner: maintainer`, which passed mechanical checks but failed execution because `- Status: open` was what enforced the obligation.
+
+This rule is kept identical to the single-file `../plan-review/plan-review.md` per the parity note in `plan-review-long.md`.
+
 Deduplicate overlapping questions. Mark which block correctness, security,
 scope, architecture, or GO readiness.
 
