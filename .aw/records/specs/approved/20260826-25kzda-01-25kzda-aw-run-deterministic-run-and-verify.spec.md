@@ -36,13 +36,15 @@ stopped by it. NOTHING ENFORCES THIS, which is the honest limit: no test and no 
 these paragraphs, so their accuracy rests on whoever next touches them. The re-verify instruction is
 the defeat mechanism for their staleness, deliberately in place of a gate. ALL THREE HAVE NOW BEEN
 MEASURED STALE AT LEAST ONCE, which is the evidence for the convention rather than an argument against
-it: the infrastructure paragraph has been corrected twice (2026-08-30, then 2026-09-20), and the
-Section 2.1 and Section 4.2 paragraphs once each (both 2026-09-20, both found to be false by the same
-re-measurement). So treat a date more than a few days old as probably wrong.
+it: the infrastructure paragraph has been corrected three times (2026-08-30, 2026-09-20, then its
+trailer clause 2026-09-26), and the Section 2.1 and Section 4.2 paragraphs once each (both 2026-09-20,
+both found to be false by the same re-measurement). So treat a date more than a few days old as
+probably wrong.
 
 Infrastructure status (measured 2026-09-20 at `007d05e1`; corrected 2026-08-30 in `a59f2c53` and
-again 2026-09-20 by plan `wenmg4`, because this paragraph originally declared ALL of the below
-net-new and nonexistent, which would mislead a graduating Set into rebuilding shipped machinery).
+again 2026-09-20 by plan `wenmg4`; trailer clause re-measured 2026-09-26 by plan `olkeju`, because
+this paragraph originally declared ALL of the below net-new and nonexistent, which would mislead a
+graduating Set into rebuilding shipped machinery).
 PARTS ALREADY SHIPPED, which a graduating Set must CONSUME, not rebuild:
 `Item-Dependencies` (the field, its grammar, and the shared graph predicate), the
 `aw ipd dependencies` surface, and `aw runs`. These were graduated FROM this spec by the `ipddeps`
@@ -56,12 +58,15 @@ carries 12 fields including the two runner-safety ones (`supports_commit_gateway
 `supports_commit_gateway` is DECLARED AND NEVER PROBED by deliberate
 decision so it fails closed (`host_sandbox_profile` module docstring). Creating a parallel capability
 module because this paragraph once called the descriptor net-new is the exact defect that destroyed
-`a54m79`. STILL NET-NEW and to be built: the hash-chained run ledger's `AW-Run:`/`AW-Item:` commit
-trailers (the ledger AND the writer are built - `git_commit_helper.run_item_trailers` formats them -
-but NOTHING PASSES THEM: zero of 3764 commits across all refs carry an `AW-Run` trailer; plan `wao266`
-from backlog `a8eufb` owns the wiring), the prompt `Run contract` block, and `aw hooks install` (no
-such verb today; the top-level `hooks` noun does not resolve). This overlaps the agentadhere
-policy-engine/atomic-command phases, the bklggrad `From-Backlog` work, and the runner rename.
+`a54m79`. ALSO PARTIALLY SHIPPED: the hash-chained run ledger's `AW-Run:`/`AW-Item:` commit trailers
+(the ledger AND the writer are built - `git_commit_helper.run_item_trailers` formats them.
+Re-measured 2026-09-26: SEVERAL DRIVER-SIDE commit sites pass them (the runner's backlog-close commit,
+wired by plan `wao266`, and its review-output commit, added by plan `8apjpp`); the AGENT's own code
+commits are generally UNTRAILERED (backlog `j2srcc`); and NOTHING READS A TRAILER BACK (backlog
+`am1g38`), so no commit's ownership is yet decided by its trailer and Section 4.2's `RUN-COMMIT-*`
+rows stay unbound). STILL NET-NEW and to be built: the prompt `Run contract` block, and `aw hooks
+install` (no such verb today; the top-level `hooks` noun does not resolve). This overlaps the
+agentadhere policy-engine/atomic-command phases, the bklggrad `From-Backlog` work, and the runner rename.
 Constraints honored: pre-release (no backward-compatibility shims or legacy aliases) and
 design-against-roles (no dependence on current internal filenames).
 
@@ -1553,6 +1558,7 @@ This example demonstrates the revised guarantees: `all` is safely bounded; depen
 
 ## Workflow history
 
+- 2026-09-26 note (aw specs): AMENDED 2026-09-26 (plan olkeju, backlog j0ag0u): corrected the infrastructure paragraph's false 'NOTHING PASSES THEM' trailer clause; driver-side commit sites (wao266's backlog-close and 8apjpp's review-output commit) pass AW-Run/AW-Item, agent code commits are generally untrailered (j2srcc), nothing reads trailers back (am1g38); the trailers also moved out of the STILL NET-NEW list because the writer is shipped; worded without counts; Section 4.2 untouched. NOTE backlog sbh1o1 quoted the removed sentence as its surviving-fact evidence
 - 2026-09-25 note (aw specs): AMENDED 2026-09-24 (plan 01reg8, backlog aagh7v): removed unshipped supports_deny_push flag and three unconsumed action verdicts on maintainer ruling 4h7tt0 OQ-02
 - 2026-09-25 note (aw specs): AMENDED 2026-09-25 (plan hzdq8y, backlog ceauac): Removed the never-built flag for following generated IPDs from Section 2.1 command grammar, Section 2.6 overrides, Section 3 dispatch tables, Section 5 consent table, DAG rule 10, and worked example spec09. Generated IPDs are always reported as generated next actions and never join the frozen run.
 - 2026-09-25 note (aw specs): AMENDED 2026-09-25 (statusvocab 9x7otz / cyamvi): canonical terminal status vocabulary updated (fail-depend, fail-merge, fail-gate, fail-verify, fail-begin, fail-lane, not-run, interrupted). Legacy terminal status tokens (including dependency-blocked, integration-blocked, merge-needs-human, merge-conflict, merge-refused, substantially-complete, failed-safely, not-attempted) remain readable forever for backward compatibility on historical run records (via TERMINAL_STATUS_ALIASES), but are no longer written by the runner.
