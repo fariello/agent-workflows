@@ -691,6 +691,7 @@ class ViewModel:
     def to_dict(self) -> dict[str, Any]:
         return {
             "spa_schema_version": SPA_SCHEMA_VERSION,
+            "payload": self.payload,
             "charts": [c.to_dict() for c in self.charts],
             "refusals": [r.to_dict() for r in self.refusals],
             "dimensions": [d.to_dict() for d in self.dimensions],
@@ -1069,6 +1070,7 @@ def render_document(model: ViewModel, *, title: str = "Run analytics") -> str:
     parts.append(f"<h1>{escape_text(title)}</h1>")
     parts.append(_render_overview(model))
     parts.append(_render_controls(model))
+    parts.append(_render_interactive_explorer(model))
     parts.append(_render_time_accounting(model))
     parts.append(_render_charts(model))
     parts.append(_render_refusals(model))
@@ -1219,6 +1221,74 @@ def _render_dimension(dimension: Dimension) -> str:
         )
     parts.append("</fieldset>")
     return "".join(parts)
+
+
+def _render_interactive_explorer(model: ViewModel) -> str:
+    row_count = int(model.payload.get("row_count") or 0)
+    col_data = model.payload.get("data") or {}
+    costs = [
+        float(v)
+        for v in (col_data.get("cost_usd") or [])
+        if isinstance(v, (int, float)) and not isinstance(v, bool)
+    ]
+    binned = bin_series(costs, bins=40) if costs else {}
+    counts = list(binned.get("counts") or [])
+    path = series_path_data(counts)
+
+    sample_size = len(costs)
+    total_cost = sum(costs) if costs else 0.0
+    mean_cost = (total_cost / sample_size) if sample_size else 0.0
+    sorted_costs = sorted(costs)
+    median_cost = sorted_costs[sample_size // 2] if sample_size else 0.0
+    p25_cost = sorted_costs[int(sample_size * 0.25)] if sample_size else 0.0
+    p75_cost = sorted_costs[int(sample_size * 0.75)] if sample_size else 0.0
+    p90_cost = sorted_costs[int(sample_size * 0.90)] if sample_size else 0.0
+    min_cost = sorted_costs[0] if sample_size else 0.0
+    max_cost = sorted_costs[-1] if sample_size else 0.0
+
+    return (
+        '<section class="panel" id="interactive-explorer" aria-labelledby="interactive-h">'
+        '<h2 id="interactive-h">Interactive distribution explorer</h2>'
+        '<div class="filter-summary" id="filter-summary" role="status" aria-live="polite">'
+        f"Showing <strong>{sample_size}</strong> of <strong>{row_count}</strong> runs "
+        f"({(sample_size / row_count * 100.0 if row_count else 0.0):.1f}%) &mdash; "
+        'Metric: <strong id="filter-summary-metric">Cost (USD)</strong> &middot; '
+        'Phase: <strong id="filter-summary-phase">All</strong> &middot; '
+        'Filters: <strong id="filter-summary-dimensions">None</strong>'
+        "</div>"
+        '<figure id="chart-interactive" role="group" aria-labelledby="chart-interactive-cap">'
+        f'<figcaption id="chart-interactive-cap">Cost distribution ({sample_size} runs)</figcaption>'
+        '<svg class="chart-svg" viewBox="0 0 640 200" width="100%" height="200" role="img" '
+        'aria-labelledby="chart-interactive-desc">'
+        f'<title id="chart-interactive-desc">Cost distribution for {sample_size} runs</title>'
+        '<line class="chart-grid" x1="0" y1="100" x2="640" y2="100"></line>'
+        '<line class="chart-axis" x1="0" y1="200" x2="640" y2="200"></line>'
+        f'<path id="chart-interactive-path" class="chart-path" d="{escape_attribute(path)}"></path>'
+        f'<text id="chart-axis-min" class="chart-label" x="8" y="190">Min: ${min_cost:.2f}</text>'
+        f'<text id="chart-axis-max" class="chart-label" x="632" y="190" text-anchor="end">Max: ${max_cost:.2f}</text>'
+        f'<text id="chart-axis-mid" class="chart-label" x="320" y="190" text-anchor="middle">Median: ${median_cost:.2f}</text>'
+        "</svg>"
+        f'<p class="muted" id="chart-interactive-summary">'
+        f"Cost (USD): {sample_size} observations summarized into {len(counts)} bins. "
+        f"Total: ${total_cost:,.2f}, Median: ${median_cost:.2f}, Mean: ${mean_cost:.2f}."
+        "</p>"
+        '<table id="chart-interactive-table">'
+        "<caption>Distribution statistics (filtered population)</caption>"
+        '<thead><tr><th scope="col">Statistic</th><th scope="col">Value</th></tr></thead>'
+        "<tbody>"
+        f'<tr><th scope="row">Sample size (n)</th><td id="stat-sample-size">{sample_size}</td></tr>'
+        f'<tr><th scope="row">Total</th><td id="stat-total">${total_cost:,.2f}</td></tr>'
+        f'<tr><th scope="row">Mean</th><td id="stat-mean">${mean_cost:.2f}</td></tr>'
+        f'<tr><th scope="row">Median</th><td id="stat-median">${median_cost:.2f}</td></tr>'
+        f'<tr><th scope="row">P25</th><td id="stat-p25">${p25_cost:.2f}</td></tr>'
+        f'<tr><th scope="row">P75</th><td id="stat-p75">${p75_cost:.2f}</td></tr>'
+        f'<tr><th scope="row">P90</th><td id="stat-p90">${p90_cost:.2f}</td></tr>'
+        f'<tr><th scope="row">Minimum</th><td id="stat-min">${min_cost:.2f}</td></tr>'
+        f'<tr><th scope="row">Maximum</th><td id="stat-max">${max_cost:.2f}</td></tr>'
+        "</tbody></table>"
+        "</figure>"
+        "</section>"
+    )
 
 
 def _render_time_accounting(model: ViewModel) -> str:
@@ -1586,9 +1656,15 @@ _COLUMN_NOTES: dict[str, str] = {
     "outcome": "the recorded disposition of the attempt",
     "model": "resolved model identity; absent for most historical records",
     "host": "runner host label",
+    "status": "the recorded execution status of the run",
+    "is_complete": "whether the run reached terminal state without interruption",
     "wall_seconds": "elapsed wall time for the observation",
     "cost_usd": "cost in USD; recorded and estimated are distinguished elsewhere",
+    "input_tokens": "provider-reported input tokens",
+    "output_tokens": "provider-reported output tokens",
+    "cache_tokens": "provider-reported cache read tokens",
     "total_tokens": "provider-reported total tokens, never derived silently",
+    "event_count": "total number of events logged for the run",
 }
 
 

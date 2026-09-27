@@ -537,6 +537,14 @@ def _render_report_html(repo: Path, *, generated_label: str) -> str:
             c = f.get("cost")
             w = f.get("wall_seconds")
             t = f.get("token_total")
+            toks = f.get("tokens") if isinstance(f.get("tokens"), Mapping) else {}
+            inp = toks.get("input")
+            out = toks.get("output")
+            cache = (
+                toks.get("cache_read")
+                if toks.get("cache_read") is not None
+                else toks.get("cache")
+            )
             rows.append(
                 {
                     "run_id": str(e.get("run_id") or ""),
@@ -551,6 +559,15 @@ def _render_report_html(repo: Path, *, generated_label: str) -> str:
                     "cost_usd": float(c)
                     if isinstance(c, (int, float)) and not isinstance(c, bool)
                     else None,
+                    "input_tokens": float(inp)
+                    if isinstance(inp, (int, float)) and not isinstance(inp, bool)
+                    else None,
+                    "output_tokens": float(out)
+                    if isinstance(out, (int, float)) and not isinstance(out, bool)
+                    else None,
+                    "cache_tokens": float(cache)
+                    if isinstance(cache, (int, float)) and not isinstance(cache, bool)
+                    else None,
                     "total_tokens": float(t)
                     if isinstance(t, (int, float)) and not isinstance(t, bool)
                     else None,
@@ -562,7 +579,48 @@ def _render_report_html(repo: Path, *, generated_label: str) -> str:
     else:
         for source in (quality, cache_status):
             if source is not None and getattr(source, "rows", None):
-                rows = [dict(r) for r in source.rows]
+                for r in source.rows:
+                    d = dict(r)
+                    rows.append(
+                        {
+                            "run_id": str(d.get("run_id") or ""),
+                            "is_complete": bool(d.get("is_complete")),
+                            "status": str(d.get("status") or "unknown"),
+                            "phase": str(d.get("phase") or "unknown"),
+                            "model": (
+                                str(d.get("model") or "") if d.get("model") else None
+                            ),
+                            "host": str(d.get("host") or d.get("host_kind") or ""),
+                            "wall_seconds": float(d["wall_seconds"])
+                            if isinstance(d.get("wall_seconds"), (int, float))
+                            and not isinstance(d.get("wall_seconds"), bool)
+                            else None,
+                            "cost_usd": float(d["cost_usd"])
+                            if isinstance(d.get("cost_usd"), (int, float))
+                            and not isinstance(d.get("cost_usd"), bool)
+                            else None,
+                            "input_tokens": float(d["input_tokens"])
+                            if isinstance(d.get("input_tokens"), (int, float))
+                            and not isinstance(d.get("input_tokens"), bool)
+                            else None,
+                            "output_tokens": float(d["output_tokens"])
+                            if isinstance(d.get("output_tokens"), (int, float))
+                            and not isinstance(d.get("output_tokens"), bool)
+                            else None,
+                            "cache_tokens": float(d["cache_tokens"])
+                            if isinstance(d.get("cache_tokens"), (int, float))
+                            and not isinstance(d.get("cache_tokens"), bool)
+                            else None,
+                            "total_tokens": float(d["total_tokens"])
+                            if isinstance(d.get("total_tokens"), (int, float))
+                            and not isinstance(d.get("total_tokens"), bool)
+                            else None,
+                            "event_count": int(d["event_count"])
+                            if isinstance(d.get("event_count"), int)
+                            and not isinstance(d.get("event_count"), bool)
+                            else None,
+                        }
+                    )
                 break
 
     finding_rows = (

@@ -30,6 +30,12 @@ button[disabled], button[aria-disabled="true"] { opacity: 0.6; cursor: not-allow
 .series-3 { stroke-dasharray: 9 3 2 3; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px;
   clip-path: inset(50%); overflow: hidden; white-space: nowrap; }
+.filter-summary { background: #eef4fc; border: 1px solid #c4daf5; border-radius: 4px; padding: 0.5rem 0.75rem; margin: 0.75rem 0; font-weight: 500; }
+.chart-svg { background: #f8fafc; border: 1px solid var(--line); border-radius: 4px; display: block; margin: 0.5rem 0; }
+.chart-path { stroke: #0b4f9e; stroke-width: 2.5; fill: rgba(11, 79, 158, 0.08); }
+.chart-axis { stroke: var(--line); stroke-width: 1; }
+.chart-grid { stroke: var(--line); stroke-width: 0.5; stroke-dasharray: 4 4; }
+.chart-label { font-size: 11px; fill: var(--muted); }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
@@ -37,4 +43,7 @@ button[disabled], button[aria-disabled="true"] { opacity: 0.6; cursor: not-allow
   :root { --ink: #e8edf2; --muted: #a7b3be; --line: #3a444e; --bg: #14181c; }
   th[scope="col"] { background: #1e242a; }
   .refusal { background: #241a0e; }
+  .filter-summary { background: #17263c; border-color: #264a78; }
+  .chart-svg { background: #161b22; }
+  .chart-path { stroke: #58a6ff; fill: rgba(88, 166, 255, 0.12); }
 }

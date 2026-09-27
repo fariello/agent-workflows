@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import re
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -306,7 +307,7 @@ class RunAnalyticsCliUxTests(unittest.TestCase):
         extra_runs = [
             write_run(
                 self.runs_root,
-                f"run-20260901T0{i:02d}00Z-{i}111111",
+                f"run-20260901T00{i:02d}00Z-{i:06d}",
                 repo=str(self.repo),
             )
             for i in range(2, 16)
@@ -339,6 +340,34 @@ class RunAnalyticsCliUxTests(unittest.TestCase):
         self.assertIn("total_tokens", html)
         self.assertIn("Overview", html)
         self.assertNotIn("0 of 0 required analyses were computed", html)
+        self.assertIn("interactive-explorer", html)
+        self.assertIn("filter-summary", html)
+        self.assertIn("chart-interactive", html)
+        self.assertIn("chart-interactive-path", html)
+        self.assertIn("chart-interactive-table", html)
+        self.assertIn("stat-sample-size", html)
+        self.assertIn("stat-total", html)
+        self.assertIn("stat-mean", html)
+        self.assertIn("stat-median", html)
+        self.assertIn("input_tokens", html)
+        self.assertIn("output_tokens", html)
+        self.assertIn("cache_tokens", html)
+
+        # Verify embedded view-model JSON contains payload
+        match = re.search(
+            r'<script type="application/json" id="view-model">(.*?)</script>',
+            html,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(match)
+        view_model_json = json.loads(match.group(1))
+        self.assertIn("payload", view_model_json)
+        self.assertIn("data", view_model_json["payload"])
+        self.assertIn("cost_usd", view_model_json["payload"]["data"])
+        self.assertIn("input_tokens", view_model_json["payload"]["data"])
+        self.assertIn("output_tokens", view_model_json["payload"]["data"])
+        self.assertIn("cache_tokens", view_model_json["payload"]["data"])
+        self.assertEqual(view_model_json["payload"]["row_count"], len(all_runs))
 
 
 if __name__ == "__main__":
