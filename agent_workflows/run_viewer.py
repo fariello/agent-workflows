@@ -559,6 +559,13 @@ def step_issue_reasons(
     refusal = step_refusal(step) if step is not None else None
     if refusal is not None:
         reasons.append(f"refused: {refusal.reason}")
+    if step is not None and not step.is_live:
+        if step.status.startswith("abandoned"):
+            reasons.append("run abandoned (driver died mid-turn)")
+        elif step.persisted_status == "running":
+            reasons.append("run interrupted (driver died mid-turn)")
+        elif step.status == f"queued{PROJECTION_SUFFIX}":
+            reasons.append("unreached in run (runner not live)")
     if audit.missing_entirely:
         reasons.append("artifact missing")
     elif audit.location_mismatch:
@@ -1006,6 +1013,9 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
                 if status == "running" and holder == HOLDER_NONE:
                     persisted_status = status
                     status = _projected_step_status(run_dir, item)
+                elif status == "queued" and holder == HOLDER_NONE:
+                    persisted_status = status
+                    status = f"queued{PROJECTION_SUFFIX}"
                 counts[status] = counts.get(status, 0) + 1
 
                 cfg_file = item.get("configured_file", "")
@@ -2279,6 +2289,21 @@ def render_step_details(steps: list[StepSummary], term: Term) -> list[str]:
                 if getattr(term, "color", False)
                 else f"    → remedy: {refusal.remedy}"
             )
+        if not step.is_live:
+            if step.status.startswith("abandoned"):
+                details.append(
+                    term.color256("  ! abandoned: driver exited mid-turn", 196)
+                    if getattr(term, "color", False)
+                    else "  ! abandoned: driver exited mid-turn"
+                )
+            elif step.status == f"queued{PROJECTION_SUFFIX}":
+                details.append(
+                    term.color256(
+                        "  ! unreached: runner exited before item started", 214
+                    )
+                    if getattr(term, "color", False)
+                    else "  ! unreached: runner exited before item started"
+                )
         if step.incomplete_requirements:
             for req in step.incomplete_requirements:
                 details.append(

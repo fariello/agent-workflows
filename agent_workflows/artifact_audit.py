@@ -911,6 +911,7 @@ def _status_disagrees(recorded: str, declared: str) -> bool:
         return dec not in ("reviewed", "approved")
     if rec in (
         "queued",
+        "queued?",
         "running",
         "interrupted",
         "fail-gate",
@@ -927,6 +928,7 @@ def _status_disagrees(recorded: str, declared: str) -> bool:
         "already-landed",
     ) or recorded in (
         "queued",
+        "queued?",
         "running",
         "dependency-blocked",
         "blocked",

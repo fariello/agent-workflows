@@ -502,6 +502,7 @@ _RUNNER_ITEM_PAIRS: Tuple[Tuple[str, str], ...] = (
     # durable state, so it resolves `unknown` on purpose: the trailing `?` is the projection's own
     # admission that it does not know.
     ("abandoned?", UNKNOWN),
+    ("queued?", UNKNOWN),
 )
 
 # --- 7.3 Run ledger and set state -----------------------------------------------------

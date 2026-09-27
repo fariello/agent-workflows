@@ -22,7 +22,7 @@ from unittest import TestCase
 import pytest
 
 from agent_workflows import cli, run_viewer, runner_shared
-from agent_workflows.term import Term
+from agent_workflows.term import Term, strip_ansi
 
 # --------------------------------------------------------------------------------------------------
 # Live-runs isolation: no test in this module may read the checkout's live runs tree.
@@ -2146,6 +2146,167 @@ class ProjectedStatusReadsTheRecordedOutcomeTests(TestCase):
                 root = Path(td)
                 d = _abandoned_run_fixture(root, outcome=_RECORDED, action=action)
                 self.assertEqual(_only_step(d, root).status, run_viewer.ABANDONED)
+
+    def test_dead_run_queued_and_running_steps_projected_and_flagged_as_issues(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            pending = root / ".aw" / "records" / "plans" / "pending"
+            pending.mkdir(parents=True)
+            (pending / "20260902-e32j35-01-item01-a.ipd.md").write_text(
+                "- Id: item01\n- Status: approved\n"
+            )
+            (pending / "20260902-e32j35-02-item02-b.ipd.md").write_text(
+                "- Id: item02\n- Status: approved\n"
+            )
+
+            run_dir = root / ".aw" / "records" / "runs" / "run-20260902T010000Z-100000"
+            run_dir.mkdir(parents=True)
+            state = {
+                "run_id": "run-20260902T010000Z-100000",
+                "queue": [
+                    {
+                        "position": 1,
+                        "id6": "item01",
+                        "setid": "e32j35",
+                        "action": "execute",
+                        "status": "running",
+                        "configured_file": ".aw/records/plans/pending/20260902-e32j35-01-item01-a.ipd.md",
+                    },
+                    {
+                        "position": 2,
+                        "id6": "item02",
+                        "setid": "e32j35",
+                        "action": "execute",
+                        "status": "queued",
+                        "configured_file": ".aw/records/plans/pending/20260902-e32j35-02-item02-b.ipd.md",
+                    },
+                ],
+            }
+            (run_dir / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+            summary = run_viewer.load_run_summary(run_dir, root)
+            self.assertIsNotNone(summary)
+            self.assertEqual(summary.counts, {"abandoned?": 1, "queued?": 1})
+
+            # Check item01 (running -> abandoned?)
+            s1 = summary.steps[0]
+            self.assertEqual(s1.status, "abandoned?")
+            self.assertEqual(s1.persisted_status, "running")
+            self.assertTrue(s1.is_projected)
+            a1 = run_viewer.audit_step_artifact(s1, root)
+            self.assertTrue(run_viewer.step_has_issue(a1, s1))
+            self.assertIn(
+                "run abandoned (driver died mid-turn)",
+                run_viewer.step_issue_reasons(a1, s1),
+            )
+
+            # Check item02 (queued -> queued?)
+            s2 = summary.steps[1]
+            self.assertEqual(s2.status, "queued?")
+            self.assertEqual(s2.persisted_status, "queued")
+            self.assertTrue(s2.is_projected)
+            a2 = run_viewer.audit_step_artifact(s2, root)
+            self.assertTrue(run_viewer.step_has_issue(a2, s2))
+            self.assertIn(
+                "unreached in run (runner not live)",
+                run_viewer.step_issue_reasons(a2, s2),
+            )
+
+            # Verify table renders YES in Issue column for both
+            term = Term(color=False)
+            tbl = run_viewer.render_steps_table(
+                summary.steps, term, short=True, repo_root=root
+            )
+            plain = strip_ansi(tbl)
+            for line in plain.splitlines():
+                if "item01" in line:
+                    self.assertIn("abandoned?", line)
+                    self.assertTrue(line.endswith("YES"))
+                elif "item02" in line:
+                    self.assertIn("queued?", line)
+                    self.assertTrue(line.endswith("YES"))
+
+            # Verify detail lines
+            details = run_viewer.render_step_details(summary.steps, term)
+            det_str = "\n".join(details)
+            self.assertIn("! abandoned: driver exited mid-turn", det_str)
+            self.assertIn("! unreached: runner exited before item started", det_str)
+
+    def test_live_run_queued_and_running_steps_not_projected_and_no_issues(self):
+        import fcntl
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            pending = root / ".aw" / "records" / "plans" / "pending"
+            pending.mkdir(parents=True)
+            (pending / "20260902-e32j35-01-item01-a.ipd.md").write_text(
+                "- Id: item01\n- Status: approved\n"
+            )
+            (pending / "20260902-e32j35-02-item02-b.ipd.md").write_text(
+                "- Id: item02\n- Status: approved\n"
+            )
+
+            run_dir = root / ".aw" / "records" / "runs" / "run-20260902T010000Z-100000"
+            run_dir.mkdir(parents=True)
+            lock_file = run_dir / "driver.lock"
+            lock_file.write_text("pid=12345\n", encoding="utf-8")
+            f = open(lock_file, "r+")
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            try:
+                state = {
+                    "run_id": "run-20260902T010000Z-100000",
+                    "queue": [
+                        {
+                            "position": 1,
+                            "id6": "item01",
+                            "setid": "e32j35",
+                            "action": "execute",
+                            "status": "running",
+                            "configured_file": ".aw/records/plans/pending/20260902-e32j35-01-item01-a.ipd.md",
+                        },
+                        {
+                            "position": 2,
+                            "id6": "item02",
+                            "setid": "e32j35",
+                            "action": "execute",
+                            "status": "queued",
+                            "configured_file": ".aw/records/plans/pending/20260902-e32j35-02-item02-b.ipd.md",
+                        },
+                    ],
+                }
+                (run_dir / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+                summary = run_viewer.load_run_summary(run_dir, root)
+                self.assertIsNotNone(summary)
+                self.assertTrue(summary.is_live)
+                self.assertEqual(summary.counts, {"running": 1, "queued": 1})
+
+                s1 = summary.steps[0]
+                self.assertEqual(s1.status, "running")
+                self.assertIsNone(s1.persisted_status)
+                self.assertFalse(s1.is_projected)
+                self.assertTrue(s1.is_live)
+                a1 = run_viewer.audit_step_artifact(s1, root)
+                self.assertFalse(run_viewer.step_has_issue(a1, s1))
+
+                s2 = summary.steps[1]
+                self.assertEqual(s2.status, "queued")
+                self.assertIsNone(s2.persisted_status)
+                self.assertFalse(s2.is_projected)
+                self.assertTrue(s2.is_live)
+                a2 = run_viewer.audit_step_artifact(s2, root)
+                self.assertFalse(run_viewer.step_has_issue(a2, s2))
+
+                term = Term(color=False)
+                tbl = run_viewer.render_steps_table(
+                    summary.steps, term, short=True, repo_root=root
+                )
+                plain = strip_ansi(tbl)
+                for line in plain.splitlines():
+                    if "item01" in line or "item02" in line:
+                        self.assertTrue(line.endswith("no"))
+            finally:
+                f.close()
 
 
 class RepairReportsRecoveredProvenanceTests(TestCase):
