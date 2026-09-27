@@ -1179,7 +1179,7 @@ class RunViewerTests(TestCase):
                 ),
             )
 
-        # Sibling terminal failure statuses remain status mismatches
+        # Sibling terminal failure statuses also do not mismatch when plan is approved in pending
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             for run_status in (
@@ -1189,12 +1189,111 @@ class RunViewerTests(TestCase):
                 "not-attempted",
                 "merge-conflict",
                 "cancelled",
+                "fail-gate",
+                "fail-begin",
+                "fail-lane",
+                "fail-verify",
+                "fail-depend",
+                "fail-merge",
+                "not-run",
+                "abandoned?",
             ):
                 _step, audit = self._interrupted_fixture(
                     root, "approved", "pending", run_status=run_status
                 )
                 self.assertFalse(audit.location_mismatch)
+                self.assertFalse(audit.status_mismatch)
+                self.assertFalse(audit.has_discrepancy)
+
+        # But a failed/interrupted run whose plan is in executed/ reading executed flags both axes
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            for run_status in ("fail-gate", "fail-merge", "failed", "interrupted"):
+                step, audit = self._interrupted_fixture(
+                    root, "executed", "executed", run_status=run_status
+                )
+                self.assertTrue(audit.location_mismatch)
                 self.assertTrue(audit.status_mismatch)
+                self.assertTrue(audit.has_discrepancy)
+                self.assertTrue(run_viewer.step_has_issue(audit, step))
+
+    def test_format_artifact_audit_summary_short_suppresses_refusals(self):
+        term = Term(color=False)
+        step = run_viewer.StepSummary(
+            position=1,
+            id6="item01",
+            setid="test",
+            action="execute",
+            status="fail-gate",
+            configured_file="",
+            stem="20260829-test-01-item01",
+            refusal={
+                "code": "gate-refused",
+                "reason": "a reason",
+                "remedy": "a remedy",
+            },
+        )
+        audit = run_viewer.StepArtifactAudit(
+            id6="item01",
+            stem="20260829-test-01-item01",
+            run_status="fail-gate",
+            missing_entirely=False,
+            location_mismatch=False,
+            status_mismatch=False,
+        )
+        # short=False includes the Refusals block
+        full_out = run_viewer.format_artifact_audit_summary(
+            [audit], term, steps=[step], short=False
+        )
+        self.assertIn("Refusals (what the run declined, and what to do):", full_out)
+        self.assertIn("[gate-refused]: a reason", full_out)
+
+        # short=True suppresses the Refusals block
+        short_out = run_viewer.format_artifact_audit_summary(
+            [audit], term, steps=[step], short=True
+        )
+        self.assertNotIn("Refusals", short_out)
+        self.assertNotIn("gate-refused", short_out)
+
+    def test_build_run_summary_undispatched_queued_gets_run_starting_head(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            run_dir = root / ".aw" / "records" / "runs" / "run-20260927T000000Z-123456"
+            run_dir.mkdir(parents=True)
+            state = {
+                "run_id": "run-20260927T000000Z-123456",
+                "queue": [
+                    {
+                        "position": 1,
+                        "id6": "step01",
+                        "setid": "test",
+                        "status": "executed",
+                        "attempts": [
+                            {
+                                "starting_head": "aaaa111122223333444455556666777788889999",
+                                "ending_head": "bbbb111122223333444455556666777788889999",
+                            }
+                        ],
+                    },
+                    {
+                        "position": 2,
+                        "id6": "step02",
+                        "setid": "test",
+                        "status": "queued",
+                        "attempts": [],
+                    },
+                ],
+            }
+            (run_dir / "state.json").write_text(json.dumps(state), encoding="utf-8")
+            summary = run_viewer.load_run_summary(run_dir, repo_root=root)
+            self.assertIsNotNone(summary)
+            self.assertEqual(len(summary.steps), 2)
+            self.assertEqual(
+                summary.steps[0].ending_head, "bbbb111122223333444455556666777788889999"
+            )
+            self.assertEqual(
+                summary.steps[1].ending_head, "aaaa111122223333444455556666777788889999"
+            )
 
     def test_run_viewer_cli_issues_flag(self):
         # 1. Populated issues case

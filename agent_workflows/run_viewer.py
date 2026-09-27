@@ -942,6 +942,58 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
             queue = state.get("queue") or []
             set_set = set()
             holder = driver_holder_state(run_dir)
+
+            # Discover a baseline starting head for the run to bound evidence queries
+            # for undispatched or unattempted queued items.
+            run_starting_head: str | None = None
+            for q_item in queue:
+                for att in q_item.get("attempts") or []:
+                    if isinstance(att, dict):
+                        head = (
+                            att.get("starting_head")
+                            or att.get("lane_starting_head")
+                            or att.get("base_commit")
+                        )
+                        if head and str(head).strip():
+                            run_starting_head = str(head).strip()
+                            break
+                if run_starting_head:
+                    break
+
+            if not run_starting_head:
+                for q_item in queue:
+                    for att in q_item.get("attempts") or []:
+                        if isinstance(att, dict):
+                            head = att.get("ending_head")
+                            if head and str(head).strip():
+                                run_starting_head = str(head).strip()
+                                break
+                    if run_starting_head:
+                        break
+
+            if not run_starting_head:
+                events_file = run_dir / "events.jsonl"
+                if events_file.is_file():
+                    try:
+                        with open(
+                            events_file, "r", encoding="utf-8", errors="replace"
+                        ) as ef:
+                            for eline in ef:
+                                if not eline.strip():
+                                    continue
+                                try:
+                                    ev = json.loads(eline)
+                                except Exception:
+                                    continue
+                                for k in ("base_commit", "starting_head", "head"):
+                                    if k in ev and ev[k] and str(ev[k]).strip():
+                                        run_starting_head = str(ev[k]).strip()
+                                        break
+                                if run_starting_head:
+                                    break
+                    except OSError:
+                        pass
+
             for idx, item in enumerate(queue, start=1):
                 pos = item.get("position", idx)
                 id6 = item.get("id6", "")
@@ -985,6 +1037,19 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
                     if isinstance(att, dict) and att.get("ending_head"):
                         step_ending_head = str(att["ending_head"]).strip() or None
                         break
+                if not step_ending_head:
+                    for att in reversed(attempts):
+                        if isinstance(att, dict):
+                            head = (
+                                att.get("starting_head")
+                                or att.get("lane_starting_head")
+                                or att.get("base_commit")
+                            )
+                            if head and str(head).strip():
+                                step_ending_head = str(head).strip()
+                                break
+                if not step_ending_head:
+                    step_ending_head = run_starting_head
 
                 outcome = item.get("last_outcome") or {}
                 disposition = None
@@ -1744,6 +1809,7 @@ def format_artifact_audit_summary(
     term: Term,
     all_classes: bool = False,
     steps: list[StepSummary] | None = None,
+    short: bool = False,
 ) -> str:
     """Format artifact location/status discrepancies CLASSIFIED BY DIRECTION, plus any REFUSALS.
 
@@ -1761,6 +1827,8 @@ def format_artifact_audit_summary(
     even when its artifact sits exactly where it belongs, which is the normal case for a semantic
     refusal and is why every such item previously left this table empty. Omitted, the refusal block
     is empty and the artifact table is unchanged.
+
+    ``short`` suppresses the refusal summary block when True.
     """
     seen: set[str] = set()
     issues: list[StepArtifactAudit] = []
@@ -1785,7 +1853,7 @@ def format_artifact_audit_summary(
 
     count_line = format_audit_class_counts(counts, term, suppressed=not all_classes)
 
-    refusal_block = format_refusal_summary(steps or [], term)
+    refusal_block = "" if short else format_refusal_summary(steps or [], term)
 
     if not discrepancies:
         # The counts still print. A table with no ALARMING and no UNKNOWN row, but hundreds of
@@ -3530,7 +3598,7 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
             return 0
         term.line(
             format_artifact_audit_summary(
-                all_audits, term, all_classes, steps=all_steps
+                all_audits, term, all_classes, steps=all_steps, short=short
             )
         )
         return 0
@@ -3542,7 +3610,7 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
             )
         )
         audit_summary_txt = format_artifact_audit_summary(
-            all_audits, term, all_classes, steps=all_steps
+            all_audits, term, all_classes, steps=all_steps, short=short
         )
         if audit_summary_txt:
             term.line("")
@@ -3552,7 +3620,7 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
     if summary_only:
         term.line(format_multi_run_summary(summaries, term))
         audit_summary_txt = format_artifact_audit_summary(
-            all_audits, term, all_classes, steps=all_steps
+            all_audits, term, all_classes, steps=all_steps, short=short
         )
         if audit_summary_txt:
             term.line("")
@@ -3573,7 +3641,7 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
         term.line(format_multi_run_summary(summaries, term))
 
     audit_summary_txt = format_artifact_audit_summary(
-        all_audits, term, all_classes, steps=all_steps
+        all_audits, term, all_classes, steps=all_steps, short=short
     )
     if audit_summary_txt:
         term.line("")
