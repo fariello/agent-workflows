@@ -7,6 +7,7 @@
 - Scope-Paths: .aw/records/releases/20260820-f33nrj-01-f33nrj-2-0-0.release.md
 - Item-Dependencies: none
 - Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: wxypal
