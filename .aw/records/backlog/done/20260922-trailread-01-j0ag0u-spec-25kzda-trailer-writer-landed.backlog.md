@@ -1,5 +1,5 @@
 - Id: j0ag0u
-- Status: graduated
+- Status: done
 - Graduated-To: spec25kfix
 - Set: trailread
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Spec 25kzda still says NOTHING PASSES the AW-Run/AW-Item trailers, which wao266 made false for the driver-side commit
 
 ## Workflow history
+- 2026-09-27 done (aw set): Done: plan olkeju executed (manual recovery of its stranded lane, 2026-09-27).
 - 2026-09-26 graduated (aw set): Graduated 2026-09-26 into plan olkeju (Set spec25kfix), re-verified live at HEAD.
 - 2026-09-22 created (aw backlog): Spec 25kzda still says NOTHING PASSES the AW-Run/AW-Item trailers, which wao266 made false for the driver-side commit
 
