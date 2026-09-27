@@ -1,5 +1,5 @@
 - Id: 6kczjg
-- Status: graduated
+- Status: done
 - Graduated-To: setprompt
 - Set: 6kczjg
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Decide whether aw install --to-aw should default --leftovers to remove now that the cleanup path is reachable and tested
 
 ## Workflow history
+- 2026-09-26 set (aw backlog): closed by aw oc run: IPD o7k6lt executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260926-setprompt-03-o7k6lt-default-the-unattended-install-time-leftover-disposition-to.ipd.md); evidence .aw/records/plans/executed/20260926-setprompt-03-o7k6lt-default-the-unattended-install-time-leftover-disposition-to.ipd.md
 - 2026-09-26 graduated (aw set): Graduated 2026-09-26 into plan o7k6lt (Set setprompt), re-verified live at HEAD.
 - 2026-09-26 note (aw backlog): Maintainer ruling 2026-09-26 (/askme during batch graduation): with nothing saved, an unattended aw install --to-aw migration defaults --leftovers to REMOVE (git-tracked leftovers only, recoverable from history; untracked content, private lanes and skills are preserved). Ordered after je74a0, which adds the saved defaults.leftovers answer.
 - 2026-09-23 created (aw backlog): Decide whether aw install --to-aw should default --leftovers to remove now that the cleanup path is reachable and tested
