@@ -11,6 +11,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from tests import support
+
 from agent_workflows import config
 from agent_workflows.project_registry import (
     RegistrySecurityError,
@@ -184,18 +186,13 @@ class TestProjectRegistry(unittest.TestCase):
 
     def test_cli_project_status_json(self):
         """Test `aw project status --json` via CLI invocation."""
-        cmd = [
-            "python3",
-            "-m",
-            "agent_workflows",
+        res = support.run_cli(
             "project",
             "status",
             "--repo",
             self.target_repo,
             "--json",
-        ]
-        res = subprocess.run(
-            cmd, capture_output=True, text=True, cwd=Path(__file__).parent.parent
+            cwd=Path(__file__).parent.parent,
         )
         self.assertEqual(res.returncode, 0, f"CLI error: {res.stderr}")
         data = json.loads(res.stdout)
@@ -207,35 +204,25 @@ class TestProjectRegistry(unittest.TestCase):
         """Test `aw project attach` and `aw project move` CLI commands."""
         pid = "testproj-999999"
         # Attach with --yes
-        cmd_attach = [
-            "python3",
-            "-m",
-            "agent_workflows",
+        res1 = support.run_cli(
             "project",
             "attach",
             pid,
             "--repo",
             self.target_repo,
             "--yes",
-        ]
-        res1 = subprocess.run(
-            cmd_attach, capture_output=True, text=True, cwd=Path(__file__).parent.parent
+            cwd=Path(__file__).parent.parent,
         )
         self.assertEqual(res1.returncode, 0, f"Attach CLI error: {res1.stderr}")
 
         # Verify status matches attached pid
-        cmd_status = [
-            "python3",
-            "-m",
-            "agent_workflows",
+        res2 = support.run_cli(
             "project",
             "status",
             "--repo",
             self.target_repo,
             "--json",
-        ]
-        res2 = subprocess.run(
-            cmd_status, capture_output=True, text=True, cwd=Path(__file__).parent.parent
+            cwd=Path(__file__).parent.parent,
         )
         data = json.loads(res2.stdout)
         data_dict = data.get("data", data)
@@ -245,18 +232,13 @@ class TestProjectRegistry(unittest.TestCase):
         # Move to new path
         new_repo = os.path.join(self.tmp_dir, "newrepo")
         self._git_init(new_repo)
-        cmd_move = [
-            "python3",
-            "-m",
-            "agent_workflows",
+        res3 = support.run_cli(
             "project",
             "move",
             pid,
             new_repo,
             "--yes",
-        ]
-        res3 = subprocess.run(
-            cmd_move, capture_output=True, text=True, cwd=Path(__file__).parent.parent
+            cwd=Path(__file__).parent.parent,
         )
         self.assertEqual(res3.returncode, 0, f"Move CLI error: {res3.stderr}")
 

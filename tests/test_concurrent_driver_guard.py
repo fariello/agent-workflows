@@ -63,6 +63,7 @@ from agent_workflows import (
     run_viewer,
     runner_shared,
 )
+from tests import support
 from tests.support import init_repo
 
 #: The two hosts, as a table column. Every property here is about the two AGREEING, so a per-host test
@@ -671,12 +672,10 @@ class OperatorVerbTests(unittest.TestCase):
         self._tmp.cleanup()
 
     def _run(self, *argv) -> subprocess.CompletedProcess:
-        return subprocess.run(
-            [sys.executable, "-m", "agent_workflows", "integration-lock", *argv],
+        return support.run_cli(
+            "integration-lock",
+            *argv,
             cwd=str(Path(runner_shared.__file__).parent.parent),
-            capture_output=True,
-            text=True,
-            check=False,
         )
 
     def test_the_verb_is_a_declared_parser_leaf(self):
@@ -748,6 +747,7 @@ class OperatorVerbTests(unittest.TestCase):
                 "time.sleep(0.05)",
             ],
             cwd=str(Path(runner_shared.__file__).parent.parent),
+            env=support.pinned_env(),
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

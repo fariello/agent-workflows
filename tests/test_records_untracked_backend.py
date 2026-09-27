@@ -10,6 +10,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from tests import support
+
 from agent_workflows import artifact_core, engine
 from agent_workflows.artifact_core import get_ignored_dirs, is_ignored_path
 from agent_workflows.install_wizard import (
@@ -199,20 +201,18 @@ class TestRecordsUntrackedBackend(unittest.TestCase):
         )
 
         # 2. install --help choices
-        res_install = subprocess.run(
-            ["python3", "-m", "agent_workflows", "install", "--help"],
-            capture_output=True,
-            text=True,
+        res_install = support.run_cli(
+            "install",
+            "--help",
             cwd=Path(__file__).parent.parent,
             check=True,
         )
         self.assertIn("repository-untracked", res_install.stdout)
 
         # 3. migrate-layout --help choices (deferred surface left unchanged)
-        res_migrate = subprocess.run(
-            ["python3", "-m", "agent_workflows", "migrate-layout", "--help"],
-            capture_output=True,
-            text=True,
+        res_migrate = support.run_cli(
+            "migrate-layout",
+            "--help",
             cwd=Path(__file__).parent.parent,
             check=True,
         )
@@ -475,21 +475,14 @@ class TestRecordsUntrackedBackend(unittest.TestCase):
         self._init_git_repo(repo)
 
         # 1. Live aw install
-        res = subprocess.run(
-            [
-                "python3",
-                "-m",
-                "agent_workflows",
-                "install",
-                repo,
-                "--preset",
-                "private-target",
-                "--records-backend",
-                "repository-untracked",
-                "--yes",
-            ],
-            capture_output=True,
-            text=True,
+        res = support.run_cli(
+            "install",
+            repo,
+            "--preset",
+            "private-target",
+            "--records-backend",
+            "repository-untracked",
+            "--yes",
             cwd=Path(__file__).parent.parent,
         )
         self.assertEqual(
@@ -521,18 +514,11 @@ class TestRecordsUntrackedBackend(unittest.TestCase):
         self.assertEqual(res_ls.stdout.strip(), "")
 
         # 2. aw setup refusal
-        res_setup = subprocess.run(
-            [
-                "python3",
-                "-m",
-                "agent_workflows",
-                "setup",
-                "--records-backend",
-                "repository-untracked",
-                "--yes",
-            ],
-            capture_output=True,
-            text=True,
+        res_setup = support.run_cli(
+            "setup",
+            "--records-backend",
+            "repository-untracked",
+            "--yes",
             cwd=Path(__file__).parent.parent,
         )
         self.assertEqual(res_setup.returncode, 1)

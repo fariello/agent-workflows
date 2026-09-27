@@ -44,6 +44,7 @@ import pytest
 
 from agent_workflows import cli, completion
 from agent_workflows.term import Term
+from tests import support
 
 
 def _usable_bash():
@@ -2514,36 +2515,22 @@ class CompletionInstallSubprocessTests(_DropInFixture):
         env["HOME"] = str(self.home)
         primary = self.xdg_data / "bash-completion/completions/aw"
 
-        proc = subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "agent_workflows",
-                "completion",
-                "install",
-                "--shell",
-                "bash",
-            ],
-            capture_output=True,
-            text=True,
+        proc = support.run_cli(
+            "completion",
+            "install",
+            "--shell",
+            "bash",
             env=env,
             cwd=str(self.root),
         )
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertTrue(primary.is_file())
 
-        proc = subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "agent_workflows",
-                "completion",
-                "uninstall",
-                "--shell",
-                "bash",
-            ],
-            capture_output=True,
-            text=True,
+        proc = support.run_cli(
+            "completion",
+            "uninstall",
+            "--shell",
+            "bash",
             env=env,
             cwd=str(self.root),
         )

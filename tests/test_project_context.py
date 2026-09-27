@@ -5,10 +5,11 @@ from __future__ import annotations
 import json
 import os
 import shutil
-import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+
+from tests import support
 
 from agent_workflows.project_context import (
     ConflictingConfigurationError,
@@ -308,17 +309,12 @@ class TestProjectContextResolver(unittest.TestCase):
 
     def test_cli_context_json_output(self):
         """Test `aw context --json` via CLI invocation."""
-        cmd = [
-            "python3",
-            "-m",
-            "agent_workflows",
+        res = support.run_cli(
             "context",
             "--repo",
             self.target_repo,
             "--json",
-        ]
-        res = subprocess.run(
-            cmd, capture_output=True, text=True, cwd=Path(__file__).parent.parent
+            cwd=Path(__file__).parent.parent,
         )
         self.assertEqual(res.returncode, 0, f"CLI error: {res.stderr}")
         data = json.loads(res.stdout)
@@ -328,18 +324,13 @@ class TestProjectContextResolver(unittest.TestCase):
 
     def test_cli_path_agent_output(self):
         """Test `aw path records --agent` returns clean path with no prose."""
-        cmd = [
-            "python3",
-            "-m",
-            "agent_workflows",
+        res = support.run_cli(
             "path",
             "records",
             "--repo",
             self.target_repo,
             "--agent",
-        ]
-        res = subprocess.run(
-            cmd, capture_output=True, text=True, cwd=Path(__file__).parent.parent
+            cwd=Path(__file__).parent.parent,
         )
         self.assertEqual(res.returncode, 0, f"CLI error: {res.stderr}")
         out_path = res.stdout.strip()
