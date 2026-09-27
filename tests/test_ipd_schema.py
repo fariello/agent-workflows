@@ -3025,6 +3025,10 @@ class DensityHeuristicTests(unittest.TestCase):
 
 
 class NoDependencyTests(unittest.TestCase):
+    @unittest.skipIf(
+        sys.version_info < (3, 10),
+        "sys.stdlib_module_names (the stdlib census this check uses) exists only on Python 3.10+",
+    )
     def test_module_is_stdlib_only(self):
         """Kept separate: behavioral test that the module imports with only stdlib available."""
         code = (

@@ -84,6 +84,22 @@ def make_source_repo(
     return path
 
 
+def _is_within(path: str, root: str) -> bool:
+    """Is ``path`` equal to or inside ``root``? Component-wise, and safe across Windows drives.
+
+    ``os.path.commonpath`` RAISES ``ValueError: Paths don't have the same drive`` when the two sit
+    on different drives, which is exactly the Windows CI layout (the checkout on ``D:``, temp dirs on
+    ``C:``), so a "not inside" assertion crashed instead of passing. Different drives are simply
+    "not inside".
+    """
+    try:
+        return os.path.commonpath(
+            [os.path.normcase(root), os.path.normcase(path)]
+        ) == os.path.normcase(root)
+    except ValueError:
+        return False
+
+
 class TempCase(unittest.TestCase):
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
@@ -1846,14 +1862,12 @@ class ChildToolPinningTests(TempCase):
             r_imported = os.path.realpath(imported)
             r_wt = os.path.realpath(str(wt))
             r_repo = os.path.realpath(str(REPO_ROOT))
-            self.assertEqual(
-                os.path.commonpath([r_wt, r_imported]),
-                r_wt,
+            self.assertTrue(
+                _is_within(r_imported, r_wt),
                 f"expected imported_from under worktree {wt}, got {imported}",
             )
-            self.assertNotEqual(
-                os.path.commonpath([r_repo, r_imported]),
-                r_repo,
+            self.assertFalse(
+                _is_within(r_imported, r_repo),
                 f"imported_from unexpectedly under REPO_ROOT: {imported}",
             )
         finally:
@@ -1890,8 +1904,8 @@ class ChildToolPinningTests(TempCase):
             r_imported = os.path.realpath(imported)
             r_wt = os.path.realpath(str(wt))
             r_repo = os.path.realpath(str(REPO_ROOT))
-            self.assertEqual(os.path.commonpath([r_wt, r_imported]), r_wt)
-            self.assertNotEqual(os.path.commonpath([r_repo, r_imported]), r_repo)
+            self.assertTrue(_is_within(r_imported, r_wt))
+            self.assertFalse(_is_within(r_imported, r_repo))
         finally:
             sys.modules.pop(mod_name, None)
 
@@ -1918,14 +1932,12 @@ class ChildToolPinningTests(TempCase):
         tool_root = getattr(uat, "tool_repo_root", lambda: REPO_ROOT)()
         r_tool = os.path.realpath(str(tool_root))
         r_sandbox = os.path.realpath(str(sandbox))
-        self.assertEqual(
-            os.path.commonpath([r_tool, r_imported]),
-            r_tool,
+        self.assertTrue(
+            _is_within(r_imported, r_tool),
             f"imported_from ({imported}) must be under tool root ({tool_root})",
         )
-        self.assertNotEqual(
-            os.path.commonpath([r_sandbox, r_imported]),
-            r_sandbox,
+        self.assertFalse(
+            _is_within(r_imported, r_sandbox),
             f"imported_from ({imported}) must NOT be under sandbox ({sandbox})",
         )
         self.assertNotIn(

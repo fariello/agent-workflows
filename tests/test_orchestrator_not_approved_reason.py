@@ -4,6 +4,8 @@ Distinguishes an orchestrator whose children merely await human approval (never 
 from one whose children ran and failed.
 """
 
+from __future__ import annotations
+
 import json
 import tempfile
 import unittest

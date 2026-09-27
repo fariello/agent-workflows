@@ -421,6 +421,10 @@ class AtomicWriteTests(unittest.TestCase):
 
 
 class NoDependencyTests(unittest.TestCase):
+    @unittest.skipIf(
+        sys.version_info < (3, 10),
+        "sys.stdlib_module_names (the stdlib census this check uses) exists only on Python 3.10+",
+    )
     def test_authoring_module_is_stdlib_only(self):
         code = (
             "import sys\n"

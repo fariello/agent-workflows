@@ -127,6 +127,12 @@ def test_runs_list_declaration_both_directions() -> None:
     assert set(decl.legacy_flags) - accepted == set()
 
 
+#: argparse renders a metavar'd option with aliases differently by version: Python 3.13+ prints the
+#: metavar once (`--dir, --repo DIR`), earlier versions repeat it per option string
+#: (`--dir DIR, --repo DIR`). Both advertise the alias, which is what this test is for.
+_ALIAS_RENDERINGS = ("--dir, --repo DIR", "--dir DIR, --repo DIR")
+
+
 def test_help_text_advertises_alias() -> None:
     """Confirm the help line displays `--dir, --repo DIR` for runs, a ledger leaf, and a separate leaf."""
     parser = cli._build_parser()
@@ -151,12 +157,8 @@ def test_help_text_advertises_alias() -> None:
     show_line = find_dir_repo_line(show_parser)
     analyze_line = find_dir_repo_line(analyze_parser)
 
-    assert runs_line.startswith(
-        "--dir, --repo DIR"
-    ), f"runs help rendered: {runs_line!r}"
-    assert show_line.startswith(
-        "--dir, --repo DIR"
-    ), f"show help rendered: {show_line!r}"
+    assert runs_line.startswith(_ALIAS_RENDERINGS), f"runs help rendered: {runs_line!r}"
+    assert show_line.startswith(_ALIAS_RENDERINGS), f"show help rendered: {show_line!r}"
     assert analyze_line.startswith(
-        "--dir, --repo DIR"
+        _ALIAS_RENDERINGS
     ), f"analyze help rendered: {analyze_line!r}"
