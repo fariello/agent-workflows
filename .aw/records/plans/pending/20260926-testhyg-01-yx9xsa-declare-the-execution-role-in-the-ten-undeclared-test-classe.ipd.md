@@ -36,25 +36,25 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: declare, correct, verify
 
-- [ ] E-01 In `tests/test_ipd_lifecycle_cli.py`, make `support.declare_execution_role(self)` the FIRST statement of `setUp` in each of: `BeginHappyPathTests`, `BeginFailClosedTests`, `FinalizeTests`, `ReconciliationTests`, `AdditiveScopeWideningTests`, `RollbackFailureSemanticsTests`, `TheORDINARYFinalizeAlsoMutatesOffTheSharedCheckout`, `DelegationAndBypassRemovalTests`, `ParenthesizedActorIsRefusedBeforeAnyWrite`. `ScaffoldStopsWritingTheShapeItsOwnSetterRefuses` has no `setUp`; add `def setUp(self) -> None: support.declare_execution_role(self)`. `support` is already imported (`from tests import support`). Every one of the 11 classes subclasses `unittest.TestCase` DIRECTLY, so no `super().setUp()` chain is involved and there is no inheritance hazard; the authored grep for it is retained only as a cheap re-confirmation at execution time (`grep -n "super().setUp" tests/test_ipd_lifecycle_cli.py` returns nothing today). No other change to any test body.
+- [x] E-01 In `tests/test_ipd_lifecycle_cli.py`, make `support.declare_execution_role(self)` the FIRST statement of `setUp` in each of: `BeginHappyPathTests`, `BeginFailClosedTests`, `FinalizeTests`, `ReconciliationTests`, `AdditiveScopeWideningTests`, `RollbackFailureSemanticsTests`, `TheORDINARYFinalizeAlsoMutatesOffTheSharedCheckout`, `DelegationAndBypassRemovalTests`, `ParenthesizedActorIsRefusedBeforeAnyWrite`. `ScaffoldStopsWritingTheShapeItsOwnSetterRefuses` has no `setUp`; add `def setUp(self) -> None: support.declare_execution_role(self)`. `support` is already imported (`from tests import support`). Every one of the 11 classes subclasses `unittest.TestCase` DIRECTLY, so no `super().setUp()` chain is involved and there is no inheritance hazard; the authored grep for it is retained only as a cheap re-confirmation at execution time (`grep -n "super().setUp" tests/test_ipd_lifecycle_cli.py` returns nothing today). No other change to any test body.
   - Depends on: none
   - Expected outcome: all 11 classes declare the coordinator role. Re-derive the class count at execution time (`grep -c "^class .*unittest.TestCase" tests/test_ipd_lifecycle_cli.py`) rather than trusting the 11 measured at review, and make the declaration count EQUAL it; 11 is context, not the bar.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `tests/test_orchestrator_retirement.py`, make `support.declare_execution_role(self)` the first statement of the SHARED base class `RollupTransitionCase.setUp` (add `from tests import support` beside that method's existing local `from agent_workflows import ipd_lifecycle as LC` import, or at module level beside the existing `from tests.support import REPO_ROOT`). ONE declaration on the base class covers all 15 subclasses; do not add a per-subclass `setUp`. WHY THIS FILE AND ONLY THIS FILE: review ran the re-assert probe over the WHOLE suite and found exactly one failing test outside `test_ipd_lifecycle_cli.py`, in this file (`TheHumanFacingGateIsUNCHANGED::test_the_ordinary_finalize_still_refuses_orchestrator_and_child_without_evidence`, which drives `LC.finalize` on the ambient environment and gets `AW-LIFECYCLE-ROLE-001` (exit 2) where it asserts `EXIT_FINDINGS` (1)). DO NOT WEAKEN `TheWorkerRoleIsRefused`: its whole point is refusal, and it is safe precisely because it passes an EXPLICIT `env={LC.EXECUTION_ROLE_ENV: LC.ROLE_WORKER}` rather than reading the ambient value, so a coordinator declaration on the base class cannot make it vacuous; review measured the whole file `42 passed` under the probe with the base-class declaration in place. No assertion body in this file may change.
+- [x] E-02 In `tests/test_orchestrator_retirement.py`, make `support.declare_execution_role(self)` the first statement of the SHARED base class `RollupTransitionCase.setUp` (add `from tests import support` beside that method's existing local `from agent_workflows import ipd_lifecycle as LC` import, or at module level beside the existing `from tests.support import REPO_ROOT`). ONE declaration on the base class covers all 15 subclasses; do not add a per-subclass `setUp`. WHY THIS FILE AND ONLY THIS FILE: review ran the re-assert probe over the WHOLE suite and found exactly one failing test outside `test_ipd_lifecycle_cli.py`, in this file (`TheHumanFacingGateIsUNCHANGED::test_the_ordinary_finalize_still_refuses_orchestrator_and_child_without_evidence`, which drives `LC.finalize` on the ambient environment and gets `AW-LIFECYCLE-ROLE-001` (exit 2) where it asserts `EXIT_FINDINGS` (1)). DO NOT WEAKEN `TheWorkerRoleIsRefused`: its whole point is refusal, and it is safe precisely because it passes an EXPLICIT `env={LC.EXECUTION_ROLE_ENV: LC.ROLE_WORKER}` rather than reading the ambient value, so a coordinator declaration on the base class cannot make it vacuous; review measured the whole file `42 passed` under the probe with the base-class declaration in place. No assertion body in this file may change.
   - Depends on: none
   - Expected outcome: `tests/test_orchestrator_retirement.py` is ambient-role independent with ONE added declaration, and `TheWorkerRoleIsRefused` still asserts the refusal from its own explicit env.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Rewrite the `HONEST LIMITS` and `CROSS-REFERENCE` paragraphs of the `conftest.py` comment block above `os.environ.pop("AW_EXECUTION_ROLE", None)`: remove both references to `tests/test_role_declaration_guard.py` (deleted; `git ls-files tests/test_role_declaration_guard.py` is empty) and the claim that 42 tests in `tests/test_ipd_lifecycle_cli.py` still inherit the ambient role; state instead that tests which drive lifecycle wrappers declare their role with `support.declare_execution_role`, and that re-asserting the marker with a throwaway `pytest_runtest_setup` plugin is how to check a file (as plan yx9xsa did). ALSO FIX THE THIRD DEAD REFERENCE THE AUTHORED ITEM WOULD HAVE LEFT BEHIND (review F-4): the `WHY NOT RELAX THE GUARD TEST` paragraph cites `tests/test_worker_role_refusal.py`, which the same trim `19313eed` deleted, and the `HONEST LIMITS` paragraph names `test_driver_own_process_is_not_worker_role`, a test that exists NOWHERE in the tree (`grep -rn "def test_driver_own_process_is_not_worker_role" --include=*.py .` returns nothing). So do NOT "keep the paragraph about `test_driver_own_process_is_not_worker_role` minus its dead cross-reference": that paragraph's SUBJECT is gone, and keeping it would leave the comment asserting a live guard the repository no longer has. Replace it with what is TRUE: the scrub's invariance is not asserted by any shipped test today (the guard file that did so was deleted), which is why a one-off re-assert probe is the check. Add ONE sentence recording that the scrub is pytest-only, so `make test-serial` (`python3 -m unittest`) never loads this file and is protected only by the per-class declarations. Also remove the parenthetical "re-measured at IPD `8i0xa7`: 42 tests ... see backlog `owi0no`" in the WHAT WENT WRONG paragraph, or reword it to say the gap was closed by plan yx9xsa. Write no em or en dashes (this is an internal code comment, so the rule is a repository style preference here, not the user-facing-prose MUST).
+- [x] E-03 Rewrite the `HONEST LIMITS` and `CROSS-REFERENCE` paragraphs of the `conftest.py` comment block above `os.environ.pop("AW_EXECUTION_ROLE", None)`: remove both references to `tests/test_role_declaration_guard.py` (deleted; `git ls-files tests/test_role_declaration_guard.py` is empty) and the claim that 42 tests in `tests/test_ipd_lifecycle_cli.py` still inherit the ambient role; state instead that tests which drive lifecycle wrappers declare their role with `support.declare_execution_role`, and that re-asserting the marker with a throwaway `pytest_runtest_setup` plugin is how to check a file (as plan yx9xsa did). ALSO FIX THE THIRD DEAD REFERENCE THE AUTHORED ITEM WOULD HAVE LEFT BEHIND (review F-4): the `WHY NOT RELAX THE GUARD TEST` paragraph cites `tests/test_worker_role_refusal.py`, which the same trim `19313eed` deleted, and the `HONEST LIMITS` paragraph names `test_driver_own_process_is_not_worker_role`, a test that exists NOWHERE in the tree (`grep -rn "def test_driver_own_process_is_not_worker_role" --include=*.py .` returns nothing). So do NOT "keep the paragraph about `test_driver_own_process_is_not_worker_role` minus its dead cross-reference": that paragraph's SUBJECT is gone, and keeping it would leave the comment asserting a live guard the repository no longer has. Replace it with what is TRUE: the scrub's invariance is not asserted by any shipped test today (the guard file that did so was deleted), which is why a one-off re-assert probe is the check. Add ONE sentence recording that the scrub is pytest-only, so `make test-serial` (`python3 -m unittest`) never loads this file and is protected only by the per-class declarations. Also remove the parenthetical "re-measured at IPD `8i0xa7`: 42 tests ... see backlog `owi0no`" in the WHAT WENT WRONG paragraph, or reword it to say the gap was closed by plan yx9xsa. Write no em or en dashes (this is an internal code comment, so the rule is a repository style preference here, not the user-facing-prose MUST).
   - Depends on: E-01, E-02
   - Expected outcome: the comment cites no deleted file and no nonexistent test, carries no stale count, and states the pytest-only limit of the scrub.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Verify under BOTH runners, with the probe plugin written INSIDE the workspace. Write `reassert_worker.py` to a workspace-local path (`.aw/state/roleplug/` is gitignored and is the path executed plan `6vozur` used after its review found the hardcoded `/tmp/opencode/roleplug` unwritable from an isolated lane; review PR-703 on `6vozur` records that finding, and this review hit the same refusal). Content: `@pytest.hookimpl(trylast=True) def pytest_runtest_setup(item): os.environ["AW_EXECUTION_ROLE"] = "worker"` (trylast so it runs after conftest's import-time pop and before each test body; `setUp` then runs inside the test call and the declaration overrides it). (a) PYTEST, per file, BEFORE and AFTER: `PYTHONPATH=.aw/state/roleplug python3 -m pytest tests/test_ipd_lifecycle_cli.py tests/test_orchestrator_retirement.py -p reassert_worker -o addopts="-q -n auto"`. (b) PYTEST, WHOLE SUITE under the probe, which is what proves no OTHER file carries this defect and no declaration leaked: `PYTHONPATH=.aw/state/roleplug python3 -m pytest -p reassert_worker`. (c) UNITTEST, which needs no plugin because `conftest.py` is never loaded: `AW_EXECUTION_ROLE=worker python3 -m unittest tests.test_ipd_lifecycle_cli` before and after. Then run the bare suite. DO NOT SUBSTITUTE `AW_EXECUTION_ROLE=worker python3 -m pytest` for the plugin: the scrub makes that spelling report green against the UNFIXED tree, a false pass measured on this repository before (`6vozur` F-7). Do not commit the plugin.
+- [x] E-04 Verify under BOTH runners, with the probe plugin written INSIDE the workspace. Write `reassert_worker.py` to a workspace-local path (`.aw/state/roleplug/` is gitignored and is the path executed plan `6vozur` used after its review found the hardcoded `/tmp/opencode/roleplug` unwritable from an isolated lane; review PR-703 on `6vozur` records that finding, and this review hit the same refusal). Content: `@pytest.hookimpl(trylast=True) def pytest_runtest_setup(item): os.environ["AW_EXECUTION_ROLE"] = "worker"` (trylast so it runs after conftest's import-time pop and before each test body; `setUp` then runs inside the test call and the declaration overrides it). (a) PYTEST, per file, BEFORE and AFTER: `PYTHONPATH=.aw/state/roleplug python3 -m pytest tests/test_ipd_lifecycle_cli.py tests/test_orchestrator_retirement.py -p reassert_worker -o addopts="-q -n auto"`. (b) PYTEST, WHOLE SUITE under the probe, which is what proves no OTHER file carries this defect and no declaration leaked: `PYTHONPATH=.aw/state/roleplug python3 -m pytest -p reassert_worker`. (c) UNITTEST, which needs no plugin because `conftest.py` is never loaded: `AW_EXECUTION_ROLE=worker python3 -m unittest tests.test_ipd_lifecycle_cli` before and after. Then run the bare suite. DO NOT SUBSTITUTE `AW_EXECUTION_ROLE=worker python3 -m pytest` for the plugin: the scrub makes that spelling report green against the UNFIXED tree, a false pass measured on this repository before (`6vozur` F-7). Do not commit the plugin.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: state the PROPERTY, then the review numbers as context. Property: under the probe, every previously failing test passes and the suite's failure count for this defect class reaches zero; under `unittest` with the marker exported, the lifecycle file is `OK`. Context measured at review HEAD `de9b241c`, to be re-derived rather than asserted: two-file pytest probe before `23 failed` (22 in the lifecycle file, 1 in the retirement file), after `38 passed` + `42 passed`; whole-suite probe before `23 failed, 2575 passed, 2 skipped`, after zero failures attributable to the role; `unittest` before `Ran 38 tests ... FAILED (failures=27)`, after `Ran 38 tests ... OK`. If the AFTER suite carries any failure, report it rather than attributing it to the role.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -124,25 +124,270 @@ N/A: test fixtures and a code comment only. No `.spec.md` is in `- Scope-Paths:`
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the diff of `tests/test_ipd_lifecycle_cli.py`. Paste BOTH counts from the same tree and state that they are EQUAL: `grep -c "support.declare_execution_role(self)" tests/test_ipd_lifecycle_cli.py` and `grep -c "^class .*unittest.TestCase" tests/test_ipd_lifecycle_cli.py` (both were 11 at review; if the class count has moved, the declaration count must move with it and the equality is the bar, not the number). Paste `grep -n "super().setUp" tests/test_ipd_lifecycle_cli.py` showing no hit, so no class reaches `setUp` through a chain that skips the declaration. The diff must show ONLY added declaration lines and the one added `setUp`; an assertion body change is a failed validation.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Diff of tests/test_ipd_lifecycle_cli.py shows only role declarations and added setUp; 11 == 11 classes/declarations; super().setUp empty.
+```diff
+diff --git a/tests/test_ipd_lifecycle_cli.py b/tests/test_ipd_lifecycle_cli.py
+index c7c05f06..e9e9251f 100644
+--- a/tests/test_ipd_lifecycle_cli.py
++++ b/tests/test_ipd_lifecycle_cli.py
+@@ -88,6 +88,7 @@ def _write_plan(root: Path, text: str, name: str) -> Path:
 
-- [ ] V-02 validates E-02
+ class BeginHappyPathTests(unittest.TestCase):
+     def setUp(self) -> None:
++        support.declare_execution_role(self)
+         self._tmp = tempfile.TemporaryDirectory()
+         self.root = Path(self._tmp.name)
+         _init_git(self.root)
+@@ -188,6 +189,7 @@ class BeginHappyPathTests(unittest.TestCase):
+
+ class BeginFailClosedTests(unittest.TestCase):
+     def setUp(self) -> None:
++        support.declare_execution_role(self)
+         self._tmp = tempfile.TemporaryDirectory()
+         self.root = Path(self._tmp.name)
+         _init_git(self.root)
+@@ -346,6 +348,7 @@ class FinalizeTests(unittest.TestCase):
+     """ipdgates Order v7e88a: the atomic terminal transaction with scope comparison + evidence."""
+
+     def setUp(self) -> None:
++        support.declare_execution_role(self)
+         self._tmp = tempfile.TemporaryDirectory()
+         self.root = Path(self._tmp.name)
+         _init_git(self.root)
+@@ -582,6 +585,7 @@ class ReconciliationTests(unittest.TestCase):
+     """ipdgates Order qmt3yk: the finalize two-way scope reconciliation (surface + attribute)."""
+
+     def setUp(self) -> None:
++        support.declare_execution_role(self)
+         self._tmp = tempfile.TemporaryDirectory()
+         self.root = Path(self._tmp.name)
+         _init_git(self.root)
+@@ -769,6 +773,7 @@ class AdditiveScopeWideningTests(unittest.TestCase):
+     """
+
+     def setUp(self) -> None:
++        support.declare_execution_role(self)
+         self._tmp = tempfile.TemporaryDirectory()
+         self.root = Path(self._tmp.name)
+         _init_git(self.root)
+@@ -1070,6 +1075,7 @@ class RollbackFailureSemanticsTests(unittest.TestCase):
+     """ipdgates Order 3xh53a: crash-safe two-phase failure semantics for aw ipd finalize."""
+
+     def setUp(self) -> None:
++        support.declare_execution_role(self)
+         self._tmp = tempfile.TemporaryDirectory()
+         self.root = Path(self._tmp.name)
+         _init_git(self.root)
+@@ -1521,6 +1527,7 @@ class TheORDINARYFinalizeAlsoMutatesOffTheSharedCheckout(unittest.TestCase):
+     """
+
+     def setUp(self) -> None:
++        support.declare_execution_role(self)
+         self._tmp = tempfile.TemporaryDirectory()
+         self.root = Path(self._tmp.name)
+         _init_git(self.root)
+@@ -1756,6 +1763,7 @@ class DelegationAndBypassRemovalTests(unittest.TestCase):
+     """ipdgates Order wezhxg: `aw set executed <plan>` delegates into aw ipd finalize (no raw bypass)."""
+
+     def setUp(self) -> None:
++        support.declare_execution_role(self)
+         self._tmp = tempfile.TemporaryDirectory()
+         self.root = Path(self._tmp.name)
+         _init_git(self.root)
+@@ -1937,6 +1945,7 @@ class ParenthesizedActorIsRefusedBeforeAnyWrite(unittest.TestCase):
+     GOOD = "opencode/its_direct/some-model"
+
+     def setUp(self) -> None:
++        support.declare_execution_role(self)
+         self._tmp = tempfile.TemporaryDirectory()
+         self.root = Path(self._tmp.name)
+         _init_git(self.root)
+@@ -2072,6 +2081,9 @@ class ScaffoldStopsWritingTheShapeItsOwnSetterRefuses(unittest.TestCase):
+     BAD = "opencode (its_direct/some-model)"
+     WANT = "opencode model=its_direct/some-model"
+
++    def setUp(self) -> None:
++        support.declare_execution_role(self)
++
+     def test_author_normalization_and_contract_acceptance(self):
+         from agent_workflows import attention_contract as AC
+```
+
+Counts verification:
+```
+$ grep -c "support.declare_execution_role(self)" tests/test_ipd_lifecycle_cli.py
+11
+$ grep -c "^class .*unittest.TestCase" tests/test_ipd_lifecycle_cli.py
+11
+```
+Both counts are EQUAL (11 == 11).
+
+Inheritance chain check:
+```
+$ grep -n "super().setUp" tests/test_ipd_lifecycle_cli.py
+(none found, exit code 1)
+```
+Diff inspection confirms ONLY added declaration lines and the one added `setUp` method. No assertion bodies were modified.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the diff of `tests/test_orchestrator_retirement.py`, which must be the ONE declaration (plus an import) on `RollupTransitionCase.setUp` and nothing else. Paste `PYTHONPATH=.aw/state/roleplug python3 -m pytest tests/test_orchestrator_retirement.py -p reassert_worker -o addopts="-q -n auto"` BEFORE (expected: 1 failure, `TheHumanFacingGateIsUNCHANGED::test_the_ordinary_finalize_still_refuses_orchestrator_and_child_without_evidence`, with `AW-LIFECYCLE-ROLE-001` in the message) and AFTER (expected: 0 failed; review measured `42 passed`). Paste the AFTER run of `tests/test_orchestrator_retirement.py::TheWorkerRoleIsRefused` alone, passing, so the refusal test is proven not to have been made vacuous. A BEFORE run that shows no failure means the probe did not reach the tests: investigate rather than concluding the finding was wrong.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. RollupTransitionCase.setUp declares role; before probe 1 failed; after probe 42 passed; TheWorkerRoleIsRefused passed.
+```diff
+diff --git a/tests/test_orchestrator_retirement.py b/tests/test_orchestrator_retirement.py
+index 894aae91..51744c7d 100644
+--- a/tests/test_orchestrator_retirement.py
++++ b/tests/test_orchestrator_retirement.py
+@@ -91,6 +91,7 @@ import unittest
+ from pathlib import Path
 
-- [ ] V-03 validates E-03
+ from agent_workflows import runner_shared as rs
++from tests import support
+ from tests.support import REPO_ROOT
+
+ # ==================================================================================================
+@@ -2012,6 +2013,7 @@ class RollupTransitionCase(unittest.TestCase):
+     """
+
+     def setUp(self) -> None:
++        support.declare_execution_role(self)
+         import tempfile as _tf
+
+         from agent_workflows import ipd_lifecycle as LC
+```
+
+BEFORE probe run:
+```
+$ PYTHONPATH=.aw/state/roleplug python3 -m pytest tests/test_orchestrator_retirement.py -p reassert_worker -o addopts="-q -n auto"
+..................................F.......                               [100%]
+=================================== FAILURES ===================================
+_ TheHumanFacingGateIsUNCHANGED.test_the_ordinary_finalize_still_refuses_orchestrator_and_child_without_evidence _
+...
+AssertionError: 2 != 1 : AW-LIFECYCLE-ROLE-001: the runner owns begin/finalize for managed lanes; a worker-role process must not run them (refused: terminal finalize transaction). The runner performs begin/finalize for this lane from the coordinator role; report your result instead (write the outcome file the prompt names) and let the driver transition the plan.
+=========================== short test summary info ============================
+FAILED tests/test_orchestrator_retirement.py::TheHumanFacingGateIsUNCHANGED::test_the_ordinary_finalize_still_refuses_orchestrator_and_child_without_evidence
+1 failed, 41 passed in 122.79s (0:02:02)
+```
+
+AFTER probe run:
+```
+$ PYTHONPATH=.aw/state/roleplug python3 -m pytest tests/test_orchestrator_retirement.py -p reassert_worker -o addopts="-q -n auto"
+..........................................                               [100%]
+42 passed in 124.41s (0:02:04)
+```
+
+AFTER run of `tests/test_orchestrator_retirement.py::TheWorkerRoleIsRefused` alone:
+```
+$ PYTHONPATH=.aw/state/roleplug python3 -m pytest tests/test_orchestrator_retirement.py::TheWorkerRoleIsRefused -p reassert_worker -o addopts="-q"
+.                                                                        [100%]
+1 passed in 0.23s
+```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the `conftest.py` diff. Paste `grep -n "test_role_declaration_guard\|test_worker_role_refusal\|test_driver_own_process_is_not_worker_role\|42 tests" conftest.py` returning NOTHING (all four, not just the two the authored item named). Paste the sentence that now records the pytest-only limit of the scrub. Confirm in words that the paragraph which previously described `test_driver_own_process_is_not_worker_role` no longer claims any shipped test asserts the scrub's invariance.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Dead references removed from conftest.py; pytest-only scrub limitation documented; 0 grep hits.
+```diff
+diff --git a/conftest.py b/conftest.py
+index 86ecbedb..f726f771 100644
+--- a/conftest.py
++++ b/conftest.py
+@@ -47,8 +47,8 @@ pytest_plugins = ["tests.deselect_notice"]
+ # (`worker_role_active(os.environ)`, ipd_lifecycle.py:4105 and :4285), so every in-process
+ # test that drives those CLI wrappers gets the worker refusal instead of the behavior it
+ # asserts. Measured suite-wide: `31 failed, 8080 passed` with the marking present versus
+-# `0 failed, 7993 passed` without it (re-measured at IPD `8i0xa7`: 42 tests in protected files
+-# fail under the re-assert probe, because role declaration was incomplete; see backlog `owi0no`).
++# `0 failed, 7993 passed` without it (the gap where tests inherited the ambient role was
++# closed by plan yx9xsa).
+ #
+ # WHY IT MATTERS EVEN THOUGH IT CANNOT SHIP A BUG. The driver's own merge gate
+ # (`oc_runipd.run_suite_check`) runs in the PRIMARY checkout inheriting the DRIVER's
+@@ -69,25 +69,18 @@ pytest_plugins = ["tests.deselect_notice"]
+ # individual fixture, and it makes a bare `python3 -m pytest` mean the same thing whether a
+ # human or a runner turn typed it.
+ #
+-# WHY NOT RELAX THE GUARD TEST. `tests/test_worker_role_refusal.py` asserts that the
+-# driver's own process is not worker-marked and is CORRECT as written; backlog `1uq1cu`
+-# names relaxing it as the wrong fix. This scrub is what makes that assertion true again
+-# inside a runner turn, rather than weakening it.
++# NO SHIPPED GUARD TEST. The scrub's invariance is not asserted by any shipped test today
++# (the guard file that did so was deleted), which is why a one-off re-assert probe is the
++# check.
+ #
+-# HONEST LIMITS, both deliberate. (1) A test that needs the marking must set it ITSELF, on
+-# an explicit env dict passed to the code under test (or declare its role with
+-# `support.declare_execution_role`). Note that `test_driver_own_process_is_not_worker_role`
+-# is the one exception whose subject IS the ambient environment: because of this scrub,
+-# that test cannot fail via ordinary shell export, but it remains falsifiable via a
+-# `pytest_configure` re-assert plugin (see `tests/test_role_declaration_guard.py`).
+-# Note also that compliance across the suite is incomplete (e.g. 42 tests in
+-# `tests/test_ipd_lifecycle_cli.py` still inherit the ambient role, tracked in backlog
+-# `owi0no`). (2) This scrubs the CURRENT process only; a subprocess a test spawns
+-# inherits this already-cleaned environment, which is the intended propagation.
++# HONEST LIMITS, both deliberate. (1) Tests that drive lifecycle wrappers declare their
++# role with `support.declare_execution_role`, and a test that needs the worker marking sets
++# it on an explicit env dict passed to the code under test; re-asserting the marker with a
++# throwaway `pytest_runtest_setup` plugin is how to check a file (as plan yx9xsa did). The scrub
++# is pytest-only, so `make test-serial` (`python3 -m unittest`) never loads this file and is
++# protected only by the per-class declarations. (2) This scrubs the CURRENT process only;
++# a subprocess a test spawns inherits this already-cleaned environment, which is the
++# intended propagation.
+ #
+-# CROSS-REFERENCE: `tests/test_role_declaration_guard.py` asserts behavioral outcome
+-# invariance under both roles across protected files by injecting a `pytest_configure`
+-# plugin that re-asserts the marking after this scrub and before test collection.
+ #
+ # Done at import time, before any test module is collected, so no test can observe the
+ # marked value. `pop` is unconditional and side-effect-free when the variable is absent,
+```
 
-- [ ] V-04 validates E-04
+Dead reference search in `conftest.py`:
+```
+$ grep -n "test_role_declaration_guard\|test_worker_role_refusal\|test_driver_own_process_is_not_worker_role\|42 tests" conftest.py
+(returns exit code 1, nothing found)
+```
+
+Pytest-only scrub limitation sentence:
+"The scrub is pytest-only, so `make test-serial` (`python3 -m unittest`) never loads this file and is protected only by the per-class declarations."
+
+Confirmation:
+The paragraph that previously discussed `test_driver_own_process_is_not_worker_role` and `test_worker_role_refusal.py` has been replaced by the `NO SHIPPED GUARD TEST` paragraph. It explicitly states that the scrub's invariance is not asserted by any shipped test today (the guard file that did so was deleted), and no longer claims that any shipped test asserts this property.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the plugin file content AND its path, which must be inside the workspace. Then paste six summary lines: (a) two-file pytest probe BEFORE (review measured `23 failed`) and AFTER (`0 failed`); (b) whole-suite pytest probe BEFORE (review measured `23 failed, 2575 passed, 2 skipped`) and AFTER, with zero failures attributable to the role and any residual failure named and explained rather than absorbed; (c) `AW_EXECUTION_ROLE=worker python3 -m unittest tests.test_ipd_lifecycle_cli` BEFORE (review measured `FAILED (failures=27)`) and AFTER (`OK`). Finally paste the BARE `python3 -m pytest` summary showing 0 failed, labelled as a no-regression check and NOT as evidence the fix works. A run of `AW_EXECUTION_ROLE=worker python3 -m pytest` does NOT satisfy any part of this item; it is a measured false pass.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Probe plugin at .aw/state/roleplug/reassert_worker.py; two-file probe 87 passed; whole-suite probe 2826 passed; unittest 45 passed OK; bare suite 2826 passed.
+Probe plugin path: `.aw/state/roleplug/reassert_worker.py` (inside workspace).
+Probe plugin content:
+```python
+import os
+import pytest
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_runtest_setup(item):
+    os.environ["AW_EXECUTION_ROLE"] = "worker"
+```
+
+Summary lines:
+(a) Two-file pytest probe (`tests/test_ipd_lifecycle_cli.py` and `tests/test_orchestrator_retirement.py`):
+- BEFORE: `24 failed, 63 passed in 124.25s (0:02:04)`
+- AFTER: `87 passed in 124.13s (0:02:04)`
+
+(b) Whole-suite pytest probe (`PYTHONPATH=.aw/state/roleplug python3 -m pytest -p reassert_worker`):
+- BEFORE: `24 failed, 2802 passed, 2 skipped, 3 warnings in 135.11s (0:02:15)`
+- AFTER: `2826 passed, 2 skipped, 3 warnings in 147.94s (0:02:27)` (zero failures across the entire suite under probe)
+
+(c) Unittest (`AW_EXECUTION_ROLE=worker python3 -m unittest tests.test_ipd_lifecycle_cli`):
+- BEFORE: `Ran 45 tests in 5.221s` / `FAILED (failures=28)`
+- AFTER: `Ran 45 tests in 8.415s` / `OK`
+
+Bare `python3 -m pytest` summary (no-regression check only, not evidence of fix):
+`2826 passed, 2 skipped, 3 warnings in 131.02s (0:02:11)`
+  - Result: pass
 
 ## Approval and execution gate
 

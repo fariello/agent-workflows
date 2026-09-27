@@ -91,6 +91,7 @@ import unittest
 from pathlib import Path
 
 from agent_workflows import runner_shared as rs
+from tests import support
 from tests.support import REPO_ROOT
 
 # ==================================================================================================
@@ -2012,6 +2013,7 @@ class RollupTransitionCase(unittest.TestCase):
     """
 
     def setUp(self) -> None:
+        support.declare_execution_role(self)
         import tempfile as _tf
 
         from agent_workflows import ipd_lifecycle as LC
