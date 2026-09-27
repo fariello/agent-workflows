@@ -6,7 +6,7 @@
 - Scope: IN: (a) a named module constant `engine._DEEP_CLEANUP_REGENERABLE = (f"{ARTIFACTS_DIR}README.md",)` with a comment citing `3ypquf` and D92; (b) `plan_deep_cleanup` skips the at-risk classification for a path in that tuple ONLY WHEN IT IS NOT GIT-TRACKED, while STILL listing it in `plan.files`, `plan.other_files`, and `plan.counts` so `run_deep_cleanup` still removes it; (c) behavioral tests, default-visible for the classification rule and slow-marked for the real-install integration case, with negative controls for a user file in that tree, for the TRACKED-and-dirty README, and for records scratch; (d) a docstring-only correction to the now-passing `tests/test_installer.py` test (its assertions untouched); (e) one CHANGELOG line. OUT: `UninstallCompletenessTests::test_deep_cleanup_records_remove_leaves_no_aw_directory` (backlog `57dwkc`, `.aw/system/layout.json` orphaned by `_DEEP_CLEANUP_ROOTS`); changing `_git_file_state`; changing `_DEEP_CLEANUP_ROOTS`; changing any assertion in `tests/test_installer.py`; exempting any other path.
 - Scope-Paths: agent_workflows/engine.py, tests/test_deep_cleanup_regenerable.py, tests/test_installer.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: baxbdh
-- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: baxbdh verified (set deepclean, attempt 1).
 - 2026-09-27 approved (aw set): status set to approved
 
 - 2026-09-26 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 all FIXED, none deferred, none open; 5 decisions D-1..D-5 recorded. Reviewed at HEAD b861bb05. `aw ipd lint --phase author --agent` reported `clean`/`findings: 0` before revision; the lane-input copy was byte-identical to the tracked file (sha256 `d23f13c9`) and the tree was clean, so no pre-review snapshot was taken. THE DEFECT IS REAL AND REPRODUCED EXACTLY: on a committed real install `at_risk == ['.aw/workflow-artifacts/README.md']`, `all_recoverable False`, the README in `plan.files` and `plan.other_files`, `counts['.aw/workflow-artifacts'] == 1`, `git check-ignore -v` -> `.aw/.gitignore:75:/workflow-artifacts/`, and the target's shipped template is tracked and byte-identical to the written README. FIVE SUBSTANTIVE CORRECTIONS. (1) THE BLANKET PATH EXEMPTION SILENCES A REAL WARNING: with the README git-TRACKED (a repo that installed before the ignore rule landed, a state `ensure_workflow_artifacts_readme`'s own comment says persists forever) and carrying UNCOMMITTED user edits, the plan's `rel not in _DEEP_CLEANUP_REGENERABLE` test drops it from `at_risk`, so `aw uninstall` would promise recoverability for content git cannot restore. Driven on a real install: blanket -> `[]` (SILENCED), narrowed -> `['.aw/workflow-artifacts/README.md']` (PRESERVED). E-03 now exempts only when the path is NOT tracked. (2) THE NAMED SURFACE WAS WRONG: the title and Concern said `aw uninstall --deep` warns, but `--yes --deep` prints no recoverability line at all; the warning comes from `--dry-run` and from the interactive offer. Driven and corrected. (3) EVERY TEST WAS SLOW-MARKED, so the bare run this repo's own contract judges a change by could not see the fix, which is precisely the invisibility `4vfkl1` and `xuc9v0` were filed about. The classification rule needs no install (verified on a 5-file fixture in 0.24s versus 2 to 3.4s per install), so E-04 is now default-visible and only E-05's integration case is slow-marked. (4) A NOW-PASSING TEST WOULD KEEP A DOCSTRING DECLARING ITSELF A `PRE-EXISTING FAILURE` and asking for the maintainer call this plan makes; E-06 corrects the prose with its assertions untouched. (5) HEAD `61ef21d8` was two commits stale and the `2 failed in 8.79s` evidence came from a two-node selection; both re-measured over the whole module.
@@ -36,44 +36,44 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: reproduce
 
-- [ ] E-01 RE-MEASURE at the executing HEAD. Run `python3 -m pytest -o addopts="" -q "tests/test_installer.py::DeepCleanupTests::test_plan_counts_and_all_recoverable_when_committed"` and paste the failure. Then, on a scratch repo built with the test module's own helpers (`tests.test_installer.init_repo`, `engine.install_into_repo(repo, SOURCE_WORKFLOWS, yes=True, no_color=True)`, `git add -A`, commit), paste `engine.plan_deep_cleanup(repo).at_risk`, whether `.aw/workflow-artifacts/README.md` is in `plan.files`, and `git check-ignore -v .aw/workflow-artifacts/README.md`. If `at_risk` is already empty, STOP and report that the defect is fixed.
+- [x] E-01 RE-MEASURE at the executing HEAD. Run `python3 -m pytest -o addopts="" -q "tests/test_installer.py::DeepCleanupTests::test_plan_counts_and_all_recoverable_when_committed"` and paste the failure. Then, on a scratch repo built with the test module's own helpers (`tests.test_installer.init_repo`, `engine.install_into_repo(repo, SOURCE_WORKFLOWS, yes=True, no_color=True)`, `git add -A`, commit), paste `engine.plan_deep_cleanup(repo).at_risk`, whether `.aw/workflow-artifacts/README.md` is in `plan.files`, and `git check-ignore -v .aw/workflow-artifacts/README.md`. If `at_risk` is already empty, STOP and report that the defect is fixed.
   - Depends on: none
   - Expected outcome: the test fails at `self.assertTrue(plan.all_recoverable, ...)`; `at_risk == ['.aw/workflow-artifacts/README.md']`; the README is in `plan.files`; check-ignore names `.aw/.gitignore` `/workflow-artifacts/`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: exempt the regenerable file
 
-- [ ] E-02 ADD `engine._DEEP_CLEANUP_REGENERABLE: tuple[str, ...] = (f"{ARTIFACTS_DIR}README.md",)` beside `_DEEP_CLEANUP_ROOTS`, with a comment stating the THREE-PART criterion for membership (framework-written, never committed by design, and re-created by `ensure_workflow_artifacts_readme` from the shipped template or `_ARTIFACTS_README_FALLBACK`, so deleting it loses nothing the framework cannot rebuild), citing `3ypquf` and D92, and saying that a path belongs here only if all three hold. The comment MUST also state the TRACKED CAVEAT E-03 implements and why: membership makes a path exempt only while it is UNTRACKED, because `ensure_workflow_artifacts_readme`'s own comment records that a repo which installed before the ignore rule landed "would keep the file tracked forever", and a tracked file carrying uncommitted edits holds content git cannot restore.
+- [x] E-02 ADD `engine._DEEP_CLEANUP_REGENERABLE: tuple[str, ...] = (f"{ARTIFACTS_DIR}README.md",)` beside `_DEEP_CLEANUP_ROOTS`, with a comment stating the THREE-PART criterion for membership (framework-written, never committed by design, and re-created by `ensure_workflow_artifacts_readme` from the shipped template or `_ARTIFACTS_README_FALLBACK`, so deleting it loses nothing the framework cannot rebuild), citing `3ypquf` and D92, and saying that a path belongs here only if all three hold. The comment MUST also state the TRACKED CAVEAT E-03 implements and why: membership makes a path exempt only while it is UNTRACKED, because `ensure_workflow_artifacts_readme`'s own comment records that a repo which installed before the ignore rule landed "would keep the file tracked forever", and a tracked file carrying uncommitted edits holds content git cannot restore.
   - Depends on: E-01
   - Expected outcome: `engine._DEEP_CLEANUP_REGENERABLE == (".aw/workflow-artifacts/README.md",)`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 CHANGE `engine.plan_deep_cleanup` so a path in `_DEEP_CLEANUP_REGENERABLE` is exempted from the at-risk classification ONLY WHEN IT IS NOT GIT-TRACKED, e.g. `if not (rel in _DEEP_CLEANUP_REGENERABLE and not git_is_tracked(repo_root, rel)) and _git_file_state(repo_root, rel) == "at_risk":` (any equivalent spelling is fine; the REQUIRED property is the four-state truth table in the expected outcome). DO NOT exempt by path alone: measured at review on a real install, a force-added README carrying uncommitted edits is dropped from `at_risk` by the path-only test, so `aw uninstall` would promise recoverability for content git cannot restore. Leave the `plan.files` / `records_files` / `other_files` appends and the `n += 1` count unchanged, so the file is still announced and removed. Update the `DeepCleanupPlan` docstring's `at_risk` sentence to say an UNTRACKED regenerable framework file is excluded.
+- [x] E-03 CHANGE `engine.plan_deep_cleanup` so a path in `_DEEP_CLEANUP_REGENERABLE` is exempted from the at-risk classification ONLY WHEN IT IS NOT GIT-TRACKED, e.g. `if not (rel in _DEEP_CLEANUP_REGENERABLE and not git_is_tracked(repo_root, rel)) and _git_file_state(repo_root, rel) == "at_risk":` (any equivalent spelling is fine; the REQUIRED property is the four-state truth table in the expected outcome). DO NOT exempt by path alone: measured at review on a real install, a force-added README carrying uncommitted edits is dropped from `at_risk` by the path-only test, so `aw uninstall` would promise recoverability for content git cannot restore. Leave the `plan.files` / `records_files` / `other_files` appends and the `n += 1` count unchanged, so the file is still announced and removed. Update the `DeepCleanupPlan` docstring's `at_risk` sentence to say an UNTRACKED regenerable framework file is excluded.
   - Depends on: E-02
   - Expected outcome: all four states correct on a real install: untracked README -> NOT in `at_risk`; tracked + clean -> not in `at_risk` (already true, `_git_file_state` returns `recoverable`); tracked + uncommitted edits -> IS in `at_risk`; a sibling untracked user file in the same tree -> IS in `at_risk`. Plus the README still in `plan.files` and `plan.other_files`, and `plan.counts[".aw/workflow-artifacts"] >= 1`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove it
 
-- [ ] E-04 ADD `tests/test_deep_cleanup_regenerable.py` with the CLASSIFICATION-RULE cases, DEFAULT-VISIBLE (NO module-level `pytest.mark.slow`), behavioral only (maintainer's 2026-09-26 ruling: no source-text pins). These must NOT perform an install: build a minimal fixture repo by hand (`git init`, a `.aw/.gitignore` containing `/workflow-artifacts/`, the README, one `.aw/records/README.md`, commit) so the fix is visible to the BARE `python3 -m pytest` the execution contract judges a change by. Measured at review: such a fixture costs about 0.24s for five scenarios against 2 to 3.4s for one real install. Four cases, each asserting on `plan_deep_cleanup(repo).at_risk` and `all_recoverable`: (1) untracked ignored README -> `at_risk == []` and `all_recoverable is True`; (2) NEGATIVE CONTROL, a sibling untracked `.aw/workflow-artifacts/my-notes.md` -> IS in `at_risk` and the README is still absent from it; (3) NEGATIVE CONTROL, README `git add -f`'d and committed then edited -> IS in `at_risk` (this is the case a path-only exemption silences); (4) NEGATIVE CONTROL, an uncommitted `.aw/records/README.md` edit -> still at-risk.
+- [x] E-04 ADD `tests/test_deep_cleanup_regenerable.py` with the CLASSIFICATION-RULE cases, DEFAULT-VISIBLE (NO module-level `pytest.mark.slow`), behavioral only (maintainer's 2026-09-26 ruling: no source-text pins). These must NOT perform an install: build a minimal fixture repo by hand (`git init`, a `.aw/.gitignore` containing `/workflow-artifacts/`, the README, one `.aw/records/README.md`, commit) so the fix is visible to the BARE `python3 -m pytest` the execution contract judges a change by. Measured at review: such a fixture costs about 0.24s for five scenarios against 2 to 3.4s for one real install. Four cases, each asserting on `plan_deep_cleanup(repo).at_risk` and `all_recoverable`: (1) untracked ignored README -> `at_risk == []` and `all_recoverable is True`; (2) NEGATIVE CONTROL, a sibling untracked `.aw/workflow-artifacts/my-notes.md` -> IS in `at_risk` and the README is still absent from it; (3) NEGATIVE CONTROL, README `git add -f`'d and committed then edited -> IS in `at_risk` (this is the case a path-only exemption silences); (4) NEGATIVE CONTROL, an uncommitted `.aw/records/README.md` edit -> still at-risk.
   - Depends on: E-03
   - Expected outcome: 4 cases pass after E-03; case (1) FAILS before it; cases (2) to (4) pass before and after (controls). They appear in a BARE `python3 -m pytest` run.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 ADD to the same file a SEPARATE class carrying a class-scoped `pytestmark = pytest.mark.slow` (verified at review to deselect per class under `-m 'not slow'` while leaving sibling classes default-visible) holding the REAL-INSTALL integration case, because only a real install proves the shipped installer plus the shipped `.aw/.gitignore` produce the exempt state. On a committed real install (`tests.test_installer.init_repo`, `engine.install_into_repo(..., yes=True, no_color=True)`, `git add -A`, commit): (a) `all_recoverable is True` and `at_risk == []`; (b) the README is in `plan.files` and in `plan.other_files`, and `counts[".aw/workflow-artifacts"] >= 1`; (c) `run_deep_cleanup(repo, plan, use_git=True)` removes `.aw/workflow-artifacts/README.md` from disk.
+- [x] E-05 ADD to the same file a SEPARATE class carrying a class-scoped `pytestmark = pytest.mark.slow` (verified at review to deselect per class under `-m 'not slow'` while leaving sibling classes default-visible) holding the REAL-INSTALL integration case, because only a real install proves the shipped installer plus the shipped `.aw/.gitignore` produce the exempt state. On a committed real install (`tests.test_installer.init_repo`, `engine.install_into_repo(..., yes=True, no_color=True)`, `git add -A`, commit): (a) `all_recoverable is True` and `at_risk == []`; (b) the README is in `plan.files` and in `plan.other_files`, and `counts[".aw/workflow-artifacts"] >= 1`; (c) `run_deep_cleanup(repo, plan, use_git=True)` removes `.aw/workflow-artifacts/README.md` from disk.
   - Depends on: E-03
   - Expected outcome: passes under `-o addopts=""` and is DESELECTED by the bare run; (a) fails before E-03.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 CORRECT the docstring of `tests/test_installer.py::DeepCleanupTests::test_plan_counts_and_all_recoverable_when_committed`, whose prose declares itself a `PRE-EXISTING FAILURE`, says the expectation may need to change, and asks for "a maintainer call about `agent_workflows/`" that this plan makes. Replace that paragraph with one sentence recording that the product answered it (`_DEEP_CLEANUP_REGENERABLE` in `engine.plan_deep_cleanup`, plan `baxbdh`, backlog `3ypquf`). DO NOT touch a single assertion, the test body, or any other test in the module: the whole point is that it passes AS WRITTEN. Re-run the node UNMODIFIED first and paste it passing before editing the prose.
+- [x] E-06 CORRECT the docstring of `tests/test_installer.py::DeepCleanupTests::test_plan_counts_and_all_recoverable_when_committed`, whose prose declares itself a `PRE-EXISTING FAILURE`, says the expectation may need to change, and asks for "a maintainer call about `agent_workflows/`" that this plan makes. Replace that paragraph with one sentence recording that the product answered it (`_DEEP_CLEANUP_REGENERABLE` in `engine.plan_deep_cleanup`, plan `baxbdh`, backlog `3ypquf`). DO NOT touch a single assertion, the test body, or any other test in the module: the whole point is that it passes AS WRITTEN. Re-run the node UNMODIFIED first and paste it passing before editing the prose.
   - Depends on: E-03
   - Expected outcome: `git diff tests/test_installer.py` shows docstring lines only (no `assert`, no `self.assert*`, no body line), and the node passes both before and after the docstring edit.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 ADD one `- Fixed:` line to the `## 2.0.0 (pending)` section of `CHANGELOG.md`, in USER-FACING prose with no em or en dashes: `aw uninstall` previously warned that deleting the leftover scaffolding was permanent and unrecoverable even when the user had committed everything they could commit, because it counted its own run-scratch README (a file it writes, never commits, and can always write again) as content at risk. That file no longer counts. It is still listed and still removed, any other file you put in that folder is still flagged, and the README itself is still flagged in the one case where git cannot bring it back.
+- [x] E-07 ADD one `- Fixed:` line to the `## 2.0.0 (pending)` section of `CHANGELOG.md`, in USER-FACING prose with no em or en dashes: `aw uninstall` previously warned that deleting the leftover scaffolding was permanent and unrecoverable even when the user had committed everything they could commit, because it counted its own run-scratch README (a file it writes, never commits, and can always write again) as content at risk. That file no longer counts. It is still listed and still removed, any other file you put in that folder is still flagged, and the README itself is still flagged in the one case where git cannot bring it back.
   - Depends on: E-03
   - Expected outcome: exactly one added line under the 2.0.0 heading; `git diff CHANGELOG.md | grep -P '[\x{2013}\x{2014}]'` prints nothing.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -160,40 +160,207 @@ F-1 to F-5 were measured at authoring HEAD `61ef21d8` and RE-MEASURED at review 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the failing test output, the scratch probe (`at_risk`, README-in-files, check-ignore), and the HEAD hash.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Failing test at HEAD a2db754fd66b5632864342a3cd06f12b8a646e5c reproduced (1 failed in 2.39s); scratch probe confirmed plan.at_risk=['.aw/workflow-artifacts/README.md'], README in files is True, check-ignore names .aw/.gitignore:75:/workflow-artifacts/. Detail:
+    Failing test run at executing HEAD a2db754fd66b5632864342a3cd06f12b8a646e5c:
+    ```
+    FAILED tests/test_installer.py::DeepCleanupTests::test_plan_counts_and_all_recoverable_when_committed
+    AssertionError: False is not true : all committed -> nothing at risk (soft warning)
+    tests/test_installer.py:2643: AssertionError
+    1 failed in 2.39s
+    ```
+    Scratch probe on committed install:
+    ```
+    plan.at_risk: ['.aw/workflow-artifacts/README.md']
+    README in plan.files: True
+    check-ignore stdout: .aw/.gitignore:75:/workflow-artifacts/	.aw/workflow-artifacts/README.md
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the constant's diff with its comment and `python3 -c "from agent_workflows import engine; print(engine._DEEP_CLEANUP_REGENERABLE)"`. The pasted comment must visibly state all three membership criteria AND the tracked caveat.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Constant _DEEP_CLEANUP_REGENERABLE added with comment stating three-part criterion and tracked caveat; python import prints ('.aw/workflow-artifacts/README.md',). Detail:
+    Constant diff in agent_workflows/engine.py:
+    ```diff
+    +# Scaffolding files that deep cleanup removes but plan_deep_cleanup exempts from the at-risk
+    +# classification (backlog 3ypquf). A path belongs here only if all three criteria hold:
+    +# 1. Framework-written: the file is authored and emitted entirely by the framework, not the user.
+    +# 2. Never committed by design (D92): the tree is ignored run scratch and must not enter git history.
+    +# 3. Regenerable: re-created by `ensure_workflow_artifacts_readme` from the shipped template or
+    +#    `_ARTIFACTS_README_FALLBACK`, so deleting it loses nothing the framework cannot rebuild.
+    +# Tracked caveat: membership makes a path exempt from `at_risk` only while it is UNTRACKED.
+    +# As `ensure_workflow_artifacts_readme`'s own comment records, a repo which installed before the
+    +# ignore rule landed "would keep the file tracked forever", and a tracked file carrying uncommitted
+    +# edits holds content git cannot restore.
+    +_DEEP_CLEANUP_REGENERABLE: tuple[str, ...] = (f"{ARTIFACTS_DIR}README.md",)
+    ```
+    Python import probe:
+    ```
+    $ python3 -c "from agent_workflows import engine; print(engine._DEEP_CLEANUP_REGENERABLE)"
+    ('.aw/workflow-artifacts/README.md',)
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the `plan_deep_cleanup` diff and a FOUR-ROW truth table driven on a real install, each row showing the actual `at_risk` list: untracked README (absent), tracked + clean (absent), tracked + uncommitted edit (PRESENT), sibling untracked user file (PRESENT). Also paste the README still in `files` and `other_files` and a non-zero `.aw/workflow-artifacts` count. A pasted table missing the tracked-and-dirty row does not satisfy this item, because that row is the entire content of F-6.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. plan_deep_cleanup diff excludes untracked regenerable files; 4-row truth table driven on real install verifies untracked README absent, tracked+clean absent, tracked+dirty PRESENT, sibling untracked PRESENT; files/other_files/count preserved. Detail:
+    Diff in agent_workflows/engine.py:
+    ```diff
+    @@ -4707,7 +4719,9 @@ def plan_deep_cleanup(repo_root: Path) -> DeepCleanupPlan:
+                     plan.records_files.append(rel)
+                 else:
+                     plan.other_files.append(rel)
+    -            if _git_file_state(repo_root, rel) == "at_risk":
+    +            if not (
+    +                rel in _DEEP_CLEANUP_REGENERABLE and not git_is_tracked(repo_root, rel)
+    +            ) and _git_file_state(repo_root, rel) == "at_risk":
+                     plan.at_risk.append(rel)
+                 n += 1
+             if n:
+    ```
+    Four-row truth table driven on a real install:
+    ```
+    Row 1 (untracked README): at_risk = [] | present = False
+      files: True
+      other_files: True
+      count: 1
+    Row 2 (tracked + clean): at_risk = [] | present = False
+    Row 3 (tracked + uncommitted edit): at_risk = ['.aw/workflow-artifacts/README.md'] | present = True
+    Row 4 (sibling untracked user file): at_risk = ['.aw/workflow-artifacts/my-notes.md'] | sibling present = True | readme present = False
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `python3 -m pytest -q tests/test_deep_cleanup_regenerable.py` (BARE, no `-o addopts=""`) showing the four classification cases SELECTED and passing, proving they are default-visible; then the same file with E-03 temporarily reverted, showing case (1) FAILING and cases (2) to (4) passing; and the wall-clock line from each run.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. 4 classification cases default-visible in bare run (4 passed in 1.90s); with E-03 reverted case 1 fails and controls 2-4 pass (1 failed, 3 passed in 2.74s). Detail:
+    Bare pytest run (default-visible):
+    ```
+    $ python3 -m pytest tests/test_deep_cleanup_regenerable.py
+    ....                                                                     [100%]
+    NOTE: 1 tests were deselected by -m/-k and did not run (the default run skips 'slow' and 'livecorpus'); run everything with: make test-all
+    4 passed in 1.90s
+    ```
+    With E-03 temporarily reverted (case 1 failing, controls passing):
+    ```
+    ...F                                                                     [100%]
+    =================================== FAILURES ===================================
+    _____ ClassificationRuleTests.test_untracked_ignored_readme_is_not_at_risk _____
+    self = <tests.test_deep_cleanup_regenerable.ClassificationRuleTests testMethod=test_untracked_ignored_readme_is_not_at_risk>
+        def test_untracked_ignored_readme_is_not_at_risk(self):
+            plan = engine.plan_deep_cleanup(self.repo)
+    >       self.assertEqual(plan.at_risk, [])
+    E       AssertionError: Lists differ: ['.aw/workflow-artifacts/README.md'] != []
+    NOTE: 1 tests were deselected by -m/-k and did not run (the default run skips 'slow' and 'livecorpus'); run everything with: make test-all
+    =========================== short test summary info ============================
+    FAILED tests/test_deep_cleanup_regenerable.py::ClassificationRuleTests::test_untracked_ignored_readme_is_not_at_risk
+    1 failed, 3 passed in 2.74s
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste `python3 -m pytest -o addopts="" -q tests/test_deep_cleanup_regenerable.py` with its total count, and a bare `python3 -m pytest -q tests/test_deep_cleanup_regenerable.py` whose `deselected` count shows the install class was deselected. Paste the E-03-reverted run showing case (a) FAILING.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Integration class deselected by default (1 deselected in bare run); all 5 passed in 2.55s under -o addopts=""; E-03-reverted run shows integration case (a) failing (2 failed, 3 passed in 4.02s). Detail:
+    All tests run with `-o addopts=""`:
+    ```
+    $ python3 -m pytest -o addopts="" -q tests/test_deep_cleanup_regenerable.py
+    .....                                                                    [100%]
+    5 passed in 2.55s
+    ```
+    Bare run deselected count:
+    ```
+    NOTE: 1 tests were deselected by -m/-k and did not run (the default run skips 'slow' and 'livecorpus'); run everything with: make test-all
+    4 passed in 1.90s
+    ```
+    E-03-reverted run showing integration case (a) FAILING:
+    ```
+    F..F.                                                                    [100%]
+    =================================== FAILURES ===================================
+    _ RealInstallIntegrationTests.test_real_install_committed_regenerable_readme_lifecycle _
+    self = <tests.test_deep_cleanup_regenerable.RealInstallIntegrationTests testMethod=test_real_install_committed_regenerable_readme_lifecycle>
+        def test_real_install_committed_regenerable_readme_lifecycle(self):
+    ...
+    >       self.assertEqual(plan.at_risk, [])
+    E       AssertionError: Lists differ: ['.aw/workflow-artifacts/README.md'] != []
+    ...
+    FAILED tests/test_deep_cleanup_regenerable.py::RealInstallIntegrationTests::test_real_install_committed_regenerable_readme_lifecycle
+    2 failed, 3 passed in 4.02s
+    ```
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste `git diff tests/test_installer.py` in full (it must contain no changed line matching `self.assert` or `assert `), and `python3 -m pytest -o addopts="" -q tests/test_installer.py` before and after, showing `DeepCleanupTests::test_plan_counts_and_all_recoverable_when_committed` moving from FAILED to passed and `57dwkc`'s node as the only remaining failure.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. tests/test_installer.py diff is docstring-only (no assert lines modified); DeepCleanupTests node passes (1 passed in 3.51s); full module run moves from 2 failed to 1 failed with 57dwkc as sole remaining failure (1 failed, 119 passed in 226.23s). Detail:
+    Full git diff of tests/test_installer.py (docstring edit only, no assert lines modified):
+    ```diff
+    diff --git a/tests/test_installer.py b/tests/test_installer.py
+    index e73653b6..086f882a 100644
+    --- a/tests/test_installer.py
+    +++ b/tests/test_installer.py
+    @@ -2620,14 +2620,8 @@ class DeepCleanupTests(unittest.TestCase):
+         def test_plan_counts_and_all_recoverable_when_committed(self):
+             """Everything committed means nothing is at risk, so the warning stays SOFT.
 
-- [ ] V-07 validates E-07
+    -        PRE-EXISTING FAILURE, NOT INTRODUCED BY THE TABLE WORK, and kept rather than weakened:
+    -        verified failing at HEAD (commit 6123749b) before this file was touched. The install now emits
+    -        `.aw/workflow-artifacts/README.md`, which is GITIGNORED by design (D92), so `git add -A` cannot
+    -        commit it and `plan_deep_cleanup` correctly classifies it as untracked and therefore at-risk,
+    -        which makes `all_recoverable` False. Either the product should exclude its own gitignored
+    -        run-scratch README from the at-risk set, or this expectation should change; that is a
+    -        maintainer call about `agent_workflows/`, which this test-only change must not make. Deleting
+    -        the assertion would have hidden the question, so it stays as written.
+    +        The product answered the at-risk classification for untracked regenerable files via
+    +        `_DEEP_CLEANUP_REGENERABLE` in `engine.plan_deep_cleanup` (plan `baxbdh`, backlog `3ypquf`).
+             """
+             repo = init_repo(self.base / "r")
+             self._install_commit(repo)
+    ```
+    Before: node failed:
+    ```
+    FAILED tests/test_installer.py::DeepCleanupTests::test_plan_counts_and_all_recoverable_when_committed
+    AssertionError: False is not true : all committed -> nothing at risk (soft warning)
+    ```
+    After: test_installer.py module run (1 failed, 119 passed in 226.23s):
+    ```
+    FAILED tests/test_installer.py::UninstallCompletenessTests::test_deep_cleanup_records_remove_leaves_no_aw_directory
+    1 failed, 119 passed in 226.23s (0:03:46)
+    ```
+    DeepCleanupTests::test_plan_counts_and_all_recoverable_when_committed passed (isolated run: 1 passed in 3.51s); 57dwkc's node is the only remaining failure.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste `git diff CHANGELOG.md` showing exactly one added `- Fixed:` line under `## 2.0.0 (pending)`, and `git diff CHANGELOG.md | grep -P '[\x{2013}\x{2014}]'` printing nothing. Also paste the bare `python3 -m pytest` summary line before and after the whole change, with the after-minus-before failing node-ID set (must be empty), and `aw sanitize --agent` exit 0.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. CHANGELOG.md diff adds exactly 1 Fixed line under 2.0.0 (pending) with 0 em/en dashes; bare pytest clean before (2673 passed) and after (2677 passed) with 0 failures; aw sanitize clean (exit 0). Detail:
+    Full git diff of CHANGELOG.md:
+    ```diff
+    diff --git a/CHANGELOG.md b/CHANGELOG.md
+    index dc72c2f2..399d16d7 100644
+    --- a/CHANGELOG.md
+    +++ b/CHANGELOG.md
+    @@ -72,6 +72,7 @@ Major storage-layout boundary. The logical model (D126-D129) was superseded by t
+     - Fixed: `aw backlog set <item> --status <s>` no longer deletes metadata lines it does not recognize (for example a custom field, and previously any field without its own workaround); the item now keeps them where they were in original order.
+     - Fixed: `aw backlog set <item> --status <s>` no longer deletes prose written between an item's metadata bullets and its `## Workflow history` heading, preserving existing report text in place.
+     - Fixed: `aw rename` and `aw group` now also rewrite inbound citations in review records and test files, keep short handles short, leave fenced code blocks and transcripts unmodified, and warn instead of rewriting when a legacy date-time prefix is shared across multiple records.
+    +- Fixed: `aw uninstall` previously warned that deleting the leftover scaffolding was permanent and unrecoverable even when the user had committed everything they could commit, because it counted its own run-scratch README (a file it writes, never commits, and can always write again) as content at risk. That file no longer counts. It is still listed and still removed, any other file you put in that folder is still flagged, and the README itself is still flagged in the one case where git cannot bring it back.
+     - Removed the `--follow-generated` run flag. It was never implemented and always refused. Plans created during a run are reported as next actions, as before.
+
+     ## 1.3.0 (pending) - new conventions/features, internal install unification, and install-path fixes
+    ```
+    Em/en dash check:
+    ```
+    $ git diff CHANGELOG.md | grep -P '[\x{2013}\x{2014}]'
+    (empty, exit 1)
+    ```
+    Bare pytest runs:
+    Before: `2673 passed, 2 skipped, 3 warnings in 137.73s (0:02:17)`
+    After: `2677 passed, 2 skipped, 3 warnings in 82.12s (0:01:22)`
+    After-minus-before failing node-ID set: empty (both runs had 0 failures).
+    Leak sanitizer check:
+    ```
+    $ aw sanitize --agent
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

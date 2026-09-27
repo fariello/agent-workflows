@@ -1,5 +1,5 @@
 - Id: 3ypquf
-- Status: graduated
+- Status: done
 - Graduated-To: deepclean
 - Blocks-Release: next
 - Set: 3ypquf
@@ -8,6 +8,7 @@
 - Summary: DeepCleanupTests all_recoverable fails because the installer's own gitignored workflow-artifacts README is classified at-risk
 
 ## Workflow history
+- 2026-09-27 set (aw backlog): closed by aw oc run: IPD baxbdh executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260926-deepclean-01-baxbdh-stop-aw-uninstall-deep-calling-the-framework-s-own-regenerab.ipd.md); evidence .aw/records/plans/executed/20260926-deepclean-01-baxbdh-stop-aw-uninstall-deep-calling-the-framework-s-own-regenerab.ipd.md
 - 2026-09-26 note (aw backlog): CI step 'Run slow-marked tests' (tests.yml, plan 4petcj) is advisory because of this item's slow-test failure; when the last of the owning items (57dwkc, 3ypquf, 4vfkl1, g0bdgg) closes, remove its continue-on-error so the slow set fails closed.
 - 2026-09-26 graduated (aw set): Graduated 2026-09-26 into plan baxbdh (Set deepclean), re-verified live at HEAD.
 - 2026-09-23 created (aw backlog): Found while executing IPD i8u6hh (verstamp Order 01).

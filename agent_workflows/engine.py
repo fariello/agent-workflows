@@ -4640,6 +4640,18 @@ _DEEP_CLEANUP_ROOTS = (
     ".github/workflows/secret-scan.yml",
 )
 
+# Scaffolding files that deep cleanup removes but plan_deep_cleanup exempts from the at-risk
+# classification (backlog 3ypquf). A path belongs here only if all three criteria hold:
+# 1. Framework-written: the file is authored and emitted entirely by the framework, not the user.
+# 2. Never committed by design (D92): the tree is ignored run scratch and must not enter git history.
+# 3. Regenerable: re-created by `ensure_workflow_artifacts_readme` from the shipped template or
+#    `_ARTIFACTS_README_FALLBACK`, so deleting it loses nothing the framework cannot rebuild.
+# Tracked caveat: membership makes a path exempt from `at_risk` only while it is UNTRACKED.
+# As `ensure_workflow_artifacts_readme`'s own comment records, a repo which installed before the
+# ignore rule landed "would keep the file tracked forever", and a tracked file carrying uncommitted
+# edits holds content git cannot restore.
+_DEEP_CLEANUP_REGENERABLE: tuple[str, ...] = (f"{ARTIFACTS_DIR}README.md",)
+
 
 @dataclass
 class DeepCleanupPlan:
@@ -4647,7 +4659,8 @@ class DeepCleanupPlan:
 
     `files` is every repo-relative file path under the scaffolding roots that still exists;
     `counts` is per-root file counts for the announcement; `at_risk` is the subset that is
-    NOT recoverable from git (untracked/uncommitted/ignored) and drives the LOUD warning.
+    NOT recoverable from git (untracked/uncommitted/ignored, excluding untracked regenerable
+    framework files) and drives the LOUD warning.
     `records_files` is the subset under records roots (.aw/records/* and legacy .agents/*);
     `other_files` is the subset under other scaffolding (.gitleaksignore, secret-scan.yml).
     """
@@ -4709,7 +4722,13 @@ def plan_deep_cleanup(repo_root: Path) -> DeepCleanupPlan:
                 plan.records_files.append(rel)
             else:
                 plan.other_files.append(rel)
-            if _git_file_state(repo_root, rel) == "at_risk":
+            if (
+                not (
+                    rel in _DEEP_CLEANUP_REGENERABLE
+                    and not git_is_tracked(repo_root, rel)
+                )
+                and _git_file_state(repo_root, rel) == "at_risk"
+            ):
                 plan.at_risk.append(rel)
             n += 1
         if n:
