@@ -176,6 +176,18 @@ def _repo_root(args: argparse.Namespace) -> Path:
     return Path(getattr(args, "dir", None) or ".")
 
 
+def _repo_rel(path: Path | str, repo: Path | str) -> str:
+    """Format ``path`` relative to ``repo`` for display, without resolving symlinks.
+
+    Section 9 and user rules require repo-relative paths rather than absolute paths,
+    and symlinks (like ``latest/``) should be preserved rather than followed to internal version directories.
+    """
+    try:
+        return os.path.relpath(path, repo)
+    except (ValueError, OSError):
+        return str(path)
+
+
 def _emit(result: CommandResult, args: argparse.Namespace) -> int:
     """Render ``result`` for whichever audience is active and return its exit code.
 
@@ -344,13 +356,14 @@ def _analyze_path(args: argparse.Namespace) -> int:
             ),
             args,
         )
+    rel_path = _repo_rel(path, repo)
     result = CommandResult(
         command="runs analyze",
         status="clean",
         exit_code=EXIT_OK,
-        summary=str(path),
-        evidence=[Evidence("report", str(path), "measured")],
-        data={"path": str(path)},
+        summary=rel_path,
+        evidence=[Evidence("report", rel_path, "measured")],
+        data={"path": rel_path},
     )
     return _emit(result, args)
 
@@ -395,7 +408,7 @@ def _analyze_list(args: argparse.Namespace) -> int:
             Evidence("cached_runs", overview.payload.get("cached_runs", 0), "measured"),
         ],
         data={
-            "report_dir": str(directory),
+            "report_dir": _repo_rel(directory, repo),
             "files": files,
             "snapshots": snapshots,
             "cache": dict(overview.payload),
@@ -426,13 +439,14 @@ def _analyze_open(args: argparse.Namespace) -> int:
             ),
             args,
         )
+    rel_path = _repo_rel(path, repo)
     result = CommandResult(
         command="runs analyze",
         status="clean",
         exit_code=EXIT_OK,
         summary=outcome.detail,
-        evidence=[Evidence("report", str(path), "measured")],
-        data={"path": str(path), "opened": True},
+        evidence=[Evidence("report", rel_path, "measured")],
+        data={"path": rel_path, "opened": True},
     )
     return _emit(result, args)
 
@@ -621,6 +635,33 @@ def run_analyze(args: argparse.Namespace) -> int:
             args,
         )
 
+    try:
+        ctx = select_output(args)
+    except ConflictingFlagsError as exc:
+        print(f"error: {exc}")
+        return EXIT_CANNOT_RUN
+
+    from agent_workflows import term as _term_mod
+    from agent_workflows.result_types import OutputMode
+
+    is_human = ctx.mode == OutputMode.HUMAN
+    term = _term_mod.Term(color=ctx.color)
+    is_tty = bool(getattr(ctx.stderr, "isatty", None) and ctx.stderr.isatty())
+
+    total_runs = len(run_dirs)
+    if is_human and total_runs > 0:
+        term.step_cue(f"Analyzing {total_runs} run(s)...", stream=ctx.stderr)
+
+    def _progress(idx: int, total: int, run_id: str) -> None:
+        if not is_human:
+            return
+        if is_tty:
+            msg = f"Analyzing run {idx}/{total}: {run_id[:36]}..."
+            ctx.stderr.write(f"\r{term.severity_label('info')} {msg}")
+            ctx.stderr.flush()
+        elif idx % 50 == 0 or idx == total:
+            term.step_cue(f"Analyzing runs ({idx}/{total})...", stream=ctx.stderr)
+
     from agent_workflows import run_analytics
     from agent_workflows import run_analytics_cache as cache_mod
 
@@ -631,6 +672,7 @@ def run_analyze(args: argparse.Namespace) -> int:
             run_dirs,
             build_facts=run_analytics.build_cache_facts,
             repo=repo,
+            progress=_progress,
         )
     except cache_mod.CacheError as exc:
         return _emit(
@@ -641,6 +683,15 @@ def run_analyze(args: argparse.Namespace) -> int:
             ),
             args,
         )
+
+    if is_human and total_runs > 0:
+        if is_tty:
+            ctx.stderr.write(
+                f"\r\033[2K{term.severity_label('info')} Analyzed {total_runs} run(s).\n"
+            )
+            ctx.stderr.flush()
+        else:
+            term.step_cue(f"Analyzed {total_runs} run(s).", stream=ctx.stderr)
 
     totals = report.totals
     skipped = totals.get("skip", 0)
@@ -653,6 +704,9 @@ def run_analyze(args: argparse.Namespace) -> int:
         f"analyzed {totals.get('total', 0)} run(s): {totals.get('hit', 0)} cached, "
         f"{totals.get('rebuild', 0)} rebuilt, {skipped} skipped"
     )
+
+    if is_human:
+        term.step_cue("Publishing report bundle...", stream=ctx.stderr)
 
     # PUBLISH THE LATEST REPORT, WHICH IS WHAT THIS VERB DOCUMENTS ITSELF AS DOING. Its own help says
     # it "updates the analytics cache and publishes the local report", `--path` is documented as
@@ -688,6 +742,14 @@ def run_analyze(args: argparse.Namespace) -> int:
     ) as exc:  # pragma: no cover - defensive; never kill a completed sweep
         report_refusal = f"{type(exc).__name__}: {exc}"
 
+    if is_human:
+        if report_refusal:
+            term.step_cue(
+                f"Report publication failed: {report_refusal}", stream=ctx.stderr
+            )
+        else:
+            term.step_cue("Report published.", stream=ctx.stderr)
+
     snapshot_label = getattr(args, "keep_snapshot", None)
     snapshot: dict[str, Any] = {}
     if snapshot_label:
@@ -703,15 +765,51 @@ def run_analyze(args: argparse.Namespace) -> int:
             )
         snapshot = published
 
+    latest_html = _latest_report_path(repo)
+    report_rel = _repo_rel(latest_html, repo) if latest_html.exists() else None
+    analysis_file = latest_html.parent / "analysis.json"
+    analysis_rel = _repo_rel(analysis_file, repo) if analysis_file.exists() else None
+
     data: dict[str, Any] = {"totals": dict(totals), "findings": skipped}
     if snapshot:
         data["snapshot"] = snapshot
     if report_published:
-        data["report"] = report_published
+        data["report"] = dict(report_published)
+        if report_rel:
+            data["report"]["index_html"] = report_rel
+        if analysis_rel:
+            data["report"]["analysis_json"] = analysis_rel
     if report_refusal:
         # Named, not swallowed: a sweep that could not publish must say so, or the operator reads a
         # clean record and a stale report as agreement.
         data["report_refusal"] = report_refusal
+
+    evidence = [
+        Evidence("runs", totals.get("total", 0), "measured"),
+        Evidence("cache_hits", totals.get("hit", 0), "measured"),
+        Evidence("skipped", skipped, "measured" if skipped else "verified"),
+    ]
+    if report_published and report_rel:
+        evidence.append(Evidence("report", report_rel, "verified"))
+    if report_published and analysis_rel:
+        evidence.append(Evidence("analysis", analysis_rel, "verified"))
+    if snapshot:
+        from agent_workflows import run_analytics_report as report_mod
+
+        snapshot_dir = Path(snapshot.get("directory", ""))
+        snapshot_html = snapshot_dir / report_mod.INDEX_FILENAME
+        if snapshot_html.exists():
+            evidence.append(
+                Evidence("snapshot", _repo_rel(snapshot_html, repo), "verified")
+            )
+    if report_refusal:
+        evidence.append(Evidence("report_refusal", report_refusal, "measured"))
+
+    next_actions = [NextAction("aw runs query overview", "inspect")]
+    if report_rel and not report_refusal:
+        next_actions.append(
+            NextAction("aw runs analyze --open", "open report in browser")
+        )
 
     result = CommandResult(
         command="runs analyze",
@@ -723,13 +821,9 @@ def run_analyze(args: argparse.Namespace) -> int:
             + (" (report NOT published)" if report_refusal else "")
         ),
         applied=True,
-        evidence=[
-            Evidence("runs", totals.get("total", 0), "measured"),
-            Evidence("cache_hits", totals.get("hit", 0), "measured"),
-            Evidence("skipped", skipped, "measured" if skipped else "verified"),
-        ],
+        evidence=evidence,
         data=data,
-        next_actions=[NextAction("aw runs query overview", "inspect")],
+        next_actions=next_actions,
     )
     rc = _emit(result, args)
 
@@ -880,17 +974,105 @@ def run_query_leaf(args: argparse.Namespace) -> int:
     next_actions = (
         [NextAction(result.next_command, "page")] if result.next_command else []
     )
+
+    if result.view == "overview":
+        p = result.payload or {}
+        cached = p.get("cached_runs", 0)
+        complete = p.get("complete_runs", 0)
+        incomplete = p.get("incomplete_runs", 0)
+        unreadable = p.get("unreadable_entries", 0)
+        flags = p.get("quality_flag_counts") or {}
+        flags_val: Any = (
+            ", ".join(f"{k} ({v})" for k, v in flags.items()) if flags else 0
+        )
+        req_analyses = p.get("required_analyses", 0)
+        ref_analyses = p.get("refused_analyses", 0)
+        summary = (
+            f"{cached} cached run(s): {complete} complete, {incomplete} incomplete"
+            if cached
+            else "0 cached runs; run 'aw runs analyze' to populate cache"
+        )
+        evidence = [
+            Evidence("cached_runs", cached, "measured"),
+            Evidence("complete_runs", complete, "measured"),
+            Evidence(
+                "incomplete_runs",
+                incomplete,
+                "verified" if incomplete == 0 else "measured",
+            ),
+            Evidence(
+                "unreadable_entries",
+                unreadable,
+                "verified" if unreadable == 0 else "measured",
+            ),
+            Evidence(
+                "quality_flags",
+                flags_val,
+                "measured" if flags else "verified",
+            ),
+            Evidence("required_analyses", req_analyses, "measured"),
+            Evidence(
+                "refused_analyses",
+                ref_analyses,
+                "verified" if ref_analyses == 0 else "measured",
+            ),
+        ]
+        if result.caveats:
+            detail = (
+                result.caveats[0]
+                if len(result.caveats) == 1
+                else f"{len(result.caveats)} caveat(s)"
+            )
+            evidence.append(
+                Evidence("caveats", len(result.caveats), "measured", detail=detail)
+            )
+        next_actions = (
+            [
+                NextAction("aw runs query data-quality", "inspect data quality"),
+                NextAction("aw runs analyze", "update cache"),
+            ]
+            if cached
+            else [NextAction("aw runs analyze", "populate cache")]
+        )
+    elif result.view == "schema":
+        p = result.payload or {}
+        views = p.get("views", [])
+        metrics = p.get("metrics", [])
+        summary = f"schema: {len(views)} views, {len(metrics)} metrics"
+        evidence = [
+            Evidence("views", len(views), "measured"),
+            Evidence("metrics", len(metrics), "measured"),
+            Evidence("stats", len(p.get("stats", [])), "measured"),
+            Evidence("filter_fields", len(p.get("filter_fields", [])), "measured"),
+            Evidence("group_by_fields", len(p.get("group_by_fields", [])), "measured"),
+        ]
+        next_actions = [NextAction("aw runs query overview", "inspect corpus overview")]
+    else:
+        summary = (
+            f"{result.view}: {result.emitted} of {result.total} row(s)"
+            if result.rows or result.total
+            else f"{result.view}"
+        )
+        evidence = [Evidence("emitted", result.emitted, "measured")]
+        if result.caveats:
+            evidence.append(
+                Evidence(
+                    "caveats",
+                    len(result.caveats),
+                    "measured",
+                    detail=result.caveats[0]
+                    if len(result.caveats) == 1
+                    else f"{len(result.caveats)} caveat(s)",
+                )
+            )
+
     payload = CommandResult(
         command="runs query",
         status=status,
         exit_code=result.exit_code,
-        summary=(
-            f"{result.view}: {result.emitted} of {result.total} row(s)"
-            if result.rows or result.total
-            else f"{result.view}"
-        ),
+        summary=summary,
         complete=result.complete,
-        evidence=[Evidence("emitted", result.emitted, "measured")],
+        evidence=evidence,
         data=result.to_dict(),
         next_actions=next_actions,
         target=result.view,

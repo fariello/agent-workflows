@@ -55,7 +55,7 @@ import json
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from agent_workflows import platform_lock
 from agent_workflows import run_analytics_privacy as privacy
@@ -684,6 +684,7 @@ def update_cache(
     repo: Path | str | None = None,
     root_id: str | None = None,
     salt: str | None = None,
+    progress: Callable[[int, int, str], None] | None = None,
 ) -> CacheReport:
     """Bring the cache up to date for ``run_dirs`` and report what happened to each.
 
@@ -692,6 +693,9 @@ def update_cache(
     and publication, and deliberately owns no parsing. A single run's failure NEVER aborts the
     sweep: one corrupt entry, one refused fact set or one contended lock is isolated to its own
     decision, which is what makes a 135-run corpus analyzable in the presence of one bad member.
+
+    ``progress`` is an optional callback ``progress(index, total, run_id)`` invoked for each run
+    directory before deciding or building its cache entry, enabling caller narration.
     """
 
     root = cache_root(repo)
@@ -700,10 +704,17 @@ def update_cache(
     if root_id is None:
         root_id = source_root_id(root.parent.parent, salt=salt)
 
+    run_dirs_list = list(run_dirs)
+    total = len(run_dirs_list)
     decisions: list[CacheDecision] = []
-    for run_dir in run_dirs:
+    for idx, run_dir in enumerate(run_dirs_list, start=1):
         base = Path(run_dir)
         rid = base.name
+        if progress is not None:
+            try:
+                progress(idx, total, rid)
+            except Exception:
+                pass
         decision, envelope = decide(base, root_id=root_id, repo=repo, run_id=rid)
         if decision.verdict == "hit":
             decisions.append(decision)
