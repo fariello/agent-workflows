@@ -261,10 +261,24 @@ def run_tool(
     )
 
 
+def pinned_env(env: dict[str, str] | None = None) -> dict[str, str]:
+    """Return a copy of ``env`` (or ``os.environ``) with ``REPO_ROOT`` prepended to ``PYTHONPATH`` if absent."""
+
+    merged_env = dict(os.environ) if env is None else dict(env)
+    existing_pp = merged_env.get("PYTHONPATH", "")
+    root_str = str(REPO_ROOT)
+    if root_str not in existing_pp.split(os.pathsep):
+        merged_env["PYTHONPATH"] = f"{root_str}{os.pathsep}{existing_pp}".rstrip(
+            os.pathsep
+        )
+    return merged_env
+
+
 def run_cli(
     *args: str | list[str] | tuple[str, ...],
     cwd: Path | str | None = None,
     env: dict[str, str] | None = None,
+    module: str = "agent_workflows",
     **kwargs,
 ) -> subprocess.CompletedProcess:
     """Run the ``agent_workflows`` CLI in a subprocess pinned to THIS tree via ``PYTHONPATH``.
@@ -274,13 +288,7 @@ def run_cli(
     site-packages or the parent checkout (IPD `lhjsu0`, bug `ccbe60`).
     """
 
-    merged_env = dict(os.environ) if env is None else dict(env)
-    existing_pp = merged_env.get("PYTHONPATH", "")
-    root_str = str(REPO_ROOT)
-    if root_str not in existing_pp.split(os.pathsep):
-        merged_env["PYTHONPATH"] = f"{root_str}{os.pathsep}{existing_pp}".rstrip(
-            os.pathsep
-        )
+    merged_env = pinned_env(env)
     kwargs.setdefault("capture_output", True)
     kwargs.setdefault("text", True)
     kwargs.setdefault("check", False)
@@ -293,7 +301,7 @@ def run_cli(
             cli_args.append(str(arg))
 
     return subprocess.run(
-        [sys.executable, "-m", "agent_workflows", *cli_args],
+        [sys.executable, "-m", module, *cli_args],
         cwd=str(cwd) if cwd is not None else None,
         env=merged_env,
         **kwargs,

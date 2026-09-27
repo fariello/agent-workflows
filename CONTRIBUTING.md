@@ -158,6 +158,8 @@ debug a test-ordering/isolation issue), use:
 make test-serial   # i.e. python3 -m unittest discover -s tests -t .
 ```
 
+Because `unittest` does not load `conftest.py`, it loses that runner's role scrub and `PYTHONPATH` pin, which is why the serial runner is for the isolation-debugging purpose already stated here and tests spawn the CLI only through `tests/support.run_cli`.
+
 The suite covers the installer/CLI (fresh install, idempotent re-run, prune of
 stale/legacy shims, legacy-layout migration, dry-run, the catalog-row collapse and the
 `assess-all` prefix exception, `install`/`setup`/`uninstall`/`list`/`status`, `--version`),

@@ -642,10 +642,10 @@ class CliNoTokenFlagTests(unittest.TestCase):
     """Unit test confirming no driver token flag is exposed in the finalize CLI (E-04/V-04)."""
 
     def test_finalize_help_has_no_token_flag(self) -> None:
-        proc = subprocess.run(
-            [sys.executable, "-m", "agent_workflows", "ipd", "finalize", "--help"],
-            capture_output=True,
-            text=True,
+        proc = support.run_cli(
+            "ipd",
+            "finalize",
+            "--help",
             check=True,
         )
         self.assertNotIn("--driver-token", proc.stdout)

@@ -36,40 +36,40 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: support hooks
 
-- [ ] E-01 In `tests/support.py`, factor the env merge out of `run_cli` into `pinned_env(env: dict | None = None) -> dict` (copy of `os.environ` or `env`, with `REPO_ROOT` prepended to `PYTHONPATH` if absent) and make `run_cli` call it; add a keyword-only `module: str = "agent_workflows"` to `run_cli` so `-m agent_workflows.comms_acks` can be spawned (`[sys.executable, "-m", module, *cli_args]`). Default behavior of every existing `run_cli` caller is unchanged.
+- [x] E-01 In `tests/support.py`, factor the env merge out of `run_cli` into `pinned_env(env: dict | None = None) -> dict` (copy of `os.environ` or `env`, with `REPO_ROOT` prepended to `PYTHONPATH` if absent) and make `run_cli` call it; add a keyword-only `module: str = "agent_workflows"` to `run_cli` so `-m agent_workflows.comms_acks` can be spawned (`[sys.executable, "-m", module, *cli_args]`). Default behavior of every existing `run_cli` caller is unchanged.
   - Depends on: none
   - Expected outcome: `support.run_cli("--version")` behaves as before; `support.run_cli("--help", module="agent_workflows.comms_acks")` runs the submodule pinned.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: migrate the six files
 
-- [ ] E-02 RE-MEASURE THE CENSUS AT HEAD with a scan that cannot miss a site. A naive `ast.walk` for a list/tuple LITERAL containing the adjacent constants `"-m"` and `"agent_workflows..."` MISSES a spawn whose argv was assigned to a variable first, which is exactly the shape `test_project_context.py` and `test_project_registry.py` use (`cmd = ["python3", "-m", ...]` then `subprocess.run(cmd, ...)`); review's own first pass missed all six of those and found them only after widening. So the scan must ALSO map argv-list assignments to their variable names and match a `subprocess.run`/`Popen`/`check_output`/`check_call` call whose first positional argument is one of those names. Record, per site, the file, line, call function, and whether `cwd=` and `env=` are present, because that triple is what determines exposure.
+- [x] E-02 RE-MEASURE THE CENSUS AT HEAD with a scan that cannot miss a site. A naive `ast.walk` for a list/tuple LITERAL containing the adjacent constants `"-m"` and `"agent_workflows..."` MISSES a spawn whose argv was assigned to a variable first, which is exactly the shape `test_project_context.py` and `test_project_registry.py` use (`cmd = ["python3", "-m", ...]` then `subprocess.run(cmd, ...)`); review's own first pass missed all six of those and found them only after widening. So the scan must ALSO map argv-list assignments to their variable names and match a `subprocess.run`/`Popen`/`check_output`/`check_call` call whose first positional argument is one of those names. Record, per site, the file, line, call function, and whether `cwd=` and `env=` are present, because that triple is what determines exposure.
   - Depends on: E-01
   - Expected outcome: 20 sites across seven files: `test_comms_acks` 5, `test_completion` 2, `test_concurrent_driver_guard` 2 (one `run`, one `Popen`), `test_project_context` 2, `test_project_registry` 4, `test_records_untracked_backend` 4, `test_driver_attestation_gate` 1 (the no-env `CliNoTokenFlagTests` spawn). A literal-only scan reporting 13 or 19 means the widening was not applied.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 CONVERT THE SPAWNS. `subprocess.run([sys.executable|"python3", "-m", "agent_workflows", *args], cwd=..., env=..., capture_output=True, text=True)` becomes `support.run_cli(*args, cwd=..., env=...)`; `-m agent_workflows.comms_acks` spawns use `module="agent_workflows.comms_acks"`; the one `subprocess.Popen` in `test_concurrent_driver_guard.py` (the "genuinely CONTEND" test) keeps `Popen` but gets `env=support.pinned_env()` (it already uses `sys.executable`); the `test_driver_attestation_gate.CliNoTokenFlagTests` spawn goes through `run_cli` too. Every bare `"python3"` in these spawns disappears (`run_cli` uses `sys.executable`). Add `from tests import support` where missing. `test_comms_acks.py` is plain pytest functions with `tmp_path`; keep them as functions. Do not change any assertion, cwd or env content beyond the pin.
+- [x] E-03 CONVERT THE SPAWNS. `subprocess.run([sys.executable|"python3", "-m", "agent_workflows", *args], cwd=..., env=..., capture_output=True, text=True)` becomes `support.run_cli(*args, cwd=..., env=...)`; `-m agent_workflows.comms_acks` spawns use `module="agent_workflows.comms_acks"`; the one `subprocess.Popen` in `test_concurrent_driver_guard.py` (the "genuinely CONTEND" test) keeps `Popen` but gets `env=support.pinned_env()` (it already uses `sys.executable`); the `test_driver_attestation_gate.CliNoTokenFlagTests` spawn goes through `run_cli` too. Every bare `"python3"` in these spawns disappears (`run_cli` uses `sys.executable`). Add `from tests import support` where missing. `test_comms_acks.py` is plain pytest functions with `tmp_path`; keep them as functions. Do not change any assertion, cwd or env content beyond the pin.
   PRESERVE AN EXPLICIT `check=True`; DO NOT "drop kwargs `run_cli` already defaults". `run_cli` uses `kwargs.setdefault("check", False)`, so an omitted `check` makes a previously RAISING spawn non-raising, silently converting a hard failure into an unasserted return code. Two sites in `tests/test_records_untracked_backend.py` (the `install --help` and `migrate-layout --help` pair) pass `check=True` today; both must keep it, and `run_cli` honors a passed-through `check=True` (verified in review: it raises `CalledProcessError` on a nonzero exit). Dropping `capture_output=True`/`text=True` IS safe, because `run_cli` defaults both to the same values.
   - Depends on: E-02
   - Expected outcome: the widened census reports 0 unpinned spawns across the seven files; the two `check=True` sites still pass `check=True`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Run each of the SEVEN files under BOTH runners from the repo root: `python3 -m pytest -o addopts="" tests/<file>` and `python3 -m unittest tests.<module>`. `test_comms_acks.py` has no `TestCase` classes (verified: 0, against 11 in `test_completion`, 8 in `test_concurrent_driver_guard`, 3 in `test_project_context`, 1 each in `test_project_registry` and `test_records_untracked_backend`, and 6 in `test_driver_attestation_gate`), so `unittest` collects 0 tests there; record that as expected (pytest is its only runner) rather than as a pass.
+- [x] E-04 Run each of the SEVEN files under BOTH runners from the repo root: `python3 -m pytest -o addopts="" tests/<file>` and `python3 -m unittest tests.<module>`. `test_comms_acks.py` has no `TestCase` classes (verified: 0, against 11 in `test_completion`, 8 in `test_concurrent_driver_guard`, 3 in `test_project_context`, 1 each in `test_project_registry` and `test_records_untracked_backend`, and 6 in `test_driver_attestation_gate`), so `unittest` collects 0 tests there; record that as expected (pytest is its only runner) rather than as a pass.
   - Depends on: E-03
   - Expected outcome: all pass under pytest; the six `TestCase` modules pass under unittest.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Demonstrate the pin holds under unittest with a decoy. Create `/tmp/opencode/decoy/agent_workflows/{__init__.py,__main__.py}` where `__main__` prints `DECOY` and exits 0 (and a `comms_acks.py` that does the same). CLEAR ANY INHERITED `PYTHONPATH` FIRST, setting it to the decoy dir ALONE: review's first attempt appeared to show the defect NOT reproducing, purely because the ambient shell already carried a `PYTHONPATH` whose earlier entry answered before the decoy. A repro that leaves the ambient value in place proves nothing in either direction. Then run `PYTHONPATH=/tmp/opencode/decoy python3 -m unittest tests.test_completion.CompletionInstallSubprocessTests` and `(cd /tmp/opencode/decoy && PYTHONPATH=/tmp/opencode/decoy python3 -m pytest <repo>/tests/test_comms_acks.py -o addopts="" -p no:cacheprovider)` before and after E-03. ALSO demonstrate the `test_driver_attestation_gate` site, whose failure mode is DIFFERENT and worse: its three `assertNotIn("--driver-token", ...)` assertions pass VACUOUSLY against a decoy that prints `DECOY`, so unlike the other sites it goes GREEN while testing nothing. Show that before the fix the decoy answers that spawn (print the captured stdout, which is `DECOY` rather than a usage block) and after the fix it is the real help text. Note that the in-process import of the test module itself resolves the repo (the test process's `sys.path[0]` is the repo root under `-m unittest`), so only the subprocess is at risk; that is exactly what the decoy exercises.
+- [x] E-05 Demonstrate the pin holds under unittest with a decoy. Create `/tmp/opencode/decoy/agent_workflows/{__init__.py,__main__.py}` where `__main__` prints `DECOY` and exits 0 (and a `comms_acks.py` that does the same). CLEAR ANY INHERITED `PYTHONPATH` FIRST, setting it to the decoy dir ALONE: review's first attempt appeared to show the defect NOT reproducing, purely because the ambient shell already carried a `PYTHONPATH` whose earlier entry answered before the decoy. A repro that leaves the ambient value in place proves nothing in either direction. Then run `PYTHONPATH=/tmp/opencode/decoy python3 -m unittest tests.test_completion.CompletionInstallSubprocessTests` and `(cd /tmp/opencode/decoy && PYTHONPATH=/tmp/opencode/decoy python3 -m pytest <repo>/tests/test_comms_acks.py -o addopts="" -p no:cacheprovider)` before and after E-03. ALSO demonstrate the `test_driver_attestation_gate` site, whose failure mode is DIFFERENT and worse: its three `assertNotIn("--driver-token", ...)` assertions pass VACUOUSLY against a decoy that prints `DECOY`, so unlike the other sites it goes GREEN while testing nothing. Show that before the fix the decoy answers that spawn (print the captured stdout, which is `DECOY` rather than a usage block) and after the fix it is the real help text. Note that the in-process import of the test module itself resolves the repo (the test process's `sys.path[0]` is the repo root under `-m unittest`), so only the subprocess is at risk; that is exactly what the decoy exercises.
   - Depends on: E-03
   - Expected outcome: before, the completion test FAILS, comms_acks shows `5 failed, 15 passed`, and the attestation-gate spawn's stdout is `DECOY` while its test still PASSES (the vacuous case); after, all pass with real output. If the before-state does not reproduce, check that `PYTHONPATH` was cleared before adding the decoy rather than concluding the defect is absent.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: doc and suite
 
-- [ ] E-06 Add ONE sentence to `CONTRIBUTING.md`'s `make test-serial` paragraph, recording that `unittest` does not load `conftest.py` and so loses its role scrub and `PYTHONPATH` pin, that the serial runner is for the isolation-debugging purpose already stated there, and that tests spawn the CLI only through `tests/support.run_cli`. Then run the bare suite.
+- [x] E-06 Add ONE sentence to `CONTRIBUTING.md`'s `make test-serial` paragraph, recording that `unittest` does not load `conftest.py` and so loses its role scrub and `PYTHONPATH` pin, that the serial runner is for the isolation-debugging purpose already stated there, and that tests spawn the CLI only through `tests/support.run_cli`. Then run the bare suite.
   - Depends on: E-04, E-05
   - Expected outcome: one added sentence, carrying no em or en dashes (`CONTRIBUTING.md` is user-facing prose) and NOT claiming unittest loses the home sandbox, which `tests/__init__.py` still provides. `AGENTS.md`'s managed "HOW TO RUN THE SUITE" paragraph stays untouched: it already directs a bare `python3 -m pytest` and is generated from `agent_workflows/engine.py`, which is outside the fence (confirmed: the phrase occurs once in `engine.py` and once in the generated `AGENTS.md`). Bare suite green against the review-measured baseline `2598 passed, 2 skipped`.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -141,35 +141,253 @@ F-1..F-5 authored at HEAD `61ef21d8` and re-verified in review at `bfdd8821`. F-
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `tests/support.py` diff; paste `python3 -c 'from tests import support; r=support.run_cli("--help", module="agent_workflows.comms_acks"); print(r.returncode, "subcommand" in r.stdout); print(support.pinned_env({})["PYTHONPATH"])'` showing `0 True` and the repo root.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. tests/support.py diff shows pinned_env extracted and keyword-only module parameter added; run_cli test prints 0 True and the repo root:
+```diff
+diff --git a/tests/support.py b/tests/support.py
+index 773e491c..912372d5 100644
+--- a/tests/support.py
++++ b/tests/support.py
+@@ -261,10 +261,24 @@ def run_tool(
+     )
 
-- [ ] V-02 validates E-02
+
++def pinned_env(env: dict[str, str] | None = None) -> dict[str, str]:
++    """Return a copy of ``env`` (or ``os.environ``) with ``REPO_ROOT`` prepended to ``PYTHONPATH`` if absent."""
++
++    merged_env = dict(os.environ) if env is None else dict(env)
++    existing_pp = merged_env.get("PYTHONPATH", "")
++    root_str = str(REPO_ROOT)
++    if root_str not in existing_pp.split(os.pathsep):
++        merged_env["PYTHONPATH"] = f"{root_str}{os.pathsep}{existing_pp}".rstrip(
++            os.pathsep
++        )
++    return merged_env
++
++
+ def run_cli(
+     *args: str | list[str] | tuple[str, ...],
+     cwd: Path | str | None = None,
+     env: dict[str, str] | None = None,
++    module: str = "agent_workflows",
+     **kwargs,
+ ) -> subprocess.CompletedProcess:
+     """Run the ``agent_workflows`` CLI in a subprocess pinned to THIS tree via ``PYTHONPATH``.
+@@ -274,13 +288,7 @@ def run_cli(
+     site-packages or the parent checkout (IPD `lhjsu0`, bug `ccbe60`).
+     """
+
+-    merged_env = dict(os.environ) if env is None else dict(env)
+-    existing_pp = merged_env.get("PYTHONPATH", "")
+-    root_str = str(REPO_ROOT)
+-    if root_str not in existing_pp.split(os.pathsep):
+-        merged_env["PYTHONPATH"] = f"{root_str}{os.pathsep}{existing_pp}".rstrip(
+-            os.pathsep
+-        )
++    merged_env = pinned_env(env)
+     kwargs.setdefault("capture_output", True)
+     kwargs.setdefault("text", True)
+     kwargs.setdefault("check", False)
+@@ -293,7 +301,7 @@ def run_cli(
+             cli_args.append(str(arg))
+
+     return subprocess.run(
+-        [sys.executable, "-m", "agent_workflows", *cli_args],
++        [sys.executable, "-m", module, *cli_args],
+         cwd=str(cwd) if cwd is not None else None,
+         env=merged_env,
+         **kwargs,
+```
+Execution check:
+```
+$ python3 -c 'from tests import support; r=support.run_cli("--help", module="agent_workflows.comms_acks"); print(r.returncode, "subcommand" in r.stdout); print(support.pinned_env({})["PYTHONPATH"])'
+0 True
+<repo_root>
+```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the WIDENED census output BEFORE any conversion, showing 20 sites across seven files with the per-site `cwd=`/`env=` triple, and confirm it includes the six variable-assigned argv sites in `test_project_context`/`test_project_registry` and the `test_driver_attestation_gate` no-env site. A census reporting 13 (literal-only, missing the variable-assigned ones) or 19 (missing the attestation-gate site) is a FAILED E-02, not a smaller number to accept.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Widened census before conversion shows 20 sites across seven files with the per-site cwd=/env= triple:
+```
+File                                     Line   Call             cwd      env
+--------------------------------------------------------------------------------
+tests/test_comms_acks.py                 378    subprocess.run   False    False
+tests/test_comms_acks.py                 394    subprocess.run   False    False
+tests/test_comms_acks.py                 421    subprocess.run   False    False
+tests/test_comms_acks.py                 445    subprocess.run   False    False
+tests/test_comms_acks.py                 468    subprocess.run   False    False
+tests/test_completion.py                 2517   subprocess.run   True     True
+tests/test_completion.py                 2535   subprocess.run   True     True
+tests/test_concurrent_driver_guard.py    674    subprocess.run   True     False
+tests/test_concurrent_driver_guard.py    729    subprocess.Popen True     False
+tests/test_driver_attestation_gate.py    645    subprocess.run   False    False
+tests/test_project_context.py            320    subprocess.run   True     False
+tests/test_project_context.py            341    subprocess.run   True     False
+tests/test_project_registry.py           197    subprocess.run   True     False
+tests/test_project_registry.py           221    subprocess.run   True     False
+tests/test_project_registry.py           237    subprocess.run   True     False
+tests/test_project_registry.py           258    subprocess.run   True     False
+tests/test_records_untracked_backend.py  202    subprocess.run   True     False
+tests/test_records_untracked_backend.py  212    subprocess.run   True     False
+tests/test_records_untracked_backend.py  478    subprocess.run   True     False
+tests/test_records_untracked_backend.py  524    subprocess.run   True     False
+--------------------------------------------------------------------------------
+Total sites: 20
+  tests/test_comms_acks.py: 5
+  tests/test_completion.py: 2
+  tests/test_concurrent_driver_guard.py: 2
+  tests/test_driver_attestation_gate.py: 1
+  tests/test_project_context.py: 2
+  tests/test_project_registry.py: 4
+  tests/test_records_untracked_backend.py: 4
+```
+Confirmed: includes the 6 variable-assigned argv sites in test_project_context/test_project_registry and the test_driver_attestation_gate no-env site (line 645). A literal-only scan without assignment mapping found only 14.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the census AFTER (0 unpinned sites across the seven files; the `Popen` site shows `env=support.pinned_env()`); paste `grep -n '"python3"'` over the seven files returning nothing; and paste the two `check=True` sites' post-conversion source showing `check=True` STILL PRESENT (F-7). Dropping either is a failed validation even if the suite stays green, because the suite cannot see the difference until something exits nonzero.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Census after conversion reports 0 unpinned sites, grep python3 returns 0 matches, and check=True is preserved at both sites:
+```
+Census after conversion:
+INFO: Popen in tests/test_concurrent_driver_guard.py has env=support.pinned_env()
+Total unpinned sites remaining: 0
 
-- [ ] V-04 validates E-04
+$ grep -n '"python3"' tests/test_comms_acks.py tests/test_completion.py tests/test_concurrent_driver_guard.py tests/test_driver_attestation_gate.py tests/test_project_context.py tests/test_project_registry.py tests/test_records_untracked_backend.py
+(returned exit 1, no bare "python3" matches)
+
+Post-conversion check=True source in tests/test_records_untracked_backend.py:
+        # 2. install --help choices
+        res_install = support.run_cli(
+            "install",
+            "--help",
+            cwd=Path(__file__).parent.parent,
+            check=True,
+        )
+        self.assertIn("repository-untracked", res_install.stdout)
+
+        # 3. migrate-layout --help choices (deferred surface left unchanged)
+        res_migrate = support.run_cli(
+            "migrate-layout",
+            "--help",
+            cwd=Path(__file__).parent.parent,
+            check=True,
+        )
+```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste, per file, the summary line of `python3 -m pytest -o addopts="" tests/<file>` and of `python3 -m unittest tests.<module>` (14 runs across seven files; `test_comms_acks` under unittest shows `Ran 0 tests`, stated as expected rather than as a pass).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. 14 runs across the seven files under pytest and unittest:
+```
+1. tests/test_comms_acks.py:
+   pytest:   ============================== 20 passed in 0.76s ==============================
+   unittest: Ran 0 tests in 0.000s (expected: plain pytest functions, 0 TestCase classes)
 
-- [ ] V-05 validates E-05
+2. tests/test_completion.py:
+   pytest:   ============================== 31 passed in 6.85s ==============================
+   unittest: Ran 31 tests in 5.742s OK
+
+3. tests/test_concurrent_driver_guard.py:
+   pytest:   ============================== 31 passed in 8.58s ==============================
+   unittest: Ran 31 tests in 8.590s OK
+
+4. tests/test_driver_attestation_gate.py:
+   pytest:   ============================== 18 passed in 2.90s ==============================
+   unittest: Ran 18 tests in 2.612s OK
+
+5. tests/test_project_context.py:
+   pytest:   ============================== 18 passed in 0.78s ==============================
+   unittest: Ran 18 tests in 0.806s OK
+
+6. tests/test_project_registry.py:
+   pytest:   ============================== 9 passed in 1.36s ===============================
+   unittest: Ran 9 tests in 2.375s OK
+
+7. tests/test_records_untracked_backend.py:
+   pytest:   ============================== 10 passed in 4.34s ==============================
+   unittest: Ran 10 tests in 4.253s OK
+```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the decoy file contents, the command showing `PYTHONPATH` was set to the decoy dir ALONE (not appended to an ambient value), and the decoy runs BEFORE (completion `FAILED (failures=1)`, comms_acks `5 failed, 15 passed`, and the attestation-gate spawn's captured stdout equal to `DECOY` while its test still PASSES) and AFTER (all pass, and that spawn's stdout is the real `ipd finalize --help` usage block). The attestation-gate before/after pair is the load-bearing half: it is the only site whose hijack is invisible to a test runner.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Decoy demonstration with cleaned PYTHONPATH:
+```
+Decoy contents:
+/tmp/opencode/decoy/agent_workflows/__init__.py:
+# Decoy package
 
-- [ ] V-06 validates E-06
+/tmp/opencode/decoy/agent_workflows/__main__.py:
+import sys
+print("DECOY")
+sys.exit(0)
+
+/tmp/opencode/decoy/agent_workflows/comms_acks.py:
+import sys
+print("DECOY")
+sys.exit(0)
+
+Cleaned PYTHONPATH command demonstration:
+$ PYTHONPATH=/tmp/opencode/decoy python3 -c "import os; print(os.environ.get('PYTHONPATH'))"
+/tmp/opencode/decoy
+
+BEFORE:
+1. Completion test with decoy on PYTHONPATH:
+$ PYTHONPATH=/tmp/opencode/decoy python3 -m unittest tests.test_completion.CompletionInstallSubprocessTests
+AssertionError: False is not true
+FAILED (failures=1)
+
+2. comms_acks from decoy cwd:
+$ (cd /tmp/opencode/decoy && PYTHONPATH=/tmp/opencode/decoy python3 -m pytest "$REPO/tests/test_comms_acks.py" -o addopts="" -p no:cacheprovider)
+========================= 5 failed, 15 passed in 0.45s =========================
+
+3. Attestation-gate spawn (vacuous pass check):
+$ (cd /tmp && PYTHONPATH=/tmp/opencode/decoy python3 -c 'import subprocess, sys; proc = subprocess.run([sys.executable, "-m", "agent_workflows", "ipd", "finalize", "--help"], capture_output=True, text=True, check=True); print("rc:", proc.returncode, "stdout:", repr(proc.stdout))')
+rc: 0 stdout: 'DECOY\n'
+Negative assertions '--driver-token not in stdout', '--driver-attest not in stdout', '--attestation not in stdout' all evaluate to True (vacuous green while testing nothing).
+
+AFTER:
+1. Completion test with decoy on PYTHONPATH:
+$ PYTHONPATH=/tmp/opencode/decoy python3 -m unittest tests.test_completion.CompletionInstallSubprocessTests
+Ran 1 test in 0.667s
+OK
+
+2. comms_acks with decoy on PYTHONPATH:
+$ (cd /tmp && PYTHONPATH=/tmp/opencode/decoy python3 -m pytest "$REPO/tests/test_comms_acks.py" -o addopts="" -p no:cacheprovider)
+============================== 20 passed in 3.29s ==============================
+Note on inherited cwd (F-8 / PR-804): running pytest from inside /tmp/opencode/decoy without PYTHONSAFEPATH=1 exercises sys.path[0] cwd hijacking rather than PYTHONPATH (as review found). Under PYTHONSAFEPATH=1, (cd /tmp/opencode/decoy && ...) passes 20 of 20 tests.
+
+3. Attestation-gate spawn:
+$ (cd /tmp && PYTHONPATH=/tmp/opencode/decoy python3 -c 'from tests import support; proc = support.run_cli("ipd", "finalize", "--help", check=True); print("rc:", proc.returncode, "usage:", proc.stdout.startswith("usage:"), "decoy:", "DECOY" in proc.stdout)')
+rc: 0 usage: True decoy: False
+Captured stdout is the real usage block:
+usage: agent-workflows ipd finalize [-h] [--no-color | --color] [--agent] ...
+```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the CONTRIBUTING.md diff (one sentence, no em or en dashes, and not claiming unittest loses the home sandbox, which `tests/__init__.py` still provides); paste the final summary line of a BARE `python3 -m pytest` showing 0 failed, compared against the review-measured baseline `2598 passed, 2 skipped`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Diff of CONTRIBUTING.md with no em or en dashes, and bare pytest suite run:
+```diff
+diff --git a/CONTRIBUTING.md b/CONTRIBUTING.md
+index 57e5dc76..c1d864da 100644
+--- a/CONTRIBUTING.md
++++ b/CONTRIBUTING.md
+@@ -158,6 +158,8 @@ debug a test-ordering/isolation issue), use:
+  make test-serial   # i.e. python3 -m unittest discover -s tests -t .
+  (end code block)
+
++Because `unittest` does not load `conftest.py`, it loses that runner's role scrub and `PYTHONPATH` pin, which is why the serial runner is for the isolation-debugging purpose already stated here and tests spawn the CLI only through `tests/support.run_cli`.
++
+  The suite covers the installer/CLI (fresh install, idempotent re-run, prune of
+  stale/legacy shims, legacy-layout migration, dry-run, the catalog-row collapse and the
+  `assess-all` prefix exception, `install`/`setup`/`uninstall`/`list`/`status`, `--version`),
+```
+Bare pytest run summary:
+2749 passed, 2 skipped, 3 warnings in 113.98s (0:01:53) (0 failed, clean vs baseline 2598 passed, 2 skipped).
+  - Result: pass
 
 ## Approval and execution gate
 

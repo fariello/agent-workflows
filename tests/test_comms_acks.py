@@ -5,12 +5,11 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-import subprocess
-import sys
 import pytest
 
 from agent_workflows import comms
 from agent_workflows import comms_acks
+from tests import support
 
 
 @pytest.fixture
@@ -375,11 +374,7 @@ def test_message_status_not_done_clears_unread(
 
 def test_cli_help() -> None:
     """CLI --help prints help and exits 0."""
-    res = subprocess.run(
-        [sys.executable, "-m", "agent_workflows.comms_acks", "--help"],
-        capture_output=True,
-        text=True,
-    )
+    res = support.run_cli("--help", module="agent_workflows.comms_acks")
     assert res.returncode == 0
     assert "subcommand" in res.stdout
     assert "ack" in res.stdout
@@ -391,21 +386,15 @@ def test_cli_ack_refusal_exit_2(tmp_path: Path) -> None:
     comms_dir = tmp_path / ".aw" / "records" / "comms"
     acks_dir = comms_dir / "untracked" / "acks"
 
-    res = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "agent_workflows.comms_acks",
-            "ack",
-            "any-msg",
-            "delivered",
-            "--by",
-            "target.agent",
-            "--comms-dir",
-            str(comms_dir),
-        ],
-        capture_output=True,
-        text=True,
+    res = support.run_cli(
+        "ack",
+        "any-msg",
+        "delivered",
+        "--by",
+        "target.agent",
+        "--comms-dir",
+        str(comms_dir),
+        module="agent_workflows.comms_acks",
     )
     assert res.returncode == 2
     assert "not an agent ack state" in res.stderr
@@ -418,21 +407,15 @@ def test_cli_ack_success(comms_env: tuple[Path, Path, Path]) -> None:
     msg_id = "20260925-1000-01-sender.agent--to--target.agent-task-01"
     _create_message(untracked_inbox, msg_id)
 
-    res = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "agent_workflows.comms_acks",
-            "ack",
-            msg_id,
-            "read",
-            "--by",
-            "target.agent",
-            "--comms-dir",
-            str(comms_dir),
-        ],
-        capture_output=True,
-        text=True,
+    res = support.run_cli(
+        "ack",
+        msg_id,
+        "read",
+        "--by",
+        "target.agent",
+        "--comms-dir",
+        str(comms_dir),
+        module="agent_workflows.comms_acks",
     )
     assert res.returncode == 0
     ack_file = comms_dir / "untracked" / "acks" / f"{msg_id}.target.agent.read.json"
@@ -442,17 +425,11 @@ def test_cli_ack_success(comms_env: tuple[Path, Path, Path]) -> None:
 def test_cli_status_no_untracked_lane_exits_0(tmp_path: Path) -> None:
     """CLI status in a repo with no untracked/ lane exits 0."""
     comms_dir = tmp_path / ".aw" / "records" / "comms"
-    res = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "agent_workflows.comms_acks",
-            "status",
-            "--comms-dir",
-            str(comms_dir),
-        ],
-        capture_output=True,
-        text=True,
+    res = support.run_cli(
+        "status",
+        "--comms-dir",
+        str(comms_dir),
+        module="agent_workflows.comms_acks",
     )
     assert res.returncode == 0
     assert "[]" in res.stdout
@@ -465,20 +442,14 @@ def test_cli_status_json_format(comms_env: tuple[Path, Path, Path]) -> None:
     _create_message(untracked_inbox, msg_id)
     comms_acks.write_agent_ack(comms_dir, msg_id, "read", "target.agent")
 
-    res = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "agent_workflows.comms_acks",
-            "status",
-            msg_id,
-            "--format",
-            "json",
-            "--comms-dir",
-            str(comms_dir),
-        ],
-        capture_output=True,
-        text=True,
+    res = support.run_cli(
+        "status",
+        msg_id,
+        "--format",
+        "json",
+        "--comms-dir",
+        str(comms_dir),
+        module="agent_workflows.comms_acks",
     )
     assert res.returncode == 0
     data = json.loads(res.stdout)
