@@ -3180,11 +3180,12 @@ def _release_own_plan_edit_before_landing(
     * the landed commit's blob at the plan's destination path is EXACTLY what the worktree produced
       from those bytes.
 
-    So the content is already durable in a commit, and dropping the working-tree copy at the OLD path
-    is precisely what "the plan moved" means. If EITHER check fails the bytes are somebody else's (or
-    are not accounted for), and this function writes NOTHING and returns None, leaving
-    :func:`land_worktree_commit` to refuse and report - which is exactly the contended arm, and it must
-    keep refusing.
+    So the content is carried by the coordinator commit (which becomes durable once landed; if
+    landing refuses, rollback restores these bytes provided no peer wrote to the origin), and dropping
+    the working-tree copy at the OLD path is precisely what "the plan moved" means. If EITHER check fails
+    the bytes are somebody else's (or are not accounted for), and this function writes NOTHING and
+    returns None, leaving :func:`land_worktree_commit` to refuse and report - which is exactly the
+    contended arm, and it must keep refusing.
 
     NARROW BY CONSTRUCTION: it touches ONE path, the plan's own original path, and never inspects or
     clears anything else in the tree. A co-worker's unrelated dirty file needs no clearing anyway,
@@ -3268,8 +3269,11 @@ def land_worktree_commit(
             (
                 f"git REFUSED to fast-forward the shared checkout onto {landed[:12]} because landing "
                 f"it would overwrite local changes at: {named}. The branch was NOT advanced and those "
-                "bytes are intact; that refusal is CORRECT and must not be forced. Land or set that "
-                f"edit aside and re-run. git said: {combined}"
+                "bytes are intact; that refusal is CORRECT and must not be forced. Those bytes belong "
+                "to another party and under repository rules this agent may not commit or stash them. "
+                "Re-running the same command once the contention clears is sufficient (re-run the "
+                "command once contention clears). The work is preserved in coordinator commit "
+                f"{landed[:12]}. git said: {combined}"
             ),
             paths,
         )
@@ -3519,7 +3523,12 @@ def _lifecycle_commit_exists(
     return None
 
 
-def _rollback_precommit(repo_root: Path, journal: Dict[str, Any]) -> Tuple[bool, str]:
+def _rollback_precommit(
+    repo_root: Path,
+    journal: Dict[str, Any],
+    *,
+    shared_tree_untouched: Optional[bool] = None,
+) -> Tuple[bool, str]:
     """Idempotent pre-commit rollback driven by the journal (E-02). Returns (ok, message).
 
     Restores the plan to its original bytes+path, removes the moved destination, and restores the
@@ -3579,7 +3588,19 @@ def _rollback_precommit(repo_root: Path, journal: Dict[str, Any]) -> Tuple[bool,
     uncommitted edit (`- Status: approved\\nPEER EDIT IN FLIGHT, uncommitted\\n`) was replaced by the
     snapshot bytes and the peer's content was gone, and because the destructive write happens before
     the later steps, even a rollback that REPORTS failure had already destroyed it.
+
+    ON A REFUSED RECONCILIATION (`shared_tree_untouched=True`), git provably never touched the shared
+    checkout: HEAD is unmoved, MERGE_HEAD is absent, and the shared tree was never written by the
+    merge. When foreign bytes exist at the origin on this arm, they belong to a peer's in-flight edit:
+    step 2 leaves them untouched and rollback reports success rather than unknown-outcome, so the
+    journal is cleared and a re-run works the moment contention clears. Conversely, if this transaction
+    released its own uncommitted evidence before landing, `origin_written_bytes` records the released
+    state and step 2 safely restores that evidence when no peer wrote over it, while leaving a peer's
+    bytes intact when one did.
     """
+    if not shared_tree_untouched:
+        shared_tree_untouched = bool(journal.get("shared_tree_untouched", False))
+
     orig_rel = journal["original_path"]
     dest_rel = journal.get("dest_path")
     orig_abs = repo_root / orig_rel
@@ -3633,6 +3654,11 @@ def _rollback_precommit(repo_root: Path, journal: Dict[str, Any]) -> Tuple[bool,
         restore_origin = False  # already correct; writing would be a no-op
     elif origin_written is not None and current_origin == origin_written:
         restore_origin = True  # our own mutation, so undoing it is ours to do
+    elif shared_tree_untouched:
+        # On a refused reconciliation the shared tree was never written by the merge.
+        # Foreign bytes here belong to a peer's in-flight edit: do NOT overwrite them,
+        # and do NOT report unknown-outcome because nothing was mutated by us to undo.
+        restore_origin = False
     else:
         return (
             False,
@@ -4704,9 +4730,14 @@ def _finalize_transaction(
     _write_finalize_journal(repo_root, journal)
 
     def _rollback_and_return(
-        reason: str, exit_code: int = EXIT_CANNOT_RUN
+        reason: str,
+        exit_code: int = EXIT_CANNOT_RUN,
+        *,
+        shared_tree_untouched: bool = False,
     ) -> FinalizeResult:
         cur = read_finalize_journal(repo_root, plan_id) or journal
+        if shared_tree_untouched:
+            cur["shared_tree_untouched"] = True
         ok, msg = _rollback_precommit(repo_root, cur)
         if not ok:
             cur["phase"] = PHASE_UNKNOWN_OUTCOME
@@ -4847,6 +4878,13 @@ def _finalize_transaction(
             )
             if released:
                 evidence.setdefault("reconciliation_prep", []).append(released)
+                try:
+                    journal["origin_written_bytes"] = (repo_root / plan_rel).read_text(
+                        encoding="utf-8"
+                    )
+                except OSError:
+                    journal["origin_written_bytes"] = None
+                _write_finalize_journal(repo_root, journal)
 
             # --- LAND IT: the ff-only merge is the SINGLE step that advances the branch AND updates
             # the shared working tree. Never `update-ref` first (that makes this a reporting-success
@@ -4876,6 +4914,9 @@ def _finalize_transaction(
                 "paths": list(landing.paths),
                 "detail": landing.detail,
             }
+            if landing.status == RECONCILED_REFUSED:
+                journal["shared_tree_untouched"] = True
+                _write_finalize_journal(repo_root, journal)
 
     dest_path = repo_root / journal["dest_path"]
 
@@ -4890,9 +4931,11 @@ def _finalize_transaction(
             # recorded reason does not imply this plan or its Set was at fault. Still fails closed.
             foreign = classify_commit_refusal(repo_root, err, stage)
             base = f"lifecycle commit did not happen (git rc={rc}: {err.strip()})"
+            untouched = landing is not None and landing.status == RECONCILED_REFUSED
             return _rollback_and_return(
                 f"{base}\nDIAGNOSIS: {foreign}" if foreign else base,
                 EXIT_CANNOT_RUN,
+                shared_tree_untouched=untouched,
             )
         # HEAD moved but not via our marker: ambiguous -> unknown-outcome (fail closed).
         journal["phase"] = PHASE_UNKNOWN_OUTCOME

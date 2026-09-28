@@ -1883,6 +1883,201 @@ class TheORDINARYFinalizeAlsoMutatesOffTheSharedCheckout(unittest.TestCase):
             self.assertNotEqual(journal.get("phase"), LC.PHASE_COMMITTED_INCOMPLETE)
 
 
+class TheContendedFastForwardRefusalRollsBackCleanly(unittest.TestCase):
+    """E-02: pin the contended fast-forward refusal behavior before fixing it (plan `4er1ev`).
+
+    Five cases:
+    (1) after a contended refusal, the journal is cleared (None), not wedged in unknown-outcome.
+    (2) after the peer commits their edit, re-running the same finalize succeeds (acceptance criterion).
+    (3) the refusal message names the objecting path, states it must not be forced, states the bytes
+        belong to another party and cannot be committed/stashed by this agent, and prescribes re-running
+        once contention clears.
+    (4) the peer's bytes are intact byte-for-byte and HEAD is unmoved (preservation).
+    (5) the executing agent's own evidence present + peer edit at landing: peer's bytes survive and
+        agent evidence is not written over them (discriminator between safe E-03+E-04 and peer-clobber).
+    """
+
+    def setUp(self) -> None:
+        support.declare_execution_role(self)
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        _init_git(self.root)
+        (self.root / "agent_workflows").mkdir()
+        (self.root / "tests").mkdir()
+        self.plan = _write_plan(
+            self.root, _completed_plan_text(), "20260824-demo-01-abc123-demo.ipd.md"
+        )
+        _commit_all(self.root, "init")
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _head(self) -> str:
+        return subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+    def _begin_and_work(self):
+        LC.begin(self.root, self.plan, "opencode/test", timestamp="t")
+        (self.root / "agent_workflows" / "demo.py").write_text("x\n", encoding="utf-8")
+        (self.root / "tests" / "test_demo.py").write_text("x\n", encoding="utf-8")
+        _commit_all(self.root, "in-scope work")
+
+    def test_01_contended_refusal_clears_journal_and_preserves_pending(self):
+        """Case (1): after a contended refusal, the journal is absent, not unknown-outcome."""
+        self._begin_and_work()
+        peer_bytes = self.plan.read_text(encoding="utf-8") + "\nPEER EDIT IN FLIGHT\n"
+        real_land = LC.land_worktree_commit
+
+        def spy_land(repo_root, landed, *, expected_base=None):
+            self.plan.write_text(peer_bytes, encoding="utf-8")
+            return real_land(repo_root, landed, expected_base=expected_base)
+
+        with mock.patch.object(LC, "land_worktree_commit", spy_land):
+            res = LC.finalize(self.root, self.plan, "opencode/test", "m", apply=True)
+
+        self.assertNotEqual(res.exit_code, LC.EXIT_OK)
+        self.assertTrue(self.plan.is_file(), "plan must remain at its pending path")
+        exec_path = (
+            self.root / ".aw" / "records" / "plans" / "executed" / self.plan.name
+        )
+        self.assertFalse(exec_path.exists(), "plan must not reach executed path")
+        journal = LC.read_finalize_journal(self.root, "abc123")
+        self.assertIsNone(journal, f"journal must be cleared, got: {journal}")
+
+    def test_02_retry_after_peer_commits_succeeds(self):
+        """Case (2): after the peer commits their edit, re-running the same finalize succeeds."""
+        self._begin_and_work()
+        peer_bytes = self.plan.read_text(encoding="utf-8") + "\nPEER EDIT IN FLIGHT\n"
+        real_land = LC.land_worktree_commit
+
+        def spy_land(repo_root, landed, *, expected_base=None):
+            self.plan.write_text(peer_bytes, encoding="utf-8")
+            return real_land(repo_root, landed, expected_base=expected_base)
+
+        with mock.patch.object(LC, "land_worktree_commit", spy_land):
+            res1 = LC.finalize(self.root, self.plan, "opencode/test", "m", apply=True)
+        self.assertNotEqual(res1.exit_code, LC.EXIT_OK)
+
+        # Peer commits their in-flight edit; tree becomes clean
+        subprocess.run(["git", "add", "-A"], cwd=self.root, check=True)
+        subprocess.run(
+            ["git", "commit", "-q", "-m", "peer committed edit"],
+            cwd=self.root,
+            check=True,
+        )
+        porcelain = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        self.assertEqual(porcelain, "", "precondition: shared checkout is clean")
+
+        # Re-run same finalize
+        res2 = LC.finalize(self.root, self.plan, "opencode/test", "m", apply=True)
+        self.assertEqual(
+            res2.exit_code, LC.EXIT_OK, f"retry should succeed, got: {res2.message}"
+        )
+        exec_path = (
+            self.root / ".aw" / "records" / "plans" / "executed" / self.plan.name
+        )
+        self.assertTrue(exec_path.is_file(), "plan must reach executed path on retry")
+
+    def test_03_refusal_message_names_objecting_path_and_prescribes_rerun(self):
+        """Case (3): refusal message names objecting path and states re-run suffices once contention clears."""
+        self._begin_and_work()
+        plan_rel = LC._repo_relative(self.root, self.plan)
+        peer_bytes = self.plan.read_text(encoding="utf-8") + "\nPEER EDIT IN FLIGHT\n"
+        real_land = LC.land_worktree_commit
+
+        def spy_land(repo_root, landed, *, expected_base=None):
+            self.plan.write_text(peer_bytes, encoding="utf-8")
+            return real_land(repo_root, landed, expected_base=expected_base)
+
+        with mock.patch.object(LC, "land_worktree_commit", spy_land):
+            res = LC.finalize(self.root, self.plan, "opencode/test", "m", apply=True)
+
+        self.assertNotEqual(res.exit_code, LC.EXIT_OK)
+        # Must name objecting path
+        self.assertIn(plan_rel, res.message)
+        # Must state refusal is correct and must not be forced
+        self.assertIn("must not be forced", res.message)
+        # Must state that bytes belong to another party / this agent may not commit or stash them
+        self.assertTrue(
+            "may not commit or stash" in res.message
+            or "may not" in res.message
+            or "another party" in res.message,
+            f"message should state agent may not commit/stash peer bytes: {res.message}",
+        )
+        # Must state that re-running once contention clears is sufficient
+        self.assertTrue(
+            "re-run" in res.message and "contention clears" in res.message,
+            f"message should prescribe re-running once contention clears: {res.message}",
+        )
+
+    def test_04_peer_bytes_and_head_intact_after_refusal(self):
+        """Case (4): peer's bytes are intact byte-for-byte and HEAD is unmoved (preservation)."""
+        self._begin_and_work()
+        head_before = self._head()
+        peer_bytes = (
+            self.plan.read_text(encoding="utf-8")
+            + "\nPEER EDIT IN FLIGHT, uncommitted\n"
+        )
+        real_land = LC.land_worktree_commit
+
+        def spy_land(repo_root, landed, *, expected_base=None):
+            self.plan.write_text(peer_bytes, encoding="utf-8")
+            return real_land(repo_root, landed, expected_base=expected_base)
+
+        with mock.patch.object(LC, "land_worktree_commit", spy_land):
+            res = LC.finalize(self.root, self.plan, "opencode/test", "m", apply=True)
+
+        self.assertNotEqual(res.exit_code, LC.EXIT_OK)
+        self.assertEqual(self.plan.read_text(encoding="utf-8"), peer_bytes)
+        self.assertEqual(self._head(), head_before)
+
+    def test_05_composed_pair_agent_evidence_and_peer_edit_preserves_peer(self):
+        """Case (5): agent's own evidence present + peer edit at landing -> peer's bytes survive.
+
+        Preservation test: passes on today's code because step 2 refuses, but ensures
+        composed E-03+E-04 does not clobber peer's edit (discriminator test).
+        """
+        self._begin_and_work()
+        original = self.plan.read_text(encoding="utf-8")
+        # Executing agent leaves uncommitted evidence in the plan
+        agent_evidence = original + "\nAGENT UNCOMMITTED EVIDENCE TEXT\n"
+        self.plan.write_text(agent_evidence, encoding="utf-8")
+
+        # Peer edit arriving at landing instant does NOT contain the agent's evidence
+        peer_bytes = original + "\nPEER EDIT AT LANDING INSTANT\n"
+        real_land = LC.land_worktree_commit
+
+        def spy_land(repo_root, landed, *, expected_base=None):
+            # Peer writes their in-flight edit at the landing instant
+            self.plan.write_text(peer_bytes, encoding="utf-8")
+            return real_land(repo_root, landed, expected_base=expected_base)
+
+        with mock.patch.object(LC, "land_worktree_commit", spy_land):
+            res = LC.finalize(self.root, self.plan, "opencode/test", "m", apply=True)
+
+        self.assertNotEqual(res.exit_code, LC.EXIT_OK)
+        current_text = self.plan.read_text(encoding="utf-8")
+        self.assertEqual(
+            current_text, peer_bytes, "peer bytes must be intact byte-for-byte"
+        )
+        self.assertNotIn(
+            "AGENT UNCOMMITTED EVIDENCE TEXT",
+            current_text,
+            "agent evidence must not overwrite peer",
+        )
+
+
 class DelegationAndBypassRemovalTests(unittest.TestCase):
     """ipdgates Order wezhxg: `aw set executed <plan>` delegates into aw ipd finalize (no raw bypass)."""
 
