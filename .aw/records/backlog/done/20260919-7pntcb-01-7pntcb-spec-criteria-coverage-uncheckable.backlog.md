@@ -1,5 +1,5 @@
 - Id: 7pntcb
-- Status: graduated
+- Status: done
 - Graduated-To: 7pntcb
 - Set: 7pntcb
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Nothing cross-checks a spec's acceptance criteria against the coverage of the plan Set implementing it
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): closed by aw oc run: IPD 3dexf1 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-7pntcb-01-3dexf1-cross-check-a-spec-s-acceptance-criteria-against-the-coverag.ipd.md); evidence .aw/records/plans/executed/20260928-7pntcb-01-3dexf1-cross-check-a-spec-s-acceptance-criteria-against-the-coverag.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: 3dexf1
 - 2026-09-19 created (aw backlog): Found while resolving lifeglyph 2xz59a OQ-02, where five of spec uonrjg's 21 criteria were claimed by the orchestrator's coverage map but demanded by no child; only a human review caught it.
 
