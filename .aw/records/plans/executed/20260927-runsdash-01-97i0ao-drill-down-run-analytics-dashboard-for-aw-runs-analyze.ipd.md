@@ -6,7 +6,7 @@
 - Scope: Add a per-attempt fact extractor over run `state.json` plus the per-session JSONL logs (both hosts), cached per session file inside the analytics namespace, and a new self-contained offline drill-down dashboard rendered from it. Publish the dashboard as the bundle's `index.html`; keep the previous renderer's document in the same bundle as `report.html`.
 - Scope-Paths: agent_workflows/run_dashboard.py, agent_workflows/run_dashboard_assets/dashboard.js, agent_workflows/run_dashboard_assets/dashboard.css, .aw/records/plans/pending/20260927-runsdash-01-97i0ao-drill-down-run-analytics-dashboard-for-aw-runs-analyze.ipd.md, agent_workflows/run_analytics_cli.py, tests/test_run_dashboard.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Work-Kind: feature
 - Priority: medium
 - Set: runsdash
@@ -14,9 +14,9 @@
 - Highest E allocated: 06
 - Author: opencode
 - Id: 97i0ao
-- Approval: 2026-09-28, human ("approved"): Maintainer requested this dashboard directly in session (2026-09-27) and asked it be done in an isolated worktree.
 
 ## Workflow history
+- 2026-09-28 executed (opencode): Executed in isolated worktree aw/lane/97i0ao (aw work begin), rebased on main, full suite 2907 passed, fast-forwarded to main under the integration lock; real-corpus publish verified (index.html dashboard + report.html classic). [Scope reconciliation - widened-scope .aw/records/plans/pending/20260927-runsdash-01-97i0ao-drill-down-run-analytics-dashboard-for-aw-runs-analyze.ipd.md: the plan file itself carries the execution evidence and had to be committed in the same change as the code]
 - 2026-09-28 approved (aw set, --by-human): Maintainer requested this dashboard directly in session (2026-09-27) and asked it be done in an isolated worktree.
 
 - 2026-09-27 draft (opencode): created.
