@@ -3,10 +3,11 @@
 - Date: 2026-09-28
 - Kind: child
 - Concern: artifact-audit-typed-dispatch
-- Scope: Audit runner queue steps by artifact type and action, aligning expectations with record_placement
+- Scope: Audit runner queue steps by artifact type, action, and initial lifecycle status, aligning placement checks with record_placement
 - Scope-Paths: agent_workflows/run_viewer.py, agent_workflows/artifact_audit.py, tests/test_artifact_audit.py, tests/test_run_viewer.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
 - From-Backlog: 7tswqn
@@ -18,12 +19,13 @@
 - Id: mlhryi
 
 ## Workflow history
+- 2026-09-28 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; /plan-review (Codex/GPT-6); PR-001 through PR-006
 
 - 2026-09-28 to-review (Gabriele Fariello): author review-ready plan graduating backlog item 7tswqn.
 
 ## Goal
 
-Make `agent_workflows.artifact_audit` and `agent_workflows.run_viewer` aware of artifact types (`backlog`, `spec`, `ipd`) and runner actions (`plan`, `review`, `execute`), resolving directory expectations through `agent_workflows.record_placement` so that graduated backlog items and typed queue steps are audited against their actual lifecycle contracts rather than false plan-only assumptions.
+Make `aw runs` audit each queue item against the lifecycle of its artifact type and action. A runner step's `executed` is an action outcome, not a claim that every artifact belongs in `executed/`: a successful backlog `plan` leaves the item `graduated`, and a successful spec `plan` leaves the spec `implementing`. Preserve the existing IPD audit, the tracked-only `aw doctor` audit, and honest classification of later lifecycle changes.
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -31,68 +33,50 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Runner Step Representation and Forwarding
 
-- [ ] E-01 Retain artifact type on `StepSummary` and forward type and action to `audit_artifact`.
-  - In `agent_workflows/run_viewer.py`, add `artifact_type: str = "ipd"` to the `StepSummary` dataclass.
-  - When constructing `StepSummary` in `RunSummary.from_run_dir` (within `run_viewer.py`), extract the step's artifact type from the queue entry JSON via `runner_shared.queue_entry_type(item)`.
-  - Update `audit_step_artifact(step, repo_root, evidence)` in `run_viewer.py` to forward `artifact_type=step.artifact_type` and `action=step.action` into `_audit.audit_artifact`.
+- [ ] E-01 Preserve the queue item's artifact type and initial lifecycle status in `StepSummary` and forward them to `audit_artifact`.
+  - In `agent_workflows/run_viewer.py`, add optional `artifact_type` and `initial_status` fields after the required dataclass fields. For queue JSON with an explicit `artifact_type`, normalize with `runner_shared.queue_entry_type(item)`; leave the field absent/`None` for legacy queue entries and report-only fallback so a default `ipd` cannot masquerade as an explicit type.
+  - Read `initial_status` from the queue entry when present. Forward `artifact_type`, `initial_status`, and `step.action` through `audit_step_artifact` to `_audit.audit_artifact`. Keep the existing `StepSummary` fields and serialized audit fields intact.
   - Depends on: none
-  - Expected outcome: `StepSummary` accurately records whether an entry is an IPD, backlog item, or spec, and passes this context into the audit engine.
+  - Expected outcome: The audit can distinguish a typed queue entry from an older untyped run and can compare an uncompleted step against its actual starting state.
   - Execution state: pending
 
 ### Task group 2: Typed Expectation Engine in Artifact Audit
 
-- [ ] E-02 Implement typed expectation mapping in `agent_workflows/artifact_audit.py` leveraging `record_placement`.
-  - In `agent_workflows/artifact_audit.py`, import `target_subdir` from `agent_workflows.record_placement`.
-  - Add helper `expected_artifact_state(artifact_type: str, action: str, run_status: str)` defining valid target directories and declared statuses:
-    - For `artifact_type == "backlog"` under `action == "plan"`:
-      - When `run_status in ("executed", "complete")`: valid directories are `{"graduated", "done"}` and valid declared statuses are `{"graduated", "done"}`.
-      - When `run_status in ("queued", "running", "interrupted", "fail-gate", "fail-begin", "fail-lane", "fail-verify", "fail-depend", "fail-merge", "not-run", "failed", "cancelled", "abandoned")`: valid directories are `{"open", "blocked"}` and valid declared statuses are `{"open", "blocked", "parked"}`.
-    - For `artifact_type in ("ipd", "plans")`:
-      - When `run_status in ("executed", "complete")`: valid directories are `{"executed", "superseded", "not-executed", "reusable"}` and valid declared statuses are `{"executed", "complete"}`.
-      - When `run_status == "retired"`: valid directories and statuses are `{"superseded", "not-executed"}`.
-      - When `run_status == "reviewed"`: valid directory is `{"pending"}` and valid statuses are `{"reviewed", "approved"}`.
-      - Pre-terminal outcomes: valid directory is `{"pending"}` and valid statuses are `{"approved", "to-review", "draft", "reviewed", "queued", "running"}`.
-    - For other types, delegate directory resolution to `record_placement.target_subdir(artifact_type, run_status)`.
-  - Update `audit_artifact` to accept `artifact_type: str = ""` and `action: str = ""`. If `artifact_type` is omitted or defaults to `"ipd"` but the resolved artifact path sits under `records/backlog/` or has a `.backlog.md` extension, infer `artifact_type = "backlog"`.
-  - Update `location_mismatch` and `status_mismatch` evaluation in `audit_artifact` to check against the typed valid directories and statuses.
+- [ ] E-02 Define and apply paired lifecycle expectations for typed queue steps in `agent_workflows/artifact_audit.py`.
+  - Normalize runner `ipd`/`spec`/`backlog` to record-placement `plans`/`specs`/`backlog` through `status_set.canonical_type`. `record_placement.target_subdir` accepts plural `plans` and `specs`; do not call it with singular `spec` or a runner outcome such as `executed` as though either were a lifecycle status.
+  - Make the expectation a set of allowed **declared status plus directory pairs**, deriving each directory from `target_subdir(record_type, declared_status)`. Successful `backlog/plan` permits `graduated` and subsequent `done`; successful `spec/plan` permits `implementing` and subsequent `implemented`; successful `spec/review` permits `reviewed` and subsequent `approved`; IPD `review`/`execute` retain their existing semantics, including retired and standing dispositions. Treat `complete` only through the runner's existing canonical-status rules, not as a spec/backlog front-matter status.
+  - For queued, running, interrupted, failed, or projected steps, use `initial_status` when available; an `open` backlog, `to-review` spec, and `approved` spec therefore have distinct expectations. For old queue records lacking it, use a documented type/action fallback and do not silently claim a clean audit when the starting state is unprovable.
+  - `audit_artifact` accepts optional `artifact_type`, `action`, and `initial_status`, and carries the effective type/action on `ArtifactAudit` so classification uses the same context. Added optional serialized fields may describe context; preserve all existing boolean/JSON fields and their meanings. Explicit type is authoritative; if the resolved file clearly has another type, report an attributable `unknown`/type-conflict finding instead of replacing the queue's identity and printing `unchanged`. Infer from the resolved path only when type metadata is absent, including old report-only records. Preserve exact-id collision behavior.
+  - Compute `location_mismatch` and `status_mismatch` from the same allowed pairs, climbing monthly plan shards via the existing disposition helper. A `graduated/` file declaring `done` is a real mismatch even though each token occurs in some allowed pair.
   - Depends on: E-01
-  - Expected outcome: `audit_artifact` evaluates backlog items, specs, and plans against their own family lifecycle directories and statuses.
+  - Expected outcome: Typed queue outcomes map to the correct artifact lifecycle without accepting cross-paired status and directory combinations or hiding type conflicts.
   - Execution state: pending
 
-### Task group 3: Classification and Tracked-File Audit
+### Task group 3: Directional classification
 
-- [ ] E-03 Update `_classified` and `audit_tracked_artifact` in `agent_workflows/artifact_audit.py`.
-  - In `_classified`:
-    - For backlog artifacts:
-      - If `run_status in _RUN_SUCCESS_STATUSES`: classify as `CLASS_UNCHANGED` (or `CLASS_RESOLVED` if finalized after run) when the actual directory is in `{"graduated", "done"}`. Only classify as `CLASS_REGRESSED` if the actual directory is not in `{"graduated", "done"}`.
-      - If `run_status` is in-flight (`queued`, `running`) and actual directory is in `{"open", "blocked"}`: classify as `CLASS_UNCHANGED`.
-  - In `audit_tracked_artifact` (the `aw doctor` consumer):
-    - Determine `record_type` from the artifact path.
-    - Use `record_placement.target_subdir(record_type, declared)` to compute expected directory instead of assuming plan-only `_TERMINAL_EXPECTED_DIR`.
-  - Add comprehensive unit tests in `tests/test_artifact_audit.py` and `tests/test_run_viewer.py` pinning:
-    1. Backlog items with `run_status == "executed"` residing in `graduated/` or `done/` classify as `CLASS_UNCHANGED` (`has_discrepancy == False`).
-    2. Backlog items with `run_status == "running"` or `"queued"` residing in `open/` classify as `CLASS_UNCHANGED`.
-    3. Backlog items with `run_status == "executed"` still residing in `open/` classify as `CLASS_REGRESSED`.
-    4. Plan execution and review audit behaviors remain fully preserved without regressions.
+- [ ] E-03 Extend `classify_difference` for typed results without weakening the existing evidence bar.
+  - A successful `backlog/plan` in a matching `graduated/` or `done/` pair, and a successful `spec/plan` in a matching `implementing/` or `implemented/` pair, are `CLASS_UNCHANGED`; an executed action still in its initial lifecycle state is `CLASS_REGRESSED` only when the artifact identity is proved and no legitimate later transition explains it.
+  - A previously queued, failed, or reviewed item that later advanced is **not** a regression. Extend the existing one-pass `FinalizeEvidenceIndex` or reuse the runner's recorded transition commit so `CLASS_RESOLVED` requires a time-bounded `transition(backlog): move <id6> -> graduated` or `transition(spec): move <id6> -> implementing` commit (or existing IPD `lifecycle(<id6>): finalize` evidence). If evidence is missing, unreachable, or temporally ambiguous, keep `CLASS_UNKNOWN` with an honest reason; never infer `resolved` from direction alone. Preserve the existing retired-banner and IPD evidence rules.
+  - Add unit cases for matching backlog/spec success, matching unstarted typed steps, genuine missing transition, later evidenced progress, missing evidence, mismatched declared status, type conflict, old untyped queue records, and unchanged IPD execution/review behavior. `tests/test_artifact_audit.py` does not yet exist; create it for focused engine tests and use `tests/test_run_viewer.py` for queue forwarding and rendering/JSON compatibility.
   - Depends on: E-02
-  - Expected outcome: Artifact classification handles heterogeneous queue items without false regression alarms, and `aw doctor` accurately checks tracked files across all types.
+  - Expected outcome: Typed rows distinguish agreement, a proved later transition, a real regression, and insufficient evidence; IPD classifications remain compatible.
   - Execution state: pending
 
 ### Task group 4: End-to-End Validation and Suite Pass
 
-- [ ] E-04 Run suite tests and verify active runs in `aw runs --active -s`.
-  - Run `tests/test_artifact_audit.py` and `tests/test_run_viewer.py` to confirm all unit tests pass.
-  - Run `python3 -m agent_workflows runs --active -s` to confirm that the 31 false "regressed" rows and 19 false "unknown" rows in `run-20260928T034313Z-2200079` are eliminated.
-  - Run full test suite with bare `python3 -m pytest`.
+- [ ] E-04 Run the targeted tests and full suite, then inspect the named historical run.
+  - Run `python3 -m pytest -o addopts="" tests/test_artifact_audit.py tests/test_run_viewer.py`; paste the actual output.
+  - Inspect the named run with `aw runs run-20260928T034313Z-2200079 --json` and the human view. Re-derive its then-current typed outcomes and identify any remaining `unknown` by reason. `--active` filters out runs without a `running` step, and the author-time counts (31 and 19) are context, not an execution-time success bar.
+  - Run the full suite bare as `python3 -m pytest`; paste the actual output. Confirm the tracked-only `aw doctor` route still has its former plan-focused, fail-safe behavior.
   - Depends on: E-03
-  - Expected outcome: Full test suite passes cleanly and live runs report zero false artifact regressions.
+  - Expected outcome: Tests pass and the named run contains no false `regressed` or falsely reassuring `unchanged` typed rows; any `unknown` row states the evidence limitation.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
 
 - `agent_workflows.run_viewer.StepSummary`: Dataclass defined at `agent_workflows/run_viewer.py` representing a queue step.
 - `agent_workflows.runner_shared.queue_entry_type`: Defined at `agent_workflows/runner_shared.py` (line 36021), extracts `artifact_type` from queue entry mapping, defaulting to `"ipd"`.
-- `agent_workflows.record_placement.target_subdir`: Defined at `agent_workflows/record_placement.py` (line 43), the repository's single authority mapping `(record_type, status)` to target directory.
+- `agent_workflows.record_placement.target_subdir`: Defined at `agent_workflows/record_placement.py` (line 43), the repository's single authority mapping `(plural record_type, declared lifecycle status)` to target directory. `status_set.canonical_type` supplies the runner-to-record vocabulary normalization.
 - `agent_workflows.artifact_audit.audit_artifact`: Defined at `agent_workflows/artifact_audit.py` (line 955), evaluates artifact location and declared status against recorded run state.
 - `agent_workflows.artifact_audit._classified`: Defined at `agent_workflows/artifact_audit.py` (line 550), assigns directional difference classes (`CLASS_REGRESSED`, `CLASS_UNCHANGED`, etc.).
 
@@ -102,32 +86,33 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 2. `StepSummary` in `run_viewer.py` omitted `artifact_type`, dropping type metadata before calling `audit_step_artifact`.
 3. `artifact_audit.py` hardcoded `_TERMINAL_EXPECTED_DIR = {"executed": "executed", ...}` and expected all successful steps to reside in `executed/` with status `executed`.
 4. Backlog items successfully planned under `--action plan` transition to `graduated` (or `done`) in `records/backlog/graduated/` (or `done/`). Comparing them against plan-only rules caused 31 false `regressed` alarms and 19 false `unknown` alarms in `run-20260928T034313Z-2200079`.
+5. The runner writes `initial_status` and typed `artifact_type` into queue entries; its spec production path transitions approved specs to `implementing`, and its backlog production path transitions open items to `graduated`. These are lifecycle statuses; the queue's `executed` is an action result.
 
 ## Proposed changes (ordered, validatable)
 
-1. Modify `agent_workflows/run_viewer.py`: Add `artifact_type` to `StepSummary`, extract it in `RunSummary.from_run_dir`, and pass `artifact_type` and `action` to `_audit.audit_artifact`.
-2. Modify `agent_workflows/artifact_audit.py`: Import `target_subdir` from `agent_workflows.record_placement`, implement `expected_artifact_state`, accept `artifact_type` and `action` in `audit_artifact`, and update `_classified` and `audit_tracked_artifact`.
+1. Modify `agent_workflows/run_viewer.py`: Preserve `artifact_type` and `initial_status` when available and pass them with `action` to `_audit.audit_artifact`.
+2. Modify `agent_workflows/artifact_audit.py`: Normalize queue types, derive paired status/location expectations through `target_subdir`, retain bounded transition evidence, and classify typed differences.
 3. Modify `tests/test_artifact_audit.py` and `tests/test_run_viewer.py`: Add targeted tests for typed queue audit behavior.
 
 ## Deferred / out of scope (with reason)
 
-None: all requirements are addressed within the scope of this plan. Modifying runner state machine TERMINAL_STATES in agent_workflows/runner_shared.py is not deferred work but an architectural non-goal; runner queue status represents step execution outcome (executed), which is distinct from artifact lifecycle status (graduated).
+The tracked-only `aw doctor` audit is outside this bug fix: it reads no run queue, and changing its current fail-safe coverage for every artifact family is a separate policy question. Preserve its behavior and characterize it in tests. Do not change runner `TERMINAL_STATES`; queue status represents action outcome, distinct from artifact lifecycle status. No deferred in-scope finding remains.
 
 ## Scope check
 
-- Over-scope: none. Changes are restricted to run viewer parsing and artifact audit classification.
-- Under-scope: none. Addresses both live runner auditing (`aw runs`) and tracked artifact inspection (`aw doctor`).
+- Over-scope: no `aw doctor` behavior change; it has no queue type or action to interpret.
+- Under-scope: none after adding spec production, time-bounded later-progress evidence, and legacy/type-conflict cases.
 
 ## Required tests / validation
 
-- Unit tests in `tests/test_artifact_audit.py` asserting correct classification of backlog and spec queue steps.
-- Unit tests in `tests/test_run_viewer.py` asserting `StepSummary` populates `artifact_type`.
-- Live inspection via `aw runs --active -s` demonstrating elimination of false regressions.
+- Unit tests in new `tests/test_artifact_audit.py` asserting paired placement, typed classification, and evidence bounds.
+- Unit tests in `tests/test_run_viewer.py` asserting `StepSummary` forwards explicit type and initial status, plus legacy fallback and published JSON compatibility.
+- Named-run inspection via `aw runs run-20260928T034313Z-2200079 --json`, with current counts and reasons re-derived.
 - Full test suite execution via bare `python3 -m pytest`.
 
 ## Spec / documentation sync
 
-- N/A: internal runtime reporting and audit logic; no user-facing CLI flag or public documentation changes required.
+- Existing universal-dispatch spec `z7nbn1` specifies runner dispatch, not `aw runs` audit classification; no spec amendment is warranted. The `aw runs` human, JSON, and agent outputs are user-visible: preserve the existing fields and boolean selection behavior, and update any in-code help text or CLI protocol documentation only if the implementation changes their stated contract. No flag or protocol version change is planned.
 
 ## Open questions
 
@@ -135,30 +120,30 @@ None: all requirements are addressed within the scope of this plan. Modifying ru
 
 - Blocking: no
 - Status: resolved
-- Owner: Gabriele Fariello
-- Resolution or deferral rationale: Resolved by prioritizing the resolved artifact path when it clearly identifies a non-IPD family (e.g. `records/backlog/` or `.backlog.md`), preventing callers that defaulted to `"ipd"` from forcing plan expectations onto a backlog file.
+- Owner: Codex/GPT-6 (plan reviewer)
+- Resolution or deferral rationale: Preserve the distinction between missing type metadata and an explicit `ipd`. Infer from the file path only for older untyped queue/report records. An explicit queue/path conflict is a visible unknown/type-conflict finding, not a clean result. Demonstrated at review on the named run's `state.json`: its backlog entries carry `"artifact_type": "backlog"`; `runner_shared.queue_entry_type` and `status_set.detect_artifact_type` independently return `backlog`. Changing only that entry's type to `ipd` makes `runner_shared.queue_artifact_path` raise `DriverError: Cannot locate IPD ... configured path was ...backlog.md`, so the existing typed resolver already refuses the conflicting identity. The audit should preserve that fail-safe signal instead of silently overriding the queue type; V-02 requires its own visible unknown/type-conflict result.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: Unit test output showing `StepSummary` captures `artifact_type` from queue entry JSON, and `audit_step_artifact` forwards `artifact_type` and `action`.
+  - Required evidence: Pasted targeted test output and assertions showing explicit and absent queue type remain distinguishable, `initial_status` is captured, and `audit_step_artifact` forwards all three fields.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: Unit test output from `tests/test_artifact_audit.py` demonstrating `expected_artifact_state` returns valid directories `{"graduated", "done"}` for `(artifact_type="backlog", action="plan", run_status="executed")` and `{"open", "blocked"}` for in-flight statuses.
+  - Required evidence: Pasted targeted test output and assertions for exact `(declared status, directory)` pairs for backlog `plan`, spec `review`/`plan`, and IPD `review`/`execute`; include rejected cross-pairs, type conflicts, and a monthly plan shard.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: Unit test output from `tests/test_artifact_audit.py` demonstrating that a graduated backlog item is classified as `CLASS_UNCHANGED` (`has_discrepancy == False`), while an in-place open backlog item under `executed` is classified as `CLASS_REGRESSED`.
+  - Required evidence: Pasted targeted test output demonstrating unchanged graduated backlog and implementing spec successes, true success-without-transition regression, evidenced later progress as `CLASS_RESOLVED`, unavailable evidence as `CLASS_UNKNOWN`, unchanged IPD retired/finalize semantics, and preserved tracked-only doctor behavior.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: Pasted terminal output from `aw runs --active -s` showing zero false regressions on `run-20260928T034313Z-2200079`, and full clean output from bare `python3 -m pytest`.
+  - Required evidence: Pasted actual output from the targeted tests, named-run `aw runs ... --json` inspection with re-derived typed counts/reasons, and bare `python3 -m pytest`; note any remaining unknown whose evidence cannot be proved.
   - Observed evidence:
   - Result: pending
 
@@ -167,4 +152,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execution contract: Commit only scoped paths (`agent_workflows/run_viewer.py`, `agent_workflows/artifact_audit.py`, `tests/test_artifact_audit.py`, `tests/test_run_viewer.py`) through `aw commit mlhryi -- <paths>`. Merge to `main` with integration lock via `aw integration-lock -- git merge --ff-only aw/lane/typeaudit`.
+Execution contract: All open questions above are resolved. Scope fence: the declared implementation paths are `agent_workflows/run_viewer.py`, `agent_workflows/artifact_audit.py`, `tests/test_artifact_audit.py`, and `tests/test_run_viewer.py`; do not expand scope casually. If genuine work needs another path, make the edit and justify it during the two-way finalize scope reconciliation (`--scope-reason` for extra paths, `--scope-ack` for declared paths left unchanged). Paste the ACTUAL runner output whenever reporting tests passed; never claim a run that did not occur. Commit only files this task changed through path-scoped `aw commit mlhryi -- <paths>`; verify the staged set and never push. After all E/V evidence is recorded and `aw ipd lint --phase pre-transition` conforms, the runner owns `aw ipd finalize` when executing under `aw oc run`/`aw agy run`; a direct executor uses `aw ipd finalize mlhryi --actor <agent/model> --message <summary> --apply` to write the terminal status/history, move the plan, and commit. Never hand-move the plan or double-finalize. Publishing to `main` by hand, if authorized separately, uses `aw integration-lock -- git merge --ff-only <branch>` with the tip re-read inside the lock.
