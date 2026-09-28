@@ -6,7 +6,7 @@
 - Scope: widen the frozen-region requirement extraction from a leaf's opening line to its whole action block, reusing the already-shipped block rule rather than forking a third definition; accept the resulting one-time receipt invalidation deliberately and prove the recovery path; amend the spec sentence that still describes the superseded whole-file key.
 - Scope-Paths: agent_workflows/ipd_lint.py, agent_workflows/ipd_lifecycle.py, agent_workflows/runner_shared.py, tests/test_ipd_lifecycle_cli.py, .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode model=its_direct/pt3-claude-opus-5-1m-us
 - Id: qurgra
-- Approval: 2026-09-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-28 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: qurgra verified (set 168p5j, attempt 1).
 - 2026-09-28 approved (aw set): status set to approved
 
 - 2026-09-28 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-301..PR-306. The defect is real, serious and reproduced exactly at review: the E-item continuation rewrite leaves `frozen_region_digest` at `d6bbbc732bcdbdcb` unchanged with `receipt_is_current` True, F-02's V-item case is identical, and F-03's probe digest correctly DIFFERS. F-01 through F-09 were each re-measured independently and all nine hold; the load-bearing `xmqv5l` no-op invariant was re-run over the corpus at `unchanged=857 MOVED=0`. FIXED A LIVE `aw check` ERROR ON THIS PLAN (PR-301, BLOCKER): all five deferred rows plus OQ-01 named no durable carrier, so `check.ipd-uncarried-obligation` fired at `error` with six uncarried obligations that would have vanished from `aw attention` the moment this plan reached `executed`; each row now carries `Carrier-Declined:` and OQ-01 is resolved, taking the rule to zero drifts and the repository error count 3 -> 2. Also corrected: three Findings whose live-population or machine-dependent counts were asserted as bars rather than context (F-04/F-05/F-08, re-measured: 841 -> 857 files, import absolutes shifted while the ordering held), V-01's comparison which becomes a tautology after E-02 unless the pre-change output is captured first, and a note on F-07 recording that `finalize_refusal_is_retryable` needs the summary line (review briefly misread a true claim as false). Record: `.aw/records/reviews/20260928-168p5j-01-qurgra-key-the-begin-receipt-on-each-e-v-item-s-whole-action-.review.md`.
