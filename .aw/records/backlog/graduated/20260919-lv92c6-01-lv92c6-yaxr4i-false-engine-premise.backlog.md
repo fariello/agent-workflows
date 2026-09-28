@@ -1,5 +1,6 @@
 - Id: lv92c6
-- Status: open
+- Status: graduated
+- Graduated-To: lv92c6
 - Blocks-Release: next
 - Set: lv92c6
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: Plan yaxr4i asserts the color engine is already correct and complete, which measurement falsifies
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: cscv0c
 - 2026-09-19 created (aw backlog): Found while converting nyz8dt into lifeglyph child z8ddk0. yaxr4i is approved, so an executor would trust the claim and leave the engine alone.
 
 ## The false statement
