@@ -36,44 +36,44 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: CLI Type Requirement and Action Flag
 
-- [ ] E-01 Add required `-t, --type, --tree` flag and optional `--action` and `--order-by` flags to `partition` CLI in `agent_workflows/cli.py`.
+- [x] E-01 Add required `-t, --type, --tree` flag and optional `--action` and `--order-by` flags to `partition` CLI in `agent_workflows/cli.py`.
   - Require `-t, --type, --tree` with choices `plans`, `backlog`, `specs` (or canonicalize via `status_set.canonical_type`). Refuse invocations without `-t` with exit code 2 and a clear error message.
   - Add optional `--action` flag with choices `execute`, `plan`, `review` (defaulting to None for automatic derivation).
   - Add optional `-o, --order-by` with choices `depth`, `date`; default to `depth` for plans and `date` for backlog/specs. Preserve dependency-first order in either mode.
   - Update command description, help text, and examples to illustrate `-t plans`, `-t backlog`, and `-t specs`.
   - Depends on: none
   - Expected outcome: `aw partition` requires `-t` and parses typed flags and options cleanly.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Typed Candidate Collection and Status Filtering
 
-- [ ] E-02 Update `collect()` in `agent_workflows/partition.py` to support `backlog`, `specs`, and `plans`.
+- [x] E-02 Update `collect()` in `agent_workflows/partition.py` to support `backlog`, `specs`, and `plans`.
   - Accept `artifact_type: str`. Scan candidate items via `_att.scan(repo_root, type_filters=(artifact_type,))`.
   - Validate requested statuses (`-s, --status`) against `status_set.TYPE_STATUSES[artifact_type]`, then select only items with a determinate, runnable next action under `run_selection_policy.action_for_status` (plus the plan orchestrator refinement where relevant). In particular, backlog `open` is plannable, `graduated`/`blocked`/`parked`/`done` are not; spec `to-review` is reviewable and `approved` plannable, while `reviewed`/`implementing`/terminal states are not directly dispatchable by this verb. Do not silently convert an ineligible explicitly selected item into a command.
   - Apply status and priority filters equally to scanned, positional-selector, and stdin candidates. Resolve selectors through `_selectors.resolve` with its kind/ambiguity verdict; refuse unknown, ambiguous, wrong-type, or ineligible explicitly selected IDs with exit 2 and a clear message. A broad scan may exclude ineligible items. Deduplicate IDs before partitioning.
   - Depends on: E-01
   - Expected outcome: `collect()` accurately discovers candidate items for the specified artifact type, validates status filters against that type, and handles stdin and selectors.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Ordering and Command Formatting
 
-- [ ] E-03 Implement candidate ordering and deterministic shard ordering in `agent_workflows/partition.py`.
+- [x] E-03 Implement candidate ordering and deterministic shard ordering in `agent_workflows/partition.py`.
   - Derive creation date from the artifact filename, using `attention._extract_identity_parts(it)[0]` or a small shared public helper; `Item` has no `date` field, and `attention`'s existing date sort is by most-recent history, not creation. For `--max N`, select by dependency depth first, then requested key (`date` ascending or `id6`); this yields the oldest independent backlog items. Missing/unparseable dates sort after valid dates with `id6` as a stable tie-breaker.
   - Pass the same key into `partition()` for component and within-shard ordering so oldest-first remains visible in emitted commands; retain dependency-first ordering and balanced packing. Make `in_selection_edges` recognize same-type in-selection dependencies rather than hardcoding IPD targets; do not split an ordinary backlog/spec dependency component unless capacity forces a reported cut.
   - Depends on: E-02
   - Expected outcome: `--max` takes the oldest eligible independent records and each shard lists them oldest-first without losing dependency safety.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Format only legal, homogeneous runner actions for each invocation in `agent_workflows/partition.py`.
+- [x] E-05 Format only legal, homogeneous runner actions for each invocation in `agent_workflows/partition.py`.
   - Derive each candidate's next action from `run_selection_policy.action_for_status`; an explicit `--action` constrains legality and never forces a transition. Since one generated command has one global action, refuse a selection mixing `review`, `plan`, and `execute` with exit 2 and advise filtering by `-s` or `--action`; do not emit a partial queue.
   - Include `--action plan` or `--action review` in both `aw oc/agy run` and `aw run as <profile>` formats; omit `--action execute` to preserve the existing default. `--run none` remains IDs-only and must be described as non-executable output.
   - Depends on: E-02
   - Expected outcome: Every emitted command is legal for every selected item, including homogeneous spec review and plan batches, with no silent skips or action mismatch.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: End-to-End Validation and Suite Pass
 
-- [ ] E-04 Update existing partition tests, add typed backlog/spec test cases, and verify full suite pass.
+- [x] E-04 Update existing partition tests, add typed backlog/spec test cases, and verify full suite pass.
   - Update existing tests in `tests/test_partition.py` to pass `-t plans`.
   - Add test cases in `tests/test_partition.py` covering:
     - Missing `-t/--type` exits 2 with required argument error.
@@ -87,7 +87,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Run full suite bare via `python3 -m pytest`.
   - Depends on: E-03, E-05
   - Expected outcome: All targeted tests and the full test suite pass cleanly without regressions.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -149,29 +149,29 @@ Update `aw partition --help` description, argument help, and examples to documen
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Pasted test output showing missing `-t` returns exit 2, invalid type returns exit 2, and valid flags are accepted.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m agent_workflows partition` exits 2 with `error: the following arguments are required: -t/--type/--tree`; `python3 -m agent_workflows partition -t invalid` exits 2 with `error: argument -t/--type/--tree: invalid choice: 'invalid'`; `python3 -m agent_workflows partition -t backlog -s open -n 2 --run none` exits 0 with `Partitioned 172 items across 2 shard(s): [86, 86]`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Pasted CLI test output demonstrating candidate collection across `plans`, `backlog`, and `specs`; rejection of mismatched lifecycle statuses, wrong-type/ambiguous explicit selectors, and non-runnable explicit items; identical filter behavior for scan, selector, and stdin modes.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `tests/test_partition.py` passes `test_collect_candidates_selection_filters`, `test_cli_partition_ambiguous_and_positional_types`, `test_cli_partition_backlog_errors_and_wrong_type`; CLI `-t plans -s open` exits 2 with `Error: status 'open' is not valid for artifact type 'plans'`; `-t backlog -s invalidstatus` exits 2 with `Error: status 'invalidstatus' is not valid for artifact type 'backlog'`; `-t backlog j3rlrf` exits 2 with `Error: selector 'j3rlrf' belongs to 'plans', not 'backlog'`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: Pasted CLI test output demonstrating `--max` selects oldest eligible backlog items and command IDs remain oldest-first within each shard, with dependency grouping and cut reporting preserved.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `test_cli_partition_backlog_graduation_and_ordering` passed in 0.29s; CLI `python3 -m agent_workflows partition -t backlog -s open -n 2 --max 4` outputs `Partitioned 4 items across 2 shard(s): [2, 2]` followed by `aw oc run --action plan hg2oop 4vfkl1` and `aw oc run --action plan 21ct62 57dwkc` confirming oldest-first selection and within-shard order.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: Pasted actual output from `python3 -m pytest tests/test_partition.py`, pre-transition lint report, and bare `python3 -m pytest` full suite run.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: `python3 -m pytest tests/test_partition.py` returned `22 passed in 2.86s`; bare `python3 -m pytest` full suite returned `3132 passed, 2 skipped, 3 warnings in 56.63s`; `ipd lint --phase pre-transition` conforms with exit 0.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: Pasted CLI test output showing backlog `plan`, spec `review`/`plan`, mixed-action and illegal explicit-action refusals (exit 2), and correct host/profile/IDs-only formatting.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `test_cli_partition_specs_review_and_plan_actions` passed; CLI `--run agy` emits `aw agy run --action plan hg2oop 4vfkl1`; `--as coder` emits `aw run as coder --action plan hg2oop 4vfkl1`; `--run none` emits raw IDs `hg2oop 4vfkl1`; illegal action `-t backlog -s open --action review` exits 2 with `Error: item 'hg2oop' requires action 'plan', which conflicts with requested --action 'review'`.
+  - Result: pass
 
 
 ## Approval and execution gate

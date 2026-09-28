@@ -343,35 +343,45 @@ def plan_fixture_repo(tmp_path: Path) -> Path:
 
 def test_collect_candidates_selection_filters(plan_fixture_repo: Path) -> None:
     # 1. Terminal plans excluded
-    candidates, _ = part.collect(plan_fixture_repo)
+    candidates, _ = part.collect(plan_fixture_repo, artifact_type="plans")
     cand_ids = {it.id for it in candidates}
     assert "pln004" not in cand_ids
 
     # 2. Selectors filter
-    candidates_sel, _ = part.collect(plan_fixture_repo, selectors=["set2"])
+    candidates_sel, _ = part.collect(
+        plan_fixture_repo, artifact_type="plans", selectors=["set2"]
+    )
     assert [it.id for it in candidates_sel] == ["pln003"]
 
     # 3. Status filter
-    candidates_app, _ = part.collect(plan_fixture_repo, statuses=["approved"])
+    candidates_app, _ = part.collect(
+        plan_fixture_repo, artifact_type="plans", statuses=["approved"]
+    )
     assert {it.id for it in candidates_app} == {"pln001", "pln002"}
 
     # 4. Priority filter & invalid priority error
-    candidates_pri, _ = part.collect(plan_fixture_repo, priorities=["high"])
+    candidates_pri, _ = part.collect(
+        plan_fixture_repo, artifact_type="plans", priorities=["high"]
+    )
     assert [it.id for it in candidates_pri] == ["pln001"]
 
     with pytest.raises(ValueError, match="invalid priority 'urgent'"):
-        part.collect(plan_fixture_repo, priorities=["urgent"])
+        part.collect(plan_fixture_repo, artifact_type="plans", priorities=["urgent"])
 
-    # 5. Stdin selection with unknown ID reported
-    candidates_stdin, unknown = part.collect(
-        plan_fixture_repo, stdin_ids=["pln001", "unknown99"]
+    # 5. Stdin selection with unknown ID refused
+    with pytest.raises(ValueError, match="unknown selector 'unknown99'"):
+        part.collect(
+            plan_fixture_repo, artifact_type="plans", stdin_ids=["pln001", "unknown99"]
+        )
+
+    candidates_stdin, _ = part.collect(
+        plan_fixture_repo, artifact_type="plans", stdin_ids=["pln001"]
     )
     assert [it.id for it in candidates_stdin] == ["pln001"]
-    assert unknown == ["unknown99"]
 
     # 6. --max keeps prerequisites before dependents
     candidates_max, _ = part.collect(
-        plan_fixture_repo, statuses=["approved"], max_count=1
+        plan_fixture_repo, artifact_type="plans", statuses=["approved"], max_count=1
     )
     assert len(candidates_max) == 1
     # pln001 is depth 0 (prerequisite), pln002 is depth 1 (dependent), so pln001 is kept
@@ -436,6 +446,8 @@ def test_cli_partition_end_to_end(
     exit_code = cli.main(
         [
             "partition",
+            "-t",
+            "plans",
             "--dir",
             str(plan_fixture_repo),
             "-s",
@@ -472,6 +484,8 @@ def test_cli_partition_json_shape(
     exit_code = cli.main(
         [
             "partition",
+            "-t",
+            "plans",
             "--dir",
             str(plan_fixture_repo),
             "-s",
@@ -495,25 +509,69 @@ def test_cli_partition_json_shape(
 
 
 def test_cli_partition_exit_codes(
-    plan_fixture_repo: Path, capsys: pytest.CaptureFixture[str]
+    plan_fixture_repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
-    # 1. Invalid shards (-n 0) -> exit 2
-    assert cli.main(["partition", "--dir", str(plan_fixture_repo), "-n", "0"]) == 2
+    # 1. Missing -t/--type -> exit 2 (argparse error)
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["partition", "--dir", str(plan_fixture_repo)])
+    assert exc.value.code == 2
 
-    # 2. Invalid max (--max 0) -> exit 2
-    assert cli.main(["partition", "--dir", str(plan_fixture_repo), "--max", "0"]) == 2
+    # 2. Invalid choice for -t -> exit 2 (argparse error)
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["partition", "-t", "invalid", "--dir", str(plan_fixture_repo)])
+    assert exc.value.code == 2
 
-    # 3. Invalid priority -> exit 2
+    # 3. Invalid status for artifact type (e.g. -t plans -s open) -> exit 2
     assert (
-        cli.main(["partition", "--dir", str(plan_fixture_repo), "-p", "invalid-pri"])
+        cli.main(
+            ["partition", "-t", "plans", "-s", "open", "--dir", str(plan_fixture_repo)]
+        )
+        == 2
+    )
+    err = capsys.readouterr().err
+    assert "status 'open' is not valid for artifact type 'plans'" in err
+
+    # 4. Invalid shards (-n 0) -> exit 2
+    assert (
+        cli.main(
+            ["partition", "-t", "plans", "--dir", str(plan_fixture_repo), "-n", "0"]
+        )
         == 2
     )
 
-    # 4. Incompatible --as and --run oc -> exit 2
+    # 5. Invalid max (--max 0) -> exit 2
+    assert (
+        cli.main(
+            ["partition", "-t", "plans", "--dir", str(plan_fixture_repo), "--max", "0"]
+        )
+        == 2
+    )
+
+    # 6. Invalid priority -> exit 2
     assert (
         cli.main(
             [
                 "partition",
+                "-t",
+                "plans",
+                "--dir",
+                str(plan_fixture_repo),
+                "-p",
+                "invalid-pri",
+            ]
+        )
+        == 2
+    )
+
+    # 7. Incompatible --as and --run oc -> exit 2
+    assert (
+        cli.main(
+            [
+                "partition",
+                "-t",
+                "plans",
                 "--dir",
                 str(plan_fixture_repo),
                 "--run",
@@ -525,16 +583,95 @@ def test_cli_partition_exit_codes(
         == 2
     )
 
+    # 8. Mixed actions refusal (selection contains both approved [execute] and to-review [review]) -> exit 2
+    assert cli.main(["partition", "-t", "plans", "--dir", str(plan_fixture_repo)]) == 2
+    err = capsys.readouterr().err
+    assert "selection contains mixed actions (execute, review)" in err
+
+    # 9. Conflicting explicit --action -> exit 2
+    assert (
+        cli.main(
+            [
+                "partition",
+                "-t",
+                "plans",
+                "-s",
+                "approved",
+                "--action",
+                "plan",
+                "--dir",
+                str(plan_fixture_repo),
+            ]
+        )
+        == 2
+    )
+    err = capsys.readouterr().err
+    assert "conflicts with requested --action 'plan'" in err
+
+    # 10. Unknown selector token -> exit 2
+    assert (
+        cli.main(
+            [
+                "partition",
+                "-t",
+                "plans",
+                "nonexistent99",
+                "--dir",
+                str(plan_fixture_repo),
+            ]
+        )
+        == 2
+    )
+    err = capsys.readouterr().err
+    assert "unknown selector 'nonexistent99'" in err
+
+    # 11. Stdin unknown selector -> exit 2
+    monkeypatch.setattr("sys.stdin", io.StringIO("unknown99\n"))
+    assert (
+        cli.main(
+            [
+                "partition",
+                "-t",
+                "plans",
+                "--stdin",
+                "--dir",
+                str(plan_fixture_repo),
+            ]
+        )
+        == 2
+    )
+    err = capsys.readouterr().err
+    assert "unknown selector 'unknown99'" in err
+
+    # 12. Ineligible explicitly selected item (pln004 is executed) -> exit 2
+    assert (
+        cli.main(
+            [
+                "partition",
+                "-t",
+                "plans",
+                "pln004",
+                "--dir",
+                str(plan_fixture_repo),
+            ]
+        )
+        == 2
+    )
+    err = capsys.readouterr().err
+    assert "is ineligible for runner dispatch" in err
+
 
 def test_cli_partition_stdin_end_to_end(
     plan_fixture_repo: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    monkeypatch.setattr("sys.stdin", io.StringIO("pln001\nunknown99\n"))
+    monkeypatch.setattr("sys.stdin", io.StringIO("pln001\npln002\n"))
     exit_code = cli.main(
         [
             "partition",
+            "-t",
+            "plans",
             "--dir",
             str(plan_fixture_repo),
             "--stdin",
@@ -547,7 +684,7 @@ def test_cli_partition_stdin_end_to_end(
     assert exit_code == 0
     captured = capsys.readouterr()
     assert "pln001" in captured.out
-    assert "unknown99" in captured.err
+    assert "pln002" in captured.out
 
 
 def test_cli_partition_positional_selector(
@@ -556,6 +693,8 @@ def test_cli_partition_positional_selector(
     exit_code = cli.main(
         [
             "partition",
+            "-t",
+            "plans",
             "set1",
             "--dir",
             str(plan_fixture_repo),
@@ -578,7 +717,12 @@ def test_cli_partition_json_empty_selection(
     exit_code = cli.main(
         [
             "partition",
-            "nonexistent-selector",
+            "-t",
+            "plans",
+            "-s",
+            "to-review",
+            "-p",
+            "high",
             "--dir",
             str(plan_fixture_repo),
             "--json",
@@ -597,6 +741,8 @@ def test_cli_partition_agent_mode(
     exit_code = cli.main(
         [
             "partition",
+            "-t",
+            "plans",
             "--dir",
             str(plan_fixture_repo),
             "-s",
@@ -622,3 +768,469 @@ def test_cli_partition_agent_mode(
     assert len(record["shards"]) == 2
     assert len(record["commands"]) == 2
     assert "Partitioned 2 items across 2 shard(s)" in captured.err
+
+
+# ==============================================================================
+# (f) Backlog partitioning fixture, graduation commands, dependencies & errors
+# ==============================================================================
+
+
+@pytest.fixture
+def backlog_fixture_repo(tmp_path: Path) -> Path:
+    repo = tmp_path / "bkl_repo"
+    open_dir = repo / ".aw" / "records" / "backlog" / "open"
+    done_dir = repo / ".aw" / "records" / "backlog" / "done"
+    plan_dir = repo / ".aw" / "records" / "plans" / "pending"
+    open_dir.mkdir(parents=True)
+    done_dir.mkdir(parents=True)
+    plan_dir.mkdir(parents=True)
+
+    # Cross-tree plan item to test wrong-type selector error
+    (plan_dir / "20260920-setx-01-plnx01-other-plan.ipd.md").write_text(
+        "---\n- Id: plnx01\n- Set: setx\n- Status: approved\n- Item-Dependencies: none\n---\n"
+    )
+
+    # 1. bkl001: oldest open item (2026-09-20)
+    (open_dir / "20260920-bkl001-01-bkl001-item-one.backlog.md").write_text(
+        "- Id: bkl001\n"
+        "- Status: open\n"
+        "- Priority: high\n"
+        "- Item-Dependencies: none\n\n"
+        "## Workflow history\n"
+        "- 2026-09-20 created: item one\n"
+    )
+
+    # 2. bkl002: second oldest open item (2026-09-22), depends on bkl001
+    (open_dir / "20260922-bkl002-01-bkl002-item-two.backlog.md").write_text(
+        "- Id: bkl002\n"
+        "- Status: open\n"
+        "- Priority: medium\n"
+        "- Item-Dependencies: exists:backlog:bkl001\n\n"
+        "## Workflow history\n"
+        "- 2026-09-22 created: item two\n"
+    )
+
+    # 3. bkl003: third oldest open item (2026-09-25)
+    (open_dir / "20260925-bkl003-01-bkl003-item-three.backlog.md").write_text(
+        "- Id: bkl003\n"
+        "- Status: open\n"
+        "- Priority: low\n"
+        "- Item-Dependencies: none\n\n"
+        "## Workflow history\n"
+        "- 2026-09-25 created: item three\n"
+    )
+
+    # 4. bkl004: newest open item (2026-09-28), depends on bkl003
+    (open_dir / "20260928-bkl004-01-bkl004-item-four.backlog.md").write_text(
+        "- Id: bkl004\n"
+        "- Status: open\n"
+        "- Priority: high\n"
+        "- Item-Dependencies: exists:backlog:bkl003\n\n"
+        "## Workflow history\n"
+        "- 2026-09-28 created: item four\n"
+    )
+
+    # 5. bkl005: done item (2026-09-10) - non-runnable
+    (done_dir / "20260910-bkl005-01-bkl005-item-five.backlog.md").write_text(
+        "- Id: bkl005\n"
+        "- Status: done\n"
+        "- Priority: high\n"
+        "- Item-Dependencies: none\n\n"
+        "## Workflow history\n"
+        "- 2026-09-10 created: item five\n"
+    )
+
+    return repo
+
+
+def test_cli_partition_backlog_graduation_and_ordering(
+    backlog_fixture_repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Partition oldest 3 open backlog items across 2 shards
+    exit_code = cli.main(
+        [
+            "partition",
+            "-t",
+            "backlog",
+            "-s",
+            "open",
+            "-n",
+            "2",
+            "--max",
+            "3",
+            "--dir",
+            str(backlog_fixture_repo),
+        ]
+    )
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    lines = [
+        line_item.strip()
+        for line_item in captured.out.splitlines()
+        if line_item.strip()
+    ]
+    assert len(lines) == 2
+
+    # Both shards must emit `aw oc run --action plan ...`
+    for line in lines:
+        assert line.startswith("aw oc run --action plan ")
+
+    # Oldest 3 open items are bkl001, bkl002, bkl003; bkl004 (newest) is excluded by --max 3
+    # bkl001 and bkl002 are connected (size 2 <= cap 2), kept in one shard
+    all_emitted = " ".join(lines)
+    assert "bkl001" in all_emitted
+    assert "bkl002" in all_emitted
+    assert "bkl003" in all_emitted
+    assert "bkl004" not in all_emitted
+    assert "bkl005" not in all_emitted
+
+    # Within the connected shard, bkl001 must precede bkl002
+    shard_with_pair = next(line_item for line_item in lines if "bkl001" in line_item)
+    assert shard_with_pair.index("bkl001") < shard_with_pair.index("bkl002")
+
+
+def test_cli_partition_backlog_errors_and_wrong_type(
+    backlog_fixture_repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # 1. Invalid status for backlog (e.g. approved) -> exit 2
+    assert (
+        cli.main(
+            [
+                "partition",
+                "-t",
+                "backlog",
+                "-s",
+                "approved",
+                "--dir",
+                str(backlog_fixture_repo),
+            ]
+        )
+        == 2
+    )
+    assert (
+        "status 'approved' is not valid for artifact type 'backlog'"
+        in capsys.readouterr().err
+    )
+
+    # 2. Ineligible explicitly selected item (bkl005 is done) -> exit 2
+    assert (
+        cli.main(
+            [
+                "partition",
+                "-t",
+                "backlog",
+                "bkl005",
+                "--dir",
+                str(backlog_fixture_repo),
+            ]
+        )
+        == 2
+    )
+    assert "is ineligible for runner dispatch" in capsys.readouterr().err
+
+    # 3. Wrong-type selector: plnx01 is a plan, not backlog -> exit 2
+    assert (
+        cli.main(
+            [
+                "partition",
+                "-t",
+                "backlog",
+                "plnx01",
+                "--dir",
+                str(backlog_fixture_repo),
+            ]
+        )
+        == 2
+    )
+    assert "belongs to 'plans', not 'backlog'" in capsys.readouterr().err
+
+
+# ==============================================================================
+# (g) Specs partitioning fixture, action derivation, mixed refusal, profile formatting
+# ==============================================================================
+
+
+@pytest.fixture
+def specs_fixture_repo(tmp_path: Path) -> Path:
+    repo = tmp_path / "spc_repo"
+    toreview_dir = repo / ".aw" / "records" / "specs" / "to-review"
+    approved_dir = repo / ".aw" / "records" / "specs" / "approved"
+    implemented_dir = repo / ".aw" / "records" / "specs" / "implemented"
+    toreview_dir.mkdir(parents=True)
+    approved_dir.mkdir(parents=True)
+    implemented_dir.mkdir(parents=True)
+
+    # 1. spc001: to-review (2026-09-21)
+    (toreview_dir / "20260921-spc001-01-spc001-spec-one.spec.md").write_text(
+        "# Spec One\n\n"
+        "- Id: spc001\n"
+        "- Status: to-review\n"
+        "- Priority: high\n"
+        "- Item-Dependencies: none\n\n"
+        "## Workflow history\n"
+        "- 2026-09-21 created: spec one\n"
+    )
+
+    # 2. spc002: to-review (2026-09-23), depends on spc001
+    (toreview_dir / "20260923-spc002-01-spc002-spec-two.spec.md").write_text(
+        "# Spec Two\n\n"
+        "- Id: spc002\n"
+        "- Status: to-review\n"
+        "- Priority: medium\n"
+        "- Item-Dependencies: exists:spec:spc001\n\n"
+        "## Workflow history\n"
+        "- 2026-09-23 created: spec two\n"
+    )
+
+    # 3. spc003: approved (2026-09-24)
+    (approved_dir / "20260924-spc003-01-spc003-spec-three.spec.md").write_text(
+        "# Spec Three\n\n"
+        "- Id: spc003\n"
+        "- Status: approved\n"
+        "- Priority: high\n"
+        "- Item-Dependencies: none\n\n"
+        "## Workflow history\n"
+        "- 2026-09-24 created: spec three\n"
+    )
+
+    # 4. spc004: implemented (2026-09-18) - non-runnable
+    (implemented_dir / "20260918-spc004-01-spc004-spec-four.spec.md").write_text(
+        "# Spec Four\n\n"
+        "- Id: spc004\n"
+        "- Status: implemented\n"
+        "- Priority: low\n"
+        "- Item-Dependencies: none\n\n"
+        "## Workflow history\n"
+        "- 2026-09-18 created: spec four\n"
+    )
+
+    return repo
+
+
+def test_cli_partition_specs_review_and_plan_actions(
+    specs_fixture_repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # 1. to-review specs produce `--action review`
+    exit_code = cli.main(
+        [
+            "partition",
+            "-t",
+            "specs",
+            "-s",
+            "to-review",
+            "-n",
+            "1",
+            "--dir",
+            str(specs_fixture_repo),
+        ]
+    )
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    assert captured.out.strip() == "aw oc run --action review spc001 spc002"
+
+    # 2. approved specs produce `--action plan`
+    exit_code = cli.main(
+        [
+            "partition",
+            "-t",
+            "specs",
+            "-s",
+            "approved",
+            "-n",
+            "1",
+            "--dir",
+            str(specs_fixture_repo),
+        ]
+    )
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    assert captured.out.strip() == "aw oc run --action plan spc003"
+
+    # 3. Launch profile formatting: --as gem with --action review
+    exit_code = cli.main(
+        [
+            "partition",
+            "-t",
+            "specs",
+            "-s",
+            "to-review",
+            "-n",
+            "1",
+            "--as",
+            "gem",
+            "--dir",
+            str(specs_fixture_repo),
+        ]
+    )
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    assert captured.out.strip() == "aw run as gem --action review spc001 spc002"
+
+    # 4. Runner 'none' produces space-separated IDs only
+    exit_code = cli.main(
+        [
+            "partition",
+            "-t",
+            "specs",
+            "-s",
+            "to-review",
+            "-n",
+            "1",
+            "--run",
+            "none",
+            "--dir",
+            str(specs_fixture_repo),
+        ]
+    )
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    assert captured.out.strip() == "spc001 spc002"
+
+    # 5. Mixed actions refusal (to-review -> review, approved -> plan) -> exit 2
+    exit_code = cli.main(
+        [
+            "partition",
+            "-t",
+            "specs",
+            "-n",
+            "1",
+            "--dir",
+            str(specs_fixture_repo),
+        ]
+    )
+    assert exit_code == 2
+    assert "selection contains mixed actions (plan, review)" in capsys.readouterr().err
+
+    # 6. Explicit action legality conflict -> exit 2
+    exit_code = cli.main(
+        [
+            "partition",
+            "-t",
+            "specs",
+            "-s",
+            "approved",
+            "--action",
+            "review",
+            "--dir",
+            str(specs_fixture_repo),
+        ]
+    )
+    assert exit_code == 2
+    assert "conflicts with requested --action 'review'" in capsys.readouterr().err
+
+
+def test_cli_partition_deduplication_and_stdin(
+    backlog_fixture_repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Stdin with duplicate IDs: deduplicated before partitioning
+    monkeypatch.setattr("sys.stdin", io.StringIO("bkl001\nbkl001\nbkl003\n"))
+    exit_code = cli.main(
+        [
+            "partition",
+            "-t",
+            "backlog",
+            "--stdin",
+            "-n",
+            "1",
+            "--dir",
+            str(backlog_fixture_repo),
+        ]
+    )
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    assert captured.out.strip() == "aw oc run --action plan bkl001 bkl003"
+    assert "Partitioned 2 items across 1 shard(s)" in captured.err
+
+
+def test_cli_partition_ambiguous_and_positional_types(
+    backlog_fixture_repo: Path,
+    specs_fixture_repo: Path,
+    plan_fixture_repo: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # 1. Positional selector for backlog
+    assert (
+        cli.main(
+            [
+                "partition",
+                "-t",
+                "backlog",
+                "bkl001",
+                "--dir",
+                str(backlog_fixture_repo),
+            ]
+        )
+        == 0
+    )
+    assert capsys.readouterr().out.strip() == "aw oc run --action plan bkl001"
+
+    # 2. Positional selector for specs
+    assert (
+        cli.main(
+            [
+                "partition",
+                "-t",
+                "specs",
+                "spc001",
+                "--dir",
+                str(specs_fixture_repo),
+            ]
+        )
+        == 0
+    )
+    assert capsys.readouterr().out.strip() == "aw oc run --action review spc001"
+
+    # 3. Wrong-type selector for specs (passing plnx01 from plans)
+    assert (
+        cli.main(
+            [
+                "partition",
+                "-t",
+                "specs",
+                "pln001",
+                "--dir",
+                str(plan_fixture_repo),
+            ]
+        )
+        == 2
+    )
+    assert "belongs to 'plans', not 'specs'" in capsys.readouterr().err
+
+    # 4. Ambiguous substring selector rejected
+    assert (
+        cli.main(
+            [
+                "partition",
+                "-t",
+                "backlog",
+                "item",
+                "--dir",
+                str(backlog_fixture_repo),
+            ]
+        )
+        == 2
+    )
+    assert (
+        "is ambiguous, matching multiple files via substring" in capsys.readouterr().err
+    )
+
+    # 5. Positional duplicate IDs deduplicated
+    assert (
+        cli.main(
+            [
+                "partition",
+                "-t",
+                "backlog",
+                "bkl001",
+                "bkl001",
+                "--dir",
+                str(backlog_fixture_repo),
+            ]
+        )
+        == 0
+    )
+    captured = capsys.readouterr()
+    assert captured.out.strip() == "aw oc run --action plan bkl001"
+    assert "Partitioned 1 items across 1 shard(s)" in captured.err

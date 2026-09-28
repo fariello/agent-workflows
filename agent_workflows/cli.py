@@ -3829,25 +3829,45 @@ def _build_parser() -> argparse.ArgumentParser:
         "--dir", default=None, help="Repo root (default: current directory)."
     )
 
+    def _canonical_partition_type(val: str) -> str:
+        from agent_workflows import status_set
+
+        canon = status_set.canonical_type(val)
+        if canon in ("plans", "backlog", "specs"):
+            return canon
+        return val
+
     p_partition = sub.add_parser(
         "partition",
         parents=[common],
-        help="Partition plans into balanced runner shards while preserving cross-plan dependencies.",
+        help="Partition artifacts into balanced runner shards while preserving dependencies.",
         description=(
-            "Partition plans into balanced runner shards while keeping cross-plan dependencies "
-            "clustered together to prevent concurrent runner failures. Formats cut-and-paste "
+            "Partition artifacts (plans, backlog, specs) into balanced runner shards while keeping "
+            "dependencies clustered together to prevent concurrent runner failures. Formats cut-and-paste "
             "`aw oc run` or `aw agy run` commands."
         ),
         formatter_class=_AlphaHelpFormatter,
         epilog=(
             "EXAMPLES\n"
-            "  aw partition approved                 # split approved plans into 3 shards\n"
-            "  aw partition -n 3 -s approved         # same with explicit shard count\n"
-            "  aw partition --max 30 --run oc        # partition first 30 approved plans for OpenCode\n"
-            "  aw partition --as gem                 # format with 'aw run as gem' launch profile\n"
-            "  aw partition --model <model> --variant <variant> # pass through model options\n"
-            "  aw att -t plan -s approved -id | aw partition --stdin # pipe IDs from standard input\n"
+            "  aw partition -t plans approved            # split approved plans into 3 shards\n"
+            "  aw partition -t plans -n 3 -s approved    # same with explicit shard count\n"
+            "  aw partition -t backlog -s open -n 2 --max 100 # split 100 oldest open backlog items to plan\n"
+            "  aw partition -t specs -s to-review -n 2   # partition specs needing review\n"
+            "  aw partition -t plans --max 30 --run oc   # partition first 30 approved plans for OpenCode\n"
+            "  aw partition -t plans --as gem            # format with 'aw run as gem' launch profile\n"
+            "  aw partition -t plans --model <model> --variant <variant> # pass through model options\n"
+            "  aw att -t plan -s approved -id | aw partition -t plans --stdin # pipe IDs from standard input\n"
         ),
+    )
+    p_partition.add_argument(
+        "-t",
+        "--type",
+        "--tree",
+        dest="artifact_type",
+        required=True,
+        type=_canonical_partition_type,
+        choices=("plans", "backlog", "specs"),
+        help="Artifact type to partition: 'plans', 'backlog', or 'specs' (singular aliases accepted).",
     )
     p_partition.add_argument(
         "selectors",
@@ -3880,11 +3900,26 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Filter by priority (high, medium, low).",
     )
     p_partition.add_argument(
+        "--action",
+        dest="action",
+        choices=("execute", "plan", "review"),
+        default=None,
+        help="Explicit runner action ('execute', 'plan', 'review'). Defaults to automatic derivation from item status.",
+    )
+    p_partition.add_argument(
+        "-o",
+        "--order-by",
+        dest="order_by",
+        choices=("depth", "date"),
+        default=None,
+        help="Ordering mode for selection and within-shard placement: 'depth' or 'date' (defaults to 'depth' for plans, 'date' for backlog/specs).",
+    )
+    p_partition.add_argument(
         "--max",
         dest="max",
         type=int,
         default=None,
-        help="Maximum number of candidate plans to select before partitioning.",
+        help="Maximum number of candidate items to select before partitioning.",
     )
     p_partition.add_argument(
         "--run",
@@ -3916,7 +3951,7 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="stdin",
         action="store_true",
         default=False,
-        help="Read plan IDs explicitly from standard input.",
+        help="Read artifact IDs explicitly from standard input.",
     )
     p_partition.add_argument(
         "--dir", default=None, help="Repo root (default: current directory)."
@@ -11120,7 +11155,7 @@ def _run_graduation(
 def _run_partition(
     args: argparse.Namespace, term: Term, context: Optional[Any] = None
 ) -> int:
-    """`aw partition`: partition plans into balanced runner shards while preserving cross-plan dependencies."""
+    """`aw partition`: partition artifacts into balanced runner shards while preserving dependencies."""
     from agent_workflows import partition
 
     return partition.run_partition(args, term, context=context)

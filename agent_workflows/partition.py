@@ -15,7 +15,32 @@ from agent_workflows import attention as _att
 from agent_workflows import attention_contract
 from agent_workflows import ipd_schema as _schema
 from agent_workflows import plans as _plans
+from agent_workflows import run_selection_policy as _run_selection_policy
 from agent_workflows import selectors as _selectors
+from agent_workflows import status_set as _status_set
+
+
+def extract_creation_date(it: _att.Item) -> str:
+    """Extract 8-digit creation date YYYYMMDD from an item's filename.
+
+    Unparseable or missing dates return '99999999' so they sort after valid dates.
+    """
+    date, _, _, _ = _att._extract_identity_parts(it)
+    if date and len(date) == 8 and date.isdigit():
+        return date
+    return "99999999"
+
+
+def item_sort_key(
+    it: _att.Item,
+    depths: Dict[str, int],
+    order_by: str = "depth",
+) -> Tuple[Any, ...]:
+    """Sort key for selection and shard placement preserving dependency depth."""
+    depth = depths.get(it.id, 0)
+    if order_by == "date":
+        return (depth, extract_creation_date(it), it.id)
+    return (depth, it.id)
 
 
 @dataclass(frozen=True)
@@ -47,9 +72,10 @@ def in_selection_edges(items: Sequence[_att.Item]) -> Dict[str, Set[str]]:
     """Dependency edges among the given items whose target is also in items.
 
     Returns a mapping from item id to set of prerequisite ids it depends on within
-    the selection. Non-ipd targets, external dependencies, and self-edges are excluded.
+    the selection. Same-type in-selection dependencies are recognized; cross-type
+    targets, external dependencies, and self-edges are excluded.
     """
-    present_ids = {it.id for it in items if it.id}
+    by_id = {it.id: it for it in items if it.id}
     edges: Dict[str, Set[str]] = {it.id: set() for it in items if it.id}
 
     for it in items:
@@ -59,12 +85,12 @@ def in_selection_edges(items: Sequence[_att.Item]) -> Dict[str, Set[str]]:
             edge, err = _schema._parse_item_dependency_edge(token)
             if err or edge is None:
                 continue
-            if (
-                edge.target_type == "ipd"
-                and edge.id6 in present_ids
-                and edge.id6 != it.id
-            ):
-                edges[it.id].add(edge.id6)
+            if edge.id6 in by_id and edge.id6 != it.id:
+                target_item = by_id[edge.id6]
+                if _status_set.canonical_type(
+                    edge.target_type
+                ) == _status_set.canonical_type(target_item.tree):
+                    edges[it.id].add(edge.id6)
 
     return edges
 
@@ -112,7 +138,11 @@ def components(items: Sequence[_att.Item]) -> List[List[_att.Item]]:
     return comps
 
 
-def partition(items: Sequence[_att.Item], k: int) -> Partition:
+def partition(
+    items: Sequence[_att.Item],
+    k: int,
+    order_by: str = "depth",
+) -> Partition:
     """Partition items into k balanced shards preserving dependency clusters.
 
     Pure and deterministic:
@@ -121,8 +151,9 @@ def partition(items: Sequence[_att.Item], k: int) -> Partition:
       3. Components with size <= cap are placed whole, largest first, each into currently
          smallest shard (ties broken by lowest shard index).
       4. Components with size > cap are split: ordered by dependency depth ascending
-         (ties by id6), placed one at a time into currently smallest shard; records SplitNote.
-      5. Within each shard, items are ordered by dependency depth then id6.
+         (ties by id6 or date depending on order_by), placed one at a time into currently
+         smallest shard; records SplitNote.
+      5. Within each shard, items are ordered by dependency depth then id6/date.
       6. Cycles reported by dependency_depths are passed through.
     """
     if not items:
@@ -148,12 +179,18 @@ def partition(items: Sequence[_att.Item], k: int) -> Partition:
                 min_idx = i
         return min_idx
 
+    comps.sort(
+        key=lambda c: (-len(c), min(item_sort_key(it, depths, order_by) for it in c))
+    )
+
     for comp in comps:
         if len(comp) <= cap:
             target_idx = _smallest_shard_idx()
             shards[target_idx].extend(comp)
         else:
-            sorted_comp = sorted(comp, key=lambda it: (depths.get(it.id, 0), it.id))
+            sorted_comp = sorted(
+                comp, key=lambda it: item_sort_key(it, depths, order_by)
+            )
             comp_shard_indexes: Set[int] = set()
             item_to_shard: Dict[str, int] = {}
             for it in sorted_comp:
@@ -182,7 +219,9 @@ def partition(items: Sequence[_att.Item], k: int) -> Partition:
 
     sorted_shards: List[List[_att.Item]] = []
     for s in shards:
-        sorted_shards.append(sorted(s, key=lambda it: (depths.get(it.id, 0), it.id)))
+        sorted_shards.append(
+            sorted(s, key=lambda it: item_sort_key(it, depths, order_by))
+        )
 
     return Partition(
         shards=sorted_shards,
@@ -195,6 +234,7 @@ def format_shard(
     run: str,
     ids: Sequence[str],
     *,
+    action: Optional[str] = None,
     profile: Optional[str] = None,
     model: Optional[str] = None,
     variant: Optional[str] = None,
@@ -207,6 +247,8 @@ def format_shard(
         if run in ("oc", "agy"):
             raise ValueError(f"--as cannot be combined with --run {run}")
         parts = ["aw", "run", "as", shlex.quote(profile)]
+        if action in ("plan", "review"):
+            parts.extend(["--action", action])
         parts.extend(shlex.quote(i) for i in ids)
         if model:
             parts.extend(["--model", shlex.quote(model)])
@@ -218,6 +260,8 @@ def format_shard(
         return " ".join(shlex.quote(i) for i in ids)
     elif run in ("oc", "agy"):
         parts = ["aw", run, "run"]
+        if action in ("plan", "review"):
+            parts.extend(["--action", action])
         parts.extend(shlex.quote(i) for i in ids)
         if model:
             parts.extend(["--model", shlex.quote(model)])
@@ -230,84 +274,203 @@ def format_shard(
 
 def collect(
     repo_root: Path,
+    artifact_type: str = "plans",
     selectors: Sequence[str] = (),
     statuses: Sequence[str] = (),
     priorities: Sequence[str] = (),
     max_count: Optional[int] = None,
     stdin_ids: Optional[Sequence[str]] = None,
+    order_by: Optional[str] = None,
+    action: Optional[str] = None,
+    require_homogeneous_action: bool = False,
 ) -> Tuple[List[_att.Item], List[str]]:
-    """Select candidate plan items honoring selectors, filters, stdin, and max count."""
+    """Select candidate items honoring artifact type, selectors, filters, action, and ordering."""
     repo_root = Path(repo_root)
 
-    items, _ = _att.scan(repo_root, type_filters=("plans",))
-    # Exclude items in a terminal directory
-    non_terminal = [
-        it
-        for it in items
-        if _att._plan_disposition_from_rel(it.path) not in _plans.DIR_TERMINAL
+    canon_type = _status_set.canonical_type(artifact_type)
+    if canon_type not in ("plans", "backlog", "specs"):
+        raise ValueError(
+            f"unsupported artifact type {artifact_type!r}, expected one of: 'plans', 'backlog', 'specs'"
+        )
+    artifact_type = canon_type
+
+    if statuses:
+        valid_statuses = _status_set.TYPE_STATUSES.get(artifact_type, set())
+        for s in statuses:
+            if s.lower() not in valid_statuses:
+                sorted_valid = ", ".join(f"'{st}'" for st in sorted(valid_statuses))
+                raise ValueError(
+                    f"status {s!r} is not valid for artifact type {artifact_type!r}. Valid statuses: {sorted_valid}"
+                )
+
+    norm_priorities = ()
+    if priorities:
+        norm_priorities = _att.parse_priority_filters(priorities)
+        for p in norm_priorities:
+            if p not in attention_contract.PRIORITY_ORDER:
+                raise ValueError(
+                    f"invalid priority {p!r}, expected one of: "
+                    f"{', '.join(attention_contract.PRIORITY_ORDER)}"
+                )
+
+    items, _ = _att.scan(repo_root, type_filters=(artifact_type,))
+    spec_type = _run_selection_policy.SPEC_TYPE_BY_RESOLVER_TYPE.get(
+        artifact_type, artifact_type
+    )
+
+    def _is_runnable(it: _att.Item) -> bool:
+        if (
+            it.tree == "plans"
+            and _att._plan_disposition_from_rel(it.path) in _plans.DIR_TERMINAL
+        ):
+            return False
+        st = getattr(it, "status", None) or it.native_status
+        act = _run_selection_policy.action_for_status(spec_type, st)
+        return act not in (
+            _run_selection_policy.ACTION_SKIP,
+            _run_selection_policy.ACTION_UNDETERMINED,
+        )
+
+    by_path = {(repo_root / it.path).resolve(): it for it in items}
+
+    tokens: Optional[List[str]] = None
+    if stdin_ids is not None:
+        tokens = list(stdin_ids)
+    elif selectors:
+        tokens = list(selectors)
+
+    other_primary_types = [
+        t
+        for t in (
+            "plans",
+            "backlog",
+            "specs",
+            "prompts",
+            "research",
+            "releases",
+            "walkthroughs",
+        )
+        if t != artifact_type
     ]
 
-    unknown_ids: List[str] = []
-
-    if stdin_ids is not None:
-        by_id = {it.id: it for it in non_terminal if it.id and it.tree == "plans"}
-        candidates: List[_att.Item] = []
-        for sid in stdin_ids:
-            if sid in by_id:
-                candidates.append(by_id[sid])
-            else:
-                unknown_ids.append(sid)
-    else:
-        candidates = non_terminal
-
-        if selectors:
-            resolved_paths = {
-                p.resolve()
-                for p in _selectors.resolve_selectors(
-                    repo_root, "plans", list(selectors)
-                )
-            }
-            candidates = [
-                it
-                for it in candidates
-                if (repo_root / it.path).resolve() in resolved_paths
-            ]
-
-        if statuses:
-            status_set = {s.lower() for s in statuses}
-            candidates = [
-                it
-                for it in candidates
-                if (getattr(it, "status", None) or it.native_status).lower()
-                in status_set
-            ]
-
-        if priorities:
-            norm_priorities = _att.parse_priority_filters(priorities)
-            for p in norm_priorities:
-                if p not in attention_contract.PRIORITY_ORDER:
+    raw_candidates: List[_att.Item] = []
+    if tokens is not None:
+        for tok in tokens:
+            res = _selectors.resolve(repo_root, artifact_type, tok)
+            if not res.is_match:
+                matched_other = None
+                for other_t in other_primary_types:
+                    other_res = _selectors.resolve(repo_root, other_t, tok)
+                    if other_res.is_match:
+                        matched_other = other_t
+                        break
+                if matched_other:
                     raise ValueError(
-                        f"invalid priority {p!r}, expected one of: "
-                        f"{', '.join(attention_contract.PRIORITY_ORDER)}"
+                        f"selector {tok!r} belongs to {matched_other!r}, not {artifact_type!r}"
                     )
-            candidates = [
-                it
-                for it in candidates
-                if (it.priority or "").lower() in norm_priorities
-            ]
+                raise ValueError(
+                    f"unknown selector {tok!r} for artifact type {artifact_type!r}"
+                )
 
-    if max_count is not None and max_count > 0:
-        depths, _ = _att.dependency_depths(candidates)
-        candidates = sorted(candidates, key=lambda it: (depths.get(it.id, 0), it.id))[
-            :max_count
+            if res.is_ambiguous:
+                if res.kind in _selectors.UNIQUE_KINDS:
+                    raise ValueError(
+                        f"selector {tok!r} is a {res.kind} collision matching multiple files"
+                    )
+                if res.kind == _selectors.MATCH_SUBSTRING:
+                    raise ValueError(
+                        f"selector {tok!r} is ambiguous, matching multiple files via substring"
+                    )
+
+            matched_items: List[_att.Item] = []
+            for p in res.paths:
+                it = by_path.get(p.resolve())
+                if it is not None:
+                    matched_items.append(it)
+
+            if not matched_items:
+                raise ValueError(
+                    f"unknown selector {tok!r} for artifact type {artifact_type!r}"
+                )
+
+            for it in matched_items:
+                if not _is_runnable(it):
+                    st = getattr(it, "status", None) or it.native_status
+                    raise ValueError(
+                        f"item {it.id!r} with status {st!r} is ineligible for runner dispatch (has no runnable next action)"
+                    )
+                raw_candidates.append(it)
+    else:
+        raw_candidates = [it for it in items if _is_runnable(it)]
+
+    seen_ids: Set[str] = set()
+    candidates: List[_att.Item] = []
+    for it in raw_candidates:
+        if it.id and it.id not in seen_ids:
+            seen_ids.add(it.id)
+            candidates.append(it)
+
+    if statuses:
+        status_set = {s.lower() for s in statuses}
+        candidates = [
+            it
+            for it in candidates
+            if (getattr(it, "status", None) or it.native_status).lower() in status_set
         ]
 
-    return candidates, unknown_ids
+    if priorities:
+        candidates = [
+            it for it in candidates if (it.priority or "").lower() in norm_priorities
+        ]
+
+    if candidates:
+        distinct_actions = {
+            _run_selection_policy.action_for_status(
+                spec_type, getattr(it, "status", None) or it.native_status
+            )
+            for it in candidates
+        }
+        if action is not None:
+            for it in candidates:
+                it_act = _run_selection_policy.action_for_status(
+                    spec_type, getattr(it, "status", None) or it.native_status
+                )
+                if it_act != action:
+                    raise ValueError(
+                        f"item {it.id!r} requires action {it_act!r}, which conflicts with requested --action {action!r}"
+                    )
+        elif require_homogeneous_action:
+            if len(distinct_actions) > 1:
+                actions_str = ", ".join(sorted(distinct_actions))
+                raise ValueError(
+                    f"selection contains mixed actions ({actions_str}); filter by -s or --action to produce a homogeneous queue"
+                )
+
+    effective_order_by = order_by or ("depth" if artifact_type == "plans" else "date")
+    if max_count is not None and max_count > 0:
+        depths, _ = _att.dependency_depths(candidates)
+        if effective_order_by == "date":
+            candidates = sorted(
+                candidates,
+                key=lambda it: (depths.get(it.id, 0), extract_creation_date(it), it.id),
+            )[:max_count]
+        else:
+            candidates = sorted(
+                candidates,
+                key=lambda it: (depths.get(it.id, 0), it.id),
+            )[:max_count]
+
+    return candidates, []
 
 
 def run_partition(args: Any, term: Any, context: Any = None) -> int:
     """CLI execution entrypoint for 'aw partition'."""
     repo_root = Path(getattr(args, "dir", None) or Path.cwd())
+
+    artifact_type = getattr(args, "artifact_type", None)
+    if not artifact_type:
+        print("Error: -t/--type/--tree is required", file=sys.stderr)
+        return 2
 
     # Shards validation
     shards_val = getattr(args, "shards", 3)
@@ -339,9 +502,11 @@ def run_partition(args: Any, term: Any, context: Any = None) -> int:
         )
         return 2
 
-    runner = run_flag or "oc"
+    runner = "as" if profile else (run_flag or "oc")
     model = getattr(args, "model", None)
     variant = getattr(args, "variant", None)
+    action_flag = getattr(args, "action", None)
+    order_by_flag = getattr(args, "order_by", None)
     is_json = bool(getattr(args, "json", False))
     is_agent = bool(getattr(args, "agent", False))
 
@@ -362,20 +527,41 @@ def run_partition(args: Any, term: Any, context: Any = None) -> int:
     try:
         candidates, unknown_ids = collect(
             repo_root=repo_root,
+            artifact_type=artifact_type,
             selectors=selectors,
             statuses=statuses,
             priorities=priorities,
             max_count=max_count,
             stdin_ids=stdin_ids,
+            order_by=order_by_flag,
+            action=action_flag,
+            require_homogeneous_action=True,
         )
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 2
 
-    for uid in unknown_ids:
-        print(f"Unknown or non-plan id: {uid}", file=sys.stderr)
+    canon_type = _status_set.canonical_type(artifact_type) or artifact_type
+    effective_order_by = order_by_flag or ("depth" if canon_type == "plans" else "date")
+    part_res = partition(candidates, shards_val, order_by=effective_order_by)
 
-    part_res = partition(candidates, shards_val)
+    # Derive effective action for non-empty candidates
+    effective_action: Optional[str] = None
+    if candidates:
+        if action_flag is not None:
+            effective_action = action_flag
+        else:
+            spec_type = _run_selection_policy.SPEC_TYPE_BY_RESOLVER_TYPE.get(
+                canon_type, canon_type
+            )
+            distinct_actions = {
+                _run_selection_policy.action_for_status(
+                    spec_type, getattr(it, "status", None) or it.native_status
+                )
+                for it in candidates
+            }
+            if len(distinct_actions) == 1:
+                effective_action = next(iter(distinct_actions))
 
     # Format commands for non-empty shards
     commands: List[str] = []
@@ -385,6 +571,7 @@ def run_partition(args: Any, term: Any, context: Any = None) -> int:
             cmd = format_shard(
                 run=runner,
                 ids=shard_ids,
+                action=effective_action,
                 profile=profile,
                 model=model,
                 variant=variant,
@@ -437,7 +624,7 @@ def run_partition(args: Any, term: Any, context: Any = None) -> int:
         return 0
 
     if not candidates:
-        print("No matching plan items found to partition.", file=sys.stderr)
+        print(f"No matching {canon_type} items found to partition.", file=sys.stderr)
         return 0
 
     for cmd in commands:
