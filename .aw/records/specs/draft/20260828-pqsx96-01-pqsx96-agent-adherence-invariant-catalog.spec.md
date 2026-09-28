@@ -228,6 +228,15 @@ Additional worked traces, to show the catalog covers the existing engine:
   the 15-24 band, 0 over 24). So `24` was chosen to sit AT the existing maximum rather than above it,
   the comparison is strictly `> max_length`, and an off-by-one (`>=`) would hard-fail a live record.
 
+- CRITERION COVERAGE CLAIMS INVARIANT `""` RATHER THAN AN EXISTING `I-*` ROW, 2026-09-28 (IPD 3dexf1).
+  Rule `check.spec-criteria-uncovered` registers with invariant `""` and the empty claim is recorded here
+  so no reader mistakes it for an unclassified miss. The nearest rows were considered and rejected: `I-05`
+  is about a plan's own validation items being evidenced at finalize, not about a spec's criteria being
+  demanded by an implementing plan Set; `I-07` is release-gate preservation across a handoff. Criterion
+  coverage is a Guidance-class concern whose only deterministic observable is that a criterion id is named
+  somewhere across the linked plans' validation-bearing sections, with the honest limit that token presence
+  proves naming, never genuine semantic validation. The rule is registered `info` (advisory).
+
 ## 5. Non-goals (this child)
 
 - NO enforcement code (no schema, engine, hooks, or CI): those are phases 1 through 5. This
@@ -241,4 +250,5 @@ Additional worked traces, to show the catalog covers the existing engine:
 
 ## Workflow history
 
+- 2026-09-28 note (aw specs): Recorded check.spec-criteria-uncovered claiming invariant "" rather than an existing I-* row (IPD 3dexf1). Nearest rows (I-05 finalize validation, I-07 release-gate preservation) do not fit; criterion coverage is a guidance-class concern whose only deterministic observable is that a criterion id is named somewhere in the linked plans, with the honest limit that naming is not validating.
 - 2026-09-10 note (aw specs): Added catalog invariant I-16 (setid SEMANTICS: a setid is a SHARED cross-type TOPIC label, not a unique identity) and recorded a misfiling correction in Section 4. check.setid-collision is registered under I-09, but I-09 is filename-grammar conformance and this catalog did not mention setid at all; the rule traced to an invariant that does not describe it. The misfiling was masked because a setid IS part of the filename grammar, so I-09 looked plausible: I-09 governs a name's SHAPE, while this rule governs whether one token may be REUSED across types, which the grammar is silent on. I-16 also corrects the invariant's CONTENT, not just its number: the repository was heading toward cross-type uniqueness (spec 4w7d6s, now superseded) and the maintainer reversed it on 2026-09-10, so the cataloged invariant is now the OPPOSITE of what the registered error-severity rule enforces, which is why it reports 78 findings for correct behavior. The two id6 rules under I-09 are deliberately NOT repointed, since the identity-slot rule genuinely concerns the filename slot. Left the code unchanged on purpose: the RuleSpec invariant must change from I-09 to I-16 in the same commit that re-scopes the rule, and Section 4 records that the two disagree until then.

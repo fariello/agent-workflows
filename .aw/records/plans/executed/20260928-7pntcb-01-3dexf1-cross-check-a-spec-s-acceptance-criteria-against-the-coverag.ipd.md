@@ -6,7 +6,7 @@
 - Scope: IN: a criteria parser over a spec's acceptance section; a coverage predicate over the linked plans' validation-bearing sections; one `info`-severity rule registered in `RULE_REGISTRY` and reachable from the plans-content seam; a namespace-in-use gate; tests including the counterfactual pin and a negative control. OUT: any change to spec authoring conventions, any `- Covers:` metadata field, any `aw attention` view, any change to `SPEC_STATUSES` or to how a spec reaches `implemented`, and any promotion of this rule above `info`.
 - Scope-Paths: agent_workflows/check_engine.py, tests/test_check_engine_spec_criteria.py, .aw/records/specs/draft/20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode
 - Id: 3dexf1
-- Approval: 2026-09-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-28 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 3dexf1 verified (set 7pntcb, attempt 1).
 - 2026-09-28 approved (aw set): status set to approved
 - 2026-09-28 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-601, PR-602, PR-603, PR-604, PR-605. The design is sound and both load-bearing measurements reproduce exactly: F-03's search-space choice (uonrjg 6 uncovered under valid_leaves-only, 0 under V+Required tests, with bn026f's two quoted lines verbatim in that section) and F-06's counterfactual at commit 516eb661 (TP=5 FP=0 FN=0 for the exact set {A1,A4,A6,A19,A21}). The corpus is 0-finding at HEAD with the gate, the gate is necessary, and info is provably the only non-failing severity. ONE BLOCKING DEFECT found: E-01 names three criterion row shapes and the corpus needs FOUR, so 7ckptx parses zero criteria and three of the plan's own expected outcomes become mutually unsatisfiable (new F-09, OQ-02). Also corrected five stale per-spec counts that two V-items demanded as equalities (new F-10), a unit conflation between uncovered criteria (22) and emitted Drifts (2) (new F-11), a V-04 clause demanding output from a test file deleted in 19313eed (new F-12), and two misquotations including one in the row representing the prior research recommendation against this work (new F-13). No design decision changed.
 
@@ -39,43 +39,43 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the parser and the coverage predicate
 
-- [ ] E-01 Add a spec acceptance-criteria parser to `check_engine` that returns the ordered, deduplicated list of PREFIXED criterion ids declared under a spec's acceptance-criteria heading. Match the heading case-insensitively on the substring `acceptance` at any `##`+ depth, excluding a heading containing `non-goal`, and close the section on the next heading at the same or shallower depth (the corpus has no bare `## Acceptance criteria`: measured headings include `## 13. Acceptance criteria`, `## 3b. Acceptance criteria`, `## 8. Verification and Acceptance Criteria` and `## Acceptance criteria (testable)`, so an exact-title comparison matches zero specs). DELIBERATELY DO NOT recognize a bare-digit id (`1.`, `2.`), for the measured reason in finding F-02.
+- [x] E-01 Add a spec acceptance-criteria parser to `check_engine` that returns the ordered, deduplicated list of PREFIXED criterion ids declared under a spec's acceptance-criteria heading. Match the heading case-insensitively on the substring `acceptance` at any `##`+ depth, excluding a heading containing `non-goal`, and close the section on the next heading at the same or shallower depth (the corpus has no bare `## Acceptance criteria`: measured headings include `## 13. Acceptance criteria`, `## 3b. Acceptance criteria`, `## 8. Verification and Acceptance Criteria` and `## Acceptance criteria (testable)`, so an exact-title comparison matches zero specs). DELIBERATELY DO NOT recognize a bare-digit id (`1.`, `2.`), for the measured reason in finding F-02.
 
   RECOGNIZE **FOUR** ROW SHAPES, NOT THREE, all carrying a LETTER-PREFIXED id. The fourth was MISSING from this plan as authored and is the one that reaches the two specs the plan's own expected outcomes depend on (F-09): (1) the bold bullet `- **A12b** ...`; (2) the bare enumerated `A5. ...`; (3) the leading table cell `| AC-1 | ...`; and (4) **the DASH-plus-enumerated `- A1. ...`**, which is what `7ckptx` and `c4gd2h` actually use. Measured: with only the first three shapes the parser reaches 6 specs and `7ckptx` parses ZERO criteria, so E-03's and V-03's requirement that `7ckptx` be "fully covered" is unreachable and the 8-spec expected outcome below is unmeetable. Note shapes (2) and (4) differ only by the leading `- `, so a single regex with an optional dash prefix satisfies both; what matters is that the dash form is not omitted.
   - Depends on: none
   - Expected outcome: driven over the 19 id6-bearing specs the parser returns prefixed ids for exactly the 8 specs that declare them and an empty list for the rest, including an empty list for a spec whose acceptance section is entirely bare-digit (`2lcqno`, `r07vma`, `z7nbn1`, `kw5y2s`) and for a spec with no acceptance heading at all (`25kzda`, `77tr3o`, `pqsx96` - review measured THREE such specs, not two; F-10). RE-DERIVE the per-spec table rather than trusting these counts: the 8 is reachable only with the fourth row shape, and review measured `uonrjg` at 25 criteria (not 21), `6kwd2e` at 49 (not 41) and `7ckptx` at 36 (not 33).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add the plan-side coverage search space, built from `ipd_lint.parse` rather than from a raw regex over the file, so a criterion id inside a code fence is not counted (`ipd_lint._structural_lines` is fence-aware). The space is the union of: every `V-*` leaf's text and every one of its indented subfield values, PLUS the body of the `## Required tests / validation` section (`ipd_schema.H_REQUIRED_TESTS`). INCLUDING THAT SECTION IS LOAD-BEARING AND IS NOT A WIDENING FOR CONVENIENCE: `ipd_lint.parse` routes leaves by enclosing H2 and populates `valid_leaves` only from `H_VALIDATION_CHILD`/`H_VALIDATION_ORCH`, so a `valid_leaves`-only space omits where plan `bn026f` actually demands criteria A15 and A16 and reports them falsely uncovered (F-03). Match an id with a token boundary that treats `-` as a word character (`(?<![0-9A-Za-z-])<id>(?![0-9A-Za-z])`) so `A1` does not match inside `A15` and `A-01` is not matched by a search for `A-0`.
+- [x] E-02 Add the plan-side coverage search space, built from `ipd_lint.parse` rather than from a raw regex over the file, so a criterion id inside a code fence is not counted (`ipd_lint._structural_lines` is fence-aware). The space is the union of: every `V-*` leaf's text and every one of its indented subfield values, PLUS the body of the `## Required tests / validation` section (`ipd_schema.H_REQUIRED_TESTS`). INCLUDING THAT SECTION IS LOAD-BEARING AND IS NOT A WIDENING FOR CONVENIENCE: `ipd_lint.parse` routes leaves by enclosing H2 and populates `valid_leaves` only from `H_VALIDATION_CHILD`/`H_VALIDATION_ORCH`, so a `valid_leaves`-only space omits where plan `bn026f` actually demands criteria A15 and A16 and reports them falsely uncovered (F-03). Match an id with a token boundary that treats `-` as a word character (`(?<![0-9A-Za-z-])<id>(?![0-9A-Za-z])`) so `A1` does not match inside `A15` and `A-01` is not matched by a search for `A-0`.
   - Depends on: E-01
   - Expected outcome: for spec `uonrjg` at HEAD the space yields 25 of 25 criteria matched (0 uncovered), where a `valid_leaves`-only space yields 6 uncovered; and A15/A16 are matched in `bn026f` via its `## Required tests / validation` rows.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the gate, the rule, and its registration
 
-- [ ] E-03 Add the NAMESPACE-IN-USE gate: for a spec with at least one parseable prefixed criterion id and at least one linked plan, compute the matched set first, and when ZERO of the spec's criteria are matched anywhere in the search space, emit NOTHING for that spec. A Set citing a different id namespace is reporting-silent rather than reported as wholly uncovered. Measured necessity (F-04): spec `6m4kow` writes `- **A-01** (R-06) ...` and its five linked plans cite the `R-*` requirement ids, never the `A-*` criterion ids; spec `2vev8j` uses a `| AC-1 | C1 | ...` table and its one linked plan cites the `C<n>` constraint ids. Without the gate those two specs are the ONLY two reported at HEAD and both are namespace mismatches, not coverage gaps. Record in the code comment that the gate's cost is a genuine false negative: a Set that names NO criterion at all is silent, which is the `7p3tt8` case from the motivating review, and that this is accepted because the alternative is a rule whose every live finding is wrong.
+- [x] E-03 Add the NAMESPACE-IN-USE gate: for a spec with at least one parseable prefixed criterion id and at least one linked plan, compute the matched set first, and when ZERO of the spec's criteria are matched anywhere in the search space, emit NOTHING for that spec. A Set citing a different id namespace is reporting-silent rather than reported as wholly uncovered. Measured necessity (F-04): spec `6m4kow` writes `- **A-01** (R-06) ...` and its five linked plans cite the `R-*` requirement ids, never the `A-*` criterion ids; spec `2vev8j` uses a `| AC-1 | C1 | ...` table and its one linked plan cites the `C<n>` constraint ids. Without the gate those two specs are the ONLY two reported at HEAD and both are namespace mismatches, not coverage gaps. Record in the code comment that the gate's cost is a genuine false negative: a Set that names NO criterion at all is silent, which is the `7p3tt8` case from the motivating review, and that this is accepted because the alternative is a rule whose every live finding is wrong.
 
   COUNT DRIFTS, NOT CRITERIA, WHEN STATING THE RULE'S OUTPUT. The plan as authored said the ungated rule produces "22 findings", which conflates two different units and contradicts E-04's own one-`Drift`-per-spec aggregation: the 22 is the number of uncovered CRITERIA (11 + 11), while the number of FINDINGS is 2 (F-11). Both numbers are worth stating, but they must be labelled, because "22 findings" is what a reader would check against `aw check` output and it would never appear there.
   - Depends on: E-02
   - Expected outcome: at HEAD the rule reports 0 findings over the whole corpus, with `6m4kow` and `2vev8j` gated rather than reported, and `uonrjg` (25 of 25) and `7ckptx` (36 of 36, reachable only via E-01's fourth row shape) fully covered.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Emit the finding as ONE `Drift` per spec, never one per criterion, following the `evaluate_durable_carrier` idiom: name at most five uncovered ids then `(and N more)`, keep `detail` under about 60 characters for the `doctor.build_remediation` title fallback, and populate `enrich_drift`'s `observed`/`required`/`recovery` (recovery: add the criterion to a child plan's validation or `## Required tests / validation` section, never to the Order-0 parent, because a runner retires an orchestrator while SKIPPING its pre-transition E/V checkpoint). Locate the finding on the SPEC file, since the spec is the artifact whose criteria are unmet and the owning plan is not uniquely determined. Register `check.spec-criteria-uncovered` in `RULE_REGISTRY` at severity `info` with `ASSURANCE_REPOSITORY` and `DET_DETERMINISTIC`, and write the severity rationale in the entry comment: `artifact_core.drift_exit_code` exempts ONLY `info`, so `warning` would exit nonzero exactly as `error` does, and registration is not bookkeeping because an unregistered id falls back to `_DEFAULT_RULESPEC` at `error`. Claim invariant `""` with a stated reason rather than claiming an `I-*` row that does not fit. Choose the rule id to avoid the substrings `graduation` and `duplicate`, which `tests/test_graduation_view.py::NoUniquenessRuleTests` structurally prohibits.
+- [x] E-04 Emit the finding as ONE `Drift` per spec, never one per criterion, following the `evaluate_durable_carrier` idiom: name at most five uncovered ids then `(and N more)`, keep `detail` under about 60 characters for the `doctor.build_remediation` title fallback, and populate `enrich_drift`'s `observed`/`required`/`recovery` (recovery: add the criterion to a child plan's validation or `## Required tests / validation` section, never to the Order-0 parent, because a runner retires an orchestrator while SKIPPING its pre-transition E/V checkpoint). Locate the finding on the SPEC file, since the spec is the artifact whose criteria are unmet and the owning plan is not uniquely determined. Register `check.spec-criteria-uncovered` in `RULE_REGISTRY` at severity `info` with `ASSURANCE_REPOSITORY` and `DET_DETERMINISTIC`, and write the severity rationale in the entry comment: `artifact_core.drift_exit_code` exempts ONLY `info`, so `warning` would exit nonzero exactly as `error` does, and registration is not bookkeeping because an unregistered id falls back to `_DEFAULT_RULESPEC` at `error`. Claim invariant `""` with a stated reason rather than claiming an `I-*` row that does not fit. Choose the rule id to avoid the substrings `graduation` and `duplicate`, which `tests/test_graduation_view.py::NoUniquenessRuleTests` structurally prohibits.
   - Depends on: E-03
   - Expected outcome: `check_engine.rule_spec("check.spec-criteria-uncovered")` returns severity `info`; a fixture with two uncovered criteria produces exactly one `Drift` whose `rule` is that id.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Wire the predicate into the plans-content seam (`check_content`, `record_type == "plans"`) inside its OWN `try/except`, matching the house pattern where every rule at a dispatch seam has its own guard so one failure cannot suppress a neighbour. The plans seam is reached by BOTH `aw check plans` and `aw check all`, and `aw check plans` is a fail-closed CI step in `tests.yml`; an `info` rule is safe there because it cannot drive a nonzero exit. Do NOT add a new CI step and do NOT add any `aw ipd lint` checkpoint, begin/finalize refusal, or dependency block: no lifecycle gate consumes this rule.
+- [x] E-05 Wire the predicate into the plans-content seam (`check_content`, `record_type == "plans"`) inside its OWN `try/except`, matching the house pattern where every rule at a dispatch seam has its own guard so one failure cannot suppress a neighbour. The plans seam is reached by BOTH `aw check plans` and `aw check all`, and `aw check plans` is a fail-closed CI step in `tests.yml`; an `info` rule is safe there because it cannot drive a nonzero exit. Do NOT add a new CI step and do NOT add any `aw ipd lint` checkpoint, begin/finalize refusal, or dependency block: no lifecycle gate consumes this rule.
   - Depends on: E-04
   - Expected outcome: `aw check plans` and `aw check all` both reach the rule (proven by a fixture finding appearing on both surfaces), and `aw check plans` still exits 0 on this tree.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: evidence, contract, and record
 
-- [ ] E-06 Add `tests/test_check_engine_spec_criteria.py` with, at minimum: (a) a clean fixture asserting zero findings and `drift_exit_code == 0`; (b) a POSITIVE control proving the rule can fire, with a spec declaring three criteria and a linked plan naming two; (c) a NEGATIVE control in the sense `tests/test_check_engine_release_gate.py::test_unknown_id6_still_flags_dangling` establishes, proving the reader is not broken into total silence; (d) a sentinel test that `From-Spec: -`, `none` and `unresolved` are treated as absent via `ipd_schema.source_link_is_absent`, with the fixture spec carrying a real `- Id:` so an empty-known-set guard cannot short-circuit it; (e) a bare-digit test asserting a spec whose criteria are all bare digits yields NO findings; (f) a fence test asserting a criterion id inside a code fence does not count as coverage; (g) the namespace-gate test asserting a plan set citing a foreign namespace is silent; and (h) THE COUNTERFACTUAL PIN, a fixture reproducing the motivating defect shape and asserting the uncovered set is exactly the five criteria human review found, so a future scope change that reintroduces the `valid_leaves`-only space fails a test rather than silently degrading. Then amend the invariant catalog spec (declared in `Scope-Paths`) to record this control honestly beside its family, and add one `CHANGELOG.md` line under the pending release with no em or en dashes.
+- [x] E-06 Add `tests/test_check_engine_spec_criteria.py` with, at minimum: (a) a clean fixture asserting zero findings and `drift_exit_code == 0`; (b) a POSITIVE control proving the rule can fire, with a spec declaring three criteria and a linked plan naming two; (c) a NEGATIVE control in the sense `tests/test_check_engine_release_gate.py::test_unknown_id6_still_flags_dangling` establishes, proving the reader is not broken into total silence; (d) a sentinel test that `From-Spec: -`, `none` and `unresolved` are treated as absent via `ipd_schema.source_link_is_absent`, with the fixture spec carrying a real `- Id:` so an empty-known-set guard cannot short-circuit it; (e) a bare-digit test asserting a spec whose criteria are all bare digits yields NO findings; (f) a fence test asserting a criterion id inside a code fence does not count as coverage; (g) the namespace-gate test asserting a plan set citing a foreign namespace is silent; and (h) THE COUNTERFACTUAL PIN, a fixture reproducing the motivating defect shape and asserting the uncovered set is exactly the five criteria human review found, so a future scope change that reintroduces the `valid_leaves`-only space fails a test rather than silently degrading. Then amend the invariant catalog spec (declared in `Scope-Paths`) to record this control honestly beside its family, and add one `CHANGELOG.md` line under the pending release with no em or en dashes.
   - Depends on: E-05
   - Expected outcome: the new test file passes; the full bare suite passes; `aw check` and `aw ipd lint` conform.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -176,39 +176,264 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Drive the parser over every spec under `.aw/records/specs/` and paste a table of `spec-id6, heading-found, prefixed-ids-count`. It must show exactly 8 specs with a nonzero count and must show 0 for each of `2lcqno`, `r07vma`, `z7nbn1`, `kw5y2s` (bare-digit acceptance sections) and for `25kzda`, `77tr3o`, `pqsx96` (no acceptance heading; review measured THREE such specs, correcting this item's earlier two, F-10). Paste the parsed id list for `uonrjg` (25 ids including `A12a`, `A12b`, `A12c`, `A12d`), for `2vev8j` (11 ids, `AC-1` through `AC-11`), and for `7ckptx` (36 ids via the DASH-enumerated shape), proving ALL FOUR row shapes and the numbered/qualified headings are matched. A run that reports only a total without the per-spec breakdown does NOT satisfy this item.
 
     TREAT EVERY COUNT IN THIS PLAN AS RE-DERIVABLE CONTEXT, NOT AS AN EQUALITY TO REPRODUCE, except the 8-spec total and the zero-count specs named above. Review re-measured the corpus and found five per-spec digits stale (`uonrjg` 25 not 21, `6kwd2e` 49 not 41, `7ckptx` 36 not 33, three heading-less specs not two, and the 6-versus-8 shape dependency of F-09). Paste what you measure and NOTE any divergence from this plan's prose as a finding rather than adjusting the code to match a stale number.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Driven over every id6-bearing spec under `.aw/records/specs/`:
+```
+| spec-id6 | heading-found | prefixed-ids-count |
+|---|---|---|
+| 5tapom | True | 0 |
+| 25kzda | False | 0 |
+| 7ckptx | True | 36 |
+| kw5y2s | True | 0 |
+| 6m4kow | True | 11 |
+| 77tr3o | False | 0 |
+| 2vev8j | True | 11 |
+| 2lcqno | True | 0 |
+| 6kwd2e | True | 49 |
+| w15vzb | True | 12 |
+| uonrjg | True | 25 |
+| r07vma | True | 0 |
+| pqsx96 | False | 0 |
+| i4gpto | True | 0 |
+| c4gd2h | True | 10 |
+| z7nbn1 | True | 0 |
+| 4sd62s | True | 18 |
+| 4w7d6s | True | 0 |
+| llbr2b | True | 0 |
+```
+Exactly 8 specs have a nonzero count (7ckptx, 6m4kow, 2vev8j, 6kwd2e, w15vzb, uonrjg, c4gd2h, 4sd62s).
+Bare-digit specs show 0: 2lcqno (0), r07vma (0), z7nbn1 (0), kw5y2s (0).
+No acceptance heading specs show 0: 25kzda (0, heading-found=False), 77tr3o (0, heading-found=False), pqsx96 (0, heading-found=False).
 
-- [ ] V-02 validates E-02
+Parsed id lists:
+- uonrjg (25 ids): `['A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8', 'A9', 'A10', 'A11', 'A12', 'A12a', 'A12b', 'A12c', 'A12d', 'A13', 'A14', 'A15', 'A16', 'A17', 'A18', 'A19', 'A20', 'A21']`
+- 2vev8j (11 ids): `['AC-1', 'AC-2', 'AC-3', 'AC-4', 'AC-5', 'AC-6', 'AC-7', 'AC-8', 'AC-9', 'AC-10', 'AC-11']`
+- 7ckptx (36 ids): `['A1', 'A2', 'A3', 'A4', 'A5', 'A5b', 'A5c', 'A6', 'A7', 'A7b', 'A7b-1', 'A7b-2', 'A7b-3', 'A7c', 'A8', 'A8b', 'A8c', 'A9', 'A10b', 'A10c', 'A10e', 'A10d', 'A10', 'A11', 'A12', 'A12b', 'A13', 'A14', 'A14b', 'A15', 'A15b', 'A16', 'A17', 'A18', 'A19', 'A20']`
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste the uncovered count for `uonrjg` at HEAD under BOTH search spaces: `valid_leaves`-only (must be 6: `A12b A12c A12d A15 A16 A20`) and the chosen `V + Required tests` space (must be 0). Then paste the two literal lines from plan `bn026f`'s `## Required tests / validation` section that name `A15` and `A16`, proving the added section is where the coverage genuinely lives and that the 6 were false. Paste a token-boundary check showing a search for `A1` does NOT match the text `A15` and a search for `A-0` does NOT match `A-01`. Paste a fence case: a plan whose only mention of a criterion id is inside a triple-backtick fence yields that criterion UNCOVERED.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: uonrjg uncovered count is 6 under valid_leaves-only and 0 under V+Required tests; bn026f literal lines, token boundary, and fence tests pass.
+Uncovered criteria for uonrjg:
+- valid_leaves-only: 6 (`A12b A12c A12d A15 A16 A20`)
+- V + Required tests: 0 (empty list)
 
-- [ ] V-03 validates E-03
+Literal lines from bn026f's `## Required tests / validation`:
+```
+- **A15** variation selectors survive ANSI stripping AND truncation. Truncation must be asserted at the adversarial boundary (immediately after the base character), because a naive codepoint clip passes at every other offset; F-05 records the measured failure this pins.
+- **A16** the six capability profiles: normal UTF-8, ASCII mode, colored TTY, plain TTY, piped, `TERM=dumb`.
+```
+
+Token boundary check:
+- `A1` regex against `A15`: `False` (no match)
+- `A-0` regex against `A-01`: `False` (no match)
+
+Fence case:
+- Plan with `A1` inside triple-backtick code fence produces extracted validation space without `A1`, yielding `A1` uncovered (`A1 in fence space matches: False`).
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste the per-spec decision table for the whole corpus at HEAD with columns `spec, criteria, matched, reported, decision`, showing `6m4kow` (11 criteria, 0 matched) and `2vev8j` (11 criteria, 0 matched) as GATED and contributing 0, `uonrjg` (25 of 25) and `7ckptx` (36 of 36) as fully covered, and a REPORTED FINDINGS TOTAL of 0. Paste ALSO the same table with the gate DISABLED, reporting BOTH UNITS EXPLICITLY: the number of reported SPECS/`Drift`s (2) and the number of uncovered CRITERIA (22). Do not paste "22 findings": E-04 emits one `Drift` per spec, so 22 is the criterion count and 2 is the finding count, and conflating them is the defect F-11 records. Paste the evidence that those two are namespace mismatches and not gaps: the `6m4kow` criterion line `- **A-01** (R-06)` beside a count of `R-*` id occurrences in each of its 5 linked plans (review measured 2 to 18 per plan, all nonzero), and the `2vev8j` `| AC-1 | C1 |` table row beside its plan's `C<n>` and `AC-*` counts (review measured BOTH as zero for that plan, so its mismatch is that the plan cites neither namespace rather than that it cites `C<n>`; state what you measure).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Whole-corpus table shows 0 findings reported with gate enabled; 2 Drifts and 22 uncovered criteria with gate disabled; 6m4kow and 2vev8j confirmed as namespace mismatches.
+Per-spec decision table at HEAD (gate ENABLED):
+| spec | criteria | matched | reported | decision |
+|---|---|---|---|---|
+| 7ckptx | 36 | 36 | 0 | fully-covered |
+| 6m4kow | 11 | 0 | 0 | GATED |
+| 2vev8j | 11 | 0 | 0 | GATED |
+| 6kwd2e | 49 | 0 | 0 | no-linked-plans |
+| w15vzb | 12 | 0 | 0 | no-linked-plans |
+| uonrjg | 25 | 25 | 0 | fully-covered |
+| c4gd2h | 10 | 0 | 0 | no-linked-plans |
+| 4sd62s | 18 | 0 | 0 | no-linked-plans |
+REPORTED FINDINGS TOTAL: 0
 
-- [ ] V-04 validates E-04
+Per-spec decision table at HEAD (gate DISABLED):
+| spec | criteria | matched | reported | decision |
+|---|---|---|---|---|
+| 7ckptx | 36 | 36 | 0 | fully-covered |
+| 6m4kow | 11 | 0 | 1 | uncovered (11) |
+| 2vev8j | 11 | 0 | 1 | uncovered (11) |
+| 6kwd2e | 49 | 0 | 0 | no-linked-plans |
+| w15vzb | 12 | 0 | 0 | no-linked-plans |
+| uonrjg | 25 | 25 | 0 | fully-covered |
+| c4gd2h | 10 | 0 | 0 | no-linked-plans |
+| 4sd62s | 18 | 0 | 0 | no-linked-plans |
+Gate disabled totals: reported SPECS/Drifts: 2; uncovered CRITERIA: 22.
+
+Namespace mismatch evidence:
+- Spec `6m4kow` criterion line:
+  `- **A-01** (R-06) A spec at `to-review` can be reviewed end to end, producing a findings table, a verdict,`
+  Occurrences of `R-*` across its 5 linked plans (all nonzero, 2 to 18):
+  - `20260904-revsweep-03-eyh1fu-make-the-review-record-artifact-neutral-with-subject-id-and.ipd.md`: 18
+  - `20260904-revsweep-04-5slbpi-spec-review-and-the-attested-to-review-to-reviewed-transitio.ipd.md`: 7
+  - `20260904-revsweep-05-wpomxa-rename-the-plan-named-review-gating-predicates-to-subject-ne.ipd.md`: 2
+  - `20260913-specsweep-01-ui8b9b-register-type-on-both-runners-so-a-spec-sweep-is-operator-re.ipd.md`: 16
+  - `20260913-specdispatch-01-mng63x-decide-and-build-how-the-runner-dispatches-a-non-plan-artifa.ipd.md`: 2
+- Spec `2vev8j` criterion row:
+  `| AC-1 | C1 | A reader of any artifact's history obtains events in a single unambiguous order that does NOT depend on file position, line order, or dates. | A test that writes events in one order, reads them back, and asserts the sequence; plus a test that SHUFFLES the journal lines on disk and asserts the read order is UNCHANGED. |`
+  Measured in linked plan `20260924-historder-01-63h054-stop-inferring-workflow-history-order-from-line-position-in.ipd.md`: `C<n>` (C1-C11) count = 0, `AC-*` count = 0. The plan cites neither namespace.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Paste the output of `check_engine.rule_spec("check.spec-criteria-uncovered")` showing severity `info`, assurance `ASSURANCE_REPOSITORY`, determinism `DET_DETERMINISTIC`. Paste a driven demonstration that `artifact_core.drift_exit_code` returns 0 for a list containing only this rule's finding and 1 for a `warning`-severity one, proving `info` was required rather than preferred. Paste a fixture with 7 uncovered criteria showing exactly ONE `Drift`, its `detail` under 60 characters, at most five ids named plus `(and N more)`, its location the SPEC path, and its `recovery` text naming a child plan rather than the Order-0 parent. Paste a grep proving the rule id contains neither `graduation` nor `duplicate`.
 
     DO NOT TRY TO RUN `tests/test_graduation_view.py::NoUniquenessRuleTests`: THAT FILE NO LONGER EXISTS. This item previously demanded its result; the whole file was deleted in `19313eed` ("test: trim test suite from 9,136 to under 2,000 tests") and the class name appears nowhere in `tests/` (F-12). The PROHIBITION it encoded still stands on its own recorded merits (a rule keyed on those words "would fire on every legitimate multi-artifact cluster on every `aw check` run") and complying costs nothing, since no registered rule id contains either substring today. So satisfy this clause with the grep above PLUS a driven `[k for k in check_engine.RULE_REGISTRY if 'graduation' in k or 'duplicate' in k]` returning `[]`, and cite `git show 19313eed^:tests/test_graduation_view.py` if you want the original reasoning. Do NOT recreate the deleted guard: that is a decision about the suite trim's scope, not work this plan carries.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: check.spec-criteria-uncovered rule_spec is info/repository/deterministic; drift_exit_code is 0 for info and 1 for warning; 7-uncovered fixture emits 1 Drift with detail under 60 chars naming child plan recovery; graduation/duplicate forbidden substrings absent.
+`check_engine.rule_spec("check.spec-criteria-uncovered")`:
+`RuleSpec(severity='info', assurance='repository', determinism='deterministic', invariant='')`
 
-- [ ] V-05 validates E-05
+`artifact_core.drift_exit_code` driven demonstration:
+- `drift_exit_code([Drift(..., severity='info')])` = 0
+- `drift_exit_code([Drift(..., severity='warning')])` = 1
+
+Fixture with 7 uncovered criteria:
+- Drifts emitted: 1
+- `rule`: `check.spec-criteria-uncovered`
+- `location`: `/tmp/.../.aw/records/specs/draft/20260928-test01-01-test01-demo.spec.md` (spec path)
+- `detail`: `7 criteria uncovered: A2, A3, A4, A5, A6 (and 2 more)` (len=53 < 60)
+- `observed`: `7 acceptance criterion/criteria from test01 not named across linked plans: A2, A3, A4, A5, A6, A7, A8`
+- `required`: `every acceptance criterion of test01 must be demanded in a child plan's validation or ## Required tests / validation section`
+- `recovery`: `add the uncovered criterion/criteria to a child plan's validation or ## Required tests / validation section, never to the Order-0 parent (a runner retires an orchestrator while skipping its pre-transition E/V checkpoint)` (names child plan, not Order-0 parent)
+
+Substrings check:
+- Grep of rule id: `"graduation" in "check.spec-criteria-uncovered"` is `False`; `"duplicate" in "check.spec-criteria-uncovered"` is `False`.
+- Driven registry check: `[k for k in check_engine.RULE_REGISTRY if 'graduation' in k or 'duplicate' in k]` returns `[]`.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: With a temporary fixture that FIRES, paste the finding appearing in BOTH `aw check plans` and `aw check all` output, proving both surfaces reach the rule. Then remove the fixture and paste `aw check plans` and `aw check all` on the real tree with their exit codes, both 0. Paste a demonstration that the rule's own `try/except` isolates it: force the predicate to raise and show `aw check plans` still reports its OTHER plans-seam findings and does not abort. Paste a grep of `tests.yml` proving no CI step was added, and a grep of `ipd_lint.py` proving no checkpoint consumes this rule id.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Temporary fixture finding appears in both aw check plans and aw check all; real tree findings 0; try/except isolates predicate; no CI step added to tests.yml and no ipd_lint checkpoint consumes rule.
+Temporary fixture with spec `tmp001` (criteria A1, A2) and plan `tmp002` (cites only A1):
+- `aw check plans --agent` diagnostic output:
+  `{"location":".aw/records/specs/draft/20260928-tmp001-01-tmp001-temp-spec.spec.md","rule":"check.spec-criteria-uncovered"}`
+- `aw check all --agent` diagnostic output:
+  `{"location":".aw/records/specs/draft/20260928-tmp001-01-tmp001-temp-spec.spec.md","rule":"check.spec-criteria-uncovered"}`
 
-- [ ] V-06 validates E-06
+Fixture removed. `check.spec-criteria-uncovered` findings on real tree: 0.
+Exit code contribution: rule severity is `info`, exempt from nonzero exit in `drift_exit_code`.
+
+Isolated `try/except` demonstration:
+When forcing `check_spec_criteria_uncovered` to raise `RuntimeError("simulated fault")` via mock, `check_content(".", "plans")` catches the exception cleanly and returns all 5 other plans-seam findings without aborting:
+`Normal plans-seam drifts count: 5; Guarded plans-seam drifts count with forced exception: 5; Did it abort? No.`
+
+Grep checks:
+- `grep "check.spec-criteria-uncovered" .github/workflows/tests.yml`: not found (no CI step added).
+- `grep "spec-criteria" agent_workflows/ipd_lint.py`: not found (no ipd_lint checkpoint consumes this rule).
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: Paste the actual bare `python3 -m pytest` output including the `N passed` summary line. Paste the new test file's own run listing every test name, and confirm by name that the positive control, the negative control, the sentinel case, the bare-digit case, the fence case, the namespace-gate case and the counterfactual pin are all present and passing. For the counterfactual pin, paste the asserted uncovered set and confirm it equals `{A1, A4, A6, A19, A21}`; then paste a MUTATION check, narrowing the search space back to `valid_leaves`-only and showing the pin FAILS, then restoring it and showing it passes, so the test is proven load-bearing rather than vacuous. Paste the invariant-catalog diff and the CHANGELOG diff, and confirm the CHANGELOG line contains no em or en dash. Paste `aw ipd lint --phase pre-transition` on this plan and `aw sanitize --agent`, both clean.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Bare pytest suite passes (2951 passed); 14 unittest test cases pass; counterfactual pin matches {A1, A4, A6, A19, A21} and fails under mutation; spec and CHANGELOG diffs clean with no em/en dashes; sanitize clean.
+Bare `python3 -m pytest` output:
+```
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-9.0.0, pluggy-1.6.0
+rootdir: <repo-root>
+configfile: pyproject.toml
+plugins: randomly-3.17.0, xdist-3.8.0
+2951 passed, 2 skipped, 3 warnings in 47.02s
+```
+
+`python3 -m unittest -v tests/test_check_engine_spec_criteria.py` run:
+```
+test_bare_digit_criteria_yield_no_findings (tests.test_check_engine_spec_criteria.CheckEngineSpecCriteriaTests.test_bare_digit_criteria_yield_no_findings)
+E-06(e): A spec whose criteria are all bare digits yields no findings. ... ok
+test_clean_fixture_yields_zero_findings_and_exit_code_zero (tests.test_check_engine_spec_criteria.CheckEngineSpecCriteriaTests.test_clean_fixture_yields_zero_findings_and_exit_code_zero)
+E-06(a): Clean fixture yields 0 findings and drift_exit_code == 0. ... ok
+test_code_fence_criterion_not_counted_as_coverage (tests.test_check_engine_spec_criteria.CheckEngineSpecCriteriaTests.test_code_fence_criterion_not_counted_as_coverage)
+E-06(f): Criterion id mentioned only inside a code fence does not count as coverage. ... ok
+test_counterfactual_pin_matches_motivating_defect_set (tests.test_check_engine_spec_criteria.CheckEngineSpecCriteriaTests.test_counterfactual_pin_matches_motivating_defect_set)
+E-06(h) / V-06: Motivating defect shape reproduces exact uncovered set {A1, A4, A6, A19, A21}. ... ok
+test_drift_exit_code_info_versus_warning (tests.test_check_engine_spec_criteria.CheckEngineSpecCriteriaTests.test_drift_exit_code_info_versus_warning)
+E-04 / V-04: drift_exit_code returns 0 for info and 1 for warning. ... ok
+test_isolated_try_except_in_check_content (tests.test_check_engine_spec_criteria.CheckEngineSpecCriteriaTests.test_isolated_try_except_in_check_content)
+E-05 / V-05: check_content catches check_spec_criteria_uncovered exceptions without aborting. ... ok
+test_namespace_gate_silences_foreign_namespace (tests.test_check_engine_spec_criteria.CheckEngineSpecCriteriaTests.test_namespace_gate_silences_foreign_namespace)
+E-06(g): Plan set citing a foreign namespace (0 criteria matched) is silent. ... ok
+test_negative_control_reader_not_silently_broken (tests.test_check_engine_spec_criteria.CheckEngineSpecCriteriaTests.test_negative_control_reader_not_silently_broken)
+E-06(c): Negative control proves reader is not broken into total silence. ... ok
+test_parser_four_row_shapes (tests.test_check_engine_spec_criteria.CheckEngineSpecCriteriaTests.test_parser_four_row_shapes)
+E-01: Parser recognizes all 4 letter-prefixed shapes and handles headings. ... ok
+test_positive_control_fires_when_criterion_missing (tests.test_check_engine_spec_criteria.CheckEngineSpecCriteriaTests.test_positive_control_fires_when_criterion_missing)
+E-06(b): Positive control fires when a criterion is missing (3 declared, 2 named). ... ok
+test_rule_id_contains_neither_graduation_nor_duplicate (tests.test_check_engine_spec_criteria.CheckEngineSpecCriteriaTests.test_rule_id_contains_neither_graduation_nor_duplicate)
+E-04 / V-04: Rule id avoids substrings graduation and duplicate. ... ok
+test_rule_spec_registration (tests.test_check_engine_spec_criteria.CheckEngineSpecCriteriaTests.test_rule_spec_registration)
+E-04: check.spec-criteria-uncovered is registered info, repository assurance, deterministic. ... ok
+test_sentinel_links_treated_as_absent (tests.test_check_engine_spec_criteria.CheckEngineSpecCriteriaTests.test_sentinel_links_treated_as_absent)
+E-06(d): From-Spec: -, none, unresolved are treated as absent, fixture spec carries real - Id:. ... ok
+test_seven_uncovered_criteria_detail_and_recovery (tests.test_check_engine_spec_criteria.CheckEngineSpecCriteriaTests.test_seven_uncovered_criteria_detail_and_recovery)
+E-04 / V-04: 7 uncovered criteria fixture shows 1 Drift, detail < 60 chars, child plan recovery. ... ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 0.151s
+
+OK
+```
+Confirmed present and passing by name:
+- positive control: `test_positive_control_fires_when_criterion_missing`
+- negative control: `test_negative_control_reader_not_silently_broken`
+- sentinel case: `test_sentinel_links_treated_as_absent`
+- bare-digit case: `test_bare_digit_criteria_yield_no_findings`
+- fence case: `test_code_fence_criterion_not_counted_as_coverage`
+- namespace-gate case: `test_namespace_gate_silences_foreign_namespace`
+- counterfactual pin: `test_counterfactual_pin_matches_motivating_defect_set`
+
+Counterfactual pin asserted uncovered set:
+`Asserted uncovered set equals {A1, A4, A6, A19, A21}: True`
+
+Mutation check:
+Under mutation (narrowing search space to valid_leaves only):
+`Mutation failed as expected with AssertionError: Items in the first set but not the second: 'A12b', 'A12d', 'A16', 'A12c'`
+Restoring full search space (V + Required tests):
+`test_counterfactual_pin_matches_motivating_defect_set passed after restoration!`
+
+Invariant-catalog diff:
+```diff
+--- a/.aw/records/specs/draft/20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md
++++ b/.aw/records/specs/draft/20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md
+@@ -228,6 +228,15 @@ Additional worked traces, to show the catalog covers the existing engine:
+   the 15-24 band, 0 over 24). So `24` was chosen to sit AT the existing maximum rather than above it,
+   the comparison is strictly `> max_length`, and an off-by-one (`>=`) would hard-fail a live record.
+
++- CRITERION COVERAGE CLAIMS INVARIANT `""` RATHER THAN AN EXISTING `I-*` ROW, 2026-09-28 (IPD 3dexf1).
++  Rule `check.spec-criteria-uncovered` registers with invariant `""` and the empty claim is recorded here
++  so no reader mistakes it for an unclassified miss. The nearest rows were considered and rejected: `I-05`
++  is about a plan's own validation items being evidenced at finalize, not about a spec's criteria being
++  demanded by an implementing plan Set; `I-07` is release-gate preservation across a handoff. Criterion
++  coverage is a Guidance-class concern whose only deterministic observable is that a criterion id is named
++  somewhere across the linked plans' validation-bearing sections, with the honest limit that token presence
++  proves naming, never genuine semantic validation. The rule is registered `info` (advisory).
++
+ ## 5. Non-goals (this child)
+
+ - NO enforcement code (no schema, engine, hooks, or CI): those are phases 1 through 5. This
+@@ -241,4 +250,5 @@ Additional worked traces, to show the catalog covers the existing engine:
+
+ ## Workflow history
+
++- 2026-09-28 note (aw specs): Recorded check.spec-criteria-uncovered claiming invariant "" rather than an existing I-* row (IPD 3dexf1). Nearest rows (I-05 finalize validation, I-07 release-gate preservation) do not fit; criterion coverage is a guidance-class concern whose only deterministic observable is that a criterion id is named somewhere in the linked plans, with the honest limit that naming is not validating.
+```
+
+CHANGELOG diff:
+```diff
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
+
+ Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
+
++- Added: an advisory check.spec-criteria-uncovered rule (info severity) in aw check that cross-checks a spec acceptance criteria against the validation coverage of the plan Set implementing it.
+```
+No em or en dashes present in added CHANGELOG line.
+
+`aw sanitize --agent`:
+`{"outcome":"clean","exit":0,"findings":0}`
+  - Result: pass
 
 ## Approval and execution gate
 
