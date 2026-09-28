@@ -197,6 +197,17 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.from-spec-dangling": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
     ),
+    # IPD 3dexf1 (backlog 7pntcb): cross-check a spec's acceptance criteria against the coverage of the
+    # plan Set implementing it. Advisory by design (info severity), because a token presence check is
+    # necessary-not-sufficient: it proves a criterion is NAMED, not that it is genuinely validated.
+    # Severity is load-bearing: artifact_core.drift_exit_code exempts ONLY `info`, so `warning` would
+    # exit nonzero exactly as `error` does, and registration is not bookkeeping because an unregistered
+    # id falls back to _DEFAULT_RULESPEC at `error`. Claims invariant `""` rather than claiming an
+    # existing I-* row that does not fit: I-05 governs plan validation at finalize and I-07 governs
+    # release-gate preservation. The rule id avoids the substrings `graduation` and `duplicate`.
+    "check.spec-criteria-uncovered": RuleSpec(
+        "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
     # planstale 6h8j1r (backlog mlc6mj): a pending plan whose literal Scope-Paths entry under
     # .aw/records/ no longer exists at its declared path. Pure predicate reports three classifications:
     # moved-terminal (artifact moved to a retired status/path), moved (artifact moved to a non-retired
@@ -1206,6 +1217,20 @@ def check_content(
         try:
             drift.extend(
                 check_ipd_lint_reach(repo_root, include_untracked=include_untracked)
+            )
+        except Exception:
+            pass
+        # IPD 3dexf1 (backlog 7pntcb): cross-check a spec's acceptance criteria against the coverage of
+        # the plan Set implementing it. Advisory (`info`), so it cannot move any exit code. Reached by
+        # BOTH `aw check plans` and the `aw check all` fan-out exactly once. Fail-isolated in its own
+        # try/except matching every neighbour here.
+        try:
+            drift.extend(
+                check_spec_criteria_uncovered(
+                    repo_root,
+                    include_untracked=include_untracked,
+                    include_retired=include_retired,
+                )
             )
         except Exception:
             pass
@@ -5409,6 +5434,224 @@ def check_from_spec_dangling(repo_root: Path) -> List[_core.Drift]:
                     ),
                 )
             )
+    return drift
+
+
+# --------------------------------------------------------------------------------------
+# IPD 3dexf1 (backlog 7pntcb): cross-check a spec's acceptance criteria against the
+# coverage of the plan Set implementing it.
+
+_SPEC_CRITERIA_UNCOVERED_RULE = "check.spec-criteria-uncovered"
+
+_SPEC_HEADING_RE = _re.compile(r"^(#{2,})\s+(.*)$")
+_CRITERION_SHAPE_BOLD_RE = _re.compile(r"^\s*-\s+\*\*([A-Za-z][0-9A-Za-z_-]*)\*\*")
+_CRITERION_SHAPE_ENUM_RE = _re.compile(r"^\s*(?:-\s+)?([A-Za-z][0-9A-Za-z_-]*)\.\s+")
+_CRITERION_SHAPE_TABLE_RE = _re.compile(r"^\s*\|\s*([A-Za-z][0-9A-Za-z_-]+?)\s*\|")
+
+
+def parse_spec_acceptance_criteria(spec_text: str) -> List[str]:
+    """Parse prefixed acceptance criteria ids from a spec's acceptance section.
+
+    Match the heading case-insensitively on the substring `acceptance` at any `##`+ depth,
+    excluding a heading containing `non-goal`, and close the section on the next heading at
+    the same or shallower depth.
+
+    Recognizes four row shapes with letter-prefixed ids containing at least one digit:
+    (1) bold bullet: `- **A12b** ...`
+    (2) bare enumerated: `A5. ...`
+    (3) leading table cell: `| AC-1 | ...`
+    (4) dash-plus-enumerated: `- A1. ...`
+    Excludes bare-digit ids (e.g. `1.`, `2.`) to prevent incidental prose false-matches (F-02).
+    Returns an ordered, deduplicated list of criterion ids.
+    """
+    lines = spec_text.splitlines()
+    in_acc = False
+    depth = 0
+    ids: List[str] = []
+
+    for line in lines:
+        mh = _SPEC_HEADING_RE.match(line)
+        if mh:
+            d = len(mh.group(1))
+            title = mh.group(2)
+            if in_acc and d <= depth:
+                in_acc = False
+            if (
+                not in_acc
+                and "acceptance" in title.lower()
+                and "non-goal" not in title.lower()
+            ):
+                in_acc = True
+                depth = d
+                continue
+        if in_acc:
+            m1 = _CRITERION_SHAPE_BOLD_RE.match(line)
+            m24 = _CRITERION_SHAPE_ENUM_RE.match(line)
+            m3 = _CRITERION_SHAPE_TABLE_RE.match(line)
+            cand = None
+            if m1:
+                cand = m1.group(1)
+            elif m24:
+                cand = m24.group(1)
+            elif m3:
+                c = m3.group(1).strip()
+                if not _re.match(r"^-+$", c) and c.lower() not in (
+                    "id",
+                    "criterion",
+                    "item",
+                ):
+                    cand = c
+            if cand and any(ch.isdigit() for ch in cand):
+                ids.append(cand)
+
+    return list(dict.fromkeys(ids))
+
+
+def extract_plan_validation_space(plan_text: str) -> str:
+    """Extract the fence-aware coverage search space from a plan document.
+
+    Union of:
+    - Every V-* leaf's text and indented subfield values
+    - The structural body lines of the `## Required tests / validation` section
+    """
+    from agent_workflows import ipd_lint, ipd_schema
+
+    parts: List[str] = []
+    try:
+        doc = ipd_lint.parse(plan_text)
+        for leaf in doc.valid_leaves:
+            if leaf.text:
+                parts.append(leaf.text)
+            for val in leaf.fields.values():
+                if val:
+                    parts.append(val)
+    except Exception:
+        pass
+
+    try:
+        struct = ipd_lint._structural_lines(plan_text)
+        in_req = False
+        for _lno, raw in struct:
+            mh = ipd_lint._H2_RE.match(raw)
+            if mh:
+                if in_req:
+                    in_req = False
+                if mh.group(1).strip() == ipd_schema.H_REQUIRED_TESTS:
+                    in_req = True
+                    continue
+            if in_req:
+                parts.append(raw)
+    except Exception:
+        pass
+
+    return "\n".join(parts)
+
+
+def check_spec_criteria_uncovered(
+    repo_root: Path,
+    include_untracked: bool = False,
+    include_retired: bool = False,
+) -> List[_core.Drift]:
+    """Cross-check spec acceptance criteria against the validation coverage of the plan Set implementing it.
+
+    IPD 3dexf1 (backlog 7pntcb). Emits AT MOST ONE Drift per spec, at severity `info`.
+    Applies the namespace-in-use gate (E-03): if 0 criteria are matched, emits nothing.
+    """
+    repo_root = Path(repo_root)
+    drift: List[_core.Drift] = []
+
+    specs: Dict[str, Tuple[Path, str]] = {}
+    for path, text in _iter_spec_records(repo_root):
+        mid = _ITEM_ID_RE.search(text)
+        if mid:
+            specs[mid.group(1)] = (path, text)
+
+    plans_by_spec: Dict[str, List[Tuple[Path, str]]] = {}
+    for path, text in _iter_plan_ipds(repo_root):
+        m = _ITEM_FROM_SPEC_RE.search(text)
+        if m is None:
+            continue
+        target = m.group(1)
+        if _S.source_link_is_absent(target):
+            continue
+        plans_by_spec.setdefault(target, []).append((path, text))
+
+    for spec_id6 in sorted(specs):
+        linked_plans = plans_by_spec.get(spec_id6)
+        if not linked_plans:
+            continue
+
+        spec_path, spec_text = specs[spec_id6]
+        criteria = parse_spec_acceptance_criteria(spec_text)
+        if not criteria:
+            continue
+
+        search_spaces = [
+            extract_plan_validation_space(p_text) for _p, p_text in linked_plans
+        ]
+        combined_space = "\n".join(search_spaces)
+
+        matched: List[str] = []
+        uncovered: List[str] = []
+        for cid in criteria:
+            pat = _re.compile(rf"(?<![0-9A-Za-z-]){_re.escape(cid)}(?![0-9A-Za-z])")
+            if pat.search(combined_space):
+                matched.append(cid)
+            else:
+                uncovered.append(cid)
+
+        # NAMESPACE-IN-USE GATE (IPD 3dexf1 E-03, finding F-04):
+        # When ZERO criteria of the spec are matched anywhere in the linked plans' search space,
+        # emit NOTHING for this spec. A plan Set citing a foreign or alternate id namespace (e.g.
+        # citing requirement ids `R-*` instead of criterion ids `A-*`, or constraint ids `C<n>`
+        # instead of `AC-*`) is reporting-silent rather than reported as wholly uncovered.
+        #
+        # ACCEPTED FALSE NEGATIVE: The cost of this gate is that a Set that legitimately names NO
+        # criterion at all (e.g. 7p3tt8 from the motivating review) is also silent. This is accepted
+        # permanently because the alternative is a rule whose every live finding is a false positive
+        # (spec 6m4kow and 2vev8j are the ONLY reported specs at HEAD without this gate, both namespace
+        # mismatches).
+        if not matched:
+            continue
+
+        if uncovered:
+            shown = uncovered[:5]
+            more = len(uncovered) - len(shown)
+            more_suffix = f" (and {more} more)" if more > 0 else ""
+            unit = "criterion" if len(uncovered) == 1 else "criteria"
+            detail = (
+                f"{len(uncovered)} {unit} uncovered: {', '.join(shown)}{more_suffix}"
+            )
+            while len(shown) > 1 and len(detail) >= 60:
+                shown = shown[:-1]
+                more = len(uncovered) - len(shown)
+                more_suffix = f" (and {more} more)" if more > 0 else ""
+                detail = f"{len(uncovered)} {unit} uncovered: {', '.join(shown)}{more_suffix}"
+
+            drift.append(
+                enrich_drift(
+                    _core.Drift(
+                        str(spec_path),
+                        _SPEC_CRITERIA_UNCOVERED_RULE,
+                        detail,
+                        severity="info",
+                    ),
+                    observed=(
+                        f"{len(uncovered)} acceptance criterion/criteria from {spec_id6} not named across "
+                        f"linked plans: {', '.join(uncovered)}"
+                    ),
+                    required=(
+                        f"every acceptance criterion of {spec_id6} must be demanded in a child plan's "
+                        f"validation or ## Required tests / validation section"
+                    ),
+                    recovery=(
+                        "add the uncovered criterion/criteria to a child plan's validation or "
+                        "## Required tests / validation section, never to the Order-0 parent (a runner "
+                        "retires an orchestrator while skipping its pre-transition E/V checkpoint)"
+                    ),
+                )
+            )
+
     return drift
 
 
