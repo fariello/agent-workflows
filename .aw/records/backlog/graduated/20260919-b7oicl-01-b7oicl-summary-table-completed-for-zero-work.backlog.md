@@ -1,5 +1,6 @@
 - Id: b7oicl
-- Status: open
+- Status: graduated
+- Graduated-To: b7oicl
 - Blocks-Release: next
 - Set: b7oicl
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: The exit summary table reads COMPLETED at 100% for a run that performed zero work
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: 4po0sc
 - 2026-09-19 created (aw backlog): Found while executing runnoop Order 03 (bsc457); OQ-02 directed reporting over a cross-fence edit.
 
 Measured 2026-09-19 while executing runnoop Order 03 (`bsc457`). Rendering the real
