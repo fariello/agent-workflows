@@ -1839,18 +1839,21 @@ def is_interactive(
     (plan `da9n1s`, Set `svqhmp`). Replaces divergent predicates and bare
     `sys.stdin.isatty()` checks with a single layered contract.
 
-    Precedence: OVERRIDE beats ENV beats DETECTION. Highest first:
+    Precedence (Option A asymmetric ladder, PR-306 / OQ-03):
+    --no-interactive > AW_NONINTERACTIVE/CI > --interactive > stream detection. Highest first:
 
-    1. Explicit ``override``: ``True`` forces interactive mode on, ``False`` forces it off,
-       and ``None`` falls back to the process-wide override set by
-       :func:`set_interactive_override` (also ``None`` when unset). An explicit argument
-       wins over the process-wide setting so a caller can always decide locally.
+    1. Explicit negative override: ``override=False`` or process-wide override ``False``
+       (from ``--no-interactive``) forces non-interactive mode immediately, beating everything.
+       A wrong refusal is recoverable; an unbounded wait is not.
     2. Forced-non-interactive environment: ``AW_NONINTERACTIVE`` or ``CI`` set to a truthy
        value (any value not in ``("", "0", "false", "no")``) disables interactivity,
-       returning ``False``.
-    3. Input stream detection: standard input must be an interactive console per
+       returning ``False``. This takes precedence over ``--interactive`` to protect unattended
+       CI runners and signal handlers against unbounded prompts.
+    3. Explicit positive override: ``override=True`` or process-wide override ``True``
+       (from ``--interactive``) forces interactive mode on, beating stream detection rungs.
+    4. Input stream detection: standard input must be an interactive console per
        :func:`stdin_is_interactive` (including the win32 console probe).
-    4. Output stream detection: the output stream (defaults to ``sys.stdout``, or
+    5. Output stream detection: the output stream (defaults to ``sys.stdout``, or
        ``output_stream`` / ``stdout`` / ``stderr`` as parameterized by the caller) must
        also be a real TTY.
 
@@ -1859,11 +1862,14 @@ def is_interactive(
     never to hang or block on an unseen prompt.
     """
     effective = override if override is not None else _INTERACTIVE_OVERRIDE
-    if effective is not None:
-        return bool(effective)
+    if effective is False:
+        return False
 
     if is_forced_noninteractive(environ):
         return False
+
+    if effective is True:
+        return True
 
     target_stdin = (
         stdin if stdin is not None else (stream if stream is not None else sys.stdin)
