@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: The HTML report `aw runs analyze` publishes is not useful for cost-benefit-risk questions (which model/host/action costs more tokens, time, tool calls; what retries and failures waste). Its row grain is one run plus four state.json phase sums, it carries no tool-call data, and it has no drill-down.
 - Scope: Add a per-attempt fact extractor over run `state.json` plus the per-session JSONL logs (both hosts), cached per session file inside the analytics namespace, and a new self-contained offline drill-down dashboard rendered from it. Publish the dashboard as the bundle's `index.html`; keep the previous renderer's document in the same bundle as `report.html`.
-- Scope-Paths: agent_workflows/run_dashboard.py, agent_workflows/run_dashboard_assets/dashboard.js, agent_workflows/run_dashboard_assets/dashboard.css, agent_workflows/run_analytics_cli.py, tests/test_run_dashboard.py, CHANGELOG.md
+- Scope-Paths: agent_workflows/run_dashboard.py, agent_workflows/run_dashboard_assets/, agent_workflows/run_dashboard_assets/dashboard.js, agent_workflows/run_dashboard_assets/dashboard.css, .aw/records/plans/pending/20260927-runsdash-01-97i0ao-drill-down-run-analytics-dashboard-for-aw-runs-analyze.ipd.md, agent_workflows/run_analytics_cli.py, tests/test_run_dashboard.py, CHANGELOG.md
 - Item-Dependencies: none
 - Status: approved
 - Work-Kind: feature
@@ -32,36 +32,36 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: facts
 
-- [ ] E-01 Implement `run_dashboard.session_stats` parsing one session JSONL of either host (OpenCode `step_finish`/`tool_use`; Antigravity `step_update`/`result`) into steps, tokens (input/output/cache/reasoning), cost, per-tool counts, tool errors, tool seconds, shell command kinds, first/last timestamps.
+- [x] E-01 Implement `run_dashboard.session_stats` parsing one session JSONL of either host (OpenCode `step_finish`/`tool_use`; Antigravity `step_update`/`result`) into steps, tokens (input/output/cache/reasoning), cost, per-tool counts, tool errors, tool seconds, shell command kinds, first/last timestamps.
   - Depends on: none
   - Expected outcome: a dict of numeric stats per session file; malformed lines skipped, never raised.
-  - Execution state: pending
-- [ ] E-02 Implement `run_dashboard.collect_rows` walking every canonical run's `state.json` queue attempts, joining each attempt's `log` and `verify_log` plus the other session files of that item/attempt (`-gate-answer`, `-defect-reask`) to one row per session, carrying run/set/id6/action/attempt/recovery/disposition/verification/host/model/date; with a per-session-file stats cache keyed by (size, mtime_ns) stored under the analytics namespace.
+  - Execution state: performed
+- [x] E-02 Implement `run_dashboard.collect_rows` walking every canonical run's `state.json` queue attempts, joining each attempt's `log` and `verify_log` plus the other session files of that item/attempt (`-gate-answer`, `-defect-reask`) to one row per session, carrying run/set/id6/action/attempt/recovery/disposition/verification/host/model/date; with a per-session-file stats cache keyed by (size, mtime_ns) stored under the analytics namespace.
   - Depends on: E-01
   - Expected outcome: rows for the real corpus; a second call re-parses no unchanged session file.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: dashboard
 
-- [ ] E-03 Write the offline dashboard assets (`dashboard.css`, `dashboard.js`) and `run_dashboard.render_dashboard` embedding columnar rows as JSON: global filter chips (host, model, action, outcome, Set, date range, text), KPI strip, Compare view (group-by x metric, median/IQR/mean/sum/n bars, click a bar to filter), Trend view (per day/week stacked by a dimension), Scatter view (x/y metrics, color by dimension, log toggle, click a point to open the attempt), Tools view (tool mix per group), Waste view (tokens/cost/time spent on attempts that did not succeed, and on retries), Attempts table (sortable, paginated, CSV export) and an attempt detail panel; state kept in the URL hash.
+- [x] E-03 Write the offline dashboard assets (`dashboard.css`, `dashboard.js`) and `run_dashboard.render_dashboard` embedding columnar rows as JSON: global filter chips (host, model, action, outcome, Set, date range, text), KPI strip, Compare view (group-by x metric, median/IQR/mean/sum/n bars, click a bar to filter), Trend view (per day/week stacked by a dimension), Scatter view (x/y metrics, color by dimension, log toggle, click a point to open the attempt), Tools view (tool mix per group), Waste view (tokens/cost/time spent on attempts that did not succeed, and on retries), Attempts table (sortable, paginated, CSV export) and an attempt detail panel; state kept in the URL hash.
   - Depends on: E-02
   - Expected outcome: a single HTML file with no network references that opens from disk.
-  - Execution state: pending
-- [ ] E-04 Wire the dashboard into `run_analytics_cli.run_analyze` and `_publish_snapshot` so the bundle's `index.html` is the dashboard and the previous document is published as `report.html`; a dashboard failure falls back to the previous document as `index.html` rather than failing the sweep.
+  - Execution state: performed
+- [x] E-04 Wire the dashboard into `run_analytics_cli.run_analyze` and `_publish_snapshot` so the bundle's `index.html` is the dashboard and the previous document is published as `report.html`; a dashboard failure falls back to the previous document as `index.html` rather than failing the sweep.
   - Depends on: E-03
   - Expected outcome: `aw runs analyze` publishes `index.html` (dashboard) and `report.html` (classic).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: tests and docs
 
-- [ ] E-05 Add `tests/test_run_dashboard.py` covering both session formats, the attempt/verify/gate row join, cache reuse, the offline scan, HTML-in-data escaping, and the CLI publication of both files.
+- [x] E-05 Add `tests/test_run_dashboard.py` covering both session formats, the attempt/verify/gate row join, cache reuse, the offline scan, HTML-in-data escaping, and the CLI publication of both files.
   - Depends on: E-04
   - Expected outcome: new tests pass; full suite passes.
-  - Execution state: pending
-- [ ] E-06 Add a CHANGELOG entry (no em or en dashes) describing the new dashboard.
+  - Execution state: performed
+- [x] E-06 Add a CHANGELOG entry (no em or en dashes) describing the new dashboard.
   - Depends on: E-04
   - Expected outcome: CHANGELOG Unreleased section names the dashboard and `report.html`.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -122,30 +122,30 @@ N/A for specs: no spec governs the report document layout (the analytics SPA con
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted test output for both host formats showing parsed steps, tokens, tool counts and errors.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: `tests/test_run_dashboard.py::SessionStatsTests` (OpenCode 3 steps: input 300, output 30, cache_read 3000, cost 0.6, 6 tool calls, 3 errors, categories {shell:3, read:3}, commands {test:3}; Antigravity: 1 step, input 200, output 20, reasoning 5, cache 50, 2 tool calls counted from DONE/ERROR only, 1 error, commands {git:1}). Run: `python3 -m pytest tests/test_run_dashboard.py -o addopts=""` -> `13 passed in 0.40s`.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: pasted test output for the row join and cache reuse, plus the real-corpus row count.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `CollectRowsTests` pass (roles [(1,main),(1,verify),(2,gate-answer),(2,main)], log-over-state numbers, state fallback when the log is missing, per-host unrecorded model label, agy run, cache 0/4 -> 4/0 -> 3/1 after touching one file). Real corpus: `{'runs': 298, 'runs_without_state': 1, 'sessions': 1327, 'cache_hits': 0, 'cache_misses': 1327}` 1522 rows in 12.1s cold; warm `cache_hits: 1327, cache_misses: 0` in 0.25s.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: pasted offline-scan and escaping test output, plus the real-corpus dashboard size.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: `RenderTests.test_offline_and_escaped` passes (scan_for_network_references == [], `</script>` in data does not terminate the island, JSON round-trips). Real corpus index.html 586133 bytes. Headless Chromium over all 7 views x 3 grains: `errors []`, no NaN/undefined/Infinity in any view; clicks: bar -> `768 sessions match Stage: execute`, trend bar -> `Dates: 2026-08-24 to 2026-08-30`, scatter point opens the drawer (`True`), facet checkbox filters.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: pasted `aw runs analyze` output and a listing of the published bundle showing `index.html` and `report.html`.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: `AW_NO_REEXEC=1 python3 -m agent_workflows runs analyze --dir <main>` -> `CONFORMS  analyzed 298 run(s): 199 cached, 99 rebuilt, 0 skipped`; `ls analytics/latest/`: `analysis.json 49842`, `index.html 586133`, `manifest.json 638`, `report.html 236484`. `AnalyzePublishesDashboardTests` pass (manifest lists index.html, report.html, analysis.json; dashboard failure falls back to the classic document).
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: pasted full-suite summary line.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+  - Observed evidence: Full suite, bare: `2899 passed, 2 skipped, 3 warnings in 44.36s`.
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: pasted CHANGELOG diff hunk.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: CHANGELOG.md hunk: `- Added: \`aw runs analyze\` now publishes a drill-down dashboard as the report's \`index.html\`. ... The previous report is kept beside it as \`report.html\`.` (no em or en dashes).
+  - Result: pass
 
 ## Approval and execution gate
 

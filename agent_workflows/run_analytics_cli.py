@@ -1068,8 +1068,48 @@ def _render_report_html(repo: Path, *, generated_label: str) -> str:
         )
 
 
+#: The classic Order 07 document is kept in every bundle under this name, beside the dashboard.
+CLASSIC_REPORT_FILENAME = "report.html"
+
+
+def _render_dashboard_html(repo: Path, run_dirs: Any, *, generated_label: str) -> str:
+    """runsdash (`97i0ao`): the drill-down dashboard over every analyzed run's session logs."""
+
+    import datetime as _dt
+
+    from agent_workflows import run_dashboard as dash_mod
+
+    rows, info = dash_mod.collect_rows(list(run_dirs), repo=repo)
+    payload = dash_mod.build_payload(
+        rows,
+        info,
+        generated_label=generated_label,
+        generated_at=_dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+    )
+    return dash_mod.render_dashboard(payload)
+
+
+def _bundle_documents(
+    repo: Path, run_dirs: Any, *, generated_label: str
+) -> dict[str, str]:
+    """The bundle's HTML documents: the dashboard as ``index.html`` plus the classic ``report.html``.
+
+    A dashboard failure never costs the sweep: the classic document is published as ``index.html``
+    instead, which is exactly what the bundle held before the dashboard existed.
+    """
+
+    from agent_workflows import run_analytics_report as report_mod
+
+    classic = _render_report_html(repo, generated_label=generated_label)
+    try:
+        index = _render_dashboard_html(repo, run_dirs, generated_label=generated_label)
+    except Exception:
+        index = classic
+    return {report_mod.INDEX_FILENAME: index, CLASSIC_REPORT_FILENAME: classic}
+
+
 def _publish_snapshot(
-    repo: Path, label: str, report: Any
+    repo: Path, label: str, report: Any, run_dirs: Any = ()
 ) -> tuple[dict[str, Any], str]:
     """Publish an IMMUTABLE snapshot of this sweep. Returns ``(published, refusal_message)``.
 
@@ -1084,13 +1124,13 @@ def _publish_snapshot(
 
     from agent_workflows import run_analytics_report as report_mod
 
-    index = _render_report_html(repo, generated_label=f"snapshot {label}")
+    documents = _bundle_documents(repo, run_dirs, generated_label=f"snapshot {label}")
     analysis = json.dumps(report.to_dict(), indent=2, sort_keys=True) + "\n"
     try:
         published = report_mod.publish_snapshot(
             label,
             {
-                report_mod.INDEX_FILENAME: index,
+                **documents,
                 "analysis.json": analysis,
             },
             repo=repo,
@@ -1232,9 +1272,7 @@ def run_analyze(args: argparse.Namespace) -> int:
         published = report_mod.publish_bundle(
             report_mod.resolve_report_dir(repo),
             {
-                report_mod.INDEX_FILENAME: _render_report_html(
-                    repo, generated_label="latest"
-                ),
+                **_bundle_documents(repo, run_dirs, generated_label="latest"),
                 "analysis.json": json.dumps(report.to_dict(), indent=2, sort_keys=True)
                 + "\n",
             },
@@ -1261,7 +1299,9 @@ def run_analyze(args: argparse.Namespace) -> int:
     snapshot_label = getattr(args, "keep_snapshot", None)
     snapshot: dict[str, Any] = {}
     if snapshot_label:
-        published, refusal = _publish_snapshot(repo, str(snapshot_label), report)
+        published, refusal = _publish_snapshot(
+            repo, str(snapshot_label), report, run_dirs
+        )
         if refusal:
             return _emit(
                 _cannot_run(
@@ -1362,6 +1402,13 @@ def _clear_cache(repo: Path) -> None:
     for child in sorted(root.iterdir()):
         if child.is_dir():
             shutil.rmtree(child)
+    # runsdash (`97i0ao`): the dashboard's per-session stats cache is disposable too, so a rebuild
+    # re-parses every session log rather than trusting a (size, mtime) stamp.
+    from agent_workflows import run_dashboard as dash_mod
+
+    stats = root / dash_mod.STATS_CACHE_FILENAME
+    if stats.is_file():
+        stats.unlink()
 
 
 # --------------------------------------------------------------------------------------------------
