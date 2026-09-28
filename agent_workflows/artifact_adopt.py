@@ -36,7 +36,6 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import os
 import re
 from datetime import date
 from pathlib import Path
@@ -543,22 +542,9 @@ def leak_gate_is_interactive(
     automatic decision is to REFUSE, which is recoverable, rather than to hang, which is not.
     """
 
-    import sys as _sys
+    from agent_workflows import term as _term
 
-    env = environ if environ is not None else os.environ
-    for var in ("AW_NONINTERACTIVE", "CI"):
-        if str(env.get(var, "")).strip().lower() not in ("", "0", "false", "no"):
-            return False
-
-    def _is_tty(stream) -> bool:
-        try:
-            return bool(getattr(stream, "isatty", None) and stream.isatty())
-        except (ValueError, OSError):
-            return False
-
-    return _is_tty(stdin if stdin is not None else _sys.stdin) and _is_tty(
-        stdout if stdout is not None else _sys.stdout
-    )
+    return _term.is_interactive(stdin=stdin, output_stream=stdout, environ=environ)
 
 
 # --------------------------------------------------------------------------------------

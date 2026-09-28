@@ -68,7 +68,36 @@ processes and an environment variable would be inherited, silently restyling a c
 SECOND, the flags are STYLING ONLY: `--agent` and `--json` payloads are byte-identical under
 every combination of them and contain no ANSI escapes (section 6).
 
-### 1.2 Flag Availability: uniform across every subcommand
+### 1.2 Interactivity Precedence: override beats env beats detection
+
+The interactivity decision (may this process prompt a human?) is resolved once in `term.is_interactive`.
+Highest precedence first:
+
+```text
+explicit override  >  AW_NONINTERACTIVE / CI  >  stdin_is_interactive  >  output_stream.isatty()
+```
+
+| # | Layer | Rule |
+| --- | --- | --- |
+| 1 | Override | Explicit argument (`override=True` or `override=False`) or process-wide override (`set_interactive_override()`). |
+| 2 | Env | `AW_NONINTERACTIVE` (any non-empty value other than "0", "false", "no") or `CI` (any non-empty value other than "0", "false", "no") forces non-interactive (`False`). |
+| 3 | Stdin | `stdin` must be interactive per `term.stdin_is_interactive()` (validates terminal and Windows console handle). |
+| 4 | Output | Target output stream (defaults to `sys.stdout`, or `sys.stderr` when specified) must also be a TTY. |
+
+Fail-safe invariant: when the process is non-interactive, commands fail closed (auto-decline or take documented safe non-interactive defaults), never hanging waiting for human input.
+
+Worked cases, each pinned by tests in `tests/test_interactivity_resolver.py`:
+
+| Invocation / Context | Result |
+| --- | --- |
+| `AW_NONINTERACTIVE=1` with TTY streams | non-interactive (env beats detection) |
+| `CI=1` with TTY streams | non-interactive (env beats detection) |
+| `CI=0` or `CI=false` with TTY streams | interactive (CI truthiness parsed) |
+| `stdin` TTY + `stdout` pipe | non-interactive (rung 4 prevents pipe hang) |
+| `is_interactive(override=True)` on non-TTY | interactive (explicit override beats all) |
+| `is_interactive(override=False)` on TTY | non-interactive (explicit override beats all) |
+
+### 1.3 Flag Availability: uniform across every subcommand
 
 `--color` and `--no-color` work on EVERY subcommand, nested ones included. That uniformity is the
 contract: a presentation flag that works on one verb and is a usage error on another cannot be
@@ -247,7 +276,7 @@ foreclose a future proposal to make piped output machine-readable. It retracts o
 promise that was never implemented. Any such future change needs its own decision and a migration
 story this section never had (it specified a hard cutover with no deprecation window).
 
-### 9.1 Design constraint on a future `--tty` flag (NOT implemented)
+### 9.1 Design constraint on a future `--tty` flag
 
 No `--tty` flag exists, deliberately. This section records the constraint any future one must
 satisfy, so a successor inherits the analysis instead of rediscovering it.
@@ -257,20 +286,21 @@ satisfy, so a successor inherits the analysis instead of rediscovering it.
 | Axis | Keyed on | Governs | Where |
 | --- | --- | --- | --- |
 | Presentation | `stdout` | whether ANSI escapes are emitted | `term.should_color` |
-| Interactivity | `stdin` | whether the process may PROMPT a human | ~57 `isatty` references package-wide, 19 in `cli.py`, plus `git_commit_helper._is_interactive` |
+| Interactivity | `stdin` + `stdout`/`stderr` | whether the process may PROMPT a human | `term.is_interactive` |
 
 **So a single undifferentiated `--tty` boolean MUST NOT be added.** Conflating the axes would let
 a request for color silently re-enable prompting, which would weaken a real fail-safe: today
-`cli._confirm` and `git_commit_helper._is_interactive` DECLINE rather than prompt when stdin is not
-a terminal, which is what keeps an unattended runner from wedging forever on a question nobody can
+`cli._confirm`, `git_commit_helper._is_interactive`, and all CLI prompt sites DECLINE rather than prompt when
+streams are non-interactive, which is what keeps an unattended runner from wedging forever on a question nobody can
 answer. Two requirements follow:
 
 1. **Two axes, never one flag.** If both are wanted, they are separate flags (for example
    `--color/--no-color`, which already exist, and an `--interactive/--no-interactive` pair).
-2. **One resolver for interactivity.** The interactivity override must route through a SINGLE
-   resolver that every call site already consults, not a flag check added at each of the ~57 sites.
-   `git_commit_helper._is_interactive` (an explicit override parameter falling back to
-   `sys.stdin.isatty()`) is the shape to generalize; a per-site check is how the axes drift apart.
+2. **One resolver for interactivity.** The interactivity override routes through a SINGLE
+   originating resolver (`term.is_interactive`) with four rungs (explicit override, forced-non-interactive
+   environment variables `AW_NONINTERACTIVE`/`CI`, `term.stdin_is_interactive`, and output stream TTY detection)
+   and a fail-closed default, rather than per-site flag checks. Every call site consults this resolver,
+   so an operator override applies uniformly.
 
 ---
 

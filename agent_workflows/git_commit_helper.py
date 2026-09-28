@@ -313,20 +313,16 @@ def _git(repo_root: Path, args: List[str]) -> Tuple[int, str, str]:
     return proc.returncode, proc.stdout, proc.stderr
 
 
-def _is_interactive(interactive: Optional[bool]) -> bool:
+def _is_interactive(interactive: Optional[bool] = None) -> bool:
     """Resolve the effective interactivity.
 
     ``interactive`` explicitly overrides (used by tests and callers that already know the
-    channel); ``None`` falls back to :func:`agent_workflows.term.stdin_is_interactive`.
-    Note that ``cli._confirm`` still reads bare ``sys.stdin.isatty()`` (cli.py:6393),
-    so the two signals now differ on win32 where NUL reports isatty True.
+    channel); ``None`` falls back to :func:`agent_workflows.term.is_interactive`.
     """
 
-    if interactive is not None:
-        return interactive
     from agent_workflows import term as _term
 
-    return _term.stdin_is_interactive()
+    return _term.is_interactive(override=interactive)
 
 
 def _prompt(message: str, paths: Sequence[str]) -> bool:

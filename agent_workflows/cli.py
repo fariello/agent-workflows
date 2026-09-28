@@ -6437,11 +6437,11 @@ def _packaged_version() -> str:
 
 
 def _confirm(term: Term, prompt: str, assume_yes: bool) -> bool:
-    """Ask a yes/no question; auto-yes when assume_yes or non-interactive stdin."""
+    """Ask a yes/no question; auto-yes when assume_yes; auto-no and warn when non-interactive."""
 
     if assume_yes:
         return True
-    if not sys.stdin.isatty():
+    if not _term_mod.is_interactive():
         # Non-interactive without --yes: refuse to change things silently.
         term.status(
             "warn", f"{prompt} (declining: non-interactive; pass --yes to proceed)"
@@ -6574,8 +6574,7 @@ def _ask_policy(
         return saved_val
 
     is_interactive = (
-        (hasattr(sys.stdin, "isatty") and sys.stdin.isatty())
-        or isinstance(sys.stdin, io.StringIO)
+        _term_mod.is_interactive() or isinstance(sys.stdin, io.StringIO)
     ) and not assume_yes
     if not is_interactive:
         term.line(
@@ -6603,9 +6602,7 @@ def _confirm_install(
     """Single final install confirmation gate (E-04). Defaults YES for interactive."""
     if assume_yes:
         return True
-    is_interactive = (
-        hasattr(sys.stdin, "isatty") and sys.stdin.isatty()
-    ) or isinstance(sys.stdin, io.StringIO)
+    is_interactive = _term_mod.is_interactive() or isinstance(sys.stdin, io.StringIO)
     if not is_interactive:
         term.status(
             "warn",
@@ -6655,7 +6652,7 @@ def _exclude_guard(term: Term, repo_root: Path, args) -> str:
     )
 
     # Fail-safe: never auto-install into an excluded repo non-interactively / under --yes.
-    if getattr(args, "yes", False) or not sys.stdin.isatty():
+    if getattr(args, "yes", False) or not _term_mod.is_interactive():
         term.status(
             "skip",
             f"{repo_root}: excluded; skipped (run 'aw config exclude rm <path>' or use "
@@ -6788,8 +6785,7 @@ def _install_leftover_disposition(args, term: Optional[Term] = None) -> Any:
     # Attended check (matching _ask_policy: stdin is a TTY or StringIO, and --yes not given)
     assume_yes = getattr(args, "yes", False)
     is_interactive = (
-        (hasattr(sys.stdin, "isatty") and sys.stdin.isatty())
-        or isinstance(sys.stdin, io.StringIO)
+        _term_mod.is_interactive() or isinstance(sys.stdin, io.StringIO)
     ) and not assume_yes
 
     if not is_interactive or term is None:
@@ -6814,7 +6810,7 @@ def _split_brain_guard(term: Term, repo_root: Path, args) -> str:
     term.status("warn", engine.describe_split_brain(repo_root))
 
     # Fail-safe: never auto-install or auto-migrate non-interactively / under --yes.
-    if getattr(args, "yes", False) or not sys.stdin.isatty():
+    if getattr(args, "yes", False) or not _term_mod.is_interactive():
         term.status(
             "skip",
             f"{repo_root}: split-brain layout; skipped (run 'aw migrate-layout' or use "
@@ -7637,7 +7633,7 @@ def _offer_rc_stanza_write(
             "`aw completion install` on a terminal to be asked.",
         )
         return {"action": "declined", "detail": "--yes is not consent for an rc write"}
-    if not sys.stdin.isatty():
+    if not _term_mod.is_interactive():
         term.status(
             "skip",
             "not a terminal, so nothing was written; paste the snippet above to fix it.",
@@ -7716,7 +7712,7 @@ def _offer_rc_stanza_removal(
             "a real uninstall would offer to remove it.",
         )
         return {"action": "none", "dry_run": True}
-    if assume_yes or not sys.stdin.isatty():
+    if assume_yes or not _term_mod.is_interactive():
         term.status(
             "skip",
             f"{rc_path} still carries the agent-workflows bash-completion stanza (the fenced "
@@ -7776,7 +7772,7 @@ def _configure_completion(args: argparse.Namespace, term: Term) -> None:
     if not explicit:
         if getattr(args, "completion", None) == "none":
             return  # explicit opt-out: do not prompt.
-        if getattr(args, "yes", False) or not sys.stdin.isatty():
+        if getattr(args, "yes", False) or not _term_mod.is_interactive():
             return  # non-interactive / batch: safe default is to touch nothing.
         shell = _detect_shell()
         if _completion.is_completion_installed(shell):
@@ -7861,7 +7857,7 @@ def _configure_runner_profiles(args: argparse.Namespace, term: Term) -> None:
 
     if getattr(args, "yes", False):
         return  # --yes preauthorizes install mutations, NOT a model/default choice.
-    if not sys.stdin.isatty():
+    if not _term_mod.is_interactive():
         return  # non-interactive: the safe default is to write nothing.
 
     from agent_workflows import (
@@ -8007,7 +8003,7 @@ def _offer_deep_cleanup(
             term.status("ok", a)
         return
 
-    if args.yes or args.force or not sys.stdin.isatty():
+    if args.yes or args.force or not _term_mod.is_interactive():
         # Non-interactive (--yes/--force/no TTY) without --deep: do NOT silently delete the
         # scaffolding; it holds user content. Skip the deeper cleanup unless --deep is set.
         term.status(
@@ -8149,7 +8145,7 @@ def _run_uninstall(args: argparse.Namespace, term: Term) -> int:
     # Interactive per-drifted-file decision (keep [default] / remove / diff). Non-interactive
     # or --force is handled inside uninstall_repo (preserve unless --force).
     def _drift_decider(rel: str) -> str:
-        if not sys.stdin.isatty():
+        if not _term_mod.is_interactive():
             return "keep"
         term.status("warn", f"you have edited {rel} since install.")
         choice = engine.prompt_choice(
@@ -8247,7 +8243,7 @@ def _offer_commit_uninstall(
         return
 
     quoted = " ".join(f'"{p}"' if " " in p else p for p in paths)
-    if not assume_yes and sys.stdin.isatty():
+    if not assume_yes and _term_mod.is_interactive():
         if not _confirm(
             term, f"Commit these {len(paths)} uninstall change(s) now?", False
         ):
@@ -8898,9 +8894,9 @@ def _run_setup(args: argparse.Namespace, term: Term) -> int:
         return 1
 
     cfg = config.load()
-    interactive = args.roots is None and sys.stdin.isatty()
+    interactive = args.roots is None and _term_mod.is_interactive()
 
-    if args.roots is None and config.is_configured() and not sys.stdin.isatty():
+    if args.roots is None and config.is_configured() and not _term_mod.is_interactive():
         # Non-interactive re-run of a configured tool: summarize, do not re-interview.
         term.status("ok", "Already configured.")
         return _run_status(argparse.Namespace(as_json=False), term)
@@ -9890,7 +9886,7 @@ def _run_leaks_configure(args: argparse.Namespace, term: Term) -> int:
     # An interview needs a real terminal. Unlike --fix, there is no meaningful "accept
     # defaults" batch mode for authoring config (blindly confirming every toggle would flip
     # them ON), so --configure always requires an interactive TTY.
-    if not sys.stdin.isatty():
+    if not _term_mod.is_interactive():
         term.status(
             "warn",
             "sanitize --configure needs an interactive terminal. To configure "
@@ -12784,7 +12780,7 @@ def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
         selected_rename = True
     elif config_rename is not None:
         selected_rename = bool(config_rename)
-    elif sys.stdin.isatty():
+    elif _term_mod.is_interactive():
         selected_rename = _confirm(
             term,
             "Also rename migrated records to the uniform .type.md grammar? "
@@ -12950,8 +12946,7 @@ def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
 
     # 6. Default Wizard flow (action is None or action == "wizard")
     is_interactive = not resolved_confirm and (
-        (hasattr(sys.stdin, "isatty") and sys.stdin.isatty())
-        or isinstance(sys.stdin, io.StringIO)
+        _term_mod.is_interactive() or isinstance(sys.stdin, io.StringIO)
     )
 
     if is_interactive:
@@ -13307,7 +13302,7 @@ def _oc_profile_add(args) -> int:
     replace = bool(getattr(args, "replace", False))
     assume_yes = bool(getattr(args, "yes", False))
     set_default = bool(getattr(args, "set_default", False))
-    interactive = bool(getattr(sys.stdin, "isatty", None) and sys.stdin.isatty())
+    interactive = _term_mod.is_interactive()
 
     if model is None:
         # ---- interactive form ---------------------------------------------------------------
@@ -13517,7 +13512,7 @@ def _oc_profile_remove(args) -> int:
     clear_default = bool(getattr(args, "clear_default", False))
     replacement = getattr(args, "replacement", None)
     assume_yes = bool(getattr(args, "yes", False))
-    interactive = bool(getattr(sys.stdin, "isatty", None) and sys.stdin.isatty())
+    interactive = _term_mod.is_interactive()
 
     if not assume_yes and not interactive:
         return _oc_profile_error(
@@ -14260,7 +14255,7 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
     if args.command is None:
         # Smart default (D7): setup if unconfigured, else status + hints.
         if not config.is_configured():
-            if sys.stdin.isatty():
+            if _term_mod.is_interactive():
                 return _run_setup(
                     argparse.Namespace(
                         roots=None, recursive=False, yes=False, source_root=None
@@ -15076,6 +15071,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     _term_mod.ensure_encodable_stdio()
     _entry_color_override = _term_mod.get_color_override()
+    _entry_interactive_override = _term_mod.get_interactive_override()
     try:
         return _dispatch(argv)
     except KeyboardInterrupt:
@@ -15089,6 +15085,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         # override around a block of work (the runners do) must still see it after a nested `aw`
         # invocation returns.
         _term_mod.set_color_override(_entry_color_override)
+        _term_mod.set_interactive_override(_entry_interactive_override)
 
 
 if __name__ == "__main__":

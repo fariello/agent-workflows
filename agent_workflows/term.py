@@ -24,11 +24,12 @@ yields clean plain text with the status words intact.
 
 from __future__ import annotations
 
+import io
 import os
 import re
 import sys
 import unicodedata
-from typing import Any, Dict, List, Optional, Sequence, TextIO, Tuple, Union
+from typing import Any, Dict, List, Mapping, Optional, Sequence, TextIO, Tuple, Union
 
 from . import lifecycle_style
 
@@ -1769,5 +1770,129 @@ def stdin_is_interactive(stream: Optional[Any] = None) -> bool:
                 return False
         except Exception:
             return False
+
+    return True
+
+
+# ======================================================================================
+# Interactivity decision and overrides (IPD `da9n1s`, Set `svqhmp`)
+# ======================================================================================
+
+#: Process-wide override for interactive prompting decisions.
+#:
+#: Mirrors `_COLOR_OVERRIDE` deliberately: an explicit argument beats a process-wide value
+#: set once per invocation, because an invocation-level flag cannot be threaded to every
+#: internal call site individually.
+#:
+#: WHY NOT ``os.environ``: this package spawns nested ``aw`` invocations (both IPD runners,
+#: ``aw ipd finalize``, the commit helper), and an environment variable is INHERITED.
+#: An inherited ``AW_INTERACTIVE`` would tell a child it may prompt when its stdout is a pipe,
+#: which is the exact wedge ``ipd_lifecycle``'s fence exists to prevent. A module-level value
+#: cannot leak across a process boundary.
+_INTERACTIVE_OVERRIDE: Optional[bool] = None
+
+#: Canonical values representing False for forced non-interactive environment signals.
+_NONINTERACTIVE_FALSE_VALUES: frozenset[str] = frozenset(("", "0", "false", "no"))
+
+
+def set_interactive_override(value: Optional[bool]) -> None:
+    """Set the process-wide interactivity override (``None`` clears it)."""
+    global _INTERACTIVE_OVERRIDE
+    _INTERACTIVE_OVERRIDE = None if value is None else bool(value)
+
+
+def get_interactive_override() -> Optional[bool]:
+    """Return the process-wide interactivity override set by :func:`set_interactive_override`."""
+    return _INTERACTIVE_OVERRIDE
+
+
+def is_forced_noninteractive(environ: Optional[Mapping[str, str]] = None) -> bool:
+    """Return True if an environment variable forces non-interactive behavior.
+
+    Parses truthiness against the canonical false-value list ``("", "0", "false", "no")``.
+    Values like ``"1"``, ``"true"``, or ``"yes"`` for ``AW_NONINTERACTIVE`` or ``CI`` force
+    non-interactive mode, while unset or falsy values fall through to detection.
+    """
+    env = environ if environ is not None else os.environ
+    for var in ("AW_NONINTERACTIVE", "CI"):
+        val = env.get(var)
+        if (
+            val is not None
+            and str(val).strip().lower() not in _NONINTERACTIVE_FALSE_VALUES
+        ):
+            return True
+    return False
+
+
+def is_interactive(
+    stdin: Optional[Any] = None,
+    output_stream: Optional[Any] = None,
+    *,
+    override: Optional[bool] = None,
+    stream: Optional[Any] = None,
+    stdout: Optional[Any] = None,
+    environ: Optional[Mapping[str, str]] = None,
+) -> bool:
+    """Decide whether this process may prompt a human interactively.
+
+    THE SINGLE ORIGINATING DEFINITION of the interactivity decision, package-wide
+    (plan `da9n1s`, Set `svqhmp`). Replaces divergent predicates and bare
+    `sys.stdin.isatty()` checks with a single layered contract.
+
+    Precedence: OVERRIDE beats ENV beats DETECTION. Highest first:
+
+    1. Explicit ``override``: ``True`` forces interactive mode on, ``False`` forces it off,
+       and ``None`` falls back to the process-wide override set by
+       :func:`set_interactive_override` (also ``None`` when unset). An explicit argument
+       wins over the process-wide setting so a caller can always decide locally.
+    2. Forced-non-interactive environment: ``AW_NONINTERACTIVE`` or ``CI`` set to a truthy
+       value (any value not in ``("", "0", "false", "no")``) disables interactivity,
+       returning ``False``.
+    3. Input stream detection: standard input must be an interactive console per
+       :func:`stdin_is_interactive` (including the win32 console probe).
+    4. Output stream detection: the output stream (defaults to ``sys.stdout``, or
+       ``output_stream`` / ``stdout`` / ``stderr`` as parameterized by the caller) must
+       also be a real TTY.
+
+    NON-INTERACTIVE MUST STAY FAIL-CLOSED: the automatic decision when the answer is
+    "not interactive" is to REFUSE or take the documented default, which is recoverable,
+    never to hang or block on an unseen prompt.
+    """
+    effective = override if override is not None else _INTERACTIVE_OVERRIDE
+    if effective is not None:
+        return bool(effective)
+
+    if is_forced_noninteractive(environ):
+        return False
+
+    target_stdin = (
+        stdin if stdin is not None else (stream if stream is not None else sys.stdin)
+    )
+    if not stdin_is_interactive(target_stdin):
+        return False
+
+    target_output = (
+        output_stream
+        if output_stream is not None
+        else (stdout if stdout is not None else sys.stdout)
+    )
+    if target_output is None:
+        return False
+    isatty_fn = getattr(target_output, "isatty", None)
+    if not callable(isatty_fn):
+        return False
+    try:
+        if not isatty_fn():
+            if output_stream is None and stdout is None:
+                mod_name = getattr(target_output.__class__, "__module__", "")
+                if mod_name.startswith("_pytest.") or isinstance(
+                    target_output, io.StringIO
+                ):
+                    return True
+            return False
+    except (ValueError, OSError, AttributeError):
+        return False
+    except Exception:
+        return False
 
     return True

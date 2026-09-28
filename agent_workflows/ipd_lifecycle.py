@@ -5319,26 +5319,9 @@ def run_finalize(args) -> int:
     # These only ADD conditions, so a genuine human terminal session still prompts exactly as before.
     # Non-interactive here is fail-CLOSED: finalize returns the scope-reconciliation refusal naming the
     # required --scope-reason/--scope-ack flags, which is recoverable, instead of hanging, which is not.
-    import os as _os
-    import sys as _sys
+    from agent_workflows import term as _term
 
-    def _is_tty(stream: object) -> bool:
-        try:
-            return bool(getattr(stream, "isatty", None) and stream.isatty())  # type: ignore[union-attr]
-        except (ValueError, OSError):
-            # A detached/closed stream is not a terminal.
-            return False
-
-    forced_noninteractive = any(
-        str(_os.environ.get(var, "")).strip().lower() not in ("", "0", "false", "no")
-        for var in ("AW_NONINTERACTIVE", "CI")
-    )
-    interactive = (
-        not (ctx.is_agent or ctx.is_json)
-        and not forced_noninteractive
-        and _is_tty(_sys.stdin)
-        and _is_tty(_sys.stdout)
-    )
+    interactive = not (ctx.is_agent or ctx.is_json) and _term.is_interactive()
     prompt = _tty_scope_prompt if interactive else None
 
     result = finalize(
