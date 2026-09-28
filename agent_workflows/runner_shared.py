@@ -26898,9 +26898,14 @@ def initialize_run_core(
     args: argparse.Namespace,
     *,
     host: str,
-    driver_path: Path | None = None,
+    # Must be the calling runner module's Path(__file__), or None for a descriptor-only
+    # host. Keyword-only with no default so omission raises TypeError rather than silently
+    # nulling driver provenance in durable run state.
+    driver_path: Path | None,
     host_options: dict[str, Any],
-    labels: HostLabels | None = None,
+    # Calling host's HostLabels descriptor, or None if unavailable. Keyword-only with no
+    # default so omission raises TypeError rather than falling back to an unverified bare host string.
+    labels: HostLabels | None,
     expand_selectors_fn: Any = None,
     enforce_dependency_preflight_fn: Any = None,
     edge_satisfied_fn: Any = None,

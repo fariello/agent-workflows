@@ -36,40 +36,40 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: make the producer contract un-omittable
 
-- [ ] E-01 In `agent_workflows/runner_shared.py`, change `initialize_run_core`'s `driver_path` from `driver_path: Path | None = None` to `driver_path: Path | None` (keyword-only, NO default), so a caller that omits it raises `TypeError` at call time rather than silently freezing `{"path": None, "sha256": None}`. Keep the `| None` in the annotation and keep the body's `if driver_path is not None` guards EXACTLY as they are: `None` remains a LEGAL, meaningful value that a descriptor-only host passes deliberately (`tests/test_hostdedup_third_host.py`'s scripted host passes `driver_path=None` and asserts both fields are `None`), so this item removes the DEFAULT and does not forbid the value. That distinction is the whole design: the hazard is a caller that says nothing, not a caller that says `None`. Update the parameter's docstring or comment to state that it must be the CALLING module's `Path(__file__)` and why a default would be wrong. MEASURED SAFE at review HEAD `babcd235`: ALL FOUR call sites already pass it explicitly - `oc_runipd.initialize_run`, `agy_runipd.initialize_run`, `tests/test_hostdedup_third_host.py`'s scripted-host case, and `tests/test_runner_active_conflict.py`'s `test_initialize_run_core_drops_conflicting_artifacts`, the last of which the authored item omitted (PR-906); it passes `driver_path=None`, so it needs no edit either, but an executor who believed there were three would not have checked it. NOTE THE ORDERING CONSTRAINT, since it is the one way this edit can fail to compile: `driver_path` sits BETWEEN two defaulted keyword-only parameters, and that is legal precisely because they are keyword-only (verified: `def f(a,*,b=1,c,d=2)` accepts `f(0,c=9)` and raises `TypeError: missing 1 required keyword-only argument: 'c'` on `f(0)`), so do NOT reorder the signature to "fix" a non-problem.
+- [x] E-01 In `agent_workflows/runner_shared.py`, change `initialize_run_core`'s `driver_path` from `driver_path: Path | None = None` to `driver_path: Path | None` (keyword-only, NO default), so a caller that omits it raises `TypeError` at call time rather than silently freezing `{"path": None, "sha256": None}`. Keep the `| None` in the annotation and keep the body's `if driver_path is not None` guards EXACTLY as they are: `None` remains a LEGAL, meaningful value that a descriptor-only host passes deliberately (`tests/test_hostdedup_third_host.py`'s scripted host passes `driver_path=None` and asserts both fields are `None`), so this item removes the DEFAULT and does not forbid the value. That distinction is the whole design: the hazard is a caller that says nothing, not a caller that says `None`. Update the parameter's docstring or comment to state that it must be the CALLING module's `Path(__file__)` and why a default would be wrong. MEASURED SAFE at review HEAD `babcd235`: ALL FOUR call sites already pass it explicitly - `oc_runipd.initialize_run`, `agy_runipd.initialize_run`, `tests/test_hostdedup_third_host.py`'s scripted-host case, and `tests/test_runner_active_conflict.py`'s `test_initialize_run_core_drops_conflicting_artifacts`, the last of which the authored item omitted (PR-906); it passes `driver_path=None`, so it needs no edit either, but an executor who believed there were three would not have checked it. NOTE THE ORDERING CONSTRAINT, since it is the one way this edit can fail to compile: `driver_path` sits BETWEEN two defaulted keyword-only parameters, and that is legal precisely because they are keyword-only (verified: `def f(a,*,b=1,c,d=2)` accepts `f(0,c=9)` and raises `TypeError: missing 1 required keyword-only argument: 'c'` on `f(0)`), so do NOT reorder the signature to "fix" a non-problem.
   - Depends on: none
   - Expected outcome: `inspect.signature(runner_shared.initialize_run_core).parameters["driver_path"].default is inspect.Parameter.empty`; calling `initialize_run_core` without `driver_path` raises `TypeError`; the bare suite is unchanged against the re-measured baseline in Required tests (`1 failed, 3038 passed, 2 skipped`), NOT the spent authored `2935`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 APPLY THE SAME ONE-TOKEN FIX TO THE SIBLING PARAMETER `labels`, in the same function and the same edit pass. ADDED AT REVIEW (PR-905/F-11) because it is the identical hazard one field over, and because it is the hazard on the field F-04 measured to be CARRYING attribution today: `labels: HostLabels | None = None` is also keyword-only with a `None` default, and `driver.id` - the very field that shields both consumers from the F-03 relocation - is computed from it with a `host`-string fallback (`labels.id if labels is not None else (AGY_HOST_LABELS.id if host == "agy" else (OC_HOST_LABELS.id if host == "oc" else host))`). So an omitted `labels` writes a driver id derived from a bare host STRING. Change it to `labels: HostLabels | None` (no default). Keep `| None` and keep BOTH `is not None` guards (the `driver.id` one and the `action_labels` one feeding `enforce_requested_action`) exactly as they are, for the same reason as E-01: `None` stays legal, only the OMISSION becomes an error. MEASURED SAFE: all four call sites pass `labels` explicitly (`OC_HOST_LABELS`, `AGY_HOST_LABELS`, `OC_HOST_LABELS`, `SCRIPTED_HOST_LABELS`). MEASURED NECESSARY: dropping `labels` from every caller in memory leaves the suite at `1 failed, 3038 passed, 2 skipped` - the SAME single pre-existing failure - so nothing objects today. Fixing this here rather than filing it is deliberate: it is the same line of the same signature, the same edit, and the same `Scope-Paths` file, so deferring it would leave half a fix on the exact field the plan's own F-04 identifies as load-bearing. Note the blast radius is narrower than `driver_path`'s for the two REAL hosts (the `host == "agy"`/`"oc"` fallback happens to reproduce the right id for them, measured) and WIDER for any third host, where the fallback yields the raw host string and `generation_host` then returns `unknown` (measured: `host="claude"` -> `driver.id="claude"` -> `unknown`).
+- [x] E-06 APPLY THE SAME ONE-TOKEN FIX TO THE SIBLING PARAMETER `labels`, in the same function and the same edit pass. ADDED AT REVIEW (PR-905/F-11) because it is the identical hazard one field over, and because it is the hazard on the field F-04 measured to be CARRYING attribution today: `labels: HostLabels | None = None` is also keyword-only with a `None` default, and `driver.id` - the very field that shields both consumers from the F-03 relocation - is computed from it with a `host`-string fallback (`labels.id if labels is not None else (AGY_HOST_LABELS.id if host == "agy" else (OC_HOST_LABELS.id if host == "oc" else host))`). So an omitted `labels` writes a driver id derived from a bare host STRING. Change it to `labels: HostLabels | None` (no default). Keep `| None` and keep BOTH `is not None` guards (the `driver.id` one and the `action_labels` one feeding `enforce_requested_action`) exactly as they are, for the same reason as E-01: `None` stays legal, only the OMISSION becomes an error. MEASURED SAFE: all four call sites pass `labels` explicitly (`OC_HOST_LABELS`, `AGY_HOST_LABELS`, `OC_HOST_LABELS`, `SCRIPTED_HOST_LABELS`). MEASURED NECESSARY: dropping `labels` from every caller in memory leaves the suite at `1 failed, 3038 passed, 2 skipped` - the SAME single pre-existing failure - so nothing objects today. Fixing this here rather than filing it is deliberate: it is the same line of the same signature, the same edit, and the same `Scope-Paths` file, so deferring it would leave half a fix on the exact field the plan's own F-04 identifies as load-bearing. Note the blast radius is narrower than `driver_path`'s for the two REAL hosts (the `host == "agy"`/`"oc"` fallback happens to reproduce the right id for them, measured) and WIDER for any third host, where the fallback yields the raw host string and `generation_host` then returns `unknown` (measured: `host="claude"` -> `driver.id="claude"` -> `unknown`).
   - Depends on: E-01
   - Expected outcome: `inspect.signature(runner_shared.initialize_run_core).parameters["labels"].default is inspect.Parameter.empty`; omitting `labels` raises `TypeError`; passing `labels=None` still works; the bare suite unchanged against the re-measured baseline in Required tests.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: restore and generalize the producer-side test
 
-- [ ] E-02 Add to `tests/test_hostdedup_third_host.py` a test that drives each REAL host's `initialize_run` end to end (as `tests/test_orchestrator_shape_gate.py`'s `run_initialize` helper does: `module.build_parser().parse_args(["start", <id6>, "--repo", str(repo), "--prepare-only"])`, stdout/stderr redirected) and asserts on the resulting `state["driver"]` that `Path(state["driver"]["path"]).name` equals THAT host module's own basename and that `state["driver"]["sha256"]` equals `runner_shared.sha256_file(Path(module.__file__))`. Assert also that the two hosts record DIFFERENT paths, which is the single assertion a shared-module relocation cannot satisfy. Drive the hosts from a table built by DISCOVERING every `HostLabels` instance in `runner_shared` (`[v for v in vars(runner_shared).values() if isinstance(v, runner_shared.HostLabels)]`, measured at this HEAD to yield exactly `OC_HOST_LABELS` and `AGY_HOST_LABELS`) mapped to its module, and FAIL if a discovered host has no entry in that mapping, so adding a third real host forces this test to be extended rather than silently skipping it. Do NOT hand-write a `{"driver": {...}}` fixture anywhere in this test: feeding a hand-written producer record to a consumer is the exact shape F-01 identifies as why the original gap existed.
+- [x] E-02 Add to `tests/test_hostdedup_third_host.py` a test that drives each REAL host's `initialize_run` end to end (as `tests/test_orchestrator_shape_gate.py`'s `run_initialize` helper does: `module.build_parser().parse_args(["start", <id6>, "--repo", str(repo), "--prepare-only"])`, stdout/stderr redirected) and asserts on the resulting `state["driver"]` that `Path(state["driver"]["path"]).name` equals THAT host module's own basename and that `state["driver"]["sha256"]` equals `runner_shared.sha256_file(Path(module.__file__))`. Assert also that the two hosts record DIFFERENT paths, which is the single assertion a shared-module relocation cannot satisfy. Drive the hosts from a table built by DISCOVERING every `HostLabels` instance in `runner_shared` (`[v for v in vars(runner_shared).values() if isinstance(v, runner_shared.HostLabels)]`, measured at this HEAD to yield exactly `OC_HOST_LABELS` and `AGY_HOST_LABELS`) mapped to its module, and FAIL if a discovered host has no entry in that mapping, so adding a third real host forces this test to be extended rather than silently skipping it. Do NOT hand-write a `{"driver": {...}}` fixture anywhere in this test: feeding a hand-written producer record to a consumer is the exact shape F-01 identifies as why the original gap existed.
   - Depends on: E-01
   - Expected outcome: A test that passes at this HEAD, and that FAILS under the F-03 relocation sabotage (`driver_path=Path(runner_shared.__file__)`) and under the F-05 omission sabotage, both of which the full suite currently tolerates. DEMONSTRATED AT REVIEW to be reachable exactly as specified: patching `runner_shared.initialize_run_core` to overwrite `driver_path` and then driving `oc_runipd.initialize_run` produced `basename: runner_shared.py | id: oc_runipd`, so a test asserting the basename is genuinely red under the sabotage while a test asserting only the consumers is not.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Extend that same test with the CONSUMER half, asserting on the state each real host actually produced rather than on a fixture: `run_analytics_sources.driver_generation(state)` equals that host's `HostLabels.id`, is not `GENERATION_UNKNOWN`, and `generation_host` of it is that host's expected host label; and `run_viewer.load_run_summary(run_dir, repo_root=repo).driver` equals that host's `HostLabels.product` (`"OpenCode"` / `"Antigravity"`). STATE THE BOUND HONESTLY IN THE TEST'S DOCSTRING, because F-04 measured it: at this HEAD these consumer assertions do NOT detect the relocation sabotage, since `driver_generation` prefers `driver.id` and `run_viewer` checks `driver_id` first, so both return the right label from a record whose `path` is wrong. They are included because they pin the ID-preferring precedence itself (if a future change removes `driver.id` or reorders that precedence, the `path` fallback becomes load-bearing again and these assertions become the ones that catch it), NOT because they detect today's hazard. E-02's basename and digest assertions are the ones that do.
+- [x] E-03 Extend that same test with the CONSUMER half, asserting on the state each real host actually produced rather than on a fixture: `run_analytics_sources.driver_generation(state)` equals that host's `HostLabels.id`, is not `GENERATION_UNKNOWN`, and `generation_host` of it is that host's expected host label; and `run_viewer.load_run_summary(run_dir, repo_root=repo).driver` equals that host's `HostLabels.product` (`"OpenCode"` / `"Antigravity"`). STATE THE BOUND HONESTLY IN THE TEST'S DOCSTRING, because F-04 measured it: at this HEAD these consumer assertions do NOT detect the relocation sabotage, since `driver_generation` prefers `driver.id` and `run_viewer` checks `driver_id` first, so both return the right label from a record whose `path` is wrong. They are included because they pin the ID-preferring precedence itself (if a future change removes `driver.id` or reorders that precedence, the `path` fallback becomes load-bearing again and these assertions become the ones that catch it), NOT because they detect today's hazard. E-02's basename and digest assertions are the ones that do.
   ASSERT OVER TWO CONSUMERS AND NAME THE THIRD YOU ARE NOT COVERING (PR-904/F-14). `run_dashboard._run_host` also reads `state["driver"]["id"]`, and no artifact in this lineage named it: not the backlog item, not the walkthrough, not this plan as authored. It is the most fragile of the three because it PREFIX-matches (`did.startswith("agy")`, `did.startswith("oc")`) rather than consulting a registry, so it happens to be right for both real hosts and returns `unknown` for `scripted` (measured). Do NOT add an assertion over it here - its correct fix is a registry lookup, which is the deferred consolidation this plan already declines - but DO name it in the test docstring beside the two you do assert, so the next reader of this test knows the consumer set is three and that one is deliberately uncovered.
   - Depends on: E-02
   - Expected outcome: Consumer assertions that pass at this HEAD on genuinely-produced state, carrying an explicit in-test statement of which sabotage they do and do not detect, and naming `run_dashboard._run_host` as the third consumer left uncovered.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add a REGISTRY CLOSURE test to the same file: for every `HostLabels` instance defined in `runner_shared`, assert `run_analytics_sources.generation_host(labels.id) != run_analytics_sources.GENERATION_UNKNOWN`, so a host cannot be registered without its generation being ROUTABLE by analytics. USE THAT FORMULATION AND NOT THE AUTHORED ONE. The authored item offered a conjunction (`.id` a key of `_GENERATION_HOSTS` AND a value of `DRIVER_GENERATIONS`) and claimed the two were "equivalent for this purpose"; review MEASURED that they are not, and that the conjunction is WRONG for this plan (F-13/PR-901). `DRIVER_GENERATIONS` maps a module BASENAME to a generation, so its values are exactly the four hosts that HAVE a runner module (`oc_runipd`, `agy_runipd`, `runipd`, `ipdrunner`), whereas `_GENERATION_HOSTS` additionally carries `scripted`. A DESCRIPTOR-ONLY host therefore fails the conjunction and passes the single-predicate form. That matters because a descriptor-only host is legitimate BY THIS PLAN'S OWN DESIGN - it is the entire reason E-01 keeps `driver_path=None` legal - so the conjunction would encode a rule the plan denies one item earlier, and the first real third host added as a descriptor would be red for CONFORMING. The single predicate is also the one that states the property actually wanted (attribution routes) rather than an implementation detail of how it routes, and it touches no private name. DO NOT additionally assert `DRIVER_GENERATIONS` membership, even "for completeness": that is precisely the assertion that refuses `scripted`. MEASURED at review HEAD `babcd235`: `generation_host` returns `opencode` for `oc_runipd` and `agy` for `agy_runipd`, so the test passes now; an unregistered id (`claude_runipd`) returns `unknown`, which is the silent attribution loss it refuses. State in the test that `generation_host` RETURNS `unknown` rather than raising, which is why the assertion must compare against `GENERATION_UNKNOWN` rather than merely calling it.
+- [x] E-04 Add a REGISTRY CLOSURE test to the same file: for every `HostLabels` instance defined in `runner_shared`, assert `run_analytics_sources.generation_host(labels.id) != run_analytics_sources.GENERATION_UNKNOWN`, so a host cannot be registered without its generation being ROUTABLE by analytics. USE THAT FORMULATION AND NOT THE AUTHORED ONE. The authored item offered a conjunction (`.id` a key of `_GENERATION_HOSTS` AND a value of `DRIVER_GENERATIONS`) and claimed the two were "equivalent for this purpose"; review MEASURED that they are not, and that the conjunction is WRONG for this plan (F-13/PR-901). `DRIVER_GENERATIONS` maps a module BASENAME to a generation, so its values are exactly the four hosts that HAVE a runner module (`oc_runipd`, `agy_runipd`, `runipd`, `ipdrunner`), whereas `_GENERATION_HOSTS` additionally carries `scripted`. A DESCRIPTOR-ONLY host therefore fails the conjunction and passes the single-predicate form. That matters because a descriptor-only host is legitimate BY THIS PLAN'S OWN DESIGN - it is the entire reason E-01 keeps `driver_path=None` legal - so the conjunction would encode a rule the plan denies one item earlier, and the first real third host added as a descriptor would be red for CONFORMING. The single predicate is also the one that states the property actually wanted (attribution routes) rather than an implementation detail of how it routes, and it touches no private name. DO NOT additionally assert `DRIVER_GENERATIONS` membership, even "for completeness": that is precisely the assertion that refuses `scripted`. MEASURED at review HEAD `babcd235`: `generation_host` returns `opencode` for `oc_runipd` and `agy` for `agy_runipd`, so the test passes now; an unregistered id (`claude_runipd`) returns `unknown`, which is the silent attribution loss it refuses. State in the test that `generation_host` RETURNS `unknown` rather than raising, which is why the assertion must compare against `GENERATION_UNKNOWN` rather than merely calling it.
   - Depends on: E-02
   - Expected outcome: A test that passes at review HEAD for both real hosts, that would ALSO pass for a legitimate descriptor-only host such as `scripted` (verified: `generation_host("scripted") == "scripted"`), and that fails the day a `HostLabels` is added to `runner_shared` whose id analytics cannot route.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: write the invariant where a contract reader will find it
 
-- [ ] E-05 Amend spec `25kzda` Section 5.3 ("Durable state and restartability"), whose bulleted data contract already requires each event to carry "host, exact host version/mode, capability-descriptor digest", by adding the driver-identity invariant it omits: the frozen driver record MUST name the module that CREATED the run (its path and that same module's digest), a shared initialization core MUST receive BOTH that path AND the host's label descriptor from its CALLER with no default, and `None` is reserved for a descriptor-only host that has no runner module. State that host attribution is RETROACTIVELY UNFIXABLE once written, which is what makes this an invariant rather than a preference. WORD THE NO-DEFAULT CLAUSE OVER THE HOST-VARYING INPUTS GENERALLY, not over one parameter name: review measured that `labels` carries the same hazard and is what `driver.id` is computed from (F-11), so a clause naming only the path would leave the spec silently blessing the other half. Do NOT name Python parameter identifiers in the spec text; state the property (a shared core receives its host-varying identity from the caller and defaults none of it), since the spec governs the contract and not one implementation's signature. Append a dated `## Workflow history` note recording the amendment, this plan's id6, and the measurement that motivated it (both sabotage modes leaving the suite at its unchanged baseline; use the RE-MEASURED figure from Required tests, not the authored `2935`). Do NOT change the spec's `- Status: approved` and do not touch any other section. This edit is DECLARED in `- Scope-Paths:` so the runners announce it before the run starts and the finalize scope gate reconciles it.
+- [x] E-05 Amend spec `25kzda` Section 5.3 ("Durable state and restartability"), whose bulleted data contract already requires each event to carry "host, exact host version/mode, capability-descriptor digest", by adding the driver-identity invariant it omits: the frozen driver record MUST name the module that CREATED the run (its path and that same module's digest), a shared initialization core MUST receive BOTH that path AND the host's label descriptor from its CALLER with no default, and `None` is reserved for a descriptor-only host that has no runner module. State that host attribution is RETROACTIVELY UNFIXABLE once written, which is what makes this an invariant rather than a preference. WORD THE NO-DEFAULT CLAUSE OVER THE HOST-VARYING INPUTS GENERALLY, not over one parameter name: review measured that `labels` carries the same hazard and is what `driver.id` is computed from (F-11), so a clause naming only the path would leave the spec silently blessing the other half. Do NOT name Python parameter identifiers in the spec text; state the property (a shared core receives its host-varying identity from the caller and defaults none of it), since the spec governs the contract and not one implementation's signature. Append a dated `## Workflow history` note recording the amendment, this plan's id6, and the measurement that motivated it (both sabotage modes leaving the suite at its unchanged baseline; use the RE-MEASURED figure from Required tests, not the authored `2935`). Do NOT change the spec's `- Status: approved` and do not touch any other section. This edit is DECLARED in `- Scope-Paths:` so the runners announce it before the run starts and the finalize scope gate reconciles it.
   - Depends on: E-01, E-06
   - Expected outcome: Section 5.3 states the driver-identity invariant including the descriptor half, the spec carries a dated history note naming `otr54d`, and `aw check` reports no new drift (baseline: 5 pre-existing errors, none in this spec).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -172,35 +172,335 @@ WHAT CHANGES: an addition to Section 5.3 stating that the frozen driver record n
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste `git diff agent_workflows/runner_shared.py` in full; it must show ONLY the `driver_path` and `labels` annotations losing their `= None` plus comment/docstring text, and no other executable line. Paste a probe printing `inspect.signature(runner_shared.initialize_run_core).parameters["driver_path"]` showing `kind: KEYWORD_ONLY` and no default, and asserting `.default is inspect.Parameter.empty`. Paste a probe calling `initialize_run_core` WITHOUT `driver_path` and showing the resulting `TypeError` with its message. Then paste the F-05 DELIBERATE-FAILURE demonstration, staged IN MEMORY per Required tests: wrap `initialize_run_core` so `driver_path` is POPPED for a real host's call, and show that this now raises `TypeError` instead of silently producing `{"path": None, "sha256": None}` (which is what both the authoring pass and review measured it doing before E-01). Paste `git status --short` empty afterwards to show no tracked file was mutated to obtain it. Confirm in one sentence that `driver_path=None` is STILL accepted by showing `tests/test_hostdedup_third_host.py::test_initialize_run_core_succeeds_with_third_host_descriptor` passing, since removing the default must not forbid the value.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified parameter signature, omission exception, and F-05 in-memory failure demonstration.
+    `git diff agent_workflows/runner_shared.py`:
+    ```diff
+    diff --git a/agent_workflows/runner_shared.py b/agent_workflows/runner_shared.py
+    index a259c2f1..70e7d52d 100644
+    --- a/agent_workflows/runner_shared.py
+    +++ b/agent_workflows/runner_shared.py
+    @@ -26898,9 +26898,14 @@ def initialize_run_core(
+         args: argparse.Namespace,
+         *,
+         host: str,
+    -    driver_path: Path | None = None,
+    +    # Must be the calling runner module's Path(__file__), or None for a descriptor-only
+    +    # host. Keyword-only with no default so omission raises TypeError rather than silently
+    +    # nulling driver provenance in durable run state.
+    +    driver_path: Path | None,
+         host_options: dict[str, Any],
+    -    labels: HostLabels | None = None,
+    +    # Calling host's HostLabels descriptor, or None if unavailable. Keyword-only with no
+    +    # default so omission raises TypeError rather than falling back to an unverified bare host string.
+    +    labels: HostLabels | None,
+         expand_selectors_fn: Any = None,
+         enforce_dependency_preflight_fn: Any = None,
+         edge_satisfied_fn: Any = None,
+    ```
 
-- [ ] V-02 validates E-02
+    Parameter inspection and omission probes:
+    ```
+    driver_path: driver_path kind: KEYWORD_ONLY default: <class 'inspect._empty'>
+    Omission of driver_path correctly raised TypeError: initialize_run_core() missing 1 required keyword-only argument: 'driver_path'
+    ```
+
+    F-05 deliberate-failure demonstration (staged in memory via wrapper popping `driver_path` for callers passing a real path):
+    ```
+    F-05 in-memory demonstration for oc: correctly raised TypeError: initialize_run_core() missing 1 required keyword-only argument: 'driver_path'
+    F-05 in-memory demonstration for agy: correctly raised TypeError: initialize_run_core() missing 1 required keyword-only argument: 'driver_path'
+    ```
+    `git status --short` after in-memory failure demonstration: empty (no tracked file mutated).
+
+    Confirming `driver_path=None` remains accepted: `tests/test_hostdedup_third_host.py::ThirdHostInitializationAndLimitTests::test_initialize_run_core_succeeds_with_third_host_descriptor` passes with `1 passed in 0.42s`.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste the full committed source of the new producer test and its passing output. Paste, for each host, the recorded `driver.path` BASENAME and `driver.sha256`, alongside `runner_shared.sha256_file(Path(module.__file__))` computed independently, showing they match; paste basenames only, not resolved absolute paths, per the sanitizer note in Required tests. Paste the assertion that the two hosts recorded DIFFERENT paths. Then paste the F-03 DELIBERATE-FAILURE demonstration, which is this item's whole justification: stage the relocation IN MEMORY (wrap `initialize_run_core` so a real caller's `driver_path` becomes `Path(runner_shared.__file__)`, leaving `None` untouched), paste the new test RED naming the wrong basename, paste `git status --short` empty to show no tracked file was mutated, and paste the test green again unpatched. ALSO paste, in that same sabotaged state, `python3 -m pytest tests/test_run_analytics.py tests/test_run_viewer.py -o addopts=""` still GREEN - review measured `62 passed in 8.86s` - BUT STATE THE CORRECTED REASON RATHER THAN THE AUTHORED ONE (F-15/PR-909): those two files never call a producer at all (`rg` for `initialize_run` in them returns nothing), so their greenness is STRUCTURAL and they would pass under any producer sabotage whatever, including one writing an empty driver record. That is a stronger argument for E-02 than "the existing suite happens not to notice", and the evidence must say so. Confirm in one sentence that the host table is DISCOVERED from `runner_shared`'s `HostLabels` instances and that an undiscovered host fails rather than being skipped.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified committed producer test, distinct driver paths, independent digest match, and F-03 relocation failure demonstration.
+    Full committed source of producer test method:
+    ```python
+    def test_each_real_host_records_own_driver_identity_and_consumers_route(self) -> None:
+        """Each real host records its own module path and digest, and consumers route correctly (E-02, E-03).
+        ...
+        """
+        host_runner_map = {
+            runner_shared.OC_HOST_LABELS.id: (oc_runipd, "opencode"),
+            runner_shared.AGY_HOST_LABELS.id: (agy_runipd, "agy"),
+        }
 
-- [ ] V-03 validates E-03
+        discovered_labels = [
+            v for v in vars(runner_shared).values() if isinstance(v, runner_shared.HostLabels)
+        ]
+        self.assertGreater(len(discovered_labels), 0)
+
+        recorded_paths: dict[str, Path] = {}
+        for labels in discovered_labels:
+            self.assertIn(
+                labels.id,
+                host_runner_map,
+                f"HostLabels instance {labels.id!r} has no runner module mapping in host_runner_map; "
+                f"adding a real host requires extending this test",
+            )
+            module, expected_gen_host = host_runner_map[labels.id]
+            repo = self._create_conforming_repo(self.root / f"repo-{labels.id}")
+            args = module.build_parser().parse_args(
+                ["start", "tst001", "--repo", str(repo), "--prepare-only"]
+            )
+            out, err = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                run_dir = module.initialize_run(args)
+
+            state = runner_shared.load_state(run_dir)
+            driver = state["driver"]
+            driver_path = Path(driver["path"])
+            recorded_paths[labels.id] = driver_path
+
+            # E-02: Assert basename matches host module's own basename
+            self.assertEqual(driver_path.name, Path(module.__file__).name)
+
+            # E-02: Assert digest matches sha256_file of host module
+            expected_sha256 = runner_shared.sha256_file(Path(module.__file__))
+            self.assertEqual(driver["sha256"], expected_sha256)
+
+            # E-03: Consumer assertions
+            gen = run_analytics_sources.driver_generation(state)
+            self.assertEqual(gen, labels.id)
+            self.assertNotEqual(gen, run_analytics_sources.GENERATION_UNKNOWN)
+            self.assertEqual(
+                run_analytics_sources.generation_host(gen),
+                expected_gen_host,
+            )
+
+            summary = run_viewer.load_run_summary(run_dir, repo_root=repo)
+            self.assertIsNotNone(summary)
+            assert summary is not None
+            self.assertEqual(summary.driver, labels.product)
+
+        # E-02: Assert the two hosts recorded DIFFERENT paths
+        self.assertGreaterEqual(len(recorded_paths), 2)
+        unique_paths = set(recorded_paths.values())
+        self.assertEqual(
+            len(unique_paths),
+            len(recorded_paths),
+            f"All real hosts must record distinct driver paths, got: {recorded_paths}",
+        )
+    ```
+    Passing test output:
+    ```
+    tests/test_hostdedup_third_host.py::ThirdHostInitializationAndLimitTests::test_each_real_host_records_own_driver_identity_and_consumers_route PASSED
+    ```
+
+    Recorded driver basename and digest vs independent module digest:
+    ```
+    host: oc  | recorded basename: oc_runipd.py  | state sha256: fe1ec54b587393283798c89fb92801d9c6ddd6a44698dfed9a1f562d1ed8596f | module sha256: fe1ec54b587393283798c89fb92801d9c6ddd6a44698dfed9a1f562d1ed8596f (match: True)
+    host: agy | recorded basename: agy_runipd.py | state sha256: 0f810ebacc2e21c176d8598e2954062a9ee58376df346fc32b28b9322587009f | module sha256: 0f810ebacc2e21c176d8598e2954062a9ee58376df346fc32b28b9322587009f (match: True)
+    ```
+    Assertion that the two hosts recorded different paths:
+    `self.assertGreaterEqual(len(recorded_paths), 2)`
+    `self.assertEqual(len(set(recorded_paths.values())), len(recorded_paths))` passes (paths: `oc_runipd.py` vs `agy_runipd.py`).
+
+    F-03 deliberate-failure demonstration (in-memory patch redirecting caller's `driver_path` to `Path(runner_shared.__file__)`):
+    ```
+    E           AssertionError: 'runner_shared.py' != 'oc_runipd.py'
+    E           - runner_shared.py
+    E           + oc_runipd.py
+    FAILED tests/test_hostdedup_third_host.py::ThirdHostInitializationAndLimitTests::test_each_real_host_records_own_driver_identity_and_consumers_route
+    ```
+    `git status --short` after in-memory failure demonstration: empty (no tracked file mutated).
+    Unpatched test rerun: `1 passed in 0.93s`.
+
+    Consumer tests under that same in-memory F-03 sabotage:
+    ```
+    python3 -m pytest tests/test_run_analytics.py tests/test_run_viewer.py -o addopts=""
+    ============================= 65 passed in 10.30s ==============================
+    ```
+    Reason for consumer greenness under sabotage (F-15/PR-909): those two consumer test files never invoke `initialize_run` or `initialize_run_core` at all (`rg` returns zero hits); their greenness is structural because they test consumer readers against hand-crafted fixtures, which is precisely why the producer-side test E-02 is required.
+
+    The host table is discovered dynamically from all `runner_shared.HostLabels` instances via `[v for v in vars(runner_shared).values() if isinstance(v, runner_shared.HostLabels)]` and asserts membership in `host_runner_map`, failing loudly if an undiscovered host is present rather than silently skipping it.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste the consumer assertions as committed and their passing output, showing per host the `driver_generation`, `generation_host` and `run_viewer` label derived from GENUINELY PRODUCED state (not a fixture). Review's own producer probe for comparison: `oc | id: oc_runipd | basename: oc_runipd.py | sha_matches_module: True | gen: oc_runipd | generation_host: opencode | viewer: OpenCode` and `agy | id: agy_runipd | basename: agy_runipd.py | sha_matches_module: True | gen: agy_runipd | generation_host: agy | viewer: Antigravity`. Paste the in-test docstring sentence stating which sabotage these assertions do and do not detect, AND the sentence naming `run_dashboard._run_host` as the third consumer left uncovered (PR-904). Then paste the measurement that justifies the first sentence rather than asserting it: under the in-memory F-03 sabotage, show these consumer assertions still PASSING while E-02's basename assertion fails, reproducing F-04. State in one sentence why that is not a defect in E-03 (it pins the id-first precedence, which becomes load-bearing if `driver.id` is ever removed or reordered).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified consumer routing assertions on genuinely produced state and precedence reproduction under F-03 sabotage.
+    Consumer assertions as committed:
+    ```python
+            # E-03: Consumer assertions
+            gen = run_analytics_sources.driver_generation(state)
+            self.assertEqual(gen, labels.id)
+            self.assertNotEqual(gen, run_analytics_sources.GENERATION_UNKNOWN)
+            self.assertEqual(
+                run_analytics_sources.generation_host(gen),
+                expected_gen_host,
+            )
 
-- [ ] V-04 validates E-04
+            summary = run_viewer.load_run_summary(run_dir, repo_root=repo)
+            self.assertIsNotNone(summary)
+            assert summary is not None
+            self.assertEqual(summary.driver, labels.product)
+    ```
+
+    Passing output on genuinely produced state:
+    ```
+    oc  | id: oc_runipd  | basename: oc_runipd.py  | sha_matches_module: True | gen: oc_runipd  | generation_host: opencode | viewer: OpenCode
+    agy | id: agy_runipd | basename: agy_runipd.py | sha_matches_module: True | gen: agy_runipd | generation_host: agy      | viewer: Antigravity
+    ```
+
+    In-test docstring sentences:
+    "At this HEAD, these consumer assertions do not detect the relocation sabotage, because driver_generation prefers driver.id and run_viewer checks driver_id first, so both return the right label from a record whose path is wrong. They are included because they pin the ID-preferring precedence itself (if a future change removes driver.id or reorders that precedence, the path fallback becomes load-bearing again and these assertions become the ones that catch it), while E-02's basename and digest assertions are the ones that detect relocation."
+    "We assert over two consumers (run_analytics_sources and run_viewer). A third consumer exists: run_dashboard._run_host also reads state['driver']['id'] and prefix-matches (did.startswith('agy'), did.startswith('oc')) rather than consulting a registry, which is fragile, and is deliberately left uncovered here pending registry consolidation (carrier: gxsprh)."
+
+    Measurement under in-memory F-03 sabotage (reproducing F-04):
+    ```
+    Consumer results under relocation sabotage:
+      gen: oc_runipd (expected oc_runipd)
+      gen_host: opencode (expected opencode)
+      summary.driver: OpenCode (expected OpenCode)
+    ```
+    While E-02's basename check failed (`AssertionError: 'runner_shared.py' != 'oc_runipd.py'`), the consumer assertions passed because `driver.id` precedence shielded `run_analytics_sources` and `run_viewer`. This is not a defect in E-03 because the consumer assertions pin the ID-preferring precedence contract itself, ensuring that if `driver.id` is ever removed or reordered, the fallback becomes load-bearing and tests catch it immediately.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Paste the closure test as committed and its passing output. Paste a probe enumerating every `HostLabels` instance in `runner_shared` with its `.id` and whether that id routes (expected: exactly `OC_HOST_LABELS`/`oc_runipd` and `AGY_HOST_LABELS`/`agy_runipd`, both routable). CONFIRM BY PASTE THAT YOU USED THE SINGLE-PREDICATE FORMULATION (`generation_host(labels.id) != GENERATION_UNKNOWN`) AND NOT THE AUTHORED CONJUNCTION, and paste the measurement that makes that mandatory rather than stylistic (F-13/PR-901): `scripted` is a `_GENERATION_HOSTS` key but NOT a `DRIVER_GENERATIONS` value, so the conjunction returns False for a legitimate descriptor-only host while `generation_host("scripted")` returns `scripted`. If your committed test asserts `DRIVER_GENERATIONS` membership anywhere, this V-item FAILS. Then paste the F-08 DELIBERATE-FAILURE demonstration, staged in memory: `mock.patch.object(runner_shared, "CLAUDE_HOST_LABELS", fake, create=True)` with an unregistered id, paste the closure test RED naming that id, and paste `git status --short` empty afterwards.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified registry closure assertion for all discovered HostLabels and F-08 failure demonstration under unroutable third host.
+    Committed closure test source:
+    ```python
+    def test_registry_closure_every_host_labels_routable_by_analytics(self) -> None:
+        """Every HostLabels instance in runner_shared must be routable by analytics (E-04).
 
-- [ ] V-05 validates E-05
+        Asserts that run_analytics_sources.generation_host(labels.id) != GENERATION_UNKNOWN.
+        Note that generation_host returns GENERATION_UNKNOWN ("unknown") rather than raising
+        on an unregistered id, which is why the assertion must compare against GENERATION_UNKNOWN.
+        We deliberately use the single-predicate formulation rather than requiring membership
+        in DRIVER_GENERATIONS, because descriptor-only hosts (such as SCRIPTED_HOST_LABELS) do not
+        have a runner module and thus are not in DRIVER_GENERATIONS, but are legitimate and routable.
+        """
+        discovered_labels = [
+            v for v in vars(runner_shared).values() if isinstance(v, runner_shared.HostLabels)
+        ]
+        self.assertGreater(len(discovered_labels), 0)
+        for labels in discovered_labels:
+            with self.subTest(host_id=labels.id):
+                gen_host = run_analytics_sources.generation_host(labels.id)
+                self.assertNotEqual(
+                    gen_host,
+                    run_analytics_sources.GENERATION_UNKNOWN,
+                    f"HostLabels {labels.id!r} has unroutable generation in analytics (returned {gen_host!r})",
+                )
+    ```
+    Passing test output:
+    ```
+    tests/test_hostdedup_third_host.py::ThirdHostInitializationAndLimitTests::test_registry_closure_every_host_labels_routable_by_analytics PASSED [100%]
+    ```
+
+    Probe enumerating `HostLabels` in `runner_shared`:
+    ```
+    oc_runipd -> generation_host=opencode (routable: True)
+    agy_runipd -> generation_host=agy (routable: True)
+    ```
+
+    Confirmation of single-predicate formulation without `DRIVER_GENERATIONS` assertion:
+    The committed test asserts `self.assertNotEqual(gen_host, run_analytics_sources.GENERATION_UNKNOWN)`. It does not assert `DRIVER_GENERATIONS` membership.
+    Measurement demonstrating why the single-predicate formulation is mandatory (F-13 / PR-901):
+    ```
+    id=scripted: in _GENERATION_HOSTS=True, in DRIVER_GENERATIONS.values()=False, conjunction=False, single_predicate_routable=True (result=scripted)
+    ```
+    A conjunction would falsely reject legitimate descriptor-only hosts like `scripted`, whereas `generation_host("scripted")` routes cleanly to `"scripted"`.
+
+    F-08 deliberate-failure demonstration (in-memory mock of unregistered host `CLAUDE_HOST_LABELS`):
+    ```
+    E               AssertionError: 'unknown' == 'unknown' : HostLabels 'claude_runipd' has unroutable generation in analytics (returned 'unknown')
+    FAILED tests/test_hostdedup_third_host.py::ThirdHostInitializationAndLimitTests::test_registry_closure_every_host_labels_routable_by_analytics
+    ```
+    `git status --short` after in-memory failure demonstration: empty (no tracked file mutated).
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: Paste `git diff` of the spec file in full. It must show the Section 5.3 addition stating all four clauses (the record names the CREATING module; path plus that module's digest; a shared core takes the path AND the host descriptor from its caller with NO default; `None` reserved for a descriptor-only host) plus the retroactive-unfixability sentence, and a dated `## Workflow history` note naming `otr54d` and the RE-MEASURED suite figure (not the authored `2935`). Confirm by paste that the clause covers the DESCRIPTOR half and not only the path (F-11), and that no Python parameter identifier appears in the spec text. Confirm by paste that `- Status: approved` is UNCHANGED and that no other section was modified (`git diff --stat` on the spec, plus the diff hunk headers). ALSO carry the whole-plan no-regression evidence here, since this is the last item before commit: paste the BARE `python3 -m pytest` output with its `N passed` line against the RE-MEASURED baseline `1 failed, 3038 passed, 2 skipped` and name the one pre-existing failure explicitly (a V-05 reporting "1 failed" without identifying WHICH node is not acceptable evidence); paste `python3 -m pytest tests/test_hostdedup_third_host.py -o addopts=""` (baseline `10 passed`, expected to grow, state by how many and from which items); paste the targeted regression set from Required tests (baseline `317 passed`); paste `aw ipd lint` conforming; paste `aw check` and reconcile against the review baseline of 5 pre-existing errors, none in this spec or this plan; paste `aw sanitize --agent`; confirm that the deferred viewer-vocabulary row's carrier `gxsprh` still resolves to a live backlog item (verified at review: `open gxsprh .aw/records/backlog/open/20260928-gxsprh-...`) and that you did not close it as part of this plan; confirm the same for E-06's and F-14's carriers; and paste `git diff --cached --name-only` immediately before committing, which must list exactly `agent_workflows/runner_shared.py`, `tests/test_hostdedup_third_host.py`, the spec path, and this plan, and nothing another party changed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified spec amendment Section 5.3 and history note, and whole-suite no-regression verification.
+    `git diff .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md` in full:
+    ```diff
+    diff --git a/.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md b/.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+    index c92cd403..49a9b2d2 100644
+    --- a/.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+    +++ b/.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+    @@ -1207,6 +1207,8 @@ The engine stores repository-local, crash-safe run state. The storage location i
 
-- [ ] V-06 validates E-06
+     Writes use atomic replacement for snapshots and append-plus-fsync for events. A snapshot is a cache; replaying the ledger is authoritative.
+
+    +The frozen driver record within durable run state must name the module that created the run (recording its path and that same module's digest). A shared initialization core must receive both that creator module path and the host's label descriptor explicitly from its caller with no defaults; empty or null provenance values are reserved exclusively for descriptor-only hosts that have no runner module. Host attribution is retroactively unfixable once written, making producer-enforced attribution an immutable invariant of the durable run state contract.
+    +
+     #### 5.3a Per-invocation telemetry: a BEST-EFFORT DERIVED artifact, never a gate
+
+     Amended 2026-09-13 by plan `5f2h8i` (Set `runanalytics`), which wires the collector built by plan `lhccjf` into both host runners. The amendment is recorded here rather than left implicit because a run now writes a class of artifact this section did not describe, and a reader auditing "what does a run produce" would otherwise find an undocumented tree.
+    @@ -1575,6 +1577,7 @@ This example demonstrates the revised guarantees: `all` is safely bounded; depen
+
+     ## Workflow history
+
+    +- 2026-09-28 note (aw specs): Section 5.3 amended by otr54d: driver record must name the creating module (path and digest); shared initialization core must receive creator module path and host descriptor from caller with no defaults (None reserved for descriptor-only hosts); host attribution is retroactively unfixable once written. Motivated by measurement showing both relocation and omission sabotages left the suite at its unchanged baseline (1 failed, 3038 passed, 2 skipped at review HEAD babcd235).
+     - 2026-09-28 note (aw specs): Section 2.5b amended by 3brgb6: probe cache digest now covers unattached allowlisted prose sections in addition to e_items and child_table_rows
+     - 2026-09-27 note (aw specs): Amended by artdispatch jdn790 (z7nbn1 OQ-04/5.3b): freeze-time whole-run refusal for undetermined, non-conformant, and provably unsatisfiable dependencies; in-run failures keep per-item fail-depend
+     - 2026-09-27 note (aw specs): AMENDED 2026-09-27 (plan ounhsn): Added Section 2.1b recording maintainer ruling that merge-back conflicts on execute lanes are sent back to the agent to resolve in lane under retry-budget.
+    ```
+
+    Confirmation: The added clause covers both the creator module path and the host label descriptor explicitly with no defaults, and contains zero Python parameter identifiers (`driver_path`, `labels`, etc.).
+    `git diff --stat` confirms only 1 file and 3 insertions, `- Status: approved` unchanged, and no other section modified:
+    ```
+    .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md | 3 +++
+    1 file changed, 3 insertions(+)
+    ```
+
+    Whole-plan no-regression verification:
+    1. Bare `python3 -m pytest` output:
+       `3104 passed, 2 skipped, 3 warnings in 45.13s`
+       Note: 0 failures observed because the pre-existing failure in `test_drain_and_cascade_mapped_reasons_rendered_once` (backlog `1bxw6o`) was resolved upstream between review and execution.
+    2. `python3 -m pytest tests/test_hostdedup_third_host.py -o addopts=""`:
+       `12 passed in 0.68s` (grew by +2 from baseline 10: +1 from E-02/E-03 `test_each_real_host_records_own_driver_identity_and_consumers_route`, and +1 from E-04 `test_registry_closure_every_host_labels_routable_by_analytics`).
+    3. Targeted regression set:
+       `321 passed in 78.68s` (baseline 317 passed).
+    4. `aw ipd lint` reports conforming.
+    5. `aw check`: exactly 5 pre-existing errors (none in this spec or plan):
+       - `check.ipd-uncarried-obligation`: `20260928-gatequote-01-q5l2r3`
+       - `check.ipd-uncarried-obligation`: `20260928-pe7g6r-01-gvf2sq`
+       - `check.ipd-carrier-finished-unverified`: `20260928-reattclose-01-pjuoyj`
+       - `check.ipd-carrier-finished-unverified`: `20260928-xzdudk-01-5q924d`
+       - `check.system-layout-missing`: `layout.json`
+    6. `aw sanitize --agent`: clean (`{"outcome":"clean","exit":0,"verified":true,"findings":0}`).
+    7. Deferred carrier resolution:
+       `gxsprh` resolves to `.aw/records/backlog/open/20260928-gxsprh-01-gxsprh-run-viewer-duplicates-host-label-vocabulary.backlog.md` (status: open) and remains live and unclosed. E-06 was resolved in this plan (PR-905), and F-14 remains tracked under `gxsprh`/F-14.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: Paste a probe printing `inspect.signature(runner_shared.initialize_run_core).parameters["labels"]` showing `kind: KEYWORD_ONLY` and `.default is inspect.Parameter.empty`. Paste a probe calling `initialize_run_core` WITHOUT `labels` and showing the `TypeError` with its message. Paste the proof that `labels=None` is STILL accepted (the value, not the omission), by any call that passes it explicitly. Then paste the measurement that makes E-06 non-gratuitous rather than asserting it: in memory, POP `labels` from every caller and paste the resulting `driver.id` for BOTH real hosts, showing it is still derived (via the `host`-string fallback) and therefore that no current test objects - review measured `1 failed, 3038 passed, 2 skipped, 3 warnings in 41.97s` under exactly that, the same single pre-existing failure. Paste `git status --short` empty afterwards. Finally state in one sentence why a real host survives the omission while a third host does not, citing the fallback expression (review measured `host="claude"` -> `driver.id="claude"` -> `generation_host` `unknown`).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified labels parameter signature, omission exception, explicit labels=None acceptance, and fallback behavior.
+    Probe printing signature of `labels`:
+    ```
+    labels: labels kind: KEYWORD_ONLY default: <class 'inspect._empty'>
+    ```
+
+    Probe calling `initialize_run_core` without `labels`:
+    ```
+    Omission of labels raised TypeError: initialize_run_core() missing 1 required keyword-only argument: 'labels'
+    ```
+
+    Proof that explicit `labels=None` is still accepted:
+    Calling `runner_shared.initialize_run_core(..., labels=None, ...)` succeeds and produces:
+    ```
+    Explicit labels=None accepted! driver: {'id': 'oc_runipd', 'path': None, 'sha256': None}
+    ```
+
+    Measurement showing E-06 is non-gratuitous (shipped fallback behavior when `labels is None`):
+    ```
+    host=oc -> driver.id=oc_runipd -> generation_host=opencode
+    host=agy -> driver.id=agy_runipd -> generation_host=agy
+    host=scripted -> driver.id=scripted -> generation_host=scripted
+    host=claude -> driver.id=claude -> generation_host=unknown
+    ```
+    `git status --short` after in-memory failure demonstration: empty (no tracked file mutated).
+
+    Real hosts survive omission because the fallback expression `(AGY_HOST_LABELS.id if host == "agy" else (OC_HOST_LABELS.id if host == "oc" else host))` hardcodes the IDs for `"oc"` and `"agy"`, whereas any third host (e.g. `host="claude"`) falls through to the bare host string (`"claude"`) which yields `unknown` in `generation_host`.
+  - Result: pass
 
 ## Approval and execution gate
 
