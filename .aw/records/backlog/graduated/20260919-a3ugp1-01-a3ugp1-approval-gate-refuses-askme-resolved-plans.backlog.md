@@ -1,5 +1,6 @@
 - Id: a3ugp1
-- Status: open
+- Status: graduated
+- Graduated-To: a3ugp1
 - Blocks-Release: next
 - Set: a3ugp1
 - Priority: high
@@ -52,4 +53,5 @@ tree at the same HEAD. Recorded rather than repaired because repairing a verdict
 outside that plan's declared `Scope-Paths` and needs its own review.
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: lqzoi9
 - 2026-09-19 created (aw backlog): The approval gate refuses three pending reaskscore plans on a stale negative verdict, failing tests/test_plan_readiness.py at HEAD
