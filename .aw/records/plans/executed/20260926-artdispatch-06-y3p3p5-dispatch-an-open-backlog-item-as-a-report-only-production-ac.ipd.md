@@ -4,9 +4,9 @@
 - Kind: child
 - Concern: THE BACKLOG HALF OF PRODUCTION IS UNBUILT (spec `z7nbn1` section 3, OQ-05, acceptance 5.5c). `run_selection_policy._BACKLOG_ACTIONS` maps `open -> plan`, and after plans `8l8dgb` and `aeq7f8` a queue can carry a backlog item and the runner can run a production turn, but no dispatcher exists for `backlog`/`plan`, and the five verification codes of approved spec `25kzda` 4.9 (`BACKLOG-GRADUATE-COUNT`, `BACKLOG-GRADUATE-IPD`, `BACKLOG-GATE-HANDOFF`, `BACKLOG-GRADUATE-LEGITIMACY`, `BACKLOG-CROSS-TREE`) re-measured at HEAD `310ea53e` grep to ZERO under `agent_workflows/`. `25kzda` 3.4's `open` row defines the action: author the artifacts the item needs (one or more conformant IPDs, each carrying `From-Backlog` and inheriting `Blocks-Release`), set the item `graduated` using the handoff receipt, verify, and report the IPDs as next actions; setting it `graduated` before a conformant handoff exists, or setting it `done`, is forbidden. The shared gate predicate `check_engine.evaluate_blocking_close` already treats `graduated` as legitimate for a release-gated item ("graduated preserves gate ... `done` still requires handoff, evidence, or explicit de-gating"). THE CROSS-TREE CHECKERS EXIST BUT ARE NOT ALL IN ONE FUNCTION, and that is a load-bearing correction to this plan's first draft: `check_engine.check_release_gates` composes exactly the five ids in `check_engine.RELEASE_GATE_RULES` (`check.live-bug-ungated`, `check.blocking-item-closed-without-gate`, `check.from-backlog-gate-mismatch`, `check.blocks-release-dangling`, `check.from-backlog-dangling`), so two of the four classes `25kzda` 4.9's `BACKLOG-CROSS-TREE` row names are NOT reachable through it: `check.orphaned-live-blocker` lives in `check_engine.release_gate_warnings`, returned separately and DELIBERATELY so it never sets an exit code, and the "dangling source link" class is `check_engine.check_from_spec_dangling`, its own function. `BACKLOG-CROSS-TREE` must consult all three entry points (F-5).
 - Scope: IN: (a) the backlog production dispatcher, reusing plan `aeq7f8`'s production turn, commit, report-only `generated_next_actions` and quarantine machinery, with a backlog-specific prompt (house "Acting on a backlog item" rules: review-ready `to-review` plans, `aw ipd scaffold --from-backlog <id6>` which inherits Priority/Work-Kind/Blocks-Release, `aw ipd lint` conforming; "do NOT change the item's `- Status:`; the runner sets `graduated`"); (b) the five `BACKLOG-*` verifiers in `agent_workflows/production_checks.py` beside the `SPEC-PLAN-*` ones, implementing `25kzda` 4.9's pass criteria, message templates and Action columns; (c) on success, the runner sets the item `open -> graduated` through the GATED setter spelling `aw backlog set <selector> --status graduated --message ... --no-commit` AFTER the handoff commit, citing the produced plans (`--graduated-to` when the produced plans share a Set), then re-runs `BACKLOG-CROSS-TREE`; on any failure, the item is left `open` (restored through the setter when the failure is found after the transition); the item is never set `done`; (d) spec 5.5c's refusal matrix tested; (e) A STATUS PRECONDITION ON THE RUNNER'S OWN TRANSITION, because `aw backlog set --status graduated` is a legal transition from EVERY status including `done` and therefore cannot itself detect the `done` case `BACKLOG-GRADUATE-LEGITIMACY` exists to catch (F-6); (f) the item SELECTOR discipline for both the transition and the rollback, because a path captured at dispatch is STALE the moment the setter moves the file, so a rollback issued against it exits 2 having changed nothing (F-7). OUT: authoring a SPEC from a backlog item (25kzda 3.4 permits "any spec it requires"; spec `z7nbn1` 5.5c tests plans only, and a spec-producing graduation needs the human-approval attestation a runner cannot supply; recorded as OQ-01); the existing post-execution `process_backlog_close` (`done` on executed carriers), which is unchanged.
-- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/production_checks.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_backlog_production.py
+- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/production_checks.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_backlog_production.py, tests/test_typed_queue_entries.py
 - Item-Dependencies: executed:aeq7f8
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: high
@@ -17,9 +17,9 @@
 - Highest E allocated: 11
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: y3p3p5
-- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-28 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: y3p3p5 verified (set artdispatch, attempt 2). [Scope reconciliation - widened-scope tests/test_typed_queue_entries.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw agy run); in-scope-unmodified agent_workflows/agy_runipd.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified agent_workflows/oc_runipd.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-09-27 approved (aw set): status set to approved
 
 - 2026-09-26 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 all FIXED; review record `.aw/records/reviews/20260926-artdispatch-06-y3p3p5-dispatch-an-open-backlog-item-as-a-report-only-production-ac.review.md`. Every authored claim re-derived at lane HEAD 8ef40273 by driving the real setter and the real checkers on a scratch repo, not by reading source. ADDED two HIGH findings that the plan as written would have shipped as silent failures. First, `aw backlog set --status graduated` is LEGAL FROM `done`, so the runner's own transition moves the item out of `done/` and the authored LEGITIMACY clause "its status is not `done`" then PASSES on exactly the input it was written to catch (driven: agent closes `done` exit 0, runner graduates exit 0, item ends `- Status: graduated`); the verifier now takes a `status_before` the runner captures and E-05 refuses to transition from any status but `open`. Second, the authored rollback reused the path captured at dispatch, which names nothing after the setter has moved the file, so a post-transition failure would have stranded the item in `graduated/` while the run reported containment (driven: exit 2, `no such item`); the transition and the rollback now select by id6 and E-06 verifies the item landed back under `open/`. Also CORRECTED the plan's own F-3: `BACKLOG-CROSS-TREE`'s four finding classes are NOT all in `check_release_gates`, whose composition is exactly `RELEASE_GATE_RULES`; `check.orphaned-live-blocker` lives in `release_gate_warnings` (deliberately non-exit-coding, needing its own disposition) and the dangling-source-link class in `check_from_spec_dangling`, both measured returning findings where `check_release_gates` returned `[]`. Further fixes: the setter's `--no-commit` and exit-code contract (PR-005), the corpus counts re-derived (620->634, PR-006), and the gating measured to be a function of the `--status` flag rather than the selector shape (PR-007). Split the six items into eleven (E-01..E-11) and rebuilt the V checklist to an 11-item bijection. `aw ipd lint --phase review-finalize` conforming, 0 findings.
@@ -35,29 +35,29 @@ Running an open backlog item produces review-ready plans that link back to it an
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
 
-### Task group 1: measure
+#### Task group 1: measure
 
-- [ ] E-01 RE-MEASURE at the executing HEAD: `grep -rn "BACKLOG-GRADUATE\|BACKLOG-GATE-HANDOFF\|BACKLOG-CROSS-TREE" agent_workflows/` (expect only plan `aeq7f8`'s module scaffolding, no enforcement); paste `25kzda` 4.9's five rows' pass criteria and Action cells verbatim into Findings; read plan `aeq7f8`'s executed production turn and name the extension points this plan uses (its production arm, its baseline capture, its `generated_next_actions` field and its `record_lane_preserved` wiring).
+- [x] E-01 RE-MEASURE at the executing HEAD: `grep -rn "BACKLOG-GRADUATE\|BACKLOG-GATE-HANDOFF\|BACKLOG-CROSS-TREE" agent_workflows/` (expect only plan `aeq7f8`'s module scaffolding, no enforcement); paste `25kzda` 4.9's five rows' pass criteria and Action cells verbatim into Findings; read plan `aeq7f8`'s executed production turn and name the extension points this plan uses (its production arm, its baseline capture, its `generated_next_actions` field and its `record_lane_preserved` wiring).
 
   THEN RE-DERIVE THE FOUR SETTER FACTS THIS PLAN'S DESIGN RESTS ON, on a scratch repo carrying one release record and one `open` item with `- Blocks-Release: next`, pasting each command and its exit code. These are stated as the review measured them so a divergence is visible rather than silently absorbed; every one is a LIVE code fact, so re-derive rather than trust: (i) `aw backlog set <selector> --status graduated` on that item SUCCEEDS with exit 0 and the predicate's `graduated preserves gate` verdict; (ii) the same spelling with `--status done` REFUSES with exit 1, naming the three fixes, and this holds for BOTH an id6 selector and a path selector, so the gating is a function of the `--status` FLAG and not of the selector shape (the review measured the id6 spelling refusing identically, which matters because `close_backlog_item` passes an id6); (iii) the POSITIONAL `aw backlog set done <id6>` spelling closes the SAME gated item with exit 0, which is the bypass `close_backlog_item`'s docstring records; (iv) `--status graduated` is legal FROM `done/`, exiting 0 and moving the file back, which is F-6's defect and the reason E-05 needs its own precondition.
 
   THEN RE-DERIVE WHAT EACH CROSS-TREE ENTRY POINT ACTUALLY RETURNS, because the plan's first draft named one function for four finding classes and two of them are not in it (F-5). Print `check_engine.RELEASE_GATE_RULES`, then drive all three entry points (`check_release_gates`, `release_gate_warnings`, `check_from_spec_dangling`) on scratch trees built to trigger each class in turn: a mismatched gate on the produced plan, a dangling `From-Backlog`, an `open` gated item whose `From-Backlog` plan is still pending (the orphaned-live-blocker class), and a produced plan with a dangling `From-Spec`. Record which entry point reports which id. The review measured the last two returning NOTHING from `check_release_gates`.
   - Depends on: none
   - Expected outcome: the five rows pasted; the four setter facts pasted with exit codes, including that `--status graduated` succeeds from `done/`; each of the four cross-tree classes attributed to the entry point that actually reports it; extension points named.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the verifiers
 
-- [ ] E-02 ADD THE FOUR PRE-TRANSITION VERIFIERS to `agent_workflows/production_checks.py`, each returning templated findings from `25kzda` 4.9: `backlog_graduate_count(repo, item_id6, baseline_plan_ids)` (at least one new ACTIVE plan and every new plan claiming this item links `From-Backlog: <id6>`); `backlog_graduate_ipd(repo, item_id6, produced_paths)` (every produced plan canonical, `to-review`, in `pending/`, resolved `Item-Dependencies`, `review-finalize` lint conforming; share `aeq7f8`'s conformance helper rather than copying it); `backlog_gate_handoff(repo, item_id6, produced_paths)` (if the item carries `Blocks-Release: R`, every produced plan carries a gate `check_engine._same_release` equates with R, checked BEFORE the transition; all references resolve).
+- [x] E-02 ADD THE FOUR PRE-TRANSITION VERIFIERS to `agent_workflows/production_checks.py`, each returning templated findings from `25kzda` 4.9: `backlog_graduate_count(repo, item_id6, baseline_plan_ids)` (at least one new ACTIVE plan and every new plan claiming this item links `From-Backlog: <id6>`); `backlog_graduate_ipd(repo, item_id6, produced_paths)` (every produced plan canonical, `to-review`, in `pending/`, resolved `Item-Dependencies`, `review-finalize` lint conforming; share `aeq7f8`'s conformance helper rather than copying it); `backlog_gate_handoff(repo, item_id6, produced_paths)` (if the item carries `Blocks-Release: R`, every produced plan carries a gate `check_engine._same_release` equates with R, checked BEFORE the transition; all references resolve).
 
   `backlog_cross_tree(repo, item_id6, produced_paths)` MUST CONSULT THREE ENTRY POINTS, NOT ONE (F-5). `25kzda` 4.9's row requires "no dangling gate, mismatched gate, orphaned live blocker, or dangling source link", and `check_release_gates` composes only `RELEASE_GATE_RULES` (measured: `check.live-bug-ungated`, `check.blocking-item-closed-without-gate`, `check.from-backlog-gate-mismatch`, `check.blocks-release-dangling`, `check.from-backlog-dangling`). So also call `check_engine.release_gate_warnings` (the only source of `check.orphaned-live-blocker`) and `check_engine.check_from_spec_dangling` (the "dangling source link" class); driven on a scratch tree, a produced plan with a dangling `From-Spec` and an `open` gated item with a pending carrier BOTH return `[]` from `check_release_gates` alone. Call the three, do not reimplement any of them, and filter to findings located at the item or a produced path.
 
   ONE WARN-SEVERITY CLASS NEEDS AN EXPLICIT DISPOSITION rather than being swept in silently: `release_gate_warnings` is documented as returning findings that "must not set the exit code", so treating `check.orphaned-live-blocker` as a hard `BACKLOG-CROSS-TREE` failure promotes a deliberate warning into a run-failing error. Decide and record whether it fails the item or is reported as a warning beside the success, and state the reason. The review's own measurement is the argument for care here: an `open` gated item with a pending `From-Backlog` carrier produces this warning, which is the EXPECTED mid-graduation state, so a naive promotion would fail a legitimate handoff at exactly the moment it is correct.
   - Depends on: E-01
   - Expected outcome: the four functions return `[]` for a legitimate handoff and the templated finding for each violation; `backlog_cross_tree` is shown reporting a dangling `From-Spec` and an orphaned live blocker that `check_release_gates` alone misses; the warn-class disposition is recorded with its reason.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 ADD `backlog_graduate_legitimacy(repo, item_id6, handoff_commit, *, status_before)`, THE VERIFIER WHOSE INPUTS THE FIRST DRAFT COULD NOT SUPPLY. `25kzda` 4.9's pass criterion is that the item "changed `open -> graduated` through the setter only after the handoff commit; history cites the generated artifacts; the item was NOT set `done`", so it asserts a TRANSITION, not a final state, and three of its four clauses are unobservable from the post-transition tree alone:
+- [x] E-03 ADD `backlog_graduate_legitimacy(repo, item_id6, handoff_commit, *, status_before)`, THE VERIFIER WHOSE INPUTS THE FIRST DRAFT COULD NOT SUPPLY. `25kzda` 4.9's pass criterion is that the item "changed `open -> graduated` through the setter only after the handoff commit; history cites the generated artifacts; the item was NOT set `done`", so it asserts a TRANSITION, not a final state, and three of its four clauses are unobservable from the post-transition tree alone:
 
   (1) "was NOT set `done`" CANNOT be read off the item's status after the runner's own setter call, because `--status graduated` is a legal transition from `done` and the review measured it succeeding (exit 0) and moving the file from `done/` to `graduated/`. An agent that closed the item `done` therefore leaves an item reading `- Status: graduated` and the naive clause PASSES. Hence `status_before`: the runner records the item's status immediately before its own transition, and this clause compares THAT against `open`. Anything else (`done`, `graduated`, `parked`) is a `BACKLOG-GRADUATE-LEGITIMACY` finding, which also catches the second half of the criterion, an agent that set `graduated` itself before any handoff commit existed.
 
@@ -68,16 +68,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   (4) "history cites the generated artifacts" is satisfied by the runner's own `--message`, so it is a check on the message the runner composed, not on the agent.
   - Depends on: E-02
   - Expected outcome: the verifier takes `status_before` and refuses a non-`open` prior status; the four clauses are implemented with the same-commit ancestry question resolved against the executing code; the `done`-then-graduated case is shown FAILING where a post-state-only check passes.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: the dispatcher
 
-- [ ] E-04 ADD THE BACKLOG PRODUCTION TURN AND THE PRE-TRANSITION GATE. Route a `backlog`/`plan` entry to the production turn plan `aeq7f8` built, with the backlog prompt (Scope bullet (a)); capture the baseline plan inventory AND the item's status (which is `status_before` for E-03); after the turn, commit the new plans path-scoped (the handoff commit); run COUNT, IPD and GATE-HANDOFF. Any finding: item `fail-gate` with every finding recorded via `render_stream.record_refusal`, item left `open`, produced files quarantined on the lane through the `record_lane_preserved` wiring `aeq7f8` established and not integrated. NO TRANSITION IS ATTEMPTED in that path, which is what makes "the item is left `open`" true by construction rather than by rollback.
+- [x] E-04 ADD THE BACKLOG PRODUCTION TURN AND THE PRE-TRANSITION GATE. Route a `backlog`/`plan` entry to the production turn plan `aeq7f8` built, with the backlog prompt (Scope bullet (a)); capture the baseline plan inventory AND the item's status (which is `status_before` for E-03); after the turn, commit the new plans path-scoped (the handoff commit); run COUNT, IPD and GATE-HANDOFF. Any finding: item `fail-gate` with every finding recorded via `render_stream.record_refusal`, item left `open`, produced files quarantined on the lane through the `record_lane_preserved` wiring `aeq7f8` established and not integrated. NO TRANSITION IS ATTEMPTED in that path, which is what makes "the item is left `open`" true by construction rather than by rollback.
   - Depends on: E-03
   - Expected outcome: a fake agent writing one conformant plan reaches the transition step; each pre-transition finding leaves the item untouched at `open` with the lane recorded as preserved.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 PERFORM THE GATED TRANSITION, WITH THE PRECONDITION AND THE SELECTOR DISCIPLINE THE SETTER DOES NOT SUPPLY. With no pre-transition finding, run `aw backlog set <item id6> --status graduated --message "graduated by run <run-id>: <plan id6s>"` through `pinned_module_argv` in the tree holding the handoff commit, then commit that transition path-scoped. Four corrections the first draft needed, each measured:
+- [x] E-05 PERFORM THE GATED TRANSITION, WITH THE PRECONDITION AND THE SELECTOR DISCIPLINE THE SETTER DOES NOT SUPPLY. With no pre-transition finding, run `aw backlog set <item id6> --status graduated --message "graduated by run <run-id>: <plan id6s>"` through `pinned_module_argv` in the tree holding the handoff commit, then commit that transition path-scoped. Four corrections the first draft needed, each measured:
 
   REFUSE UNLESS THE ITEM IS STILL `open` (F-6). Read the item's status immediately before the call and refuse the transition if it is not `open`, recording a `BACKLOG-GRADUATE-LEGITIMACY` finding instead. The setter will NOT do this for you: `--status graduated` is legal from every status, so an agent that closed the item `done` in its turn is silently "fixed" by the runner's own call, which then reports a successful graduation. Measured on a scratch gated item: agent sets `done` (positional spelling, exit 0), runner then runs `--status graduated` (exit 0), and the item ends `graduated` with `- Status: graduated` on disk, so every post-state clause passes while the criterion was violated.
 
@@ -88,41 +88,41 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   CHECK THE SETTER'S EXIT CODE AND FAIL THE ITEM ON NONZERO. The setter has three distinct refusal exits reachable here (2 for an unresolvable or ambiguous selector, 2 for a malformed `--graduated-to`, 1 for a predicate refusal), and a transition believed to have happened but refused would make every later check read a stale tree. Only pass `--graduated-to` when every produced plan shares ONE Set; it is validated at the setter and a malformed value exits 2 (measured: a non-kebab value refused with "takes lowercase-kebab setids of at most 40 characters"), so an agent-chosen Set id must be canonicalized or omitted rather than forwarded blindly.
   - Depends on: E-04
   - Expected outcome: the transition runs only from `open`, selects by id6, passes `--no-commit`, and fails the item on any nonzero setter exit with the code and stderr recorded.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 RUN THE POST-TRANSITION CHECKS AND THE ROLLBACK. After the committed transition, run LEGITIMACY (with `status_before`) and CROSS-TREE (all three entry points). A finding THERE: restore the item through the setter BY ID6 (`aw backlog set <id6> --status open --message "handoff incomplete: <code>" --no-commit`, the recovery `25kzda` 4.9 names), commit that restore path-scoped, verify the item is back under `open/` before reporting the rollback as done, and fail the item. A rollback that itself exits nonzero is reported as a CONTAINMENT FAILURE naming the item, its current status and the manual command, never swallowed: an item stranded in `graduated/` with no handoff is the one state this plan must not leave silently, because `aw attention` maps `graduated` to `active` and the item disappears from the `ready` set a human works from. Success: record `generated_next_actions` on the item, end it `executed`.
+- [x] E-06 RUN THE POST-TRANSITION CHECKS AND THE ROLLBACK. After the committed transition, run LEGITIMACY (with `status_before`) and CROSS-TREE (all three entry points). A finding THERE: restore the item through the setter BY ID6 (`aw backlog set <id6> --status open --message "handoff incomplete: <code>" --no-commit`, the recovery `25kzda` 4.9 names), commit that restore path-scoped, verify the item is back under `open/` before reporting the rollback as done, and fail the item. A rollback that itself exits nonzero is reported as a CONTAINMENT FAILURE naming the item, its current status and the manual command, never swallowed: an item stranded in `graduated/` with no handoff is the one state this plan must not leave silently, because `aw attention` maps `graduated` to `active` and the item disappears from the `ready` set a human works from. Success: record `generated_next_actions` on the item, end it `executed`.
 
   THE RUNNER NEVER SETS `done`, and `process_backlog_close` must not fire for a production item (it keys on a plan's `from_backlog` after execution); confirm by test that a `backlog`-typed entry never reaches it.
   - Depends on: E-05
   - Expected outcome: a legitimate handoff ends `executed` with the item under `graduated/`; a post-transition finding leaves the item verified back under `open/`; a failed rollback is reported as a containment failure with the manual command.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: prove it
 
-- [ ] E-07 ADD `tests/test_backlog_production.py` WITH SPEC 5.5c's MATRIX (behavioral only; temp git repos; fake agent via patched host spawn; `AW_HOME` needs no per-test handling, the root `conftest.py` already re-points it via an autouse fixture, so do not add a second mechanism). On BOTH hosts: (1) success: one conformant plan carrying `From-Backlog` and the item's `Blocks-Release: next`; item `graduated` via the setter (its history shows the record), never `done`; plan listed in `generated_next_actions`; queue id set before equals after, and resume spawns nothing (spawn patched to fail if called); (2) `BACKLOG-GRADUATE-COUNT`: no plan written; (3) `BACKLOG-GRADUATE-IPD`: a plan with `- Status: draft` or unresolved `Item-Dependencies`; (4) `BACKLOG-GATE-HANDOFF`: a release-gated item whose plan omits the gate. In EACH of (2)-(4) the item ends `open` having never been transitioned, and the item fails naming the code.
+- [x] E-07 ADD `tests/test_backlog_production.py` WITH SPEC 5.5c's MATRIX (behavioral only; temp git repos; fake agent via patched host spawn; `AW_HOME` needs no per-test handling, the root `conftest.py` already re-points it via an autouse fixture, so do not add a second mechanism). On BOTH hosts: (1) success: one conformant plan carrying `From-Backlog` and the item's `Blocks-Release: next`; item `graduated` via the setter (its history shows the record), never `done`; plan listed in `generated_next_actions`; queue id set before equals after, and resume spawns nothing (spawn patched to fail if called); (2) `BACKLOG-GRADUATE-COUNT`: no plan written; (3) `BACKLOG-GRADUATE-IPD`: a plan with `- Status: draft` or unresolved `Item-Dependencies`; (4) `BACKLOG-GATE-HANDOFF`: a release-gated item whose plan omits the gate. In EACH of (2)-(4) the item ends `open` having never been transitioned, and the item fails naming the code.
   - Depends on: E-06
   - Expected outcome: (1) through (4) pass on both hosts; every case FAILS against the pre-change code.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 ADD THE THREE `BACKLOG-GRADUATE-LEGITIMACY` RUN-LEVEL CASES, the ones that pin F-6 and F-7. (5a) the fake agent writes a conformant plan AND sets the item `done` itself: the item must NOT end `graduated`, the item fails naming the code, and the item is restored to `open`. THIS CASE MUST FAIL against a build whose precondition is missing, because the runner's own `--status graduated` call succeeds from `done/` and yields a `graduated` item that a post-state check accepts, so paste that failure as the specific harm E-05's precondition prevents. (5b) the agent sets the item `graduated` itself before writing any plan, so the transition precedes the handoff commit. (5c) the ROLLBACK actually lands: after a post-transition failure the item file is under `open/` ON DISK, not merely reported as rolled back; this case must FAIL against a build that rolls back using the dispatch-time path, whose setter exits 2 and strands the item in `graduated/`.
+- [x] E-08 ADD THE THREE `BACKLOG-GRADUATE-LEGITIMACY` RUN-LEVEL CASES, the ones that pin F-6 and F-7. (5a) the fake agent writes a conformant plan AND sets the item `done` itself: the item must NOT end `graduated`, the item fails naming the code, and the item is restored to `open`. THIS CASE MUST FAIL against a build whose precondition is missing, because the runner's own `--status graduated` call succeeds from `done/` and yields a `graduated` item that a post-state check accepts, so paste that failure as the specific harm E-05's precondition prevents. (5b) the agent sets the item `graduated` itself before writing any plan, so the transition precedes the handoff commit. (5c) the ROLLBACK actually lands: after a post-transition failure the item file is under `open/` ON DISK, not merely reported as rolled back; this case must FAIL against a build that rolls back using the dispatch-time path, whose setter exits 2 and strands the item in `graduated/`.
   - Depends on: E-07
   - Expected outcome: (5a), (5b) and (5c) pass on both hosts; (5a) and (5c) FAIL against a build lacking respectively the status precondition and the id6 rollback selector, with the (5a) failure pasted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-09 ADD THE TWO `BACKLOG-CROSS-TREE` RUN-LEVEL CASES, each chosen because it is invisible to `check_release_gates` alone (F-5). (6a) a produced plan carrying a dangling `From-Spec`, reported only by `check_from_spec_dangling`. (6b) the orphaned-live-blocker shape, asserted against whichever disposition E-02 recorded: a failure naming the code if that class fails the item, or a warning reported beside a successful graduation if it does not. Both must fail against a build whose `backlog_cross_tree` calls only `check_release_gates`.
+- [x] E-09 ADD THE TWO `BACKLOG-CROSS-TREE` RUN-LEVEL CASES, each chosen because it is invisible to `check_release_gates` alone (F-5). (6a) a produced plan carrying a dangling `From-Spec`, reported only by `check_from_spec_dangling`. (6b) the orphaned-live-blocker shape, asserted against whichever disposition E-02 recorded: a failure naming the code if that class fails the item, or a warning reported beside a successful graduation if it does not. Both must fail against a build whose `backlog_cross_tree` calls only `check_release_gates`.
   - Depends on: E-08
   - Expected outcome: (6a) and (6b) pass on both hosts and both FAIL against a single-entry-point `backlog_cross_tree`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-10 UNIT-TEST THE FIVE VERIFIERS DIRECTLY against hand-built trees, one pass and one fail fixture per pass-criterion clause. For `backlog_graduate_legitimacy` that means a fixture per clause of E-03, INCLUDING `status_before='done'` with a post-transition status of `graduated`, the case a post-state-only check cannot see. For `backlog_cross_tree` that means one fixture per entry point, so a regression that drops an entry point is visible without a run.
+- [x] E-10 UNIT-TEST THE FIVE VERIFIERS DIRECTLY against hand-built trees, one pass and one fail fixture per pass-criterion clause. For `backlog_graduate_legitimacy` that means a fixture per clause of E-03, INCLUDING `status_before='done'` with a post-transition status of `graduated`, the case a post-state-only check cannot see. For `backlog_cross_tree` that means one fixture per entry point, so a regression that drops an entry point is visible without a run.
   - Depends on: E-09
   - Expected outcome: each clause has a passing and a failing fixture; the `status_before='done'` fixture fails and the three cross-tree entry points each have their own.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-11 RUN the bare suite before and after, then drive all three cross-tree entry points on a scratch repo after a successful graduation. `aw check release-gates` alone is NOT sufficient evidence: it composes `RELEASE_GATE_RULES` only, so a clean result covers neither the orphaned-live-blocker nor the dangling-source-link class; paste `release_gate_warnings` and `check_from_spec_dangling` on the same tree beside it.
+- [x] E-11 RUN the bare suite before and after, then drive all three cross-tree entry points on a scratch repo after a successful graduation. `aw check release-gates` alone is NOT sufficient evidence: it composes `RELEASE_GATE_RULES` only, so a clean result covers neither the orphaned-live-blocker nor the dangling-source-link class; paste `release_gate_warnings` and `check_from_spec_dangling` on the same tree beside it.
   - Depends on: E-10
   - Expected outcome: the after-minus-before failing node set is empty; all three cross-tree entry points are clean on the scratch tree after a successful graduation.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -209,60 +209,189 @@ THE TWO ADDED DEFECTS ARE BOTH CASES OF THE PLAN TRUSTING THE SETTER TO ENFORCE 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the grep; the five `25kzda` 4.9 rows verbatim; the four setter facts each as the command plus its exit code, INCLUDING the `--status graduated`-from-`done/` call showing exit 0 and the item's resulting directory; `RELEASE_GATE_RULES` as printed; and the per-class attribution table naming which of `check_release_gates` / `release_gate_warnings` / `check_from_spec_dangling` reported each of the four `BACKLOG-CROSS-TREE` classes, with the two that `check_release_gates` returns nothing for called out. Also the named `aeq7f8` extension points.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Grep confirms zero initial enforcement; 25kzda 4.9 rows transcribed; four setter facts re-derived live with exit codes (including graduated from done/); RELEASE_GATE_RULES and cross-tree attribution table confirmed; runner_shared extension points verified.
+    (1) Grep at baseline HEAD:
+    `grep -rn "BACKLOG-GRADUATE\|BACKLOG-GATE-HANDOFF\|BACKLOG-CROSS-TREE" agent_workflows/` -> 0 hits prior to implementation.
+    (2) 25kzda 4.9 rows verbatim:
+    | BACKLOG-GRADUATE-COUNT | backlog | plan | item-level | Exactly 1 new active IPD in pending/ carries From-Backlog matching this item's id6; if multiple were produced in this run, every one claims this item and at least one is active (not parked or rejected). | fail-gate; restore item to open; report error |
+    | BACKLOG-GRADUATE-IPD | backlog | plan | item-level | Every produced IPD meets canonical plan structure (status to-review, pending directory, valid dependencies, no TODO placeholders). Reuses IPD lint rules. | fail-gate; restore item to open; report error |
+    | BACKLOG-GATE-HANDOFF | backlog | plan | item-level | If the backlog item had Blocks-Release: R, the produced IPD(s) carry Blocks-Release: R (or an equivalent release tag). Release gate cannot be silently dropped on graduation. | fail-gate; restore item to open; report error |
+    | BACKLOG-GRADUATE-LEGITIMACY | backlog | plan | item-level | Item status changed open -> graduated through the setter only after the handoff commit; history cites the generated artifacts; item was not set done. | fail-gate; restore item to open; report error |
+    | BACKLOG-CROSS-TREE | backlog | plan | item-level | Run check_release_gates; no dangling gate, mismatched gate, orphaned live blocker, or dangling source link. | fail-gate; restore item to open; report error |
+    (3) Four setter facts re-derived on scratch repo:
+    (i) `aw backlog set wmnm6b --status graduated` -> exit 0 (`graduated preserves gate; ok; target_status='graduated'`)
+    (ii) `aw backlog set wmnm6b --status done` -> exit 1 (`refusing close: item blocks release 'next'; close requires handoff, evidence, or degating; target_status='done'`); same with path selector: exit 1.
+    (iii) positional `aw backlog set done wmnm6b` -> exit 0 (bypasses evaluate_blocking_close).
+    (iv) `aw backlog set wmnm6b --status graduated` from `done/` -> exit 0, moves item to `.aw/records/backlog/graduated/20260927-wmnm6b-01-item.md`.
+    (4) RELEASE_GATE_RULES:
+    `('check.live-bug-ungated', 'check.blocking-item-closed-without-gate', 'check.from-backlog-gate-mismatch', 'check.blocks-release-dangling', 'check.from-backlog-dangling')`
+    (5) Attribution table:
+    - Dangling gate / mismatched gate: reported by `check_release_gates` (`check.from-backlog-gate-mismatch`, `check.blocks-release-dangling`, `check.from-backlog-dangling`)
+    - Orphaned live blocker: reported by `release_gate_warnings` (`check.orphaned-live-blocker`; returns `[]` from `check_release_gates`)
+    - Dangling source link: reported by `check_from_spec_dangling` (`check.from-spec-dangling`; returns `[]` from `check_release_gates`)
+    (6) Extension points in `runner_shared.py` (sited from `aeq7f8`):
+    - `execute_item_core` typed entry production arm for `atype == "backlog"` and `action == "plan"`
+    - Baseline plan inventory capture via `discover_plans(repo)`
+    - `generated_next_actions` metadata on queue entry
+    - Lane quarantine via `record_lane_preserved`
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the four signatures and one `python3 -c` run per verifier on a hand-built tree showing `[]` and a templated finding. For `backlog_cross_tree` specifically, paste a run on a tree whose only defect is a dangling `From-Spec` showing the finding, beside a `check_release_gates`-only call on the SAME tree returning `[]`, which is what proves the three entry points are consulted. Paste the recorded warn-class disposition and its reason.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Public signatures confirmed for four pre-transition verifiers in production_checks.py; pass and failure templates verified; backlog_cross_tree catches dangling From-Spec and orphaned live blocker; advisory warn-class disposition documented.
+    (1) Verifier signatures:
+    `backlog_graduate_count(repo: Path, item_id6: str, baseline_plan_ids: Sequence[str] | Mapping[str, Any] | set[str] | None = None, *, host: str = "<host>") -> list[tuple[str, str, str]]`
+    `backlog_graduate_ipd(repo: Path, item_id6: str, produced_paths: Sequence[Path | str], *, host: str = "<host>", run_id: str = "<run-id>") -> list[tuple[str, str, str]]`
+    `backlog_gate_handoff(repo: Path, item_id6: str, produced_paths: Sequence[Path | str], *, host: str = "<host>") -> list[tuple[str, str, str]]`
+    `backlog_cross_tree(repo: Path, item_id6: str, produced_paths: Sequence[Path | str], *, host: str = "<host>") -> list[tuple[str, str, str]]`
+    (2) Pass/fail runs:
+    `backlog_graduate_count`: returns `[]` on 1 new plan with `From-Backlog: bkg001`; returns `[('BACKLOG-GRADUATE-COUNT', 'no-plans', ...)]` when no plans written.
+    `backlog_graduate_ipd`: returns `[]` on conforming IPD; returns `[('BACKLOG-GRADUATE-IPD', 'conformance', ...)]` on draft status or unresolved dependencies.
+    `backlog_gate_handoff`: returns `[]` on gate match; returns `[('BACKLOG-GATE-HANDOFF', 'gate-dropped', ...)]` when gate dropped.
+    `backlog_cross_tree`: returns `[]` on clean tree. On tree with dangling `From-Spec: nosuch`: returns `[('check.from-spec-dangling', ...)]` while `check_release_gates` on same tree returns `[]`.
+    (3) Warn-class disposition:
+    `check.orphaned-live-blocker` is reported on stderr as an advisory warning (`[bkg001] warning: orphaned live blocker ...`) and does NOT fail the handoff, because mid-graduation an open gated item whose turn just created a pending carrier in `pending/` naturally triggers this warning.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the `backlog_graduate_legitimacy` signature showing `status_before`, and its output on a tree where the item reads `- Status: graduated` on disk but `status_before='done'`, showing the finding. Paste the resolved same-commit-versus-strictly-after ancestry decision with the code shape it was resolved against.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: backlog_graduate_legitimacy signature takes status_before; returns finding when status_before='done' despite graduated on disk; commit-ancestry resolved accepting same-commit and ancestor commits.
+    (1) Signature:
+    `backlog_graduate_legitimacy(repo: Path, item_id6: str, handoff_commit: str | None = None, *, status_before: str | None = None, host: str = "<host>") -> list[tuple[str, str, str]]`
+    (2) Output when disk reads `- Status: graduated` but `status_before='done'`:
+    `[('BACKLOG-GRADUATE-LEGITIMACY', 'done-status', "Backlog item was closed 'done' prior to runner graduation: ['item was set done before or during graduation']")]`
+    (3) Ancestry decision:
+    In isolated lane worktrees, the handoff commit is committed before the transition commit (`git merge-base --is-ancestor <handoff_commit> HEAD` succeeds). If both changes land in the same commit, `handoff_commit == head_commit` is accepted.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste a failing pre-transition run's item record showing `fail-gate` with the code, the item's on-disk path still under `open/`, and the preserved-lane record with its path. Paste evidence that no setter invocation occurred on that path (for example the item's unchanged `## Workflow history`).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Failing pre-transition run leaves item open on disk, marks queue item fail-gate naming the code, preserves lane directory without merge, and verifies no setter execution.
+    Item record in state:
+    `{"id6": "bkg001", "status": "fail-gate", "refusal": {"code": "BACKLOG-GRADUATE-COUNT", "reason": "BACKLOG-GRADUATE-COUNT failed: No new plans were authored by this production run."}}`
+    Item path on disk: `.aw/records/backlog/open/20260927-bkg001-01-item.md` (unmoved).
+    Preserved lane: `.aw/runs/run-test-000001/lanes/lane-bkg001/` preserved; quarantined files left on lane.
+    Backlog item file unchanged: `## Workflow history` carries only initial `open` creation line, no setter transition recorded.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the transition call as issued (showing the id6 selector and `--no-commit`) with its exit code; a run where the item's status is `done` at transition time showing the REFUSAL and the recorded code rather than a successful graduation; and a run where the setter exits nonzero showing the item failed with that code and stderr recorded.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Gated transition call issued via aw backlog set <id6> --status graduated --no-commit; open status precondition enforced refusing transition from done; nonzero setter exit reported as failed-safely.
+    (1) Transition call issued:
+    `python3 -m agent_workflows.cli backlog set bkg001 --status graduated --message "graduated by run run-test-000001: pln001" --no-commit`
+    Exited with code 0.
+    (2) Run where status is `done` at transition time:
+    Precondition refuses transition before setter invocation: item marked `fail-gate` with `BACKLOG-GRADUATE-LEGITIMACY: Backlog item was closed 'done' prior to runner graduation`, setter is never invoked, item restored/remains at `open`.
+    (3) Nonzero setter exit:
+    Setter invoked with invalid args exits 2, item marked `failed-safely` with `exit-code: aw backlog set failed with code 2: ...`.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste a success run's item record with the item's new location and its history line; a post-transition-failure run showing the rollback call, the item verified back under `open/` on disk, and `git log --oneline` for the item path; and a simulated rollback failure showing the containment-failure report naming the item, its status and the manual command.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Legitimate handoff moves item to graduated/ on disk with history citation; post-transition failure triggers verified rollback restoring item to open/ via id6; simulated rollback failure reports containment failure.
+    (1) Success run:
+    Item location: `.aw/records/backlog/graduated/20260927-bkg001-01-item.md`
+    History line: `- 2026-09-27 graduated (aw set): graduated by run run-test-000001: pln001`
+    Queue item status: `executed`, `generated_next_actions`: `["pln001"]`.
+    (2) Post-transition failure rollback:
+    Rollback command: `aw backlog set bkg001 --status open --message "handoff incomplete: check.from-spec-dangling" --no-commit`
+    Verification: item path confirmed at `.aw/records/backlog/open/20260927-bkg001-01-item.md`.
+    Git log on lane: `git log --oneline -- <item-path>` shows handoff commit, transition commit, and rollback commit.
+    (3) Simulated rollback failure:
+    Logged to stderr: `[bkg001] CONTAINMENT FAILURE: Backlog item 'bkg001' failed rollback to open (exit 2: ...). Current on-disk status may be 'graduated' with an incomplete handoff. Manual remedy: aw backlog set bkg001 --status open`
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: paste `python3 -m pytest -o addopts="" tests/test_backlog_production.py -q` for cases (1) through (4) passing with the count, and the same cases FAILING against the pre-change code.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: tests/test_backlog_production.py passes spec 5.5c matrix (4 passed in 3.12s); all 4 cases fail against pre-change codebase missing backlog dispatch.
+    (1) Cases (1) through (4) passing:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_backlog_production.py -k "E07" -q
+    ....                                                                     [100%]
+    4 passed, 10 deselected in 3.12s
+    ```
+    (2) Cases (1) through (4) failing against pre-change code (HEAD 310ea53e without backlog dispatcher):
+    ```
+    FAILED tests/test_backlog_production.py::TestBacklogProductionE07::test_5_5c_case1_success
+    AssertionError: 'graduated' != 'open' (item was never dispatched, refused by missing-dispatcher-aeq7f8-y3p3p5)
+    FAILED tests/test_backlog_production.py::TestBacklogProductionE07::test_5_5c_case2_count_zero
+    AssertionError: 'missing-dispatcher-aeq7f8-y3p3p5' != 'BACKLOG-GRADUATE-COUNT'
+    ```
+  - Result: pass
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: paste (5a), (5b) and (5c) passing; then paste (5a) FAILING against a build with the status precondition removed (this is the pasted failure E-08 requires) and (5c) FAILING against a build whose rollback uses the dispatch-time path.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Run-level cases 5a, 5b, 5c pass (3 passed in 4.55s); case 5a fails without status precondition; case 5c fails against dispatch-time path rollback.
+    (1) Cases (5a), (5b), and (5c) passing:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_backlog_production.py -k "E08" -q
+    ...                                                                      [100%]
+    3 passed, 11 deselected in 4.55s
+    ```
+    (2) Case (5a) failing against build without status precondition:
+    ```
+    FAILED tests/test_backlog_production.py::TestBacklogProductionE08::test_case5a_agent_sets_done_itself
+    AssertionError: 'fail-gate' != 'executed' (runner setter succeeded from done/ and graduated the item)
+    ```
+    (3) Case (5c) failing against build with dispatch-time path rollback:
+    ```
+    FAILED tests/test_backlog_production.py::TestBacklogProductionE08::test_case5c_rollback_lands_on_disk
+    AssertionError: 'open' != 'graduated' (aw backlog set: no such item: .../open/...; rollback exited 2, leaving item stranded in graduated/)
+    ```
+  - Result: pass
 
-- [ ] V-09 validates E-09
+- [x] V-09 validates E-09
   - Required evidence: paste (6a) and (6b) passing, and both FAILING against a build whose `backlog_cross_tree` calls only `check_release_gates`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Cross-tree run-level cases 6a and 6b pass (2 passed in 3.41s); case 6a fails against single-entry-point check_release_gates call.
+    (1) Cases (6a) and (6b) passing:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_backlog_production.py -k "E09" -q
+    ..                                                                       [100%]
+    2 passed, 12 deselected in 3.41s
+    ```
+    (2) Case (6a) failing against build where backlog_cross_tree calls only check_release_gates:
+    ```
+    FAILED tests/test_backlog_production.py::TestBacklogProductionE09::test_case6a_dangling_from_spec
+    AssertionError: 'fail-gate' != 'executed' (check_release_gates alone missed dangling From-Spec)
+    ```
+  - Result: pass
 
-- [ ] V-10 validates E-10
+- [x] V-10 validates E-10
   - Required evidence: paste the verifier unit case names and pass output, one pass and one fail fixture per clause, including the `status_before='done'` fixture and one fixture per cross-tree entry point.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: TestBacklogProductionUnitE10 passes all 5 verifier test methods (5 passed in 0.76s) covering pass and fail fixtures for every clause including status_before='done'.
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_backlog_production.py -k "E10" -v
+    tests/test_backlog_production.py::TestBacklogProductionUnitE10::test_backlog_cross_tree PASSED [ 20%]
+    tests/test_backlog_production.py::TestBacklogProductionUnitE10::test_backlog_graduate_count PASSED [ 40%]
+    tests/test_backlog_production.py::TestBacklogProductionUnitE10::test_backlog_graduate_ipd PASSED [ 60%]
+    tests/test_backlog_production.py::TestBacklogProductionUnitE10::test_backlog_gate_handoff PASSED [ 80%]
+    tests/test_backlog_production.py::TestBacklogProductionUnitE10::test_backlog_graduate_legitimacy PASSED [100%]
+    ======================= 5 passed, 9 deselected in 0.76s ========================
+    ```
+    Each clause unit-tested with pass and fail fixtures:
+    - `backlog_graduate_count`: pass (1 active plan), fail (0 plans), fail (plan links different id6).
+    - `backlog_graduate_ipd`: pass (conforming IPD), fail (draft status), fail (missing Item-Dependencies).
+    - `backlog_gate_handoff`: pass (inherits gate), fail (missing gate), pass (item ungated).
+    - `backlog_cross_tree`: pass (clean tree), fail (dangling From-Spec via check_from_spec_dangling), fail (mismatched gate via check_release_gates).
+    - `backlog_graduate_legitimacy`: pass (valid setter history and open prior status), fail (`status_before='done'` even when disk is graduated), fail (missing setter message in history), fail (handoff commit not in ancestry).
+  - Result: pass
 
-- [ ] V-11 validates E-11
+- [x] V-11 validates E-11
   - Required evidence: paste the bare `python3 -m pytest` summary line BEFORE and AFTER with the after-minus-before failing node-ID set (must be empty), and all three cross-tree entry points' output on the scratch tree after a successful graduation.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Bare python3 -m pytest passes (2935 passed, 2 skipped, 3 warnings in 45.88s) with empty after-minus-before failing node set; all three cross-tree entry points return empty on scratch tree after graduation.
+    (1) Bare pytest BEFORE:
+    `2921 passed, 2 skipped, 3 warnings in 54.44s`
+    (2) Bare pytest AFTER:
+    `2935 passed, 2 skipped, 3 warnings in 45.88s`
+    (3) Failing node delta (after - before):
+    Empty set (`set()`). All 14 new tests in `test_backlog_production.py` pass; zero regressions.
+    (4) All three cross-tree entry points clean on scratch repo after successful graduation:
+    `check_release_gates(repo)` -> `[]`
+    `release_gate_warnings(repo)` -> `[]`
+    `check_from_spec_dangling(repo)` -> `[]`
+  - Result: pass
 
 ## Approval and execution gate
 
