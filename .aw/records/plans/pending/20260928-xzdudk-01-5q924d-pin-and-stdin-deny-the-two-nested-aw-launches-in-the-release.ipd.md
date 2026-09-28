@@ -6,7 +6,7 @@
 - Scope-Paths: agent_workflows/release_readiness.py, tests/test_release_readiness_child_pin.py
 - Item-Dependencies: none
 - Kind: child
-- Status: to-review
+- Status: reviewed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -19,6 +19,7 @@
 - Id: 5q924d
 
 ## Workflow history
+- 2026-09-28 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 all fixed; readiness go-pending-approval
 
 - 2026-09-28 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 PR-002 PR-003 PR-004. Re-measured every claim by driving the real gates, including a scratch application of E-02 that was reverted clean. The headline finding reproduces exactly: the shipped `gate_leak_scan` returns `passed=True, evidence={'returncode': 0}` against a decoy tree for a leak scan that never ran. Four findings changed the plan. PR-001: F-13's baseline is stale in BOTH directions (`3153 passed, 2 skipped`, zero failures, 199 commits later) and the failure it told the executor to tolerate is FIXED, so that instruction is inverted rather than updated. PR-002: E-01(a) as written would be RED before AND after the fix, because the real scanner refuses a non-git `tmp_path` with exit 2; the fixture now needs `git init` and the primary assertion is now "the decoy did not run". PR-003: F-05's third row was wrong (`-P` alone avoids the decoy but resolves a stale site-packages copy), which strengthens the two-part-pin conclusion rather than weakening it. PR-004: two deferred rows named the now-`done` carrier `1bxw6o`, failing `check.ipd-carrier-finished-unverified`, and that item's closing maintainer ruling settles OQ-01 as policy. Record: `.aw/records/reviews/20260928-xzdudk-01-5q924d-pin-and-stdin-deny-the-two-nested-aw-launches-in-the-release.review.md`.
 - 2026-09-28 to-review (opencode): authored from backlog item `xzdudk`. Every claim the item makes was re-measured at this HEAD rather than carried forward, and two of them changed. (1) The item says the exposure is that "the protection is incidental rather than structural" and that the wedge shape "is not reachable through them today"; the non-interactive half reproduces, but a decoy-package probe shows the unpinned `-m` produces a FALSE PASS verdict, which makes this a live correctness defect (F-03, F-04). (2) The item's prescribed final step, "remove the allowlist entry in tests/test_nested_tty_noninteractive.py", is NOT PERFORMABLE: that file and `tests/test_lane_tool_identity.py` were both deleted by commit `19313eed`, so there is no allowlist to remove and no guard of either kind left in the suite (F-06, F-07). The plan therefore adds a behavioral guard instead of editing a nonexistent one, and OQ-01 records why it is not a rebuilt AST scanner.
