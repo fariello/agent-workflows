@@ -1,11 +1,13 @@
 - Id: svqhmp
-- Status: open
+- Status: graduated
+- Graduated-To: svqhmp
 - Set: svqhmp
 - Priority: medium
 - Work-Kind: feature
 - Summary: Add --tty as two separate axes (presentation and interactivity) behind one interactivity resolver
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: bmf32u, da9n1s
 - 2026-09-19 created (aw backlog): Add --tty as two separate axes (presentation and interactivity) behind one interactivity resolver
 
 Graduated from the Deferred section of plan `yaxr4i` (ttyflags 01), which deliberately did NOT implement `--tty` and instead recorded the design constraint in `docs/cli-output-contract.md` section 9.1.
