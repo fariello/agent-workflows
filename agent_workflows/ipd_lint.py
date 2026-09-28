@@ -498,6 +498,51 @@ def leaf_action_blocks(text: str, leaves: Iterable[Leaf]) -> tuple[str, ...]:
     return tuple(blocks)
 
 
+def unattached_section_prose(text: str) -> dict[str, str]:
+    """Return each `## ` section's unattached prose (belonging to no checklist item).
+
+    Walks the fence-aware structural view (:func:`_structural_lines`), keys on :data:`_H2_RE`,
+    and excludes four line classes:
+      - any line matching :data:`_H3_RE`
+      - any line matching :data:`_LEAF_RE` (a leaf's own opening line)
+      - any line matching :data:`_SUBFIELD_RE`
+      - any indented line (leading space or tab)
+
+    The exclusion of all indented lines makes this extractor disjoint by construction
+    from :func:`agent_workflows.runner_shared.e_item_action_blocks`, which captures only
+    the leaf's opening line plus its indented continuation lines.
+    """
+    struct = _structural_lines(text or "")
+    sections: dict[str, list[str]] = {}
+    current_h2: str | None = None
+
+    for _lineno, raw in struct:
+        mh = _H2_RE.match(raw)
+        if mh:
+            current_h2 = mh.group(1).strip()
+            if current_h2 not in sections:
+                sections[current_h2] = []
+            continue
+
+        if current_h2 is None:
+            continue
+
+        if _H3_RE.match(raw):
+            continue
+        if _LEAF_RE.match(raw):
+            continue
+        if _SUBFIELD_RE.match(raw):
+            continue
+        if raw[:1].isspace():
+            continue
+        if not raw.strip():
+            continue
+
+        sections[current_h2].append(raw)
+
+    return {title: "\n".join(lines) for title, lines in sections.items()}
+
+
 # --------------------------------------------------------------------------------------
 # Checks
 # --------------------------------------------------------------------------------------

@@ -8,7 +8,7 @@
 - Scope: Widen `probe_cache_payload` to carry an EVIDENCE-CHOSEN, allowlisted set of the orchestrator's unattached prose sections, so `probe_cache_digest` and `orchestrator_probe_excerpt` both widen with it from the one function they already share; re-establish the five `xmqv5l` no-op invariants plus the new move-on-hazard invariants in a behavioral test module, since the suite that held them was deleted; accept the one-time cache invalidation with its measured cost; and amend the two spec sentences and the one managed-`AGENTS.md` sentence that state the old key, so no contract describes a key that no longer exists.
 - Scope-Paths: agent_workflows/ipd_lint.py, agent_workflows/runner_shared.py, agent_workflows/engine.py, AGENTS.md, tests/test_orchestrator_probe_payload.py, tests/test_orchestrator_shape_gate.py, tests/test_orchestrator_shape_composed.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, .aw/records/specs/approved/20260919-r07vma-01-r07vma-orchestrator-conformance-parser-and-repair-loop.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
@@ -18,9 +18,9 @@
 - Highest E allocated: 07
 - Author: opencode model=its_direct/pt3-claude-opus-5-1m-us
 - Id: 3brgb6
-- Approval: 2026-09-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-28 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 3brgb6 verified (set probeprose, attempt 2). [Scope reconciliation - in-scope-unmodified tests/test_orchestrator_shape_composed.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified tests/test_orchestrator_shape_gate.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-09-28 approved (aw set): status set to approved
 - 2026-09-28 reviewed (aw set): plan-review (opencode model=its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-401..PR-406 all FIXED
 - 2026-09-28 /plan-review (opencode model=its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-401, PR-402, PR-403, PR-404, PR-405, PR-406. Reviewed at HEAD `1b29bcf8` in a lane worktree; `aw ipd lint` conformed at `--phase author` before revision and at `--phase review-finalize` after. Every measured claim in the plan was RE-DERIVED INDEPENDENTLY over all 66 orchestrators; F-06, F-07, F-08, F-09, F-11, F-12 and F-13 reproduced exactly, and the record `.aw/records/reviews/20260928-probeprose-01-3brgb6-...review.md` holds the numbers.
@@ -41,43 +41,43 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: one extractor, one payload, one key
 
-- [ ] E-01 Add a public UNATTACHED-SECTION-PROSE extractor to `ipd_lint` (suggested name `unattached_section_prose(text) -> dict[str, str]`, sited beside `parse`, which already owns what a leaf IS), returning each `## ` section's prose that belongs to no checklist item.
+- [x] E-01 Add a public UNATTACHED-SECTION-PROSE extractor to `ipd_lint` (suggested name `unattached_section_prose(text) -> dict[str, str]`, sited beside `parse`, which already owns what a leaf IS), returning each `## ` section's prose that belongs to no checklist item.
   IT MUST BE DISJOINT FROM `runner_shared.e_item_action_blocks` BY CONSTRUCTION, NOT BY COINCIDENCE, because the two payload keys must not double-send the same bytes. The construction that achieves it: walk `ipd_lint._structural_lines` (so a fenced or block-quoted line is not mistaken for prose, the same view `check_engine._deferred_section_obligations` already walks), key on `_H2_RE`, and SKIP four line classes - any line matching `_H3_RE`, any line matching `_LEAF_RE` (a leaf's own opening line), any line matching `_SUBFIELD_RE`, and ANY INDENTED LINE. The last one is what makes disjointness structural: `e_item_action_blocks` captures a leaf's opening line plus its INDENTED continuation lines and nothing else, so excluding every indented line leaves a set that cannot overlap it. Pre-verified in this lane: across all 66 orchestrators, ZERO extracted prose lines longer than 40 characters also appear inside any `e_items` block, and ZERO child-table cell strings over 25 characters are re-sent in the prose, so the new key double-sends neither existing key.
   "ANY INDENTED LINE" IS THE COMPLEMENT OF `e_item_action_blocks`' RULE ONLY IF THAT RULE CAPTURES EVERY INDENTED LINE, AND IT DOES NOT. Recorded because an earlier revision of this item claimed the exclusion "leaves exactly the complement", which is FALSE and was corrected at review. `e_item_action_blocks` STOPS at the first blank line, the first `_SUBFIELD_RE` match, the next leaf, or the next heading, so an indented line sitting AFTER a sub-field, after a blank line, or under a non-leaf bullet is captured by NEITHER extractor. Measured at review over all 66 orchestrators: 827 such indented lines exist, 476 of them (73,276 characters) inside an ALLOWLISTED section, and 14 of them match this plan's own hazard pattern. The sharpest single instance is `yeh7gc`'s `## Cross-IPD validation`, whose indented line literally reads "MUST BE FLAGGED (parent-only work no child covers)" and is verifiably absent from the extracted prose for that section while the section's non-indented bullets ARE present.
   SO THE RESIDUAL BLIND SPOT IS ACCEPTED AND DECLARED, not silently inherited, and E-01's Expected outcome states it as a property rather than pretending it is absent. Widening the extractor to indented lines is NOT attempted here because it would require changing `e_item_action_blocks`' termination rule to keep the two disjoint, which is the shipped rule `m7gvuz` landed and which pending plan `qurgra` is concurrently re-homing; doing both in one change would put one edit across two extractors with different invariants. The `## Deferred / out of scope` section carries this with a named carrier so the gap does not vanish when this plan finalizes.
   `ipd_lint` AND NOT `runner_shared`, for the reason pending plan `qurgra` (`- Set: 168p5j`) records for its sibling helper: `ipd_lint` already owns `_structural_lines`, `_H2_RE`, `_H3_RE`, `_LEAF_RE` and `_SUBFIELD_RE`, and `runner_shared` reaches `ipd_lint` function-locally already (`e_item_action_blocks` does exactly that). Putting the rule where its primitives live keeps one definition of document structure.
   - Depends on: none
   - Expected outcome: `ipd_lint.unattached_section_prose` exists, returns a section-title-keyed mapping over the structural view, and its output shares no line with `runner_shared.e_item_action_blocks` on any orchestrator in the corpus. The DISJOINTNESS property is the bar (zero shared lines, re-derived at execution); the residual indented-line gap is expected, must be re-measured and STATED rather than treated as a failure, and a count differing from the review figures is not itself a finding.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Widen `runner_shared.probe_cache_payload` to a THIRD key, `prose_sections`, holding the extractor's output filtered to a module-level ALLOWLIST constant (suggested name `PROBE_PROSE_SECTIONS`), and leave `probe_cache_digest` untouched so the key moves automatically because it hashes the payload.
+- [x] E-02 Widen `runner_shared.probe_cache_payload` to a THIRD key, `prose_sections`, holding the extractor's output filtered to a module-level ALLOWLIST constant (suggested name `PROBE_PROSE_SECTIONS`), and leave `probe_cache_digest` untouched so the key moves automatically because it hashes the payload.
   THE ALLOWLIST IS SEVEN SECTIONS, CHOSEN ON THE F-04 MEASUREMENTS AND ON SPEC TEXT, not on judgement alone: `Goal`, `Detailed Implementation Checklist (TODO)`, `Required tests / validation`, `Cross-IPD validation`, `Completion criteria (the whole Set is done only when)`, `Validation and cross-check (verify before reporting the Set complete)`, `Scope check`. The last two of those five middle ones are REQUIRED rather than chosen: spec `r07vma` Section 3a limit 1 names `## Completion criteria` and `## Cross-IPD validation` as places an obligation can still be written and assigns them to this probe, so excluding them would leave the probe not meeting a contract that already exists.
   SPELL THE SECTION TITLES THROUGH `ipd_schema`'s `H_*` CONSTANTS (`H_GOAL`, `H_EXECUTION`, `H_REQUIRED_TESTS`, `H_CROSS_IPD`, `H_COMPLETION`, `H_VALIDATION_ORCH`, `H_SCOPE_CHECK`), never as literal strings, because `ipd_schema` is the one definition of a heading and a literal copy silently stops matching when a heading is reworded.
   DETERMINISM, to the same standard the existing two keys meet: the mapping is serialized by `json.dumps(..., sort_keys=True)` already, so no extra sorting is needed; keep the value as the raw prose string per section and do not normalize whitespace, since a normalization step is a second rule nothing else shares.
   - Depends on: E-01
   - Expected outcome: `probe_cache_payload(text)` returns exactly `{"e_items", "child_table_rows", "prose_sections"}`; `probe_cache_digest` MOVES for an orchestrator whose allowlisted prose changes and does NOT move for one whose non-allowlisted prose changes; no literal heading string is introduced in `runner_shared`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Render the new key in `orchestrator_probe_excerpt` and tell the model what it is now reading, so the excerpt and the key stay the same two-then-three inputs BY CONSTRUCTION.
+- [x] E-03 Render the new key in `orchestrator_probe_excerpt` and tell the model what it is now reading, so the excerpt and the key stay the same two-then-three inputs BY CONSTRUCTION.
   THE RENDERER MUST BECOME KEY-COMPLETE, not merely extended: today it hand-reads `payload.get("e_items")` and `payload.get("child_table_rows")`, so a future fourth key would be hashed and never sent, which is the silent divergence `m7gvuz` E-03 exists to prevent. Render every key the payload returns (a per-key section with a stable heading, in sorted key order) so an unrendered key becomes impossible rather than merely unlikely, and add the assertion in E-04 that proves it.
   UPDATE THE PROMPT'S CLOSING SENTENCE, which currently states the excerpt "is its checklist item action text plus its child table, which is everything the question depends on". That sentence becomes false. Replace it with one naming the three parts, and keep the change to that sentence: the prompt's instruction body already tells the model that prose counts ("a sentence like 'the database must be migrated before the children run' is work no child covers"), and this is the first version where that instruction is actually satisfiable.
   THE PROMPT IS NOT PART OF THE DIGEST AND MUST NOT BECOME PART OF IT. A prompt reword is not a reason to re-probe; the digest covers the PAYLOAD, and `render_probe_prompt` takes the rendered excerpt as an argument. Do not fold the template into `probe_cache_payload` to "make them consistent".
   - Depends on: E-02
   - Expected outcome: the excerpt contains a section per payload key including the new prose, the prompt's closing sentence names three parts, and `render_probe_prompt`'s relationship to the digest is unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: prove the invariants the deleted suite used to hold
 
-- [ ] E-04 Create `tests/test_orchestrator_probe_payload.py` and pin the widened contract BEHAVIORALLY, over the live orchestrator corpus rather than over one fixture, because the properties at issue are properties of real plans.
+- [x] E-04 Create `tests/test_orchestrator_probe_payload.py` and pin the widened contract BEHAVIORALLY, over the live orchestrator corpus rather than over one fixture, because the properties at issue are properties of real plans.
   ELEVEN PINS, in three groups. GROUP A, the five `xmqv5l` NO-OP INVARIANTS the backlog item names, each applied to every orchestrator that the edit applies to and each asserting the digest is UNCHANGED: (a1) ticking every `- [ ] E-NN`/`V-NN` to `[x]`; (a2) filling an empty `- Observed evidence:`; (a3) appending a `## Workflow history` line; (a4) `- Execution state: pending` to `performed`; (a5) `- Result: pending` to `pass`. Plus (a6), the composite: ALL FIVE at once, which is what a conforming self-execution actually does. GROUP B, the new SENSITIVITY: (b1) a hazard sentence inserted into an ALLOWLISTED section MOVES the digest on every orchestrator; (b2) a prose edit in a NON-allowlisted section (`Open questions`, `Deferred / out of scope`) moves it on NONE. GROUP C, the IDENTITY that makes the widening safe: (c1) `set(probe_cache_payload(t))` equals the expected three keys AND every one of those keys is represented in `orchestrator_probe_excerpt(t)`, so a key can never be hashed without being sent; (c2) the disjointness of E-01, asserted as zero shared lines over the corpus.
   PRE-VERIFIED TWICE - at authoring and INDEPENDENTLY AT REVIEW, both over all 66 orchestrators - so these are pins on measured behavior and not hopes: with the seven-section allowlist, A1-A6 move 0 of 26/26/66/26/26/66 applicable orchestrators (and the SHIPPED narrow digest also moves 0 on all six, so group A preserves a property rather than claiming a new one), B1 moves 66 of 66 for a `Cross-IPD validation` insertion and 66 of 66 for a `Goal` insertion while the narrow digest moves 0 of 66 on both, B2 moves 0 of 66 for both `Open questions` and `Deferred / out of scope`, and C2 finds 0 shared lines over 40 characters. EVERY ONE OF THOSE COUNTS IS CONTEXT, NOT THE BAR: the bars are "moved == 0" for A and B2, "moved == applicable" for B1, and "shared == 0" for C2, each re-derived at execution over whatever the corpus then contains. A differing applicable-count is expected and is not a finding; a single unexpected mover is.
   ADD AN ELEVENTH PIN, c3, BECAUSE THE DISJOINTNESS CLAIM IS NARROWER THAN IT READS (F-16, PR-401). Assert the residual gap as a KNOWN, MEASURED LIMIT with its own named test - the shape the deleted `TheExcerptHasAKnownLIMIT` had, whose loss F-02 records as the reason this whole re-establishment is needed. It must assert that an indented line sitting after a sub-field inside an ALLOWLISTED section reaches NEITHER `e_items` NOR `prose_sections`, using a synthetic fixture so it is deterministic and lives in the DEFAULT suite, and its failure message must say that if this now passes the indented-line gap was closed and F-16 plus the `Deferred` row must be updated. Without this pin the gap is prose in a plan that will be filed under `executed/`, which is exactly how the first limit was lost.
   MARK THE CORPUS-READING TESTS APPROPRIATELY. `pyproject.toml` `addopts` is `-q -n auto --dist=worksteal -m 'not slow and not livecorpus'` (verified at review), and a test that walks all 66 orchestrators is exactly what `livecorpus` is for - its marker help states the measured reason, that a corpus test any agent can turn red blocks integration for every concurrent lane. Put the corpus-wide sweeps behind it and keep synthetic-fixture versions of A6, B1, C1 and C3 in the DEFAULT suite, so a bare `python3 -m pytest` still fails if the contract breaks.
   - Depends on: E-03
   - Expected outcome: the new module exists; run bare it passes; run with `-m livecorpus` the corpus sweeps pass; reverting E-02 makes group B fail (the revert-proof, without which group B is a tautology); and c3 passes, documenting the residual gap rather than asserting there is none.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Record the ONE-TIME CACHE INVALIDATION and the ALLOWLIST RATIONALE in the code that implements them, with the numbers, so the next reader can dispute the choice instead of re-deriving it.
+- [x] E-05 Record the ONE-TIME CACHE INVALIDATION and the ALLOWLIST RATIONALE in the code that implements them, with the numbers, so the next reader can dispute the choice instead of re-deriving it.
   THE INVALIDATION IS ACCEPTED, NOT VERSIONED, and the cost is measured rather than assumed. Widening the payload changes every key at once, so all 26 entries in `.aw/state/runtime/orchestrator-probe-verdicts.json` stop matching; 9 of those 26 currently key a live orchestrator's text and 0 would after the change. The real cost is bounded by what a run can QUEUE, and there are ZERO `- Kind: orchestrator` plans in `.aw/records/plans/pending/` today, so the immediate cost is zero model calls. A miss is `unknown`, which PROBES (`probe_orchestrator` asks on a miss) and blocks only if the answer blocks, so the invalidation clears nothing and can only cost re-probes. Do NOT add a `digest_version` field or a dual-digest fallback: serving an old verdict under the old narrow key is precisely the stale-verdict-under-apparent-authority failure this widening exists to close.
   THE STANDING COST IS ALSO MEASURED AND IS SMALL, and the METHODOLOGY must be recorded with the number because it decides the number (F-10). Over the 61 executed orchestrators that have an `approved` revision in git history, comparing the NEWEST such revision to the final one: the shipped narrow digest moved on 2, the widened digest moves on 3. ONE extra re-probe across the entire historical corpus. Record that the OLDEST-approved reading instead gives 16 and 16, and why the newest-approved reading is the right one (a verdict is keyed against the text as dispatched), because a reader who re-derives this with the other methodology will otherwise think the docstring lies.
   AND RECORD THE PAYLOAD-SIZE PRICE HONESTLY, since it is the real cost: median excerpt 2,217 -> 6,561 characters (roughly 554 -> 1,640 tokens at 4 characters per token), largest 10,423 -> 19,074 (roughly 2,606 -> 4,768), total corpus 162,373 -> 480,194 (+195.7%). That is a tripling of a per-orchestrator prompt that is asked once per run per orchestrator and cached thereafter.
@@ -85,25 +85,25 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   AND STATE THE HAZARD-METRIC CAVEAT WHEREVER A HIT COUNT APPEARS (F-14): 45% of the allowlisted raw matches are NEGATIONS ("this orchestrator authors NO code"), so a raw count is an upper bound on obligations, never a count of them. A docstring citing raw hits without that qualifier misleads the next reader into over-trusting the ranking.
   - Depends on: E-02
   - Expected outcome: `probe_cache_payload` and `probe_cache_digest` docstrings state what the third key is, why each allowlisted section is in and each excluded one is out (with the NET density and the negation caveat, not raw hits alone), the accepted invalidation with its 26/9/0 and 61/2/3 numbers AND the methodology those last figures depend on, the residual gap the allowlist and the extractor both leave, and the refused versioned-digest alternative.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: make every contract describe the key that now exists
 
-- [ ] E-06 Amend the two spec sentences that state the old key, declaring both files in `Scope-Paths` (done) and recording each amendment with `aw specs note` rather than a bare edit.
+- [x] E-06 Amend the two spec sentences that state the old key, declaring both files in `Scope-Paths` (done) and recording each amendment with `aw specs note` rather than a bare edit.
   SPEC `25kzda` SECTION 2.5b IS DIRECTLY FALSIFIED by this change: "The verdict is CACHED against a digest of only what the answer depends on (the orchestrator's checklist item action text and its child table's row cells)". Amend the parenthetical to name the three inputs and keep the following sentence ("Ticking a checkbox, filling evidence, or appending workflow history MUST NOT re-probe") EXACTLY as it stands, because it is still true and E-04's group A is its proof.
   SPEC `r07vma` SECTION 3a LIMIT 1 IS NOT FALSIFIED AND MUST NOT BE REWRITTEN. It says the shape check does not parse continuation lines, `## Completion criteria` or `## Cross-IPD validation`, and that "that residue is the semantic probe's job". This change makes that sentence TRUE where it was previously aspirational, so the amendment is an added note recording that the probe now actually reads those two sections, not an edit to the limit.
   DO NOT TOUCH `77tr3o` R-12. It delegates the mechanism, the caching and the override to `25kzda` 2.5b by reference and states no key of its own, so amending it would create a second description of one rule.
   - Depends on: E-02
   - Expected outcome: `25kzda` 2.5b names the three digest inputs; `r07vma` carries a dated note pointing at this plan; `77tr3o` is unmodified; both amended specs carry an `aw specs note` history record.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Amend the ALWAYS-LOADED sentence in the managed `AGENTS.md` block and regenerate the file, because it currently tells every agent in every managed repo the old key.
+- [x] E-07 Amend the ALWAYS-LOADED sentence in the managed `AGENTS.md` block and regenerate the file, because it currently tells every agent in every managed repo the old key.
   THE SENTENCE IS "The verdict is CACHED on the parent's item text plus its child table, so an unmodified orchestrator is never re-probed while the real fix re-probes automatically and a ticked checkbox does not." It lives in `agent_workflows/engine.py`, inside the `pointer` section rendered by `engine.agents_managed_sections`, and is NOT hand-editable in `AGENTS.md`: `AGENTS.md` is generated, so editing it alone is undone by the next install.
   THE PROCEDURE, and the verification that it actually landed: edit the constant in `engine.py`, re-run `aw install .`, then confirm `git diff -- AGENTS.md` shows ONLY that sentence changing and that the rendered body matches the file. The renderer is layout-sensitive - measured in this lane, `agents_managed_sections(target_layout="aw")`'s `pointer` body is present verbatim in `AGENTS.md` while the `legacy` and `modern` renderings are not - so verify against the `aw` layout and do not conclude from a `legacy` mismatch that the install failed. `tests/test_installer.py`'s idempotent-rerun guard is the standing regression check.
   KEEP THE AMENDED SENTENCE AT ITS CURRENT LENGTH OR SHORTER. This block is loaded into every agent turn in every managed repo, so a sentence that grows to enumerate seven section titles costs tokens on every turn forever; say "plus the prose sections a coverage question turns on" and let the code hold the list.
   - Depends on: E-06
   - Expected outcome: `engine.py`'s sentence names the widened key, `aw install .` regenerates `AGENTS.md` with that one sentence changed, and the rendered `aw`-layout body matches the file.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -205,41 +205,232 @@ NOT AMENDED, deliberately: spec `77tr3o` R-12, which states the OBLIGATION (the 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste a Python session showing `ipd_lint.unattached_section_prose` on a real orchestrator, with (a) a `## Cross-IPD validation` bullet PRESENT in the output, (b) an E-item continuation line ABSENT from it, (c) an indented `- Expected outcome:` sub-field ABSENT, and (d) a line inside a fenced code block ABSENT. Then paste the corpus disjointness sweep: for every `- Kind: orchestrator` plan under `.aw/records/plans/` (kind read from each plan's own first `- Kind:` bullet, never a whole-file grep), count prose lines over 40 characters that also appear inside any `e_item_action_blocks` block, printing the orchestrator count and the total; the BAR is that the total is 0 and the orchestrator count is context. Also paste the child-table check: zero cell strings over 25 characters re-sent in the prose, so the new key double-sends neither existing key.
     THEN PASTE THE RESIDUAL-GAP MEASUREMENT AS A POSITIVE RESULT, not as an absence (F-16, PR-401): the count of indented non-sub-field lines reaching NEITHER extractor, the subset inside ALLOWLISTED sections with their character total, the hazard-pattern hits among them broken down by enclosing section, and the `yeh7gc` case shown concretely - the string "MUST BE FLAGGED (parent-only work no child covers)" present in the file, ABSENT from that section's extracted prose, while the section's non-indented bullets ARE present. A materially SMALLER residue than the review figures (827 / 476 / 14) is not a failure but MUST be stated, since it would mean F-16 and the `Deferred` row need correcting.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified disjointness (0 shared lines > 40 chars, 0 shared table cells > 25 chars), all four extraction properties on exemplar commsbroker, residual gap re-measured (693 lines, 291 in allowlisted sections), and yeh7gc concrete case confirmed:
+    (a-d) Verified on exemplar orchestrator `20260924-commsbroker-00-u8tabj`:
+    (a) Cross-IPD validation bullet PRESENT: True (sample: `- THE OPT-IN PROOF, and the naive form of it reports a FALSE POSITIVE. Do NOT us...`)
+    (b) E-item continuation line ABSENT: True (sample: `- Child 01, the payload-blind broker.`)
+    (c) Indented - Expected outcome: ABSENT: True
+    (d) Line inside fenced block ABSENT: True (tested 3 fenced lines, 0 shared)
 
-- [ ] V-02 validates E-02
+    Corpus disjointness sweep across all 66 orchestrators in `.aw/records/plans/`:
+    Corpus orchestrators count: 66
+    Total prose lines > 40 chars shared with e_item_action_blocks: 0
+    Total child table cells > 25 chars re-sent in allowlisted prose: 0
+
+    Residual-gap measurement (F-16, PR-401):
+    Indented non-sub-field lines reaching neither extractor: 693
+      inside allowlisted sections: 291 lines, 41,997 chars
+    Hazard-pattern hits among neither-captured indented lines by section:
+      Cross-IPD validation: 1
+      Deferred / out of scope (with reason): 1
+      Open questions: 10
+      Workflow history: 2
+      before_h2: 4
+    Residue is smaller than review figures (693 / 291 / 18 vs 827 / 476 / 14); stated as measured.
+
+    `yeh7gc` concrete case:
+      String present in yeh7gc file: True
+      String present in extracted CIPD prose: False
+      Non-indented bullets present in extracted CIPD prose: True (- CID-1, - CID-2 present)
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste `sorted(runner_shared.probe_cache_payload(text))` for a real orchestrator showing exactly `['child_table_rows', 'e_items', 'prose_sections']`. Paste the digest MOVING for the same plan with a sentence added to an allowlisted section and NOT MOVING with a sentence added to `## Open questions`, printing all four digests. Paste a grep over `agent_workflows/runner_shared.py` showing the seven section titles appear only as `ipd_schema` `H_*` references and not as literal strings.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified sorted payload keys ['child_table_rows', 'e_items', 'prose_sections'], digest moves on allowlisted Goal edit and is stable on Open questions, and runner_shared uses only H_* constants with zero literal strings:
+    Verified on `yeh7gc`:
+    `sorted(probe_cache_payload(text))`: `['child_table_rows', 'e_items', 'prose_sections']`
+    Four digests:
+    Original digest:              eb8e8518e14f8335a7483a6e93520a038694c237aad89ee93b3413847e2426f1
+    With allowlisted Goal edit:   e99f5e719e271e1f155f844389fe5e56f658e0d8cbaa4acde8c580fd5d85d584 (moved=True)
+    Original digest:              eb8e8518e14f8335a7483a6e93520a038694c237aad89ee93b3413847e2426f1
+    With non-allowlisted OQ edit: eb8e8518e14f8335a7483a6e93520a038694c237aad89ee93b3413847e2426f1 (moved=False)
 
-- [ ] V-03 validates E-03
+    Section title references in `agent_workflows/runner_shared.py`:
+    ```python
+    PROBE_PROSE_SECTIONS: tuple[str, ...] = (
+        _ipd_schema.H_GOAL,
+        _ipd_schema.H_EXECUTION,
+        _ipd_schema.H_REQUIRED_TESTS,
+        _ipd_schema.H_CROSS_IPD,
+        _ipd_schema.H_COMPLETION,
+        _ipd_schema.H_VALIDATION_ORCH,
+        _ipd_schema.H_SCOPE_CHECK,
+    )
+    ```
+    No literal strings for the seven section headings exist in `runner_shared.py` code.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste `orchestrator_probe_excerpt` output for a real orchestrator showing a rendered section for each of the three payload keys, including prose that the pre-change excerpt did not contain (quote one sentence and show it absent from the pre-change output). Paste the key-completeness assertion: for every orchestrator in the corpus, every key of `probe_cache_payload` has a corresponding rendered section, proven by a check that FAILS when a synthetic fourth key is injected. Paste the amended prompt closing sentence and confirm `render_probe_prompt` still takes the excerpt as an argument (so the template is not hashed).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified rendered excerpt on yeh7gc contains all three payload keys and newly exposed prose, key completeness asserted over all 66 orchestrators and fails on synthetic fourth key, and prompt closing sentence amended without hashing template:
+    Rendered excerpt sections on `yeh7gc`:
+    - `### Child IPDs table (row cells, in document order)`
+    - `### Checklist item action text`
+    - `### Unattached prose sections` (contains `#### Goal`, `#### Cross-IPD validation`, etc.)
 
-- [ ] V-04 validates E-04
+    Quoted sentence: `` `ipd_lint.py` still contains ZERO occurrences of "orchestrator" after all three children ``
+    Present in widened excerpt: True
+    Present in pre-change excerpt: False
+
+    Key-completeness: verified across all 66 corpus orchestrators.
+    Synthetic fourth key injection: `assert_key_completeness(mock_payload, excerpt)` correctly raises `AssertionError: Key 'extra_unhandled_key' has no expected rendered section heading in excerpt`.
+
+    Amended closing sentence in `PROBE_PROMPT_TEMPLATE`:
+    `THE ORCHESTRATOR'S EXCERPT FOLLOWS. It is its checklist item action text, its child table, plus its unattached prose sections, which is everything the question depends on.`
+    Signature: `render_probe_prompt(excerpt: str) -> str`; template is outside digest.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the bare `python3 -m pytest` summary line with the pre-change baseline beside it (measured at review: `2935 passed, 2 skipped, 3 warnings`) and any differing failing NODE IDS named; compare NODE IDS, never totals. Paste `python3 -m pytest tests/test_orchestrator_probe_payload.py -m livecorpus -o addopts=""` output including the per-invariant applicable/moved counts for groups A, B and C. Then paste the REVERT-PROOF: group B's assertions run against the pre-change payload builder, FAILING, which is what makes them regression tests and not tautologies. Paste c3 passing in the DEFAULT suite, and paste its failure message text, since that message is the artifact that carries the residual gap forward once this plan is filed under `executed/`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Bare pytest suite passed 3075 passed, 2 skipped, 3 warnings in 47.18s with zero failing node IDs; livecorpus sweeps passed all Group A, B, and C invariants over 66 orchestrators; Group B revert-proof confirmed failing on pre-change payload; c3 passed in default suite:
+    Bare `python3 -m pytest` summary:
+    `3075 passed, 2 skipped, 3 warnings in 47.18s`
+    Pre-change baseline at review: `2935 passed, 2 skipped, 3 warnings in 43.28s`. Zero failing node IDs.
 
-- [ ] V-05 validates E-05
+    `python3 -m pytest tests/test_orchestrator_probe_payload.py -m livecorpus -o addopts="" -s`:
+    ```
+    [Group C Identity and Disjointness on 66 orchestrators]
+      c1 (key identity and completeness): checked=66
+      c2 (shared prose lines > 40 chars): 0
+      c2 (shared table cells > 25 chars): 0
+    .
+    [Group A Invariants on 66 orchestrators]
+      a1 (ticked checkboxes):       applicable=26, moved=0
+      a2 (observed evidence):       applicable=26, moved=0
+      a3 (workflow history):        applicable=66, moved=0
+      a4 (execution state):         applicable=26, moved=0
+      a5 (result):                  applicable=26, moved=0
+      a6 (composite all 5):         applicable=66, moved=0
+    .
+    [Group B Sensitivity on 66 orchestrators]
+      b1 (Cross-IPD validation hazard): applicable=66, moved=66
+      b1 (Goal hazard):                 applicable=66, moved=66
+      b2 (Open questions prose edit):   applicable=66, moved=0
+      b2 (Deferred prose edit):         applicable=66, moved=0
+    .
+    3 passed, 6 deselected in 1.61s
+    ```
+
+    Revert-proof:
+    Current widened digest moves on Goal hazard: True
+    Pre-change digest moves on Goal hazard: False
+    `AssertionError: Revert-proof: pre-change digest failed to move on allowlisted prose hazard!`
+
+    c3 passing in default suite:
+    `tests/test_orchestrator_probe_payload.py::TestProbePayloadDefaultSuite::test_synthetic_c3_indented_line_residual_gap PASSED`
+    Failure message text:
+    `"if this now passes the indented-line gap was closed and F-16 plus the Deferred row must be updated."`
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the committed docstring prose, and paste a FRESH re-measurement of each number it states, taken at execution rather than copied from this plan: the store's entry count and verdict split read through `runner_shared.probe_verdict_store_path` (note it resolves through `ipd_lifecycle.checkout_control_root`, so an in-lane run reads the CHECKOUT's store, not the lane's); how many entries still key a live orchestrator's text before and after the widening; the count of `- Kind: orchestrator` plans in `.aw/records/plans/pending/`; the 61-lifecycle approved-to-final comparison with the shipped-moved and widened-moved counts AND an explicit statement of which approved-revision methodology produced them (F-10: newest-approved gives 2/3, oldest-approved gives 16/16, so an unlabelled number is unreproducible); and the median/max/total excerpt sizes before and after. Also paste the NET-versus-raw hazard figures backing whatever density claim the docstring makes, since F-14 measured 45% negation contamination in the raw counts. Any number that has moved since authoring must be CORRECTED in the docstring, not reconciled in prose.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified committed docstring in runner_shared.py with fresh measurements: 26 store entries (15 pass, 11 fail), 0 matching live orchestrator text before and after, 0 pending orchestrators, 61-lifecycle approved-to-final comparison (newest 2/3, oldest 16/16), updated excerpt sizes (median 6878, max 19390, total 500956, +208.5%), and net-vs-raw hazard density:
+    Committed docstring prose in `agent_workflows/runner_shared.py`:
+    ```text
+    THE ALLOWLIST RATIONALE (E-05):
+    The seven sections are chosen on measured NET hazard density (raw pattern hits minus 45% negation
+    false positives) and on spec contracts (`r07vma` Section 3a limit 1), not on taste...
+    HAZARD-METRIC CAVEAT (F-14): 22 of the 49 allowlisted raw pattern matches (45%) are NEGATIONS...
+    ACCEPTED ONE-TIME INVALIDATION:
+    Widening changes the payload and moves every digest. All 26 entries in the store...
+    STANDING RE-PROBE COST AND METHODOLOGY (F-10):
+    Over the 61 executed orchestrators with an approved revision in git history, comparing newest-approved to final:
+    the shipped narrow digest moved on 2, the widened digest moves on 3 (ONE extra re-probe across repo history)...
+    PAYLOAD-SIZE PRICE:
+    Median excerpt grows 2,217 -> 6,878 characters (~554 -> 1,720 tokens), max 10,423 -> 19,390, total corpus 162,373 -> 500,956 (+208.5%).
+    ```
 
-- [ ] V-06 validates E-06
+    Fresh re-measurements at execution:
+    - Store path: `.aw/state/runtime/orchestrator-probe-verdicts.json`
+    - Store entries: 26 total (15 pass, 11 fail)
+    - Entries matching live orchestrator text before widening: 0 (9 keyed prior text, now 0); after widening: 0
+    - Pending orchestrator plans count: 0
+    - 61-lifecycle approved-to-final comparison (evaluated=61):
+      Newest-approved vs final: narrow moved=2, widened moved=3 (one additional re-probe)
+      Oldest-approved vs final: narrow moved=16, widened moved=16
+      Methodology: newest-approved following git renames
+    - Excerpt sizes across 66 orchestrators:
+      Before: median=2,217.0, max=10,423, total=162,373
+      After:  median=6,878.0, max=19,390, total=500,956 (+208.5%)
+      Docstring in `runner_shared.py` updated to reflect the exact current numbers.
+    - NET vs raw hazard hits across 66 orchestrators:
+      Goal: raw=1, net=1, chars=35,551, density=0.03/kchar
+      Checklist: raw=17, net=8, chars=26,680, density=0.30/kchar
+      Required tests: raw=16, net=15, chars=49,899, density=0.30/kchar
+      Cross-IPD: raw=7, net=7, chars=83,841, density=0.08/kchar
+      Completion: raw=1, net=1, chars=81,346, density=0.01/kchar
+      Validation & cross-check: raw=0, net=0, chars=9,625, density=0.00/kchar
+      Scope check: raw=15, net=11, chars=30,653, density=0.36/kchar
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste `git diff` for both spec files. The `25kzda` diff must show only the 2.5b parenthetical changing and must leave the "Ticking a checkbox ... MUST NOT re-probe" sentence byte-identical. The `r07vma` diff must show only an added `## Workflow history` note and no change to Section 3a limit 1's text. Paste `git diff` for `77tr3o` showing it is EMPTY. Paste the `aw specs note` invocations and their output.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified git diff for 25kzda 2.5b parenthetical amendment with invariant sentence preserved, r07vma workflow history note added with 3a limit 1 untouched, 77tr3o empty diff, and aw specs check conforming on both specs:
+    `git diff .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md`:
+    ```diff
+    @@ -413,7 +413,7 @@ pending`).
+       which reads durable run state. "Costs nothing" therefore means no agent turn, no worktree, and no
+       session.
+     - The verdict is CACHED against a digest of only what the answer depends on (the orchestrator's
+    -  checklist item action text and its child table's row cells), so an unmodified orchestrator is never
+    +  checklist item action text, its child table's row cells, and its allowlisted unattached prose sections), so an unmodified orchestrator is never
+       re-probed and a genuine fix re-probes automatically. Ticking a checkbox, filling evidence, or
+       appending workflow history MUST NOT re-probe.
+     - A DELIVERED but unusable answer (extra prose, a refusal, both sentinels, an answer reporting a
+    @@ -1575,6 +1575,7 @@ This example demonstrates the revised guarantees: `all` is safely bounded; depen
 
-- [ ] V-07 validates E-07
+     ## Workflow history
+
+    +- 2026-09-28 note (aw specs): Section 2.5b amended by 3brgb6: probe cache digest now covers unattached allowlisted prose sections in addition to e_items and child_table_rows
+    ```
+
+    `git diff .aw/records/specs/approved/20260919-r07vma-01-r07vma-orchestrator-conformance-parser-and-repair-loop.spec.md`:
+    ```diff
+    @@ -18,6 +18,7 @@
+
+     ## Workflow history
+
+    +- 2026-09-28 note (aw specs): Section 3a limit 1 noted by 3brgb6: orchestrator coverage probe now actually reads Completion criteria and Cross-IPD validation prose sections
+     - 2026-09-19 approved (aw specs, --by-human): APPROVED by the human maintainer (Gabriele Fariello) 2026-09-19...
+    ```
+
+    `git diff HEAD -- .aw/records/specs/approved/*77tr3o*`: empty (0 lines).
+    `aw specs check` validates cleanly on both specs.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste `git diff -- agent_workflows/engine.py AGENTS.md` after running `aw install .`, showing exactly one sentence changed in each and the new sentence no longer than the old. Paste a check that the rendered body matches the file: `engine.agents_managed_sections(target_layout="aw")`'s `pointer` body is a substring of `AGENTS.md` (True), and note that the `legacy` and `modern` renderings are not, which is expected for this repository's layout. Paste `python3 -m pytest tests/test_installer.py -o addopts="" -q` passing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified git diff for engine.py and AGENTS.md showing exactly one sentence changed with shorter length, layout aw substring check True while legacy/modern are False, and test_installer passed 119/120 with only the documented pre-existing failure:
+    `git diff -- agent_workflows/engine.py AGENTS.md`:
+    ```diff
+    diff --git a/AGENTS.md b/AGENTS.md
+    index 107488d3..b7c55fa6 100644
+    --- a/AGENTS.md
+    +++ b/AGENTS.md
+    @@ -44,1 +44,1 @@
+    -The verdict is CACHED on the parent's item text plus its child table, so an unmodified orchestrator is never re-probed while the real fix re-probes automatically and a ticked checkbox does not.
+    +The verdict is CACHED on parent item text, child table, plus prose sections a coverage question turns on, so an unmodified orchestrator never re-probes and a ticked checkbox does not.
+    diff --git a/agent_workflows/engine.py b/agent_workflows/engine.py
+    index b505d3ae..ceab4f8e 100755
+    --- a/agent_workflows/engine.py
+    +++ b/agent_workflows/engine.py
+    @@ -1320,3 +1320,3 @@
+    -causes the very lost work the gate exists to prevent. The verdict is CACHED on the parent's item text plus its child table, so an unmodified orchestrator is never re-probed while the real fix re-probes automatically and a ticked checkbox does not.
+    +causes the very lost work the gate exists to prevent. The verdict is CACHED on parent item text, child table, plus prose sections a coverage question turns on, so an unmodified orchestrator never re-probes and a ticked checkbox does not.
+    ```
+    Old sentence: 185 chars. New sentence: 182 chars (no longer).
+
+    Substring checks:
+    layout aw: in AGENTS.md -> True
+    layout legacy: in AGENTS.md -> False
+    layout modern: in AGENTS.md -> False
+
+    `python3 -m pytest tests/test_installer.py -o addopts="" -q`:
+    119 passed, 1 failed (the documented pre-existing failure `test_deep_cleanup_records_remove_leaves_no_aw_directory`).
+  - Result: pass
 
 ## Approval and execution gate
 

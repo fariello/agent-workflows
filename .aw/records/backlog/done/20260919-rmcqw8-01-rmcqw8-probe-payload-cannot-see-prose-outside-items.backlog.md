@@ -1,5 +1,5 @@
 - Id: rmcqw8
-- Status: graduated
+- Status: done
 - Graduated-To: probeprose
 - Set: rmcqw8
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: the orchestrator coverage probe cannot see hazard prose stated OUTSIDE a checklist item, because payload and cache key must stay identical
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): closed by aw oc run: IPD 3brgb6 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-probeprose-01-3brgb6-widen-the-orchestrator-coverage-probe-payload-and-its-cache.ipd.md); evidence .aw/records/plans/executed/20260928-probeprose-01-3brgb6-widen-the-orchestrator-coverage-probe-payload-and-its-cache.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: 3brgb6
 - 2026-09-19 created (aw backlog): the orchestrator coverage probe cannot see hazard prose stated OUTSIDE a checklist item, because payload and cache key must stay identical
 
