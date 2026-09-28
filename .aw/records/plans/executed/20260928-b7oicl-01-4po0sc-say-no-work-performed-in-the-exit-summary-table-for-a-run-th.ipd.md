@@ -6,7 +6,7 @@
 - Scope: Re-decide ONLY the `COMPLETED` branch of that one function's outcome word, by consuming `run_selection_policy.summarize_dispositions` (the judgement the honest summary already uses) instead of re-deriving a verdict from queue statuses. Add `NO WORK PERFORMED` as a first-class outcome word with its own color branch, and pin every shape in a new test file. No exit code, no item status, no progress arithmetic, no other outcome branch changes.
 - Scope-Paths: agent_workflows/render_stream.py, tests/test_zero_dispatch_outcome.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: 4po0sc
-- Approval: 2026-09-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-28 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 4po0sc verified (set b7oicl, attempt 1).
 - 2026-09-28 executed (antigravity model=Gemini-3.8-Flash-High): all 5 E items executed, all 5 V items verified with concrete evidence, bare suite 2956 passed, 2 skipped, 3 warnings in 47.05s, 0 failed, 19 new tests in tests/test_zero_dispatch_outcome.py, targeted regression 163 passed, aw sanitize clean.
 - 2026-09-28 approved (aw set): status set to approved
 - 2026-09-28 reviewed (aw set): plan-review (opencode model=its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-601, PR-602, PR-603 all FIXED
