@@ -1,11 +1,13 @@
 - Id: mh60nd
-- Status: open
+- Status: graduated
+- Graduated-To: mh60nd
 - Set: mh60nd
 - Priority: medium
 - Work-Kind: followup
 - Summary: Wire the drivers to run_evidence.aggregate_run_exit so a needs_input run returns spec 25kzda 5.6's exit 3 instead of 1
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: q32qeg
 - 2026-09-18 created (aw backlog): Wire the drivers to run_evidence.aggregate_run_exit so a needs_input run returns spec 25kzda 5.6's exit 3 instead of 1
 
 Found while executing plan `zz5yxq` (runnoop Order 01), whose OQ-02 records this as a discoverable follow-on outside its fence.
