@@ -6,7 +6,7 @@
 - Scope: Amend spec `25kzda` with a new Section 2.1c declaring the verification flag surface PER HOST, with the reason for the asymmetry and the operator consequences, and add one test that pins the measured dest table per host per subcommand so a de-duplication cannot silently steal a shipped spelling. The amendment goes in a NEW SUBSECTION and deliberately NOT into 2.1's grammar stanza, for a mechanical reason measured in F-09. CHANGES NO SHIPPED BEHAVIOR: no flag is added, removed, renamed or re-dested on either host, and the existing build-time guard is left exactly as it is.
 - Scope-Paths: .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, tests/test_runner_shared.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -19,6 +19,7 @@
 - Id: 7dz3wv
 
 ## Workflow history
+- 2026-09-28 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 all fixed; readiness go-pending-approval
 
 - 2026-09-28 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 PR-002 PR-003 PR-004. Re-measured every load-bearing claim by driving the code, including all three mutations at a full bare suite each: the 24-cell dest table (F-01), all three operator consequences (F-02), the deleted-test falsification (F-03/F-04), the live collision guard (F-05), BOTH mutation-green guard gaps (F-06, F-07) and F-09's placement simulation all reproduce exactly. Four findings changed the plan: every baseline literal was stale by 213 commits and is now de-pinned in favor of execution-time measurement (PR-001), the de-duplication deferral rested on a `s16omw` OQ-03 that is RESOLVED rather than live and is really an unperformed maintainer directive (PR-002), E-04's hand-append escape hatch is removed because `aw specs note` was measured to work on this very spec (PR-003), and `docs/runner-profiles.md` was found to carry an affirmatively false host-unqualified refusal claim, recorded as F-14 (PR-004). Record: `.aw/records/reviews/20260928-xdgorn-01-7dz3wv-document-the-per-host-verification-flag-contract-in-spec-25k.review.md`.
 - 2026-09-28 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): authored from backlog item `xdgorn`. EVERY measurement re-taken against the working tree at HEAD `beb37773`; none carried over from the item. The item's DEFECT is confirmed exactly as tabulated (F-01, F-02), and its SAFETY-NET premise is falsified (F-03): both test files it cites were deleted, one of them the very file it says now pins the asymmetry. Two guard gaps were therefore measured by mutation under a full bare suite (F-06, F-07). OQ-01 records the load-bearing authoring decision (new subsection, not the grammar stanza) with the simulation that forced it.
