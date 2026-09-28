@@ -1321,6 +1321,16 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Run the reduced legacy checks against a grandfathered terminal file.",
     )
     p_ipd_lint.add_argument(
+        "--citation-anchors",
+        "--check-citation-anchors",
+        dest="citation_anchors",
+        action="store_true",
+        help=(
+            "Report citation-anchor advisories (IPD-C801) on demand, including for "
+            "pre-cutover or terminal-directory plans."
+        ),
+    )
+    p_ipd_lint.add_argument(
         "--detail",
         "--long",
         action="store_true",
