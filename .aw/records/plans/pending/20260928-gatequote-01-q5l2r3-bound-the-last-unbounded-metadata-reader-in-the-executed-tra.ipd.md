@@ -38,7 +38,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: bound the residual reader and pin both directions
 
-- [ ] E-01 Make `_plan_id_of` (`agent_workflows.hooks.executed_transition_gate._plan_id_of`) ignore a FENCED `- Id:` quotation, so a quoted id6 can no longer decide which plan the gate thinks is transitioning. The fix has TWO parts and the second is the load-bearing one: bound the read to `selectors.metadata_region(text)`, AND skip any match on a line inside a fenced code block, taking the first bullet that survives both filters.
+- [x] E-01 Make `_plan_id_of` (`agent_workflows.hooks.executed_transition_gate._plan_id_of`) ignore a FENCED `- Id:` quotation, so a quoted id6 can no longer decide which plan the gate thinks is transitioning. The fix has TWO parts and the second is the load-bearing one: bound the read to `selectors.metadata_region(text)`, AND skip any match on a line inside a fenced code block, taking the first bullet that survives both filters.
   - REGION BOUNDING ALONE DOES NOT FIX THIS, AND THAT IS THE CORRECTION THIS ITEM CARRIES. The authored item specified region bounding only, and review APPLIED IT EXACTLY AS WRITTEN and measured that F-4's false accept and F-5's misattribution BOTH PERSIST: `check()` still returned exit `0` on the merge case and the refusal still named `bbbbbb`. THE REASON IS STRUCTURAL, not a mistake in the probe: `metadata_region` ends at the first `##` heading, and the quoted `- Id:` in F-3's own described shape sits in the PREAMBLE, ABOVE the metadata bullets and therefore INSIDE the region. So the fence is on the wrong side of the boundary for that boundary to help (F-9). Region bounding fixes only the case where the quote sits AFTER the first `##` heading and the record has no real `- Id:` at all, and in that case it converts a wrong id6 into `None`, which is a different branch and not the fix F-4 needs.
   - USE THE REPOSITORY'S EXISTING FENCE HELPER rather than writing a parser: `check_engine._fenced_line_numbers` already returns the set of 1-based line numbers inside fenced blocks and is already used for exactly this judgement by `check_engine.check_id_outside_metadata_region`, whose docstring records the governing principle in the terms this item needs ("a line inside a fenced code block is a QUOTATION by construction (the fence is the author saying 'this is an example'), so it can never be a misplaced declaration"). Compute the fenced set over the SAME string you search, so the line numbers line up. If importing `check_engine` from a hook is judged too heavy for this import-light module (it is a large module and this file lazily imports even `re`), the alternative is to move or mirror that helper into `selectors` beside `metadata_region`; PREFER moving it into `selectors` and consuming it from both call sites over writing a second local fence parser, which is the drift `metadata_region` itself exists to prevent. That choice is the executor's and must be recorded in V-01.
   - MEASURED TO WORK, unlike the authored shape: review applied the fence-aware variant and F-4's merge case then returned exit `1` with the refusal naming `3v7wo6`, F-5's refusal named `3v7wo6` and not `bbbbbb`, and `tests/test_executed_transition_gate.py` plus `tests/test_executed_transition_gate_e2e.py` stayed green at `13 passed`.
@@ -47,9 +47,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - REGRESSION RISK IS MEASURED AT ZERO FOR THE FENCE-AWARE SHAPE TOO, which is what makes this safe. Re-measured at review over all 876 tracked `.ipd.md` plans (867 at authoring; the count moves and is context, not a bar): the unbounded read and the FENCE-AWARE read return the SAME id6 for every single file (`divergent=0`) and the fence-aware read returns `None` for none of them (`fenceaware_None=0`). The region-bounded-only variant is likewise `divergent=0`, so the corpus does not distinguish them; only the synthetic shapes do, which is why F-4 and F-5 are the tests that matter.
   - Depends on: none
   - Expected outcome: a fenced `- Id:` quotation no longer decides which plan the gate thinks is transitioning, whether that quotation sits above or below the first `##` heading, and whether or not the record has a `##` heading at all; the metadata `- Id:` still does. Verified by F-4's merge case refusing and F-5's refusal naming the real id6.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add regression tests to `tests/test_executed_transition_gate.py` covering BOTH directions the gate can fail in, and covering `vnzm27`'s own reported shape.
+- [x] E-02 Add regression tests to `tests/test_executed_transition_gate.py` covering BOTH directions the gate can fail in, and covering `vnzm27`'s own reported shape.
   - (a) THE FALSE ACCEPT, which is the severity claim of this plan and must be a test rather than prose: in a temp repo, stage a plan into `executed/` whose metadata `- Id:` is `3v7wo6` but whose PREAMBLE fences `- Id: bbbbbb`, inside a merge whose incoming side carries only `lifecycle(bbbbbb): finalize`. Assert `check()` REFUSES (exit 1). Measured against the pre-change code this returns `(0, [])`, i.e. it wrongly accepts.
   - (b) THE MISATTRIBUTION, cheaper and more direct: the same plan text staged into `executed/` with no merge, asserting the refusal message names `3v7wo6` and NOT `bbbbbb`. Measured against the pre-change code the message names `bbbbbb`.
   - (c) `vnzm27`'S REPORTED SHAPE, as a unit case on `_has_executed_status`: a plan whose own metadata status is `approved` and whose `## Validation` section fences a `grep -m1 '^- Status:'` transcript containing four `- Status: executed` lines returns `False`. This PASSES at HEAD and is a pin, not a fix; label it as such in the test name or docstring so a reader does not mistake it for the defect being fixed here. Its value is that `vnzm27` is the item this plan closes, and its reported shape should have a named test.
@@ -59,12 +59,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - WRITE (a) AND (b) WITH THE FENCE IN THE PREAMBLE, not after a `##` heading, so they exercise the shape F-3 and F-4 actually describe and the shape the authored fix could not handle. A version of (a) with the quote below the first `##` would pass under a region-only fix and would therefore certify the wrong implementation.
   - Depends on: E-01
   - Expected outcome: (a), (b), (e) and (f)'s preamble half fail against the pre-change reader and pass after; (c) and (d) pass both before and after. Note that (a), (b), (e) and (f)'s preamble half ALSO fail against a region-bounded-only implementation, which is the point of including them (F-9).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Run the bare suite (`python3 -m pytest`) and confirm no regression.
+- [x] E-03 Run the bare suite (`python3 -m pytest`) and confirm no regression.
   - Depends on: E-02
   - Expected outcome: green, with any failure named as pre-existing at the base commit or new.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -102,9 +102,9 @@ All measured at HEAD `1553abce` in this lane worktree.
 - The three other unbounded identity readers (`check_engine._ITEM_ID_RE`, `runner_shared.discover_specs`, `status_set._ID_RE`) and the live `uyeko5` id6 collision they manufacture. A different set of modules with different consumers, and already filed.
   - Carrier: axayfn
 - Every other unbounded metadata reader found while scoping this plan and NOT covered by `axayfn`: `cli._artifact_status` (backs `aw search --status`, live-divergent on one review record), `artifact_audit.read_declared_status` (reached from `doctor`, live-divergent on four records), `ipd_schema.read_readiness` (the forged-attestation field, latent), and the four `attention.py` bullet readers (latent, escaping only because `_record_for` routes research to a YAML parser). Out of scope: none is in this file, and `vnzm27` is about this gate. These need a NEW backlog item; this plan does not file one, and that gap is stated here so a reviewer can decide.
-  - Carrier: none (unfiled). REVIEWED AND THE CITATIONS VERIFIED, WITH THE FILING DECISION LEFT WITH THE MAINTAINER (OQ-02), which is the right owner for it. Review checked each named reader rather than taking the list on trust: `cli._artifact_status` exists as a NESTED function inside the `search` implementation (a module-level lookup finds nothing, which is worth stating so a later reader does not conclude the citation is stale) and performs `re.search(r"(?m)^-\s*Status:\s*(\S+)", text)` over the WHOLE text with no `metadata_region` call; `artifact_audit.read_declared_status` likewise contains no `metadata_region` call; and `ipd_schema.read_readiness` likewise, which matters most of the three because `AGENTS.md` singles that field out as the forgeable attestation an auto-approve predicate reads. So the plan's flagged gap is REAL and its list is accurate. It remains correctly OUT of this plan: none is in `- Scope-Paths:`, each has different consumers (`aw search`, `doctor`, the approval predicate), and folding them in would turn a one-function change into a cross-module sweep. Review does NOT file the item, because which of these is worth tracking and at what priority is a scope-and-priority judgement, and because filing on an agent's own initiative would manufacture a tracked obligation the maintainer has not accepted.
+  - Carrier-Declined: unfiled; filing decision left with the maintainer per OQ-02. REVIEWED AND THE CITATIONS VERIFIED, WITH THE FILING DECISION LEFT WITH THE MAINTAINER (OQ-02), which is the right owner for it. Review checked each named reader rather than taking the list on trust: `cli._artifact_status` exists as a NESTED function inside the `search` implementation (a module-level lookup finds nothing, which is worth stating so a later reader does not conclude the citation is stale) and performs `re.search(r"(?m)^-\s*Status:\s*(\S+)", text)` over the WHOLE text with no `metadata_region` call; `artifact_audit.read_declared_status` likewise contains no `metadata_region` call; and `ipd_schema.read_readiness` likewise, which matters most of the three because `AGENTS.md` singles that field out as the forgeable attestation an auto-approve predicate reads. So the plan's flagged gap is REAL and its list is accurate. It remains correctly OUT of this plan: none is in `- Scope-Paths:`, each has different consumers (`aw search`, `doctor`, the approval predicate), and folding them in would turn a one-function change into a cross-module sweep. Review does NOT file the item, because which of these is worth tracking and at what priority is a scope-and-priority judgement, and because filing on an agent's own initiative would manufacture a tracked obligation the maintainer has not accepted.
 - Relaxing, widening, or adding an exemption to the gate. `vnzm27` forbids it and this plan moves strictly in the opposite direction.
-  - Carrier: none (explicitly rejected)
+  - Carrier-Declined: explicitly rejected; vnzm27 forbids relaxing, widening, or adding an exemption to the gate.
 
 ## Scope check
 
@@ -137,6 +137,7 @@ N/A with reason: no spec text changes. The `ipd-lifecycle` spec already makes a 
 - Blocking: no
 - Status: open
 - Owner: human
+- Carrier-Declined: filing is a scope and priority decision for the maintainer; non-blocking for this plan and outside scope-paths.
 - Resolution or deferral rationale: NOT RESOLVED HERE because filing it is a scope and priority decision that belongs to the maintainer, and because it is genuinely outside this plan's file. The facts are recorded above so the decision is cheap: both are live-divergent today on tracked records (`aw search --status` wrongly matches a review record that only quotes `- Status: open`; `doctor`'s audit reads a declared status off four quoted bullets), and `ipd_schema.read_readiness` is latent but reads the exact attestation field AGENTS.md singles out as forgeable. Non-blocking: this plan is correct and complete without that decision.
 - REVIEWED, CITATIONS VERIFIED, AND THE QUESTION LEFT OPEN FOR THE MAINTAINER AS ADDRESSED. Review independently confirmed all three readers are unbounded at HEAD `4985a12b` (`cli._artifact_status`, which exists as a NESTED function inside `search` so a module-level lookup finds nothing, searches `(?m)^-\s*Status:\s*(\S+)` over the whole text; `artifact_audit.read_declared_status` and `ipd_schema.read_readiness` likewise make no `metadata_region` call). So the facts this question rests on are accurate and the decision is as cheap as the plan claims. Review deliberately did NOT file the item: the owner is correctly `human`, and an agent filing it would create a tracked obligation the maintainer has not accepted. ONE ADDITION FOR WHOEVER DECIDES: `ipd_schema.read_readiness` is the one worth weighing first, because `- Readiness:` is the attestation `plan_readiness.is_plan_review_approved` reads FIRST and `AGENTS.md` singles out as forgeable, so an unbounded read there is adjacent to the auto-approve path rather than to a reporting surface.
 
@@ -151,35 +152,147 @@ N/A with reason: no spec text changes. The `ipd-lifecycle` spec already makes a 
 ### OQ-04: Which fence mechanism should `_plan_id_of` use, given this hook is deliberately import-light?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: executor
-- Resolution or deferral rationale: LEFT TO THE EXECUTOR, with the two acceptable answers named and one forbidden. The hook imports even `re` lazily, so pulling in `check_engine` (a large module) for one helper is a real cost worth weighing at implementation time; equally, `check_engine._fenced_line_numbers` is the helper that already makes this exact judgement for `check_engine.check_id_outside_metadata_region` (F-10), so consuming it is the no-drift choice. ACCEPTABLE: (i) import `check_engine._fenced_line_numbers` lazily inside `_plan_id_of`; (ii) MOVE that helper into `selectors` beside `metadata_region` and consume it from both call sites, which is E-01's stated preference and which makes `selectors.py` and `check_engine.py` out-of-scope edits to justify at finalize. FORBIDDEN: writing a third local fence parser, which is the drift `metadata_region` exists to prevent. Non-blocking because either acceptable answer produces identical behavior, review measured (i) working end to end, and V-01 requires the choice to be stated rather than left implicit. This is deliberately `open` with `- Owner: executor` rather than resolved, because it is an implementation judgement that should be made with the code in front of the author, and no `V-*` depends on which branch is taken.
+- Resolution or deferral rationale: Resolved via option (i): import `check_engine._fenced_line_numbers` lazily inside `_plan_id_of`. This avoids widening scope beyond `- Scope-Paths: agent_workflows/hooks/executed_transition_gate.py, tests/test_executed_transition_gate.py`, requires no out-of-scope edits or justifications at finalize, and reuses the repository's existing fence helper with zero drift and zero duplication.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the actual `git diff` of `_plan_id_of`. The diff MUST show the regex string UNCHANGED and only the searched text and the match-acceptance logic changed; if the pattern string differs in any byte, this item FAILS regardless of test results (E-01 forbids widening it).
   - REQUIRED, AND THIS IS THE ITEM'S LOAD-BEARING CHECK: paste a run driving `_plan_id_of` on ALL THREE shapes and returning `3v7wo6` for each. (i) the fenced quote in the PREAMBLE, above the metadata bullets; (ii) the fenced quote AFTER the first `##` heading; (iii) a HEADINGLESS record with the fence above the metadata. Shape (i) is the one the authored region-only fix FAILED (it returned `bbbbbb`, measured at review), and shape (iii) separates a correct first-bullet implementation from a plausible any-match-in-region one. A run showing only shape (ii) does not satisfy this item, because that is the only shape region bounding alone already handles.
   - ALSO REQUIRED: STATE WHICH FENCE MECHANISM WAS USED and why, since E-01 leaves that choice open: consuming `check_engine._fenced_line_numbers` directly, or moving it into `selectors` beside `metadata_region` and consuming it from both call sites. If a THIRD local fence parser was written instead, this item FAILS: that is the duplication `metadata_region` exists to prevent and `check_engine.check_id_outside_metadata_region` already solves this exact judgement (F-10).
   - ALSO REQUIRED: re-run the corpus measurement and paste its output, showing `divergent=0` and no `None` result over all tracked `.ipd.md` plans AFTER the change (876 at review; re-derive the count, do not assert it). A nonzero `None` count means some plan's id is now unreadable, which would turn its refusal into the no-readable-Id branch; that is a regression and must fail this item. STATE PLAINLY THAT THIS MEASUREMENT PROVES SAFETY AND NOT EFFICACY: review measured that all three reader variants agree across the whole corpus, so a green corpus run is compatible with the authored fix that does not work (F-6, F-9). Efficacy is V-02's job.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Diff verified unchanged regex and fence-skipping logic; python3 driving all 3 shapes -> 3v7wo6 verified; option (i) lazy import chosen; corpus measurement shows 885 plans with 0 None and 0 divergent.
+    1. Actual `git diff` of `_plan_id_of`:
+    ```diff
+    diff --git a/agent_workflows/hooks/executed_transition_gate.py b/agent_workflows/hooks/executed_transition_gate.py
+    index 804c5339..9810f853 100644
+    --- a/agent_workflows/hooks/executed_transition_gate.py
+    +++ b/agent_workflows/hooks/executed_transition_gate.py
+    @@ -114,9 +114,15 @@ def _plan_id_of(text: Optional[str]) -> Optional[str]:
+         if not text:
+             return None
+         import re
+    +    from agent_workflows import check_engine, selectors
 
-- [ ] V-02 validates E-02
+    -    m = re.search(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$", text)
+    -    return m.group(1) if m else None
+    +    region = selectors.metadata_region(text)
+    +    fenced_lines = check_engine._fenced_line_numbers(region)
+    +    for m in re.finditer(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$", region):
+    +        line_no = region[: m.start()].count("\n") + 1
+    +        if line_no not in fenced_lines:
+    +            return m.group(1)
+    +    return None
+    ```
+    The regex pattern `r"(?m)^- Id:\s*([0-9a-z]{6})\s*$"` is unchanged byte-for-byte; only the searched text (`region`) and the match acceptance logic changed.
+
+    2. Driving `_plan_id_of` on all three shapes:
+    ```
+    (i) preamble fence: 3v7wo6
+    (ii) post-## fence: 3v7wo6
+    (iii) headingless: 3v7wo6
+    ```
+    All three shapes return `3v7wo6`.
+
+    3. Fence mechanism:
+    Used option (i): consuming `check_engine._fenced_line_numbers` directly via a lazy import inside `_plan_id_of`. This avoids widening scope beyond `- Scope-Paths: agent_workflows/hooks/executed_transition_gate.py, tests/test_executed_transition_gate.py`, requires no out-of-scope edits or justifications at finalize, and reuses the repository's existing fence helper without drift or duplication.
+
+    4. Corpus measurement over all tracked `.ipd.md` plans:
+    ```
+    plans=885 unbounded_None=0 fenceaware_None=0 divergent=0
+    ```
+    Re-derived count: 885 `.ipd.md` plans. Zero `None` results and zero divergence across all 885 plans.
+    Safety vs efficacy statement: This corpus measurement proves SAFETY and NOT EFFICACY. All three reader variants agree across the whole tracked plan corpus, so the corpus cannot distinguish the correct fix from the region-only fix. Efficacy is proven by the synthetic shapes in V-02.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the passing run of `python3 -m pytest tests/test_executed_transition_gate.py tests/test_executed_transition_gate_e2e.py -o addopts=""` with its summary line.
   - ALSO REQUIRED (the first load-bearing half): revert E-01 IN THE WORKTREE, re-run, and paste the ACTUAL failure output for (a), (b), (e) and (f). (a) must fail by the gate returning exit `0` where the test expects `1`, and (b) must fail on the refusal message naming `bbbbbb`. Name the observed failure mode explicitly and confirm it is a behavioral assertion failure, not an import, fixture, or git-setup error. Then restore. A reverted run in which any of them still PASSES means that test does not exercise the defect and this item FAILS.
   - ALSO REQUIRED (the SECOND load-bearing half, ADDED AT REVIEW and the more important of the two): run the tests against a REGION-BOUNDED-ONLY implementation of `_plan_id_of`, i.e. the fix exactly as this plan ORIGINALLY specified, and paste the result showing that (a), (b), (e) and (f)'s preamble half STILL FAIL. This is what proves the test suite can tell the correct fix from the plausible one, and it is the check that would have caught the authored plan's defect. Review measured that the region-only variant leaves F-4 at exit `0` and F-5 naming `bbbbbb` (F-9), so these tests MUST be red against it. If they pass against the region-only variant, the tests are testing the wrong shape (most likely the fence was placed after the first `##` heading rather than in the preamble) and this item FAILS. Restore afterwards and confirm `git diff --stat` is empty for the production file.
   - ALSO REQUIRED: confirm test (c) is labelled as a PIN of `vnzm27`'s already-fixed reported shape and not as the defect this plan fixes, and paste the line or docstring that says so. State plainly that (c) and (d) pass in BOTH the reverted and restored runs.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: 19 passed across narrow and e2e gate suites; differential 1 (reverted E-01) red on (a), (b), (e), (f) with behavioral assertion failures; differential 2 (region-only) red on (a), (b), (e), (f); (c) pinned and passed in both; (d) passed in both.
+    1. Passing run of gate tests:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=1071708155
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 19 items
 
-- [ ] V-03 validates E-03
+    tests/test_executed_transition_gate_e2e.py .......                       [ 36%]
+    tests/test_executed_transition_gate.py ............                      [100%]
+
+    ============================= 19 passed in 15.29s ==============================
+    ```
+
+    2. First differential (reverting E-01 in worktree):
+    ```
+    FAILED tests/test_executed_transition_gate.py::ExecutedGateEndToEndTests::test_false_accept_during_merge_with_preamble_fenced_id_is_refused
+    FAILED tests/test_executed_transition_gate.py::ExecutedGateEndToEndTests::test_misattribution_refusal_with_preamble_fenced_id_names_real_id
+    FAILED tests/test_executed_transition_gate.py::ExecutedStatusUnitTests::test_plan_id_of_preamble_versus_body_fenced_quote
+    FAILED tests/test_executed_transition_gate.py::ExecutedStatusUnitTests::test_plan_id_of_headingless_record_with_fenced_id_above_metadata
+    ========================= 4 failed, 8 passed in 0.66s ==========================
+    ```
+    Failure details:
+    - (a) `test_false_accept_during_merge_with_preamble_fenced_id_is_refused`:
+      `AssertionError: 0 != 1 : Expected exit_code 1 (refusal), got 0 with refusals: []`
+      (Behavioral assertion failure: wrongly accepted raw transition during merge).
+    - (b) `test_misattribution_refusal_with_preamble_fenced_id_names_real_id`:
+      `AssertionError: 'bbbbbb' unexpectedly found in '.aw/records/plans/executed/20260928-test-01-3v7wo6-sample.ipd.md (bbbbbb): raw plan->executed transition (moved into executed/) with NO matching finalize evidence in .aw/state/. Do not hand-edit/`git mv` a plan to executed; run `aw ipd finalize bbbbbb ...'`
+      (Behavioral assertion failure: refusal message misattributed transition to bbbbbb).
+    - (e) `test_plan_id_of_headingless_record_with_fenced_id_above_metadata`:
+      `AssertionError: 'bbbbbb' != '3v7wo6'`
+      (Behavioral assertion failure: read bbbbbb instead of 3v7wo6).
+    - (f) `test_plan_id_of_preamble_versus_body_fenced_quote`:
+      `AssertionError: 'bbbbbb' != '3v7wo6'`
+      (Behavioral assertion failure: preamble quote read bbbbbb).
+    - Tests (c) and (d) passed cleanly in the reverted run (8 passed).
+
+    3. Second differential (run against region-bounded-only `_plan_id_of`):
+    ```
+    FAILED tests/test_executed_transition_gate.py::ExecutedGateEndToEndTests::test_misattribution_refusal_with_preamble_fenced_id_names_real_id
+    FAILED tests/test_executed_transition_gate.py::ExecutedGateEndToEndTests::test_false_accept_during_merge_with_preamble_fenced_id_is_refused
+    FAILED tests/test_executed_transition_gate.py::ExecutedStatusUnitTests::test_plan_id_of_headingless_record_with_fenced_id_above_metadata
+    FAILED tests/test_executed_transition_gate.py::ExecutedStatusUnitTests::test_plan_id_of_preamble_versus_body_fenced_quote
+    ========================= 4 failed, 8 passed in 0.44s ==========================
+    ```
+    Failure details:
+    - (a) `test_false_accept_during_merge_with_preamble_fenced_id_is_refused`:
+      `AssertionError: 0 != 1 : Expected exit_code 1 (refusal), got 0 with refusals: []`
+      (Behavioral assertion failure: region-only fix still wrongly accepts).
+    - (b) `test_misattribution_refusal_with_preamble_fenced_id_names_real_id`:
+      `AssertionError: 'bbbbbb' unexpectedly found in ... (bbbbbb): raw plan->executed transition ...`
+      (Behavioral assertion failure: region-only fix still misattributes refusal to bbbbbb).
+    - (e) `test_plan_id_of_headingless_record_with_fenced_id_above_metadata`:
+      `AssertionError: 'bbbbbb' != '3v7wo6'`
+    - (f) `test_plan_id_of_preamble_versus_body_fenced_quote`:
+      `AssertionError: 'bbbbbb' != '3v7wo6'` on preamble text.
+    - Tests (c) and (d) passed cleanly in this run as well (8 passed).
+    After restoring the fence-aware fix, `git diff --stat agent_workflows/hooks/executed_transition_gate.py` shows only 1 file modified (8 insertions, 2 deletions).
+
+    4. Test (c) labelling and pin confirmation:
+    Test (c) is explicitly labelled as a PIN of `vnzm27`'s already-fixed reported shape:
+    Docstring:
+    `"""Pin of vnzm27's already-fixed reported shape: metadata approved plus a fenced grep transcript containing multiple '- Status: executed' lines returns False (this is a PIN, not a fix; already fixed by kecxnb)."""`
+    Both test (c) and test (d) passed in both the reverted and restored runs.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the final summary line of a BARE `python3 -m pytest` (no added flags). For any failure, paste its node id and evidence that it fails identically at the base commit (pre-existing) or admit it is new. Do not paste a narrowed run in place of the bare one.
   - EXPECT ONE PRE-EXISTING FAILURE, NOT ZERO, corrected at review because the authored item demands "0 failed" and the tree is already red. MEASURED at review HEAD `4985a12b` on a clean tree: `1 failed, 3031 passed, 2 skipped, 3 warnings in 43.75s`, the failure being `tests/test_dependency_block_reporting.py::test_drain_and_cascade_mapped_reasons_rendered_once`, which fails at `assert not sat` (`tests/test_dependency_block_reporting.py:122`) because the test hardcodes the dependency `executed:5o1jye` and `5o1jye` has since reached `executed/`. THE BAR IS THAT ONE NODE ID AND NO OTHER, with the passed count at or above 3031 plus this plan's new tests. Demanding literal zero would have forced the executor either to fix an unrelated test outside `- Scope-Paths:` or to report a failure this plan did not cause, which is the mis-attribution `verify-execution` Dimension 3 exists to prevent. Say which case you observed if a concurrent fix has landed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Bare python3 -m pytest passed 3110 tests (3110 passed, 2 skipped, 3 warnings in 127.90s), 0 failed.
+    Final summary line of bare `python3 -m pytest`:
+    ```
+    3110 passed, 2 skipped, 3 warnings in 127.90s (0:02:07)
+    ```
+    The pre-existing failure in `tests/test_dependency_block_reporting.py::test_drain_and_cascade_mapped_reasons_rendered_once` was resolved upstream prior to this turn (all 8 tests in `tests/test_dependency_block_reporting.py` passed). All 3110 executed tests in the bare suite passed with zero failures.
+  - Result: pass
 
 ## Approval and execution gate
 
