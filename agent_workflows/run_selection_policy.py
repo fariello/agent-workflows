@@ -1386,11 +1386,10 @@ SKIP_HOST_CAPABILITY_UNAVAILABLE = "host_capability_unavailable"
 #:     one therefore does NOT duplicate.
 #:   * `host_capability_unavailable` IS per-artifact by construction
 #:     (`host_sandbox_profile.preflight_host_capabilities` returns `aborts_run=False`,
-#:     `cascade_dependents=True`) and IS spec-named, so it is KEPT in the vocabulary above. But
-#:     measured: neither driver nor `runner_shared` calls that preflight (zero occurrences of
-#:     `preflight_host_capabilities` in all three files), so no run can produce it TODAY. It is listed
-#:     so the reason exists when the preflight is wired, and this note exists so nobody reports it as
-#:     a reason a current run can emit.
+#:     `cascade_dependents=True`) and IS spec-named, so it is KEPT in the vocabulary above.
+#:     The preflight is wired and reachable through `runner_shared.execute_item_core` (iot7hc).
+#:     HONEST LIMIT: on a real host today no production action requires a capability (01reg8),
+#:     so the path is reachable but not yet exercised by any shipped requirement (OQ-01).
 SKIP_REASON_SOURCES: Mapping[str, str] = {
     SKIP_NEEDS_HUMAN_APPROVAL: (
         "the durable queue-entry flag `runner_shared.NEEDS_INPUT_KEY`, frozen at queue-build time by "
@@ -1417,8 +1416,9 @@ SKIP_REASON_SOURCES: Mapping[str, str] = {
     ),
     SKIP_HOST_CAPABILITY_UNAVAILABLE: (
         "`host_sandbox_profile.preflight_host_capabilities`' refusal "
-        "(`REASON_HOST_CAPABILITY_UNAVAILABLE`). NOT REACHABLE TODAY: neither driver calls that "
-        "preflight (measured zero call sites), so no current run emits this reason"
+        "(`REASON_HOST_CAPABILITY_UNAVAILABLE`), reachable through `runner_shared.execute_item_core` "
+        "(iot7hc). On a real host today no production action requires a capability, so the path is "
+        "reachable but not yet exercised by any shipped requirement"
     ),
 }
 

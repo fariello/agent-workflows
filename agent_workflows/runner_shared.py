@@ -29816,6 +29816,42 @@ def integrate_retired_lane(
     return RETIRED_STATUS
 
 
+# Mapping from runner action names ('execute', 'review', 'plan') onto host-capability
+# contract action classes in `host_sandbox_profile.ACTION_CLASSES`.
+#
+# Since plan 01reg8 narrowed ACTION_CLASSES to ('read_only',), the three mutating runner
+# actions ('execute', 'review', 'plan') have NO contract row. Mapping execute -> read_only
+# is forbidden for two measured reasons (iot7hc F-11, review decision D-1):
+# 1. False classification: read_only's spec_basis explicitly specifies "no agent session for
+#    a skip", whereas execute starts an agent session and mutates the repository.
+# 2. Spec message corruption: format_host_capability_finding interpolates the action name
+#    verbatim, so mapping execute -> read_only would render "action read_only" into the
+#    spec's byte-exact operator message for an execute item.
+#
+# This mapping is deliberately empty of production rows: it serves as the extension seam
+# that successor plans (b7tlsh/oq05nc) will populate when a mutating action acquires a real
+# capability requirement.
+RUNNER_ACTION_TO_CONTRACT_ACTION: dict[str, str] = {}
+
+NO_CAPABILITY_POLICY: None = None
+
+
+def runner_action_contract_class(action: str) -> str | None:
+    """Map a runner action name ('execute', 'review', 'plan') onto a contract action class.
+
+    Returns the contract action class (a member of `host_sandbox_profile.ACTION_CLASSES`),
+    or `None` (the no-policy sentinel) if the contract defines no policy for this action.
+
+    Fail-closed rationale and no-policy behavior:
+    An action with no contract row represents an action about which the host-capability
+    contract makes no claim. Converting 'no policy' into 'refused' would stop every run on
+    a policy nobody wrote, while converting it into an UnknownActionError crash would break
+    the dispatch path for every item. Therefore, actions without a contract row yield None
+    and proceed as a refusal-free pass through the host-capability preflight.
+    """
+    return RUNNER_ACTION_TO_CONTRACT_ACTION.get(action, NO_CAPABILITY_POLICY)
+
+
 def execute_item_core(
     run_dir: Path,
     state: dict[str, Any],
@@ -30026,6 +30062,78 @@ def execute_item_core(
         except Exception as ex:
             scope_target_check_error = str(ex)
 
+    # Host-capability preflight (iot7hc, spec 25kzda 5.2/5.4/5.7). Item-local dispatch refusal
+    # when the host descriptor cannot positively prove every capability required by the action.
+    # Fails open on unexpected exception (recording error into attempt). Placed before
+    # build_prompt/write_prompt to avoid orphan prompt files on refusal.
+    host_capability_check_error: str | None = None
+    try:
+        from agent_workflows import host_sandbox_profile as _hsp
+        from agent_workflows import render_stream as _rs
+        from agent_workflows import run_selection_policy as _rsp
+
+        contract_action = runner_action_contract_class(action)
+        if contract_action is not None:
+            # Pass real CLI noun (host_labels.argv_tokens[1], e.g. 'opencode'/'antigravity')
+            # rather than host_labels.id ('oc_runipd'/'agy_runipd') so recovery command runs (F-12).
+            cli_host = (
+                host_labels.argv_tokens[1]
+                if host_labels.argv_tokens and len(host_labels.argv_tokens) > 1
+                else host_labels.id
+            )
+            caps = _hsp.detect_host_capabilities(cli_host)
+            item_id = str(item.get("id6") or "<unknown>")
+            preflight = _hsp.preflight_host_capabilities(
+                contract_action,
+                caps,
+                host=cli_host,
+                item=item_id,
+            )
+            if not preflight.ok:
+                ended = utc_now()
+                attempt = {
+                    "number": attempt_no,
+                    "started_at": utc_now(),
+                    "ended_at": ended,
+                    "action": action,
+                    "host_capability_unavailable": preflight.message,
+                    "disposition": "fail-gate",
+                }
+                item.setdefault("attempts", []).append(attempt)
+                item["status"] = "fail-gate"
+                _rs.record_refusal(
+                    item,
+                    code=_rsp.SKIP_HOST_CAPABILITY_UNAVAILABLE,
+                    reason=preflight.message,
+                    remedy=_rsp.DISPOSITION_REMEDIES.get(
+                        _rsp.SKIP_HOST_CAPABILITY_UNAVAILABLE, ""
+                    ),
+                )
+                save_state(run_dir, state)
+                missing_caps = (
+                    list(preflight.verdict.missing) if preflight.verdict else []
+                )
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": ended,
+                        "event": "host-capability-unavailable",
+                        "id6": item_id,
+                        "missing": missing_caps,
+                        "detail": preflight.message,
+                    },
+                )
+                print(
+                    pal(
+                        f"\u2717 IPD {item_id} host capability refused: {preflight.message}",
+                        "red",
+                    ),
+                    file=sys.stderr,
+                )
+                return
+    except Exception as ex:
+        host_capability_check_error = str(ex)
+
     routing = (
         None
         if (is_review or is_production)
@@ -30099,6 +30207,8 @@ def execute_item_core(
         )
     if scope_target_check_error is not None:
         attempt["scope_target_check_error"] = scope_target_check_error
+    if host_capability_check_error is not None:
+        attempt["host_capability_check_error"] = host_capability_check_error
     item.setdefault("attempts", []).append(attempt)
     item["status"] = "running"
     save_state(run_dir, state)

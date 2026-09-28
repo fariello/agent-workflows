@@ -1,5 +1,5 @@
 - Id: 7bj5sa
-- Status: graduated
+- Status: done
 - Graduated-To: 7bj5sa
 - Set: 7bj5sa
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Neither host runner calls host_sandbox_profile.preflight_host_capabilities, so spec 25kzda 5.4/5.7's host_capability_unavailable refusal can never fire
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): closed by aw oc run: IPD iot7hc executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-7bj5sa-01-iot7hc-wire-the-host-capability-preflight-into-the-one-shared-dispa.ipd.md); evidence .aw/records/plans/executed/20260928-7bj5sa-01-iot7hc-wire-the-host-capability-preflight-into-the-one-shared-dispa.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: iot7hc
 - 2026-09-19 created (aw backlog): Neither host runner calls host_sandbox_profile.preflight_host_capabilities, so spec 25kzda 5.4/5.7's host_capability_unavailable refusal can never fire
 
