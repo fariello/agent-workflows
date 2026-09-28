@@ -2290,6 +2290,8 @@ def refuse_undispatchable_typed_entry(
 
     if atype == "spec" and action in ("review", "plan"):
         return False
+    if atype == "backlog" and action == "plan":
+        return False
     elif action == "plan":
         code = "missing-dispatcher-aeq7f8-y3p3p5"
         reason = f"production dispatch (action 'plan') for {atype} '{id6}' has no dispatcher in this runner version; owned by plans aeq7f8/y3p3p5"
@@ -3498,6 +3500,162 @@ def commit_spec_transition_output(
         "Path-scoped to the spec file; hooks ran normally."
     )
     trailers = [*_gch.run_item_trailers(run_id, spec_id6), "AW-Committed-By: driver"]
+    message_body = _gch.compose_message_with_trailers(body, trailers)
+    rc, _out, _err = _run_git(
+        wt,
+        [
+            "commit",
+            "-m",
+            subject,
+            "-m",
+            message_body,
+            "--",
+            *allowed,
+        ],
+    )
+    if rc != 0:
+        return None, tuple(allowed)
+    rc, sha, _err = _run_git(wt, ["rev-parse", "HEAD"])
+    return (sha.strip() if rc == 0 else None), tuple(allowed)
+
+
+def commit_backlog_production_output(
+    target_dir: Path,
+    item_id6: str,
+    baseline_plan_ids: set[str],
+    *,
+    host_label: str,
+    run_id: str | None = None,
+) -> tuple[str | None, tuple[str, ...], tuple[str, ...]]:
+    """Commit newly produced plan files under pending/ and report out-of-scope files for backlog item (E-04).
+
+    Returns `(commit_sha_or_None, committed_paths, out_of_scope_paths)`.
+    Only new plan files (under .aw/records/plans/pending/ or .agents/plans/pending/
+    whose id6 is not in baseline_plan_ids) are committed.
+    Any other changed or untracked file is classified as out_of_scope.
+    """
+    from agent_workflows import production_checks
+
+    wt = Path(target_dir)
+    if not wt.is_dir():
+        return None, (), ()
+    rc, out, _err = _run_git(wt, ["status", "--porcelain", "--untracked-files=all"])
+    if rc != 0 or not out.strip():
+        return None, (), ()
+    status_paths: list[str] = []
+    for line in out.splitlines():
+        if not line.strip():
+            continue
+        entry = line[3:] if len(line) > 3 else ""
+        if " -> " in entry:
+            old, new = entry.split(" -> ", 1)
+            status_paths.extend([old.strip().strip('"'), new.strip().strip('"')])
+        elif entry.strip():
+            status_paths.append(entry.strip().strip('"'))
+    status_paths = sorted({p for p in status_paths if p})
+
+    allowed: list[str] = []
+    out_of_scope: list[str] = []
+
+    for p_str in status_paths:
+        norm_p = p_str.replace("\\", "/").strip().lstrip("./")
+        if (
+            norm_p.startswith(".aw/records/runs/")
+            or norm_p.startswith(".agents/runs/")
+            or norm_p.startswith(".aw/state/")
+            or norm_p.startswith(".agents/state/")
+            or "/runs/" in norm_p
+            or "/lane-submissions/" in norm_p
+        ):
+            continue
+        is_plan = norm_p.endswith(".ipd.md") and "/plans/pending/" in norm_p
+        if is_plan:
+            full_p = wt / p_str
+            p_id = ""
+            if full_p.is_file():
+                try:
+                    p_id = production_checks._extract_plan_id(
+                        full_p, full_p.read_text(encoding="utf-8")
+                    )
+                except OSError:
+                    p_id = ""
+            if p_id and p_id not in baseline_plan_ids:
+                allowed.append(p_str)
+                continue
+        out_of_scope.append(p_str)
+
+    if not allowed:
+        return None, (), tuple(out_of_scope)
+
+    rc, _out, _err = _run_git(wt, ["add", "--", *allowed])
+    if rc != 0:
+        return None, (), tuple(out_of_scope)
+    from agent_workflows import git_commit_helper as _gch
+
+    subject = f"work({item_id6}): produce plans for backlog {item_id6}"
+    body = (
+        f"Committed by the driver for backlog production action on {item_id6}. "
+        "Path-scoped to the produced plans; hooks ran normally."
+    )
+    trailers = [*_gch.run_item_trailers(run_id, item_id6), "AW-Committed-By: driver"]
+    message_body = _gch.compose_message_with_trailers(body, trailers)
+    rc, _out, _err = _run_git(
+        wt,
+        [
+            "commit",
+            "-m",
+            subject,
+            "-m",
+            message_body,
+            "--",
+            *allowed,
+        ],
+    )
+    if rc != 0:
+        return None, tuple(allowed), tuple(out_of_scope)
+    rc, sha, _err = _run_git(wt, ["rev-parse", "HEAD"])
+    return (sha.strip() if rc == 0 else None), tuple(allowed), tuple(out_of_scope)
+
+
+def commit_backlog_transition_output(
+    target_dir: Path,
+    item_id6: str,
+    *,
+    status_label: str = "graduated",
+    run_id: str | None = None,
+) -> tuple[str | None, tuple[str, ...]]:
+    """Commit the backlog transition (path-scoped) (E-05/E-06)."""
+    wt = Path(target_dir)
+    rc, out, _err = _run_git(wt, ["status", "--porcelain", "--untracked-files=all"])
+    if rc != 0 or not out.strip():
+        return None, ()
+    status_paths: list[str] = []
+    for line in out.splitlines():
+        if not line.strip():
+            continue
+        entry = line[3:] if len(line) > 3 else ""
+        if " -> " in entry:
+            old, new = entry.split(" -> ", 1)
+            status_paths.extend([old.strip().strip('"'), new.strip().strip('"')])
+        elif entry.strip():
+            status_paths.append(entry.strip().strip('"'))
+    status_paths = sorted({p for p in status_paths if p})
+
+    allowed = [p for p in status_paths if item_id6 in p and p.endswith(".backlog.md")]
+    if not allowed:
+        return None, ()
+
+    rc, _out, _err = _run_git(wt, ["add", "--", *allowed])
+    if rc != 0:
+        return None, ()
+    from agent_workflows import git_commit_helper as _gch
+
+    subject = f"transition(backlog): move {item_id6} -> {status_label}"
+    body = (
+        f"Backlog item {item_id6} transitioned to {status_label}. "
+        "Path-scoped to the backlog file; hooks ran normally."
+    )
+    trailers = [*_gch.run_item_trailers(run_id, item_id6), "AW-Committed-By: driver"]
     message_body = _gch.compose_message_with_trailers(body, trailers)
     rc, _out, _err = _run_git(
         wt,
@@ -24411,6 +24569,48 @@ def build_spec_production_prompt(
     return "\n".join(lines)
 
 
+def build_backlog_production_prompt(
+    item: dict[str, Any],
+    state: dict[str, Any],
+    run_dir: Path,
+    backlog_path: Path,
+    repo: Path,
+    lane_root: Path | None = None,
+) -> str:
+    """Return the authoring turn prompt for an open backlog item (artdispatch y3p3p5 E-04)."""
+    from agent_workflows import lane_containment
+
+    root = lane_root if lane_root is not None else repo
+    try:
+        rel_backlog = str(backlog_path.relative_to(root)).replace("\\", "/")
+    except ValueError:
+        rel_backlog = str(backlog_path).replace("\\", "/")
+
+    item_id6 = str(item.get("id6") or "").strip()
+    lines = [
+        f"# Plan production from open backlog item: {rel_backlog}",
+        "",
+        f"You are authoring implementation plan(s) (IPDs) to graduate open backlog item `{item_id6}` at `{rel_backlog}`.",
+        "",
+        "## Production Contract",
+        f"1. Author one or more review-ready plans under `.aw/records/plans/pending/` using `aw ipd scaffold --from-backlog {item_id6}`.",
+        "2. Every produced plan must have `- Status: to-review` (never `draft`).",
+        f"3. Every produced plan must carry `- From-Backlog: {item_id6}`.",
+        "4. If the backlog item has a `- Blocks-Release:` gate, inherit it on each produced plan. If the item has none, do not invent one.",
+        "5. Every produced plan must have concrete `- Scope-Paths:` (not empty, not TODO, not grandfathered) and resolved `- Item-Dependencies:` (not unresolved).",
+        "6. Every produced plan must lint conforming via `aw ipd lint`.",
+        "7. Do NOT modify the backlog item's requirements.",
+        "",
+        "## Prohibitions",
+        "1. Do NOT change the backlog item's `- Status:` (the runner sets `graduated` upon verification; do not set it `done`).",
+        "2. Do NOT execute any plan you write (this turn is authoring only).",
+    ]
+    if lane_root is not None:
+        lines.append("")
+        lines.append(lane_containment.isolation_notice(lane_root))
+    return "\n".join(lines)
+
+
 def resolve_prior_lane(
     item: dict[str, Any],
 ) -> tuple[str | None, str | None, str | None]:
@@ -29728,17 +29928,29 @@ def execute_item_core(
     is_review = action == "review"
     is_production = action == "plan"
     is_spec_production = is_production and queue_entry_type(item) == "spec"
-    if (is_review or is_spec_production) and queue_entry_type(item) == "spec":
+    is_backlog_production = is_production and queue_entry_type(item) == "backlog"
+    if (is_review or is_spec_production or is_backlog_production) and queue_entry_type(
+        item
+    ) in ("spec", "backlog"):
         plan_path = queue_artifact_path(repo, item)
     else:
         plan_path = queue_plan_path_for(repo, item)
     baseline_plan_ids: set[str] = set()
-    if is_spec_production:
+    status_before: str | None = None
+    if is_spec_production or is_backlog_production:
         from agent_workflows import check_engine as _ce
         from agent_workflows import production_checks as _pc
 
         for p, text in _ce._iter_plan_ipds(repo):
             baseline_plan_ids.add(_pc._extract_plan_id(p, text))
+    if is_backlog_production:
+        from agent_workflows import backlog as _backlog
+
+        try:
+            b_text = plan_path.read_text(encoding="utf-8")
+            status_before = _backlog.parse_item(b_text).status
+        except Exception:
+            status_before = item.get("status")
     attempt_no = len(item.get("attempts", [])) + 1
 
     # planstale 6h8j1r E-04 (backlog mlc6mj): item-local dispatch refusal on moved-terminal or
@@ -29815,6 +30027,10 @@ def execute_item_core(
         prompt_text = build_review_prompt(item, state, run_dir, plan_path, repo)
     elif is_spec_production:
         prompt_text = build_spec_production_prompt(
+            item, state, run_dir, plan_path, repo
+        )
+    elif is_backlog_production:
+        prompt_text = build_backlog_production_prompt(
             item, state, run_dir, plan_path, repo
         )
     else:
@@ -30048,7 +30264,7 @@ def execute_item_core(
             )
             return
 
-    if is_spec_production and isolate:
+    if (is_spec_production or is_backlog_production) and isolate:
         try:
             wt_handle = allocate_isolation_worktree(repo, item["id6"])
             work_dir = str(wt_handle.path)
@@ -30309,22 +30525,27 @@ def execute_item_core(
             },
         )
         save_state(run_dir, state)
-    if work_dir and is_spec_production:
+    if work_dir and (is_spec_production or is_backlog_production):
         lane_root = Path(work_dir)
         try:
-            lane_spec_path = queue_artifact_path(lane_root, item)
+            lane_art_path = queue_artifact_path(lane_root, item)
         except DriverError:
-            lane_spec_path = plan_path
-        prompt_text = build_spec_production_prompt(
-            item, state, run_dir, lane_spec_path, repo, lane_root=lane_root
-        )
+            lane_art_path = plan_path
+        if is_spec_production:
+            prompt_text = build_spec_production_prompt(
+                item, state, run_dir, lane_art_path, repo, lane_root=lane_root
+            )
+        elif is_backlog_production:
+            prompt_text = build_backlog_production_prompt(
+                item, state, run_dir, lane_art_path, repo, lane_root=lane_root
+            )
         prompt_path = write_prompt(run_dir, item, prompt_text, attempt_no)
         attempt["prompt"] = str(prompt_path)
         attempt["prompt_sha256"] = sha256_file(prompt_path)
-        attempt["lane_plan_path"] = str(lane_spec_path)
+        attempt["lane_plan_path"] = str(lane_art_path)
         lane_manifest = lane_containment.materialize_lane_inputs(
             lane_root=lane_root,
-            plan_path=lane_spec_path,
+            plan_path=lane_art_path,
             runbook_path=None,
             repo=lane_root,
             revision=int(item["position"]),
@@ -32125,6 +32346,496 @@ def execute_item_core(
                             },
                         )
             save_state(run_dir, state)
+        elif is_backlog_production:
+            target_tree = Path(work_dir) if work_dir else repo
+            from agent_workflows import check_engine as _ce
+            from agent_workflows import production_checks as _pc
+            from agent_workflows import backlog as _backlog
+
+            prod_commit, prod_committed_paths, prod_out_of_scope = (
+                commit_backlog_production_output(
+                    target_tree,
+                    item["id6"],
+                    baseline_plan_ids,
+                    host_label=host_labels.command,
+                    run_id=str(state.get("run_id") or "") or None,
+                )
+            )
+            if prod_commit:
+                attempt["backlog_production_commit"] = prod_commit
+                attempt["backlog_production_committed_paths"] = list(
+                    prod_committed_paths
+                )
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "backlog-production-output-committed",
+                        "id6": item["id6"],
+                        "attempt": attempt_no,
+                        "commit": prod_commit,
+                        "paths": list(prod_committed_paths),
+                    },
+                )
+            if prod_out_of_scope:
+                attempt["backlog_production_out_of_scope"] = list(prod_out_of_scope)
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "backlog-production-out-of-scope-paths",
+                        "id6": item["id6"],
+                        "attempt": attempt_no,
+                        "paths": list(prod_out_of_scope),
+                    },
+                )
+                print(
+                    pal(
+                        f"  ! Backlog {item['id6']} production wrote out-of-scope paths: {', '.join(prod_out_of_scope)}",
+                        "yellow",
+                    ),
+                    file=sys.stderr,
+                )
+
+            # Discover all newly produced plans in target_tree
+            new_produced_paths: list[Path] = []
+            new_produced_plans: list[tuple[str, Path]] = []
+            for p, text in _ce._iter_plan_ipds(target_tree):
+                p_id = _pc._extract_plan_id(p, text)
+                if p_id not in baseline_plan_ids:
+                    new_produced_paths.append(p)
+                    new_produced_plans.append((p_id, p))
+
+            findings: list[tuple[str, str, str]] = []
+            if exit_code != 0:
+                findings.append(
+                    (
+                        "BACKLOG-PRODUCTION-FAILED",
+                        item["id6"],
+                        f"Agent production turn failed with exit code {exit_code}.",
+                    )
+                )
+            else:
+                host_name = "agy" if "agy" in host_labels.id else "oc"
+                findings.extend(
+                    _pc.backlog_graduate_count(
+                        target_tree,
+                        item["id6"],
+                        baseline_plan_ids,
+                        host=host_name,
+                    )
+                )
+                findings.extend(
+                    _pc.backlog_graduate_ipd(
+                        target_tree,
+                        item["id6"],
+                        new_produced_paths,
+                        host=host_name,
+                        run_id=str(state.get("run_id") or ""),
+                    )
+                )
+                findings.extend(
+                    _pc.backlog_gate_handoff(
+                        target_tree,
+                        item["id6"],
+                        new_produced_paths,
+                        host=host_name,
+                    )
+                )
+
+                # Advisory cross-tree check for mid-graduation warnings (E-02)
+                try:
+                    for _drift in _ce.release_gate_warnings(target_tree):
+                        if item["id6"] in str(_drift.location):
+                            print(
+                                f"[BACKLOG-CROSS-TREE] Warning: {_drift.rule}: {_drift.detail}",
+                                file=sys.stderr,
+                            )
+                except Exception:
+                    pass
+
+            if findings:
+                disposition = "fail-gate"
+                for code, _subj, msg in findings:
+                    print(
+                        pal(
+                            f"  \u2717 Backlog production refused [{code}]: {msg}",
+                            "red",
+                        ),
+                        file=sys.stderr,
+                    )
+                for code, _subj, msg in reversed(findings):
+                    record_refusal(
+                        item,
+                        code=code,
+                        reason=msg,
+                        remedy=f"{host_labels.command} {item['id6']}",
+                    )
+                if wt_handle is not None:
+                    lane_containment.record_lane_preserved(
+                        run_dir=run_dir,
+                        item=item,
+                        handle=wt_handle,
+                        reason="backlog production verification failed; lane preserved for inspection",
+                        reason_codes=("backlog-production-failed",),
+                    )
+            else:
+                # Pre-transition checks passed!
+                # E-05: GATED TRANSITION WITH PRECONDITION AND SELECTOR DISCIPLINE
+                host_name = "agy" if "agy" in host_labels.id else "oc"
+                run_id_val = str(state.get("run_id") or "")
+
+                # Precondition: read item's status immediately before setter call in target_tree
+                curr_item_path = resolve_backlog_item(target_tree, item["id6"])
+                curr_status = None
+                if curr_item_path and curr_item_path.is_file():
+                    try:
+                        b_text = curr_item_path.read_text(encoding="utf-8")
+                        curr_status = _backlog.parse_item(b_text).status
+                    except Exception:
+                        curr_status = None
+
+                if curr_status != "open":
+                    # Refuse transition unless item is still open (F-6)
+                    disposition = "fail-gate"
+                    legit_msg = (
+                        f"[BACKLOG-GRADUATE-LEGITIMACY] Backlog {item['id6']} was transitioned without a valid handoff, "
+                        "or was closed `done` instead of `graduated`. Contain the item, restore it with "
+                        f'aw backlog set open {item["id6"]} --message "handoff incomplete", then: '
+                        f"aw {host_name} run {item['id6']}"
+                    )
+                    record_refusal(
+                        item,
+                        code="BACKLOG-GRADUATE-LEGITIMACY",
+                        reason=legit_msg,
+                        remedy=f"{host_labels.command} {item['id6']}",
+                    )
+                    print(
+                        pal(
+                            f"  \u2717 Backlog transition refused [BACKLOG-GRADUATE-LEGITIMACY]: {legit_msg}",
+                            "red",
+                        ),
+                        file=sys.stderr,
+                    )
+                    if wt_handle is not None:
+                        lane_containment.record_lane_preserved(
+                            run_dir=run_dir,
+                            item=item,
+                            handle=wt_handle,
+                            reason="backlog item is not open at transition time; lane preserved",
+                            reason_codes=("backlog-status-precondition-failed",),
+                        )
+                else:
+                    produced_ids_str = ", ".join(
+                        sorted(p_id for p_id, _p in new_produced_plans)
+                    )
+                    trans_msg = (
+                        f"graduated by run {run_id_val}: {produced_ids_str}"
+                        if run_id_val
+                        else f"graduated: {produced_ids_str}"
+                    )
+
+                    # Check --graduated-to if all produced plans share ONE set
+                    set_args: list[str] = []
+                    produced_sets = set()
+                    for _pid, p in new_produced_plans:
+                        try:
+                            txt = p.read_text(encoding="utf-8")
+                            m_s = re.search(r"(?m)^-[ \t]*Set:[ \t]*(\S+)[ \t]*$", txt)
+                            if m_s:
+                                s_val = m_s.group(1).strip()
+                                if s_val:
+                                    produced_sets.add(s_val)
+                        except Exception:
+                            pass
+                    if len(produced_sets) == 1:
+                        cand_set = next(iter(produced_sets))
+                        if (
+                            re.match(r"^[a-z0-9]+(-[a-z0-9]+)*$", cand_set)
+                            and len(cand_set) <= 40
+                        ):
+                            set_args = ["--graduated-to", cand_set]
+
+                    # Gated setter call by id6 (F-7) with --no-commit
+                    cmd = pinned_module_argv(
+                        [
+                            "backlog",
+                            "set",
+                            item["id6"],
+                            "--status",
+                            "graduated",
+                            "--message",
+                            trans_msg,
+                            "--no-commit",
+                            *set_args,
+                        ]
+                    )
+                    setter_res = subprocess.run(
+                        cmd,
+                        cwd=target_tree,
+                        capture_output=True,
+                        text=True,
+                    )
+                    if setter_res.returncode != 0:
+                        disposition = "fail-gate"
+                        err_detail = (
+                            setter_res.stderr.strip()
+                            or setter_res.stdout.strip()
+                            or f"exit code {setter_res.returncode}"
+                        )
+                        record_refusal(
+                            item,
+                            code="BACKLOG-TRANSITION-FAILED",
+                            reason=f"Backlog setter transition refused with exit code {setter_res.returncode}: {err_detail}",
+                            remedy=f"{host_labels.command} {item['id6']}",
+                        )
+                        print(
+                            pal(
+                                f"  \u2717 Backlog transition failed ({setter_res.returncode}): {err_detail}",
+                                "red",
+                            ),
+                            file=sys.stderr,
+                        )
+                        if wt_handle is not None:
+                            lane_containment.record_lane_preserved(
+                                run_dir=run_dir,
+                                item=item,
+                                handle=wt_handle,
+                                reason=f"backlog setter transition failed: {err_detail}",
+                                reason_codes=("backlog-transition-failed",),
+                            )
+                    else:
+                        bkl_trans_commit, _ = commit_backlog_transition_output(
+                            target_tree,
+                            item["id6"],
+                            status_label="graduated",
+                            run_id=run_id_val or None,
+                        )
+                        if bkl_trans_commit:
+                            attempt["backlog_transition_commit"] = bkl_trans_commit
+                            append_jsonl(
+                                run_dir / "events.jsonl",
+                                {
+                                    "at": utc_now(),
+                                    "event": "backlog-transition-committed",
+                                    "id6": item["id6"],
+                                    "attempt": attempt_no,
+                                    "commit": bkl_trans_commit,
+                                },
+                            )
+
+                        # E-06: POST-TRANSITION CHECKS AND ROLLBACK
+                        post_findings: list[tuple[str, str, str]] = []
+                        post_findings.extend(
+                            _pc.backlog_graduate_legitimacy(
+                                target_tree,
+                                item["id6"],
+                                prod_commit,
+                                status_before=status_before,
+                                host=host_name,
+                            )
+                        )
+                        post_findings.extend(
+                            _pc.backlog_cross_tree(
+                                target_tree,
+                                item["id6"],
+                                new_produced_paths,
+                                host=host_name,
+                            )
+                        )
+
+                        if post_findings:
+                            first_code = post_findings[0][0]
+                            # Rollback by id6
+                            rollback_cmd = pinned_module_argv(
+                                [
+                                    "backlog",
+                                    "set",
+                                    item["id6"],
+                                    "--status",
+                                    "open",
+                                    "--message",
+                                    f"handoff incomplete: {first_code}",
+                                    "--no-commit",
+                                ]
+                            )
+                            rb_res = subprocess.run(
+                                rollback_cmd,
+                                cwd=target_tree,
+                                capture_output=True,
+                                text=True,
+                            )
+                            commit_backlog_transition_output(
+                                target_tree,
+                                item["id6"],
+                                status_label="open",
+                                run_id=run_id_val or None,
+                            )
+                            # Verify item is back under open/
+                            check_bkl = resolve_backlog_item(target_tree, item["id6"])
+                            in_open = check_bkl and "/open/" in str(check_bkl).replace(
+                                "\\", "/"
+                            )
+                            if rb_res.returncode != 0 or not in_open:
+                                current_disp = "unknown"
+                                if check_bkl:
+                                    try:
+                                        current_disp = _backlog.parse_item(
+                                            check_bkl.read_text(encoding="utf-8")
+                                        ).status
+                                    except Exception:
+                                        pass
+                                contain_msg = (
+                                    f"CONTAINMENT FAILURE: Backlog {item['id6']} rollback failed "
+                                    f"(current status: {current_disp}). Manual recovery: "
+                                    f'aw backlog set open {item["id6"]} --message "handoff incomplete"'
+                                )
+                                print(
+                                    pal(f"  \u2717 {contain_msg}", "red"),
+                                    file=sys.stderr,
+                                )
+                                record_refusal(
+                                    item,
+                                    code="BACKLOG-ROLLBACK-CONTAINMENT-FAILURE",
+                                    reason=contain_msg,
+                                    remedy=f'aw backlog set open {item["id6"]} --message "handoff incomplete"',
+                                )
+
+                            disposition = "fail-gate"
+                            for code, _subj, msg in post_findings:
+                                print(
+                                    pal(
+                                        f"  \u2717 Backlog post-transition check refused [{code}]: {msg}",
+                                        "red",
+                                    ),
+                                    file=sys.stderr,
+                                )
+                            for code, _subj, msg in reversed(post_findings):
+                                record_refusal(
+                                    item,
+                                    code=code,
+                                    reason=msg,
+                                    remedy=f"{host_labels.command} {item['id6']}",
+                                )
+                            if wt_handle is not None:
+                                lane_containment.record_lane_preserved(
+                                    run_dir=run_dir,
+                                    item=item,
+                                    handle=wt_handle,
+                                    reason="backlog post-transition check failed; lane preserved",
+                                    reason_codes=("backlog-post-transition-failed",),
+                                )
+                        else:
+                            # Success! Record generated_next_actions and integrate
+                            gen_actions = []
+                            for p_id, p in sorted(
+                                new_produced_plans, key=lambda x: x[0]
+                            ):
+                                try:
+                                    rel_p = str(p.relative_to(target_tree)).replace(
+                                        "\\", "/"
+                                    )
+                                except ValueError:
+                                    rel_p = str(p).replace("\\", "/")
+                                gen_actions.append(
+                                    {
+                                        "id6": p_id,
+                                        "path": rel_p,
+                                        "from_backlog": item["id6"],
+                                    }
+                                )
+                            item["generated_next_actions"] = gen_actions
+                            attempt["generated_next_actions"] = gen_actions
+
+                            if wt_handle is not None:
+                                prod_integrated, prod_reason, prod_kind = (
+                                    integrate_under_repository_lock(
+                                        repo,
+                                        item,
+                                        wt_handle,
+                                        state=state,
+                                        holder_label=integration_lock_holder_label(
+                                            state
+                                        ),
+                                        integrate=lambda _item,
+                                        _handle: integrate_review_lane_branch(
+                                            repo, _handle, _item["id6"]
+                                        ),
+                                        progress=integration_lock_progress_reporter(),
+                                        run_checked=run_checked,
+                                    )
+                                )
+                                attempt["prod_integrated"] = prod_integrated
+                                attempt["prod_integration_reason"] = prod_reason
+                                attempt["prod_integration_kind"] = prod_kind
+                                item["prod_integrated"] = prod_integrated
+                                if not prod_integrated:
+                                    disposition = "fail-gate"
+                                    record_refusal(
+                                        item,
+                                        code="BACKLOG-INTEGRATION-REFUSED",
+                                        reason=prod_reason,
+                                        remedy=f"{host_labels.command} {item['id6']}",
+                                    )
+                                    lane_containment.record_lane_preserved(
+                                        run_dir=run_dir,
+                                        item=item,
+                                        handle=wt_handle,
+                                        reason=prod_reason,
+                                        reason_codes=("backlog-integration-refused",),
+                                    )
+                                else:
+                                    decision = (
+                                        lane_containment.teardown_lane_if_classified(
+                                            repo=repo,
+                                            handle=wt_handle,
+                                            run_dir=run_dir,
+                                            item=item,
+                                        )
+                                    )
+                                    if decision.torn_down:
+                                        wt_handle = None
+                                    else:
+                                        lane_containment.record_lane_preserved(
+                                            run_dir=run_dir,
+                                            item=item,
+                                            handle=wt_handle,
+                                            reason=decision.reason,
+                                            reason_codes=decision.reason_codes,
+                                            detail=decision.inventory.as_dict(),
+                                        )
+                                    disposition = "executed"
+                                    attempt["disposition"] = "executed"
+                                    attempt["finalized"] = True
+                                    attempt["integrated"] = prod_reason
+                                    item["status"] = "executed"
+                                    save_state(run_dir, state)
+                                    append_jsonl(
+                                        run_dir / "events.jsonl",
+                                        {
+                                            "at": utc_now(),
+                                            "event": "backlog-production-finalized",
+                                            "id6": item["id6"],
+                                            "integration": prod_reason,
+                                        },
+                                    )
+                            else:
+                                disposition = "executed"
+                                attempt["disposition"] = "executed"
+                                attempt["finalized"] = True
+                                attempt["integrated"] = "shared-tree"
+                                item["status"] = "executed"
+                                save_state(run_dir, state)
+                                append_jsonl(
+                                    run_dir / "events.jsonl",
+                                    {
+                                        "at": utc_now(),
+                                        "event": "backlog-production-finalized",
+                                        "id6": item["id6"],
+                                        "integration": "shared-tree",
+                                    },
+                                )
+                    save_state(run_dir, state)
 
         # IN-LANE RETIREMENT (see `RETIRED_STATUS`): the turn moved its plan to `superseded/` or
         # `not-executed/` and earned integration (verifier or suite). There is NOTHING TO FINALIZE -

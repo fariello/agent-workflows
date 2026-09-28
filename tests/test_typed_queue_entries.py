@@ -684,6 +684,13 @@ class TestQueueShapeSeams(unittest.TestCase):
                     run_dir = Path(data["run_dir"])
                     state_file = run_dir / "state.json"
 
+                    # Mutate bkg001 in state to simulate an undispatchable action (e.g. 'review')
+                    st = json.loads(state_file.read_text(encoding="utf-8"))
+                    for it in st["queue"]:
+                        if it["id6"] == "bkg001":
+                            it["action"] = "review"
+                    state_file.write_text(json.dumps(st), encoding="utf-8")
+
                     # Mock host spawn function to fail if called for undispatchable entry, succeed for plan
                     def mock_spawn(rd, st, runnable, **kwargs):
                         if runnable["id6"] == "bkg001":
@@ -709,12 +716,13 @@ class TestQueueShapeSeams(unittest.TestCase):
                     final_state = json.loads(state_file.read_text(encoding="utf-8"))
                     items_by_id = {item["id6"]: item for item in final_state["queue"]}
 
-                    # Backlog entry was refused ahead of execute_item, naming plans aeq7f8/y3p3p5
+                    # Backlog entry was refused ahead of execute_item for undispatchable action 'review'
                     bkg_item = items_by_id["bkg001"]
                     self.assertEqual(bkg_item["status"], "failed-safely")
                     refusal = bkg_item.get("refusal") or {}
                     self.assertIn(
-                        "aeq7f8", refusal.get("reason", "") + refusal.get("code", "")
+                        "missing-dispatcher-backlog-review",
+                        refusal.get("reason", "") + refusal.get("code", ""),
                     )
 
                     # Independent plan was executed
