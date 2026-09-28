@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: The HTML report `aw runs analyze` publishes is not useful for cost-benefit-risk questions (which model/host/action costs more tokens, time, tool calls; what retries and failures waste). Its row grain is one run plus four state.json phase sums, it carries no tool-call data, and it has no drill-down.
 - Scope: Add a per-attempt fact extractor over run `state.json` plus the per-session JSONL logs (both hosts), cached per session file inside the analytics namespace, and a new self-contained offline drill-down dashboard rendered from it. Publish the dashboard as the bundle's `index.html`; keep the previous renderer's document in the same bundle as `report.html`.
-- Scope-Paths: agent_workflows/run_dashboard.py, agent_workflows/run_dashboard_assets/, agent_workflows/run_dashboard_assets/dashboard.js, agent_workflows/run_dashboard_assets/dashboard.css, .aw/records/plans/pending/20260927-runsdash-01-97i0ao-drill-down-run-analytics-dashboard-for-aw-runs-analyze.ipd.md, agent_workflows/run_analytics_cli.py, tests/test_run_dashboard.py, CHANGELOG.md
+- Scope-Paths: agent_workflows/run_dashboard.py, agent_workflows/run_dashboard_assets/dashboard.js, agent_workflows/run_dashboard_assets/dashboard.css, .aw/records/plans/pending/20260927-runsdash-01-97i0ao-drill-down-run-analytics-dashboard-for-aw-runs-analyze.ipd.md, agent_workflows/run_analytics_cli.py, tests/test_run_dashboard.py, CHANGELOG.md
 - Item-Dependencies: none
 - Status: approved
 - Work-Kind: feature
