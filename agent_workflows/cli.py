@@ -675,7 +675,19 @@ class _AwArgumentParser(argparse.ArgumentParser):
     """ArgumentParser that formats standard usage errors with next action recommendations."""
 
     def __init__(self, *args, **kwargs):
-        kwargs.setdefault("conflict_handler", "resolve")
+        # The conflict handler is deliberately left to argparse's default ("error"):
+        # a duplicate option definition MUST raise rather than silently replacing an earlier
+        # one. A collision means two registrations disagree, which is a bug to fix at the
+        # registration site rather than a conflict to resolve silently.
+        #
+        # Silently resolving conflicts already shipped a real defect in the past: declaring
+        # `--agent` on a subparser with parents=[common] emptied the shared parent action's
+        # option_strings in place, making `aw attention` parse with `agent=True` permanently on
+        # and breaking CLI invocations (see `p0l1to` and the `--oc-agent` registration site).
+        #
+        # Note: the blanket `kwargs.setdefault("conflict_handler", "resolve")` line removed here
+        # was never argued for; it arrived unremarked in commit ef55eadb (a 984-line CLI migration)
+        # with no comment and no explanation. Do not re-add "resolve" here.
         super().__init__(*args, **kwargs)
 
     def format_help(self) -> str:
@@ -4739,15 +4751,18 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Provider-specific variant/reasoning effort (e.g. high). Omit for the provider default.",
     )
     # SPELLED `--oc-agent`, NOT `--agent`, and the reason is measured rather than stylistic. `--agent`
-    # is the repo-wide MACHINE-OUTPUT flag (declared once on the shared `common` parent at
-    # `agent_workflows/cli.py:729`, normative in `docs/cli-output-contract.md`), so overloading it on
-    # one verb would make one spelling mean two things. Worse, it does not merely shadow: argparse
-    # `parents=` SHARES the action OBJECT, and this file's `conflict_handler="resolve"` (see
-    # `_AwArgumentParser.__init__`) then mutates that shared object's `option_strings` IN PLACE.
-    # Measured: declaring `--agent` on a `parents=[common]` subparser emptied `common`'s own
-    # `--agent` option strings, after which `aw attention` parsed with `agent=True` always on and
-    # `aw oc profile add --agent` reported "unrecognized arguments". So the profile's OpenCode-agent
-    # field gets its own name; the CAPABILITY the plan asked for is unchanged.
+    # is the repo-wide MACHINE-OUTPUT flag (declared on the shared `common` parent via
+    # `common.add_argument("--agent", ...)`, normative in `docs/cli-output-contract.md`), so overloading
+    # it on one verb would make one spelling mean two things. Worse, in argparse `parents=` SHARES the
+    # action OBJECT. Historically, when this file used argparse's `resolve` conflict handler, declaring
+    # a duplicate `--agent` here silently mutated that shared action object's `option_strings` in place.
+    # Measured history (plan `p0l1to`): declaring `--agent` on a `parents=[common]` subparser emptied
+    # `common`'s `--agent` option strings, after which `aw attention` parsed with `agent=True` always on
+    # and `aw oc profile add --agent` reported "unrecognized arguments" prior to the fix.
+    # Today, `_AwArgumentParser` uses argparse's default "error" conflict handler (see
+    # `_AwArgumentParser.__init__`), so any duplicate option definition raises an ArgumentError at
+    # parser build time. The profile's OpenCode-agent field retains its distinct `--oc-agent` spelling;
+    # the CAPABILITY the plan asked for is unchanged.
     p_ocp_add.add_argument(
         "--oc-agent",
         dest="oc_agent",
