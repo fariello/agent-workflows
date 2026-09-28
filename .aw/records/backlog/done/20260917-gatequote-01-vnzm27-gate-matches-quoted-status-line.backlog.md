@@ -1,5 +1,5 @@
 - Id: vnzm27
-- Status: graduated
+- Status: done
 - Graduated-To: gatequote
 - Blocks-Release: next
 - Set: gatequote
@@ -8,6 +8,7 @@
 - Summary: executed_transition_gate reads a QUOTED status-executed line inside a fenced evidence block as the plan's own terminal status
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): closed by aw oc run: IPD q5l2r3 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-gatequote-01-q5l2r3-bound-the-last-unbounded-metadata-reader-in-the-executed-tra.ipd.md); evidence .aw/records/plans/executed/20260928-gatequote-01-q5l2r3-bound-the-last-unbounded-metadata-reader-in-the-executed-tra.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: q5l2r3
 - 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-17 created (aw backlog): executed_transition_gate reads a QUOTED status-executed line inside a fenced evidence block as the plan's own terminal status
