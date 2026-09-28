@@ -1,5 +1,5 @@
 - Id: yvcdw1
-- Status: graduated
+- Status: done
 - Graduated-To: yvcdw1
 - Blocks-Release: next
 - Set: yvcdw1
@@ -8,6 +8,7 @@
 - Summary: aw find prompts shows no status because the front-matter reader cannot see a directory-carried lane
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): closed by aw oc run: IPD iq3txw executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260927-yvcdw1-01-iq3txw-read-the-prompt-lifecycle-lane-in-aw-find-so-its-status-colu.ipd.md); evidence .aw/records/plans/executed/20260927-yvcdw1-01-iq3txw-read-the-prompt-lifecycle-lane-in-aw-find-so-its-status-colu.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: iq3txw
 - 2026-09-20 created (aw backlog): aw find prompts shows no status because the front-matter reader cannot see a directory-carried lane
 
