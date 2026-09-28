@@ -1819,6 +1819,118 @@ class AgyVerbosityFlagTests(unittest.TestCase):
         self.assertIn("pytest tests/ -v", rendered_bash)
         self.assertNotIn("run_command", rendered_bash)
 
+        # Edit / replace_file_content renders with shared prefix and omits redundant "replace_file_content:"
+        done_edit = json.dumps(
+            {
+                "event": "step_update",
+                "step_update": {
+                    "state": "DONE",
+                    "step_type": "tool",
+                    "duration_seconds": 0.41,
+                    "tool_info": {
+                        "name": "replace_file_content",
+                        "parameters": {
+                            "TargetFile": "/mock/repo/agent_workflows/runner_shared.py"
+                        },
+                    },
+                },
+            }
+        )
+        rendered_edit = agy_runipd.render_agy_event(done_edit, pal, repo_root=repo_root)
+        self.assertIsNotNone(rendered_edit)
+        self.assertIn("agent_workflows/runner_shared.py", rendered_edit)
+        self.assertNotIn("replace_file_content", rendered_edit)
+
+        # Write / write_to_file renders with shared prefix and omits redundant "write_to_file:"
+        done_write = json.dumps(
+            {
+                "event": "step_update",
+                "step_update": {
+                    "state": "DONE",
+                    "step_type": "tool",
+                    "duration_seconds": 0.08,
+                    "tool_info": {
+                        "name": "write_to_file",
+                        "parameters": {"TargetFile": "/mock/repo/tests/test_spec.py"},
+                    },
+                },
+            }
+        )
+        rendered_write = agy_runipd.render_agy_event(
+            done_write, pal, repo_root=repo_root
+        )
+        self.assertIsNotNone(rendered_write)
+        self.assertIn("tests/test_spec.py", rendered_write)
+        self.assertNotIn("write_to_file", rendered_write)
+
+        # manage_task extracts Action and TaskId
+        done_task = json.dumps(
+            {
+                "event": "step_update",
+                "step_update": {
+                    "state": "DONE",
+                    "step_type": "tool",
+                    "duration_seconds": 0.08,
+                    "tool_info": {
+                        "name": "manage_task",
+                        "parameters": {
+                            "Action": "status",
+                            "TaskId": "317a442c-a387-4ca4-97c8-2084571d1392/task-12",
+                        },
+                    },
+                },
+            }
+        )
+        rendered_task = agy_runipd.render_agy_event(done_task, pal)
+        self.assertIsNotNone(rendered_task)
+        self.assertIn("manage_task: status task-12", rendered_task)
+
+        # schedule extracts DurationSeconds, TimerCondition, and Prompt
+        done_sched = json.dumps(
+            {
+                "event": "step_update",
+                "step_update": {
+                    "state": "DONE",
+                    "step_type": "tool",
+                    "duration_seconds": 0.21,
+                    "tool_info": {
+                        "name": "schedule",
+                        "parameters": {
+                            "DurationSeconds": 300,
+                            "TimerCondition": "bf86a3b2-deba-43ff-b66b-61b378dd2f03/task-16",
+                            "Prompt": "Check on full test suite execution",
+                        },
+                    },
+                },
+            }
+        )
+        rendered_sched = agy_runipd.render_agy_event(done_sched, pal)
+        self.assertIsNotNone(rendered_sched)
+        self.assertIn(
+            "schedule: wait 300s (task-16): Check on full test suite execution",
+            rendered_sched,
+        )
+
+        # Uninformative bare tool is suppressed at default verbosity (verbosity=0)
+        done_bare = json.dumps(
+            {
+                "event": "step_update",
+                "step_update": {
+                    "state": "DONE",
+                    "step_type": "tool",
+                    "duration_seconds": 0.05,
+                    "tool_info": {
+                        "name": "unknown_tool",
+                        "parameters": {},
+                    },
+                },
+            }
+        )
+        self.assertIsNone(agy_runipd.render_agy_event(done_bare, pal, verbosity=0))
+        rendered_bare_v = agy_runipd.render_agy_event(done_bare, pal, verbosity=1)
+        self.assertIsNotNone(rendered_bare_v)
+        self.assertIn("unknown_tool", rendered_bare_v)
+
 
 class AgyDependencyPathsAreSharedTests(unittest.TestCase):
     """depreview 03ie04 E-03/E-06: THIS HOST's two dependency paths must be the shared ones.

@@ -1025,18 +1025,71 @@ def render_agy_event(
                 cmd = _relativize_path(str(params["TargetFile"]), repo_root)
             elif "Pattern" in params:
                 cmd = str(params["Pattern"])
+            elif tool_name == "manage_task" or "TaskId" in params or "Action" in params:
+                action = str(params.get("Action", "")).strip("\"'")
+                task_id = str(params.get("TaskId", "")).strip("\"'")
+                task_ref = task_id.split("/")[-1] if task_id else ""
+                parts = [p for p in (action, task_ref) if p]
+                cmd = " ".join(parts)
+                if not cmd and "toolSummary" in params:
+                    cmd = str(params["toolSummary"]).strip("\"'")
+            elif (
+                tool_name == "schedule"
+                or "DurationSeconds" in params
+                or "CronExpression" in params
+            ):
+                dur = str(params.get("DurationSeconds", "")).strip("\"'")
+                cond = str(params.get("TimerCondition", "")).strip("\"'")
+                prompt = str(params.get("Prompt", "")).strip("\"'")
+                cron = str(params.get("CronExpression", "")).strip("\"'")
+                if dur:
+                    cond_ref = (
+                        f" ({cond.split('/')[-1]})" if cond and cond != "never" else ""
+                    )
+                    cmd = f"wait {dur}s{cond_ref}"
+                    if prompt:
+                        cmd += f": {prompt}"
+                elif cron:
+                    cmd = f"cron {cron}"
+                elif prompt:
+                    cmd = prompt
+                elif "toolSummary" in params:
+                    cmd = str(params["toolSummary"]).strip("\"'")
+            elif "Url" in params or "url" in params:
+                cmd = str(params.get("Url") or params.get("url")).strip("\"'")
+            elif "query" in params:
+                cmd = str(params["query"]).strip("\"'")
+            elif "Recipient" in params:
+                recipient = str(params["Recipient"]).strip("\"'").split("/")[-1]
+                msg = str(params.get("Message", "")).strip("\"'")
+                cmd = f"to {recipient}: {msg}" if recipient else msg
+            elif "toolSummary" in params:
+                cmd = str(params["toolSummary"]).strip("\"'")
+            elif "toolAction" in params:
+                cmd = str(params["toolAction"]).strip("\"'")
+            elif "Description" in params:
+                cmd = str(params["Description"]).strip("\"'")
 
-            # For bash (run_command), drop the redundant "run_command:" tool name so that
-            # format_event_prefix's "❯ bash:  " prefix is followed directly by the command line,
-            # matching the oc renderer convention. For other agy tools, keep the tool name in the
-            # payload because agy tool names are host-specific and not recoverable from the class prefix
-            # (e.g. write_to_file vs replace_file_content).
-            if kind == "bash":
+            # When kind is a recognized class with an aligned prefix (bash, edit, write, read, find),
+            # the prefix (e.g. "✎ edit:", "▶ write:", "❯ bash:", "◀ read:", "⌕ find:") already
+            # conveys the action class, so drop the redundant tool name (replace_file_content,
+            # write_to_file, run_command, view_file, etc.) and show the payload directly.
+            # For unmapped/generic tools (kind == "tool"), format as "{tool_name}: {detail}" when
+            # detail is present (e.g. "manage_task: status task-12", "schedule: wait 300s").
+            # When no informative detail is extractable at default verbosity (and not in an
+            # error/failed state), suppress the uninformative bare tool event.
+            if kind in ("bash", "edit", "write", "read", "find"):
                 summary = _one_line(cmd, 120) if cmd else str(tool_name)
             else:
-                summary = (
-                    f"{tool_name}: {_one_line(cmd, 120)}" if cmd else str(tool_name)
-                )
+                if cmd:
+                    summary = f"{tool_name}: {_one_line(cmd, 120)}"
+                elif verbosity < 1 and _AGY_STATE_TO_STATUS.get(state, "") not in (
+                    "error",
+                    "failed",
+                ):
+                    return None
+                else:
+                    summary = str(tool_name)
             status = _AGY_STATE_TO_STATUS.get(state, "")
             if status in ("error", "failed"):
                 prefix_style = "red"
