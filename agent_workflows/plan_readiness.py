@@ -161,16 +161,26 @@ _NEGATIVE_READINESS_SCAN_RE = _vocabulary_scan_re(
 
 #: A negative readiness token that the SAME SENTENCE reports CLEARING rather than asserting.
 #:
-#: MEASURED IN PRODUCTION 2026-09-19, and the cost was a whole run. Three `reaskscore` plans recorded
-#: "clearing this plan's only blocking question and with it its `no-go`", which is a statement that the
-#: no-go is GONE. `_NEGATIVE_READINESS_SCAN_RE` is a plain substring scan, so it matched the token
-#: inside that clause and `newest_verdict` returned NEGATIVE for three plans that had just been
-#: cleared. That reddened `tests/test_review_record_classifier.py::TestLivePendingCorpus
-#: ::test_no_pending_plan_has_verdict_class_refusal`, which reads the LIVE pending tree; the red
-#: test failed the driver-run suite in every lane of run `run-20260919T194413Z-2056285`; a failed suite
-#: made `integration_is_earned` return `suite-failed`; and that gates self-finalize, so nothing
-#: integrated, three lanes were preserved unmerged, and eight further items cascaded to
-#: `dependency-blocked`. Total: 2h10m and $55.02 for zero integrated work.
+#: HISTORICAL INCIDENT: measured in production 2026-09-19, and the cost was a whole run. Three
+#: `reaskscore` plans recorded "clearing this plan's only blocking question and with it its `no-go`",
+#: which is a statement that the no-go is GONE. `_NEGATIVE_READINESS_SCAN_RE` was a plain substring
+#: scan, so it matched the token inside that clause and `newest_verdict` historically returned NEGATIVE
+#: for three plans that had just been cleared. That reddened the guard in
+#: `tests/test_review_record_classifier.py::TestLivePendingCorpus::test_no_pending_plan_has_verdict_class_refusal`
+#: (now marked `livecorpus`), which reads the LIVE pending tree; the red test failed the driver-run suite
+#: in every lane of run `run-20260919T194413Z-2056285`; a failed suite made `integration_is_earned`
+#: return `suite-failed`; and that gates self-finalize, so nothing integrated, three lanes were
+#: preserved unmerged, and eight further items cascaded to `dependency-blocked`. Total: 2h10m and
+#: $55.02 for zero integrated work.
+#:
+#: CURRENT CALL STATUS: `newest_verdict` no longer consults this pattern or `negative_readiness_asserted`
+#: at all (`xpta5g` E-04 removed the fallback call so an unrecognized verdict token yields `(None, candidate)`).
+#: The `/askme` shape is now refusal-free for a different reason: `is_review_history_entry` returns False
+#: for `/askme` records, so the gate bypasses them and sources its verdict from the older review record
+#: beneath them. This regex and helper are retained as the repository's one pure encoding of the
+#: cleared-versus-asserted distinction, now pinned by in-memory tests in
+#: `tests/test_review_record_classifier.py` (`TestA3ugp1IncidentAndClearedShapes`, `TestNegativeReadinessAsserted`),
+#: for any readiness-token consumer that needs it.
 #:
 #: TWO SHAPES, both observed in this repository's own history lines:
 #:   1. a CLEARING VERB before the token ("clearing ... its `no-go`", "resolved ... the no-go");
@@ -179,8 +189,12 @@ _NEGATIVE_READINESS_SCAN_RE = _vocabulary_scan_re(
 #: WHAT THIS DELIBERATELY DOES NOT DO: it does not relax the gate for a real rejection. A bare
 #: "readiness no-go", a "REJECT - NEEDS REPLAN ... no-go", and a REGRESSION *to* no-go
 #: ("go-pending-approval -> no-go") all still refuse, because none of them matches. The 80-character
-#: bound and the `[^.]` class keep the clearing verb and the token inside ONE SENTENCE, so a record
-#: that resolves one question and separately reports a new no-go is still refused.
+#: bound and the `[^.]` class ensure the clearing verb sits within 80 characters and within one sentence
+#: OF THE TOKEN IT EXCUSES, so `we cleared OQ-01. readiness no-go` correctly returns True.
+#: RESIDUAL LIMIT (KNOWN LIMIT): because `negative_readiness_asserted` checks `not search(...)`, one
+#: clearing clause anywhere in a message suppresses a later assertion in the same message (e.g.
+#: `clearing OQ-01 and with it its no-go. A new blocking question asserts readiness no-go` returns False).
+#: This known limit is pinned as False by tests rather than an intended behavior.
 _CLEARED_NEGATIVE_READINESS_RE = re.compile(
     r"(?:clear(?:ing|ed|s)?|resolv(?:ing|ed|es)?|lift(?:ing|ed|s)?|remov(?:ing|ed|es)?|"
     r"no longer|with it its|and with it)\b[^.]{0,80}?\b(?:no-go)\b"
@@ -193,8 +207,10 @@ def negative_readiness_asserted(message: str) -> bool:
     """Whether ``message`` ASSERTS a negative readiness, as against reporting one CLEARED.
 
     Pure and side-effect free, so the distinction is testable without a plan on disk. Returns False
-    for an empty message. See `_CLEARED_NEGATIVE_READINESS_RE` for the measured incident that made
-    the plain substring scan insufficient and for what this intentionally still refuses.
+    for an empty message. Retained as the repository's one encoding of the cleared-versus-asserted
+    distinction, pinned by ``TestNegativeReadinessAsserted``. Note that ``newest_verdict`` no longer
+    consults this helper (call removed in ``xpta5g`` E-04). See ``_CLEARED_NEGATIVE_READINESS_RE``
+    above for the history, the shapes recognized, and the known clear-then-assert limit.
     """
 
     if not message:
