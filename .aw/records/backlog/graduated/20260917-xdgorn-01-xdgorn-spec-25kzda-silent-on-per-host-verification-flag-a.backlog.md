@@ -1,5 +1,6 @@
 - Id: xdgorn
-- Status: open
+- Status: graduated
+- Graduated-To: xdgorn
 - Blocks-Release: next
 - Set: xdgorn
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: Spec 25kzda does not document that --no-verify means different things on the two run hosts
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: 7dz3wv
 - 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-17 created (aw backlog): Spec 25kzda does not document that --no-verify means different things on the two run hosts
 
