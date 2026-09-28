@@ -1405,6 +1405,7 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
             "--gate-kind",
             "--gate-ref",
             "--blocks-release",
+            "--gate-dir",
             # bklgkind b5sfwm E-05: the two CLASSIFICATION setters, DECLARED and not merely accepted.
             # Their absence was why a mislabeled item's Work-Kind had to be hand-edited. This entry is
             # now MORE complete but still NOT complete: `--evidence`, `--yes` and `--commit/--no-commit`

@@ -334,6 +334,8 @@ When you graduate an item, do the whole hand-off in one pass:
 - **Satisfied:** you cite resolvable in-tree evidence with `--evidence <path>`.
 - **De-gated:** you clear the gate in the same call with `--blocks-release -`.
 
+The release gate is evaluated against the tree named by `--gate-dir` (defaulting to `--dir` when omitted). When `--gate-dir` is specified, carrier plans are scanned for and evidence paths are resolved in that tree, while the backlog item file itself moves within the tree specified by `--dir`.
+
 Use `aw backlog note <item> -m "..."` to record a reason or finding without changing status.
 
 ---

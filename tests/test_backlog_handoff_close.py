@@ -638,3 +638,361 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
             )
         self.assertEqual(rc_b, 1)
         self.assertTrue(item_path_b.exists())
+
+
+class BacklogGateDirSplitTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp_dir = TemporaryDirectory()
+        self.addCleanup(self.temp_dir.cleanup)
+        tmp = Path(self.temp_dir.name)
+        self.aw_home = tmp / "aw_home"
+        self.xdg_home = tmp / "xdg_config"
+        self.aw_home.mkdir(parents=True, exist_ok=True)
+        self.xdg_home.mkdir(parents=True, exist_ok=True)
+
+        self._prev_aw_home = os.environ.get("AW_HOME")
+        self._prev_xdg = os.environ.get("XDG_CONFIG_HOME")
+        os.environ["AW_HOME"] = str(self.aw_home)
+        os.environ["XDG_CONFIG_HOME"] = str(self.xdg_home)
+
+        self.main_repo = _make_scratch_repo(tmp / "main_repo")
+        self.lane_repo = _make_scratch_repo(tmp / "lane_repo")
+
+    def tearDown(self) -> None:
+        if self._prev_aw_home is not None:
+            os.environ["AW_HOME"] = self._prev_aw_home
+        else:
+            os.environ.pop("AW_HOME", None)
+        if self._prev_xdg is not None:
+            os.environ["XDG_CONFIG_HOME"] = self._prev_xdg
+        else:
+            os.environ.pop("XDG_CONFIG_HOME", None)
+
+    def _run_cli(self, argv: list[str]) -> tuple[int, str, str]:
+        stdout_buf = io.StringIO()
+        stderr_buf = io.StringIO()
+        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
+            stdout_buf
+        ):
+            try:
+                rc = cli.main(argv)
+            except SystemExit as exc:
+                rc = exc.code if isinstance(exc.code, int) else 2
+        return rc, stdout_buf.getvalue(), stderr_buf.getvalue()
+
+    def test_case_1_two_carrier_sibling_unexecuted_gate_dir_refused(self) -> None:
+        """(1) Two-carrier item with unexecuted sibling: gate against main refuses (rc 1), move in lane."""
+        item_lane = _write_backlog_item(
+            self.lane_repo, "item01", status="open", blocks_release="next"
+        )
+        _write_plan(
+            self.lane_repo,
+            "plan01",
+            bucket="executed",
+            status="executed",
+            from_backlog="item01",
+            blocks_release="next",
+        )
+        _write_plan(
+            self.lane_repo,
+            "plan02",
+            bucket="pending",
+            status="approved",
+            from_backlog="item01",
+            blocks_release="next",
+        )
+
+        _write_backlog_item(
+            self.main_repo, "item01", status="open", blocks_release="next"
+        )
+        _write_plan(
+            self.main_repo,
+            "plan01",
+            bucket="pending",
+            status="approved",
+            from_backlog="item01",
+            blocks_release="next",
+        )
+        _write_plan(
+            self.main_repo,
+            "plan02",
+            bucket="pending",
+            status="approved",
+            from_backlog="item01",
+            blocks_release="next",
+        )
+
+        rc, stdout_text, stderr_text = self._run_cli(
+            [
+                "backlog",
+                "set",
+                "item01",
+                "--status",
+                "done",
+                "--dir",
+                str(self.lane_repo),
+                "--gate-dir",
+                str(self.main_repo),
+                "--message",
+                "close",
+            ]
+        )
+        self.assertEqual(rc, 1)
+        self.assertIn("carrier is not executed/implemented", stderr_text)
+        self.assertTrue(item_lane.exists())
+        done_path = (
+            self.lane_repo / ".aw" / "records" / "backlog" / "done" / item_lane.name
+        )
+        self.assertFalse(done_path.exists())
+
+    def test_case_2_default_is_unchanged_without_gate_dir(self) -> None:
+        """(2) Same fixture as test_case_2_executed_plan_allowed: without --gate-dir, close succeeds."""
+        item_path = _write_backlog_item(
+            self.lane_repo, "item01", status="graduated", blocks_release="next"
+        )
+        _write_plan(
+            self.lane_repo,
+            "plan01",
+            bucket="executed",
+            status="executed",
+            from_backlog="item01",
+            blocks_release="next",
+        )
+
+        rc, stdout_text, stderr_text = self._run_cli(
+            [
+                "backlog",
+                "set",
+                "item01",
+                "--status",
+                "done",
+                "--dir",
+                str(self.lane_repo),
+                "--message",
+                "close",
+            ]
+        )
+        self.assertEqual(rc, 0)
+        done_path = (
+            self.lane_repo / ".aw" / "records" / "backlog" / "done" / item_path.name
+        )
+        self.assertTrue(done_path.exists())
+
+    def test_case_3_move_still_lands_in_move_tree(self) -> None:
+        """(3) With --gate-dir pointing elsewhere, item moves in move tree and gate tree is untouched."""
+        item_lane = _write_backlog_item(
+            self.lane_repo, "item01", status="open", blocks_release="next"
+        )
+        _write_plan(
+            self.lane_repo,
+            "plan01",
+            bucket="pending",
+            status="approved",
+            from_backlog="item01",
+            blocks_release="next",
+        )
+
+        item_main = _write_backlog_item(
+            self.main_repo, "item01", status="open", blocks_release="next"
+        )
+        _write_plan(
+            self.main_repo,
+            "plan01",
+            bucket="executed",
+            status="executed",
+            from_backlog="item01",
+            blocks_release="next",
+        )
+
+        rc, stdout_text, stderr_text = self._run_cli(
+            [
+                "backlog",
+                "set",
+                "item01",
+                "--status",
+                "done",
+                "--dir",
+                str(self.lane_repo),
+                "--gate-dir",
+                str(self.main_repo),
+                "--message",
+                "close",
+            ]
+        )
+        self.assertEqual(rc, 0)
+        # Move tree (lane): item moved from open/ to done/
+        self.assertFalse(item_lane.exists())
+        self.assertTrue(
+            (
+                self.lane_repo / ".aw" / "records" / "backlog" / "done" / item_lane.name
+            ).exists()
+        )
+        # Gate tree (main): item untouched in open/, not in done/
+        self.assertTrue(item_main.exists())
+        self.assertFalse(
+            (
+                self.main_repo / ".aw" / "records" / "backlog" / "done" / item_main.name
+            ).exists()
+        )
+
+    def test_case_4_evidence_resolved_in_gate_tree_not_move_tree(self) -> None:
+        """(4) Evidence citation resolves in gate tree, not move tree."""
+        item_lane = _write_backlog_item(
+            self.lane_repo, "item01", status="open", blocks_release="next"
+        )
+        _write_plan(
+            self.lane_repo,
+            "plan01",
+            bucket="pending",
+            status="approved",
+            from_backlog="item01",
+            blocks_release="next",
+        )
+        gate_doc = (
+            self.main_repo
+            / ".aw"
+            / "records"
+            / "plans"
+            / "executed"
+            / "20260901-testset-01-ext001-gate-doc.ipd.md"
+        )
+        gate_doc.write_text(
+            "# IPD: Gate doc\n\n- Id: ext001\n- Status: executed\n- Set: testset\n- Scope: T\n- Scope-Paths: x\n",
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "add", str(gate_doc)], cwd=self.main_repo, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "add gate doc", "-q"],
+            cwd=self.main_repo,
+            check=True,
+        )
+        rel_gate_doc = (
+            ".aw/records/plans/executed/20260901-testset-01-ext001-gate-doc.ipd.md"
+        )
+
+        lane_doc = (
+            self.lane_repo
+            / ".aw"
+            / "records"
+            / "plans"
+            / "executed"
+            / "20260901-testset-01-ext002-lane-doc.ipd.md"
+        )
+        lane_doc.write_text(
+            "# IPD: Lane doc\n\n- Id: ext002\n- Status: executed\n- Set: testset\n- Scope: T\n- Scope-Paths: x\n",
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "add", str(lane_doc)], cwd=self.lane_repo, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "add lane doc", "-q"],
+            cwd=self.lane_repo,
+            check=True,
+        )
+        rel_lane_doc = (
+            ".aw/records/plans/executed/20260901-testset-01-ext002-lane-doc.ipd.md"
+        )
+
+        # (4a) Citing evidence that exists ONLY in gate tree succeeds
+        rc_a, stdout_text_a, stderr_text_a = self._run_cli(
+            [
+                "backlog",
+                "set",
+                "item01",
+                "--status",
+                "done",
+                "--dir",
+                str(self.lane_repo),
+                "--gate-dir",
+                str(self.main_repo),
+                "--evidence",
+                rel_gate_doc,
+                "--message",
+                "close via gate evidence",
+            ]
+        )
+        self.assertEqual(rc_a, 0)
+        self.assertTrue(
+            (
+                self.lane_repo / ".aw" / "records" / "backlog" / "done" / item_lane.name
+            ).exists()
+        )
+
+        # (4b) Citing evidence that exists ONLY in move tree fails
+        item_lane_2 = _write_backlog_item(
+            self.lane_repo, "item02", status="open", blocks_release="next"
+        )
+        _write_plan(
+            self.lane_repo,
+            "plan02",
+            bucket="pending",
+            status="approved",
+            from_backlog="item02",
+            blocks_release="next",
+        )
+        rc_b, stdout_text_b, stderr_text_b = self._run_cli(
+            [
+                "backlog",
+                "set",
+                "item02",
+                "--status",
+                "done",
+                "--dir",
+                str(self.lane_repo),
+                "--gate-dir",
+                str(self.main_repo),
+                "--evidence",
+                rel_lane_doc,
+                "--message",
+                "close via lane evidence",
+            ]
+        )
+        self.assertEqual(rc_b, 1)
+        self.assertIn("refused", stderr_text_b)
+        self.assertTrue(item_lane_2.exists())
+
+    def test_backlog_set_declared_flag_surface_matches_parser(self) -> None:
+        """gatedir 9vglxd E-03: `--gate-dir` is DECLARED, not merely accepted, so the two cannot drift."""
+        from agent_workflows.cli import _build_parser
+        from agent_workflows import command_surface as cs
+
+        decl = cs.get_declaration("backlog set")
+        self.assertIsNotNone(decl)
+        self.assertIn("--gate-dir", decl.legacy_flags)
+        backlog_parser = None
+        for action in _build_parser()._actions:  # noqa: SLF001
+            choices = getattr(action, "choices", None)
+            if choices and hasattr(choices, "get") and choices.get("backlog"):
+                backlog_parser = choices["backlog"]
+                break
+        self.assertIsNotNone(backlog_parser, "no `backlog` subparser")
+        inner = {}
+        for action in backlog_parser._actions:  # noqa: SLF001
+            choices = getattr(action, "choices", None)
+            if choices and hasattr(choices, "items"):
+                inner.update(choices)
+        accepted = {opt for act in inner["set"]._actions for opt in act.option_strings}  # noqa: SLF001
+        self.assertEqual(set(decl.legacy_flags) - accepted, set())
+
+    def test_case_5_gate_dir_non_project_root_refused(self) -> None:
+        """(5) --gate-dir naming a non-project tree is refused with exit 2 and names the flag, not item."""
+        non_project = Path(self.temp_dir.name) / "empty_dir"
+        non_project.mkdir()
+        rc, stdout_text, stderr_text = self._run_cli(
+            [
+                "backlog",
+                "set",
+                "item01",
+                "--status",
+                "done",
+                "--dir",
+                str(self.lane_repo),
+                "--gate-dir",
+                str(non_project),
+                "--message",
+                "close",
+            ]
+        )
+        self.assertEqual(rc, 2)
+        self.assertIn("--gate-dir", stderr_text)
+        self.assertIn("not an agent-workflows project root", stderr_text)
+        self.assertNotIn("item01", stderr_text)
