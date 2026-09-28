@@ -6,7 +6,7 @@
 - Scope: Add the interactivity flag pair as the operator surface over the resolver Order 1 ships, in ONE place, and prove it reaches every command including the leaves whose argv is forwarded verbatim. IN: the mutually exclusive flag pair on the shared parent, its pre-parse consumption for the forwarded leaves, publication into the resolver's process-wide override, the entry-point restore that stops it leaking across in-process invocations, the parser-walk uniformity guard, and the published contract. OUT: the interactivity resolver itself and any reconciliation of the divergent predicates, which are Order 1's whole job; and any change to what a prompt ASKS or to `--yes` semantics.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/term.py, docs/cli-output-contract.md, tests/test_flag_surface_uniformity.py, tests/test_interactivity_resolver.py, tests/test_term.py
 - Item-Dependencies: executed:da9n1s
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: medium
@@ -16,8 +16,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: bmf32u
+- Approval: 2026-09-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-28 approved (aw set): status set to approved
 
 - 2026-09-28 readiness re-check (agent (aw ipd recheck-readiness)): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: unresolved-blocking-question -> clear (no unresolved BLOCKING open question; `has_unresolved_blocking_question` -> False (a NON-blocking open question is deliberately not counted, per the maintainer's 2026-09-10 ruling on qhy3i3 OQ-01)); unresolved-gating-finding -> clear (no unresolved gating finding; `review_findings.subject_gating_blocks` -> empty (an ABSENT review artifact is silent by that predicate's documented contract)); negative-review-verdict -> clear (the newest review record's verdict is not negative; `newest_verdict` -> neutral). RE-CHECKED REVIEW: the review of 2026-09-28, findings OQ-03..PR-306. Recomputed at HEAD `690a477a`. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
 - 2026-09-28 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): REVIEWED - OPEN QUESTIONS via /plan-review; readiness NO-GO pending OQ-03; PR-301..PR-307, six FIXED and PR-306 escalated OPEN. Reviewed at HEAD `0864e264` in a lane worktree; `aw ipd lint` conforming at `--phase author` before revision, and reporting exactly one diagnostic after (`IPD-Q501` at the new blocking OQ-03, which is the intended fail-closed escalation). Findings record at `.aw/records/reviews/20260928-svqhmp-02-bmf32u-add-the-interactive-no-interactive-flag-pair.review.md`.

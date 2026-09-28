@@ -6,7 +6,7 @@
 - Scope: IN: make `_plan_id_of` in `agent_workflows/hooks/executed_transition_gate.py` ignore a FENCED `- Id:` quotation, which requires BOTH bounding the read to `selectors.metadata_region` AND skipping fenced lines (CORRECTED AT REVIEW: region bounding ALONE was applied exactly as authored and measured NOT to fix the false accept, because the quoted `- Id:` in the reported shape sits in the PREAMBLE and therefore INSIDE the region; see F-9 and E-01); add regression tests for the false-accept and for `vnzm27`'s reported shape. OUT: every other unbounded reader in the toolkit (carried by `axayfn`); the gate's detection, journal, and merge-evidence logic; any relaxation of the gate.
 - Scope-Paths: agent_workflows/hooks/executed_transition_gate.py, tests/test_executed_transition_gate.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 03
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: q5l2r3
+- Approval: 2026-09-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-28 approved (aw set): status set to approved
 - 2026-09-28 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 all FIXED, none OPEN or DEFERRED. The diagnosis and the re-aiming are both right and every finding reproduced independently, including F-4's false accept end to end in a temp repo (exit 0 where the gate must refuse). PR-001 (BLOCKER): THE AUTHORED FIX DOES NOT FIX THE AUTHORED DEFECT. E-01 specified bounding _plan_id_of to selectors.metadata_region; review APPLIED THAT EXACT CHANGE and both F-4's false accept and F-5's misattribution SURVIVE, because metadata_region ends at the first '##' heading while the quoted '- Id:' in this defect's own shape sits in the PREAMBLE and is therefore INSIDE the region. Region bounding helps only when the quote sits after the first '##' and no real Id exists, where it yields None. The fix that works, also measured, additionally SKIPS FENCED LINES using check_engine._fenced_line_numbers, the helper check_id_outside_metadata_region already applies to this exact judgement; applied, F-4 returns exit 1 naming the real id6 and all 13 existing gate tests stay green. PR-002 (HIGH): the authored validation would have CERTIFIED the broken fix, because all three reader variants agree across 876 plans, the existing suites pass for the broken one, and E-02's cases would too if their fence sat after a heading; added a headingless case, a preamble-versus-body case, a PREAMBLE placement instruction, and a second V-02 differential requiring the tests to be RED against a region-only implementation. PR-003 (MEDIUM): V-03 demanded 0 failed on an already-red tree; measured 1 failed, 3031 passed with the pre-existing node id named. PR-004: the scope fence promised selectors.py needs no edit, which the fence helper makes unsafe; both acceptable routes now named with a preference. PR-005 through PR-008: F-2's 'open' is stale (vnzm27 is graduated), F-6 established safety and not efficacy, the gate miscounted six tests as five, and the flagged unfiled readers were verified real with the filing decision left to the maintainer. Added OQ-03 (resolved, carries D-1) and OQ-04 (open, executor-owned, non-blocking). Review record written with 8 findings and 4 decisions, no Reversible: no; two probe patches applied and both reverted, no production file changed.
 
 - 2026-09-28 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): Graduated from backlog vnzm27. Measured at HEAD 1553abce that vnzm27's REPORTED defect is already fixed by kecxnb, and that the sibling reader `_plan_id_of` in the same file is still unbounded and produces a measured FALSE ACCEPT. Re-aimed the plan at that residual rather than re-fixing a fixed function.
