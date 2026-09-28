@@ -111,7 +111,7 @@ def test_drain_and_cascade_mapped_reasons_rendered_once(tmp_path: Path) -> None:
         "setid": "test",
         "action": "execute",
         "status": "fail-depend",
-        "dependencies": ["executed:5o1jye"],
+        "dependencies": ["executed:drnprereq"],
     }
     state_drain: dict[str, Any] = {
         "queue": [drain_item],
@@ -128,7 +128,7 @@ def test_drain_and_cascade_mapped_reasons_rendered_once(tmp_path: Path) -> None:
     assert len(drain_diags) == 1
     assert "(blocked)" not in drain_diags[0]
     # Reason mapped from dependency_status_detailed appears in output
-    assert un_reasons["executed:5o1jye"] in drain_diags[0]
+    assert un_reasons["executed:drnprereq"] in drain_diags[0]
 
     # Post-E-01 cascade item: produced by calling cascade_dependency_blocked
     prereq = {
