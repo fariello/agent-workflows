@@ -224,3 +224,11 @@ blocking.
   dependency is not yet satisfied and it correctly cannot run first.
 - Suite baseline, bare: `python3 -m pytest` -> `2935 passed, 2 skipped, 3 warnings in 40.35s`, i.e.
   ZERO failures at HEAD `0864e264`.
+
+## Round 2
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+| --- | -------- | ----- | ---- | -------- | ------- | ---------------- | -------- | ---------- |
+| PR-306 | high | IN-SCOPE | B. Security and safety / D. Anti-regression | `runner_stop.interrupt_menu_is_safe` body: the `forced_noninteractive` early return PRECEDES `if os.environ.get("AW_FORCE_INTERACTIVE_INTERRUPT") == "1"`; its docstring: the escape "bypasses conditions 1 and 2 but NOT the forced-noninteractive signals: a deliberate CI setting must win over a stale force flag, since CI is the environment where an unbounded wait is least recoverable"; `cli._dispatch`'s `return oc_runipd.main(list(argv_list[2:]))` (in-process); plan E-06 "flag > `AW_NONINTERACTIVE`/`CI` > stdin and output-stream detection" | **THE LADDER E-06 WOULD PUBLISH LETS `--interactive` DEFEAT A CI SIGNAL**, at sites including one inside a signal handler with `readline()` and no timeout holding the run lock, reachable in-process from `aw oc run`. That is the "silently re-enable prompting ... weakening a real fail-safe" outcome the backlog item names as its motivation, and the repository already ruled the opposite way for its only existing force escape. Publishing it normatively would make a later plan implement it. | C:Low; U:Medium; S:Medium-High; F:Medium; Overall:Medium-High | fixed | STALE ESCALATION CLOSED 2026-09-28 by agent (aw ipd recheck-readiness). The question this finding was escalated as (OQ-03) is `- Status: resolved`, so the finding it gated on has been answered and the record is caught up. NO FINDING WAS RE-DERIVED and no plan content was re-critiqued: the match was made on the question's declared `- Finding: PR-306` back-reference, not on a judgement about what the question was about. Previous decision: open. |
