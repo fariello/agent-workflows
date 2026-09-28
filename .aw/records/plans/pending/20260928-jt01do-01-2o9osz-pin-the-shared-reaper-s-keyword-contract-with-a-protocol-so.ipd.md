@@ -35,26 +35,26 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: make the suite able to see the defect
 
-- [ ] E-01 Add `tests/test_reap_contract.py` with a RUNTIME guard that reproduces the type checker's finding without needing a type checker. It must resolve `typing.get_type_hints(lane_containment.bound_expiry_reaper)["reap"]`, strip the `| None`, convert the remaining member into an `inspect.Signature`, and assert that signature BINDS the call the product actually makes: `(process_sentinel, run_dir=Path(...))`. THREE conversion rules are load-bearing and all three were measured, so write them deliberately rather than discovering them.
+- [x] E-01 Add `tests/test_reap_contract.py` with a RUNTIME guard that reproduces the type checker's finding without needing a type checker. It must resolve `typing.get_type_hints(lane_containment.bound_expiry_reaper)["reap"]`, strip the `| None`, convert the remaining member into an `inspect.Signature`, and assert that signature BINDS the call the product actually makes: `(process_sentinel, run_dir=Path(...))`. THREE conversion rules are load-bearing and all three were measured, so write them deliberately rather than discovering them.
   (a) DISPATCH ON `getattr(member, "_is_protocol", False)`, NOT on `hasattr(member, "__call__")`. This is the rule review added after hitting it while prototyping this very guard, and it is the most dangerous of the three because it fails SILENTLY IN THE GREEN DIRECTION on the post-fix tree: every class has a `__call__` attribute via its metaclass, so `hasattr(member, "__call__")` is True for the Protocol too, and a `hasattr`-first dispatch routes the Protocol into the `Callable` branch, where `typing.get_args` returns `()` and the guard synthesizes a two-positional signature from stale assumptions and reports `missing a required argument: '__p1'` AFTER E-02 has correctly fixed the code. Measured: with `hasattr` dispatch the guard reported MISMATCH on the PATCHED tree; with `_is_protocol` dispatch it reported `OK -> (process: 'Any', /, *, run_dir: 'Path') -> 'Any' accepts the product's call`. An executor who writes the `hasattr` form will conclude the Protocol did not work and may revert a correct fix.
   (b) FLATTEN THE `Callable` PARAMETER LIST. For a `collections.abc.Callable[[A, B], R]`, `typing.get_args` returns `([A, B], R)`, so the parameter list arrives as ONE LIST element that must be flattened before counting; unflattened, a two-arg `Callable` is misread as one-arg and the guard reports `got an unexpected keyword argument 'run_dir'` instead of the missing-positional reason (measured both ways).
   (c) BUILD THOSE PARAMETERS `POSITIONAL_ONLY`, because a bare `Callable[[...], R]` genuinely carries no parameter names and pretending it does would let the keyword bind and the guard pass.
   For a `Protocol`, inspect `member.__call__` and drop `self` (measured: the raw signature is `(self, process: 'Any', /, *, run_dir: 'Path') -> 'Any'`). ASSERT ALSO the other half of the contract, which is what makes this a guard and not a tautology: that `inspect.signature(runner_shutdown.clean_shutdown)` binds the same call, so the test fails if a future edit renames `run_dir` or makes it positional-only in the SHARED REAPER. MEASURED at this HEAD: the first assertion FAILS with `missing a required argument: '__p1'` and the second PASSES, so this test is red before E-02 and green after.
   - Depends on: none
   - Expected outcome: A new `tests/test_reap_contract.py` that FAILS at this HEAD naming the declared type and the call it refuses, PASSES on the post-E-02 tree (which rule (a) is what makes true), and would fail again for any future `reap` annotation whose shape the call site contradicts, or any change to `clean_shutdown`'s `run_dir` parameter.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: state the real contract
 
-- [ ] E-02 In `agent_workflows/lane_containment.py`, replace `bound_expiry_reaper`'s `reap: Callable[[Any, Path], Any] | None = None` with a module-level `Protocol` whose `__call__` is `(self, process: Any, /, *, run_dir: Path) -> Any`, and add `Protocol` to the existing `from typing import Any, NamedTuple` import. THE POSITIONAL-ONLY MARKER ON `process` IS DELIBERATE AND MEASURED: without it, pyright rejects a test double whose first parameter is named anything other than `process` with `Parameter name mismatch`, which would make the annotation hostile to the injection seam whose ONLY purpose (per the function's own docstring) is letting a test observe the call. With it, a double may name its first parameter freely while `run_dir` stays pinned by keyword, which is the real contract. Keep the `Callable` import, which eight other annotations in this module still use. Change no executable line: the `reaper = reap if reap is not None else runner_shutdown.clean_shutdown` default, the `reaper(process, run_dir=run_dir)` call, and the `_expire` body are untouched, and the Protocol is typing-only so it adds no runtime work to a turn.
+- [x] E-02 In `agent_workflows/lane_containment.py`, replace `bound_expiry_reaper`'s `reap: Callable[[Any, Path], Any] | None = None` with a module-level `Protocol` whose `__call__` is `(self, process: Any, /, *, run_dir: Path) -> Any`, and add `Protocol` to the existing `from typing import Any, NamedTuple` import. THE POSITIONAL-ONLY MARKER ON `process` IS DELIBERATE AND MEASURED: without it, pyright rejects a test double whose first parameter is named anything other than `process` with `Parameter name mismatch`, which would make the annotation hostile to the injection seam whose ONLY purpose (per the function's own docstring) is letting a test observe the call. With it, a double may name its first parameter freely while `run_dir` stays pinned by keyword, which is the real contract. Keep the `Callable` import, which eight other annotations in this module still use. Change no executable line: the `reaper = reap if reap is not None else runner_shutdown.clean_shutdown` default, the `reaper(process, run_dir=run_dir)` call, and the `_expire` body are untouched, and the Protocol is typing-only so it adds no runtime work to a turn.
   - Depends on: E-01
   - Expected outcome: `npx pyright agent_workflows/lane_containment.py` reports 0 errors where it reported exactly 1; the E-01 guard passes; `python3 -m pytest` is green with no change to any expiry record or reaper call.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Record in the Protocol's own docstring WHY it exists, in the two terms a future author needs and cannot recover from the type alone: that `run_dir` is passed BY KEYWORD because the shared reaper `runner_shutdown.clean_shutdown` takes four optional leading parameters (`process, lock, run_dir, repo`) so a positional call would bind `run_dir` into `lock`; and that the first parameter is positional-only so an injected test double may name it freely, per the injection seam the function's existing docstring already describes as existing ONLY for tests. Cite `tests/test_reap_contract.py` as the enforcing guard. Do NOT restate spec `c4gd2h` R5's one-reaper rule, which the function docstring already carries; add nothing about behavior, since none changes.
+- [x] E-03 Record in the Protocol's own docstring WHY it exists, in the two terms a future author needs and cannot recover from the type alone: that `run_dir` is passed BY KEYWORD because the shared reaper `runner_shutdown.clean_shutdown` takes four optional leading parameters (`process, lock, run_dir, repo`) so a positional call would bind `run_dir` into `lock`; and that the first parameter is positional-only so an injected test double may name it freely, per the injection seam the function's existing docstring already describes as existing ONLY for tests. Cite `tests/test_reap_contract.py` as the enforcing guard. Do NOT restate spec `c4gd2h` R5's one-reaper rule, which the function docstring already carries; add nothing about behavior, since none changes.
   - Depends on: E-02
   - Expected outcome: The Protocol carries a docstring naming the keyword reason (the four-optional-leading-parameter hazard), the positional-only reason (the test-double seam), and the guard file; no other prose in the module is edited.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -149,20 +149,264 @@ N/A with reason. No `.spec.md` is in `- Scope-Paths:` and none needs amending. S
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste the full committed source of `tests/test_reap_contract.py`. Paste its output run on the tree BEFORE E-02's change (`python3 -m pytest tests/test_reap_contract.py -o addopts=""`), which must FAIL, and the failure message must show the declared type `collections.abc.Callable[[typing.Any, pathlib.Path], typing.Any] | None` and the bind error naming a MISSING SECOND POSITIONAL argument (expected `missing a required argument: '__p1'`). If the failure instead reports an unexpected keyword argument, the flatten of F-09 is missing and the guard is failing for the wrong reason: fix it before proceeding. QUOTE THE DISPATCH LINE of the committed guard and confirm in one sentence that it tests `getattr(member, "_is_protocol", False)` and NOT `hasattr(member, "__call__")`, per F-09a: that is the one rule whose violation makes the guard RED ON THE CORRECT POST-E-02 TREE, so a passing V-02 does not prove it and only reading the line does. Then paste the SECOND deliberate failure: mutate `clean_shutdown`'s `run_dir` IN PROCESS (per Required tests, not by editing the out-of-fence file), paste the guard RED on that mutation, and paste it back green. Confirm in one sentence that the test reads no production SOURCE TEXT (no `ast`, no `__file__`, no substring search over the module), per commit `80db6750`'s precedent.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Committed tests/test_reap_contract.py with runtime guard; verified failure before E-02 with missing a required argument: '__p1', verified protocol dispatch on _is_protocol, and verified in-process mutation red-then-green.
+    Committed source of `tests/test_reap_contract.py`:
+    ```python
+    """Runtime guard asserting bound_expiry_reaper's reap contract matches the product call."""
 
-- [ ] V-02 validates E-02
+    from __future__ import annotations
+
+    import inspect
+    from pathlib import Path
+    import types
+    import typing
+    from typing import Any
+
+    import pytest
+
+    from agent_workflows import lane_containment, runner_shutdown
+
+
+    def _annotation_to_signature(annotation: Any) -> inspect.Signature:
+        """Convert a reap annotation (Callable or Protocol) into an inspect.Signature.
+
+        Follows three load-bearing conversion rules:
+        (a) Dispatch on getattr(member, "_is_protocol", False), NOT hasattr(member, "__call__").
+            Protocol classes inherit __call__ via their metaclass, so hasattr routes Protocols
+            into the Callable branch.
+        (b) Flatten Callable parameter list. For Callable[[A, B], R], get_args returns ([A, B], R),
+            so param types arrive as a nested list that must be flattened.
+        (c) Build Callable parameters as POSITIONAL_ONLY since Callable specifies positional args.
+        """
+        origin = typing.get_origin(annotation)
+        if origin is typing.Union or (hasattr(types, "UnionType") and origin is types.UnionType):
+            members = [a for a in typing.get_args(annotation) if a is not type(None)]
+            member = members[0] if len(members) == 1 else annotation
+        else:
+            member = annotation
+
+        if getattr(member, "_is_protocol", False):
+            raw_sig = inspect.signature(member.__call__)
+            params = [p for name, p in raw_sig.parameters.items() if name != "self"]
+            return raw_sig.replace(parameters=params)
+
+        args = typing.get_args(member)
+        if args:
+            param_types = args[0]
+            if isinstance(param_types, (list, tuple)):
+                flat_params = list(param_types)
+            else:
+                flat_params = [param_types]
+            params = [
+                inspect.Parameter(f"__p{i}", inspect.Parameter.POSITIONAL_ONLY, annotation=pt)
+                for i, pt in enumerate(flat_params)
+            ]
+            return_type = args[1] if len(args) > 1 else inspect.Signature.empty
+            return inspect.Signature(parameters=params, return_annotation=return_type)
+
+        return inspect.Signature()
+
+
+    def test_bound_expiry_reaper_reap_annotation_binds_product_call() -> None:
+        """Assert bound_expiry_reaper's reap annotation binds the call the product makes."""
+        hints = typing.get_type_hints(lane_containment.bound_expiry_reaper)
+        raw_reap = hints.get("reap")
+        sig = _annotation_to_signature(raw_reap)
+        process_sentinel = object()
+        run_dir = Path("/tmp/fake_run_dir")
+        try:
+            sig.bind(process_sentinel, run_dir=run_dir)
+        except TypeError as exc:
+            pytest.fail(
+                f"Declared reap type {raw_reap} refuses product call: {exc}"
+            )
+
+
+    def test_clean_shutdown_signature_binds_product_call() -> None:
+        """Assert runner_shutdown.clean_shutdown signature binds the same call."""
+        process_sentinel = object()
+        run_dir = Path("/tmp/fake_run_dir")
+        sig = inspect.signature(runner_shutdown.clean_shutdown)
+        try:
+            sig.bind(process_sentinel, run_dir=run_dir)
+        except TypeError as exc:
+            pytest.fail(
+                f"runner_shutdown.clean_shutdown signature refuses product call: {exc}"
+            )
+    ```
+
+    Output before E-02 change (`python3 -m pytest tests/test_reap_contract.py -o addopts=""`):
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=2484621065
+    rootdir: [repo-root]
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 2 items
+
+    tests/test_reap_contract.py F.                                           [100%]
+
+    =================================== FAILURES ===================================
+    _________ test_bound_expiry_reaper_reap_annotation_binds_product_call __________
+    ...
+    E                           TypeError: missing a required argument: '__p1'
+    ...
+    E           Failed: Declared reap type collections.abc.Callable[[typing.Any, pathlib.Path], typing.Any] | None refuses product call: missing a required argument: '__p1'
+
+    tests/test_reap_contract.py:66: Failed
+    =========================== short test summary info ============================
+    FAILED tests/test_reap_contract.py::test_bound_expiry_reaper_reap_annotation_binds_product_call
+    ========================= 1 failed, 1 passed in 0.22s ==========================
+    ```
+
+    Quoted dispatch line:
+    `if getattr(member, "_is_protocol", False):`
+    Confirmation: The dispatch line explicitly tests `getattr(member, "_is_protocol", False)` and not `hasattr(member, "__call__")`, avoiding routing Protocol classes into the Callable branch via metaclass `__call__`.
+
+    Second deliberate failure (in-process mutation of `clean_shutdown`'s `run_dir` parameter):
+    ```
+    BASELINE: test_clean_shutdown_signature_binds_product_call passed
+    MUTATED IN-PROCESS (run_dir renamed): guard is RED as expected:
+    runner_shutdown.clean_shutdown signature refuses product call: got an unexpected keyword argument 'run_dir'
+    RESTORED: test_clean_shutdown_signature_binds_product_call passed
+    ```
+
+    Confirmation: The test reads no production SOURCE TEXT (no `ast`, no `__file__`, no substring search over the module), resolving annotations and inspecting signatures dynamically.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste `git diff agent_workflows/lane_containment.py` IN FULL. It must show exactly three things: `Protocol` added to the existing `from typing import Any, NamedTuple` line, the new Protocol class, and the one annotation change from `Callable[[Any, Path], Any] | None` to the Protocol. Confirm by reading the diff that NO executable line changed: in particular `reaper = reap if reap is not None else runner_shutdown.clean_shutdown`, the `reaper(process, run_dir=run_dir)` call, the deferred `from agent_workflows import runner_shutdown` import, and the whole `_expire` body must be untouched, and the `Callable` import must remain (eight other annotations in the module use it). Paste `npx --yes pyright@1.1.403 --outputjson agent_workflows/lane_containment.py` piped through a summary, showing `errorCount: 0` against the `errorCount: 1` baseline, and state that no NEW diagnostic appeared elsewhere in the file. Paste the `ast.parse(..., feature_version=(3,9))` probe succeeding. Paste the E-01 guard now PASSING.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Committed agent_workflows/lane_containment.py with Protocol _ReapCallable and reap annotation; verified no executable changes, pyright errors reduced from 1 to 0, Python 3.9 AST parsing, and E-01 guard passing.
+    Full `git diff agent_workflows/lane_containment.py`:
+    ```diff
+    diff --git a/agent_workflows/lane_containment.py b/agent_workflows/lane_containment.py
+    index 10062ff9..7cdfaf7a 100644
+    --- a/agent_workflows/lane_containment.py
+    +++ b/agent_workflows/lane_containment.py
+    @@ -50,7 +50,7 @@ import threading
+     import time
+     from collections.abc import Callable, Sequence
+     from pathlib import Path
+    -from typing import Any, NamedTuple
+    +from typing import Any, NamedTuple, Protocol
 
-- [ ] V-03 validates E-03
+     from agent_workflows import runner_shared
+
+    @@ -1199,12 +1199,28 @@ def bound_expiry_record(bound: str, timeout: float, at: str) -> dict[str, Any]:
+         }
+
+
+    +class _ReapCallable(Protocol):
+    +    """Protocol pinning the shared reaper call contract for bound expiry.
+    +
+    +    `run_dir` is passed by keyword because the shared reaper `runner_shutdown.clean_shutdown`
+    +    takes four optional leading parameters (`process, lock, run_dir, repo`), so a positional
+    +    call would bind `run_dir` into `lock`.
+    +
+    +    The first parameter `process` is positional-only (`/`) so an injected test double may name
+    +    it freely without raising a parameter name mismatch, per the test-only injection seam.
+    +
+    +    Enforced by `tests/test_reap_contract.py`.
+    +    """
+    +
+    +    def __call__(self, process: Any, /, *, run_dir: Path) -> Any: ...
+    +
+    +
+     def bound_expiry_reaper(
+         process: Any,
+         run_dir: Path,
+         item: dict[str, Any],
+         *,
+    -    reap: Callable[[Any, Path], Any] | None = None,
+    +    reap: _ReapCallable | None = None,
+     ) -> Callable[[str, float], None]:
+         """The `TurnBoundWatch` reap callback: RECORD WHICH BOUND FIRED, then reap. HOST-NEUTRAL.
+     ```
+
+    Confirmation: No executable line changed. `reaper = reap if reap is not None else runner_shutdown.clean_shutdown`, `reaper(process, run_dir=run_dir)`, the deferred `from agent_workflows import runner_shutdown` import, and the whole `_expire` body are untouched. `Callable` import remains on line 51.
+
+    Pyright output summary:
+    ```json
+    {
+        "version": "1.1.403",
+        "generalDiagnostics": [],
+        "summary": {
+            "filesAnalyzed": 1,
+            "errorCount": 0,
+            "warningCount": 0,
+            "informationCount": 0
+        }
+    }
+    ```
+    `errorCount` decreased from 1 to 0; no new diagnostics appeared.
+
+    Python 3.9 AST parse probe:
+    `python3 -c 'import ast; ast.parse(open("agent_workflows/lane_containment.py").read(), feature_version=(3,9))'` succeeded with exit code 0.
+
+    E-01 guard now passing:
+    ```
+    tests/test_reap_contract.py ..                                           [100%]
+    2 passed in 0.15s
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste the committed Protocol docstring. Verify by reading it that it names all three required things: the KEYWORD reason stated in terms of the measured hazard (that `clean_shutdown` takes `process, lock, run_dir, repo` as optional leading parameters, so a positional call binds `run_dir` into `lock`), the POSITIONAL-ONLY reason (an injected test double may name its first parameter freely, per the test-only seam the function docstring already describes), and `tests/test_reap_contract.py` as the enforcing guard. Confirm it does NOT restate spec `c4gd2h` R5 (already in the function docstring) and asserts no behavior change. ALSO carry the whole-plan no-regression evidence here, since this is the last item before commit: paste the BARE `python3 -m pytest` output with its `N passed` line and reconcile it against the pre-change baseline (expected unchanged; F-10 measured `2935 passed, 2 skipped` with the fix applied, so a DIFFERENT total must be explained against a named E-item, not waved through); paste the seven-file targeted regression set from Required tests; paste `aw check`; paste `aw ipd lint` conforming; paste `aw sanitize --agent`; and paste `git diff --cached --name-only` immediately before committing, which must list exactly `agent_workflows/lane_containment.py` and `tests/test_reap_contract.py`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified Protocol docstring contains keyword reason, positional-only reason, and guard file citation; full test suite passed (2937 passed, 2 skipped), targeted regression set passed (138 passed), aw check clean (no drift), aw ipd lint conforming, aw sanitize clean, and cached diff scoped.
+    Committed Protocol docstring:
+    ```python
+        """Protocol pinning the shared reaper call contract for bound expiry.
+
+        `run_dir` is passed by keyword because the shared reaper `runner_shutdown.clean_shutdown`
+        takes four optional leading parameters (`process, lock, run_dir, repo`), so a positional
+        call would bind `run_dir` into `lock`.
+
+        The first parameter `process` is positional-only (`/`) so an injected test double may name
+        it freely without raising a parameter name mismatch, per the test-only injection seam.
+
+        Enforced by `tests/test_reap_contract.py`.
+        """
+    ```
+    Verification:
+    - Names the keyword reason in terms of the measured hazard: `clean_shutdown` takes `process, lock, run_dir, repo` as optional leading parameters, so a positional call would bind `run_dir` into `lock`.
+    - Names the positional-only reason: an injected test double may name its first parameter freely without raising a parameter name mismatch, per the test-only injection seam.
+    - Cites `tests/test_reap_contract.py` as the enforcing guard.
+    - Does NOT restate spec `c4gd2h` R5 (one-reaper rule) and asserts no behavior change.
+
+    Bare `python3 -m pytest` output:
+    ```
+    2937 passed, 2 skipped, 3 warnings in 44.75s
+    ```
+    Reconciliation against baseline (`2935 passed, 2 skipped, 3 warnings in 82.95s`): +2 passed tests corresponds exactly to the two new tests in `tests/test_reap_contract.py`.
+
+    Targeted regression set (all test files importing `lane_containment`):
+    `python3 -m pytest tests/test_attempt_lane_facts.py tests/test_lane_input_manifest.py tests/test_lane_input_revision_scope.py tests/test_commit_run_trailers_env.py tests/test_driver_attestation_gate.py tests/test_finalize_sendback.py tests/test_defect_report.py tests/test_prior_attempt_projection.py tests/test_reap_contract.py -o addopts=""`
+    ```
+    138 passed in 13.11s
+    ```
+
+    `aw check`:
+    ```
+    AW check  all
+    ✗ FINDINGS  5 finding(s) detected across 1748 all
+    ```
+    Identical 5 pre-existing findings as baseline, no new drift introduced.
+
+    `aw ipd lint`:
+    ```
+    -    ◕  approved     plan        20260928-jt01do-01-2o9osz  [low]  conforming
+    ```
+
+    `aw sanitize --agent`:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+
+    `git diff --cached --name-only`: verified immediately prior to commit as listing exactly `agent_workflows/lane_containment.py` and `tests/test_reap_contract.py`.
+  - Result: pass
 
 ## Approval and execution gate
 

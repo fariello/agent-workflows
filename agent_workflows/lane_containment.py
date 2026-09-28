@@ -50,7 +50,7 @@ import threading
 import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, Protocol
 
 from agent_workflows import runner_shared
 
@@ -1199,12 +1199,28 @@ def bound_expiry_record(bound: str, timeout: float, at: str) -> dict[str, Any]:
     }
 
 
+class _ReapCallable(Protocol):
+    """Protocol pinning the shared reaper call contract for bound expiry.
+
+    `run_dir` is passed by keyword because the shared reaper `runner_shutdown.clean_shutdown`
+    takes four optional leading parameters (`process, lock, run_dir, repo`), so a positional
+    call would bind `run_dir` into `lock`.
+
+    The first parameter `process` is positional-only (`/`) so an injected test double may name
+    it freely without raising a parameter name mismatch, per the test-only injection seam.
+
+    Enforced by `tests/test_reap_contract.py`.
+    """
+
+    def __call__(self, process: Any, /, *, run_dir: Path) -> Any: ...
+
+
 def bound_expiry_reaper(
     process: Any,
     run_dir: Path,
     item: dict[str, Any],
     *,
-    reap: Callable[[Any, Path], Any] | None = None,
+    reap: _ReapCallable | None = None,
 ) -> Callable[[str, float], None]:
     """The `TurnBoundWatch` reap callback: RECORD WHICH BOUND FIRED, then reap. HOST-NEUTRAL.
 
