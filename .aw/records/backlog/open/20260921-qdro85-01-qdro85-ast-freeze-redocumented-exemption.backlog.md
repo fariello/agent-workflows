@@ -6,6 +6,7 @@
 - Summary: The AST-freeze harness had no route for a REVISED docstring; DOCUMENTED_SINCE_MOVE only handles a GAINED one
 
 ## Workflow history
+- 2026-09-28 note (aw backlog): Maintainer ruling: Tests that pin code or freeze AST structure instead of testing functionality/outcomes have no business existing. We do not test to make sure code does not change or that text in a script remains the same.
 - 2026-09-21 created (aw backlog): Filed by plan 2iye0e execution turn; the immediate gap is already closed by that plan's REDOCUMENTED_SINCE_MOVE, this item records the residual design concern.
 
 FOUND WHILE EXECUTING 2iye0e E-04, whose plan text prescribed a remedy that does not work, so the gap is recorded rather than left implicit.

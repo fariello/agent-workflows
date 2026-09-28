@@ -6,6 +6,7 @@
 - Summary: The THE PRE-WORK SUITE BASELINE prohibition banner in runner_shared states 'NOTHING MAY REFUSE, DOWNGRADE, OR OTHERWISE CHANGE AN OUTCOME ON THE STRENGTH OF IT' without naming the DIRECTION it forbids, so it reads as barring a baseline-relative gate that only ever makes an outcome more permissive
 
 ## Workflow history
+- 2026-09-28 note (aw backlog): Maintainer ruling: We do not test to make sure text in a script or comment banner remains the same. The text-pinning test was deleted in the suite trim and will not be restored. Edits do not need to preserve exact phrases for code pins.
 - 2026-09-22 created (aw backlog): The THE PRE-WORK SUITE BASELINE prohibition banner in runner_shared states 'NOTHING MAY REFUSE, DOWNGRADE, OR OTHERWISE CHANGE AN OUTCOME ON THE STRENGTH OF IT' without naming the DIRECTION it forbids, so it reads as barring a baseline-relative gate that only ever makes an outcome more permissive
 
 FOUND while executing plan `tgyfs2` (revalbase 01), which had to interpret this banner before it could proceed; the interpretation is recorded as that lane's DECISION 01-tgyfs2-D1 and is flagged for maintainer review.

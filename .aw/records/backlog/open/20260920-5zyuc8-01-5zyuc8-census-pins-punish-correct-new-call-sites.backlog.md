@@ -6,6 +6,7 @@
 - Summary: Five pinned tests assert launcher/closure CENSUS counts, so adding a correctly-wired call site reads as a regression
 
 ## Workflow history
+- 2026-09-28 note (aw backlog): Maintainer ruling: Confirmed repository testing policy: tests that pin code structure, call counts, or census numbers instead of testing outcomes and functionality must be eliminated.
 - 2026-09-20 created (aw backlog): Found while wiring the standalone audit verb (plan mp289j).
 
 OBSERVED 2026-09-20. Adding ONE correctly-wired caller of `oc_runipd.run_opencode` (the standalone audit verb, which passes `use_verifier_launch=True` and names its telemetry phase, i.e. does everything the guards ask for) turned NINE tests red across five files. None had found a defect; each had pinned a COUNT as a proxy for an invariant:

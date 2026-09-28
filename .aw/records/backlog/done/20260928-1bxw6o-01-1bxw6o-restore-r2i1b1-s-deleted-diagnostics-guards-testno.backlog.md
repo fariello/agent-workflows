@@ -1,11 +1,12 @@
 - Id: 1bxw6o
-- Status: open
+- Status: done
 - Set: 1bxw6o
 - Priority: medium
 - Work-Kind: followup
 - Summary: Restore r2i1b1's deleted diagnostics guards (TestNoStatusAllowlist, TestNoFieldNameMismatch) or decide deliberately that the suite trim retires them
 
 ## Workflow history
+- 2026-09-28 done (aw set): Maintainer ruling: retired by suite trim; we test outcomes and functionality, never code structure or script text. Do not restore code-pinning guards.
 - 2026-09-28 created (aw backlog): Restore r2i1b1's deleted diagnostics guards (TestNoStatusAllowlist, TestNoFieldNameMismatch) or decide deliberately that the suite trim retires them
 
 MEASURED 2026-09-28 while authoring plan `5o1jye` from backlog item `fvsyqk`. Executed plan `orchprobe` `r2i1b1` built two guards over `render_stream`s diagnostics block and recorded in its own E-07 why: `TestNoStatusAllowlist` pinned that no hardcoded status allowlist gates the block, and `TestNoFieldNameMismatch` pinned "the defect class F-4 actually found: a branch whose rendering condition reads a field the producing code never writes". Its V-07 evidence records the guard FINDING A REAL THIRD DEFECT on first run before any mutation, which is the strongest argument for it existing.
