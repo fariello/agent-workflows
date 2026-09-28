@@ -1,5 +1,5 @@
 - Id: sxlvlu
-- Status: graduated
+- Status: done
 - Graduated-To: sxlvlu
 - Blocks-Release: next
 - Set: sxlvlu
@@ -8,6 +8,7 @@
 - Summary: opencode run with a --session from a different tree exits 0 with zero output: a silent no-op instead of an error, so a caller cannot tell the turn never ran
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): closed by aw oc run: IPD r0iob3 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-sxlvlu-01-r0iob3-make-a-cross-tree-or-zero-output-opencode-turn-observable-in.ipd.md); evidence .aw/records/plans/executed/20260928-sxlvlu-01-r0iob3-make-a-cross-tree-or-zero-output-opencode-turn-observable-in.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: r0iob3
 - 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-13 created (aw backlog): opencode run with a --session from a different tree exits 0 with zero output: a silent no-op instead of an error, so a caller cannot tell the turn never ran
