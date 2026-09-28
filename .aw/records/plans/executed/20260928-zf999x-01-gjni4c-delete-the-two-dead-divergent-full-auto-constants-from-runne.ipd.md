@@ -6,7 +6,7 @@
 - Scope: Delete both dead names from `runner_shared`, and replace the labelled-trap comment they carry with an executable guard: a test that refuses ANY module-level constant co-defined in `runner_shared` and both hosts whose resolved value matches neither host, so the trap cannot be re-created by a future lift. Pin the shipped actor and message BY VALUE at both layers that decide them - the argv each host sends, and each host wrapper's defaulted `message` parameter - and preserve both byte-for-byte.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_runner_shared.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: gjni4c
-- Approval: 2026-09-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-28 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: gjni4c verified (set zf999x, attempt 1).
 - 2026-09-28 approved (aw set): status set to approved
 
 - 2026-09-28 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-101..PR-106. The deletion, the mechanical-sweep guard and the by-value argv test are all correct and were verified by measurement (10 co-defined constants, exactly 2 divergent, 9 divergent by source text: F-05/F-06 reproduce exactly). Review MEASURED that the plan's no-default premise is FALSE ONE LAYER OUT: both hosts' `set_plan_approved` wrappers declare `message: str = FULL_AUTO_APPROVAL_MESSAGE`, and BOTH live call sites in `runner_shared` invoke them as `set_plan_approved(repo, id6)` with two arguments, so the recorded message comes from a HOST DEFAULT and never from a caller (PR-101). E-04 as authored would therefore have asserted a no-default property on the one signature no live caller uses while the defaulted host signature that actually decides the message went unpinned; new E-05 pins the host layer. Also corrected: F-03's "the value already arrives by parameter" (true of the shared function, false of the path the runner takes), and V-03's pasted-argv evidence, which contains an absolute interpreter path the leak sanitizer must be run against. Record: `.aw/records/reviews/20260928-zf999x-01-gjni4c-delete-the-two-dead-divergent-full-auto-constants-fro.review.md`.
@@ -36,32 +36,32 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: replace the comment trap with an executable guard
 
-- [ ] E-01 Add a test to `tests/test_runner_shared.py` that mechanically finds this class of defect rather than naming these two constants. It must, by AST over the three source files, collect every `UPPER_CASE` module-level assignment co-defined in `runner_shared`, `oc_runipd` AND `agy_runipd`; then, for each, compare the three RESOLVED values (`getattr` on the imported modules, not the unparsed source, because both hosts spell theirs as a `runner_shared.<NAME>` or `runner_shared.<LABELS>.<field>` reference whose source text can never equal the shared literal); and FAIL naming any constant whose shared value equals NEITHER host's. MEASURED at this HEAD: 10 names are co-defined in all three, 8 of them resolve identically across all three, and exactly the two `FULL_AUTO_*` names fail; so this test fails with exactly two named constants BEFORE E-02 and passes after. Write it to fail with the shared and both host values printed, since the failure's whole job is to tell the next author which value they are about to write into someone's plan history. Do NOT write an allowlist parameter: an exemption is what turned this into a labelled comment the first time.
+- [x] E-01 Add a test to `tests/test_runner_shared.py` that mechanically finds this class of defect rather than naming these two constants. It must, by AST over the three source files, collect every `UPPER_CASE` module-level assignment co-defined in `runner_shared`, `oc_runipd` AND `agy_runipd`; then, for each, compare the three RESOLVED values (`getattr` on the imported modules, not the unparsed source, because both hosts spell theirs as a `runner_shared.<NAME>` or `runner_shared.<LABELS>.<field>` reference whose source text can never equal the shared literal); and FAIL naming any constant whose shared value equals NEITHER host's. MEASURED at this HEAD: 10 names are co-defined in all three, 8 of them resolve identically across all three, and exactly the two `FULL_AUTO_*` names fail; so this test fails with exactly two named constants BEFORE E-02 and passes after. Write it to fail with the shared and both host values printed, since the failure's whole job is to tell the next author which value they are about to write into someone's plan history. Do NOT write an allowlist parameter: an exemption is what turned this into a labelled comment the first time.
   - Depends on: none
   - Expected outcome: A new test in `tests/test_runner_shared.py` fails at this HEAD, naming `FULL_AUTO_ACTOR` and `FULL_AUTO_APPROVAL_MESSAGE` with their three values, and will fail again for any future constant lifted into `runner_shared` with a value no host holds.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Delete `FULL_AUTO_ACTOR` and `FULL_AUTO_APPROVAL_MESSAGE` from `agent_workflows/runner_shared.py`, together with the multi-paragraph `#:` comment block above them whose entire subject is that they are dead and must not be read. Keep the substance of that comment where it is still load-bearing rather than losing it: `HostLabels.full_auto_actor`'s field comment already records the same hazard (it states that the module "ALREADY carried an unreferenced `FULL_AUTO_ACTOR = \"aw-driver/full-auto\"` matching NEITHER host"), so amend that sentence to past tense and to cite the E-01 guard as what now enforces it, and amend the same claim in `set_plan_approved`'s docstring, whose `message` paragraph currently justifies the no-default parameter by saying "this module carries a legacy `FULL_AUTO_APPROVAL_MESSAGE` whose value matches NEITHER host (see the note on that constant)". That justification must survive the deletion in a form that is still true: the parameter stays required, and the reason becomes the measured incident plus the guard, not a constant that no longer exists. Change no executable line other than the two deletions; `set_plan_approved`'s signature, its `labels.full_auto_actor` read and both host wrappers are untouched.
+- [x] E-02 Delete `FULL_AUTO_ACTOR` and `FULL_AUTO_APPROVAL_MESSAGE` from `agent_workflows/runner_shared.py`, together with the multi-paragraph `#:` comment block above them whose entire subject is that they are dead and must not be read. Keep the substance of that comment where it is still load-bearing rather than losing it: `HostLabels.full_auto_actor`'s field comment already records the same hazard (it states that the module "ALREADY carried an unreferenced `FULL_AUTO_ACTOR = \"aw-driver/full-auto\"` matching NEITHER host"), so amend that sentence to past tense and to cite the E-01 guard as what now enforces it, and amend the same claim in `set_plan_approved`'s docstring, whose `message` paragraph currently justifies the no-default parameter by saying "this module carries a legacy `FULL_AUTO_APPROVAL_MESSAGE` whose value matches NEITHER host (see the note on that constant)". That justification must survive the deletion in a form that is still true: the parameter stays required, and the reason becomes the measured incident plus the guard, not a constant that no longer exists. Change no executable line other than the two deletions; `set_plan_approved`'s signature, its `labels.full_auto_actor` read and both host wrappers are untouched.
   - Depends on: E-01
   - Expected outcome: Neither name exists in `runner_shared`; `grep -n "FULL_AUTO" agent_workflows/runner_shared.py` returns only prose references inside the two amended comments; the E-01 test passes; both hosts' constants and `set_plan_approved` are unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: prove the hosts' durable-history output did not move
 
-- [ ] E-03 Add a test to `tests/test_runner_shared.py` pinning the EXACT argv both hosts send to `aw set`, by value rather than by symbol reference. The two shipped tests (`tests/test_oc_runipd.py::test_set_plan_approved_uses_auto_approved_and_never_by_human` and its agy twin) assert `assertIn(driver.FULL_AUTO_ACTOR, argv)`, which is a self-referential assertion: it passes for whatever value that name happens to hold, so it cannot detect a value change, which is precisely the defect class this plan exists to close. The new test must call each host's `set_plan_approved` with `run_checked` patched, and assert the LITERAL strings `"aw oc run --full-auto"` and `"aw agy run --full-auto"` appear after `--actor`, and that the literal `"auto-approved by --full-auto: review readiness cleared (not human approval)"` appears after `-m`. Assert also that the string `"aw-driver/full-auto"` and the substring `"passed all gates"` appear in NEITHER host's argv, which is the regression this plan's whole premise is about. Do not delete or weaken the two existing host tests; they cover the `--by-human` prohibition, which this test does not.
+- [x] E-03 Add a test to `tests/test_runner_shared.py` pinning the EXACT argv both hosts send to `aw set`, by value rather than by symbol reference. The two shipped tests (`tests/test_oc_runipd.py::test_set_plan_approved_uses_auto_approved_and_never_by_human` and its agy twin) assert `assertIn(driver.FULL_AUTO_ACTOR, argv)`, which is a self-referential assertion: it passes for whatever value that name happens to hold, so it cannot detect a value change, which is precisely the defect class this plan exists to close. The new test must call each host's `set_plan_approved` with `run_checked` patched, and assert the LITERAL strings `"aw oc run --full-auto"` and `"aw agy run --full-auto"` appear after `--actor`, and that the literal `"auto-approved by --full-auto: review readiness cleared (not human approval)"` appears after `-m`. Assert also that the string `"aw-driver/full-auto"` and the substring `"passed all gates"` appear in NEITHER host's argv, which is the regression this plan's whole premise is about. Do not delete or weaken the two existing host tests; they cover the `--by-human` prohibition, which this test does not.
   - Depends on: none
   - Expected outcome: A test that passes at this HEAD and at every later HEAD, and that FAILS if either host's actor or message value is changed, including by a future consolidation onto a shared constant.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Assert in the same new test that the SHARED `set_plan_approved`'s `message` parameter and `HostLabels.full_auto_actor` both remain NO-DEFAULT, since that is what stops the shared function itself acquiring a borrowed value. Concretely: `inspect.signature(runner_shared.set_plan_approved).parameters["message"].default is inspect.Parameter.empty`, and constructing `HostLabels` without `full_auto_actor` raises `TypeError` (measured at review: `TypeError: HostLabels.__new__() missing 1 required positional argument: 'full_auto_actor'`). A `NamedTuple` field's no-defaults property is already relied on by `tests/test_hostdedup_third_host.py`, which builds a third host's labels; this adds the assertion for the one field whose value reaches durable history. NOTE THE BOUND, measured at review as F-03a: these two assertions do NOT cover the message the runner actually records, because no live caller passes one. E-05 covers that.
+- [x] E-04 Assert in the same new test that the SHARED `set_plan_approved`'s `message` parameter and `HostLabels.full_auto_actor` both remain NO-DEFAULT, since that is what stops the shared function itself acquiring a borrowed value. Concretely: `inspect.signature(runner_shared.set_plan_approved).parameters["message"].default is inspect.Parameter.empty`, and constructing `HostLabels` without `full_auto_actor` raises `TypeError` (measured at review: `TypeError: HostLabels.__new__() missing 1 required positional argument: 'full_auto_actor'`). A `NamedTuple` field's no-defaults property is already relied on by `tests/test_hostdedup_third_host.py`, which builds a third host's labels; this adds the assertion for the one field whose value reaches durable history. NOTE THE BOUND, measured at review as F-03a: these two assertions do NOT cover the message the runner actually records, because no live caller passes one. E-05 covers that.
   - Depends on: E-03
   - Expected outcome: Two assertions that fail if a future author gives the shared `message` parameter a default or gives `HostLabels.full_auto_actor` one.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Pin the HOST layer, which is where the recorded message is actually decided and which E-04 does not reach. F-03a measured that both hosts' wrappers declare `message: str = FULL_AUTO_APPROVAL_MESSAGE` and that both live call sites invoke them with two arguments, so the string written into a plan's `## Workflow history` comes from each HOST'S DEFAULT and from nowhere else. Add, in the same new test, three assertions per host: that `inspect.signature(<host>.set_plan_approved).parameters["message"].default` EQUALS the literal `"auto-approved by --full-auto: review readiness cleared (not human approval)"`, asserted against that literal spelled out in the test rather than against `<host>.FULL_AUTO_APPROVAL_MESSAGE` (reading the default from the same name the code reads is exactly the self-referential shape F-07 measured as unable to detect a value change); that the default is NOT `inspect.Parameter.empty`, stated as an explicit assertion so a future author who REMOVES the default breaks a test rather than silently shifting the guarantee to callers that pass nothing; and that the default equals neither `"aw-driver/full-auto"` nor any string containing `"passed all gates"`. ALSO assert that both live invocation shapes still pass two arguments, by reading the two call sites' source with `inspect.getsource(runner_shared.run_queue)` and the queue-build function and asserting the two-argument call text is present, so the premise this item rests on cannot silently stop being true. Do NOT change either host's signature: the default is load-bearing, and removing it would make the message a caller obligation at two sites that currently do not supply one.
+- [x] E-05 Pin the HOST layer, which is where the recorded message is actually decided and which E-04 does not reach. F-03a measured that both hosts' wrappers declare `message: str = FULL_AUTO_APPROVAL_MESSAGE` and that both live call sites invoke them with two arguments, so the string written into a plan's `## Workflow history` comes from each HOST'S DEFAULT and from nowhere else. Add, in the same new test, three assertions per host: that `inspect.signature(<host>.set_plan_approved).parameters["message"].default` EQUALS the literal `"auto-approved by --full-auto: review readiness cleared (not human approval)"`, asserted against that literal spelled out in the test rather than against `<host>.FULL_AUTO_APPROVAL_MESSAGE` (reading the default from the same name the code reads is exactly the self-referential shape F-07 measured as unable to detect a value change); that the default is NOT `inspect.Parameter.empty`, stated as an explicit assertion so a future author who REMOVES the default breaks a test rather than silently shifting the guarantee to callers that pass nothing; and that the default equals neither `"aw-driver/full-auto"` nor any string containing `"passed all gates"`. ALSO assert that both live invocation shapes still pass two arguments, by reading the two call sites' source with `inspect.getsource(runner_shared.run_queue)` and the queue-build function and asserting the two-argument call text is present, so the premise this item rests on cannot silently stop being true. Do NOT change either host's signature: the default is load-bearing, and removing it would make the message a caller obligation at two sites that currently do not supply one.
   - Depends on: E-04
   - Expected outcome: Assertions that fail if either host's defaulted message value changes, if either default is removed, or if either live call site starts supplying its own message; and that together with E-03 close the actual path a wrong message would take into durable history.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -157,30 +157,447 @@ N/A with reason. No `.spec.md` is in `- Scope-Paths:` and none needs to be. Spec
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste the full committed source of the new guard test. Paste its output run on the tree BEFORE E-02's deletion (`python3 -m pytest tests/test_runner_shared.py -k <guard-test-name> -o addopts=""`), which must FAIL and must name both `FULL_AUTO_ACTOR` and `FULL_AUTO_APPROVAL_MESSAGE` with the shared and both host values visible in the failure message. Paste a probe listing every `UPPER_CASE` name the sweep collects (expected: the 10 of F-05) and the verdict per name, so a reviewer can confirm 8 pass and exactly 2 fail rather than trusting the count. Confirm in one sentence that the test carries no allowlist or exemption parameter.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below:
+    Committed source of guard test:
+    ```python
+    def test_no_divergent_codefined_constants_in_runner_shared(self) -> None:
+        """Mechanically ensure no co-defined constant in runner_shared has a value matching neither host.
 
-- [ ] V-02 validates E-02
+        gjni4c E-01: Collects every UPPER_CASE module-level assignment co-defined in
+        runner_shared, oc_runipd, AND agy_runipd via AST. For each, compares resolved values
+        via getattr. Fails if the shared value equals neither host's value, printing all three values.
+        """
+        modules = (runner_shared, oc_runipd, agy_runipd)
+        per_module_names: list[set[str]] = []
+        for mod in modules:
+            mod_path = pathlib.Path(mod.__file__)
+            tree = ast.parse(mod_path.read_text(encoding="utf-8"))
+            names: set[str] = set()
+            for node in tree.body:
+                if isinstance(node, ast.Assign):
+                    for target in node.targets:
+                        if isinstance(target, ast.Name) and target.id.isupper():
+                            names.add(target.id)
+                        elif isinstance(target, (ast.Tuple, ast.List)):
+                            for elt in target.elts:
+                                if isinstance(elt, ast.Name) and elt.id.isupper():
+                                    names.add(elt.id)
+                elif isinstance(node, ast.AnnAssign):
+                    if isinstance(node.target, ast.Name) and node.target.id.isupper():
+                        names.add(node.target.id)
+            per_module_names.append(names)
+
+        co_defined = sorted(
+            per_module_names[0] & per_module_names[1] & per_module_names[2]
+        )
+        failures: list[str] = []
+        for name in co_defined:
+            v_shared = getattr(runner_shared, name)
+            v_oc = getattr(oc_runipd, name)
+            v_agy = getattr(agy_runipd, name)
+            if v_shared != v_oc and v_shared != v_agy:
+                failures.append(
+                    f"Constant {name} in runner_shared has value {v_shared!r}, "
+                    f"which matches neither oc_runipd ({v_oc!r}) "
+                    f"nor agy_runipd ({v_agy!r})."
+                )
+
+        if failures:
+            self.fail(
+                "Found co-defined module-level constant(s) in runner_shared whose value matches neither host:\n"
+                + "\n".join(failures)
+            )
+    ```
+
+    Failure output on tree BEFORE E-02 (`python3 -m pytest tests/test_runner_shared.py -k test_no_divergent_codefined_constants_in_runner_shared -o addopts=""`):
+    ```
+    =================================== FAILURES ===================================
+    _ FullAutoDurableHistoryPinTests.test_no_divergent_codefined_constants_in_runner_shared _
+    ...
+    E           AssertionError: Found co-defined module-level constant(s) in runner_shared whose value matches neither host:
+    E           Constant FULL_AUTO_ACTOR in runner_shared has value 'aw-driver/full-auto', which matches neither oc_runipd ('aw oc run --full-auto') nor agy_runipd ('aw agy run --full-auto').
+    E           Constant FULL_AUTO_APPROVAL_MESSAGE in runner_shared has value 'Auto-approved via --full-auto (review passed all gates)', which matches neither oc_runipd ('auto-approved by --full-auto: review readiness cleared (not human approval)') nor agy_runipd ('auto-approved by --full-auto: review readiness cleared (not human approval)').
+
+    tests/test_runner_shared.py:4654: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_runner_shared.py::FullAutoDurableHistoryPinTests::test_no_divergent_codefined_constants_in_runner_shared
+    ======================= 1 failed, 96 deselected in 0.92s =======================
+    ```
+
+    Probe listing every UPPER_CASE name collected and verdict per name:
+    ```
+    Total co-defined constants: 10
+    ACTION_CHOICES: PASS
+    ACTION_IMPLEMENTED: PASS
+    DEFAULT_STALL_TIMEOUT: PASS
+    EXECUTION_SUCCESS_STATES: PASS
+    FULL_AUTO_ACTOR: FAIL (divergent)
+    FULL_AUTO_APPROVAL_MESSAGE: FAIL (divergent)
+    SUCCESS_STATES: PASS
+    TERMINAL_STATES: PASS
+    TERMINAL_STATES_CANONICAL: PASS
+    TERMINAL_STATUS_ALIASES: PASS
+    ```
+    The test carries no allowlist or exemption parameter.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste `git diff agent_workflows/runner_shared.py` in full. It must show the two assignments and their `#:` comment block removed, the two amended comments (`HostLabels.full_auto_actor`'s field comment and `set_plan_approved`'s `message` paragraph) reading as true after the deletion and citing the E-01 guard, and NO change to any executable line. Paste `grep -n "FULL_AUTO" agent_workflows/runner_shared.py` showing only the amended prose. Paste a `python3 -c` probe showing `hasattr(runner_shared, "FULL_AUTO_ACTOR")` and `hasattr(runner_shared, "FULL_AUTO_APPROVAL_MESSAGE")` are both `False` while `oc_runipd.FULL_AUTO_ACTOR == "aw oc run --full-auto"`, `agy_runipd.FULL_AUTO_ACTOR == "aw agy run --full-auto"`, and both hosts' `FULL_AUTO_APPROVAL_MESSAGE` still equal `"auto-approved by --full-auto: review readiness cleared (not human approval)"`. Paste the guard test now PASSING. Paste `python3 -m pytest tests/test_runner_shared.py -o addopts=""` green.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below:
+    `git diff agent_workflows/runner_shared.py` in full:
+    ```diff
+    diff --git a/agent_workflows/runner_shared.py b/agent_workflows/runner_shared.py
+    index 14794d84..97dfe168 100644
+    --- a/agent_workflows/runner_shared.py
+    +++ b/agent_workflows/runner_shared.py
+    @@ -25097,9 +25097,11 @@ class HostLabels(NamedTuple):
+         #: constant in EACH runner with a DIFFERENT value, and `set_plan_approved`'s two bodies were
+         #: byte-identical because AST comparison matches on the NAME. So the symbol looked decision-free to
+         #: lift and was not: a verbatim lift would have made every Antigravity auto-approval record that
+    -    #: `aw oc run` did it. Note also that this module ALREADY carried an unreferenced
+    -    #: `FULL_AUTO_ACTOR = "aw-driver/full-auto"` matching NEITHER host, so reading a shared constant
+    -    #: would have misattributed BOTH hosts to a third string no host has ever written.
+    +    #: `aw oc run` did it. Note also that this module formerly carried an unreferenced
+    +    #: `FULL_AUTO_ACTOR = "aw-driver/full-auto"` matching NEITHER host (deleted in `gjni4c`), so reading a
+    +    #: shared constant would have misattributed BOTH hosts to a third string no host has ever written;
+    +    #: the `test_no_divergent_codefined_constants_in_runner_shared` guard now enforces that no such divergent
+    +    #: constant can reappear.
+         full_auto_actor: str
 
-- [ ] V-03 validates E-03
+
+    @@ -27512,28 +27514,6 @@ def assert_child_tool_identity(
+
+     # ---- rununify: constants and shared models -------------------------------------------------------
+
+    -#: DEAD CONSTANTS, KEPT AND LABELLED RATHER THAN SILENTLY REPURPOSED (hostdedup Order 01, `li44r9`).
+    -#:
+    -#: These two are read by NOTHING: not by this module, not by either runner, not by the suite (verified
+    -#: by grep at HEAD `ee20e831`). Each runner defines its OWN pair and reads those, and neither value
+    -#: below matches either host: the hosts' actor is `aw oc run --full-auto` / `aw agy run --full-auto`
+    -#: and their message is "auto-approved by --full-auto: review readiness cleared (not human approval)".
+    -#:
+    -#: WHY THIS MATTERS ENOUGH TO DOCUMENT RATHER THAN DELETE. When `set_plan_approved` was lifted here,
+    -#: the obvious-looking implementation was for the shared body to read these names, since they are
+    -#: already in scope under exactly the right spelling. That would have silently re-attributed EVERY
+    -#: host's auto-approval to `aw-driver/full-auto` in permanent plan history AND changed the approval
+    -#: message on both hosts, while every existing test stayed green. The shared `set_plan_approved` below
+    -#: therefore takes both values from its CALLER (the actor through `HostLabels.full_auto_actor`, which
+    -#: has no default), and deliberately does not touch these.
+    -#:
+    -#: They are left in place rather than removed because deleting a public module attribute is a
+    -#: compatibility change this plan has no authority to make (it is a pure code move), and because a
+    -#: labelled trap is safer than an unlabelled absence: the next author to reach for the obvious name
+    -#: reads this note first. Filed as backlog for removal.
+    -FULL_AUTO_APPROVAL_MESSAGE = "Auto-approved via --full-auto (review passed all gates)"
+    -FULL_AUTO_ACTOR = "aw-driver/full-auto"
+    -
+
+     def set_plan_approved(
+         repo: Path,
+    @@ -27576,9 +27556,10 @@ def set_plan_approved(
+         than writing a blank or borrowed actor into another plan's history.
+
+         `message` IS ALSO REQUIRED, with no default here, for a narrower but identical reason: this module
+    -    carries a legacy `FULL_AUTO_APPROVAL_MESSAGE` whose value matches NEITHER host (see the note on
+    -    that constant), so defaulting to the name in scope would have silently changed both hosts' recorded
+    -    message. Each host passes its own constant and its own wording is preserved byte-for-byte.
+    +    formerly carried a legacy `FULL_AUTO_APPROVAL_MESSAGE` whose value matched NEITHER host (measured
+    +    incident in `zf999x`, deleted in `gjni4c`). Each HOST binds its own value as its wrapper's default,
+    +    and E-01's guard plus E-05's host-layer assertions are what keep the shared module from acquiring a
+    +    third one.
+
+         `argv_builder` and `run_checked` are INJECTED because `pinned_module_argv` and each host's
+         `run_checked` wrapper bind per host and this module may not import a runner; that is the same
+    ```
+
+    `grep -n "FULL_AUTO" agent_workflows/runner_shared.py` showing only amended prose:
+    ```
+    25096:    #: hostdedup Order 01 (`li44r9`) E-08. BEFORE this field, `FULL_AUTO_ACTOR` was a module-level
+    25101:    #: `FULL_AUTO_ACTOR = "aw-driver/full-auto"` matching NEITHER host (deleted in `gjni4c`), so reading a
+    27547:    was not: both bodies read a module-level `FULL_AUTO_ACTOR`, AST comparison matches on the NAME, and
+    27559:    formerly carried a legacy `FULL_AUTO_APPROVAL_MESSAGE` whose value matched NEITHER host (measured
+    ```
+
+    `python3 -c` probe confirming constants removed and hosts preserved:
+    ```
+    hasattr runner_shared FULL_AUTO_ACTOR: False
+    hasattr runner_shared FULL_AUTO_APPROVAL_MESSAGE: False
+    oc_runipd.FULL_AUTO_ACTOR: True 'aw oc run --full-auto'
+    agy_runipd.FULL_AUTO_ACTOR: True 'aw agy run --full-auto'
+    oc_runipd.FULL_AUTO_APPROVAL_MESSAGE matches: True 'auto-approved by --full-auto: review readiness cleared (not human approval)'
+    agy_runipd.FULL_AUTO_APPROVAL_MESSAGE matches: True 'auto-approved by --full-auto: review readiness cleared (not human approval)'
+    ```
+
+    Guard test now PASSING (`python3 -m pytest tests/test_runner_shared.py -k test_no_divergent_codefined_constants_in_runner_shared -o addopts=""`):
+    ```
+    tests/test_runner_shared.py .                                            [100%]
+    ======================= 1 passed, 96 deselected in 0.77s =======================
+    ```
+
+    `python3 -m pytest tests/test_runner_shared.py -o addopts=""` green:
+    ```
+    tests/test_runner_shared.py ............................................ [ 45%]
+    .....................................................                    [100%]
+    ============================= 97 passed in 12.86s ==============================
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste the full committed source of the by-value argv test and its passing output. Then paste the DELIBERATE-FAILURE contrast that is this item's whole point: temporarily change `OC_HOST_LABELS.full_auto_actor` (or the oc message constant) to another value, paste the new test FAILING, and in the same run paste `python3 -m pytest tests/test_oc_runipd.py -k set_plan_approved -o addopts=""` showing the shipped host test still PASSING under that same mutation, which demonstrates F-07's claim that the shipped assertion cannot detect a value change. Restore and paste both green. Also paste the captured argv for each host showing the literal actor after `--actor` and the literal message after `-m`, and assert in the output that neither `"aw-driver/full-auto"` nor `"passed all gates"` appears. REDACT THE ARGV PREFIX: element 0 is the running interpreter's ABSOLUTE PATH and elements 1-2 are `-P -c` plus a multi-line bootstrap string (measured at review), so paste from the `set` token onward, or elide the prefix explicitly, and run `aw sanitize --agent` before commit rather than after.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below:
+    Committed source of by-value argv assertions in `test_set_plan_approved_durable_history_pin`:
+    ```python
+        # E-03: Assert exact argv by value for both hosts
+        for host, host_actor in [
+            (oc_runipd, "aw oc run --full-auto"),
+            (agy_runipd, "aw agy run --full-auto"),
+        ]:
+            captured: list[list[str]] = []
 
-- [ ] V-04 validates E-04
+            def fake_run_checked(argv, cwd=None, env=None):
+                captured.append(list(argv))
+                return ""
+
+            with mock.patch.object(host, "run_checked", fake_run_checked):
+                host.set_plan_approved(pathlib.Path("/tmp/repo"), "pln001")
+
+            self.assertEqual(len(captured), 1)
+            argv = captured[0]
+
+            self.assertIn("--actor", argv)
+            actor_idx = argv.index("--actor")
+            self.assertEqual(
+                argv[actor_idx + 1],
+                host_actor,
+                f"{host.__name__} did not send expected --actor value",
+            )
+
+            self.assertIn("-m", argv)
+            m_idx = argv.index("-m")
+            self.assertEqual(
+                argv[m_idx + 1],
+                expected_msg,
+                f"{host.__name__} did not send expected -m value",
+            )
+
+            for arg in argv:
+                self.assertNotIn(
+                    "aw-driver/full-auto",
+                    arg,
+                    f"{host.__name__} argv contains prohibited aw-driver/full-auto",
+                )
+                self.assertNotIn(
+                    "passed all gates",
+                    arg,
+                    f"{host.__name__} argv contains prohibited 'passed all gates'",
+                )
+    ```
+
+    Passing test output (`python3 -m pytest tests/test_runner_shared.py -k test_set_plan_approved_durable_history_pin -o addopts=""`):
+    ```
+    tests/test_runner_shared.py .                                            [100%]
+    ======================= 1 passed, 96 deselected in 0.50s =======================
+    ```
+
+    Deliberate-failure contrast (mutated `OC_HOST_LABELS.full_auto_actor` to `"mutated-actor"`):
+    New test FAILS:
+    ```
+    =================================== FAILURES ===================================
+    __ FullAutoDurableHistoryPinTests.test_set_plan_approved_durable_history_pin ___
+    ...
+    >           self.assertEqual(
+                    argv[actor_idx + 1],
+                    host_actor,
+                    f"{host.__name__} did not send expected --actor value",
+                )
+    E           AssertionError: 'mutated-actor' != 'aw oc run --full-auto'
+    E           - mutated-actor
+    E           + aw oc run --full-auto
+    E            : agent_workflows.oc_runipd did not send expected --actor value
+    =========================== short test summary info ============================
+    FAILED tests/test_runner_shared.py::FullAutoDurableHistoryPinTests::test_set_plan_approved_durable_history_pin
+    ======================= 1 failed, 96 deselected in 0.84s =======================
+    ```
+
+    Shipped host test PASSES under that same mutation (`python3 -m pytest tests/test_oc_runipd.py -k set_plan_approved -o addopts=""`):
+    ```
+    tests/test_oc_runipd.py .                                                [100%]
+    ====================== 1 passed, 166 deselected in 0.27s =======================
+    ```
+    Both restored and green.
+
+    Captured argv for each host (prefix redacted to tokens from `set` onward):
+    ```
+    === agent_workflows.oc_runipd argv from set ===
+    ['set', 'auto-approved', 'pln001', '--actor', 'aw oc run --full-auto', '--yes', '--no-commit', '--dir', '/tmp/repo', '-m', 'auto-approved by --full-auto: review readiness cleared (not human approval)']
+      --actor: aw oc run --full-auto
+      -m:      auto-approved by --full-auto: review readiness cleared (not human approval)
+      Prohibited strings check: PASSED (neither aw-driver/full-auto nor passed all gates present)
+    === agent_workflows.agy_runipd argv from set ===
+    ['set', 'auto-approved', 'pln001', '--actor', 'aw agy run --full-auto', '--yes', '--no-commit', '--dir', '/tmp/repo', '-m', 'auto-approved by --full-auto: review readiness cleared (not human approval)']
+      --actor: aw agy run --full-auto
+      -m:      auto-approved by --full-auto: review readiness cleared (not human approval)
+      Prohibited strings check: PASSED (neither aw-driver/full-auto nor passed all gates present)
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Paste the two no-default assertions as committed and their passing output. Paste a probe showing `inspect.signature(runner_shared.set_plan_approved)` in full with `message` having no default, and a probe showing that constructing `HostLabels` without `full_auto_actor` raises `TypeError` with the traceback's final line (measured at review: `TypeError: HostLabels.__new__() missing 1 required positional argument: 'full_auto_actor'`). Demonstrate each assertion bites: temporarily give the SHARED `message` a default, paste the assertion failing, restore; then temporarily give the `full_auto_actor` field a default and paste that assertion failing, restore. NOTE for the second mutation, so the executor is not surprised: `full_auto_actor` is the LAST `HostLabels` field and both `HOST_LABELS` are constructed by keyword, so adding a default is legal Python and both constructions keep working - the assertion flips because no `TypeError` is raised, which is exactly what it is written to detect. State in one sentence that these two assertions do NOT cover the message the runner actually records, and point at V-05.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below:
+    Committed source of no-default assertions:
+    ```python
+        # E-04: Shared function message parameter and HostLabels.full_auto_actor have no defaults
+        shared_sig = inspect.signature(runner_shared.set_plan_approved)
+        self.assertIs(
+            shared_sig.parameters["message"].default,
+            inspect.Parameter.empty,
+            "runner_shared.set_plan_approved 'message' parameter must have no default",
+        )
 
-- [ ] V-05 validates E-05
+        kwargs = {
+            f: f"val_{f}"
+            for f in runner_shared.HostLabels._fields
+            if f != "full_auto_actor"
+        }
+        with self.assertRaises(TypeError):
+            runner_shared.HostLabels(**kwargs)
+    ```
+    Passing test output:
+    ```
+    tests/test_runner_shared.py .                                            [100%]
+    ======================= 1 passed, 96 deselected in 0.50s =======================
+    ```
+
+    Probes:
+    `inspect.signature(runner_shared.set_plan_approved)` in full:
+    ```
+    signature: (repo: 'Path', id6: 'str', message: 'str', *, labels: 'HostLabels', argv_builder: 'Callable[[Sequence[str]], list[str]]', run_checked: 'Callable[..., Any]') -> 'None'
+    message default: <class 'inspect._empty'>
+    ```
+    Constructing `HostLabels` without `full_auto_actor` traceback final line:
+    ```
+    TypeError: HostLabels.__new__() missing 1 required positional argument: 'full_auto_actor'
+    ```
+
+    Demonstration 1 (shared message given default):
+    ```
+    E       AssertionError: 'some-default' is not <class 'inspect._empty'> : runner_shared.set_plan_approved 'message' parameter must have no default
+    FAILED tests/test_runner_shared.py::FullAutoDurableHistoryPinTests::test_set_plan_approved_durable_history_pin
+    ```
+    Restored and verified passing.
+
+    Demonstration 2 (full_auto_actor field given default):
+    ```
+    >       with self.assertRaises(TypeError):
+    E       AssertionError: TypeError not raised
+    FAILED tests/test_runner_shared.py::FullAutoDurableHistoryPinTests::test_set_plan_approved_durable_history_pin
+    ```
+    Restored and verified passing.
+
+    These two assertions do not cover the message the runner actually records, which is governed by the host wrappers and pinned in V-05.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: Paste the host-layer assertions as committed and their passing output. Paste `inspect.signature(oc_runipd.set_plan_approved)` and `inspect.signature(agy_runipd.set_plan_approved)` in full, each showing `message` DEFAULTED to `"auto-approved by --full-auto: review readiness cleared (not human approval)"`, which is the F-03a measurement post-change. Paste the two live call sites' source text showing each still invokes with TWO arguments. Then paste the E-05 deliberate-failure demonstration described in Required tests: remove one host's `message` default, paste the presence assertion RED, and note honestly which other tests went red under that mutation and why (both live call sites then raise `TypeError`, which is the evidence the default is load-bearing); restore and paste green. Confirm in one sentence that the assertion compares against a literal spelled in the test and NOT against `<host>.FULL_AUTO_APPROVAL_MESSAGE`, since reading the expected value from the name under test is the self-referential shape F-07 measured as blind. ALSO carry the whole-plan no-regression evidence here, since this is the last item before commit: paste the BARE `python3 -m pytest` output with its `N passed` line and state it against the pre-change baseline of `2935 passed, 2 skipped` (re-measured at review); paste `python3 -m pytest tests/test_oc_runipd.py tests/test_agy_runipd_cli.py tests/test_hostdedup_third_host.py tests/test_recovone_single_definition.py tests/test_orchestrator_retirement.py tests/test_finalize_sendback.py tests/test_driver_attestation_gate.py -o addopts=""` for the targeted regression set; paste `aw check`; paste `aw sanitize --agent`; and paste `git diff --cached --name-only` immediately before committing, which must list exactly `agent_workflows/runner_shared.py`, `tests/test_runner_shared.py` and this plan, and nothing another party changed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below:
+    Committed source of host-layer assertions:
+    ```python
+        # E-05: Host layer defaults and call sites
+        for host in (oc_runipd, agy_runipd):
+            host_sig = inspect.signature(host.set_plan_approved)
+            param = host_sig.parameters["message"]
+            self.assertIsNot(
+                param.default,
+                inspect.Parameter.empty,
+                f"{host.__name__}.set_plan_approved 'message' parameter must have a default",
+            )
+            self.assertEqual(
+                param.default,
+                expected_msg,
+                f"{host.__name__}.set_plan_approved 'message' default does not match expected literal",
+            )
+            self.assertNotEqual(param.default, "aw-driver/full-auto")
+            self.assertNotIn("passed all gates", param.default)
+
+        init_src = inspect.getsource(runner_shared.initialize_run_core)
+        self.assertIn(
+            "set_plan_approved_fn(repo, id6)",
+            init_src,
+            "initialize_run_core must invoke set_plan_approved_fn with exactly two arguments",
+        )
+        exec_src = inspect.getsource(runner_shared.execute_item_core)
+        self.assertIn(
+            'set_plan_approved(repo, item["id6"])',
+            exec_src,
+            "execute_item_core must invoke set_plan_approved with exactly two arguments",
+        )
+    ```
+    Passing test output:
+    ```
+    tests/test_runner_shared.py .                                            [100%]
+    ======================= 1 passed, 96 deselected in 0.50s =======================
+    ```
+
+    Probes:
+    `inspect.signature(oc_runipd.set_plan_approved)`:
+    ```
+    (repo: 'Path', id6: 'str', message: 'str' = 'auto-approved by --full-auto: review readiness cleared (not human approval)') -> 'None'
+    ```
+    `inspect.signature(agy_runipd.set_plan_approved)`:
+    ```
+    (repo: 'Path', id6: 'str', message: 'str' = 'auto-approved by --full-auto: review readiness cleared (not human approval)') -> 'None'
+    ```
+    Live call sites source text showing each invokes with two arguments:
+    ```
+    initialize_run_core call site line:
+      set_plan_approved_fn(repo, id6)
+
+    execute_item_core call site line:
+      set_plan_approved(repo, item["id6"])
+    ```
+
+    Deliberate-failure demonstration (removed `oc_runipd.set_plan_approved`'s `message` default):
+    Presence assertion goes RED:
+    ```
+    >           self.assertIsNot(
+                    param.default,
+                    inspect.Parameter.empty,
+                    f"{host.__name__}.set_plan_approved 'message' parameter must have a default",
+                )
+    E           AssertionError: unexpectedly identical: <class 'inspect._empty'> : agent_workflows.oc_runipd.set_plan_approved 'message' parameter must have a default
+    FAILED tests/test_runner_shared.py::FullAutoDurableHistoryPinTests::test_set_plan_approved_durable_history_pin
+    ```
+    And tests exercising the two-argument call site also went RED:
+    `tests/test_oc_runipd.py::AllSelectorAndFullAutoTests::test_set_plan_approved_uses_auto_approved_and_never_by_human` failed with:
+    `TypeError: set_plan_approved() missing 1 required positional argument: 'message'`
+    Restored and verified green.
+
+    The assertion compares against a literal spelled in the test and NOT against `<host>.FULL_AUTO_APPROVAL_MESSAGE`.
+
+    Whole-plan no-regression evidence:
+    Bare pytest suite (`python3 -m pytest`):
+    ```
+    FAILED tests/test_dependency_block_reporting.py::test_drain_and_cascade_mapped_reasons_rendered_once
+    1 failed, 3003 passed, 2 skipped, 3 warnings in 45.47s
+    ```
+    Compared against pre-change baseline of `1 failed, 3001 passed, 2 skipped, 3 warnings in 68.08s` (+2 passed for the 2 new tests added in `tests/test_runner_shared.py`; the 1 pre-existing failure in `test_drain_and_cascade_mapped_reasons_rendered_once` was documented at baseline before any changes).
+
+    Targeted regression suite (`python3 -m pytest tests/test_oc_runipd.py tests/test_agy_runipd_cli.py tests/test_hostdedup_third_host.py tests/test_recovone_single_definition.py tests/test_orchestrator_retirement.py tests/test_finalize_sendback.py tests/test_driver_attestation_gate.py -o addopts=""`):
+    ```
+    ======================== 360 passed in 61.06s (0:01:01) ========================
+    ```
+
+    `aw check`: 4 pre-existing findings across repo (`check.ipd-uncarried-obligation` in 3 pending plans, `check.system-layout-missing` in `layout.json`), 0 new findings.
+
+    `aw sanitize --agent`: clean:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+
+    `git diff --cached --name-only`: verified immediately prior to commit as containing only `agent_workflows/runner_shared.py`, `tests/test_runner_shared.py`, and the plan file.
+  - Result: pass
 
 ## Approval and execution gate
 

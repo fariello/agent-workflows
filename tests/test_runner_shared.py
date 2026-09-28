@@ -37,8 +37,10 @@ exempting the riskiest symbols is how a harness becomes decorative:
 
 from __future__ import annotations
 
+import ast
 import contextlib
 import copy
+import inspect
 import io
 import json
 import pathlib
@@ -4636,6 +4638,163 @@ class LegacySpecEditsStateTests(unittest.TestCase):
             rendered_refused = "\n".join(lines_refused)
             self.assertIn("UNVERIFIED", rendered_refused)
             self.assertIn("leg002", rendered_refused)
+
+
+class FullAutoDurableHistoryPinTests(unittest.TestCase):
+    """Pin the durable-history auto-approval contract and prevent divergent shared constants.
+
+    Plan gjni4c (Set zf999x): replace the dead-constant comment trap with an executable guard,
+    pin the exact argv each host sends to `aw set`, pin no-defaults on the shared layer,
+    and pin each host's defaulted message parameter.
+    """
+
+    def test_no_divergent_codefined_constants_in_runner_shared(self) -> None:
+        """Mechanically ensure no co-defined constant in runner_shared has a value matching neither host.
+
+        gjni4c E-01: Collects every UPPER_CASE module-level assignment co-defined in
+        runner_shared, oc_runipd, AND agy_runipd via AST. For each, compares resolved values
+        via getattr. Fails if the shared value equals neither host's value, printing all three values.
+        """
+        modules = (runner_shared, oc_runipd, agy_runipd)
+        per_module_names: list[set[str]] = []
+        for mod in modules:
+            mod_path = pathlib.Path(mod.__file__)
+            tree = ast.parse(mod_path.read_text(encoding="utf-8"))
+            names: set[str] = set()
+            for node in tree.body:
+                if isinstance(node, ast.Assign):
+                    for target in node.targets:
+                        if isinstance(target, ast.Name) and target.id.isupper():
+                            names.add(target.id)
+                        elif isinstance(target, (ast.Tuple, ast.List)):
+                            for elt in target.elts:
+                                if isinstance(elt, ast.Name) and elt.id.isupper():
+                                    names.add(elt.id)
+                elif isinstance(node, ast.AnnAssign):
+                    if isinstance(node.target, ast.Name) and node.target.id.isupper():
+                        names.add(node.target.id)
+            per_module_names.append(names)
+
+        co_defined = sorted(
+            per_module_names[0] & per_module_names[1] & per_module_names[2]
+        )
+        failures: list[str] = []
+        for name in co_defined:
+            v_shared = getattr(runner_shared, name)
+            v_oc = getattr(oc_runipd, name)
+            v_agy = getattr(agy_runipd, name)
+            if v_shared != v_oc and v_shared != v_agy:
+                failures.append(
+                    f"Constant {name} in runner_shared has value {v_shared!r}, "
+                    f"which matches neither oc_runipd ({v_oc!r}) "
+                    f"nor agy_runipd ({v_agy!r})."
+                )
+
+        if failures:
+            self.fail(
+                "Found co-defined module-level constant(s) in runner_shared whose value matches neither host:\n"
+                + "\n".join(failures)
+            )
+
+    def test_set_plan_approved_durable_history_pin(self) -> None:
+        """Pin the exact argv, no-defaults, and host defaults for set_plan_approved (gjni4c E-03, E-04, E-05).
+
+        E-03: Pin exact argv by value rather than by symbol reference for both hosts.
+        E-04: Assert shared set_plan_approved message parameter and HostLabels.full_auto_actor have no defaults.
+        E-05: Pin host wrapper message defaults by literal value and pin the two live 2-argument call sites.
+        """
+        expected_msg = "auto-approved by --full-auto: review readiness cleared (not human approval)"
+
+        # E-04: Shared function message parameter and HostLabels.full_auto_actor have no defaults
+        shared_sig = inspect.signature(runner_shared.set_plan_approved)
+        self.assertIs(
+            shared_sig.parameters["message"].default,
+            inspect.Parameter.empty,
+            "runner_shared.set_plan_approved 'message' parameter must have no default",
+        )
+
+        kwargs = {
+            f: f"val_{f}"
+            for f in runner_shared.HostLabels._fields
+            if f != "full_auto_actor"
+        }
+        with self.assertRaises(TypeError):
+            runner_shared.HostLabels(**kwargs)
+
+        # E-05: Host layer defaults and call sites
+        for host in (oc_runipd, agy_runipd):
+            host_sig = inspect.signature(host.set_plan_approved)
+            param = host_sig.parameters["message"]
+            self.assertIsNot(
+                param.default,
+                inspect.Parameter.empty,
+                f"{host.__name__}.set_plan_approved 'message' parameter must have a default",
+            )
+            self.assertEqual(
+                param.default,
+                expected_msg,
+                f"{host.__name__}.set_plan_approved 'message' default does not match expected literal",
+            )
+            self.assertNotEqual(param.default, "aw-driver/full-auto")
+            self.assertNotIn("passed all gates", param.default)
+
+        init_src = inspect.getsource(runner_shared.initialize_run_core)
+        self.assertIn(
+            "set_plan_approved_fn(repo, id6)",
+            init_src,
+            "initialize_run_core must invoke set_plan_approved_fn with exactly two arguments",
+        )
+        exec_src = inspect.getsource(runner_shared.execute_item_core)
+        self.assertIn(
+            'set_plan_approved(repo, item["id6"])',
+            exec_src,
+            "execute_item_core must invoke set_plan_approved with exactly two arguments",
+        )
+
+        # E-03: Assert exact argv by value for both hosts
+        for host, host_actor in [
+            (oc_runipd, "aw oc run --full-auto"),
+            (agy_runipd, "aw agy run --full-auto"),
+        ]:
+            captured: list[list[str]] = []
+
+            def fake_run_checked(argv, cwd=None, env=None):
+                captured.append(list(argv))
+                return ""
+
+            with mock.patch.object(host, "run_checked", fake_run_checked):
+                host.set_plan_approved(pathlib.Path("/tmp/repo"), "pln001")
+
+            self.assertEqual(len(captured), 1)
+            argv = captured[0]
+
+            self.assertIn("--actor", argv)
+            actor_idx = argv.index("--actor")
+            self.assertEqual(
+                argv[actor_idx + 1],
+                host_actor,
+                f"{host.__name__} did not send expected --actor value",
+            )
+
+            self.assertIn("-m", argv)
+            m_idx = argv.index("-m")
+            self.assertEqual(
+                argv[m_idx + 1],
+                expected_msg,
+                f"{host.__name__} did not send expected -m value",
+            )
+
+            for arg in argv:
+                self.assertNotIn(
+                    "aw-driver/full-auto",
+                    arg,
+                    f"{host.__name__} argv contains prohibited aw-driver/full-auto",
+                )
+                self.assertNotIn(
+                    "passed all gates",
+                    arg,
+                    f"{host.__name__} argv contains prohibited 'passed all gates'",
+                )
 
 
 if __name__ == "__main__":

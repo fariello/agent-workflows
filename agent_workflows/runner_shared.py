@@ -25131,9 +25131,11 @@ class HostLabels(NamedTuple):
     #: constant in EACH runner with a DIFFERENT value, and `set_plan_approved`'s two bodies were
     #: byte-identical because AST comparison matches on the NAME. So the symbol looked decision-free to
     #: lift and was not: a verbatim lift would have made every Antigravity auto-approval record that
-    #: `aw oc run` did it. Note also that this module ALREADY carried an unreferenced
-    #: `FULL_AUTO_ACTOR = "aw-driver/full-auto"` matching NEITHER host, so reading a shared constant
-    #: would have misattributed BOTH hosts to a third string no host has ever written.
+    #: `aw oc run` did it. Note also that this module formerly carried an unreferenced
+    #: `FULL_AUTO_ACTOR = "aw-driver/full-auto"` matching NEITHER host (deleted in `gjni4c`), so reading a
+    #: shared constant would have misattributed BOTH hosts to a third string no host has ever written;
+    #: the `test_no_divergent_codefined_constants_in_runner_shared` guard now enforces that no such divergent
+    #: constant can reappear.
     full_auto_actor: str
 
 
@@ -27546,28 +27548,6 @@ def assert_child_tool_identity(
 
 # ---- rununify: constants and shared models -------------------------------------------------------
 
-#: DEAD CONSTANTS, KEPT AND LABELLED RATHER THAN SILENTLY REPURPOSED (hostdedup Order 01, `li44r9`).
-#:
-#: These two are read by NOTHING: not by this module, not by either runner, not by the suite (verified
-#: by grep at HEAD `ee20e831`). Each runner defines its OWN pair and reads those, and neither value
-#: below matches either host: the hosts' actor is `aw oc run --full-auto` / `aw agy run --full-auto`
-#: and their message is "auto-approved by --full-auto: review readiness cleared (not human approval)".
-#:
-#: WHY THIS MATTERS ENOUGH TO DOCUMENT RATHER THAN DELETE. When `set_plan_approved` was lifted here,
-#: the obvious-looking implementation was for the shared body to read these names, since they are
-#: already in scope under exactly the right spelling. That would have silently re-attributed EVERY
-#: host's auto-approval to `aw-driver/full-auto` in permanent plan history AND changed the approval
-#: message on both hosts, while every existing test stayed green. The shared `set_plan_approved` below
-#: therefore takes both values from its CALLER (the actor through `HostLabels.full_auto_actor`, which
-#: has no default), and deliberately does not touch these.
-#:
-#: They are left in place rather than removed because deleting a public module attribute is a
-#: compatibility change this plan has no authority to make (it is a pure code move), and because a
-#: labelled trap is safer than an unlabelled absence: the next author to reach for the obvious name
-#: reads this note first. Filed as backlog for removal.
-FULL_AUTO_APPROVAL_MESSAGE = "Auto-approved via --full-auto (review passed all gates)"
-FULL_AUTO_ACTOR = "aw-driver/full-auto"
-
 
 def set_plan_approved(
     repo: Path,
@@ -27610,9 +27590,10 @@ def set_plan_approved(
     than writing a blank or borrowed actor into another plan's history.
 
     `message` IS ALSO REQUIRED, with no default here, for a narrower but identical reason: this module
-    carries a legacy `FULL_AUTO_APPROVAL_MESSAGE` whose value matches NEITHER host (see the note on
-    that constant), so defaulting to the name in scope would have silently changed both hosts' recorded
-    message. Each host passes its own constant and its own wording is preserved byte-for-byte.
+    formerly carried a legacy `FULL_AUTO_APPROVAL_MESSAGE` whose value matched NEITHER host (measured
+    incident in `zf999x`, deleted in `gjni4c`). Each HOST binds its own value as its wrapper's default,
+    and E-01's guard plus E-05's host-layer assertions are what keep the shared module from acquiring a
+    third one.
 
     `argv_builder` and `run_checked` are INJECTED because `pinned_module_argv` and each host's
     `run_checked` wrapper bind per host and this module may not import a runner; that is the same
