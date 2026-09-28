@@ -11404,6 +11404,16 @@ def _resolve_selectors_with_kinds(
     return [seen[k] for k in sorted(seen)], matches
 
 
+def _find_prompt_lane_status(rel: str, artifact_type: str) -> Optional[str]:
+    """Return the lane-derived status for one record path, used only for prompts in `aw find`."""
+    if artifact_type != "prompts":
+        return None
+    from agent_workflows import attention
+
+    disp = attention._prompt_disposition_from_rel(rel)
+    return disp or None
+
+
 def _find_type_records(
     repo_root: Path,
     artifact_type: str,
@@ -11593,14 +11603,19 @@ def _find_type_records(
             text = p.read_text(encoding="utf-8")
         except OSError:
             continue
+        try:
+            rel = str(p.resolve().relative_to(repo_root.resolve()))
+        except Exception:
+            rel = str(p)
         raw_id = sel_mod._read_id(text)
         if explicit_id and raw_id != explicit_id:
             continue
         raw_status = sel_mod._read_status(text)
+        status = raw_status or _find_prompt_lane_status(rel, artifact_type) or "-"
         if explicit_status:
             if (
-                not raw_status
-                or raw_status.strip().lower() != explicit_status.strip().lower()
+                status == "-"
+                or status.strip().lower() != explicit_status.strip().lower()
             ):
                 continue
         if explicit_set:
@@ -11608,11 +11623,6 @@ def _find_type_records(
             if raw_set != explicit_set:
                 continue
         id6 = raw_id or "-"
-        status = raw_status or "-"
-        try:
-            rel = str(p.resolve().relative_to(repo_root.resolve()))
-        except Exception:
-            rel = str(p)
         status_txt, id6_txt = _find_status_and_id6(artifact_type, status, id6, term)
         disp_p = _highlight_filename_matches(rel, highlight_tokens, term)
         lines.append(f"{status_txt}  {id6_txt}  {disp_p}")

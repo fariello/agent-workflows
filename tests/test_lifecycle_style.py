@@ -37,7 +37,7 @@ SPEC_PATH = next(
 
 # The five prompt LANES. Prompt status is carried by DIRECTORY, not by an enum: `prompts.py` defines
 # only `DEFAULT_STATUS` and `PROMPT_KINDS`, so there is no `prompts.STATUSES` to enumerate (plan
-# `udgilu` F-06). These five are `ipd_lint._dir_of`'s anchors, and `test_prompts_directory_derived`
+# `udgilu` F-06). These five are `lifecycle_dirs.LIFECYCLE_SUBDIRS["prompts"]`, and `test_prompts_directory_derived`
 # below asserts they are still exactly that set, so this list cannot silently drift from the owner.
 PROMPT_LANES = ("pending", "executed", "reusable", "superseded", "not-executed")
 
@@ -257,6 +257,15 @@ class MappingTotalityTests(unittest.TestCase):
                 self.assertIn(stage, L.ALL_STAGES, f"{family}:{status}")
         self.assertEqual(set(L.NATIVE_MAPS) & set(L.NO_LIFECYCLE_FAMILIES), set())
         self.assertEqual(L.FAMILIES, set(L.NATIVE_MAPS) | set(L.NO_LIFECYCLE_FAMILIES))
+
+    def test_prompts_directory_derived(self):
+        """Assert PROMPT_LANES equals lifecycle_dirs.LIFECYCLE_SUBDIRS['prompts'] as a set."""
+        from agent_workflows import lifecycle_dirs
+
+        self.assertEqual(
+            set(PROMPT_LANES),
+            set(lifecycle_dirs.LIFECYCLE_SUBDIRS["prompts"]),
+        )
 
 
 class SpecSectionCoverageTests(unittest.TestCase):
