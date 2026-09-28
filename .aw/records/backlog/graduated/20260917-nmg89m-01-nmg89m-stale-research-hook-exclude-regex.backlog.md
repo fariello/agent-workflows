@@ -1,5 +1,6 @@
 - Id: nmg89m
-- Status: open
+- Status: graduated
+- Graduated-To: nmg89m
 - Blocks-Release: next
 - Set: nmg89m
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: The mutating pre-commit hooks' exclude regex names a research path that matches zero live files, so the verbatim-preservation intent is unenforced
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: 3fat1n
 - 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-17 created (aw backlog): The mutating pre-commit hooks' exclude regex names a research path that matches zero live files, so the verbatim-preservation intent is unenforced
 
