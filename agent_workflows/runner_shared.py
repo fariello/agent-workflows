@@ -17205,34 +17205,23 @@ def e_item_action_blocks(orchestrator_text: str) -> tuple[str, ...]:
     truncated at its first newline. The leaf's `line` anchor is exact, so the block is recovered by
     reading forward from it and stopping at the first sub-field, the next leaf, or the next heading.
     Anchoring on the PARSER's line number rather than re-matching the leaf pattern keeps one
-    definition of what a leaf IS; this function only decides where its action ENDS.
+    definition of what a leaf IS; this function only decides where its action ENDS. Measured over the
+    ten live pending orchestrators at 2026-09-19, that lost 58 percent of the action prose (11,758 of
+    27,949 characters), and on the worst plan (`wfjsp4`) it kept only 10 percent.
+
+    THE TERMINATION RULE LIVES IN `agent_workflows.ipd_lint.leaf_action_blocks` (qurgra `168p5j` E-01),
+    beside `ipd_lint.parse`, so `ipd_lifecycle.frozen_region_digest` and this probe cache share the
+    single canonical block rule rather than forking a fourth definition of "where does an action end".
+    This function remains as a thin kind-filtering wrapper over `ipd_lint.leaf_action_blocks`.
     """
 
     from agent_workflows import ipd_lint as _lint  # local: see the section note above
 
     text = orchestrator_text or ""
-    lines = text.splitlines()
     doc = _lint.parse(text)
-    blocks: list[str] = []
-    for leaf in doc.exec_leaves:
-        if leaf.kind != "E":
-            continue
-        collected = [leaf.text.strip()]
-        for raw in lines[leaf.line :]:
-            stripped = raw.strip()
-            if not stripped:
-                break
-            if raw.startswith("- [") or raw.startswith("#"):
-                break
-            if _lint._SUBFIELD_RE.match(raw):
-                break
-            if not raw[:1].isspace():
-                break
-            collected.append(stripped)
-        body = " ".join(part for part in collected if part).strip()
-        if body:
-            blocks.append(body)
-    return tuple(blocks)
+    return _lint.leaf_action_blocks(
+        text, [leaf for leaf in doc.exec_leaves if leaf.kind == "E"]
+    )
 
 
 def probe_cache_digest(orchestrator_text: str) -> str:

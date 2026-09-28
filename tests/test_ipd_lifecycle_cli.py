@@ -186,6 +186,130 @@ class BeginHappyPathTests(unittest.TestCase):
         _commit_all(self.root, "unrelated change on a disjoint path")
         self.assertTrue(LC.receipt_is_current(stored, self.plan.read_text()))
 
+    def test_receipt_invalidation_on_e_item_continuation_rewrite(self):
+        """Rewriting an E-item's continuation line invalidates begin receipt (qurgra 168p5j pin a)."""
+        text = self.plan.read_text(encoding="utf-8").replace(
+            "- [ ] E-01 TODO one observable action.\n",
+            "- [ ] E-01 TODO one observable action.\n  with original execution continuation prose.\n",
+            1,
+        )
+        self.plan.write_text(text, encoding="utf-8")
+        _commit_all(self.root, "add continuation lines")
+        LC.begin(self.root, self.plan, "opencode/test", timestamp="t")
+        stored = LC.read_receipt(self.root, "abc123")
+        assert stored is not None
+        self.assertTrue(
+            LC.receipt_is_current(stored, self.plan.read_text(encoding="utf-8"))
+        )
+
+        # Rewriting E-01 continuation line makes receipt_is_current False
+        rewritten = self.plan.read_text(encoding="utf-8").replace(
+            "with original execution continuation prose.",
+            "with REWRITTEN execution continuation prose.",
+            1,
+        )
+        self.assertFalse(LC.receipt_is_current(stored, rewritten))
+
+    def test_receipt_invalidation_on_v_item_continuation_rewrite(self):
+        """Rewriting a V-item's continuation line invalidates begin receipt (qurgra 168p5j pin b)."""
+        text = self.plan.read_text(encoding="utf-8").replace(
+            "- [ ] V-01 validates E-01\n",
+            "- [ ] V-01 validates E-01\n  with original validation continuation prose.\n",
+            1,
+        )
+        self.plan.write_text(text, encoding="utf-8")
+        _commit_all(self.root, "add continuation lines")
+        LC.begin(self.root, self.plan, "opencode/test", timestamp="t")
+        stored = LC.read_receipt(self.root, "abc123")
+        assert stored is not None
+        self.assertTrue(
+            LC.receipt_is_current(stored, self.plan.read_text(encoding="utf-8"))
+        )
+
+        # Rewriting V-01 continuation line makes receipt_is_current False
+        rewritten = self.plan.read_text(encoding="utf-8").replace(
+            "with original validation continuation prose.",
+            "with REWRITTEN validation continuation prose.",
+            1,
+        )
+        self.assertFalse(LC.receipt_is_current(stored, rewritten))
+
+    def test_receipt_persistence_on_conforming_self_execution(self):
+        """Full conforming self-execution preserves receipt currency (xmqv5l invariant, qurgra 168p5j pin c)."""
+        text = (
+            self.plan.read_text(encoding="utf-8")
+            .replace(
+                "- [ ] E-01 TODO one observable action.\n",
+                "- [ ] E-01 TODO one observable action.\n  with execution continuation prose.\n",
+                1,
+            )
+            .replace(
+                "- [ ] V-01 validates E-01\n",
+                "- [ ] V-01 validates E-01\n  with validation continuation prose.\n",
+                1,
+            )
+        )
+        self.plan.write_text(text, encoding="utf-8")
+        _commit_all(self.root, "add continuation lines")
+        LC.begin(self.root, self.plan, "opencode/test", timestamp="t")
+        stored = LC.read_receipt(self.root, "abc123")
+        assert stored is not None
+        self.assertTrue(
+            LC.receipt_is_current(stored, self.plan.read_text(encoding="utf-8"))
+        )
+
+        # Conforming self-execution edits: tick checkboxes, set performed/pass, fill evidence, append history
+        executed = (
+            self.plan.read_text(encoding="utf-8")
+            .replace("- [ ] E-01 ", "- [x] E-01 ", 1)
+            .replace(
+                "  - Execution state: pending", "  - Execution state: performed", 1
+            )
+            .replace("- [ ] V-01 validates E-01", "- [x] V-01 validates E-01", 1)
+            .replace(
+                "  - Observed evidence:\n",
+                "  - Observed evidence: done, verified.\n",
+                1,
+            )
+            .replace("  - Result: pending", "  - Result: pass", 1)
+            .replace(
+                "## Workflow history\n",
+                "## Workflow history\n- 2026-09-28 executed (tester): finished.\n",
+                1,
+            )
+        )
+        self.assertTrue(LC.receipt_is_current(stored, executed))
+
+    def test_receipt_persistence_on_trailing_prose_edit(self):
+        """Trailing prose edit outside any item preserves receipt currency (qurgra 168p5j pin d)."""
+        text = (
+            self.plan.read_text(encoding="utf-8")
+            .replace(
+                "- [ ] E-01 TODO one observable action.\n",
+                "- [ ] E-01 TODO one observable action.\n  with execution continuation prose.\n",
+                1,
+            )
+            .replace(
+                "- [ ] V-01 validates E-01\n",
+                "- [ ] V-01 validates E-01\n  with validation continuation prose.\n",
+                1,
+            )
+        )
+        self.plan.write_text(text, encoding="utf-8")
+        _commit_all(self.root, "add continuation lines")
+        LC.begin(self.root, self.plan, "opencode/test", timestamp="t")
+        stored = LC.read_receipt(self.root, "abc123")
+        assert stored is not None
+        self.assertTrue(
+            LC.receipt_is_current(stored, self.plan.read_text(encoding="utf-8"))
+        )
+
+        prose_edit = (
+            self.plan.read_text(encoding="utf-8")
+            + "\n<!-- non-contract trailing prose edit -->\n"
+        )
+        self.assertTrue(LC.receipt_is_current(stored, prose_edit))
+
 
 class BeginFailClosedTests(unittest.TestCase):
     def setUp(self) -> None:

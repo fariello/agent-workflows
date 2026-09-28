@@ -734,19 +734,49 @@ def frozen_region_digest(text: str) -> str:
 
       * the frozen ``Scope-Paths`` allowlist (via :func:`_frozen_scope_paths`), and
       * the requirement categories (via :func:`_requirements_from_plan`): scope, each E-item's action
-        text, and each V-item's row text.
+        block, and each V-item's action block.
+
+    THE ACTION-BLOCK EXTRACTION (backlog `168p5j`, IPD `qurgra`):
+    Previously, this digest read only opening lines via `Leaf.text`. The claim that "changing ... an
+    E/V requirement line DOES invalidate the receipt" was FALSE for every continuation line from the day
+    it was written: rewriting an item's continuation lines left the digest identical at
+    `d6bbbc732bcdbdcb...` and `receipt_is_current` still returned True.
+    The block extraction rule lives in :func:`agent_workflows.ipd_lint.leaf_action_blocks`, shared
+    verbatim with the orchestrator probe cache key in :func:`agent_workflows.runner_shared.e_item_action_blocks`.
+    It reads forward from each leaf's line anchor across continuation lines until a blank line, a new leaf,
+    a heading, a sub-field, or a non-indented line.
 
     It DELIBERATELY excludes the mutable execution/validation STATE (``Execution state:``,
     ``Result:``, ``Observed evidence:``), the ``## Workflow history``, and the ``[ ]``/``[x]`` checkbox
     marks. Those exclusions are structural rather than textual: ``ipd_lint.parse`` puts a leaf's
     indented ``- Key: value`` sub-fields in ``Leaf.fields`` and its checkbox in ``Leaf.checked``, while
-    ``Leaf.text`` is the action text alone, and ``_requirements_from_plan`` reads only ``.text``. Prose
-    sections (``## Findings``, ``## Proposed changes``) are likewise outside the requirement set, so
-    editing them does not invalidate a receipt (OQ-01: they are not part of the reviewed contract).
+    ``ipd_lint.leaf_action_blocks`` stops before sub-fields. Prose sections (``## Findings``,
+    ``## Proposed changes``) are likewise outside the requirement set, so editing them does not invalidate
+    a receipt (OQ-01: they are not part of the reviewed contract).
 
-    The result is a guard that stays TIGHT on what matters - changing a ``Scope-Paths`` entry or an
-    E/V requirement line DOES invalidate the receipt, because that is a different plan than the one
-    the gate approved - while no longer punishing a legitimate self-execution.
+    The result is a guard that stays TIGHT on what matters - changing a ``Scope-Paths`` entry or any
+    line of an E/V requirement action block DOES invalidate the receipt, because that is a different plan
+    than the one the gate approved - while no longer punishing a legitimate self-execution.
+
+    ONE-TIME INVALIDATION AND REFUSAL OF A VERSIONED DIGEST (E-05):
+    Widening the requirement extraction changes every digest, so every already-minted v2 receipt goes
+    stale at once. This one-time invalidation is accepted deliberately, and NOT worked around with a
+    dual-digest or a `digest_version` field, for four measured reasons:
+      1. FAIL-SAFE: A stale receipt refuses (`receipt_is_current` returns False, `finalize_precheck`
+         emits `FINDING_RECEIPT_STALE`), so nothing is mistakenly cleared.
+      2. BOUNDED BLAST RADIUS: Of the 24 receipts in `.aw/state/ipd-lifecycle/` at the time of authoring,
+         21 are schema v1 carrying no `frozen_region_digest` at all and take the legacy whole-file branch
+         in `receipt_is_current`, untouched by this change.
+      3. HISTORICAL V2 RECEIPTS ARE DEAD: All 3 v2 receipts present at authoring (`63425h`, `e32j35`,
+         `xts8ux`) recorded `plan_path` under `plans/pending/` and none exists there now (`63425h` is in
+         `executed/`, `e32j35` and `xts8ux` in `superseded/`), so `check_engine._receipt_is_live` rejects
+         all three as TERMINAL PLAN regardless of this change.
+      4. ANSWERABLE REFUSAL: The refusal produced by rule-change staleness is the no-scope-delta contract
+         rewrite message, and `runner_shared.finalize_refusal_is_retryable` returns True for it, so the
+         runner can prompt or re-begin rather than stranding work.
+    A versioned or dual digest was refused because it would require keeping the defective first-line-only
+    payload builder permanently reachable inside the safety gate in order to validate old receipts under
+    the old defective rule.
 
     Serialization is deterministic (``sort_keys=True`` over a mapping of sorted category lists) so the
     digest is stable across runs and dict-ordering changes.
@@ -813,8 +843,8 @@ def _requirements_from_plan(text: str) -> Dict[str, List[str]]:
       * ``scope``      = the declared ``Scope-Paths`` entries (or the free-form ``Scope:`` prose when
                           the plan is grandfathered / declares no real allowlist), so the frozen scope
                           fence is bound into the receipt digest;
-      * ``must``       = each execution leaf's action text (the E-* items);
-      * ``validation`` = each validation leaf's row text (the V-* items).
+      * ``must``       = each execution leaf's full action block (the E-* items, via :func:`ipd_lint.leaf_action_blocks`);
+      * ``validation`` = each validation leaf's full action block (the V-* items, via :func:`ipd_lint.leaf_action_blocks`).
     An ``output`` category is intentionally omitted (IPDs do not declare it structurally).
     """
     from agent_workflows import ipd_lint as _lint
@@ -839,10 +869,14 @@ def _requirements_from_plan(text: str) -> Dict[str, List[str]]:
         if free_scope:
             scope.append(free_scope)
 
-    must = [lf.text for lf in doc.exec_leaves if lf.kind == "E" and lf.text.strip()]
-    validation = [
-        lf.text for lf in doc.valid_leaves if lf.kind == "V" and lf.text.strip()
-    ]
+    must = list(
+        _lint.leaf_action_blocks(text, [lf for lf in doc.exec_leaves if lf.kind == "E"])
+    )
+    validation = list(
+        _lint.leaf_action_blocks(
+            text, [lf for lf in doc.valid_leaves if lf.kind == "V"]
+        )
+    )
 
     requirements: Dict[str, List[str]] = {}
     if scope:
