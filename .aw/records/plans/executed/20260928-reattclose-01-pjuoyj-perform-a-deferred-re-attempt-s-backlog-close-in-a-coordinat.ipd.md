@@ -6,7 +6,7 @@
 - Scope: IN: route the close performed by `runner_shared.retry_deferred_integrations._finish` through a coordinator-owned worktree, so the item's move and its commit happen in a private tree and reach main as a single `git merge --ff-only` ref update, exactly as `ipd_lifecycle._finalize_transaction` already lands a terminal transition; reuse the SHIPPED `commit_lock.coordinator_worktree` plus `ipd_lifecycle.land_worktree_commit` rather than writing a second isolated-commit path; keep the ELIGIBILITY decision against main, which is where `process_backlog_close` already takes it and where it must stay; classify and RECORD the three landing arms so a refusal is reported rather than silently dropped; and pin all of it with tests that fail first. OUT, each for a stated reason: the OTHER `process_backlog_close` call sites (`runner_shared.integrate_retired_lane`, the no-lane self-finalize arm, and `finish_reintegrated_item`) - each writes to main for its own DIFFERENT structural reason and one of them legitimately has no lane at any point, so folding them in would triple the blast radius of a fix whose backlog item names one site (see the `Deferred / out of scope` section, which states what is true of each); any change to `evaluate_backlog_close`, to `check_engine.evaluate_blocking_close`, or to the `--status done` spelling that routes through the gated path; the `--gate-dir` split that separates the setter's move tree from its gate tree, which is pending plan `9vglxd` (`From-Backlog: 10pcd5`) and which explicitly names THIS item as out of its own scope; the ANY-vs-ALL carrier divergence filed as `lsbd32`; making the abandoned coordinator commit reachable on a failure arm, filed as `hf76th`; and the non-isolated (`--no-isolate-worktree`) path, which legitimately writes to the shared checkout because that IS its execution tree.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 09
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: pjuoyj
-- Approval: 2026-09-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-28 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: pjuoyj verified (set reattclose, attempt 1).
 - 2026-09-28 approved (aw set): status set to approved
 - 2026-09-28 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH) through PR-005 all FIXED in place; findings, decisions and measurements in .aw/records/reviews/20260928-reattclose-01-pjuoyj-...review.md
 
