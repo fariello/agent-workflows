@@ -6,7 +6,7 @@
 - Scope: Apply the existing shared `attention_contract.is_safe_descriptive` predicate to the values `aw backlog new`, `aw backlog set --status ...` and `aw backlog note` write into an item (`--summary` and `--gate-ref` as bounded front-matter descriptive fields; `--message` for LINE INTEGRITY ONLY, unbounded in length, per F-13), refusing with exit 2 BEFORE any file is written, through the refusal shape those verbs already use for `--priority`/`--work-kind`/`--graduated-to`. No new field, no new rule id, no change to `is_safe_descriptive`, no change to the checker. DELIBERATELY NOT COVERED: the POSITIONAL `aw backlog set <status> <selector>` spelling, which dispatches to the shared cross-tree `status_set.run_set_command` and is deferred with a carrier (F-15).
 - Scope-Paths: agent_workflows/backlog.py, tests/test_backlog_descriptive_safety.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -19,6 +19,7 @@
 - Id: dtg7dz
 
 ## Workflow history
+- 2026-09-28 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 all fixed; readiness go-pending-approval
 
 - 2026-09-28 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 PR-002 PR-003 PR-004 PR-005. Re-measured every authored finding by driving the verbs rather than reading them; all of F-01..F-12 reproduced. Three findings changed the work: the `--message` guard was narrowed to line-integrity-only after measuring that 531 of 1483 committed backlog history messages already exceed the 300-character bound (F-13), `run_note` was added as a third unguarded call site (F-14), and the positional `aw backlog set` spelling was found to bypass `backlog.run_set` entirely and is now an explicit deferral rather than a silent gap (F-15). Record: `.aw/records/reviews/20260928-a0s33b-01-dtg7dz-refuse-an-unsafe-summary-at-backlog-creation-instead-of-writ.review.md`.
 - 2026-09-28 draft (opencode): created.
