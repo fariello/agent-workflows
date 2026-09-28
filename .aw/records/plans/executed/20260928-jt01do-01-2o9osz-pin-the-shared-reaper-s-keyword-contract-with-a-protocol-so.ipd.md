@@ -6,7 +6,7 @@
 - Scope: Replace the contradicted `Callable` with a `Protocol` whose `__call__` states the real contract (`(process, /, *, run_dir)`), and add a runtime test that binds the annotation against the call the product makes, so the class of defect is caught by the bare suite rather than only by a type checker nobody here runs. Change no runtime behavior: the default reaper, the call, and the expiry record stay byte-identical.
 - Scope-Paths: agent_workflows/lane_containment.py, tests/test_reap_contract.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: 2o9osz
-- Approval: 2026-09-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-28 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 2o9osz verified (set jt01do, attempt 1).
 - 2026-09-28 approved (aw set): status set to approved
 
 - 2026-09-28 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-201..PR-205. This is an unusually well-evidenced plan: EVERY measured claim in Findings was independently re-measured at review and reproduced EXACTLY, including pyright's `errorCount` 1 -> 0 and its zero-based line 1244, the 627/383/5/69/1 histogram of F-12, the `missing a required argument: '__p1'` guard message, F-09's wrong-reason message `got an unexpected keyword argument 'run_dir'`, and both F-05 rejection messages verbatim. Review added a THIRD load-bearing conversion rule E-01 did not state and that I hit while prototyping its guard: the Protocol branch must be selected on `_is_protocol`, because EVERY class has a `__call__` attribute via its metaclass, so a `hasattr(member, "__call__")` dispatch silently routes a Protocol into the `Callable` branch and the guard then reports the wrong reason - the exact failure mode F-09 exists to prevent, in a second place (PR-201). Also corrected: the targeted regression set omitted `tests/test_prior_attempt_projection.py` while claiming to name every file importing `lane_containment` (PR-202), and V-01's second deliberate-failure demonstration mutates a file outside `- Scope-Paths:` in a shared checkout without saying how to restore it safely (PR-203). Record: `.aw/records/reviews/20260928-jt01do-01-2o9osz-pin-the-shared-reaper-s-keyword-contract-with-a-proto.review.md`.
