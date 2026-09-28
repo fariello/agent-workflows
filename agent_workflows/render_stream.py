@@ -26,20 +26,25 @@ output for the same event stream.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
 import datetime as dt
 import json
-from dataclasses import dataclass
-from pathlib import Path
 import re
 import signal
 import threading
 import time
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Callable, TextIO
 
 from agent_workflows import lifecycle_style as _LS
-from agent_workflows import term as _T
 
+# b7oicl (4po0sc) E-01: import run_selection_policy for summarize_dispositions.
+# This import is safe and does not create an import cycle: run_selection_policy's
+# module-level first-party imports are exactly {selectors, status_set}, and neither
+# transitive closure reaches render_stream, runner_shared, or either driver (F-08).
+from agent_workflows import run_selection_policy
+from agent_workflows import term as _T
 
 # ANSI SGR codes. Kept local because they are the EVENT/severity palette (see the module
 # docstring), a different axis from lifecycle styling, which resolves through `_LS`/`_T`.
@@ -416,7 +421,7 @@ def _one_line(text: str, limit: int = 200) -> str:
     return _T.truncate_visible(collapsed, limit, ellipsis="\u2026")
 
 
-def format_tokens(n: int | float) -> str:
+def format_tokens(n: float) -> str:
     """Format token count into compact human-readable string with K/M/G suffix."""
     val = float(n)
     if val >= 1_000_000_000:
@@ -953,7 +958,7 @@ def render_event(
         return None
 
 
-def format_compact_tokens(n: int | float) -> str:
+def format_compact_tokens(n: float) -> str:
     """Format token count into compact string with k/m/g suffix (e.g. 24.5k, 4.1k, 1.2M)."""
     val = float(n)
     if val >= 1_000_000_000:
@@ -2208,6 +2213,47 @@ INTEGRATION_EARNED_SIGNALS: frozenset[str] = frozenset(
 #: `aw attention` name one condition identically instead of teaching an operator two vocabularies.
 STRANDED_OUTCOME = "STRANDED"
 
+#: The outcome word for a run whose queue was matched, whose items were never dispatched,
+#: and whose dispositions carry an operator remedy (backlog b7oicl / plan 4po0sc).
+#: Spelled as a constant so the table renderer and tests reference the single definition
+#: rather than repeating a literal string.
+NO_WORK_OUTCOME = "NO WORK PERFORMED"
+
+
+def queue_performed_no_work(queue: Sequence[Mapping[str, Any]]) -> bool:
+    """True when this run dispatched nothing AND at least one artifact carries an actionable remedy.
+
+    Consumes :func:`run_selection_policy.summarize_dispositions` with :func:`refusal_of_item`
+    as the refusal reader, so this predicate reads the exact same judgement that the closing
+    disposition summary reads.
+
+    Returns False for an empty queue, False when any artifact was acted on, and False when
+    every matched disposition legitimately needs no remedy (such as an all-already-executed
+    queue, which legitimately completed).
+    """
+    if not queue:
+        return False
+    rows = run_selection_policy.summarize_dispositions(
+        queue, refusal_reader=refusal_of_item
+    )
+    if not rows:
+        return False
+    acted = sum(
+        count
+        for code, count, _ in rows
+        if code == run_selection_policy.DISPOSITION_ACTED_ON
+    )
+    if acted > 0:
+        return False
+    return any(
+        (
+            remedy is not None
+            or run_selection_policy.remedy_for_disposition(code) is not None
+        )
+        for code, _count, remedy in rows
+    )
+
+
 #: The `Refusal.code` for an item whose agent answered `needs-human` about a failing test suite
 #: (gatewire-01 `h5pyqa` E-06).
 #:
@@ -2268,7 +2314,7 @@ class Refusal:
         return {"code": self.code, "reason": self.reason, "remedy": self.remedy}
 
     @classmethod
-    def from_obj(cls, obj: Any) -> "Refusal | None":
+    def from_obj(cls, obj: Any) -> Refusal | None:
         """Rebuild a :class:`Refusal` from durable state, or ``None`` when there is none.
 
         TOLERANT BY DESIGN, because the input is a JSON file a previous driver version wrote: a run
@@ -2320,7 +2366,7 @@ def _interrupt_reason_of(item: dict[str, Any]) -> str | None:
     return None
 
 
-def refusal_of_item(item: dict[str, Any]) -> "Refusal | None":
+def refusal_of_item(item: dict[str, Any]) -> Refusal | None:
     """The refusal recorded on one queue item, or ``None``.
 
     THE ONE READER every surface goes through, so no surface can look under a different key than the
@@ -2657,7 +2703,7 @@ def record_refusal(
     code: str,
     reason: str,
     remedy: str,
-) -> "Refusal":
+) -> Refusal:
     """Attach a refusal to a queue item and return it.
 
     THE ONE WRITER, paired with :func:`refusal_of_item`. Both hosts call this rather than assigning
@@ -2673,7 +2719,7 @@ def record_integration_refusal(
     code: str,
     reason: str,
     branch: str | None = None,
-) -> "Refusal":
+) -> Refusal:
     """Record the refusal for a lane that finalized but could NOT be integrated into main.
 
     THE REMEDY WORDING LIVES HERE, IN THE ONE MODULE BOTH HOSTS IMPORT, for the reason this module's
@@ -2992,8 +3038,28 @@ def render_run_summary_table(
         # statement about what THAT RUN DID, so it must be reproducible from `state.json` alone. Do NOT
         # "improve" this by consulting plan directories, `git`, or current statuses.
         and not any(integration_was_refused(it) for it in queue)
+        # b7oicl (4po0sc) E-02: a run that dispatched nothing and carries an operator remedy is
+        # NO WORK PERFORMED, not COMPLETED. Placement last is load-bearing: the FAILED and BLOCKED
+        # branches above already fire for refused or dependency-blocked items, and testing earlier
+        # would relabel those existing outcomes (F-05, F-14).
+        and not queue_performed_no_work(queue)
     ):
         outcome_str = "COMPLETED"
+    elif (
+        all(
+            it.get("status")
+            in ("executed", "reviewed", "approved", "substantially-complete")
+            for it in queue
+        )
+        and total_items > 0
+        and not any(refusal_of_item(it) is not None for it in queue)
+        and not any(integration_was_refused(it) for it in queue)
+        and queue_performed_no_work(queue)
+    ):
+        # b7oicl (4po0sc) E-02: say NO WORK PERFORMED when nothing was dispatched and an operator
+        # remedy exists, matching the closing disposition summary. Placed beside STRANDED so the two
+        # honest-verdict words sit together.
+        outcome_str = NO_WORK_OUTCOME
     elif any(integration_was_refused(it) for it in queue):
         # ys1dor E-02: a run holding unintegrated work is STRANDED, and a PARTIALLY stranded run is
         # still stranded (OQ-02, resolved). Precedence matches the `FAILED` branch's established shape
@@ -3033,6 +3099,7 @@ def render_run_summary_table(
                     "INTERRUPT" in outcome_str
                     or "STOP" in outcome_str
                     or outcome_str == "PARTIAL"
+                    or outcome_str == NO_WORK_OUTCOME
                 )
                 else (c_red if "FAIL" in outcome_str else c_cyan)
             )
