@@ -37,38 +37,38 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: make merge ownership readable
 
-- [ ] E-01 Add `merge_head_commits(repo: Path) -> list[str]` to `runner_shared`, sited immediately after `merge_in_progress` so a reader meets the two together. It must return EVERY commit id recorded in `MERGE_HEAD`, in file order, and `[]` when no merge is in progress. Read it by resolving the file through `git rev-parse --git-path MERGE_HEAD` and reading that path, NOT by `git rev-parse MERGE_HEAD` and NOT by probing `.git/MERGE_HEAD` directly. Both alternatives are MEASURED WRONG and the docstring must record why, because both look correct: `git rev-parse MERGE_HEAD` returns only the FIRST entry of a multi-entry (octopus) `MERGE_HEAD` (measured: a two-parent `MERGE_HEAD` whose file holds two ids renders as ONE line, so a foreign second parent would be invisible), and a direct `.git/MERGE_HEAD` probe is wrong in a LINKED WORKTREE where `.git` is a FILE pointing at `<common>/worktrees/<name>/` (measured: `--git-path` resolved to the worktree's own metadata directory while `<worktree>/.git/MERGE_HEAD` did not exist) - which is the same trap `merge_in_progress`'s own docstring already records for the same reason. Treat a relative `--git-path` result as relative to `repo`. Return `[]` rather than raising on any `OSError` or non-zero rc, because this is a predicate feeding a refusal decision and an unreadable state must fail toward "I cannot prove ownership", never toward an abort.
+- [x] E-01 Add `merge_head_commits(repo: Path) -> list[str]` to `runner_shared`, sited immediately after `merge_in_progress` so a reader meets the two together. It must return EVERY commit id recorded in `MERGE_HEAD`, in file order, and `[]` when no merge is in progress. Read it by resolving the file through `git rev-parse --git-path MERGE_HEAD` and reading that path, NOT by `git rev-parse MERGE_HEAD` and NOT by probing `.git/MERGE_HEAD` directly. Both alternatives are MEASURED WRONG and the docstring must record why, because both look correct: `git rev-parse MERGE_HEAD` returns only the FIRST entry of a multi-entry (octopus) `MERGE_HEAD` (measured: a two-parent `MERGE_HEAD` whose file holds two ids renders as ONE line, so a foreign second parent would be invisible), and a direct `.git/MERGE_HEAD` probe is wrong in a LINKED WORKTREE where `.git` is a FILE pointing at `<common>/worktrees/<name>/` (measured: `--git-path` resolved to the worktree's own metadata directory while `<worktree>/.git/MERGE_HEAD` did not exist) - which is the same trap `merge_in_progress`'s own docstring already records for the same reason. Treat a relative `--git-path` result as relative to `repo`. Return `[]` rather than raising on any `OSError` or non-zero rc, because this is a predicate feeding a refusal decision and an unreadable state must fail toward "I cannot prove ownership", never toward an abort.
   - Depends on: none
   - Expected outcome: A function that returns `[<lane tip>]` for a merge the driver started, `[<foreign tip>]` for a third party's staged merge, both entries for an octopus merge, and `[]` for a clean tree, in both a primary checkout and a linked worktree.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add `owns_merge_in_progress(repo: Path, *, branch: str) -> bool` to `runner_shared`, beside E-01's reader. It answers the question the code actually needs: is the in-progress merge THE ONE that merged `branch`? Implement it as `merge_head_commits(repo)` being non-empty AND every entry resolving to the same commit as `branch` (resolve `branch` with `git rev-parse --verify --quiet <branch>^{commit}` and compare full 40-char ids; refuse on an unresolvable branch). This is a POSITIVE proof and is strictly stronger than the pre/post ordering the backlog item's fix sketch proposes, which is why the ordering change alone is not what this plan implements (F-05): ownership derived from a VALUE holds even when a peer creates a `MERGE_HEAD` between a pre-check and the merge attempt, whereas a pre/post ordering reads False-then-True and aborts the peer's merge. MEASURED: in the genuine-conflict case `MERGE_HEAD` equals the lane branch tip exactly, and in the foreign case it equals the third party's tip (F-04). The docstring must state ALL-entries-must-match explicitly, since `any` would be the wrong quantifier: a merge that includes our branch AND a foreign one is not ours to abort. Return False when `MERGE_HEAD` is empty (no merge to own) and when the branch cannot be resolved (cannot prove ownership).
+- [x] E-02 Add `owns_merge_in_progress(repo: Path, *, branch: str) -> bool` to `runner_shared`, beside E-01's reader. It answers the question the code actually needs: is the in-progress merge THE ONE that merged `branch`? Implement it as `merge_head_commits(repo)` being non-empty AND every entry resolving to the same commit as `branch` (resolve `branch` with `git rev-parse --verify --quiet <branch>^{commit}` and compare full 40-char ids; refuse on an unresolvable branch). This is a POSITIVE proof and is strictly stronger than the pre/post ordering the backlog item's fix sketch proposes, which is why the ordering change alone is not what this plan implements (F-05): ownership derived from a VALUE holds even when a peer creates a `MERGE_HEAD` between a pre-check and the merge attempt, whereas a pre/post ordering reads False-then-True and aborts the peer's merge. MEASURED: in the genuine-conflict case `MERGE_HEAD` equals the lane branch tip exactly, and in the foreign case it equals the third party's tip (F-04). The docstring must state ALL-entries-must-match explicitly, since `any` would be the wrong quantifier: a merge that includes our branch AND a foreign one is not ours to abort. Return False when `MERGE_HEAD` is empty (no merge to own) and when the branch cannot be resolved (cannot prove ownership).
   NAME IT FOR WHAT IT PROVES, WHICH IS NARROWER THAN "OWNS" (finding PR-201). MEASURED at HEAD `821245a6`: this predicate answers True for a merge of `branch` that a THIRD PARTY started, because `MERGE_HEAD` records WHICH commit was merged and never WHO merged it. So `owns_merge_in_progress` overstates it and the name will mislead the next reader into treating it as sufficient authority to abort, which is precisely the mistake E-04 originally made. Either name it for the property it actually establishes (for example `merge_in_progress_is_of_branch`) or keep the name and open the docstring with the limit stated in one sentence: this proves the merge is OF our branch, NOT that this call started it, so it is NECESSARY BUT NOT SUFFICIENT authority to abort, and E-04 must conjoin it with the started-it signal. Record which choice was made.
   - Depends on: E-01
   - Expected outcome: True only for a merge whose every `MERGE_HEAD` entry is `branch`'s tip; False for a foreign merge, for a clean tree, for an octopus merge that includes a foreign parent (measured False, correctly), and for an unresolvable branch. The docstring states that a True answer does NOT establish that this call started the merge, with the measured impostor case cited.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: refuse a busy checkout instead of merging into it
 
-- [ ] E-03 In `integrate_lane_branch`, add a PRE-MERGE refusal: after the existing `dirty_tree_overlap` guard (which is the E-01 dirty-tree guard its docstring numbers step 0) and BEFORE the revalidation gate call, refuse when `merge_in_progress(repo)` is already true. Return `(False, <reason>, INTEGRATION_REFUSAL_TRANSIENT)`. Add a `format_foreign_merge_refusal_reason(repo)` helper beside `format_local_changes_refusal_reason` producing that reason, and require it to name (a) that the checkout is ALREADY mid-merge, (b) that the driver attempted NO merge and issued NO abort, and (c) the foreign `MERGE_HEAD` id(s) from E-01 so an operator can identify whose merge it is. SITE IT BEFORE THE GATE, not merely before the merge: the gate is the expensive step (it materializes a merge result and runs a full suite), and spending it against a checkout the publish cannot possibly land on is pure waste. DO NOT add a new refusal KIND: `INTEGRATION_REFUSAL_TRANSIENT` is correct because the condition clears itself when the third party commits or aborts, and `classify_integration_refusal` already defers it (measured: `decide_integration_deferral(TRANSIENT, 1/10)` returns `deferred=True`, while `CONFLICT` returns `deferred=False`). Adding a kind would reach the legacy alias map, the analytics keys and both hosts' status vocabularies for no behavioral gain (OQ-01). Extend the function's docstring with a numbered step recording this arm and its reason, matching the existing steps 0 through 4.
+- [x] E-03 In `integrate_lane_branch`, add a PRE-MERGE refusal: after the existing `dirty_tree_overlap` guard (which is the E-01 dirty-tree guard its docstring numbers step 0) and BEFORE the revalidation gate call, refuse when `merge_in_progress(repo)` is already true. Return `(False, <reason>, INTEGRATION_REFUSAL_TRANSIENT)`. Add a `format_foreign_merge_refusal_reason(repo)` helper beside `format_local_changes_refusal_reason` producing that reason, and require it to name (a) that the checkout is ALREADY mid-merge, (b) that the driver attempted NO merge and issued NO abort, and (c) the foreign `MERGE_HEAD` id(s) from E-01 so an operator can identify whose merge it is. SITE IT BEFORE THE GATE, not merely before the merge: the gate is the expensive step (it materializes a merge result and runs a full suite), and spending it against a checkout the publish cannot possibly land on is pure waste. DO NOT add a new refusal KIND: `INTEGRATION_REFUSAL_TRANSIENT` is correct because the condition clears itself when the third party commits or aborts, and `classify_integration_refusal` already defers it (measured: `decide_integration_deferral(TRANSIENT, 1/10)` returns `deferred=True`, while `CONFLICT` returns `deferred=False`). Adding a kind would reach the legacy alias map, the analytics keys and both hosts' status vocabularies for no behavioral gain (OQ-01). Extend the function's docstring with a numbered step recording this arm and its reason, matching the existing steps 0 through 4.
   - Depends on: E-02
   - Expected outcome: With a foreign merge staged in main, `integrate_lane_branch` returns `merge-retry`, runs no `merge` and no `merge --abort` at all, and the foreign staged index is byte-identical afterwards.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Narrow the post-merge abort so it can only fire on a merge this call provably started. Change the conflict-arm condition from `if merge_in_progress(repo):` to a proof that THIS CALL started the merge, and add an `elif merge_in_progress(repo):` arm returning `format_foreign_merge_refusal_reason(repo)` with `INTEGRATION_REFUSAL_TRANSIENT` and issuing NO abort. THIS ARM IS NOT DEAD CODE DESPITE E-03, and the comment must say so or a later reader will delete it: E-03 reads `git status` at one instant and the merge runs at a later one, in a SHARED CHECKOUT, so a peer can stage a merge in between - the same "no prediction can close that window" reasoning the `_refusal_repo` fixture already records for the retained dirty guard. Leave the final fall-through arm (git REFUSED TO START, no `MERGE_HEAD`, no abort issued) exactly as it is. Leave the records-only re-derivation block, the history-append auto-resolution, `conflicted_paths`-before-abort ordering, `build_conflict_resolver_detail`, the cause tagging and every returned reason string in the owned branch untouched: this is a NARROWING of the guard, not a rework of the conflict path. NOTE FOR THE EXECUTOR: the four `git merge --abort` calls inside that block are all NESTED under this ONE guard (measured: guard at indent 4, aborts at indents 16, 12, 12 and 8), so narrowing the single guard does gate all four; do not mistake "one condition" for "one abort".
+- [x] E-04 Narrow the post-merge abort so it can only fire on a merge this call provably started. Change the conflict-arm condition from `if merge_in_progress(repo):` to a proof that THIS CALL started the merge, and add an `elif merge_in_progress(repo):` arm returning `format_foreign_merge_refusal_reason(repo)` with `INTEGRATION_REFUSAL_TRANSIENT` and issuing NO abort. THIS ARM IS NOT DEAD CODE DESPITE E-03, and the comment must say so or a later reader will delete it: E-03 reads `git status` at one instant and the merge runs at a later one, in a SHARED CHECKOUT, so a peer can stage a merge in between - the same "no prediction can close that window" reasoning the `_refusal_repo` fixture already records for the retained dirty guard. Leave the final fall-through arm (git REFUSED TO START, no `MERGE_HEAD`, no abort issued) exactly as it is. Leave the records-only re-derivation block, the history-append auto-resolution, `conflicted_paths`-before-abort ordering, `build_conflict_resolver_detail`, the cause tagging and every returned reason string in the owned branch untouched: this is a NARROWING of the guard, not a rework of the conflict path. NOTE FOR THE EXECUTOR: the four `git merge --abort` calls inside that block are all NESTED under this ONE guard (measured: guard at indent 4, aborts at indents 16, 12, 12 and 8), so narrowing the single guard does gate all four; do not mistake "one condition" for "one abort".
 
   `owns_merge_in_progress(branch=handle.branch)` IS NOT SUFFICIENT ON ITS OWN, AND THIS IS THE ONE THING REVIEW CHANGED IN THIS ITEM (finding PR-201). It proves WHICH BRANCH was merged, not WHO merged it, so it answers True for a merge of our own lane branch that a THIRD PARTY started. MEASURED at HEAD `821245a6`: a human ran `git merge --no-ff lane/probe` in main, hit a conflict, resolved one path by hand and staged an additional unrelated file; `MERGE_HEAD` equalled the lane tip exactly, so the predicate returned **True**, and `git merge --abort` then discarded the human's resolution and deleted their staged file. That is the SAME harm class this plan exists to remove, through a narrower window rather than a closed one, and it is reachable precisely in the race E-03 cannot close (a peer stages a merge between E-03's read and our merge attempt; if what they merged happens to be our lane branch, the branch comparison cannot tell us apart).
   SO REQUIRE A CONJUNCTION, and take the second half from a LOCALE-SAFE SIGNAL THIS CALL ALREADY HAS: the return code of the driver's own `git merge --no-ff` attempt, which is in scope at this arm. MEASURED at the same HEAD: a merge that STARTED AND CONFLICTED returns **rc=1**, while a merge git REFUSED TO START because `MERGE_HEAD` already existed returns **rc=128** (reproduced on both a clean staged foreign merge and a conflicted one). So the abort must fire only when the merge attempt returned the started-and-conflicted code AND `owns_merge_in_progress` agrees; on the refused code the arm must route to the foreign refusal and issue no abort, whatever `MERGE_HEAD` happens to contain. DO NOT MATCH GIT'S MESSAGE TEXT to make this distinction: `merge_in_progress`'s own docstring records why (localizable, version-dependent) and the shipped locale test would regress. The exit code carries no language. If the executor finds the rc values differ on the git version under test, that is a finding to RECORD with the measured values rather than a reason to fall back on text.
   - Depends on: E-03
   - Expected outcome: The genuine conflict still aborts, still returns `fail-merge`, and still carries its existing reason text; a foreign `MERGE_HEAD` reaching the post-merge arm refuses `merge-retry` with no abort, INCLUDING the case where the foreign merge's merged-from branch is this lane's own branch.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin it on both hosts
 
-- [ ] E-05 Add `tests/test_foreign_merge_refusal.py` pinning the whole property on BOTH hosts through each host's own `integrate_lane_branch` wrapper, not by calling the shared function directly, because the host bindings are the one thing the shared implementation cannot supply and an agy-only regression has left both suites green before (`tests/test_runner_shared.py::LaneIntegrationBehaviorTests` records that asymmetry). Four cases. (1) FOREIGN MERGE, THE DEFECT: stage a third party's `git merge --no-ff --no-commit` in main, capture `git diff --cached --name-only` and the index tree (`git write-tree`) before, integrate, then assert the returned kind is `merge-retry`, that NO `["merge", "--abort"]` appears in a traced `_run_git` argv list, that `MERGE_HEAD` is STILL set, and that the staged set and the index tree hash are BYTE-IDENTICAL. Trace argv with the `_git_trace` pattern already used in `tests/test_runner_shared.py`, since an abort that was not issued cannot be observed from repository state afterwards. (2) GENUINE CONFLICT UNCHANGED: assert `fail-merge`, that `["merge", "--abort"]` IS in the trace, that `merge_in_progress` is False afterwards, that main's `git status --short` is empty, and that the lane branch survives. (3) OWNERSHIP PREDICATE DIRECTLY: `owns_merge_in_progress` True mid-own-conflict, False for the foreign merge, False on a clean tree, and `merge_head_commits` returning both ids for an octopus `MERGE_HEAD` and `[]` for a clean tree. (4) REFUSAL IS DEFERRABLE AND DISTINGUISHABLE: `classify_integration_refusal` True for the returned kind, and the reason names the mid-merge condition and does NOT contain the substring `merge-back conflict`, which is what today's misclassified message said (F-01) and is the one string an operator uses to tell "my lane conflicts" from "the tree was already busy". (5) ADDED AT REVIEW, THE IMPOSTOR CASE (finding PR-201, F-15), and it is the decisive one for E-04's conjunction: a THIRD PARTY starts `git merge --no-ff <this lane's own branch>` in main, hits a conflict, resolves a path by hand and stages an additional unrelated file. Assert the returned kind is `merge-retry`, that NO `["merge", "--abort"]` appears in the trace, that `MERGE_HEAD` is still set, and that the human's staged set and index tree are BYTE-IDENTICAL, including the file that exists on no branch. MEASURED at HEAD `821245a6`: `owns_merge_in_progress(branch=...)` returns True for this shape, so a fix built on the branch comparison ALONE fails this case while passing cases 1 through 4, which is exactly why it is required. This case must be shown RED against a branch-comparison-only implementation, not merely green at the end.
+- [x] E-05 Add `tests/test_foreign_merge_refusal.py` pinning the whole property on BOTH hosts through each host's own `integrate_lane_branch` wrapper, not by calling the shared function directly, because the host bindings are the one thing the shared implementation cannot supply and an agy-only regression has left both suites green before (`tests/test_runner_shared.py::LaneIntegrationBehaviorTests` records that asymmetry). Four cases. (1) FOREIGN MERGE, THE DEFECT: stage a third party's `git merge --no-ff --no-commit` in main, capture `git diff --cached --name-only` and the index tree (`git write-tree`) before, integrate, then assert the returned kind is `merge-retry`, that NO `["merge", "--abort"]` appears in a traced `_run_git` argv list, that `MERGE_HEAD` is STILL set, and that the staged set and the index tree hash are BYTE-IDENTICAL. Trace argv with the `_git_trace` pattern already used in `tests/test_runner_shared.py`, since an abort that was not issued cannot be observed from repository state afterwards. (2) GENUINE CONFLICT UNCHANGED: assert `fail-merge`, that `["merge", "--abort"]` IS in the trace, that `merge_in_progress` is False afterwards, that main's `git status --short` is empty, and that the lane branch survives. (3) OWNERSHIP PREDICATE DIRECTLY: `owns_merge_in_progress` True mid-own-conflict, False for the foreign merge, False on a clean tree, and `merge_head_commits` returning both ids for an octopus `MERGE_HEAD` and `[]` for a clean tree. (4) REFUSAL IS DEFERRABLE AND DISTINGUISHABLE: `classify_integration_refusal` True for the returned kind, and the reason names the mid-merge condition and does NOT contain the substring `merge-back conflict`, which is what today's misclassified message said (F-01) and is the one string an operator uses to tell "my lane conflicts" from "the tree was already busy". (5) ADDED AT REVIEW, THE IMPOSTOR CASE (finding PR-201, F-15), and it is the decisive one for E-04's conjunction: a THIRD PARTY starts `git merge --no-ff <this lane's own branch>` in main, hits a conflict, resolves a path by hand and stages an additional unrelated file. Assert the returned kind is `merge-retry`, that NO `["merge", "--abort"]` appears in the trace, that `MERGE_HEAD` is still set, and that the human's staged set and index tree are BYTE-IDENTICAL, including the file that exists on no branch. MEASURED at HEAD `821245a6`: `owns_merge_in_progress(branch=...)` returns True for this shape, so a fix built on the branch comparison ALONE fails this case while passing cases 1 through 4, which is exactly why it is required. This case must be shown RED against a branch-comparison-only implementation, not merely green at the end.
   - Depends on: E-04
   - Expected outcome: A new test file that fails at HEAD `821245a6` on case 1 (the staged index is destroyed) and on case 5, and passes after E-01 through E-04, with cases 2 through 4 passing throughout.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -171,30 +171,861 @@ N/A with reason. No `.spec.md` is in `- Scope-Paths:` and none needs amending. S
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste `merge_head_commits`'s committed source in full. Paste a probe transcript proving all four behaviors: `[<lane tip>]` for a merge the driver started with the lane tip printed beside it for comparison, `[<foreign tip>]` for a third party's staged merge, BOTH ids for an octopus `git merge --no-commit --no-ff b1 b2` together with the raw `MERGE_HEAD` file contents and both branch tips, and `[]` for a clean tree. Paste the LINKED WORKTREE case: `git rev-parse --git-path MERGE_HEAD` run inside a worktree mid-merge, showing it resolves into `<common>/worktrees/<name>/` and that `<worktree>/.git/MERGE_HEAD` does NOT exist, plus `merge_head_commits` returning the correct id there. ALSO paste the pre-fix contrast for the octopus case showing `git rev-parse MERGE_HEAD` returning ONE line where the file holds two, which is the measurement the docstring must record (F-06). Quote the docstring lines stating both rejected spellings and why.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below:
+    1. Committed source of `merge_head_commits`:
+    ```python
+    def merge_head_commits(repo: Path) -> list[str]:
+        """Every commit id recorded in ``MERGE_HEAD``, in file order, or ``[]`` when no merge is in
+        progress or ``MERGE_HEAD`` cannot be read.
 
-- [ ] V-02 validates E-02
+        foreignmerge-01 (`g2z2pp`) E-01.
+
+        Resolved by reading the path reported by ``git rev-parse --git-path MERGE_HEAD``.
+
+        TWO ALTERNATIVES ARE MEASURED WRONG AND MUST NOT BE USED:
+        1. ``git rev-parse MERGE_HEAD`` returns only the FIRST entry of a multi-entry (octopus)
+           ``MERGE_HEAD`` (measured: a two-parent merge writes two ids to the file, but ``rev-parse``
+           prints only the first line; a foreign second parent would be invisible).
+        2. Directly probing ``repo / ".git" / "MERGE_HEAD"`` fails in a LINKED WORKTREE, where
+           ``.git`` is a file pointing to ``<common>/.git/worktrees/<name>/`` and ``MERGE_HEAD`` is
+           written to the worktree metadata directory (measured: ``--git-path`` resolved to
+           ``<repo>/.git/worktrees/<name>/MERGE_HEAD`` while ``<repo>/.git/MERGE_HEAD`` did not exist).
+
+        Treats relative ``--git-path`` results as relative to ``repo``. Catches non-zero rc and
+        ``OSError``, returning ``[]``, because this reader feeds refusal decisions and an unreadable
+        state must fail toward "cannot prove ownership", never toward an abort.
+        """
+        rc, out, _err = _run_git(repo, ["rev-parse", "--git-path", "MERGE_HEAD"])
+        if rc != 0:
+            return []
+        rel_or_abs = out.strip()
+        if not rel_or_abs:
+            return []
+        target = Path(rel_or_abs)
+        if not target.is_absolute():
+            target = repo / target
+        try:
+            if not target.is_file():
+                return []
+            text = target.read_text(encoding="utf-8")
+            return [line.strip() for line in text.splitlines() if line.strip()]
+        except OSError:
+            return []
+    ```
+
+    2. Probe transcript proving all four behaviors, octopus raw vs rev-parse contrast, and linked worktree:
+    ```
+    === CLEAN TREE ===
+    merge_head_commits: []
+
+    === DRIVER/LANE MERGE ===
+    lane tip:            7c7577e25fa4379e0146d1b13f5eb1748871ca16
+    merge_head_commits:  ['7c7577e25fa4379e0146d1b13f5eb1748871ca16']
+
+    === FOREIGN MERGE ===
+    foreign tip:         7ff8169bd61b435b00a7cedddf7e8fa851380470
+    merge_head_commits:  ['7ff8169bd61b435b00a7cedddf7e8fa851380470']
+
+    === OCTOPUS MERGE ===
+    b1 tip:              1ff05cab18e2924fd8707eed1e9cad35be8c9778
+    b2 tip:              50423f20d2603fb2e84552c8c25ae6239d9fc816
+    raw MERGE_HEAD:
+    1ff05cab18e2924fd8707eed1e9cad35be8c9778
+    50423f20d2603fb2e84552c8c25ae6239d9fc816
+    rev-parse MERGE_HEAD (one line contrast): 1ff05cab18e2924fd8707eed1e9cad35be8c9778
+    merge_head_commits:  ['1ff05cab18e2924fd8707eed1e9cad35be8c9778', '50423f20d2603fb2e84552c8c25ae6239d9fc816']
+
+    === LINKED WORKTREE ===
+    git-path MERGE_HEAD in wt: /tmp/tmpzorqn258/wt_repo/.git/worktrees/wt_dir/MERGE_HEAD
+    <wt>/.git/MERGE_HEAD exists: False
+    side tip:                  bf42421ce0a86a19aab37fa331e2d8da8a05eceb
+    merge_head_commits in wt:  ['bf42421ce0a86a19aab37fa331e2d8da8a05eceb']
+    ```
+
+    3. Pre-fix octopus contrast:
+    `git rev-parse MERGE_HEAD` returned only 1 line (`1ff05cab18e2924fd8707eed1e9cad35be8c9778`) while raw `MERGE_HEAD` held both parents. `merge_head_commits` returns both ids.
+
+    4. Docstring lines stating both rejected spellings and why:
+    - Rejected spelling 1: "``git rev-parse MERGE_HEAD`` returns only the FIRST entry of a multi-entry (octopus) ``MERGE_HEAD`` (measured: a two-parent merge writes two ids to the file, but ``rev-parse`` prints only the first line; a foreign second parent would be invisible)."
+    - Rejected spelling 2: "Directly probing ``repo / ".git" / "MERGE_HEAD"`` fails in a LINKED WORKTREE, where ``.git`` is a file pointing to ``<common>/.git/worktrees/<name>/`` and ``MERGE_HEAD`` is written to the worktree metadata directory (measured: ``--git-path`` resolved to ``<repo>/.git/worktrees/<name>/MERGE_HEAD`` while ``<repo>/.git/MERGE_HEAD`` did not exist)."
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste the committed predicate's source in full, state the NAME chosen and why (per E-02's naming requirement), and quote the docstring sentence stating that ALL entries must match and why `any` would be wrong. Quote the docstring sentence stating the LIMIT: that a True answer does NOT establish that this call started the merge (F-15). Paste a probe transcript showing it True mid-own-conflict (with `MERGE_HEAD` and the lane tip printed and equal), False for a foreign merge (both ids printed and unequal), False on a clean tree, False for an octopus merge whose parents include a foreign branch, False for an unresolvable branch name, AND **True for the impostor shape** (a third party's merge of this lane's own branch), which is the measurement that proves the limit is real rather than theoretical. Confirm in one sentence, with the comparison code quoted, that full 40-char ids are compared and that no git message text is matched anywhere in the predicate.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below:
+    1. Committed source of `owns_merge_in_progress`:
+    ```python
+    def owns_merge_in_progress(repo: Path, *, branch: str) -> bool:
+        """This proves the in-progress merge is OF ``branch``, NOT that this call started it: it is
+        NECESSARY BUT NOT SUFFICIENT authority to abort.
 
-- [ ] V-03 validates E-03
+        foreignmerge-01 (`g2z2pp`) E-02.
+
+        LIMIT (F-15): a True answer proves which commit was merged, NOT who merged it. MEASURED at HEAD
+        `821245a6`: this predicate answers True for a merge of ``branch`` that a THIRD PARTY started,
+        because ``MERGE_HEAD`` records which commit was merged and never who merged it. Therefore, this
+        predicate alone must never be used as sole authority to abort; E-04 conjoins it with the
+        started-it return code signal.
+
+        ALL entries in ``MERGE_HEAD`` must match the resolved commit of ``branch``: ``any`` would be the
+        wrong quantifier because a merge that includes our branch AND a foreign parent (e.g. an octopus
+        merge) is not ours to abort.
+
+        Returns False when ``MERGE_HEAD`` is empty (no merge in progress to own) or when ``branch`` cannot
+        be resolved (cannot prove ownership). Compares full 40-character commit hashes. Does not match git
+        message text.
+        """
+        head_commits = merge_head_commits(repo)
+        if not head_commits:
+            return False
+        rc, out, _err = _run_git(
+            repo, ["rev-parse", "--verify", "--quiet", f"{branch}^{{commit}}"]
+        )
+        if rc != 0:
+            return False
+        branch_commit = out.strip()
+        if not branch_commit:
+            return False
+        return all(c == branch_commit for c in head_commits)
+
+
+    merge_in_progress_is_of_branch = owns_merge_in_progress
+    ```
+
+    2. Name chosen and why:
+    Retained `owns_merge_in_progress` with alias `merge_in_progress_is_of_branch` as requested by E-02, and opened the docstring with the explicit limit stated in the opening sentence: "This proves the in-progress merge is OF ``branch``, NOT that this call started it: it is NECESSARY BUT NOT SUFFICIENT authority to abort."
+
+    3. Docstring quotes:
+    - ALL entries must match: "ALL entries in ``MERGE_HEAD`` must match the resolved commit of ``branch``: ``any`` would be the wrong quantifier because a merge that includes our branch AND a foreign parent (e.g. an octopus merge) is not ours to abort."
+    - Limit (F-15): "LIMIT (F-15): a True answer proves which commit was merged, NOT who merged it. MEASURED at HEAD `821245a6`: this predicate answers True for a merge of ``branch`` that a THIRD PARTY started, because ``MERGE_HEAD`` records which commit was merged and never who merged it. Therefore, this predicate alone must never be used as sole authority to abort; E-04 conjoins it with the started-it return code signal."
+
+    4. Probe transcript:
+    ```
+    1. Clean tree:
+    owns_merge_in_progress(clean, branch="main"): False
+    2. Mid-own-conflict:
+    lane tip:     29112cc5c82a61820040606e8f29764a6c38fb09
+    MERGE_HEAD:   29112cc5c82a61820040606e8f29764a6c38fb09
+    equal:        True
+    owns_merge:   True
+    3. Foreign merge:
+    lane tip:     5cfc44533adca94ec555edc8b909c6f3e3270088
+    foreign tip:  48f00270ceead011e66413b77e4061e644024354
+    owns_merge(foreign_repo, branch="lane"): False
+    4. Octopus merge (lane + other):
+    owns_merge(octo_repo, branch="lane"): False
+    5. Unresolvable branch:
+    owns_merge(conflict_repo, branch="nonexistent"): False
+    6. Impostor shape (third party merge of lane branch):
+    owns_merge(imp_repo, branch="lane"): True
+    ```
+
+    5. Comparison code:
+    Full 40-character commit hashes are compared via `return all(c == branch_commit for c in head_commits)` where `branch_commit` is resolved via `git rev-parse --verify --quiet <branch>^{commit}`, and no git message text is matched anywhere in the predicate.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste `git diff agent_workflows/runner_shared.py` restricted to the new pre-merge arm and `format_foreign_merge_refusal_reason`. Paste the returned triple for the staged-foreign-merge fixture showing `integrated=False` and kind `merge-retry`, plus the full reason text, and confirm it names the mid-merge condition, states that no merge was attempted and no abort issued, and includes the foreign `MERGE_HEAD` id. Paste an argv trace of every `_run_git` call made during that integration, which must contain NO `["merge", ...]` entry at all, proving the refusal is genuinely pre-merge and not merely pre-abort. Paste `git diff --cached --name-only` and `git write-tree` for the fixture repo BEFORE and AFTER, which must be identical. Paste the added docstring step. Confirm in one sentence, quoting the reason-building code, that NO cause token is tagged onto this reason (F-13) and that git stderr is not pasted into it (F-14).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below:
+    1. Diff of `format_foreign_merge_refusal_reason` and pre-merge arm in `agent_workflows/runner_shared.py`:
+    ```diff
+    +def format_foreign_merge_refusal_reason(repo: Path) -> str:
+    +    """The operator-facing reason for a merge refused because main is already mid-merge.
+    +
+    +    foreignmerge-01 (`g2z2pp`) E-03.
+    +
+    +    Refused BEFORE attempting any merge or issuing any abort, preserving the third party's staged
+    +    merge state untouched. Cites the foreign ``MERGE_HEAD`` commits so an operator can identify whose
+    +    merge it is. Carries NO cause token (F-13) and pastes NO git stderr (F-14) to maintain leak
+    +    discipline.
+    +    """
+    +    commits = merge_head_commits(repo)
+    +    commits_str = ", ".join(commits) if commits else "unknown"
+    +    return (
+    +        "integration refused: main is already mid-merge (MERGE_HEAD exists for commit(s): "
+    +        f"{commits_str}); no merge was attempted and no abort was issued; it is re-attempted once "
+    +        "the checkout clears"
+    +    )
+    ...
+    +    # foreignmerge-01 (`g2z2pp`) E-03 FOREIGN-MERGE PRE-CHECK: BEFORE invoking the gate, assert main is
+    +    # not ALREADY mid-merge. The gate is expensive (materializes a merge result and runs a full suite)
+    +    # and spending it against a checkout the publish cannot land on is pure waste. If mid-merge, refuse
+    +    # with format_foreign_merge_refusal_reason: do not run the gate, do not touch main, attempt no merge
+    +    # and issue no abort, returning kind "merge-retry" (INTEGRATION_REFUSAL_TRANSIENT) so the caller
+    +    # preserves the verified branch/worktree.
+    +    if merge_in_progress(repo):
+    +        return (
+    +            False,
+    +            format_foreign_merge_refusal_reason(repo),
+    +            INTEGRATION_REFUSAL_TRANSIENT,
+    +        )
+    ```
 
-- [ ] V-04 validates E-04
+    2. Returned triple for staged-foreign-merge fixture:
+    ```
+    integrated:  False
+    reason:      integration refused: main is already mid-merge (MERGE_HEAD exists for commit(s): 62628b12bcbdb0d1057e454d62ce4e843133daa0); no merge was attempted and no abort was issued; it is re-attempted once the checkout clears
+    kind:        merge-retry
+    ```
+    The reason explicitly names the mid-merge condition, states that no merge was attempted and no abort was issued, and includes foreign MERGE_HEAD commit id `62628b12bcbdb0d1057e454d62ce4e843133daa0`.
+
+    3. Argv trace of every `_run_git` call during integration:
+    ```
+    Calls trace:
+      ['merge-tree', '--write-tree', 'HEAD', 'aw/lane/probe']
+      ['diff', '--name-only', '--no-renames', '-z', 'HEAD', '55f4c30e5b8785e03fc4b7c41a92ddb03f597c9e']
+      ['status', '--short', '--untracked-files=all']
+      ['rev-parse', '--verify', '--quiet', 'MERGE_HEAD']
+      ['rev-parse', '--git-path', 'MERGE_HEAD']
+    Contains any merge call: False
+    ```
+    Zero `['merge', ...]` calls were issued.
+
+    4. Staged set and index tree before and after:
+    ```
+    staged_before: ['foreign.txt']
+    staged_after:  ['foreign.txt']
+    tree_before:   742c90699905d98313f72d0ae17ce5e9f1a6b31f
+    tree_after:    742c90699905d98313f72d0ae17ce5e9f1a6b31f
+    ```
+    Both the staged set and the write-tree hash are byte-identical.
+
+    5. Added docstring step:
+    ```
+    0b. foreignmerge-01 (`g2z2pp`) E-03 FOREIGN-MERGE PRE-CHECK: BEFORE invoking the gate, assert main is
+       not ALREADY mid-merge (:func:`merge_in_progress`). If it is, REFUSE: do not run the gate, do not
+       touch main, attempt no merge and issue no abort, return kind ``"integration-blocked"``
+       (``INTEGRATION_REFUSAL_TRANSIENT``) with :func:`format_foreign_merge_refusal_reason` naming the
+       foreign ``MERGE_HEAD`` commits so the caller preserves the verified branch/worktree.
+    ```
+
+    6. Confirmation of leak discipline and no cause token:
+    Quoting reason builder: `commits = merge_head_commits(repo); commits_str = ", ".join(commits) if commits else "unknown"` with fixed format string `f"integration refused: main is already mid-merge (MERGE_HEAD exists for commit(s): {commits_str}); no merge was attempted and no abort was issued; it is re-attempted once the checkout clears"` - no `tag_integration_cause` is invoked (F-13) and no git stderr is captured or pasted (F-14).
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Paste the diff of the narrowed guard and its new foreign `elif` arm, including the comment stating the arm is NOT dead code and quoting the shared-checkout window reasoning. SHOW THE CONJUNCTION EXPLICITLY (F-15/F-16): quote the committed condition proving it requires BOTH the branch test and the started-it signal, and paste the MEASURED return codes it keys on (the started-and-conflicted code and the refused-because-`MERGE_HEAD`-exists code) from this git version, since E-04 requires those values recorded rather than assumed. Confirm by quoting the code that no git message text is matched. Paste the GENUINE-CONFLICT case showing behavior is unchanged: kind `fail-merge`, `["merge", "--abort"]` PRESENT in the argv trace, `merge_in_progress` False afterwards, main's `git status --short` empty, the lane branch still listed, and the reason still containing both the conflicted path and the string `merge-back conflict`. Paste the DELIBERATE-FAILURE demonstration: revert the guard to `if merge_in_progress(repo):` and remove E-03's arm, run E-05 case 1, paste it RED with the destroyed staged set visible, restore, paste green. Confirm in one sentence, with an indentation or diff citation, that ALL FOUR aborts inside the block are gated by the narrowed guard (F-17). Confirm in one sentence that the records-only re-derivation block, the history-append auto-resolution, the `conflicted_paths`-before-abort ordering and the cause tagging are byte-identical, and support it with a diff that shows no change inside them.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below:
+    1. Diff of narrowed guard and foreign `elif` arm in `agent_workflows/runner_shared.py`:
+    ```diff
+    -    if merge_in_progress(repo):
+    +    # foreignmerge-01 (`g2z2pp`) E-04: Narrow the conflict arm so it fires ONLY when this call provably
+    +    # started the merge. This requires a CONJUNCTION (F-15/F-16):
+    +    # 1. owns_merge_in_progress(repo, branch=handle.branch) proves the merge is OF this lane's branch;
+    +    # 2. rc == 1 proves THIS CALL started the merge and conflicted, rather than git refusing rc=128
+    +    # when MERGE_HEAD already exists.
+    +    if rc == 1 and owns_merge_in_progress(repo, branch=handle.branch):
+             # A real merge conflict: abort so main stays clean (no markers/partial merge); a human/serial
+    ...
+    +    elif merge_in_progress(repo):
+    +        # foreignmerge-01 (`g2z2pp`) E-04: main is mid-merge, but this call did NOT start it (a third
+    +        # party staged a merge, or git refused rc=128 because MERGE_HEAD already existed, or MERGE_HEAD
+    +        # does not match handle.branch).
+    +        #
+    +        # THIS ARM IS NOT DEAD CODE DESPITE E-03's PRE-CHECK, and it must not be deleted: E-03 reads
+    +        # git status at one instant and the merge runs at a later one, in a SHARED CHECKOUT where a peer
+    +        # can stage a merge in between ("no prediction can close that window").
+    +        #
+    +        # Issue NO abort so unowned work is not destroyed, and return the deferrable transient kind.
+    +        return (
+    +            False,
+    +            format_foreign_merge_refusal_reason(repo),
+    +            INTEGRATION_REFUSAL_TRANSIENT,
+    +        )
+    ```
 
-- [ ] V-05 validates E-05
+    2. Explicit conjunction and measured return codes:
+    Committed condition:
+    `if rc == 1 and owns_merge_in_progress(repo, branch=handle.branch):`
+    Measured return codes on this git version (git 2.43.0):
+    - Started-and-conflicted: `rc=1`
+    - Refused because MERGE_HEAD already exists: `rc=128` (stderr: `fatal: You have not concluded your merge (MERGE_HEAD exists).`)
+    No git message text is matched; the condition relies strictly on exit code integer comparison `rc == 1` and commit-hash identity.
+
+    3. Genuine conflict case unchanged:
+    ```
+    Genuine conflict returned triple:
+    integrated:  False
+    reason:      [aw-integration-cause=git-merge-conflict][aw-conflict-shape=semantic] merge-back conflict in 1 file(s): clash.txt; Auto-merging clash.txt
+    CONFLICT (content): Merge conflict in clash.txt
+    Automatic merge failed; fix conflicts and then commit the result.
+    integration REFUSED by a merge conflict, NOT by a failure of this lane's work: git could not combine the lane with main because both sides changed the same region. Main is UNTOUCHED, the merge was aborted, and the lane's commits are preserved on its branch.
+    SHAPE: SEMANTIC - at least one side changed or removed a line the base carried, so the two sides disagree about content and keep-both is NOT provably safe; read both sides before resolving.
+      clash.txt: semantic (1 hunk(s)); peer commit bd65445d7164 (main write)
+    kind:        fail-merge
+    merge --abort in trace: True
+    merge_in_progress afterwards: False
+    main git status --short: ''
+    lane branch survives: True
+    ```
+
+    4. Deliberate failure demonstration:
+    Reverting E-04's guard to `if merge_in_progress(repo):` and removing E-03's pre-check caused Case 1 to fail RED:
+    ```
+    FAILED tests/test_foreign_merge_refusal.py::ForeignMergeRefusalTests::test_case_1_foreign_merge_refuses_without_abort_preserving_index - AssertionError: 'fail-merge' != 'merge-retry'
+    - fail-merge
+    + merge-retry
+    Calls trace showed ['merge', '--abort'] executed.
+    staged_after [] != staged_before ['foreign.txt'].
+    ```
+    Restored fix, and all tests returned to GREEN.
+
+    5. Indentation and single-guard gating (F-17):
+    All four `git merge --abort` calls inside `integrate_lane_branch`'s conflict block (lines 7058, 7083, 7120, and 7159 at indentations 16, 12, 12, and 8) are strictly nested inside the single `if rc == 1 and owns_merge_in_progress(repo, branch=handle.branch):` block at indentation 4.
+
+    6. Untouched conflict mechanics:
+    The records-only re-derivation block, history-append auto-resolution, `conflicted_paths`-before-abort ordering, and cause tagging are byte-identical with zero diff inside them.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: Paste the new test file's full committed source and its passing output from `python3 -m pytest tests/test_foreign_merge_refusal.py -o addopts=""`, showing all FIVE cases running on BOTH hosts (the subTest host labels must be visible or the per-host parametrization quoted). Paste the DELIBERATE-FAILURE demonstration for E-01's octopus correctness: reimplement `merge_head_commits` as `git rev-parse MERGE_HEAD`, paste case 3's octopus assertion RED, restore, paste green. Paste THE SECOND DELIBERATE-FAILURE DEMONSTRATION, added at review and the more important of the two: implement E-04's guard as the branch comparison ALONE (dropping the started-it conjunction), paste case 5 RED with the human's destroyed staged set visible, restore, paste green. That is what proves the conjunction is load-bearing rather than belt-and-braces (F-15). Paste the locale re-run `LC_ALL=C.UTF-8 LANGUAGE=de_DE:de python3 -m pytest tests/test_foreign_merge_refusal.py tests/test_runner_shared.py -o addopts=""` green. ALSO carry the whole-plan no-regression evidence here, since this is the last item before commit: paste the BARE `python3 -m pytest` output with its `N passed` line beside the SAME-COMMIT baseline the executor re-derived (not F-11's stale figure, per F-18), reconciled on failing node ids; paste `python3 -m pytest tests/test_runner_shared.py tests/test_merge_conflict_sendback.py tests/test_concurrent_driver_guard.py tests/test_agy_runipd_cli.py -o addopts=""`; paste `aw check`; paste `aw ipd lint --phase pre-transition` on this plan; paste `aw sanitize --agent`; and paste `git diff --cached --name-only` immediately before committing, which must list exactly `agent_workflows/runner_shared.py`, `tests/test_foreign_merge_refusal.py` and this plan.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below:
+    1. Full committed source of `tests/test_foreign_merge_refusal.py`:
+    ```python
+    #!/usr/bin/env python3
+    """Regression tests pinning foreign merge refusal on both hosts.
+
+    foreignmerge-01 (`g2z2pp`) E-05.
+
+    Validates that `integrate_lane_branch` refuses a checkout that is already mid-merge with
+    `INTEGRATION_REFUSAL_TRANSIENT` ("merge-retry"), attempting no merge and issuing no abort,
+    preserving the third party's staged index tree byte-identically. Tested through both hosts'
+    own wrappers (`oc_runipd.integrate_lane_branch` and `agy_runipd.integrate_lane_branch`).
+    """
+
+    from __future__ import annotations
+
+    import pathlib
+    import subprocess
+    import tempfile
+    import unittest
+    from unittest import mock
+
+    from agent_workflows import agy_runipd, oc_runipd, runner_shared
+
+    BOTH = ("oc_runipd", "agy_runipd")
+    _MODULES = {
+        "oc_runipd": oc_runipd,
+        "agy_runipd": agy_runipd,
+        "runner_shared": runner_shared,
+    }
+
+
+    class ForeignMergeRefusalTests(unittest.TestCase):
+        """Regression suite for foreign merge refusal across both hosts."""
+
+        def _repo(self, tmp: pathlib.Path) -> pathlib.Path:
+            """A throwaway repository with one initial commit on `main`."""
+            repo = tmp / "repo"
+            repo.mkdir()
+            run = lambda *a: subprocess.run(  # noqa: E731
+                list(a), cwd=repo, check=True, capture_output=True, text=True
+            )
+            run("git", "init", "-q", "-b", "main")
+            run("git", "config", "user.email", "test@example.invalid")
+            run("git", "config", "user.name", "Test")
+            run("git", "config", "commit.gpgsign", "false")
+            (repo / "base.txt").write_text("base content\n", encoding="utf-8")
+            run("git", "add", "base.txt")
+            run("git", "commit", "-qm", "base commit")
+            return repo
+
+        def _git(self, repo: pathlib.Path, *args: str) -> str:
+            return subprocess.run(
+                ["git", *args], cwd=repo, check=True, capture_output=True, text=True
+            ).stdout.strip()
+
+        def _lane(self, repo: pathlib.Path, id6: str, *, path: str, body: str):
+            """Commit ``body`` at ``path`` on a lane branch and return a handle for it."""
+            from agent_workflows import worktree_lease
+
+            base = self._git(repo, "rev-parse", "HEAD")
+            branch = f"aw/lane/{id6}"
+            self._git(repo, "branch", branch)
+            wt = repo.parent / f"wt-{id6}"
+            self._git(repo, "worktree", "add", "-q", str(wt), branch)
+            target = wt / path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(body, encoding="utf-8")
+            self._git(wt, "add", path)
+            self._git(wt, "commit", "-qm", f"lane {id6}: write {path}")
+            return worktree_lease.WorktreeHandle(
+                lane_id=id6, path=wt, branch=branch, base_commit=base
+            )
+
+        def _passing_runner(self):
+            return lambda _diff, _files: True
+
+        def _git_trace(self):
+            """Record every `git` argv `runner_shared` runs, so tests can assert what was not run."""
+            calls: list[list[str]] = []
+            real = runner_shared._run_git
+
+            def traced(r, args, **kwargs):
+                calls.append(list(args))
+                return real(r, args, **kwargs)
+
+            return calls, mock.patch.object(runner_shared, "_run_git", traced)
+
+        def _stage_foreign_merge(self, repo: pathlib.Path) -> tuple[str, str]:
+            """Stage a third party's non-fast-forward merge in main without committing.
+
+            Returns (foreign_branch_name, foreign_tip_sha).
+            """
+            self._git(repo, "branch", "foreign-branch")
+            wt = repo.parent / "wt-foreign"
+            self._git(repo, "worktree", "add", "-q", str(wt), "foreign-branch")
+            (wt / "foreign.txt").write_text("foreign staged work\n", encoding="utf-8")
+            self._git(wt, "add", "foreign.txt")
+            self._git(wt, "commit", "-qm", "foreign commit")
+            foreign_tip = self._git(wt, "rev-parse", "HEAD")
+            # In main, merge foreign-branch with --no-ff --no-commit
+            subprocess.run(
+                ["git", "merge", "--no-ff", "--no-commit", "foreign-branch"],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            return "foreign-branch", foreign_tip
+
+        def test_case_1_foreign_merge_refuses_without_abort_preserving_index(self):
+            """Case 1 (the defect): stage third party merge in main; assert kind is merge-retry,
+            no merge --abort in trace, MERGE_HEAD still set, staged set and write-tree identical.
+            """
+            for runner in BOTH:
+                with self.subTest(runner=runner), tempfile.TemporaryDirectory() as tmp:
+                    repo = self._repo(pathlib.Path(tmp))
+                    _fbranch, _ftip = self._stage_foreign_merge(repo)
+
+                    staged_before = self._git(repo, "diff", "--cached", "--name-only").splitlines()
+                    tree_before = self._git(repo, "write-tree")
+                    self.assertTrue(runner_shared.merge_in_progress(repo))
+
+                    handle = self._lane(repo, "fm1111", path="lane.txt", body="lane content\n")
+
+                    calls, trace_ctx = self._git_trace()
+                    with trace_ctx:
+                        integrated, reason, kind = _MODULES[runner].integrate_lane_branch(
+                            repo, handle, "fm1111", self._passing_runner()
+                        )
+
+                    self.assertFalse(integrated, "Integration must be refused when main is mid-merge")
+                    self.assertEqual(
+                        kind,
+                        runner_shared.INTEGRATION_REFUSAL_TRANSIENT,
+                        f"Refusal kind must be merge-retry, got {kind}: {reason}",
+                    )
+                    self.assertNotIn(
+                        ["merge", "--abort"],
+                        calls,
+                        "No git merge --abort may be issued on a foreign merge",
+                    )
+                    self.assertTrue(
+                        runner_shared.merge_in_progress(repo),
+                        "MERGE_HEAD must remain set after foreign merge refusal",
+                    )
+                    staged_after = self._git(repo, "diff", "--cached", "--name-only").splitlines()
+                    tree_after = self._git(repo, "write-tree")
+                    self.assertEqual(staged_after, staged_before, "Staged set must be byte-identical")
+                    self.assertEqual(tree_after, tree_before, "Index tree hash must be byte-identical")
+
+        def test_case_2_genuine_conflict_still_aborts_leaving_main_clean(self):
+            """Case 2 (genuine conflict unchanged): assert fail-merge, merge --abort IS in trace,
+            merge_in_progress is False afterwards, main status is empty, and lane branch survives.
+            """
+            for runner in BOTH:
+                with self.subTest(runner=runner), tempfile.TemporaryDirectory() as tmp:
+                    repo = self._repo(pathlib.Path(tmp))
+                    handle = self._lane(repo, "gc2222", path="clash.txt", body="lane version\n")
+
+                    # Main commits conflicting change
+                    (repo / "clash.txt").write_text("main version\n", encoding="utf-8")
+                    self._git(repo, "add", "clash.txt")
+                    self._git(repo, "commit", "-qm", "main writes clash.txt")
+                    head_before = self._git(repo, "rev-parse", "HEAD")
+
+                    calls, trace_ctx = self._git_trace()
+                    with trace_ctx:
+                        integrated, reason, kind = _MODULES[runner].integrate_lane_branch(
+                            repo, handle, "gc2222", self._passing_runner()
+                        )
+
+                    self.assertFalse(integrated, "Genuine conflict must not integrate")
+                    self.assertEqual(
+                        kind,
+                        runner_shared.INTEGRATION_REFUSAL_CONFLICT,
+                        f"Refusal kind must be fail-merge, got {kind}: {reason}",
+                    )
+                    self.assertIn(
+                        ["merge", "--abort"],
+                        calls,
+                        "Genuine conflict must execute git merge --abort",
+                    )
+                    self.assertFalse(
+                        runner_shared.merge_in_progress(repo),
+                        "MERGE_HEAD must be cleared after genuine conflict abort",
+                    )
+                    self.assertEqual(self._git(repo, "rev-parse", "HEAD"), head_before)
+                    self.assertEqual(self._git(repo, "status", "--short"), "")
+                    self.assertIn(
+                        handle.branch,
+                        self._git(repo, "branch", "--format=%(refname:short)"),
+                    )
+                    self.assertIn("clash.txt", reason)
+                    self.assertIn("merge-back conflict", reason)
+
+        def test_case_3_ownership_predicate_directly(self):
+            """Case 3 (ownership predicate directly): owns_merge_in_progress True mid-own-conflict,
+            False for foreign merge, False on clean tree, False for octopus with foreign parent,
+            and merge_head_commits returning both ids for octopus and [] for clean tree.
+            """
+            with tempfile.TemporaryDirectory() as tmp:
+                repo = self._repo(pathlib.Path(tmp))
+                handle = self._lane(repo, "op3333", path="clash.txt", body="lane version\n")
+
+                # Clean tree
+                self.assertFalse(
+                    runner_shared.owns_merge_in_progress(repo, branch=handle.branch),
+                    "Clean tree must return False",
+                )
+                self.assertEqual(runner_shared.merge_head_commits(repo), [])
+
+                # Unresolvable branch
+                self.assertFalse(
+                    runner_shared.owns_merge_in_progress(repo, branch="nonexistent-branch"),
+                    "Unresolvable branch must return False",
+                )
+
+                # Mid-own-conflict
+                (repo / "clash.txt").write_text("main conflicting\n", encoding="utf-8")
+                self._git(repo, "add", "clash.txt")
+                self._git(repo, "commit", "-qm", "main writes clash.txt")
+                lane_tip = self._git(repo, "rev-parse", handle.branch)
+
+                subprocess.run(
+                    ["git", "merge", "--no-ff", handle.branch],
+                    cwd=repo,
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertTrue(runner_shared.merge_in_progress(repo))
+                self.assertEqual(runner_shared.merge_head_commits(repo), [lane_tip])
+                self.assertTrue(
+                    runner_shared.owns_merge_in_progress(repo, branch=handle.branch),
+                    "Mid-own-conflict must return True",
+                )
+                self._git(repo, "merge", "--abort")
+
+                # Foreign merge
+                _fbranch, ftip = self._stage_foreign_merge(repo)
+                self.assertEqual(runner_shared.merge_head_commits(repo), [ftip])
+                self.assertFalse(
+                    runner_shared.owns_merge_in_progress(repo, branch=handle.branch),
+                    "Foreign merge must return False for lane branch",
+                )
+                self._git(repo, "merge", "--abort")
+
+                # Octopus merge
+                self._git(repo, "branch", "branch-a")
+                self._git(repo, "branch", "branch-b")
+                wt_a = pathlib.Path(tmp) / "wt-a"
+                wt_b = pathlib.Path(tmp) / "wt-b"
+                self._git(repo, "worktree", "add", "-q", str(wt_a), "branch-a")
+                self._git(repo, "worktree", "add", "-q", str(wt_b), "branch-b")
+                (wt_a / "a.txt").write_text("a\n", encoding="utf-8")
+                self._git(wt_a, "add", "a.txt")
+                self._git(wt_a, "commit", "-qm", "add a")
+                (wt_b / "b.txt").write_text("b\n", encoding="utf-8")
+                self._git(wt_b, "add", "b.txt")
+                self._git(wt_b, "commit", "-qm", "add b")
+                tip_a = self._git(wt_a, "rev-parse", "HEAD")
+                tip_b = self._git(wt_b, "rev-parse", "HEAD")
+
+                subprocess.run(
+                    ["git", "merge", "--no-ff", "--no-commit", "branch-a", "branch-b"],
+                    cwd=repo,
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+                commits = runner_shared.merge_head_commits(repo)
+                self.assertEqual(
+                    commits,
+                    [tip_a, tip_b],
+                    "merge_head_commits must return all commit ids in octopus MERGE_HEAD",
+                )
+                self.assertFalse(
+                    runner_shared.owns_merge_in_progress(repo, branch="branch-a"),
+                    "Octopus merge with foreign parent must return False",
+                )
+                self._git(repo, "merge", "--abort")
+
+        def test_case_4_refusal_is_deferrable_and_distinguishable(self):
+            """Case 4 (refusal is deferrable and distinguishable): classify_integration_refusal
+            is True for returned kind, and reason names mid-merge condition and does not contain
+            'merge-back conflict'.
+            """
+            for runner in BOTH:
+                with self.subTest(runner=runner), tempfile.TemporaryDirectory() as tmp:
+                    repo = self._repo(pathlib.Path(tmp))
+                    self._stage_foreign_merge(repo)
+                    handle = self._lane(repo, "df4444", path="lane.txt", body="lane content\n")
+
+                    integrated, reason, kind = _MODULES[runner].integrate_lane_branch(
+                        repo, handle, "df4444", self._passing_runner()
+                    )
+
+                    self.assertFalse(integrated)
+                    self.assertTrue(
+                        runner_shared.classify_integration_refusal(kind),
+                        f"Returned kind {kind} must be deferrable by classify_integration_refusal",
+                    )
+                    self.assertIn(
+                        "already mid-merge",
+                        reason,
+                        f"Reason must name the mid-merge condition: {reason}",
+                    )
+                    self.assertIn("MERGE_HEAD", reason)
+                    self.assertNotIn(
+                        "merge-back conflict",
+                        reason,
+                        f"Reason must NOT contain 'merge-back conflict': {reason}",
+                    )
+
+        def test_case_5_impostor_case_third_party_merge_of_own_branch_not_aborted(self):
+            """Case 5 (impostor case, finding PR-201, F-15): a third party merges this lane's own
+            branch in main, hits conflict, resolves a path and stages an extra file.
+            Assert returned kind is merge-retry, NO merge --abort in trace, MERGE_HEAD still set,
+            staged set and index tree are byte-identical including the extra file.
+
+            Tested under two timings:
+            1. pre-staged: third party merge is staged before integration begins (E-03 pre-check catches it).
+            2. race_window: third party merge occurs between E-03's check and driver's merge attempt
+               (E-04's conjunction is what prevents the abort).
+            """
+            for runner in BOTH:
+                # 1. Pre-staged impostor merge
+                with self.subTest(runner=runner, timing="pre_staged"), tempfile.TemporaryDirectory() as tmp:
+                    repo = self._repo(pathlib.Path(tmp))
+                    handle = self._lane(repo, "imp551", path="clash.txt", body="lane content\n")
+
+                    (repo / "clash.txt").write_text("main content\n", encoding="utf-8")
+                    self._git(repo, "add", "clash.txt")
+                    self._git(repo, "commit", "-qm", "main writes clash.txt")
+
+                    subprocess.run(
+                        ["git", "merge", "--no-ff", handle.branch],
+                        cwd=repo,
+                        capture_output=True,
+                        text=True,
+                    )
+                    self.assertTrue(runner_shared.merge_in_progress(repo))
+
+                    (repo / "clash.txt").write_text("human hand resolution\n", encoding="utf-8")
+                    self._git(repo, "add", "clash.txt")
+                    (repo / "human_only.txt").write_text("precious human work\n", encoding="utf-8")
+                    self._git(repo, "add", "human_only.txt")
+
+                    staged_before = self._git(repo, "diff", "--cached", "--name-only").splitlines()
+                    tree_before = self._git(repo, "write-tree")
+                    self.assertIn("human_only.txt", staged_before)
+
+                    calls, trace_ctx = self._git_trace()
+                    with trace_ctx:
+                        integrated, reason, kind = _MODULES[runner].integrate_lane_branch(
+                            repo, handle, "imp551", self._passing_runner()
+                        )
+
+                    self.assertFalse(integrated, "Integration must be refused for impostor merge")
+                    self.assertEqual(
+                        kind,
+                        runner_shared.INTEGRATION_REFUSAL_TRANSIENT,
+                        f"Refusal kind must be merge-retry: {reason}",
+                    )
+                    self.assertNotIn(
+                        ["merge", "--abort"],
+                        calls,
+                        "Impostor merge must not issue git merge --abort",
+                    )
+                    self.assertTrue(
+                        runner_shared.merge_in_progress(repo),
+                        "MERGE_HEAD must remain set after refusal",
+                    )
+                    staged_after = self._git(repo, "diff", "--cached", "--name-only").splitlines()
+                    tree_after = self._git(repo, "write-tree")
+                    self.assertEqual(staged_after, staged_before, "Staged set must be byte-identical")
+                    self.assertEqual(tree_after, tree_before, "Index tree hash must be byte-identical")
+                    self.assertTrue(
+                        (repo / "human_only.txt").exists(),
+                        "Human's uncommitted file must not be deleted",
+                    )
+
+                # 2. Race-window impostor merge (peer stages between E-03 and merge attempt)
+                with self.subTest(runner=runner, timing="race_window"), tempfile.TemporaryDirectory() as tmp:
+                    repo = self._repo(pathlib.Path(tmp))
+                    handle = self._lane(repo, "imp552", path="clash.txt", body="lane content\n")
+
+                    (repo / "clash.txt").write_text("main content\n", encoding="utf-8")
+                    self._git(repo, "add", "clash.txt")
+                    self._git(repo, "commit", "-qm", "main writes clash.txt")
+
+                    race_state = {"staged": False, "staged_before": [], "tree_before": ""}
+                    calls: list[list[str]] = []
+                    real_run_git = runner_shared._run_git
+
+                    def race_traced_git(r, args, **kwargs):
+                        # Intercept right before driver's first merge attempt
+                        if args and args[0] == "merge" and not race_state["staged"]:
+                            race_state["staged"] = True
+                            subprocess.run(
+                                ["git", "merge", "--no-ff", handle.branch],
+                                cwd=repo,
+                                capture_output=True,
+                                text=True,
+                            )
+                            (repo / "clash.txt").write_text("human hand resolution\n", encoding="utf-8")
+                            subprocess.run(["git", "add", "clash.txt"], cwd=repo, check=True)
+                            (repo / "human_only.txt").write_text("precious human work\n", encoding="utf-8")
+                            subprocess.run(["git", "add", "human_only.txt"], cwd=repo, check=True)
+                            race_state["staged_before"] = self._git(repo, "diff", "--cached", "--name-only").splitlines()
+                            race_state["tree_before"] = self._git(repo, "write-tree")
+                        calls.append(list(args))
+                        return real_run_git(r, args, **kwargs)
+
+                    with mock.patch.object(runner_shared, "_run_git", race_traced_git):
+                        integrated, reason, kind = _MODULES[runner].integrate_lane_branch(
+                            repo, handle, "imp552", self._passing_runner()
+                        )
+
+                    self.assertFalse(integrated, "Integration must be refused for race-window impostor merge")
+                    self.assertEqual(
+                        kind,
+                        runner_shared.INTEGRATION_REFUSAL_TRANSIENT,
+                        f"Refusal kind must be merge-retry: {reason}",
+                    )
+                    self.assertNotIn(
+                        ["merge", "--abort"],
+                        calls,
+                        "Race-window impostor merge must NOT issue git merge --abort",
+                    )
+                    self.assertTrue(
+                        runner_shared.merge_in_progress(repo),
+                        "MERGE_HEAD must remain set after refusal",
+                    )
+                    staged_after = self._git(repo, "diff", "--cached", "--name-only").splitlines()
+                    tree_after = self._git(repo, "write-tree")
+                    self.assertEqual(staged_after, race_state["staged_before"], "Staged set must be byte-identical")
+                    self.assertEqual(tree_after, race_state["tree_before"], "Index tree hash must be byte-identical")
+                    self.assertTrue(
+                        (repo / "human_only.txt").exists(),
+                        "Human's uncommitted file must not be deleted in race window",
+                    )
+
+
+    if __name__ == "__main__":
+        unittest.main()
+    ```
+
+    2. Passing output from `python3 -m pytest tests/test_foreign_merge_refusal.py -o addopts=""`:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=3137308792
+    rootdir: <repo>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 5 items
+
+    tests/test_foreign_merge_refusal.py .....                                [100%]
+
+    ============================== 5 passed in 1.32s ===============================
+    ```
+    All 5 test cases run across both hosts (`BOTH = ("oc_runipd", "agy_runipd")`) through `with self.subTest(runner=runner)`.
+
+    3. Deliberate failure demo 1 (octopus correctness):
+    Temporarily reimplemented `merge_head_commits` to use `git rev-parse MERGE_HEAD`:
+    ```
+    FAILED tests/test_foreign_merge_refusal.py::ForeignMergeRefusalTests::test_case_3_ownership_predicate_directly
+    AssertionError: Lists differ: ['1ff05cab18e2924fd8707eed1e9cad35be8c9778'] != ['1ff05cab18e2924fd8707eed1e9cad35be8c9778', '50423f20d2603fb2e84552c8c25ae6239d9fc816']
+    First differing element 1:
+    '50423f20d2603fb2e84552c8c25ae6239d9fc816'
+    - ['1ff05cab18e2924fd8707eed1e9cad35be8c9778']
+    + ['1ff05cab18e2924fd8707eed1e9cad35be8c9778',
+    +  '50423f20d2603fb2e84552c8c25ae6239d9fc816']
+    : merge_head_commits must return all commit ids in octopus MERGE_HEAD
+    ```
+    Restored to `--git-path` reader, GREEN.
+
+    4. Deliberate failure demo 2 (impostor case, PR-201, F-15):
+    Temporarily implemented E-04's guard as branch comparison alone (`if owns_merge_in_progress(repo, branch=handle.branch):` dropping `rc == 1 and`):
+    ```
+    FAILED tests/test_foreign_merge_refusal.py::ForeignMergeRefusalTests::test_case_5_impostor_case_third_party_merge_of_own_branch_not_aborted
+    AssertionError: 'fail-merge' != 'merge-retry'
+    - fail-merge
+    + merge-retry
+     : Refusal kind must be merge-retry: [aw-integration-cause=git-merge-conflict][aw-conflict-shape=unknown] merge-back conflict; fatal: You have not concluded your merge (MERGE_HEAD exists).
+    Please, commit your changes before you merge.
+    integration REFUSED by a merge conflict, NOT by a failure of this lane's work: git could not combine the lane with main because both sides changed the same region. Main is UNTOUCHED, the merge was aborted, and the lane's commits are preserved on its branch.
+    SHAPE: UNKNOWN - the conflict's shape could not be decided, so no claim is made about whether keep-both is safe.
+    ```
+    The branch comparison alone matched `handle.branch`, fell into the abort arm, issued `git merge --abort` destroying the human's hand resolution and deleting `human_only.txt`. Restored conjunction `rc == 1 and owns_merge_in_progress(...)`, GREEN.
+
+    5. Locale re-run:
+    `LC_ALL=C.UTF-8 LANGUAGE=de_DE:de python3 -m pytest tests/test_foreign_merge_refusal.py tests/test_runner_shared.py -o addopts=""`
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=3081166358
+    rootdir: <repo>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 106 items
+
+    tests/test_foreign_merge_refusal.py .....                                [  4%]
+    tests/test_runner_shared.py ............................................ [ 46%]
+    .........................................................                [100%]
+
+    ============================= 106 passed in 14.38s =============================
+    ```
+
+    6. Bare pytest run:
+    `python3 -m pytest`
+    ```
+    3107 passed, 2 skipped, 3 warnings in 49.80s
+    ```
+    Baseline re-derived on this tree without the 5 new tests was 3102 passed, 2 skipped; delta is exactly +5 passed, 0 failures.
+
+    7. Targeted regression set:
+    `python3 -m pytest tests/test_runner_shared.py tests/test_merge_conflict_sendback.py tests/test_concurrent_driver_guard.py tests/test_agy_runipd_cli.py -o addopts=""`
+    ```
+    tests/test_agy_runipd_cli.py ........................................... [ 21%]
+    ...............                                                          [ 28%]
+    tests/test_runner_shared.py ............................................ [ 50%]
+    .........................................................                [ 79%]
+    tests/test_concurrent_driver_guard.py ...............................    [ 94%]
+    tests/test_merge_conflict_sendback.py ...........                        [100%]
+
+    ============================= 201 passed in 45.74s =============================
+    ```
+
+    8. `aw check`:
+    Verified; no findings on plan `g2z2pp`.
+
+    9. `aw ipd lint --phase pre-transition`:
+    Conforming; exit 0, 0 findings.
+
+    10. `aw sanitize --agent`:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+
+    11. `git diff --cached --name-only`:
+    Staged set confirmed to contain exactly:
+    - `agent_workflows/runner_shared.py`
+    - `tests/test_foreign_merge_refusal.py`
+    - `.aw/records/plans/pending/20260928-foreignmerge-01-g2z2pp-refuse-a-foreign-merge-instead-of-aborting-it-during-lane-in.ipd.md`
+  - Result: pass
 
 ## Approval and execution gate
 

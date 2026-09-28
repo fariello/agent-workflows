@@ -630,6 +630,81 @@ def merge_in_progress(repo: Path) -> bool:
     return rc == 0
 
 
+def merge_head_commits(repo: Path) -> list[str]:
+    """Return every commit id recorded in ``MERGE_HEAD`` in file order, or ``[]`` if no merge is in progress.
+
+    foreignmerge-01 (`g2z2pp`) E-01.
+
+    Read by resolving the file through ``git rev-parse --git-path MERGE_HEAD`` and reading that path,
+    NOT by ``git rev-parse MERGE_HEAD`` and NOT by probing ``.git/MERGE_HEAD`` directly. Both
+    alternatives are MEASURED WRONG:
+
+    * ``git rev-parse MERGE_HEAD`` returns only the FIRST entry of a multi-entry (octopus) ``MERGE_HEAD``
+      (measured: a two-parent ``MERGE_HEAD`` whose file holds two ids renders as one line, so a foreign
+      second parent would be invisible); and
+    * a direct ``.git/MERGE_HEAD`` probe is wrong in a LINKED WORKTREE where ``.git`` is a file pointing
+      at ``<common>/worktrees/<name>/`` (measured: ``--git-path`` resolved to the worktree's own metadata
+      directory while ``<worktree>/.git/MERGE_HEAD`` did not exist), which is the same trap
+      ``merge_in_progress``'s docstring records.
+
+    Treats a relative ``--git-path`` result as relative to ``repo``. Returns ``[]`` rather than raising
+    on any ``OSError`` or non-zero returncode: this feeds a refusal decision, and an unreadable state
+    must fail toward "I cannot prove ownership", never toward an abort.
+    """
+    rc, out, _err = _run_git(repo, ["rev-parse", "--git-path", "MERGE_HEAD"])
+    if rc != 0:
+        return []
+    raw_path = out.strip()
+    if not raw_path:
+        return []
+    p = Path(raw_path)
+    target = p if p.is_absolute() else (repo / p)
+    try:
+        if not target.is_file():
+            return []
+        text = target.read_text(encoding="utf-8")
+        return [line.strip() for line in text.splitlines() if line.strip()]
+    except OSError:
+        return []
+
+
+def owns_merge_in_progress(repo: Path, *, branch: str) -> bool:
+    """This proves the in-progress merge is OF ``branch``, NOT that this call started it: it is
+    NECESSARY BUT NOT SUFFICIENT authority to abort.
+
+    foreignmerge-01 (`g2z2pp`) E-02.
+
+    LIMIT (F-15): a True answer proves which commit was merged, NOT who merged it. MEASURED at HEAD
+    `821245a6`: this predicate answers True for a merge of ``branch`` that a THIRD PARTY started,
+    because ``MERGE_HEAD`` records which commit was merged and never who merged it. Therefore, this
+    predicate alone must never be used as sole authority to abort; E-04 conjoins it with the
+    started-it return code signal.
+
+    ALL entries in ``MERGE_HEAD`` must match the resolved commit of ``branch``: ``any`` would be the
+    wrong quantifier because a merge that includes our branch AND a foreign parent (e.g. an octopus
+    merge) is not ours to abort.
+
+    Returns False when ``MERGE_HEAD`` is empty (no merge in progress to own) or when ``branch`` cannot
+    be resolved (cannot prove ownership). Compares full 40-character commit hashes. Does not match git
+    message text.
+    """
+    head_commits = merge_head_commits(repo)
+    if not head_commits:
+        return False
+    rc, out, _err = _run_git(
+        repo, ["rev-parse", "--verify", "--quiet", f"{branch}^{{commit}}"]
+    )
+    if rc != 0:
+        return False
+    branch_commit = out.strip()
+    if not branch_commit:
+        return False
+    return all(c == branch_commit for c in head_commits)
+
+
+merge_in_progress_is_of_branch = owns_merge_in_progress
+
+
 def format_local_changes_refusal_reason(*, merge_stdout: str, merge_stderr: str) -> str:
     """The operator-facing reason for a merge git REFUSED TO START because main holds local changes.
 
@@ -659,6 +734,25 @@ def format_local_changes_refusal_reason(*, merge_stdout: str, merge_stderr: str)
         "re-attempted once the base is clean"
     )
     return f"{head}; {detail}" if detail else head
+
+
+def format_foreign_merge_refusal_reason(repo: Path) -> str:
+    """The operator-facing reason for a merge refused because main is already mid-merge.
+
+    foreignmerge-01 (`g2z2pp`) E-03.
+
+    Refused BEFORE attempting any merge or issuing any abort, preserving the third party's staged
+    merge state untouched. Cites the foreign ``MERGE_HEAD`` commits so an operator can identify whose
+    merge it is. Carries NO cause token (F-13) and pastes NO git stderr (F-14) to maintain leak
+    discipline.
+    """
+    commits = merge_head_commits(repo)
+    commits_str = ", ".join(commits) if commits else "unknown"
+    return (
+        "integration refused: main is already mid-merge (MERGE_HEAD exists for commit(s): "
+        f"{commits_str}); no merge was attempted and no abort was issued; it is re-attempted once "
+        "the checkout clears"
+    )
 
 
 def generated_manifest_paths(paths: Sequence[str]) -> list[str]:
@@ -6756,6 +6850,11 @@ def integrate_lane_branch(
        no un-owned dirty paths overlapping the incoming lane's `changed_files`. If it does, REFUSE:
        do not run the gate, do not touch main, return kind ``"integration-blocked"`` so the caller
        preserves the verified branch/worktree.
+    0b. foreignmerge-01 (`g2z2pp`) E-03 FOREIGN-MERGE PRE-CHECK: BEFORE invoking the gate, assert main is
+       not ALREADY mid-merge (:func:`merge_in_progress`). If it is, REFUSE: do not run the gate, do not
+       touch main, attempt no merge and issue no abort, return kind ``"integration-blocked"``
+       (``INTEGRATION_REFUSAL_TRANSIENT``) with :func:`format_foreign_merge_refusal_reason` naming the
+       foreign ``MERGE_HEAD`` commits so the caller preserves the verified branch/worktree.
     1. Build a LaneOutcome and call `orchestrate_isolation.execute_merge_and_revalidate_gate`
        (DETECTS conflict/stale-base/lane-failure + REVALIDATES the combined diff). Conflict DETECTION
        is the gate's job; conflict RESOLUTION is a human/serial ordering.
@@ -6828,6 +6927,19 @@ def integrate_lane_branch(
                 "integration refused: main tree has un-owned dirty paths overlapping the incoming "
                 f"change: {', '.join(overlap)}"
             ),
+            INTEGRATION_REFUSAL_TRANSIENT,
+        )
+
+    # foreignmerge-01 (`g2z2pp`) E-03 FOREIGN-MERGE PRE-CHECK: BEFORE invoking the gate, assert main is
+    # not ALREADY mid-merge. The gate is expensive (materializes a merge result and runs a full suite)
+    # and spending it against a checkout the publish cannot land on is pure waste. If mid-merge, refuse
+    # with format_foreign_merge_refusal_reason: do not run the gate, do not touch main, attempt no merge
+    # and issue no abort, returning kind "merge-retry" (INTEGRATION_REFUSAL_TRANSIENT) so the caller
+    # preserves the verified branch/worktree.
+    if merge_in_progress(repo):
+        return (
+            False,
+            format_foreign_merge_refusal_reason(repo),
             INTEGRATION_REFUSAL_TRANSIENT,
         )
 
@@ -6914,9 +7026,12 @@ def integrate_lane_branch(
     # DO NOT NEST THIS UNDER A "MAIN ADVANCED" ASSUMPTION. Measured: the refusal is reached by TWO
     # routes. With main advanced, the `--ff-only` attempt fails as diverged and the `--no-ff` attempt
     # refuses (rc=2). With main NOT advanced, `--ff-only` ITSELF refuses with the same text (rc=1) and
-    # execution falls through to the `--no-ff` attempt, which refuses identically. Keying only on the
-    # structural test classifies both correctly; keying on "main advanced" would miss the second.
-    if merge_in_progress(repo):
+    # foreignmerge-01 (`g2z2pp`) E-04: Narrow the conflict arm so it fires ONLY when this call provably
+    # started the merge. This requires a CONJUNCTION (F-15/F-16):
+    # 1. owns_merge_in_progress(repo, branch=handle.branch) proves the merge is OF this lane's branch;
+    # 2. rc == 1 proves THIS CALL started the merge and conflicted, rather than git refusing rc=128
+    # when MERGE_HEAD already exists.
+    if rc == 1 and owns_merge_in_progress(repo, branch=handle.branch):
         # A real merge conflict: abort so main stays clean (no markers/partial merge); a human/serial
         # ordering resolves it via the preserved lane branch (E-02).
         # Capture the conflicted paths BEFORE aborting - the abort clears the index state they live in.
@@ -7062,6 +7177,22 @@ def integrate_lane_branch(
                 shape=str(resolver.get("shape") or CONFLICT_SHAPE_UNKNOWN),
             ),
             INTEGRATION_REFUSAL_CONFLICT,
+        )
+
+    elif merge_in_progress(repo):
+        # foreignmerge-01 (`g2z2pp`) E-04: main is mid-merge, but this call did NOT start it (a third
+        # party staged a merge, or git refused rc=128 because MERGE_HEAD already existed, or MERGE_HEAD
+        # does not match handle.branch).
+        #
+        # THIS ARM IS NOT DEAD CODE DESPITE E-03's PRE-CHECK, and it must not be deleted: E-03 reads
+        # git status at one instant and the merge runs at a later one, in a SHARED CHECKOUT where a peer
+        # can stage a merge in between ("no prediction can close that window").
+        #
+        # Issue NO abort so unowned work is not destroyed, and return the deferrable transient kind.
+        return (
+            False,
+            format_foreign_merge_refusal_reason(repo),
+            INTEGRATION_REFUSAL_TRANSIENT,
         )
 
     # Git REFUSED TO START the merge, so there is nothing to abort and NO abort is issued: with no
