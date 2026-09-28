@@ -1,5 +1,5 @@
 - Id: cnf7gw
-- Status: graduated
+- Status: done
 - Graduated-To: cnf7gw
 - Blocks-Release: next
 - Set: cnf7gw
@@ -8,6 +8,7 @@
 - Summary: finalize's ff-only reconciliation refuses when a PEER holds an uncommitted edit to the plan being finalized, and the refusal is correct but has no tooled remedy
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): closed by aw oc run: IPD 4er1ev executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-cnf7gw-01-4er1ev-give-the-contended-fast-forward-refusal-a-tooled-remedy-roll.ipd.md); evidence .aw/records/plans/executed/20260928-cnf7gw-01-4er1ev-give-the-contended-fast-forward-refusal-a-tooled-remedy-roll.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: 4er1ev
 - 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-16 created (aw backlog): finalize's ff-only reconciliation refuses when a PEER holds an uncommitted edit to the plan being finalized, and the refusal is correct but has no tooled remedy
