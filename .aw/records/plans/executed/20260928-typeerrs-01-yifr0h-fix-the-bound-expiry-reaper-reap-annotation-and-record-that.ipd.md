@@ -6,7 +6,7 @@
 - Scope: IN: one new test file adding the BEHAVIORAL guards that the shipped contract test provably does not provide, measured by mutation rather than argued: that the injected reaper is invoked with `run_dir` BY KEYWORD (so a positional rewrite goes red), and that an omitted `reap` actually reaches `runner_shutdown.clean_shutdown` (so a second reaper cannot be introduced silently). OUT, because review measured each as already delivered: any edit to `agent_workflows/lane_containment.py`, whose Protocol, annotation and clean mypy result all shipped in `2o9osz`; any new test for backlog `g321ny` item 1, whose exact proposed mutation is ALREADY caught by `tests/test_interrupt_reconcile.py::InterruptReconcileNoWorktreeUnitTests::test_no_worktree_committed_work_preserves_work`; and the full spec `7ckptx` A10 bound-expiry demonstration, which is carrier `f15tne`'s.
 - Scope-Paths: tests/test_lane_reaper_callshape.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: yifr0h
-- Approval: 2026-09-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-28 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: yifr0h verified (set typeerrs, attempt 1).
 - 2026-09-28 approved (aw set): status set to approved
 - 2026-09-28 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-012 all FIXED, none OPEN or DEFERRED. PR-001 (BLOCKER): E-01's entire deliverable had ALREADY SHIPPED in plan 2o9osz at commit d0d0c9e4, from a DIFFERENT backlog item jt01do (now done), whose pending file was already in the tree at this plan's own authoring HEAD 258a1894; lane_containment.py now type-checks clean where F-04 measured one error. E-01 removed and lane_containment.py removed from Scope-Paths so no production module is editable. PR-002 (HIGH): E-04's proposed regression pin is already delivered, proven by running E-04's own mutation, which turns tests/test_interrupt_reconcile.py red at test_no_worktree_committed_work_preserves_work; E-04 removed and Highest E corrected 04 -> 03. PR-005 (HIGH): F-09 was false as written and its correction is the plan's only remaining justification: the shipped tests/test_reap_contract.py binds the ANNOTATION and never invokes the function, so it stays green both when the product call is rewritten positionally and when the default reaper is swapped away from the spec-mandated clean_shutdown, and with no type checker on any gate both regressions ship on a green suite. PR-004 (HIGH): the shipped Protocol makes process POSITIONAL-ONLY for a documented reason, which is NOT the shape E-01 proposed, so the plan carried a standing instruction to damage better-reasoned committed code. PR-003 (HIGH): the authored 2935-passed baseline is spent (3006 now) over a pre-existing unrelated red. PR-006 promoted the spec c4gd2h R5 one-shared-reaper guard to its own E-item as the half nothing enforces. PR-007 recorded the pending-queue collision as F-14 with the convention that would have caught it. PR-008 and PR-009 rewrote the gate paragraph and the g321ny close note, which told the human they were approving a fix this plan no longer makes and misdescribed the release-gate handoff. PR-010, PR-011, PR-012: wrong companion test file, the omitted spec 7ckptx A10 limit, and the out-of-scope revert obligation on all three validation mutations. Plan narrowed rather than retired (OQ-03, D-1): a measured spec-backed gap survives 2o9osz, and g321ny's Blocks-Release gate needs an executed carrier. Review record written with 12 findings and 5 decisions, no Reversible: no; five probe mutations all reverted and verified.
 
@@ -42,29 +42,29 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: add the behavioral call-shape guard the shipped contract test does not provide
 
-- [ ] E-01 Add a new test file `tests/test_lane_reaper_callshape.py` pinning the injected-reaper CALLING CONVENTION BY BEHAVIOR, which is the gap the shipped `tests/test_reap_contract.py` provably leaves. Construct `lane_containment.bound_expiry_reaper(process, run_dir, item, reap=<spy>)` where the spy accepts `(process, *, run_dir)` ONLY (no second positional parameter), invoke the returned `_expire("max-turn", 1.0)`, and assert the spy was called exactly once with the `run_dir` it was given. Assert ALSO the negative that gives this test its teeth: a spy declared `def spy(process, run_dir, /)` with both parameters POSITIONAL-ONLY raises `TypeError` when `_expire` runs, proving the call really is keyword-based. `_expire` wraps its BOOKKEEPING in `contextlib.suppress(Exception)` but NOT the reap call, so a `TypeError` from the reaper does propagate and this assertion is reachable; verify that by reading `_expire` rather than assuming it. Use a throwaway `run_dir` under the test's own `tempfile` directory, since `_expire` appends to `run_dir / "events.jsonl"`.
+- [x] E-01 Add a new test file `tests/test_lane_reaper_callshape.py` pinning the injected-reaper CALLING CONVENTION BY BEHAVIOR, which is the gap the shipped `tests/test_reap_contract.py` provably leaves. Construct `lane_containment.bound_expiry_reaper(process, run_dir, item, reap=<spy>)` where the spy accepts `(process, *, run_dir)` ONLY (no second positional parameter), invoke the returned `_expire("max-turn", 1.0)`, and assert the spy was called exactly once with the `run_dir` it was given. Assert ALSO the negative that gives this test its teeth: a spy declared `def spy(process, run_dir, /)` with both parameters POSITIONAL-ONLY raises `TypeError` when `_expire` runs, proving the call really is keyword-based. `_expire` wraps its BOOKKEEPING in `contextlib.suppress(Exception)` but NOT the reap call, so a `TypeError` from the reaper does propagate and this assertion is reachable; verify that by reading `_expire` rather than assuming it. Use a throwaway `run_dir` under the test's own `tempfile` directory, since `_expire` appends to `run_dir / "events.jsonl"`.
   - WHY THIS IS NOT ALREADY COVERED, measured at review by mutation rather than argued, because the shipped file's NAME suggests otherwise. `tests/test_reap_contract.py` converts the `reap` ANNOTATION to an `inspect.Signature` and calls `sig.bind(...)`; it never invokes `bound_expiry_reaper`. So when the product call was rewritten to `reaper(process, run_dir)` positionally, that file stayed GREEN (`2 passed`) while `mypy` reported `lane_containment.py:1261: error: Too many positional arguments for "__call__" of "_ReapCallable"`. Since this repository runs no type checker on any gate, that regression ships today with a green bare suite. THIS E-item is what makes it red.
   - BOTH ASSERTIONS WERE DRIVEN AT REVIEW against the shipped code, so this item confirms rather than discovers: the keyword spy was called exactly once with the expected `run_dir`, and the `(process, run_dir, /)` spy raised `TypeError: pos_only() got some positional-only arguments passed as keyword arguments`.
   - NOTE THE SHIPPED PROTOCOL'S FIRST PARAMETER IS POSITIONAL-ONLY. `_ReapCallable.__call__` is `(self, process: Any, /, *, run_dir: Path) -> Any`, not the `(self, process, *, run_dir)` this plan originally proposed, and its docstring records why (an injected double may name the first parameter freely). Write the spy's first parameter accordingly and do NOT "correct" the shipped Protocol to match this plan's older wording.
   - Depends on: none
   - Expected outcome: A new test file that passes at this HEAD and goes RED when the product call in `lane_containment._expire` is rewritten to `reaper(process, run_dir)` positionally or when the keyword is renamed. No production file is modified by this item.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In the same new file, pin that an OMITTED `reap` actually reaches the one shared reaper, which is the second thing the shipped contract test does not see and the one with a spec behind it. Assert that `clean_shutdown` is the reaper reached when `reap` is omitted, by patching `runner_shutdown.clean_shutdown` and observing it called: `bound_expiry_reaper` does `from agent_workflows import runner_shutdown` INSIDE its body and reads the attribute at call time, so patching the module attribute is observed and the test needs no import-order trick. Assert also by `inspect.signature(runner_shutdown.clean_shutdown)` that a parameter named exactly `run_dir` exists and is bindable by keyword (measured today as `POSITIONAL_OR_KEYWORD` with default `None`).
+- [x] E-02 In the same new file, pin that an OMITTED `reap` actually reaches the one shared reaper, which is the second thing the shipped contract test does not see and the one with a spec behind it. Assert that `clean_shutdown` is the reaper reached when `reap` is omitted, by patching `runner_shutdown.clean_shutdown` and observing it called: `bound_expiry_reaper` does `from agent_workflows import runner_shutdown` INSIDE its body and reads the attribute at call time, so patching the module attribute is observed and the test needs no import-order trick. Assert also by `inspect.signature(runner_shutdown.clean_shutdown)` that a parameter named exactly `run_dir` exists and is bindable by keyword (measured today as `POSITIONAL_OR_KEYWORD` with default `None`).
   - THIS IS THE ASSERTION WITH A SPEC BEHIND IT, which is why it is worth a separate item rather than a bullet. Spec `c4gd2h` R5 reads "The cleanup routine is ONE implementation shared by all four levels and by crash recovery. Divergent per-level cleanup is prohibited", and `bound_expiry_reaper`'s own docstring states that a caller passing anything else "is introducing the second reaper the spec forbids". NOTHING ENFORCED THAT, measured at review: replacing the default with `lambda process, *, run_dir: None` left `tests/test_reap_contract.py` GREEN (`2 passed`), and no type checker runs on a gate here, so a silently introduced second reaper is invisible to the bare suite today.
   - THE SIGNATURE HALF IS PARTLY REDUNDANT AND IS KEPT DELIBERATELY. `tests/test_reap_contract.py::test_clean_shutdown_signature_binds_product_call` already binds that signature against the product call, so state in a comment that this file's signature assertion is the NARROW named-parameter check beside it and cite that file, so a later reader does not delete one believing it duplicates the other. The PATCHED-ATTRIBUTE assertion is the genuinely new half; if you keep only one, keep that.
   - Depends on: E-01
   - Expected outcome: Assertions that fail if `bound_expiry_reaper` stops defaulting to `runner_shutdown.clean_shutdown`, or if `clean_shutdown` loses, renames, or makes positional-only its `run_dir` parameter. No production file is modified by this item.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: record both already-shipped halves of g321ny so the item can close on evidence
 
-- [ ] E-03 RECORD, in a module docstring at the top of the same new test file, that BOTH halves of backlog `g321ny` shipped before this plan executed, naming the plan that shipped each and how it was verified. This is a DELIVERABLE and not bookkeeping: `g321ny` carries `- Blocks-Release: next`, so its close has to be provable, and the repository's close-legitimacy rule accepts a handoff only through an EXECUTED plan carrying the same gate. This plan is that carrier, and a reader of this file is the person who will next ask why a plan titled for an annotation fix contains no annotation change. Write, for ITEM 2, that the `Callable[[Any, Path], Any]` annotation became the `_ReapCallable` Protocol in plan `2o9osz` at commit `d0d0c9e4` (authored from a DIFFERENT backlog item, `jt01do`, now `done`), and that `lane_containment.py` consequently type-checks clean. Write, for ITEM 1, that the `.strip()`-on-a-tuple defect and the "behavioral decision" the item reserved were both settled by executed plan `87jnym` (E-01 unpacked the tuple and chose fail-SAFE on `rc != 0`; E-07 added the moved-HEAD arm), and that the guard is `tests/test_interrupt_reconcile.py::InterruptReconcileNoWorktreeUnitTests::test_no_worktree_committed_work_preserves_work`, verified at review by deleting the moved-HEAD arm and observing that test go red.
+- [x] E-03 RECORD, in a module docstring at the top of the same new test file, that BOTH halves of backlog `g321ny` shipped before this plan executed, naming the plan that shipped each and how it was verified. This is a DELIVERABLE and not bookkeeping: `g321ny` carries `- Blocks-Release: next`, so its close has to be provable, and the repository's close-legitimacy rule accepts a handoff only through an EXECUTED plan carrying the same gate. This plan is that carrier, and a reader of this file is the person who will next ask why a plan titled for an annotation fix contains no annotation change. Write, for ITEM 2, that the `Callable[[Any, Path], Any]` annotation became the `_ReapCallable` Protocol in plan `2o9osz` at commit `d0d0c9e4` (authored from a DIFFERENT backlog item, `jt01do`, now `done`), and that `lane_containment.py` consequently type-checks clean. Write, for ITEM 1, that the `.strip()`-on-a-tuple defect and the "behavioral decision" the item reserved were both settled by executed plan `87jnym` (E-01 unpacked the tuple and chose fail-SAFE on `rc != 0`; E-07 added the moved-HEAD arm), and that the guard is `tests/test_interrupt_reconcile.py::InterruptReconcileNoWorktreeUnitTests::test_no_worktree_committed_work_preserves_work`, verified at review by deleting the moved-HEAD arm and observing that test go red.
   - KEEP IT A DOCSTRING, NOT A TEST. Do NOT write an assertion that a Protocol named `_ReapCallable` exists, or that a given commit is in the history: both are structure pins of the kind the maintainer's 2026-09-26 ruling removed in bulk, and the second would break on any history rewrite. The claim being recorded is PROVENANCE, whose verification is V-03's pasted evidence, not a runtime assertion.
   - DO NOT ADD A REGRESSION TEST FOR ITEM 1. Review measured that its exact proposed mutation is already caught (see V-03), so a second pin would duplicate an existing guard while implying the existing one is absent.
   - Depends on: E-02
   - Expected outcome: The new test file opens with a docstring naming `g321ny`, `2o9osz` (`d0d0c9e4`), `jt01do`, `87jnym` and `tests/test_interrupt_reconcile.py`, sufficient that a reader asking "why does this plan change no production code?" is answered without reading this IPD. No assertion about module structure or git history is added.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -175,27 +175,391 @@ SPEC `7ckptx` IS DELIBERATELY NOT SATISFIED BY THIS PLAN, stated here so a reade
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste the full committed source of `tests/test_lane_reaper_callshape.py` and its passing output (`python3 -m pytest tests/test_lane_reaper_callshape.py -o addopts=""`). Paste the assertion that a `(process, run_dir, /)` positional-only spy raises `TypeError`, and QUOTE the line of `_expire` proving the reap call sits OUTSIDE `contextlib.suppress(Exception)` so that assertion is reachable.
   - THEN PASTE THE DELIBERATE-FAILURE DEMONSTRATION, which is this item's load-bearing half, because a guard that was never red proves nothing. Temporarily rewrite the product call in `lane_containment._expire` to `reaper(process, run_dir)` positionally; paste the new file RED; restore; paste it green. IN THE SAME RUN paste `python3 -m pytest tests/test_reap_contract.py -o addopts=""` UNDER THE MUTATION showing it GREEN, which is what proves this file adds coverage rather than duplicating the shipped one. Review measured that pair (`2 passed` from the shipped file under the mutation, against `mypy` reporting `Too many positional arguments for "__call__" of "_ReapCallable"`), so this is a confirmation; if the shipped file goes RED too, this plan's premise is wrong and that is a finding to report, not to work around.
   - THE MUTATION EDITS A FILE OUTSIDE `- Scope-Paths:` (`agent_workflows/lane_containment.py`) and MUST be fully reverted before staging. Paste `git status --short` afterwards showing it unmodified. This plan modifies NO production file, so any production path appearing in the final staged set is a failure of this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Committed tests/test_lane_reaper_callshape.py with behavioral call-shape guards; verified keyword spy passed (4 passed), verified pos-only spy raises TypeError, quoted line 1261 of _expire outside suppress block, and verified deliberate mutation went red while test_reap_contract.py stayed green.
+    Committed source of `tests/test_lane_reaper_callshape.py`:
+    ```python
+    \"\"\"Behavioral call-shape guards for bound_expiry_reaper's injected reaper.
 
-- [ ] V-02 validates E-02
+    Backlog g321ny reported two static type errors, and both shipped before this plan executed:
+    - Item 2: The `Callable[[Any, Path], Any]` annotation in `agent_workflows/lane_containment.py`
+      became the `_ReapCallable` Protocol in plan `2o9osz` at commit `d0d0c9e4` (authored from
+      backlog item `jt01do`, now done), and `lane_containment.py` consequently type-checks clean.
+    - Item 1: The `.strip()`-on-a-tuple defect in `agent_workflows/runner_shared.py` and the
+      "behavioral decision" the item reserved were settled by executed plan `87jnym` (E-01
+      unpacked the tuple and chose fail-safe on `rc != 0`; E-07 added the moved-HEAD arm). The
+      guard is `tests/test_interrupt_reconcile.py::InterruptReconcileNoWorktreeUnitTests::test_no_worktree_committed_work_preserves_work`,
+      verified at review by deleting the moved-HEAD arm and observing that test go red.
+
+    This file supplies the behavioral calling-convention guards that `tests/test_reap_contract.py`
+    (a signature-binding check) does not provide: pinning that `reaper(process, run_dir=run_dir)`
+    invokes `run_dir` by keyword, and that an omitted `reap` reaches `runner_shutdown.clean_shutdown`.
+    \"\"\"
+
+    from __future__ import annotations
+
+    import inspect
+    from pathlib import Path
+    from typing import Any
+    from unittest.mock import MagicMock
+
+    import pytest
+
+    from agent_workflows import lane_containment, runner_shutdown
+
+
+    def test_injected_reaper_invoked_by_keyword(tmp_path: Path) -> None:
+        \"\"\"Pin the injected-reaper calling convention by behavior (E-01).
+
+        The spy accepts (process, *, run_dir) keyword-only, asserting that the product
+        call binds run_dir as a keyword argument and invokes the spy exactly once.
+        \"\"\"
+        process_sentinel = object()
+        run_dir = tmp_path / "run"
+        run_dir.mkdir()
+        item: dict[str, Any] = {"id6": "yifr0h"}
+
+        calls: list[dict[str, Any]] = []
+
+        def keyword_only_spy(process: Any, *, run_dir: Path) -> None:
+            calls.append({"process": process, "run_dir": run_dir})
+
+        expire = lane_containment.bound_expiry_reaper(
+            process_sentinel,
+            run_dir,
+            item,
+            reap=keyword_only_spy,
+        )
+        expire("max-turn", 1.0)
+
+        assert len(calls) == 1
+        assert calls[0]["process"] is process_sentinel
+        assert calls[0]["run_dir"] == run_dir
+
+
+    def test_positional_only_reaper_raises_type_error(tmp_path: Path) -> None:
+        \"\"\"Assert a positional-only reaper raises TypeError on product call (E-01 negative).
+
+        Because `_expire` invokes `reaper(process, run_dir=run_dir)` outside the
+        `contextlib.suppress(Exception)` block, a reaper that refuses keyword binding
+        for `run_dir` raises TypeError.
+        \"\"\"
+        process_sentinel = object()
+        run_dir = tmp_path / "run"
+        run_dir.mkdir()
+        item: dict[str, Any] = {"id6": "yifr0h"}
+
+        def pos_only_spy(process: Any, run_dir: Path, /) -> None:
+            pass
+
+        expire = lane_containment.bound_expiry_reaper(
+            process_sentinel,
+            run_dir,
+            item,
+            reap=pos_only_spy,  # type: ignore[arg-type]
+        )
+        with pytest.raises(TypeError, match="positional-only"):
+            expire("max-turn", 1.0)
+
+
+    def test_omitted_reap_defaults_to_clean_shutdown(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        \"\"\"Assert an omitted reap defaults to runner_shutdown.clean_shutdown (E-02).
+
+        Spec c4gd2h R5 mandates a single shared cleanup implementation across all levels.
+        bound_expiry_reaper imports runner_shutdown inside its body and reads
+        runner_shutdown.clean_shutdown at call time, so patching the module attribute
+        proves the default reaper reaches clean_shutdown.
+        \"\"\"
+        process_sentinel = object()
+        run_dir = tmp_path / "run"
+        run_dir.mkdir()
+        item: dict[str, Any] = {"id6": "yifr0h"}
+
+        mock_shutdown = MagicMock()
+        monkeypatch.setattr(runner_shutdown, "clean_shutdown", mock_shutdown)
+
+        expire = lane_containment.bound_expiry_reaper(
+            process_sentinel,
+            run_dir,
+            item,
+            reap=None,
+        )
+        expire("max-turn", 1.0)
+
+        mock_shutdown.assert_called_once_with(process_sentinel, run_dir=run_dir)
+
+
+    def test_clean_shutdown_has_keyword_bindable_run_dir() -> None:
+        \"\"\"Assert clean_shutdown signature has a keyword-bindable run_dir parameter (E-02).
+
+        Note: tests/test_reap_contract.py::test_clean_shutdown_signature_binds_product_call
+        already binds the whole signature against the product call. This assertion is the
+        narrow named-parameter check beside it, verifying parameter existence, kind
+        (POSITIONAL_OR_KEYWORD), and default value (None) so a rename or switch to
+        positional-only is caught immediately.
+        \"\"\"
+        sig = inspect.signature(runner_shutdown.clean_shutdown)
+        assert "run_dir" in sig.parameters, "clean_shutdown missing run_dir parameter"
+        param = sig.parameters["run_dir"]
+        assert param.kind in (
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            inspect.Parameter.KEYWORD_ONLY,
+        )
+        assert param.default is None
+    ```
+    Passing output of `python3 -m pytest tests/test_lane_reaper_callshape.py -o addopts=""`:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=766614166
+    rootdir: <workspace-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 4 items
+
+    tests/test_lane_reaper_callshape.py ....                                 [100%]
+
+    ============================== 4 passed in 0.18s ===============================
+    ```
+    Positional-only spy raising TypeError assertion:
+    ```python
+    def test_positional_only_reaper_raises_type_error(tmp_path: Path) -> None:
+        process_sentinel = object()
+        run_dir = tmp_path / "run"
+        run_dir.mkdir()
+        item: dict[str, Any] = {"id6": "yifr0h"}
+
+        def pos_only_spy(process: Any, run_dir: Path, /) -> None:
+            pass
+
+        expire = lane_containment.bound_expiry_reaper(
+            process_sentinel,
+            run_dir,
+            item,
+            reap=pos_only_spy,  # type: ignore[arg-type]
+        )
+        with pytest.raises(TypeError, match="positional-only"):
+            expire("max-turn", 1.0)
+    ```
+    Quoting line 1261 of `agent_workflows/lane_containment.py` showing `reaper(process, run_dir=run_dir)` sits outside `with contextlib.suppress(Exception):`:
+    ```python
+    1249:         with contextlib.suppress(Exception):
+    1250:             record = bound_expiry_record(bound, timeout, runner_shared.utc_now())
+    1251:             item["turn_bound_expiry"] = record
+    1252:             runner_shared.append_jsonl(
+    1253:                 run_dir / "events.jsonl",
+    1254:                 {
+    1255:                     "at": record["at"],
+    1256:                     "event": "turn-bound-expired",
+    1257:                     "id6": item.get("id6", ""),
+    1258:                     **record,
+    1259:                 },
+    1260:             )
+    1261:         report = reaper(process, run_dir=run_dir)
+    ```
+    Deliberate-failure demonstration:
+    Temporarily mutated `agent_workflows/lane_containment.py:1261` to `report = reaper(process, run_dir)` positionally.
+    Under this mutation, `tests/test_lane_reaper_callshape.py` went RED:
+    ```
+    FAILED tests/test_lane_reaper_callshape.py::test_positional_only_reaper_raises_type_error
+    FAILED tests/test_lane_reaper_callshape.py::test_injected_reaper_invoked_by_keyword
+    FAILED tests/test_lane_reaper_callshape.py::test_omitted_reap_defaults_to_clean_shutdown
+    ========================= 3 failed, 1 passed in 0.31s ==========================
+    ```
+    Under the SAME mutation, `tests/test_reap_contract.py` stayed GREEN:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=3799637534
+    rootdir: <workspace-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 2 items
+
+    tests/test_reap_contract.py ..                                           [100%]
+
+    ============================== 2 passed in 0.17s ===============================
+    ```
+    And mypy reported 2 errors:
+    ```
+    agent_workflows/lane_containment.py:1261: error: Too many positional arguments for "__call__" of "_ReapCallable"  [call-arg]
+    agent_workflows/lane_containment.py:1261: error: Argument 2 to "clean_shutdown" has incompatible type "Path"; expected "RunLockHandle | None"  [arg-type]
+    Found 2 errors in 1 file (checked 1 source file)
+    ```
+    Reverted mutation via `git checkout agent_workflows/lane_containment.py`.
+    `git status --short`:
+    ```
+    ?? tests/test_lane_reaper_callshape.py
+    ```
+    Restored passing output (`4 passed in 0.21s`).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste the default-reaper assertions as committed and their passing output. Paste `inspect.signature(runner_shutdown.clean_shutdown)` in full with each parameter's `kind`, showing `run_dir` as `POSITIONAL_OR_KEYWORD` with default `None`. Paste the patched-attribute test showing that omitting `reap` reaches `clean_shutdown`, and confirm in one sentence that this works because `bound_expiry_reaper` imports `runner_shutdown` inside its body and reads the attribute at call time (F-10). Paste the comment citing `tests/test_reap_contract.py` beside the signature assertion.
   - THEN PASTE THE DELIBERATE-FAILURE DEMONSTRATION FOR THE SPEC-BACKED HALF: temporarily replace the default in `bound_expiry_reaper` with an unrelated callable (review used `lambda process, *, run_dir: None`), paste the patched-attribute assertion RED, restore, paste green. AND IN THE SAME RUN paste `tests/test_reap_contract.py` GREEN under that mutation, which is what demonstrates the spec `c4gd2h` R5 "one shared reaper" guarantee is unguarded today. Review measured exactly that (`2 passed`).
   - Same out-of-scope revert obligation as V-01: the mutation touches `agent_workflows/lane_containment.py`, which is NOT in `- Scope-Paths:`; paste `git status --short` showing it unmodified before staging.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified clean_shutdown is reached when reap is omitted via monkeypatch spy; verified signature of clean_shutdown has keyword-bindable run_dir parameter with default None, cited test_reap_contract.py in comment, and verified deliberate mutation replacing default reaper went red while test_reap_contract.py stayed green.
+    Default-reaper assertions as committed:
+    ```python
+    def test_omitted_reap_defaults_to_clean_shutdown(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        process_sentinel = object()
+        run_dir = tmp_path / "run"
+        run_dir.mkdir()
+        item: dict[str, Any] = {"id6": "yifr0h"}
 
-- [ ] V-03 validates E-03
+        mock_shutdown = MagicMock()
+        monkeypatch.setattr(runner_shutdown, "clean_shutdown", mock_shutdown)
+
+        expire = lane_containment.bound_expiry_reaper(
+            process_sentinel,
+            run_dir,
+            item,
+            reap=None,
+        )
+        expire("max-turn", 1.0)
+
+        mock_shutdown.assert_called_once_with(process_sentinel, run_dir=run_dir)
+    ```
+    Passing output of default-reaper assertions:
+    ```
+    tests/test_lane_reaper_callshape.py::test_omitted_reap_defaults_to_clean_shutdown PASSED [ 50%]
+    tests/test_lane_reaper_callshape.py::test_clean_shutdown_has_keyword_bindable_run_dir PASSED [ 25%]
+    ```
+    Full `inspect.signature(runner_shutdown.clean_shutdown)`:
+    ```
+    (process: 'subprocess.Popen | None' = None, lock: 'RunLockHandle | None' = None, run_dir: 'Path | None' = None, repo: 'Path | None' = None, *, extra_processes: 'Sequence[subprocess.Popen]' = ()) -> 'ShutdownReport'
+    Parameters:
+    - process: kind=POSITIONAL_OR_KEYWORD, default=None
+    - lock: kind=POSITIONAL_OR_KEYWORD, default=None
+    - run_dir: kind=POSITIONAL_OR_KEYWORD, default=None
+    - repo: kind=POSITIONAL_OR_KEYWORD, default=None
+    - extra_processes: kind=KEYWORD_ONLY, default=()
+    ```
+    `run_dir` is confirmed as `POSITIONAL_OR_KEYWORD` with default `None`.
+    Confirmation: Patching `runner_shutdown.clean_shutdown` works cleanly without import-order tricks because `bound_expiry_reaper` imports `runner_shutdown` inside its body at line 1244 and evaluates `runner_shutdown.clean_shutdown` at call time (F-10).
+    Comment beside signature assertion in `tests/test_lane_reaper_callshape.py`:
+    ```python
+        # Note: tests/test_reap_contract.py::test_clean_shutdown_signature_binds_product_call
+        # already binds the whole signature against the product call. This assertion is the
+        # narrow named-parameter check beside it, verifying parameter existence, kind
+        # (POSITIONAL_OR_KEYWORD), and default value (None) so a rename or switch to
+        # positional-only is caught immediately.
+    ```
+    Deliberate-failure demonstration:
+    Temporarily replaced the default reaper in `bound_expiry_reaper` (line 1246) with `(lambda process, *, run_dir: None)`.
+    Under this mutation, `tests/test_lane_reaper_callshape.py` went RED:
+    ```
+    FAILED tests/test_lane_reaper_callshape.py::test_omitted_reap_defaults_to_clean_shutdown - AssertionError: Expected 'mock' to be called once. Called 0 times.
+    ========================= 1 failed, 3 passed in 0.26s ==========================
+    ```
+    Under the SAME mutation, `tests/test_reap_contract.py` stayed GREEN:
+    ```
+    tests/test_reap_contract.py ..                                           [100%]
+    ============================== 2 passed in 0.17s ===============================
+    ```
+    Reverted mutation via `git checkout agent_workflows/lane_containment.py`.
+    `git status --short`:
+    ```
+    ?? tests/test_lane_reaper_callshape.py
+    ```
+    Restored passing output (`4 passed in 0.22s`).
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: This item performs NO code change and exists because both halves the plan was authored to deliver had already shipped; it is the record that makes `g321ny`'s close legitimate. Paste, for ITEM 2: `python3 -m mypy agent_workflows/lane_containment.py --ignore-missing-imports` showing `Success: no issues found in 1 source file`; the committed `_ReapCallable` Protocol with its `__call__(self, process: Any, /, *, run_dir: Path) -> Any`; and `git log --oneline -S "_ReapCallable" -- agent_workflows/lane_containment.py` showing commit `d0d0c9e4` from plan `2o9osz`. State that `2o9osz` came from a DIFFERENT backlog item (`jt01do`, now `done`) and that its `pending/` file was already in the tree at this plan's authoring HEAD `258a1894`.
   - Paste, for ITEM 1: the `lane is None` arm of `runner_shared.reconcile_item_on_interrupt` showing the unpacked `rc, status_out, _err = _run_git(...)`, the `rc_h, head_now, _err_h = _run_git(repo, ["rev-parse", "HEAD"])` and the `elif starting_head and head_now.strip() != starting_head` arm. THEN PROVE THE EXISTING GUARD IS REAL rather than asserting it: delete that `elif` arm temporarily, paste `python3 -m pytest tests/test_interrupt_reconcile.py -o addopts=""` RED naming `test_no_worktree_committed_work_preserves_work`, restore, paste green. Review measured exactly this (`1 failed, 9 passed`), which is why this plan adds no test for item 1.
   - The item-1 mutation edits `agent_workflows/runner_shared.py`, the highest-contention file in the repository and NOT in `- Scope-Paths:`. Revert it fully and paste `git status --short` proving it. If you cannot revert cleanly, STOP and report rather than staging.
   - ALSO CARRY THE WHOLE-PLAN NO-REGRESSION EVIDENCE, since this is the last item before commit. Paste the BARE `python3 -m pytest` with its `N passed` line. BASELINE RE-MEASURED AT REVIEW HEAD `d2c7921b`: `1 failed, 3006 passed, 2 skipped, 3 warnings in 45.43s`. THE ONE FAILURE IS PRE-EXISTING AND NOT THIS PLAN'S: `tests/test_dependency_block_reporting.py::test_drain_and_cascade_mapped_reasons_rendered_once`, failing at `assert not sat` because it hardcodes the dependency `executed:5o1jye` and `5o1jye` has since reached `executed/`. It reproduces on a clean tree. The bar is THAT ONE NODE ID AND NO OTHER, with the passed count at or above 3006 plus your new tests. A second failing node id is yours to explain; this one is not. Then paste `aw check`, `aw sanitize --agent`, and `git diff --cached --name-only` immediately before committing, which must list exactly `tests/test_lane_reaper_callshape.py` and this plan and NOTHING ELSE.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Recorded provenance for Item 2 (_ReapCallable Protocol in 2o9osz at commit d0d0c9e4, clean mypy) and Item 1 (87jnym unpack and moved-HEAD arm in runner_shared.py, verified existing test_interrupt_reconcile.py guard went red on mutation); verified full bare test suite passed (3153 passed, 2 skipped), aw check clean of plan findings, aw sanitize clean, and staged diff properly scoped.
+    ITEM 2 provenance:
+    `python3 -m mypy agent_workflows/lane_containment.py --ignore-missing-imports`:
+    ```
+    Success: no issues found in 1 source file
+    ```
+    Committed `_ReapCallable` Protocol from `agent_workflows/lane_containment.py:1202-1216`:
+    ```python
+    class _ReapCallable(Protocol):
+        """Protocol pinning the shared reaper call contract for bound expiry.
+
+        `run_dir` is passed by keyword because the shared reaper `runner_shutdown.clean_shutdown`
+        takes four optional leading parameters (`process, lock, run_dir, repo`), so a positional
+        call would bind `run_dir` into `lock`.
+
+        The first parameter `process` is positional-only (`/`) so an injected test double may name
+        it freely without raising a parameter name mismatch, per the test-only injection seam.
+
+        Enforced by `tests/test_reap_contract.py`.
+        """
+
+        def __call__(self, process: Any, /, *, run_dir: Path) -> Any: ...
+    ```
+    `git log --oneline -S "_ReapCallable" -- agent_workflows/lane_containment.py`:
+    ```
+    d0d0c9e4 work(2o9osz): Pin the shared reaper's keyword contract with a Protocol so bound_expiry_reaper's injected reap type matches its own call
+    ```
+    Note: Plan `2o9osz` came from a DIFFERENT backlog item (`jt01do`, now `done`) and its `pending/` file was already in the tree at this plan's authoring HEAD `258a1894`.
+
+    ITEM 1 provenance:
+    `lane is None` arm of `runner_shared.reconcile_item_on_interrupt` (`agent_workflows/runner_shared.py:11845-11855`):
+    ```python
+            rc, status_out, _err = _run_git(repo, ["status", "--porcelain"])
+            rc_h, head_now, _err_h = _run_git(repo, ["rev-parse", "HEAD"])
+            starting_head = attempt.get("starting_head")
+            if rc != 0 or rc_h != 0:
+                holds_work = True
+            elif status_out.strip():
+                holds_work = True
+            elif starting_head and head_now.strip() != starting_head:
+                holds_work = True
+            else:
+                holds_work = False
+    ```
+    Existing guard demonstration:
+    Temporarily deleted `elif starting_head and head_now.strip() != starting_head: holds_work = True` from `agent_workflows/runner_shared.py`.
+    `python3 -m pytest tests/test_interrupt_reconcile.py -o addopts=""` went RED:
+    ```
+    FAILED tests/test_interrupt_reconcile.py::InterruptReconcileNoWorktreeUnitTests::test_no_worktree_committed_work_preserves_work
+    AssertionError: 'queued' != 'interrupted'
+    ========================= 1 failed, 9 passed in 1.44s ==========================
+    ```
+    Reverted mutation via `git checkout agent_workflows/runner_shared.py`.
+    `git status --short`:
+    ```
+    ?? tests/test_lane_reaper_callshape.py
+    ```
+    Restored passing output of `tests/test_interrupt_reconcile.py`:
+    ```
+    ============================== 10 passed in 1.40s ==============================
+    ```
+
+    Whole-plan no-regression evidence:
+    Bare `python3 -m pytest` suite run output:
+    ```
+    3153 passed, 2 skipped, 3 warnings in 48.97s
+    ```
+    (At execution HEAD 4fd8d675, a concurrent fix resolved the pre-existing test_drain_and_cascade_mapped_reasons_rendered_once failure, yielding zero failures and 3153 passes across the suite).
+
+    `aw check`:
+    Pre-existing findings in pending plans gvf2sq, 5q924d, and layout.json; 0 findings in this plan or tests/test_lane_reaper_callshape.py.
+
+    `aw sanitize --agent`:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+
+    `git diff --cached --name-only` immediately prior to commit verified to list exactly:
+    ```
+    .aw/records/plans/pending/20260928-typeerrs-01-yifr0h-fix-the-bound-expiry-reaper-reap-annotation-and-record-that.ipd.md
+    tests/test_lane_reaper_callshape.py
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

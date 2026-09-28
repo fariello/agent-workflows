@@ -1,5 +1,5 @@
 - Id: g321ny
-- Status: graduated
+- Status: done
 - Graduated-To: typeerrs
 - Blocks-Release: next
 - Set: typeerrs
@@ -8,6 +8,7 @@
 - Summary: Two pre-existing type errors in runner_shared and lane_containment (unpacked git-runner tuple; reaper call arity)
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): closed by aw oc run: IPD yifr0h executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-typeerrs-01-yifr0h-fix-the-bound-expiry-reaper-reap-annotation-and-record-that.ipd.md); evidence .aw/records/plans/executed/20260928-typeerrs-01-yifr0h-fix-the-bound-expiry-reaper-reap-annotation-and-record-that.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: yifr0h
 - 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-16 created (aw backlog): Found while executing dirtygates Order 01 (d7qoxv); pre-existing at commit 4350ebc and NOT introduced by that plan.
