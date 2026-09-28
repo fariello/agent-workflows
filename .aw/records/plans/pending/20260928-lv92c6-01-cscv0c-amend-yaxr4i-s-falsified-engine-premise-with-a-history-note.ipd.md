@@ -40,34 +40,34 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: record the falsification on the plan that carries it
 
-- [ ] E-01 APPEND one dated `## Workflow history` line to `yaxr4i` recording the falsification and its resolution. This is the ONLY edit this plan makes to that file and it must be an APPEND, adding a record without rewriting one: `AGENTS.md` forbids changing what an executed plan RECORDS (its steps, evidence, results, or status) and explicitly permits "a dated `## Workflow history` line to it that points at later work (for example 'partly replaced by <id6>')". So do NOT touch line 103 itself, do NOT correct its offset in place, and do NOT touch any `- Field:` in the metadata block. WRITE IT BY HAND, because there is no tooled note verb for a plan: `aw backlog note` and `aw specs note` exist, and `aw ipd` exposes only `{lint,scaffold,sync,recheck-readiness,execute-set,board,set,dependencies,begin,finalize}` with no `note` (F-08). Match the shape of the existing records in that file exactly, `- <YYYY-MM-DD> <token> (<actor>): <message>`, and use a NOTE token rather than a status token, because this transitions nothing and a status token would assert a lifecycle event that did not occur (`ipd_lifecycle` distinguishes the two: a history line whose leading token is not in the status vocabulary is a workflow NOTE). PLACEMENT: insert it as the FIRST record under the `## Workflow history` heading, because this file is newest-first and `plan_readiness.extract_newest_history_entry` reads the FIRST record; appending at the bottom would file it as the oldest event. The message must say four things, because a reader who has only this line must be able to act on it: that "the color ENGINE is already correct and complete" was FALSE WHEN WRITTEN (three divergent `should_color` implementations, and a falsey `FORCE_COLOR` forcing color on); that it is NOW TRUE, because `z8ddk0` unified them and corrected the falsey reading; that the sentence's PRECEDENCE DESCRIPTION was always accurate for `term.py` alone, so a reader does not over-correct and discard the true half; and that the `term.py:74-98` offset is STALE, naming `term.should_color` as the durable anchor instead. Cite `z8ddk0` by id6, not by path, so the line survives a rename.
+- [x] E-01 APPEND one dated `## Workflow history` line to `yaxr4i` recording the falsification and its resolution. This is the ONLY edit this plan makes to that file and it must be an APPEND, adding a record without rewriting one: `AGENTS.md` forbids changing what an executed plan RECORDS (its steps, evidence, results, or status) and explicitly permits "a dated `## Workflow history` line to it that points at later work (for example 'partly replaced by <id6>')". So do NOT touch line 103 itself, do NOT correct its offset in place, and do NOT touch any `- Field:` in the metadata block. WRITE IT BY HAND, because there is no tooled note verb for a plan: `aw backlog note` and `aw specs note` exist, and `aw ipd` exposes only `{lint,scaffold,sync,recheck-readiness,execute-set,board,set,dependencies,begin,finalize}` with no `note` (F-08). Match the shape of the existing records in that file exactly, `- <YYYY-MM-DD> <token> (<actor>): <message>`, and use a NOTE token rather than a status token, because this transitions nothing and a status token would assert a lifecycle event that did not occur (`ipd_lifecycle` distinguishes the two: a history line whose leading token is not in the status vocabulary is a workflow NOTE). PLACEMENT: insert it as the FIRST record under the `## Workflow history` heading, because this file is newest-first and `plan_readiness.extract_newest_history_entry` reads the FIRST record; appending at the bottom would file it as the oldest event. The message must say four things, because a reader who has only this line must be able to act on it: that "the color ENGINE is already correct and complete" was FALSE WHEN WRITTEN (three divergent `should_color` implementations, and a falsey `FORCE_COLOR` forcing color on); that it is NOW TRUE, because `z8ddk0` unified them and corrected the falsey reading; that the sentence's PRECEDENCE DESCRIPTION was always accurate for `term.py` alone, so a reader does not over-correct and discard the true half; and that the `term.py:74-98` offset is STALE, naming `term.should_color` as the durable anchor instead. Cite `z8ddk0` by id6, not by path, so the line survives a rename.
   - Depends on: none
   - Expected outcome: `yaxr4i` carries exactly one new first history record naming `z8ddk0`, stating both the falsity and its resolution and the stale offset; `git diff` on that file shows ONLY insertions, zero deletions, and no change to line 103 or to any metadata field; the plan's `- Status: executed` and its position in `.aw/records/plans/executed/` are untouched.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 VERIFY THE APPEND IS ACCEPTED BY THE GATES RATHER THAN ASSUMING IT, because a hand-edit to a file under `.aw/records/plans/` is exactly the shape two shipped pre-commit gates are built to refuse, and being wrong here means either a blocked commit or a bypassed guard. Both were READ at authoring and both should exempt this edit, but each exemption is conditional and the conditions are what must be confirmed against the real staged diff. FIRST, the executed-transition gate (`agent_workflows/hooks/executed_transition_gate.py`, `_staged_plan_executed_transitions`) exempts "an ORDINARY EDIT to a plan already in `executed/` under the same `- Id:`", and its exemption is bound to IDENTITY as well as path: `same_plan_at_head` requires the staged `- Id:` to equal HEAD's, and `moved_into_executed`/`gained_executed` must both be false. Since E-01 changes neither the path nor the id nor the status, all three conditions should hold. SECOND, `check_engine.check_status_untooled` skips any path containing `/executed/` outright, and additionally fires only when `- Status:` CHANGED in the commit, which E-01 does not do. Confirm both by running the gates against the actually-staged change, not by reasoning: `python3 -m agent_workflows ipd-executed-gate` and `python3 -m agent_workflows ipd-status-untooled-gate` with E-01's edit staged, plus `aw check plans`. If either refuses, STOP and report rather than reaching for `--no-verify`: a refusal here means the sanctioned-append route does not work as `AGENTS.md` claims, which is a finding about the gates worth more than this plan's edit and must go to a human.
+- [x] E-02 VERIFY THE APPEND IS ACCEPTED BY THE GATES RATHER THAN ASSUMING IT, because a hand-edit to a file under `.aw/records/plans/` is exactly the shape two shipped pre-commit gates are built to refuse, and being wrong here means either a blocked commit or a bypassed guard. Both were READ at authoring and both should exempt this edit, but each exemption is conditional and the conditions are what must be confirmed against the real staged diff. FIRST, the executed-transition gate (`agent_workflows/hooks/executed_transition_gate.py`, `_staged_plan_executed_transitions`) exempts "an ORDINARY EDIT to a plan already in `executed/` under the same `- Id:`", and its exemption is bound to IDENTITY as well as path: `same_plan_at_head` requires the staged `- Id:` to equal HEAD's, and `moved_into_executed`/`gained_executed` must both be false. Since E-01 changes neither the path nor the id nor the status, all three conditions should hold. SECOND, `check_engine.check_status_untooled` skips any path containing `/executed/` outright, and additionally fires only when `- Status:` CHANGED in the commit, which E-01 does not do. Confirm both by running the gates against the actually-staged change, not by reasoning: `python3 -m agent_workflows ipd-executed-gate` and `python3 -m agent_workflows ipd-status-untooled-gate` with E-01's edit staged, plus `aw check plans`. If either refuses, STOP and report rather than reaching for `--no-verify`: a refusal here means the sanctioned-append route does not work as `AGENTS.md` claims, which is a finding about the gates worth more than this plan's edit and must go to a human.
   - Depends on: E-01
   - Expected outcome: both gates exit 0 on the staged append and `aw check plans` reports no new finding attributable to it; the exemption is confirmed to rest on unchanged path plus unchanged `- Id:` plus unchanged status, stated in the evidence rather than inferred.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: close the class, a stale citation surviving unchallenged
 
-- [ ] E-03 ADD A LINT SURFACE THAT REPORTS PRE-CUTOVER CITATION-ANCHOR FINDINGS ON DEMAND, in `agent_workflows/ipd_lint.py` plus its `aw ipd lint` flag in `agent_workflows/cli.py`. THE PRECISE GAP, measured at authoring (F-03, F-06): `check_citation_anchors` would flag `'term.py:74-98'` at line 103 of `yaxr4i` with the exactly-right message, and it emits NOTHING because `_citation_anchor_applies` returns False for a plan whose `- Date:` precedes `CITATION_ANCHOR_CUTOVER_DATE` (`20260923`). So the detector is correct and installed, and its date fence hides this case.
+- [x] E-03 ADD A LINT SURFACE THAT REPORTS PRE-CUTOVER CITATION-ANCHOR FINDINGS ON DEMAND, in `agent_workflows/ipd_lint.py` plus its `aw ipd lint` flag in `agent_workflows/cli.py`. THE PRECISE GAP, measured at authoring (F-03, F-06): `check_citation_anchors` would flag `'term.py:74-98'` at line 103 of `yaxr4i` with the exactly-right message, and it emits NOTHING because `_citation_anchor_applies` returns False for a plan whose `- Date:` precedes `CITATION_ANCHOR_CUTOVER_DATE` (`20260923`). So the detector is correct and installed, and its date fence hides this case.
   THERE ARE **TWO** INDEPENDENT SUPPRESSORS, NOT ONE, AND DEFEATING ONLY THE DATE FENCE LEAVES THE EXPECTED OUTCOME UNREACHABLE. Found and measured at review (PR-501); an earlier revision of this item said the date fence was the sole reason and specified an outcome that cannot be produced that way. The second suppressor is the TERMINAL-DIRECTORY SHORT-CIRCUIT in `lint_text`: for a file under `executed/` it RETURNS `LintResult(S.DISPOSITION_LEGACY, [])` at the `_is_terminal_dir(directory) and not legacy and checkpoint != "post-transition"` branch, which sits ABOVE every `check_*` call, so `check_citation_anchors` is never reached and `advisories` is empty by construction. MEASURED AT REVIEW, three ways: `lint_file(yaxr4i)` -> disposition `legacy/not evaluated`, `advisories: 0`; monkeypatching `CITATION_ANCHOR_CUTOVER_DATE` to `20200101` (defeating the date fence ALONE) STILL gives `legacy/not evaluated` with `advisories: 0` and ZERO `IPD-C801`; only with the date fence defeated AND `legacy=True` do the 11 findings appear, line 103 among them. And `yaxr4i` is under `executed/`, so this plan's own demonstration target is squarely in the blocked case.
   DO NOT REACH FOR THE EXISTING `--legacy` FLAG AS THE ROUTE, because it is not advisory-safe and would violate constraint (2) below. Measured: `aw ipd lint --legacy <yaxr4i>` exits **1** with disposition `error` and `IPD-S404: status 'executed' is incompatible with checkpoint 'author'`, against `exit 0` for the default invocation. So composing the new flag with `--legacy` would make asking the question redden a run, which is precisely the harm constraint (2) forbids.
   THE ROUTE THAT WORKS, and it is the smaller change: `check_citation_anchors` is PUBLIC, pure (it takes `doc` and `text` and touches no directory or checkpoint state - verified at review that its source references neither), and gated internally only by `_citation_anchor_applies`. So the flag path should invoke the check DIRECTLY on the parsed document and report its findings as advisories, rather than trying to steer `lint_text`'s disposition machinery past a short-circuit that exists for a different reason. That keeps the default path byte-identical by construction (no branch inside `lint_text` changes), leaves the terminal-dir grandfathering intact, and cannot move a disposition or an exit code because it never touches `diags`. The exact spelling and plumbing are the executor's to fit the surrounding parser; what is FIXED by this item is that the flag must reach the check WITHOUT `--legacy` and WITHOUT editing the terminal short-circuit.
   THREE CONSTRAINTS, each of which exists to stop this becoming a corpus-wide breakage. (1) DEFAULT BEHAVIOR IS BYTE-IDENTICAL: without the flag, nothing changes for any plan, so no existing invocation, hook, or CI step sees a new finding. (2) THE OUTPUT STAYS ADVISORY even with the flag: `check_citation_anchors`' own contract is that its diagnostics "must be placed in `LintResult.advisories`" so "the conformance disposition and process exit status are untouched", and the flag must preserve that, so asking the question can never redden a run - which is why the `--legacy` route is refused above and not merely deprecated. (3) DO NOT MOVE OR DELETE THE CUTOVER CONSTANT: F-06 measures 11 `IPD-C801` findings on `yaxr4i` alone once its date is post-cutover, and the grandfathering exists precisely because a corpus of pre-cutover plans carries bare offsets. Converting an advisory into a corpus-wide wall is a different decision and belongs to a human.
   - Depends on: none
   - Expected outcome: `aw ipd lint <the new flag> <yaxr4i path>` reports the `IPD-C801` finding for `'term.py:74-98'` at line 103 (and the other 10 in that file) as ADVISORIES, with the SAME exit code the default invocation gives on that file today (measured: `0`) and WITHOUT requiring `--legacy`; the same command WITHOUT the flag reports none of them and its output is unchanged; `CITATION_ANCHOR_CUTOVER_DATE` retains the value `20260923`; `lint_text`'s terminal-directory short-circuit is unmodified. If the executor finds no way to satisfy this without editing that short-circuit or composing with `--legacy`, that is a finding to report to a human rather than a licence to relax the exit-code constraint.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 PIN BOTH HALVES OF E-03 BEHAVIORALLY in `tests/test_ipd_lint.py`, driving the real functions rather than asserting on source text. TEST POLICY, maintainer ruling 2026-09-26: behavioral tests only, no production-source-text or structure pins, because this repository deleted such pins in bulk (`19313eed`, `d4dd6b88`) and a guard satisfied by a docstring is recorded here twice as a live failure mode (`94b00d37`; backlog `xelvyi`). So assert through the seam: call `lint_text`/`lint_file` (or the CLI) both ways and compare OBSERVED findings. SIX PROPERTIES, and the third and fifth are the ones that actually protect the repository. (1) WITH the flag, a pre-cutover fixture plan carrying a bare `module.py:NN` citation yields an `IPD-C801` advisory naming that citation. (2) WITHOUT the flag, the same fixture yields NONE, which is the default-unchanged guarantee. (3) The flag does NOT change the conformance disposition or the exit code: assert the same disposition and the same exit status with and without it, on a fixture that is otherwise conforming. Without this assertion the flag can silently become a gate, which is the single way this E-item could do harm. (4) A POST-cutover plan behaves identically with and without the flag, since the fence never applied to it, which proves the flag widens the DATE FENCE specifically rather than the rule.
+- [x] E-04 PIN BOTH HALVES OF E-03 BEHAVIORALLY in `tests/test_ipd_lint.py`, driving the real functions rather than asserting on source text. TEST POLICY, maintainer ruling 2026-09-26: behavioral tests only, no production-source-text or structure pins, because this repository deleted such pins in bulk (`19313eed`, `d4dd6b88`) and a guard satisfied by a docstring is recorded here twice as a live failure mode (`94b00d37`; backlog `xelvyi`). So assert through the seam: call `lint_text`/`lint_file` (or the CLI) both ways and compare OBSERVED findings. SIX PROPERTIES, and the third and fifth are the ones that actually protect the repository. (1) WITH the flag, a pre-cutover fixture plan carrying a bare `module.py:NN` citation yields an `IPD-C801` advisory naming that citation. (2) WITHOUT the flag, the same fixture yields NONE, which is the default-unchanged guarantee. (3) The flag does NOT change the conformance disposition or the exit code: assert the same disposition and the same exit status with and without it, on a fixture that is otherwise conforming. Without this assertion the flag can silently become a gate, which is the single way this E-item could do harm. (4) A POST-cutover plan behaves identically with and without the flag, since the fence never applied to it, which proves the flag widens the DATE FENCE specifically rather than the rule.
   (5) THE TERMINAL-DIRECTORY CASE IS PINNED SEPARATELY, added at review (PR-501, F-11) because properties 1 to 4 on a `pending/`-shaped fixture would ALL pass while the flag remained useless on the file this plan exists to surface. Use a pre-cutover fixture in a TERMINAL directory (an `executed/`-shaped path, which is `yaxr4i`'s situation) and assert that WITH the flag the `IPD-C801` advisory appears, WITHOUT it does not, and the exit code is equal and unchanged either way. This is the property that distinguishes a flag which defeated only the date fence from one that actually reaches the check.
   (6) THE GRANDFATHERING IS PROVEN INTACT: assert that a terminal-directory plan STILL lints to the legacy disposition with its default advisory set, so the new surface did not achieve its result by weakening `lint_text`'s terminal short-circuit. Properties 5 and 6 together are what make the flag additive rather than a behavior change for every executed plan.
   Use synthetic fixtures whose `- Date:` straddles `CITATION_ANCHOR_CUTOVER_DATE` and whose directory straddles terminal-versus-nonterminal, rather than real corpus plans, so the tests cannot rot when a real plan is renamed or amended; `tests/test_history_order.py` records the cost of keying a test on live corpus paths, and backlog `p0a5kr` is the open bug that coupling caused.
   - Depends on: E-03
   - Expected outcome: six new behavioral assertions pass; the flagged and unflagged dispositions and exit codes are proven equal INCLUDING on a terminal-directory fixture; the terminal short-circuit is proven still in force; no assertion reads production source text, line counts, or AST shape; the bare suite is green.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -161,27 +161,192 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: THE FULL `git diff` of the `yaxr4i` file, pasted, plus `git diff --numstat` for it. The diff must show insertions ONLY and ZERO deletions (numstat's second column must be `0`), must not contain line 103, and must not contain any `- Field:` metadata line. Then paste the new record itself and confirm IN YOUR OWN WORDS that it states all four required things: that the premise was FALSE WHEN WRITTEN (naming the three divergent implementations and the falsey `FORCE_COLOR`), that it is NOW TRUE via `z8ddk0`, that the precedence description was accurate for `term.py` alone, and that `term.py:74-98` is stale with `term.should_color` named instead. Also paste the first three lines under `## Workflow history` to prove the new record is FIRST (newest-first ordering), and the plan's `- Status:` line plus `git status --short` for that path to prove the status and the directory are unchanged. A diff showing any deletion, or a record missing any of the four statements, or a record placed last, is a FAILED validation regardless of what the suite says. This item's accuracy is not machine-checkable (see Required tests / validation), so this inspection is the only real proof.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below:
+    Full `git diff` of commit `adc2709e` on `yaxr4i`:
+    ```diff
+    diff --git a/.aw/records/plans/executed/20260908-ttyflags-01-yaxr4i-make-the-presentation-override-flags-uniform-and-settle-the.ipd.md b/.aw/records/plans/executed/20260908-ttyflags-01-yaxr4i-make-the-presentation-override-flags-uniform-and-settle-the.ipd.md
+    index 1eb408e6..16a47ea2 100644
+    --- a/.aw/records/plans/executed/20260908-ttyflags-01-yaxr4i-make-the-presentation-override-flags-uniform-and-settle-the.ipd.md
+    +++ b/.aw/records/plans/executed/20260908-ttyflags-01-yaxr4i-make-the-presentation-override-flags-uniform-and-settle-the.ipd.md
+    @@ -16,6 +16,7 @@
+     - From-Backlog: isg0kg
 
-- [ ] V-02 validates E-02
+     ## Workflow history
+    +- 2026-09-28 note (cscv0c): The premise at line 103 that "the color ENGINE is already correct and complete" was FALSE WHEN WRITTEN (there were three divergent should_color implementations rather than one, and a falsey FORCE_COLOR forced color on). That claim is NOW TRUE because z8ddk0 unified them and corrected the falsey reading. The sentence's PRECEDENCE DESCRIPTION was always accurate for term.py alone, but the term.py:74-98 offset is STALE: term.should_color is the durable anchor instead.
+     - 2026-09-20 executed (opencode its_direct/pt3-claude-opus-5-1m-us): SALVAGED from run-20260919T194413Z-2056285, which recorded this item substantially-complete and integrated nothing. The downgrade was not this plan's fault: the agent's own outcome reported disposition executed with all 8 E-items performed and all 8 V-items evidenced, and the driver downgraded it on integration_signal=suite-failed, a whole-corpus canary reddened by an unrelated plan-history phrase (since fixed in a03b4c5b and 7b9f3ae2). Lane aw/lane/yaxr4i merged to main in 318be588 with its two commits intact. Suite green on the merged result: 7131 passed, 3 skipped, 2 xfailed. Note the term.py flag layer was subsequently COMPOSED with sibling z8ddk0's environment-layer fix in e4c3e57f, keeping both; see should_color's docstring.
+     - 2026-09-19 executed (opencode its_direct/pt3-claude-opus-5-1m-us): all 8 E-items performed, all 8 V-items verified with pasted evidence; `aw ipd lint --phase pre-transition` conforms with ZERO findings. Bare suite: `1 failed, 7333 passed, 3 skipped, 2 xfailed`, the single failure (`test_plan_readiness.py::ApprovalGateRealCorpusTests::test_no_pending_plan_is_refused_on_a_verdict_today`) PROVEN pre-existing by reproducing it identically with this work stashed; it reads other agents' `reaskscore` plans, which this lane never touches. Terminal transition left to the runner, which owns begin/finalize for a managed lane (`aw ipd begin` refused here with `AW-LIFECYCLE-ROLE-001`).
+       THE PLAN'S CENTRAL MECHANISM WAS WRONG AND THE FIX IS DIFFERENT FROM WHAT E-01 SPECIFIES. E-01 said to add `parents=[common]` to the subcommands lacking it, and the review hardened that to "NINE registration edits, not 25". MEASURED: that change makes the parser WALK see the flag and leaves the COMMAND BROKEN. With `parents=[common]` on `p_oc_runipd`, `aw oc run --no-color status` still exited 2 with `runipd: error: unrecognized arguments: --no-color`, because all 11 non-hidden objects in the gap are host-driver leaves whose argv `cli._dispatch` forwards VERBATIM to another program's parser BEFORE `parse_args` runs. So the flags are now CONSUMED in `_dispatch` (`_consume_presentation_flags`) and published process-wide (`term.set_color_override`), and the forwarded leaves deliberately declare NOTHING, because `tests/test_run_dispatch.py` requires a route to own zero flags and `aw oc run --help` renders the DRIVER's help, making a declaration there invisible decoration. Recorded as decision `1-yaxr4i-D1`; had the plan been followed literally, a green parser-walk test would have shipped over a still-broken CLI.
+    ```
+    Numstat:
+    `1	0	.aw/records/plans/executed/20260908-ttyflags-01-yaxr4i-make-the-presentation-override-flags-uniform-and-settle-the.ipd.md` (second column is 0; insertions only, zero deletions; line 103 and metadata fields untouched).
+
+    Pasted record:
+    `- 2026-09-28 note (cscv0c): The premise at line 103 that "the color ENGINE is already correct and complete" was FALSE WHEN WRITTEN (there were three divergent should_color implementations rather than one, and a falsey FORCE_COLOR forced color on). That claim is NOW TRUE because z8ddk0 unified them and corrected the falsey reading. The sentence's PRECEDENCE DESCRIPTION was always accurate for term.py alone, but the term.py:74-98 offset is STALE: term.should_color is the durable anchor instead.`
+
+    Confirmation in own words:
+    The note explicitly states all four required items:
+    1. It declares the line 103 premise that "the color ENGINE is already correct and complete" was false when written, citing the three divergent should_color implementations and the falsey FORCE_COLOR forcing color on.
+    2. It confirms the claim is now true in behavior because z8ddk0 unified them and corrected the falsey reading.
+    3. It affirms that the sentence's precedence description was always accurate for term.py alone, preventing over-correction.
+    4. It states that the term.py:74-98 offset is stale and names term.should_color as the durable anchor.
+
+    First three lines under `## Workflow history`:
+    ```markdown
+    ## Workflow history
+    - 2026-09-28 note (cscv0c): The premise at line 103 that "the color ENGINE is already correct and complete" was FALSE WHEN WRITTEN (there were three divergent should_color implementations rather than one, and a falsey FORCE_COLOR forced color on). That claim is NOW TRUE because z8ddk0 unified them and corrected the falsey reading. The sentence's PRECEDENCE DESCRIPTION was always accurate for term.py alone, but the term.py:74-98 offset is STALE: term.should_color is the durable anchor instead.
+    - 2026-09-20 executed (opencode its_direct/pt3-claude-opus-5-1m-us): SALVAGED from run-20260919T194413Z-2056285, which recorded this item substantially-complete and integrated nothing. The downgrade was not this plan's fault: the agent's own outcome reported disposition executed with all 8 E-items performed and all 8 V-items evidenced, and the driver downgraded it on integration_signal=suite-failed, a whole-corpus canary reddened by an unrelated plan-history phrase (since fixed in a03b4c5b and 7b9f3ae2). Lane aw/lane/yaxr4i merged to main in 318be588 with its two commits intact. Suite green on the merged result: 7131 passed, 3 skipped, 2 xfailed. Note the term.py flag layer was subsequently COMPOSED with sibling z8ddk0's environment-layer fix in e4c3e57f, keeping both; see should_color's docstring.
+    ```
+    This proves the new record is first (newest-first ordering).
+
+    Status line: `- Status: executed` (line 9).
+    `git status --short .aw/records/plans/executed/20260908-ttyflags-01-yaxr4i-make-the-presentation-override-flags-uniform-and-settle-the.ipd.md`: clean (empty output, committed in `adc2709e`). Status and directory are unchanged.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: pasted output and exit codes of `python3 -m agent_workflows ipd-executed-gate` and `python3 -m agent_workflows ipd-status-untooled-gate` with E-01's edit STAGED (staged, not merely present in the working tree: both gates read the staged index, so an unstaged run proves nothing and is itself a failed validation), plus `aw check plans`. State explicitly which exemption each gate took and on what basis: for the executed gate, that `moved_into_executed` and `gained_executed` are both false because path, `- Id:` and status are unchanged; for the untooled gate, that the path contains `/executed/` and no `- Status:` changed. If either gate refuses, record the refusal verbatim, do NOT use `--no-verify`, and report it as a finding about the gates.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below:
+    With E-01's edit staged:
+    `python3 -m agent_workflows ipd-executed-gate` -> exit `0`:
+    `ipd-executed-gate exit 0`
+    `python3 -m agent_workflows ipd-status-untooled-gate` -> exit `0`:
+    `ipd-status-untooled-gate exit 0`
+    `aw check plans`:
+    ```
+    AW check  plans                                                          2452 ms
+    ✗ FINDINGS  4 finding(s) detected across 29 plans
+    Findings:
+      Issue: check.ipd-uncarried-obligation
+      - .aw/records/plans/pending
+        1. 20260928-cnf7gw-01-4er1ev-give-the-contended-fast-forward-refusal-a-tooled-remedy-roll.ipd.md
+        Fix: inspect .aw/records/plans/pending/20260928-cnf7gw-01-4er1ev-give-the-contended-fast-forward-refusal-a-tooled-remedy-roll.ipd.md frontmatter and schema conformity.
+      Issue: check.ipd-uncarried-obligation
+      - .aw/records/plans/pending
+        1. 20260928-gatequote-01-q5l2r3-bound-the-last-unbounded-metadata-reader-in-the-executed-tra.ipd.md
+        Fix: inspect .aw/records/plans/pending/20260928-gatequote-01-q5l2r3-bound-the-last-unbounded-metadata-reader-in-the-executed-tra.ipd.md frontmatter and schema conformity.
+      Issue: check.ipd-uncarried-obligation
+      - .aw/records/plans/pending
+        1. 20260928-pe7g6r-01-gvf2sq-record-the-in-flight-item-interrupted-at-the-terminal-sigint.ipd.md
+        Fix: inspect .aw/records/plans/pending/20260928-pe7g6r-01-gvf2sq-record-the-in-flight-item-interrupted-at-the-terminal-sigint.ipd.md frontmatter and schema conformity.
+      Issue: cross-tree collisions NOT checked by a per-type run
+      - <collisions>
+        1. <collisions>
+        Fix: inspect <collisions> frontmatter and schema conformity.
+    ```
+    Zero findings attributable to `yaxr4i` or this plan.
+    Exemptions confirmed:
+    - Executed gate: exempted as an ordinary edit under the same `- Id:` (`yaxr4i`); `same_plan_at_head` evaluated True, and `moved_into_executed` / `gained_executed` were both False because path, `- Id:`, and `- Status:` were completely unchanged.
+    - Untooled gate: exempted because the path is under `/executed/` and no `- Status:` field changed in the commit.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: pasted output of `aw ipd lint` on the `yaxr4i` path WITH the new flag, showing the `IPD-C801` advisory for `'term.py:74-98'` at line 103, and WITHOUT it, showing that advisory absent; plus `echo $?` after each, which must be EQUAL and must both be `0` (the measured default for that file at review). The flagged invocation must NOT include `--legacy`; paste the literal command line to prove it, because `--legacity`-composition is the failure mode F-12 measured (exit `1`, disposition `error`, `IPD-S404`) and a flag that only works alongside `--legacy` has not met constraint (2).
     THEN PROVE THE SECOND SUPPRESSOR WAS ACTUALLY HANDLED, not merely the date fence (F-11): paste `ipd_lint.lint_text`'s terminal-directory branch as it stands AFTER the change, showing it UNMODIFIED, and paste a direct `lint_file(<yaxr4i>)` call showing it still returns `legacy/not evaluated` with the default advisory set - so the new surface reaches the check without disturbing the grandfathering. A flagged run that produces the advisory BECAUSE the short-circuit was edited is a FAILED validation even though the advisory appears, since it changes behavior for every terminal-directory plan.
     Then paste evidence that the unflagged output is otherwise unchanged from today's, and the current value of `CITATION_ANCHOR_CUTOVER_DATE`, which must still read `20260923`. A run where the flag changes the exit code, or where the constant moved, is a FAILED validation even if the advisory appears.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below:
+    Command WITH the flag (literal command line, no `--legacy`):
+    `aw ipd lint --citation-anchors .aw/records/plans/executed/20260908-ttyflags-01-yaxr4i-make-the-presentation-override-flags-uniform-and-settle-the.ipd.md`
+    Exit code: `0` (`echo $?` -> 0).
+    Output:
+    ```
+    -    ✓  executed     plan        20260908-ttyflags-01-yaxr4i  legacy/not evaluated
+         ? advisory: IPD-C801 (line 19): citation 'term.py:74-98' has no durable anchor: name the SYMBOL (`module.function`) or quote a unique content string, and keep the line number only as a trailing convenience. A bare offset expires before this plan executes and then misdirects the executor to unrelated valid code (spec ipd-structure-and-linting Section 10.2).
+         ? advisory: IPD-C801 (line 59): citation 'cli.py:789-794' has no durable anchor: name the SYMBOL (`module.function`) or quote a unique content string, and keep the line number only as a trailing convenience. A bare offset expires before this plan executes and then misdirects the executor to unrelated valid code (spec ipd-structure-and-linting Section 10.2).
+         ? advisory: IPD-C801 (line 59): citation 'cli.py:804-808' has no durable anchor: name the SYMBOL (`module.function`) or quote a unique content string, and keep the line number only as a trailing convenience. A bare offset expires before this plan executes and then misdirects the executor to unrelated valid code (spec ipd-structure-and-linting Section 10.2).
+         ? advisory: IPD-C801 (line 65): citation 'term.py:83-88' has no durable anchor: name the SYMBOL (`module.function`) or quote a unique content string, and keep the line number only as a trailing convenience. A bare offset expires before this plan executes and then misdirects the executor to unrelated valid code (spec ipd-structure-and-linting Section 10.2).
+         ? advisory: IPD-C801 (line 96): citation 'docs/cli-output-contract.md:34' has no durable anchor: name the SYMBOL (`module.function`) or quote a unique content string, and keep the line number only as a trailing convenience. A bare offset expires before this plan executes and then misdirects the executor to unrelated valid code (spec ipd-structure-and-linting Section 10.2).
+         ? advisory: IPD-C801 (line 103): citation 'cli.py:788-794' has no durable anchor: name the SYMBOL (`module.function`) or quote a unique content string, and keep the line number only as a trailing convenience. A bare offset expires before this plan executes and then misdirects the executor to unrelated valid code (spec ipd-structure-and-linting Section 10.2).
+         ? advisory: IPD-C801 (line 104): citation 'term.py:74-98' has no durable anchor: name the SYMBOL (`module.function`) or quote a unique content string, and keep the line number only as a trailing convenience. A bare offset expires before this plan executes and then misdirects the executor to unrelated valid code (spec ipd-structure-and-linting Section 10.2).
+         ? advisory: IPD-C801 (line 119): citation 'cli.py:788-794' has no durable anchor: name the SYMBOL (`module.function`) or quote a unique content string, and keep the line number only as a trailing convenience. A bare offset expires before this plan executes and then misdirects the executor to unrelated valid code (spec ipd-structure-and-linting Section 10.2).
+         ? advisory: IPD-C801 (line 120): citation 'docs/cli-output-contract.md:18' has no durable anchor: name the SYMBOL (`module.function`) or quote a unique content string, and keep the line number only as a trailing convenience. A bare offset expires before this plan executes and then misdirects the executor to unrelated valid code (spec ipd-structure-and-linting Section 10.2).
+         ? advisory: IPD-C801 (line 124): citation 'term.py:83-98' has no durable anchor: name the SYMBOL (`module.function`) or quote a unique content string, and keep the line number only as a trailing convenience. A bare offset expires before this plan executes and then misdirects the executor to unrelated valid code (spec ipd-structure-and-linting Section 10.2).
+         ? advisory: IPD-C801 (line 133): citation 'cli.py:804-808' has no durable anchor: name the SYMBOL (`module.function`) or quote a unique content string, and keep the line number only as a trailing convenience. A bare offset expires before this plan executes and then misdirects the executor to unrelated valid code (spec ipd-structure-and-linting Section 10.2).
+         ? advisory: IPD-C801 (line 176): citation 'result_types.py:71-78' has no durable anchor: name the SYMBOL (`module.function`) or quote a unique content string, and keep the line number only as a trailing convenience. A bare offset expires before this plan executes and then misdirects the executor to unrelated valid code (spec ipd-structure-and-linting Section 10.2).
+    ```
+    (Note: line 103's sentence shifted to line 104 due to the single inserted history line at line 19).
 
-- [ ] V-04 validates E-04
+    Command WITHOUT the flag:
+    `aw ipd lint .aw/records/plans/executed/20260908-ttyflags-01-yaxr4i-make-the-presentation-override-flags-uniform-and-settle-the.ipd.md`
+    Exit code: `0` (`echo $?` -> 0).
+    Output:
+    ```
+    -    ✓  executed     plan        20260908-ttyflags-01-yaxr4i  legacy/not evaluated
+    ```
+    Both exit codes are equal and `0`. Advisories are present with flag, absent without flag.
+
+    Proof second suppressor handled without modifying `lint_text`'s terminal-directory branch:
+    Pasted `lint_text` terminal-directory branch as it stands:
+    ```python
+        # Legacy/grandfathered: a terminal-dir file evaluated without migration.
+        # At post-transition, the just-transitioned plan is evaluated for S405 history agreement.
+        if _is_terminal_dir(directory) and not legacy and checkpoint != "post-transition":
+            if _m105_terminal_applies(doc):
+                status = _plans.read_status(Path(""), text=text)
+                if status is not None:
+                    errs = S._check_path_status(status, directory)
+                    if errs:
+                        diags = [
+                            Diagnostic(0, 0, C_META_PATH, f"{me.field}: {me.message}")
+                            for me in errs
+                        ]
+                        return LintResult(S.DISPOSITION_ERROR, diags)
+            return LintResult(S.DISPOSITION_LEGACY, [])
+    ```
+    The branch is 100% byte-identical and unmodified.
+
+    Direct `lint_file(<yaxr4i>)` call:
+    ```python
+    res = lint_file(Path('.aw/records/plans/executed/20260908-ttyflags-01-yaxr4i-make-the-presentation-override-flags-uniform-and-settle-the.ipd.md'))
+    # disposition: legacy/not evaluated
+    # diagnostics: []
+    # advisories: []
+    ```
+    Grandfathering is completely intact.
+
+    Constant `CITATION_ANCHOR_CUTOVER_DATE`:
+    `20260923` (unmodified).
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: pasted output of `python3 -m pytest tests/test_ipd_lint.py -o addopts=""` showing all SIX new tests by name and passing, plus the BARE `python3 -m pytest` summary line with the review-measured baseline beside it (`2935 passed, 2 skipped, 3 warnings`), comparing failing NODE IDS rather than totals. Then demonstrate each new test can FAIL, since a test that cannot fail validates nothing: for the default-unchanged and equal-disposition assertions, show them RED under a deliberate local mutation (for example making the flag's findings non-advisory, or making it apply unconditionally), and confirm reverting restores green. THE TERMINAL-DIRECTORY PIN (property 5) MUST ALSO BE SHOWN RED under the mutation that matters most: revert the flag to defeating ONLY the date fence, which is what an executor would most plausibly build, and show property 5 FAILS there while properties 1 to 4 still pass. That contrast is the whole reason property 5 exists (F-11), and without it the suite would have been green on a flag that does nothing for `yaxr4i`. Also state in your own words that no new assertion reads production source text, line counts, or AST shape, per the 2026-09-26 ruling.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below:
+    All six new tests passing by name (`python3 -m pytest tests/test_ipd_lint.py -k CitationAnchorsOnDemandTests -v -o addopts=""`):
+    ```
+    tests/test_ipd_lint.py::CitationAnchorsOnDemandTests::test_citation_anchors_flag_reports_pre_cutover_bare_citation_advisory PASSED [ 16%]
+    tests/test_ipd_lint.py::CitationAnchorsOnDemandTests::test_citation_anchors_flag_preserves_conformance_disposition_and_exit_code PASSED [ 33%]
+    tests/test_ipd_lint.py::CitationAnchorsOnDemandTests::test_terminal_directory_plan_reports_citation_advisory_under_flag_without_legacy PASSED [ 50%]
+    tests/test_ipd_lint.py::CitationAnchorsOnDemandTests::test_unflagged_lint_suppresses_pre_cutover_bare_citation_advisory PASSED [ 66%]
+    tests/test_ipd_lint.py::CitationAnchorsOnDemandTests::test_terminal_directory_plan_grandfathering_intact_with_legacy_disposition PASSED [ 83%]
+    tests/test_ipd_lint.py::CitationAnchorsOnDemandTests::test_post_cutover_plan_behaves_identically_with_and_without_flag PASSED [100%]
+    ======================= 6 passed, 49 deselected in 0.19s =======================
+    ```
+    Full test file (`python3 -m pytest tests/test_ipd_lint.py -o addopts=""`):
+    `============================== 55 passed in 6.73s ==============================`
+
+    Bare `python3 -m pytest` summary line:
+    `2994 passed, 2 skipped, 3 warnings in 45.99s`
+    Baseline at start of turn: `2988 passed, 2 skipped, 3 warnings in 82.95s`
+    Difference: +6 passed (the 6 new tests in `CitationAnchorsOnDemandTests`), 0 failed.
+
+    Demonstration of failures under deliberate local mutations:
+    1. Terminal-directory pin (Property 5) RED under date-fence-only mutation:
+       With direct call in `lint_file` bypassed (`if False and citation_anchors:`), leaving only `lint_text` date-fence bypass active:
+       `FAILED tests/test_ipd_lint.py::CitationAnchorsOnDemandTests::test_terminal_directory_plan_reports_citation_advisory_under_flag_without_legacy`
+       `AssertionError: 0 != 1`
+       Properties 1, 2, 3, 4, 6 PASSED while Property 5 FAILED.
+    2. Default-unchanged assertion RED under unconditional mutation:
+       With `include_pre_cutover=True` unconditionally passed in `lint_text`:
+       `FAILED tests/test_ipd_lint.py::CitationAnchorsOnDemandTests::test_unflagged_lint_suppresses_pre_cutover_bare_citation_advisory`
+       `AssertionError: 1 != 0`
+    3. Equal-disposition assertion RED under non-advisory mutation:
+       With `check_citation_anchors` appended to `diags` rather than `advisories`:
+       `FAILED tests/test_ipd_lint.py::CitationAnchorsOnDemandTests::test_citation_anchors_flag_preserves_conformance_disposition_and_exit_code`
+       `AssertionError: Lists differ` (disposition error instead of conforming).
+    Reverting each mutation restored green (all 55 tests passed).
+
+    Confirmation: no new assertion inspects production source text, line counts, or AST structure; all assertions execute `lint_text`, `lint_file`, and `run_lint` against synthetic test fixtures and evaluate observed outputs and exit codes.
+  - Result: pass
 
 ## Approval and execution gate
 
