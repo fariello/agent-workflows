@@ -1,11 +1,13 @@
 - Id: rmcqw8
-- Status: open
+- Status: graduated
+- Graduated-To: probeprose
 - Set: rmcqw8
 - Priority: medium
 - Work-Kind: followup
 - Summary: the orchestrator coverage probe cannot see hazard prose stated OUTSIDE a checklist item, because payload and cache key must stay identical
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: 3brgb6
 - 2026-09-19 created (aw backlog): the orchestrator coverage probe cannot see hazard prose stated OUTSIDE a checklist item, because payload and cache key must stay identical
 
 The coverage gate landed by orchprobe-03 (m7gvuz) sends the orchestrator's checklist item action text plus its child table's row cells, and NOTHING else, because its E-03 requires the payload be EXACTLY the inputs probe_cache_digest keys on. That identity is load-bearing: a payload the key does not cover means editing that thing serves a STALE verdict under apparent authority, which is the one way the cache can be actively wrong rather than merely useless.
