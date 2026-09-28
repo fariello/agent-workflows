@@ -1,11 +1,13 @@
 - Id: cldbus
-- Status: open
+- Status: graduated
+- Graduated-To: cldbus
 - Set: cldbus
 - Priority: low
 - Work-Kind: chore
 - Summary: aw runs resume is declared a mutation but writes nothing
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: ck0vya
 - 2026-09-18 created (aw backlog): aw runs resume is declared a mutation but writes nothing
 
 MEASURED WHILE EXECUTING runanalytics Order 09 (ixis0c) E-01, by a test that derives the mutating verbs under `aw runs` from COMMAND_INVENTORY rather than hand-listing them.
