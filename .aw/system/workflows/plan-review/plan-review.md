@@ -253,6 +253,18 @@ Make surgical edits:
 When a finding spans plans, fix it in the owning plan and cross-reference it
 from dependent plans.
 
+When a revision corrects a mechanism, ordering, or classification, the
+correction is not complete until every other item in the plan that quotes or
+depends on the replaced wording has been swept and reconciled. This sweep
+is not limited to `V-*` items: check every item, field, and prose block
+(`E-*`, `V-*`, findings, proposed changes, gates, scope paths) against the plan
+as it now reads, not merely your own diff. Grep for distinctive tokens of the
+superseded wording (e.g. `PHASE_COMMITTED_INCOMPLETE` in `u23gbn`, where round 3
+corrected E-06 and V-06 but left V-02 demanding an impossible state). If a stale
+sibling belongs to an already executed plan and cannot be edited in place,
+record the contradiction in a dated `## Workflow history` note where readers
+will find it.
+
 If the approach is fundamentally unsound and cannot be repaired with bounded
 edits, mark `REPLAN`, explain why, and describe the minimum shape of a sound
 replacement. Do not invent decisions that require the human.

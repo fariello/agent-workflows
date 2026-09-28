@@ -27,6 +27,19 @@ For each, re-open the diff at `path:line` and classify it done / partial / missi
 (reuse the `verify-execution.md` Step 2 vocabulary). A requirement whose `V-*` evidence is empty or
 was never run is NOT satisfied, regardless of the `E-*` checkbox.
 
+An item whose evidence reports the demand itself as unsatisfiable is classified `done` only if the
+evidence satisfies a three-part bar: it states why the demand cannot be met, proves the impossibility
+with an empirical measurement rather than an argument from prose, and evidences the satisfiable
+counterpart that does exist. Absent any of the three, the requirement is not satisfied; a bare
+assertion of impossibility without a measurement is rejected as an unsupported excuse. Calibrated
+passing example: `u23gbn` V-02, which reported the demand for `PHASE_COMMITTED_INCOMPLETE` as
+unsatisfiable under the plan's ordering, pasted the ancestry result showing the commit is not
+reachable from the branch (`is the abandoned commit an ancestor of HEAD: False`, beside
+`classification: refused-would-overwrite`, `git rc: 1`, and `HEAD unmoved: True`), and evidenced the
+real post-commit incomplete case from E-07. Even when the requirement is rated `done` under this bar,
+an unsatisfiable demand is a plan defect: the auditor must still report the contradiction as a
+finding (requiring the corrective IPD route rather than an in-place edit to an executed plan).
+
 ## Dimension 2: Implicit Intent & Spirit Audit
 
 Verify the change honors the architectural INTENT, not just the letter. A line can be touched while

@@ -113,6 +113,18 @@ For a plan whose own first `- Kind:` bullet reads `orchestrator` (read from the 
 For cross-plan findings, fix the owning plan and cross-reference dependent
 plans. Do not duplicate requirements.
 
+When a revision corrects a mechanism, ordering, or classification, the
+correction is not complete until every other item in the plan that quotes or
+depends on the replaced wording has been swept and reconciled. This sweep
+is not limited to `V-*` items: check every item, field, and prose block
+(`E-*`, `V-*`, findings, proposed changes, gates, scope paths) against the plan
+as it now reads, not merely your own diff. Grep for distinctive tokens of the
+superseded wording (e.g. `PHASE_COMMITTED_INCOMPLETE` in `u23gbn`, where round 3
+corrected E-06 and V-06 but left V-02 demanding an impossible state). If a stale
+sibling belongs to an already executed plan and cannot be edited in place,
+record the contradiction in a dated `## Workflow history` note where readers
+will find it.
+
 If the approach is not safely patchable, mark `REPLAN`, explain why, and state
 the minimum shape of a sound replacement. Do not invent human product choices.
 
