@@ -4802,6 +4802,54 @@ class TheSharedTreeIsReconciledByARefusingFastForward(RollupTransitionCase):
         self.assertEqual(orch.read_text(encoding="utf-8"), peer_bytes)
         self.assertEqual(_git(self.root, "rev-parse", "HEAD").strip(), head)
 
+    def test_the_contended_arm_clears_journal_and_retry_succeeds(self):
+        """E-06: on the contended arm, the journal is cleared and a retry succeeds after the peer lands.
+
+        Why this is a race rather than a steady state: the rollup's up-front guard refuses a dirty
+        orchestrator before anything mutates, so reaching the contended merge requires the peer's edit
+        to arrive after that check (simulated via the _git seam).
+        """
+        from unittest import mock
+        from agent_workflows import ipd_lifecycle as LC
+
+        orch = self.make_set("ffretry", [("aaa111", 1, "executed", "executed")])
+        original = orch.read_text(encoding="utf-8")
+        peer_bytes = original + "\nPEER EDIT IN FLIGHT, uncommitted\n"
+        real_git = LC._git
+
+        def spy_git(root, args):
+            if (
+                args
+                and args[0] == "commit"
+                and Path(root).resolve() != self.root.resolve()
+            ):
+                orch.write_text(peer_bytes, encoding="utf-8")
+            return real_git(root, args)
+
+        with mock.patch.object(LC, "_git", spy_git):
+            res1 = self.retire(orch, "ffretry", apply=True)
+
+        self.assertNotEqual(res1.exit_code, LC.EXIT_OK, res1.message)
+        # Journal must be cleared rather than PHASE_UNKNOWN_OUTCOME
+        orch_id6 = "orc000"
+        journal = LC.read_finalize_journal(self.root, orch_id6)
+        self.assertIsNone(journal, f"journal must be cleared, got: {journal}")
+
+        # Peer commits their edit; tree becomes clean
+        _git(self.root, "add", "-A")
+        _git(self.root, "commit", "-q", "-m", "peer committed orchestrator edit")
+
+        # Retry after peer lands succeeds
+        res2 = self.retire(orch, "ffretry", apply=True)
+        self.assertEqual(res2.exit_code, LC.EXIT_OK, res2.message)
+        exec_path = (
+            self.root
+            / ".aw/records/plans/executed/20260906-ffretry-00-orc000-synthetic.ipd.md"
+        )
+        self.assertTrue(
+            exec_path.is_file(), "orchestrator must reach executed/ on retry"
+        )
+
     def test_the_diverged_arm_is_a_race_with_its_own_exit_code(self):
         """A peer COMMIT landing mid-transaction: rc=128, no fast-forward exists, tree clean."""
         import subprocess
