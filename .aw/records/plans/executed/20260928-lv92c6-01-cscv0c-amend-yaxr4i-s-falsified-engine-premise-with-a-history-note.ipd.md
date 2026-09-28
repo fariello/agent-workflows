@@ -6,7 +6,7 @@
 - Scope: IN: (a) record the falsification-then-resolution on `yaxr4i` as an APPENDED `## Workflow history` line, which is the one edit `AGENTS.md` sanctions on a plan already in `.aw/records/plans/executed/`, pointing at `z8ddk0` and stating both what was false and that it is now true, so the next reader of line 103 is not misled and the record is not rewritten; (b) close the GENERAL class the item names, a stale code citation surviving unchallenged in an approved plan, by removing the grandfathering hole this specific case fell through: measured at authoring, `aw ipd lint`'s `IPD-C801` citation-anchor advisory ALREADY flags `term.py:74-98` at line 103 exactly, and the ONLY reason it never fired is that `yaxr4i`'s `- Date: 2026-09-08` predates `CITATION_ANCHOR_CUTOVER_DATE` (`20260923`), so the advisory suppresses itself for the whole plan; add a lint surface that reports pre-cutover citations ON DEMAND so an author or reviewer can ask, without changing any plan's conformance disposition. OUT: every behavior change to the color engine (owned and DONE by `z8ddk0`); any edit to `yaxr4i`'s steps, evidence, results, metadata or `- Status:` (forbidden, and the whole reason (a) is a history append); rewriting `yaxr4i`'s stale citation in place; lowering or removing `CITATION_ANCHOR_CUTOVER_DATE` (F-06 measures that as 11 findings on `yaxr4i` alone and a corpus-wide mass failure); the identical stale claim in `isg0kg` and the line-97-versus-103 discrepancy in the item itself (F-07, F-09, both deferred with carriers); and the four unrelated deleted-test doc citations (backlog `ikxtkj`).
 - Scope-Paths: .aw/records/plans/executed/20260908-ttyflags-01-yaxr4i-make-the-presentation-override-flags-uniform-and-settle-the.ipd.md, agent_workflows/ipd_lint.py, agent_workflows/cli.py, tests/test_ipd_lint.py
 - Item-Dependencies: executed:z8ddk0
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: cscv0c
-- Approval: 2026-09-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-28 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: cscv0c verified (set lv92c6, attempt 1).
 - 2026-09-28 approved (aw set): status set to approved
 - 2026-09-28 reviewed (aw set): plan-review (opencode model=its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-501 (BLOCKER), PR-502, PR-503 all FIXED
 - 2026-09-28 /plan-review (opencode model=its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-501, PR-502, PR-503. Reviewed at HEAD `5a1f20e3` in a lane worktree; `aw ipd lint` conformed at `--phase author` before revision and at `--phase review-finalize` after. `check_engine.evaluate_durable_carrier` returns ZERO drifts and `aw check` names this plan under no rule. Every claim was re-derived independently: F-01, F-02, F-03, F-04, F-05, F-06, F-07, F-08, F-09, F-10 and both OQ measurements ALL REPRODUCED, including the 11 date-substituted findings with line 103 among them, the 387-of-797 census, and the `AW-LIFECYCLE-ROLE-001` refusal with no file modified. The record is `.aw/records/reviews/20260928-lv92c6-01-cscv0c-...review.md`.
