@@ -1,5 +1,6 @@
 - Id: evwmm2
-- Status: open
+- Status: graduated
+- Graduated-To: evwmm2
 - Blocks-Release: next
 - Set: evwmm2
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: aw check's human surface ignores a finding's structured recovery field and prints a generic inspect-frontmatter fix instead
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: iyilwm
 - 2026-09-18 created (aw backlog): aw check's human surface ignores a finding's structured recovery field and prints a generic inspect-frontmatter fix instead
 
 FOUND 2026-09-18 while executing nobugship rgaasb E-02 (the new check.live-bug-ungated rule). PRE-EXISTING and affects EVERY rule that populates recovery, not only the new one.
