@@ -4730,6 +4730,136 @@ def _three_way_merge_text(
     return rc, merged
 
 
+#: A `## Workflow history` bullet: `- YYYY-MM-DD <anything>`. The date is the sort key.
+_HISTORY_BULLET_RE = re.compile(r"^- (\d{4}-\d{2}-\d{2})\b")
+
+
+def resolve_history_append_conflict(merged_text: Any) -> str | None:
+    """Keep both sides of a conflict that ONLY appends dated `## Workflow history` bullets.
+
+    Returns the resolved text, or None when ANY hunk is not that shape (so the caller refuses as before).
+
+    WHY THIS IS ALWAYS SAFE: a workflow history is append-only and every entry is dated, so two runs
+    that each add an entry at the top of the list are never in disagreement; git conflicts only because
+    it cannot order two insertions at one point. Measured: run-20260927T221620Z-3933060, where jdn790's
+    verified lane was refused over exactly one such pair of lines in spec 25kzda and its three
+    dependents were then failed with it.
+
+    A hunk qualifies only when ALL of these hold: it carries a `|||||||` base section and that section
+    is EMPTY (neither side changed an existing line); every line on both sides is a dated history
+    bullet; and the nearest heading above it is `## Workflow history`. The merged lines are ordered
+    newest date first, and on a date tie the incoming (theirs) side goes first. Exact duplicates are
+    kept once.
+
+    MUST be fed three-way (`--diff3`) text, for the reason :func:`classify_conflict_hunk_shape` gives.
+    """
+
+    text = "" if merged_text is None else str(merged_text)
+    if "<<<<<<<" not in text:
+        return None
+    out: list[str] = []
+    heading = ""
+    ours: list[str] = []
+    base: list[str] | None = None
+    theirs: list[str] = []
+    where = "outside"
+    hunks = 0
+    for line in text.splitlines(keepends=True):
+        bare = line.rstrip("\r\n")
+        if where == "outside":
+            if bare.startswith("<<<<<<<"):
+                ours, base, theirs, where = [], None, [], "ours"
+                continue
+            if bare.startswith("## "):
+                heading = bare.strip()
+            out.append(line)
+            continue
+        if bare.startswith("<<<<<<<"):
+            return None
+        if bare.startswith("|||||||"):
+            if where != "ours":
+                return None
+            base, where = [], "base"
+            continue
+        if bare.startswith("======="):
+            if where not in ("ours", "base"):
+                return None
+            where = "theirs"
+            continue
+        if bare.startswith(">>>>>>>"):
+            if where != "theirs" or base is None or base:
+                return None
+            if heading != "## Workflow history" or not (ours or theirs):
+                return None
+            dated: list[tuple[str, int, str]] = []
+            for rank, side in ((0, theirs), (1, ours)):
+                for entry in side:
+                    match = _HISTORY_BULLET_RE.match(entry)
+                    if not match:
+                        return None
+                    dated.append((match.group(1), rank, entry))
+            seen: set[str] = set()
+            # Newest first; `rank` breaks date ties with the incoming side first (stable sort).
+            for _date, _rank, entry in sorted(
+                dated, key=lambda d: (d[0], -d[1]), reverse=True
+            ):
+                key = entry.rstrip("\r\n")
+                if key in seen:
+                    continue
+                seen.add(key)
+                out.append(entry if entry.endswith("\n") else entry + "\n")
+            hunks += 1
+            where = "outside"
+            continue
+        if where == "ours":
+            ours.append(line)
+        elif where == "base":
+            assert base is not None
+            base.append(line)
+        else:
+            theirs.append(line)
+    if where != "outside" or hunks == 0:
+        return None
+    return "".join(out)
+
+
+def auto_resolve_history_append_conflicts(
+    repo: Path, paths: Sequence[str]
+) -> tuple[bool, str]:
+    """Resolve EVERY conflicted path as a history-append conflict, or touch nothing.
+
+    ALL-OR-NOTHING: each path is checked first and nothing is written unless every one qualifies, so a
+    set with one real conflict refuses exactly as it did before. Only record files
+    (`.aw/records/**.md`) are eligible. MUST run while the merge is in progress (it reads the index
+    stages). On success every path is written and staged; the caller commits.
+    """
+
+    if not paths:
+        return False, "no conflicted paths"
+    resolved: dict[str, str] = {}
+    for path in paths:
+        if not (path.startswith(".aw/records/") and path.endswith(".md")):
+            return False, f"{path} is not a record file"
+        stages = {n: read_merge_stage(repo, n, path) for n in (1, 2, 3)}
+        if any(text is None for text in stages.values()):
+            return False, f"{path} is missing a merge stage"
+        rc, merged = _three_way_merge_text(repo, stages)
+        if rc < 0:
+            return False, f"{path}: git merge-file failed"
+        text = resolve_history_append_conflict(merged)
+        if text is None:
+            return False, f"{path} has a conflict that is not history-lines-only"
+        resolved[path] = text
+    for path, text in resolved.items():
+        (Path(repo) / path).write_text(text, encoding="utf-8")
+        rc, _out, err = _run_git(repo, ["add", "--", path])
+        if rc != 0:
+            return False, f"git add {path} failed: {err.strip()}"
+    return True, "kept both sides of history-only conflict(s) in: " + ", ".join(
+        sorted(resolved)
+    )
+
+
 def peer_commit_for_conflict(
     repo: Path, *, path: str, merged_text: Any, base_commit: str, head: str = "HEAD"
 ) -> tuple[str | None, str]:
@@ -6498,6 +6628,41 @@ def integrate_lane_branch(
                 False,
                 f"{apply_why}; "
                 + format_records_only_conflict_refusal_reason(verdicts),
+                INTEGRATION_REFUSAL_CONFLICT,
+            )
+
+        # A conflict that ONLY adds dated `## Workflow history` lines on both sides is never a real
+        # disagreement: keep both lines and finish the merge. Measured in
+        # run-20260927T221620Z-3933060, where one such pair of lines in a spec failed jdn790 and its three
+        # dependents. All-or-nothing: any other conflict in the set falls through to the refusal below.
+        history_ok, history_why = auto_resolve_history_append_conflicts(
+            repo, conflicted
+        )
+        if history_ok:
+            rc4, out4, err4 = _run_git(
+                repo,
+                [
+                    "commit",
+                    "--no-edit",
+                    "-m",
+                    f"integrate({host_label}): merge verified lane {id6} to main "
+                    "(kept both sides of workflow-history lines)",
+                ],
+            )
+            if rc4 == 0:
+                return (
+                    True,
+                    f"controlled non-ff merge integrated to main; {history_why}",
+                    "integrated",
+                )
+            # The commit was refused (a hook, most likely): restore the conflicted state for the
+            # ordinary refusal below by aborting, exactly as if this step had not run.
+            _run_git(repo, ["merge", "--abort"])
+            return (
+                False,
+                "history-only conflict was resolved but its commit was REFUSED, so the merge was "
+                "aborted and main is untouched: "
+                + ((err4 or out4 or "").strip() or "no message"),
                 INTEGRATION_REFUSAL_CONFLICT,
             )
 

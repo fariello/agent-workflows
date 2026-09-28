@@ -810,6 +810,102 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
                 self.assertEqual(overlap(repo, ["unrelated.txt"]), [])
                 self.assertEqual(overlap(repo, []), [])
 
+    _SPEC = ".aw/records/specs/approved/x.spec.md"
+    _SPEC_BASE = "# Spec\n\nBody.\n\n## Workflow history\n\n- 2026-09-26 note (aw specs): older\n"
+
+    def _history_race(
+        self, repo: pathlib.Path, id6: str, *, lane_line: str, main_line: str
+    ):
+        """Main and a lane each add ONE history line at the top of the same spec's history."""
+        spec = repo / self._SPEC
+        spec.parent.mkdir(parents=True, exist_ok=True)
+        spec.write_text(self._SPEC_BASE, encoding="utf-8")
+        self._git(repo, "add", self._SPEC)
+        self._git(repo, "commit", "-qm", "add spec")
+        top = "## Workflow history\n\n"
+        handle = self._lane(
+            repo,
+            id6,
+            path=self._SPEC,
+            body=self._SPEC_BASE.replace(top, top + lane_line + "\n"),
+        )
+        spec.write_text(
+            self._SPEC_BASE.replace(top, top + main_line + "\n"), encoding="utf-8"
+        )
+        self._git(repo, "add", self._SPEC)
+        self._git(repo, "commit", "-qm", "main adds a history line")
+        return handle
+
+    def test_a_history_lines_only_conflict_is_merged_keeping_both_lines(self):
+        """run-20260927T221620Z-3933060: jdn790 was refused over two history lines. Now it merges."""
+        import tempfile
+
+        lane_line = "- 2026-09-27 note (aw specs): from the lane"
+        main_line = "- 2026-09-27 note (aw specs): from main"
+        for runner in BOTH:
+            with self.subTest(runner=runner), tempfile.TemporaryDirectory() as tmp:
+                repo = self._repo(pathlib.Path(tmp))
+                handle = self._history_race(
+                    repo, "hhh111", lane_line=lane_line, main_line=main_line
+                )
+
+                integrated, reason, kind = _MODULES[runner].integrate_lane_branch(
+                    repo, handle, "hhh111", self._passing_runner()
+                )
+
+                self.assertTrue(integrated, reason)
+                self.assertEqual(kind, "integrated")
+                self.assertIn("kept both sides", reason)
+                text = (repo / self._SPEC).read_text(encoding="utf-8")
+                self.assertNotIn("<<<<<<<", text)
+                # Both lines kept, same date so the incoming lane line goes first, older line after.
+                self.assertIn(
+                    f"{lane_line}\n{main_line}\n- 2026-09-26 note (aw specs): older\n",
+                    text,
+                )
+                self.assertEqual(self._git(repo, "status", "--short"), "")
+                parents = self._git(repo, "log", "-1", "--pretty=%P").split()
+                self.assertEqual(len(parents), 2)
+
+    def test_a_conflict_that_edits_an_existing_line_is_still_refused(self):
+        """Only pure additions qualify: a side that rewrites an existing history line is a real conflict."""
+        import tempfile
+
+        for runner in BOTH:
+            with self.subTest(runner=runner), tempfile.TemporaryDirectory() as tmp:
+                repo = self._repo(pathlib.Path(tmp))
+                spec = repo / self._SPEC
+                spec.parent.mkdir(parents=True, exist_ok=True)
+                spec.write_text(self._SPEC_BASE, encoding="utf-8")
+                self._git(repo, "add", self._SPEC)
+                self._git(repo, "commit", "-qm", "add spec")
+                old = "- 2026-09-26 note (aw specs): older"
+                handle = self._lane(
+                    repo,
+                    "hhh222",
+                    path=self._SPEC,
+                    body=self._SPEC_BASE.replace(
+                        old, "- 2026-09-26 note (aw specs): lane rewrote"
+                    ),
+                )
+                spec.write_text(
+                    self._SPEC_BASE.replace(
+                        old, "- 2026-09-26 note (aw specs): main rewrote"
+                    ),
+                    encoding="utf-8",
+                )
+                self._git(repo, "commit", "-qam", "main rewrites the line")
+                head_before = self._git(repo, "rev-parse", "HEAD")
+
+                integrated, reason, kind = _MODULES[runner].integrate_lane_branch(
+                    repo, handle, "hhh222", self._passing_runner()
+                )
+
+                self.assertFalse(integrated, reason)
+                self.assertEqual(kind, runner_shared.INTEGRATION_REFUSAL_CONFLICT)
+                self.assertEqual(self._git(repo, "rev-parse", "HEAD"), head_before)
+                self.assertEqual(self._git(repo, "status", "--short"), "")
+
     def test_a_real_conflict_still_aborts_leaving_main_clean(self):
         import tempfile
 
