@@ -2462,9 +2462,10 @@ def refuse_undispatchable_typed_entry(
 # files, both scoped to the plan under review, so reviews in a shared lane touch DISJOINT paths and
 # there is nothing to collide over. And one lane is what makes SESSION SHARING safe by construction:
 # incident `lanesess xd9sll` was N TREES to ONE session (sessions keyed per SET, worktrees allocated
-# per ITEM, so an opencode session's own directory binding overrode `--dir`), and ONE tree to ONE
-# session cannot reproduce that cardinality mismatch. The accepted cost, stated plainly: the sweep
-# shares one lane, so a conflict strands that review rather than only that item's merge.
+# per ITEM, so carrying a session across trees produced silent exit-0 failures; the directory-override
+# explanation is unproven; F-03/F-07), and ONE tree to ONE session cannot reproduce that cardinality mismatch.
+# The accepted cost, stated plainly: the sweep shares one lane, so a conflict strands that review rather
+# than only that item's merge.
 #
 # WHY THE LANE MUST BE REFRESHED (OQ-04, maintainer chose option (a)). The lane is cut ONCE at
 # `base_commit="HEAD"`, and every review then merges to main, so main advances while the lane keeps its
@@ -3024,8 +3025,8 @@ def turn_runs_in_review_sweep_lane(state: dict[str, Any], work_dir: str | None) 
     THE DISTINCTION THIS DRAWS IS THE WHOLE OF `xd9sll`'s RULE, correctly stated. That incident is
     usually summarized as "an isolated turn must never reuse a session", but the recorded CAUSE is a
     MISMATCH OF CARDINALITY: sessions were keyed per SET while worktrees were allocated per ITEM, so
-    lanes 2..N inherited lane 1's session and an opencode session's own directory binding overrode
-    `--dir`. The invariant that actually holds is therefore NARROWER and stronger: never carry one
+    lanes 2..N inherited lane 1's session and carrying a session across trees caused a silent exit-0
+    failure (the override mechanism is unproven; F-03/F-07). The invariant that actually holds is therefore NARROWER and stronger: never carry one
     session into a DIFFERENT TREE.
 
     A per-item execute lane is a different tree on every turn, so it must keep getting a fresh session -
@@ -7808,7 +7809,8 @@ TURN_RETRYABLE_DISPOSITIONS: frozenset[str] = frozenset({"failed-safely"})
 
 #: Every disposition a driver can persist, with its retryable verdict and the REASON. One row per
 #: value, so "is this retryable?" is answered from a table a reader can audit rather than from a
-#: conditional. `tests/test_retry_consumption.py` asserts this table covers both drivers'
+#: conditional. `tests/test_retry_consumption.py` (trimmed in `19313eed`; coverage now asserted in
+#: `tests/test_silent_turn_observability.py` and `tests/test_runner_shared.py`) asserted this table covers both drivers'
 #: `TERMINAL_STATES` and `runner_shutdown.KNOWN_ITEM_STATUSES`, so a status added elsewhere without a
 #: verdict here FAILS A TEST instead of silently defaulting to retryable.
 TURN_RETRY_CLASSIFICATION: tuple[tuple[str, bool, str], ...] = (
@@ -8660,6 +8662,48 @@ def host_truncation_of_attempt(attempt: Mapping[str, Any]) -> Mapping[str, Any] 
     return record if isinstance(record, Mapping) else None
 
 
+def attempt_log_status(attempt: Mapping[str, Any]) -> str:
+    """Classify the attempt's session log as supporting evidence.
+
+    Returns one of: 'absent', 'empty', 'unparseable', 'non-dict', 'events'.
+    Shares tolerance with :func:`extract_session_id` (skips unparseable lines, non-dict events).
+    """
+    log_val = attempt.get("log")
+    if not log_val:
+        return "absent"
+    try:
+        log_path = Path(log_val)
+        if not log_path.exists():
+            return "absent"
+        if log_path.stat().st_size == 0:
+            return "empty"
+        has_lines = False
+        valid_events = 0
+        has_nondict = False
+        with log_path.open("r", encoding="utf-8", errors="replace") as handle:
+            for line in handle:
+                if not line.strip():
+                    continue
+                has_lines = True
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(event, dict):
+                    valid_events += 1
+                else:
+                    has_nondict = True
+        if valid_events > 0:
+            return "events"
+        if not has_lines:
+            return "empty"
+        if has_nondict:
+            return "non-dict"
+        return "unparseable"
+    except OSError:
+        return "absent"
+
+
 def turn_attempted_nothing(
     item: Mapping[str, Any],
     attempt: Mapping[str, Any],
@@ -8671,7 +8715,10 @@ def turn_attempted_nothing(
     """Did this finished turn PROVABLY attempt nothing? PURE: no I/O, no state write, no print.
 
     HOST-NEUTRAL AND HERE RATHER THAN IN EITHER DRIVER (spec `7ckptx` R2.6, R6.1): the RULE is defined
-    once and the two drivers contribute only the seam that reaches it.
+    once and the two drivers contribute only the seam that reaches it. Answers both EXECUTE and REVIEW
+    actions (r0iob3 E-01). Broadening to 'no productive events' rather than 'no events at all' is
+    deliberately out of scope: the measured symptom is literally zero output, and an event taxonomy
+    is left for future work.
 
     PURE BY INJECTION, not by pretending git is free. The two facts that need a probe are supplied by
     the caller: `outcome_written` (does the attempt's outcome file exist?) and `lane` (the lane's own
@@ -8719,10 +8766,12 @@ def turn_attempted_nothing(
     that is the safe direction.
     """
 
+    log_state = attempt_log_status(attempt)
     facts: dict[str, Any] = {
         "disposition": disposition,
         "isolated": turn_ran_in_a_lane(attempt),
         "outcome_written": outcome_written,
+        "log_reading": log_state,
     }
     truncation = host_truncation_of_attempt(attempt)
     truncated = truncation is not None
@@ -8762,11 +8811,6 @@ def turn_attempted_nothing(
         return refuse(
             "the turn ended in a DELIBERATE OPERATOR STOP, which is an intent and not a failure; "
             "retrying it would spend paid model turns fighting the operator"
-        )
-    if item.get("action") == "review":
-        return refuse(
-            "this is a REVIEW action, whose scoring reads the plan's `- Status:` and whose zero-work "
-            "case is a different question"
         )
     status = (disposition or "").strip()
     if status in ZERO_WORK_REFUSED_STATUSES or status == INTEGRATION_DEFERRED_STATUS:
@@ -8859,12 +8903,13 @@ def turn_attempted_nothing(
         if isolated
         else "the shared checkout's HEAD did not move and its tree is clean"
     )
+    log_corroboration = f"; attempt log is {log_state}"
     return ZeroWorkVerdict(
         attempted_nothing=True,
         proven=True,
         reason=(
             f"the turn PROVABLY attempted nothing: it wrote no outcome file and {where}"
-            f"{corroboration}"
+            f"{corroboration}{log_corroboration}"
         ),
         facts=facts,
         truncated=truncated,
@@ -21219,8 +21264,9 @@ def defect_reask_is_warranted(
 
       1. AN ISOLATED TURN IS ALWAYS A FRESH SESSION, by deliberate decision (`isolated_turn =
          bool(work_dir)` in `oc_runipd.run_opencode`, mirrored in `agy_runipd.execute_item`), because
-         an opencode session carries its own project binding that OVERRIDES `--dir`; four consecutive
-         lanes were lost proving it. So on an isolated lane turn there may be NO session to resume.
+         carrying a session across trees causes silent no-op turns (the directory-override explanation
+         is unproven; F-03/F-07); four consecutive lanes were lost proving the cardinality mismatch.
+         So on an isolated lane turn there may be NO session to resume.
          This function therefore REFUSES when no session id was observed rather than resuming into
          the wrong worktree: no session, no re-ask. The report is still recorded ABSENT, which is
          itself the honest observation.
@@ -29168,6 +29214,101 @@ def outcome_precedence_disposition(
     return None
 
 
+#: Refusal code for a review turn that exited 0 without producing positive evidence (r0iob3 E-04).
+REVIEW_ZERO_OUTPUT_REFUSAL_CODE: str = "review-zero-output-refused"
+
+
+def review_has_positive_evidence(
+    source: Path,
+    run_dir: Path,
+    item: Mapping[str, Any],
+) -> bool:
+    """Check whether a review turn produced positive evidence of activity (r0iob3 E-04).
+
+    Returns True if:
+      1. An attempt log in run_dir or item['attempts'] has productive events ('events').
+      2. The source repository/lane has uncommitted working-tree modifications.
+      3. The source repository/lane has git commits beyond starting head.
+      4. A review record exists under .aw/records/reviews/ in source.
+      5. An outcome file exists in run_dir.
+
+    Returns False when none of these positive signals can be established.
+    """
+    for attempt in item.get("attempts", []):
+        if isinstance(attempt, Mapping):
+            if attempt_log_status(attempt) == "events":
+                return True
+
+    try:
+        if run_dir.is_dir():
+            for log_file in run_dir.glob("attempt-*.log"):
+                if attempt_log_status({"log": str(log_file)}) == "events":
+                    return True
+            for log_file in run_dir.glob("*.log"):
+                if attempt_log_status({"log": str(log_file)}) == "events":
+                    return True
+    except OSError:
+        pass
+
+    path = recorded_outcome_path(run_dir, item)
+    if path is not None:
+        try:
+            if path.is_file() and path.stat().st_size > 0:
+                return True
+        except OSError:
+            pass
+
+    id6 = str(item.get("id6") or "").strip()
+    reviews_dir = source / ".aw" / "records" / "reviews"
+    try:
+        if reviews_dir.is_dir() and id6:
+            if any(reviews_dir.glob(f"*{id6}*")):
+                return True
+    except OSError:
+        pass
+
+    try:
+        proc = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=source,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+        if proc.returncode == 0 and proc.stdout.strip():
+            return True
+    except Exception:
+        pass
+
+    try:
+        attempts = item.get("attempts", [])
+        if attempts and isinstance(attempts, list):
+            first = attempts[0]
+            if isinstance(first, Mapping):
+                first_head = first.get("starting_head") or first.get(
+                    "lane_starting_head"
+                )
+                if first_head:
+                    proc = subprocess.run(
+                        ["git", "rev-parse", "HEAD"],
+                        cwd=source,
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                        timeout=5,
+                    )
+                    if (
+                        proc.returncode == 0
+                        and proc.stdout.strip() != first_head.strip()
+                    ):
+                        return True
+    except Exception:
+        pass
+
+    return False
+
+
 def reconcile_disposition(
     repo: Path,
     item: dict[str, Any],
@@ -29268,6 +29409,18 @@ def reconcile_disposition(
         except Exception:
             status = None
         if exit_code == 0:
+            if not review_has_positive_evidence(source, run_dir, item):
+                reason = (
+                    "review turn produced no positive evidence (attempt log has no events, "
+                    "working tree is clean, and no review record was written)"
+                )
+                record_refusal(
+                    item,
+                    code=REVIEW_ZERO_OUTPUT_REFUSAL_CODE,
+                    reason=reason,
+                    remedy=f"re-run review for {item.get('id6', '<unknown>')}",
+                )
+                return "fail-gate", None
             if status in ("reviewed", "approved"):
                 return status, None
             return "reviewed", None
@@ -30372,15 +30525,64 @@ def execute_item_core(
     options = state.get("options", {})
     max_items = options.get("max_items_per_session", 4)
     review_uses_sweep_session = is_review and isolation_for_action(options, "review")
-    raw_session = (
-        state.get(REVIEW_SWEEP_SESSION_KEY) or options.get("session")
-        if review_uses_sweep_session
-        else (
+    raw_session = None
+    if review_uses_sweep_session:
+        recorded_sweep_session = state.get(REVIEW_SWEEP_SESSION_KEY)
+        if recorded_sweep_session:
+            raw_session = recorded_sweep_session
+        elif options.get("session"):
+            # r0iob3 E-03: The operator's explicit `--session` was bound to the tree the operator ran in,
+            # not to this isolated sweep lane. Carrying it into a different tree produces silent exit-0 turns.
+            # Refuse loudly, naming both directories, record the refusal, and continue with a fresh session.
+            op_session = options.get("session")
+            op_tree = str(repo)
+            rec = review_sweep_lane_record(state)
+            lane_tree = (
+                str(rec.get("path"))
+                if rec and rec.get("path")
+                else str(run_dir / "review_sweep_lane")
+            )
+            refusal_reason = (
+                f"cannot carry operator session {op_session!r} bound to {op_tree!r} into isolated "
+                f"sweep lane {lane_tree!r}: cross-tree session reuse is refused to prevent silent "
+                f"execution failure; continuing with a fresh session"
+            )
+            record_refusal(
+                item,
+                code="cross-tree-session-refused",
+                reason=refusal_reason,
+                remedy=f"run without --session or use a session bound to {lane_tree!r}",
+            )
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "cross-tree-session-refused",
+                    "id6": item.get("id6"),
+                    "session_id": op_session,
+                    "operator_tree": op_tree,
+                    "lane_tree": lane_tree,
+                    "reason": refusal_reason,
+                },
+            )
+            pal = Palette(should_color(sys.stderr))
+            print(
+                pal(
+                    f"  ! Refused carrying operator session {op_session!r} into isolated sweep lane: "
+                    f"{refusal_reason}",
+                    "yellow",
+                ),
+                file=sys.stderr,
+            )
+            raw_session = None
+        else:
+            raw_session = None
+    else:
+        raw_session = (
             state.get("session_id")
             or state.get("set_sessions", {}).get(item["setid"])
             or options.get("session")
         )
-    )
     is_rotation = False
     if raw_session and max_items and max_items > 0:
         session_turns = state.get("session_turn_counts", {}).get(raw_session, 0)
@@ -30694,8 +30896,8 @@ def execute_item_core(
                 work_dir = str(wt_handle.path)
                 # lanesess (xd9sll): this turn now runs in its OWN tree, so it must NOT inherit a
                 # session bound to a DIFFERENT tree. Sessions were keyed per SET while worktrees are
-                # per ITEM, so lanes 2..N inherited lane 1's conversation and, with it, lane 1's
-                # directory, silently executing in the wrong worktree. Drop the inherited session and
+                # per ITEM, so carrying across trees caused silent exit-0 failures (the override
+                # explanation is unproven; F-03/F-07). Drop the inherited session and
                 # do NOT fall back to `--continue` (which resumes the previous conversation and would
                 # reintroduce the same carryover). Kept symmetric with oc_runipd.run_opencode; a
                 # one-driver-only fix is asserted against in tests.
@@ -31784,11 +31986,48 @@ def execute_item_core(
                         )
                     )
 
+        # r0iob3 E-02: consult turn_attempted_nothing on the completion path.
+        # Option (b): reuse existing non-retryable disposition "fail-gate" at the shared in-core seam.
+        outcome_written, lane = read_zero_work_evidence(repo, run_dir, item, attempt)
+        zero_work = turn_attempted_nothing(
+            item,
+            attempt,
+            disposition=disposition,
+            outcome_written=outcome_written,
+            lane=lane,
+        )
+        if zero_work.attempted_nothing:
+            disposition = "fail-gate" if is_review else "fail-verify"
+            attempt["disposition"] = disposition
+            item["status"] = disposition
+            record_refusal(
+                item,
+                code="turn-silent-refused",
+                reason=zero_work.reason,
+                remedy=f"inspect session log and retry turn for {item['id6']}",
+            )
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "ipd-silent-turn",
+                    "id6": item["id6"],
+                    "attempt": attempt_no,
+                    "reason": zero_work.reason,
+                    "facts": zero_work.facts,
+                },
+            )
+            print(
+                pal(f"\u2717 IPD {item['id6']} silent turn: {zero_work.reason}", "red"),
+                file=sys.stderr,
+            )
+
         suite_result: Any = None
         integration_gate_relevant = (
             self_finalize
             and not is_review
             and not is_production
+            and not zero_work.attempted_nothing
             and disposition
             in (
                 "executed",
