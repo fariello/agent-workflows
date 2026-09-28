@@ -8,7 +8,7 @@
 - Scope: Widen `probe_cache_payload` to carry an EVIDENCE-CHOSEN, allowlisted set of the orchestrator's unattached prose sections, so `probe_cache_digest` and `orchestrator_probe_excerpt` both widen with it from the one function they already share; re-establish the five `xmqv5l` no-op invariants plus the new move-on-hazard invariants in a behavioral test module, since the suite that held them was deleted; accept the one-time cache invalidation with its measured cost; and amend the two spec sentences and the one managed-`AGENTS.md` sentence that state the old key, so no contract describes a key that no longer exists.
 - Scope-Paths: agent_workflows/ipd_lint.py, agent_workflows/runner_shared.py, agent_workflows/engine.py, AGENTS.md, tests/test_orchestrator_probe_payload.py, tests/test_orchestrator_shape_gate.py, tests/test_orchestrator_shape_composed.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, .aw/records/specs/approved/20260919-r07vma-01-r07vma-orchestrator-conformance-parser-and-repair-loop.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
@@ -18,9 +18,9 @@
 - Highest E allocated: 07
 - Author: opencode model=its_direct/pt3-claude-opus-5-1m-us
 - Id: 3brgb6
-- Approval: 2026-09-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-28 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 3brgb6 verified (set probeprose, attempt 2). [Scope reconciliation - in-scope-unmodified tests/test_orchestrator_shape_composed.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified tests/test_orchestrator_shape_gate.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-09-28 approved (aw set): status set to approved
 - 2026-09-28 reviewed (aw set): plan-review (opencode model=its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-401..PR-406 all FIXED
 - 2026-09-28 /plan-review (opencode model=its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-401, PR-402, PR-403, PR-404, PR-405, PR-406. Reviewed at HEAD `1b29bcf8` in a lane worktree; `aw ipd lint` conformed at `--phase author` before revision and at `--phase review-finalize` after. Every measured claim in the plan was RE-DERIVED INDEPENDENTLY over all 66 orchestrators; F-06, F-07, F-08, F-09, F-11, F-12 and F-13 reproduced exactly, and the record `.aw/records/reviews/20260928-probeprose-01-3brgb6-...review.md` holds the numbers.
