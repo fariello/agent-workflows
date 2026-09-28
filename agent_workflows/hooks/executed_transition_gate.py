@@ -114,9 +114,15 @@ def _plan_id_of(text: Optional[str]) -> Optional[str]:
     if not text:
         return None
     import re
+    from agent_workflows import check_engine, selectors
 
-    m = re.search(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$", text)
-    return m.group(1) if m else None
+    region = selectors.metadata_region(text)
+    fenced_lines = check_engine._fenced_line_numbers(region)
+    for m in re.finditer(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$", region):
+        line_no = region[: m.start()].count("\n") + 1
+        if line_no not in fenced_lines:
+            return m.group(1)
+    return None
 
 
 def _staged_plan_executed_transitions(
