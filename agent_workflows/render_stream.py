@@ -3406,15 +3406,22 @@ def render_run_summary_table(
             # so a long reason cannot push it off the reader's screen.
             diag_lines.append(f"  • {id6}: {st} ({refusal.reason})")
             diag_lines.append(f"    → remedy: {refusal.remedy}")
-        elif st == "dependency-blocked":
+        elif st in ("fail-depend", "dependency-blocked"):
             reasons = it.get("unsatisfied_dependency_reasons") or {}
             deps = it.get("unsatisfied_dependencies") or []
+            # Frozen-record repair (5o1jye E-03): render f"{d} ({reasons[d]})" only when a
+            # reason was actually recorded, and bare d otherwise. Live post-E-01 cascade items
+            # carry a reason map so the placeholder was never consulted for them; this changes
+            # only frozen historical run records where the token already carried an embedded reason
+            # and no map existed, preventing a double parenthetical such as "... (blocked)".
             dep_msg = (
-                ", ".join(f"{d} ({reasons.get(d, 'blocked')})" for d in deps)
+                ", ".join(
+                    f"{d} ({reasons[d]})" if d in reasons else str(d) for d in deps
+                )
                 if deps
                 else "unmet dependencies"
             )
-            diag_lines.append(f"  • {id6}: dependency-blocked ({dep_msg})")
+            diag_lines.append(f"  • {id6}: {st} ({dep_msg})")
         elif st in (
             "failed-safely",
             "integration-blocked",

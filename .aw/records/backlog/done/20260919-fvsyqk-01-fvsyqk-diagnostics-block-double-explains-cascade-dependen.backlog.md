@@ -1,5 +1,5 @@
 - Id: fvsyqk
-- Status: graduated
+- Status: done
 - Graduated-To: fvsyqk
 - Blocks-Release: next
 - Set: fvsyqk
@@ -8,6 +8,7 @@
 - Summary: render_stream's diagnostics block renders a cascade-blocked dependency with two contradictory reasons, e.g. 'executed:aaa111 (target reviewed) (blocked)'
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): closed by aw oc run: IPD 5o1jye executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-fvsyqk-01-5o1jye-render-one-authoritative-reason-per-unmet-dependency-and-res.ipd.md); evidence .aw/records/plans/executed/20260928-fvsyqk-01-5o1jye-render-one-authoritative-reason-per-unmet-dependency-and-res.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: 5o1jye
 - 2026-09-19 created (aw backlog): render_stream's diagnostics block renders a cascade-blocked dependency with two contradictory reasons, e.g. 'executed:aaa111 (target reviewed) (blocked)'
 
