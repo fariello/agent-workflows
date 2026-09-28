@@ -1,5 +1,5 @@
 - Id: 5rebcb
-- Status: graduated
+- Status: done
 - Graduated-To: 5rebcb
 - Blocks-Release: next
 - Set: 5rebcb
@@ -8,6 +8,7 @@
 - Summary: render_continuation_hint crashes on a malformed queue entry: item_reached_success calls .get unconditionally
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): closed by aw oc run: IPD w7e3e3 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-5rebcb-01-w7e3e3-guard-item-reached-success-against-a-malformed-queue-entry-s.ipd.md); evidence .aw/records/plans/executed/20260928-5rebcb-01-w7e3e3-guard-item-reached-success-against-a-malformed-queue-entry-s.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: w7e3e3
 - 2026-09-19 created (aw backlog): Found while executing runnoop Order 03 (bsc457).
 

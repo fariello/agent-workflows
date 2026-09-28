@@ -25501,9 +25501,13 @@ def item_reached_success(item: Mapping[str, Any]) -> bool:
     Reads `action` and `status` off the entry and NOTHING ELSE, so it is safe to call on a
     hand-written manifest's entry or on a state file written by an older driver: a missing `action`
     is treated as the execute case, which is the conservative direction (it can only refuse to call
-    something a success, never manufacture one).
+    something a success, never manufacture one). A malformed entry (anything that is not a mapping)
+    is refused as a non-success, since an unreadable entry cannot be shown to have succeeded; that too
+    can only refuse to call something a success, never manufacture one.
     """
 
+    if not isinstance(item, Mapping):
+        return False
     status = item.get("status")
     return isinstance(status, str) and status in success_states_for_action(
         item.get("action")
@@ -25538,6 +25542,12 @@ def item_needs_approval(status: str | None, action: str | None) -> bool:
 #: confused with something a driver persists.
 EXIT_SUCCESS_TOKEN = "aw-item-met-its-action-success-bar"
 
+#: The token :func:`exit_code_statuses` projects a queue entry that was NOT a mapping onto (w7e3e3
+#: E-03). Deliberately not a real status, deliberately not spellable as one, and deliberately neither
+#: :data:`EXIT_SUCCESS_TOKEN` nor `"queued"`, so `runner_stop.deliberate_stop_exit_code` judges it
+#: a failure under both normal and graceful-stop runs rather than silently excusing it.
+EXIT_MALFORMED_ENTRY_TOKEN = "aw-queue-entry-was-malformed"
+
 
 def exit_code_statuses(queue: Sequence[Mapping[str, Any]]) -> list[str]:
     """Project each queue entry onto the token the run's exit-code predicate should judge (zz5yxq E-02).
@@ -25559,12 +25569,19 @@ def exit_code_statuses(queue: Sequence[Mapping[str, Any]]) -> list[str]:
     Projecting them onto anything else would either break a correct wind-down's exit 0 or silently
     excuse an item that did run.
 
-    Every other non-success status is passed through unchanged, so it still reads as a failure and a
-    reader of a debugger frame still sees the real disposition.
+    A malformed entry (anything that is not a mapping) projects onto
+    :data:`EXIT_MALFORMED_ENTRY_TOKEN`. It cannot be passed through via `str(status)` (which would
+    inject arbitrary unvetted text into the exit-code vocabulary) nor mapped to `"queued"` (which would
+    manufacture an exit 0 under a graceful stop). Every other non-success status is passed through
+    unchanged, so it still reads as a failure and a reader of a debugger frame still sees the real
+    disposition.
     """
 
     projected: list[str] = []
     for item in queue:
+        if not isinstance(item, Mapping):
+            projected.append(EXIT_MALFORMED_ENTRY_TOKEN)
+            continue
         status = item.get("status")
         if status == "queued":
             projected.append("queued")
