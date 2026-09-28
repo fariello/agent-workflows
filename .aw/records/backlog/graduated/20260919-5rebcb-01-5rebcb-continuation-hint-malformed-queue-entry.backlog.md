@@ -1,5 +1,6 @@
 - Id: 5rebcb
-- Status: open
+- Status: graduated
+- Graduated-To: 5rebcb
 - Blocks-Release: next
 - Set: 5rebcb
 - Priority: low
@@ -7,6 +8,7 @@
 - Summary: render_continuation_hint crashes on a malformed queue entry: item_reached_success calls .get unconditionally
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: w7e3e3
 - 2026-09-19 created (aw backlog): Found while executing runnoop Order 03 (bsc457).
 
 Measured 2026-09-19 at HEAD b5208b0e (i.e. BEFORE runnoop Order 03 bsc457, so this is pre-existing and not introduced by it).
