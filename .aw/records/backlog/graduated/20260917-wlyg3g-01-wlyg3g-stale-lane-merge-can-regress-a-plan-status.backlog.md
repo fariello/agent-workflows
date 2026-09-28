@@ -1,5 +1,6 @@
 - Id: wlyg3g
-- Status: open
+- Status: graduated
+- Graduated-To: lifecycledup
 - Blocks-Release: next
 - Set: wlyg3g
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: Merging a stale lane can resurrect a plan in pending/ at an earlier status while main holds it terminal, and no gate refuses the lifecycle regression
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: 46u3tu, tl2b2r
 - 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-17 created (aw backlog): Merging a stale lane can resurrect a plan in pending/ at an earlier status while main holds it terminal, and no gate refuses the lifecycle regression
 
