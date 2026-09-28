@@ -1,5 +1,6 @@
 - Id: 3f4ayi
-- Status: open
+- Status: graduated
+- Graduated-To: 3f4ayi
 - Blocks-Release: next
 - Set: 3f4ayi
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: AgentRenderer.render_summary crashes whenever --fields is set
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: gygujf
 - 2026-09-18 created (aw backlog): AgentRenderer.render_summary crashes whenever --fields is set
 
 REPRODUCED 2026-09-18 while executing runanalytics Order 09 (ixis0c) E-01. Order 08 (mm5p3v) DOCUMENTED this defect in a code comment in `run_analytics_cli._emit_query_agent` and worked around it, but filed no backlog item, so it had no carrier a gate could see. This item is that carrier.
