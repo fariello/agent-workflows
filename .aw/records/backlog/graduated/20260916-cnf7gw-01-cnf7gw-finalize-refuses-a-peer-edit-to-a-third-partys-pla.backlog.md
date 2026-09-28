@@ -1,5 +1,6 @@
 - Id: cnf7gw
-- Status: open
+- Status: graduated
+- Graduated-To: cnf7gw
 - Blocks-Release: next
 - Set: cnf7gw
 - Priority: high
@@ -7,6 +8,7 @@
 - Summary: finalize's ff-only reconciliation refuses when a PEER holds an uncommitted edit to the plan being finalized, and the refusal is correct but has no tooled remedy
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: 4er1ev
 - 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-16 created (aw backlog): finalize's ff-only reconciliation refuses when a PEER holds an uncommitted edit to the plan being finalized, and the refusal is correct but has no tooled remedy
 
