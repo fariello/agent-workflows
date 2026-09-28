@@ -6,7 +6,7 @@
 - Scope: IN: (a) one APPENDED `## Workflow history` note on `u23gbn` recording the contradiction and where the reason is, since `AGENTS.md` permits an append to an executed plan and forbids rewriting what it records; (b) a sweep instruction in `plan-review`'s revise step and its long-form twin, so a round that corrects a mechanism or ordering must re-read every OTHER item quoting the wording it just replaced; (c) one instruction in the `verify-execution` Dimension 1 requirement audit telling an auditor how to classify a `V-*` whose demand the executed plan itself reports as unsatisfiable, which is the state `u23gbn` is actually in today. OUT: any edit to `u23gbn`'s V-02 text, E-06, V-06, findings or metadata (forbidden: the plan is executed, and its V-02 evidence block is the TRUE record of what the executor did); any change to `ipd_lifecycle.py`, `commit_lock.py` or the retirement code, which is `u23gbn`'s and is executed and correct; any new deterministic lint rule (see Deferred, with the measurement that refuses it); `spec-review.md`, which references `plan-review`'s shared halves rather than copying them and carries no E/V rubric by test-enforced design.
 - Scope-Paths: .aw/records/plans/executed/20260913-dirtygates-04-u23gbn-retire-an-orchestrator-in-a-coordinator-owned-throwaway-work.ipd.md, .aw/system/workflows/plan-review/plan-review.md, .aw/system/workflows/plan-review-long/02-review-and-revise.md, .aw/system/workflows/verify-execution/intent-audit.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode model=its_direct/pt3-claude-opus-5-1m-us
 - Id: bwo8hp
-- Approval: 2026-09-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-28 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: bwo8hp verified (set rv2ccz, attempt 1).
 - 2026-09-28 approved (aw set): status set to approved
 - 2026-09-28 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-012 all FIXED, none OPEN or DEFERRED. Diagnosis verified in full: F-01, F-02, F-03's core claim, F-04 (gate probe exercised end to end and reverted), F-07, F-09 and F-10 all reproduce. Route unchanged. PR-003 (HIGH): all three edit anchors were quoted as whole SENTENCES and all three are line-wrapped, so none matches as a string and V-03/V-04 required proving the unmatchable text; re-quoted as verified-unique single-line fragments with wrap widths and section-end boundaries. PR-001 (HIGH): the authored 2935-passed baseline is spent (2995 now) and the tree carries a pre-existing unrelated red, test_drain_and_cascade_mapped_reasons_rendered_once, which the honesty rule would have made the executor own; baseline re-measured and the failure named with its cause. PR-004: the sweep was scoped to V-items though u23gbn E-06's own 'rather than inheriting E-02s wording' shows the first stale sibling was an E-item; widened to every item, field and prose block, plus sweep-against-the-plan-as-it-now-reads. PR-007: added F-12 recording 76fgt1 V-03 as a second instance of the class that review CAUGHT and inverted pre-execution, which is the plan's best argument. PR-002: F-03's corpus count re-measured (24 vocabulary hits over 802 plans, about four genuine), re-grounding the Deferred lint refusal on precision rather than volume. PR-005, PR-006, PR-008, PR-009, PR-010, PR-011, PR-012: misquoted git merge-base evidence, an unrunnable probe signature plus a four-consumer widening of F-08, the unnamed done classification and a four-vs-five vocabulary drift left deliberately out of fence, a false test citation under a correct exclusion, a miscounted grep, an unnamed note token, and a missing length target plus overclaim guard. Added OQ-03 (non-blocking, carries D-4). Review record written with 12 findings and 6 decisions, no Reversible: no.
 
