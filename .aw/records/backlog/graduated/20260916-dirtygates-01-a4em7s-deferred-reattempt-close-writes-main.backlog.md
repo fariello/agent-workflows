@@ -1,5 +1,6 @@
 - Id: a4em7s
-- Status: open
+- Status: graduated
+- Graduated-To: reattclose
 - Blocks-Release: next
 - Set: dirtygates
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: A deferred integration re-attempt still closes its backlog item in the shared checkout
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: pjuoyj
 - 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-16 created (aw backlog): found while executing dirtygates-03 (9iq461)
 
