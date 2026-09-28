@@ -6,7 +6,7 @@
 - Scope: IN: a criteria parser over a spec's acceptance section; a coverage predicate over the linked plans' validation-bearing sections; one `info`-severity rule registered in `RULE_REGISTRY` and reachable from the plans-content seam; a namespace-in-use gate; tests including the counterfactual pin and a negative control. OUT: any change to spec authoring conventions, any `- Covers:` metadata field, any `aw attention` view, any change to `SPEC_STATUSES` or to how a spec reaches `implemented`, and any promotion of this rule above `info`.
 - Scope-Paths: agent_workflows/check_engine.py, tests/test_check_engine_spec_criteria.py, .aw/records/specs/draft/20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode
 - Id: 3dexf1
-- Approval: 2026-09-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-28 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 3dexf1 verified (set 7pntcb, attempt 1).
 - 2026-09-28 approved (aw set): status set to approved
 - 2026-09-28 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-601, PR-602, PR-603, PR-604, PR-605. The design is sound and both load-bearing measurements reproduce exactly: F-03's search-space choice (uonrjg 6 uncovered under valid_leaves-only, 0 under V+Required tests, with bn026f's two quoted lines verbatim in that section) and F-06's counterfactual at commit 516eb661 (TP=5 FP=0 FN=0 for the exact set {A1,A4,A6,A19,A21}). The corpus is 0-finding at HEAD with the gate, the gate is necessary, and info is provably the only non-failing severity. ONE BLOCKING DEFECT found: E-01 names three criterion row shapes and the corpus needs FOUR, so 7ckptx parses zero criteria and three of the plan's own expected outcomes become mutually unsatisfiable (new F-09, OQ-02). Also corrected five stale per-spec counts that two V-items demanded as equalities (new F-10), a unit conflation between uncovered criteria (22) and emitted Drifts (2) (new F-11), a V-04 clause demanding output from a test file deleted in 19313eed (new F-12), and two misquotations including one in the row representing the prior research recommendation against this work (new F-13). No design decision changed.
 
