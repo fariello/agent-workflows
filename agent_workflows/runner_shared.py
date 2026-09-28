@@ -10451,7 +10451,12 @@ def retry_deferred_integrations(
         # `item is already done` (close=False) and OVERWRITE the success record with a refusal, so a
         # correct close would be reported to the operator as "left open".
         if not (item.get("backlog_close") or {}).get("closed"):
-            process_backlog_close(run_dir, state, item)
+            perform_coordinator_backlog_close(
+                run_dir,
+                state,
+                item,
+                process_backlog_close=process_backlog_close,
+            )
         save_state(run_dir, state)
 
     def _integrate_review(item: Any, handle: Any) -> tuple[bool, str, str]:
@@ -34256,6 +34261,7 @@ def process_backlog_close(
     run_checked: Callable[..., str],
     close_backlog_item: Callable[..., tuple[int, str]],
     commit_backlog_close: Callable[..., Any],
+    wrote_in: str | None = None,
 ) -> None:
     """After a plan reaches `executed`, close its backlog item if this run earned it (E-02/E-03/E-04).
 
@@ -34331,7 +34337,11 @@ def process_backlog_close(
         "evidence": verdict.evidence,
         # Recorded so an operator (and V-01) can tell from the run's own state WHICH tree performed
         # the write, rather than inferring it from the absence of a commit.
-        "wrote_in": "lane" if isolated else "main",
+        "wrote_in": (
+            wrote_in
+            if wrote_in is not None
+            else (item.pop("_wrote_in", None) or ("lane" if isolated else "main"))
+        ),
     }
     if not verdict.close:
         item["backlog_close"] = record
@@ -34375,7 +34385,6 @@ def process_backlog_close(
             },
         )
         return
-    record["closed"] = True
     # E-02: COMMIT IN THE TREE THE MOVE HAPPENED IN, WHICH IS THE WHOLE OF THE FIX.
     #
     # For an ISOLATED turn that is the LANE, so this commit lands on the lane BRANCH and reaches main
@@ -34397,13 +34406,33 @@ def process_backlog_close(
     # global and never from a read of `.aw/records/runs/`, which is gitignored and absent from a lane
     # worktree. `state.get` rather than `state[...]` because a hand-built or legacy state may carry no
     # run id, and the correct answer there is an omitted trailer, not a KeyError mid-close.
-    record["commit"] = commit_backlog_close(
+    committed_sha = commit_backlog_close(
         write_repo,
         item_id6,
         message,
         run_id=state.get("run_id"),
         plan_id6=item.get("id6"),
     )
+    record["commit"] = committed_sha
+    if committed_sha is not None:
+        record["closed"] = True
+    else:
+        record["closed"] = False
+        record["reason"] = (
+            "close commit was refused or rejected (hooks ran or commit failed)"
+        )
+        item["backlog_close"] = record
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "backlog-close-refused",
+                "id6": item["id6"],
+                "backlog_item": item_id6,
+                "detail": record["reason"],
+            },
+        )
+        return
     # SCOPED INTEGRITY SELF-CHECK, IMMEDIATELY AFTER OUR OWN WRITE (2026-09-22, extended 2026-09-24).
     #
     # WHY HERE AND NOT ONLY IN CI. A `_staged_paths` bug committed this very relocation as a bare
@@ -34548,6 +34577,179 @@ def process_backlog_close(
             "green",
         )
     )
+
+
+def perform_coordinator_backlog_close(
+    run_dir: Path,
+    state: dict[str, Any],
+    item: dict[str, Any],
+    *,
+    process_backlog_close: Callable[..., Any],
+    max_raced_attempts: int = 5,
+    rebuild_on_race: bool = True,
+) -> None:
+    """Perform a deferred re-attempt's backlog close inside a coordinator-owned worktree.
+
+    reattclose-01 (`pjuoyj`) E-03/E-04/E-05/E-06.
+
+    THE DECISION AND THE WRITE HAPPEN IN DIFFERENT TREES, DELIBERATELY.
+    Reuses `process_backlog_close`'s existing `lane_repo` seam (E-03).
+    A throwaway coordinator-owned worktree is created, the item is moved and committed there,
+    and then published to main via a single `git merge --ff-only` ref update (precedent:
+    `ipd_lifecycle._finalize_transaction`).
+
+    E-05: The setter writes a gitignored sidecar (.aw/records/history.jsonl), which is discarded
+    with the coordinator worktree (precedent: `lane_containment` driver-written-history-sidecar clause).
+    Only the item's two move paths are committed.
+
+    E-06: The three landing arms are classified:
+      - RECONCILED_OK: branch advanced, item at done/ in main.
+      - RECONCILED_REFUSED: git refused (rc=1, local uncommitted change in the way). Peer's
+        uncommitted bytes are protected and left intact; refusal is recorded on item.
+      - RECONCILED_RACED: a peer commit landed since the snapshot. Rebuilds on the new tip
+        within `max_raced_attempts`, bounded by `contention_wait`.
+    """
+    item_id6 = item.get("from_backlog")
+    if not item_id6:
+        return
+
+    repo = Path(state["repo"])
+    from agent_workflows import commit_lock, contention_wait, ipd_lifecycle
+
+    plan_id6 = str(item.get("id6") or "close")
+    raced_attempts = 0
+    last_landing: Any = None
+
+    def _try_raced_close() -> tuple[bool, Any]:
+        nonlocal raced_attempts, last_landing
+        if raced_attempts >= max_raced_attempts:
+            return True, "raced-exhausted"
+        raced_attempts += 1
+
+        rc, cur_head_str, _ = _run_git(repo, ["rev-parse", "HEAD"])
+        cur_base = cur_head_str.strip()
+
+        with commit_lock.coordinator_worktree(
+            repo, label=plan_id6, base=cur_base
+        ) as coord:
+            item["_wrote_in"] = "coordinator_worktree"
+            try:
+                process_backlog_close(
+                    run_dir,
+                    state,
+                    item,
+                    lane_repo=coord.path,
+                    lane_handle=None,
+                )
+            finally:
+                item.pop("_wrote_in", None)
+
+            record = item.get("backlog_close") or {}
+            if not record.get("closed"):
+                return True, "not-closed"
+
+            commit_sha = record.get("commit")
+            if not commit_sha:
+                record["closed"] = False
+                record["reason"] = (
+                    "close commit was rejected in the coordinator worktree (hooks ran)"
+                )
+                record["landing"] = {
+                    "status": "rejected",
+                    "detail": record["reason"],
+                }
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "backlog-close-refused",
+                        "id6": item.get("id6"),
+                        "backlog_item": item.get("from_backlog"),
+                        "detail": record["reason"],
+                    },
+                )
+                return True, "commit-rejected"
+
+            landing = ipd_lifecycle.land_worktree_commit(
+                repo, commit_sha, expected_base=cur_base
+            )
+            last_landing = landing
+
+            if landing.status == ipd_lifecycle.RECONCILED_OK:
+                record["closed"] = True
+                record["commit"] = commit_sha
+                record["landing"] = {
+                    "status": landing.status,
+                    "detail": landing.detail,
+                }
+                return True, "ok"
+
+            elif landing.status == ipd_lifecycle.RECONCILED_REFUSED:
+                record["closed"] = False
+                record["reason"] = f"fast-forward landing refused: {landing.detail}"
+                record["landing"] = {
+                    "status": landing.status,
+                    "detail": landing.detail,
+                    "returncode": landing.returncode,
+                    "paths": list(landing.paths),
+                }
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "backlog-close-refused",
+                        "id6": item.get("id6"),
+                        "backlog_item": item.get("from_backlog"),
+                        "detail": record["reason"],
+                    },
+                )
+                return True, "refused"
+
+            elif landing.status == ipd_lifecycle.RECONCILED_RACED:
+                if not rebuild_on_race or raced_attempts >= max_raced_attempts:
+                    return True, "raced-exhausted"
+                return False, landing
+
+            else:
+                record["closed"] = False
+                record["reason"] = (
+                    f"landing returned unexpected status: {landing.status}"
+                )
+                return True, "unexpected"
+
+    wait_res = contention_wait.wait_until(
+        _try_raced_close,
+        what=f"coordinator backlog close landing for {item.get('from_backlog')}",
+        holder=lambda: f"new tip {_run_git(repo, ['rev-parse', '--short', 'HEAD'])[1].strip()}",
+        timeout=contention_wait.TIMEOUT_SECONDS,
+        poll=contention_wait.POLL_SECONDS,
+        report_every=contention_wait.REPORT_SECONDS,
+    )
+
+    if wait_res.value == "raced-exhausted" or (
+        not wait_res.ok and last_landing is not None
+    ):
+        record = item.get("backlog_close") or {}
+        record["closed"] = False
+        detail_msg = last_landing.detail if last_landing else wait_res.detail
+        record["reason"] = (
+            f"fast-forward landing raced: {detail_msg} (exhausted {raced_attempts} attempts)"
+        )
+        record["landing"] = {
+            "status": ipd_lifecycle.RECONCILED_RACED,
+            "detail": record["reason"],
+            "returncode": getattr(last_landing, "returncode", 128),
+        }
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "backlog-close-refused",
+                "id6": item.get("id6"),
+                "backlog_item": item.get("from_backlog"),
+                "detail": record["reason"],
+            },
+        )
 
 
 def enforce_dependency_preflight(
