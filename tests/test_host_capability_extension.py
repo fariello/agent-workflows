@@ -683,5 +683,46 @@ class DenyPushRemovedTests(unittest.TestCase):
         self.assertNotIn("deny_push", out)
 
 
+class SessionResumeArgvTrackingTests(unittest.TestCase):
+    """qul11h E-05: verify supports_session_resume tracks the real argv rather than a table."""
+
+    def test_verdict_tracks_argv_and_not_a_table(self):
+        from agent_workflows import oc_runipd, agy_runipd
+
+        # 1. Opencode: when the argv builder omits the resume flag, verdict flips to False
+        orig_oc = oc_runipd.run_opencode
+
+        def bad_oc(*args, **kwargs):
+            kwargs["resume_session"] = None
+            return orig_oc(*args, **kwargs)
+
+        oc_runipd.run_opencode = bad_oc
+        try:
+            caps = detect_host_capabilities("opencode")
+            self.assertFalse(caps.supports_session_resume)
+        finally:
+            oc_runipd.run_opencode = orig_oc
+
+        caps = detect_host_capabilities("opencode")
+        self.assertTrue(caps.supports_session_resume)
+
+        # 2. Antigravity: when the argv builder omits the resume flag, verdict flips to False
+        orig_agy = agy_runipd.run_agy_turn
+
+        def bad_agy(*args, **kwargs):
+            kwargs["session_id"] = None
+            return orig_agy(*args, **kwargs)
+
+        agy_runipd.run_agy_turn = bad_agy
+        try:
+            caps = detect_host_capabilities("antigravity")
+            self.assertFalse(caps.supports_session_resume)
+        finally:
+            agy_runipd.run_agy_turn = orig_agy
+
+        caps = detect_host_capabilities("antigravity")
+        self.assertTrue(caps.supports_session_resume)
+
+
 if __name__ == "__main__":
     unittest.main()

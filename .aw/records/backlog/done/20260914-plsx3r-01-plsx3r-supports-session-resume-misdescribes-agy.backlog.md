@@ -1,5 +1,5 @@
 - Id: plsx3r
-- Status: graduated
+- Status: done
 - Graduated-To: plsx3r
 - Blocks-Release: next
 - Set: plsx3r
@@ -8,6 +8,7 @@
 - Summary: supports_session_resume misdescribes reality (opencode-only while agy resumes via --conversation) and gates no action class
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): closed by aw oc run: IPD qul11h executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-plsx3r-01-qul11h-make-supports-session-resume-true-for-both-hosts-by-probing.ipd.md); evidence .aw/records/plans/executed/20260928-plsx3r-01-qul11h-make-supports-session-resume-true-for-both-hosts-by-probing.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: qul11h
 - 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-14 created (aw backlog): supports_session_resume misdescribes reality (opencode-only while agy resumes via --conversation) and gates no action class
