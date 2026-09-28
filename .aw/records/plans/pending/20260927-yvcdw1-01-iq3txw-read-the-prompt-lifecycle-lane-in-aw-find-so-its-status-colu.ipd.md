@@ -1,0 +1,176 @@
+# IPD: Read the prompt lifecycle lane in aw find so its status column stops printing a dash
+
+- Date: 2026-09-27
+- Kind: child
+- Concern: `aw find prompts` prints no lifecycle status for 16 of 17 prompts, because the generic branch of `cli._find_type_records` reads status only from a `- Status:` front-matter bullet while prompt status is carried by the lane DIRECTORY.
+- Scope: Give the generic `aw find` branch a prompts-specific status source (the lane directory, via the existing `attention._prompt_disposition_from_rel`), apply it to both the printed column and the `--status` filter, and pin the behavior with tests. Fix the one stale test citation in the prompts-lane comment that promises a test which does not exist.
+- Scope-Paths: agent_workflows/cli.py, tests/test_find_prompts_lane_status.py, tests/test_lifecycle_style.py
+- Item-Dependencies: none
+- Status: to-review
+- Work-Kind: bug
+- Priority: low
+- From-Backlog: yvcdw1
+- Blocks-Release: next
+- Set: yvcdw1
+- Order: 1
+- Highest E allocated: 05
+- Author: opencode
+- Id: iq3txw
+
+## Workflow history
+
+- 2026-09-27 draft (opencode): created.
+- 2026-09-27 to-review (opencode): authored from backlog item `yvcdw1`; findings verified against the working tree at this HEAD.
+
+## Goal
+
+Make `aw find prompts` report each prompt's real lifecycle stage by reading the lane directory the prompt sits in, so the status column answers "which prompts are still pending?" instead of printing `·  -` for 16 of 17 rows. The style mapping for all five prompt lanes already exists and is already tested; only the READ is missing, so this plan adds the read (and the matching `--status` filter behavior) and the test coverage that currently does not exist for this column at all.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+### Task group 1: read the lane in the generic find branch
+
+- [ ] E-01 In `agent_workflows/cli.py`, add a module-level helper that returns the lane-derived status for one record path, used only by the generic branch of `cli._find_type_records`. It takes the already-computed repo-relative path string and the artifact type, returns `None` for every type other than `prompts` (so no other generic type changes behavior), and for `prompts` returns the lane word from `attention._prompt_disposition_from_rel`, or `None` when that returns `""`. Import `attention` LAZILY inside the helper, matching the established lazy-import style at the `from agent_workflows import attention` site already inside `cli.py` and avoiding a heavyweight import on the `aw find` hot path. Do NOT add a sixth path-to-lane derivation: reuse `attention._prompt_disposition_from_rel`, whose cross-module private import is already established precedent in `check_engine` (the `from agent_workflows.attention import _prompt_disposition_from_rel` site inside the prompt-purity checks).
+  - Depends on: none
+  - Expected outcome: A helper exists that maps a prompts record path to one of `pending`/`executed`/`reusable`/`superseded`/`not-executed`, or `None`; it is not yet wired into the display.
+  - Execution state: pending
+
+- [ ] E-02 Wire the E-01 helper into the generic branch of `cli._find_type_records` so the lane becomes the status FALLBACK, not an override: keep reading `sel_mod._read_status(text)` first and use the lane only when that read yields nothing. Concretely, replace the `status = raw_status or "-"` assignment so the effective value is the front-matter status when present, else the lane word, else `"-"`. FALLBACK ORDER IS A DELIBERATE DECISION, recorded in OQ-01: front-matter-first preserves `check.prompt-status-mismatch` (a registered `warning`-severity rule in `check_engine`'s rule table) as a meaningful signal, because a display that silently overwrote a divergent declared status with its lane would hide the very disagreement that rule reports. This also matches `prompts_index.scan_prompts`, whose `status = meta.get("Status") or disposition` is the same order.
+  - Depends on: E-01
+  - Expected outcome: `aw find prompts` prints a real lane word in the status column for all 17 prompts in this repository; the one prompt carrying a literal `- Status: superseded` bullet still reports `superseded` from that bullet.
+  - Execution state: pending
+
+- [ ] E-03 Make the `--status` FILTER consult the same effective value the column prints, so the filter and the display cannot disagree. In the generic branch, the `explicit_status` comparison currently tests `raw_status` alone, which is why `aw find prompts --status pending` returns zero rows today; change it to compare against the same fallback-resolved value E-02 computes. Compute the effective value ONCE and use it for both the filter and the rendered cell; do not read the lane twice.
+  - Depends on: E-02
+  - Expected outcome: `aw find prompts --status pending` returns exactly the prompts in the `pending/` lane, and `--status executed` returns exactly those in `executed/`.
+  - Execution state: pending
+
+### Task group 2: pin the behavior with tests
+
+- [ ] E-04 Add `tests/test_find_prompts_lane_status.py` building a temporary repository with one prompt in EACH of the five lanes (`pending`, `executed`, `reusable`, `superseded`, `not-executed`), since the live corpus populates only three of the five and so cannot exercise `reusable` or `not-executed`. Call `cli._find_type_records` directly, in the style `tests/test_find_single_read.py` already uses for the plans and research branches, and assert: (a) each of the five lanes renders its own lane word in the status column; (b) a prompt carrying an explicit `- Status:` bullet that DISAGREES with its lane renders the BULLET value, pinning the E-02 fallback order rather than merely the happy path; (c) a prompt in no lane directory still renders `-` rather than raising; (d) `--status <lane>` returns exactly the matching rows, covering the E-03 filter; and (e) a non-prompts generic type (use `walkthroughs`) is UNCHANGED and still renders `-`, pinning that this fix does not leak into the other generic types. No test anywhere currently asserts on this column, so this file is the whole safety net for the behavior.
+  - Depends on: E-03
+  - Expected outcome: A new test file fails on the pre-change code and passes after E-01 through E-03, covering all five lanes plus the divergence, no-lane, filter, and non-leakage cases.
+  - Execution state: pending
+
+- [ ] E-05 Fix the stale citation in `tests/test_lifecycle_style.py`: the comment above `PROMPT_LANES` claims `test_prompts_directory_derived` "below asserts they are still exactly that set, so this list cannot silently drift from the owner", but no test of that name exists anywhere in `tests/`, so the stated guarantee is currently absent. Add the promised test, asserting `PROMPT_LANES` equals `lifecycle_dirs.LIFECYCLE_SUBDIRS["prompts"]` as a set, so the list genuinely cannot drift from its owner. Cite `lifecycle_dirs`, whose own module docstring calls it the single source of truth for the lane vocabulary, rather than `ipd_lint._dir_of`, which the comment names but which reads `LIFECYCLE_SUBDIRS["plans"]` and so only happens to agree because the two tuples are incidentally identical.
+  - Depends on: none
+  - Expected outcome: `test_prompts_directory_derived` exists and passes, and the comment's claim is true rather than aspirational.
+  - Execution state: pending
+
+## Project conventions discovered (Step 0)
+
+- REUSE THE EXISTING PATH-TO-LANE DERIVATION; DO NOT ADD ANOTHER. Six spellings already exist: `attention._prompt_disposition_from_rel` (prompts-specific), `attention._plan_disposition_from_rel`, `check_engine._plan_disposition`, `ipd_lint._dir_of`, `artifact_audit._disposition_dir`, and the raw `rel.split("/", 1)[0]` primitive inline in both `plans_index.scan_plans` and `prompts_index.scan_prompts`. The prompts-specific one is the correct reuse here.
+- TAKE THE FIRST COMPONENT UNDER THE TYPE DIRECTORY, NOT `parent.name`. `check_engine._plan_disposition`'s docstring records why: "`aw archive plans` shards a terminal plan into `<disposition>/YYYYMM/`", so a parent-directory test would silently stop recognizing a sharded record. `attention._prompt_disposition_from_rel` already takes the first component and documents itself as "sharding-safe"; `artifact_audit._disposition_dir` uses `parent.name` with a single `\d{6}` climb and is the one to avoid.
+- `ipd_lint._dir_of` IS THE WRONG HELPER DESPITE THE BACKLOG ITEM NAMING IT. The item says it "already anchors the five lane names", which is true only incidentally: it iterates `_LD.LIFECYCLE_SUBDIRS["plans"]`, not `["prompts"]`, and the two tuples are independently-owned but currently identical. It also uses an anywhere-in-path `anchor in parts` test, so a checkout under a directory literally named `pending` would misclassify every record. Cite `lifecycle_dirs.LIFECYCLE_SUBDIRS["prompts"]` for the vocabulary instead.
+- THE PLANS BRANCH IS THE PRECEDENT FOR A DIRECTORY-DERIVED STATUS COLUMN. `cli._find_type_records`'s plans branch already renders `e.disposition or e.status or "-"`, where `disposition` is the top-level directory. So a directory-derived status in this column is established behavior, not a novelty.
+- PROMPTS NEED NO NEW STYLE MAPPING. `lifecycle_style._PROMPTS_PAIRS` already maps all five lane words to stages, `_FIND_LIFECYCLE_FAMILY` already contains `"prompts": _LS.FAMILY_PROMPTS`, and `tests/test_lifecycle_style.py`'s totality check already asserts the five-lane coverage. `cli._find_resolve_lifecycle` short-circuits to stage `none` only for the values `""` and `"-"`, so supplying a real lane word resolves natively with NO edit to the resolver. Supply the lane WORD (`pending`), not the stage name (`ready`): `_find_status_and_id6` echoes the value verbatim into the cell.
+- PROMPTS ALSO NEED NO DISPOSITION TRANSLATION TABLE. The plans branch required `_PLANS_DISPOSITION_STAGE` because `pending` and `reusable` are plans DIRECTORY words that no plan `- Status:` takes. For prompts those same words are native `_PROMPTS_PAIRS` keys, so no translation is needed.
+- CODE IS CITED BY SYMBOL, NOT BY BARE LINE OFFSET, per spec `ipd-structure-and-linting` Section 10.2 and advisory `IPD-C801`; this plan cites symbols and quoted content strings throughout.
+
+## Findings
+
+| # | Finding | Evidence |
+|---|---|---|
+| F-01 | The defect reproduces at this HEAD exactly as the item measured it six days earlier: 16 of 17 prompts print `·  -` and one prints `↪  superseded`. | `aw find prompts --no-color` piped through `awk '{print $1, $2}' | sort | uniq -c` returned `16 · -` and `1 ↪ superseded`. |
+| F-02 | The single cause is one line. The generic branch of `cli._find_type_records` reads status ONLY as `raw_status = sel_mod._read_status(text)` and then renders `status = raw_status or "-"`. There is no lane consultation anywhere in that branch. | Read of `cli._find_type_records`'s generic branch. |
+| F-03 | `selectors._read_status` returns `None` when no status is found; it matches a `- Status:` bullet within `metadata_region(text)` or falls back to a YAML scalar. A prompt speaks NEITHER dialect: its status lives inside the first-line `<!-- aw-prompt: ... -->` comment. | Read of `selectors._read_status` and `_STATUS_RE`. Verified per-prompt: all 17 have a comment `Status:`, and only 1 has a bullet `- Status:` that `_read_status` can see. |
+| F-04 | The 16-vs-1 split is explained precisely by that one bullet. Both `superseded/` prompts carry comment `Status: superseded`, but only one ALSO carries a visible `- Status: superseded` bullet inside its metadata region; that is the single row that renders. | Per-prompt probe comparing `attention._prompt_disposition_from_rel`, the first-line comment `Status:`, and `selectors._read_status` across all 17 prompts. |
+| F-05 | NO PROMPT IN THE REPOSITORY DIVERGES from its lane, so the fallback-order decision in OQ-01 changes no row here today; it is chosen for correctness under future divergence, not to alter current output. | Same 17-prompt probe: comment status equals the lane for all 17 (13 `executed`, 2 `pending`, 2 `superseded`); no `DIVERGE` row was produced. |
+| F-06 | The `--status` filter is broken by the SAME read, so the fix must cover it or the column and the filter will disagree. The `explicit_status` comparison tests `raw_status`, which is `None` for 16 prompts. | `aw find prompts --status pending` and `--status executed` each returned zero rows, printing only the empty-state block. |
+| F-07 | The style mapping is already complete for all five lanes and needs no change. | `lifecycle_style._PROMPTS_PAIRS` maps `pending`->READY, `executed`->DONE, `reusable`->REUSABLE, `superseded`->SUPERSEDED, `not-executed`->ABANDONED; its comment states "PROMPT STATUS IS CARRIED BY DIRECTORY, not by a status enum". |
+| F-08 | Spec `uonrjg` Section 6.5 governs this and already anticipates a lane-carried status: its column header is literally "Native status or lane", and it maps the same five lane words to the same five stages. So this plan implements the approved spec rather than amending it. | `.aw/records/specs/approved/20260913-uonrjg-01-uonrjg-cross-artifact-lifecycle-symbols-and-ansi-status-styling.spec.md` Section 6.5. |
+| F-09 | Prompts genuinely have no status ENUM, confirming the lane is the only lifecycle source. `prompts.py` defines only `DEFAULT_STATUS = "pending"`, `PENDING_BUCKET`, and `PROMPT_KINDS`; there is no `prompts.STATUSES`. Consequently `cli._find_valid_statuses` returns `None` for `prompts`. | Read of `prompts.py`; `_find_valid_statuses` probed across all 11 artifact types returns `None` for `prompts`, `walkthroughs`, `roadmaps`, `comms`, `reviews`, `other`. |
+| F-10 | The chosen helper's cross-module private import is ESTABLISHED PRECEDENT, not a novelty: `check_engine` already does `from agent_workflows.attention import _prompt_disposition_from_rel` inside its prompt-purity checks. | Read of that import site in `check_engine`. |
+| F-11 | NO TEST ANYWHERE asserts on the `aw find prompts` status column, so nothing can break and this plan owns the entire safety net. The three find test files cover plans, research, specs, backlog and walkthroughs; `tests/test_cli_find.py`'s only prompts mention asserts on `record_dirs` nesting, not status. | Search of `tests/test_cli_find.py`, `tests/test_find_filters.py`, `tests/test_find_single_read.py`. |
+| F-12 | The live corpus exercises only THREE of the five lanes (13 `executed`, 2 `pending`, 2 `superseded`), so `reusable` and `not-executed` require constructed fixtures. | `find .aw/records/prompts -name "*.md"` grouped by lane component. |
+| F-13 | `tests/test_lifecycle_style.py` carries a STALE CITATION: its `PROMPT_LANES` comment says `test_prompts_directory_derived` "below asserts they are still exactly that set", but `grep -rn "directory_derived" tests/` matches only that comment. The claimed drift guarantee does not exist. | That grep returned one hit, the comment itself, and no test definition. |
+| F-14 | One fix covers every machine surface. `--json`/`--agent` emit the SAME formatted `lines` list the human path prints, so the `·  -` appears byte-for-byte inside the JSON `data.matches`; `--paths`/`-p` return before any status is rendered and are unaffected either way. There is no separate structured status key to update. | Read of `_run_find`'s output surfaces; `aw find prompts --json` shows `"\u00b7  -             -  .aw/records/prompts/executed/..."`. |
+| F-15 | `prompts_index.scan_prompts` ALREADY implements this exact fallback (`status = meta.get("Status") or disposition`), which is why E-02 adopts its order. It is not reused directly because it is an unbounded whole-tree `read_text` scan with no per-path entry builder, and routing the generic branch through it would reintroduce the double-read that plan `qfpnrm` removed from the plans and research branches. | Read of `prompts_index.scan_prompts`. |
+
+## Proposed changes (ordered, validatable)
+
+1. Add a lane-status helper to `cli.py` that returns `None` for every generic type except `prompts`, and for `prompts` delegates to `attention._prompt_disposition_from_rel` behind a lazy import (E-01).
+2. Use that helper as the FALLBACK in the generic branch's status computation, front-matter first, lane second, `"-"` last (E-02).
+3. Point the `--status` filter at the same effective value, computed once (E-03).
+4. Add `tests/test_find_prompts_lane_status.py` covering all five lanes, the bullet-versus-lane divergence, the no-lane case, the filter, and non-leakage into another generic type (E-04).
+5. Add the `test_prompts_directory_derived` test that `tests/test_lifecycle_style.py`'s comment already promises, asserting `PROMPT_LANES` matches `lifecycle_dirs.LIFECYCLE_SUBDIRS["prompts"]` (E-05).
+
+## Deferred / out of scope (with reason)
+
+- THE PROMPTS `id6` COLUMN IS ALSO EMPTY, AND IS DELIBERATELY NOT FIXED HERE. The generic branch reads the id with `sel_mod._read_id(text)`, which returns `None` for every prompt because a prompt's id6 lives in the `<!-- aw-prompt: ... -->` comment rather than in a `- Id:` bullet (the prompt-purity contract forbids the bullet). So all 17 rows print `-` in the id6 column too, and `prompts.read_metadata_id6` is the ready-made reader. It is out of scope because the backlog item names the STATUS column only, and because fixing the id6 also changes `--id` filter behavior, which deserves its own item and its own tests. RECOMMEND FILING A SEPARATE BACKLOG ITEM; this plan does not file it, since filing is not authoring.
+- GIVING PROMPTS A `--status` ENUM in `cli._find_valid_statuses` is out of scope. It looks adjacent but is not free: the "any enum-less type disables validation" rule in `_run_find` means adding a prompts enum would change `aw find all --status <v>` validation behavior for every other type, and would newly make the `cannot-run`/exit-2 refusal path reachable for `aw find prompts --status <bogus>`. That is a separate deliberate decision with its own test surface. The filter itself works correctly after E-03 without an enum, because validation being off means the filter simply answers.
+- BACKFILLING `- Status:` BULLETS INTO PROMPT FILES is rejected, not merely deferred: the lane IS the lifecycle for prompts by design, and a duplicated status bullet in every prompt would create 17 new opportunities for the `check.prompt-status-mismatch` divergence this plan is careful to preserve visibility of.
+- CHANGING `selectors._STATUS_RE` to be more permissive is rejected. Its own comment documents the strictness as a matching-behavior contract and warns against harmonizing the two patterns without owning that contract change, and it would not help regardless, since a prompt has no status BULLET to match at all.
+
+## Scope check
+
+- Over-scope: none. `agent_workflows/cli.py` carries E-01 through E-03; `tests/test_find_prompts_lane_status.py` is new for E-04; `tests/test_lifecycle_style.py` gains only the one test its own comment already promises (E-05). No spec, no other module, and no prompt record is touched.
+- Under-scope: The prompts `id6` column and the prompts `--status` enum both remain broken or absent after this plan, by the explicit decisions recorded above. `aw find prompts` will report status correctly and report id6 as `-`, which is an honest partial fix of one column and not a regression of anything.
+
+## Required tests / validation
+
+- `python3 -m pytest` run BARE, with the pasted `N passed` summary line, per the execution contract. Do not add `-n0`, a second `-q`, or `-p no:randomly`.
+- `python3 -m pytest tests/test_find_prompts_lane_status.py tests/test_lifecycle_style.py -o addopts=""` for the per-test counts on the two directly-affected files.
+- `python3 -m pytest tests/test_cli_find.py tests/test_find_filters.py tests/test_find_single_read.py tests/test_prompts_index.py tests/test_prompts_attention.py tests/test_lifecycle_dirs.py -o addopts=""` as the targeted regression set for every neighbouring surface.
+- A BEFORE-AND-AFTER `aw find prompts --no-color` capture, counted by status word, demonstrating the 16-to-0 reduction in `-` rows.
+- `aw find prompts --status pending --no-color` and `--status executed --no-color`, demonstrating the filter returns the correct non-empty row sets.
+- `aw find prompts --json` confirming the machine surface carries the same corrected value (F-14).
+- `aw check` to confirm no new drift, in particular no new `check.prompt-status-mismatch`.
+- `aw sanitize --agent` before commit, since evidence blocks in this plan will quote local command output.
+
+## Spec / documentation sync
+
+N/A with reason: spec `uonrjg` Section 6.5 already specifies exactly the behavior this plan implements. Its table header reads "Native status or lane" and it already maps the five prompt lane words to the five semantic stages, so the code is being brought INTO conformance with an approved spec rather than the spec being changed. No `.spec.md` file is in `- Scope-Paths:`, and no user-facing documentation describes the `aw find prompts` status column, so there is nothing to amend. The only documentation-shaped change is the stale in-test comment citation addressed by E-05, which is inside a file already in scope.
+
+## Open questions
+
+### OQ-01: When a prompt's front-matter status disagrees with its lane, which value should `aw find` print?
+
+- Blocking: no
+- Status: resolved
+- Owner: opencode
+- Resolution or deferral rationale: RESOLVED FROM REPOSITORY EVIDENCE as front-matter-first, lane-second. Three reasons. FIRST, `check_engine` registers `check.prompt-status-mismatch` as a `warning`-severity rule that fires precisely when a declared status disagrees with its bucket; a display that overwrote the declared value with the lane would hide the disagreement that rule exists to surface, so lane-first would work against an existing check. SECOND, `prompts_index.scan_prompts` already resolves the same conflict the same way (`status = meta.get("Status") or disposition`), so front-matter-first is the established in-repo precedent for prompts specifically, and choosing otherwise would create two orders for one question. THIRD, no row in the repository currently diverges (F-05: all 17 comment statuses equal their lane), so the decision changes no output today and is safe either way in practice; it is settled now so the behavior is deliberate rather than accidental when divergence does appear. NOTE the plans branch uses the OPPOSITE order (`e.disposition or e.status`); that is not a contradiction to resolve, because plans directory words like `pending` are not plan statuses at all and so the directory is the more specific datum there, whereas for prompts the lane words and the status words are the same vocabulary.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [ ] V-01 validates E-01
+  - Required evidence: Paste the full source of the new helper as committed, plus a Python probe calling it directly and showing its output for: a `pending/` prompt path, an `executed/` prompt path, a prompts path with no lane component, and a `walkthroughs` path. The probe output must show the two lane words, then `None` for the no-lane case, then `None` for the non-prompts type. Paste `grep -n "attention" agent_workflows/cli.py` output showing the new import is inside the helper body (indented), not at module top level.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-02 validates E-02
+  - Required evidence: Paste `aw find prompts --no-color` output piped through `awk '{print $1, $2}' | sort | uniq -c` from BEFORE the change (must reproduce `16 · -`, `1 ↪ superseded`) and from AFTER (must show zero `-` rows, and counts consistent with the 13/2/2 lane distribution in F-12). Paste the full after-state `aw find prompts --no-color` listing so each row's status word can be checked against the lane in its own path. Confirm explicitly that the one bullet-carrying `superseded/` prompt still renders `superseded`.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-03 validates E-03
+  - Required evidence: Paste `aw find prompts --status pending --no-color` and `aw find prompts --status executed --no-color` after the change. The first must list exactly the 2 prompts under `pending/` and the second exactly the 13 under `executed/`, with no empty-state block. Paste the BEFORE output of the same two commands showing zero rows, to prove the filter was broken and is now fixed. Also paste `aw find prompts --json` and quote the `data.matches` entry for one executed prompt, showing the corrected status inside the machine surface (F-14).
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-04 validates E-04
+  - Required evidence: Paste the full committed text of `tests/test_find_prompts_lane_status.py`. Paste `python3 -m pytest tests/test_find_prompts_lane_status.py -o addopts=""` output showing every test passing with its name listed, and confirm the count covers all five lanes plus the divergence, no-lane, filter, and non-leakage cases. Then paste evidence the test is a REAL regression guard: revert the E-02/E-03 change (for example with `git stash` of the `cli.py` hunk, or a temporary local edit), re-run the file, paste the FAILING output, restore the change, and re-run to green. A test that passes on the pre-change code proves nothing and must be strengthened. ALSO carry the whole-plan no-regression evidence here, since this is the plan's test-surface item: paste the BARE `python3 -m pytest` output including its `N passed` summary line, state that count against the pre-change baseline captured before starting, and paste `python3 -m pytest tests/test_cli_find.py tests/test_find_filters.py tests/test_find_single_read.py tests/test_prompts_index.py tests/test_prompts_attention.py tests/test_lifecycle_dirs.py -o addopts=""` for the targeted neighbour set.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-05 validates E-05
+  - Required evidence: Paste `grep -rn "test_prompts_directory_derived" tests/` showing BOTH the pre-existing comment citation and the newly added test definition, proving the citation is no longer stale. Paste the test's source and `python3 -m pytest tests/test_lifecycle_style.py -k prompts -o addopts=""` output. Demonstrate the guard bites: temporarily alter `PROMPT_LANES` (for example drop `not-executed`), paste the FAILING output, then restore and paste the passing run. ALSO carry the pre-commit repository gate here, as this is the last item before the commit: paste `aw check` output confirming no new drift and specifically no new `check.prompt-status-mismatch`, paste `aw sanitize --agent` output, and paste `git diff --cached --name-only` immediately before committing, which must list ONLY the three paths in `- Scope-Paths:` and nothing another party changed.
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+This plan is `to-review` and requires `/plan-review` followed by explicit human approval before execution; it carries no `- Readiness:` field, because that field is an OUTPUT of review and writing one here would forge the attestation that gates auto-approval.
+
+On execution, the executor MUST: commit only the three paths named in `- Scope-Paths:`, through `aw commit <plan> -- <paths>`, never `git add -A` and never pushing; verify the staged set with `git diff --cached --name-only` before committing, since this is a shared checkout and another party's work must never be swept in; run the BARE `python3 -m pytest` suite and paste its ACTUAL output rather than claiming success; and complete every `V-*` item with the concrete pasted evidence it demands, including the two deliberate failure demonstrations in V-04 and V-05 that prove the new tests are real guards.
+
+This plan inherits `- Blocks-Release: next` from backlog item `yvcdw1` because its `- Work-Kind:` is `bug`, and the repository policy is that every live bug gates the next release. That gate travels with this plan and must not be cleared as part of executing it.
+
+Do not move this plan to `.aw/records/plans/executed/` until `aw ipd lint --phase pre-transition` reports conforming and every validation item above is verified with pasted evidence.
