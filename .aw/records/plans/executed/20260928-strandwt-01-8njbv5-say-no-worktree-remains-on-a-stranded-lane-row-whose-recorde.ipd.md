@@ -6,7 +6,7 @@
 - Scope: Add an explicit `no worktree remains` segment to `attention.stranded_lane_drift`'s `bits` assembly, gated on the record HAVING named a worktree that is now provably ABSENT, never merely on the display being omitted. Add a shared predicate beside `runner_shared.lane_worktree_display` so the two rendering decisions cannot drift, and tests pinning the marker's presence in the reclaimed case and its ABSENCE in the never-had-one case, the tree-still-exists case, and the exists-outside-the-repository case.
 - Scope-Paths: agent_workflows/attention.py, agent_workflows/runner_shared.py, tests/test_attention.py, tests/test_runner_shared.py, .aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: 8njbv5
-- Approval: 2026-09-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-28 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 8njbv5 verified (set strandwt, attempt 1).
 - 2026-09-28 approved (aw set): status set to approved
 - 2026-09-28 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-401, PR-402, PR-403, PR-404, PR-405. All twelve authored findings reproduce exactly, including all six cases of F-03, both constructed fixtures, the 34-symbol fingerprint list and the 414-character over-bound row. The design is right: keying on absence rather than on the omitted display is the correct refusal of the backlog item's proposed mechanism. Corrected three executor traps: TWO of E-03's four assertions refute the naive form, not one, so V-03 predicted the wrong failure count (new F-13); the reclaimed fixture swaps which worktree value the record carries, so E-04 must assert on the rendered detail and not on rec['worktree'] (new F-14); and F-02/F-10's live counts had already drifted, now labelled context rather than bars (new F-16). Added F-15 recording that no existing assertion covers the edited segment, OQ-04 recording the unreadable-path fail direction, and a do-not-edit fence naming lane_worktree_display and describe_lane.
 
