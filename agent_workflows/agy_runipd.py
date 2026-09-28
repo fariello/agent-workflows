@@ -1026,12 +1026,17 @@ def render_agy_event(
             elif "Pattern" in params:
                 cmd = str(params["Pattern"])
 
-            # THE AGY TOOL NAME IS KEPT in the payload, unlike the oc renderer which drops `bash`
-            # in favor of `❯ bash:`. The reason is that agy's tool names are host-specific and NOT
-            # recoverable from the class prefix (`write_to_file` and `replace_file_content` are both
-            # file-mutating, and `agy_prefix_kind` maps them to different kinds only by a name
-            # heuristic), so discarding the name would lose information the oc stream never had.
-            summary = f"{tool_name}: {_one_line(cmd, 120)}" if cmd else str(tool_name)
+            # For bash (run_command), drop the redundant "run_command:" tool name so that
+            # format_event_prefix's "❯ bash:  " prefix is followed directly by the command line,
+            # matching the oc renderer convention. For other agy tools, keep the tool name in the
+            # payload because agy tool names are host-specific and not recoverable from the class prefix
+            # (e.g. write_to_file vs replace_file_content).
+            if kind == "bash":
+                summary = _one_line(cmd, 120) if cmd else str(tool_name)
+            else:
+                summary = (
+                    f"{tool_name}: {_one_line(cmd, 120)}" if cmd else str(tool_name)
+                )
             status = _AGY_STATE_TO_STATUS.get(state, "")
             if status in ("error", "failed"):
                 prefix_style = "red"

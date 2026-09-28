@@ -1799,6 +1799,26 @@ class AgyVerbosityFlagTests(unittest.TestCase):
         )
         self.assertIsNone(agy_runipd.render_agy_event(active_evt, pal))
 
+        # Bash / run_command renders with shared prefix and omits redundant "run_command:"
+        done_bash = json.dumps(
+            {
+                "event": "step_update",
+                "step_update": {
+                    "state": "DONE",
+                    "step_type": "tool",
+                    "duration_seconds": 0.5,
+                    "tool_info": {
+                        "name": "run_command",
+                        "parameters": {"CommandLine": "pytest tests/ -v"},
+                    },
+                },
+            }
+        )
+        rendered_bash = agy_runipd.render_agy_event(done_bash, pal)
+        self.assertIsNotNone(rendered_bash)
+        self.assertIn("pytest tests/ -v", rendered_bash)
+        self.assertNotIn("run_command", rendered_bash)
+
 
 class AgyDependencyPathsAreSharedTests(unittest.TestCase):
     """depreview 03ie04 E-03/E-06: THIS HOST's two dependency paths must be the shared ones.

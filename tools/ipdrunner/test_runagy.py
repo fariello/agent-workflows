@@ -122,7 +122,7 @@ class AgyEventRenderTests(unittest.TestCase):
         # `duration_seconds` is AGY-ONLY (the oc stream has no per-tool duration) and E-06 preserves
         # it deliberately; it is not something the shared format replaced.
         self.assertIn("1.25s", done_rendered)
-        self.assertIn("run_command", done_rendered)
+        self.assertNotIn("run_command", done_rendered)
         self.assertIn("pytest tests/ -v", done_rendered)
         plain_done = render_stream._strip_ansi(done_rendered)
         self.assertTrue(
