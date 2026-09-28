@@ -6,7 +6,7 @@
 - Scope: Audit runner queue steps by artifact type, action, and initial lifecycle status, aligning placement checks with record_placement
 - Scope-Paths: agent_workflows/run_viewer.py, agent_workflows/artifact_audit.py, tests/test_artifact_audit.py, tests/test_run_viewer.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,8 +17,10 @@
 - Highest E allocated: 04
 - Author: Gabriele Fariello
 - Id: mlhryi
+- Approval: 2026-09-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-28 approved (aw set): status set to approved
 - 2026-09-28 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; /plan-review (Codex/GPT-6); PR-001 through PR-006
 
 - 2026-09-28 to-review (Gabriele Fariello): author review-ready plan graduating backlog item 7tswqn.
