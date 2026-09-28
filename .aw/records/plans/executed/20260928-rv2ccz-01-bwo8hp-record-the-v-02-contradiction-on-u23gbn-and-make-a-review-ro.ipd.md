@@ -6,7 +6,7 @@
 - Scope: IN: (a) one APPENDED `## Workflow history` note on `u23gbn` recording the contradiction and where the reason is, since `AGENTS.md` permits an append to an executed plan and forbids rewriting what it records; (b) a sweep instruction in `plan-review`'s revise step and its long-form twin, so a round that corrects a mechanism or ordering must re-read every OTHER item quoting the wording it just replaced; (c) one instruction in the `verify-execution` Dimension 1 requirement audit telling an auditor how to classify a `V-*` whose demand the executed plan itself reports as unsatisfiable, which is the state `u23gbn` is actually in today. OUT: any edit to `u23gbn`'s V-02 text, E-06, V-06, findings or metadata (forbidden: the plan is executed, and its V-02 evidence block is the TRUE record of what the executor did); any change to `ipd_lifecycle.py`, `commit_lock.py` or the retirement code, which is `u23gbn`'s and is executed and correct; any new deterministic lint rule (see Deferred, with the measurement that refuses it); `spec-review.md`, which references `plan-review`'s shared halves rather than copying them and carries no E/V rubric by test-enforced design.
 - Scope-Paths: .aw/records/plans/executed/20260913-dirtygates-04-u23gbn-retire-an-orchestrator-in-a-coordinator-owned-throwaway-work.ipd.md, .aw/system/workflows/plan-review/plan-review.md, .aw/system/workflows/plan-review-long/02-review-and-revise.md, .aw/system/workflows/verify-execution/intent-audit.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode model=its_direct/pt3-claude-opus-5-1m-us
 - Id: bwo8hp
-- Approval: 2026-09-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-28 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: bwo8hp verified (set rv2ccz, attempt 1).
 - 2026-09-28 approved (aw set): status set to approved
 - 2026-09-28 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-012 all FIXED, none OPEN or DEFERRED. Diagnosis verified in full: F-01, F-02, F-03's core claim, F-04 (gate probe exercised end to end and reverted), F-07, F-09 and F-10 all reproduce. Route unchanged. PR-003 (HIGH): all three edit anchors were quoted as whole SENTENCES and all three are line-wrapped, so none matches as a string and V-03/V-04 required proving the unmatchable text; re-quoted as verified-unique single-line fragments with wrap widths and section-end boundaries. PR-001 (HIGH): the authored 2935-passed baseline is spent (2995 now) and the tree carries a pre-existing unrelated red, test_drain_and_cascade_mapped_reasons_rendered_once, which the honesty rule would have made the executor own; baseline re-measured and the failure named with its cause. PR-004: the sweep was scoped to V-items though u23gbn E-06's own 'rather than inheriting E-02s wording' shows the first stale sibling was an E-item; widened to every item, field and prose block, plus sweep-against-the-plan-as-it-now-reads. PR-007: added F-12 recording 76fgt1 V-03 as a second instance of the class that review CAUGHT and inverted pre-execution, which is the plan's best argument. PR-002: F-03's corpus count re-measured (24 vocabulary hits over 802 plans, about four genuine), re-grounding the Deferred lint refusal on precision rather than volume. PR-005, PR-006, PR-008, PR-009, PR-010, PR-011, PR-012: misquoted git merge-base evidence, an unrunnable probe signature plus a four-consumer widening of F-08, the unnamed done classification and a four-vs-five vocabulary drift left deliberately out of fence, a false test citation under a correct exclusion, a miscounted grep, an unnamed note token, and a missing length target plus overclaim guard. Added OQ-03 (non-blocking, carries D-4). Review record written with 12 findings and 6 decisions, no Reversible: no.
 
@@ -42,7 +42,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: make the contradiction findable on the plan that carries it
 
-- [ ] E-01 APPEND one dated `## Workflow history` note to `u23gbn` recording the V-02 contradiction and where its resolution is already written. This is the ONLY edit this plan makes to that file and it MUST be an append: `AGENTS.md` forbids changing what a plan in `executed/` RECORDS (its steps, evidence, results, or status) and in the same breath permits "a dated `## Workflow history` line to it that points at later work". So do NOT touch V-02's `Required evidence` text, do NOT touch its `Observed evidence` block, do NOT touch E-02, E-06, V-06, F-10 or any `- Field:` in the metadata block.
+- [x] E-01 APPEND one dated `## Workflow history` note to `u23gbn` recording the V-02 contradiction and where its resolution is already written. This is the ONLY edit this plan makes to that file and it MUST be an append: `AGENTS.md` forbids changing what a plan in `executed/` RECORDS (its steps, evidence, results, or status) and in the same breath permits "a dated `## Workflow history` line to it that points at later work". So do NOT touch V-02's `Required evidence` text, do NOT touch its `Observed evidence` block, do NOT touch E-02, E-06, V-06, F-10 or any `- Field:` in the metadata block.
   - WHY THE EVIDENCE BLOCK IS OFF LIMITS, stated because "fix the stale wording" is the reflex and it is wrong here. V-02's `Observed evidence` is the TRUE record of what the executor did and measured; rewriting the `Required evidence` to match would make the plan read as though it had always demanded the satisfiable thing, destroying the audit trail of a review round that got it wrong. The record of a contradiction is more valuable than a tidy file.
   - WRITE IT BY HAND, because there is no tooled note verb for a plan. `aw backlog note` and `aw specs note` both exist; `aw ipd` exposes only `{lint,scaffold,sync,recheck-readiness,execute-set,board,set,dependencies,begin,finalize}` and refuses `note` (F-07). Match the shape of the existing records in that file exactly, `- <YYYY-MM-DD> <token> (<actor>): <message>`, and use a NOTE token rather than a status token: `ipd_lifecycle._PLAN_STATUS_VOCAB` holds the ten tokens that are a STATUS TRANSITION, and `_plan_status_events` skips a line whose token is not one of them, so a status token here would assert a lifecycle event that did not happen.
   - USE THE LITERAL TOKEN `note`, not a token of your own invention, and the choice is measured rather than aesthetic. Verified at review: `_PLAN_STATUS_VOCAB` is exactly `{approved, auto-approved, draft, executed, not-executed, parked, reusable, reviewed, superseded, to-review}`, so `note` is outside it and is therefore skipped as a transition, which is the property this bullet wants. And it has PRECEDENT rather than being novel: a census of the leading token on every `## Workflow history` record across all 802 executed plans finds `note` used 5 times already, so it is an established annotation spelling in this corpus. Do not coin an alternative (`annotation`, `amended`, `correction`): each would be equally skipped but would add a sixth spelling to a section whose readability is the entire deliverable here.
@@ -52,19 +52,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: none
   - Expected outcome: `u23gbn` carries exactly one new FIRST history record stating the contradiction, its cause, the two sibling texts that establish it and where the handling is recorded; `git diff` on that file shows ONLY insertions, zero deletions, no change to V-02's two blocks and no change to any metadata field; its `- Status: executed` and its position in `.aw/records/plans/executed/` are untouched.
 
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 VERIFY THE APPEND IS ACCEPTED BY THE SHIPPED GATES rather than assuming it, because a hand edit to a file under `.aw/records/plans/executed/` is exactly the shape two pre-commit gates exist to refuse, and being wrong means either a blocked commit or a bypassed guard. Run both gates against the ACTUALLY STAGED change (staged, not merely present in the working tree: both read the index, so an unstaged run proves nothing): `python3 -m agent_workflows ipd-executed-gate` and `python3 -m agent_workflows ipd-status-untooled-gate`, plus `aw check plans`.
+- [x] E-02 VERIFY THE APPEND IS ACCEPTED BY THE SHIPPED GATES rather than assuming it, because a hand edit to a file under `.aw/records/plans/executed/` is exactly the shape two pre-commit gates exist to refuse, and being wrong means either a blocked commit or a bypassed guard. Run both gates against the ACTUALLY STAGED change (staged, not merely present in the working tree: both read the index, so an unstaged run proves nothing): `python3 -m agent_workflows ipd-executed-gate` and `python3 -m agent_workflows ipd-status-untooled-gate`, plus `aw check plans`.
   - EXPECT CONFIRMATION, NOT DISCOVERY. Both exemptions were exercised end to end at authoring with a probe note in exactly E-01's position and shape: both gates exited 0 and `git diff --cached --numstat` read `1 0`, then the probe was fully reverted leaving `git status --short` empty and zero matches for the probe string (F-04). State in the evidence WHICH exemption each gate took and on what basis: for the executed gate, that `moved_into_executed` and `gained_executed` are both false and `same_plan_at_head` holds, because path, `- Id:` and `- Status:` are all unchanged; for the untooled gate, that the path contains `/executed/` and no `- Status:` changed.
   - IF EITHER GATE REFUSES, STOP AND REPORT. Do NOT reach for `--no-verify`. A refusal means the append route `AGENTS.md` sanctions does not actually work, which is a finding about the gates worth more than this plan's note and belongs to a human.
   - Depends on: E-01
   - Expected outcome: both gates exit 0 on the staged append and `aw check plans` reports no new finding attributable to it, with each exemption named and grounded in unchanged path plus unchanged `- Id:` plus unchanged status rather than inferred.
 
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: close the process gap that produced the stale sibling
 
-- [ ] E-03 ADD THE SWEEP OBLIGATION to the revise step of BOTH `plan-review` variants, which is the process signal backlog `rv2ccz` names in its own words ("a review round that corrects an ordering must sweep every V-item that quotes the old one"). MEASURED GAP (F-05, re-measured at review): a case-insensitive scan of `plan-review/`, `plan-review-long/`, `spec-review/` and `verify-execution/` for `sweep` returns exactly FIVE hits, all unrelated (three about a bare `git add -A` sweeping a co-worker's files, in `intent-audit.md` and twice in `verify-execution.md`, and two about a large mechanical rename sweep in `rubric.md`); the authored count of three under-counted by two, and the CONCLUSION is unchanged because every hit is still unrelated and neither revise step is among them. So no reviewer-facing body carries this instruction in any wording.
+- [x] E-03 ADD THE SWEEP OBLIGATION to the revise step of BOTH `plan-review` variants, which is the process signal backlog `rv2ccz` names in its own words ("a review round that corrects an ordering must sweep every V-item that quotes the old one"). MEASURED GAP (F-05, re-measured at review): a case-insensitive scan of `plan-review/`, `plan-review-long/`, `spec-review/` and `verify-execution/` for `sweep` returns exactly FIVE hits, all unrelated (three about a bare `git add -A` sweeping a co-worker's files, in `intent-audit.md` and twice in `verify-execution.md`, and two about a large mechanical rename sweep in `rubric.md`); the authored count of three under-counted by two, and the CONCLUSION is unchanged because every hit is still unrelated and neither revise step is among them. So no reviewer-facing body carries this instruction in any wording.
   - THE TWO ANCHORS, each re-verified UNIQUE at review so the edit cannot land twice or in the wrong place. In `plan-review/plan-review.md` section "### 2.4 Revise the plan in place", the sentence "When a finding spans plans, fix it in the owning plan and cross-reference it from dependent plans." (1 occurrence). In `plan-review-long/02-review-and-revise.md` section "## 3. Revise in place", the sentence "For cross-plan findings, fix the owning plan and cross-reference dependent plans. Do not duplicate requirements." (1 occurrence).
   - BOTH ANCHOR SENTENCES ARE LINE-WRAPPED IN THE FILE AND NEITHER MATCHES AS A SINGLE-LINE STRING. Corrected at review, because the authored wording invited a `grep` for the whole sentence and BOTH would have returned zero, reading as "the anchor is gone" when it is present. Measured: `plan-review.md`'s sentence wraps after "cross-reference it" and its continuation line is "from dependent plans."; `02-review-and-revise.md`'s wraps after "cross-reference dependent" and its continuation is "plans. Do not duplicate requirements." So anchor on a SINGLE-LINE fragment, not the sentence: `When a finding spans plans, fix it in the owning plan and cross-reference it` (1 occurrence) and `For cross-plan findings, fix the owning plan and cross-reference dependent` (1 occurrence), each re-measured unique at review. Both files also HARD-WRAP their prose at roughly 80 columns, so match that wrapping in the added text rather than writing one long line; `plan-review.md` is the less strict of the two but the long form is consistently wrapped.
   - Both files declare deliberate parity in their own words, so the edit must land in BOTH with the same substance; a one-sided edit is drift by construction, which review already established for this same file pair in plan `x7i14a` (PR-801).
@@ -76,9 +76,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: none
   - Expected outcome: both revise steps carry the sweep obligation with the same substance, anchored at the cross-plan sentence in each; the two hunks are side-by-side comparable; no severity, verdict, Fix Bar or rubric text is touched in either file; and `spec-review.md` is absent from the diff.
 
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 GIVE `verify-execution` A DISPOSITION FOR A `V-*` WHOSE DEMAND THE PLAN ITSELF REPORTS AS UNSATISFIABLE, in `.aw/system/workflows/verify-execution/intent-audit.md` "## Dimension 1: Explicit Requirements Audit". THE MEASURED GAP (F-06): Dimension 1 builds its checklist from "every `V-*` validation item (was its Required evidence actually produced?)" and rules that "a requirement whose `V-*` evidence is empty or was never run is NOT satisfied, regardless of the `E-*` checkbox" (1 occurrence, re-verified unique at review). That covers EMPTY and NEVER-RUN and is silent on a third case: an item whose demand the executed plan measured as impossible and answered with the measurement plus the satisfiable counterpart. `u23gbn` V-02 IS that case, so an auditor running Dimension 1 against it today must either record a gap that is not one or invent a disposition on the spot.
+- [x] E-04 GIVE `verify-execution` A DISPOSITION FOR A `V-*` WHOSE DEMAND THE PLAN ITSELF REPORTS AS UNSATISFIABLE, in `.aw/system/workflows/verify-execution/intent-audit.md` "## Dimension 1: Explicit Requirements Audit". THE MEASURED GAP (F-06): Dimension 1 builds its checklist from "every `V-*` validation item (was its Required evidence actually produced?)" and rules that "a requirement whose `V-*` evidence is empty or was never run is NOT satisfied, regardless of the `E-*` checkbox" (1 occurrence, re-verified unique at review). That covers EMPTY and NEVER-RUN and is silent on a third case: an item whose demand the executed plan measured as impossible and answered with the measurement plus the satisfiable counterpart. `u23gbn` V-02 IS that case, so an auditor running Dimension 1 against it today must either record a gap that is not one or invent a disposition on the spot.
   - THE ANCHOR SENTENCE IS LINE-WRAPPED TOO, corrected at review for the same reason as E-03's: it wraps after "evidence is empty or", so the whole sentence matches nothing as a single-line string. Anchor on `A requirement whose \`V-*\` evidence is empty or` (1 occurrence). The file wraps at roughly 100 columns; match its wrapping. Place the new rule immediately AFTER that sentence and BEFORE the `## Dimension 2` heading, so it reads as a third case of the same rule rather than as a new dimension.
   - WHAT THE ADDED RULE MUST SAY, and the asymmetry is the whole point. An item whose evidence reports the DEMAND as unsatisfiable is satisfied ONLY IF the evidence does three things: states WHY the demand cannot be met, PROVES it with a measurement rather than an argument from prose, and evidences the closest thing that DOES exist. Absent any of the three it is NOT satisfied, and a bare assertion of impossibility with no measurement is the specific shape to refuse, because it is indistinguishable from an excuse. Name `u23gbn` V-02 as the worked PASSING example, so an auditor has a calibrated bar rather than an adjective. DESCRIBE ITS MEASUREMENT AS THE PLAN ACTUALLY RECORDS IT, corrected at review: V-02's `Observed evidence` does NOT contain the literal string `git merge-base`, it pastes the RESULT line `is the abandoned commit an ancestor of HEAD: False` alongside `classification: refused-would-overwrite`, `git rc: 1` and `HEAD unmoved: True` (the `git merge-base --is-ancestor` spelling appears in the sibling V-06, which is a different item). So the example must be cited as "pastes the ancestry result showing the commit is not reachable from the branch", not as "pastes the `git merge-base` command". A calibrated example that misquotes its own evidence teaches the auditor to accept a paraphrase, which is the opposite of the bar this rule sets, and an auditor grepping for the command string would conclude the passing example does not pass.
   - AND SAY WHAT THE AUDITOR OWES BESIDES A PASS. An unsatisfiable demand is a DEFECT IN THE PLAN even when the executor handled it correctly, so the audit must report it as such, which under this workflow's own rules means the corrective IPD route rather than an in-place edit to an executed plan. That sentence is what stops the new rule becoming a blanket excuse: the item passes, and the contradiction is still reported.
@@ -88,7 +88,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: none
   - Expected outcome: Dimension 1 carries a third case beside empty and never-run, with its three-part bar, the `done` classification named, `u23gbn` V-02 named as the calibrated passing example described as it actually records its measurement, and the obligation to report the contradiction anyway; `verify-execution.md` and `rubric.md` are absent from the diff.
 
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -192,37 +192,258 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: THE FULL `git diff` of the `u23gbn` file, pasted, plus `git diff --numstat` for it. The diff MUST show insertions only and ZERO deletions (numstat's second column must be `0`), must not contain V-02's `Required evidence` or `Observed evidence` text, and must not contain any `- Field:` metadata line. Then paste the new record itself and confirm IN YOUR OWN WORDS that it states all FOUR required things: that V-02's demand is unsatisfiable in this plan's own ordering; WHY (the ff-only merge is the branch advance, so a refusal leaves nothing landed); WHERE the plan already says so (E-06's bullet and V-06's third bullet, both named); and that V-02's `Observed evidence` is the authoritative account of the handling. Also paste the first three lines under `## Workflow history` to prove the new record is FIRST, and the plan's `- Status:` line plus `git status --short` for that path to prove the status and the directory are unchanged.
   - ALSO PROVE THE PLACEMENT IS SAFE, not merely correct by convention (F-08). Paste `plan_readiness.is_plan_review_approved` driven against the real file BEFORE and AFTER the edit, showing the same value both times, and `extract_newest_history_entry` showing it now returns the new note. If the predicate's value CHANGES, this item FAILS regardless of the diff, because a history note would then have altered an approval signal.
   - MIND THE TWO SIGNATURES, corrected at review because they differ and passing the wrong one raises rather than answering: `is_plan_review_approved` takes a **`Path`** (its body calls `plan_path.read_text(...)`, so handing it a string raises `AttributeError: 'str' object has no attribute 'read_text'`), while `extract_newest_history_entry` takes the **text**. Drive the before/after pair on two temp-file copies rather than on the real file, so the probe cannot leave the tracked file mutated if it raises midway.
   - CHECK THE OTHER HISTORY CONSUMERS TOO, not `is_plan_review_approved` alone, since it is the only one F-08 measured and it is not the only one that reads this section. Paste, before and after, all three of: `plan_readiness.newest_verdict`, `plan_readiness.history_has_review_record`, and `ipd_lifecycle._plan_status_events` (report its event COUNT and its first event). MEASURED AT REVIEW with a note-token probe in E-01's exact position, so this is a confirmation: `newest_verdict` unchanged at `('neutral', <the 2026-09-13 round-3 record>)` because it scans for a VERDICT record rather than taking the first line, `history_has_review_record` `True` both times, and `_plan_status_events` `8` events with the same first event both times because a non-vocabulary token is skipped. ANY of these four changing is a FAILED validation: it would mean the note altered a signal some other consumer reads, which is the whole risk of inserting at position one.
   - A diff showing ANY deletion, a record missing any of the four statements, a record placed anywhere but first, or a changed approval value is a FAILED validation regardless of what the suite says. This item's accuracy is not machine-checkable (see Required tests / validation), so this inspection is the only real proof.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full git diff and numstat showing 1 insertion, 0 deletions:
 
-- [ ] V-02 validates E-02
+    ```diff
+    $ git diff c2a4c73e~1..c2a4c73e -- .aw/records/plans/executed/20260913-dirtygates-04-u23gbn-retire-an-orchestrator-in-a-coordinator-owned-throwaway-work.ipd.md
+    diff --git a/.aw/records/plans/executed/20260913-dirtygates-04-u23gbn-retire-an-orchestrator-in-a-coordinator-owned-throwaway-work.ipd.md b/.aw/records/plans/executed/20260913-dirtygates-04-u23gbn-retire-an-orchestrator-in-a-coordinator-owned-throwaway-work.ipd.md
+    index 4b69b23b..5d2aaf1f 100644
+    --- a/.aw/records/plans/executed/20260913-dirtygates-04-u23gbn-retire-an-orchestrator-in-a-coordinator-owned-throwaway-work.ipd.md
+    +++ b/.aw/records/plans/executed/20260913-dirtygates-04-u23gbn-retire-an-orchestrator-in-a-coordinator-owned-throwaway-work.ipd.md
+    @@ -17,6 +17,7 @@
+     - Work-Kind: bug
+
+     ## Workflow history
+    +- 2026-09-28 note (bwo8hp): Filed by backlog item rv2ccz and recorded by plan bwo8hp. V-02's demand for a landed-commit-plus-refused-reconciliation state showing journal phase PHASE_COMMITTED_INCOMPLETE is unsatisfiable in the ordering this plan itself mandates. F-10 established that the ff-only merge must be the branch advance, so a refusal leaves the commit unreachable from the branch and nothing landed. The plan already states this contradiction in E-06's bullet ("in this ordering a refusal leaves the commit UNREACHABLE FROM main rather than landed-but-unreconciled, so it is NOT PHASE_COMMITTED_INCOMPLETE") and in V-06's third bullet ("in the corrected ordering the commit is NOT reachable from main, so PHASE_COMMITTED_INCOMPLETE would be a FALSE classification"). V-02's Observed evidence block is the authoritative account of how it was handled: it reports the demand as unsatisfiable by construction, pasting the ancestry measurement showing the abandoned commit is not reachable from the branch (is the abandoned commit an ancestor of HEAD: False, beside classification: refused-would-overwrite, git rc: 1, and HEAD unmoved: True), and evidences the committed-incomplete case that does exist (the post-commit plans-index refresh failure from E-07).
+     - 2026-09-16 executed (aw oc run): aw oc run self-finalize: u23gbn verified (set dirtygates, attempt 1).
+     - 2026-09-14 approved (aw set): status set to approved
+     - 2026-09-13 reviewed (maintainer, --by-human attestation via askme): MAINTAINER ATTESTATION 2026-09-13: readiness set to `go-pending-approval` BY THE MAINTAINER, not by an agent and not by a review. The prior `no-go` was written by this plan's own earlier review round while a blocking question was open; the maintainer then answered every open question in this plan through the `askme` workflow on 2026-09-13, one interactive prompt at a time, and each answer is recorded in this plan's `## Open questions` with its reasoning. Asked directly how the stale verdict should be cleared, the maintainer chose to attest it themselves rather than fund a further review round, having read every resolution as it was written. THE ALTERNATIVE WAS PRICED AND REJECTED ON EVIDENCE: the round that ran earlier the same day cost 3h 02m and $106.07 across nine items, cleared three plans, and raised four NEW blocking questions on the rest, so a further round was not expected to yield a clean sheet. NO AGENT WROTE THIS VALUE ON ITS OWN AUTHORITY. Recorded here because the auto-approve predicate reads this field FIRST (`plan_readiness.is_plan_review_approved`), so a stale `no-go` is a live refusal that would have silently skipped this plan when the Set executed.
+
+    $ git diff --numstat c2a4c73e~1..c2a4c73e -- .aw/records/plans/executed/20260913-dirtygates-04-u23gbn-retire-an-orchestrator-in-a-coordinator-owned-throwaway-work.ipd.md
+    1	0	.aw/records/plans/executed/20260913-dirtygates-04-u23gbn-retire-an-orchestrator-in-a-coordinator-owned-throwaway-work.ipd.md
+    ```
+
+    The diff contains only 1 insertion, 0 deletions, does not touch V-02's Required or Observed evidence, and does not touch any `- Field:` line.
+
+    The new record text itself:
+    `- 2026-09-28 note (bwo8hp): Filed by backlog item rv2ccz and recorded by plan bwo8hp. V-02's demand for a landed-commit-plus-refused-reconciliation state showing journal phase PHASE_COMMITTED_INCOMPLETE is unsatisfiable in the ordering this plan itself mandates. F-10 established that the ff-only merge must be the branch advance, so a refusal leaves the commit unreachable from the branch and nothing landed. The plan already states this contradiction in E-06's bullet ("in this ordering a refusal leaves the commit UNREACHABLE FROM main rather than landed-but-unreconciled, so it is NOT PHASE_COMMITTED_INCOMPLETE") and in V-06's third bullet ("in the corrected ordering the commit is NOT reachable from main, so PHASE_COMMITTED_INCOMPLETE would be a FALSE classification"). V-02's Observed evidence block is the authoritative account of how it was handled: it reports the demand as unsatisfiable by construction, pasting the ancestry measurement showing the abandoned commit is not reachable from the branch (is the abandoned commit an ancestor of HEAD: False, beside classification: refused-would-overwrite, git rc: 1, and HEAD unmoved: True), and evidences the committed-incomplete case that does exist (the post-commit plans-index refresh failure from E-07).`
+
+    Confirmation in own words: The record states all four required items:
+    1. V-02's demand for a landed-commit-plus-refused-reconciliation state showing PHASE_COMMITTED_INCOMPLETE is unsatisfiable in the ordering this plan itself mandates.
+    2. Why: F-10 established that the ff-only merge must be the branch advance, so a refusal leaves the commit unreachable from the branch and nothing landed.
+    3. Where the plan already says so: E-06's bullet ("in this ordering a refusal leaves the commit UNREACHABLE FROM main rather than landed-but-unreconciled, so it is NOT PHASE_COMMITTED_INCOMPLETE") and V-06's third bullet ("in the corrected ordering the commit is NOT reachable from main, so PHASE_COMMITTED_INCOMPLETE would be a FALSE classification").
+    4. V-02's Observed evidence block is the authoritative account of how it was handled: reporting the demand as unsatisfiable by construction with the ancestry measurement showing the abandoned commit is not reachable from the branch (`is the abandoned commit an ancestor of HEAD: False`, beside `classification: refused-would-overwrite`, `git rc: 1`, and `HEAD unmoved: True`), and evidencing the committed-incomplete case that does exist (the post-commit plans-index refresh failure from E-07). It contains zero occurrences of "git merge-base".
+
+    First three lines under `## Workflow history`:
+    ```
+    - 2026-09-28 note (bwo8hp): Filed by backlog item rv2ccz and recorded by plan bwo8hp. V-02's demand for a landed-commit-plus-refused-reconciliation state showing journal phase PHASE_COMMITTED_INCOMPLETE is unsatisfiable in the ordering this plan itself mandates. F-10 established that the ff-only merge must be the branch advance, so a refusal leaves the commit unreachable from the branch and nothing landed. The plan already states this contradiction in E-06's bullet ("in this ordering a refusal leaves the commit UNREACHABLE FROM main rather than landed-but-unreconciled, so it is NOT PHASE_COMMITTED_INCOMPLETE") and in V-06's third bullet ("in the corrected ordering the commit is NOT reachable from main, so PHASE_COMMITTED_INCOMPLETE would be a FALSE classification"). V-02's Observed evidence block is the authoritative account of how it was handled: it reports the demand as unsatisfiable by construction, pasting the ancestry measurement showing the abandoned commit is not reachable from the branch (is the abandoned commit an ancestor of HEAD: False, beside classification: refused-would-overwrite, git rc: 1, and HEAD unmoved: True), and evidences the committed-incomplete case that does exist (the post-commit plans-index refresh failure from E-07).
+    - 2026-09-16 executed (aw oc run): aw oc run self-finalize: u23gbn verified (set dirtygates, attempt 1).
+    - 2026-09-14 approved (aw set): status set to approved
+    ```
+
+    Status line and git status:
+    `Status line: - Status: executed`
+    `$ git status --short .aw/records/plans/executed/20260913-dirtygates-04-u23gbn-retire-an-orchestrator-in-a-coordinator-owned-throwaway-work.ipd.md` (clean, committed in commit `c2a4c73e`).
+
+    Consumer probes driven before and after:
+    ```
+    is_plan_review_approved before: True
+    is_plan_review_approved after: True
+    extract_newest_history_entry after: - 2026-09-28 note (bwo8hp): Filed by backlog item rv2ccz and recorded by plan bwo8hp. ...
+    newest_verdict before and after: ('neutral', "- 2026-09-13 reviewed (opencode (its_direct/pt3-claude-opus-5-1m-us)): /plan-review ROUND 3: REVIEWED - OPEN QUESTIONS; readiness NO-GO. ...")
+    history_has_review_record before and after: True
+    events count before and after: 8
+    first event before and after: ('2026-09-13', 'draft', 'opencode (its_direct/pt3-claude-opus-5-1m-us)')
+    ```
+    All predicates and readers behave identically.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: pasted output and exit codes of `python3 -m agent_workflows ipd-executed-gate` and `python3 -m agent_workflows ipd-status-untooled-gate` with E-01's edit STAGED (staged, not merely present in the working tree: both gates read the staged index, so an unstaged run proves nothing and is itself a failed validation), plus `aw check plans`. Paste `git diff --cached --name-only` alongside, showing the `u23gbn` path and nothing else.
   - STATE EXPLICITLY WHICH EXEMPTION EACH GATE TOOK AND ON WHAT BASIS: for the executed gate, that `same_plan_at_head` holds and `moved_into_executed` and `gained_executed` are both false because path, `- Id:` and `- Status:` are unchanged; for the untooled gate, that the path contains `/executed/` and no `- Status:` changed. A pasted exit code with no stated basis does not satisfy this item, because the exemptions are conditional and the conditions are what is being validated.
   - If either gate refuses, record the refusal VERBATIM, do NOT use `--no-verify`, and report it as a finding about the gates rather than working around it.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Output and exit codes on the staged append:
 
-- [ ] V-03 validates E-03
+    ```bash
+    $ git diff --cached --name-only
+    .aw/records/plans/executed/20260913-dirtygates-04-u23gbn-retire-an-orchestrator-in-a-coordinator-owned-throwaway-work.ipd.md
+
+    $ python3 -m agent_workflows ipd-executed-gate
+    # exit code: 0
+
+    $ python3 -m agent_workflows ipd-status-untooled-gate
+    # exit code: 0
+
+    $ aw check plans
+    AW check  plans                                                          2476 ms
+    ✗ FINDINGS  4 finding(s) detected across 25 plans
+
+    Findings:
+      Issue: check.ipd-uncarried-obligation
+      - .aw/records/plans/pending
+        1. 20260928-gatequote-01-q5l2r3-bound-the-last-unbounded-metadata-reader-in-the-executed-tra.ipd.md
+        Fix: inspect .aw/records/plans/pending/20260928-gatequote-01-q5l2r3-bound-the-last-unbounded-metadata-reader-in-the-executed-tra.ipd.md frontmatter and schema conformity.
+
+      Issue: check.ipd-uncarried-obligation
+      - .aw/records/plans/pending
+        1. 20260928-pe7g6r-01-gvf2sq-record-the-in-flight-item-interrupted-at-the-terminal-sigint.ipd.md
+        Fix: inspect .aw/records/plans/pending/20260928-pe7g6r-01-gvf2sq-record-the-in-flight-item-interrupted-at-the-terminal-sigint.ipd.md frontmatter and schema conformity.
+
+      Issue: check.ipd-carrier-finished-unverified
+      - .aw/records/plans/pending
+        1. 20260928-reattclose-01-pjuoyj-perform-a-deferred-re-attempt-s-backlog-close-in-a-coordinat.ipd.md
+        Fix: inspect .aw/records/plans/pending/20260928-reattclose-01-pjuoyj-perform-a-deferred-re-attempt-s-backlog-close-in-a-coordinat.ipd.md frontmatter and schema conformity.
+
+      Issue: cross-tree collisions NOT checked by a per-type run
+      - <collisions>
+        1. <collisions>
+        Fix: inspect <collisions> frontmatter and schema conformity.
+
+    Evidence
+      pending  26   reusable  1   terminal  861
+      errors  4   warnings  0
+    # exit code: 1 (0 findings for executed plans or u23gbn; all 4 findings are pre-existing across other pending plans)
+    ```
+
+    Exemption grounds:
+    - `ipd-executed-gate`: Exempted because `same_plan_at_head` holds, and both `moved_into_executed` and `gained_executed` are false (the file was already at its path in `executed/`, and `- Id: u23gbn` and `- Status: executed` are both unchanged).
+    - `ipd-status-untooled-gate`: Exempted because the path contains `/executed/` and no `- Status:` transition occurred.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the two `git diff` hunks SIDE BY SIDE, one from `plan-review/plan-review.md` and one from `plan-review-long/02-review-and-revise.md`, and confirm in your own words that they carry the same SUBSTANCE (the wording may differ to fit each body's voice; the obligation, the named `u23gbn` case, the grep-the-replaced-token help, and the executed-plan disposition must all be present in both). A hunk in only one file is a FAILED validation even if that hunk is perfect, because the two bodies declare deliberate parity and a one-sided edit is drift by construction (F-10).
   - PROVE THE ANCHORS WERE HIT, not merely that text was added: show each hunk's context line containing the cross-plan sentence it anchors on. Quote the SINGLE-LINE fragment, because both sentences are line-wrapped in their files and the whole sentence matches nothing (E-03's second bullet): `When a finding spans plans, fix it in the owning plan and cross-reference it` in the single-file form, and `For cross-plan findings, fix the owning plan and cross-reference dependent` in the long form. Show the new text is inside the revise section rather than after it: in the long form the section ENDS at the `## Exit gate` heading, so a hunk below that heading is outside section 3 even though it is still in the same file, and in the single-file form the section ends at the `---` preceding `## Step 3`.
   - PROVE NOTHING ELSE MOVED: paste `git diff --stat` for the two files and confirm no change to any severity, verdict, Fix Bar, or rubric text, and paste `git status --short .aw/system/workflows/spec-review/` showing it empty (`spec-review.md` must be absent from the diff, per Deferred).
   - Then paste `python3 -m pytest tests/test_plan_review_feasibility_rule.py tests/test_spec_review_attestation.py -o addopts=""` green, which is the only suite surface that reads a workflow body.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Diff hunks for both files:
 
-- [ ] V-04 validates E-04
+    In `plan-review/plan-review.md`:
+    ```diff
+    @@ -253,6 +253,18 @@ Make surgical edits:
+     When a finding spans plans, fix it in the owning plan and cross-reference it
+     from dependent plans.
+
+    +When a revision corrects a mechanism, ordering, or classification, the
+    +correction is not complete until every other item in the plan that quotes or
+    +depends on the replaced wording has been swept and reconciled. This sweep
+    +is not limited to `V-*` items: check every item, field, and prose block
+    +(`E-*`, `V-*`, findings, proposed changes, gates, scope paths) against the plan
+    +as it now reads, not merely your own diff. Grep for distinctive tokens of the
+    +superseded wording (e.g. `PHASE_COMMITTED_INCOMPLETE` in `u23gbn`, where round 3
+    +corrected E-06 and V-06 but left V-02 demanding an impossible state). If a stale
+    +sibling belongs to an already executed plan and cannot be edited in place,
+    +record the contradiction in a dated `## Workflow history` note where readers
+    +will find it.
+    +
+     If the approach is fundamentally unsound and cannot be repaired with bounded
+     edits, mark `REPLAN`, explain why, and describe the minimum shape of a sound
+     replacement. Do not invent decisions that require the human.
+    ```
+
+    In `plan-review-long/02-review-and-revise.md`:
+    ```diff
+    @@ -113,6 +113,18 @@ For a plan whose own first `- Kind:` bullet reads `orchestrator` (read from the
+     For cross-plan findings, fix the owning plan and cross-reference dependent
+     plans. Do not duplicate requirements.
+
+    +When a revision corrects a mechanism, ordering, or classification, the
+    +correction is not complete until every other item in the plan that quotes or
+    +depends on the replaced wording has been swept and reconciled. This sweep
+    +is not limited to `V-*` items: check every item, field, and prose block
+    +(`E-*`, `V-*`, findings, proposed changes, gates, scope paths) against the plan
+    +as it now reads, not merely your own diff. Grep for distinctive tokens of the
+    +superseded wording (e.g. `PHASE_COMMITTED_INCOMPLETE` in `u23gbn`, where round 3
+    +corrected E-06 and V-06 but left V-02 demanding an impossible state). If a stale
+    +sibling belongs to an already executed plan and cannot be edited in place,
+    +record the contradiction in a dated `## Workflow history` note where readers
+    +will find it.
+    +
+     If the approach is not safely patchable, mark `REPLAN`, explain why, and state
+     the minimum shape of a sound replacement. Do not invent human product choices.
+    ```
+
+    Confirmation of parity and substance in own words: Both hunks carry identical substance:
+    1. Obligation: whenever a revision corrects a mechanism, ordering, or classification, the correction is not complete until every other item quoting or depending on the replaced wording is swept and reconciled.
+    2. Scope: not limited to `V-*` items; sweeps every item, field, and prose block (`E-*`, `V-*`, findings, proposed changes, gates, scope paths) against the plan as it now reads.
+    3. Named case: cites `u23gbn`, where round 3 corrected E-06 and V-06 but left V-02 demanding an impossible state (`PHASE_COMMITTED_INCOMPLETE`).
+    4. Grep help: grep for distinctive tokens of the superseded wording.
+    5. Executed-plan disposition: record the contradiction in a dated `## Workflow history` note where readers will find it.
+
+    Proved anchors hit and inside revise section:
+    - In `plan-review.md`: Anchored immediately after the line-wrapped fragment `When a finding spans plans, fix it in the owning plan and cross-reference it`, located in Section 2.4, above `---` and `## Step 3`.
+    - In `02-review-and-revise.md`: Anchored immediately after the line-wrapped fragment `For cross-plan findings, fix the owning plan and cross-reference dependent`, located in Section 3, above `## Exit gate`.
+
+    `git diff --stat` showing nothing else moved:
+    ```
+     .../workflows/plan-review-long/02-review-and-revise.md       | 12 ++++++++++++
+     .aw/system/workflows/plan-review/plan-review.md              | 12 ++++++++++++
+     2 files changed, 24 insertions(+)
+    ```
+    `spec-review/` untouched:
+    `$ git status --short .aw/system/workflows/spec-review/` -> empty output.
+
+    Workflow suite tests:
+    ```
+    $ python3 -m pytest tests/test_plan_review_feasibility_rule.py tests/test_spec_review_attestation.py -o addopts=""
+    ============================== 33 passed in 0.57s ==============================
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the `git diff` of `intent-audit.md` and confirm in your own words that the added rule contains ALL THREE parts of the bar (a stated reason the demand cannot be met, a MEASUREMENT proving it, and evidence of the satisfiable counterpart), that it names a bare assertion of impossibility WITHOUT a measurement as the shape to refuse, that it NAMES `done` as the classification the passing case receives, that it cites `u23gbn` V-02 as the calibrated passing example, and that it still obliges the auditor to REPORT the contradiction as a plan defect. A rule missing the measurement requirement, missing the named classification, or missing the still-report obligation is a FAILED validation: without the first it is an excuse, without the second the auditor still has to invent a label, and without the third it silently absolves the plan.
   - CONFIRM THE EXAMPLE DOES NOT MISQUOTE ITS OWN EVIDENCE: the added text must describe `u23gbn` V-02 as pasting the ANCESTRY RESULT (`is the abandoned commit an ancestor of HEAD: False`), not as pasting a `git merge-base` command, which that evidence block does not contain. Prove it by pasting `grep -c "merge-base"` over the added hunk (expect `0`) and over `u23gbn`'s V-02 `Observed evidence` block (expect `0`).
   - PROVE IT LANDED IN DIMENSION 1 AND NOWHERE ELSE: show the hunk's context includes the existing sentence, quoting the SINGLE-LINE fragment `A requirement whose \`V-*\` evidence is empty or` because that sentence is line-wrapped in the file and the whole sentence matches nothing; show the hunk sits ABOVE the `## Dimension 2` heading; and paste `git status --short .aw/system/workflows/verify-execution/` showing ONLY `intent-audit.md` modified (`verify-execution.md` and `rubric.md` must be absent, per Scope check).
   - ALSO STATE THE EXPECTED MANAGED-SECTIONS CONSEQUENCE rather than leaving it to surprise someone: re-run the `manifest.hash_content` comparison for `intent-audit.md` and show it is now STALE where F-09 measured it MATCHING, and confirm `.aw/system/managed-sections.json` is NOT in the diff. A diff that contains that file is a FAILED validation, because it is installer-owned.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Git diff of `intent-audit.md`:
+
+    ```diff
+    diff --git a/.aw/system/workflows/verify-execution/intent-audit.md b/.aw/system/workflows/verify-execution/intent-audit.md
+    index 5f4117cb..bda17d5e 100644
+    --- a/.aw/system/workflows/verify-execution/intent-audit.md
+    +++ b/.aw/system/workflows/verify-execution/intent-audit.md
+    @@ -27,6 +27,19 @@ For each, re-open the diff at `path:line` and classify it done / partial / missi
+     (reuse the `verify-execution.md` Step 2 vocabulary). A requirement whose `V-*` evidence is empty or
+     was never run is NOT satisfied, regardless of the `E-*` checkbox.
+
+    +An item whose evidence reports the demand itself as unsatisfiable is classified `done` only if the
+    +evidence satisfies a three-part bar: it states why the demand cannot be met, proves the impossibility
+    +with an empirical measurement rather than an argument from prose, and evidences the satisfiable
+    +counterpart that does exist. Absent any of the three, the requirement is not satisfied; a bare
+    +assertion of impossibility without a measurement is rejected as an unsupported excuse. Calibrated
+    +passing example: `u23gbn` V-02, which reported the demand for `PHASE_COMMITTED_INCOMPLETE` as
+    +unsatisfiable under the plan's ordering, pasted the ancestry result showing the commit is not
+    +reachable from the branch (`is the abandoned commit an ancestor of HEAD: False`, beside
+    +`classification: refused-would-overwrite`, `git rc: 1`, and `HEAD unmoved: True`), and evidenced the
+    +real post-commit incomplete case from E-07. Even when the requirement is rated `done` under this bar,
+    +an unsatisfiable demand is a plan defect: the auditor must still report the contradiction as a
+    +finding (requiring the corrective IPD route rather than an in-place edit to an executed plan).
+    +
+     ## Dimension 2: Implicit Intent & Spirit Audit
+
+     Verify the change honors the architectural INTENT, not just the letter. A line can be touched while
+    ```
+
+    Confirmation in own words:
+    - Added rule includes all three parts of the bar: states why the demand cannot be met, proves it with an empirical measurement rather than prose argument, and evidences the satisfiable counterpart that does exist.
+    - Explicitly rejects a bare assertion of impossibility without a measurement as an unsupported excuse.
+    - Names `done` as the classification the passing case receives.
+    - Cites `u23gbn` V-02 as the calibrated passing example.
+    - Requires the auditor to still report the contradiction as a plan defect via the corrective IPD route.
+
+    Evidence does not misquote measurement:
+    - `grep -c "merge-base"` over added hunk: `0`
+    - `grep -c "merge-base"` over `u23gbn` V-02 block: `0`
+    The rule accurately refers to pasting the ancestry result (`is the abandoned commit an ancestor of HEAD: False`).
+
+    Landed in Dimension 1 and nowhere else:
+    Context shows the line-wrapped anchor `A requirement whose \`V-*\` evidence is empty or` and sits immediately above `## Dimension 2: Implicit Intent & Spirit Audit`.
+    `$ git status --short .aw/system/workflows/verify-execution/` showed only `intent-audit.md` modified (neither `verify-execution.md` nor `rubric.md` touched).
+
+    Managed sections staleness:
+    `manifest.hash_content` check on `intent-audit.md` shows:
+    ```
+    actual: bfe9cbe456fde40cd04952606ada49282ac3dc884ad47704fa94a216f71bbbeb
+    recorded: 1d85ecddfcfdeb9ca020f594396436d8ad17b07452d11bcc04c609103b9a9174
+    matches: False
+    ```
+    `.aw/system/managed-sections.json` is clean and absent from the diff (`git status --porcelain .aw/system/managed-sections.json` empty).
+  - Result: pass
 
 ## Approval and execution gate
 
