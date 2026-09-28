@@ -461,10 +461,10 @@ def _is_repository_untracked_backend(repo_root_str: str) -> bool:
     return identity.get("records_backend") == RecordsBackend.REPOSITORY_UNTRACKED.value
 
 
-def get_ignored_dirs(repo_root: Path) -> set[str]:
-    """Return repo-relative POSIX paths of gitignored DIRECTORIES + default ignore sets."""
-    repo_root = Path(repo_root)
-    resolved_root_str = _resolved_root_str(str(repo_root))
+@functools.lru_cache(maxsize=128)
+def _cached_ignored_dirs(
+    resolved_root_str: str, gi_mtime: float, ex_mtime: float
+) -> frozenset[str]:
     ignored: set[str] = set(DEFAULT_IGNORED_DIR_NAMES)
     try:
         res = subprocess.run(
@@ -477,7 +477,7 @@ def get_ignored_dirs(repo_root: Path) -> set[str]:
                 "--directory",
                 "-z",
             ],
-            cwd=str(repo_root),
+            cwd=resolved_root_str,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             text=False,
@@ -492,7 +492,19 @@ def get_ignored_dirs(repo_root: Path) -> set[str]:
                 ignored.discard(".aw/records")
     except Exception:
         pass
-    return ignored
+    return frozenset(ignored)
+
+
+def get_ignored_dirs(repo_root: Path) -> set[str]:
+    """Return repo-relative POSIX paths of gitignored DIRECTORIES + default ignore sets."""
+    repo_root = Path(repo_root)
+    resolved_root_str = _resolved_root_str(str(repo_root))
+    p = Path(resolved_root_str)
+    gi = p / ".gitignore"
+    gi_mtime = gi.stat().st_mtime if gi.is_file() else -1.0
+    ex = p / ".git" / "info" / "exclude"
+    ex_mtime = ex.stat().st_mtime if ex.is_file() else -1.0
+    return set(_cached_ignored_dirs(resolved_root_str, gi_mtime, ex_mtime))
 
 
 def _resolved_root(root: Path) -> Path:

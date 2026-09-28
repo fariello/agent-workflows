@@ -37,6 +37,8 @@ import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 
+import pytest
+
 from agent_workflows import ipd_lint as L
 from agent_workflows import ipd_schema as S
 from tests.support import CONFORMING_ORCHESTRATOR, REPO_ROOT, SOURCE_DOCS, SOURCE_PLANS
@@ -2140,6 +2142,7 @@ class CitationAnchorAdvisoryTests(unittest.TestCase):
             + "\n".join(wrong),
         )
 
+    @pytest.mark.livecorpus
     def test_the_detector_discriminates_on_the_real_corpus_with_the_gate_disabled(self):
         """Kept separate: measures the detector over the tracked tree with the date gate bypassed.
 

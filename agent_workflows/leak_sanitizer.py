@@ -513,6 +513,18 @@ def build_ruleset(
     return rs
 
 
+_REQUIRED_RULE_SUBSTRINGS: dict[str, tuple[str, ...]] = {
+    "home-path": ("/home/",),
+    "users-path": ("/Users/",),
+    "windows-home": ("Users",),
+    "vc-home": (_VC,),
+    "private-repo": (_R1, _R2, _R3),
+    "other-account": (_ACCT,),
+    "session-id": ("ses_",),
+    "handle": (_H,),
+}
+
+
 # --- Text scanning core ----------------------------------------------------------------------
 def scan_text(
     text: str,
@@ -526,28 +538,86 @@ def scan_text(
     Binary content is scanned too (E4): a leak inside a binary blob is still flagged rather
     than skipped, so a human can decide.
     """
+    if not text:
+        return []
+
     findings: list[Finding] = []
-    for lineno, line in enumerate(text.splitlines(), 1):
-        if any(sub in line for sub in ruleset.allow_line_substrings):
+    # Collect rule candidates that could match `text`
+    for rule, pat in ruleset.fail.items():
+        req = _REQUIRED_RULE_SUBSTRINGS.get(rule)
+        if req is not None and not any(s in text for s in req):
             continue
-        for rule, pat in ruleset.fail.items():
-            if pat.search(line):
+        elif (
+            rule.startswith("derived:")
+            or rule.startswith("user-hint:")
+            or rule.startswith("hostname:")
+        ):
+            tok = rule.split(":", 1)[1]
+            if tok not in text:
+                continue
+
+        seen_lines: set[int] = set()
+        for m in pat.finditer(text):
+            line_start = text.rfind("\n", 0, m.start()) + 1
+            line_end = text.find("\n", m.end())
+            line = text[line_start:] if line_end == -1 else text[line_start:line_end]
+            if any(sub in line for sub in ruleset.allow_line_substrings):
+                continue
+            lineno = text.count("\n", 0, m.start()) + 1
+            if lineno in seen_lines:
+                continue
+            seen_lines.add(lineno)
+            findings.append(
+                Finding(f"{location_prefix}:{lineno}", rule, "fail", line.strip()[:120])
+            )
+
+    if include_warn:
+        for rule, pat in ruleset.warn.items():
+            req = _REQUIRED_RULE_SUBSTRINGS.get(rule)
+            if req is not None and not any(s in text for s in req):
+                continue
+            elif (
+                rule.startswith("derived:")
+                or rule.startswith("user-hint:")
+                or rule.startswith("hostname:")
+            ):
+                tok = rule.split(":", 1)[1]
+                if tok not in text:
+                    continue
+
+            seen_lines = set()
+            for m in pat.finditer(text):
+                line_start = text.rfind("\n", 0, m.start()) + 1
+                line_end = text.find("\n", m.end())
+                line = (
+                    text[line_start:] if line_end == -1 else text[line_start:line_end]
+                )
+                if any(sub in line for sub in ruleset.allow_line_substrings):
+                    continue
+                lineno = text.count("\n", 0, m.start()) + 1
+                if lineno in seen_lines:
+                    continue
+                seen_lines.add(lineno)
                 findings.append(
                     Finding(
-                        f"{location_prefix}:{lineno}", rule, "fail", line.strip()[:120]
+                        f"{location_prefix}:{lineno}", rule, "warn", line.strip()[:120]
                     )
                 )
-        if include_warn:
-            for rule, pat in ruleset.warn.items():
-                if pat.search(line):
-                    findings.append(
-                        Finding(
-                            f"{location_prefix}:{lineno}",
-                            rule,
-                            "warn",
-                            line.strip()[:120],
-                        )
-                    )
+
+    if len(findings) > 1:
+        fail_keys = {k: i for i, k in enumerate(ruleset.fail.keys())}
+        warn_offset = len(fail_keys)
+        warn_keys = {k: i + warn_offset for i, k in enumerate(ruleset.warn.keys())}
+        all_keys = {**fail_keys, **warn_keys}
+
+        def _sort_key(f: Finding) -> tuple[int, int]:
+            loc = f.location.rsplit(":", 1)[-1]
+            ln = int(loc) if loc.isdigit() else 0
+            order = all_keys.get(f.rule, 999999)
+            return (ln, order)
+
+        findings.sort(key=_sort_key)
+
     return findings
 
 

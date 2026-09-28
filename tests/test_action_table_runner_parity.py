@@ -302,12 +302,16 @@ class TestActionTableRunnerParity(unittest.TestCase):
                 subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                 subprocess.run(["git", "commit", "-qm", "init"], cwd=repo, check=True)
 
+                state = _build_queue_for_selector(
+                    mod, repo, "parset", allow_drafts=True
+                )
+                queue_by_id = {it["id6"]: it for it in state["queue"]}
+
                 for id6, (st, k, complete) in plan_meta.items():
                     with self.subTest(
                         host=label, id6=id6, status=st, kind=k, complete=complete
                     ):
-                        state = _build_queue_for_selector(mod, repo, id6)
-                        entry = next(it for it in state["queue"] if it["id6"] == id6)
+                        entry = queue_by_id[id6]
                         derived_action = entry["action"]
 
                         expected = run_selection_policy.runner_action(

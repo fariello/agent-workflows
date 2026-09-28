@@ -18,7 +18,6 @@ import contextlib
 import io
 import json
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -26,12 +25,38 @@ from unittest import mock
 
 from agent_workflows import (
     agy_runipd,
+    cli,
     oc_runipd,
     runner_shared,
 )
 from agent_workflows.runner_shared import queue_artifact_path
 
 _HOSTS = (("oc", oc_runipd), ("agy", agy_runipd))
+
+
+def _set_spec_status(
+    spec_path: Path, repo_root: Path, status: str = "reviewed"
+) -> None:
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+        try:
+            rc = cli.main(
+                [
+                    "specs",
+                    "set",
+                    str(spec_path),
+                    "--status",
+                    status,
+                    "--dir",
+                    str(repo_root),
+                    "--no-commit",
+                    "--yes",
+                ]
+            )
+        except SystemExit as exc:
+            rc = exc.code
+    if rc != 0:
+        raise RuntimeError(f"specs set failed with {rc}: {buf.getvalue()}")
 
 
 def _make_test_repo(path: Path) -> Path:
@@ -344,23 +369,7 @@ class TestSpecReviewDispatchE07(unittest.TestCase):
                         _write_review_record(
                             repo, subject_id6="spc002", subject_type="spec"
                         )
-                        subprocess.run(
-                            [
-                                sys.executable,
-                                "-m",
-                                "agent_workflows.cli",
-                                "specs",
-                                "set",
-                                str(plan_path),
-                                "--status",
-                                "reviewed",
-                                "--dir",
-                                str(repo),
-                                "--no-commit",
-                                "--yes",
-                            ],
-                            check=True,
-                        )
+                        _set_spec_status(plan_path, repo)
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     with _patch_host_agent(mod, fake_agent):
@@ -557,23 +566,7 @@ class TestSpecReviewApprovalAndScopeE08(unittest.TestCase):
                         _write_review_record(
                             repo, subject_id6="spc005", subject_type="spec"
                         )
-                        subprocess.run(
-                            [
-                                sys.executable,
-                                "-m",
-                                "agent_workflows.cli",
-                                "specs",
-                                "set",
-                                str(plan_path),
-                                "--status",
-                                "reviewed",
-                                "--dir",
-                                str(repo),
-                                "--no-commit",
-                                "--yes",
-                            ],
-                            check=True,
-                        )
+                        _set_spec_status(plan_path, repo)
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     mock_set_plan_approved = mock.MagicMock()
@@ -634,23 +627,7 @@ class TestSpecReviewApprovalAndScopeE08(unittest.TestCase):
                         _write_review_record(
                             repo, subject_id6="spc006", subject_type="spec"
                         )
-                        subprocess.run(
-                            [
-                                sys.executable,
-                                "-m",
-                                "agent_workflows.cli",
-                                "specs",
-                                "set",
-                                str(plan_path),
-                                "--status",
-                                "reviewed",
-                                "--dir",
-                                str(repo),
-                                "--no-commit",
-                                "--yes",
-                            ],
-                            check=True,
-                        )
+                        _set_spec_status(plan_path, repo)
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     with _patch_host_agent(mod, fake_agent):
@@ -718,23 +695,7 @@ class TestSpecReviewApprovalAndScopeE08(unittest.TestCase):
                             repo, subject_id6="4w7d6s", subject_type="spec"
                         )
                         # Advance spec via setter
-                        subprocess.run(
-                            [
-                                sys.executable,
-                                "-m",
-                                "agent_workflows.cli",
-                                "specs",
-                                "set",
-                                str(plan_path),
-                                "--status",
-                                "reviewed",
-                                "--dir",
-                                str(repo),
-                                "--no-commit",
-                                "--yes",
-                            ],
-                            check=True,
-                        )
+                        _set_spec_status(plan_path, repo)
                         # Write an extra file
                         extra_path.write_text("extra", encoding="utf-8")
                         return 0, "session", rdir / "log.txt", ["cmd"]

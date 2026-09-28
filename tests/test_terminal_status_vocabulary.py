@@ -193,7 +193,9 @@ class TestLegacyStatusReaderNormalization(unittest.TestCase):
             summary = run_viewer.load_run_summary(run_dir)
             self.assertIsNotNone(summary)
             term = run_viewer.Term(color=False)
-            formatted = run_viewer.format_run_human(summary, term=term)
+            formatted = run_viewer.format_run_human(
+                summary, term=term, repo_root=temp_path
+            )
             self.assertIsInstance(formatted, str)
 
             # 2. lifecycle_style resolution
