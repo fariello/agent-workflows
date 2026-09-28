@@ -1,5 +1,5 @@
 - Id: rv2ccz
-- Status: graduated
+- Status: done
 - Graduated-To: rv2ccz
 - Blocks-Release: next
 - Set: rv2ccz
@@ -8,6 +8,7 @@
 - Summary: plan u23gbn's V-02 demands a landed-commit-plus-refused-reconciliation state that its own E-06 correction makes impossible, so the V-item text is internally contradictory
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): closed by aw oc run: IPD bwo8hp executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-rv2ccz-01-bwo8hp-record-the-v-02-contradiction-on-u23gbn-and-make-a-review-ro.ipd.md); evidence .aw/records/plans/executed/20260928-rv2ccz-01-bwo8hp-record-the-v-02-contradiction-on-u23gbn-and-make-a-review-ro.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: bwo8hp
 - 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-16 created (aw backlog): plan u23gbn's V-02 demands a landed-commit-plus-refused-reconciliation state that its own E-06 correction makes impossible, so the V-item text is internally contradictory
