@@ -123,9 +123,9 @@ represent (recorded, not dropped: an unlisted requirement can never fail).
 `RUN-HOST-CAPABILITY` refusal with `failed` / `host_capability_unavailable`, no session
 started, dependents cascaded, and the RUN NOT aborted.
 
-HONEST LIMIT: nothing in the runners consults this preflight yet. It lands the vocabulary and
-the checker; wiring the call sites is deliberately deferred (mjx7ne OQ-01), so today this
-prevents nothing on its own.
+HONEST LIMIT: `runner_shared.execute_item_core` consults this preflight (iot7hc), but no
+production action requires a capability today (01reg8 narrowed ACTION_CLASSES to 'read_only'),
+so today this prevents nothing on its own.
 """
 
 from __future__ import annotations

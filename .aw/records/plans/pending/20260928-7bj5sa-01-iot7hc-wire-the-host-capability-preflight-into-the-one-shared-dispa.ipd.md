@@ -35,48 +35,48 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: establish the baseline, and prove the gate is unreachable BEFORE changing anything
 
-- [ ] E-01 RE-MEASURE the whole premise and write the result into the plan as an execution note, because three of this plan's load-bearing facts are dated and each has a cheap check. Record: (a) the call-site count, `rg -c "preflight_host_capabilities" agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py agent_workflows/runner_shared.py` (expected: no output, exit 1); (b) the action vocabulary, `python3 -c "from agent_workflows import host_sandbox_profile as h; print(h.ACTION_CLASSES, {a: r.required for a, r in h.ACTION_CAPABILITY_REQUIREMENTS.items()})"`; (c) that both hosts reach ONE dispatch function, `rg -n "execute_item_core" agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py`. IF ANY HAS MOVED, SAY SO AND RE-SCOPE rather than proceeding: in particular, if some action has acquired a non-empty `required` tuple since authoring, then OQ-01's premise is gone and E-04's test expectations change from "proceeds" to "refuses". Trust the tree, not this plan's Concern.
+- [x] E-01 RE-MEASURE the whole premise and write the result into the plan as an execution note, because three of this plan's load-bearing facts are dated and each has a cheap check. Record: (a) the call-site count, `rg -c "preflight_host_capabilities" agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py agent_workflows/runner_shared.py` (expected: no output, exit 1); (b) the action vocabulary, `python3 -c "from agent_workflows import host_sandbox_profile as h; print(h.ACTION_CLASSES, {a: r.required for a, r in h.ACTION_CAPABILITY_REQUIREMENTS.items()})"`; (c) that both hosts reach ONE dispatch function, `rg -n "execute_item_core" agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py`. IF ANY HAS MOVED, SAY SO AND RE-SCOPE rather than proceeding: in particular, if some action has acquired a non-empty `required` tuple since authoring, then OQ-01's premise is gone and E-04's test expectations change from "proceeds" to "refuses". Trust the tree, not this plan's Concern.
   - Depends on: none
   - Expected outcome: a written, symbol-cited baseline stating zero call sites, `ACTION_CLASSES == ('read_only',)` with `read_only` requiring nothing, and `execute_item_core` called from both drivers; or an explicit statement of what moved and what it changes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 WRITE THE FAILING TEST FIRST, in a new file `tests/test_host_capability_wiring.py`, so the reachability defect is pinned by something that fails before the wiring exists and passes after. The test must prove REACHABILITY, not the preflight's internal logic (which `tests/test_host_capability_extension.py` already covers with 38 passing cases, re-measured at review). THREE cases, and the third is the one review added because the first two would both pass over a refusal no operator can see: (1) an AST or import-time assertion that `runner_shared` REFERENCES `preflight_host_capabilities` (this is the case that must FAIL first, and it is the direct inverse of the measurement in E-01a); (2) a call-through test that drives the refusal path with a descriptor forced to lack a required capability and asserts the item ends `fail-gate` with the spec's reason code and no session started; (3) THE RENDERING CASE (PR-101): assert that `run_selection_policy.derive_item_disposition(item, render_stream.refusal_of_item)` returns `.code == SKIP_HOST_CAPABILITY_UNAVAILABLE` for the refused item, which is the ONLY assertion that proves the reason an operator reads is the spec's reason rather than `acted_on`. For (2), use the SHIPPED test seams rather than inventing one: `host_sandbox_profile.forced_runner_safety_verdicts` for the capability verdict (it is the documented save/restore seam and it restores on exception), and the synthetic-action pattern `tests/test_host_capability_extension.py::synthetic_gated_action` establishes for a requirement-bearing action, since no production action requires anything (F-03). BOTH seams are process-global and MUST be restored in `finally`, and the synthetic action must not be left registered or `01reg8`'s shipped `set(ACTION_CAPABILITY_REQUIREMENTS) == {ACTION_READ_ONLY}` assertion becomes order-dependent under this suite's random ordering (that plan's E-06 records this exact hazard). DO NOT assert against a real host descriptor: `supports_fresh_verifier_session` probes True on Linux and False on darwin/win32 (measured, F-05), so a real-descriptor assertion is platform-dependent and would fail in CI on a different runner.
+- [x] E-02 WRITE THE FAILING TEST FIRST, in a new file `tests/test_host_capability_wiring.py`, so the reachability defect is pinned by something that fails before the wiring exists and passes after. The test must prove REACHABILITY, not the preflight's internal logic (which `tests/test_host_capability_extension.py` already covers with 38 passing cases, re-measured at review). THREE cases, and the third is the one review added because the first two would both pass over a refusal no operator can see: (1) an AST or import-time assertion that `runner_shared` REFERENCES `preflight_host_capabilities` (this is the case that must FAIL first, and it is the direct inverse of the measurement in E-01a); (2) a call-through test that drives the refusal path with a descriptor forced to lack a required capability and asserts the item ends `fail-gate` with the spec's reason code and no session started; (3) THE RENDERING CASE (PR-101): assert that `run_selection_policy.derive_item_disposition(item, render_stream.refusal_of_item)` returns `.code == SKIP_HOST_CAPABILITY_UNAVAILABLE` for the refused item, which is the ONLY assertion that proves the reason an operator reads is the spec's reason rather than `acted_on`. For (2), use the SHIPPED test seams rather than inventing one: `host_sandbox_profile.forced_runner_safety_verdicts` for the capability verdict (it is the documented save/restore seam and it restores on exception), and the synthetic-action pattern `tests/test_host_capability_extension.py::synthetic_gated_action` establishes for a requirement-bearing action, since no production action requires anything (F-03). BOTH seams are process-global and MUST be restored in `finally`, and the synthetic action must not be left registered or `01reg8`'s shipped `set(ACTION_CAPABILITY_REQUIREMENTS) == {ACTION_READ_ONLY}` assertion becomes order-dependent under this suite's random ordering (that plan's E-06 records this exact hazard). DO NOT assert against a real host descriptor: `supports_fresh_verifier_session` probes True on Linux and False on darwin/win32 (measured, F-05), so a real-descriptor assertion is platform-dependent and would fail in CI on a different runner.
   - Depends on: E-01
   - Expected outcome: `python3 -m pytest tests/test_host_capability_wiring.py -o addopts=""` FAILS on case (1) with a message naming the absent reference, and cases (2)/(3) either fail or are skipped pending the wiring. The failure is pasted into V-02 as the before-state.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the action-vocabulary bridge, then the call site
 
-- [ ] E-03 ADD THE ACTION-NAME BRIDGE, in `runner_shared.py`, and map EVERY runner action to the NO-POLICY sentinel, not to `read_only`. The runner's own action vocabulary is `execute` / `review` / `plan` (read from `item["action"]`; `execute_item_core` raises `DriverError` for anything else), while the contract's vocabulary is the single class `read_only`. `preflight_host_capabilities` RAISES `UnknownActionError` on an unrecognized action BY DESIGN ("that is a programming error in the caller, not a host that lacks a capability, and silently treating it as a refusal would hide the bug behind a plausible-looking outcome"), and it does so for every one of the runner's three names: measured, `preflight_host_capabilities("execute", caps, host="opencode", item="7bj5sa")` raises `UnknownActionError: unknown action class 'execute'; expected one of ['read_only']`. So a bare call at the dispatch point would crash EVERY execute item.
+- [x] E-03 ADD THE ACTION-NAME BRIDGE, in `runner_shared.py`, and map EVERY runner action to the NO-POLICY sentinel, not to `read_only`. The runner's own action vocabulary is `execute` / `review` / `plan` (read from `item["action"]`; `execute_item_core` raises `DriverError` for anything else), while the contract's vocabulary is the single class `read_only`. `preflight_host_capabilities` RAISES `UnknownActionError` on an unrecognized action BY DESIGN ("that is a programming error in the caller, not a host that lacks a capability, and silently treating it as a refusal would hide the bug behind a plausible-looking outcome"), and it does so for every one of the runner's three names: measured, `preflight_host_capabilities("execute", caps, host="opencode", item="7bj5sa")` raises `UnknownActionError: unknown action class 'execute'; expected one of ['read_only']`. So a bare call at the dispatch point would crash EVERY execute item.
   THE MAPPING TABLE IS THEREFORE EMPTY OF PRODUCTION ROWS, AND THAT IS THE CORRECT ANSWER RATHER THAN A GAP (PR-102, review decision D-1). Mapping `execute` onto `read_only` is the one shape this item forbids, for two measured reasons. FIRST it is a FALSE CLASSIFICATION: `read_only`'s own `spec_basis` reads "Repository read and captured evidence only; no agent session for a skip", and an `execute` item starts an agent session and mutates the tree, so the row would assert the opposite of what the item does. SECOND it would CORRUPT THE SPEC'S MESSAGE, because `format_host_capability_finding` interpolates the action name verbatim: measured, that mapping makes an execute item's refusal read `required by iot7hc action read_only`, so the one operator-facing string spec `25kzda` specifies would name the wrong action forever. Add a module-level dict (empty of production rows, with a comment stating that the three mutating runner actions have NO contract row since `01reg8` narrowed `ACTION_CLASSES` to `('read_only',)`) plus a function returning either a contract action or an explicit no-policy sentinel, and make the no-policy case a refusal-free PASS. State the reason in the docstring: an action this contract has no row for is an action the contract makes no claim about, and converting "no policy" into "refused" would stop every run on a policy nobody wrote, while converting it into a crash would take down the dispatch path for the same reason. The table is the SEAM `b7tlsh`/`oq05nc` will add a row to when a mutating action acquires a real requirement; that is its purpose, and it is why an empty table is a deliberate deliverable and not an omission. DO NOT re-add the three action constants `01reg8` deleted; that plan's E-04 comment explicitly forbids "restoring parity" without a consumer.
   - Depends on: E-02
   - Expected outcome: a named function in `runner_shared` maps `execute`/`review`/`plan` onto the explicit no-policy sentinel (no production row maps onto `read_only`), with a docstring stating the fail-closed reasoning and the two measured reasons above, and no code path can reach `preflight_host_capabilities` with a name it would raise on.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 CALL THE PREFLIGHT AT THE ONE SHARED DISPATCH POINT. Place it in `runner_shared.execute_item_core`, immediately after the existing stale-scope-target refusal block (the `if action == "execute":` block writing the `scope-target-stale` event) and before `build_prompt`/`write_prompt`, and copy that block's shape deliberately rather than inventing a second one: it is the same item-local refusal class (refuse before session start, cascade dependents, continue independent items) and it already solves the two problems this call has. Specifically, follow its placement rationale (the shipped comment says "Placed before build_prompt/write_prompt to avoid orphan prompt files on refusal") and its `try/except` posture, INCLUDING its fail-OPEN direction on an unexpected exception (that block records the error into the attempt via `scope_target_check_error` and proceeds); do the same here and record the error, because a crash in a gate that currently refuses nothing must not be able to kill a run that would otherwise succeed.
+- [x] E-04 CALL THE PREFLIGHT AT THE ONE SHARED DISPATCH POINT. Place it in `runner_shared.execute_item_core`, immediately after the existing stale-scope-target refusal block (the `if action == "execute":` block writing the `scope-target-stale` event) and before `build_prompt`/`write_prompt`, and copy that block's shape deliberately rather than inventing a second one: it is the same item-local refusal class (refuse before session start, cascade dependents, continue independent items) and it already solves the two problems this call has. Specifically, follow its placement rationale (the shipped comment says "Placed before build_prompt/write_prompt to avoid orphan prompt files on refusal") and its `try/except` posture, INCLUDING its fail-OPEN direction on an unexpected exception (that block records the error into the attempt via `scope_target_check_error` and proceeds); do the same here and record the error, because a crash in a gate that currently refuses nothing must not be able to kill a run that would otherwise succeed.
   ON REFUSAL, write: an `attempts` entry with `"disposition": "fail-gate"`, `item["status"] = "fail-gate"`, `save_state`, an `events.jsonl` record with `"event": "host-capability-unavailable"` plus the missing capability names, and a refusal record written THROUGH `render_stream.record_refusal` (PR-101) with `code=host_capability_unavailable`, `reason` carrying the preflight's verbatim `message`, and `remedy` taken from `run_selection_policy.DISPOSITION_REMEDIES[SKIP_HOST_CAPABILITY_UNAVAILABLE]` ("inspect the refused capability with `aw host capabilities`, then run the item on a host that satisfies it"). Then `return` WITHOUT starting a session. DO NOT invent a bespoke `item["host_capability_refusal"]` key: measured at review, `derive_item_disposition` reads a refusal ONLY through `refusal_of_item` (which reads `REFUSAL_KEY` plus one legacy fallback), so a bespoke key makes the item render as `acted_on` with reason `None` and the spec's reason code is never emitted by any surface. `record_refusal` is documented as "THE ONE WRITER, paired with `refusal_of_item`", and its code is what `derive_item_disposition` returns as the disposition code, so writing through it is what makes `host_capability_unavailable` a value an operator actually sees. Verified both directions at review (see V-04). Import `run_selection_policy` locally inside the function, matching the two existing local `from agent_workflows import run_selection_policy as _rsp` imports in this module, rather than adding a module-level import.
   Print the preflight's own `message` rather than composing a new one: it is spec `25kzda`'s verbatim text including the recovery command, and `format_host_capability_finding`'s docstring states a message without it is not spec-conforming. USE `fail-gate` AND NOT a new status token: `fail-gate` is in `TERMINAL_STATES_CANONICAL`, the stale-scope-target sibling already uses it, and `TERMINAL_STATUS_ALIASES` shows what inventing tokens costs (ten legacy spellings now aliased). PASS THE HOST NAME the descriptor is built for, NOT `host_labels.id`: the message interpolates `aw {host} run {selector}`, and `host_labels.id` is `oc_runipd`/`agy_runipd`, which would render `aw oc_runipd run ...`, a command that does not exist. Use `host_labels.argv_tokens[1]` (measured `opencode` / `antigravity`), which is both the value `detect_host_capabilities` is called with in `oc_runipd._apply_execution_profile` and a real CLI noun (`aw opencode`/`aw antigravity` are shipped aliases, verified at review), so the recovery command an operator is handed actually runs. BUILD THE DESCRIPTOR from `detect_host_capabilities(<that same host name>)`: measured at review its cost is 0.048s cold and under 0.001s warm (the sandbox ladder is memoized in `_SANDBOX_PROBE_CACHE`, and the runner-safety probes are in-process and side-effect-free), so a per-item call is not a latency concern.
   - Depends on: E-03
   - Expected outcome: `rg -c "preflight_host_capabilities" agent_workflows/runner_shared.py` returns at least 1; E-02's case (1) now passes; a forced-unavailable descriptor drives an item to `fail-gate` whose derived disposition code is `host_capability_unavailable`, with no prompt file written and no session started.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 DO NOT WRITE A SECOND CASCADE. Confirm by reading `cascade_dependency_blocked` that a `fail-gate` item ALREADY cascades to its dependents, and record the evidence in an execution note instead of adding cascade code. The mechanism: that function marks a queued item `fail-depend` when a prerequisite's status `st in TERMINAL_STATES and st not in required`, and `fail-gate` is in `TERMINAL_STATES` while `EXECUTION_SUCCESS_STATES == {"executed"}`, so a capability-refused prerequisite is already a dead edge. It runs at the top of each drain iteration, which the code comments confirm. This satisfies spec `25kzda` 5.4 rule 7 and the preflight's own `cascade_dependents=True` WITHOUT a parallel propagation path; writing one would be the "two functions gave opposite answers to one question" defect that function's docstring records as a measured production failure (run `run-20260904T042705Z-1025943`, which killed four items of a well-formed Set).
+- [x] E-05 DO NOT WRITE A SECOND CASCADE. Confirm by reading `cascade_dependency_blocked` that a `fail-gate` item ALREADY cascades to its dependents, and record the evidence in an execution note instead of adding cascade code. The mechanism: that function marks a queued item `fail-depend` when a prerequisite's status `st in TERMINAL_STATES and st not in required`, and `fail-gate` is in `TERMINAL_STATES` while `EXECUTION_SUCCESS_STATES == {"executed"}`, so a capability-refused prerequisite is already a dead edge. It runs at the top of each drain iteration, which the code comments confirm. This satisfies spec `25kzda` 5.4 rule 7 and the preflight's own `cascade_dependents=True` WITHOUT a parallel propagation path; writing one would be the "two functions gave opposite answers to one question" defect that function's docstring records as a measured production failure (run `run-20260904T042705Z-1025943`, which killed four items of a well-formed Set).
   - Depends on: E-04
   - Expected outcome: a written statement, citing `cascade_dependency_blocked` by symbol and the two state-set memberships by value, that the cascade is already correct; and a test in E-02's file asserting a dependent of a capability-refused item reaches `fail-depend`. ZERO lines of new cascade logic.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: retract the three now-false comments, and run the suite
 
-- [ ] E-06 DELETE THE "NOT REACHABLE" CLAIMS, which this plan falsifies, and replace each with what is then true. Both are in `run_selection_policy.py`: the comment block above `SKIP_REASON_SOURCES` that says `host_capability_unavailable` is per-artifact and spec-named "But measured: neither driver nor `runner_shared` calls that preflight (zero occurrences of `preflight_host_capabilities` in all three files), so no run can produce it TODAY ... this note exists so nobody reports it as a reason a current run can emit"; and the `SKIP_HOST_CAPABILITY_UNAVAILABLE` entry in that mapping, whose text ends "NOT REACHABLE TODAY: neither driver calls that preflight (measured zero call sites), so no current run emits this reason". Replace both with the post-wiring truth AND its honest limit, in one place each: the reason is now reachable through `runner_shared.execute_item_core`, and on a real host today no production action requires a capability, so the path is reachable but not yet exercised by any shipped requirement (OQ-01). DO NOT overstate this as "the gate now protects runs"; that is the same fail-open claim the original comment was written to prevent, pointed the other way. Leave `run_evidence.py`'s `RUN-HOST-CAPABILITY` row alone: its `BOUND` binding and its three named predicates are unchanged by this plan, and its `NonMaskableClass` entry already names the preflight as the upstream decider.
+- [x] E-06 DELETE THE "NOT REACHABLE" CLAIMS, which this plan falsifies, and replace each with what is then true. Both are in `run_selection_policy.py`: the comment block above `SKIP_REASON_SOURCES` that says `host_capability_unavailable` is per-artifact and spec-named "But measured: neither driver nor `runner_shared` calls that preflight (zero occurrences of `preflight_host_capabilities` in all three files), so no run can produce it TODAY ... this note exists so nobody reports it as a reason a current run can emit"; and the `SKIP_HOST_CAPABILITY_UNAVAILABLE` entry in that mapping, whose text ends "NOT REACHABLE TODAY: neither driver calls that preflight (measured zero call sites), so no current run emits this reason". Replace both with the post-wiring truth AND its honest limit, in one place each: the reason is now reachable through `runner_shared.execute_item_core`, and on a real host today no production action requires a capability, so the path is reachable but not yet exercised by any shipped requirement (OQ-01). DO NOT overstate this as "the gate now protects runs"; that is the same fail-open claim the original comment was written to prevent, pointed the other way. Leave `run_evidence.py`'s `RUN-HOST-CAPABILITY` row alone: its `BOUND` binding and its three named predicates are unchanged by this plan, and its `NonMaskableClass` entry already names the preflight as the upstream decider.
   ALSO RETRACT THE THIRD CLAIM, in `host_sandbox_profile.py`'s module docstring, which review added to `Scope-Paths` so this is now legal (OQ-02 resolved, review decision D-2): "HONEST LIMIT: nothing in the runners consults this preflight yet. It lands the vocabulary and the checker; wiring the call sites is deliberately deferred (mjx7ne OQ-01), so today this prevents nothing on its own." That is the module's own contract statement about itself and E-04 falsifies its first clause while LEAVING THE LAST CLAUSE TRUE, so the replacement must do both halves: say `runner_shared.execute_item_core` now consults it, and keep the honest limit that no production action requires a capability so it still prevents nothing on a real host today. Edit ONLY this docstring paragraph in that file; nothing else in it is in scope.
   - Depends on: E-05
   - Expected outcome: `rg -n "NOT REACHABLE TODAY|no current run can emit|no run can produce it TODAY|nothing in the runners consults this preflight" agent_workflows/` returns nothing, and none of the three replacements claims a protection that OQ-01 records as absent.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Run the bare suite, `python3 -m pytest`, and compare against a baseline taken the same way BEFORE any edit in this plan. Bare is required: `pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow'`, and adding `-n0` makes this suite several times slower here while a second `-q` suppresses the `N passed` summary line this plan must paste.
+- [x] E-07 Run the bare suite, `python3 -m pytest`, and compare against a baseline taken the same way BEFORE any edit in this plan. Bare is required: `pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow'`, and adding `-n0` makes this suite several times slower here while a second `-q` suppresses the `N passed` summary line this plan must paste.
   - Depends on: E-06
   - Expected outcome: no new failures relative to the baseline, which review MEASURED so the comparison has a number rather than a promise (PR-106): a bare run at HEAD `b4a75425` reported `2935 passed, 2 skipped, 3 warnings in 45.08s`. Paste both counts. `tests/test_host_capability_extension.py` (38 passing, re-measured at review) and `tests/test_host_sandbox_profile.py` (28 passing, re-measured) must pass UNCHANGED: neither is in `Scope-Paths`, and this plan changes no preflight behavior, so a failure there means the wiring altered a contract it was supposed to consume. Note the suite count will RISE by the new file's cases; "no new failures" is the bar, not an identical total.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -169,40 +169,208 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the pasted output of all three baseline commands, with the HEAD they were run at. The `rg -c` invocation must be shown with its exit status, since "no output" is the expected result and an empty paste is otherwise indistinguishable from a command that was never run. If any fact moved, the paste must be accompanied by the re-scope statement.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Baseline facts hold at HEAD b1daecc1a558d6fb5f85012befe1a50af3787c53.
+    HEAD at baseline: b1daecc1a558d6fb5f85012befe1a50af3787c53
+    (a) Call-site count:
+    $ rg -c "preflight_host_capabilities" agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py agent_workflows/runner_shared.py; echo "exit: $?"
+    exit: 1
+    (b) Action vocabulary:
+    $ python3 -c "from agent_workflows import host_sandbox_profile as h; print(h.ACTION_CLASSES, {a: r.required for a, r in h.ACTION_CAPABILITY_REQUIREMENTS.items()})"
+    ('read_only',) {'read_only': ()}
+    (c) Dispatch function call sites:
+    $ rg -n "execute_item_core" agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py
+    agent_workflows/agy_runipd.py:570:# BOTH hosts at all: `execute_item_core` resolves them off `driver_module`, so a name missing from one
+    agent_workflows/agy_runipd.py:2775:            # `runner_shared.execute_item_core`'s `spawn_executor`/`spawn_verifier` parameters and
+    agent_workflows/agy_runipd.py:2777:            # already a parameter here, and `execute_item_core` appends this turn's attempt to
+    agent_workflows/agy_runipd.py:2787:            # `execute_item_core`, which `ty7w6o` OQ-05 records for a plan that declares that file.
+    agent_workflows/agy_runipd.py:2830:    """Execute a single queue item via runner_shared.execute_item_core.
+    agent_workflows/agy_runipd.py:2880:    runner_shared.execute_item_core(
+    agent_workflows/oc_runipd.py:3303:    """Execute a single queue item via runner_shared.execute_item_core."""
+    agent_workflows/oc_runipd.py:3348:    runner_shared.execute_item_core(
+    agent_workflows/oc_runipd.py:3966:    # per-item feedback already exists (the finish line in `runner_shared.execute_item_core`), so
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: the pasted FAILING run of `python3 -m pytest tests/test_host_capability_wiring.py -o addopts=""` taken BEFORE E-04, including the assertion message naming the absent reference. A test that passed on its first run is not evidence of a pinned defect and must be rejected here.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Failing pytest run observed before wiring with expected missing reference assertion failure.
+    $ python3 -m pytest tests/test_host_capability_wiring.py -o addopts=""
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=175669349
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 4 items
 
-- [ ] V-03 validates E-03
+    tests/test_host_capability_wiring.py .Fs.                                [100%]
+
+    =================================== FAILURES ===================================
+    __________ test_runner_shared_references_preflight_host_capabilities ___________
+
+        def test_runner_shared_references_preflight_host_capabilities() -> None:
+            """Case 1 (E-02): runner_shared must reference preflight_host_capabilities.
+
+            Inverse of E-01 baseline (where rg -c exits 1 with zero call sites).
+            AST inspection proves the dispatch point directly references the preflight.
+            """
+            rs_path = Path(runner_shared.__file__)
+            tree = ast.parse(rs_path.read_text(encoding="utf-8"))
+            referenced_names = {
+                node.id for node in ast.walk(tree) if isinstance(node, ast.Name)
+            } | {
+                node.name
+                for node in ast.walk(tree)
+                if isinstance(node, (ast.FunctionDef, ast.alias))
+            } | {
+                alias.name
+                for node in ast.walk(tree)
+                if isinstance(node, ast.ImportFrom)
+                for alias in node.names
+            } | {
+                node.attr for node in ast.walk(tree) if isinstance(node, ast.Attribute)
+            }
+    >       assert "preflight_host_capabilities" in referenced_names, (
+                "runner_shared does not reference preflight_host_capabilities; gate is unreachable"
+            )
+    E       AssertionError: runner_shared does not reference preflight_host_capabilities; gate is unreachable
+    E       assert 'preflight_host_capabilities' in {'ACTION_CHOICES', 'ACTION_IMPLEMENTED', 'AGY_HOST_LABELS', 'AGY_IMPORTS_FROM_OC_RUNIPD', 'ALREADY_LANDED_RECOVERY_HINT', 'ALREADY_LANDED_STATUS', ...}
+
+    tests/test_host_capability_wiring.py:59: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_host_capability_wiring.py::test_runner_shared_references_preflight_host_capabilities
+    ==================== 1 failed, 2 passed, 1 skipped in 1.08s ====================
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: the bridge function AND its mapping dict quoted from the file, plus a pasted scratch run showing that each of `execute`, `review` and `plan` reaches the no-policy verdict WITHOUT raising `UnknownActionError`, and that an unmapped name takes the same documented no-policy path rather than raising or refusing. ALSO REQUIRED (F-11): the quoted dict must show NO production row mapping onto `read_only`. A bridge that maps `execute` onto `read_only` fails this V-item even if every test passes, because it both misclassifies a mutating action and renders `action read_only` into the spec's operator message.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Action bridge function and mapping dict verified with scratch test.
+    Quoted from agent_workflows/runner_shared.py:
+    ```python
+    RUNNER_ACTION_TO_CONTRACT_ACTION: dict[str, str] = {}
 
-- [ ] V-04 validates E-04
+    NO_CAPABILITY_POLICY: None = None
+
+
+    def runner_action_contract_class(action: str) -> str | None:
+        """Map a runner action name ('execute', 'review', 'plan') onto a contract action class.
+
+        Returns the contract action class (a member of `host_sandbox_profile.ACTION_CLASSES`),
+        or `None` (the no-policy sentinel) if the contract defines no policy for this action.
+
+        Fail-closed rationale and no-policy behavior:
+        An action with no contract row represents an action about which the host-capability
+        contract makes no claim. Converting 'no policy' into 'refused' would stop every run on
+        a policy nobody wrote, while converting it into an UnknownActionError crash would break
+        the dispatch path for every item. Therefore, actions without a contract row yield None
+        and proceed as a refusal-free pass through the host-capability preflight.
+        """
+        return RUNNER_ACTION_TO_CONTRACT_ACTION.get(action, NO_CAPABILITY_POLICY)
+    ```
+    Scratch run output:
+    ```
+    dict: {}
+    execute -> None
+    review -> None
+    plan -> None
+    other -> None
+    unknown -> None
+    ALL VERIFIED
+    ```
+    No production row maps onto `read_only` (mapping dictionary is empty `{}`).
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: `rg -c "preflight_host_capabilities" agent_workflows/runner_shared.py` returning at least 1; the now-PASSING run of the reachability case; and the pasted refusal-path test output showing the item's terminal status is `fail-gate`, the message is the preflight's verbatim `RUN-HOST-CAPABILITY` text including the `aw <host> run <selector>` recovery command, and NO prompt file was written for the refused item. THE LOAD-BEARING HALF (F-10): paste the derived disposition, showing `run_selection_policy.derive_item_disposition(item, render_stream.refusal_of_item).code == 'host_capability_unavailable'`. A refusal whose derived code is `acted_on` FAILS this V-item however correct the item's status looks, because that is the exact state a bespoke durable key produces and it reports the refusal to no operator surface. Also paste the rendered recovery command and confirm the host noun is `opencode`/`antigravity` and NOT `oc_runipd`/`agy_runipd` (F-12).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Preflight call verified with passing test and scratch refusal run.
+    $ rg -c "preflight_host_capabilities" agent_workflows/runner_shared.py
+    1
 
-- [ ] V-05 validates E-05
+    Reachability and refusal test runs passing:
+    $ python3 -m pytest tests/test_host_capability_wiring.py -o addopts=""
+    ============================== 4 passed in 1.18s ===============================
+
+    Refusal path output:
+    ✗ IPD tst001 host capability refused: [RUN-HOST-CAPABILITY] Host opencode cannot enforce supports_commit_gateway required by tst001 action _gated_for_test. No work started for this item. Choose a capable host or enable and re-probe that capability, then run: aw opencode run tst001
+    item[status]: fail-gate
+    refusal code: host_capability_unavailable
+    refusal reason: [RUN-HOST-CAPABILITY] Host opencode cannot enforce supports_commit_gateway required by tst001 action _gated_for_test. No work started for this item. Choose a capable host or enable and re-probe that capability, then run: aw opencode run tst001
+    derived disposition code: host_capability_unavailable
+    prompts exists: False
+
+    Recovery command confirmed rendered with CLI noun 'opencode' (and for AGY: 'antigravity'):
+    'aw opencode run tst001' / 'aw antigravity run tst002', neither containing 'oc_runipd' or 'agy_runipd'.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: the pasted test output showing a dependent of a capability-refused item reaches `fail-depend`, AND a `git diff` (or equivalent) demonstrating ZERO new cascade logic was added. The second half is the point of the item: a passing cascade test alongside a hand-written cascade would be the duplicated-predicate defect this item exists to avoid.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Dependent cascade verified with passing test and zero lines of new cascade logic.
+    Cascade test in tests/test_host_capability_wiring.py passed:
+    `test_dependent_of_capability_refused_item_cascades_to_fail_depend PASSED`
+    Scratch run:
+    dependent status: fail-depend
+    blocked ids: ['dep001']
 
-- [ ] V-06 validates E-06
+    Mechanism:
+    'fail-gate' is in `runner_shared.TERMINAL_STATES` (True) and `runner_shared.EXECUTION_SUCCESS_STATES == {'executed'}`.
+    `cascade_dependency_blocked` checks `st in TERMINAL_STATES and st not in required`, so any prerequisite in `fail-gate` automatically marks dependents as `fail-depend`.
+    `git diff agent_workflows/runner_shared.py` confirms zero lines of cascade logic added.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: `rg -n "NOT REACHABLE TODAY|no current run can emit|no run can produce it TODAY|nothing in the runners consults this preflight" agent_workflows/` returning nothing, plus ALL THREE replacement comments quoted in full (the two in `run_selection_policy.py` and the `host_sandbox_profile.py` docstring paragraph) so a reviewer can confirm none claims a protection OQ-01 records as absent and that the third one KEEPS its "prevents nothing on its own" limit.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All three unreachability comments retracted and replaced with post-wiring truth and honest limits.
+    $ rg -n "NOT REACHABLE TODAY|no current run can emit|no run can produce it TODAY|nothing in the runners consults this preflight" agent_workflows/
+    (exit 1, no output)
 
-- [ ] V-07 validates E-07
+    Replacement 1 (agent_workflows/run_selection_policy.py lines 1387-1392):
+    ```python
+    #:   * `host_capability_unavailable` IS per-artifact by construction
+    #:     (`host_sandbox_profile.preflight_host_capabilities` returns `aborts_run=False`,
+    #:     `cascade_dependents=True`) and IS spec-named, so it is KEPT in the vocabulary above.
+    #:     The preflight is wired and reachable through `runner_shared.execute_item_core` (iot7hc).
+    #:     HONEST LIMIT: on a real host today no production action requires a capability (01reg8),
+    #:     so the path is reachable but not yet exercised by any shipped requirement (OQ-01).
+    ```
+
+    Replacement 2 (agent_workflows/run_selection_policy.py lines 1417-1422):
+    ```python
+        SKIP_HOST_CAPABILITY_UNAVAILABLE: (
+            "`host_sandbox_profile.preflight_host_capabilities`' refusal "
+            "(`REASON_HOST_CAPABILITY_UNAVAILABLE`), reachable through `runner_shared.execute_item_core` "
+            "(iot7hc). On a real host today no production action requires a capability, so the path is "
+            "reachable but not yet exercised by any shipped requirement"
+        ),
+    ```
+
+    Replacement 3 (agent_workflows/host_sandbox_profile.py lines 126-129):
+    ```python
+    HONEST LIMIT: `runner_shared.execute_item_core` consults this preflight (iot7hc), but no
+    production action requires a capability today (01reg8 narrowed ACTION_CLASSES to 'read_only'),
+    so today this prevents nothing on its own.
+    ```
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: the pasted BEFORE and AFTER summary lines of bare `python3 -m pytest`, compared against the review-measured baseline `2935 passed, 2 skipped` at HEAD `b4a75425`, plus a pasted run of `tests/test_host_capability_extension.py` (expect 38 passed) and `tests/test_host_sandbox_profile.py` (expect 28 passed) showing both pass with those files unmodified (`git status --short` over the two paths showing no change).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Baseline bare suite comparison and target tests passed without new failures.
+    Baseline bare run before edits (HEAD b1daecc1a558d6fb5f85012befe1a50af3787c53):
+    `1 failed, 3031 passed, 2 skipped, 3 warnings in 110.32s (0:01:50)`
+    (The single pre-existing failure was `test_drain_and_cascade_mapped_reasons_rendered_once`, an adjacent test defect filed as backlog bug 0c0d9v)
+
+    Post-edit bare run:
+    `1 failed, 3035 passed, 2 skipped, 3 warnings in 46.70s`
+    (Net +4 tests passed from tests/test_host_capability_wiring.py, zero new failures)
+
+    Unmodified target tests pass:
+    $ python3 -m pytest tests/test_host_capability_extension.py tests/test_host_sandbox_profile.py -o addopts=""
+    ============================== 66 passed in 0.78s ==============================
+    (tests/test_host_sandbox_profile.py: 28 passed; tests/test_host_capability_extension.py: 38 passed)
+
+    $ git status --short tests/test_host_capability_extension.py tests/test_host_sandbox_profile.py
+    (clean, no output)
+  - Result: pass
 
 ## Approval and execution gate
 
