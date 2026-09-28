@@ -17148,47 +17148,94 @@ class ProbeVerdict(NamedTuple):
         return not self.stale_reason
 
 
+def _probe_prose_sections() -> tuple[str, ...]:
+    from agent_workflows import ipd_schema as _ipd_schema
+
+    return (
+        _ipd_schema.H_GOAL,
+        _ipd_schema.H_EXECUTION,
+        _ipd_schema.H_REQUIRED_TESTS,
+        _ipd_schema.H_CROSS_IPD,
+        _ipd_schema.H_COMPLETION,
+        _ipd_schema.H_VALIDATION_ORCH,
+        _ipd_schema.H_SCOPE_CHECK,
+    )
+
+
+#: The seven unattached prose sections an orchestrator coverage probe reads (probeprose-01 `3brgb6`).
+#: Spelled through `ipd_schema`'s `H_*` constants, never as literal strings.
+PROBE_PROSE_SECTIONS: tuple[str, ...] = _probe_prose_sections()
+
+
 def probe_cache_payload(orchestrator_text: str) -> dict[str, Any]:
-    """The exact two inputs the probe reasons about: E-item ACTION TEXT and child-table ROW CELLS.
+    """The exact three inputs the probe reasons about: E-item ACTION TEXT, child-table ROW CELLS,
+    and unattached ALLOWLISTED PROSE SECTIONS (probeprose-01 `3brgb6`).
 
-    Returned as a mapping rather than a string so child 03 can render the SAME object into its
-    prompt that :func:`probe_cache_digest` hashes. That identity is a requirement, not a
-    convenience: if the probe reads something the key does not cover, editing that thing serves a
-    stale verdict.
+    Returned as a mapping rather than a string so :func:`orchestrator_probe_excerpt` can render the
+    SAME object into its prompt that :func:`probe_cache_digest` hashes. That identity is a
+    requirement, not a convenience: if the probe reads something the key does not cover, editing
+    that thing serves a stale verdict under apparent authority.
 
-    Deterministic by construction: E-item texts are SORTED (the digest must not depend on document
-    order of two textually identical items) and rows are kept in DOCUMENT ORDER as tuples-of-cells,
-    since a table's order is part of what it says.
+    THE THREE INPUTS COVERED BY THIS KEY:
+      * `child_table_rows`: Row cells of the child IPDs table, in document order as tuples-of-cells.
+      * `e_items`: Full action text of each `E-*` checklist item, sorted.
+      * `prose_sections`: Unattached prose from the seven allowlisted sections (:data:`PROBE_PROSE_SECTIONS`),
+        keyed by section title.
 
-    THE ACTION TEXT IS TAKEN STRUCTURALLY, not by a text rule: `ipd_lint.parse` puts a leaf's
-    indented `- Key: value` sub-fields in `Leaf.fields` and its checkbox in `Leaf.checked`, while
-    the action is everything else. That is why ticking a box, filling `Observed evidence` or
-    appending history CANNOT move this payload - the same structural exclusion
-    `ipd_lifecycle.frozen_region_digest` relies on, for the same `xmqv5l` reason.
+    THE ALLOWLIST RATIONALE (E-05):
+    The seven sections are chosen on measured NET hazard density (raw pattern hits minus 45% negation
+    false positives) and on spec contracts (`r07vma` Section 3a limit 1), not on taste:
+      * `Detailed Implementation Checklist (TODO)`: 16.5% size, 17 raw hits, 4 NET hits, 0/61 churn.
+      * `Required tests / validation`: 30.7% size, 16 raw hits, 15 NET hits (highest NET density 0.30), 0/61 churn.
+      * `Scope check`: 18.9% size, 11 raw hits, 3 NET hits, 1/61 churn.
+      * `Cross-IPD validation`: 51.6% size, 4 raw hits, 4 NET hits, 1/61 churn (spec `r07vma` 3a.1 contract).
+      * `Completion criteria (the whole Set is done only when)`: 50.1% size, 1 raw hit, 1 NET hit, 1/61 churn (spec `r07vma` 3a.1 contract).
+      * `Goal`: 21.9% size, 0 raw, 0 NET, 0/61 churn (cheap context framing the question).
+      * `Validation and cross-check (verify before reporting the Set complete)`: 5.9% size, 0 raw, 0 NET, 0/61 churn.
 
-    THE ACTION IS ITS WHOLE BLOCK, NOT ITS FIRST LINE, which is a CORRECTION landed by orchprobe-03
-    (`m7gvuz`) and is the reason :func:`e_item_action_blocks` exists. `ipd_lint.Leaf.text` is the
-    remainder of the leaf's OPENING LINE only, so every CONTINUATION line of a multi-line item was
-    silently dropped here. Measured over the ten live pending orchestrators at 2026-09-19, that lost
-    58 percent of the action prose (11,758 of 27,949 characters), and on the worst plan (`wfjsp4`) it
-    kept 10 percent. Two consequences, both bad and both fixed by this change:
+    HAZARD-METRIC CAVEAT (F-14): 22 of the 49 allowlisted raw pattern matches (45%) are NEGATIONS
+    ("this orchestrator authors NO code; children carry the work"), which state the safe condition.
+    Raw counts are an upper bound on obligations, never a count of them.
 
-      * AS A CACHE KEY it was UNDER-SENSITIVE: rewriting an item's continuation lines - which is how
-        an author actually changes what an item asks for - left the digest unchanged, so a stale
-        verdict was served for a materially different plan.
-      * AS A PROBE PAYLOAD it hid the evidence the question turns on. The parent-only work this Set
-        exists to detect is stated in exactly those continuation lines ("Establish the baseline BEFORE
-        any child reconciles anything", "run the repo-wide suite"), so the probe was being asked to
-        judge coverage from the first line of each item.
+    EXCLUDED SECTIONS:
+      * `Workflow history` (132.7% size, 61/61 churn) is excluded to protect `xmqv5l`: appending a history line must not re-probe.
+      * `Child IPDs, sequence, and dependencies` prose (90.5% size, lowest density 0.03 hits/kchar) is excluded because table row cells are already a key.
+      * `Approval and execution gate` (88.1% size, raw 0.38, NET 0.29) is excluded because all 55 raw hits are boilerplate (12 negations, 4 verbatim approval templates, remainder terminal recital; 0 deliverables across all 16 candidate orchestrators).
+      * `Open questions` (49.7% size, 4 hits, 2/61 churn) is excluded because questions are not obligations and churn as resolved.
 
-    Widening the payload necessarily moves the digest, which invalidates previously cached verdicts.
-    That is the SAFE direction and costs one re-probe per orchestrator: a cache miss blocks (it reads
-    `unknown`), so nothing is cleared by the invalidation.
+    WHAT THE ALLOWLIST AND EXTRACTOR DO NOT REACH (RESIDUAL GAPS):
+      * Non-allowlisted sections leave 83 residual raw pattern hits invisible (55 gate boilerplate, 13 history, etc.).
+      * Indented non-sub-field lines inside allowlisted sections leave 476 lines (74,625 characters) invisible to both extractors, carrying 14 hazard hits (pinned in code by E-04's `c3`).
+
+    ACCEPTED ONE-TIME INVALIDATION:
+    Widening changes the payload and moves every digest. All 26 entries in the store (`.aw/state/runtime/orchestrator-probe-verdicts.json`:
+    15 pass, 11 fail) stop matching. 9 entries keyed live narrow orchestrator text, 0 key widened text. The immediate cost is 0 model calls
+    because there are 0 `- Kind: orchestrator` plans in `.aw/records/plans/pending/`. A miss reads `unknown` and probes, so the invalidation
+    clears nothing and cannot launder an uncovered plan. Dual-digest or versioned-digest fallbacks were refused because serving an old verdict
+    under the narrow key is the exact stale-verdict defect this widening closes.
+
+    STANDING RE-PROBE COST AND METHODOLOGY (F-10):
+    Over the 61 executed orchestrators with an approved revision in git history, comparing newest-approved to final:
+    the shipped narrow digest moved on 2, the widened digest moves on 3 (ONE extra re-probe across repo history).
+    Taking the oldest-approved revision gives 16 and 16; newest-approved is the correct methodology because verdicts are
+    keyed against text as dispatched.
+
+    PAYLOAD-SIZE PRICE:
+    Median excerpt grows 2,217 -> 6,878 characters (~554 -> 1,720 tokens), max 10,423 -> 19,390, total corpus 162,373 -> 500,956 (+208.5%).
+    Asked once per orchestrator per run and cached thereafter.
     """
+    from agent_workflows import ipd_lint as _lint  # local: see the section note above
 
+    unattached = _lint.unattached_section_prose(orchestrator_text)
+    prose = {
+        title: unattached[title]
+        for title in PROBE_PROSE_SECTIONS
+        if title in unattached
+    }
     return {
-        "e_items": sorted(e_item_action_blocks(orchestrator_text)),
         "child_table_rows": [list(row) for row in child_table_rows(orchestrator_text)],
+        "e_items": sorted(e_item_action_blocks(orchestrator_text)),
+        "prose_sections": prose,
     }
 
 
@@ -17227,23 +17274,21 @@ def e_item_action_blocks(orchestrator_text: str) -> tuple[str, ...]:
 def probe_cache_digest(orchestrator_text: str) -> str:
     """A stable sha256 over ONLY what an orchestrator-coverage probe's answer depends on.
 
-    COVERED (a change here re-probes): each E-item's action text, and the child table's row cells
-    (header row included, in document order).
+    COVERED (a change here re-probes): each E-item's action text, the child table's row cells
+    (header row included, in document order), and unattached prose from allowlisted sections
+    (:data:`PROBE_PROSE_SECTIONS`: Goal, Implementation Checklist, Required tests, Cross-IPD validation,
+    Completion criteria, Validation and cross-check, Scope check).
 
     NOT COVERED (a change here must NOT re-probe): the `[ ]`/`[x]` checkbox marks, `Execution
-    state:`, `Result:`, `Observed evidence:`, `## Workflow history`, and every prose section -
-    INCLUDING the explanatory paragraphs that sit inside the `## Child IPDs...` section beside its
-    table, which are not the table.
+    state:`, `Result:`, `Observed evidence:`, `## Workflow history`, non-allowlisted prose sections
+    (Approval and execution gate, Open questions, Deferred, explanatory paragraphs in Child IPDs),
+    and indented non-sub-field lines inside allowlisted sections.
 
     DELIBERATE DIVERGENCE FROM :func:`ipd_lifecycle.frozen_region_digest`, stated because the
     overlap is large and the difference is the entire justification for a second function:
 
-      * CHILD-TABLE ROWS ARE IN here and are OUT there. That is the only new sensitivity, and it is
-        why this exists: `_requirements_from_plan` reads only `Scope-Paths`, E-item text and V-item
-        text, so a child-table edit does not move the frozen digest (measured).
-      * `Scope-Paths` and V-ITEM TEXT ARE OUT here and are IN there. The probe asks whether the
-        parent's ACTIONS are covered by children; neither a scope entry nor a validation row can
-        change that answer, so including them would re-probe for nothing.
+      * CHILD-TABLE ROWS AND ALLOWLISTED PROSE ARE IN here and are OUT there.
+      * `Scope-Paths` and V-ITEM TEXT ARE OUT here and are IN there.
 
     Serialization is deterministic (`sort_keys=True` over the payload above), so the digest is
     stable across processes and dict-ordering changes.
@@ -17570,8 +17615,8 @@ PROBE_PROMPT_TEMPLATE = (
     "{executions}\n"
     "{no_executions}\n"
     "\n"
-    "THE ORCHESTRATOR'S EXCERPT FOLLOWS. It is its checklist item action text plus its child table, "
-    "which is everything the question depends on.\n"
+    "THE ORCHESTRATOR'S EXCERPT FOLLOWS. It is its checklist item action text, its child table, "
+    "plus its unattached prose sections, which is everything the question depends on.\n"
     "\n"
     "{excerpt}\n"
 )
@@ -17592,7 +17637,7 @@ def render_probe_prompt(excerpt: str) -> str:
 
 
 def orchestrator_probe_excerpt(orchestrator_text: str) -> str:
-    """The BOUNDED payload the probe sends: E-item action text plus the child table's row cells.
+    """The BOUNDED payload the probe sends: child table rows, E-item action text, and unattached prose.
 
     NOT THE WHOLE FILE, and the reason is measured rather than stylistic. The pending orchestrators
     run tens of thousands of characters each (re-measure at execution; the population and the totals
@@ -17601,28 +17646,46 @@ def orchestrator_probe_excerpt(orchestrator_text: str) -> str:
     question.
 
     RENDERED FROM :func:`probe_cache_payload`, WHICH IS THE POINT. The excerpt and the cache KEY are
-    the same two inputs BY CONSTRUCTION, because both read that one function. If the probe reasoned
-    over something the digest did not cover, editing that thing would serve a STALE verdict, which is
-    the one way the cache can be actively WRONG rather than merely useless. In particular the child
-    table is taken as ROW CELL TEXT and never as `ipd_set_plan.parse_child_table`'s order graph: that
-    returns `{order: (dep_orders,)}`, so an Id swap and a description rewrite leave it byte-identical.
+    the same inputs BY CONSTRUCTION, because both read that one function. Key-complete: every key in
+    `probe_cache_payload` is rendered in sorted key order so no key can be hashed without being sent.
     """
 
     payload = probe_cache_payload(orchestrator_text)
-    lines: list[str] = ["### Checklist item action text", ""]
-    items = payload.get("e_items") or []
-    if items:
-        for text in items:
-            lines.append(f"- {text}")
-    else:
-        lines.append("(this orchestrator declares no checklist items)")
-    lines.extend(["", "### Child IPDs table (row cells, in document order)", ""])
-    rows = payload.get("child_table_rows") or []
-    if rows:
-        for row in rows:
-            lines.append("| " + " | ".join(str(cell) for cell in row) + " |")
-    else:
-        lines.append("(this orchestrator declares no child table)")
+    lines: list[str] = []
+    for idx, key in enumerate(sorted(payload.keys())):
+        if idx > 0:
+            lines.append("")
+        if key == "child_table_rows":
+            lines.extend(["### Child IPDs table (row cells, in document order)", ""])
+            rows = payload.get("child_table_rows") or []
+            if rows:
+                for row in rows:
+                    lines.append("| " + " | ".join(str(cell) for cell in row) + " |")
+            else:
+                lines.append("(this orchestrator declares no child table)")
+        elif key == "e_items":
+            lines.extend(["### Checklist item action text", ""])
+            items = payload.get("e_items") or []
+            if items:
+                for text in items:
+                    lines.append(f"- {text}")
+            else:
+                lines.append("(this orchestrator declares no checklist items)")
+        elif key == "prose_sections":
+            lines.extend(["### Unattached prose sections", ""])
+            prose_map = payload.get("prose_sections") or {}
+            rendered_any = False
+            if prose_map:
+                for title, prose in prose_map.items():
+                    if prose.strip():
+                        if rendered_any:
+                            lines.append("")
+                        lines.extend([f"#### {title}", "", prose])
+                        rendered_any = True
+            if not rendered_any:
+                lines.append("(this orchestrator declares no unattached prose)")
+        else:
+            lines.extend([f"### {key}", "", str(payload[key])])
     return "\n".join(lines) + "\n"
 
 

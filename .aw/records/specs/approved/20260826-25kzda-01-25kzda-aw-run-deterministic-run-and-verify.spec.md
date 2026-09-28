@@ -413,7 +413,7 @@ pending`).
   which reads durable run state. "Costs nothing" therefore means no agent turn, no worktree, and no
   session.
 - The verdict is CACHED against a digest of only what the answer depends on (the orchestrator's
-  checklist item action text and its child table's row cells), so an unmodified orchestrator is never
+  checklist item action text, its child table's row cells, and its allowlisted unattached prose sections), so an unmodified orchestrator is never
   re-probed and a genuine fix re-probes automatically. Ticking a checkbox, filling evidence, or
   appending workflow history MUST NOT re-probe.
 - A DELIVERED but unusable answer (extra prose, a refusal, both sentinels, an answer reporting a
@@ -1575,6 +1575,7 @@ This example demonstrates the revised guarantees: `all` is safely bounded; depen
 
 ## Workflow history
 
+- 2026-09-28 note (aw specs): Section 2.5b amended by 3brgb6: probe cache digest now covers unattached allowlisted prose sections in addition to e_items and child_table_rows
 - 2026-09-27 note (aw specs): Amended by artdispatch jdn790 (z7nbn1 OQ-04/5.3b): freeze-time whole-run refusal for undetermined, non-conformant, and provably unsatisfiable dependencies; in-run failures keep per-item fail-depend
 - 2026-09-27 note (aw specs): AMENDED 2026-09-27 (plan ounhsn): Added Section 2.1b recording maintainer ruling that merge-back conflicts on execute lanes are sent back to the agent to resolve in lane under retry-budget.
 - 2026-09-27 note (aw specs): amend Section 5.7 failure taxonomy with stale scope target refusal (plan 6h8j1r)
