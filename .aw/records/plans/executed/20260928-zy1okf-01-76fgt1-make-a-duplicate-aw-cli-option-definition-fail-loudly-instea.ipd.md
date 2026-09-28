@@ -6,7 +6,7 @@
 - Scope: Remove the blanket resolve default so a duplicate option definition raises at parser build, and add a durable guard that keeps it removed. IN: the one-line policy change in `_AwArgumentParser.__init__` with its rationale comment, a guard test asserting the error handler is in force across every reachable parser in every builder plus a mutation proving a duplicate now raises, and correction of the one in-tree comment whose stated mechanism the change makes false. OUT: renaming any shipped flag (including reverting `p0l1to`'s `--oc-agent`), any change to what a flag MEANS or to any parser's option set, and the `agy_runipd` comments that discuss `resolve` as a hazard they deliberately avoid (those stay true).
 - Scope-Paths: agent_workflows/cli.py, tests/test_cli_parser_conflict_policy.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 76fgt1
-- Approval: 2026-09-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-28 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 76fgt1 verified (set zy1okf, attempt 1).
 - 2026-09-28 approved (aw set): status set to approved
 - 2026-09-28 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-501, PR-502, PR-503, PR-504, PR-505, PR-506. All nine authored findings reproduce exactly: 0 resolve firings across all seven builders, cli alone on resolve, all 174 parser objects converting together, the p0l1to defect reproducing (option_strings emptied, agent=True with no flag), 599 add_argument calls and 153 parents= usages, and 2935 passed / 2 skipped on the clean tree. Review independently confirmed the post-change state by rebuilding the tree under a patched class: 174 objects, all on _handle_conflict_error, no exception. The code change is untouched. Corrected the EVIDENCE: V-03 demanded a state that cannot exist (--agent absent from 'aw oc profile add --help'), whose only satisfaction would be deleting the repo-wide machine-output flag from the shared parent (new F-10, OQ-03, requirement inverted); the comment E-03 rewrites carries two further falsehoods beyond the one the plan noticed, a drifted line citation and a 'declared once' claim contradicted by a second --agent declaration on common_upgrade (new F-11, F-12); one of F-07's three counts does not reproduce, so all three are marked for re-derivation (new F-13); and the removed line's unargued provenance is now recorded for the rationale comment (new F-14, F-15).
 
@@ -37,14 +37,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: change the policy and keep it changed
 
-- [ ] E-01 REMOVE the blanket resolve default from `_AwArgumentParser.__init__`, so every parser in `cli.py` inherits argparse's own `error` handler. The edit is the single `kwargs.setdefault("conflict_handler", "resolve")` line. PREFER DELETING THE LINE over rewriting it to `setdefault(..., "error")`: `error` IS argparse's default, so an explicit setdefault adds a line that states the default while still swallowing an explicit caller-supplied value, which is the same indirection this item exists to remove. F-09 measured that NO call site in the package passes `conflict_handler=` to an `_AwArgumentParser`, so deletion strands nothing.
+- [x] E-01 REMOVE the blanket resolve default from `_AwArgumentParser.__init__`, so every parser in `cli.py` inherits argparse's own `error` handler. The edit is the single `kwargs.setdefault("conflict_handler", "resolve")` line. PREFER DELETING THE LINE over rewriting it to `setdefault(..., "error")`: `error` IS argparse's default, so an explicit setdefault adds a line that states the default while still swallowing an explicit caller-supplied value, which is the same indirection this item exists to remove. F-09 measured that NO call site in the package passes `conflict_handler=` to an `_AwArgumentParser`, so deletion strands nothing.
   LEAVE A RATIONALE COMMENT IN ITS PLACE naming what was removed and why, because a bare deletion invites a future contributor to re-add `resolve` to silence an `ArgumentError` they do not understand. The comment must say: the handler is deliberately argparse's default; a duplicate option definition MUST raise; and a collision means two registrations disagree, which is a bug to fix at the registration site rather than a conflict to resolve. Point at `p0l1to`'s `--oc-agent` site as the worked example of what silence cost. RECORD THAT THE REMOVED LINE WAS NEVER ARGUED FOR: F-14 measures it arriving in `ef55eadb`, a 984-line `cli.py` migration, with no comment and no mention in the commit subject. Say so, because "someone chose this deliberately once" is the assumption the next contributor will otherwise make the first time they meet an `ArgumentError` here, and it is false.
   DO NOT CHANGE THE CLASS'S OTHER BEHAVIOR. `_AwArgumentParser` also owns `format_help`'s lifecycle-legend substitution and `error`'s next-action hint ending in `self.exit(2)`; both are unrelated and must be untouched. `_RunsArgumentParser` subclasses this class and inherits the change, which is intended.
   - Depends on: none
   - Expected outcome: the setdefault is gone, a rationale comment stands in its place, all seven builders still build, and every reachable parser object reports the error handler.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 ADD A DURABLE GUARD asserting the policy is in force, in a new `tests/test_cli_parser_conflict_policy.py`. Without it this change is one line any future edit can silently undo, and the whole point of the item is that silent is the failure mode. Assert TWO distinct properties, because they fail independently: first, that building each of the seven builders RAISES NOTHING; second, that every reachable parser object reports `_handle_conflict_error` as its handler, not merely the root.
+- [x] E-02 ADD A DURABLE GUARD asserting the policy is in force, in a new `tests/test_cli_parser_conflict_policy.py`. Without it this change is one line any future edit can silently undo, and the whole point of the item is that silent is the failure mode. Assert TWO distinct properties, because they fail independently: first, that building each of the seven builders RAISES NOTHING; second, that every reachable parser object reports `_handle_conflict_error` as its handler, not merely the root.
   WALK TO EVERY PARSER OBJECT AND DEDUPLICATE BY `id()`, not by name. `add_parser(name, aliases=[...])` registers the SAME parser object under several keys in `_SubParsersAction.choices`, so a name walk double-counts; `command_surface.discover_parser_leaves` documents this exact trap and its measured cost (63 spurious leaves). Read the handler with argparse's own `parser._get_handler()` rather than the `conflict_handler` string attribute, since that is the function actually consulted at registration.
   ASSERT A LOWER BOUND ON THE OBJECT COUNT, NEVER AN EQUALITY. The tree grows continuously and prior plans in this repo recorded the count moving 175, 219, 229, 283; an equality assertion becomes a test that fails on unrelated work. F-07 gives three figures that are NOT interchangeable: alias-expanded subcommand paths, distinct parser objects, and canonical leaves. Pick the OBJECT count for this guard, because the property under test is a property of parser objects. RE-DERIVE THE NUMBER RATHER THAN COPYING IT: the object count and the leaf count both reproduced at review (174 and 151) but the alias-path figure did not (249, not 283), which is exactly why the bound must be a floor comfortably below whatever you measure and never a figure transcribed from this plan (F-13).
 
@@ -52,18 +52,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   MUTATION-CHECK THE GUARD, since a guard that cannot fail proves nothing: register a duplicate option on a freshly built parser, show an `argparse.ArgumentError` naming the conflicting option string is raised, and assert that. Do this on a locally built parser, never by mutating the shared module-level tree, so no other test can observe it.
   - Depends on: E-01
   - Expected outcome: a passing guard covering both properties across all seven builders with an `id()`-deduplicated walk and a lower-bound count, plus a positive assertion that a duplicate registration now raises.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: stop the tree from documenting the old behavior
 
-- [ ] E-03 CORRECT THE ONE COMMENT THE CHANGE MAKES FALSE, at the `--oc-agent` registration in `cli.py`. It currently asserts a mechanism in the present tense: "this file's `conflict_handler=\"resolve\"` (see `_AwArgumentParser.__init__`) then mutates that shared object's `option_strings` IN PLACE". After E-01 that sentence is untrue, and a false comment about a silent-failure mode is worse than no comment, because the next reader will trust it.
+- [x] E-03 CORRECT THE ONE COMMENT THE CHANGE MAKES FALSE, at the `--oc-agent` registration in `cli.py`. It currently asserts a mechanism in the present tense: "this file's `conflict_handler=\"resolve\"` (see `_AwArgumentParser.__init__`) then mutates that shared object's `option_strings` IN PLACE". After E-01 that sentence is untrue, and a false comment about a silent-failure mode is worse than no comment, because the next reader will trust it.
   PRESERVE THE FLAG NAME AND ITS PRIMARY JUSTIFICATION, which do NOT depend on the handler and remain correct: `--agent` is the repo-wide MACHINE-OUTPUT flag on the shared `common` parent and normative in `docs/cli-output-contract.md`, so overloading it on one verb would make one spelling mean two things. Only the SECONDARY mechanism paragraph changes. Rewrite it to record the measured history honestly: under the resolve handler this collision was silent and shipped a defect; it now raises at build time. That keeps `p0l1to`'s evidence, which is the most valuable thing in the comment.
 
   THREE CORRECTIONS TO MAKE WHILE YOU ARE IN THAT COMMENT, each measured at review, because a comment being rewritten is the cheapest moment to fix it and the worst moment to leave a known falsehood in. FIRST, the bare line-number citation `agent_workflows/cli.py:729` is already WRONG (F-11): line 729 is docstring prose inside `_ViewerOrLeafSubParsersAction`, not the `--agent` declaration. Cite the SYMBOL or the quoted `add_argument` content instead, per this plan's own Step-0 convention. SECOND, do not repeat the phrase "declared once": there are TWO `--agent` declarations in this file, on `common` and on `common_upgrade` (F-12). Say it is declared on the shared `common` parent, which is what the sentence actually needs. THIRD, present the quoted symptom as history explicitly, because it no longer reproduces: `aw oc profile add --agent` today parses fine and emits an `aw.agent/v1` error record (F-15), so an unqualified present-tense claim is false a second time over.
   DO NOT RENAME `--oc-agent` (see Deferred) and do NOT touch the `agy_runipd` comments or `assert_verification_flags_are_distinct`'s docstring, whose statements about `resolve` are about a handler they deliberately do not use and stay true (F-08).
   - Depends on: E-02
   - Expected outcome: the `--oc-agent` comment states the flag rationale plus the now-correct build-time-raise behavior, retains `p0l1to`'s measured evidence as history, and no other comment in the tree asserts that `cli.py` uses the resolve handler.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -170,22 +170,251 @@ WHAT IS DELIBERATELY DOCUMENTED IN CODE RATHER THAN IN A DOC is the policy itsel
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the committed diff region of `_AwArgumentParser.__init__` showing the `setdefault("conflict_handler", "resolve")` line GONE and the rationale comment present, and confirm the comment names the removal, the reason a collision must raise, and the unargued provenance F-14 measured. Paste the BUILDER SWEEP as a before/after table over all seven builders (`cli`, `oc_runipd`, `agy_runipd`, `layout_inventory`, `oc_models`, `upgrade_rehearsal`, `pwatch`), each row showing it builds without raising and which handler its root reports; before must show `cli` alone on resolve, after must show all seven on error. Paste the FULL-TREE handler walk before and after with the `id()`-deduplicated parser-object count and the handler distribution, expecting the count UNCHANGED across the edit and the distribution flipping wholly from resolve to error; state explicitly that this count is parser OBJECTS, not the alias-expanded paths and not the canonical leaves, and re-derive all three rather than transcribing them from F-07 (review measured 249 / 174 / 151, correcting F-07's first figure; F-13). Confirm `format_help` and `error` were not modified. Paste at least five real UNPIPED invocations with exit codes, naming the interpreter and `PYTHONPATH` used.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below:
+Committed diff region of `_AwArgumentParser.__init__`:
+```diff
+@@ -675,7 +675,19 @@ class _AwArgumentParser(argparse.ArgumentParser):
+     """ArgumentParser that formats standard usage errors with next action recommendations."""
 
-- [ ] V-02 validates E-02
+     def __init__(self, *args, **kwargs):
+-        kwargs.setdefault("conflict_handler", "resolve")
++        # The conflict handler is deliberately left to argparse's default ("error"):
++        # a duplicate option definition MUST raise rather than silently replacing an earlier
++        # one. A collision means two registrations disagree, which is a bug to fix at the
++        # registration site rather than a conflict to resolve silently.
++        #
++        # Silently resolving conflicts already shipped a real defect in the past: declaring
++        # `--agent` on a subparser with parents=[common] emptied the shared parent action's
++        # option_strings in place, making `aw attention` parse with `agent=True` permanently on
++        # and breaking CLI invocations (see `p0l1to` and the `--oc-agent` registration site).
++        #
++        # Note: the blanket `kwargs.setdefault("conflict_handler", "resolve")` line removed here
++        # was never argued for; it arrived unremarked in commit ef55eadb (a 984-line CLI migration)
++        # with no comment and no explanation. Do not re-add "resolve" here.
+         super().__init__(*args, **kwargs)
+```
+The comment explicitly names the removal of the blanket `resolve` setdefault, explains that a collision is a bug to fix at the registration site that MUST raise, references `p0l1to`'s emptied `--agent` defect, and records the unargued provenance from `ef55eadb`.
+
+BUILDER SWEEP (before and after):
+| Builder | Before: Builds? | Before: Root Handler | After: Builds? | After: Root Handler |
+|---|---|---|---|---|
+| `cli` | yes | `_handle_conflict_resolve` | yes | `_handle_conflict_error` |
+| `oc_runipd` | yes | `_handle_conflict_error` | yes | `_handle_conflict_error` |
+| `agy_runipd` | yes | `_handle_conflict_error` | yes | `_handle_conflict_error` |
+| `layout_inventory` | yes | `_handle_conflict_error` | yes | `_handle_conflict_error` |
+| `oc_models` | yes | `_handle_conflict_error` | yes | `_handle_conflict_error` |
+| `upgrade_rehearsal` | yes | `_handle_conflict_error` | yes | `_handle_conflict_error` |
+| `pwatch` | yes | `_handle_conflict_error` | yes | `_handle_conflict_error` |
+
+FULL-TREE HANDLER WALK (before and after):
+- Before:
+  - Distinct parser objects (`id()`-deduplicated): 174
+  - Handler distribution: `{"_handle_conflict_resolve": 174}`
+  - Alias-expanded subcommand paths: 249
+  - Canonical leaves: 151
+- After:
+  - Distinct parser objects (`id()`-deduplicated): 174 (unchanged)
+  - Handler distribution: `{"_handle_conflict_error": 174}` (100% flipped to error)
+  - Alias-expanded subcommand paths: 249 (unchanged)
+  - Canonical leaves: 151 (unchanged)
+Note: This count (174) is parser OBJECTS, distinct from alias-expanded subcommand paths (249) and canonical leaves (151). All three figures re-derived live via probe.
+
+Neither `format_help` nor `error` in `_AwArgumentParser` was modified (confirmed via `git diff agent_workflows/cli.py`).
+
+Five real UNPIPED invocations:
+Interpreter: `<venv>/bin/python3` (Python 3.14.6)
+`PYTHONPATH=.`
+```sh
+PYTHONPATH=. python3 -m agent_workflows --help >/dev/null 2>&1; echo "aw --help exit: $?"
+# -> aw --help exit: 0
+PYTHONPATH=. python3 -m agent_workflows attention >/dev/null 2>&1; echo "aw attention exit: $?"
+# -> aw attention exit: 0
+PYTHONPATH=. python3 -m agent_workflows ipd lint --help >/dev/null 2>&1; echo "aw ipd lint --help exit: $?"
+# -> aw ipd lint --help exit: 0
+PYTHONPATH=. python3 -m agent_workflows oc profile list >/dev/null 2>&1; echo "aw oc profile list exit: $?"
+# -> aw oc profile list exit: 0
+PYTHONPATH=. python3 -m agent_workflows host capabilities >/dev/null 2>&1; echo "aw host capabilities exit: $?"
+# -> aw host capabilities exit: 0
+```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the committed test file and the run showing it PASSING. Confirm by quoting the code that it (a) covers all seven builders, (b) asserts no builder raises AND that every reachable parser object reports `_handle_conflict_error`, (c) deduplicates by `id()` rather than by name, and (d) asserts a LOWER BOUND on the object count rather than an equality, quoting the assertion. Paste the DUPLICATE-RAISES demonstration with the actual `argparse.ArgumentError` message including the conflicting option string. Then paste the MUTATION proving the guard can fail: restore the resolve default (or otherwise put one parser back on resolve), paste the FAILING output showing the guard catches it, revert, and paste the restored green run. Confirm the mutation touched no shared module-level parser state that another test could observe.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below:
+Test file `tests/test_cli_parser_conflict_policy.py` run passing:
+```
+============================= test session starts ==============================
+18 passed in 5.92s
+```
+Quoting code:
+(a) covers all seven builders:
+```python
+BUILDERS: dict[str, Callable[[], argparse.ArgumentParser]] = {
+    "cli": cli._build_parser,
+    "oc_runipd": oc_runipd.build_parser,
+    "agy_runipd": agy_runipd.build_parser,
+    "layout_inventory": layout_inventory.build_parser,
+    "oc_models": oc_models.build_parser,
+    "upgrade_rehearsal": upgrade_rehearsal.build_parser,
+    "pwatch": pwatch.build_parser,
+}
+```
+(b) asserts no builder raises AND every reachable parser object reports `_handle_conflict_error`:
+```python
+@pytest.mark.parametrize("builder_name,builder", list(BUILDERS.items()))
+def test_all_builders_construct_without_raising(
+    builder_name: str, builder: Callable[[], argparse.ArgumentParser]
+) -> None:
+    parser = builder()
+    assert isinstance(parser, argparse.ArgumentParser)
 
-- [ ] V-03 validates E-03
+@pytest.mark.parametrize("builder_name,builder", list(BUILDERS.items()))
+def test_every_reachable_parser_object_uses_error_handler(
+    builder_name: str, builder: Callable[[], argparse.ArgumentParser]
+) -> None:
+    root = builder()
+    parsers = _collect_parser_objects(root)
+    assert len(parsers) >= 1
+
+    for pid, p in parsers.items():
+        handler = p._get_handler()
+        assert handler.__name__ == "_handle_conflict_error", (
+            f"Parser {p.prog!r} (id={pid}) in {builder_name} reported handler {handler.__name__}, "
+            f"expected _handle_conflict_error"
+        )
+        assert handler.__func__ is argparse._ActionsContainer._handle_conflict_error
+```
+(c) deduplicates by `id()` rather than by name:
+```python
+def _collect_parser_objects(
+    parser: argparse.ArgumentParser,
+    seen: Dict[int, argparse.ArgumentParser] | None = None,
+) -> Dict[int, argparse.ArgumentParser]:
+    if seen is None:
+        seen = {}
+    pid = id(parser)
+    if pid in seen:
+        return seen
+    seen[pid] = parser
+    for action in parser._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            for subp in action.choices.values():
+                _collect_parser_objects(subp, seen)
+    return seen
+```
+(d) asserts a LOWER BOUND on the object count:
+```python
+def test_cli_parser_object_count_lower_bound() -> None:
+    root = cli._build_parser()
+    parsers = _collect_parser_objects(root)
+    assert len(parsers) >= 150
+```
+Duplicate-raises demonstration:
+```python
+>>> parser = cli._build_parser()
+>>> parser.add_argument("--agent", help="Collision with existing --agent")
+argparse.ArgumentError: argument --agent: conflicting option string: --agent
+
+>>> p = cli._AwArgumentParser()
+>>> p.add_argument("--dup-flag")
+>>> p.add_argument("--dup-flag")
+argparse.ArgumentError: argument --dup-flag: conflicting option string: --dup-flag
+```
+Mutation proving guard fails:
+Restored `kwargs.setdefault("conflict_handler", "resolve")` into `_AwArgumentParser.__init__`:
+```
+FAILED tests/test_cli_parser_conflict_policy.py::test_duplicate_option_raises_argument_error_on_aw_parser - Failed: DID NOT RAISE <class 'argparse.ArgumentError'>
+FAILED tests/test_cli_parser_conflict_policy.py::test_duplicate_option_raises_on_inherited_parent_action - Failed: DID NOT RAISE <class 'argparse.ArgumentError'>
+FAILED tests/test_cli_parser_conflict_policy.py::test_every_reachable_parser_object_uses_error_handler[cli-_build_parser] - AssertionError: Parser 'agent-workflows' (id=...) in cli reported handler _handle_conflict_resolve, expected _handle_conflict_error
+FAILED tests/test_cli_parser_conflict_policy.py::test_duplicate_option_raises_on_fresh_cli_tree - Failed: DID NOT RAISE <class 'argparse.ArgumentError'>
+=========================== 4 failed, 14 passed in 7.41s ===========================
+```
+Reverted mutation, restored green run:
+```
+============================ 18 passed in 6.81s ============================
+```
+Confirmed mutation touched no shared module-level parser state.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the committed `--oc-agent` comment in full. Confirm it no longer states that this file uses `conflict_handler="resolve"`, that it RETAINS the `--agent`-is-the-machine-output-flag rationale, and that it retains `p0l1to`'s measured history as history rather than as current behavior. Confirm the three review-mandated corrections landed: no bare `cli.py:<line>` citation remains in it (F-11), it does not say `--agent` is "declared once" in this file (F-12), and the quoted "unrecognized arguments" symptom is framed as the pre-fix state (F-15). Paste a tree-wide `rg conflict_handler` over `agent_workflows/` and account for EVERY remaining hit, showing each surviving one is either the removed-line rationale comment or one of the three `agy_runipd` references that stay true per F-08; confirm no remaining comment asserts `cli.py` uses the resolve handler. Paste the `tests/test_oc_profile_cli_regression.py` run showing the five `oc profile` verbs still green.
 
     THEN PASTE `aw oc profile add --help` SHOWING **BOTH** `--agent` AND `--oc-agent` PRESENT, with a parse probe proving their dests are distinct (`--oc-agent build` must yield `agent=False, oc_agent='build'`). CORRECTED AT REVIEW: this item previously demanded `--agent` be ABSENT from that help, which is FALSE and unsatisfiable (F-10). `p_ocp_add` is declared `parents=[common]`, so it inherits the repo-wide machine-output flag by design, and their coexistence with separate dests is the entire point of `p0l1to`'s rename. An executor who tried to satisfy the old wording would have had to strip `--agent` from the shared parent, breaking the flag `docs/cli-output-contract.md` makes normative across every subcommand. If `--agent` is ever absent from this help, that is the defect.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below:
+Committed `--oc-agent` comment in full:
+```python
+    # SPELLED `--oc-agent`, NOT `--agent`, and the reason is measured rather than stylistic. `--agent`
+    # is the repo-wide MACHINE-OUTPUT flag (declared on the shared `common` parent via
+    # `common.add_argument("--agent", ...)`, normative in `docs/cli-output-contract.md`), so overloading
+    # it on one verb would make one spelling mean two things. Worse, in argparse `parents=` SHARES the
+    # action OBJECT. Historically, when this file used argparse's `resolve` conflict handler, declaring
+    # a duplicate `--agent` here silently mutated that shared action object's `option_strings` in place.
+    # Measured history (plan `p0l1to`): declaring `--agent` on a `parents=[common]` subparser emptied
+    # `common`'s `--agent` option strings, after which `aw attention` parsed with `agent=True` always on
+    # and `aw oc profile add --agent` reported "unrecognized arguments" prior to the fix.
+    # Today, `_AwArgumentParser` uses argparse's default "error" conflict handler (see
+    # `_AwArgumentParser.__init__`), so any duplicate option definition raises an ArgumentError at
+    # parser build time. The profile's OpenCode-agent field retains its distinct `--oc-agent` spelling;
+    # the CAPABILITY the plan asked for is unchanged.
+```
+- Confirmed it no longer states that `cli.py` uses `conflict_handler="resolve"`.
+- RETAINS `--agent` is the repo-wide machine-output flag rationale.
+- RETAINS `p0l1to`'s measured history as history rather than current behavior.
+- Review-mandated corrections:
+  1. No bare `cli.py:<line>` citation remains (cites `common.add_argument("--agent", ...)`).
+  2. Does not claim `--agent` is "declared once" in this file.
+  3. Quoted "unrecognized arguments" symptom is explicitly framed as pre-fix history.
+
+Tree-wide `rg conflict_handler agent_workflows/`:
+```
+agent_workflows/agy_runipd.py:1957:    declares. With the default `conflict_handler` that raises at build time and is impossible to
+agent_workflows/agy_runipd.py:1958:    miss. With `conflict_handler="resolve"` it does something far worse and SILENT: the new action
+agent_workflows/agy_runipd.py:3658:    # `build_parser()` time, killing every `aw agy` invocation. `conflict_handler="resolve"` is
+agent_workflows/agy_runipd.py:3824:    # (a `--validate` alias list, or `conflict_handler="resolve"`, can silently steal `--no-verify`
+agent_workflows/cli.py:688:        # Note: the blanket `kwargs.setdefault("conflict_handler", "resolve")` line removed here
+```
+All five hits accounted for: 4 in `agy_runipd.py` explaining hazards avoided; 1 in `cli.py` explaining the removal. No comment claims `cli.py` uses resolve.
+
+`tests/test_oc_profile_cli_regression.py` run:
+```
+tests/test_oc_profile_cli_regression.py ..... [100%]
+5 passed in 7.69s
+```
+
+`PYTHONPATH=. python3 -m agent_workflows oc profile add --help`:
+```
+usage: agent-workflows oc profile add [-h] [--no-color | --color] [--agent]
+                                      [--json] [--model MODEL]
+                                      [--variant VARIANT]
+                                      [--oc-agent OC_AGENT] [--replace]
+                                      [--yes] [--set-default]
+                                      [name]
+...
+options:
+  -h, --help           show this help message and exit
+  --no-color           Disable ANSI color (also honored via NO_COLOR).
+  --color              Force ANSI color on even when stdout is not a terminal
+                       (beats NO_COLOR).
+  --agent              Machine-readable output (aw.agent/v1 JSONL).
+  --json               Emit full structured JSON representation.
+  --model MODEL        Exact provider/model identifier (required for the
+                       noninteractive form).
+  --variant VARIANT    Provider-specific variant/reasoning effort (e.g. high).
+                       Omit for the provider default.
+  --oc-agent OC_AGENT  OpenCode agent to launch with (spelled --oc-agent
+                       because --agent selects machine-readable output).
+...
+```
+Both `--agent` and `--oc-agent` are present.
+
+Parse probe proving dests are distinct:
+```
+$ python3 -c "from agent_workflows import cli; parser = cli._build_parser(); args = parser.parse_args(['oc', 'profile', 'add', '--oc-agent', 'build']); print(f'agent = {args.agent} | oc_agent = {args.oc_agent}')"
+agent = False | oc_agent = build
+```
+  - Result: pass
 
 ## Approval and execution gate
 
