@@ -163,3 +163,18 @@ WHAT TO BUILD INSTEAD:
 WHAT NOT TO BUILD: secrets or tokens meant to be hidden from an agent, forgery or tamper detection aimed at an agent, and any mechanism whose justification is "in case the agent lies". If real isolation is ever required, it comes from the operating system (a separate user, a sandbox such as the opt-in hardened profile), never from checks in our own code.
 
 When a review touches an existing gate, apply this principle to it: keep it, simplify it into a clear refusal, or delete it.
+
+## 16. Test outcomes and behavior, never code structure or text
+
+Tests exist to prove that the software behaves correctly when executed. They do NOT exist to freeze source code, prevent refactoring, or verify that text in a script remains unchanged.
+
+### What is prohibited:
+- **No production source inspection**: Never use `inspect.getsource`, `inspect.getsourcelines`, `ast.parse`, `read_text()`, or substring/regex searches against production code (`agent_workflows/*.py`) to verify implementation details, wiring, or syntax.
+- **No count or census pins**: Never assert on the number of callers, call-site counts, definition counts, or closure sizes as a proxy for an invariant.
+- **No text, banner, or docstring pins**: Never assert that exact phrases, warning banners, or docstrings exist in production files. Comments and docstrings are for humans and models reading the code, not test assertions.
+- **No architectural placement pins**: Do not assert which module holds a `def` by inspecting ASTs or module dictionaries. Test the behavioral contract of the modules instead.
+
+### What to do instead:
+- **Exercise the code**: Call the function, invoke the CLI, run the subprocess, supply inputs, and assert observable outputs (return values, stdout/stderr, exit codes, created files, state mutations).
+- **Verify test sensitivity with mutation**: A test is only valid if breaking the underlying behavior makes the test fail. If reorganizing working code or editing a docstring breaks the test, the test is broken.
+- **The one narrow exception**: Content verification is permissible only where the text or file itself is the artifact under test (for example, verifying published documentation does not cite deleted test files, or checking that test modules do not attempt network installations in offline suites). Production code is never subject to text or AST structure pins.
