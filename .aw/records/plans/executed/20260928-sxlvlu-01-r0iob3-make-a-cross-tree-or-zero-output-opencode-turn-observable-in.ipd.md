@@ -6,7 +6,7 @@
 - Scope: Make the silent case OBSERVABLE and make the reachable cross-tree carry REFUSED, without changing any turn that works today. IN: a shared predicate that scores a turn's session log as productive or silent and the driver plumbing that records it as a durable refusal rather than an ordinary completion; a refusal when a session recorded against a DIFFERENT tree would be carried into this one, covering the measured operator-`--session`-into-the-sweep-lane path; the review-disposition evidence gap that lets a zero-event turn be scored `reviewed`; correction of the `xd9sll` mechanism sentences this plan's measurements falsify; and tests for each. OUT: fixing opencode itself (reported upstream instead, see Deferred), any change to what a productive turn does, any change to the one-lane-per-sweep or always-fresh-session designs, and the `agy` host's own session plumbing beyond the shared predicate both hosts already consume.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, tests/test_silent_turn_observability.py, tests/test_cross_tree_session_refusal.py, tests/test_oc_runipd.py, .aw/records/research/20260928-opencode-crosstree-silent-turn-00-524dw1-opencode-crosstree-silent-turn.research-report.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: r0iob3
-- Approval: 2026-09-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-28 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: r0iob3 verified (set sxlvlu, attempt 1). [Scope reconciliation - widened-scope .aw/records/research/20260928-opencode-crosstree-silent-turn-00-524dw1-opencode-crosstree-silent-turn.research-report.md: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw agy run); widened-scope tests/test_oc_runipd.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw agy run)]
 - 2026-09-28 approved (aw set): status set to approved
 - 2026-09-28 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-101 (HIGH) through PR-106 all FIXED in place; findings, decisions and measurements in .aw/records/reviews/20260928-sxlvlu-01-r0iob3-...review.md
 
