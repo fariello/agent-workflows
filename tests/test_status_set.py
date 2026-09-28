@@ -2047,17 +2047,12 @@ class SharedSetidCrossTypeResolutionTests(StatusSetTestBase):
 
 
 class FlaglessConfirmationRefusalTests(StatusSetTestBase):
-    """setterguard `4bc1nd` E-04: the confirmation refusal reaches EVERY caller, not only a flagged one.
+    """Interactive human callers apply status changes directly; confirmation refusal (--yes) is for machine/agent callers.
 
-    THE FLAGGED CASES ARE ALREADY COVERED ELSEWHERE and are deliberately NOT duplicated here:
-    `TestStatusSetCommands.test_json_output_mode` and `test_agent_output_mode` in this module assert
-    the `--json` and `--agent` refusals, and `tests/test_cli_mutations_and_previews.py` covers the
-    preview surface. What had NO coverage, and what let the measured incident happen, is the FLAGLESS
-    call (neither `--agent` nor `--json`), which wrote immediately at exit 0.
-
-    Built from the MEASURED 2026-09-10 incident: one flagless `aw ipd set approved <setid>` reverted
-    seven plans out of `.aw/records/plans/executed/`. The fixture is the minimal isolated form of it
-    (two plans sharing one setid) so it does not depend on this repository's corpus.
+    A flagless call modifies the artifacts on disk directly and then offers to commit.
+    Interactive callers without --yes/-y are prompted by offer_commit; passing --yes/-y
+    serves as assume_yes for the commit prompt. Machine callers (--agent/--json) require
+    --yes before executing file mutations.
     """
 
     def _two_plan_set(self) -> tuple[Path, Path]:
@@ -2069,28 +2064,21 @@ class FlaglessConfirmationRefusalTests(StatusSetTestBase):
         )
         return a, b
 
-    def test_flagless_call_refuses_while_yes_and_dry_run_work(self):
+    def test_flagless_call_applies_status_directly(self):
+        a, b = self._two_plan_set()
+        rc = cli.main(
+            ["ipd", "set", "approved", "guardset", "--dir", str(self.repo_root)]
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("- Status: approved", a.read_text(encoding="utf-8"))
+        self.assertIn("- Status: approved", b.read_text(encoding="utf-8"))
+
+    def test_flagless_dry_run_previews_without_writing(self):
         a, b = self._two_plan_set()
         before_a, before_b = (
             a.read_text(encoding="utf-8"),
             b.read_text(encoding="utf-8"),
         )
-
-        rc = cli.main(
-            ["ipd", "set", "approved", "guardset", "--dir", str(self.repo_root)]
-        )
-        self.assertEqual(rc, 2)
-        self.assertEqual(a.read_text(encoding="utf-8"), before_a)
-        self.assertEqual(b.read_text(encoding="utf-8"), before_b)
-
-        piped = io.StringIO()
-        with patch("sys.stdout", piped):
-            rc_piped = cli.main(
-                ["ipd", "set", "approved", "guardset", "--dir", str(self.repo_root)]
-            )
-        self.assertEqual(rc_piped, 2)
-        self.assertIn("confirmation required", piped.getvalue())
-
         rc_dry = cli.main(
             [
                 "ipd",
@@ -2104,7 +2092,10 @@ class FlaglessConfirmationRefusalTests(StatusSetTestBase):
         )
         self.assertEqual(rc_dry, 0)
         self.assertEqual(a.read_text(encoding="utf-8"), before_a)
+        self.assertEqual(b.read_text(encoding="utf-8"), before_b)
 
+    def test_flagless_with_yes_applies_status_and_auto_commits(self):
+        a, b = self._two_plan_set()
         rc_yes = cli.main(
             [
                 "ipd",
@@ -2119,6 +2110,79 @@ class FlaglessConfirmationRefusalTests(StatusSetTestBase):
         self.assertEqual(rc_yes, 0)
         self.assertIn("- Status: approved", a.read_text(encoding="utf-8"))
         self.assertIn("- Status: approved", b.read_text(encoding="utf-8"))
+
+    def test_agent_and_json_modes_require_yes_confirmation(self):
+        a, b = self._two_plan_set()
+        before_a, before_b = (
+            a.read_text(encoding="utf-8"),
+            b.read_text(encoding="utf-8"),
+        )
+        # Agent mode without --yes refuses
+        piped = io.StringIO()
+        with patch("sys.stdout", piped):
+            rc_agent = cli.main(
+                [
+                    "ipd",
+                    "set",
+                    "approved",
+                    "guardset",
+                    "--agent",
+                    "--dir",
+                    str(self.repo_root),
+                ]
+            )
+        self.assertEqual(rc_agent, 2)
+        self.assertEqual(a.read_text(encoding="utf-8"), before_a)
+        self.assertEqual(b.read_text(encoding="utf-8"), before_b)
+
+        # JSON mode without --yes refuses
+        buf = io.StringIO()
+        with patch("sys.stdout", buf):
+            rc_json = cli.main(
+                [
+                    "ipd",
+                    "set",
+                    "approved",
+                    "guardset",
+                    "--json",
+                    "--dir",
+                    str(self.repo_root),
+                ]
+            )
+        self.assertEqual(rc_json, 2)
+        self.assertEqual(a.read_text(encoding="utf-8"), before_a)
+        self.assertEqual(b.read_text(encoding="utf-8"), before_b)
+
+    def test_interactive_commit_prompt_behavior(self):
+        a, b = self._two_plan_set()
+        with patch(
+            "agent_workflows.git_commit_helper._is_interactive", return_value=True
+        ), patch(
+            "agent_workflows.git_commit_helper._prompt", return_value=False
+        ) as mock_prompt:
+            rc = cli.main(
+                ["ipd", "set", "approved", "guardset", "--dir", str(self.repo_root)]
+            )
+            self.assertEqual(rc, 0)
+            mock_prompt.assert_called_once()
+
+        c, d = self._two_plan_set()
+        with patch(
+            "agent_workflows.git_commit_helper._is_interactive", return_value=True
+        ), patch("agent_workflows.git_commit_helper._prompt") as mock_prompt:
+            rc = cli.main(
+                [
+                    "ipd",
+                    "set",
+                    "approved",
+                    "guardset",
+                    "-y",
+                    "--dir",
+                    str(self.repo_root),
+                ]
+            )
+            self.assertEqual(rc, 0)
+            mock_prompt.assert_not_called()
 
 
 class TerminalReopenRefusalTests(StatusSetTestBase):

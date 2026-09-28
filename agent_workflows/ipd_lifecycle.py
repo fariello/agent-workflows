@@ -51,6 +51,8 @@ from typing import (
     Tuple,
 )
 
+from agent_workflows import contention_wait
+
 # --------------------------------------------------------------------------------------
 # Execution ROLE (wtiso-03 `rchpms` E-04). x03wgn Section 2 "Receipt ownership does not mean agent
 # tool compliance" + Section 3 `AW-LIFECYCLE-ROLE-001`.
@@ -489,8 +491,8 @@ def _atomic_write_json_at(path: Path, payload: Dict[str, Any]) -> None:
 #: another finalizer needs more than a commit's budget. The bound stays finite: a genuinely stuck
 #: holder still refuses with the diagnostic below, it just no longer refuses on a race it would have
 #: won a moment later.
-FINALIZE_LOCK_WAIT_SECONDS = 120.0
-FINALIZE_LOCK_POLL_SECONDS = 0.1
+FINALIZE_LOCK_WAIT_SECONDS = contention_wait.TIMEOUT_SECONDS
+FINALIZE_LOCK_POLL_SECONDS = contention_wait.POLL_SECONDS
 FINALIZE_LOCK_BUSY_SUMMARY = "ipd finalize writer lock held by active PID"
 
 
@@ -538,35 +540,67 @@ def acquire_finalize_lock(
     lock = finalize_lock_path(repo_root)
     lock.parent.mkdir(parents=True, exist_ok=True)
     budget = FINALIZE_LOCK_WAIT_SECONDS if timeout is None else max(0.0, float(timeout))
-    deadline = _now() + budget
-    while True:
+
+    last_holder: Optional[Dict[str, Any]] = None
+
+    def _try_acquire() -> tuple[bool, Any]:
+        nonlocal last_holder
         holder = _finalize_lock_live_holder(lock)
         if holder is None:
-            break  # free, ours, or stale (dead PID): reclaim below
-        if _now() >= deadline:
-            pid = holder.get("pid")
-            plan = holder.get("plan_id")
-            owner = holder.get("owner")
-            if plan and owner:
-                holder_desc = f"plan {plan}; owner {owner}"
-            elif plan:
-                holder_desc = f"plan {plan}"
-            elif owner:
-                holder_desc = f"owner {owner}"
-            else:
-                holder_desc = "plan None"
-            raise TransactionLockError(
-                f"{FINALIZE_LOCK_BUSY_SUMMARY} {pid} ({holder_desc}) for longer "
-                f"than {budget:.0f}s; wait for it to finish or, if that process is dead, remove {lock}"
-            )
-        _sleep(FINALIZE_LOCK_POLL_SECONDS)
-    # Free or stale (dead PID): take it. Recovery consults the journal, not this file.
-    payload = {
-        "plan_id": plan_id,
-        "pid": os.getpid(),
-        "timestamp": _utc_now(),
-    }
-    _atomic_write_json_at(lock, payload)
+            payload = {
+                "plan_id": plan_id,
+                "pid": os.getpid(),
+                "timestamp": _utc_now(),
+            }
+            _atomic_write_json_at(lock, payload)
+            return True, None
+        last_holder = holder
+        return False, None
+
+    def _holder_desc() -> Optional[str]:
+        holder = _finalize_lock_live_holder(lock) or last_holder
+        if not holder:
+            return None
+        pid = holder.get("pid")
+        plan = holder.get("plan_id")
+        owner = holder.get("owner")
+        if plan and owner:
+            d = f"plan {plan}; owner {owner}"
+        elif plan:
+            d = f"plan {plan}"
+        elif owner:
+            d = f"owner {owner}"
+        else:
+            d = "plan None"
+        return f"PID {pid} ({d})"
+
+    res = contention_wait.wait_until(
+        _try_acquire,
+        what="ipd finalize writer lock",
+        holder=_holder_desc,
+        timeout=budget,
+        poll=FINALIZE_LOCK_POLL_SECONDS,
+        sleep=_sleep,
+        now=_now,
+    )
+
+    if not res.ok:
+        holder = _finalize_lock_live_holder(lock) or last_holder or {}
+        pid = holder.get("pid")
+        plan = holder.get("plan_id")
+        owner = holder.get("owner")
+        if plan and owner:
+            holder_desc = f"plan {plan}; owner {owner}"
+        elif plan:
+            holder_desc = f"plan {plan}"
+        elif owner:
+            holder_desc = f"owner {owner}"
+        else:
+            holder_desc = "plan None"
+        raise TransactionLockError(
+            f"{FINALIZE_LOCK_BUSY_SUMMARY} {pid} ({holder_desc}) for longer "
+            f"than {budget:.0f}s; wait for it to finish or, if that process is dead, remove {lock}"
+        )
 
 
 def release_finalize_lock(repo_root: Path) -> None:

@@ -1,5 +1,5 @@
 - Id: ibk7bt
-- Status: graduated
+- Status: done
 - Graduated-To: uniwait
 - Blocks-Release: next
 - Set: uniwait
@@ -8,6 +8,7 @@
 - Summary: Five code-only waits (finalize lock, integration lock, deferral ladder, aw writer lock, setter commit race) use five different ad-hoc timings; a busy peer fails items or leaves changes uncommitted
 
 ## Workflow history
+- 2026-09-27 set (aw backlog): closed by aw oc run: IPD 9bq5o4 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260927-uniwait-01-9bq5o4-make-the-five-contention-waits-share-one-policy-check-every.ipd.md); evidence .aw/records/plans/executed/20260927-uniwait-01-9bq5o4-make-the-five-contention-waits-share-one-policy-check-every.ipd.md
 - 2026-09-27 graduated (aw set): Graduated 2026-09-27 into to-review plan 9bq5o4 (Set uniwait).
 - 2026-09-27 created (aw backlog): Five code-only waits (finalize lock, integration lock, deferral ladder, aw writer lock, setter commit race) use five different ad-hoc timings; a busy peer fails items or leaves changes uncommitted
 

@@ -24,8 +24,10 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
 
 Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
 
+- Changed: when a finished item's work conflicts with main, the run now hands the conflict back to the same agent to resolve in its lane and then merges it, instead of failing the item; it fails only if the agent cannot resolve it within the run's retry budget.
 - Changed: plan reviews no longer mark a question answered by a fix nobody tried; an untried fix stays an open question or becomes a first test step.
 - Changed: when a plan or backlog item that other plans handed work to is finished, a run now asks the agent to confirm the work was done and records the proof, and aw check plans no longer fails the build on a finished owner (the finding is advisory and no longer fails CI), while an abandoned owner still fails.
+- Changed: runs and `aw` commands now wait for a busy peer, reporting every minute for up to 30 minutes, instead of failing the item or leaving a change uncommitted.
 - Added: a new `aw partition` command splits approved plans into balanced groups for running in several terminals at once, keeping dependent plans together.
 - Added: when two runs share a checkout, a run that has finished its other work now waits up to 30 minutes for a prerequisite the other run is still executing, instead of failing the dependent item.
 - Added: `aw agy profile` (`add`, `list`, `show`, `remove`, `default`) verbs to manage Antigravity launch profiles, and `validate-default` under both `aw oc profile` and `aw agy profile` to configure the host-neutral `defaults.validate` verification posture. Profile names share a single flat namespace across runners, guarded against cross-host modifications.

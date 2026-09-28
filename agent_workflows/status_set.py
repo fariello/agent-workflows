@@ -2006,12 +2006,10 @@ def run_set_command(
     # `.aw/records/plans/executed/` into `pending/` and rewrote each status, printing six
     # `executed -> approved` lines at exit 0.
     #
-    # The refusal below (its `exit_code=2`, its `Change` blast-radius list and its `NextAction`) is
-    # REUSED, never duplicated: this is the single construction site, so the two paths cannot drift.
-    # The human renderer already prints each `Change` under a `Would change:` header
-    # (`renderers.HumanRenderer`), so no second rendering is needed. `--dry-run` and `--yes`
-    # semantics are unchanged.
-    if not is_dry_run and not yes:
+    # For agent or json callers, require confirmation (--yes) to execute mutation.
+    # Interactive human callers execute the status change directly and are prompted by
+    # _offer_self_commit unless --yes / -y / --commit is provided for automatic commit.
+    if (ctx.is_agent or ctx.is_json) and not is_dry_run and not yes:
         changes = [
             Change(
                 path=str(r.path),
