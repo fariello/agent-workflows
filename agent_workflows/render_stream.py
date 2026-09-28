@@ -2600,6 +2600,35 @@ def format_stranded_work_section(
     return ["", f"{bold}{red}STRANDED WORK - NOT IN YOUR PROJECT:{reset}"] + out
 
 
+def format_generated_next_actions_summary_block(
+    queue: list[dict[str, Any]],
+    *,
+    host_command: str = "oc",
+    bold: str = "",
+    reset: str = "",
+) -> list[str]:
+    """The generated next actions block for the run summary table (E-06)."""
+    actions: list[tuple[str, dict[str, Any]]] = []
+    for item in queue or ():
+        for act in item.get("generated_next_actions") or []:
+            actions.append((str(item.get("id6") or ""), act))
+    if not actions:
+        return []
+    lines = [
+        "",
+        f"{bold}Generated next actions (not run in this run):{reset}",
+    ]
+    cmd_prefix = (
+        host_command if host_command.startswith("aw ") else f"aw {host_command} run"
+    )
+    for src_id6, act in actions:
+        p_id6 = act.get("id6", "")
+        lines.append(
+            f"  • {p_id6} (from {src_id6}): review with `{cmd_prefix} {p_id6}`"
+        )
+    return lines
+
+
 def _review_lane_branch(item: dict[str, Any]) -> str | None:
     """The review sweep lane's BRANCH for this item, from the attempt that ran the merge.
 
@@ -3353,6 +3382,21 @@ def render_run_summary_table(
     # unaffected summary is byte-identical to before.
     lines.extend(
         format_stranded_work_section(queue, bold=c_bold, red=c_red, reset=c_reset)
+    )
+
+    host_cmd = (
+        "agy"
+        if "agy" in str(driver_label).lower()
+        or "antigravity" in str(driver_label).lower()
+        else "oc"
+    )
+    lines.extend(
+        format_generated_next_actions_summary_block(
+            queue,
+            host_command=host_cmd,
+            bold=c_bold,
+            reset=c_reset,
+        )
     )
 
     return "\n".join(lines)
