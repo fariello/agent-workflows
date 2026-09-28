@@ -44,6 +44,7 @@ import inspect
 import io
 import json
 import pathlib
+import re
 import tempfile
 import unittest
 from typing import Any
@@ -4795,6 +4796,188 @@ class FullAutoDurableHistoryPinTests(unittest.TestCase):
                     arg,
                     f"{host.__name__} argv contains prohibited 'passed all gates'",
                 )
+
+
+class OutputModeFlagsGuardTests(unittest.TestCase):
+    """Guard the already-landed output-mode-flags lift (xw4rb7 / t0ovw6).
+
+    Pins the per-host help strings (E-01), the verbosity_default asymmetry (E-02),
+    and enforces that neither host re-forks the flag-registration body (E-03).
+    """
+
+    def test_output_mode_help_text_pinned_by_value_per_host(self) -> None:
+        """E-01: Pin each host's -v/--verbose and --raw help text BY VALUE on start and resume subparsers.
+
+        argparse reflows help text, so we normalize whitespace with re.sub(r"\\s+", " ", ...)
+        (Route a) to assert what --help actually communicates to an operator.
+        Also asserts cross-host negatives to detect any collapse onto either host's wording.
+        """
+        import argparse as _ap
+
+        oc_raw_literal = (
+            "Stream the child agent's raw JSON events verbatim (legacy behavior)"
+        )
+        oc_verbose_literal = (
+            "Increase live stream detail: -v also shows reads and searches (with line ranges "
+            "and hit counts), -vv also shows diff hunks and diagnostics. Ignored under --raw/--quiet."
+        )
+
+        agy_raw_literal = "Stream the child agent's raw JSON events verbatim"
+        agy_verbose_literal = (
+            "Increase live stream detail: -v also shows reads and searches, -vv also shows raw "
+            "tool parameters. Ignored under --raw/--quiet."
+        )
+
+        for host, host_name in ((oc_runipd, "oc"), (agy_runipd, "agy")):
+            parser = host.build_parser()
+            sub = next(
+                a for a in parser._actions if isinstance(a, _ap._SubParsersAction)
+            )
+            for cmd in ("start", "resume"):
+                sub_parser = sub.choices[cmd]
+                raw_rendered = sub_parser.format_help()
+                norm_rendered = re.sub(r"\s+", " ", raw_rendered)
+
+                if host_name == "oc":
+                    self.assertIn(
+                        oc_raw_literal,
+                        norm_rendered,
+                        f"oc {cmd} subparser help missing expected raw_help literal",
+                    )
+                    self.assertIn(
+                        oc_verbose_literal,
+                        norm_rendered,
+                        f"oc {cmd} subparser help missing expected verbose_help literal",
+                    )
+                    # Cross-contamination negative: oc must not mention agy-specific phrasing
+                    self.assertNotIn(
+                        "raw tool parameters",
+                        raw_rendered,
+                        f"oc {cmd} subparser help cross-contaminated with agy phrasing",
+                    )
+                else:
+                    self.assertIn(
+                        agy_raw_literal,
+                        norm_rendered,
+                        f"agy {cmd} subparser help missing expected raw_help literal",
+                    )
+                    self.assertIn(
+                        agy_verbose_literal,
+                        norm_rendered,
+                        f"agy {cmd} subparser help missing expected verbose_help literal",
+                    )
+                    # Cross-contamination negatives: agy must not mention oc-specific phrasing
+                    self.assertNotIn(
+                        "(legacy behavior)",
+                        raw_rendered,
+                        f"agy {cmd} subparser help cross-contaminated with oc legacy parenthetical",
+                    )
+                    self.assertNotIn(
+                        "diff hunks",
+                        raw_rendered,
+                        f"agy {cmd} subparser help cross-contaminated with oc phrasing",
+                    )
+
+    def test_verbosity_default_asymmetry_on_both_hosts(self) -> None:
+        """E-02: Pin the verbosity_default asymmetry on BOTH hosts.
+
+        start defaults to 0 (bare run freezes tier 0); resume defaults to None
+        so an omitted -v does not clobber the frozen tier from the start invocation.
+        This restores the oc half of the intended parity pair whose partner test file
+        (tests/test_oc_runipd_cli.py) was deleted in 19313eed. An OC-only loss of the
+        resume default passes the entire bare suite today; this test closes that blind spot.
+        """
+        for host, host_name in ((oc_runipd, "oc"), (agy_runipd, "agy")):
+            parser = host.build_parser()
+            start_args = parser.parse_args(["start", "some-selector"])
+            self.assertEqual(
+                start_args.verbosity,
+                0,
+                f"{host_name} start verbosity default must be 0",
+            )
+            resume_args = parser.parse_args(["resume", "run-sample"])
+            self.assertIsNone(
+                resume_args.verbosity,
+                f"{host_name} resume verbosity default must be None",
+            )
+
+    def test_add_output_mode_flags_not_reforked_in_hosts(self) -> None:
+        """E-03: Refuse a re-fork or re-inlining of _add_output_mode_flags in either host runner.
+
+        By AST over agent_workflows/oc_runipd.py and agent_workflows/agy_runipd.py, assert
+        each host's _add_output_mode_flags contains exactly one statement after stripping
+        the leading docstring, which must be a call to runner_shared.add_output_mode_flags.
+        Assert that runner_shared defines add_output_mode_flags, and neither host body calls
+        add_mutually_exclusive_group or add_argument directly.
+
+        Coverage bound (PR-807 / F-18):
+        This AST test reads source on disk and detects a re-inline written down in source.
+        It cannot detect a runtime rebinding (a monkeypatch or late assignment to
+        oc_runipd._add_output_mode_flags), which is an accepted bound because re-forks arrive
+        as source edits in review while runtime rebinding is a test-harness technique.
+        """
+        self.assertTrue(
+            hasattr(runner_shared, "add_output_mode_flags"),
+            "runner_shared must define add_output_mode_flags",
+        )
+
+        for mod in (oc_runipd, agy_runipd):
+            mod_path = pathlib.Path(mod.__file__)
+            tree = ast.parse(mod_path.read_text(encoding="utf-8"))
+            funcs = [
+                n
+                for n in tree.body
+                if isinstance(n, ast.FunctionDef) and n.name == "_add_output_mode_flags"
+            ]
+            self.assertEqual(
+                len(funcs),
+                1,
+                f"Expected exactly 1 _add_output_mode_flags FunctionDef in {mod_path.name}, got {len(funcs)}",
+            )
+            fdef = funcs[0]
+            body = fdef.body
+            if (
+                body
+                and isinstance(body[0], ast.Expr)
+                and isinstance(body[0].value, ast.Constant)
+                and isinstance(body[0].value.value, str)
+            ):
+                body = body[1:]
+
+            unparsed_body = "\n".join(ast.unparse(stmt) for stmt in body)
+
+            self.assertEqual(
+                len(body),
+                1,
+                f"{mod_path.name}: _add_output_mode_flags body must be exactly one statement (delegation), "
+                f"got {len(body)} statements:\n{unparsed_body}",
+            )
+            stmt = body[0]
+            self.assertIsInstance(
+                stmt,
+                ast.Expr,
+                f"{mod_path.name}: expected Expr statement in body, got {type(stmt)}:\n{unparsed_body}",
+            )
+            self.assertIsInstance(
+                stmt.value,
+                ast.Call,
+                f"{mod_path.name}: expected Call in body, got {type(stmt.value)}:\n{unparsed_body}",
+            )
+            call_func = ast.unparse(stmt.value.func)
+            self.assertEqual(
+                call_func,
+                "runner_shared.add_output_mode_flags",
+                f"{mod_path.name}: expected call to runner_shared.add_output_mode_flags, got {call_func}:\n{unparsed_body}",
+            )
+
+            # Assert neither host body calls add_mutually_exclusive_group or add_argument directly
+            for node in ast.walk(fdef):
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+                    self.assertNotIn(
+                        node.func.attr,
+                        ("add_mutually_exclusive_group", "add_argument"),
+                        f"{mod_path.name} directly calls {node.func.attr} instead of delegating:\n{unparsed_body}",
+                    )
 
 
 if __name__ == "__main__":

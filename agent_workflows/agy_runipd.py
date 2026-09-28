@@ -40,9 +40,9 @@ from agent_workflows import runner_shutdown
 # runnoop Order 02 (`m85gxh`): the pure PER-ARTIFACT DISPOSITION renderer, imported from its OWNING
 # module and NOT from `oc_runipd`. This module already imports 48 names from that driver and zero flow
 # back, so a shared renderer must not become the 49th: the symbol is owned by a third module both
-# hosts read, and `tests/test_runner_refork_guard.py` pins that both see the SAME object. The
-# `as <same-name>` form matches the idiom used for every other re-export here and keeps a linter from
-# stripping the binding.
+# hosts read, and `tests/test_runner_refork_guard.py` (deleted in `19313eed`; no live guard currently
+# covers this) formerly pinned that both see the SAME object. The `as <same-name>` form matches the
+# idiom used for every other re-export here and keeps a linter from stripping the binding.
 from agent_workflows.run_selection_policy import (
     render_queue_dispositions as render_queue_dispositions,
 )
@@ -74,8 +74,9 @@ from agent_workflows.run_selection_policy import (
 # `_read_id`'s `# noqa: F401` IS LOAD-BEARING (rununify 06 `sy7uwh`); see the fuller note in
 # `oc_runipd`. Once `parse_plan_file` moved to `runner_shared` this module stopped calling `_read_id`,
 # so `ruff --fix` removed the import as unused and broke the re-export
-# `tests/test_runner_refork_guard.py` requires of BOTH runners.
-from agent_workflows.selectors import read_front_matter_id as _read_id  # noqa: F401 - a DELIBERATE re-export; tests/test_runner_refork_guard.py requires it
+# `tests/test_runner_refork_guard.py` (deleted in `19313eed`; no live guard currently enforces this;
+# re-export retained per `s4jctz`) required of BOTH runners.
+from agent_workflows.selectors import read_front_matter_id as _read_id  # noqa: F401 - a DELIBERATE re-export; tests/test_runner_refork_guard.py deleted in 19313eed, retained per s4jctz
 
 from agent_workflows.render_stream import (
     Statusline,
@@ -214,7 +215,8 @@ from agent_workflows.runner_shared import (
 # runverdict-06 (`fzxfph`): WHY there was no verdict to map. Imported from `runner_shared` and NOT from
 # `oc_runipd`, for the reason the note below repeats about the drain-time classification: this host's
 # import count from that driver is already the layering defect backlog `cnwy8g` tracks, and
-# `tests/test_runner_refork_guard.py::test_the_oc_to_agy_import_count_did_not_increase` measures it.
+# `tests/test_runner_refork_guard.py::test_the_oc_to_agy_import_count_did_not_increase` (deleted in
+# `19313eed`; no live guard currently measures this import count) measured it.
 # THIS HOST IS THE ONE THAT MATTERS MOST FOR THESE CODES: agy defaults its verifier ON (`not
 # no_verify`) while oc defaults `--validate` OFF, so an absent verdict is agy's shipped path.
 from agent_workflows.runner_shared import (
@@ -285,10 +287,11 @@ from agent_workflows.runner_shared import (
 )
 
 # runnoop zz5yxq (E-02/E-04): the ACTION-AWARE SUCCESS BAR. ONE definition in `runner_shared`, bound
-# here with the `as <same-name>` form and pinned by object identity in
-# `tests/test_runner_refork_guard.py`'s `REFORK_TABLE`. A SECOND COPY IN THIS FILE IS FORBIDDEN: the
-# whole point is that a later fix to the bar reaches BOTH drivers, and a copy here is precisely how
-# agy carried a broken `dependency_status_detailed` for months.
+# here with the `as <same-name>` form and formerly pinned by object identity in
+# `tests/test_runner_refork_guard.py`'s `REFORK_TABLE` (deleted in `19313eed`; no live guard currently
+# asserts this object identity). A SECOND COPY IN THIS FILE IS FORBIDDEN: the whole point is that a
+# later fix to the bar reaches BOTH drivers, and a copy here is precisely how agy carried a broken
+# `dependency_status_detailed` for months.
 from agent_workflows.runner_shared import (
     success_states_for_action as success_states_for_action,
 )
@@ -3260,8 +3263,8 @@ def run_queue(
         # the decider-identity assertion keeps passing.
         #
         # The OUTCOME is the SAME shared function `oc_runipd` calls, never a second copy: `pgq326`'s gate
-        # forbids forking the retire/reconsider/terminate logic into this module, and the anti-re-fork
-        # discipline `2r306y`/`818uru` established is what makes a fix to it reach both hosts.
+        # forbids forking the retire/reconsider/terminate logic into this module; no live guard asserts
+        # this anti-re-fork discipline (`tests/test_runner_refork_guard.py` was deleted in `19313eed`).
         if runnable.get("action") == "orchestrate":
             dispatch_orchestrator_item(
                 Path(state["repo"]),

@@ -6,7 +6,7 @@
 - Scope: Restore executable guards for the two defect classes measured as UNGUARDED at this HEAD, both in `tests/test_runner_shared.py`, and correct the two stale citations of the deleted guard file. Guard 1: each host's operator-visible `-v`/`--raw` help text is pinned BY VALUE per host, so one host cannot silently inherit the other's (the `39jkux` regression). Guard 2: neither host may re-define the flag-registration body, so the lift cannot be undone by a re-inline. Change NO shipped behavior: this plan adds tests and amends comments only.
 - Scope-Paths: tests/test_runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: t0ovw6
-- Approval: 2026-09-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-28 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: t0ovw6 verified (set xw4rb7, attempt 1).
 - 2026-09-28 approved (aw set): status set to approved
 
 - 2026-09-28 reviewed (opencode): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-801..PR-810 all FIXED, none OPEN or DEFERRED. THE DIAGNOSIS VERIFIED IN FULL AND THE TWO CENTRAL GAPS REPRODUCE: F-01, F-02, F-03, F-04, F-05, F-06, F-07, F-08, F-10, F-11, F-12, F-14 and F-15 all hold at review HEAD `2271ca6b`, and both sabotages were re-measured END TO END in memory, leaving the tracked tree untouched. PR-801 (BLOCKER) makes E-01 UNEXECUTABLE AS WRITTEN: argparse REFLOWS help text, so neither host's `-v` string nor oc's `--raw` string appears verbatim in any rendered `format_help()` output, and a literal "BY VALUE" pin against it fails on arrival; E-01 now mandates one of two measured-working routes (whitespace-normalize the rendered text, or read `action.help` off the parser unwrapped) and states which substrings survive wrapping. PR-802 (HIGH): F-13 understates its own subject by a factor of two - `rg` returns 26 hits across SEVEN files, not "14 hits across 3 files", including SIX in `runner_shared.py`, which the plan deliberately keeps out of `- Scope-Paths:`, so E-04 as scoped cannot make its own Expected outcome true for the package; the count is corrected, E-04's target is bounded to the two host files explicitly, and the residue is declared with its carrier. PR-803 (HIGH): E-04 describes its oc edit as one comment above `_detect_driver_command` when oc carries EIGHT citations and agy SIX, an eightfold under-statement of the edit an executor must make; all fourteen are now enumerated by line-anchored symbol context. PR-804 (HIGH): the authored `2935 passed, 2 skipped` baseline is SPENT (now `3069 passed, 2 skipped`) and F-09's HEAD `98e3ea9a` is 8 commits back; re-measured, with per-file baselines added (`tests/test_runner_shared.py` `101 passed`, `tests/test_agy_runipd_cli.py` `58 passed`). PR-805 (HIGH): all three mutation proofs instructed editing `agy_runipd.py`, `oc_runipd.py` and `runner_shared.py` in a SHARED CHECKOUT with `git checkout` restores, on files the gate itself calls high-contention; all three are now demanded in memory, each demonstrated at review. PR-806 (MEDIUM): F-08's own claim is WEAKER than the truth - the OC-only asymmetry loss passes the FULL bare suite, not merely the agy test file, which is the stronger argument for E-02. PR-807 (MEDIUM): E-03's AST test cannot see a MONKEYPATCH re-fork, the exact shape review used to measure F-07, so V-03 now requires the runtime half be named as out of reach. PR-808, PR-809, PR-810: the deferred `tests/test_runner_shared.py` citation row names two deleted guards but the same comment cites a THIRD, `test_exactly_one_definition_package_wide`, which also does not exist and is cited as living "below" in that very file; the gate lacked a declared scope fence and conditional finalize ownership; and V-01(b)'s "count increased by exactly the number of added tests" could not be reconciled without the per-file baselines now supplied. Review record written with 10 findings and 5 decisions, no `Reversible: no`.
@@ -36,7 +36,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: pin the operator-visible help text per host
 
-- [ ] E-01 Add a test class to `tests/test_runner_shared.py` pinning each host's `-v`/`--verbose` and `--raw` help text BY VALUE, per host, on BOTH the `start` and `resume` subparsers. Build each host's parser with `<host>.build_parser()` and reach the subparsers through the `argparse._SubParsersAction` in `parser._actions` (the access shape `tests/test_agy_runipd_cli.py::AgyVerbosityFlagTests::test_flags_forwarded_and_help` already uses, so this introduces no new private-API dependency).
+- [x] E-01 Add a test class to `tests/test_runner_shared.py` pinning each host's `-v`/`--verbose` and `--raw` help text BY VALUE, per host, on BOTH the `start` and `resume` subparsers. Build each host's parser with `<host>.build_parser()` and reach the subparsers through the `argparse._SubParsersAction` in `parser._actions` (the access shape `tests/test_agy_runipd_cli.py::AgyVerbosityFlagTests::test_flags_forwarded_and_help` already uses, so this introduces no new private-API dependency).
 
   **READ THIS BEFORE WRITING THE ASSERTION: A NAIVE "BY VALUE" PIN AGAINST `format_help()` FAILS ON ARRIVAL (finding PR-801, F-16).** `argparse` REFLOWS help text to the terminal width, so NEITHER host's full `-v` string NOR oc's full `--raw` string appears verbatim in any rendered output. MEASURED at review: `full_oc_verbose in format_help()` is **False** on both subcommands, `full_agy_verbose in format_help()` is **False** on both, and oc's `--raw` renders as two lines with `"(legacy behavior)"` orphaned onto the second. An executor who wrote the literal-substring pin the authored item described would get a RED test on a correct tree and would then be tempted to weaken the assertion, which is how a guard becomes decoration. USE ONE OF THESE TWO ROUTES, BOTH MEASURED WORKING AT REVIEW, and say which in V-01:
   - (a) NORMALIZE WHITESPACE, then assert the full string: `re.sub(r"\s+", " ", format_help())` makes all five full-string containments True (oc `-v` and `--raw` on both subcommands, agy `-v` on both). This keeps the test operator-facing, asserting what `--help` actually communicates.
@@ -45,25 +45,25 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   ASSERT THESE LITERALS, spelled out IN THE TEST rather than imported: for oc, the full `-v` sentence ending `"-vv also shows diff hunks and diagnostics. Ignored under --raw/--quiet."` and the `--raw` string ending `"(legacy behavior)"`; for agy, the full `-v` sentence ending `"-vv also shows raw tool parameters. Ignored under --raw/--quiet."` and that its `--raw` does NOT carry the parenthetical. CRUCIALLY, assert each host's text is ABSENT from the other (oc must not mention `"raw tool parameters"`; agy must not mention `"diff hunks"` or `"(legacy behavior)"`), because THAT cross-contamination is the regression measured in F-06 and the one that actually shipped in `63b71d8b`. Those three short negative needles DO survive wrapping unchanged (measured: `"diff hunks"` oc=True agy=False, `"(legacy behavior)"` oc=True agy=False, `"raw tool parameters"` oc=False agy=True), so the negatives are safe as plain substrings on raw `format_help()` even if you pick route (a) for the positives. VERIFIED AT REVIEW THAT THE NEGATIVES ARE SYMMETRIC and catch BOTH collapse directions, not just the one that shipped: a collapse onto oc's wording fails the agy assertions, and a collapse onto agy's wording fails the oc assertions. Do NOT assert against `runner_shared.add_output_mode_flags`'s parameter values or either host's wrapper source: reading the expected value from the same place the code reads it is the self-referential shape that cannot detect a value change.
   - Depends on: none
   - Expected outcome: A new test in `tests/test_runner_shared.py` that passes at this HEAD and FAILS if either host's `-vv` tier sentence or the `--raw` parenthetical is changed, swapped, or unified onto EITHER host's wording, on either subcommand.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In the same class, pin the `verbosity_default` ASYMMETRY on BOTH hosts. The asymmetry is deliberate and load-bearing (`start` defaults to `0`, `resume` to `None` so an omitted `-v` does not reset a frozen tier, as `oc_runipd.main`'s comment "`None` on `resume` when the flag was omitted (see `_add_output_mode_flags`), so an omitted `-v` does not clobber the frozen tier" records at its `verbosity = getattr(args, "verbosity", None)` read). Assert for each host that `build_parser().parse_args(["start", "sel"]).verbosity == 0` and `parse_args(["resume", "run-x"]).verbosity is None`. NOTE PRECISELY WHY THIS IS NOT REDUNDANT with the shipped `tests/test_agy_runipd_cli.py::AgyVerbosityFlagTests::test_verbosity_parsing_and_parity`: measured in F-08, that test DOES catch the asymmetry being dropped, but its `assertIsNone` runs against the AGY parser only, and its cross-host `assertEqual` compares the two hosts on `start` argv exclusively, so it would also pass if only the OC host lost the `resume` default. Its docstring says every case "mirrors `tests/test_oc_runipd_cli.py::VerbosityFlagTests`", and that file DOES NOT EXIST (F-03), so the oc half of the intended parity pair is gone. This item restores the oc half and states the coverage bound in the test docstring.
+- [x] E-02 In the same class, pin the `verbosity_default` ASYMMETRY on BOTH hosts. The asymmetry is deliberate and load-bearing (`start` defaults to `0`, `resume` to `None` so an omitted `-v` does not reset a frozen tier, as `oc_runipd.main`'s comment "`None` on `resume` when the flag was omitted (see `_add_output_mode_flags`), so an omitted `-v` does not clobber the frozen tier" records at its `verbosity = getattr(args, "verbosity", None)` read). Assert for each host that `build_parser().parse_args(["start", "sel"]).verbosity == 0` and `parse_args(["resume", "run-x"]).verbosity is None`. NOTE PRECISELY WHY THIS IS NOT REDUNDANT with the shipped `tests/test_agy_runipd_cli.py::AgyVerbosityFlagTests::test_verbosity_parsing_and_parity`: measured in F-08, that test DOES catch the asymmetry being dropped, but its `assertIsNone` runs against the AGY parser only, and its cross-host `assertEqual` compares the two hosts on `start` argv exclusively, so it would also pass if only the OC host lost the `resume` default. Its docstring says every case "mirrors `tests/test_oc_runipd_cli.py::VerbosityFlagTests`", and that file DOES NOT EXIST (F-03), so the oc half of the intended parity pair is gone. This item restores the oc half and states the coverage bound in the test docstring.
   THE GAP IS WIDER THAN F-08 CLAIMS, MEASURED AT REVIEW (PR-806/F-17), and the correction strengthens this item rather than weakening it. F-08 says the OC host losing its `resume` default alone "would pass", implying it passes that one test file. It passes the ENTIRE BARE SUITE: dropping the asymmetry for the OC caller only gives `3069 passed, 2 skipped`, zero failures, while the same mutation applied to BOTH hosts fails exactly one node (`tests/test_agy_runipd_cli.py::AgyVerbosityFlagTests::test_verbosity_parsing_and_parity` at its `assertIsNone`). So the surviving test is not merely half a pair in shape; it is half a pair in EFFECT, and one host's regression is currently invisible to 3069 tests.
   - Depends on: E-01
   - Expected outcome: Both hosts' `start`/`resume` verbosity defaults pinned; dropping the `resume` default on EITHER host now fails a test, where today an OC-only loss passes the whole suite.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: forbid a re-inline of the lifted body
 
-- [ ] E-03 In the same file, add a test that refuses a RE-FORK of this symbol: by AST over `agent_workflows/oc_runipd.py` and `agent_workflows/agy_runipd.py`, locate each host's `_add_output_mode_flags` `FunctionDef` and assert its body contains EXACTLY ONE statement that is a call to `runner_shared.add_output_mode_flags` (docstring excluded, matching the measurement technique in F-04 which counts `ast.unparse` code lines after stripping a leading string-constant `Expr`). Assert also that `runner_shared` DEFINES the symbol, and that neither host's body calls `add_mutually_exclusive_group` or `add_argument` directly. FAIL with the offending host's unparsed body printed, since the failure's job is to tell the next author that the body belongs in `runner_shared`. Measured at this HEAD: both host bodies are 1 code line, the shared body is 5 (F-04), so this passes on arrival and fails under the F-07 mutation, which a full bare suite currently does not notice. Do NOT pin the shared body's AST to a fingerprint: `tests/test_runner_shared.py`'s `SUPERSEDED_SINCE_MOVE` machinery records at length why freezing a moved symbol's AST "would freeze the defect exactly as it would have for `state_root`", and this plan must not re-introduce that trap for a function that may legitimately grow a parameter.
+- [x] E-03 In the same file, add a test that refuses a RE-FORK of this symbol: by AST over `agent_workflows/oc_runipd.py` and `agent_workflows/agy_runipd.py`, locate each host's `_add_output_mode_flags` `FunctionDef` and assert its body contains EXACTLY ONE statement that is a call to `runner_shared.add_output_mode_flags` (docstring excluded, matching the measurement technique in F-04 which counts `ast.unparse` code lines after stripping a leading string-constant `Expr`). Assert also that `runner_shared` DEFINES the symbol, and that neither host's body calls `add_mutually_exclusive_group` or `add_argument` directly. FAIL with the offending host's unparsed body printed, since the failure's job is to tell the next author that the body belongs in `runner_shared`. Measured at this HEAD: both host bodies are 1 code line, the shared body is 5 (F-04), so this passes on arrival and fails under the F-07 mutation, which a full bare suite currently does not notice. Do NOT pin the shared body's AST to a fingerprint: `tests/test_runner_shared.py`'s `SUPERSEDED_SINCE_MOVE` machinery records at length why freezing a moved symbol's AST "would freeze the defect exactly as it would have for `state_root`", and this plan must not re-introduce that trap for a function that may legitimately grow a parameter.
   VERIFIED IMPLEMENTABLE EXACTLY AS WRITTEN at review: an AST probe over both files finds exactly one `_add_output_mode_flags` `FunctionDef` per host, one statement after the docstring strip in each, each an `Expr` whose unparsed head is `runner_shared.add_output_mode_flags(...)`, and `add_argument`/`add_mutually_exclusive_group` absent from both bodies. So all four of this item's assertions hold on arrival with no interpretation needed.
 
   STATE THE BOUND IN THE TEST DOCSTRING (PR-807/F-18): an AST test reads the SOURCE ON DISK, so it detects a re-inline that is WRITTEN DOWN and cannot detect a runtime rebinding (a monkeypatch or a late assignment to `oc_runipd._add_output_mode_flags`). That is not a hypothetical caveat: it is exactly the mechanism review used to measure F-07 without editing a tracked file, so the gap is demonstrated rather than assumed. The bound is ACCEPTED rather than closed, because a re-fork arrives through a source edit in review, which is the failure mode this guard exists for, whereas a runtime rebinding is a test-harness technique and not a way production code regresses. Say so in the docstring so the next reader does not mistake the AST test for a runtime guarantee.
   - Depends on: none
   - Expected outcome: A test that fails if either host re-inlines the flag-registration body IN SOURCE or stops delegating, closing the gap F-07 measured (whole bare suite green with the oc body re-forked), and whose docstring records that a runtime rebinding is out of its reach.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Correct the comments in THE TWO HOST RUNNERS that cite the DELETED guard file, so those two files stop asserting a protection they do not have, and point them at the guards E-01 through E-03 add.
+- [x] E-04 Correct the comments in THE TWO HOST RUNNERS that cite the DELETED guard file, so those two files stop asserting a protection they do not have, and point them at the guards E-01 through E-03 add.
 
   **THE COUNT IS FOURTEEN, NOT TWO, AND THE AUTHORED ITEM UNDER-STATES ITS OWN EDIT EIGHTFOLD (finding PR-803, F-19).** The item describes "the comment above `_detect_driver_command`" for oc and "the module-level comments" for agy. MEASURED at review by `rg -n "test_runner_refork_guard|anti-re-fork"`, oc carries EIGHT and agy SIX. An executor fixing the one named comment would leave thirteen live false citations and could still tick this item. Every one is in scope and must be corrected; they are enumerated here BY SURROUNDING SYMBOL so the list does not expire:
   - `oc_runipd.py`: the `_read_id` import block's object-identity note (near the top-of-module import comments); the `_read_id` re-export's own `# noqa: F401` justification; the re-export note asserting BOTH hosts see the SAME object; the two `REFORK_TABLE` object-identity notes; the note that a second copy "fails a test"; the `render_stream`-adjacent note calling a cross-host import "precisely the re-fork [it] exists to [prevent]"; and the `locked_run` note above `_detect_driver_command` reading "which is why the anti-re-fork guard asserts one definition per host rather than merely that a wrapper exists: the wrapper existed and was unreachable".
@@ -78,7 +78,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   EDIT COMMENTS ONLY. No executable line in either host may change, which is what makes this item safe to pair with E-01 through E-03 and is asserted by V-04.
   - Depends on: E-03
   - Expected outcome: No comment in EITHER HOST RUNNER cites `tests/test_runner_refork_guard.py` (or "the anti-re-fork guard") as a live guard; all fourteen citations record the deletion in `19313eed` and name the live replacement or state plainly that none exists; `git diff` over both host files touches comment lines only; the twelve citations in the other five files are untouched and carried by `pn7rw3`.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -186,25 +186,344 @@ N/A with reason. No spec governs these help strings (F-15): the shared docstring
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: (a) PASTE the `python3 -m pytest tests/test_runner_shared.py -o addopts=""` summary line showing the new help-text test passing at clean tree, stated against the review baseline `101 passed`. (b) PASTE the FULL BARE `python3 -m pytest` summary line, and state the delta against the RE-MEASURED baseline `3069 passed, 2 skipped` (NOT the authored `2935`), accounted for per E-item. The tree is fully green at review, so any failure is this plan's to explain. (c) STATE WHICH OF E-01'S TWO ROUTES YOU USED (whitespace-normalized rendered text, or unwrapped `action.help`) and paste the assertion, because a naive literal pin against raw `format_help()` is RED on a correct tree (F-16): argparse reflows, and review measured all five full-string containments False. If your test asserts a full help string as a plain substring of raw `format_help()`, V-01 FAILS. (d) MUTATION PROOF, the load-bearing evidence: stage the F-06 mutation IN MEMORY (wrap `runner_shared.add_output_mode_flags` and rewrite `verbose_help` when the agy wrapper is the caller), PASTE the RED run naming the new test and which assertion failed, PASTE `git status --short` empty to show no tracked file was mutated, and PASTE the GREEN re-run unpatched. Also confirm the mutation BIT, by pasting agy's rendered help under the patch containing `"diff hunks"` and not `"raw tool parameters"` (review measured exactly that), since a wrapper that silently failed to apply would produce a false GREEN and a false sense that the guard works. A test that does not go red under this mutation has not closed F-06 and V-01 must be marked failed. (e) CONFIRM THE NEGATIVES ARE SYMMETRIC by stating that the test would also fail on a collapse onto AGY's wording, not only the `63b71d8b` direction; review verified both directions are caught by the prescribed assertion set.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. (a) Targeted run: `python3 -m pytest tests/test_runner_shared.py -o addopts=""` -> `104 passed in 13.28s` (+3 over baseline 101 passed). (b) Full bare suite: `3134 passed, 2 skipped, 3 warnings in 49.22s` (+3 over baseline 3131 passed). (c) Route (a) used: whitespace-normalized `format_help()` with `re.sub(r"\s+", " ", ...)`. (d) In-memory mutation proof (F-06) verified RED on `OutputModeFlagsGuardTests::test_output_mode_help_text_pinned_by_value_per_host` with `AssertionError: agy start subparser help cross-contaminated with oc phrasing`; git status clean; unpatched GREEN. (e) Symmetric negatives verified.
+    (a) Targeted run: `python3 -m pytest tests/test_runner_shared.py -o addopts=""`:
+    ```
+    ============================= 104 passed in 13.28s =============================
+    ```
+    New tests present in selected set; delta +3 over the 101 passed baseline.
 
-- [ ] V-02 validates E-02
+    (b) Full bare suite run: `python3 -m pytest`:
+    ```
+    3134 passed, 2 skipped, 3 warnings in 49.22s
+    ```
+    Delta against baseline at lane start (3131 passed) is exactly +3 passed (E-01 +1, E-02 +1, E-03 +1, with E-04 comment-only). Delta against review baseline 3069 is +65 passed (due to earlier merged sibling plans plus this plan's +3).
+
+    (c) Route used: Route (a) (whitespace-normalized rendered text via `re.sub(r"\s+", " ", ...)`):
+    ```python
+    raw_rendered = sub_parser.format_help()
+    norm_rendered = re.sub(r"\s+", " ", raw_rendered)
+    if host_name == "oc":
+        self.assertIn(oc_raw_literal, norm_rendered)
+        self.assertIn(oc_verbose_literal, norm_rendered)
+        self.assertNotIn("raw tool parameters", raw_rendered)
+    else:
+        self.assertIn(agy_raw_literal, norm_rendered)
+        self.assertIn(agy_verbose_literal, norm_rendered)
+        self.assertNotIn("(legacy behavior)", raw_rendered)
+        self.assertNotIn("diff hunks", raw_rendered)
+    ```
+
+    (d) In-memory mutation proof (F-06):
+    Wrapped `runner_shared.add_output_mode_flags` to rewrite `verbose_help` when called by `agy_runipd`.
+    Confirmed mutation bit on `agy` start `format_help()`:
+    `contains diff hunks: True`
+    `contains raw tool parameters: False`
+    RED run output:
+    ```
+    FAILED tests/test_runner_shared.py::OutputModeFlagsGuardTests::test_output_mode_help_text_pinned_by_value_per_host
+    AssertionError: agy start subparser help cross-contaminated with oc phrasing
+    ====================== 1 failed, 103 deselected in 0.21s =======================
+    ```
+    `git status --short`: clean before and after (no tracked file mutated).
+    GREEN re-run unpatched:
+    ```
+    ====================== 1 passed, 103 deselected in 0.07s =======================
+    ```
+
+    (e) Symmetric negatives:
+    The assertions check both directions: `oc` explicitly forbids `"raw tool parameters"` (so collapse onto agy fails oc), and `agy` explicitly forbids `"diff hunks"` and `"(legacy behavior)"` (so collapse onto oc fails agy). Both directions are caught.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: PASTE a run of the new asymmetry assertions passing at clean tree. Then stage the F-08 mutation IN MEMORY, SCOPED TO THE OC CALLER ONLY (wrap `runner_shared.add_output_mode_flags` and force `verbosity_default=0` when `oc_runipd` is the caller, per the method rule), and PASTE a run showing the E-02 assertion RED **for the OC host specifically**. THE SCOPING IS MANDATORY, NOT A REFINEMENT: review measured that the BOTH-hosts mutation fails the pre-existing `tests/test_agy_runipd_cli.py::AgyVerbosityFlagTests::test_verbosity_parsing_and_parity`, so a both-hosts run would show a RED that E-02 did not cause and would let a useless E-02 look validated. Review also measured that the OC-ONLY mutation passes the FULL bare suite today at `3069 passed, 2 skipped` (F-17), which is precisely the blind spot E-02 closes, so evidence showing only the agy file failing does NOT discharge V-02. PASTE `git status --short` empty and the GREEN re-run.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Clean tree run passed on `test_verbosity_default_asymmetry_on_both_hosts`. In-memory mutation proof scoped to OC caller only (`verbosity_default=0` when caller is `oc_runipd`): existing agy parity test in `test_agy_runipd_cli.py` passed, but E-02 went RED on OC host specifically (`AssertionError: 0 is not None : oc resume verbosity default must be None`). git status clean; unpatched GREEN.
+    Clean tree passing run:
+    ```
+    tests/test_runner_shared.py::OutputModeFlagsGuardTests::test_verbosity_default_asymmetry_on_both_hosts PASSED
+    ====================== 1 passed, 103 deselected in 0.06s =======================
+    ```
 
-- [ ] V-03 validates E-03
+    In-memory mutation proof scoped to OC caller only (`verbosity_default = 0` when caller is `oc_runipd`):
+    Existing agy parity test passes under oc-only mutation:
+    ```
+    tests/test_agy_runipd_cli.py::AgyVerbosityFlagTests::test_verbosity_parsing_and_parity PASSED
+    ======================= 1 passed, 58 deselected in 0.33s =======================
+    ```
+    E-02 goes RED on OC host specifically:
+    ```
+    FAILED tests/test_runner_shared.py::OutputModeFlagsGuardTests::test_verbosity_default_asymmetry_on_both_hosts
+    AssertionError: 0 is not None : oc resume verbosity default must be None
+    ====================== 1 failed, 103 deselected in 0.13s =======================
+    ```
+    `git status --short`: clean (no tracked file mutated).
+    GREEN re-run unpatched:
+    ```
+    ====================== 1 passed, 103 deselected in 0.06s =======================
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: (a) PASTE the new AST test passing at clean tree. (b) MUTATION PROOF, and THIS IS THE ONE DEMONSTRATION THAT REQUIRES A REAL SOURCE EDIT (F-18): re-inline the six-statement flag registration into `oc_runipd._add_output_mode_flags` IN THE FILE so it no longer calls `runner_shared.add_output_mode_flags`, PASTE the RED run showing the offending host named and its unparsed body printed in the failure, then `git checkout -- agent_workflows/oc_runipd.py`, PASTE `git status --short` empty and the GREEN re-run. Run only the NARROWED node while the edit is live (`-o addopts=""` on the single test) rather than the full suite, so the window in which a co-worker's edit could be clobbered is seconds; state that you did. A monkeypatch does NOT discharge this item, because E-03 reads the AST on disk and review measured a runtime rebinding leaving the whole suite green at `3069 passed, 2 skipped`. (c) PASTE the test's docstring sentence recording that source-only bound, so the next reader does not mistake the AST test for a runtime guarantee. (d) State explicitly that the test asserts NOTHING about `runner_shared.add_output_mode_flags`'s own body, quoting the added test's assertions, so the `SUPERSEDED_SINCE_MOVE` trap is provably not re-introduced.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. (a) Clean tree AST test passed. (b) Source edit mutation proof on `oc_runipd._add_output_mode_flags`: narrowed run went RED (`AssertionError: 5 != 1 : oc_runipd.py: _add_output_mode_flags body must be exactly one statement (delegation), got 5 statements`); restored via `git checkout -- agent_workflows/oc_runipd.py`; git status clean; re-run GREEN. (c) Docstring records source-only bound. (d) Test asserts delegation only, asserting nothing about `runner_shared.py`'s own body.
+    (a) AST test passing at clean tree:
+    ```
+    tests/test_runner_shared.py::OutputModeFlagsGuardTests::test_add_output_mode_flags_not_reforked_in_hosts PASSED
+    ====================== 1 passed, 103 deselected in 0.29s =======================
+    ```
 
-- [ ] V-04 validates E-04
+    (b) Mutation proof via disk source edit to `agent_workflows/oc_runipd.py`:
+    Re-inlined flag registration body into `oc_runipd._add_output_mode_flags`.
+    Narrowed test run while edit is live (`python3 -m pytest tests/test_runner_shared.py -k test_add_output_mode_flags_not_reforked_in_hosts -o addopts=""`):
+    ```
+    FAILED tests/test_runner_shared.py::OutputModeFlagsGuardTests::test_add_output_mode_flags_not_reforked_in_hosts
+    AssertionError: 5 != 1 : oc_runipd.py: _add_output_mode_flags body must be exactly one statement (delegation), got 5 statements:
+    group = sub_parser.add_mutually_exclusive_group()
+    group.add_argument('--quiet', dest='output_mode', action='store_const', const='quiet', help='Only per-IPD banners and a periodic heartbeat (no per-event lines)')
+    group.add_argument('--raw', dest='output_mode', action='store_const', const='raw', help="Stream the child agent's raw JSON events verbatim (legacy behavior)")
+    sub_parser.set_defaults(output_mode='clean')
+    sub_parser.add_argument('-v', '--verbose', dest='verbosity', action='count', default=verbosity_default, help='Increase live stream detail...')
+    ====================== 1 failed, 103 deselected in 0.34s =======================
+    ```
+    Restored immediately with `git checkout -- agent_workflows/oc_runipd.py`.
+    `git status --short` verified.
+    GREEN re-run after restore:
+    ```
+    ====================== 1 passed, 103 deselected in 0.28s =======================
+    ```
+
+    (c) Test docstring sentence recording source-only bound:
+    "This AST test reads source on disk and detects a re-inline written down in source. It cannot detect a runtime rebinding (a monkeypatch or late assignment to oc_runipd._add_output_mode_flags), which is an accepted bound because re-forks arrive as source edits in review while runtime rebinding is a test-harness technique."
+
+    (d) Test asserts nothing about `runner_shared.add_output_mode_flags`'s own body:
+    The added test asserts:
+    ```python
+    self.assertTrue(
+        hasattr(runner_shared, "add_output_mode_flags"),
+        "runner_shared must define add_output_mode_flags",
+    )
+    ```
+    It parses only `oc_runipd.py` and `agy_runipd.py` and checks delegation; it never parses or fingerprints `runner_shared.py`'s body.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: (a) PASTE `git diff -- agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py` in full, and state that every `+`/`-` line is a comment line; any executable-line change fails V-04 outright. (b) PASTE `rg -n "test_runner_refork_guard|anti-re-fork" agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py` and account for ALL FOURTEEN citations (oc 8, agy 6 - review-measured counts, F-19), showing that each now records the file's deletion in `19313eed` and names the live replacement OR states plainly that no guard covers that property. A citation that merely drops the filename does NOT discharge this: it turns a false claim into a vague one. If your count is not 14, say which citation you did not find and why. (c) PASTE `rg -c "test_runner_refork_guard|anti-re-fork" agent_workflows/ tests/` and confirm the OUT-OF-SCOPE residue is UNTOUCHED and still carried by `pn7rw3` (review baseline: 26 total across 7 files, of which `runner_shared.py` 6, `run_viewer.py` 1, `artifact_audit.py` 1, `tests/test_runner_shared.py` 1, `tests/fixtures/verifier_evidence_corpus.json` 1). Do NOT "finish the job" into `runner_shared.py`; it is out of fence. (d) CONFIRM the `# noqa: F401` re-exports still exist (the deferral above forbids removing them) by pasting the two `_read_id` import lines. (e) PASTE the bare full-suite summary, which must be unchanged from V-01(b), since a comment edit cannot change a test count.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. (a) git diff on oc_runipd.py and agy_runipd.py confirmed comment-only changes; zero executable lines changed.
+    (a) `git diff -- agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py`:
+    ```diff
+    diff --git a/agent_workflows/agy_runipd.py b/agent_workflows/agy_runipd.py
+    index 905b00a3..07fdcfef 100755
+    --- a/agent_workflows/agy_runipd.py
+    +++ b/agent_workflows/agy_runipd.py
+    @@ -40,9 +40,9 @@ from agent_workflows import runner_shutdown
+     # runnoop Order 02 (`m85gxh`): the pure PER-ARTIFACT DISPOSITION renderer, imported from its OWNING
+     # module and NOT from `oc_runipd`. This module already imports 48 names from that driver and zero flow
+     # back, so a shared renderer must not become the 49th: the symbol is owned by a third module both
+    -# hosts read, and `tests/test_runner_refork_guard.py` pins that both see the SAME object. The
+    -# `as <same-name>` form matches the idiom used for every other re-export here and keeps a linter from
+    -# stripping the binding.
+    +# hosts read, and `tests/test_runner_refork_guard.py` (deleted in `19313eed`; no live guard currently
+    +# covers this) formerly pinned that both see the SAME object. The `as <same-name>` form matches the
+    +# idiom used for every other re-export here and keeps a linter from stripping the binding.
+     from agent_workflows.run_selection_policy import (
+         render_queue_dispositions as render_queue_dispositions,
+     )
+    @@ -74,8 +74,9 @@ from agent_workflows.run_selection_policy import (
+     # `_read_id`'s `# noqa: F401` IS LOAD-BEARING (rununify 06 `sy7uwh`); see the fuller note in
+     # `oc_runipd`. Once `parse_plan_file` moved to `runner_shared` this module stopped calling `_read_id`,
+     # so `ruff --fix` removed the import as unused and broke the re-export
+    -# `tests/test_runner_refork_guard.py` requires of BOTH runners.
+    -from agent_workflows.selectors import read_front_matter_id as _read_id  # noqa: F401 - a DELIBERATE re-export; tests/test_runner_refork_guard.py requires it
+    +# `tests/test_runner_refork_guard.py` (deleted in `19313eed`; no live guard currently enforces this;
+    +# re-export retained per `s4jctz`) required of BOTH runners.
+    +from agent_workflows.selectors import read_front_matter_id as _read_id  # noqa: F401 - a DELIBERATE re-export; tests/test_runner_refork_guard.py deleted in 19313eed, retained per s4jctz
+
+     from agent_workflows.render_stream import (
+         Statusline,
+    @@ -214,7 +215,8 @@ from agent_workflows.runner_shared import (
+     # runverdict-06 (`fzxfph`): WHY there was no verdict to map. Imported from `runner_shared` and NOT from
+     # `oc_runipd`, for the reason the note below repeats about the drain-time classification: this host's
+     # import count from that driver is already the layering defect backlog `cnwy8g` tracks, and
+    -# `tests/test_runner_refork_guard.py::test_the_oc_to_agy_import_count_did_not_increase` measures it.
+    +# `tests/test_runner_refork_guard.py::test_the_oc_to_agy_import_count_did_not_increase` (deleted in
+    +# `19313eed`; no live guard currently measures this import count) measured it.
+     # THIS HOST IS THE ONE THAT MATTERS MOST FOR THESE CODES: agy defaults its verifier ON (`not
+     # no_verify`) while oc defaults `--validate` OFF, so an absent verdict is agy's shipped path.
+     from agent_workflows.runner_shared import (
+    @@ -285,10 +287,11 @@ from agent_workflows.runner_shared import (
+     )
+
+     # runnoop zz5yxq (E-02/E-04): the ACTION-AWARE SUCCESS BAR. ONE definition in `runner_shared`, bound
+    -# here with the `as <same-name>` form and pinned by object identity in
+    -# `tests/test_runner_refork_guard.py`'s `REFORK_TABLE`. A SECOND COPY IN THIS FILE IS FORBIDDEN: the
+    -# whole point is that a later fix to the bar reaches BOTH drivers, and a copy here is precisely how
+    -# agy carried a broken `dependency_status_detailed` for months.
+    +# here with the `as <same-name>` form and formerly pinned by object identity in
+    +# `tests/test_runner_refork_guard.py`'s `REFORK_TABLE` (deleted in `19313eed`; no live guard currently
+    +# asserts this object identity). A SECOND COPY IN THIS FILE IS FORBIDDEN: the whole point is that a
+    +# later fix to the bar reaches BOTH drivers, and a copy here is precisely how agy carried a broken
+    +# `dependency_status_detailed` for months.
+     from agent_workflows.runner_shared import (
+         success_states_for_action as success_states_for_action,
+     )
+    @@ -3261,7 +3264,6 @@ def run_queue(
+             #
+             # The OUTCOME is the SAME shared function `oc_runipd` calls, never a second copy: `pgq326`'s gate
+    -        # forbids forking the retire/reconsider/terminate logic into this module, and the anti-re-fork
+    -        # discipline `2r306y`/`818uru` established is what makes a fix to it reach both hosts.
+    +        # forbids forking the retire/reconsider/terminate logic into this module; no live guard asserts
+    +        # this anti-re-fork discipline (`tests/test_runner_refork_guard.py` was deleted in `19313eed`).
+             if runnable.get("action") == "orchestrate":
+                 dispatch_orchestrator_item(
+                     Path(state["repo"]),
+    diff --git a/agent_workflows/oc_runipd.py b/agent_workflows/oc_runipd.py
+    index 56ede298..e6047320 100755
+    --- a/agent_workflows/oc_runipd.py
+    +++ b/agent_workflows/oc_runipd.py
+    @@ -47,8 +47,9 @@ from agent_workflows import (
+     # THE `as <same-name>` FORM IS DELIBERATE, and it is this repository's documented idiom for a shared
+     # symbol a runner must expose: it keeps `ruff` from stripping the binding as unused (which it has done
+     # to six such re-exports before, caught only by a symmetry test) and it makes the attribute reachable
+    -# for `tests/test_runner_refork_guard.py`'s object-identity half. BOTH hosts import this from the
+    -# owning module DIRECTLY; neither imports it from the other.
+    +# for object-identity checks (`tests/test_runner_refork_guard.py` was deleted in `19313eed`, so no live
+    +# guard currently asserts this property). BOTH hosts import this from the owning module DIRECTLY;
+    +# neither imports it from the other.
+     from agent_workflows.run_selection_policy import (
+         render_queue_dispositions as render_queue_dispositions,
+     )
+    @@ -192,8 +193,9 @@ from agent_workflows.runner_shared import (
+     )
+
+     # runverdict (`1bfppy`) E-01/E-02: the ONE fail-closed VERIFIER VERDICT MAPPING, bound here as a
+    -# re-export so `tests/test_runner_refork_guard.py` can assert BOTH hosts see the SAME object. Imported
+    -# from `runner_shared` and NEVER defined here: a verdict test written in a driver is precisely the
+    +# re-export so BOTH hosts see the SAME object (`tests/test_runner_refork_guard.py` was deleted in
+    +# `19313eed`, so no live guard currently asserts this object-identity property). Imported from
+    +# `runner_shared` and NEVER defined here: a verdict test written in a driver is precisely the
+     # re-fork that let `CORRECTION_REQUIRED` be recorded as `verified` in two byte-identical copies.
+     from agent_workflows.runner_shared import (
+         map_verdict as map_verdict,
+    @@ -523,8 +525,9 @@ from agent_workflows.runner_shared import (
+     )
+
+     # runnoop zz5yxq (E-02/E-04): the ACTION-AWARE SUCCESS BAR. ONE definition in `runner_shared`, bound
+    -# here with the `as <same-name>` form and pinned by object identity in
+    -# `tests/test_runner_refork_guard.py`'s `REFORK_TABLE`, so a second copy in either host fails a test.
+    +# here with the `as <same-name>` form and formerly pinned by object identity in
+    +# `tests/test_runner_refork_guard.py`'s `REFORK_TABLE` (deleted in `19313eed`; no live guard currently
+    +# asserts this object identity or fails on a second copy).
+     # The form is load-bearing, not cosmetic: `ruff` stripped 6 such re-exports on one commit attempt in
+     # this package and only a cross-driver symmetry test caught it.
+     from agent_workflows.runner_shared import (
+    @@ -579,13 +582,14 @@ from agent_workflows.runner_shared import (
+     )
+
+     # retrywire (`xipfy1`) E-07: the TURN-FAILURE CORRECTION layer, bound in the same `as <same-name>`
+    -# form and pinned by OBJECT IDENTITY in `tests/test_runner_refork_guard.py`'s `REFORK_TABLE`. Bound
+    -# here rather than reached as `runner_shared.<name>` at the call site because that table's identity
+    -# half asserts each driver CARRIES the attribute and that both carry the SAME object - the guard that
+    -# caught agy running its own copy of `dependency_status_detailed` for months. The decision, the
+    -# performer and the classification table are all registered: a host that re-forked only the TABLE
+    -# would agree about the mechanism and disagree about which failures are retryable, which is the more
+    -# dangerous half (it decides what the run spends paid model turns on).
+    +# form and formerly pinned by OBJECT IDENTITY in `tests/test_runner_refork_guard.py`'s `REFORK_TABLE`
+    +# (deleted in `19313eed`; no live guard currently asserts this object identity). Bound here rather than
+    +# reached as `runner_shared.<name>` at the call site because that table's identity half asserted each
+    +# driver CARRIES the attribute and that both carry the SAME object - the guard that caught agy running
+    +# its own copy of `dependency_status_detailed` for months. The decision, the performer and the
+    +# classification table are all registered: a host that re-forked only the TABLE would agree about the
+    +# mechanism and disagree about which failures are retryable, which is the more dangerous half (it decides
+    +# what the run spends paid model turns on).
+     from agent_workflows.runner_shared import (
+         TURN_RETRYABLE_DISPOSITIONS as TURN_RETRYABLE_DISPOSITIONS,
+     )
+    @@ -815,12 +819,13 @@ from agent_workflows.runner_shared import (
+     # `_read_id`'s `# noqa: F401` IS LOAD-BEARING, not clutter (rununify 06 `sy7uwh`). Once
+     # `parse_plan_file` moved to `runner_shared`, this module stopped CALLING `_read_id` itself, so
+     # `ruff --fix` deleted the import as unused -- and that silently broke a contract, because
+    -# `tests/test_runner_refork_guard.py` requires BOTH runners to keep exposing `_read_id` bound to
+    -# `selectors.read_front_matter_id` (measured: two tests failed with `oc_runipd._read_id is MISSING`).
+    -# The `as <same-name>` form alone was NOT enough (ruff removed it again on the next hook run), and this
+    -# module's `__all__` does not list the private readers, so the suppression is the mechanism that keeps
+    -# the re-export alive. `_read_status` is still called locally and so needs none.
+    -from agent_workflows.selectors import read_front_matter_id as _read_id  # noqa: F401 - a DELIBERATE re-export; tests/test_runner_refork_guard.py requires it
+    +# `tests/test_runner_refork_guard.py` (deleted in `19313eed`; no live guard currently enforces this)
+    +# required BOTH runners to keep exposing `_read_id` bound to `selectors.read_front_matter_id`
+    +# (measured: two tests failed with `oc_runipd._read_id is MISSING`). The re-export is retained per
+    +# `s4jctz`. The `as <same-name>` form alone was NOT enough (ruff removed it again on the next hook
+    +# run), and this module's `__all__` does not list the private readers, so the suppression is the
+    +# mechanism that keeps the re-export alive. `_read_status` is still called locally and so needs none.
+    +from agent_workflows.selectors import read_front_matter_id as _read_id  # noqa: F401 - a DELIBERATE re-export; tests/test_runner_refork_guard.py deleted in 19313eed, retained per s4jctz
+
+     # The durable stop-request record and the cooperative-checkpoint poll (spec `c4gd2h` R7-R9/R11)
+     # live in the shared ``runner_stop`` module so both drivers consult ONE mechanism.
+    @@ -2934,9 +2939,10 @@ def run_opencode(
+         #
+         # THE SEAM IS SHARED, NOT LOCAL. `runner_shared.turn_telemetry` is the ONE definition and the
+         # agy driver reaches the SAME object; a copy here (or an import of a helper defined in this
+    -    # module BY the agy driver) is precisely the re-fork `tests/test_runner_refork_guard.py` exists
+    -    # to catch. It never raises, so no failure mode it has can change this turn's outcome, and the
+    -    # `with` adds no branch to any code path below.
+    +    # module BY the agy driver) is precisely the re-fork `tests/test_runner_refork_guard.py` (deleted
+    +    # in `19313eed`; no live guard currently covers this) existed to catch. It never raises, so no
+    +    # failure mode it has can change this turn's outcome, and the `with` adds no branch to any code path
+    +    # below.
+         telemetry_identity = runner_shared.telemetry_identity(
+             run_id=str(state.get("run_id") or ""),
+             item=item,
+    @@ -4049,7 +4055,8 @@ def run_queue(
+
+     # `locked_run` is now defined ONCE in `runner_shared` and reached through the thin wrapper above
+     # (hostdedup Order 01, `li44r9`). A SECOND definition used to sit here and SHADOWED that wrapper,
+    -# which is why the anti-re-fork guard asserts one definition per host rather than merely that a
+    +# which is why the anti-re-fork guard (`tests/test_runner_refork_guard.py`, deleted in `19313eed`; no
+    +# live guard currently covers locked_run) asserted one definition per host rather than merely that a
+     # wrapper exists: the wrapper existed and was unreachable.
+     ```
+     Every +/- line is a comment line; no executable lines changed.
+
+    (b) `rg -n "test_runner_refork_guard|anti-re-fork" agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py`:
+    ```
+    agent_workflows/agy_runipd.py:43:# hosts read, and `tests/test_runner_refork_guard.py` (deleted in `19313eed`; no live guard currently
+    agent_workflows/agy_runipd.py:77:# `tests/test_runner_refork_guard.py` (deleted in `19313eed`; no live guard currently enforces this;
+    agent_workflows/agy_runipd.py:79:from agent_workflows.selectors import read_front_matter_id as _read_id  # noqa: F401 - a DELIBERATE re-export; tests/test_runner_refork_guard.py deleted in 19313eed, retained per s4jctz
+    agent_workflows/agy_runipd.py:218:# `tests/test_runner_refork_guard.py::test_the_oc_to_agy_import_count_did_not_increase` (deleted in
+    agent_workflows/agy_runipd.py:291:# `tests/test_runner_refork_guard.py`'s `REFORK_TABLE` (deleted in `19313eed`; no live guard currently
+    agent_workflows/agy_runipd.py:3268:        # this anti-re-fork discipline (`tests/test_runner_refork_guard.py` was deleted in `19313eed`).
+    agent_workflows/oc_runipd.py:50:# for object-identity checks (`tests/test_runner_refork_guard.py` was deleted in `19313eed`, so no live
+    agent_workflows/oc_runipd.py:196:# re-export so BOTH hosts see the SAME object (`tests/test_runner_refork_guard.py` was deleted in
+    agent_workflows/oc_runipd.py:529:# `tests/test_runner_refork_guard.py`'s `REFORK_TABLE` (deleted in `19313eed`; no live guard currently
+    agent_workflows/oc_runipd.py:585:# form and formerly pinned by OBJECT IDENTITY in `tests/test_runner_refork_guard.py`'s `REFORK_TABLE`
+    agent_workflows/oc_runipd.py:822:# `tests/test_runner_refork_guard.py` (deleted in `19313eed`; no live guard currently enforces this)
+    agent_workflows/oc_runipd.py:828:from agent_workflows.selectors import read_front_matter_id as _read_id  # noqa: F401 - a DELIBERATE re-export; tests/test_runner_refork_guard.py deleted in 19313eed, retained per s4jctz
+    agent_workflows/oc_runipd.py:2942:    # module BY the agy driver) is precisely the re-fork `tests/test_runner_refork_guard.py` (deleted
+    agent_workflows/oc_runipd.py:4058:# which is why the anti-re-fork guard (`tests/test_runner_refork_guard.py`, deleted in `19313eed`; no
+    ```
+    All 14 citations accounted for (8 oc, 6 agy).
+
+    (c) Out-of-scope residue untouched (`rg -c "test_runner_refork_guard|anti-re-fork" agent_workflows/ tests/`):
+    ```
+    agent_workflows/artifact_audit.py:1
+    agent_workflows/agy_runipd.py:6
+    agent_workflows/oc_runipd.py:8
+    tests/test_runner_shared.py:1
+    agent_workflows/run_viewer.py:1
+    tests/fixtures/verifier_evidence_corpus.json:1
+    agent_workflows/runner_shared.py:8
+    ```
+    Residue outside the two host runners is untouched and carried by `pn7rw3`.
+
+    (d) Confirmed `# noqa: F401` re-exports still exist in both host files:
+    `agent_workflows/oc_runipd.py:828`:
+    `from agent_workflows.selectors import read_front_matter_id as _read_id  # noqa: F401 - a DELIBERATE re-export; tests/test_runner_refork_guard.py deleted in 19313eed, retained per s4jctz`
+    `agent_workflows/agy_runipd.py:79`:
+    `from agent_workflows.selectors import read_front_matter_id as _read_id  # noqa: F401 - a DELIBERATE re-export; tests/test_runner_refork_guard.py deleted in 19313eed, retained per s4jctz`
+
+    (e) Full suite summary: `3134 passed, 2 skipped, 3 warnings in 49.22s` (unchanged from V-01(b)).
+  - Result: pass
 
 ## Approval and execution gate
 

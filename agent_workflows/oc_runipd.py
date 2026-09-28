@@ -47,8 +47,9 @@ from agent_workflows import (
 # THE `as <same-name>` FORM IS DELIBERATE, and it is this repository's documented idiom for a shared
 # symbol a runner must expose: it keeps `ruff` from stripping the binding as unused (which it has done
 # to six such re-exports before, caught only by a symmetry test) and it makes the attribute reachable
-# for `tests/test_runner_refork_guard.py`'s object-identity half. BOTH hosts import this from the
-# owning module DIRECTLY; neither imports it from the other.
+# for object-identity checks (`tests/test_runner_refork_guard.py` was deleted in `19313eed`, so no live
+# guard currently asserts this property). BOTH hosts import this from the owning module DIRECTLY;
+# neither imports it from the other.
 from agent_workflows.run_selection_policy import (
     render_queue_dispositions as render_queue_dispositions,
 )
@@ -192,8 +193,9 @@ from agent_workflows.runner_shared import (
 )
 
 # runverdict (`1bfppy`) E-01/E-02: the ONE fail-closed VERIFIER VERDICT MAPPING, bound here as a
-# re-export so `tests/test_runner_refork_guard.py` can assert BOTH hosts see the SAME object. Imported
-# from `runner_shared` and NEVER defined here: a verdict test written in a driver is precisely the
+# re-export so BOTH hosts see the SAME object (`tests/test_runner_refork_guard.py` was deleted in
+# `19313eed`, so no live guard currently asserts this object-identity property). Imported from
+# `runner_shared` and NEVER defined here: a verdict test written in a driver is precisely the
 # re-fork that let `CORRECTION_REQUIRED` be recorded as `verified` in two byte-identical copies.
 from agent_workflows.runner_shared import (
     map_verdict as map_verdict,
@@ -523,8 +525,9 @@ from agent_workflows.runner_shared import (
 )
 
 # runnoop zz5yxq (E-02/E-04): the ACTION-AWARE SUCCESS BAR. ONE definition in `runner_shared`, bound
-# here with the `as <same-name>` form and pinned by object identity in
-# `tests/test_runner_refork_guard.py`'s `REFORK_TABLE`, so a second copy in either host fails a test.
+# here with the `as <same-name>` form and formerly pinned by object identity in
+# `tests/test_runner_refork_guard.py`'s `REFORK_TABLE` (deleted in `19313eed`; no live guard currently
+# asserts this object identity or fails on a second copy).
 # The form is load-bearing, not cosmetic: `ruff` stripped 6 such re-exports on one commit attempt in
 # this package and only a cross-driver symmetry test caught it.
 from agent_workflows.runner_shared import (
@@ -579,13 +582,14 @@ from agent_workflows.runner_shared import (
 )
 
 # retrywire (`xipfy1`) E-07: the TURN-FAILURE CORRECTION layer, bound in the same `as <same-name>`
-# form and pinned by OBJECT IDENTITY in `tests/test_runner_refork_guard.py`'s `REFORK_TABLE`. Bound
-# here rather than reached as `runner_shared.<name>` at the call site because that table's identity
-# half asserts each driver CARRIES the attribute and that both carry the SAME object - the guard that
-# caught agy running its own copy of `dependency_status_detailed` for months. The decision, the
-# performer and the classification table are all registered: a host that re-forked only the TABLE
-# would agree about the mechanism and disagree about which failures are retryable, which is the more
-# dangerous half (it decides what the run spends paid model turns on).
+# form and formerly pinned by OBJECT IDENTITY in `tests/test_runner_refork_guard.py`'s `REFORK_TABLE`
+# (deleted in `19313eed`; no live guard currently asserts this object identity). Bound here rather than
+# reached as `runner_shared.<name>` at the call site because that table's identity half asserted each
+# driver CARRIES the attribute and that both carry the SAME object - the guard that caught agy running
+# its own copy of `dependency_status_detailed` for months. The decision, the performer and the
+# classification table are all registered: a host that re-forked only the TABLE would agree about the
+# mechanism and disagree about which failures are retryable, which is the more dangerous half (it decides
+# what the run spends paid model turns on).
 from agent_workflows.runner_shared import (
     TURN_RETRYABLE_DISPOSITIONS as TURN_RETRYABLE_DISPOSITIONS,
 )
@@ -815,12 +819,13 @@ from agent_workflows.runner_shared import (
 # `_read_id`'s `# noqa: F401` IS LOAD-BEARING, not clutter (rununify 06 `sy7uwh`). Once
 # `parse_plan_file` moved to `runner_shared`, this module stopped CALLING `_read_id` itself, so
 # `ruff --fix` deleted the import as unused -- and that silently broke a contract, because
-# `tests/test_runner_refork_guard.py` requires BOTH runners to keep exposing `_read_id` bound to
-# `selectors.read_front_matter_id` (measured: two tests failed with `oc_runipd._read_id is MISSING`).
-# The `as <same-name>` form alone was NOT enough (ruff removed it again on the next hook run), and this
-# module's `__all__` does not list the private readers, so the suppression is the mechanism that keeps
-# the re-export alive. `_read_status` is still called locally and so needs none.
-from agent_workflows.selectors import read_front_matter_id as _read_id  # noqa: F401 - a DELIBERATE re-export; tests/test_runner_refork_guard.py requires it
+# `tests/test_runner_refork_guard.py` (deleted in `19313eed`; no live guard currently enforces this)
+# required BOTH runners to keep exposing `_read_id` bound to `selectors.read_front_matter_id`
+# (measured: two tests failed with `oc_runipd._read_id is MISSING`). The re-export is retained per
+# `s4jctz`. The `as <same-name>` form alone was NOT enough (ruff removed it again on the next hook
+# run), and this module's `__all__` does not list the private readers, so the suppression is the
+# mechanism that keeps the re-export alive. `_read_status` is still called locally and so needs none.
+from agent_workflows.selectors import read_front_matter_id as _read_id  # noqa: F401 - a DELIBERATE re-export; tests/test_runner_refork_guard.py deleted in 19313eed, retained per s4jctz
 
 # The durable stop-request record and the cooperative-checkpoint poll (spec `c4gd2h` R7-R9/R11)
 # live in the shared ``runner_stop`` module so both drivers consult ONE mechanism.
@@ -2934,9 +2939,10 @@ def run_opencode(
     #
     # THE SEAM IS SHARED, NOT LOCAL. `runner_shared.turn_telemetry` is the ONE definition and the
     # agy driver reaches the SAME object; a copy here (or an import of a helper defined in this
-    # module BY the agy driver) is precisely the re-fork `tests/test_runner_refork_guard.py` exists
-    # to catch. It never raises, so no failure mode it has can change this turn's outcome, and the
-    # `with` adds no branch to any code path below.
+    # module BY the agy driver) is precisely the re-fork `tests/test_runner_refork_guard.py` (deleted
+    # in `19313eed`; no live guard currently covers this) existed to catch. It never raises, so no
+    # failure mode it has can change this turn's outcome, and the `with` adds no branch to any code path
+    # below.
     telemetry_identity = runner_shared.telemetry_identity(
         run_id=str(state.get("run_id") or ""),
         item=item,
@@ -4049,7 +4055,8 @@ def run_queue(
 
 # `locked_run` is now defined ONCE in `runner_shared` and reached through the thin wrapper above
 # (hostdedup Order 01, `li44r9`). A SECOND definition used to sit here and SHADOWED that wrapper,
-# which is why the anti-re-fork guard asserts one definition per host rather than merely that a
+# which is why the anti-re-fork guard (`tests/test_runner_refork_guard.py`, deleted in `19313eed`; no
+# live guard currently covers locked_run) asserted one definition per host rather than merely that a
 # wrapper exists: the wrapper existed and was unreachable.
 
 
