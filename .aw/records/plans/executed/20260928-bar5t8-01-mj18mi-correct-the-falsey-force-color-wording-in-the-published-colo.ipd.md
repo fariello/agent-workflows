@@ -6,7 +6,7 @@
 - Scope: IN: (a) reword section 1.1 row 2 of `docs/cli-output-contract.md` to state the falsey set explicitly and name the single predicate, and extend the worked-cases table beneath it with the six cells that discriminate a falsey `FORCE_COLOR` (five the current wording gets wrong, plus the one that proves a falsey value is not a second `NO_COLOR`); (b) correct the same claim in `docs/cli-human-guide.md`'s environment-precedence sentence, which is both stale on falsey values and silent on the flag layer; (c) make the worked-cases table EXECUTABLE by adding a test that parses it out of the file and drives `term.should_color` per row, so the document cannot silently go stale again; (d) close the measured coverage gap that let this survive, namely that `tests/test_term.py`'s `_COLOR_GRID` enumerates only `""`/`"0"`/`"1"` and so never pins a WORD-valued falsey `FORCE_COLOR` against a set `NO_COLOR`. OUT: every behavior change (the code is correct and is the authority; see F-04), `agent_workflows/term.py` itself, the four unrelated doc citations of deleted test files (backlog `ikxtkj`), and spec `uonrjg` A13 (already amended and already correct).
 - Scope-Paths: docs/cli-output-contract.md, docs/cli-human-guide.md, tests/test_term.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: mj18mi
-- Approval: 2026-09-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-28 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: mj18mi verified (set bar5t8, attempt 1).
 - 2026-09-28 approved (aw set): status set to approved
 
 - 2026-09-28 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-301..PR-304, all FIXED. Reviewed at HEAD `4d086716` in a lane worktree; `aw ipd lint` conforming at `--phase author` before and `--phase review-finalize` after. THIS PLAN'S EVIDENCE IS UNUSUALLY STRONG AND FOURTEEN OF ITS FIFTEEN FINDINGS REPRODUCE EXACTLY, including all five F-01 cells, F-03's discriminating `FORCE_COLOR=0`-on-a-TTY row (COLORED, which is what makes the tri-state argument correct and the item's five-row fix incomplete), F-04's predicate and both call sites, F-06's precise coverage hole (the falsey loop applies `NO_COLOR=None`, so no word-valued falsey ever meets a set `NO_COLOR`), F-07's three flag-layer measurements, F-08's 5-of-5 agreement, F-09/F-10's five dangling citations, F-11's 249 leaves / 29 missing / exit 2, F-12's verbatim spec ruling, F-13, F-14's eight normalization spellings, and F-15. ONE FINDING CHANGED THE CODE E-03 COMMISSIONS. PR-301 (HIGH): the table-driven guard PASSES VACUOUSLY unless it strips the markdown backticks before parsing an invocation. The cell text is a backticked string, so a leading-`VAR=value` anchor matches the empty string; measured over E-01's six new rows, FIVE pass while setting no environment at all, and E-03(d)'s row floor and named-row assertions both still pass because they inspect row TEXT rather than extraction output. Exactly one row goes red, which is worse than all-red because it points the executor at the document when the parser is at fault. E-03 gained (a1) with the measurement and a mandatory env-extraction assertion, (b1) token-not-substring flag matching, and V-03 now requires the extracted environment pasted per row. Also fixed: `TERM` must be set per row rather than inherited, since several documented rows are only reproducible with a capable `TERM` and rung 3 disables color for an unset one (PR-302, new F-17); both suite baselines measured (`2935 passed, 2 skipped` bare, `23 passed` for `tests/test_term.py`) with the note that both totals must RISE (PR-303); and the gate gained a scope fence, an out-of-scope-edit disposition and conditional finalize ownership (PR-304). All three pre-existing open questions were checked and their resolutions HELD on evidence: OQ-01's `bug` classification and its inherited `- Blocks-Release: next` are correct (item `bar5t8` is `- Work-Kind: bug` with that gate, and `next` resolves to the single planned release `f33nrj`); OQ-02's admissibility argument matches the `xelvyi` ruling's actual recorded wording; OQ-03's one-table decision is confirmed by F-07's measured drift, which is the exact hazard duplication would repeat.
@@ -36,27 +36,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: correct the two published statements
 
-- [ ] E-01 Reword `docs/cli-output-contract.md` section 1.1 row 2 of the four-layer precedence table, and extend the worked-cases table beneath it. The row's replacement must do three things the present wording does not: state the falsey SET as a literal enumeration (empty, `0`, `false`, `no`, `off`, case-insensitive and whitespace-stripped); say that a falsey value neither FORCES nor SUPPRESSES, so detection proceeds normally, because "suppress" is `NO_COLOR`'s job and reading it as a second suppressor is the other way to be wrong about it; and make the `NO_COLOR` cancelling condition read "unless `FORCE_COLOR` is set to a FORCING value" rather than "unless `FORCE_COLOR` is set", since the bare presence reading is the specific half-fix `term._force_color_is_forcing` records as colorizing six `NO_COLOR` cells (F-04). Name the predicate `term._force_color_is_forcing` in the prose so a reader has one place to check, and state that BOTH `FORCE_COLOR` readings route through it, which is the property that keeps the two halves from drifting apart again. Then add SIX rows to the worked-cases table: the five cells the current wording implies colored and the code renders monochrome (`FORCE_COLOR=0 | cat`, `FORCE_COLOR=off | cat`, `FORCE_COLOR=false | cat`, `NO_COLOR=1 FORCE_COLOR=0 | cat`, and `NO_COLOR=1 FORCE_COLOR=0` on a TTY), plus `FORCE_COLOR=0` on a TTY, which is COLORED and is the row that distinguishes "does not force" from "suppresses" (F-03). Without that sixth row a reader can satisfy every other row by believing a falsey value suppresses, which is the opposite error and is equally wrong. Write the table in the file's existing two-column `| Invocation | Result |` shape with the same escaped-pipe convention, since E-03 parses it. USER-FACING PROSE RULE APPLIES to both files in this plan: no em or en dashes (GUIDING_PRINCIPLES P13).
+- [x] E-01 Reword `docs/cli-output-contract.md` section 1.1 row 2 of the four-layer precedence table, and extend the worked-cases table beneath it. The row's replacement must do three things the present wording does not: state the falsey SET as a literal enumeration (empty, `0`, `false`, `no`, `off`, case-insensitive and whitespace-stripped); say that a falsey value neither FORCES nor SUPPRESSES, so detection proceeds normally, because "suppress" is `NO_COLOR`'s job and reading it as a second suppressor is the other way to be wrong about it; and make the `NO_COLOR` cancelling condition read "unless `FORCE_COLOR` is set to a FORCING value" rather than "unless `FORCE_COLOR` is set", since the bare presence reading is the specific half-fix `term._force_color_is_forcing` records as colorizing six `NO_COLOR` cells (F-04). Name the predicate `term._force_color_is_forcing` in the prose so a reader has one place to check, and state that BOTH `FORCE_COLOR` readings route through it, which is the property that keeps the two halves from drifting apart again. Then add SIX rows to the worked-cases table: the five cells the current wording implies colored and the code renders monochrome (`FORCE_COLOR=0 | cat`, `FORCE_COLOR=off | cat`, `FORCE_COLOR=false | cat`, `NO_COLOR=1 FORCE_COLOR=0 | cat`, and `NO_COLOR=1 FORCE_COLOR=0` on a TTY), plus `FORCE_COLOR=0` on a TTY, which is COLORED and is the row that distinguishes "does not force" from "suppresses" (F-03). Without that sixth row a reader can satisfy every other row by believing a falsey value suppresses, which is the opposite error and is equally wrong. Write the table in the file's existing two-column `| Invocation | Result |` shape with the same escaped-pipe convention, since E-03 parses it. USER-FACING PROSE RULE APPLIES to both files in this plan: no em or en dashes (GUIDING_PRINCIPLES P13).
   - Depends on: none
   - Expected outcome: Section 1.1 row 2 states the falsey set and the forcing-value condition and names the predicate; the worked-cases table carries 11 rows (the 5 shipped plus 6 added); every row's documented result equals what `term.should_color` returns for it, which E-03 then asserts mechanically rather than by inspection.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Correct the same claim where it is repeated for operators in `docs/cli-human-guide.md`. Two places, and the second is a DIFFERENT error from the one this plan is named for, so do not fix only the first. FIRST, the "Color and accessibility" section's closing sentence reads "Environment precedence for color: `NO_COLOR` disables color and is only overridden by `FORCE_COLOR`; otherwise color is on only for a real terminal with a capable `TERM`." Its `FORCE_COLOR` half carries the identical falsey defect, and "only overridden by `FORCE_COLOR`" is ALSO false about the flag layer that shipped afterwards: `--color` overrides `NO_COLOR` too, measured colored on both a TTY and a pipe (F-07). Rewrite it to name the flag layer first, then the environment layer with the forcing-value qualification, and point to the contract's section 1.1 for the full table rather than restating it, so the two files cannot drift again. SECOND, the flag bullet list a few lines above documents only `FORCE_COLOR=1: preserves ANSI color even when piped`, which is true but is exactly the truthy-only enumeration that let this defect hide; add the falsey clause to that bullet in one sentence. Keep both edits in the guide's plain operator register; it is end-user documentation, so the no-dash rule applies and the prose must stay readable without the contract open alongside it.
+- [x] E-02 Correct the same claim where it is repeated for operators in `docs/cli-human-guide.md`. Two places, and the second is a DIFFERENT error from the one this plan is named for, so do not fix only the first. FIRST, the "Color and accessibility" section's closing sentence reads "Environment precedence for color: `NO_COLOR` disables color and is only overridden by `FORCE_COLOR`; otherwise color is on only for a real terminal with a capable `TERM`." Its `FORCE_COLOR` half carries the identical falsey defect, and "only overridden by `FORCE_COLOR`" is ALSO false about the flag layer that shipped afterwards: `--color` overrides `NO_COLOR` too, measured colored on both a TTY and a pipe (F-07). Rewrite it to name the flag layer first, then the environment layer with the forcing-value qualification, and point to the contract's section 1.1 for the full table rather than restating it, so the two files cannot drift again. SECOND, the flag bullet list a few lines above documents only `FORCE_COLOR=1: preserves ANSI color even when piped`, which is true but is exactly the truthy-only enumeration that let this defect hide; add the falsey clause to that bullet in one sentence. Keep both edits in the guide's plain operator register; it is end-user documentation, so the no-dash rule applies and the prose must stay readable without the contract open alongside it.
   - Depends on: none
   - Expected outcome: `docs/cli-human-guide.md` states the precedence as flag, then environment with the forcing-value qualification, then `TERM`, then TTY; its `FORCE_COLOR` bullet mentions the falsey set; and no sentence in the file remains that implies a falsey `FORCE_COLOR` either cancels `NO_COLOR` or enables color.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: make the corrected table executable and close the coverage gap
 
-- [ ] E-03 Add a test to `tests/test_term.py` that READS the worked-cases table out of `docs/cli-output-contract.md` and drives `term.should_color` for every row, asserting the measured answer equals the documented one. This is the deliverable that stops a recurrence: the five shipped rows all pass today (F-08), so the document's table is not wrong everywhere, it is wrong exactly where nothing enumerated the case, and a prose-only fix restores that same condition. Requirements, each because a plausible implementation gets it wrong: (a) derive the environment and the flag from the invocation TEXT (leading `VAR=value` tokens become environment, a `--color`/`--no-color` token becomes the `override=` argument, a trailing `| cat` selects a non-TTY stream and its absence a TTY), so a row added to the document later is exercised with NO test edit, which is the whole point; (a1) STRIP THE MARKDOWN BACKTICKS BEFORE PARSING THE INVOCATION, and ASSERT that the environment extraction actually found something for a row whose text contains a `=` (PR-301, measured at review). The cell text in the file is `` `FORCE_COLOR=0 aw <cmd> \| cat` ``, so a leading-`VAR=value` anchor applied to the raw cell matches the EMPTY STRING: the backtick is the first character. Measured consequence on E-01's own six new rows: five of the six PASS WHILE SETTING NO ENVIRONMENT AT ALL (four documented-monochrome rows are monochrome anyway on a pipe, and `FORCE_COLOR=0` on a TTY is colored anyway by plain detection), so the guard reports green having tested nothing about `FORCE_COLOR`. Exactly one row (`NO_COLOR=1 FORCE_COLOR=0` on a TTY) goes red, which is WORSE than all-red: an executor sees a single failing row and is told the DOCUMENT is wrong when the PARSER is. So the env-extraction assertion is mandatory, not stylistic: for every row whose invocation contains `=`, assert the extracted environment is non-empty and name the row if it is not. (b) split cells on UNESCAPED pipes only, because the table escapes the shell pipe as `\|` and a naive split silently truncates precisely the piped rows, measured at authoring to mis-parse 3 of the 5 shipped rows into a cell reading `cat`; (b1) MATCH THE FLAG AS A TOKEN, NOT A SUBSTRING: `--no-color` CONTAINS no `--color` substring so the naive order happens to work here, but test `--no-color` FIRST anyway and match on whitespace-split tokens, so the row `FORCE_COLOR=1 aw <cmd> --no-color` cannot be read as `override=True` by a later refactor. (c) set the environment hermetically per row and restore it, following the established `setUp`/`addCleanup` pattern already used by three classes in this file, and clear `term.set_color_override` too, since a leaked module-global override is the measured cause of a previous nondeterministic failure in this very file (backlog `4znh53`). SET `TERM` EXPLICITLY PER ROW to a capable value (the shipped grid test uses `xterm-256color`): the table's rows say nothing about `TERM`, but rung 3 disables color for `TERM=dumb` or an unset `TERM`, so a row's documented result is only reproducible with a capable `TERM` in the environment, and inheriting the runner's `TERM` would make several rows machine-dependent. (d) FAIL LOUDLY RATHER THAN VACUOUSLY: assert the parse found at least 11 rows and that a named subset of invocations is present (at minimum `NO_COLOR=1 FORCE_COLOR=0` on a TTY and `FORCE_COLOR=0` on a TTY, the two rows that carry the whole point), so deleting rows from the document fails the test instead of shrinking it to nothing. NOTE THESE TWO ASSERTIONS DO NOT CATCH (a1): both passed under the measured backtick bug, because both check the row TEXT rather than what was extracted from it, which is why (a1) carries its own assertion. (e) on failure, report the invocation, the documented result and the measured result for EVERY mismatched row at once, not the first, because the realistic regression is a rule change that moves several cells together. Note for the executor: this reads a `docs/` PROSE table, which is repository CONTENT, and asserts the document is TRUE by executing the subject; it is NOT a pin on production source text or structure, so the 2026-09-26 maintainer ruling against such pins (backlog `xelvyi`, plan `96xtmi`) does not reach it. State that distinction in the test's docstring so a future sweep does not delete it by category.
+- [x] E-03 Add a test to `tests/test_term.py` that READS the worked-cases table out of `docs/cli-output-contract.md` and drives `term.should_color` for every row, asserting the measured answer equals the documented one. This is the deliverable that stops a recurrence: the five shipped rows all pass today (F-08), so the document's table is not wrong everywhere, it is wrong exactly where nothing enumerated the case, and a prose-only fix restores that same condition. Requirements, each because a plausible implementation gets it wrong: (a) derive the environment and the flag from the invocation TEXT (leading `VAR=value` tokens become environment, a `--color`/`--no-color` token becomes the `override=` argument, a trailing `| cat` selects a non-TTY stream and its absence a TTY), so a row added to the document later is exercised with NO test edit, which is the whole point; (a1) STRIP THE MARKDOWN BACKTICKS BEFORE PARSING THE INVOCATION, and ASSERT that the environment extraction actually found something for a row whose text contains a `=` (PR-301, measured at review). The cell text in the file is `` `FORCE_COLOR=0 aw <cmd> \| cat` ``, so a leading-`VAR=value` anchor applied to the raw cell matches the EMPTY STRING: the backtick is the first character. Measured consequence on E-01's own six new rows: five of the six PASS WHILE SETTING NO ENVIRONMENT AT ALL (four documented-monochrome rows are monochrome anyway on a pipe, and `FORCE_COLOR=0` on a TTY is colored anyway by plain detection), so the guard reports green having tested nothing about `FORCE_COLOR`. Exactly one row (`NO_COLOR=1 FORCE_COLOR=0` on a TTY) goes red, which is WORSE than all-red: an executor sees a single failing row and is told the DOCUMENT is wrong when the PARSER is. So the env-extraction assertion is mandatory, not stylistic: for every row whose invocation contains `=`, assert the extracted environment is non-empty and name the row if it is not. (b) split cells on UNESCAPED pipes only, because the table escapes the shell pipe as `\|` and a naive split silently truncates precisely the piped rows, measured at authoring to mis-parse 3 of the 5 shipped rows into a cell reading `cat`; (b1) MATCH THE FLAG AS A TOKEN, NOT A SUBSTRING: `--no-color` CONTAINS no `--color` substring so the naive order happens to work here, but test `--no-color` FIRST anyway and match on whitespace-split tokens, so the row `FORCE_COLOR=1 aw <cmd> --no-color` cannot be read as `override=True` by a later refactor. (c) set the environment hermetically per row and restore it, following the established `setUp`/`addCleanup` pattern already used by three classes in this file, and clear `term.set_color_override` too, since a leaked module-global override is the measured cause of a previous nondeterministic failure in this very file (backlog `4znh53`). SET `TERM` EXPLICITLY PER ROW to a capable value (the shipped grid test uses `xterm-256color`): the table's rows say nothing about `TERM`, but rung 3 disables color for `TERM=dumb` or an unset `TERM`, so a row's documented result is only reproducible with a capable `TERM` in the environment, and inheriting the runner's `TERM` would make several rows machine-dependent. (d) FAIL LOUDLY RATHER THAN VACUOUSLY: assert the parse found at least 11 rows and that a named subset of invocations is present (at minimum `NO_COLOR=1 FORCE_COLOR=0` on a TTY and `FORCE_COLOR=0` on a TTY, the two rows that carry the whole point), so deleting rows from the document fails the test instead of shrinking it to nothing. NOTE THESE TWO ASSERTIONS DO NOT CATCH (a1): both passed under the measured backtick bug, because both check the row TEXT rather than what was extracted from it, which is why (a1) carries its own assertion. (e) on failure, report the invocation, the documented result and the measured result for EVERY mismatched row at once, not the first, because the realistic regression is a rule change that moves several cells together. Note for the executor: this reads a `docs/` PROSE table, which is repository CONTENT, and asserts the document is TRUE by executing the subject; it is NOT a pin on production source text or structure, so the 2026-09-26 maintainer ruling against such pins (backlog `xelvyi`, plan `96xtmi`) does not reach it. State that distinction in the test's docstring so a future sweep does not delete it by category.
   - Depends on: E-01
   - Expected outcome: A test in `tests/test_term.py` that passes against the E-01 document, and that FAILS with a named-row diff if either the document's table or the resolver changes without the other. Demonstrated red by mutating one documented result. The parsed environment for every `=`-bearing row is non-empty and is PASTED in V-03, so a vacuous pass is visible rather than inferred.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Close the coverage gap that let the defect survive publication, in `tests/test_term.py`. `_COLOR_GRID` is a 16-cell `NO_COLOR` x `FORCE_COLOR` table whose `_ENV_VALUES` are `(None, "", "0", "1")`, so every WORD-valued falsey member of `term._FORCE_COLOR_FALSEY` (`false`, `no`, `off`) is unpinned on the CANCELLING side, and the separate falsey loop in the same test exercises `NO_COLOR=None` only (F-06). The consequence is exact: the cell `NO_COLOR=1 FORCE_COLOR=off` on a TTY, which is an accessibility cell and is one of the five the document gets wrong, is asserted by nothing today. Extend the falsey coverage so each member of `_FORCE_COLOR_FALSEY` plus at least one case-variant and one whitespace-padded spelling is asserted with `NO_COLOR` BOTH set and unset, on BOTH a TTY and a pipe, expecting: with `NO_COLOR` set, monochrome in all cases (a falsey value does not cancel); with `NO_COLOR` unset, the plain detection answer (colored on a TTY, monochrome on a pipe). DRIVE THE EXPECTATION FROM `term._FORCE_COLOR_FALSEY` ITSELF rather than from a copied literal set, so adding a member to the predicate cannot leave it unpinned, and assert the set's membership separately so a member being REMOVED is also a failure rather than silently reducing the loop. Also add the FORCING-side normalization cases the same reasoning demands (a truthy value that needs stripping or case folding, measured colored on a pipe), since the predicate normalizes both sides through one code path and pinning only one side is how they drifted apart before.
+- [x] E-04 Close the coverage gap that let the defect survive publication, in `tests/test_term.py`. `_COLOR_GRID` is a 16-cell `NO_COLOR` x `FORCE_COLOR` table whose `_ENV_VALUES` are `(None, "", "0", "1")`, so every WORD-valued falsey member of `term._FORCE_COLOR_FALSEY` (`false`, `no`, `off`) is unpinned on the CANCELLING side, and the separate falsey loop in the same test exercises `NO_COLOR=None` only (F-06). The consequence is exact: the cell `NO_COLOR=1 FORCE_COLOR=off` on a TTY, which is an accessibility cell and is one of the five the document gets wrong, is asserted by nothing today. Extend the falsey coverage so each member of `_FORCE_COLOR_FALSEY` plus at least one case-variant and one whitespace-padded spelling is asserted with `NO_COLOR` BOTH set and unset, on BOTH a TTY and a pipe, expecting: with `NO_COLOR` set, monochrome in all cases (a falsey value does not cancel); with `NO_COLOR` unset, the plain detection answer (colored on a TTY, monochrome on a pipe). DRIVE THE EXPECTATION FROM `term._FORCE_COLOR_FALSEY` ITSELF rather than from a copied literal set, so adding a member to the predicate cannot leave it unpinned, and assert the set's membership separately so a member being REMOVED is also a failure rather than silently reducing the loop. Also add the FORCING-side normalization cases the same reasoning demands (a truthy value that needs stripping or case folding, measured colored on a pipe), since the predicate normalizes both sides through one code path and pinning only one side is how they drifted apart before.
   - Depends on: none
   - Expected outcome: Every member of `_FORCE_COLOR_FALSEY`, in at least three spellings, is asserted against a set and an unset `NO_COLOR` on both stream kinds, with the expectation derived from the predicate's own set; the previously unpinned `NO_COLOR=1 FORCE_COLOR=off` TTY cell is covered; and the suite fails if a member is added to or removed from that set without the coverage moving with it.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -161,25 +161,542 @@ NO OTHER DOCUMENT STATES THE CLAIM. `GUIDING_PRINCIPLES.md` and `DECISIONS.md` m
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste `git diff docs/cli-output-contract.md` in full. Confirm by reading it that the new row 2 (a) enumerates the falsey set as empty, `0`, `false`, `no`, `off` and says it is case-insensitive and stripped, (b) qualifies the `NO_COLOR` cancelling condition as requiring a FORCING value rather than mere presence, (c) states that a falsey value neither forces nor suppresses and that detection proceeds, and (d) names `term._force_color_is_forcing` and says both readings route through it. Confirm the lead-in sentence no longer cites `tests/test_flag_surface_uniformity.py` and that whatever it now cites EXISTS (paste an `ls` of each cited path). Paste the rendered worked-cases table and a probe that evaluates EVERY row of it against `term.should_color`, printing invocation, documented result and measured result per row, with 11 of 11 agreeing and the count asserted rather than eyeballed. The probe output must include `NO_COLOR=1 FORCE_COLOR=0` on a TTY as monochrome AND `FORCE_COLOR=0` on a TTY as colored, since those two rows together are what make the tri-state unambiguous. Finally paste a grep for em and en dash characters over the file showing zero hits.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified. git diff docs/cli-output-contract.md clean; tests/test_term.py exists; 11 of 11 rows in worked-cases table evaluated against should_color and match; 0 em/en dashes.
+```diff
+diff --git a/docs/cli-output-contract.md b/docs/cli-output-contract.md
+index bcccdfb5..feaf0039 100644
+--- a/docs/cli-output-contract.md
++++ b/docs/cli-output-contract.md
+@@ -48,11 +48,11 @@ precedence first:
+ | # | Layer | Rule |
+ | --- | --- | --- |
+ | 1 | Flag | `--color` forces ANSI on; `--no-color` forces it off. Passing BOTH is a usage error (exit 2), never a silent winner, so a scripted invocation never depends on argument order. |
+-| 2 | Env | `NO_COLOR` (any value, including empty) disables, UNLESS `FORCE_COLOR` is set; `FORCE_COLOR` (any non-empty value) enables. |
++| 2 | Env | `NO_COLOR` (any value, including empty) disables, unless `FORCE_COLOR` is set to a forcing value. `FORCE_COLOR` enables when set to a forcing value. A falsey value (empty, `0`, `false`, `no`, `off`, case-insensitive and whitespace-stripped) neither forces nor suppresses, so detection proceeds normally. Both `FORCE_COLOR` readings route through `term._force_color_is_forcing`. |
+ | 3 | Capability | `TERM=dumb` or an unset `TERM` disables. |
+ | 4 | Detection | Otherwise ANSI is on only when the target stream is a real TTY. |
 
-- [ ] V-02 validates E-02
+-Worked cases, each pinned by a test in `tests/test_term.py` and `tests/test_flag_surface_uniformity.py`:
++Worked cases, each pinned by a test in `tests/test_term.py`:
+
+ | Invocation | Result |
+ | --- | --- |
+@@ -61,6 +61,12 @@ Worked cases, each pinned by a test in `tests/test_term.py` and `tests/test_flag
+ | `FORCE_COLOR=1 aw <cmd> \| cat` | colored (env beats detection) |
+ | `aw <cmd> \| cat` | monochrome (detection alone) |
+ | `aw <cmd> --color \| cat` | colored (flag beats detection) |
++| `FORCE_COLOR=0 aw <cmd> \| cat` | monochrome (falsey value does not force) |
++| `FORCE_COLOR=off aw <cmd> \| cat` | monochrome (falsey value does not force) |
++| `FORCE_COLOR=false aw <cmd> \| cat` | monochrome (falsey value does not force) |
++| `NO_COLOR=1 FORCE_COLOR=0 aw <cmd> \| cat` | monochrome (falsey value does not cancel NO_COLOR) |
++| `NO_COLOR=1 FORCE_COLOR=0 aw <cmd>` | monochrome (falsey value does not cancel NO_COLOR) |
++| `FORCE_COLOR=0 aw <cmd>` | colored (falsey value does not suppress; detection proceeds) |
+```
+
+Confirmation by inspection of new row 2:
+(a) Enumerates falsey set as empty, `0`, `false`, `no`, `off`, case-insensitive and whitespace-stripped.
+(b) Qualifies `NO_COLOR` cancelling condition as requiring a forcing value (`unless FORCE_COLOR is set to a forcing value`).
+(c) States that a falsey value neither forces nor suppresses, so detection proceeds normally.
+(d) Names `term._force_color_is_forcing` and states both `FORCE_COLOR` readings route through it.
+
+Verification of cited path:
+```
+$ ls -ld tests/test_term.py
+-rw-r--r-- 1 user user 45963 Sep 28 14:17 tests/test_term.py
+```
+
+Rendered worked-cases table probe against `term.should_color` (11 of 11 agreeing):
+```
+PASS: NO_COLOR=1 aw <cmd> --color                   -> measured=True (doc: colored)
+PASS: FORCE_COLOR=1 aw <cmd> --no-color             -> measured=False (doc: monochrome)
+PASS: FORCE_COLOR=1 aw <cmd> | cat                  -> measured=True (doc: colored)
+PASS: aw <cmd> | cat                                -> measured=False (doc: monochrome)
+PASS: aw <cmd> --color | cat                        -> measured=True (doc: colored)
+PASS: FORCE_COLOR=0 aw <cmd> | cat                  -> measured=False (doc: monochrome)
+PASS: FORCE_COLOR=off aw <cmd> | cat                -> measured=False (doc: monochrome)
+PASS: FORCE_COLOR=false aw <cmd> | cat              -> measured=False (doc: monochrome)
+PASS: NO_COLOR=1 FORCE_COLOR=0 aw <cmd> | cat       -> measured=False (doc: monochrome)
+PASS: NO_COLOR=1 FORCE_COLOR=0 aw <cmd>             -> measured=False (doc: monochrome)
+PASS: FORCE_COLOR=0 aw <cmd>                        -> measured=True (doc: colored)
+Total rows: 11, matching: 11
+Including:
+  NO_COLOR=1 FORCE_COLOR=0 on a TTY: monochrome
+  FORCE_COLOR=0 on a TTY: colored
+```
+
+No-dash verification on docs/cli-output-contract.md:
+```
+em dash count: 0
+en dash count: 0
+```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste `git diff docs/cli-human-guide.md` in full. Confirm the precedence sentence now names the flag layer FIRST and qualifies the environment layer with the forcing-value condition, and that it points at the contract's section 1.1 rather than restating the full table (OQ-03). Confirm the `FORCE_COLOR` bullet mentions the falsey set. Paste a probe proving each claim the new sentence makes, in the order the sentence makes them: `--color` with `NO_COLOR=1` colored on a TTY and on a pipe; `--color` with `TERM=dumb` colored; `--no-color` with `FORCE_COLOR=1` monochrome; a forcing `FORCE_COLOR` colored on a pipe; a falsey `FORCE_COLOR` with `NO_COLOR` set monochrome on both stream kinds; a falsey `FORCE_COLOR` with `NO_COLOR` unset colored on a TTY and monochrome on a pipe. Paste a search of the whole file for `FORCE_COLOR` showing every remaining mention and state in one sentence why each is true. Paste a grep for em and en dash characters over the file showing zero hits.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified. git diff docs/cli-human-guide.md clean; flag layer named first; FORCE_COLOR bullet updated; probe verified all 6 precedence claims; 0 em/en dashes.
+```diff
+diff --git a/docs/cli-human-guide.md b/docs/cli-human-guide.md
+index 3a05f56d..40f10cf8 100644
+--- a/docs/cli-human-guide.md
++++ b/docs/cli-human-guide.md
+@@ -19,7 +19,7 @@ You can select the format and styling with flags:
+ - `aw <command> --json`: pretty-printed structured JSON.
+ - `aw <command> --no-color`: human view without ANSI color (also honored via the `NO_COLOR`
+   environment variable).
+-- `FORCE_COLOR=1`: preserves ANSI color even when piped.
++- `FORCE_COLOR=1`: preserves ANSI color even when piped. Falsey values (empty, `0`, `false`, `no`, `off`) neither force nor suppress color.
 
-- [ ] V-03 validates E-03
+ ## Anatomy of a human render
+
+@@ -68,8 +68,7 @@ Color and glyphs are never the sole carrier of meaning:
+ - Run `aw --help` to see the canonical lifecycle legend, which details every lifecycle stage, its
+   Unicode glyph, and its ASCII fallback.
+
+-Environment precedence for color: `NO_COLOR` disables color and is only overridden by
+-`FORCE_COLOR`; otherwise color is on only for a real terminal with a capable `TERM`.
++Precedence for color: explicit flags (`--color` and `--no-color`) take highest priority, overriding environment settings. In the environment layer, `NO_COLOR` disables color unless overridden by a forcing `FORCE_COLOR` value; a falsey `FORCE_COLOR` neither forces nor suppresses. When no forcing flag or environment variable is set, color is on only for a real terminal with a capable `TERM`. See section 1.1 of the [CLI Output Mode Contract](cli-output-contract.md#11-color-precedence-flag-beats-env-beats-detection) for the full precedence table.
+
+ ## Exit codes you can rely on
+```
+
+Confirmation: Precedence sentence names flag layer first, qualifies env layer with forcing-value condition, points at contract section 1.1; `FORCE_COLOR` bullet mentions falsey set (empty, `0`, `false`, `no`, `off`).
+
+Probe output for all claims in order:
+```
+1. --color with NO_COLOR=1 on TTY: colored
+   --color with NO_COLOR=1 on pipe: colored
+2. --color with TERM=dumb: colored
+3. --no-color with FORCE_COLOR=1: monochrome
+4. forcing FORCE_COLOR on a pipe: colored
+5. falsey FORCE_COLOR with NO_COLOR set on TTY: monochrome
+   falsey FORCE_COLOR with NO_COLOR set on pipe: monochrome
+6. falsey FORCE_COLOR with NO_COLOR unset on TTY: colored
+   falsey FORCE_COLOR with NO_COLOR unset on pipe: monochrome
+```
+
+Search of docs/cli-human-guide.md for FORCE_COLOR:
+```
+22:- `FORCE_COLOR=1`: preserves ANSI color even when piped. Falsey values (empty, `0`, `false`, `no`, `off`) neither force nor suppress color.
+71:Precedence for color: explicit flags (`--color` and `--no-color`) take highest priority, overriding environment settings. In the environment layer, `NO_COLOR` disables color unless overridden by a forcing `FORCE_COLOR` value; a falsey `FORCE_COLOR` neither forces nor suppresses. When no forcing flag or environment variable is set, color is on only for a real terminal with a capable `TERM`. See section 1.1 of the [CLI Output Mode Contract](cli-output-contract.md#11-color-precedence-flag-beats-env-beats-detection) for the full precedence table.
+```
+Both mentions are true: line 22 accurately describes truthy forcing and falsey non-forcing non-suppressing semantics; line 71 accurately describes the complete precedence hierarchy and falsey qualification.
+
+No-dash verification on docs/cli-human-guide.md:
+```
+em dash count: 0
+en dash count: 0
+```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste the full committed source of the new table-driven test and its passing output (`python3 -m pytest tests/test_term.py -k <test-name> -o addopts=""`). Paste the parsed rows the test derived, so a reviewer can confirm the unescaped-pipe splitting worked and that no piped row was truncated to `cat` (the authoring-time failure mode, F-08). PASTE THE EXTRACTED ENVIRONMENT AND OVERRIDE PER ROW, NOT ONLY THE ROW TEXT (PR-301). This is the load-bearing half of this V-item: a parser that fails to strip the markdown backticks extracts an EMPTY environment for every row and five of E-01's six new rows then pass vacuously, so a paste showing only invocations and results cannot distinguish a working guard from one testing nothing. Every row whose invocation contains `=` must show a non-empty extracted environment, and the `NO_COLOR=1 FORCE_COLOR=0` rows must show BOTH variables. A V-03 lacking this paste must be rejected even if the test is green. Then paste BOTH deliberate-failure demonstrations, since a guard that was never red proves nothing and each direction fails differently: (a) flip one documented `Result` cell in the document, paste the test red with the failure naming that row and printing documented versus measured, restore, paste green; (b) delete one table row, paste the test red on the minimum-row or required-row assertion rather than silently passing with fewer rows, restore, paste green. Confirm in one sentence that the test sets no production source expectation (no `inspect.getsource`, no `ast.parse` over `agent_workflows/`, no `assertIn` over a package file) and that its docstring records the OQ-02 distinction.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified. Committed WorkedCasesContractTests passing (1 passed); extracted env and override non-empty for all 11 rows; deliberate failure demos (a) and (b) both demonstrated red and restored green; no AST/source pins.
+Committed source of WorkedCasesContractTests:
+```python
+class WorkedCasesContractTests(unittest.TestCase):
+    """Pin the published color precedence contract table in docs/cli-output-contract.md.
 
-- [ ] V-04 validates E-04
+    This test reads a `docs/` prose table, which is repository CONTENT, and asserts
+    that the published claim is TRUE by executing `term.should_color`, the subject the
+    document describes. It does NOT assert that any production source text or structure
+    is unchanged (no inspect.getsource, no ast.parse over agent_workflows/, no assertIn
+    over a package file), honoring the 2026-09-26 maintainer ruling against source pins
+    (backlog xelvyi, plan 96xtmi).
+    """
+
+    def setUp(self):
+        self._saved = {
+            k: os.environ.get(k) for k in ("NO_COLOR", "FORCE_COLOR", "TERM")
+        }
+        self.addCleanup(self._restore)
+        self.addCleanup(T.set_color_override, None)
+
+    def _restore(self):
+        for k, v in self._saved.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+
+    def test_worked_cases_table_matches_should_color(self):
+        doc_path = Path(__file__).resolve().parent.parent / "docs" / "cli-output-contract.md"
+        content = doc_path.read_text(encoding="utf-8")
+
+        lines = content.splitlines()
+        in_table = False
+        table_lines = []
+        for line in lines:
+            if "Worked cases, each pinned by a test in" in line:
+                in_table = True
+                continue
+            if in_table:
+                stripped = line.strip()
+                if not stripped:
+                    if table_lines:
+                        break
+                    continue
+                if stripped.startswith("|"):
+                    table_lines.append(stripped)
+                elif table_lines:
+                    break
+
+        rows = []
+        for line in table_lines:
+            raw_cells = re.split(r"(?<!\\)\|", line)
+            cells = [c.strip() for c in raw_cells[1:-1]]
+            if len(cells) < 2 or cells[0] == "Invocation" or set(cells[0]) <= {"-", " "}:
+                continue
+
+            raw_invoc, raw_result = cells[0], cells[1]
+            invoc = raw_invoc.strip("`").strip().replace(r"\|", "|")
+            tokens = invoc.split()
+
+            env = {}
+            i = 0
+            while i < len(tokens) and "=" in tokens[i] and not tokens[i].startswith("--"):
+                var, val = tokens[i].split("=", 1)
+                env[var] = val
+                i += 1
+
+            if "=" in invoc:
+                self.assertTrue(
+                    env,
+                    f"Row contains '=' but extracted environment was empty: {raw_invoc!r}",
+                )
+
+            override = None
+            if "--no-color" in tokens:
+                override = False
+            elif "--color" in tokens:
+                override = True
+
+            is_tty = not (invoc.endswith("| cat") or (len(tokens) >= 2 and tokens[-2:] == ["|", "cat"]))
+            expected_colored = raw_result.startswith("colored")
+
+            rows.append({
+                "raw_invoc": raw_invoc,
+                "invoc": invoc,
+                "env": env,
+                "override": override,
+                "is_tty": is_tty,
+                "expected": expected_colored,
+                "raw_result": raw_result,
+            })
+
+        # (d) Fail loudly rather than vacuously: row floor and required rows
+        self.assertGreaterEqual(
+            len(rows),
+            11,
+            f"Expected at least 11 rows in worked cases table, found {len(rows)}",
+        )
+        invoc_texts = [r["invoc"] for r in rows]
+        self.assertTrue(
+            any("NO_COLOR=1 FORCE_COLOR=0" in inv and "| cat" not in inv for inv in invoc_texts),
+            "Missing required row: 'NO_COLOR=1 FORCE_COLOR=0' on a TTY",
+        )
+        self.assertTrue(
+            any(inv == "FORCE_COLOR=0 aw <cmd>" or (inv.startswith("FORCE_COLOR=0") and "| cat" not in inv) for inv in invoc_texts),
+            "Missing required row: 'FORCE_COLOR=0' on a TTY",
+        )
+
+        # (e) Report every mismatch at once
+        mismatches = []
+        for r in rows:
+            for k in ("NO_COLOR", "FORCE_COLOR"):
+                os.environ.pop(k, None)
+            os.environ["TERM"] = "xterm-256color"
+            for k, v in r["env"].items():
+                os.environ[k] = v
+            T.set_color_override(r["override"])
+            stream = _FakeTTY() if r["is_tty"] else _FakePipe()
+            measured = T.should_color(stream, override=r["override"])
+            if measured != r["expected"]:
+                mismatches.append(
+                    f"Invocation: {r['invoc']!r} | "
+                    f"Documented: {'colored' if r['expected'] else 'monochrome'} | "
+                    f"Measured: {'colored' if measured else 'monochrome'}"
+                )
+
+        if mismatches:
+            self.fail(
+                "Documented color contract table mismatches:\n"
+                + "\n".join(mismatches)
+            )
+```
+
+Passing output:
+```
+$ python3 -m pytest tests/test_term.py -k test_worked_cases_table_matches_should_color -o addopts=""
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+collected 26 items / 25 deselected / 1 selected
+
+tests/test_term.py .                                                     [100%]
+
+======================= 1 passed, 25 deselected in 0.14s =======================
+```
+
+Extracted environment and override per row:
+```
+#   Invocation                                    Extracted Env                       Override   TTY?   Doc Result
+------------------------------------------------------------------------------------------------------------------
+1   NO_COLOR=1 aw <cmd> --color                   {'NO_COLOR': '1'}                   True       True   colored
+2   FORCE_COLOR=1 aw <cmd> --no-color             {'FORCE_COLOR': '1'}                False      True   monochrome
+3   FORCE_COLOR=1 aw <cmd> | cat                  {'FORCE_COLOR': '1'}                None       False  colored
+4   aw <cmd> | cat                                {}                                  None       False  monochrome
+5   aw <cmd> --color | cat                        {}                                  True       False  colored
+6   FORCE_COLOR=0 aw <cmd> | cat                  {'FORCE_COLOR': '0'}                None       False  monochrome
+7   FORCE_COLOR=off aw <cmd> | cat                {'FORCE_COLOR': 'off'}              None       False  monochrome
+8   FORCE_COLOR=false aw <cmd> | cat              {'FORCE_COLOR': 'false'}            None       False  monochrome
+9   NO_COLOR=1 FORCE_COLOR=0 aw <cmd> | cat       {'NO_COLOR': '1', 'FORCE_COLOR': '0'} None       False  monochrome
+10  NO_COLOR=1 FORCE_COLOR=0 aw <cmd>             {'NO_COLOR': '1', 'FORCE_COLOR': '0'} None       True   monochrome
+11  FORCE_COLOR=0 aw <cmd>                        {'FORCE_COLOR': '0'}                None       True   colored
+```
+
+Deliberate failure demo (a) - flipped Result cell:
+```
+FAIL: WorkedCasesContractTests.test_worked_cases_table_matches_should_color
+AssertionError: Documented color contract table mismatches:
+Invocation: 'FORCE_COLOR=0 aw <cmd>' | Documented: monochrome | Measured: colored
+```
+Restored row 11 and test passed green (1 passed).
+
+Deliberate failure demo (b) - deleted row:
+```
+FAIL: WorkedCasesContractTests.test_worked_cases_table_matches_should_color
+AssertionError: 10 not greater than or equal to 11 : Expected at least 11 rows in worked cases table, found 10
+```
+Restored row 11 and test passed green (1 passed).
+
+The test asserts repository content rather than production source structure (no inspect.getsource, no ast.parse over agent_workflows, no assertIn over package files), and its docstring explicitly records the OQ-02 maintainer ruling distinction.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Paste the full committed source of the extended falsey and forcing coverage and its passing output. Paste the generated case list showing every member of `term._FORCE_COLOR_FALSEY` in at least three spellings (exact, case-variant, whitespace-padded) crossed with `NO_COLOR` set and unset and with both stream kinds, and confirm by reading that the expectation is DERIVED from the predicate's own set rather than from a copied literal. Confirm the specific previously-unpinned cell `NO_COLOR=1 FORCE_COLOR=off` on a TTY is present and expects monochrome (F-06). Paste both deliberate-failure demonstrations: monkeypatch one member out of `_FORCE_COLOR_FALSEY` inside a scratch probe (NOT by editing `term.py`, which is outside the fence) and show the derived coverage red; and show the membership assertion red when a member is absent. ALSO carry the whole-plan no-regression evidence here, since this is the last item before commit: paste the BARE `python3 -m pytest` output with its `N passed` line and state it against the pre-change baseline; paste `python3 -m pytest tests/test_term.py -o addopts=""` before and after with both counts; paste the before-and-after behavior probe over the eleven documented cells and the eight normalization spellings showing IDENTICAL results either side of the change, which is the proof that a documentation fix changed no behavior; paste `aw check`; paste `aw sanitize --agent`; and paste `git diff --cached --name-only` immediately before committing, which must list exactly `docs/cli-output-contract.md`, `docs/cli-human-guide.md` and `tests/test_term.py`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified. Committed test_force_color_falsey_membership and test_force_color_extended_falsey_and_forcing passing (2 passed); 60 falsey cases generated and verified; unpinned cell NO_COLOR=1 FORCE_COLOR=off on TTY verified; deliberate failure demos 1 and 2 demonstrated red; bare pytest 3018 passed (+3); test_term.py 26 passed (+3); behavior probe 100% identical; aw check and aw sanitize clean.
+Committed source of test_force_color_falsey_membership and test_force_color_extended_falsey_and_forcing:
+```python
+    def test_force_color_falsey_membership(self):
+        """Assert exact canonical membership of T._FORCE_COLOR_FALSEY."""
+        expected = frozenset({"", "0", "false", "no", "off"})
+        self.assertEqual(
+            T._FORCE_COLOR_FALSEY,
+            expected,
+            f"Unexpected _FORCE_COLOR_FALSEY: {T._FORCE_COLOR_FALSEY ^ expected}",
+        )
+
+    def test_force_color_extended_falsey_and_forcing(self):
+        """Extended falsey coverage and forcing-side normalization (E-04)."""
+        def spellings_for(base: str) -> list[str]:
+            if base == "":
+                return ["", "  ", "\t"]
+            elif base == "0":
+                return ["0", " 0 ", "  0 \t"]
+            else:
+                return [base, base.upper(), f" {base.capitalize()} "]
+
+        required_members = {"", "0", "false", "no", "off"}
+        all_bases = sorted(set(T._FORCE_COLOR_FALSEY) | required_members)
+
+        # 1. Falsey coverage across all members, variants, NO_COLOR states, stream kinds
+        for base in all_bases:
+            for spelling in spellings_for(base):
+                for no_color in ("1", None):
+                    for stream_kind, stream_cls in (("tty", _FakeTTY), ("pipe", _FakePipe)):
+                        expected = False if no_color is not None else (stream_kind == "tty")
+                        case = (
+                            f"spelling={spelling!r} NO_COLOR={no_color} "
+                            f"on {stream_kind} (base={base!r})"
+                        )
+                        with self.subTest(case=case):
+                            self._apply(
+                                NO_COLOR=no_color,
+                                FORCE_COLOR=spelling,
+                                TERM="xterm-256color",
+                            )
+                            self.assertEqual(
+                                T.should_color(stream_cls()),
+                                expected,
+                                f"{case}: expected {'color' if expected else 'plain'}",
+                            )
+
+        # 2. Forcing-side normalization: truthy values needing stripping or case-folding
+        forcing_cases = [
+            (" 1 ", "pipe", _FakePipe, None, True),
+            (" 1 ", "pipe", _FakePipe, "1", True),
+            (" 1 ", "tty", _FakeTTY, "1", True),
+            ("TRUE", "pipe", _FakePipe, None, True),
+            ("TRUE", "pipe", _FakePipe, "1", True),
+            ("On", "pipe", _FakePipe, None, True),
+            ("On", "pipe", _FakePipe, "1", True),
+            ("2", "pipe", _FakePipe, None, True),
+            ("2", "pipe", _FakePipe, "1", True),
+            (" true ", "pipe", _FakePipe, None, True),
+            (" true ", "pipe", _FakePipe, "1", True),
+            (" YES ", "pipe", _FakePipe, None, True),
+            (" YES ", "pipe", _FakePipe, "1", True),
+        ]
+        for force_val, stream_kind, stream_cls, no_color, expected in forcing_cases:
+            case = f"FORCE_COLOR={force_val!r} NO_COLOR={no_color} on {stream_kind}"
+            with self.subTest(case=case):
+                self._apply(
+                    NO_COLOR=no_color,
+                    FORCE_COLOR=force_val,
+                    TERM="xterm-256color",
+                )
+                self.assertEqual(
+                    T.should_color(stream_cls()),
+                    expected,
+                    f"{case}: expected {'color' if expected else 'plain'}",
+                )
+```
+
+Passing output:
+```
+$ python3 -m pytest tests/test_term.py -k "test_force_color" -o addopts=""
+============================= test session starts ==============================
+collected 26 items / 24 deselected / 2 selected
+
+tests/test_term.py ..                                                    [100%]
+
+======================= 2 passed, 24 deselected in 0.12s =======================
+```
+
+Generated case list (60 falsey cases across all spellings and conditions):
+```
+#   Base       Spelling        NO_COLOR   Stream   Expected Result
+------------------------------------------------------------------
+1   ''         ''              1          tty      monochrome
+2   ''         ''              1          pipe     monochrome
+3   ''         ''              None       tty      colored
+4   ''         ''              None       pipe     monochrome
+5   ''         '  '            1          tty      monochrome
+6   ''         '  '            1          pipe     monochrome
+7   ''         '  '            None       tty      colored
+8   ''         '  '            None       pipe     monochrome
+9   ''         '\t'            1          tty      monochrome
+10  ''         '\t'            1          pipe     monochrome
+11  ''         '\t'            None       tty      colored
+12  ''         '\t'            None       pipe     monochrome
+13  '0'        '0'             1          tty      monochrome
+14  '0'        '0'             1          pipe     monochrome
+15  '0'        '0'             None       tty      colored
+16  '0'        '0'             None       pipe     monochrome
+17  '0'        ' 0 '           1          tty      monochrome
+18  '0'        ' 0 '           1          pipe     monochrome
+19  '0'        ' 0 '           None       tty      colored
+20  '0'        ' 0 '           None       pipe     monochrome
+21  '0'        '  0 \t'        1          tty      monochrome
+22  '0'        '  0 \t'        1          pipe     monochrome
+23  '0'        '  0 \t'        None       tty      colored
+24  '0'        '  0 \t'        None       pipe     monochrome
+25  'false'    'false'         1          tty      monochrome
+26  'false'    'false'         1          pipe     monochrome
+27  'false'    'false'         None       tty      colored
+28  'false'    'false'         None       pipe     monochrome
+29  'false'    'FALSE'         1          tty      monochrome
+30  'false'    'FALSE'         1          pipe     monochrome
+31  'false'    'FALSE'         None       tty      colored
+32  'false'    'FALSE'         None       pipe     monochrome
+33  'false'    ' False '       1          tty      monochrome
+34  'false'    ' False '       1          pipe     monochrome
+35  'false'    ' False '       None       tty      colored
+36  'false'    ' False '       None       pipe     monochrome
+37  'no'       'no'            1          tty      monochrome
+38  'no'       'no'            1          pipe     monochrome
+39  'no'       'no'            None       tty      colored
+40  'no'       'no'            None       pipe     monochrome
+41  'no'       'NO'            1          tty      monochrome
+42  'no'       'NO'            1          pipe     monochrome
+43  'no'       'NO'            None       tty      colored
+44  'no'       'NO'            None       pipe     monochrome
+45  'no'       ' No '          1          tty      monochrome
+46  'no'       ' No '          1          pipe     monochrome
+47  'no'       ' No '          None       tty      colored
+48  'no'       ' No '          None       pipe     monochrome
+49  'off'      'off'           1          tty      monochrome
+50  'off'      'off'           1          pipe     monochrome
+51  'off'      'off'           None       tty      colored
+52  'off'      'off'           None       pipe     monochrome
+53  'off'      'OFF'           1          tty      monochrome
+54  'off'      'OFF'           1          pipe     monochrome
+55  'off'      'OFF'           None       tty      colored
+56  'off'      'OFF'           None       pipe     monochrome
+57  'off'      ' Off '         1          tty      monochrome
+58  'off'      ' Off '         1          pipe     monochrome
+59  'off'      ' Off '         None       tty      colored
+60  'off'      ' Off '         None       pipe     monochrome
+
+Confirmed previously-unpinned cell NO_COLOR=1 FORCE_COLOR=off on TTY:
+[('off', 'off', '1', 'tty', 'monochrome')] (case #49)
+```
+
+Deliberate failure demo 1 - monkeypatching "off" out of _FORCE_COLOR_FALSEY against derived coverage:
+```
+Ran 1 test in 0.006s
+FAILED (failures=9)
+AssertionError: True != False : spelling='off' NO_COLOR=1 on tty (base='off'): expected plain
+AssertionError: True != False : spelling='off' NO_COLOR=1 on pipe (base='off'): expected plain
+AssertionError: True != False : spelling='off' NO_COLOR=None on pipe (base='off'): expected plain
+AssertionError: True != False : spelling='OFF' NO_COLOR=1 on tty (base='off'): expected plain
+AssertionError: True != False : spelling='OFF' NO_COLOR=1 on pipe (base='off'): expected plain
+AssertionError: True != False : spelling='OFF' NO_COLOR=None on pipe (base='off'): expected plain
+AssertionError: True != False : spelling=' Off ' NO_COLOR=1 on tty (base='off'): expected plain
+AssertionError: True != False : spelling=' Off ' NO_COLOR=1 on pipe (base='off'): expected plain
+AssertionError: True != False : spelling=' Off ' NO_COLOR=None on pipe (base='off'): expected plain
+```
+
+Deliberate failure demo 2 - monkeypatching "off" out of _FORCE_COLOR_FALSEY against membership assertion:
+```
+FAIL: test_force_color_falsey_membership (tests.test_term.ShouldColorGridTests.test_force_color_falsey_membership)
+AssertionError: Items in the second set but not the first:
+'off' : Unexpected _FORCE_COLOR_FALSEY: frozenset({'off'})
+```
+
+Whole-plan no-regression evidence:
+1. Bare pytest suite:
+Pre-change baseline: `1 failed, 3015 passed, 2 skipped, 3 warnings in 83.91s (0:01:23)`
+Post-change: `1 failed, 3018 passed, 2 skipped, 3 warnings in 115.44s (0:01:55)` (+3 passed, 0 new failures; single pre-existing failure in tests/test_dependency_block_reporting.py).
+2. Per-test counts on tests/test_term.py:
+Before: `23 passed in 10.39s`
+After: `26 passed in 2.44s`
+3. Before-and-after behavior probe (11 documented cells + 8 normalization spellings):
+```
+=== 11 DOCUMENTED CELLS ===
+NO_COLOR=1 aw <cmd> --color                   -> colored
+FORCE_COLOR=1 aw <cmd> --no-color             -> monochrome
+FORCE_COLOR=1 aw <cmd> | cat                  -> colored
+aw <cmd> | cat                                -> monochrome
+aw <cmd> --color | cat                        -> colored
+FORCE_COLOR=0 aw <cmd> | cat                  -> monochrome
+FORCE_COLOR=off aw <cmd> | cat                -> monochrome
+FORCE_COLOR=false aw <cmd> | cat              -> monochrome
+NO_COLOR=1 FORCE_COLOR=0 aw <cmd> | cat       -> monochrome
+NO_COLOR=1 FORCE_COLOR=0 aw <cmd>             -> monochrome
+FORCE_COLOR=0 aw <cmd>                        -> colored
+
+=== 8 NORMALIZATION SPELLINGS ===
+FORCE_COLOR=" 1 " | cat                       -> colored
+FORCE_COLOR="TRUE" | cat                      -> colored
+FORCE_COLOR="On" | cat                        -> colored
+FORCE_COLOR="2" | cat                         -> colored
+NO_COLOR=1 FORCE_COLOR="OFF"                  -> monochrome
+NO_COLOR=1 FORCE_COLOR="False"                -> monochrome
+NO_COLOR=1 FORCE_COLOR=" no "                 -> monochrome
+NO_COLOR=1 FORCE_COLOR=""                     -> monochrome
+```
+Results before and after are 100% byte-identical.
+4. `aw check`:
+Clean across all edited files (0 findings for mj18mi or touched files).
+5. `aw sanitize --agent`:
+Clean (`{"outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0}`).
+6. `git diff --cached --name-only` immediately before commit:
+docs/cli-human-guide.md
+docs/cli-output-contract.md
+tests/test_term.py
+  - Result: pass
 
 ## Approval and execution gate
 
