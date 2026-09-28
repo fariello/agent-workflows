@@ -115,6 +115,11 @@ action NEEDS against what a host PROVED. Two fields and a preflight close that:
     `git_commit_helper.offer_commit` helper is FORBIDDEN: a helper the driver chooses to
     call is not a boundary an agent cannot evade, and reporting it as one is the same
     fail-OPEN inference the sandbox probes above exist to refuse.
+  * `supports_session_resume` - PROBED by attempt (qul11h). Drives each host's real turn
+    argv builder with an explicit sentinel session id, intercepts the launch at the
+    `subprocess.Popen` seam, refuses to launch, and verifies the host's resume flag
+    (`--session` for OpenCode, `--conversation` for Antigravity) is immediately followed
+    by the sentinel. Platform-independent, and confined to a throwaway temporary repo.
 
 `check_action_capabilities` compares an action class against a descriptor, naming every
 missing capability plus the spec-required capabilities this contract cannot yet
@@ -134,6 +139,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import textwrap
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -781,6 +787,135 @@ def os_sandbox_probe_notes() -> Dict[str, str]:
     return dict(_probe_linux_sandbox()[1])
 
 
+# qul11h E-04 / PR-304: module-level re-entrancy guard for session resume probing.
+# `oc_runipd.run_opencode` calls `_apply_execution_profile`, which itself calls
+# `detect_host_capabilities("opencode")`. The guard terminates the cycle and returns the
+# conservative False. Must be set and cleared in a try/finally so a raising probe cannot wedge it.
+_PROBING_SESSION_RESUME: bool = False
+
+
+def _probe_session_resume(host: str) -> Tuple[bool, str]:
+    """Decide supports_session_resume by PROBING each host's real turn argv builder.
+
+    E-03 / qul11h: Replaces host-identity assertions with an executed observation.
+    Drives each host's own argv builder with an explicit sentinel session id, intercepts
+    the launch at the `subprocess.Popen` seam, refuses to launch, and verifies that the
+    captured argv carries the host's resume flag immediately followed by the sentinel.
+
+    Confined to a throwaway temporary git directory tree that it creates and removes,
+    so no caller run directory or workspace state is touched (PR-302 / F-10).
+    A git subprocess runs during temporary repo initialization and runner git calls.
+    """
+    global _PROBING_SESSION_RESUME
+    if _PROBING_SESSION_RESUME:
+        return False, "re-entrant probe suppressed"
+    _PROBING_SESSION_RESUME = True
+    try:
+        # Mandatory function-local imports: oc_runipd imports host_sandbox_profile at module level (F-04).
+        from agent_workflows import agy_runipd as _agy, oc_runipd as _oc
+
+        invokers: Dict[
+            str,
+            Tuple[
+                str,
+                Callable[[Dict[str, Any], Path, Dict[str, Any], Path, Path, str], Any],
+            ],
+        ] = {
+            "opencode": (
+                "--session",
+                lambda state, run_dir, item, plan, prompt, sentinel: _oc.run_opencode(
+                    state, run_dir, item, plan, prompt, 1, resume_session=sentinel
+                ),
+            ),
+            "antigravity": (
+                "--conversation",
+                lambda state, run_dir, item, plan, prompt, sentinel: _agy.run_agy_turn(
+                    state,
+                    run_dir,
+                    item,
+                    prompt,
+                    1,
+                    session_id=sentinel,
+                    use_continue=False,
+                ),
+            ),
+        }
+        if host not in invokers:
+            return False, f"no resume argv builder is known for host {host!r}"
+
+        flag, invoker = invokers[host]
+        sentinel = "ses-probe-sentinel"
+        captured: Dict[str, List[str]] = {}
+        real_popen = subprocess.Popen
+
+        def fake_popen(argv: Any, **kw: Any) -> Any:
+            cmd = list(argv) if isinstance(argv, (list, tuple)) else [str(argv)]
+            if cmd and cmd[0] in ("git", sys.executable, "bwrap"):
+                return real_popen(argv, **kw)
+            captured["argv"] = cmd
+            raise RuntimeError("stop-before-launch")
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            repo = root / "repo"
+            repo.mkdir()
+            subprocess.run(
+                ["git", "init", "-b", "main"],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+            )
+            run_dir = root / "run"
+            (run_dir / "sessions").mkdir(parents=True)
+            prompt = root / "prompt.md"
+            prompt.write_text("probe\n", encoding="utf-8")
+            plan = repo / "plan.ipd.md"
+            plan.write_text("- Id: probe1\n", encoding="utf-8")
+            state = {
+                "run_id": "run-probe",
+                "repo": str(repo),
+                "set_sessions": {},
+                "session_turn_counts": {},
+                "options": {"opencode": "/bin/false", "agy_executable": "/bin/false"},
+                "queue": [],
+            }
+            item = {
+                "id6": "probe1",
+                "setid": "probe",
+                "position": 1,
+                "action": "execute",
+            }
+
+            subprocess.Popen = fake_popen  # type: ignore[assignment]
+            try:
+                invoker(state, run_dir, item, plan, prompt, sentinel)
+            except Exception:
+                pass
+            finally:
+                subprocess.Popen = real_popen  # type: ignore[assignment]
+
+        argv = captured.get("argv", [])
+        if flag in argv:
+            idx = argv.index(flag)
+            if idx + 1 < len(argv) and argv[idx + 1] == sentinel:
+                return (
+                    True,
+                    f"observed {flag} {sentinel} in the host's own resume argv "
+                    "(launch refused before exec; git subprocess executed in temp tree)",
+                )
+        return (
+            False,
+            f"flag {flag} followed by {sentinel} not observed in argv: {argv!r}",
+        )
+    except Exception as exc:  # a probe never propagates; unknown => not supported
+        return (
+            False,
+            f"session resume probe failed for {host!r}: {type(exc).__name__}: {exc}",
+        )
+    finally:
+        _PROBING_SESSION_RESUME = False
+
+
 def detect_host_capabilities(
     host: str,
     platform_name: Optional[str] = None,
@@ -802,10 +937,22 @@ def detect_host_capabilities(
     exactly the fail-OPEN move this module exists to refuse. One of the two is declared and
     never probed because the enforcement it names does not exist here (see
     `_DECLARED_UNENFORCED`), so it reads not-supported on every host.
+
+    `supports_session_resume` is decided by an EXECUTED probe of each host's real resume
+    argv builder (qul11h E-03). Because inspecting a command list is platform-independent,
+    it is probed unconditionally before the platform gate.
     """
     plat = (platform_name or sys.platform or "").lower()
     caps = HostSandboxCapabilities(platform=plat)
     running_platform = (sys.platform or "").lower()
+
+    # Session resume is platform-independent (reading an argv list, not a kernel sandbox or
+    # host-identity assertion) and decided by executed attempt. It is placed before the
+    # platform gates so asking about cross-platform hosts (e.g. darwin or win32) returns True
+    # for capable runner hosts rather than claiming neither host can resume (PR-303 / F-11).
+    res_ok, res_note = _probe_session_resume(host)
+    caps.supports_session_resume = res_ok
+    caps.probe_notes["supports_session_resume"] = res_note
 
     if plat == running_platform:
         # Platform-independent runner-safety guarantees: decided by an executed attempt (or
@@ -844,10 +991,9 @@ def detect_host_capabilities(
     caps.supports_read_only_phase = caps.supports_os_sandbox
 
     if host == "opencode":
-        # Proven by the existing driver: `--format json` streams structured events and
-        # `--session <id>` resumes an exact session (oc_runipd.run_opencode).
+        # Proven by the existing driver: `--format json` streams structured events
+        # (oc_runipd.run_opencode). Session resume is probed above.
         caps.emits_structured_tool_events = True
-        caps.supports_session_resume = True
     return caps
 
 

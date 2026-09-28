@@ -982,5 +982,36 @@ class LandlockBootstrapTests(unittest.TestCase):
         )
 
 
+class SessionResumeProbeTests(unittest.TestCase):
+    """qul11h E-02: verify supports_session_resume is probed for both runners and recorded."""
+
+    def test_case_1_antigravity_supports_session_resume(self):
+        caps = detect_host_capabilities("antigravity")
+        self.assertTrue(caps.supports_session_resume)
+        self.assertIn(
+            "supports_session_resume",
+            caps.probe_notes,
+            "every runner-safety verdict must publish its evidence",
+        )
+
+    def test_case_2_opencode_supports_session_resume(self):
+        caps = detect_host_capabilities("opencode")
+        self.assertTrue(caps.supports_session_resume)
+        self.assertIn(
+            "supports_session_resume",
+            caps.probe_notes,
+            "every runner-safety verdict must publish its evidence",
+        )
+
+    def test_case_3_scripted_does_not_support_session_resume(self):
+        caps = detect_host_capabilities("scripted")
+        self.assertFalse(caps.supports_session_resume)
+        self.assertIn(
+            "supports_session_resume",
+            caps.probe_notes,
+            "every runner-safety verdict must publish its evidence",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
