@@ -22,7 +22,7 @@ from __future__ import annotations
 import argparse
 import re
 from pathlib import Path
-from typing import Dict, FrozenSet, List, NamedTuple, Optional, Tuple
+from typing import Dict, FrozenSet, Iterable, List, NamedTuple, Optional, Tuple
 
 from agent_workflows import ipd_schema as S
 from agent_workflows import lifecycle_dirs as _LD
@@ -460,6 +460,42 @@ def parse(text: str) -> ParsedDoc:
         history_lines=history_lines,
         gate_lines=gate_lines,
     )
+
+
+def leaf_action_blocks(text: str, leaves: Iterable[Leaf]) -> tuple[str, ...]:
+    """Each leaf's full action text: its opening line plus every continuation line.
+
+    Anchors on each leaf's 1-based ``Leaf.line`` and reads forward in ``text``, stopping at
+    a blank line, the next leaf (``- [``), a heading (``#``), the first sub-field match
+    (``_SUBFIELD_RE``), or any non-indented line.
+
+    Indented ``- Key: value`` sub-fields and checkbox marks are excluded structurally:
+    the leaf's opening line text comes from ``Leaf.text`` (which strips the checkbox and
+    ident), and continuation lines stop before sub-fields.
+
+    Generalized over any leaf list (E leaves, V leaves, etc.) so both the execution and
+    validation requirements consume one definition of where an action ends.
+    """
+    raw_text = text or ""
+    lines = raw_text.splitlines()
+    blocks: list[str] = []
+    for leaf in leaves:
+        collected = [leaf.text.strip()]
+        for raw in lines[leaf.line :]:
+            stripped = raw.strip()
+            if not stripped:
+                break
+            if raw.startswith("- [") or raw.startswith("#"):
+                break
+            if _SUBFIELD_RE.match(raw):
+                break
+            if not raw[:1].isspace():
+                break
+            collected.append(stripped)
+        body = " ".join(part for part in collected if part).strip()
+        if body:
+            blocks.append(body)
+    return tuple(blocks)
 
 
 # --------------------------------------------------------------------------------------
