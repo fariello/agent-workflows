@@ -1,11 +1,13 @@
 - Id: 8cpbia
-- Status: open
+- Status: graduated
+- Graduated-To: 8cpbia
 - Set: 8cpbia
 - Priority: low
 - Work-Kind: chore
 - Summary: find_from_backlog_artifacts re-walks the whole plans and specs corpus per call, so any per-item loop over it is O(items x corpus)
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: jpn6hy
 - 2026-09-18 created (aw backlog): find_from_backlog_artifacts re-walks the whole plans and specs corpus per call, so any per-item loop over it is O(items x corpus)
 
 FOUND 2026-09-18 while executing nobugship rgaasb E-01, where the plan's literal instruction would have shipped this cost into aw check all.
