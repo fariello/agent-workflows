@@ -15779,14 +15779,9 @@ def is_interactive_run(args: Any = None, *, stream: TextIO | None = None) -> boo
         return False
     if args is not None and getattr(args, "full_auto", False):
         return False
-    stdin = sys.stdin
-    err = stream if stream is not None else sys.stderr
-    for target in (stdin, err):
-        if target is None:
-            return False
-        if not (getattr(target, "isatty", None) and target.isatty()):
-            return False
-    return True
+    from agent_workflows import term as _term
+
+    return _term.is_interactive(output_stream=stream or sys.stderr)
 
 
 def enforce_mixed_type_gate(

@@ -1943,11 +1943,9 @@ def is_interactive_session(plan: InstallPlan) -> bool:
     """Helper to check if we are in a real interactive terminal session."""
     if plan.yes:
         return False
-    if os.environ.get("CI"):
-        return False
     from . import term
 
-    return term.stdin_is_interactive()
+    return term.is_interactive()
 
 
 def print_stdout_safe(text: str) -> None:

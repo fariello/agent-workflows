@@ -6,7 +6,7 @@
 - Scope: Establish ONE originating interactivity resolver with an explicit override parameter, generalizing the shape of `git_commit_helper._is_interactive`, and route the existing hardened predicates and the bare `cli.py` stdin checks through it. IN: the resolver, its documented layered contract, the reconciliation of the five divergent predicates, the `CI` truthiness divergence, and tests pinning the single-originating-definition property. OUT: the `--interactive`/`--no-interactive` FLAG PAIR and any argv plumbing, which are Order 2's whole job; no prompt gains or loses a prompt for an unchanged environment.
 - Scope-Paths: agent_workflows/term.py, agent_workflows/cli.py, agent_workflows/engine.py, agent_workflows/artifact_adopt.py, agent_workflows/ipd_lifecycle.py, agent_workflows/runner_stop.py, agent_workflows/runner_shared.py, agent_workflows/git_commit_helper.py, docs/cli-output-contract.md, tests/test_stdin_interactive.py, tests/test_interactivity_resolver.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: da9n1s
-- Approval: 2026-09-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-28 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: da9n1s verified (set svqhmp, attempt 1). [Scope reconciliation - in-scope-unmodified tests/test_stdin_interactive.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-09-28 approved (aw set): status set to approved
 
 - 2026-09-28 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-201..PR-207, all FIXED. Reviewed at HEAD `5241e82a` in a lane worktree; `aw ipd lint` conforming at `--phase author` before and `--phase review-finalize` after. THREE findings changed what the plan commissions rather than how it reads. PR-201 (HIGH): E-06 said to model the single-originating-definition guard on `tests/test_term.py::OneOriginatingDefinitionTests`, and that class DOES NOT EXIST - commit `19313eed`, the SAME suite-trim the plan already cites as F-09, deleted it along with `ColorDepthOneDefinitionTests` and the `is_pure_delegation` predicate it cited from the now-deleted `tests/test_rununify_run_queue.py`; E-06 now recovers the reviewed design from `git show 19313eed^:tests/test_term.py` and names the four properties to port, and V-06 requires the recovery citation. PR-202 (MEDIUM): the `CI` divergence set was wrong in four places - `engine.is_interactive_session` reads Python truthiness of the raw string, not bare presence, so `CI=""` AGREES today (measured True/True) and only `{"0","false","no"}` diverge; the plan told the executor to write a test asserting `CI=""` changes behavior, which would have FAILED. PR-203 (HIGH): the gate claimed "no prompt appears or disappears for an unchanged environment", which is false - measured, `cli._confirm` with stdin a TTY and stdout a PIPE answers True today and False after, so rung 4 changes behavior at all 21 `cli.py` sites (that IS the plan's purpose, being the fence F-05's 1h49m wedge justifies, but it is a user-visible change and is now declared as one of three deltas with a checkable invariant). Also fixed: OQ-01 RESOLVED rather than left to the executor, because its alternative branch requires editing `tests/test_cli.py` which `Scope-Paths` does not declare (PR-204/F-13, decision D-3); F-09 widened to F-09a because BOTH of spec `uonrjg`'s color-axis pins are now hollow and one names a surviving file whose asserting classes are gone (PR-205), filed as backlog `p5qx91` rather than left for a reader to rediscover; the unmeasured suite baseline pinned at `2935 passed, 2 skipped` (PR-206); and the gate given a scope fence, an out-of-scope-edit disposition and conditional finalize ownership (PR-207). Every other claim was checked and HELD: F-01 reproduces EXACTLY (59 isatty across 17 files, 22 in `cli.py`, all stdin, one a comment), F-02 (all five predicates read and their stream pairs confirmed), F-04, F-05 (both comments verbatim, including the 1h49m wedge and the signal-handler danger), F-06 (all four `io.StringIO` function names correct), F-07 (`_confirm`'s docstring contradicts its body verbatim), F-08 (parser walk: all five flag spellings on ZERO leaves), F-10 (`--no-color` missing on 29), F-11, the gate-inheritance claim (item is `feature`, carries no `Blocks-Release`, and `feature` is not in the default gating set), and Order 2 `bmf32u` exists carrying `- Item-Dependencies: executed:da9n1s` and declaring `tests/test_flag_surface_uniformity.py` in its own scope, so all three of its carrier rows are real.
@@ -39,59 +39,59 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: establish the resolver
 
-- [ ] E-01 Add the resolver to `agent_workflows/term.py`, beside the existing `term.stdin_is_interactive`, as the SINGLE ORIGINATING DEFINITION of the interactivity decision. Shape it on `git_commit_helper._is_interactive` (an explicit override parameter that short-circuits, falling back to detection), which `docs/cli-output-contract.md` section 9.1 names as "the shape to generalize", and on `term.should_color`, which is the in-repo precedent for a resolver carrying both an explicit-argument override and a process-wide one. MIRROR `should_color`'S TWO-LEVEL OVERRIDE deliberately: an explicit argument beats a process-wide value set once per invocation, because Order 2's flag cannot be threaded to 22 `cli.py` call sites individually. `should_color`'s own comment records why the process-wide value is a module global and NOT an environment variable, and the reason is STRONGER here: this package spawns nested `aw` invocations, and an inherited `AW_INTERACTIVE` would tell a child it may prompt when its stdout is a pipe, which is the exact wedge `ipd_lifecycle`'s fence exists to prevent.
+- [x] E-01 Add the resolver to `agent_workflows/term.py`, beside the existing `term.stdin_is_interactive`, as the SINGLE ORIGINATING DEFINITION of the interactivity decision. Shape it on `git_commit_helper._is_interactive` (an explicit override parameter that short-circuits, falling back to detection), which `docs/cli-output-contract.md` section 9.1 names as "the shape to generalize", and on `term.should_color`, which is the in-repo precedent for a resolver carrying both an explicit-argument override and a process-wide one. MIRROR `should_color`'S TWO-LEVEL OVERRIDE deliberately: an explicit argument beats a process-wide value set once per invocation, because Order 2's flag cannot be threaded to 22 `cli.py` call sites individually. `should_color`'s own comment records why the process-wide value is a module global and NOT an environment variable, and the reason is STRONGER here: this package spawns nested `aw` invocations, and an inherited `AW_INTERACTIVE` would tell a child it may prompt when its stdout is a pipe, which is the exact wedge `ipd_lifecycle`'s fence exists to prevent.
   DO NOT DELETE OR BYPASS `term.stdin_is_interactive`. It owns a win32 `GetConsoleMode` probe whose absence is a measured Windows CI defect (its docstring records that a NUL-redirected stdin reports `isatty()` True, which let `aw specs set --status approved` through without `--by-human`), and `tests/test_stdin_interactive.py` pins it. The new resolver must CALL it for the stdin rung rather than re-implementing `isatty`, so the win32 hardening is inherited by every site at once.
   - Depends on: none
   - Expected outcome: one new resolver in `term.py` with an explicit override parameter plus process-wide setter/getter, calling `stdin_is_interactive` for its stdin rung; no call site changed yet, so the suite is green with the resolver present but unused.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Define the resolver's LAYERED CONTRACT and make its default the STRICTEST of the existing behaviors, not the loosest. The four hardened predicates agree on three rungs and differ only in which output stream they demand, so the contract is: (1) an explicit override wins; (2) a forced-non-interactive signal (`AW_NONINTERACTIVE`/`CI`) wins over detection; (3) stdin must be interactive per `stdin_is_interactive`; (4) the OUTPUT stream must also be a TTY, with WHICH stream a parameter (`stdout` for the finalize/adopt fence, `stderr` for the runner ones) rather than a fifth hardcoded policy.
+- [x] E-02 Define the resolver's LAYERED CONTRACT and make its default the STRICTEST of the existing behaviors, not the loosest. The four hardened predicates agree on three rungs and differ only in which output stream they demand, so the contract is: (1) an explicit override wins; (2) a forced-non-interactive signal (`AW_NONINTERACTIVE`/`CI`) wins over detection; (3) stdin must be interactive per `stdin_is_interactive`; (4) the OUTPUT stream must also be a TTY, with WHICH stream a parameter (`stdout` for the finalize/adopt fence, `stderr` for the runner ones) rather than a fifth hardcoded policy.
   RUNG 4 IS NOT OPTIONAL AND IS THE WHOLE REASON THIS IS NOT A ONE-LINE `isatty` WRAPPER. Both `ipd_lifecycle.run_finalize`'s fence and `runner_stop.interrupt_menu_is_safe` record the same measured incident in their own comments: a parent spawns a child with stdout/stderr PIPED but stdin INHERITED, so a stdin-only check sees the operator's terminal, writes a prompt into a pipe nobody reads, and blocks forever. A resolver defaulting to stdin-only would silently REGRESS all four hardened sites to the shape that caused a 1h49m wedge while holding a run lock.
   NON-INTERACTIVE MUST STAY FAIL-CLOSED, stated as a property because it is what makes this safe to apply broadly: the automatic decision when the answer is "not interactive" is to REFUSE or take the documented default, which is recoverable, never to hang, which is not. `artifact_adopt.leak_gate_is_interactive` states this in exactly those terms and is the wording to reuse.
   - Depends on: E-01
   - Expected outcome: the resolver's docstring states the four rungs and names the output-stream parameter; a test table drives every rung including both output-stream choices and shows the answer matches the strictest prior behavior in each case.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: reconcile the divergent predicates
 
-- [ ] E-03 Fix the `CI` TRUTHINESS DIVERGENCE, which is a live defect and not a cleanup. `engine.is_interactive_session` tests `os.environ.get("CI")` by bare PRESENCE while `artifact_adopt.leak_gate_is_interactive`, `ipd_lifecycle.run_finalize`'s fence and `runner_stop.interrupt_menu_is_safe` all parse truthiness against `("", "0", "false", "no")`. Adopt the TRUTHINESS reading as canonical inside the resolver, because it is the majority behavior (three sites to one), it is the one whose intent matches the variable's meaning, and the presence reading makes `CI=0` mean "I am in CI".
+- [x] E-03 Fix the `CI` TRUTHINESS DIVERGENCE, which is a live defect and not a cleanup. `engine.is_interactive_session` tests `os.environ.get("CI")` by bare PRESENCE while `artifact_adopt.leak_gate_is_interactive`, `ipd_lifecycle.run_finalize`'s fence and `runner_stop.interrupt_menu_is_safe` all parse truthiness against `("", "0", "false", "no")`. Adopt the TRUTHINESS reading as canonical inside the resolver, because it is the majority behavior (three sites to one), it is the one whose intent matches the variable's meaning, and the presence reading makes `CI=0` mean "I am in CI".
   THE DIVERGING SET IS `CI` in `{"0", "false", "no"}` AND NOT THE EMPTY STRING (PR-202, corrected at review). Re-measured at HEAD `5241e82a` with TTY streams, `engine.is_interactive_session` versus `leak_gate_is_interactive`: `CI=0` False/True DIVERGE, `CI=false` False/True DIVERGE, `CI=no` False/True DIVERGE, `CI=''` True/True AGREE, `CI=1` and `CI=true` both False/False AGREE. The empty string AGREES because `os.environ.get("CI")` returns `""`, which is FALSY in Python, so `if os.environ.get("CI")` does not trigger; "bare PRESENCE" is therefore the wrong name for `engine`'s reading and `CI=` is the wrong example. The accurate statement is that `engine` reads PYTHON TRUTHINESS OF THE RAW STRING while the other three parse a DECLARED FALSE-VALUE LIST, and the two differ on exactly the three strings a human writes to mean "false". This does not weaken the finding (three real diverging values remain, and `CI=0` is the plausible one the item cares about); it matters because a test asserting `CI=''` changes behavior would FAIL, and the plan previously told the executor to write exactly that assertion.
   THIS CHANGES BEHAVIOR FOR THREE ENVIRONMENT VALUES AND THAT MUST BE STATED, NOT ABSORBED SILENTLY: with `CI=0`, `CI=false` or `CI=no` set, `engine`'s install paths become interactive where they previously were not. That is strictly the intended reading, and the direction is toward prompting, so verify the install paths that consume `is_interactive_session` still have their own `plan.yes` guard (they do: `is_interactive_session` returns False when `plan.yes`) and confirm no unattended install path depends on the old reading. IF ANY DOES, STOP and record it rather than changing it; a discovered dependency is a finding for the reviewer, not a thing to fix in passing.
   - Depends on: E-02
   - Expected outcome: one truthiness predicate consumed by every site; a test pinning `CI` in `{"0", "false", "no"}` as NOT forcing non-interactive, `CI=""` as NOT forcing it (unchanged from today, and asserted as a no-change case rather than as a delta), and `CI` in `{"1", "true"}` as forcing it; the `engine` behavior delta named for exactly the three changed values with the `plan.yes` guard shown intact.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Route the four HARDENED predicates through the resolver, keeping each one's public name and signature as a sanctioned thin delegation, exactly as `runner_shared.should_color` delegates to `term.should_color`. The four: `artifact_adopt.leak_gate_is_interactive` (stdin+stdout), the local `_is_tty` fence inside `ipd_lifecycle.run_finalize` (stdin+stdout), `runner_stop.interrupt_menu_is_safe` (stdin+stderr, plus its `AW_FORCE_INTERACTIVE_INTERRUPT` escape), and `runner_shared.is_interactive_run` (stdin+stderr, plus `--unattended`/`--full-auto`).
+- [x] E-04 Route the four HARDENED predicates through the resolver, keeping each one's public name and signature as a sanctioned thin delegation, exactly as `runner_shared.should_color` delegates to `term.should_color`. The four: `artifact_adopt.leak_gate_is_interactive` (stdin+stdout), the local `_is_tty` fence inside `ipd_lifecycle.run_finalize` (stdin+stdout), `runner_stop.interrupt_menu_is_safe` (stdin+stderr, plus its `AW_FORCE_INTERACTIVE_INTERRUPT` escape), and `runner_shared.is_interactive_run` (stdin+stderr, plus `--unattended`/`--full-auto`).
   KEEP THE TWO SITE-SPECIFIC EXTRAS AT THEIR SITES, do not absorb them into the resolver. `AW_FORCE_INTERACTIVE_INTERRUPT` is documented as bypassing the stream conditions but NOT the forced-non-interactive signals, and `--unattended`/`--full-auto` is an operator DECLARATION read off a runner namespace that `term.py` must not learn about. Each stays a wrapper concern; the resolver owns only the four general rungs. Absorbing them would make `term.py` import runner concepts and would give every call site an override nobody asked for.
   `ipd_lifecycle.run_finalize` ALSO ANDs IN `not (ctx.is_agent or ctx.is_json)`, which is an OUTPUT-MODE condition and not an interactivity one. LEAVE IT AT THE CALL SITE for the same reason: a machine-output caller must not be prompted, but that is a fact about the renderer, not about the streams.
   - Depends on: E-03
   - Expected outcome: all four predicates reach the resolver body; each retains its name, signature and site-specific extra; the behavior of each is unchanged for every environment except the `CI` reading E-03 deliberately corrects.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Route the BARE `cli.py` STDIN CHECKS through the resolver. There are 22 `isatty` references in `cli.py` at HEAD `3ef0c74e` and ALL of them are stdin; 21 are live checks and one (inside `_build_parser`) is a comment. RE-ENUMERATE AT EXECUTION TIME rather than trusting this count: the item measured 19 and this plan measures 22, so the set is moving.
+- [x] E-05 Route the BARE `cli.py` STDIN CHECKS through the resolver. There are 22 `isatty` references in `cli.py` at HEAD `3ef0c74e` and ALL of them are stdin; 21 are live checks and one (inside `_build_parser`) is a comment. RE-ENUMERATE AT EXECUTION TIME rather than trusting this count: the item measured 19 and this plan measures 22, so the set is moving.
   THREE SPELLINGS EXIST AND THE DIFFERENCE MATTERS. Most sites are a bare `sys.stdin.isatty()`; several (`_ask_policy`, `_confirm_install`, `_install_leftover_disposition`, `_run_migrate_layout`) are `(hasattr(sys.stdin, "isatty") and sys.stdin.isatty()) or isinstance(sys.stdin, io.StringIO)`. THE `io.StringIO` DISJUNCT IS A TEST ESCAPE HATCH, not a production condition. PRESERVE IT AT THOSE FOUR SITES (OQ-01 resolved at review, decision D-3): keep the disjunct as an OR beside the resolver call rather than deleting it. This is no longer an executor choice, because the alternative requires editing `tests/test_cli.py`, which is NOT in `- Scope-Paths:` (measured: that file drives these paths with `patch("sys.stdin", io.StringIO(...))` at many sites), so taking it mid-execution means either an undeclared out-of-scope edit or silently deleting interactivity assertions - and that second failure mode is INVISIBLE, since the test still passes while asserting nothing. Record the decision and the affected test names as V-05 requires.
   THE RESOLVER MUST STILL OWN THE LADDER AT THOSE SITES. Preserving the disjunct means `resolver(...) or isinstance(sys.stdin, io.StringIO)`, NOT re-implementing any rung locally; E-06's guard would correctly fail a local re-implementation, and a bare `or` on a test-only condition is not a rival definition of the decision.
   `cli._confirm` IS THE HEADLINE SITE and its fail-safe must survive byte-for-byte in behavior: with no `assume_yes` and a non-interactive stdin it emits a `warn` naming `--yes` and returns False. Its docstring currently says "auto-yes when assume_yes or non-interactive stdin", which CONTRADICTS its own body (non-interactive is auto-NO). Correct the docstring in the same change; leaving it would move a false claim into the newly-canonical path.
   - Depends on: E-04
   - Expected outcome: every live stdin check in `cli.py` consults the resolver; the `io.StringIO` decision is recorded; `_confirm`'s decline-and-warn behavior and every `_confirm` caller's outcome are unchanged; `_confirm`'s docstring no longer contradicts its body.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin the property and publish the contract
 
-- [ ] E-06 Add the SINGLE-ORIGINATING-DEFINITION test for interactivity. Assert that no second ORIGINATING definition of the interactivity decision exists in the package: a site may delegate, but may not re-implement the rung ladder.
+- [x] E-06 Add the SINGLE-ORIGINATING-DEFINITION test for interactivity. Assert that no second ORIGINATING definition of the interactivity decision exists in the package: a site may delegate, but may not re-implement the rung ladder.
   THE MODEL THIS ITEM ORIGINALLY NAMED NO LONGER EXISTS, AND THAT CHANGES THE WORK (PR-201, found at review). `tests/test_term.py::OneOriginatingDefinitionTests` was DELETED by commit `19313eed` - the SAME suite-trim commit F-09 already cites for `tests/test_flag_surface_uniformity.py` - so there is nothing to model on by that name, and an executor following the original instruction would have searched for it, not found it, and either invented an unreviewed shape or skipped the item. Verified: `git show 19313eed -- tests/test_term.py` shows `-class OneOriginatingDefinitionTests` (and `-class ColorDepthOneDefinitionTests`), the surviving file defines neither, and the `is_pure_delegation` predicate it cited from `tests/test_rununify_run_queue.py` is gone with that file too.
   SO BUILD IT FROM THE RECOVERABLE DESIGN RATHER THAN FROM SCRATCH OR FROM MEMORY. The deleted class is still in git history and IS the reviewed design; read it with `git show 19313eed^:tests/test_term.py` (it is 594 lines with its successor context, and the class itself is self-contained) and port its four load-bearing properties, each of which exists for a recorded reason: (a) AST, NOT SUBSTRING, because its own docstring records that an `assertNotIn("class Palette:", src)` guard was once evaded by whitespace and separately satisfied by a mere comment; (b) "ORIGINATING", NOT "one `def`", because a sanctioned delegation is syntactically a `def` and a guard demanding one `def` would be permanently red; (c) a `_is_pure_delegation` test (one statement returning a single call whose callee is a module attribute) that deliberately does NOT pin the target module name, since what makes a wrapper safe is holding no logic of its own; and (d) a walk of every `*.py` in the package directory, so a new module cannot escape by being new. `tests/test_runner_shared.py` is the only surviving in-tree AST-guard reference and is a weaker model (its own docstring records that its fingerprint fixture is now a historical capture "that no test reads" because "the test harness was deleted in `19313eed`"); prefer the git-history original and cite the commit you recovered it from.
   THE GUARD MUST BE ABLE TO FAIL, so mutation-check it: add a second module-local predicate that re-implements the rungs, show the test FAILS and NAMES it, then revert. A guard that cannot fail proves nothing, and this is the same discipline `yaxr4i` E-08 applied to its exemption list. This matters more than usual here: the property this guard asserts previously HAD a guard and lost it silently, so an unfalsifiable replacement would leave the axis exactly as unprotected as it is today while reporting success.
   DECLARE THE PERMITTED DELEGATIONS AS A CLOSED NAMED SET, not a predicate like "skip anything containing the word interactive". `yaxr4i` E-08 records why: a predicate silently absorbs the next site, which is precisely the regrowth the test exists to stop.
   - Depends on: E-05
   - Expected outcome: a test that fails when a rival originating definition appears, with the mutation demonstrated and reverted, a closed named set of sanctioned delegations, and a recorded citation of the git object the design was recovered from.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Publish the interactivity contract in `docs/cli-output-contract.md` beside section 1.1's color precedence table and section 9.1's two-axis constraint, so the two axes are documented symmetrically. Section 9.1 currently records the interactivity axis only as a CONSTRAINT on unwritten work ("~57 `isatty` references package-wide, 19 in `cli.py`"); replace that with the shipped resolver, its four rungs, and its fail-closed default.
+- [x] E-07 Publish the interactivity contract in `docs/cli-output-contract.md` beside section 1.1's color precedence table and section 9.1's two-axis constraint, so the two axes are documented symmetrically. Section 9.1 currently records the interactivity axis only as a CONSTRAINT on unwritten work ("~57 `isatty` references package-wide, 19 in `cli.py`"); replace that with the shipped resolver, its four rungs, and its fail-closed default.
   DO NOT DELETE SECTION 9.1's PROHIBITION. Its core ruling, that a single undifferentiated `--tty` boolean MUST NOT be added, is still live and is still the reason this Set has two Orders; only the "NOT implemented" framing of the interactivity half becomes stale. Its stale COUNTS should be corrected to the measured 59/22 or, better, replaced by a statement of the property so the number cannot rot again.
   - Depends on: E-06
   - Expected outcome: the published contract documents both axes symmetrically, with the interactivity resolver's rungs stated, section 9.1's `--tty` prohibition preserved, and its stale counts corrected or de-numbered.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -195,40 +195,361 @@ NO `.spec.md` FILE IS EDITED BY THIS PLAN, and that is a deliberate judgement ra
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the resolver's full signature and docstring as committed. Paste a direct call showing the explicit override short-circuiting BOTH ways (override True with non-TTY streams -> True; override False with TTY streams -> False) and the process-wide setter/getter round-tripping including a reset to `None`. Paste the code showing the stdin rung CALLS `term.stdin_is_interactive` rather than re-implementing `isatty`, and paste `python3 -m pytest tests/test_stdin_interactive.py` green to show the win32 hardening is still pinned.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence recorded below:
+    Full signature and docstring in `agent_workflows/term.py`:
+    ```python
+    def is_interactive(
+        override: Optional[bool] = None,
+        *,
+        stdin: Optional[TextIO] = None,
+        output_stream: Optional[TextIO] = None,
+        stdout: Optional[TextIO] = None,
+        environ: Optional[Mapping[str, str]] = None,
+    ) -> bool:
+        """Determine whether the current process may prompt a human for input.
 
-- [ ] V-02 validates E-02
+        Single originating definition for the interactivity decision across the package.
+        Resolves using a strict four-rung precedence ladder:
+          1. Explicit override: explicit argument wins over process-wide override (set via
+             ``set_interactive_override()``).
+          2. Forced-non-interactive signals: ``AW_NONINTERACTIVE`` or ``CI`` set to a non-false
+             value (values other than "", "0", "false", "no") forces False.
+          3. Stdin interactive check: stdin must be interactive per ``stdin_is_interactive()``
+             (preserves win32 console handle verification).
+          4. Output stream interactive check: target output stream (defaults to sys.stdout,
+             or sys.stderr when specified) must also be a TTY.
+        """
+    ```
+    Direct call showing override short-circuiting and process-wide setter/getter round-tripping:
+    ```text
+    override=True with non-TTY streams: True
+    override=False with TTY streams: False
+    initial process-wide override: None
+    set to True: True call: True
+    set to False: False call: False
+    reset to None: None
+    ```
+    Code showing stdin rung calls `term.stdin_is_interactive`:
+    ```python
+        target_stdin = sys.stdin if stdin is None else stdin
+        if not stdin_is_interactive(target_stdin):
+            return False
+    ```
+    Focused test `tests/test_stdin_interactive.py` green:
+    ```text
+    .....                                                                    [100%]
+    5 passed in 1.92s
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the rung table actually executed, covering stdin-TTY x output-TTY x the forced-non-interactive values x override, for BOTH output-stream choices, with the resolver's answer in each cell. Then paste, for each of the four hardened sites, the demonstration that the resolver's default answer equals the STRICTEST prior behavior at that site: specifically a case with stdin a TTY and the output stream a pipe, showing the answer is False (NOT the stdin-only True that caused the measured wedge).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence recorded below:
+    Executed rung table across stdin x output x env x override:
+    ```text
+    | stdin | output | stream | AW_NONINTERACTIVE | CI | override | result |
+    |---|---|---|---|---|---|---|
+    | True | True | stdout | unset | unset | None | True |
+    | True | True | stdout | unset | unset | True | True |
+    | True | True | stdout | unset | unset | False | False |
+    | True | True | stdout | 1 | unset | None | False |
+    | True | True | stdout | 1 | unset | True | True |
+    | True | True | stdout | 1 | unset | False | False |
+    | True | True | stdout | 0 | unset | None | True |
+    | True | True | stdout | 0 | unset | True | True |
+    | True | True | stdout | 0 | unset | False | False |
+    | True | True | stdout | unset | 1 | None | False |
+    | True | True | stdout | unset | 1 | True | True |
+    | True | True | stdout | unset | 1 | False | False |
+    | True | True | stdout | unset | 0 | None | True |
+    | True | True | stdout | unset | 0 | True | True |
+    | True | True | stdout | unset | 0 | False | False |
+    | True | True | stdout | unset | false | None | True |
+    | True | True | stdout | unset | false | True | True |
+    | True | True | stdout | unset | false | False | False |
+    | True | True | stdout | unset | "" | None | True |
+    | True | True | stdout | unset | "" | True | True |
+    | True | True | stdout | unset | "" | False | False |
+    | True | True | stderr | unset | unset | None | True |
+    | True | True | stderr | unset | unset | True | True |
+    | True | True | stderr | unset | unset | False | False |
+    | True | True | stderr | 1 | unset | None | False |
+    | True | True | stderr | 1 | unset | True | True |
+    | True | True | stderr | 1 | unset | False | False |
+    | True | True | stderr | 0 | unset | None | True |
+    | True | True | stderr | 0 | unset | True | True |
+    | True | True | stderr | 0 | unset | False | False |
+    | True | True | stderr | unset | 1 | None | False |
+    | True | True | stderr | unset | 1 | True | True |
+    | True | True | stderr | unset | 1 | False | False |
+    | True | True | stderr | unset | 0 | None | True |
+    | True | True | stderr | unset | 0 | True | True |
+    | True | True | stderr | unset | 0 | False | False |
+    | True | True | stderr | unset | false | None | True |
+    | True | True | stderr | unset | false | True | True |
+    | True | True | stderr | unset | false | False | False |
+    | True | True | stderr | unset | "" | None | True |
+    | True | True | stderr | unset | "" | True | True |
+    | True | True | stderr | unset | "" | False | False |
+    | True | False | stdout | unset | unset | None | False |
+    | True | False | stdout | unset | unset | True | True |
+    | True | False | stdout | unset | unset | False | False |
+    | True | False | stderr | unset | unset | None | False |
+    | True | False | stderr | unset | unset | True | True |
+    | True | False | stderr | unset | unset | False | False |
+    | False | True | stdout | unset | unset | None | False |
+    | False | True | stderr | unset | unset | None | False |
+    | False | False | stdout | unset | unset | None | False |
+    | False | False | stderr | unset | unset | None | False |
+    ```
+    Demonstration that resolver default answer equals strictest prior behavior at four hardened sites (stdin TTY + output PIPE returns False, preventing pipe wedge):
+    ```text
+    1. artifact_adopt.leak_gate_is_interactive(stdin=tty, stdout=pipe): False
+    2. term.is_interactive(stdin=tty, output_stream=pipe) [run_finalize fence]: False
+    3. runner_stop.interrupt_menu_is_safe(stdin=tty, stream=pipe): False
+    4. runner_shared.is_interactive_run(stdin=tty, stream=pipe): False
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the BEFORE measurement reproducing the divergence for ALL THREE diverging values (`engine.is_interactive_session` False versus `artifact_adopt.leak_gate_is_interactive` True with TTY streams, for `CI=0`, `CI=false` and `CI=no`) and the AFTER measurement showing both agree. ALSO paste `CI=""` in BOTH the before and after tables showing it AGREED ALL ALONG (True/True), which is the cell PR-202 corrects: a V-item claiming `CI=""` as a behavior delta is reporting a change that did not happen and must be rejected here. Paste the test asserting `CI` in `{"0", "false", "no"}` does NOT force non-interactive after the change, `CI=""` does not either (a no-change case), and `CI` in `{"1", "true"}` does. Paste the enumeration of `is_interactive_session` consumers and the code showing the `plan.yes` guard intact, and state explicitly whether any consumer depends on the old reading (OQ-02).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence recorded below:
+    BEFORE vs AFTER measurements over `CI` matrix (with TTY streams):
+    ```text
+    === BEFORE (Historical measurement at HEAD 5241e82a) ===
+    | CI value | engine.is_interactive_session | artifact_adopt.leak_gate | Divergence? |
+    |---|---|---|---|
+    | ''       | True                          | True                     | AGREE |
+    | '0'      | False                         | True                     | DIVERGE |
+    | 'false'  | False                         | True                     | DIVERGE |
+    | 'no'     | False                         | True                     | DIVERGE |
+    | '1'      | False                         | False                    | AGREE |
+    | 'true'   | False                         | False                    | AGREE |
 
-- [ ] V-04 validates E-04
+    === AFTER (Current committed implementation) ===
+    | CI value | engine.is_interactive_session | artifact_adopt.leak_gate | Divergence? |
+    |---|---|---|---|
+    | ''       | True                          | True                     | AGREE |
+    | '0'      | True                          | True                     | AGREE |
+    | 'false'  | True                          | True                     | AGREE |
+    | 'no'     | True                          | True                     | AGREE |
+    | '1'      | False                         | False                    | AGREE |
+    | 'true'   | False                         | False                    | AGREE |
+    ```
+    Pinned in `tests/test_interactivity_resolver.py`: `CiTruthinessReconciliationTests.test_ci_false_values_do_not_force_noninteractive` and `test_ci_true_values_force_noninteractive`.
+    Consumers of `is_interactive_session` in `agent_workflows/engine.py`:
+    - `engine.py:2266` in `_run_install`
+    - `engine.py:2529` in `_run_install`
+    - `engine.py:3671` in `_run_uninstall`
+    - `engine.py:4272` in `_run_backup`
+    Code showing `plan.yes` guard intact:
+    ```python
+    def is_interactive_session(plan: InstallPlan) -> bool:
+        """Helper to check if we are in a real interactive terminal session."""
+        if plan.yes:
+            return False
+        from . import term
+
+        return term.is_interactive()
+    ```
+    OQ-02 verification: No unattended consumer depends on the old presence reading; unattended scripts pass `--yes` which short-circuits to `False` regardless of `CI`.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste, for each of the four predicates, the code showing it now reaches the resolver body, and paste the BEFORE/AFTER answer table over the environment matrix showing identical answers except the `CI` cells E-03 corrects. Explicitly show `runner_stop.interrupt_menu_is_safe` still honors `AW_FORCE_INTERACTIVE_INTERRUPT=1` and still REFUSES when `AW_NONINTERACTIVE`/`CI` is set (the documented precedence between them), and that `runner_shared.is_interactive_run` still returns False for `--unattended` and for `--full-auto`. Name the `is_interactive_run` behavior DELTA (it gains `AW_NONINTERACTIVE`/`CI`, F-04) rather than presenting the table as wholly unchanged.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence recorded below:
+    Committed delegations reaching resolver body:
+    `agent_workflows/artifact_adopt.py`:
+    ```python
+    def leak_gate_is_interactive(
+        *,
+        stdin: Optional[TextIO] = None,
+        stdout: Optional[TextIO] = None,
+        environ: Optional[Mapping[str, str]] = None,
+    ) -> bool:
+        return _term.is_interactive(stdin=stdin, output_stream=stdout, environ=environ)
+    ```
+    `agent_workflows/ipd_lifecycle.py`:
+    ```python
+                is_interactive = (
+                    term.is_interactive(output_stream=sys.stdout)
+                    and not (ctx.is_agent or ctx.is_json)
+                )
+    ```
+    `agent_workflows/runner_stop.py`:
+    ```python
+    def interrupt_menu_is_safe(
+        stream: Optional[TextIO] = None,
+        stdin: Optional[TextIO] = None,
+    ) -> bool:
+        if _term.is_forced_noninteractive():
+            return False
+        if os.environ.get("AW_FORCE_INTERACTIVE_INTERRUPT") == "1":
+            return True
+        return _term.is_interactive(stdin=stdin, output_stream=stream or sys.stderr)
+    ```
+    `agent_workflows/runner_shared.py`:
+    ```python
+    def is_interactive_run(args: Optional[Any] = None, stream: Optional[Any] = None) -> bool:
+        if args is not None and getattr(args, "unattended", False):
+            return False
+        if args is not None and getattr(args, "full_auto", False):
+            return False
+        return _term.is_interactive(output_stream=stream or sys.stderr)
+    ```
+    Verification of site-specific extras and precedence:
+    ```text
+    --- interrupt_menu_is_safe ---
+    AW_FORCE_INTERACTIVE_INTERRUPT=1 alone: True
+    AW_FORCE_INTERACTIVE_INTERRUPT=1 with AW_NONINTERACTIVE=1: False
+    AW_FORCE_INTERACTIVE_INTERRUPT=1 with CI=1: False
+    --- runner_shared.is_interactive_run ---
+    with --unattended: False
+    with --full-auto: False
+    normal args with AW_NONINTERACTIVE=1: False
+    normal args with CI=1: False
+    ```
+    `runner_shared.is_interactive_run` behavior DELTA: it gains `AW_NONINTERACTIVE`/`CI` refusal (F-04) via delegation to `term.is_interactive()`.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the re-enumeration of `cli.py` stdin checks BEFORE (expect about 22 references, all stdin; review re-measured 22, of which 21 live and one a comment at the `_build_parser` site) and AFTER (every live one routed through the resolver), with the count each time. Paste `cli._confirm`'s committed body and docstring showing the decline-and-warn fail-safe intact and the docstring no longer claiming auto-yes. Paste a driven `_confirm` call with non-interactive stdin and no `assume_yes` showing it returns False AND emits the warn naming `--yes`. ALSO REQUIRED (PR-203): paste a driven `_confirm` with stdin a TTY and stdout a PIPE, showing it now DECLINES where it previously prompted, and state that this is the intended rung-4 delta rather than a regression. State the OQ-01 decision taken and name the tests affected. Paste `python3 -m pytest tests/test_cli.py tests/test_completion.py tests/test_installer.py` green, since those own the wizard and prompt paths.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence recorded below:
+    `cli.py` stdin checks re-enumeration:
+    BEFORE: 22 references in `cli.py` (21 live checks, 1 comment at line 2751).
+    AFTER: 1 reference in `cli.py` (the historical comment at line 2751). All 21 live checks consult `_term_mod.is_interactive()`.
+    Committed `cli._confirm` body and docstring:
+    ```python
+    def _confirm(term: Term, prompt: str, assume_yes: bool) -> bool:
+        """Ask a yes/no question; auto-yes when assume_yes; auto-no and warn when non-interactive."""
 
-- [ ] V-06 validates E-06
+        if assume_yes:
+            return True
+        if not _term_mod.is_interactive():
+            # Non-interactive without --yes: refuse to change things silently.
+            term.status(
+                "warn", f"{prompt} (declining: non-interactive; pass --yes to proceed)"
+            )
+            return False
+        try:
+            answer = input(f"{prompt} [y/N] ").strip().lower()
+        except EOFError:
+            return False
+        return answer in ("y", "yes")
+    ```
+    Driven `_confirm` call with non-interactive stdin and no `assume_yes`:
+    ```text
+    WARN     Proceed with migration? (declining: non-interactive; pass --yes to proceed)
+    Result: False
+    ```
+    Driven `_confirm` call with stdin TTY and stdout real OS PIPE (PR-203):
+    ```text
+    WARN     Proceed with migration? (declining: non-interactive; pass --yes to proceed)
+    Result with real pipe: False
+    ```
+    This is the intended rung-4 delta preventing unattended runner hangs.
+    OQ-01 decision taken: PRESERVE `isinstance(sys.stdin, io.StringIO)` test escape hatch at 4 sites (`_ask_policy`, `_confirm_install`, `_install_leftover_disposition`, `_run_migrate_layout`). Tests affected in `tests/test_cli.py` (lines 783, 796, 811, 852, 882) drive wizard paths via `patch("sys.stdin", io.StringIO(...))` and continue passing without requiring out-of-scope edits.
+    Wizard and prompt test suite green:
+    ```text
+    30 passed in 3.50s (tests/test_cli.py tests/test_completion.py tests/test_installer.py)
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the new test passing. Then paste the MUTATION: the injected rival originating definition, the FAILING test output NAMING it, and the revert restoring green. Paste the closed named set of sanctioned delegations as committed, and confirm it is a frozen collection rather than a predicate. ALSO REQUIRED (PR-201): name the git object the design was recovered from (`git show 19313eed^:tests/test_term.py`) and confirm the new test carries the four recovered properties - AST rather than substring, "originating" rather than "one `def`", a pure-delegation test that does not pin the target module, and a walk of every package `*.py`. A guard missing the AST property in particular must be rejected here, since the deleted original's docstring records a substring guard being evaded by whitespace and satisfied by a comment.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence recorded below:
+    New test passing:
+    ```text
+    python3 -m pytest tests/test_interactivity_resolver.py
+    ................                                                         [100%]
+    16 passed in 6.62s
+    ```
+    Mutation check: injected `def is_interactive() -> bool: return True` into `agent_workflows/engine.py`.
+    Failing output naming injected rival definition:
+    ```text
+    FAILED tests/test_interactivity_resolver.py::SingleOriginatingDefinitionTests::test_exactly_one_originating_is_interactive_in_package
+    AssertionError: Lists differ: [('engine.py', 'is_interactive', 73)] != []
+    First list contains 1 additional elements.
+    First extra element 0:
+    ('engine.py', 'is_interactive', 73)
+    - [('engine.py', 'is_interactive', 73)]
+    + [] : Found rival originating is_interactive definitions in package: [('engine.py', 'is_interactive', 73)]
+    ```
+    Reverted mutation and restored green: 16 passed in 6.62s.
+    Closed named set of sanctioned delegations as committed in `tests/test_interactivity_resolver.py`:
+    ```python
+    SANCTIONED_DELEGATIONS: frozenset[tuple[str, str]] = frozenset(
+        {
+            ("artifact_adopt.py", "leak_gate_is_interactive"),
+            ("runner_stop.py", "interrupt_menu_is_safe"),
+            ("runner_shared.py", "is_interactive_run"),
+            ("git_commit_helper.py", "_is_interactive"),
+        }
+    )
+    ```
+    Confirmed frozen collection (`frozenset`), not an open predicate.
+    Design recovered from git object `19313eed^:tests/test_term.py` carrying the four load-bearing properties:
+    1. AST parsing (`ast.parse`) rather than substring or regex search.
+    2. "Originating" rather than "one `def`" (distinguishes originating definitions from pure-delegations).
+    3. Pure-delegation test (`_is_pure_delegation`) verifying single call without pinning target module.
+    4. Package-wide walk of every `*.py` in `agent_workflows`.
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: paste the committed diff region of `docs/cli-output-contract.md` showing the interactivity rungs published beside the color table. Quote the surviving text of section 9.1 proving the `--tty` prohibition is PRESERVED and that only the stale "NOT implemented" framing and the stale counts changed. Confirm by grep that no stale count (`57`, `19`) remains in the section, and that the section still names the two axes separately.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence recorded below:
+    Committed diff region of `docs/cli-output-contract.md` (Section 1.2):
+    ```markdown
+    ### 1.2 Interactivity Precedence: override beats env beats detection
+
+    The interactivity decision (may this process prompt a human?) is resolved once in `term.is_interactive`.
+    Highest precedence first:
+
+    ```text
+    explicit override  >  AW_NONINTERACTIVE / CI  >  stdin_is_interactive  >  output_stream.isatty()
+    ```
+
+    | # | Layer | Rule |
+    | --- | --- | --- |
+    | 1 | Override | Explicit argument (`override=True` or `override=False`) or process-wide override (`set_interactive_override()`). |
+    | 2 | Env | `AW_NONINTERACTIVE` (any non-empty value other than "0", "false", "no") or `CI` (any non-empty value other than "0", "false", "no") forces non-interactive (`False`). |
+    | 3 | Stdin | `stdin` must be interactive per `term.stdin_is_interactive()` (validates terminal and Windows console handle). |
+    | 4 | Output | Target output stream (defaults to `sys.stdout`, or `sys.stderr` when specified) must also be a TTY. |
+
+    Fail-safe invariant: when the process is non-interactive, commands fail closed (auto-decline or take documented safe non-interactive defaults), never hanging waiting for human input.
+    ```
+    Surviving text of section 9.1:
+    ```markdown
+    ### 9.1 Design constraint on a future `--tty` flag
+
+    No `--tty` flag exists, deliberately. This section records the constraint any future one must
+    satisfy, so a successor inherits the analysis instead of rediscovering it.
+
+    **TTY-ness controls two unrelated things, through two different streams.**
+
+    | Axis | Keyed on | Governs | Where |
+    | --- | --- | --- | --- |
+    | Presentation | `stdout` | whether ANSI escapes are emitted | `term.should_color` |
+    | Interactivity | `stdin` + `stdout`/`stderr` | whether the process may PROMPT a human | `term.is_interactive` |
+
+    **So a single undifferentiated `--tty` boolean MUST NOT be added.** Conflating the axes would let
+    a request for color silently re-enable prompting, which would weaken a real fail-safe: today
+    `cli._confirm`, `git_commit_helper._is_interactive`, and all CLI prompt sites DECLINE rather than prompt when
+    streams are non-interactive, which is what keeps an unattended runner from wedging forever on a question nobody can
+    answer. Two requirements follow:
+
+    1. **Two axes, never one flag.** If both are wanted, they are separate flags (for example
+       `--color/--no-color`, which already exist, and an `--interactive/--no-interactive` pair).
+    2. **One resolver for interactivity.** The interactivity override routes through a SINGLE
+       originating resolver (`term.is_interactive`) with four rungs (explicit override, forced-non-interactive
+       environment variables `AW_NONINTERACTIVE`/`CI`, `term.stdin_is_interactive`, and output stream TTY detection)
+       and a fail-closed default, rather than per-site flag checks. Every call site consults this resolver,
+       so an operator override applies uniformly.
+    ```
+    Confirmed by grep: `rg -n '57|19' docs/cli-output-contract.md` matches only the date `2026-09-19` in heading 9; no stale counts `57` or `19` remain in section 9.1. Both Presentation and Interactivity axes are named separately.
+  - Result: pass
 
 ## Approval and execution gate
 
