@@ -6,7 +6,7 @@
 - Scope: IN: add an EXECUTED probe (`_probe_session_resume`) that derives the verdict from each host's REAL argv builder (`oc_runipd.run_opencode` -> `--session <id>`, `agy_runipd.run_agy_turn` -> `--conversation <id>`) by capturing the argv at the `subprocess.Popen` seam and refusing to launch, then asserting the sentinel session id is carried; wire it as a per-host probe so `detect_host_capabilities` sets the field from that verdict for BOTH runner hosts and for NO other host; DELETE the `supports_session_resume = True` line from the `if host == "opencode":` identity branch; record the verdict's evidence in `probe_notes` like every other probe; add tests pinning the true/true/false verdict triple and pinning that the value tracks the ARGV rather than a table. OUT, and each for a stated reason: `emits_structured_tool_events`, the OTHER capability that same identity branch asserts (a real defect, filed as its own backlog item by E-07, because probing a host's event-stream shape is a different mechanism from reading one argv list and merging them would make a single plan own two probes); adding any `ACTION_CAPABILITY_REQUIREMENTS` row or otherwise making the field GATE anything (that reverses maintainer ruling `4h7tt0` OQ-02 and belongs with the live carriers `b7tlsh`/`oq05nc`); DELETING the field instead of fixing it (rejected on evidence, see F-06 and OQ-01); calling the preflight from a runner (pending plan `iot7hc` owns that, and this plan must not race it); and `host_capability_registry.py`, a different concern with its own TTL/evidence model.
 - Scope-Paths: agent_workflows/host_sandbox_profile.py, tests/test_host_sandbox_profile.py, tests/test_host_capability_extension.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 08
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: qul11h
-- Approval: 2026-09-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-28 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: qul11h verified (set plsx3r, attempt 1).
 - 2026-09-28 approved (aw set): status set to approved
 - 2026-09-28 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-301 (HIGH) through PR-305 all FIXED in place; findings, decisions and measurements in .aw/records/reviews/20260928-plsx3r-01-qul11h-...review.md
 
