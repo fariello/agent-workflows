@@ -2564,6 +2564,47 @@ class ContinuationHintTests(unittest.TestCase):
             )
         )
 
+    def test_malformed_queue_entry_exit_path_fails_closed(self):
+        # 1. Footer returns rather than raising and takes the resume branch.
+        hint = driver.render_continuation_hint(
+            self._state({}, queue=["not-a-mapping"]), Path("/x")
+        )
+        self.assertIn("aw oc run resume --repo /repo run-xyz", hint)
+        self.assertNotIn("aw runs", hint)
+
+        # Cover both hosts for the footer.
+        agy_hint = agy_runipd.render_continuation_hint(
+            self._state({}, queue=["not-a-mapping"]), Path("/x")
+        )
+        self.assertIn("aw agy run resume --repo /repo run-xyz", agy_hint)
+        self.assertNotIn("aw runs", agy_hint)
+
+        # 2. exit_code_statuses returns and projects onto neither success nor "queued".
+        projected = runner_shared.exit_code_statuses(["not-a-mapping"])
+        self.assertNotIn(runner_shared.EXIT_SUCCESS_TOKEN, projected)
+        self.assertNotIn("queued", projected)
+
+        # 3. deliberate_stop_exit_code returns 1 under both stopped arms.
+        self.assertEqual(
+            runner_stop.deliberate_stop_exit_code(
+                projected,
+                success_states={runner_shared.EXIT_SUCCESS_TOKEN},
+                stopped=False,
+            ),
+            1,
+        )
+        self.assertEqual(
+            runner_stop.deliberate_stop_exit_code(
+                projected,
+                success_states={runner_shared.EXIT_SUCCESS_TOKEN},
+                stopped=True,
+            ),
+            1,
+        )
+
+        # 4. item_reached_success returns False directly.
+        self.assertFalse(runner_shared.item_reached_success("not-a-mapping"))
+
     def test_session_continuation_hints(self):
         hint = driver.render_continuation_hint(
             self._state({"demo": "ses_abc123"}, queue=[{"status": "executed"}]),
