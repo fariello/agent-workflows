@@ -8,7 +8,7 @@
 - Scope: Widen `probe_cache_payload` to carry an EVIDENCE-CHOSEN, allowlisted set of the orchestrator's unattached prose sections, so `probe_cache_digest` and `orchestrator_probe_excerpt` both widen with it from the one function they already share; re-establish the five `xmqv5l` no-op invariants plus the new move-on-hazard invariants in a behavioral test module, since the suite that held them was deleted; accept the one-time cache invalidation with its measured cost; and amend the two spec sentences and the one managed-`AGENTS.md` sentence that state the old key, so no contract describes a key that no longer exists.
 - Scope-Paths: agent_workflows/ipd_lint.py, agent_workflows/runner_shared.py, agent_workflows/engine.py, AGENTS.md, tests/test_orchestrator_probe_payload.py, tests/test_orchestrator_shape_gate.py, tests/test_orchestrator_shape_composed.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, .aw/records/specs/approved/20260919-r07vma-01-r07vma-orchestrator-conformance-parser-and-repair-loop.spec.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
@@ -18,8 +18,10 @@
 - Highest E allocated: 07
 - Author: opencode model=its_direct/pt3-claude-opus-5-1m-us
 - Id: 3brgb6
+- Approval: 2026-09-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-28 approved (aw set): status set to approved
 - 2026-09-28 reviewed (aw set): plan-review (opencode model=its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-401..PR-406 all FIXED
 - 2026-09-28 /plan-review (opencode model=its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-401, PR-402, PR-403, PR-404, PR-405, PR-406. Reviewed at HEAD `1b29bcf8` in a lane worktree; `aw ipd lint` conformed at `--phase author` before revision and at `--phase review-finalize` after. Every measured claim in the plan was RE-DERIVED INDEPENDENTLY over all 66 orchestrators; F-06, F-07, F-08, F-09, F-11, F-12 and F-13 reproduced exactly, and the record `.aw/records/reviews/20260928-probeprose-01-3brgb6-...review.md` holds the numbers.
   WHAT REVIEW FOUND, in the order a reader should care. PR-401 (HIGH): E-01's claim that skipping every indented line "leaves exactly the complement" of `e_item_action_blocks` is FALSE, because that function stops at the first blank line or sub-field; 827 indented lines reach neither extractor, 476 of them inside ALLOWLISTED sections, and `yeh7gc`'s `## Cross-IPD validation` line "MUST BE FLAGGED (parent-only work no child covers)" is verifiably among them. The gap is now declared, carried, and pinned in code by a new c3 test. PR-402 (HIGH): F-04's "the four highest-density sections are all in" is false on the plan's own numbers - the EXCLUDED `Approval and execution gate` ranks second - and the claim is replaced with the narrower true one. PR-403 (MEDIUM): 45% of the allowlisted hazard hits are NEGATIONS ("this orchestrator authors NO code"), which reorders the density ranking, so every count now carries a NET qualifier. PR-404 (MEDIUM): F-10's approved-to-final methodology was unstated and is outcome-determining (newest-approved 2/3, oldest-approved 16/16). PR-405 (MEDIUM): the gate lacked a scope fence, shared-checkout staged-set verification, the release-gate statement and conditional finalize ownership. PR-406 (LOW): OQ-02's own falsification test had not been run; it was run at review over all 16 candidate orchestrators and the answer held.

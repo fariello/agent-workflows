@@ -6,7 +6,7 @@
 - Scope: Delete both dead names from `runner_shared`, and replace the labelled-trap comment they carry with an executable guard: a test that refuses ANY module-level constant co-defined in `runner_shared` and both hosts whose resolved value matches neither host, so the trap cannot be re-created by a future lift. Pin the shipped actor and message BY VALUE at both layers that decide them - the argv each host sends, and each host wrapper's defaulted `message` parameter - and preserve both byte-for-byte.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_runner_shared.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: gjni4c
+- Approval: 2026-09-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-28 approved (aw set): status set to approved
 
 - 2026-09-28 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-101..PR-106. The deletion, the mechanical-sweep guard and the by-value argv test are all correct and were verified by measurement (10 co-defined constants, exactly 2 divergent, 9 divergent by source text: F-05/F-06 reproduce exactly). Review MEASURED that the plan's no-default premise is FALSE ONE LAYER OUT: both hosts' `set_plan_approved` wrappers declare `message: str = FULL_AUTO_APPROVAL_MESSAGE`, and BOTH live call sites in `runner_shared` invoke them as `set_plan_approved(repo, id6)` with two arguments, so the recorded message comes from a HOST DEFAULT and never from a caller (PR-101). E-04 as authored would therefore have asserted a no-default property on the one signature no live caller uses while the defaulted host signature that actually decides the message went unpinned; new E-05 pins the host layer. Also corrected: F-03's "the value already arrives by parameter" (true of the shared function, false of the path the runner takes), and V-03's pasted-argv evidence, which contains an absolute interpreter path the leak sanitizer must be run against. Record: `.aw/records/reviews/20260928-zf999x-01-gjni4c-delete-the-two-dead-divergent-full-auto-constants-fro.review.md`.
 - 2026-09-28 draft (opencode): created.

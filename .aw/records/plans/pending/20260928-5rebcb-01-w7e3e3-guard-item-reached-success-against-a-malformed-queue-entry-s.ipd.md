@@ -6,7 +6,7 @@
 - Scope: Add the missing `isinstance(item, Mapping)` guard to `item_reached_success`, failing CLOSED (a non-mapping entry is NOT a success); add a SECOND, independent fail-closed guard to `exit_code_statuses`'s own per-entry read, with an explicit decision about what token a malformed entry projects onto; pin the malformed-entry case for the footer, for `exit_code_statuses` (including the resulting exit code under BOTH the stopped and not-stopped arms of the deliberate-stop concession), and for the guard itself. Measurement during authoring found that the footer is NOT the first crash on the real exit path (F-05/F-06): `write_report`, `render_run_summary_table`, `render_queue_dispositions` and `render_disposition_summary` all run BEFORE it and all crash on the same entry. Those live outside this plan's fence and are carried to their own backlog items rather than fixed here, so this plan makes the guard true of the two `runner_shared` functions whose contract promises it and does NOT claim to restore the whole closing report.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_oc_runipd.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,8 +17,10 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: w7e3e3
+- Approval: 2026-09-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-28 approved (aw set): status set to approved
 
 - 2026-09-28 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007. Review MEASURED that `exit_code_statuses` has its OWN unguarded `.get` read that runs BEFORE it calls the predicate, so the single guard this plan proposed would NOT have fixed the caller the plan named as half its blast radius: with `item_reached_success` guarded, `exit_code_statuses(["not-a-mapping"])` still raised (PR-001). E-02 split into E-02 (predicate) + E-03 (projection, with an explicit token decision and its exit-code consequence under both deliberate-stop arms), old E-03 renumbered E-04, `Highest E allocated` 03 -> 04, V items rebuilt 3 -> 4. Also corrected: two stale citations of `b7oicl` as `open` (it graduated to plan `4po0sc` on 2026-09-28) and of `mjrac4` as touching `render_run_summary_table` (it names `render_stream`'s diagnostics block, a different site), and an uncounted fourth upstream crash site (`render_queue_dispositions`). Record: `.aw/records/reviews/20260928-5rebcb-01-w7e3e3-guard-item-reached-success-against-a-malformed-queue-en.review.md`.
 - 2026-09-28 draft (opencode): created.

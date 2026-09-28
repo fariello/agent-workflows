@@ -6,7 +6,7 @@
 - Scope: Remove the blanket resolve default so a duplicate option definition raises at parser build, and add a durable guard that keeps it removed. IN: the one-line policy change in `_AwArgumentParser.__init__` with its rationale comment, a guard test asserting the error handler is in force across every reachable parser in every builder plus a mutation proving a duplicate now raises, and correction of the one in-tree comment whose stated mechanism the change makes false. OUT: renaming any shipped flag (including reverting `p0l1to`'s `--oc-agent`), any change to what a flag MEANS or to any parser's option set, and the `agy_runipd` comments that discuss `resolve` as a hazard they deliberately avoid (those stay true).
 - Scope-Paths: agent_workflows/cli.py, tests/test_cli_parser_conflict_policy.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 76fgt1
+- Approval: 2026-09-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-28 approved (aw set): status set to approved
 - 2026-09-28 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-501, PR-502, PR-503, PR-504, PR-505, PR-506. All nine authored findings reproduce exactly: 0 resolve firings across all seven builders, cli alone on resolve, all 174 parser objects converting together, the p0l1to defect reproducing (option_strings emptied, agent=True with no flag), 599 add_argument calls and 153 parents= usages, and 2935 passed / 2 skipped on the clean tree. Review independently confirmed the post-change state by rebuilding the tree under a patched class: 174 objects, all on _handle_conflict_error, no exception. The code change is untouched. Corrected the EVIDENCE: V-03 demanded a state that cannot exist (--agent absent from 'aw oc profile add --help'), whose only satisfaction would be deleting the repo-wide machine-output flag from the shared parent (new F-10, OQ-03, requirement inverted); the comment E-03 rewrites carries two further falsehoods beyond the one the plan noticed, a drifted line citation and a 'declared once' claim contradicted by a second --agent declaration on common_upgrade (new F-11, F-12); one of F-07's three counts does not reproduce, so all three are marked for re-derivation (new F-13); and the removed line's unargued provenance is now recorded for the rationale comment (new F-14, F-15).
 
 - 2026-09-28 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored from backlog item `zy1okf`. GATE NOTE: item `zy1okf` carries NO `- Blocks-Release:`, so this plan inherits none.

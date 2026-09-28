@@ -6,7 +6,7 @@
 - Scope: Make `cascade_dependency_blocked` write the same `unsatisfied_dependency_reasons` map the drain path writes (two-key parity, not full shape parity; see F-13), drop the contradictory placeholder that still affects frozen run records (F-10a), key both renderers on the canonical status vocabulary as well as the retired legacy token, correct the one stale comment that asserts the retired coupling, and pin all of it with behavioral tests covering all three producers of the key pair.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/render_stream.py, tests/test_dependency_block_reporting.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: 5o1jye
+- Approval: 2026-09-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-28 approved (aw set): status set to approved
 - 2026-09-28 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-101, PR-102, PR-103, PR-104, PR-105, PR-106, PR-201, PR-202, PR-301, PR-302. Both authored defects reproduce exactly. Corrected three overstatements: E-03 changes nothing for a post-E-01 cascade item (measured byte-identical), so its subject is frozen records and V-05(i)'s mutation was re-aimed to a case that can actually go red; E-01 delivers two-key parity, not shape-identity; and a THIRD producer, dispatch_orchestrator_item, is swallowed by the summary table's refusal branch, so E-04 revives only its report section (new F-15, OQ-03). Added E-05(f) and the import-cycle justification for E-04 (the cited import-purity guard does not exist). Filed two out-of-fence defects measured during review: 8mohre (bug, gates next) and csjq81 (chore).
 
 - 2026-09-28 draft (opencode): created.
