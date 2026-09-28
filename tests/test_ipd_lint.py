@@ -3285,5 +3285,191 @@ class TerminalPathStatusLintTests(unittest.TestCase):
             self.assertEqual(res_clean.diagnostics, [])
 
 
+class CitationAnchorsOnDemandTests(unittest.TestCase):
+    """Behavioral tests for on-demand citation-anchor lint surface (plan cscv0c E-04).
+
+    Asserts through the seam (calling lint_text/lint_file and run_lint), never asserting on source
+    text, line counts, or AST shape (maintainer ruling 2026-09-26).
+    """
+
+    PRE_CUTOVER_DATE = "2026-08-03"
+    POST_CUTOVER_DATE = "2026-09-28"
+
+    def _pre_cutover_fixture(
+        self, *, body: str = "- the defect is at foo.py:123 and must be fixed"
+    ) -> str:
+        text = _conforming_child().replace(
+            "## Findings\n\n- x", "## Findings\n\n" + body
+        )
+        return text.replace("- Date: 2026-08-03", f"- Date: {self.PRE_CUTOVER_DATE}")
+
+    def _post_cutover_fixture(
+        self, *, body: str = "- the defect is at foo.py:123 and must be fixed"
+    ) -> str:
+        text = _conforming_child().replace(
+            "## Findings\n\n- x", "## Findings\n\n" + body
+        )
+        return text.replace("- Date: 2026-08-03", f"- Date: {self.POST_CUTOVER_DATE}")
+
+    def test_citation_anchors_flag_reports_pre_cutover_bare_citation_advisory(self):
+        """Property 1: WITH the flag, a pre-cutover fixture plan carrying a bare citation yields IPD-C801."""
+        text = self._pre_cutover_fixture()
+        res = L.lint_text(text, directory="pending", citation_anchors=True)
+        adv = [a for a in res.advisories if a.code == L.C_CITATION_ANCHOR]
+        self.assertEqual(len(adv), 1)
+        self.assertIn("foo.py:123", adv[0].message)
+
+    def test_unflagged_lint_suppresses_pre_cutover_bare_citation_advisory(self):
+        """Property 2: WITHOUT the flag, the same fixture yields NONE (default-unchanged guarantee)."""
+        text = self._pre_cutover_fixture()
+        res = L.lint_text(text, directory="pending", citation_anchors=False)
+        adv = [a for a in res.advisories if a.code == L.C_CITATION_ANCHOR]
+        self.assertEqual(len(adv), 0)
+
+    def test_citation_anchors_flag_preserves_conformance_disposition_and_exit_code(
+        self,
+    ):
+        """Property 3: The flag does NOT change the conformance disposition or the exit code."""
+        text = self._pre_cutover_fixture()
+        res_flagged = L.lint_text(text, directory="pending", citation_anchors=True)
+        res_unflagged = L.lint_text(text, directory="pending", citation_anchors=False)
+        self.assertEqual(res_flagged.disposition, res_unflagged.disposition)
+        self.assertEqual(res_flagged.disposition, S.DISPOSITION_CONFORMING)
+        self.assertEqual(res_flagged.diagnostics, res_unflagged.diagnostics)
+        self.assertEqual(res_flagged.diagnostics, [])
+
+        with tempfile.TemporaryDirectory() as td:
+            plan = Path(td) / "pending" / "20260803-sample-01-abc123-slug.ipd.md"
+            plan.parent.mkdir(parents=True)
+            plan.write_text(text, encoding="utf-8")
+            ns_flagged = argparse.Namespace(
+                phase="author",
+                legacy=False,
+                citation_anchors=True,
+                all=False,
+                agent=False,
+                json=False,
+                no_color=True,
+                detail=False,
+                long=False,
+                path=[str(plan)],
+            )
+            ns_unflagged = argparse.Namespace(
+                phase="author",
+                legacy=False,
+                citation_anchors=False,
+                all=False,
+                agent=False,
+                json=False,
+                no_color=True,
+                detail=False,
+                long=False,
+                path=[str(plan)],
+            )
+            buf1 = io.StringIO()
+            with redirect_stdout(buf1):
+                rc_flagged = L.run_lint(ns_flagged)
+            buf2 = io.StringIO()
+            with redirect_stdout(buf2):
+                rc_unflagged = L.run_lint(ns_unflagged)
+            self.assertEqual(rc_flagged, rc_unflagged)
+            self.assertEqual(rc_flagged, 0)
+
+    def test_post_cutover_plan_behaves_identically_with_and_without_flag(self):
+        """Property 4: A POST-cutover plan behaves identically with and without the flag."""
+        text = self._post_cutover_fixture()
+        res_flagged = L.lint_text(text, directory="pending", citation_anchors=True)
+        res_unflagged = L.lint_text(text, directory="pending", citation_anchors=False)
+        self.assertEqual(res_flagged.disposition, res_unflagged.disposition)
+        self.assertEqual(res_flagged.diagnostics, res_unflagged.diagnostics)
+        self.assertEqual(res_flagged.advisories, res_unflagged.advisories)
+        adv = [a for a in res_flagged.advisories if a.code == L.C_CITATION_ANCHOR]
+        self.assertEqual(len(adv), 1)
+
+    def _terminal_pre_cutover_fixture(self) -> str:
+        text = self._pre_cutover_fixture()
+        text = text.replace("- Status: to-review", "- Status: executed")
+        return text.replace(
+            "to-review (tester): created.",
+            "executed (tester): executed.",
+        )
+
+    def test_terminal_directory_plan_reports_citation_advisory_under_flag_without_legacy(
+        self,
+    ):
+        """Property 5: A pre-cutover fixture in a TERMINAL directory reports citation advisory with flag without --legacy."""
+        text = self._terminal_pre_cutover_fixture()
+        with tempfile.TemporaryDirectory() as td:
+            plan = Path(td) / "executed" / "20260803-sample-01-abc123-slug.ipd.md"
+            plan.parent.mkdir(parents=True)
+            plan.write_text(text, encoding="utf-8")
+
+            res_flagged = L.lint_file(plan, citation_anchors=True)
+            res_unflagged = L.lint_file(plan, citation_anchors=False)
+
+            adv_flagged = [
+                a for a in res_flagged.advisories if a.code == L.C_CITATION_ANCHOR
+            ]
+            adv_unflagged = [
+                a for a in res_unflagged.advisories if a.code == L.C_CITATION_ANCHOR
+            ]
+            self.assertEqual(len(adv_flagged), 1)
+            self.assertIn("foo.py:123", adv_flagged[0].message)
+            self.assertEqual(len(adv_unflagged), 0)
+
+            ns_flagged = argparse.Namespace(
+                phase="author",
+                legacy=False,
+                citation_anchors=True,
+                all=False,
+                agent=False,
+                json=False,
+                no_color=True,
+                detail=False,
+                long=False,
+                path=[str(plan)],
+            )
+            ns_unflagged = argparse.Namespace(
+                phase="author",
+                legacy=False,
+                citation_anchors=False,
+                all=False,
+                agent=False,
+                json=False,
+                no_color=True,
+                detail=False,
+                long=False,
+                path=[str(plan)],
+            )
+            buf1 = io.StringIO()
+            with redirect_stdout(buf1):
+                rc_flagged = L.run_lint(ns_flagged)
+            buf2 = io.StringIO()
+            with redirect_stdout(buf2):
+                rc_unflagged = L.run_lint(ns_unflagged)
+            self.assertEqual(rc_flagged, rc_unflagged)
+            self.assertEqual(rc_flagged, 0)
+
+    def test_terminal_directory_plan_grandfathering_intact_with_legacy_disposition(
+        self,
+    ):
+        """Property 6: Grandfathering is intact: terminal-directory plan still lints to legacy disposition."""
+        text = self._terminal_pre_cutover_fixture()
+        with tempfile.TemporaryDirectory() as td:
+            plan = Path(td) / "executed" / "20260803-sample-01-abc123-slug.ipd.md"
+            plan.parent.mkdir(parents=True)
+            plan.write_text(text, encoding="utf-8")
+
+            res_unflagged = L.lint_file(plan, citation_anchors=False)
+            res_flagged = L.lint_file(plan, citation_anchors=True)
+
+            self.assertEqual(res_unflagged.disposition, S.DISPOSITION_LEGACY)
+            self.assertEqual(res_unflagged.diagnostics, [])
+            self.assertEqual(res_unflagged.advisories, [])
+
+            self.assertEqual(res_flagged.disposition, S.DISPOSITION_LEGACY)
+            self.assertEqual(res_flagged.diagnostics, [])
+
+
 if __name__ == "__main__":
     unittest.main()

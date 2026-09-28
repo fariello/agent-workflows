@@ -946,7 +946,9 @@ def _has_durable_anchor(unit: str) -> bool:
     return False
 
 
-def check_citation_anchors(doc: ParsedDoc, text: str) -> List[Diagnostic]:
+def check_citation_anchors(
+    doc: ParsedDoc, text: str, *, include_pre_cutover: bool = False
+) -> List[Diagnostic]:
     """Advisory: a code citation with no durable anchor beside it (spec Section 10.2, `IPD-C801`).
 
     Returns ADVISORY diagnostics only; the caller must place them in ``LintResult.advisories`` so the
@@ -963,7 +965,7 @@ def check_citation_anchors(doc: ParsedDoc, text: str) -> List[Diagnostic]:
     precisely why this rule is `info` and must not be promoted to a gating severity without the
     measurement the plan's deferred row demands.
     """
-    if not _citation_anchor_applies(doc):
+    if not include_pre_cutover and not _citation_anchor_applies(doc):
         return []
     out: List[Diagnostic] = []
     for lineno, line in _structural_lines(text):
@@ -1816,6 +1818,7 @@ def lint_text(
     directory: Optional[str] = None,
     legacy: bool = False,
     doc: Optional[ParsedDoc] = None,
+    citation_anchors: bool = False,
 ) -> LintResult:
     """Lint IPD source text. Pure: no I/O. Returns a LintResult (disposition + diagnostics).
 
@@ -1871,8 +1874,11 @@ def lint_text(
     advisories += _draft_ready_advisory(doc, text, checkpoint)
     # citeanchor `mzc019` E-03/E-04: ADVISORY-ONLY by construction. It is appended to `advisories`
     # and NEVER to `diags`, so `disposition` (computed above) cannot see it and the exit status cannot
-    # move. Date-gated inside the check itself, so a pre-cutover plan contributes nothing.
-    advisories += check_citation_anchors(doc, text)
+    # move. Date-gated inside the check itself, so a pre-cutover plan contributes nothing unless
+    # requested on demand via `citation_anchors` (plan `cscv0c` E-03).
+    advisories += check_citation_anchors(
+        doc, text, include_pre_cutover=citation_anchors
+    )
     return LintResult(disposition, diags, advisories)
 
 
@@ -1908,14 +1914,23 @@ def _draft_ready_advisory(doc, text: str, checkpoint: str) -> List[Diagnostic]:
 
 
 def lint_file(
-    path: Path, *, checkpoint: str = "author", legacy: bool = False
+    path: Path,
+    *,
+    checkpoint: str = "author",
+    legacy: bool = False,
+    citation_anchors: bool = False,
 ) -> LintResult:
     text = path.read_text(encoding="utf-8")
     # Parse ONCE and share the parse with the pure linter below, so the repo-aware checks that follow
     # consume the already-parsed document instead of re-parsing the same text.
     doc = parse(text)
     result = lint_text(
-        text, checkpoint=checkpoint, directory=_dir_of(path), legacy=legacy, doc=doc
+        text,
+        checkpoint=checkpoint,
+        directory=_dir_of(path),
+        legacy=legacy,
+        doc=doc,
+        citation_anchors=citation_anchors,
     )
     # ipddeps ovbnyq (spec 2.9-2.11): RESOLUTION-level Item-Dependencies checks (dangling / ambiguous
     # / cycle) need the repo, so they run HERE (lint_file has the path -> repo_root) via the ONE
@@ -1962,6 +1977,19 @@ def lint_file(
     result = _merge_review_escalation(path, result, text, checkpoint, doc)
     result = _merge_durable_carrier(path, result, text, checkpoint, doc)
     result = _merge_setid_length_advisory(path, result, doc)
+    if citation_anchors:
+        existing = {(a.line, a.col, a.code, a.message) for a in result.advisories}
+        extra_adv = [
+            a
+            for a in check_citation_anchors(doc, text, include_pre_cutover=True)
+            if (a.line, a.col, a.code, a.message) not in existing
+        ]
+        if extra_adv:
+            result = LintResult(
+                result.disposition,
+                list(result.diagnostics),
+                list(result.advisories) + extra_adv,
+            )
     return result
 
 
@@ -2300,6 +2328,7 @@ def run_lint(args: argparse.Namespace) -> int:
 
     legacy = getattr(args, "legacy", False)
     detail = getattr(args, "detail", False) or getattr(args, "long", False)
+    citation_anchors = getattr(args, "citation_anchors", False)
     term = Term(color=False if getattr(args, "no_color", False) else None)
 
     def _format_lint_line(path: Path, disp: str, has_advisories: bool = False) -> str:
@@ -2422,7 +2451,12 @@ def run_lint(args: argparse.Namespace) -> int:
             }
             all_diags: list[OutDiag] = []
             for f in files:
-                res = lint_file(f, checkpoint=checkpoint, legacy=legacy)
+                res = lint_file(
+                    f,
+                    checkpoint=checkpoint,
+                    legacy=legacy,
+                    citation_anchors=citation_anchors,
+                )
                 diags, disp = _with_name_check(res, f, legacy)
                 counts[disp] = counts.get(disp, 0) + 1
                 for d in diags:
@@ -2529,7 +2563,12 @@ def run_lint(args: argparse.Namespace) -> int:
                     return get_renderer(ctx).emit(res, ctx)
                 print(f"error: {err_msg}")
                 return 2
-            res = lint_file(path, checkpoint=checkpoint, legacy=legacy)
+            res = lint_file(
+                path,
+                checkpoint=checkpoint,
+                legacy=legacy,
+                citation_anchors=citation_anchors,
+            )
             diags, disp = _with_name_check(res, path, legacy)
             if disp == S.DISPOSITION_ERROR:
                 any_error = True
