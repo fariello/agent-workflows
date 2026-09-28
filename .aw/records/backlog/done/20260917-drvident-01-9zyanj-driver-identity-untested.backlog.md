@@ -1,5 +1,5 @@
 - Id: 9zyanj
-- Status: graduated
+- Status: done
 - Graduated-To: drvident
 - Blocks-Release: next
 - Set: drvident
@@ -8,6 +8,7 @@
 - Summary: No test covers the runners' driver-identity contract, so run analytics can silently lose host attribution
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): closed by aw oc run: IPD otr54d executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-drvident-01-otr54d-make-the-driver-identity-contract-enforced-by-a-test-and-a-r.ipd.md); evidence .aw/records/plans/executed/20260928-drvident-01-otr54d-make-the-driver-identity-contract-enforced-by-a-test-and-a-r.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: otr54d
 - 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-17 created (aw backlog): No test covers the runners' driver-identity contract, so run analytics can silently lose host attribution

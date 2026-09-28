@@ -1207,6 +1207,8 @@ The engine stores repository-local, crash-safe run state. The storage location i
 
 Writes use atomic replacement for snapshots and append-plus-fsync for events. A snapshot is a cache; replaying the ledger is authoritative.
 
+The frozen driver record within durable run state must name the module that created the run (recording its path and that same module's digest). A shared initialization core must receive both that creator module path and the host's label descriptor explicitly from its caller with no defaults; empty or null provenance values are reserved exclusively for descriptor-only hosts that have no runner module. Host attribution is retroactively unfixable once written, making producer-enforced attribution an immutable invariant of the durable run state contract.
+
 #### 5.3a Per-invocation telemetry: a BEST-EFFORT DERIVED artifact, never a gate
 
 Amended 2026-09-13 by plan `5f2h8i` (Set `runanalytics`), which wires the collector built by plan `lhccjf` into both host runners. The amendment is recorded here rather than left implicit because a run now writes a class of artifact this section did not describe, and a reader auditing "what does a run produce" would otherwise find an undocumented tree.
@@ -1575,6 +1577,7 @@ This example demonstrates the revised guarantees: `all` is safely bounded; depen
 
 ## Workflow history
 
+- 2026-09-28 note (aw specs): Section 5.3 amended by otr54d: driver record must name the creating module (path and digest); shared initialization core must receive creator module path and host descriptor from caller with no defaults (None reserved for descriptor-only hosts); host attribution is retroactively unfixable once written. Motivated by measurement showing both relocation and omission sabotages left the suite at its unchanged baseline (1 failed, 3038 passed, 2 skipped at review HEAD babcd235).
 - 2026-09-28 note (aw specs): Section 2.5b amended by 3brgb6: probe cache digest now covers unattached allowlisted prose sections in addition to e_items and child_table_rows
 - 2026-09-27 note (aw specs): Amended by artdispatch jdn790 (z7nbn1 OQ-04/5.3b): freeze-time whole-run refusal for undetermined, non-conformant, and provably unsatisfiable dependencies; in-run failures keep per-item fail-depend
 - 2026-09-27 note (aw specs): AMENDED 2026-09-27 (plan ounhsn): Added Section 2.1b recording maintainer ruling that merge-back conflicts on execute lanes are sent back to the agent to resolve in lane under retry-budget.

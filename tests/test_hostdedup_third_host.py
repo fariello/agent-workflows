@@ -17,6 +17,8 @@ WHAT THIS FILE GUARDS:
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
 import json
 import subprocess
 import tempfile
@@ -292,3 +294,150 @@ class ThirdHostInitializationAndLimitTests(unittest.TestCase):
             self.assertNotIn("spawn", field)
             self.assertNotIn("runner_fn", field)
             self.assertNotIn("argv_builder", field)
+
+    def _create_conforming_repo(self, repo_dir: Path) -> Path:
+        for cmd in (
+            ["git", "init", "-q", str(repo_dir)],
+            [
+                "git",
+                "-C",
+                str(repo_dir),
+                "config",
+                "user.email",
+                "test@example.invalid",
+            ],
+            ["git", "-C", str(repo_dir), "config", "user.name", "Test"],
+        ):
+            subprocess.run(cmd, check=True)
+        pending = repo_dir / ".aw" / "records" / "plans" / "pending"
+        pending.mkdir(parents=True, exist_ok=True)
+        from tests.test_oc_runipd import _CONFORMING_PLAN
+
+        (pending / "20260924-test-01-tst001-test.ipd.md").write_text(
+            _CONFORMING_PLAN.format(id6="tst001"),
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "add", "-A"], cwd=repo_dir, check=True)
+        subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo_dir, check=True)
+        return repo_dir
+
+    def test_each_real_host_records_own_driver_identity_and_consumers_route(
+        self,
+    ) -> None:
+        """Each real host records its own module path and digest, and consumers route correctly (E-02, E-03).
+
+        Producer assertions (E-02):
+        - Path basename in driver record matches the host runner module's own basename.
+        - Driver sha256 matches runner_shared.sha256_file of that module file.
+        - The real hosts record distinct driver paths, guarding against shared-core relocation.
+        - The host table is discovered from all HostLabels instances in runner_shared, and
+          an undiscovered host fails rather than being skipped.
+        - No synthetic hand-written driver fixtures are used; state is genuinely produced.
+
+        Consumer assertions (E-03):
+        - run_analytics_sources.driver_generation returns the host's HostLabels.id (!= UNKNOWN).
+        - generation_host returns the host's expected label.
+        - run_viewer.load_run_summary().driver matches the host's HostLabels.product.
+
+        Honest bound on consumer assertions:
+        At this HEAD, these consumer assertions do not detect the relocation sabotage, because
+        driver_generation prefers driver.id and run_viewer checks driver_id first, so both return
+        the right label from a record whose path is wrong. They are included because they pin the
+        ID-preferring precedence itself (if a future change removes driver.id or reorders that
+        precedence, the path fallback becomes load-bearing again and these assertions become the ones
+        that catch it), while E-02's basename and digest assertions are the ones that detect relocation.
+
+        Uncovered third consumer (PR-904 / F-14):
+        We assert over two consumers (run_analytics_sources and run_viewer). A third consumer exists:
+        run_dashboard._run_host also reads state['driver']['id'] and prefix-matches (did.startswith('agy'),
+        did.startswith('oc')) rather than consulting a registry, which is fragile, and is deliberately
+        left uncovered here pending registry consolidation (carrier: gxsprh).
+        """
+        host_runner_map = {
+            runner_shared.OC_HOST_LABELS.id: (oc_runipd, "opencode"),
+            runner_shared.AGY_HOST_LABELS.id: (agy_runipd, "agy"),
+        }
+
+        discovered_labels = [
+            v
+            for v in vars(runner_shared).values()
+            if isinstance(v, runner_shared.HostLabels)
+        ]
+        self.assertGreater(len(discovered_labels), 0)
+
+        recorded_paths: dict[str, Path] = {}
+        for labels in discovered_labels:
+            self.assertIn(
+                labels.id,
+                host_runner_map,
+                f"HostLabels instance {labels.id!r} has no runner module mapping in host_runner_map; "
+                f"adding a real host requires extending this test",
+            )
+            module, expected_gen_host = host_runner_map[labels.id]
+            repo = self._create_conforming_repo(self.root / f"repo-{labels.id}")
+            args = module.build_parser().parse_args(
+                ["start", "tst001", "--repo", str(repo), "--prepare-only"]
+            )
+            out, err = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                run_dir = module.initialize_run(args)
+
+            state = runner_shared.load_state(run_dir)
+            driver = state["driver"]
+            driver_path = Path(driver["path"])
+            recorded_paths[labels.id] = driver_path
+
+            # E-02: Assert basename matches host module's own basename
+            self.assertEqual(driver_path.name, Path(module.__file__).name)
+
+            # E-02: Assert digest matches sha256_file of host module
+            expected_sha256 = runner_shared.sha256_file(Path(module.__file__))
+            self.assertEqual(driver["sha256"], expected_sha256)
+
+            # E-03: Consumer assertions
+            gen = run_analytics_sources.driver_generation(state)
+            self.assertEqual(gen, labels.id)
+            self.assertNotEqual(gen, run_analytics_sources.GENERATION_UNKNOWN)
+            self.assertEqual(
+                run_analytics_sources.generation_host(gen),
+                expected_gen_host,
+            )
+
+            summary = run_viewer.load_run_summary(run_dir, repo_root=repo)
+            self.assertIsNotNone(summary)
+            assert summary is not None
+            self.assertEqual(summary.driver, labels.product)
+
+        # E-02: Assert the two hosts recorded DIFFERENT paths
+        self.assertGreaterEqual(len(recorded_paths), 2)
+        unique_paths = set(recorded_paths.values())
+        self.assertEqual(
+            len(unique_paths),
+            len(recorded_paths),
+            f"All real hosts must record distinct driver paths, got: {recorded_paths}",
+        )
+
+    def test_registry_closure_every_host_labels_routable_by_analytics(self) -> None:
+        """Every HostLabels instance in runner_shared must be routable by analytics (E-04).
+
+        Asserts that run_analytics_sources.generation_host(labels.id) != GENERATION_UNKNOWN.
+        Note that generation_host returns GENERATION_UNKNOWN ("unknown") rather than raising
+        on an unregistered id, which is why the assertion must compare against GENERATION_UNKNOWN.
+        We deliberately use the single-predicate formulation rather than requiring membership
+        in DRIVER_GENERATIONS, because descriptor-only hosts (such as SCRIPTED_HOST_LABELS) do not
+        have a runner module and thus are not in DRIVER_GENERATIONS, but are legitimate and routable.
+        """
+        discovered_labels = [
+            v
+            for v in vars(runner_shared).values()
+            if isinstance(v, runner_shared.HostLabels)
+        ]
+        self.assertGreater(len(discovered_labels), 0)
+        for labels in discovered_labels:
+            with self.subTest(host_id=labels.id):
+                gen_host = run_analytics_sources.generation_host(labels.id)
+                self.assertNotEqual(
+                    gen_host,
+                    run_analytics_sources.GENERATION_UNKNOWN,
+                    f"HostLabels {labels.id!r} has unroutable generation in analytics (returned {gen_host!r})",
+                )
