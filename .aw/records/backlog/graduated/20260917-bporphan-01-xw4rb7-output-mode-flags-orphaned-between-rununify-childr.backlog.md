@@ -1,5 +1,6 @@
 - Id: xw4rb7
-- Status: open
+- Status: graduated
+- Graduated-To: xw4rb7
 - Blocks-Release: next
 - Set: bporphan
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: _add_output_mode_flags is owned by no pending rununify plan after child 03's re-scope dropped group H
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: t0ovw6
 - 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-17 created (aw backlog): _add_output_mode_flags is owned by no pending rununify plan after child 03's re-scope dropped group H
 
