@@ -1,5 +1,5 @@
 - Id: lv92c6
-- Status: graduated
+- Status: done
 - Graduated-To: lv92c6
 - Blocks-Release: next
 - Set: lv92c6
@@ -8,6 +8,7 @@
 - Summary: Plan yaxr4i asserts the color engine is already correct and complete, which measurement falsifies
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): closed by aw oc run: IPD cscv0c executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-lv92c6-01-cscv0c-amend-yaxr4i-s-falsified-engine-premise-with-a-history-note.ipd.md); evidence .aw/records/plans/executed/20260928-lv92c6-01-cscv0c-amend-yaxr4i-s-falsified-engine-premise-with-a-history-note.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: cscv0c
 - 2026-09-19 created (aw backlog): Found while converting nyz8dt into lifeglyph child z8ddk0. yaxr4i is approved, so an executor would trust the claim and leave the engine alone.
 
