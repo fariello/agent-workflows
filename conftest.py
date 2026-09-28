@@ -174,7 +174,7 @@ def _restore_home_sandbox():
 # as a request to abort the whole session. Where `SIGALRM` does not exist (Windows) the guard is a
 # no-op rather than a flaky thread-based imitation. The default is set from the measured duration
 # spread: the slowest fast-suite test is ~13s and the slowest `slow`-marked test ~29s, so 90s is
-# ~3x headroom and still ~7x below the runner's 600s stall budget. Override per run with
+# ~3x headroom and still ~10x below the runner's 900s stall budget. Override per run with
 # `AW_TEST_TIMEOUT=<seconds>` (`0` disables), or per test with `@pytest.mark.timeout(<seconds>)`.
 # The guard also stands down when a test has already installed its own SIGALRM handler, so it
 # never clobbers a test that is exercising alarms itself.

@@ -26984,7 +26984,7 @@ def initialize_run_core(
     stall_timeout = (
         getattr(args, "stall_timeout", default_stall_timeout)
         if default_stall_timeout is not None
-        else getattr(args, "stall_timeout", 600.0)
+        else getattr(args, "stall_timeout", DEFAULT_STALL_TIMEOUT)
     )
     if turn_ceiling_seconds is None:
         from agent_workflows import lane_containment
@@ -27460,7 +27460,7 @@ class StallWatchdog:
     def __init__(
         self,
         process: subprocess.Popen,
-        timeout: float | None = 600.0,
+        timeout: float | None = 900.0,
         check_interval: float = 1.0,
         *,
         reaper: Callable[[subprocess.Popen], None] | None = None,
@@ -28052,7 +28052,7 @@ def terminate_process(
     )
 
 
-DEFAULT_STALL_TIMEOUT: float = 600.0
+DEFAULT_STALL_TIMEOUT: float = 900.0
 
 # statusvocab (`cyamvi`) E-01: Canonical terminal status vocabulary (TWELVE tokens).
 # Every non-`executed` label names the refusing authority.

@@ -769,7 +769,7 @@ from agent_workflows import agy_models
 # config file (~/.gemini/antigravity-cli/settings.json) or left to agy host default.
 DEFAULT_MODEL: str | None = agy_models.resolve_agy_config_model()
 DEFAULT_TIMEOUT = "240m"
-DEFAULT_STALL_TIMEOUT: float = 600.0
+DEFAULT_STALL_TIMEOUT: float = 900.0
 _SIGINT_GRACE_SECONDS = 5.0
 _SIGTERM_GRACE_SECONDS = 2.0
 
@@ -1274,7 +1274,7 @@ class StallWatchdog(runner_shared.StallWatchdog):
     def __init__(
         self,
         process: subprocess.Popen,
-        timeout: float | None = 600.0,
+        timeout: float | None = 900.0,
         check_interval: float = 1.0,
     ) -> None:
         super().__init__(

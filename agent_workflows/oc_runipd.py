@@ -1055,7 +1055,7 @@ class StallWatchdog(runner_shared.StallWatchdog):
     def __init__(
         self,
         process: subprocess.Popen,
-        timeout: float | None = 600.0,
+        timeout: float | None = 900.0,
         check_interval: float = 1.0,
     ) -> None:
         super().__init__(
@@ -2282,7 +2282,7 @@ def build_verifier_prompt(
 
 _SIGINT_GRACE_SECONDS = 5.0
 _SIGTERM_GRACE_SECONDS = 2.0
-DEFAULT_STALL_TIMEOUT: float = 600.0
+DEFAULT_STALL_TIMEOUT: float = 900.0
 
 
 def terminate_process(process: subprocess.Popen) -> None:
@@ -4322,7 +4322,7 @@ LAUNCH IDENTITY (model / variant / agent):
             "Timeout in seconds with no observed PROGRESS from the child agent before "
             "terminating. Progress counts events on the child's stdout AND best-effort "
             "subagent activity from opencode's own log, so a turn working inside a "
-            "subagent is not killed for a quiet stdout (default: 600; 0 to disable)"
+            "subagent is not killed for a quiet stdout (default: 900; 0 to disable)"
         ),
     )
     # runflags-01 (`uyeko5`) E-01..E-07: spec `25kzda` 2.1's EIGHT policy flags, registered from the

@@ -4767,7 +4767,7 @@ class TurnBudgetPromptTests(unittest.TestCase):
                 self.assertNotIn("remaining", prompt.lower())
                 self.assertNotIn(".0 seconds", prompt)
 
-            # 2. Legacy state (options: {}) defaults to 600 stall and 14400 ceiling
+            # 2. Legacy state (options: {}) defaults to 900 stall and 14400 ceiling
             legacy_state = {
                 "run_id": "run-x",
                 "repo": str(repo),
@@ -4779,9 +4779,9 @@ class TurnBudgetPromptTests(unittest.TestCase):
             ]:
                 prompt = builder(item, legacy_state, run_dir, plan, False)
                 self.assertIn(
-                    "600",
+                    "900",
                     prompt,
-                    f"{host_name} legacy prompt missing default stall timeout 600",
+                    f"{host_name} legacy prompt missing default stall timeout 900",
                 )
                 self.assertIn(
                     "14400",
