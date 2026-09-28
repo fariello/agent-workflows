@@ -1,5 +1,6 @@
 - Id: os1b9j
-- Status: open
+- Status: graduated
+- Graduated-To: os1b9j
 - Blocks-Release: next
 - Set: os1b9j
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: aw install --source with a string path crashes: resolve_source_root calls .expanduser() on a str
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: rs03r2
 - 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-18 created (aw backlog): aw install --source with a string path crashes: resolve_source_root calls .expanduser() on a str
 
