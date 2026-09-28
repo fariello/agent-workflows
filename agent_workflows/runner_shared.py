@@ -2288,7 +2288,7 @@ def refuse_undispatchable_typed_entry(
     action = item.get("action")
     id6 = str(item.get("id6") or "").strip()
 
-    if atype == "spec" and action == "review":
+    if atype == "spec" and action in ("review", "plan"):
         return False
     elif action == "plan":
         code = "missing-dispatcher-aeq7f8-y3p3p5"
@@ -3359,6 +3359,162 @@ def commit_review_shared_output(
         return None, tuple(paths)
     rc, sha, _err = _run_git(repo, ["rev-parse", "HEAD"])
     return (sha.strip() if rc == 0 else None), tuple(paths)
+
+
+def commit_spec_production_output(
+    target_dir: Path,
+    spec_id6: str,
+    baseline_plan_ids: set[str],
+    *,
+    host_label: str,
+    run_id: str | None = None,
+) -> tuple[str | None, tuple[str, ...], tuple[str, ...]]:
+    """Commit newly produced plan files under pending/ and report out-of-scope files (E-04).
+
+    Returns `(commit_sha_or_None, committed_paths, out_of_scope_paths)`.
+    Only new plan files (under .aw/records/plans/pending/ or .agents/plans/pending/
+    whose id6 is not in baseline_plan_ids) are committed.
+    Any other changed or untracked file is classified as out_of_scope.
+    """
+    from agent_workflows import production_checks
+
+    wt = Path(target_dir)
+    if not wt.is_dir():
+        return None, (), ()
+    rc, out, _err = _run_git(wt, ["status", "--porcelain", "--untracked-files=all"])
+    if rc != 0 or not out.strip():
+        return None, (), ()
+    status_paths: list[str] = []
+    for line in out.splitlines():
+        if not line.strip():
+            continue
+        entry = line[3:] if len(line) > 3 else ""
+        if " -> " in entry:
+            old, new = entry.split(" -> ", 1)
+            status_paths.extend([old.strip().strip('"'), new.strip().strip('"')])
+        elif entry.strip():
+            status_paths.append(entry.strip().strip('"'))
+    status_paths = sorted({p for p in status_paths if p})
+
+    allowed: list[str] = []
+    out_of_scope: list[str] = []
+
+    for p_str in status_paths:
+        norm_p = p_str.replace("\\", "/").strip().lstrip("./")
+        if (
+            norm_p.startswith(".aw/records/runs/")
+            or norm_p.startswith(".agents/runs/")
+            or norm_p.startswith(".aw/state/")
+            or norm_p.startswith(".agents/state/")
+            or "/runs/" in norm_p
+            or "/lane-submissions/" in norm_p
+        ):
+            continue
+        is_plan = norm_p.endswith(".ipd.md") and "/plans/pending/" in norm_p
+        if is_plan:
+            full_p = wt / p_str
+            p_id = ""
+            if full_p.is_file():
+                try:
+                    p_id = production_checks._extract_plan_id(
+                        full_p, full_p.read_text(encoding="utf-8")
+                    )
+                except OSError:
+                    p_id = ""
+            if p_id and p_id not in baseline_plan_ids:
+                allowed.append(p_str)
+                continue
+        out_of_scope.append(p_str)
+
+    if not allowed:
+        return None, (), tuple(out_of_scope)
+
+    rc, _out, _err = _run_git(wt, ["add", "--", *allowed])
+    if rc != 0:
+        return None, (), tuple(out_of_scope)
+    from agent_workflows import git_commit_helper as _gch
+
+    subject = f"work({spec_id6}): produce plans for spec {spec_id6}"
+    body = (
+        f"Committed by the driver for spec production action on {spec_id6}. "
+        "Path-scoped to the produced plans; hooks ran normally."
+    )
+    trailers = [*_gch.run_item_trailers(run_id, spec_id6), "AW-Committed-By: driver"]
+    message_body = _gch.compose_message_with_trailers(body, trailers)
+    rc, _out, _err = _run_git(
+        wt,
+        [
+            "commit",
+            "-m",
+            subject,
+            "-m",
+            message_body,
+            "--",
+            *allowed,
+        ],
+    )
+    if rc != 0:
+        return None, tuple(allowed), tuple(out_of_scope)
+    rc, sha, _err = _run_git(wt, ["rev-parse", "HEAD"])
+    return (sha.strip() if rc == 0 else None), tuple(allowed), tuple(out_of_scope)
+
+
+def commit_spec_transition_output(
+    target_dir: Path,
+    spec_id6: str,
+    spec_path: Path,
+    *,
+    run_id: str | None = None,
+) -> tuple[str | None, tuple[str, ...]]:
+    """Commit the spec transition to implementing (path-scoped) (E-05)."""
+    wt = Path(target_dir)
+    rc, out, _err = _run_git(wt, ["status", "--porcelain", "--untracked-files=all"])
+    if rc != 0 or not out.strip():
+        return None, ()
+    status_paths: list[str] = []
+    for line in out.splitlines():
+        if not line.strip():
+            continue
+        entry = line[3:] if len(line) > 3 else ""
+        if " -> " in entry:
+            old, new = entry.split(" -> ", 1)
+            status_paths.extend([old.strip().strip('"'), new.strip().strip('"')])
+        elif entry.strip():
+            status_paths.append(entry.strip().strip('"'))
+    status_paths = sorted({p for p in status_paths if p})
+
+    allowed = [p for p in status_paths if spec_id6 in p and p.endswith(".spec.md")]
+    if not allowed:
+        return None, ()
+
+    rc, _out, _err = _run_git(wt, ["add", "--", *allowed])
+    if rc != 0:
+        return None, ()
+    from agent_workflows import git_commit_helper as _gch
+
+    subject = f"transition(spec): move {spec_id6} -> implementing"
+    body = (
+        f"Spec {spec_id6} transitioned to implementing after conformant plan production. "
+        "Path-scoped to the spec file; hooks ran normally."
+    )
+    trailers = [*_gch.run_item_trailers(run_id, spec_id6), "AW-Committed-By: driver"]
+    message_body = _gch.compose_message_with_trailers(body, trailers)
+    rc, _out, _err = _run_git(
+        wt,
+        [
+            "commit",
+            "-m",
+            subject,
+            "-m",
+            message_body,
+            "--",
+            *allowed,
+        ],
+    )
+    if rc != 0:
+        return None, tuple(allowed)
+    rc, sha, _err = _run_git(wt, ["rev-parse", "HEAD"])
+    return (sha.strip() if rc == 0 else None), tuple(allowed)
 
 
 class ReviewWriteScope(NamedTuple):
@@ -9228,7 +9384,7 @@ def integration_action_for_item(item: Mapping[str, Any]) -> str:
 
     return (
         INTEGRATION_ACTION_REVIEW
-        if str(item.get("action") or "") == "review"
+        if str(item.get("action") or "") in ("review", "plan")
         else INTEGRATION_ACTION_EXECUTE
     )
 
@@ -14221,7 +14377,7 @@ def resolve_isolation(
         return {"execute": True, "review": True}
     from agent_workflows import config as _config
 
-    policy = _config.policy_isolation(repo)
+    policy = dict(_config.policy_isolation(repo))
     disabled = [
         f"run.isolate_worktree.{act}=false"
         for act in ("execute", "review")
@@ -14240,11 +14396,17 @@ def isolation_for_action(options: dict[str, Any] | None, action: str) -> bool:
     """Return whether worktree isolation is enabled for the specified action type.
 
     Reads options[f"isolate_{action}"] (e.g. isolate_execute, isolate_review).
+    For action 'plan', deliberately shares isolate_review when isolate_plan is not set.
     Falls back to options.get("isolate_worktree", True) for backwards compatibility
     with run states frozen prior to per-action isolation.
     """
     if not isinstance(options, dict):
         return True
+    if action == "plan":
+        if "isolate_plan" in options:
+            return bool(options["isolate_plan"])
+        if "isolate_review" in options:
+            return bool(options["isolate_review"])
     key = f"isolate_{action}"
     if key in options:
         return bool(options[key])
@@ -24207,6 +24369,48 @@ def build_review_prompt(
     return command + "\n" + lane_containment.isolation_notice(lane_root)
 
 
+def build_spec_production_prompt(
+    item: dict[str, Any],
+    state: dict[str, Any],
+    run_dir: Path,
+    spec_path: Path,
+    repo: Path,
+    lane_root: Path | None = None,
+) -> str:
+    """Return the authoring turn prompt for an approved spec (artdispatch aeq7f8 E-04)."""
+    from agent_workflows import lane_containment
+
+    root = lane_root if lane_root is not None else repo
+    try:
+        rel_spec = str(spec_path.relative_to(root)).replace("\\", "/")
+    except ValueError:
+        rel_spec = str(spec_path).replace("\\", "/")
+
+    spec_id6 = str(item.get("id6") or "").strip()
+    lines = [
+        f"# Plan production from approved spec: {rel_spec}",
+        "",
+        f"You are authoring implementation plan(s) (IPDs) for approved spec `{spec_id6}` at `{rel_spec}`.",
+        "",
+        "## Production Contract",
+        "1. Author one or more review-ready plans under `.aw/records/plans/pending/` using `aw ipd scaffold`.",
+        "2. Every produced plan must have `- Status: to-review` (never `draft`).",
+        f"3. Every produced plan must carry `- From-Spec: {spec_id6}`.",
+        "4. If the spec has a `- Blocks-Release:` gate, copy it exactly to each produced plan. If the spec has none, do not invent one.",
+        "5. Every produced plan must have concrete `- Scope-Paths:` (not empty, not TODO, not grandfathered) and resolved `- Item-Dependencies:` (not unresolved).",
+        "6. Every produced plan must lint conforming via `aw ipd lint`.",
+        "7. Do NOT modify the approved spec's requirements.",
+        "",
+        "## Prohibitions",
+        "1. Do NOT change the spec's `- Status:` (the runner sets `implementing` upon verification).",
+        "2. Do NOT execute any plan you write (this turn is authoring only).",
+    ]
+    if lane_root is not None:
+        lines.append("")
+        lines.append(lane_containment.isolation_notice(lane_root))
+    return "\n".join(lines)
+
+
 def resolve_prior_lane(
     item: dict[str, Any],
 ) -> tuple[str | None, str | None, str | None]:
@@ -24963,7 +25167,7 @@ NEEDS_INPUT_KEY = NEEDS_INPUT_TOKEN
 #: The `--action` values the CLI accepts, and the subset actually implemented. Read by
 #: `enforce_requested_action`, which is spec `25kzda` 2.6's enforcement point.
 ACTION_CHOICES = ("review", "plan", "execute")
-ACTION_IMPLEMENTED = frozenset(("review",))
+ACTION_IMPLEMENTED = frozenset(("review", "plan"))
 
 
 #: The REPORTING success bar for an item whose action WRITES CODE (zz5yxq E-02): `SUCCESS_STATES`
@@ -25576,24 +25780,63 @@ def enforce_requested_action(
             f"No run was started. To review instead, run: {labels.review_command} <selector>"
         )
     if action not in ACTION_IMPLEMENTED:
+        avail = ", ".join(f"--action {a}" for a in sorted(ACTION_IMPLEMENTED))
         raise DriverError(
-            f"--action {action} is not implemented yet. Only --action review is available; "
+            f"--action {action} is not implemented yet. Only {avail} is available; "
             f"{action}'s per-type legality table (spec 25kzda 2.6) needs the per-type dispatch "
-            "this runner does not have. No run was started. To review instead, run: "
-            f"{labels.review_command} <selector>"
+            "this runner does not have. No run was started."
         )
     if illegal:
         detail = ", ".join(
             f"{id6} (status {status!r} -> action {derived!r})"
             for id6, status, derived in illegal
         )
-        raise DriverError(
-            f"--action review is illegal for {len(illegal)} selected item(s): {detail}. "
-            "Review is the next legal action only for a to-review or draft plan; an approved or "
-            "reviewed plan would EXECUTE, which is not what 'review' asks for. No run was started "
-            "and no session launched. To sweep only what actually awaits review, run: "
-            f"{labels.review_command}"
-        )
+        if action == "plan":
+            raise DriverError(
+                f"--action plan is illegal for {len(illegal)} selected item(s): {detail}. "
+                "Plan is the next legal action only for an approved spec; a to-review or draft plan "
+                "would REVIEW, which is not what 'plan' asks for. No run was started and no session "
+                f"launched. To plan an approved spec instead, run: {labels.command} --action plan <selector>"
+            )
+        else:
+            raise DriverError(
+                f"--action review is illegal for {len(illegal)} selected item(s): {detail}. "
+                "Review is the next legal action only for a to-review or draft plan; an approved or "
+                "reviewed plan would EXECUTE, which is not what 'review' asks for. No run was started "
+                "and no session launched. To sweep only what actually awaits review, run: "
+                f"{labels.review_command}"
+            )
+
+
+def format_generated_next_actions_section(
+    state: Mapping[str, Any],
+    *,
+    host_command: str = "oc",
+) -> list[str]:
+    """Render the 'Generated next actions' section for execution-report.md (E-06)."""
+    actions: list[tuple[str, dict[str, Any]]] = []
+    for item in state.get("queue") or []:
+        for act in item.get("generated_next_actions") or []:
+            actions.append((str(item.get("id6") or ""), act))
+    if not actions:
+        return []
+    lines = [
+        "",
+        "## Generated next actions",
+        "",
+        "The following plans were produced from approved specs and must be reviewed before "
+        "execution. They were NOT run in this run.",
+        "",
+    ]
+    cmd_prefix = (
+        host_command if host_command.startswith("aw ") else f"aw {host_command} run"
+    )
+    for src_id6, act in actions:
+        p_id6 = act.get("id6", "")
+        p_path = act.get("path", "")
+        lines.append(f"- `{p_id6}` (from spec `{src_id6}`): `{p_path}`")
+        lines.append(f"  - Review command: `{cmd_prefix} {p_id6}`")
+    return lines
 
 
 def write_report(
@@ -25708,6 +25951,9 @@ def write_report(
     lines.extend(lane_containment.format_preserved_lanes(state))
     # runverdict-05 (`bxx9af`) E-06: render verified items' test evidence and corrections in execution-report.md
     lines.extend(format_verifier_evidence_section(state, run_dir))
+    lines.extend(
+        format_generated_next_actions_section(state, host_command=labels.command)
+    )
     lines.extend(
         [
             "",
@@ -26750,6 +26996,7 @@ def initialize_run_core(
     isolation = resolve_isolation(args, repo=repo)
     isolate_execute = isolation.get("execute", True)
     isolate_review = isolation.get("review", True)
+    isolate_plan = isolation.get("plan", isolate_review)
 
     state = {
         "schema_version": SCHEMA_VERSION,
@@ -26778,6 +27025,7 @@ def initialize_run_core(
             "isolate_worktree": isolate_execute,
             "isolate_execute": isolate_execute,
             "isolate_review": isolate_review,
+            "isolate_plan": isolate_plan,
             "max_items_per_session": getattr(args, "max_items_per_session", 4),
             "action": requested_action,
             # `repo=repo` is load-bearing: this is the ONLY `resolve_retry_budget` call whose RESULT
@@ -28610,6 +28858,13 @@ def reconcile_disposition(
             return "reviewed", None
         return "fail-gate", None
 
+    if item.get("action") == "plan":
+        outcome = read_recorded_outcome(run_dir, item)
+        if queue_entry_type(item) == "spec":
+            if exit_code == 0:
+                return "executed", outcome
+            return "fail-gate", outcome
+
     # runrecon-02 (`fduoj4`) E-02: the outcome read and the bucket/outcome precedence are now the two
     # SHARED helpers above, so the CRASH path (`reconcile_interrupted`) honors the same rules from the
     # same code rather than from a second copy. The behavior here is unchanged: the rungs the helper
@@ -29454,20 +29709,36 @@ def execute_item_core(
     process_backlog_close = getattr(
         driver_module, "process_backlog_close", process_backlog_close
     )
+    run_checked = getattr(
+        driver_module,
+        "run_checked",
+        lambda argv, cwd=None, env=None: globals()["run_checked"](
+            argv, cwd=cwd, env=env, env_builder=globals()["pinned_child_env"]
+        ),
+    )
 
     repo = Path(state["repo"])
     pal = Palette(should_color(sys.stdout))
     action = item.get("action", "execute")
-    # E-06: A skip entry (or any action outside review/execute) must never be executed.
-    if action not in ("review", "execute"):
+    # E-06: A skip entry (or any action outside review/execute/plan) must never be executed.
+    if action not in ("review", "execute", "plan"):
         raise DriverError(
-            f"Cannot execute item {item.get('id6', '<unknown>')}: invalid action {action!r} (expected 'review' or 'execute')"
+            f"Cannot execute item {item.get('id6', '<unknown>')}: invalid action {action!r} (expected 'review', 'execute', or 'plan')"
         )
     is_review = action == "review"
-    if is_review and queue_entry_type(item) == "spec":
+    is_production = action == "plan"
+    is_spec_production = is_production and queue_entry_type(item) == "spec"
+    if (is_review or is_spec_production) and queue_entry_type(item) == "spec":
         plan_path = queue_artifact_path(repo, item)
     else:
         plan_path = queue_plan_path_for(repo, item)
+    baseline_plan_ids: set[str] = set()
+    if is_spec_production:
+        from agent_workflows import check_engine as _ce
+        from agent_workflows import production_checks as _pc
+
+        for p, text in _ce._iter_plan_ipds(repo):
+            baseline_plan_ids.add(_pc._extract_plan_id(p, text))
     attempt_no = len(item.get("attempts", [])) + 1
 
     # planstale 6h8j1r E-04 (backlog mlc6mj): item-local dispatch refusal on moved-terminal or
@@ -29533,11 +29804,19 @@ def execute_item_core(
         except Exception as ex:
             scope_target_check_error = str(ex)
 
-    routing = None if is_review else route_recovery_turn(run_dir, state, item, recovery)
+    routing = (
+        None
+        if (is_review or is_production)
+        else route_recovery_turn(run_dir, state, item, recovery)
+    )
     if is_review:
         handler = item.get("review_handler") or review_handler_for(item)
         item["review_handler"] = handler
         prompt_text = build_review_prompt(item, state, run_dir, plan_path, repo)
+    elif is_spec_production:
+        prompt_text = build_spec_production_prompt(
+            item, state, run_dir, plan_path, repo
+        )
     else:
         prompt_text = build_prompt(
             item,
@@ -29640,11 +29919,14 @@ def execute_item_core(
         pass
 
     self_finalize = options.get("self_finalize", True)
-    isolate = isolation_for_action(options, "review" if is_review else "execute")
+    isolate = isolation_for_action(
+        options,
+        "review" if is_review else ("plan" if is_production else "execute"),
+    )
     wt_handle = None
     work_dir: str | None = None
 
-    if self_finalize and not is_review:
+    if self_finalize and not is_review and not is_production:
         base = evaluate_clean_base_for_launch(repo, shared_tree=not isolate)
         decision = clean_base_launch_decision(
             base,
@@ -29766,7 +30048,73 @@ def execute_item_core(
             )
             return
 
-    if self_finalize and not is_review:
+    if is_spec_production and isolate:
+        try:
+            wt_handle = allocate_isolation_worktree(repo, item["id6"])
+            work_dir = str(wt_handle.path)
+            session_id = None
+            use_continue = False
+            attempt["worktree"] = work_dir
+            attempt["worktree_branch"] = wt_handle.branch
+            attempt["worktree_lane_id"] = wt_handle.lane_id
+            attempt["worktree_base"] = wt_handle.base_commit
+            with contextlib.suppress(DriverError, OSError):
+                attempt["lane_starting_head"] = git_head(Path(work_dir))
+            attempt["worktree_disposition"] = getattr(
+                wt_handle, "disposition", "created"
+            )
+            attempt["worktree_displaced_from"] = getattr(
+                wt_handle, "displaced_from", None
+            )
+            save_state(run_dir, state)
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "worktree-allocated",
+                    "id6": item["id6"],
+                    "worktree": work_dir,
+                    "branch": wt_handle.branch,
+                    "lane_id": wt_handle.lane_id,
+                    "base_commit": wt_handle.base_commit,
+                    "disposition": getattr(wt_handle, "disposition", "created"),
+                    "displaced_from": getattr(wt_handle, "displaced_from", None),
+                },
+            )
+            disp = getattr(wt_handle, "disposition", "created")
+            suffix = "" if disp == "created" else f" ({disp})"
+            print(
+                pal(
+                    f"  \u2713 isolated worktree {wt_handle.branch} at {work_dir}{suffix}",
+                    "cyan",
+                )
+            )
+        except Exception as exc:
+            attempt["ended_at"] = utc_now()
+            attempt["disposition"] = "fail-lane"
+            item["status"] = "fail-lane"
+            item["worktree_error"] = str(exc)
+            save_state(run_dir, state)
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "worktree-alloc-failed",
+                    "id6": item["id6"],
+                    "detail": str(exc),
+                },
+            )
+            print(
+                pal(
+                    f"\u2717 Spec {seq:02d}/{total} {item['id6']} worktree "
+                    f"allocation failed; not launching. {exc}",
+                    "red",
+                ),
+                file=sys.stderr,
+            )
+            return
+
+    if self_finalize and not is_review and not is_production:
         actor = driver_actor(state, labels=host_labels)
         assert_child_tool_identity(run_dir / "events.jsonl", cwd=repo)
         if isolate:
@@ -29872,7 +30220,7 @@ def execute_item_core(
                 )
                 return
 
-    if work_dir and not is_review:
+    if work_dir and not is_review and not is_production:
         lane_root = Path(work_dir)
         try:
             lane_plan_path = resolve_plan_path(
@@ -29961,6 +30309,40 @@ def execute_item_core(
             },
         )
         save_state(run_dir, state)
+    if work_dir and is_spec_production:
+        lane_root = Path(work_dir)
+        try:
+            lane_spec_path = queue_artifact_path(lane_root, item)
+        except DriverError:
+            lane_spec_path = plan_path
+        prompt_text = build_spec_production_prompt(
+            item, state, run_dir, lane_spec_path, repo, lane_root=lane_root
+        )
+        prompt_path = write_prompt(run_dir, item, prompt_text, attempt_no)
+        attempt["prompt"] = str(prompt_path)
+        attempt["prompt_sha256"] = sha256_file(prompt_path)
+        attempt["lane_plan_path"] = str(lane_spec_path)
+        lane_manifest = lane_containment.materialize_lane_inputs(
+            lane_root=lane_root,
+            plan_path=lane_spec_path,
+            runbook_path=None,
+            repo=lane_root,
+            revision=int(item["position"]),
+        )
+        attempt["lane_input_manifest"] = str(lane_manifest.manifest_path)
+        attempt["lane_input_revision"] = lane_manifest.revision
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "lane-inputs-materialized",
+                "id6": item["id6"],
+                "revision": lane_manifest.revision,
+                "manifest": str(lane_manifest.manifest_path),
+                "inputs": [entry.path for entry in lane_manifest.entries],
+            },
+        )
+        save_state(run_dir, state)
 
     # ---- integearn-05 (`9lyg5h`): START THE PRE-WORK SUITE BASELINE, CONCURRENTLY -----------------
     #
@@ -29992,6 +30374,7 @@ def execute_item_core(
     baseline_extractor = getattr(driver_module, "extract_suite_failures", None)
     if (
         not is_review
+        and not is_production
         and self_finalize
         and callable(baseline_extractor)
         and getattr(driver_module, "SUITE_CHECK_ARGV", None)
@@ -30298,6 +30681,7 @@ def execute_item_core(
             verify_disp: Any = None
             if (
                 not is_review
+                and not is_production
                 and disposition
                 in (
                     "executed",
@@ -30635,7 +31019,7 @@ def execute_item_core(
         item["last_outcome"] = outcome
         item["verification_status"] = verify_disp
 
-        if not is_review:
+        if not is_review and not is_production:
             defect_verdict = validate_defect_report(outcome)
             reask_session = attempt.get("session_id")
             warranted, reask_reason = defect_reask_is_warranted(
@@ -30787,7 +31171,7 @@ def execute_item_core(
         # THE ORIGINAL EXECUTOR `exit_code` IS PASSED, never the re-ask's `reask_rc`: the fallback branch
         # keys on it, and the re-ask's exit code is a different fact already recorded separately as
         # `attempt["defect_reask_exit_code"]`.
-        if not is_review and attempt.get("defect_reasked"):
+        if not is_review and not is_production and attempt.get("defect_reasked"):
             rescore_receipt = lane_containment.read_collection_receipt(
                 run_dir, item, attempt_no
             )
@@ -30858,6 +31242,7 @@ def execute_item_core(
         integration_gate_relevant = (
             self_finalize
             and not is_review
+            and not is_production
             and disposition
             in (
                 "executed",
@@ -31456,6 +31841,290 @@ def execute_item_core(
                 attempt["review_integrated"] = True
                 item["review_integrated"] = True
             save_state(run_dir, state)
+        elif is_spec_production:
+            target_tree = Path(work_dir) if work_dir else repo
+            from agent_workflows import check_engine as _ce
+            from agent_workflows import production_checks as _pc
+
+            prod_commit, prod_committed_paths, prod_out_of_scope = (
+                commit_spec_production_output(
+                    target_tree,
+                    item["id6"],
+                    baseline_plan_ids,
+                    host_label=host_labels.command,
+                    run_id=str(state.get("run_id") or "") or None,
+                )
+            )
+            if prod_commit:
+                attempt["spec_production_commit"] = prod_commit
+                attempt["spec_production_committed_paths"] = list(prod_committed_paths)
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "spec-production-output-committed",
+                        "id6": item["id6"],
+                        "attempt": attempt_no,
+                        "commit": prod_commit,
+                        "paths": list(prod_committed_paths),
+                    },
+                )
+            if prod_out_of_scope:
+                attempt["spec_production_out_of_scope"] = list(prod_out_of_scope)
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "spec-production-out-of-scope-paths",
+                        "id6": item["id6"],
+                        "attempt": attempt_no,
+                        "paths": list(prod_out_of_scope),
+                    },
+                )
+                print(
+                    pal(
+                        f"  ! Spec {item['id6']} production wrote out-of-scope paths: {', '.join(prod_out_of_scope)}",
+                        "yellow",
+                    ),
+                    file=sys.stderr,
+                )
+
+            # Discover all newly produced plans in target_tree
+            new_produced_paths: list[Path] = []
+            new_produced_plans: list[tuple[str, Path]] = []
+            for p, text in _ce._iter_plan_ipds(target_tree):
+                p_id = _pc._extract_plan_id(p, text)
+                if p_id not in baseline_plan_ids:
+                    new_produced_paths.append(p)
+                    new_produced_plans.append((p_id, p))
+
+            findings: list[tuple[str, str, str]] = []
+            if exit_code != 0:
+                findings.append(
+                    (
+                        "SPEC-PRODUCTION-FAILED",
+                        item["id6"],
+                        f"Agent production turn failed with exit code {exit_code}.",
+                    )
+                )
+            else:
+                host_name = "agy" if "agy" in host_labels.id else "oc"
+                findings.extend(
+                    _pc.spec_plan_count(
+                        target_tree,
+                        item["id6"],
+                        baseline_plan_ids,
+                        host=host_name,
+                    )
+                )
+                findings.extend(
+                    _pc.spec_plan_conformance(
+                        target_tree,
+                        item["id6"],
+                        new_produced_paths,
+                        host=host_name,
+                        run_id=str(state.get("run_id") or ""),
+                    )
+                )
+                findings.extend(
+                    _pc.spec_plan_gate_carry(
+                        target_tree,
+                        item["id6"],
+                        new_produced_paths,
+                        host=host_name,
+                    )
+                )
+
+            if findings:
+                disposition = "fail-gate"
+                for code, _subj, msg in findings:
+                    print(
+                        pal(f"  \u2717 Spec production refused [{code}]: {msg}", "red"),
+                        file=sys.stderr,
+                    )
+                for code, _subj, msg in reversed(findings):
+                    record_refusal(
+                        item,
+                        code=code,
+                        reason=msg,
+                        remedy=f"{host_labels.command} {item['id6']}",
+                    )
+                if wt_handle is not None:
+                    lane_containment.record_lane_preserved(
+                        run_dir=run_dir,
+                        item=item,
+                        handle=wt_handle,
+                        reason="spec production verification failed; lane preserved for inspection",
+                        reason_codes=("spec-production-failed",),
+                    )
+            else:
+                # Success path!
+                target_spec_path = queue_artifact_path(target_tree, item)
+                try:
+                    rel_spec_str = str(
+                        target_spec_path.relative_to(target_tree)
+                    ).replace("\\", "/")
+                except ValueError:
+                    rel_spec_str = str(target_spec_path).replace("\\", "/")
+
+                run_id_val = str(state.get("run_id") or "")
+                produced_ids_str = ", ".join(
+                    sorted(p_id for p_id, _p in new_produced_plans)
+                )
+                trans_msg = (
+                    f"produced by run {run_id_val}: {produced_ids_str}"
+                    if run_id_val
+                    else f"produced: {produced_ids_str}"
+                )
+
+                cmd = pinned_module_argv(
+                    [
+                        "specs",
+                        "set",
+                        rel_spec_str,
+                        "--status",
+                        "implementing",
+                        "--message",
+                        trans_msg,
+                        "--no-commit",
+                    ]
+                )
+                try:
+                    run_checked(cmd, cwd=target_tree)
+                    spec_trans_commit, _ = commit_spec_transition_output(
+                        target_tree,
+                        item["id6"],
+                        target_spec_path,
+                        run_id=run_id_val or None,
+                    )
+                    if spec_trans_commit:
+                        attempt["spec_transition_commit"] = spec_trans_commit
+                        append_jsonl(
+                            run_dir / "events.jsonl",
+                            {
+                                "at": utc_now(),
+                                "event": "spec-transition-committed",
+                                "id6": item["id6"],
+                                "attempt": attempt_no,
+                                "commit": spec_trans_commit,
+                            },
+                        )
+                except Exception as exc:
+                    disposition = "fail-gate"
+                    record_refusal(
+                        item,
+                        code="SPEC-TRANSITION-FAILED",
+                        reason=f"Failed to transition spec to implementing: {exc}",
+                        remedy=f"{host_labels.command} {item['id6']}",
+                    )
+                    print(
+                        pal(f"  \u2717 Spec transition failed: {exc}", "red"),
+                        file=sys.stderr,
+                    )
+
+                if disposition != "fail-gate":
+                    # Record generated next actions
+                    gen_actions = []
+                    for p_id, p in sorted(new_produced_plans, key=lambda x: x[0]):
+                        try:
+                            rel_p = str(p.relative_to(target_tree)).replace("\\", "/")
+                        except ValueError:
+                            rel_p = str(p).replace("\\", "/")
+                        gen_actions.append(
+                            {
+                                "id6": p_id,
+                                "path": rel_p,
+                                "from_spec": item["id6"],
+                            }
+                        )
+                    item["generated_next_actions"] = gen_actions
+                    attempt["generated_next_actions"] = gen_actions
+
+                    if wt_handle is not None:
+                        prod_integrated, prod_reason, prod_kind = (
+                            integrate_under_repository_lock(
+                                repo,
+                                item,
+                                wt_handle,
+                                state=state,
+                                holder_label=integration_lock_holder_label(state),
+                                integrate=lambda _item,
+                                _handle: integrate_review_lane_branch(
+                                    repo, _handle, _item["id6"]
+                                ),
+                                progress=integration_lock_progress_reporter(),
+                                run_checked=run_checked,
+                            )
+                        )
+                        attempt["prod_integrated"] = prod_integrated
+                        attempt["prod_integration_reason"] = prod_reason
+                        attempt["prod_integration_kind"] = prod_kind
+                        item["prod_integrated"] = prod_integrated
+                        if not prod_integrated:
+                            disposition = "fail-gate"
+                            record_refusal(
+                                item,
+                                code="SPEC-INTEGRATION-REFUSED",
+                                reason=prod_reason,
+                                remedy=f"{host_labels.command} {item['id6']}",
+                            )
+                            lane_containment.record_lane_preserved(
+                                run_dir=run_dir,
+                                item=item,
+                                handle=wt_handle,
+                                reason=prod_reason,
+                                reason_codes=("spec-integration-refused",),
+                            )
+                        else:
+                            decision = lane_containment.teardown_lane_if_classified(
+                                repo=repo,
+                                handle=wt_handle,
+                                run_dir=run_dir,
+                                item=item,
+                            )
+                            if decision.torn_down:
+                                wt_handle = None
+                            else:
+                                lane_containment.record_lane_preserved(
+                                    run_dir=run_dir,
+                                    item=item,
+                                    handle=wt_handle,
+                                    reason=decision.reason,
+                                    reason_codes=decision.reason_codes,
+                                    detail=decision.inventory.as_dict(),
+                                )
+                            disposition = "executed"
+                            attempt["disposition"] = "executed"
+                            attempt["finalized"] = True
+                            attempt["integrated"] = prod_reason
+                            item["status"] = "executed"
+                            save_state(run_dir, state)
+                            append_jsonl(
+                                run_dir / "events.jsonl",
+                                {
+                                    "at": utc_now(),
+                                    "event": "spec-production-finalized",
+                                    "id6": item["id6"],
+                                    "integration": prod_reason,
+                                },
+                            )
+                    else:
+                        disposition = "executed"
+                        attempt["disposition"] = "executed"
+                        attempt["finalized"] = True
+                        attempt["integrated"] = "shared-tree"
+                        item["status"] = "executed"
+                        save_state(run_dir, state)
+                        append_jsonl(
+                            run_dir / "events.jsonl",
+                            {
+                                "at": utc_now(),
+                                "event": "spec-production-finalized",
+                                "id6": item["id6"],
+                                "integration": "shared-tree",
+                            },
+                        )
+            save_state(run_dir, state)
 
         # IN-LANE RETIREMENT (see `RETIRED_STATUS`): the turn moved its plan to `superseded/` or
         # `not-executed/` and earned integration (verifier or suite). There is NOTHING TO FINALIZE -
@@ -31465,6 +32134,7 @@ def execute_item_core(
         # the lane is preserved exactly as for any other unintegrated turn.
         if (
             not is_review
+            and not is_production
             and disposition == RETIRED_STATUS
             and self_finalize
             and wt_handle is not None
@@ -31491,10 +32161,15 @@ def execute_item_core(
             if disposition == RETIRED_STATUS:
                 wt_handle = None
 
-        if not is_review and disposition in (
-            "executed",
-            "fail-gate",
-            "substantially-complete",
+        if (
+            not is_review
+            and not is_production
+            and disposition
+            in (
+                "executed",
+                "fail-gate",
+                "substantially-complete",
+            )
         ):
             if (
                 self_finalize
@@ -32077,7 +32752,12 @@ def execute_item_core(
                 if not (item.get("backlog_close") or {}).get("closed"):
                     process_backlog_close(run_dir, state, item)
 
-        if wt_handle is not None and not is_review and item.get("status") != "executed":
+        if (
+            wt_handle is not None
+            and not is_review
+            and not is_production
+            and item.get("status") != "executed"
+        ):
             lane_containment.record_lane_preserved(
                 run_dir=run_dir,
                 item=item,
@@ -32117,7 +32797,7 @@ def execute_item_core(
         # written even for a turn that changed little) and its refused-integration recovery is owned by
         # the integration deferral ladder, which has its own budget and its own rungs. Widening this to
         # reviews would spend the correction budget on a class another mechanism already re-attempts.
-        if not is_review:
+        if not is_review and not is_production:
             disposition = handle_turn_failure_retry(
                 run_dir=run_dir,
                 state=state,
@@ -32225,6 +32905,18 @@ def execute_item_core(
             print(
                 pal(
                     f"  ! Spec {item['id6']} reviewed; awaiting human approval before implementation (stops here, including under --full-auto)",
+                    "cyan",
+                )
+            )
+        elif (
+            queue_entry_type(item) == "spec"
+            and is_production
+            and disposition == "executed"
+        ):
+            actions_cnt = len(item.get("generated_next_actions") or [])
+            print(
+                pal(
+                    f"  \u2713 Spec {item['id6']} plan production succeeded: {actions_cnt} plan(s) produced; spec implementing",
                     "cyan",
                 )
             )

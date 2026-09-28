@@ -5285,7 +5285,7 @@ class ActionLegalityTests(unittest.TestCase):
 
     def test_action_choices_and_enforcement(self):
         self.assertEqual(driver.ACTION_CHOICES, ("review", "plan", "execute"))
-        self.assertEqual(driver.ACTION_IMPLEMENTED, frozenset({"review"}))
+        self.assertEqual(driver.ACTION_IMPLEMENTED, frozenset({"review", "plan"}))
 
         driver.enforce_requested_action(None, [("x", "approved", "execute")])
         driver.enforce_requested_action(
@@ -5302,13 +5302,17 @@ class ActionLegalityTests(unittest.TestCase):
                     driver.enforce_requested_action("review", items)
                 self.assertIn(expected, str(ctx.exception))
 
-        for action in ("plan", "execute"):
+        for action in ("execute",):
             with self.subTest(action=action):
                 with self.assertRaises(driver.DriverError) as ctx:
                     driver.enforce_requested_action(
                         action, [("a", "approved", "execute")]
                     )
                 self.assertIn("not implemented", str(ctx.exception))
+
+        with self.assertRaises(driver.DriverError) as ctx:
+            driver.enforce_requested_action("plan", [("a", "approved", "execute")])
+        self.assertIn("illegal", str(ctx.exception))
 
         with self.assertRaises(driver.DriverError) as ctx:
             driver.enforce_requested_action(
