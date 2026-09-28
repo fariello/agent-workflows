@@ -1,5 +1,6 @@
 - Id: xtrwdb
-- Status: open
+- Status: graduated
+- Graduated-To: xtrwdb
 - Blocks-Release: next
 - Set: xtrwdb
 - Priority: low
@@ -7,6 +8,7 @@
 - Summary: tools/untrack-workflow-artifacts.py still untracks the RETIRED repo-root path in place and writes a root ignore rule for it
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: cf7f8z
 - 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-18 created (aw backlog): tools/untrack-workflow-artifacts.py still untracks the RETIRED repo-root path in place and writes a root ignore rule for it
 
