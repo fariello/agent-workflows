@@ -48,11 +48,11 @@ precedence first:
 | # | Layer | Rule |
 | --- | --- | --- |
 | 1 | Flag | `--color` forces ANSI on; `--no-color` forces it off. Passing BOTH is a usage error (exit 2), never a silent winner, so a scripted invocation never depends on argument order. |
-| 2 | Env | `NO_COLOR` (any value, including empty) disables, UNLESS `FORCE_COLOR` is set; `FORCE_COLOR` (any non-empty value) enables. |
+| 2 | Env | `NO_COLOR` (any value, including empty) disables, unless `FORCE_COLOR` is set to a forcing value. `FORCE_COLOR` enables when set to a forcing value. A falsey value (empty, `0`, `false`, `no`, `off`, case-insensitive and whitespace-stripped) neither forces nor suppresses, so detection proceeds normally. Both `FORCE_COLOR` readings route through `term._force_color_is_forcing`. |
 | 3 | Capability | `TERM=dumb` or an unset `TERM` disables. |
 | 4 | Detection | Otherwise ANSI is on only when the target stream is a real TTY. |
 
-Worked cases, each pinned by a test in `tests/test_term.py` and `tests/test_flag_surface_uniformity.py`:
+Worked cases, each pinned by a test in `tests/test_term.py`:
 
 | Invocation | Result |
 | --- | --- |
@@ -61,6 +61,12 @@ Worked cases, each pinned by a test in `tests/test_term.py` and `tests/test_flag
 | `FORCE_COLOR=1 aw <cmd> \| cat` | colored (env beats detection) |
 | `aw <cmd> \| cat` | monochrome (detection alone) |
 | `aw <cmd> --color \| cat` | colored (flag beats detection) |
+| `FORCE_COLOR=0 aw <cmd> \| cat` | monochrome (falsey value does not force) |
+| `FORCE_COLOR=off aw <cmd> \| cat` | monochrome (falsey value does not force) |
+| `FORCE_COLOR=false aw <cmd> \| cat` | monochrome (falsey value does not force) |
+| `NO_COLOR=1 FORCE_COLOR=0 aw <cmd> \| cat` | monochrome (falsey value does not cancel NO_COLOR) |
+| `NO_COLOR=1 FORCE_COLOR=0 aw <cmd>` | monochrome (falsey value does not cancel NO_COLOR) |
+| `FORCE_COLOR=0 aw <cmd>` | colored (falsey value does not suppress; detection proceeds) |
 
 Two invariants hold across all of it. FIRST, a flag NEVER reaches the engine by mutating
 `os.environ`: the override is passed as an argument, because this package spawns nested `aw`

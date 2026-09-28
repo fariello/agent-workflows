@@ -19,7 +19,7 @@ You can select the format and styling with flags:
 - `aw <command> --json`: pretty-printed structured JSON.
 - `aw <command> --no-color`: human view without ANSI color (also honored via the `NO_COLOR`
   environment variable).
-- `FORCE_COLOR=1`: preserves ANSI color even when piped.
+- `FORCE_COLOR=1`: preserves ANSI color even when piped. Falsey values (empty, `0`, `false`, `no`, `off`) neither force nor suppress color.
 
 ## Anatomy of a human render
 
@@ -68,8 +68,7 @@ Color and glyphs are never the sole carrier of meaning:
 - Run `aw --help` to see the canonical lifecycle legend, which details every lifecycle stage, its
   Unicode glyph, and its ASCII fallback.
 
-Environment precedence for color: `NO_COLOR` disables color and is only overridden by
-`FORCE_COLOR`; otherwise color is on only for a real terminal with a capable `TERM`.
+Precedence for color: explicit flags (`--color` and `--no-color`) take highest priority, overriding environment settings. In the environment layer, `NO_COLOR` disables color unless overridden by a forcing `FORCE_COLOR` value; a falsey `FORCE_COLOR` neither forces nor suppresses. When no forcing flag or environment variable is set, color is on only for a real terminal with a capable `TERM`. See section 1.1 of the [CLI Output Mode Contract](cli-output-contract.md#11-color-precedence-flag-beats-env-beats-detection) for the full precedence table.
 
 ## Exit codes you can rely on
 

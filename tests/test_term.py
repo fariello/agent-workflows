@@ -6,6 +6,7 @@ import contextlib
 import inspect
 import io
 import os
+from pathlib import Path
 import re
 import tempfile
 import unittest
@@ -183,6 +184,237 @@ class ShouldColorGridTests(unittest.TestCase):
                 self._apply(NO_COLOR=None, FORCE_COLOR=value, TERM="xterm-256color")
                 self.assertTrue(T.should_color(_FakeTTY()))
                 self.assertFalse(T.should_color(_FakePipe()))
+
+    def test_force_color_falsey_membership(self):
+        """Assert exact canonical membership of T._FORCE_COLOR_FALSEY."""
+        expected = frozenset({"", "0", "false", "no", "off"})
+        self.assertEqual(
+            T._FORCE_COLOR_FALSEY,
+            expected,
+            f"Unexpected _FORCE_COLOR_FALSEY: {T._FORCE_COLOR_FALSEY ^ expected}",
+        )
+
+    def test_force_color_extended_falsey_and_forcing(self):
+        """Extended falsey coverage and forcing-side normalization (E-04)."""
+
+        def spellings_for(base: str) -> list[str]:
+            if base == "":
+                return ["", "  ", "\t"]
+            elif base == "0":
+                return ["0", " 0 ", "  0 \t"]
+            else:
+                return [base, base.upper(), f" {base.capitalize()} "]
+
+        required_members = {"", "0", "false", "no", "off"}
+        # Drive candidate members from T._FORCE_COLOR_FALSEY itself, joined with required members
+        all_bases = sorted(set(T._FORCE_COLOR_FALSEY) | required_members)
+
+        # 1. Falsey coverage across all members, variants, NO_COLOR states, stream kinds
+        for base in all_bases:
+            for spelling in spellings_for(base):
+                for no_color in ("1", None):
+                    for stream_kind, stream_cls in (
+                        ("tty", _FakeTTY),
+                        ("pipe", _FakePipe),
+                    ):
+                        expected = (
+                            False if no_color is not None else (stream_kind == "tty")
+                        )
+                        case = (
+                            f"spelling={spelling!r} NO_COLOR={no_color} "
+                            f"on {stream_kind} (base={base!r})"
+                        )
+                        with self.subTest(case=case):
+                            self._apply(
+                                NO_COLOR=no_color,
+                                FORCE_COLOR=spelling,
+                                TERM="xterm-256color",
+                            )
+                            self.assertEqual(
+                                T.should_color(stream_cls()),
+                                expected,
+                                f"{case}: expected {'color' if expected else 'plain'}",
+                            )
+
+        # 2. Forcing-side normalization: truthy values needing stripping or case-folding
+        forcing_cases = [
+            (" 1 ", "pipe", _FakePipe, None, True),
+            (" 1 ", "pipe", _FakePipe, "1", True),
+            (" 1 ", "tty", _FakeTTY, "1", True),
+            ("TRUE", "pipe", _FakePipe, None, True),
+            ("TRUE", "pipe", _FakePipe, "1", True),
+            ("On", "pipe", _FakePipe, None, True),
+            ("On", "pipe", _FakePipe, "1", True),
+            ("2", "pipe", _FakePipe, None, True),
+            ("2", "pipe", _FakePipe, "1", True),
+            (" true ", "pipe", _FakePipe, None, True),
+            (" true ", "pipe", _FakePipe, "1", True),
+            (" YES ", "pipe", _FakePipe, None, True),
+            (" YES ", "pipe", _FakePipe, "1", True),
+        ]
+        for force_val, stream_kind, stream_cls, no_color, expected in forcing_cases:
+            case = f"FORCE_COLOR={force_val!r} NO_COLOR={no_color} on {stream_kind}"
+            with self.subTest(case=case):
+                self._apply(
+                    NO_COLOR=no_color,
+                    FORCE_COLOR=force_val,
+                    TERM="xterm-256color",
+                )
+                self.assertEqual(
+                    T.should_color(stream_cls()),
+                    expected,
+                    f"{case}: expected {'color' if expected else 'plain'}",
+                )
+
+
+class WorkedCasesContractTests(unittest.TestCase):
+    """Pin the published color precedence contract table in docs/cli-output-contract.md.
+
+    This test reads a `docs/` prose table, which is repository CONTENT, and asserts
+    that the published claim is TRUE by executing `term.should_color`, the subject the
+    document describes. It does NOT assert that any production source text or structure
+    is unchanged (no inspect.getsource, no ast.parse over agent_workflows/, no assertIn
+    over a package file), honoring the 2026-09-26 maintainer ruling against source pins
+    (backlog xelvyi, plan 96xtmi).
+    """
+
+    def setUp(self):
+        self._saved = {
+            k: os.environ.get(k) for k in ("NO_COLOR", "FORCE_COLOR", "TERM")
+        }
+        self.addCleanup(self._restore)
+        self.addCleanup(T.set_color_override, None)
+
+    def _restore(self):
+        for k, v in self._saved.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+
+    def test_worked_cases_table_matches_should_color(self):
+        doc_path = (
+            Path(__file__).resolve().parent.parent / "docs" / "cli-output-contract.md"
+        )
+        content = doc_path.read_text(encoding="utf-8")
+
+        lines = content.splitlines()
+        in_table = False
+        table_lines = []
+        for line in lines:
+            if "Worked cases, each pinned by a test in" in line:
+                in_table = True
+                continue
+            if in_table:
+                stripped = line.strip()
+                if not stripped:
+                    if table_lines:
+                        break
+                    continue
+                if stripped.startswith("|"):
+                    table_lines.append(stripped)
+                elif table_lines:
+                    break
+
+        rows = []
+        for line in table_lines:
+            raw_cells = re.split(r"(?<!\\)\|", line)
+            cells = [c.strip() for c in raw_cells[1:-1]]
+            if (
+                len(cells) < 2
+                or cells[0] == "Invocation"
+                or set(cells[0]) <= {"-", " "}
+            ):
+                continue
+
+            raw_invoc, raw_result = cells[0], cells[1]
+            invoc = raw_invoc.strip("`").strip().replace(r"\|", "|")
+            tokens = invoc.split()
+
+            env = {}
+            i = 0
+            while (
+                i < len(tokens) and "=" in tokens[i] and not tokens[i].startswith("--")
+            ):
+                var, val = tokens[i].split("=", 1)
+                env[var] = val
+                i += 1
+
+            if "=" in invoc:
+                self.assertTrue(
+                    env,
+                    f"Row contains '=' but extracted environment was empty: {raw_invoc!r}",
+                )
+
+            override = None
+            if "--no-color" in tokens:
+                override = False
+            elif "--color" in tokens:
+                override = True
+
+            is_tty = not (
+                invoc.endswith("| cat")
+                or (len(tokens) >= 2 and tokens[-2:] == ["|", "cat"])
+            )
+            expected_colored = raw_result.startswith("colored")
+
+            rows.append(
+                {
+                    "raw_invoc": raw_invoc,
+                    "invoc": invoc,
+                    "env": env,
+                    "override": override,
+                    "is_tty": is_tty,
+                    "expected": expected_colored,
+                    "raw_result": raw_result,
+                }
+            )
+
+        # (d) Fail loudly rather than vacuously: row floor and required rows
+        self.assertGreaterEqual(
+            len(rows),
+            11,
+            f"Expected at least 11 rows in worked cases table, found {len(rows)}",
+        )
+        invoc_texts = [r["invoc"] for r in rows]
+        self.assertTrue(
+            any(
+                "NO_COLOR=1 FORCE_COLOR=0" in inv and "| cat" not in inv
+                for inv in invoc_texts
+            ),
+            "Missing required row: 'NO_COLOR=1 FORCE_COLOR=0' on a TTY",
+        )
+        self.assertTrue(
+            any(
+                inv == "FORCE_COLOR=0 aw <cmd>"
+                or (inv.startswith("FORCE_COLOR=0") and "| cat" not in inv)
+                for inv in invoc_texts
+            ),
+            "Missing required row: 'FORCE_COLOR=0' on a TTY",
+        )
+
+        # (e) Report every mismatch at once
+        mismatches = []
+        for r in rows:
+            for k in ("NO_COLOR", "FORCE_COLOR"):
+                os.environ.pop(k, None)
+            os.environ["TERM"] = "xterm-256color"
+            for k, v in r["env"].items():
+                os.environ[k] = v
+            T.set_color_override(r["override"])
+            stream = _FakeTTY() if r["is_tty"] else _FakePipe()
+            measured = T.should_color(stream, override=r["override"])
+            if measured != r["expected"]:
+                mismatches.append(
+                    f"Invocation: {r['invoc']!r} | "
+                    f"Documented: {'colored' if r['expected'] else 'monochrome'} | "
+                    f"Measured: {'colored' if measured else 'monochrome'}"
+                )
+
+        if mismatches:
+            self.fail(
+                "Documented color contract table mismatches:\n" + "\n".join(mismatches)
+            )
 
 
 class ColorPrecedenceTests(unittest.TestCase):

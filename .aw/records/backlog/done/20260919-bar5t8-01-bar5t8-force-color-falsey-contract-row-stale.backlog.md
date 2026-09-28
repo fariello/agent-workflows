@@ -1,5 +1,5 @@
 - Id: bar5t8
-- Status: graduated
+- Status: done
 - Graduated-To: bar5t8
 - Blocks-Release: next
 - Set: bar5t8
@@ -8,6 +8,7 @@
 - Summary: docs/cli-output-contract.md section 1.1 row 2 misstates FORCE_COLOR: it promises a falsey FORCE_COLOR both cancels NO_COLOR and enables color, and the shipped code does neither
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): closed by aw oc run: IPD mj18mi executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-bar5t8-01-mj18mi-correct-the-falsey-force-color-wording-in-the-published-colo.ipd.md); evidence .aw/records/plans/executed/20260928-bar5t8-01-mj18mi-correct-the-falsey-force-color-wording-in-the-published-colo.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: mj18mi
 - 2026-09-19 created (aw backlog): docs/cli-output-contract.md section 1.1 row 2 misstates FORCE_COLOR: it promises a falsey FORCE_COLOR both cancels NO_COLOR and enables color, and the shipped code does neither
 
