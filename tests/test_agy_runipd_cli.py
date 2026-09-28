@@ -1211,6 +1211,131 @@ class AgyFailClosedIntegrationGuardTests(unittest.TestCase):
             )
             self.assertNotIn("aw oc run", subject)
 
+    def _setup_backlog_and_two_carriers(self, repo: Path):
+        bdir = repo / ".aw" / "records" / "backlog" / "graduated"
+        bdir.mkdir(parents=True, exist_ok=True)
+        bitem = bdir / "20260928-1200-01-bg0001-test.backlog.md"
+        bitem.write_text(
+            "- Id: bg0001\n- Status: graduated\n- Priority: medium\n- Work-Kind: chore\n",
+            encoding="utf-8",
+        )
+
+        pdir = repo / ".aw" / "records" / "plans" / "pending"
+        pdir.mkdir(parents=True, exist_ok=True)
+
+        p1_text = _CONFORMING_PLAN.format(id6="agy001").replace(
+            "- Item-Dependencies: none",
+            "- Item-Dependencies: none\n- From-Backlog: bg0001",
+        )
+        p1 = pdir / "20260828-demo-01-agy001-demo.ipd.md"
+        p1.write_text(p1_text, encoding="utf-8")
+
+        p2_text = _CONFORMING_PLAN.format(id6="agy002").replace(
+            "- Item-Dependencies: none",
+            "- Item-Dependencies: none\n- From-Backlog: bg0001",
+        )
+        p2 = pdir / "20260828-demo-02-agy002-demo.ipd.md"
+        p2.write_text(p2_text, encoding="utf-8")
+
+        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+        subprocess.run(
+            ["git", "commit", "-qm", "initial carriers and backlog"],
+            cwd=repo,
+            check=True,
+        )
+        return p1, p2, bitem
+
+    def test_deferred_reattempt_backlog_close_reaches_coordinator_worktree_performer(
+        self,
+    ):
+        """reattclose-01 (`pjuoyj`) E-08: agy host's deferred re-attempt reaches the coordinator worktree performer."""
+        from agent_workflows import orchestrate_isolation
+
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            repo.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+            subprocess.run(
+                ["git", "config", "user.email", "test@example.invalid"],
+                cwd=repo,
+                check=True,
+            )
+            subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+            (repo / ".gitignore").write_text(
+                ".aw/state/\n.aw/worktrees/\n.aw/records/runs/\n", encoding="utf-8"
+            )
+
+            p1, p2, bitem = self._setup_backlog_and_two_carriers(repo)
+
+            run_dir = self._mk_run_dir(repo)
+            state, item = self._state_and_item(repo, p1)
+            item["from_backlog"] = "bg0001"
+            state["options"]["integration_retry_limit"] = 10
+            state["options"]["on_integration_blocked"] = "defer"
+
+            base_agent = self._fake_agent_also_dirties_main(run_dir, repo)
+            with (
+                mock.patch.object(agy_runipd, "run_agy_turn", base_agent),
+                mock.patch.object(
+                    orchestrate_isolation,
+                    "execute_merge_and_revalidate_gate",
+                    lambda *a, **k: True,
+                ),
+            ):
+                agy_runipd.execute_item(run_dir, state, item, recovery=False)
+
+            self.assertEqual(item["status"], "merge-retry")
+            self.assertFalse((item.get("backlog_close") or {}).get("closed", False))
+
+            # Dirt clears
+            (repo / "src" / "demo.txt").unlink()
+
+            # Sibling carrier moves to executed
+            edir = repo / ".aw" / "records" / "plans" / "executed"
+            edir.mkdir(parents=True, exist_ok=True)
+            p2.rename(edir / p2.name)
+            subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+            subprocess.run(
+                ["git", "commit", "-qm", "sibling executed"], cwd=repo, check=True
+            )
+
+            performer_calls = []
+            real_performer = runner_shared.perform_coordinator_backlog_close
+
+            def spy_performer(*a, **k):
+                performer_calls.append((a, k))
+                return real_performer(*a, **k)
+
+            with mock.patch.object(
+                runner_shared, "perform_coordinator_backlog_close", spy_performer
+            ):
+                records = agy_runipd.retry_deferred_integrations(run_dir, state)
+
+            self.assertEqual([r["outcome"] for r in records], ["integrated"])
+            self.assertEqual(
+                len(performer_calls),
+                1,
+                "agy path MUST reach runner_shared.perform_coordinator_backlog_close",
+            )
+
+            close_rec = item.get("backlog_close") or {}
+            self.assertTrue(
+                close_rec.get("closed"), f"expected closed: True, got {close_rec}"
+            )
+            self.assertEqual(close_rec.get("wrote_in"), "coordinator_worktree")
+            self.assertTrue(
+                (repo / ".aw" / "records" / "backlog" / "done" / bitem.name).is_file()
+            )
+            self.assertFalse(bitem.is_file())
+            status = subprocess.run(
+                ["git", "status", "--porcelain", "-uall", "--", ".aw/records/backlog"],
+                cwd=repo,
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout.strip()
+            self.assertEqual(status, "")
+
     def test_expand_selectors_reviews(self):
         manifest = {
             "schema_version": 1,

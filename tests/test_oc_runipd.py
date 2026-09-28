@@ -29,6 +29,7 @@ from agent_workflows import oc_models
 from agent_workflows import oc_runipd as driver
 from agent_workflows import runner_shared
 from agent_workflows import runner_stop
+from agent_workflows import orchestrate_isolation
 from tests import support
 from tests.support import REPO_ROOT
 
@@ -7787,6 +7788,471 @@ class StartupAttentionIntegrityReportTests(unittest.TestCase):
             ):
                 driver.initialize_run(args)
             self.assertIn("report_called:run_count=0", events)
+
+
+class TestDeferredReattemptBacklogCloseCoordinatorWorktree(
+    FailClosedIntegrationGuardTests
+):
+    """reattclose-01 (`pjuoyj`): deferred re-attempt backlog close in coordinator worktree.
+
+    Pins:
+    (1) The success arm: reaches done, main working tree porcelain has no backlog paths, wrote_in is coordinator_worktree.
+    (2) The failure arm: rejected commit leaves main's working tree completely clean (no half-move residue), records refusal.
+    (3) No double close: already closed item skips close performer completely.
+    """
+
+    def _setup_backlog_and_two_carriers(self, repo: Path):
+        bdir = repo / ".aw" / "records" / "backlog" / "graduated"
+        bdir.mkdir(parents=True, exist_ok=True)
+        bitem = bdir / "20260928-1200-01-bg0001-test.backlog.md"
+        bitem.write_text(
+            "- Id: bg0001\n- Status: graduated\n- Priority: medium\n- Work-Kind: chore\n",
+            encoding="utf-8",
+        )
+
+        pdir = repo / ".aw" / "records" / "plans" / "pending"
+        pdir.mkdir(parents=True, exist_ok=True)
+
+        p1_text = _CONFORMING_PLAN.format(id6="wir001").replace(
+            "- Item-Dependencies: none",
+            "- Item-Dependencies: none\n- From-Backlog: bg0001",
+        )
+        p1 = pdir / "20260828-demo-01-wir001-demo.ipd.md"
+        p1.write_text(p1_text, encoding="utf-8")
+
+        p2_text = _CONFORMING_PLAN.format(id6="wir002").replace(
+            "- Item-Dependencies: none",
+            "- Item-Dependencies: none\n- From-Backlog: bg0001",
+        )
+        p2 = pdir / "20260828-demo-02-wir002-demo.ipd.md"
+        p2.write_text(p2_text, encoding="utf-8")
+
+        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+        subprocess.run(
+            ["git", "commit", "-qm", "initial carriers and backlog"],
+            cwd=repo,
+            check=True,
+        )
+        return p1, p2, bitem
+
+    def test_case1_deferred_reattempt_close_reaches_done_and_main_clean(self):
+        """Case 1 (E-02): eligible deferred re-attempt close lands in done, wrote_in=coordinator_worktree, main clean."""
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            repo.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+            subprocess.run(
+                ["git", "config", "user.email", "test@example.invalid"],
+                cwd=repo,
+                check=True,
+            )
+            subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+            (repo / ".gitignore").write_text(
+                ".aw/state/\n.aw/worktrees/\n.aw/records/runs/\n", encoding="utf-8"
+            )
+
+            p1, p2, bitem = self._setup_backlog_and_two_carriers(repo)
+
+            run_dir = self._mk_run_dir(repo)
+            state, item = self._state_and_item(repo, p1)
+            item["from_backlog"] = "bg0001"
+            state["options"]["integration_retry_limit"] = 10
+            state["options"]["on_integration_blocked"] = "defer"
+
+            base_agent = self._fake_agent_also_dirties_main(run_dir, repo)
+            with (
+                mock.patch.object(driver, "run_opencode", base_agent),
+                mock.patch.object(
+                    orchestrate_isolation,
+                    "execute_merge_and_revalidate_gate",
+                    lambda *a, **k: True,
+                ),
+            ):
+                driver.execute_item(run_dir, state, item, recovery=False)
+
+            self.assertEqual(item["status"], "merge-retry")
+            self.assertFalse((item.get("backlog_close") or {}).get("closed", False))
+
+            # Dirt clears
+            (repo / "src" / "demo.txt").unlink()
+
+            # Sibling carrier moves to executed
+            edir = repo / ".aw" / "records" / "plans" / "executed"
+            edir.mkdir(parents=True, exist_ok=True)
+            p2.rename(edir / p2.name)
+            subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+            subprocess.run(
+                ["git", "commit", "-qm", "sibling executed"], cwd=repo, check=True
+            )
+
+            records = driver.retry_deferred_integrations(run_dir, state)
+            self.assertEqual([r["outcome"] for r in records], ["integrated"])
+
+            close_rec = item.get("backlog_close") or {}
+            self.assertTrue(
+                close_rec.get("closed"), f"expected closed: True, got {close_rec}"
+            )
+            self.assertEqual(close_rec.get("wrote_in"), "coordinator_worktree")
+            # Item is at done/ and not graduated/
+            self.assertTrue(
+                (repo / ".aw" / "records" / "backlog" / "done" / bitem.name).is_file()
+            )
+            self.assertFalse(bitem.is_file())
+            # Working tree has no backlog paths
+            status = subprocess.run(
+                ["git", "status", "--porcelain", "-uall", "--", ".aw/records/backlog"],
+                cwd=repo,
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout.strip()
+            self.assertEqual(status, "")
+
+    def test_case2_deferred_reattempt_failure_arm_leaves_main_clean(self):
+        """Case 2 (E-02): rejecting hook leaves main clean without half-move residue."""
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            repo.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+            subprocess.run(
+                ["git", "config", "user.email", "test@example.invalid"],
+                cwd=repo,
+                check=True,
+            )
+            subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+            (repo / ".gitignore").write_text(
+                ".aw/state/\n.aw/worktrees/\n.aw/records/runs/\n", encoding="utf-8"
+            )
+
+            p1, p2, bitem = self._setup_backlog_and_two_carriers(repo)
+
+            run_dir = self._mk_run_dir(repo)
+            state, item = self._state_and_item(repo, p1)
+            item["from_backlog"] = "bg0001"
+            state["options"]["integration_retry_limit"] = 10
+            state["options"]["on_integration_blocked"] = "defer"
+
+            base_agent = self._fake_agent_also_dirties_main(run_dir, repo)
+            with (
+                mock.patch.object(driver, "run_opencode", base_agent),
+                mock.patch.object(
+                    orchestrate_isolation,
+                    "execute_merge_and_revalidate_gate",
+                    lambda *a, **k: True,
+                ),
+            ):
+                driver.execute_item(run_dir, state, item, recovery=False)
+
+            (repo / "src" / "demo.txt").unlink()
+
+            edir = repo / ".aw" / "records" / "plans" / "executed"
+            edir.mkdir(parents=True, exist_ok=True)
+            p2.rename(edir / p2.name)
+            subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+            subprocess.run(
+                ["git", "commit", "-qm", "sibling executed"], cwd=repo, check=True
+            )
+
+            # Install rejecting hook
+            hook = repo / ".git" / "hooks" / "pre-commit"
+            hook.parent.mkdir(parents=True, exist_ok=True)
+            hook.write_text("#!/bin/sh\necho 'pre-commit hook reject' >&2\nexit 1\n")
+            hook.chmod(0o755)
+
+            records = driver.retry_deferred_integrations(run_dir, state)
+            self.assertEqual([r["outcome"] for r in records], ["integrated"])
+
+            close_rec = item.get("backlog_close") or {}
+            self.assertFalse(
+                close_rec.get("closed"),
+                f"expected closed: False on refusal, got {close_rec}",
+            )
+            self.assertIn(
+                "refuse",
+                close_rec.get("reason", "").lower() + str(close_rec.get("landing", {})),
+            )
+
+            # Main must be left completely clean of any half-move residue (D/??)
+            status = subprocess.run(
+                ["git", "status", "--porcelain", "-uall", "--", ".aw/records/backlog"],
+                cwd=repo,
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout.strip()
+            self.assertEqual(
+                status, "", f"expected clean backlog working tree, got: {status}"
+            )
+
+    def test_case3_deferred_reattempt_no_double_close_when_already_closed(self):
+        """Case 3 (E-02): already-closed item skips close performer completely."""
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            repo.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+            subprocess.run(
+                ["git", "config", "user.email", "test@example.invalid"],
+                cwd=repo,
+                check=True,
+            )
+            subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+            (repo / ".gitignore").write_text(
+                ".aw/state/\n.aw/worktrees/\n.aw/records/runs/\n", encoding="utf-8"
+            )
+
+            p1, p2, bitem = self._setup_backlog_and_two_carriers(repo)
+
+            run_dir = self._mk_run_dir(repo)
+            state, item = self._state_and_item(repo, p1)
+            item["from_backlog"] = "bg0001"
+            state["options"]["integration_retry_limit"] = 10
+            state["options"]["on_integration_blocked"] = "defer"
+
+            base_agent = self._fake_agent_also_dirties_main(run_dir, repo)
+            with (
+                mock.patch.object(driver, "run_opencode", base_agent),
+                mock.patch.object(
+                    orchestrate_isolation,
+                    "execute_merge_and_revalidate_gate",
+                    lambda *a, **k: True,
+                ),
+            ):
+                driver.execute_item(run_dir, state, item, recovery=False)
+
+            (repo / "src" / "demo.txt").unlink()
+
+            # Pretend lane-side close already succeeded during its turn
+            item["backlog_close"] = {
+                "item": "bg0001",
+                "closed": True,
+                "wrote_in": "lane",
+                "commit": "123456",
+            }
+
+            close_calls = []
+            orig_close = driver.process_backlog_close
+
+            def spy_close(*a, **k):
+                close_calls.append((a, k))
+                return orig_close(*a, **k)
+
+            with mock.patch.object(driver, "process_backlog_close", spy_close):
+                records = driver.retry_deferred_integrations(run_dir, state)
+
+            self.assertEqual([r["outcome"] for r in records], ["integrated"])
+            self.assertEqual(
+                len(close_calls), 0, "must NOT re-call close when already closed"
+            )
+            self.assertTrue(item["backlog_close"]["closed"])
+
+    def test_case4_race_rebuilds_on_new_tip_and_preserves_peer_commit(self):
+        """Case 4 (E-07): race rebuilds on new tip and preserves peer commit.
+
+        Today's code passes this property via commit_isolated's ISO_RACED retry;
+        this test pins the non-regression so the coordinator worktree path preserves it.
+        A record-only RACED arm fails this test (the close is left undone and un-landed);
+        rebuilding on the new tip succeeds and preserves the peer commit as an ancestor.
+        """
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            repo.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+            subprocess.run(
+                ["git", "config", "user.email", "test@example.invalid"],
+                cwd=repo,
+                check=True,
+            )
+            subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+            (repo / ".gitignore").write_text(
+                ".aw/state/\n.aw/worktrees/\n.aw/records/runs/\n", encoding="utf-8"
+            )
+
+            p1, p2, bitem = self._setup_backlog_and_two_carriers(repo)
+
+            run_dir = self._mk_run_dir(repo)
+            state, item = self._state_and_item(repo, p1)
+            item["from_backlog"] = "bg0001"
+            state["options"]["integration_retry_limit"] = 10
+            state["options"]["on_integration_blocked"] = "defer"
+
+            base_agent = self._fake_agent_also_dirties_main(run_dir, repo)
+            with (
+                mock.patch.object(driver, "run_opencode", base_agent),
+                mock.patch.object(
+                    orchestrate_isolation,
+                    "execute_merge_and_revalidate_gate",
+                    lambda *a, **k: True,
+                ),
+            ):
+                driver.execute_item(run_dir, state, item, recovery=False)
+
+            (repo / "src" / "demo.txt").unlink()
+
+            edir = repo / ".aw" / "records" / "plans" / "executed"
+            edir.mkdir(parents=True, exist_ok=True)
+            p2.rename(edir / p2.name)
+            subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+            subprocess.run(
+                ["git", "commit", "-qm", "sibling executed"], cwd=repo, check=True
+            )
+
+            orig_process = driver.process_backlog_close
+            peer_commit = None
+            race_induced = False
+
+            def induce_race_on_attempt1(*a, **k):
+                nonlocal peer_commit, race_induced
+                if not race_induced:
+                    race_induced = True
+                    # A peer commit lands on main while coordinator worktree is preparing
+                    (repo / "peer.txt").write_text(
+                        "peer work landed during race\n", encoding="utf-8"
+                    )
+                    subprocess.run(["git", "add", "peer.txt"], cwd=repo, check=True)
+                    subprocess.run(
+                        ["git", "commit", "-qm", "peer commit while close prepared"],
+                        cwd=repo,
+                        check=True,
+                    )
+                    peer_commit = subprocess.run(
+                        ["git", "rev-parse", "HEAD"],
+                        cwd=repo,
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                    ).stdout.strip()
+                return orig_process(*a, **k)
+
+            with mock.patch.object(
+                driver, "process_backlog_close", induce_race_on_attempt1
+            ):
+                records = driver.retry_deferred_integrations(run_dir, state)
+
+            self.assertEqual([r["outcome"] for r in records], ["integrated"])
+            self.assertTrue(race_induced, "race must have been induced")
+            self.assertIsNotNone(peer_commit, "peer commit must be known")
+
+            close_rec = item.get("backlog_close") or {}
+            self.assertTrue(
+                close_rec.get("closed"),
+                f"expected close to land after race, got: {close_rec}",
+            )
+            self.assertEqual(close_rec.get("wrote_in"), "coordinator_worktree")
+            self.assertTrue(
+                (repo / ".aw" / "records" / "backlog" / "done" / bitem.name).is_file()
+            )
+            self.assertFalse(bitem.is_file())
+
+            # Assert the peer commit is preserved as an ancestor of main
+            is_ancestor = subprocess.run(
+                ["git", "merge-base", "--is-ancestor", peer_commit, "HEAD"],
+                cwd=repo,
+            )
+            self.assertEqual(
+                is_ancestor.returncode,
+                0,
+                f"peer commit {peer_commit} must be an ancestor of HEAD",
+            )
+
+    def test_case4b_record_only_raced_arm_fails_to_land_close(self):
+        """E-07 proving test: a record-only RACED arm fails to land the close."""
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            repo.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+            subprocess.run(
+                ["git", "config", "user.email", "test@example.invalid"],
+                cwd=repo,
+                check=True,
+            )
+            subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+            (repo / ".gitignore").write_text(
+                ".aw/state/\n.aw/worktrees/\n.aw/records/runs/\n", encoding="utf-8"
+            )
+
+            p1, p2, bitem = self._setup_backlog_and_two_carriers(repo)
+
+            run_dir = self._mk_run_dir(repo)
+            state, item = self._state_and_item(repo, p1)
+            item["from_backlog"] = "bg0001"
+            state["options"]["integration_retry_limit"] = 10
+            state["options"]["on_integration_blocked"] = "defer"
+
+            base_agent = self._fake_agent_also_dirties_main(run_dir, repo)
+            with (
+                mock.patch.object(driver, "run_opencode", base_agent),
+                mock.patch.object(
+                    orchestrate_isolation,
+                    "execute_merge_and_revalidate_gate",
+                    lambda *a, **k: True,
+                ),
+            ):
+                driver.execute_item(run_dir, state, item, recovery=False)
+
+            (repo / "src" / "demo.txt").unlink()
+
+            edir = repo / ".aw" / "records" / "plans" / "executed"
+            edir.mkdir(parents=True, exist_ok=True)
+            p2.rename(edir / p2.name)
+            subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+            subprocess.run(
+                ["git", "commit", "-qm", "sibling executed"], cwd=repo, check=True
+            )
+
+            orig_process = driver.process_backlog_close
+            peer_commit = None
+            race_induced = False
+
+            def induce_race_on_attempt1(*a, **k):
+                nonlocal peer_commit, race_induced
+                if not race_induced:
+                    race_induced = True
+                    (repo / "peer.txt").write_text(
+                        "peer work landed during race\n", encoding="utf-8"
+                    )
+                    subprocess.run(["git", "add", "peer.txt"], cwd=repo, check=True)
+                    subprocess.run(
+                        ["git", "commit", "-qm", "peer commit while close prepared"],
+                        cwd=repo,
+                        check=True,
+                    )
+                    peer_commit = subprocess.run(
+                        ["git", "rev-parse", "HEAD"],
+                        cwd=repo,
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                    ).stdout.strip()
+                return orig_process(*a, **k)
+
+            real_perform = runner_shared.perform_coordinator_backlog_close
+
+            def record_only_perform(*a, **k):
+                k["rebuild_on_race"] = False
+                return real_perform(*a, **k)
+
+            with (
+                mock.patch.object(
+                    driver, "process_backlog_close", induce_race_on_attempt1
+                ),
+                mock.patch.object(
+                    runner_shared,
+                    "perform_coordinator_backlog_close",
+                    record_only_perform,
+                ),
+            ):
+                records = driver.retry_deferred_integrations(run_dir, state)
+
+            self.assertEqual([r["outcome"] for r in records], ["integrated"])
+            close_rec = item.get("backlog_close") or {}
+            # Under record-only, the close fails to land!
+            self.assertFalse(close_rec.get("closed"))
+            self.assertEqual(close_rec.get("landing", {}).get("status"), "raced")
+            # Item remains in graduated, not done
+            self.assertTrue(bitem.is_file())
+            self.assertFalse(
+                (repo / ".aw" / "records" / "backlog" / "done" / bitem.name).is_file()
+            )
 
 
 if __name__ == "__main__":
