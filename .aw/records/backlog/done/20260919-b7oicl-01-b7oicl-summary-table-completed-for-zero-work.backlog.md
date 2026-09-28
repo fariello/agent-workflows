@@ -1,5 +1,5 @@
 - Id: b7oicl
-- Status: graduated
+- Status: done
 - Graduated-To: b7oicl
 - Blocks-Release: next
 - Set: b7oicl
@@ -8,6 +8,7 @@
 - Summary: The exit summary table reads COMPLETED at 100% for a run that performed zero work
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): closed by aw oc run: IPD 4po0sc executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-b7oicl-01-4po0sc-say-no-work-performed-in-the-exit-summary-table-for-a-run-th.ipd.md); evidence .aw/records/plans/executed/20260928-b7oicl-01-4po0sc-say-no-work-performed-in-the-exit-summary-table-for-a-run-th.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: 4po0sc
 - 2026-09-19 created (aw backlog): Found while executing runnoop Order 03 (bsc457); OQ-02 directed reporting over a cross-fence edit.
 
