@@ -1124,9 +1124,23 @@ def run_new(args) -> int:
 
 
 def run_set(args) -> int:
-    from agent_workflows.project_context import resolve_verb_repo_root
+    from agent_workflows.project_context import (
+        is_project_dir,
+        resolve_verb_repo_root,
+    )
 
     repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
+    gate_dir_arg = getattr(args, "gate_dir", None)
+    if gate_dir_arg is not None:
+        gate_root = resolve_verb_repo_root(gate_dir_arg)
+        if not is_project_dir(gate_root):
+            sys.stderr.write(
+                f"aw backlog set: --gate-dir '{gate_dir_arg}' is not an agent-workflows project root\n"
+            )
+            return 2
+    else:
+        gate_root = repo_root
+
     target = getattr(args, "path", None)
     new_status = getattr(args, "status", None)
     if not target or new_status not in STATUSES:
@@ -1292,16 +1306,17 @@ def run_set(args) -> int:
         if gate_default_notice:
             sys.stdout.write(f"aw backlog set: {gate_default_notice}\n")
 
-    # bklggrad orb9zb E-04: release-gate close-legitimacy gate. `rendered` now reflects the
-    # POST-mutation item (including any same-call `--blocks-release -` de-gate), so a
+    # bklggrad orb9zb E-04 / gatedir 9vglxd E-04: release-gate close-legitimacy gate. `rendered` now
+    # reflects the POST-mutation item (including any same-call `--blocks-release -` de-gate), so a
     # `done` + `--blocks-release -` in ONE call is honored via the DE-GATED path. The predicate is
-    # the SINGLE shared authority (check_engine.evaluate_blocking_close) used by the setter, `aw
-    # check`, and the child-03 hook so they cannot diverge. On an illegitimate blocking close we
-    # REFUSE and write nothing; blocking `-> parked` and priority-demote-of-a-blocker WARN but proceed.
+    # the SINGLE shared authority (check_engine.evaluate_blocking_close) evaluated against `gate_root`
+    # (defaulting to `repo_root`, but split when explicit `--gate-dir` is passed).
+    # On an illegitimate blocking close we REFUSE and write nothing; blocking `-> parked` and
+    # priority-demote-of-a-blocker WARN but proceed.
     from agent_workflows import check_engine as _ce
 
     verdict = _ce.evaluate_blocking_close(
-        repo_root,
+        gate_root,
         src,
         new_status,
         evidence=getattr(args, "evidence", None),

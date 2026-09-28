@@ -5460,6 +5460,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--dir", default=None, help="Repo root (default: current directory)."
     )
     p_backlog_set.add_argument(
+        "--gate-dir",
+        default=None,
+        help="Tree the release gate is evaluated against (where From-Backlog carriers are scanned for, and where --evidence is resolved; default: --dir).",
+    )
+    p_backlog_set.add_argument(
         "--status",
         default=None,
         choices=sorted(_backlog_status_vocab.STATUSES),

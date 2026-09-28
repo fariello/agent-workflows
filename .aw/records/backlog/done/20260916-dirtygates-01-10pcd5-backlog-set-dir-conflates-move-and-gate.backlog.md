@@ -1,5 +1,5 @@
 - Id: 10pcd5
-- Status: graduated
+- Status: done
 - Graduated-To: gatedir
 - Blocks-Release: next
 - Set: dirtygates
@@ -8,6 +8,7 @@
 - Summary: close_backlog_item cannot separate the tree the item moves in from the tree its release gate is evaluated against
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): closed by aw oc run: IPD 9vglxd executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-gatedir-01-9vglxd-split-the-setter-s-gate-tree-from-its-move-tree-with-an-expl.ipd.md); evidence .aw/records/plans/executed/20260928-gatedir-01-9vglxd-split-the-setter-s-gate-tree-from-its-move-tree-with-an-expl.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: 9vglxd
 - 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-16 created (aw backlog): found while executing dirtygates-03 (9iq461)

@@ -4,9 +4,9 @@
 - Kind: child
 - Concern: `aw backlog set <item> --status done` takes ONE `--dir`, and `backlog.run_set` derives BOTH the tree the item file MOVES in and the `repo_root` the release-gate close predicate EVALUATES against from that single `resolve_verb_repo_root(args.dir)` call. A caller that legitimately needs the move in one tree and the gate decision in another therefore cannot express it, and the runner is exactly such a caller: `runner_shared.process_backlog_close` writes in the LANE (so the move rides the merge) while its own comment says eligibility must be decided against MAIN. THE ITEM'S "CURRENTLY BENIGN" REASONING IS NOW FALSE AND THAT IS THE REASON TO ACT. It says the HANDOFF arm is unaffected because `find_from_backlog_artifacts` keys on the `- From-Backlog:` FIELD rather than the lifecycle bucket. That was true when the item was filed (2026-09-16) and stopped being true on 2026-09-26, when `closescope` `2a6phj` added `check_engine._carrier_is_executed`, which decides a PLAN carrier by testing for an `executed` segment in its PATH. MEASURED at HEAD `fe6a1d1e` with two trees and a two-carrier gated item whose sibling never ran: gating against MAIN refuses (`carrier is not executed/implemented`, naming the unexecuted sibling), gating against the LANE returns `legitimate=True` via HANDOFF. Driven end to end through the real CLI, `aw backlog set bbbbbb --status done --dir <main> --dry-run` exits 1 and `--dir <lane> --dry-run` exits 0. So the error direction is the PERMISSIVE one, which is the opposite of what the item records, and it is the direction `close_backlog_item`'s own docstring warns about in its closing sentences. What holds the hole shut today is not the setter but the runner's SEPARATE outer predicate `runner_shared.evaluate_backlog_close`, which is evaluated against main and refuses the same fixture (`IPD carrier(s) not executed: ...`), so the setter's gate is a second line of defense that is currently DISARMED in every lane close.
 - Scope: IN: give `aw backlog set` a `--gate-dir` that defaults to `--dir`, so the move tree and the gate tree are stated explicitly instead of being encoded in which evidence path the caller happens to cite; thread it through `backlog.run_set` so the `check_engine.evaluate_blocking_close` call and the `_resolve_backlog_root` destination read DIFFERENT roots; declare the flag in `command_surface.py` so the parser's accepted set and the declared set agree; pass the split from `runner_shared.close_backlog_item` (gate against `repo`, move in `write_repo`) and correct the docstring paragraph there that currently asserts "THE TWO CANNOT BE SPLIT FROM HERE"; and pin all of it with tests that FAIL FIRST, including the permissive-lane fixture above. OUT, each for a stated reason: any change to `check_engine.evaluate_blocking_close`'s own SIGNATURE, ARMS or VERDICTS - this plan changes only WHICH root is handed to it, and the whole point of the backlog item is that the shared predicate is high blast radius (setter, `aw check`, pre-commit hook); the ANY-vs-ALL carrier divergence between that predicate and the runner's, which is a genuinely separate defect measured in ONE tree with no lane at all and filed as `lsbd32`; `set_records.close_on_answer`'s identical two-root coupling (see OQ-01: it has no second tree to point at, so a knob it cannot use is not a fix); the `backlog_blocking_close_gate` pre-commit hook's bare `Path(".")` root (see OQ-02); the POSITIONAL `aw backlog set done <item>` spelling, which runs NO close gate at all and is already filed twice as `mawwlc` and `le31pr`; the deferred-reattempt close that still writes to main (`a4em7s`, blocked on a coordinator worktree); and making the runner's outer predicate and the setter's inner one one function.
-- Scope-Paths: agent_workflows/cli.py, agent_workflows/backlog.py, agent_workflows/command_surface.py, agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_backlog_handoff_close.py, docs/artifact-lifecycles.md
+- Scope-Paths: agent_workflows/cli.py, agent_workflows/backlog.py, agent_workflows/command_surface.py, agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_backlog_handoff_close.py, docs/artifact-lifecycles.md, CHANGELOG.md, .aw/records/backlog/open/20260928-qkl8fs-01-qkl8fs-allow-runner-in-lane-backlog-close-to-gate-against.backlog.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 08
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 9vglxd
-- Approval: 2026-09-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-28 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 9vglxd verified (set gatedir, attempt 1). [Scope reconciliation - widened-scope .aw/records/backlog/open/20260928-qkl8fs-01-qkl8fs-allow-runner-in-lane-backlog-close-to-gate-against.backlog.md: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw agy run); widened-scope CHANGELOG.md: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw agy run); in-scope-unmodified agent_workflows/agy_runipd.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified agent_workflows/oc_runipd.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified agent_workflows/runner_shared.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-09-28 approved (aw set): status set to approved
 
 - 2026-09-28 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-701..PR-709 all FIXED, none OPEN or DEFERRED. THE DIAGNOSIS VERIFIED IN FULL, AND UNUSUALLY WELL: every one of F-01 through F-10 was re-driven at review HEAD `15222860` against fresh two-tree scratch fixtures, and F-02, F-03, F-04, F-05, F-06 and F-08 reproduce with the REASON STRINGS MATCHING THE PLAN'S QUOTES CHARACTER FOR CHARACTER, including the permissive `legitimate=True` via HANDOFF on the lane-shaped tree, the exit 1 / exit 0 CLI pair, the full four-cell `resolve_evidence_artifact` matrix, and the outer predicate's `IPD carrier(s) not executed:` refusal. PR-701 (BLOCKER) is the finding an executor most needed: E-05 is UNEXECUTABLE AS SCOPED, because `process_backlog_close` does not call the module function it names - `close_backlog_item` is an INJECTED parameter, and the real chain is `runner_shared.close_backlog_item` plus the two per-host wrappers `oc_runipd.close_backlog_item` and `agy_runipd.close_backlog_item`, so the change spans FOUR symbols in THREE files of which two were undeclared; both host files are now in `- Scope-Paths:` and E-05 names all four. PR-702 (HIGH): E-03's stated reason for declaring the flag is FALSE and V-03's proof mechanism cannot prove what it claims - `find_undeclared_leaves` compares COMMAND PATHS, not flags (measured: 151 leaves, none containing `--`), so `test_zero_undeclared_parser_leaves` passes whether or not `--gate-dir` is declared; the correct precedent is the per-command flag-surface test `tests/test_prompts_new.py::test_the_declared_flag_surface_matches_the_parser`, and E-03 now requires adding that assertion rather than relying on a test that cannot fail. PR-703 (HIGH): F-10's own evidence sentence is wrong - it claims a grep finds a completion-classification assertion for the hook, and the grep finds NOTHING, so the hook has zero coverage of any kind and OQ-02's "defensible for a three-line delegation" is weaker than stated. PR-704 (MEDIUM): every F-07 corpus number has drifted (673 items not 653, 358 gated not 349, 277 carriers not 255, 32 multi not 31, 17 exposed not 16) and the plan cites them as bare figures an executor would re-measure and mistake for a regression. PR-705 (MEDIUM): the authored `fe6a1d1e` baseline is spent; re-measured `3069 passed, 2 skipped` on a fully green tree, with four per-file baselines added. PR-706, PR-707, PR-708, PR-709: E-04's non-project-root refusal had no specified mechanism though `resolve_verb_repo_root`'s actual behavior decides it; V-03(c) asked for a claim about undeclared debt that the review measured to be unverifiable as phrased; the gate lacked conditional finalize ownership; and E-01's STOP-AND-RE-SCOPE trigger needed the review's own re-measurement recorded so the executor compares against something current. Review record written with 9 findings and 5 decisions, no `Reversible: no`.
@@ -38,21 +38,21 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure the premise, then pin it with tests that fail first
 
-- [ ] E-01 RE-MEASURE THE FOUR LOAD-BEARING FACTS and write the results into this plan as an execution note, with the HEAD they were taken at, because the plan's whole premise is that a dated claim in the backlog item has expired and the same thing can happen to these. Record: (a) THE HANDOFF ARM IS TREE-SENSITIVE, by building two scratch trees holding the SAME gated item and the SAME two `From-Backlog` carriers, one tree showing carrier A in `plans/executed/` and the other showing it in `plans/pending/`, with the sibling carrier B in `pending/` in BOTH, and calling `check_engine.evaluate_blocking_close` with NO `evidence` against each, showing `legitimate=False` for the main-shaped tree and `legitimate=True` for the lane-shaped one; (b) THE SAME ASYMMETRY REACHES THE SHIPPED CLI, by running `aw backlog set <item> --status done --dir <tree> --dry-run` against both trees and showing exit 1 with the `carrier is not executed/implemented` refusal against one and exit 0 against the other; (c) THE SATISFIED-ARM ASYMMETRY THE ITEM DOCUMENTS IS STILL REAL, via `check_engine.resolve_evidence_artifact` returning True for a tree's own carrier path and False for the other tree's; and (d) THE OUTER RUNNER PREDICATE IS WHAT CURRENTLY HOLDS THE HOLE SHUT, by calling `runner_shared.evaluate_backlog_close` against the main-shaped tree with an `executed_overrides` entry for carrier A only and showing `close=False` naming carrier B. IF (a) NO LONGER HOLDS, STOP AND RE-SCOPE rather than proceeding: a HANDOFF arm that is once again tree-insensitive would reduce this plan to the SATISFIED-arm expressiveness fix the item originally described, which is a materially smaller and lower-priority change that must be re-reviewed rather than silently executed. Trust the tree, not this plan's Concern.
+- [x] E-01 RE-MEASURE THE FOUR LOAD-BEARING FACTS and write the results into this plan as an execution note, with the HEAD they were taken at, because the plan's whole premise is that a dated claim in the backlog item has expired and the same thing can happen to these. Record: (a) THE HANDOFF ARM IS TREE-SENSITIVE, by building two scratch trees holding the SAME gated item and the SAME two `From-Backlog` carriers, one tree showing carrier A in `plans/executed/` and the other showing it in `plans/pending/`, with the sibling carrier B in `pending/` in BOTH, and calling `check_engine.evaluate_blocking_close` with NO `evidence` against each, showing `legitimate=False` for the main-shaped tree and `legitimate=True` for the lane-shaped one; (b) THE SAME ASYMMETRY REACHES THE SHIPPED CLI, by running `aw backlog set <item> --status done --dir <tree> --dry-run` against both trees and showing exit 1 with the `carrier is not executed/implemented` refusal against one and exit 0 against the other; (c) THE SATISFIED-ARM ASYMMETRY THE ITEM DOCUMENTS IS STILL REAL, via `check_engine.resolve_evidence_artifact` returning True for a tree's own carrier path and False for the other tree's; and (d) THE OUTER RUNNER PREDICATE IS WHAT CURRENTLY HOLDS THE HOLE SHUT, by calling `runner_shared.evaluate_backlog_close` against the main-shaped tree with an `executed_overrides` entry for carrier A only and showing `close=False` naming carrier B. IF (a) NO LONGER HOLDS, STOP AND RE-SCOPE rather than proceeding: a HANDOFF arm that is once again tree-insensitive would reduce this plan to the SATISFIED-arm expressiveness fix the item originally described, which is a materially smaller and lower-priority change that must be re-reviewed rather than silently executed. Trust the tree, not this plan's Concern.
 
   ALL FOUR FACTS WERE RE-MEASURED AT REVIEW HEAD `15222860` AND ALL FOUR STILL HOLD (PR-709), so the executor is comparing against something current rather than against the authoring HEAD alone. Compare your run against these, quoted so a difference is visible immediately: (a) main-shaped tree -> `legitimate=False`, `arm=None`, reason `gate 'next' is handed off to From-Backlog carrier(s) (...carrier-a.ipd.md, ...carrier-b.ipd.md) but the work has not shipped (carrier is not executed/implemented)`; lane-shaped tree -> `legitimate=True`, `arm=HANDOFF`, reason `gate 'next' handed off to a From-Backlog plan or spec`. (b) the real CLI at `--dry-run`: main-shaped `exit=1` with `aw backlog set: refused: gate 'next' is handed off to From-Backlog carrier(s) ... but the work has not shipped.`, lane-shaped `exit=0` with `--- would move .../open/... -> .../done/... (status done) ---`. (c) the full `resolve_evidence_artifact` matrix `(main,main)=True (main,lane)=False (lane,main)=False (lane,lane)=True`. (d) `evaluate_backlog_close(main, "bbbbbb", frozenset(), executed_overrides={<A pending rel>: <A executed rel>})` -> `BacklogCloseVerdict(close=False, reason='IPD carrier(s) not executed: .aw/records/plans/pending/...carrier-b.ipd.md', evidence=None, rule=None)`. NOTE THE OVERRIDE KEY TYPE, which cost review a failed attempt: `executed_overrides` is `Mapping[str, str]` of REPO-RELATIVE PATH STRINGS, not `Path` objects, and `CloseVerdict`'s arm field is named `path`, not `arm`.
   - Depends on: none
   - Expected outcome: a written baseline, cited by symbol, showing the HANDOFF verdict differing between two trees that differ ONLY in which lifecycle directory one carrier occupies, the same difference reproduced through the real CLI with exit codes, and the outer predicate refusing where the setter's inner one accepts, each with its pasted output.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 WRITE THE FAILING TESTS FIRST, as a new class in `tests/test_backlog_handoff_close.py`, which is the module that already owns the nine-case close-legitimacy matrix driven through `cli.main(["backlog","set",...,"--status","done","--dir",...])` and is therefore the right surface rather than a new file. FOUR cases. (1) THE DEFECT, and it must be written so it fails for the RIGHT reason: with a two-carrier gated item whose sibling is unexecuted, a close whose MOVE tree is the lane-shaped tree and whose GATE tree is the main-shaped tree is REFUSED; today no argv can express that, so this case fails on the flag being unrecognized or ignored, and the executor must record WHICH, since an ignored flag is a silently wrong pass waiting to happen. (2) THE DEFAULT IS UNCHANGED: with no `--gate-dir`, every existing behavior is byte-identical, asserted by driving the SAME fixture the neighbouring `test_case_2_executed_plan_allowed` uses and getting the same exit code. (3) THE MOVE STILL LANDS IN THE MOVE TREE: with `--gate-dir` pointing elsewhere, the item file is gone from the move tree's `open/` and present in its `done/`, and the GATE tree's copy of the item is NOT touched, which is the property that makes the two knobs genuinely independent rather than one knob renamed. (4) THE EVIDENCE CITATION IS RESOLVED IN THE GATE TREE, NOT THE MOVE TREE, asserted by citing a path that exists ONLY in the gate tree and showing it is accepted, then citing one that exists only in the move tree and showing it is refused. Case (4) is the one that pins the item's originally-documented asymmetry, and it must be written to fail first too.
+- [x] E-02 WRITE THE FAILING TESTS FIRST, as a new class in `tests/test_backlog_handoff_close.py`, which is the module that already owns the nine-case close-legitimacy matrix driven through `cli.main(["backlog","set",...,"--status","done","--dir",...])` and is therefore the right surface rather than a new file. FOUR cases. (1) THE DEFECT, and it must be written so it fails for the RIGHT reason: with a two-carrier gated item whose sibling is unexecuted, a close whose MOVE tree is the lane-shaped tree and whose GATE tree is the main-shaped tree is REFUSED; today no argv can express that, so this case fails on the flag being unrecognized or ignored, and the executor must record WHICH, since an ignored flag is a silently wrong pass waiting to happen. (2) THE DEFAULT IS UNCHANGED: with no `--gate-dir`, every existing behavior is byte-identical, asserted by driving the SAME fixture the neighbouring `test_case_2_executed_plan_allowed` uses and getting the same exit code. (3) THE MOVE STILL LANDS IN THE MOVE TREE: with `--gate-dir` pointing elsewhere, the item file is gone from the move tree's `open/` and present in its `done/`, and the GATE tree's copy of the item is NOT touched, which is the property that makes the two knobs genuinely independent rather than one knob renamed. (4) THE EVIDENCE CITATION IS RESOLVED IN THE GATE TREE, NOT THE MOVE TREE, asserted by citing a path that exists ONLY in the gate tree and showing it is accepted, then citing one that exists only in the move tree and showing it is refused. Case (4) is the one that pins the item's originally-documented asymmetry, and it must be written to fail first too.
   - Depends on: E-01
   - Expected outcome: `python3 -m pytest tests/test_backlog_handoff_close.py -k <new class> -o addopts="" -v` FAILS on cases (1), (3) and (4) with assertion messages (not collection or import errors), passes case (2) already since it asserts today's behavior, and the failure output is pasted into V-02 as the before-state.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: add the knob and thread it
 
-- [ ] E-03 REGISTER `--gate-dir` ON `aw backlog set` in `agent_workflows/cli.py`, beside the existing `--dir` registration on `p_backlog_set`, and DECLARE it in `command_surface.py`'s `backlog set` `legacy_flags` tuple in the same change.
+- [x] E-03 REGISTER `--gate-dir` ON `aw backlog set` in `agent_workflows/cli.py`, beside the existing `--dir` registration on `p_backlog_set`, and DECLARE it in `command_surface.py`'s `backlog set` `legacy_flags` tuple in the same change.
 
   **THE AUTHORED REASON FOR DECLARING IT IS FALSE, AND THE TEST IT NAMES CANNOT PROVE THE CLAIM (finding PR-702, F-12).** The item says the declaration "is not optional tidiness" because `tests/test_command_surface_declarations.py::test_zero_undeclared_parser_leaves` requires zero undeclared leaves. MEASURED at review: `command_surface.find_undeclared_leaves` compares `discover_parser_leaves` against `get_declared_leaves`, and a LEAF IS A COMMAND PATH, NOT A FLAG - 151 leaves at this HEAD, not one of which contains `--`, and `backlog set` is already among them. So that test passes whether or not `--gate-dir` is declared, and citing it as the forcing function would leave the declaration unproven while V-03 pasted a green run that proved nothing.
 
@@ -63,16 +63,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   FOLLOW THE SHIPPED PRECEDENT FOR A SPECIFIC-OVERRIDES-GENERAL PAIR, which is `comms_acks._resolve_comms_dir`: the specific knob wins when present (`if comms_dir_arg: return Path(comms_dir_arg).resolve()`), otherwise the value is derived from the general one. `--gate-dir` follows it. HELP TEXT IS A CONTRACT HERE: say that it selects the tree the RELEASE GATE is evaluated against, name the two things that means concretely (where `From-Backlog` carriers are scanned for, and where `--evidence` is resolved), state that it defaults to `--dir`, and do not describe it as "the repo root" which is what `--dir` already says, because an operator who mixes the two up gets a silently wrong verdict rather than an error.
   - Depends on: E-02
   - Expected outcome: `aw backlog set --help` shows `--gate-dir` with text naming the gate half and the default; `--gate-dir` is present in the `backlog set` declaration's `legacy_flags`; a NEW per-command flag-surface assertion binds the two and FAILS if either is removed; `test_zero_undeclared_parser_leaves` still passes (unchanged, since it does not measure flags).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 THREAD THE SECOND ROOT THROUGH `backlog.run_set`, which is the actual fix and is three lines of intent in a long function, so the risk is in what it must NOT disturb. Derive a `gate_root` alongside the existing `repo_root` (`resolve_verb_repo_root(args.gate_dir)` when given, else `repo_root` itself), pass `gate_root` to the `check_engine.evaluate_blocking_close` call, and LEAVE the `_resolve_backlog_root(repo_root)` destination on `repo_root`. FOUR THINGS MUST NOT MOVE, and each is load-bearing for a shipped test. The SELECTOR resolution stays on `repo_root`, because the item being transitioned is the one in the move tree and resolving it in the gate tree would produce a cross-tree write. `decide_gate_default` stays on `repo_root`: it resolves `next` while WRITING a gate onto the item, so it belongs with the item. The gate call must stay BEFORE the `--dry-run` short-circuit, which `tests/test_backlog.py::BacklogDryRunTests::test_backlog_set_status_done_dry_run_refuses_illegitimate_blocking_close_without_sidecar` pins deliberately. And the `record_history.append_advisory` sidecar stays on `repo_root`, since it records the move. IF `--gate-dir` IS GIVEN BUT NAMES A TREE THAT IS NOT AN AW PROJECT ROOT, FAIL LOUDLY rather than silently gating against an empty tree: an empty tree finds no carriers and cannot resolve evidence, so it would REFUSE every gated close with a message blaming the item, which is a worse failure than a clear one about the flag. USE THE EXISTING PREDICATE, `project_context.is_project_dir`, whose docstring says it exists for precisely this decision ("Used by repo-scoped verbs to decide between running and emitting `no_project_message`"); do not hand-roll a `.aw` existence check (finding PR-706, F-15). THE GUARD IS GENUINELY REQUIRED AND NOT DEFENSIVE NOISE, because `resolve_verb_repo_root` will NOT catch this for you: its own docstring states that "an EXPLICIT `--dir` is honored verbatim (resolved, no climb)", and records that only `aw attention` and `aw ipd board` pair it with `is_project_dir` while "every other caller takes the cwd fallback SILENTLY". So an explicit `--gate-dir /tmp/nothing` resolves happily to a tree with no records. REFUSE with exit 2 (a usage error, which is what a bad flag value is, and which `backlog set`'s declared `exit_contract=(0, 1, 2)` already admits) and name the FLAG and the path, NOT the item: the whole point is that an operator must not read a flag mistake as an item problem. Apply the guard ONLY when the flag was passed, so the default path gains no new failure mode.
+- [x] E-04 THREAD THE SECOND ROOT THROUGH `backlog.run_set`, which is the actual fix and is three lines of intent in a long function, so the risk is in what it must NOT disturb. Derive a `gate_root` alongside the existing `repo_root` (`resolve_verb_repo_root(args.gate_dir)` when given, else `repo_root` itself), pass `gate_root` to the `check_engine.evaluate_blocking_close` call, and LEAVE the `_resolve_backlog_root(repo_root)` destination on `repo_root`. FOUR THINGS MUST NOT MOVE, and each is load-bearing for a shipped test. The SELECTOR resolution stays on `repo_root`, because the item being transitioned is the one in the move tree and resolving it in the gate tree would produce a cross-tree write. `decide_gate_default` stays on `repo_root`: it resolves `next` while WRITING a gate onto the item, so it belongs with the item. The gate call must stay BEFORE the `--dry-run` short-circuit, which `tests/test_backlog.py::BacklogDryRunTests::test_backlog_set_status_done_dry_run_refuses_illegitimate_blocking_close_without_sidecar` pins deliberately. And the `record_history.append_advisory` sidecar stays on `repo_root`, since it records the move. IF `--gate-dir` IS GIVEN BUT NAMES A TREE THAT IS NOT AN AW PROJECT ROOT, FAIL LOUDLY rather than silently gating against an empty tree: an empty tree finds no carriers and cannot resolve evidence, so it would REFUSE every gated close with a message blaming the item, which is a worse failure than a clear one about the flag. USE THE EXISTING PREDICATE, `project_context.is_project_dir`, whose docstring says it exists for precisely this decision ("Used by repo-scoped verbs to decide between running and emitting `no_project_message`"); do not hand-roll a `.aw` existence check (finding PR-706, F-15). THE GUARD IS GENUINELY REQUIRED AND NOT DEFENSIVE NOISE, because `resolve_verb_repo_root` will NOT catch this for you: its own docstring states that "an EXPLICIT `--dir` is honored verbatim (resolved, no climb)", and records that only `aw attention` and `aw ipd board` pair it with `is_project_dir` while "every other caller takes the cwd fallback SILENTLY". So an explicit `--gate-dir /tmp/nothing` resolves happily to a tree with no records. REFUSE with exit 2 (a usage error, which is what a bad flag value is, and which `backlog set`'s declared `exit_contract=(0, 1, 2)` already admits) and name the FLAG and the path, NOT the item: the whole point is that an operator must not read a flag mistake as an item problem. Apply the guard ONLY when the flag was passed, so the default path gains no new failure mode.
   - Depends on: E-03
   - Expected outcome: with `--gate-dir` given, the carrier scan and the evidence resolution demonstrably read the gate tree while the move demonstrably happens in the move tree; without it, behavior is unchanged; a `--gate-dir` naming a non-project tree is refused via `is_project_dir` with exit 2 and a message naming the flag and the path.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: use it where the split is already needed, and correct the record
 
-- [ ] E-05 PASS THE SPLIT FROM `runner_shared.close_backlog_item`, adding the gate root to its argv so the in-lane close gates against `repo` while moving in `write_repo`.
+- [x] E-05 PASS THE SPLIT FROM `runner_shared.close_backlog_item`, adding the gate root to its argv so the in-lane close gates against `repo` while moving in `write_repo`.
 
   **READ THIS FIRST: THE CALL CHAIN IS FOUR SYMBOLS IN THREE FILES, NOT ONE, AND THE AUTHORED ITEM DESCRIBES IT WRONG (finding PR-701, F-11).** The item says "the caller already has both values", implying `process_backlog_close` calls `runner_shared.close_backlog_item` directly. IT DOES NOT. Measured at review: `process_backlog_close` declares `close_backlog_item: Callable[..., tuple[int, str]]` as a KEYWORD-ONLY INJECTED PARAMETER and its body calls that injected callable with five POSITIONAL arguments and no `run_checked`; the module-level `runner_shared.close_backlog_item` requires `run_checked` keyword-only and is never reached from there. What actually supplies the callable is a THIN PER-HOST WRAPPER defined in BOTH runners (`oc_runipd.close_backlog_item` and `agy_runipd.close_backlog_item`, each `(repo, item_path, item_id6, evidence, message) -> tuple[int,str]` binding its own `run_checked`). So threading a gate root requires FOUR coordinated edits:
   - `runner_shared.close_backlog_item`: accept the gate root (a keyword-only parameter defaulting to `None`, so an omitted value means "same tree as the move" and no caller breaks) and emit `--gate-dir` into the argv only when it differs from the move root.
@@ -86,22 +86,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   CORRECT THE DOCSTRING IN THE SAME CHANGE, because it is the published contract and this plan falsifies it. The exact paragraph is the one beginning "`--dir` IS NOT MERELY \"WHERE THE FILE MOVES\" (dirtygates-03 `9iq461` F-10/F-11)", whose sentence "so THE TWO CANNOT BE SPLIT FROM HERE: one `--dir` is one tree for the move AND the gate" becomes false, as does the following clause explaining that this is "why the evidence it cites is a path that resolves in the lane". ALSO correct the SECOND paragraph, which review found makes the same claim in the parameter description: "``repo`` is the tree the setter operates on: it is where the item file MOVES and, inseparably, the ``repo_root`` the release-gate predicate evaluates against". The word "inseparably" is precisely what this plan removes. The docstring's FINAL warning (that a lane-side evaluation is the PERMISSIVE direction and "a release-gated item could close `done` that main's view would refuse") is CORRECT and was measured at review to be understated, so it MUST survive rather than being deleted as obsolete.
   - Depends on: E-04
   - Expected outcome: an isolated close runs the setter's gate against `repo` and its move against the lane; a non-isolated close produces byte-identical argv; all four symbols are edited and the two host wrappers are identical to each other; both falsified docstring claims are corrected and the permissive-direction warning survives.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: Evaluated runner close with --gate-dir <main>; per E-06/V-06 outcome (b), withdrawn to avoid breaking ordinary single-carrier close, runner files left untouched, refiled as backlog qkl8fs.
 
-- [ ] E-06 PROVE THE ORDINARY RUNNER CLOSE STILL SUCCEEDS, which is the regression this plan is most likely to cause and the reason E-05 is not obviously safe. The common shape is a SINGLE carrier, the run's own plan: the lane shows it `executed/` and main still shows it `pending/` because the merge has not happened. Measured at authoring, gating that shape against main via the HANDOFF arm alone REFUSES (`carrier is not executed/implemented`), and what rescues it is the SATISFIED arm: the runner cites its carrier path as `--evidence`, and `runner_shared.evaluate_backlog_close._cited` deliberately returns the overridden path so the citation names where the file REALLY is. SO THE EXECUTOR MUST ESTABLISH WHICH PATH IS CITED WHEN THE GATE TREE IS MAIN, and this is the plan's single genuine risk: a citation that resolves in the lane will NOT resolve in main, so a naive `--gate-dir <main>` could refuse every ordinary close - exactly the "would refuse EVERY close, forever, and would do so silently" failure `evaluate_backlog_close`'s own docstring describes from the other side. RESOLVE IT BY MEASUREMENT, NOT BY REASONING, and if the ordinary close cannot be made to pass without weakening a gate, STOP AND REPORT: the honest outcome is then that `--gate-dir` ships (E-03/E-04, which stand alone and are what the backlog item asks for) while E-05 is withdrawn to its own plan, not that a gate is loosened to fit. Add the passing case as a test alongside E-02's class.
+- [x] E-06 PROVE THE ORDINARY RUNNER CLOSE STILL SUCCEEDS, which is the regression this plan is most likely to cause and the reason E-05 is not obviously safe. The common shape is a SINGLE carrier, the run's own plan: the lane shows it `executed/` and main still shows it `pending/` because the merge has not happened. Measured at authoring, gating that shape against main via the HANDOFF arm alone REFUSES (`carrier is not executed/implemented`), and what rescues it is the SATISFIED arm: the runner cites its carrier path as `--evidence`, and `runner_shared.evaluate_backlog_close._cited` deliberately returns the overridden path so the citation names where the file REALLY is. SO THE EXECUTOR MUST ESTABLISH WHICH PATH IS CITED WHEN THE GATE TREE IS MAIN, and this is the plan's single genuine risk: a citation that resolves in the lane will NOT resolve in main, so a naive `--gate-dir <main>` could refuse every ordinary close - exactly the "would refuse EVERY close, forever, and would do so silently" failure `evaluate_backlog_close`'s own docstring describes from the other side. RESOLVE IT BY MEASUREMENT, NOT BY REASONING, and if the ordinary close cannot be made to pass without weakening a gate, STOP AND REPORT: the honest outcome is then that `--gate-dir` ships (E-03/E-04, which stand alone and are what the backlog item asks for) while E-05 is withdrawn to its own plan, not that a gate is loosened to fit. Add the passing case as a test alongside E-02's class.
   - Depends on: E-05
   - Expected outcome: a pasted end-to-end demonstration that the single-carrier in-lane close still closes with the gate tree set to main, naming the exact evidence path that made it legitimate and which tree it resolved in; or, if that is not achievable without weakening a gate, a written statement to that effect plus E-05 reverted and refiled.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: Complete per outcome (b): refusal verified, E-05 withdrawn, refiled as backlog qkl8fs.
 
-- [ ] E-07 UPDATE THE USER-FACING CLOSE DOCUMENTATION in `docs/artifact-lifecycles.md`. Its "Closing a release-blocking item" section lists the three arms and is where an operator learns this rule; it must say that the gate is evaluated against the tree `--gate-dir` names, defaulting to `--dir`, because the whole defect is that a reader cannot currently tell the gate tree from the move tree. Keep it to the operator-visible fact and do NOT restate the runner's internals there, which belong in the code comments E-05 corrects. WRITE NO EM OR EN DASHES, per the execution contract for user-facing prose. Also add a `CHANGELOG.md` entry for the new flag if and only if the file's current conventions call for one: several existing entries cover `aw backlog set` flag changes, so verify the shape against them rather than trusting this sentence.
+- [x] E-07 UPDATE THE USER-FACING CLOSE DOCUMENTATION in `docs/artifact-lifecycles.md`. Its "Closing a release-blocking item" section lists the three arms and is where an operator learns this rule; it must say that the gate is evaluated against the tree `--gate-dir` names, defaulting to `--dir`, because the whole defect is that a reader cannot currently tell the gate tree from the move tree. Keep it to the operator-visible fact and do NOT restate the runner's internals there, which belong in the code comments E-05 corrects. WRITE NO EM OR EN DASHES, per the execution contract for user-facing prose. Also add a `CHANGELOG.md` entry for the new flag if and only if the file's current conventions call for one: several existing entries cover `aw backlog set` flag changes, so verify the shape against them rather than trusting this sentence.
   - Depends on: E-06
   - Expected outcome: the docs section names the gate tree and its default, contains no em or en dash, and does not describe runner internals.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 RUN THE BARE SUITE, `python3 -m pytest`, and compare against a baseline taken the same way BEFORE any edit in this plan. THE REVIEW BASELINE IS AVAILABLE AND THE TREE IS FULLY GREEN (PR-705): measured at review HEAD `15222860` on a clean tree, `3069 passed, 2 skipped, 3 warnings in 41.11s`, and the four per-file counts are `tests/test_backlog_handoff_close.py` `11 passed`, `tests/test_backlog.py` `37 passed`, `tests/test_check_engine_release_gate.py` `27 passed`, `tests/test_command_surface_declarations.py` `1 passed`. There is NO pre-existing failure, so the bar is zero failures and any red is this plan's to explain. Still take your own before-baseline, since the tree moves. Bare is required: `pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow'`, so `-n0` makes this suite several times slower here and a second `-q` suppresses the `N passed` summary line this plan must paste. ALSO run the directly-affected files narrowed with `-o addopts=""` so their per-file counts are visible, and STATE THE COUNTS rather than only asserting no new failures: this change reaches a predicate that three surfaces share (the setter, `aw check`, and the opt-in pre-commit hook), so an aggregate that merely fails to get worse is weaker evidence than it looks.
+- [x] E-08 RUN THE BARE SUITE, `python3 -m pytest`, and compare against a baseline taken the same way BEFORE any edit in this plan. THE REVIEW BASELINE IS AVAILABLE AND THE TREE IS FULLY GREEN (PR-705): measured at review HEAD `15222860` on a clean tree, `3069 passed, 2 skipped, 3 warnings in 41.11s`, and the four per-file counts are `tests/test_backlog_handoff_close.py` `11 passed`, `tests/test_backlog.py` `37 passed`, `tests/test_check_engine_release_gate.py` `27 passed`, `tests/test_command_surface_declarations.py` `1 passed`. There is NO pre-existing failure, so the bar is zero failures and any red is this plan's to explain. Still take your own before-baseline, since the tree moves. Bare is required: `pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow'`, so `-n0` makes this suite several times slower here and a second `-q` suppresses the `N passed` summary line this plan must paste. ALSO run the directly-affected files narrowed with `-o addopts=""` so their per-file counts are visible, and STATE THE COUNTS rather than only asserting no new failures: this change reaches a predicate that three surfaces share (the setter, `aw check`, and the opt-in pre-commit hook), so an aggregate that merely fails to get worse is weaker evidence than it looks.
   - Depends on: E-07
   - Expected outcome: no new failures relative to the same-day baseline, with BOTH aggregate summary lines captured plus per-file counts for `tests/test_backlog_handoff_close.py`, `tests/test_backlog.py` and `tests/test_check_engine_release_gate.py`.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -166,7 +168,7 @@ ORDER IS LOAD-BEARING BETWEEN E-04 AND E-05, and not merely tidy. E-03 and E-04 
 
 ## Scope check
 
-- Over-scope: none. `agent_workflows/cli.py` and `agent_workflows/command_surface.py` carry E-03; `agent_workflows/backlog.py` carries E-04; `agent_workflows/runner_shared.py` plus `agent_workflows/oc_runipd.py` and `agent_workflows/agy_runipd.py` carry E-05; `tests/test_backlog_handoff_close.py` carries E-02, E-03's new flag-surface assertion and E-06; `docs/artifact-lifecycles.md` carries E-07. E-01 and E-08 write no tracked file beyond this plan's own execution note and evidence. The backlog item named in the Deferred rows was filed AT AUTHORING, so execution mints nothing.
+- Over-scope: none. `agent_workflows/cli.py` and `agent_workflows/command_surface.py` carry E-03; `agent_workflows/backlog.py` carries E-04; `agent_workflows/runner_shared.py` plus `agent_workflows/oc_runipd.py` and `agent_workflows/agy_runipd.py` carry E-05 (evaluated and cleanly withdrawn per E-06 outcome b); `tests/test_backlog_handoff_close.py` carries E-02, E-03's new flag-surface assertion and E-06; `docs/artifact-lifecycles.md` carries E-07; `CHANGELOG.md` carries E-07's flag documentation; `.aw/records/backlog/open/20260928-qkl8fs-01-qkl8fs-allow-runner-in-lane-backlog-close-to-gate-against.backlog.md` carries the refiled runner adoption from E-06/V-06 outcome (b). E-01 and E-08 write no tracked file beyond this plan's own execution note and evidence.
 - THE TWO HOST RUNNERS WERE ADDED TO `- Scope-Paths:` AT REVIEW, and the reason is a correction rather than a widening (F-11/PR-701). E-05 cannot be performed without them: `process_backlog_close` calls an INJECTED `close_backlog_item`, and the callable is supplied by a thin wrapper defined in each host, so two of E-05's four edits live in files the authored fence forbade. Their scope here is DELIBERATELY MINIMAL: each host gains exactly one forwarded keyword argument in one wrapper, nothing else, and the two edits must be identical to each other. An executor who finds themselves changing anything else in either host runner has left this plan's fence.
 - `agent_workflows/check_engine.py` IS DELIBERATELY NOT IN `Scope-Paths`, and this is the plan's most important boundary. The whole design is that the shared predicate keeps its signature and its arms while the CALLER chooses which root to hand it. If the executor finds E-04 impossible without editing that module, that is a re-scope to REPORT, not a silent addition, because `aw check` and the opt-in pre-commit hook share the predicate and a change there reaches both.
 - Under-scope, DELIBERATE and stated plainly: after this plan the DEFAULT behavior of every existing caller is unchanged, so nothing is fixed for a caller that does not pass the new flag. The only behavior change ships via E-05. An operator reading "the gate-tree coupling was fixed" must not conclude that a hand close is now gated against main; it is gated against whatever tree they name, which is the point.
@@ -228,45 +230,284 @@ ORDER IS LOAD-BEARING BETWEEN E-04 AND E-05, and not merely tidy. E-03 and E-04 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the pasted output of all four baselines with the HEAD they were run at: (a) the two `evaluate_blocking_close` verdicts differing between the two trees with NO evidence passed, both reasons quoted in full, plus the fixture's two carrier paths so a reviewer can see the trees differ ONLY in one directory name; (b) both `aw backlog set ... --status done --dir <tree> --dry-run` invocations with their exit codes and their stdout/stderr; (c) the four `resolve_evidence_artifact` results as a matrix; and (d) the `evaluate_backlog_close` refusal naming the unexecuted sibling. If fact (a) has moved, the paste must be accompanied by the explicit re-scope statement E-01 demands, and the plan must NOT proceed to E-03 on the old premise.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Baselines measured at starting HEAD `f7ec0718c9a7e2ab8a44218153787cedc8895c74`.
+    Fixture paths:
+    Main:
+    - Carrier A: `.aw/records/plans/pending/20260926-testset-01-aaaaaa-test-plan.ipd.md` (pending)
+    - Carrier B: `.aw/records/plans/pending/20260926-testset-01-cccccc-test-plan.ipd.md` (pending)
+    Lane:
+    - Carrier A: `.aw/records/plans/executed/20260926-testset-01-aaaaaa-test-plan.ipd.md` (executed)
+    - Carrier B: `.aw/records/plans/pending/20260926-testset-01-cccccc-test-plan.ipd.md` (pending)
 
-- [ ] V-02 validates E-02
+    (a) `evaluate_blocking_close` with NO evidence passed:
+    ```
+    main: legitimate=False, path=None, reason="gate 'next' is handed off to From-Backlog carrier(s) (20260926-testset-01-aaaaaa-test-plan.ipd.md, 20260926-testset-01-cccccc-test-plan.ipd.md) but the work has not shipped (carrier is not executed/implemented)"
+    lane: legitimate=True, path=HANDOFF, reason="gate 'next' handed off to a From-Backlog plan or spec"
+    ```
+
+    (b) `aw backlog set bbbbbb --status done --dir <tree> --no-commit --dry-run`:
+    ```
+    main:
+    aw backlog set: refused: gate 'next' is handed off to From-Backlog carrier(s) (20260926-testset-01-aaaaaa-test-plan.ipd.md, 20260926-testset-01-cccccc-test-plan.ipd.md) but the work has not shipped (carrier is not executed/implemented).
+      - aw backlog set bbbbbb --status graduated (keep the item as a release blocker until the plan executes)
+      - cite satisfying evidence: `aw backlog set done <item> --evidence <in-tree artifact path>`
+      - explicitly release the gate first: `aw backlog set done <item> --blocks-release -`
+    exit code: 1
+
+    lane:
+    --- would move /tmp/tmpyn1japqw/lane/.aw/records/backlog/open/20260920-bbbbbb-01-bbbbbb-test-item.backlog.md -> /tmp/tmpyn1japqw/lane/.aw/records/backlog/done/20260920-bbbbbb-01-bbbbbb-test-item.backlog.md (status done) ---
+    exit code: 0
+    ```
+
+    (c) `resolve_evidence_artifact` matrix:
+    ```
+    (main_dir, rel_a_main) = True   (main_dir, rel_a_lane) = False
+    (lane_dir, rel_a_main) = False  (lane_dir, rel_a_lane) = True
+    ```
+
+    (d) `evaluate_backlog_close` refusal naming unexecuted sibling:
+    ```
+    close=False, reason='IPD carrier(s) not executed: .aw/records/plans/pending/20260926-testset-01-cccccc-test-plan.ipd.md', evidence=None
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: the pasted FAILING run of the new class taken BEFORE E-03 and E-04, showing cases (1), (3) and (4) failing on ASSERTIONS and case (2) already passing. A collection error, an import error, or a skip is not acceptable evidence. For case (1) specifically, state WHETHER the unrecognized `--gate-dir` caused argparse to exit 2 or was silently ignored, because a silently ignored flag is the failure mode that would later let a wrong pass go unnoticed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Failing run taken before E-03 and E-04 (`python3 -m pytest tests/test_backlog_handoff_close.py -k "BacklogGateDirSplitTests"`):
+    ```
+    tests/test_backlog_handoff_close.py::BacklogGateDirSplitTests::test_case_1_two_carrier_sibling_unexecuted_gate_dir_refused FAILED [ 25%]
+    tests/test_backlog_handoff_close.py::BacklogGateDirSplitTests::test_case_2_default_is_unchanged_without_gate_dir PASSED [ 50%]
+    tests/test_backlog_handoff_close.py::BacklogGateDirSplitTests::test_case_4_evidence_resolved_in_gate_tree_not_move_tree FAILED [ 75%]
+    tests/test_backlog_handoff_close.py::BacklogGateDirSplitTests::test_case_3_move_still_lands_in_move_tree FAILED [100%]
 
-- [ ] V-03 validates E-03
+    =================================== FAILURES ===================================
+    _ BacklogGateDirSplitTests.test_case_1_two_carrier_sibling_unexecuted_gate_dir_refused _
+    ...
+    >       self.assertEqual(rc, 1)
+    E       AssertionError: 2 != 1
+    tests/test_backlog_handoff_close.py:738: AssertionError
+
+    _ BacklogGateDirSplitTests.test_case_4_evidence_resolved_in_gate_tree_not_move_tree _
+    ...
+    >       self.assertEqual(rc_a, 0)
+    E       AssertionError: 2 != 0
+    tests/test_backlog_handoff_close.py:895: AssertionError
+
+    ______ BacklogGateDirSplitTests.test_case_3_move_still_lands_in_move_tree ______
+    ...
+    >       self.assertEqual(rc, 0)
+    E       AssertionError: 2 != 0
+    tests/test_backlog_handoff_close.py:820: AssertionError
+
+    ================== 3 failed, 1 passed, 11 deselected in 0.64s ==================
+    ```
+    Unrecognized `--gate-dir` caused argparse to exit 2 (`AssertionError: 2 != 1` in case 1, and `2 != 0` in cases 3 and 4) rather than being silently ignored. Case 2 (default `--dir` without `--gate-dir`) passed immediately.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: (a) the `aw backlog set --help` output showing `--gate-dir`, its text naming the gate half and the `--dir` default. (b) the `command_surface.py` `legacy_flags` entry quoted showing `--gate-dir`, AND a pasted PASSING run of the NEW per-command flag-surface assertion E-03 requires. DO NOT SUBMIT `test_zero_undeclared_parser_leaves` AS THE PROOF HERE: review measured that it compares COMMAND PATHS and is invariant to any flag (F-12/PR-702), so a green run of it proves nothing about the declaration and would be exactly the kind of evidence this workflow treats as decorative. You MAY paste it additionally as a no-regression check, labelled as such. (c) a one-line statement that the `backlog set` entry's existing accepted-but-undeclared debt (`--evidence`, `--yes`, `--commit/--no-commit`) was NOT widened, with the entry's own comment quoted to show the debt is pre-existing and deliberately left, and confirming the new assertion is written one-directionally (`declared - accepted == set()`) so it does not turn that debt red and force an out-of-fence fix.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: (a) `aw backlog set --help` output shows --gate-dir; (b) legacy_flags declared and flag surface assertion passes; (c) debt not widened.
+    (a) `aw backlog set --help` output:
+    ```
+      --gate-dir GATE_DIR   Tree the release gate is evaluated against (where
+                            From-Backlog carriers are scanned for, and where
+                            --evidence is resolved; default: --dir).
+    ```
+    (b) `command_surface.py` entry:
+    ```python
+            "--gate-kind",
+            "--gate-ref",
+            "--blocks-release",
+            "--gate-dir",
+    ```
+    Passing run of the new per-command flag-surface assertion `test_backlog_set_declared_flag_surface_matches_parser` (`python3 -m pytest tests/test_backlog_handoff_close.py -k "test_backlog_set_declared_flag_surface_matches_parser" -o addopts=""`):
+    ```
+    collected 17 items / 16 deselected / 1 selected
 
-- [ ] V-04 validates E-04
+    tests/test_backlog_handoff_close.py .                                    [100%]
+
+    ======================= 1 passed, 16 deselected in 0.28s =======================
+    ```
+    No-regression check on command paths (`python3 -m pytest tests/test_command_surface_declarations.py -o addopts=""`):
+    ```
+    tests/test_command_surface_declarations.py .                             [100%]
+    ============================== 1 passed in 0.21s ===============================
+    ```
+    (c) Statement on debt: The `backlog set` entry's existing accepted-but-undeclared debt was not widened; comment in `command_surface.py`:
+    `# bklgkind b5sfwm E-05: the two CLASSIFICATION setters, DECLARED and not merely accepted. Their absence was why a mislabeled item's Work-Kind had to be hand-edited. This entry is now MORE complete but still NOT complete: --evidence, --yes and --commit/--no-commit remain accepted-only debt (F-05).`
+    The test assertion is written one-directionally (`declared_flags - accepted_flags == set()`) so it verifies every declared flag is accepted by argparse without turning pre-existing undeclared debt red.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: (a) the changed `run_set` lines quoted from the file, showing which root each of the four must-not-move reads still uses (selector resolution, `decide_gate_default`, the destination, the sidecar) so a reviewer can confirm ONLY the predicate call moved; (b) the pasted pair of CLI runs proving the split, i.e. the same fixture exiting 0 with `--dir <lane>` alone and exiting 1 with `--gate-dir <main>` added, both commands shown; (c) the pasted directory listing of BOTH trees after a successful split call, showing the item in the move tree's `done/` and UNCHANGED in the gate tree, which is what proves the knobs are independent rather than one renamed; (d) the pasted refusal when `--gate-dir` names a non-project tree, showing the message names the FLAG and not the item; and (e) pasted PASSING runs of `tests/test_backlog.py::BacklogDryRunTests` and `tests/test_check_engine_release_gate.py`, UNMODIFIED, which is what proves the gate-before-dry-run ordering and the predicate's own verdicts survived.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: (a) Changed run_set lines leave 4 reads on repo_root; (b) split verified via CLI runs; (c) move tree item moved, gate tree untouched; (d) non-project gate-dir refused with rc=2; (e) BacklogDryRunTests and test_check_engine_release_gate pass unmodified.
+    (a) Changed `run_set` lines in `agent_workflows/backlog.py`:
+    ```python
+    repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
+    gate_dir_arg = getattr(args, "gate_dir", None)
+    if gate_dir_arg is not None:
+        gate_root = resolve_verb_repo_root(gate_dir_arg)
+        if not is_project_dir(gate_root):
+            sys.stderr.write(
+                f"aw backlog set: --gate-dir '{gate_dir_arg}' is not an agent-workflows project root\n"
+            )
+            return 2
+    else:
+        gate_root = repo_root
+    ...
+    src = _resolve_backlog_target(repo_root, target)  # 1. SELECTOR stays on repo_root
+    ...
+    # 2. decide_gate_default stays on repo_root:
+    gate_default_kind, gate_default_ref, gate_default_notice = decide_gate_default(
+        repo_root,
+        ...
+    )
+    ...
+    # ONLY the evaluate_blocking_close predicate moves to gate_root:
+    verdict = _ce.evaluate_blocking_close(
+        gate_root,
+        src,
+        new_status,
+        evidence=getattr(args, "evidence", None),
+    )
+    ...
+    dest_dir = _resolve_backlog_root(repo_root) / dest_bucket  # 3. DESTINATION stays on repo_root
+    ...
+    _rh.append_advisory(repo_root, src, ...)  # 4. SIDECAR stays on repo_root
+    ```
 
-- [ ] V-05 validates E-05
+    (b) CLI runs proving the split:
+    ```
+    $ python3 -m agent_workflows.cli backlog set item01 --status done --dir /tmp/lane --message close
+    exit code: 0
+
+    $ python3 -m agent_workflows.cli backlog set item01 --status done --dir /tmp/lane --gate-dir /tmp/main --message close
+    aw backlog set: refused: gate 'next' is handed off to From-Backlog carrier(s) (20260926-testset-01-plan02-test-plan.ipd.md) but the work has not shipped (carrier is not executed/implemented).
+    exit code: 1
+    ```
+
+    (c) Directory listing of both trees after successful split call (`BacklogGateDirSplitTests.test_case_3_move_still_lands_in_move_tree`):
+    ```
+    Move tree (lane):
+      open/: []
+      done/: ['20260920-item01-01-item01-test-item.backlog.md']
+    Gate tree (main):
+      open/: ['20260920-item01-01-item01-test-item.backlog.md']
+      done/: []
+    ```
+
+    (d) Refusal when `--gate-dir` names non-project tree:
+    ```
+    $ python3 -m agent_workflows.cli backlog set item01 --status done --dir . --gate-dir /tmp --dry-run
+    aw backlog set: --gate-dir '/tmp' is not an agent-workflows project root
+    exit code: 2
+    ```
+    The message names the flag `--gate-dir` and the path, not the item.
+
+    (e) Passing runs of unmodified tests:
+    `python3 -m pytest tests/test_backlog.py::BacklogDryRunTests -o addopts=""`:
+    ```
+    tests/test_backlog.py ...                                                [100%]
+    ============================== 3 passed in 0.74s ===============================
+    ```
+    `python3 -m pytest tests/test_check_engine_release_gate.py -o addopts=""`:
+    ```
+    tests/test_check_engine_release_gate.py ...........................      [100%]
+    ============================== 27 passed in 0.74s ==============================
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: (a) the changed `runner_shared.close_backlog_item` argv construction quoted, showing which value becomes the move root and which the gate root, and that `--gate-dir` is emitted ONLY when the two differ. (b) ALL FOUR EDITED SYMBOLS QUOTED, since review measured the chain is four symbols in three files and the authored item named one (F-11/PR-701): `runner_shared.close_backlog_item`'s new keyword, `runner_shared.process_backlog_close`'s call site passing `repo` beside `write_repo`, and BOTH host wrappers `oc_runipd.close_backlog_item` and `agy_runipd.close_backlog_item`. Paste the two wrappers SIDE BY SIDE and state that they are identical apart from their bound `run_checked`; a one-sided widening is a defect, not a partial fix, because it would give one host a gated close and the other the status quo silently. (c) BOTH corrected docstring claims quoted: the "THE TWO CANNOT BE SPLIT FROM HERE" sentence AND the parameter-description sentence calling the two roots "inseparably" the same, both gone, AND the permissive-direction warning still PRESENT, since deleting that warning as obsolete would remove the one sentence that predicted this defect. (d) evidence that the NON-ISOLATED path is unchanged, by pasting the argv produced with `lane_repo=None` before and after the change and showing them byte-identical.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: E-05 was evaluated and cleanly withdrawn per E-06 / V-06 outcome (b). The runner files (`agent_workflows/runner_shared.py`, `agent_workflows/oc_runipd.py`, `agent_workflows/agy_runipd.py`) remain completely untouched and unmodified. The requirement to gate the runner's in-lane close against main is refiled as backlog item `qkl8fs`.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: EITHER (a) a pasted end-to-end demonstration that the single-carrier in-lane close still closes with the gate tree set to main, which must name the exact `--evidence` path used, state which tree it resolved in, and quote the verdict's reason so a reviewer can see WHICH arm carried it (HANDOFF or SATISFIED); OR (b) the pasted refusal plus an explicit written statement that E-05 is withdrawn, the `runner_shared.py` change reverted, and the work refiled, with the new item's id6 given. Outcome (b) is a legitimate result of this plan and must not be avoided by loosening a gate: if the evidence shows a gate was relaxed to make this pass, this V-item FAILS.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Evaluated per outcome (b): measured refusal when gating runner close against main before integration; verified clean withdrawal of E-05 and refiled as backlog qkl8fs.
+    In an isolated lane turn before integration, the just-executed plan exists in `plans/executed/` in the lane worktree, while `main` still has the plan in `plans/pending/`.
+    Runner close evaluation:
+    `runner_shared.evaluate_backlog_close(main_dir, "bbbbbb", [rel_lane], executed_overrides={rel_main: rel_lane})`:
+    ```
+    close=True
+    reason="every IPD carrier is executed and this run executed .aw/records/plans/executed/20260926-testset-01-aaaaaa-test-plan.ipd.md"
+    evidence=".aw/records/plans/executed/20260926-testset-01-aaaaaa-test-plan.ipd.md"
+    ```
+    When `backlog set` is invoked with `--dir <lane_dir> --gate-dir <main_dir> --evidence <evidence>`:
+    ```
+    aw backlog set: refused: gate 'next' is handed off to From-Backlog carrier(s) (20260926-testset-01-aaaaaa-test-plan.ipd.md) but the work has not shipped (carrier is not executed/implemented).
+      - aw backlog set bbbbbb --status graduated (keep the item as a release blocker until the plan executes)
+      - cite satisfying evidence: `aw backlog set done <item> --evidence <in-tree artifact path>`
+      - explicitly release the gate first: `aw backlog set done <item> --blocks-release -`
+    exit code: 1
+    ```
+    The evidence path exists in the lane but does NOT exist in `main_dir`, so the SATISFIED arm fails to resolve evidence in `gate_root`; the HANDOFF arm in `main_dir` sees `aaaaaa` in `pending/`, not `executed/`, so it also fails. Citing `main_dir`'s pending path would pass file resolution but falsely cite an unexecuted plan to satisfy a release gate.
 
-- [ ] V-07 validates E-07
+    Therefore, E-05 is withdrawn, runner files are kept untouched, and the requirement is refiled as backlog item `qkl8fs` (`.aw/records/backlog/open/20260928-qkl8fs-01-qkl8fs-allow-runner-in-lane-backlog-close-to-gate-against.backlog.md`).
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: the changed `docs/artifact-lifecycles.md` section quoted in full, showing it names the gate tree and the `--dir` default, plus the output of a search over the changed lines proving no em or en dash was introduced (run the check rather than asserting it). If a `CHANGELOG.md` entry was added, quote it beside an existing `aw backlog set` entry so the convention match is visible; if one was deliberately NOT added, state why in one line.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Changed section in `docs/artifact-lifecycles.md` lines 329-339 names gate tree and default, zero em/en dashes; CHANGELOG.md entry added.
+    ```markdown
+    ### Closing a release-blocking item
 
-- [ ] V-08 validates E-08
+    `aw backlog set done` on an item with `- Blocks-Release:` is refused unless one of these holds:
+
+    - **Handoff:** a plan carries `- From-Backlog: <this id6>` and the same `Blocks-Release`.
+    - **Satisfied:** you cite resolvable in-tree evidence with `--evidence <path>`.
+    - **De-gated:** you clear the gate in the same call with `--blocks-release -`.
+
+    The release gate is evaluated against the tree named by `--gate-dir` (defaulting to `--dir` when omitted). When `--gate-dir` is specified, carrier plans are scanned for and evidence paths are resolved in that tree, while the backlog item file itself moves within the tree specified by `--dir`.
+
+    Use `aw backlog note <item> -m "..."` to record a reason or finding without changing status.
+    ```
+    Dash check on changed lines:
+    ```
+    Check completed. No em or en dashes found.
+    ```
+    `CHANGELOG.md` entry beside existing entries:
+    ```markdown
+    - Fixed: `aw backlog set <item> --status <s> --dry-run` and `aw specs set <spec> --status <s> --dry-run` previously ignored `--dry-run` and performed the change (a spec was even moved to another folder); both now preview only.
+    - Fixed: `aw backlog set <item> --status <s>` no longer deletes metadata lines it does not recognize (for example a custom field, and previously any field without its own workaround); the item now keeps them where they were in original order.
+    - Fixed: `aw backlog set <item> --status <s>` no longer deletes prose written between an item's metadata bullets and its `## Workflow history` heading, preserving existing report text in place.
+    - Added: `aw backlog set` gains `--gate-dir` to specify which repository tree its release gate is evaluated against, defaulting to `--dir` (the move tree).
+    ```
+    No em or en dash in `CHANGELOG.md` entry verified.
+  - Result: pass
+
+- [x] V-08 validates E-08
   - Required evidence: (a) the BARE `python3 -m pytest` summary lines from BEFORE any edit in this plan and AFTER the last one, both pasted, so a reviewer compares two same-day numbers rather than one, AND reconciled against the review baseline `3069 passed, 2 skipped, 3 warnings` at HEAD `15222860` (F-13). THE TREE WAS FULLY GREEN AT REVIEW, so the bar is ZERO failures and any red is this plan's to explain; do not assume a pre-existing failure exists here as it does in some sibling plans. (b) the per-file counts from `-o addopts=""` runs of `tests/test_backlog_handoff_close.py` (review baseline `11 passed`, which independently confirms this plan's "all eleven existing tests"), `tests/test_backlog.py` (`37 passed`), `tests/test_check_engine_release_gate.py` (`27 passed`) and `tests/test_command_surface_declarations.py` (`1 passed`). State the post-change count for the first file and which E-items produced the added tests. A single after-run with no baseline is not acceptable evidence, since this plan's whole risk is a shared predicate's callers changing behavior somewhere this plan did not look.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: (a) Full bare pytest suite before (3075 passed, 2 skipped, 3 warnings in 123.18s) and after (3081 passed, 2 skipped, 3 warnings in 42.33s), +6 tests added, zero failures; (b) per-file counts verified.
+    (a) Full bare pytest suite before and after:
+    Before any edit in this plan (starting HEAD `f7ec0718c9a7e2ab8a44218153787cedc8895c74`):
+    ```
+    3075 passed, 2 skipped, 3 warnings in 123.18s (0:02:03)
+    ```
+    After last edit:
+    ```
+    3081 passed, 2 skipped, 3 warnings in 42.33s
+    ```
+    Net change: +6 passed tests, zero failures, matching the 6 new tests added by this plan (5 cases in `BacklogGateDirSplitTests` and 1 in `test_backlog_set_declared_flag_surface_matches_parser`).
+    Reconciled against review baseline (`3069 passed, 2 skipped, 3 warnings` at HEAD `15222860`): starting HEAD was at 3075 (+6 from concurrent/prior commits), ending at 3081 (+6 from this plan).
+
+    (b) Per-file counts via `-o addopts=""`:
+    - `tests/test_backlog_handoff_close.py`:
+      Before: `11 passed in 0.50s`
+      After: `17 passed in 3.08s` (+6 tests: 4 cases from E-02, 1 flag-surface test from E-03, 1 non-project guard test case 5 from E-04)
+    - `tests/test_backlog.py`:
+      Before: `37 passed in 1.45s`
+      After: `37 passed in 1.41s` (unmodified)
+    - `tests/test_check_engine_release_gate.py`:
+      Before: `27 passed in 0.77s`
+      After: `27 passed in 0.74s` (unmodified)
+    - `tests/test_command_surface_declarations.py`:
+      Before: `1 passed in 0.20s`
+      After: `1 passed in 0.21s` (unmodified)
+  - Result: pass
+
 
 ## Approval and execution gate
 
