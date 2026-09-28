@@ -1,11 +1,13 @@
 - Id: 7pntcb
-- Status: open
+- Status: graduated
+- Graduated-To: 7pntcb
 - Set: 7pntcb
 - Priority: medium
 - Work-Kind: chore
 - Summary: Nothing cross-checks a spec's acceptance criteria against the coverage of the plan Set implementing it
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: 3dexf1
 - 2026-09-19 created (aw backlog): Found while resolving lifeglyph 2xz59a OQ-02, where five of spec uonrjg's 21 criteria were claimed by the orchestrator's coverage map but demanded by no child; only a human review caught it.
 
 ## The gap
