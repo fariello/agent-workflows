@@ -1,5 +1,5 @@
 - Id: csmtjp
-- Status: graduated
+- Status: done
 - Graduated-To: foreignmerge
 - Blocks-Release: next
 - Priority: medium
@@ -8,6 +8,7 @@
 - Summary: A driver's merge-conflict path runs git merge --abort on the shared checkout, which destroys an unrelated in-progress merge it did not start
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): closed by aw oc run: IPD g2z2pp executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-foreignmerge-01-g2z2pp-refuse-a-foreign-merge-instead-of-aborting-it-during-lane-in.ipd.md); evidence .aw/records/plans/executed/20260928-foreignmerge-01-g2z2pp-refuse-a-foreign-merge-instead-of-aborting-it-during-lane-in.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: g2z2pp
 - 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-18 open (aw set): Priority medium per maintainer 2026-09-17: the frequency claim in the original filing was wrong (the driver never stages a merge, so the measured trigger required a human's hand-staged git merge --no-commit). The latent correctness bug stands: merge_in_progress answers 'is ANY merge in progress' while used as 'did MY merge start', and run_lock is per-run so two drivers are not serialized against each other.
