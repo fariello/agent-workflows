@@ -154,17 +154,20 @@ class InteractivityResolverRungMatrixTests(unittest.TestCase):
                                     override=override,
                                     environ=env_dict,
                                 )
-                                # Expected answer logic:
-                                # 1. override wins if not None
-                                if override is not None:
-                                    expected = override
-                                # 2. forced non-interactive wins
+                                # Expected answer logic (Option A asymmetric ladder, PR-306 / OQ-03):
+                                # 1. negative override wins immediately
+                                if override is False:
+                                    expected = False
+                                # 2. forced non-interactive env wins over positive override and detection
                                 elif is_forced:
                                     expected = False
-                                # 3. stdin must be TTY
+                                # 3. positive override beats stream detection
+                                elif override is True:
+                                    expected = True
+                                # 4. stdin must be TTY
                                 elif not stdin_tty:
                                     expected = False
-                                # 4. output must be TTY
+                                # 5. output must be TTY
                                 elif not out_tty:
                                     expected = False
                                 else:
@@ -448,3 +451,89 @@ class SingleOriginatingDefinitionTests(unittest.TestCase):
                 reaches_resolver,
                 f"Sanctioned delegation {func_name} in {filename} must call term.is_interactive",
             )
+
+
+class AsymmetricPrecedenceLadderTests(unittest.TestCase):
+    """PR-306 / OQ-03 Option A / E-05 / V-05: Asymmetric ladder and eight safety cells."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self._orig_override = term.get_interactive_override()
+        term.set_interactive_override(None)
+
+    def tearDown(self) -> None:
+        term.set_interactive_override(self._orig_override)
+        super().tearDown()
+
+    def test_negative_override_beats_everything_including_real_tty(self) -> None:
+        tty_in = _FakeStream(True)
+        tty_out = _FakeStream(True)
+        self.assertFalse(
+            term.is_interactive(
+                stdin=tty_in, output_stream=tty_out, override=False, environ={}
+            )
+        )
+        term.set_interactive_override(False)
+        self.assertFalse(
+            term.is_interactive(stdin=tty_in, output_stream=tty_out, environ={})
+        )
+
+    def test_forced_noninteractive_beats_positive_override(self) -> None:
+        for var in ("CI", "AW_NONINTERACTIVE"):
+            for val in ("1", "true", "yes"):
+                with self.subTest(var=var, val=val):
+                    self.assertFalse(
+                        term.is_interactive(override=True, environ={var: val}),
+                        f"{var}={val} must defeat override=True",
+                    )
+                    term.set_interactive_override(True)
+                    self.assertFalse(
+                        term.is_interactive(environ={var: val}),
+                        f"{var}={val} must defeat process-wide override=True",
+                    )
+                    term.set_interactive_override(None)
+
+    def test_positive_override_beats_stream_detection_when_not_forced(self) -> None:
+        pipe_in = _FakeStream(False)
+        pipe_out = _FakeStream(False)
+        self.assertTrue(
+            term.is_interactive(
+                stdin=pipe_in, output_stream=pipe_out, override=True, environ={}
+            )
+        )
+        term.set_interactive_override(True)
+        self.assertTrue(
+            term.is_interactive(stdin=pipe_in, output_stream=pipe_out, environ={})
+        )
+
+    def test_eight_safety_cells_across_four_hardened_sites(self) -> None:
+        """PR-306 / OQ-03 Option A / V-05: Eight safety cells must all answer False."""
+        term.set_interactive_override(True)
+        for var in ("CI", "AW_NONINTERACTIVE"):
+            with mock.patch.dict(os.environ, {var: "1"}):
+                # 1. runner_stop.interrupt_menu_is_safe
+                cell1 = runner_stop.interrupt_menu_is_safe()
+                self.assertFalse(
+                    cell1,
+                    f"runner_stop.interrupt_menu_is_safe must be False for {var}=1",
+                )
+
+                # 2. ipd_lifecycle fence
+                ctx = argparse.Namespace(is_agent=False, is_json=False)
+                cell2 = not (ctx.is_agent or ctx.is_json) and term.is_interactive()
+                self.assertFalse(
+                    cell2, f"ipd_lifecycle fence must be False for {var}=1"
+                )
+
+                # 3. artifact_adopt.leak_gate_is_interactive
+                cell3 = artifact_adopt.leak_gate_is_interactive()
+                self.assertFalse(
+                    cell3,
+                    f"artifact_adopt.leak_gate_is_interactive must be False for {var}=1",
+                )
+
+                # 4. runner_shared.is_interactive_run
+                cell4 = runner_shared.is_interactive_run()
+                self.assertFalse(
+                    cell4, f"runner_shared.is_interactive_run must be False for {var}=1"
+                )

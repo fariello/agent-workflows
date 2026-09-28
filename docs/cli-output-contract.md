@@ -74,21 +74,23 @@ processes and an environment variable would be inherited, silently restyling a c
 SECOND, the flags are STYLING ONLY: `--agent` and `--json` payloads are byte-identical under
 every combination of them and contain no ANSI escapes (section 6).
 
-### 1.2 Interactivity Precedence: override beats env beats detection
+### 1.2 Interactivity Precedence: asymmetric safety ladder
 
 The interactivity decision (may this process prompt a human?) is resolved once in `term.is_interactive`.
-Highest precedence first:
+Unlike the color ladder, interactivity follows an ASYMMETRIC ladder: a wrong refusal is recoverable,
+an unbounded wait is not. Highest precedence first:
 
 ```text
-explicit override  >  AW_NONINTERACTIVE / CI  >  stdin_is_interactive  >  output_stream.isatty()
+--no-interactive  >  AW_NONINTERACTIVE / CI  >  --interactive  >  stdin_is_interactive  >  output_stream.isatty()
 ```
 
 | # | Layer | Rule |
 | --- | --- | --- |
-| 1 | Override | Explicit argument (`override=True` or `override=False`) or process-wide override (`set_interactive_override()`). |
-| 2 | Env | `AW_NONINTERACTIVE` (any non-empty value other than "0", "false", "no") or `CI` (any non-empty value other than "0", "false", "no") forces non-interactive (`False`). |
-| 3 | Stdin | `stdin` must be interactive per `term.stdin_is_interactive()` (validates terminal and Windows console handle). |
-| 4 | Output | Target output stream (defaults to `sys.stdout`, or `sys.stderr` when specified) must also be a TTY. |
+| 1 | Negative Flag | `--no-interactive` (or `override=False`) disables interactive prompting immediately, beating all other rungs. Passing BOTH `--interactive` and `--no-interactive` is a usage error (exit 2), never a silent winner. |
+| 2 | Env | `AW_NONINTERACTIVE` or `CI` set to a truthy value (any value not in `("", "0", "false", "no")`) forces non-interactive (`False`). This takes precedence over `--interactive` to ensure automated CI pipelines and runner signal handlers holding locks never hang on an unattended prompt. |
+| 3 | Positive Flag | `--interactive` (or `override=True`) forces interactive mode on when not in a forced non-interactive environment, beating stream detection rungs. |
+| 4 | Stdin | `stdin` must be interactive per `term.stdin_is_interactive()` (validates terminal and Windows console handle). |
+| 5 | Output | Target output stream (defaults to `sys.stdout`, or `sys.stderr` when specified) must also be a TTY. |
 
 Fail-safe invariant: when the process is non-interactive, commands fail closed (auto-decline or take documented safe non-interactive defaults), never hanging waiting for human input.
 
@@ -96,39 +98,44 @@ Worked cases, each pinned by tests in `tests/test_interactivity_resolver.py`:
 
 | Invocation / Context | Result |
 | --- | --- |
+| `aw <cmd> --no-interactive` on real TTY | non-interactive (negative flag beats detection) |
+| `CI=1 aw <cmd> --interactive` | non-interactive (env beats positive flag for safety) |
+| `AW_NONINTERACTIVE=1 aw <cmd> --interactive` | non-interactive (env beats positive flag for safety) |
+| `CI=0 aw <cmd> --interactive \| cat` | interactive (positive flag beats detection when env is not forcing) |
+| `aw <cmd> --no-interactive --interactive` | usage error (exit 2) |
 | `AW_NONINTERACTIVE=1` with TTY streams | non-interactive (env beats detection) |
 | `CI=1` with TTY streams | non-interactive (env beats detection) |
 | `CI=0` or `CI=false` with TTY streams | interactive (CI truthiness parsed) |
-| `stdin` TTY + `stdout` pipe | non-interactive (rung 4 prevents pipe hang) |
-| `is_interactive(override=True)` on non-TTY | interactive (explicit override beats all) |
-| `is_interactive(override=False)` on TTY | non-interactive (explicit override beats all) |
+| `stdin` TTY + `stdout` pipe | non-interactive (rung 5 prevents pipe hang) |
+| `is_interactive(override=True)` on non-TTY | interactive (positive override beats detection) |
+| `is_interactive(override=False)` on TTY | non-interactive (negative override beats all) |
 
 ### 1.3 Flag Availability: uniform across every subcommand
 
-`--color` and `--no-color` work on EVERY subcommand, nested ones included. That uniformity is the
-contract: a presentation flag that works on one verb and is a usage error on another cannot be
+`--color`/`--no-color` and `--interactive`/`--no-interactive` work on EVERY subcommand, nested ones included.
+That uniformity is the contract: a flag that works on one verb and is a usage error on another cannot be
 scripted around. It is reached two ways, and the difference is visible only in `--help`:
 
-1. **By declaration.** `--color`, `--no-color`, `--agent`, and `--json` are declared ONCE on shared
-   argparse parents and inherited by every subcommand that `aw` itself handles.
+1. **By declaration.** `--color`, `--no-color`, `--interactive`, `--no-interactive`, `--agent`, and `--json`
+   are declared ONCE on shared argparse parents (`presentation` and `common`) and inherited by every subcommand
+   that `aw` itself handles.
 2. **By consumption.** The host-driver leaves that forward their argv VERBATIM to another program
    (`aw oc run`, `aw agy run`, the `review`/`integrate` aliases, `aw run as`, `aw run ipd`,
    `aw agy sessions|view|exec`) deliberately declare NO flags of their own, so that the downstream
    parser owns every flag and its `--help` and the two spellings cannot drift. `aw` therefore
-   CONSUMES `--color`/`--no-color` from the argv before forwarding it. The flag works; it is simply
-   absent from that leaf's own `--help`, which renders the driver's help rather than `aw`'s.
+   CONSUMES `--color`/`--no-color` and `--interactive`/`--no-interactive` from the raw argv before forwarding it.
+   The flags work; they are simply absent from that leaf's own `--help`, which renders the driver's help rather
+   than `aw`'s.
 
 `--agent` and `--json` are NOT provided on the forwarded leaves, by either route. `aw` does not
 render their output, and on `aw oc run start` a downstream `--agent` is an OpenCode AGENT NAME rather
 than a machine-output flag, so honoring it at the `aw` layer would change what the operator asked
 for. Use the driver's own flags there.
 
-`tests/test_flag_surface_uniformity.py` enforces both halves: it walks the built parser tree
-recursively for the declared surface, and drives the dispatch path for the consumed one. Its two
-skip lists are CLOSED NAMED SETS rather than predicates, so a newly added command cannot be absorbed
-silently: `EXEMPT_SUBCOMMANDS` (only the hidden shell-completion command `__complete`, which is
-invoked by the shell and emits a bare candidate list) and `FORWARDED_SUBCOMMANDS` (the verbatim
-forwarders above, which are asserted to declare no flags AND to consume them).
+`tests/test_flag_surface_uniformity.py` enforces both pairs across the CLI surface: it tests observable command
+execution and behavioral dispatch, verifying flag acceptance on parsed commands, pre-dispatch consumption on
+forwarded driver commands without unrecognized argument errors, exit 2 mutual exclusion on both operator and
+parser backstop paths, and `--` token passthrough.
 
 ---
 
@@ -282,10 +289,10 @@ foreclose a future proposal to make piped output machine-readable. It retracts o
 promise that was never implemented. Any such future change needs its own decision and a migration
 story this section never had (it specified a hard cutover with no deprecation window).
 
-### 9.1 Design constraint on a future `--tty` flag
+### 9.1 Design constraint on a future `--tty` flag and shipped flag pair
 
-No `--tty` flag exists, deliberately. This section records the constraint any future one must
-satisfy, so a successor inherits the analysis instead of rediscovering it.
+No `--tty` flag exists, deliberately. This section records the constraint and the shipped architecture,
+so a successor inherits the analysis instead of rediscovering it.
 
 **TTY-ness controls two unrelated things, through two different streams.**
 
@@ -298,13 +305,14 @@ satisfy, so a successor inherits the analysis instead of rediscovering it.
 a request for color silently re-enable prompting, which would weaken a real fail-safe: today
 `cli._confirm`, `git_commit_helper._is_interactive`, and all CLI prompt sites DECLINE rather than prompt when
 streams are non-interactive, which is what keeps an unattended runner from wedging forever on a question nobody can
-answer. Two requirements follow:
+answer. Two requirements follow, both now fulfilled:
 
-1. **Two axes, never one flag.** If both are wanted, they are separate flags (for example
-   `--color/--no-color`, which already exist, and an `--interactive/--no-interactive` pair).
+1. **Two axes, never one flag.** The two axes are separate flags: `--color/--no-color` for presentation
+   and `--interactive/--no-interactive` for interactivity. No combined or undifferentiated `--tty` spelling
+   exists.
 2. **One resolver for interactivity.** The interactivity override routes through a SINGLE
-   originating resolver (`term.is_interactive`) with four rungs (explicit override, forced-non-interactive
-   environment variables `AW_NONINTERACTIVE`/`CI`, `term.stdin_is_interactive`, and output stream TTY detection)
+   originating resolver (`term.is_interactive`) with an asymmetric safety ladder (`--no-interactive` >
+   `AW_NONINTERACTIVE`/`CI` > `--interactive` > `term.stdin_is_interactive` > output stream TTY detection)
    and a fail-closed default, rather than per-site flag checks. Every call site consults this resolver,
    so an operator override applies uniformly.
 

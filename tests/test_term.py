@@ -653,6 +653,146 @@ class CliNeverLeaksTheColorOverrideTests(unittest.TestCase):
         self.assertIs(T.get_color_override(), True)
 
 
+class CliNeverLeaksTheInteractivityOverrideTests(unittest.TestCase):
+    """svqhmp bmf32u E-03 / V-03: Process-wide interactivity override never leaks across invocations."""
+
+    def setUp(self):
+        self._saved_override = T.get_interactive_override()
+        self.addCleanup(T.set_interactive_override, self._saved_override)
+        T.set_interactive_override(None)
+
+    EARLY_EXIT_PATHS = (
+        (
+            "--no-interactive then a subcommand --help",
+            ["--no-interactive", "check", "--help"],
+        ),
+        (
+            "--interactive then a subcommand --help",
+            ["--interactive", "check", "--help"],
+        ),
+        ("--no-interactive then top-level --help", ["--no-interactive", "--help"]),
+        (
+            "--no-interactive then an unknown verb",
+            ["--no-interactive", "definitely-not-a-verb"],
+        ),
+        ("--interactive with no verb at all", ["--interactive"]),
+    )
+
+    def test_early_exit_paths_and_nested_invocations(self):
+        class _TTY(io.StringIO):
+            def isatty(self):
+                return True
+
+        for case, argv in self.EARLY_EXIT_PATHS:
+            with self.subTest(case=case):
+                T.set_interactive_override(None)
+                buf = io.StringIO()
+                try:
+                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
+                        buf
+                    ):
+                        cli.main(list(argv))
+                except SystemExit:
+                    pass
+                self.assertIsNone(
+                    T.get_interactive_override(), f"Override leaked in {case}"
+                )
+                self.assertTrue(
+                    T.is_interactive(stdin=_TTY(), output_stream=_TTY(), environ={}),
+                    f"TTY is_interactive broken after {case}",
+                )
+
+        # Flagless invocation resets a previously set process-wide override
+        T.set_interactive_override(True)
+        buf = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+                cli.main(["check", "--help"])
+        except SystemExit:
+            pass
+        self.assertIs(
+            T.get_interactive_override(),
+            True,
+            "Outer override must survive nested invocation",
+        )
+
+        # Nested invocation: an outer override is restored after an inner cli.main call
+        T.set_interactive_override(False)
+        buf = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+                cli.main(["--interactive", "check", "--help"])
+        except SystemExit:
+            pass
+        self.assertIs(
+            T.get_interactive_override(),
+            False,
+            "Outer False override must survive inner --interactive call",
+        )
+
+
+class InteractivityAndColorIndependenceTests(unittest.TestCase):
+    """svqhmp bmf32u E-05 / V-05: 2x2 matrix proving presentation and interactivity axes stay independent."""
+
+    def setUp(self):
+        self._orig_color = T.get_color_override()
+        self._orig_interactive = T.get_interactive_override()
+        self.addCleanup(T.set_color_override, self._orig_color)
+        self.addCleanup(T.set_interactive_override, self._orig_interactive)
+        T.set_color_override(None)
+        T.set_interactive_override(None)
+
+    def test_2x2_independence_matrix(self):
+        class _TTY(io.StringIO):
+            def isatty(self):
+                return True
+
+        class _Pipe(io.StringIO):
+            def isatty(self):
+                return False
+
+        tty = _TTY()
+        pipe = _Pipe()
+
+        # Base values with no override
+        base_i_tty = T.is_interactive(stdin=tty, output_stream=tty, environ={})
+        base_i_pipe = T.is_interactive(stdin=pipe, output_stream=pipe, environ={})
+        base_c_tty = T.should_color(tty)
+        base_c_pipe = T.should_color(pipe)
+
+        # 1 & 2: Color overrides (--color, --no-color) do NOT alter interactivity answers
+        for color_val, label in ((True, "--color"), (False, "--no-color")):
+            with self.subTest(color=label):
+                T.set_color_override(color_val)
+                self.assertEqual(
+                    T.is_interactive(stdin=tty, output_stream=tty, environ={}),
+                    base_i_tty,
+                    f"{label} altered interactivity answer on TTY",
+                )
+                self.assertEqual(
+                    T.is_interactive(stdin=pipe, output_stream=pipe, environ={}),
+                    base_i_pipe,
+                    f"{label} altered interactivity answer on pipe",
+                )
+        T.set_color_override(None)
+
+        # 3 & 4: Interactivity overrides (--interactive, --no-interactive) do NOT alter color answers
+        for inter_val, label in ((True, "--interactive"), (False, "--no-interactive")):
+            with self.subTest(interactive=label):
+                T.set_interactive_override(inter_val)
+                self.assertEqual(
+                    T.should_color(tty),
+                    base_c_tty,
+                    f"{label} altered should_color answer on TTY",
+                )
+                self.assertEqual(
+                    T.should_color(pipe),
+                    base_c_pipe,
+                    f"{label} altered should_color answer on pipe",
+                )
+        T.set_interactive_override(None)
+
+
 class _DepthTestBase(unittest.TestCase):
     def setUp(self):
         self._saved = {

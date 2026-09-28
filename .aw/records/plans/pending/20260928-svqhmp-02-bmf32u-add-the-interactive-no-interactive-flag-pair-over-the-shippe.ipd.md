@@ -44,36 +44,36 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the flag surface
 
-- [ ] E-01 Declare the flag pair ONCE, as a mutually exclusive group on the `presentation` parent inside `cli._build_parser` (the one already carrying `--color`/`--no-color`), so every subcommand `aw` itself handles inherits it by construction. USE THE NAMES OQ-01 RULES, namely `--interactive` and `--no-interactive` with no `--tty` spelling; that is what `docs/cli-output-contract.md` section 9.1 already publishes, so the naming half of this item is mechanical. Interactivity is a flag `aw` consumes itself rather than a mode it renders, so it belongs with the presentation pair and not with `common`'s `--agent`/`--json`.
+- [x] E-01 Declare the flag pair ONCE, as a mutually exclusive group on the `presentation` parent inside `cli._build_parser` (the one already carrying `--color`/`--no-color`), so every subcommand `aw` itself handles inherits it by construction. USE THE NAMES OQ-01 RULES, namely `--interactive` and `--no-interactive` with no `--tty` spelling; that is what `docs/cli-output-contract.md` section 9.1 already publishes, so the naming half of this item is mechanical. Interactivity is a flag `aw` consumes itself rather than a mode it renders, so it belongs with the presentation pair and not with `common`'s `--agent`/`--json`.
   DO NOT BELIEVE THE PHRASE "THE PARENT THE FORWARDED LEAVES ALSO INHERIT": NO SUCH PARENT EXISTS, and this plan previously said one did (PR-301, corrected at review). MEASURED at HEAD `0864e264` by walking the built tree: `oc run`, `oc runipd`, `oc review`, `agy view`, `run as`, `run ipd`, `agy sessions` and `agy exec` each expose an EMPTY option-string set - they inherit NO parent at all, `presentation` included. The shipped comment in `_build_parser` asserting "`parents=[common]` IS STILL APPLIED to those leaves, deliberately" is FALSE at HEAD, and the two reasons it gives are both spent: the `_dispatch_parsed` fallback it names is not a symbol in `cli.py` at all (`rg -n _dispatch_parsed agent_workflows/cli.py` returns only that comment), and `tests/test_run_dispatch.py`, which it cites as independently asserting the forwarded-route contract, was DELETED by `19313eed` along with the other guards this plan already tracks. So E-01 reaches the 254 parsed subcommands ONLY, and E-02 is not a supplement to declaration for the 28 forwarded leaves - it is their ONLY mechanism. Do NOT "fix" this by adding `parents=[presentation]` to a forwarded leaf: `docs/cli-output-contract.md` section 1.2 states the contract that those leaves "deliberately declare NO flags of their own, so that the downstream parser owns every flag and its `--help`", and a declared flag there would also break `argparse.REMAINDER` capture.
   MUTUAL EXCLUSION MUST BE STRUCTURAL, VIA argparse's OWN GROUP, not hand-checked, and passing both must be a usage error with exit 2 rather than a silent winner. `yaxr4i` OQ-02 settled this for the color pair with the reasoning to reuse: a last-flag-wins rule makes a scripted invocation's behavior depend on argument ORDER.
   BUT KNOW WHAT THE GROUP ACTUALLY BUYS, because for the color pair it buys NOTHING AT RUNTIME and this plan must not repeat the claim that it does (PR-302, measured at review). `_consume_presentation_flags` STRIPS both tokens from argv BEFORE `parser.parse_args` runs, on EVERY path including the parsed ones, so the color group is unreachable through `cli.main` and the exit-2 refusal always comes from the hand-check in `_dispatch`. MEASURED at HEAD `0864e264`: `cli.main(["--color","--no-color","check"])` returns 2 emitting `agent-workflows: error: argument --color: not allowed with argument --no-color` (the `_dispatch` string, with no `usage:` block and no `Next aw --help` line), whereas calling `parser.parse_args(["--color","--no-color","check"])` DIRECTLY exits 2 emitting argparse's own `usage: ...` block and `argument --no-color: not allowed with argument --color` (note the reversed operand order). The deleted guard's `test_passing_both_flags_exits_two_on_a_parsed_command` passed only because it called `parse_args` directly, bypassing `_dispatch`. DECLARE THE GROUP ANYWAY - it keeps `--help` honest (it is what renders `[--no-interactive | --interactive]`) and it is the backstop if consumption is ever reordered - but do NOT write a validation expecting argparse's wording from a `cli.main` invocation, and do NOT describe the group as the thing enforcing the refusal.
   RE-CHECK FOR A NAME COLLISION AT EXECUTION rather than trusting this plan. `_AwArgumentParser` sets `conflict_handler="resolve"` on EVERY parser (`cli.py`'s `_AwArgumentParser.__init__`, `kwargs.setdefault("conflict_handler", "resolve")`), so adding a flag a target parser already declares SILENTLY REPLACES the definition instead of erroring; `yaxr4i` recorded that hazard as its F-14 and it is still live. MEASURED at HEAD `0864e264`: all five candidate spellings are declared on ZERO of 283 subcommands, so no collision exists today.
   - Depends on: none
   - Expected outcome: the pair is declared once on `presentation` and appears in `--help` for a parsed subcommand; the reach is recorded as the 254 parsed subcommands with the 28 forwarded leaves explicitly NOT covered by declaration; passing both through `cli.main` exits 2 with the `_dispatch` message (not argparse's), and that distinction is recorded rather than glossed; the collision re-check is recorded.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 CONSUME the pair in `cli._dispatch` BEFORE every verbatim-forwarding interception, mirroring `_consume_presentation_flags`, because declaration provably does not reach the forwarded leaves AT ALL (E-01, PR-301). This is the load-bearing half and the reason this plan is not one item: 28 of 283 subcommands are host-driver leaves (`oc`/`opencode`/`agy`/`antigravity` runipd, run, runagy, review, integrate, sessions, view, view-antigravity-jsonl, exec, plus `run as` and `run ipd`) whose argv `_dispatch` hands to another program's parser before the top-level `parse_args` ever runs.
+- [x] E-02 CONSUME the pair in `cli._dispatch` BEFORE every verbatim-forwarding interception, mirroring `_consume_presentation_flags`, because declaration provably does not reach the forwarded leaves AT ALL (E-01, PR-301). This is the load-bearing half and the reason this plan is not one item: 28 of 283 subcommands are host-driver leaves (`oc`/`opencode`/`agy`/`antigravity` runipd, run, runagy, review, integrate, sessions, view, view-antigravity-jsonl, exec, plus `run as` and `run ipd`) whose argv `_dispatch` hands to another program's parser before the top-level `parse_args` ever runs.
   THE HONEST TOTAL IS 29 FLAGLESS LEAVES, OF WHICH 28 ARE FORWARDED AND ONE (`__complete`) IS HIDDEN, so the two numbers in this plan are consistent but only if the split is stated. MEASURED at HEAD `0864e264`: `--color` is declared on 254 of 283 and missing on 29, and the missing set is exactly the 28 forwarded leaves above plus `__complete`. Quote the split, not a bare 28 or a bare 29, since E-04's guard needs both named sets to add up.
   EXTEND `_consume_presentation_flags` RATHER THAN WRITING A TWIN, reusing its proven semantics: tokens after a bare `--` are LEFT ALONE (`--` means the rest is data, and `aw oc run -- as` is the documented way to pass a literal selector); `--flag=1` spellings are NOT recognized because `store_true` makes argparse reject them and the two surfaces must not disagree; and both-flags-seen is signalled separately from the resolved override so `_dispatch` can refuse with exit 2. IF YOU EXTEND THE EXISTING FUNCTION, ITS NAME AND ITS `_PresentationFlags` DATACLASS BECOME MISNOMERS for the interactivity half; either rename both (and update the two comments in `_build_parser` and `_dispatch` that name the function) or add a sibling consumer and say in the commit why, but do NOT leave a function called `_consume_presentation_flags` silently owning a non-presentation axis, since section 1.1's "the flags are STYLING ONLY" invariant is read off exactly that name.
   RENDER THE REFUSAL MESSAGE FOR THE INTERACTIVITY PAIR IN THE SAME SHAPE `_dispatch` ALREADY USES FOR COLOR, and note this is the ONLY refusal surface for either pair, parsed or forwarded (PR-302): consumption runs before `parse_args` on every path, so there is no second wording to match. Emit `agent-workflows: error: argument --interactive: not allowed with argument --no-interactive` to stderr and return 2, deliberately mirroring argparse's phrasing so the two pairs read identically to an operator; do NOT claim it IS argparse's output.
   CHECK FOR A DOWNSTREAM COLLISION BEFORE CONSUMING, because stripping a token the host driver owns would STEAL a downstream option. The existing comment records exactly this trap for `--agent`, which on `oc run start` is an OpenCode AGENT NAME rather than a machine-output flag, and is therefore deliberately NOT consumed. MEASURED at HEAD `0864e264`: `rg -n 'add_argument\(\s*"--[a-z-]*interactive' agent_workflows/` returns NOTHING, so neither `oc_runipd` nor `agy_runipd` declares any `--interactive`-family flag (`agy` declares `--no-dangerously-skip-permissions`, a permissions concept). Re-verify at execution, and re-verify against the HOST BINARIES too, not only the packaged drivers: `host_adapters.py`'s `"kiro": "kiro-cli chat --no-interactive"` and `host_capability_registry`'s `raw_cmd += " --non-interactive"` show third-party hosts DO own these spellings, so consumption must stop at the `aw` layer and never strip a token out of a command line `aw` is BUILDING for a host.
   - Depends on: E-01
   - Expected outcome: the flags work on a forwarded leaf (no `unrecognized arguments`), tokens after `--` survive untouched, an unrelated flag is never consumed, both-flags exits 2 on the forwarded path with the `_dispatch` message mirroring argparse's phrasing, the consumer's naming decision is recorded, and the no-downstream-collision check is recorded for both the packaged drivers and the host command templates.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 PUBLISH the consumed decision into the resolver's process-wide override and RESTORE it in `cli.main`'s `finally`, which is a correctness requirement rather than tidiness. Set it UNCONDITIONALLY, including to `None`, so an invocation passing no flag RESETS a previous in-process invocation's value instead of inheriting it; the color path documents this and the test suite is exactly the long-lived process that needs it. Publish it at the SAME point in `_dispatch` where `_term_mod.set_color_override(_presentation.override)` is called, immediately after the both-flags refusal, so the value is set before any verb body or forwarding interception runs.
+- [x] E-03 PUBLISH the consumed decision into the resolver's process-wide override and RESTORE it in `cli.main`'s `finally`, which is a correctness requirement rather than tidiness. Set it UNCONDITIONALLY, including to `None`, so an invocation passing no flag RESETS a previous in-process invocation's value instead of inheriting it; the color path documents this and the test suite is exactly the long-lived process that needs it. Publish it at the SAME point in `_dispatch` where `_term_mod.set_color_override(_presentation.override)` is called, immediately after the both-flags refusal, so the value is set before any verb body or forwarding interception runs.
   READ ORDER 1'S ACTUAL SETTER AND GETTER NAMES FROM THE TREE; DO NOT GUESS THEM (PR-304). This plan deliberately does not name them, because Order 1 (`da9n1s`) authors them and its own E-01 specifies only "a process-wide setter/getter" without fixing the spelling. At execution, `da9n1s` is already `executed` (this plan's `- Item-Dependencies:` guarantees it), so `rg -n 'def set_.*_override|def get_.*_override|_OVERRIDE' agent_workflows/term.py` returns the real pair; use those. If the names do not exist, STOP: the dependency was not satisfied and the flag would be inert, which is the precise failure this Set's ordering exists to prevent.
   THE LEAK THIS PREVENTS WAS MEASURED, ON THE COLOR FLAG, AND IT PRESENTED AS A MOVING-TARGET FLAKE. `cli.main`'s docstring records that `cli.main(["--no-color", "check", "--help"])` raises `SystemExit` from inside argparse part-way through `_dispatch`, leaving the override set for the remainder of the process, so `should_color` answered False for every later caller; fifteen test files pass a color flag to a CLI entry point, so under `pytest-xdist` whichever detection test was scheduled next failed, and four runs in six passed by luck. Restore the value the call INHERITED rather than `None`, because a caller that legitimately set an override around a block of work must still see it after a nested `aw` invocation returns.
   AN INTERACTIVITY LEAK IS WORSE THAN A COLOR LEAK, which is why this is its own item: a stuck `--no-interactive` silently converts every later prompt in that process into a refusal, and a stuck `--interactive` converts an unattended path into one that may block. Both are failures the environment-variable route cannot produce, so this item is the price of not using an environment variable.
   MIRROR THE COLOR RESTORE'S EXACT SHAPE, WHICH IS TWO STATEMENTS AND NOT ONE: capture the inherited value into a local BEFORE the `try` (as `_entry_color_override = _term_mod.get_color_override()` does, above `try: return _dispatch(argv)`), and restore that local in the existing `finally`. Add to the SAME `finally` rather than introducing a second one, so the `KeyboardInterrupt`/`EOFError` handlers between them keep their current behavior.
   - Depends on: E-02
   - Expected outcome: the flag reaches every call site through the resolver with no per-site check; a flagless invocation resets the override; an early-exit path (`--help`, a usage error, a raising verb) does not leave it set, proven by asserting the value after each; the setter/getter names used are the ones actually found in `term.py` at execution, quoted as evidence.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: guard it and publish it
 
-- [ ] E-04 RESTORE BEHAVIORAL FLAG UNIFORMITY TESTS AT `tests/test_flag_surface_uniformity.py`, covering BOTH axes.
+- [x] E-04 RESTORE BEHAVIORAL FLAG UNIFORMITY TESTS AT `tests/test_flag_surface_uniformity.py`, covering BOTH axes.
   RESTORE IT AT THE OLD PATH `tests/test_flag_surface_uniformity.py` (OQ-02), so approved spec `uonrjg`'s citation of that filename resolves again. This is now the REQUIRED placement rather than a recommendation, and the path is already declared in `- Scope-Paths:`.
   TEST FUNCTION AND OBSERVABLE BEHAVIOR, NOT CODE SIGNATURES, SYNTAX, OR TEXT. Per maintainer ruling on OQ-02, do NOT restore tests intended to pin the code (such as the internal recursive parser-tree walk over private `parser._actions` and `_SubParsersAction.choices`, which is forbidden code-pinning). Instead, test real user-observable command execution and behavioral dispatch across the CLI surface:
   1. Parsed commands accept `--interactive` and `--no-interactive` (as well as `--color`/`--no-color`) without error.
@@ -82,23 +82,23 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   4. Precedence and token passthrough: tokens after `--` are left alone and unrelated flags are not stripped.
   - Depends on: E-03
   - Expected outcome: the behavioral tests committed at `tests/test_flag_surface_uniformity.py` testing observable function and behavior across both axes with no code-pinning or private parser structure walks; mutual-exclusion exit 2 tests split into operator-path and group-backstop forms for both pairs; and passthrough verified.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 PROVE THE TWO AXES STAY SEPARATE, which is the item's central safety requirement and the reason the backlog item exists rather than a single `--tty` boolean being added. The item's words: a single undifferentiated boolean "would silently re-enable prompting while the operator was only asking about color, weakening a real fail-safe". Assert the independence as a 2x2 MATRIX over both flag pairs, not as prose: `--color` must not change the interactivity answer, `--no-color` must not, `--interactive` must not change `should_color`'s answer, and `--no-interactive` must not.
+- [x] E-05 PROVE THE TWO AXES STAY SEPARATE, which is the item's central safety requirement and the reason the backlog item exists rather than a single `--tty` boolean being added. The item's words: a single undifferentiated boolean "would silently re-enable prompting while the operator was only asking about color, weakening a real fail-safe". Assert the independence as a 2x2 MATRIX over both flag pairs, not as prose: `--color` must not change the interactivity answer, `--no-color` must not, `--interactive` must not change `should_color`'s answer, and `--no-interactive` must not.
   ASSERT THE FAIL-SAFE DIRECTLY, NOT BY IMPLICATION. With `--no-interactive` on a real TTY, `cli._confirm` without `assume_yes` must still DECLINE and warn naming `--yes`, and the four hardened sites must still refuse. This is the property the whole Set exists to protect and it deserves its own assertion rather than being inferred from the resolver's unit tests.
   PIN THE DANGEROUS DIRECTION AS A HARD ASSERTION, NOT AS AN OBSERVATION (PR-306, the safety finding of this review; see OQ-03, which is BLOCKING). `--interactive` MUST NOT defeat a forced-non-interactive signal at the hardened sites: with `CI=1` or `AW_NONINTERACTIVE=1` set, `runner_stop.interrupt_menu_is_safe`, `ipd_lifecycle.run_finalize`'s fence, `artifact_adopt.leak_gate_is_interactive` and `runner_shared.is_interactive_run` must ALL still answer False even when `--interactive` was passed. The reason is measured and already ruled on in this repository: `runner_stop.interrupt_menu_is_safe`'s docstring states that its own force escape `AW_FORCE_INTERACTIVE_INTERRUPT=1` "bypasses conditions 1 and 2 but NOT the forced-noninteractive signals: a deliberate CI setting must win over a stale force flag, since CI is the environment where an unbounded wait is least recoverable", and its body implements exactly that order (the `forced_noninteractive` early return precedes the force check). That site runs INSIDE A SIGNAL HANDLER, with `readline()` and no timeout, while the run holds its lock, and `aw oc run` reaches it IN-PROCESS from `_dispatch` (`return oc_runipd.main(...)`), so a process-wide override published by E-03 genuinely arrives there. A blanket flag-beats-env ladder would therefore hand `--interactive` the power to re-open the 1h49m wedge class this Set exists to fence, which is the "silently re-enable prompting ... weakening a real fail-safe" outcome the backlog item names.
   SO THE ASYMMETRY IS DELIBERATE AND MUST BE ASSERTED IN BOTH DIRECTIONS: `--no-interactive` beats everything (it can only ever cause a refusal, which is recoverable), while `--interactive` beats DETECTION ONLY and never the forced-non-interactive signals. This is where the interactivity ladder legitimately DIVERGES from the color ladder, in which `--color` does beat `NO_COLOR`; the difference is that a wrong color answer costs an ugly log and a wrong interactivity answer costs an unbounded wait. Assert the divergence rather than assuming symmetry, and assert `--interactive` DOES still beat detection (non-TTY stdin, no env signal, override True -> True), so the flag is not silently inert.
   - Depends on: E-04
   - Expected outcome: a passing 2x2 independence matrix over both flag pairs; a direct assertion that `--no-interactive` on a TTY preserves the decline-and-warn fail-safe at `_confirm` and refusal at the hardened sites; and a direct assertion that `--interactive` beats detection but does NOT defeat `AW_NONINTERACTIVE`/`CI` at any of the four hardened sites.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 PUBLISH the flag in `docs/cli-output-contract.md`, beside section 1.1's color precedence table and the interactivity rungs Order 1 adds. PUBLISH THE LADDER THE CODE ACTUALLY IMPLEMENTS, WHICH IS NOT THE COLOR LADDER'S SHAPE (PR-306/OQ-03): `--no-interactive` > `AW_NONINTERACTIVE`/`CI` > `--interactive` > stdin and output-stream detection. Do NOT publish a flat "flag > env > detection" chain for this axis; that would document `--interactive` as defeating a CI signal, which E-05 asserts it must not, and a normative doc making that promise is worse than none because a later plan would implement the doc. State the asymmetry AND its reason in one line: a wrong refusal is recoverable, an unbounded wait is not. State that the pair is mutually exclusive and that passing both exits 2.
+- [x] E-06 PUBLISH the flag in `docs/cli-output-contract.md`, beside section 1.1's color precedence table and the interactivity rungs Order 1 adds. PUBLISH THE LADDER THE CODE ACTUALLY IMPLEMENTS, WHICH IS NOT THE COLOR LADDER'S SHAPE (PR-306/OQ-03): `--no-interactive` > `AW_NONINTERACTIVE`/`CI` > `--interactive` > stdin and output-stream detection. Do NOT publish a flat "flag > env > detection" chain for this axis; that would document `--interactive` as defeating a CI signal, which E-05 asserts it must not, and a normative doc making that promise is worse than none because a later plan would implement the doc. State the asymmetry AND its reason in one line: a wrong refusal is recoverable, an unbounded wait is not. State that the pair is mutually exclusive and that passing both exits 2.
   DESCRIBE THE REFUSAL SURFACE HONESTLY, since section 1.1 currently mis-describes the color one (PR-302). Its layer-1 row says passing both color flags "is a usage error (exit 2), never a silent winner", which is TRUE as behavior, while `term.color_override`'s docstring claims the refusal is "STRUCTURALLY" argparse's mutually exclusive group, which is false at runtime: consumption in `_dispatch` strips both tokens before `parse_args`, so the group is unreachable through `cli.main`. Write the interactivity row to say exit 2 without attributing it to argparse. Correcting `term.color_override`'s docstring is OUT OF SCOPE here (`term.py` is declared, but that is a color-axis claim carried by backlog `p5qx91`); note it in the commit message rather than fixing it silently.
   UPDATE SECTION 9.1 FROM CONSTRAINT TO FULFILMENT. It currently reads as a constraint on UNWRITTEN work ("No `--tty` flag exists, deliberately", then "If both are wanted, they are separate flags ... an `--interactive/--no-interactive` pair"). Once this plan ships, that pair EXISTS, so leaving the section in the future tense would republish a stale constraint as normative. PRESERVE the two-axis prohibition and the `--tty` ruling themselves: what changes is that the recommendation became the implementation, not the analysis. Record that the pair now ships, and keep the statement that no `--tty` spelling exists, since this plan adds none.
   EXPECT ORDER 1 TO HAVE EDITED THIS SECTION ALREADY AND RECONCILE RATHER THAN OVERWRITE. `da9n1s` E-07 declares the same file and the same section, and is required to replace 9.1's stale "~57 `isatty` references package-wide, 19 in `cli.py`" row with the shipped resolver. Read the section as it stands after Order 1 and ADD the flag layer to it; if the stale counts are still present, the dependency did not do its job and that is worth recording. Also update section 1.2, whose title is "Flag Availability: uniform across every subcommand" and which describes the declared/consumed split for the color pair only: the interactivity pair reaches commands the same two ways and belongs in that section, and its claim that the forwarded leaves are reached "by declaration" for `--color` is already wrong (PR-301, those leaves declare nothing).
   - Depends on: E-05
   - Expected outcome: the published contract documents the pair, the asymmetric ladder the code implements with its stated reason, and its exit-2 mutual exclusion without attributing the refusal to argparse; section 1.2 covers both pairs; section 9.1 reads as fulfilled rather than pending, while keeping its two-axis prohibition and its no-`--tty` ruling intact.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -219,35 +219,252 @@ NO `.spec.md` FILE IS EDITED, AND THAT IS A JUDGEMENT THE REVIEWER CHECKED RATHE
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the committed declaration showing ONE mutually exclusive group on the `presentation` parent, and say why that parent. Paste `aw <a parsed command> --help` showing both flags rendered. Paste the re-measured REACH: the parser walk's per-flag declared count for the new pair, which must be the same 254 of 283 the color pair scores, with the 29-command gap shown to be the 28 forwarded leaves plus `__complete` (PR-301: do NOT assert the forwarded leaves declare it, because they inherit no parent). Paste the UNPIPED exit code and the EXACT stderr for passing both through `cli.main` on a parsed command: expect 2 and the `_dispatch` message, and state explicitly that this is NOT argparse's group output (PR-302), pasting the direct-`parse_args` output separately if you want to show the group is wired. Paste the collision re-check proving no target parser already declared either spelling, given `conflict_handler="resolve"` would otherwise silently replace a definition.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence recorded below:
+    1. Committed declaration on `presentation` parent in `agent_workflows/cli.py`:
+       ```python
+       _interactivity_group = presentation.add_mutually_exclusive_group()
+       _interactivity_group.add_argument(
+           "--no-interactive",
+           action="store_true",
+           help="Disable interactive prompting (declining confirmations and taking non-interactive defaults).",
+       )
+       _interactivity_group.add_argument(
+           "--interactive",
+           action="store_true",
+           help="Force interactive prompting on even when streams are non-interactive.",
+       )
+       ```
+       Parent rationale: declared on `presentation` (alongside `--color`/`--no-color`) rather than `common` because interactivity is a flag `aw` consumes itself rather than an output mode (`--agent`/`--json`) that handlers render.
+    2. `aw attention --help` renders both flags:
+       ```text
+         --no-interactive      Disable interactive prompting (declining confirmations
+                               and taking non-interactive defaults).
+         --interactive         Force interactive prompting on even when streams are
+                               non-interactive.
+       ```
+    3. Parser walk re-measurement across all 283 subcommands:
+       ```text
+       Total subcommands: 283
+       --color: declared on 254 of 283
+       --no-color: declared on 254 of 283
+       --interactive: declared on 254 of 283
+       --no-interactive: declared on 254 of 283
+       ```
+       The 29 undeclared subcommands are exactly the 28 forwarded host-driver leaves (`oc/agy runipd|run|runagy`, `oc/agy review|integrate`, `run as`, `run ipd`, `agy sessions|view|view-antigravity-jsonl|exec`, and `opencode`/`antigravity` synonyms) plus the hidden shell-completion leaf `__complete`.
+    4. Passing both flags through `cli.main` on parsed command `attention`:
+       Unpiped exit code: `2`
+       Stderr:
+       ```text
+       agent-workflows: error: argument --interactive: not allowed with argument --no-interactive
+       ```
+       This message is emitted directly by `_dispatch` before `parse_args`, matching argparse's phrasing without running argparse's parser error.
+       Direct `parser.parse_args(['attention', '--interactive', '--no-interactive'])` backstop emits:
+       ```text
+       usage: agent-workflows next [-h] [--no-color | --color] [--no-interactive |
+                                   --interactive] ...
+       agent-workflows next: error: argument --no-interactive: not allowed with argument --interactive
+       ```
+       raising `SystemExit: 2`, proving the mutually exclusive group is wired on the parser.
+    5. Collision re-check: parser walk before declaration verified `--interactive`, `--no-interactive`, `--non-interactive`, `--tty`, and `--no-tty` were declared on 0 of 283 subcommands.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste at least four real FORWARDED-leaf invocations with each flag (`aw oc run`, `aw agy run`, `aw run as`, `aw run ipd`), exit codes measured UNPIPED, and show NONE emits `unrecognized arguments`; where the exit is 2, paste the message proving it is the driver's own argument handling rather than a flag error. Paste the BEFORE measurement showing the same invocation failing with `unrecognized arguments` prior to the change. Paste a `--` passthrough case proving a flag-shaped token after `--` survives into the forwarded argv, an unrelated-flag case proving nothing else is consumed, and the both-flags case on a forwarded leaf exiting 2 with the message E-02 specifies (which is the SAME `_dispatch` message the parsed path emits, because consumption precedes `parse_args` on both - PR-302). Paste the naming decision taken for the consumer (renamed versus sibling) and, if renamed, the updated comments in `_build_parser` and `_dispatch`. Paste the downstream-collision re-check for BOTH the packaged drivers and the host command templates in `host_adapters`/`host_capability_registry`/`benchmark_runners`, showing no token `aw` builds for a host is stripped (F-15). State which interpreter/`PYTHONPATH` was used.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence recorded below:
+    1. Four forwarded-leaf invocations with each flag (exit codes measured unpiped via `python3 -m agent_workflows <cmd> <flag> status`):
+       - `aw oc run --interactive status` -> rc: 2, `runipd status: error: the following arguments are required: run_id`
+       - `aw oc run --no-interactive status` -> rc: 2, `runipd status: error: the following arguments are required: run_id`
+       - `aw agy run --interactive status` -> rc: 2, `runagy status: error: the following arguments are required: run_id`
+       - `aw agy run --no-interactive status` -> rc: 2, `runagy status: error: the following arguments are required: run_id`
+       - `aw run as --interactive status` -> rc: 2, `aw run as: runner profiles: no runner profile named 'status'`
+       - `aw run as --no-interactive status` -> rc: 2, `aw run as: runner profiles: no runner profile named 'status'`
+       - `aw run ipd --interactive status` -> rc: 2, `runipd status: error: the following arguments are required: run_id`
+       - `aw run ipd --no-interactive status` -> rc: 2, `runipd status: error: the following arguments are required: run_id`
+       None emitted `unrecognized arguments`; all exit 2 errors are from downstream driver argument handling.
+    2. BEFORE measurements on identical commands:
+       - `aw oc run --interactive status` -> rc: 2, `runipd: error: unrecognized arguments: --interactive`
+       - `aw oc run --no-interactive status` -> rc: 2, `runipd: error: unrecognized arguments: --no-interactive`
+       - `aw agy run --interactive status` -> rc: 2, `runagy: error: unrecognized arguments: --interactive`
+       - `aw agy run --no-interactive status` -> rc: 2, `runagy: error: unrecognized arguments: --no-interactive`
+       - `aw run as --interactive status` -> rc: 2, `aw run as: 'as' requires a profile name, but got the option '--interactive'`
+       - `aw run as --no-interactive status` -> rc: 2, `aw run as: 'as' requires a profile name, but got the option '--no-interactive'`
+       - `aw run ipd --interactive status` -> rc: 2, `runipd: error: unrecognized arguments: --interactive`
+       - `aw run ipd --no-interactive status` -> rc: 2, `runipd: error: unrecognized arguments: --no-interactive`
+    3. `--` token passthrough:
+       `cli._consume_early_flags(['oc', 'run', '--', '--interactive', 'as'])` returned `kept = ['oc', 'run', '--', '--interactive', 'as']`, `interactive_override = None`, `saw_interactive = False`.
+    4. Unrelated flag passthrough:
+       `cli._consume_early_flags(['oc', 'run', 'start', '--agent', 'build', '--json', '--model', 'x'])` left argv completely untouched.
+    5. Both-flags case on forwarded leaf:
+       `cli._dispatch(['oc', 'run', '--no-interactive', '--interactive', 'status'])` exited 2 emitting:
+       `agent-workflows: error: argument --interactive: not allowed with argument --no-interactive`
+    6. Consumer naming decision:
+       Extended and renamed `_consume_presentation_flags` to `_consume_early_flags` and `_PresentationFlags` to `_EarlyFlags` with backward-compatible aliases and `.override` property. Comments in `_build_parser` and `_dispatch` updated to cite `_consume_early_flags`.
+    7. Downstream-collision re-check:
+       Packaged drivers: `rg -n 'add_argument\(\s*"--[a-z-]*interactive' agent_workflows/` returned 0 hits.
+       Host command templates: third-party host invocations in `host_capability_registry.py` (lines 630, 1042), `host_adapters.py` (line 102), and `benchmark_runners.py` (line 299) pass host-specific flags to third-party CLIs and are never intercepted or stripped by `_consume_early_flags`.
+    8. Interpreter/environment:
+       Executed via `python3 -m agent_workflows` within the lane repository root (`.aw/worktrees/bmf32u`).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the setter/getter names as ACTUALLY FOUND in `term.py` at execution (`rg -n 'def set_.*_override|def get_.*_override' agent_workflows/term.py`), since this plan deliberately does not fix their spelling (PR-304/F-14). Paste a test showing the flag reaching a call site that never sees the parsed namespace, proving the process-wide publish works rather than a per-site check. Paste the early-exit table over at least the five cases `tests/test_term.py::CliNeverLeaksTheColorOverrideTests.EARLY_EXIT_PATHS` already uses (subcommand `--help`, top-level `--help`, an unknown verb, and a bare flag with no verb), showing the override equals the inherited value after `cli.main` returns or raises. Paste the flagless-invocation case showing the override RESET to the inherited value rather than retaining a previous invocation's, and the nested case showing an outer override SURVIVES an inner `cli.main`. Paste the committed capture-before-`try` line and the committed `finally` block.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence recorded below:
+    1. Setter/getter names found in `agent_workflows/term.py`:
+       - `def set_interactive_override(value: Optional[bool]) -> None:` (line 1798)
+       - `def get_interactive_override() -> Optional[bool]:` (line 1804)
+    2. Flag reaching internal call sites without parsed namespace:
+       Demonstrated by `tests/test_term.py::CliNeverLeaksTheInteractivityOverrideTests` and `tests/test_flag_surface_uniformity.py::ForwardedCommandFlagConsumptionTests`: `_dispatch` sets `term.set_interactive_override`, which is consulted process-wide by `term.is_interactive()`.
+    3. Early-exit table over five standard paths:
+       In `tests/test_term.py::CliNeverLeaksTheInteractivityOverrideTests.test_early_exit_paths_and_nested_invocations`:
+       - `--no-interactive then a subcommand --help` -> override equals inherited None
+       - `--interactive then a subcommand --help` -> override equals inherited None
+       - `--no-interactive then top-level --help` -> override equals inherited None
+       - `--no-interactive then an unknown verb` -> override equals inherited None
+       - `--interactive with no verb at all` -> override equals inherited None
+    4. Flagless-invocation reset:
+       `cli.main(["check", "--help"])` resets `term.set_interactive_override(None)` unconditionally during dispatch.
+    5. Nested invocation preservation:
+       Outer override `term.set_interactive_override(True)` is restored in `finally` and preserved after `cli.main(["check", "--help"])`. Outer override `False` survives inner `cli.main(["--interactive", "check", "--help"])`.
+    6. Committed capture before `try` and `finally` in `cli.main` (`agent_workflows/cli.py`):
+       Capture before `try`:
+       ```python
+       _entry_interactive_override = _term_mod.get_interactive_override()
+       ```
+       Restoration in `finally`:
+       ```python
+       _term_mod.set_interactive_override(_entry_interactive_override)
+       ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: confirm the file is committed at `tests/test_flag_surface_uniformity.py` (OQ-02), and that its tests assert observable function and behavior across the CLI surface rather than code signatures, syntax, or internal parser structure (PR-305 / maintainer ruling). Paste the test suite output demonstrating: (1) flag acceptance across sampled subcommands, (2) proper flag consumption on forwarded driver commands (`aw oc run`, `aw agy run`, `aw run as`, etc.) without unrecognized argument errors, (3) both-flags exit 2 usage errors split into operator-path and parser-backstop forms for both pairs, and (4) `--` token passthrough.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence recorded below:
+    1. Restored behavioral test committed at `tests/test_flag_surface_uniformity.py` without code-pinning or private `_actions` AST checks.
+    2. Test suite output:
+       ```text
+       python3 -m pytest tests/test_flag_surface_uniformity.py
+       .........                                                                [100%]
+       9 passed in 2.31s
+       ```
+       Demonstrates:
+       - `ParsedCommandFlagAcceptanceTests.test_parsed_commands_accept_both_flag_pairs` (flag acceptance on sampled parsed commands)
+       - `ForwardedCommandFlagConsumptionTests.test_presentation_flags_are_stripped_from_every_forwarded_argv` and `test_interactivity_flags_are_stripped_from_every_forwarded_argv` (pre-dispatch consumption on 12 forwarded commands)
+       - `FlagMutualExclusionTests.test_color_mutual_exclusion_on_operator_path` and `test_interactivity_mutual_exclusion_on_operator_path` (operator path exit 2)
+       - `FlagMutualExclusionTests.test_color_mutual_exclusion_parser_backstop` and `test_interactivity_mutual_exclusion_parser_backstop` (parser backstop SystemExit 2)
+       - `ForwardedCommandFlagConsumptionTests.test_tokens_after_a_bare_double_dash_are_left_alone` (`--` passthrough) and `test_an_unrelated_flag_is_never_consumed`.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the 2x2 independence matrix as executed: `--color` and `--no-color` each shown NOT to change the interactivity answer, and `--interactive` and `--no-interactive` each shown NOT to change `should_color`'s answer. Paste the fail-safe assertion: with `--no-interactive` and a forced-TTY stdin, `cli._confirm` without `assume_yes` returns False AND emits the warn naming `--yes`, and each of the four hardened sites refuses. Paste the converse too (`--interactive` with a non-TTY stdin) and state plainly which sites then prompt, since that is the direction that can wedge. ALSO REQUIRED (PR-306, and this is the safety-critical cell): paste, for EACH of the four hardened sites BY NAME, the answer with `--interactive` passed AND `CI=1` set, and with `--interactive` passed AND `AW_NONINTERACTIVE=1` set. Under OQ-03 option A every one of those eight cells must be False. A cell answering True is NOT a passing result to explain away: it means one flag can re-open the wedge class this Set exists to fence, and it blocks the plan. Name which OQ-03 option the maintainer chose and assert the matching direction.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence recorded below:
+    1. 2x2 independence matrix executed via `tests/test_term.py::InteractivityAndColorIndependenceTests.test_2x2_independence_matrix`:
+       - `--color` (override=True) altered interactivity on TTY / Pipe: False (answers match baseline True / False)
+       - `--no-color` (override=False) altered interactivity on TTY / Pipe: False (answers match baseline True / False)
+       - `--interactive` (override=True) altered should_color on TTY / Pipe: False (answers match baseline True / False)
+       - `--no-interactive` (override=False) altered should_color on TTY / Pipe: False (answers match baseline True / False)
+    2. Fail-safe assertion with `--no-interactive` on real TTY:
+       `cli._confirm` returns `False` and emits:
+       ```text
+       WARN     Proceed? (declining: non-interactive; pass --yes to proceed)
+       ```
+       All four hardened sites refuse on TTY with `--no-interactive`:
+       - `runner_stop.interrupt_menu_is_safe()`: False
+       - `ipd_lifecycle.run_finalize` fence: False
+       - `artifact_adopt.leak_gate_is_interactive()`: False
+       - `runner_shared.is_interactive_run()`: False
+    3. Converse: `--interactive` with non-TTY streams and no forcing env:
+       `term.is_interactive()` returns `True`, allowing interactive prompts where streams otherwise report non-TTY.
+    4. Eight safety cells (PR-306 / OQ-03 Option A chosen by maintainer Gabriele Fariello):
+       Active CI signals take precedence over `--interactive`. All eight cells are `False`:
+       - `runner_stop.interrupt_menu_is_safe` with `CI=1` + `--interactive`: False
+       - `ipd_lifecycle fence` with `CI=1` + `--interactive`: False
+       - `artifact_adopt.leak_gate_is_interactive` with `CI=1` + `--interactive`: False
+       - `runner_shared.is_interactive_run` with `CI=1` + `--interactive`: False
+       - `runner_stop.interrupt_menu_is_safe` with `AW_NONINTERACTIVE=1` + `--interactive`: False
+       - `ipd_lifecycle fence` with `AW_NONINTERACTIVE=1` + `--interactive`: False
+       - `artifact_adopt.leak_gate_is_interactive` with `AW_NONINTERACTIVE=1` + `--interactive`: False
+       - `runner_shared.is_interactive_run` with `AW_NONINTERACTIVE=1` + `--interactive`: False
+       Verified by `tests/test_interactivity_resolver.py::AsymmetricPrecedenceLadderTests.test_eight_safety_cells_across_four_hardened_sites`.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste the committed diff region of `docs/cli-output-contract.md` showing the interactivity precedence ladder and the exit-2 mutual exclusion. The ladder as published MUST match the OQ-03 answer, and under option A must show `--no-interactive` above `AW_NONINTERACTIVE`/`CI` and `--interactive` BELOW them; a flat "flag > env > detection" chain for this axis is a failing result (PR-306). Confirm the published exit-2 statement does NOT attribute the refusal to argparse (PR-302). Quote section 9.1 as committed, showing the two-axis prohibition and the no-`--tty` ruling PRESERVED, and confirm no text still describes the `--interactive`/`--no-interactive` pair as unwritten or merely recommended. Confirm by grep that section 9.1's stale counts (`57`, `19`) are gone; if Order 1 already removed them, say so rather than claiming this plan did. Paste section 1.2 as committed showing it covers both pairs.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence recorded below:
+    1. Committed diff region of `docs/cli-output-contract.md` Section 1.2:
+       ```markdown
+       ### 1.2 Interactivity Precedence: asymmetric safety ladder
+
+       The interactivity decision (may this process prompt a human?) is resolved once in `term.is_interactive`.
+       Unlike the color ladder, interactivity follows an ASYMMETRIC ladder: a wrong refusal is recoverable,
+       an unbounded wait is not. Highest precedence first:
+
+       ```text
+       --no-interactive  >  AW_NONINTERACTIVE / CI  >  --interactive  >  stdin_is_interactive  >  output_stream.isatty()
+       ```
+
+       | # | Layer | Rule |
+       | --- | --- | --- |
+       | 1 | Negative Flag | `--no-interactive` (or `override=False`) disables interactive prompting immediately, beating all other rungs. Passing BOTH `--interactive` and `--no-interactive` is a usage error (exit 2), never a silent winner. |
+       | 2 | Env | `AW_NONINTERACTIVE` or `CI` set to a truthy value (any value not in `("", "0", "false", "no")`) forces non-interactive (`False`). This takes precedence over `--interactive` to ensure automated CI pipelines and runner signal handlers holding locks never hang on an unattended prompt. |
+       | 3 | Positive Flag | `--interactive` (or `override=True`) forces interactive mode on when not in a forced non-interactive environment, beating stream detection rungs. |
+       | 4 | Stdin | `stdin` must be interactive per `term.stdin_is_interactive()` (validates terminal and Windows console handle). |
+       | 5 | Output | Target output stream (defaults to `sys.stdout`, or `sys.stderr` when specified) must also be a TTY. |
+       ```
+       Exit-2 statement states: "Passing BOTH `--interactive` and `--no-interactive` is a usage error (exit 2), never a silent winner" without attributing refusal to argparse.
+    2. Section 9.1 quoted as committed:
+       ```markdown
+       ### 9.1 Design constraint on a future `--tty` flag and shipped flag pair
+
+       No `--tty` flag exists, deliberately. This section records the constraint and the shipped architecture,
+       so a successor inherits the analysis instead of rediscovering it.
+
+       **TTY-ness controls two unrelated things, through two different streams.**
+
+       | Axis | Keyed on | Governs | Where |
+       | --- | --- | --- | --- |
+       | Presentation | `stdout` | whether ANSI escapes are emitted | `term.should_color` |
+       | Interactivity | `stdin` + `stdout`/`stderr` | whether the process may PROMPT a human | `term.is_interactive` |
+
+       **So a single undifferentiated `--tty` boolean MUST NOT be added.** Conflating the axes would let
+       a request for color silently re-enable prompting, which would weaken a real fail-safe: today
+       `cli._confirm`, `git_commit_helper._is_interactive`, and all CLI prompt sites DECLINE rather than prompt when
+       streams are non-interactive, which is what keeps an unattended runner from wedging forever on a question nobody can
+       answer. Two requirements follow, both now fulfilled:
+
+       1. **Two axes, never one flag.** The two axes are separate flags: `--color/--no-color` for presentation
+          and `--interactive/--no-interactive` for interactivity. No combined or undifferentiated `--tty` spelling
+          exists.
+       2. **One resolver for interactivity.** The interactivity override routes through a SINGLE
+          originating resolver (`term.is_interactive`) with an asymmetric safety ladder (`--no-interactive` >
+          `AW_NONINTERACTIVE`/`CI` > `--interactive` > `term.stdin_is_interactive` > output stream TTY detection)
+          and a fail-closed default, rather than per-site flag checks. Every call site consults this resolver,
+          so an operator override applies uniformly.
+       ```
+       The two-axis prohibition and no-`--tty` ruling are preserved; the pair is documented as shipped rather than recommended/unwritten.
+    3. Grep check for stale counts (`57`, `19`):
+       `grep -n -E "57|19" docs/cli-output-contract.md` verified that neither count appears in Section 9.1; Order 1 (`da9n1s`) had already removed them.
+    4. Section 1.3 covers both pairs across declaration and consumption:
+       ```markdown
+       ### 1.3 Flag Availability: uniform across every subcommand
+
+       `--color`/`--no-color` and `--interactive`/`--no-interactive` work on EVERY subcommand, nested ones included.
+       That uniformity is the contract: a flag that works on one verb and is a usage error on another cannot be
+       scripted around. It is reached two ways, and the difference is visible only in `--help`:
+
+       1. **By declaration.** `--color`, `--no-color`, `--interactive`, `--no-interactive`, `--agent`, and `--json`
+          are declared ONCE on shared argparse parents (`presentation` and `common`) and inherited by every subcommand
+          that `aw` itself handles.
+       2. **By consumption.** The host-driver leaves that forward their argv VERBATIM to another program
+          (`aw oc run`, `aw agy run`, the `review`/`integrate` aliases, `aw run as`, `aw run ipd`,
+          `aw agy sessions|view|exec`) deliberately declare NO flags of their own, so that the downstream
+          parser owns every flag and its `--help` and the two spellings cannot drift. `aw` therefore
+          CONSUMES `--color`/`--no-color` and `--interactive`/`--no-interactive` from the raw argv before forwarding it.
+          The flags work; they are simply absent from that leaf's own `--help`, which renders the driver's help rather
+          than `aw`'s.
+       ```
+  - Result: pass
 
 ## Approval and execution gate
 

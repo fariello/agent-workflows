@@ -891,10 +891,11 @@ def _build_parser() -> argparse.ArgumentParser:
     # ttyflags `yaxr4i` E-01/E-02: TWO nested parents, because the two flag pairs have different
     # reach and collapsing them into one was measurably wrong.
     #
-    # `presentation` holds the STYLING pair only (`--color`/`--no-color`). It is inherited by every
-    # subcommand INCLUDING the host-driver leaves that forward their argv verbatim to another
-    # program, because `aw` itself consumes these two tokens before forwarding (see
-    # `_consume_presentation_flags`), so honoring them there is a promise `aw` can actually keep.
+    # `presentation` holds the STYLING pair (`--color`/`--no-color`) and the INTERACTIVITY pair
+    # (`--interactive`/`--no-interactive`). It is inherited by every subcommand `aw` itself handles.
+    # The host-driver leaves that forward their argv verbatim declare no flags of their own, because `aw`
+    # itself consumes these tokens before forwarding (see `_consume_early_flags`), so honoring them
+    # there is a promise `aw` can actually keep.
     #
     # `common` adds the OUTPUT-MODE pair (`--agent`/`--json`) and is inherited by every subcommand
     # `aw` itself handles. The forwarded leaves deliberately do NOT get it: `aw` cannot implement a
@@ -919,6 +920,18 @@ def _build_parser() -> argparse.ArgumentParser:
         "--color",
         action="store_true",
         help="Force ANSI color on even when stdout is not a terminal (beats NO_COLOR).",
+    )
+
+    _interactivity_group = presentation.add_mutually_exclusive_group()
+    _interactivity_group.add_argument(
+        "--no-interactive",
+        action="store_true",
+        help="Disable interactive prompting (declining confirmations and taking non-interactive defaults).",
+    )
+    _interactivity_group.add_argument(
+        "--interactive",
+        action="store_true",
+        help="Force interactive prompting on even when streams are non-interactive.",
     )
 
     # A shared parent so --no-color, --color, --agent, and --json work consistently across all
@@ -13977,53 +13990,50 @@ def expand_host_integrate_argv(tail: Sequence[str]) -> list[str]:
     return ["integrate", *[str(t) for t in tail]]
 
 
-class _PresentationFlags(NamedTuple):
-    """The presentation-override decision taken from a raw argv, before any parsing.
+class _EarlyFlags(NamedTuple):
+    """The presentation and interactivity overrides taken from raw argv, before any parsing."""
 
-    ``override`` is the value :func:`term.should_color` consumes: ``True`` for ``--color``,
-    ``False`` for ``--no-color``, ``None`` when neither appeared.
-    """
-
-    override: Optional[bool]
+    color_override: Optional[bool]
     saw_color: bool
     saw_no_color: bool
+    interactive_override: Optional[bool]
+    saw_interactive: bool
+    saw_no_interactive: bool
+
+    @property
+    def override(self) -> Optional[bool]:
+        """Backward-compatible property for the color override."""
+        return self.color_override
 
 
-#: The presentation flags `_consume_presentation_flags` recognizes. `--agent` and `--json` are
+# Backward compatibility alias
+_PresentationFlags = _EarlyFlags
+
+#: The flags `_consume_early_flags` recognizes. `--agent` and `--json` are
 #: NOT here: they select an output MODE that only the top-level parser's own handlers implement,
 #: and a forwarded host driver has its own `--agent` (an OpenCode agent NAME on `oc run start`,
 #: not a machine-output flag), so stripping them here would silently steal a downstream option.
 _PRESENTATION_FLAG_COLOR = "--color"
 _PRESENTATION_FLAG_NO_COLOR = "--no-color"
+_INTERACTIVITY_FLAG_INTERACTIVE = "--interactive"
+_INTERACTIVITY_FLAG_NO_INTERACTIVE = "--no-interactive"
 
 
-def _consume_presentation_flags(
+def _consume_early_flags(
     argv_list: Sequence[str],
-) -> Tuple[List[str], _PresentationFlags]:
-    """Strip `--color`/`--no-color` from a raw argv and report what was found.
+) -> Tuple[List[str], _EarlyFlags]:
+    """Strip `--color`/`--no-color` and `--interactive`/`--no-interactive` from raw argv.
 
-    ttyflags `yaxr4i` E-01. WHY THIS EXISTS AT ALL, since a shared argparse parent would be the
-    obvious mechanism and IS also applied: 11 non-hidden parser objects are host-driver leaves
-    whose argv `_dispatch` forwards VERBATIM to another program's parser before `parse_args`
-    runs, so a flag declared on the `cli.py` leaf is never consulted for them. Measured with
-    `parents=[common]` applied to `oc run`: `aw oc run --no-color status` still exited 2 with
-    `runipd: error: unrecognized arguments: --no-color`. Removing the token here is what makes
-    the flag work on exactly those commands - which are the long-running driver commands whose
-    output an operator most wants to capture in a log.
-
-    TOKENS AFTER A BARE `--` ARE LEFT ALONE. `--` means "everything after this is data", and
-    `aw oc run -- as` is the documented way to pass the literal selector `as`; consuming a
-    `--color` that followed it would corrupt an operand. The one exception is the top-level
-    `runs -- <target>` escape, which is unaffected because it carries no color flag.
-
-    `--color=1`-STYLE SPELLINGS ARE NOT RECOGNIZED, deliberately: both flags are
-    `action="store_true"`, so argparse itself rejects `--color=1` with a usage error. Accepting
-    a spelling here that the parser refuses would make the two surfaces disagree.
+    ttyflags `yaxr4i` E-01 / svqhmp `bmf32u` E-02. Tokens after `--` are left alone,
+    `--flag=1` spellings are not recognized, and both-flags-seen is signalled
+    separately so `_dispatch` can refuse with exit 2.
     """
 
     kept: List[str] = []
     saw_color = False
     saw_no_color = False
+    saw_interactive = False
+    saw_no_interactive = False
     passthrough = False
     for token in argv_list:
         text = str(token)
@@ -14040,23 +14050,50 @@ def _consume_presentation_flags(
         if text == _PRESENTATION_FLAG_COLOR:
             saw_color = True
             continue
+        if text == _INTERACTIVITY_FLAG_NO_INTERACTIVE:
+            saw_no_interactive = True
+            continue
+        if text == _INTERACTIVITY_FLAG_INTERACTIVE:
+            saw_interactive = True
+            continue
         kept.append(text)
-    # BOTH FLAGS IS A USAGE ERROR (OQ-02), and it must stay one even on a forwarded path where
+
+    # BOTH FLAGS IS A USAGE ERROR, and it must stay one even on a forwarded path where
     # argparse's mutually exclusive group never runs. Signalled by returning `None` for the
     # override plus both `saw_*` flags; `_dispatch` renders the refusal with exit 2 so the
     # message and the exit code match the group's.
-    override: Optional[bool]
+    color_override: Optional[bool]
     if saw_no_color and saw_color:
-        override = None
+        color_override = None
     elif saw_no_color:
-        override = False
+        color_override = False
     elif saw_color:
-        override = True
+        color_override = True
     else:
-        override = None
-    return kept, _PresentationFlags(
-        override=override, saw_color=saw_color, saw_no_color=saw_no_color
+        color_override = None
+
+    interactive_override: Optional[bool]
+    if saw_no_interactive and saw_interactive:
+        interactive_override = None
+    elif saw_no_interactive:
+        interactive_override = False
+    elif saw_interactive:
+        interactive_override = True
+    else:
+        interactive_override = None
+
+    return kept, _EarlyFlags(
+        color_override=color_override,
+        saw_color=saw_color,
+        saw_no_color=saw_no_color,
+        interactive_override=interactive_override,
+        saw_interactive=saw_interactive,
+        saw_no_interactive=saw_no_interactive,
     )
+
+
+# Backward compatibility alias
+_consume_presentation_flags = _consume_early_flags
 
 
 def _dispatch(argv: Optional[Sequence[str]]) -> int:
@@ -14066,39 +14103,29 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
     # removed with the plan-family verbs; the grammar is now `aw <verb> plans` (index/find/...).
     # awhelparg Order 01: a bare `help` token becomes `--help` (natural `aw ipd help` UX).
     argv_list = list(sys.argv[1:] if argv is None else argv)
-    # ttyflags `yaxr4i` E-01: CONSUME the presentation flags HERE, before every verbatim-forwarding
-    # interception below, and publish the decision process-wide.
-    #
-    # THIS IS THE LOAD-BEARING HALF OF E-01, and the plan's stated mechanism alone is NOT enough.
-    # The plan specified adding `parents=[common]` to the leaves missing it, which does make the
-    # parser-walk see the flag. MEASURED: it does NOT make the flag work. Every one of the 11
-    # non-hidden parser objects missing `--no-color` is a host-driver leaf whose argv is intercepted
-    # in THIS function BEFORE `parser.parse_args` ever runs (`oc/agy runipd|run|runagy`, the
-    # `review`/`integrate` aliases, `run as`/`run ipd`, `agy sessions|view|exec`), and forwarded
-    # VERBATIM to a downstream parser that declares no such flag. With `parents=[common]` applied
-    # and nothing else, `aw oc run --no-color status` still exits 2 with
-    # `runipd: error: unrecognized arguments: --no-color`, because the top-level parser never sees
-    # the argv. Stripping the flags here is what actually closes the gap.
-    #
-    # `parents=[common]` IS STILL APPLIED to those leaves, deliberately, for two reasons: the
-    # parsed-namespace fallback paths in `_dispatch_parsed` (kept alive on purpose so a reordered
-    # interception cannot fall through to family help) need the attribute to exist, and the
-    # parser-walk uniformity test asserts a DECLARED surface, which is what makes `--help` honest.
-    argv_list, _presentation = _consume_presentation_flags(argv_list)
-    # OQ-02: passing both is a USAGE ERROR with exit 2, never a silent winner, and it must be
-    # refused on the FORWARDED paths too, where argparse's mutually exclusive group never runs.
-    # The message deliberately matches argparse's own wording for the group so the two surfaces
-    # read identically.
-    if _presentation.saw_color and _presentation.saw_no_color:
+    # ttyflags `yaxr4i` E-01 / svqhmp `bmf32u` E-02: CONSUME presentation and interactivity flags
+    # HERE, before every verbatim-forwarding interception below, and publish the decisions process-wide.
+    argv_list, _early_flags = _consume_early_flags(argv_list)
+    # Passing both flags in either pair is a USAGE ERROR with exit 2, never a silent winner,
+    # and it must be refused on the FORWARDED paths too, where argparse's mutually exclusive group never runs.
+    # The message deliberately matches argparse's own phrasing so the two surfaces read identically.
+    if _early_flags.saw_color and _early_flags.saw_no_color:
         print(
             "agent-workflows: error: argument --color: not allowed with argument --no-color",
+            file=sys.stderr,
+        )
+        return 2
+    if _early_flags.saw_interactive and _early_flags.saw_no_interactive:
+        print(
+            "agent-workflows: error: argument --interactive: not allowed with argument --no-interactive",
             file=sys.stderr,
         )
         return 2
     # SET UNCONDITIONALLY, including to None, so an invocation that passes no flag RESETS a
     # previous in-process invocation's override instead of inheriting it (the test suite calls
     # `_dispatch` repeatedly in one process).
-    _term_mod.set_color_override(_presentation.override)
+    _term_mod.set_color_override(_early_flags.color_override)
+    _term_mod.set_interactive_override(_early_flags.interactive_override)
     # awocrunner Order 02 (nfo184): `aw oc runipd ...` / `aw opencode runipd ...` forward the tail
     # VERBATIM to the packaged runner's own parser (incl. its `--help` and implicit-`start` shim), so
     # the top-level parser never intercepts the runner's flags (e.g. a leading `--help`). This is the
