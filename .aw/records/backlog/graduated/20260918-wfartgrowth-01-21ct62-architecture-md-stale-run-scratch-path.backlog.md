@@ -1,5 +1,6 @@
 - Id: 21ct62
-- Status: open
+- Status: graduated
+- Graduated-To: wfartgrowth
 - Blocks-Release: next
 - Set: wfartgrowth
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: ARCHITECTURE.md still documents the retired repo-root workflow-artifacts/ run-scratch path in two places
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: fzueyy
 - 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-18 created (aw backlog): ARCHITECTURE.md still documents the retired repo-root workflow-artifacts/ run-scratch path in two places
 
