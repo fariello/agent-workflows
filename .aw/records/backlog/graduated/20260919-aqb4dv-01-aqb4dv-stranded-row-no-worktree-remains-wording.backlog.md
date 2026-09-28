@@ -1,11 +1,13 @@
 - Id: aqb4dv
-- Status: open
+- Status: graduated
+- Graduated-To: strandwt
 - Set: aqb4dv
 - Priority: low
 - Work-Kind: followup
 - Summary: Decide whether a stranded-lane row should say 'no worktree remains' rather than silently omitting the worktree field
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: 8njbv5
 - 2026-09-19 created (aw backlog): Decide whether a stranded-lane row should say 'no worktree remains' rather than silently omitting the worktree field
 
 CARRIES OQ-03 of plan 0ta5vg (stranrep-01), which that plan left open and owned by the maintainer as a PRESENTATION choice rather than a correctness one.
