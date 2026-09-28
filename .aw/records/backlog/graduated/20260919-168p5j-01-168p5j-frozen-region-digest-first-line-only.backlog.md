@@ -1,5 +1,6 @@
 - Id: 168p5j
-- Status: open
+- Status: graduated
+- Graduated-To: 168p5j
 - Blocks-Release: next
 - Set: 168p5j
 - Priority: high
@@ -7,6 +8,7 @@
 - Summary: frozen_region_digest ignores an E-item's continuation lines, so a begin receipt survives a requirement rewrite
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: qurgra
 - 2026-09-19 created (aw backlog): frozen_region_digest ignores an E-item's continuation lines, so a begin receipt survives a requirement rewrite
 
 ipd_lifecycle._requirements_from_plan reads ipd_lint.Leaf.text, which is the remainder of a leaf's OPENING LINE only, so every CONTINUATION line of a multi-line E-item is excluded from frozen_region_digest.
