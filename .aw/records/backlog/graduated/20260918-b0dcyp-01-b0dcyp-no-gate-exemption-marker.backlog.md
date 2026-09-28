@@ -1,5 +1,6 @@
 - Id: b0dcyp
-- Status: open
+- Status: graduated
+- Graduated-To: relexempt
 - Blocks-Release: next
 - Set: b0dcyp
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: There is no way to record a bug's release-gate EXEMPTION: a literal Blocks-Release dash trades one error rule for another
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: ghna7l
 - 2026-09-18 created (aw backlog): There is no way to record a bug's release-gate EXEMPTION: a literal Blocks-Release dash trades one error rule for another
 
 FOUND 2026-09-18 while executing nobugship rgaasb E-04, which instructs that a bug which genuinely should not gate the release 'needs an explicit - Blocks-Release: - plus a reason in its history, not silent omission'. That mechanism DOES NOT WORK.
