@@ -36,33 +36,33 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: read the lane in the generic find branch
 
-- [ ] E-01 In `agent_workflows/cli.py`, add a module-level helper that returns the lane-derived status for one record path, used only by the generic branch of `cli._find_type_records`. It takes a repo-relative path string and the artifact type, returns `None` for every type other than `prompts` (so no other generic type changes behavior), and for `prompts` returns the lane word from `attention._prompt_disposition_from_rel`, or `None` when that returns `""`.
+- [x] E-01 In `agent_workflows/cli.py`, add a module-level helper that returns the lane-derived status for one record path, used only by the generic branch of `cli._find_type_records`. It takes a repo-relative path string and the artifact type, returns `None` for every type other than `prompts` (so no other generic type changes behavior), and for `prompts` returns the lane word from `attention._prompt_disposition_from_rel`, or `None` when that returns `""`.
   DO NOT DESCRIBE THE INPUT AS "THE ALREADY-COMPUTED `rel`", WHICH IS THE ORIGINAL WORDING AND IS A SEQUENCING TRAP (PR-402, measured at review). In the generic branch `rel` is computed AFTER the `explicit_status` filter has already run and `continue`d, so at the point E-03 needs the lane there is no `rel` in scope yet. The relocation is what makes E-03 possible, so it belongs to E-02: MOVE the `rel` computation (the `try: rel = str(p.resolve().relative_to(repo_root.resolve()))` block with its `except Exception: rel = str(p)` fallback) UP to just after `text` is read and before the `explicit_id` filter, then let the id, status and set filters all run below it. Moving it is behavior-preserving for every existing type, because nothing between the two positions touches `rel` and the block cannot fail in a way the fallback does not already absorb. Do NOT compute a second path string beside the existing one: two spellings of `rel` in one loop is how the column and the filter come to disagree, which is the whole defect class E-03 exists to close. Import `attention` LAZILY inside the helper, matching the established lazy-import style at the `from agent_workflows import attention` site already inside `cli.py` and avoiding a heavyweight import on the `aw find` hot path. Do NOT add a sixth path-to-lane derivation: reuse `attention._prompt_disposition_from_rel`, whose cross-module private import is already established precedent in `check_engine` (the `from agent_workflows.attention import _prompt_disposition_from_rel` site inside the prompt-purity checks).
   - Depends on: none
   - Expected outcome: A helper exists that maps a prompts record path to one of `pending`/`executed`/`reusable`/`superseded`/`not-executed`, or `None`; it is not yet wired into the display. Verified at review that `attention._prompt_disposition_from_rel` already returns exactly those words and `""` for a no-lane path, INCLUDING the sharded case (`.aw/records/prompts/executed/202609/x.prompt.md` -> `executed`), so the helper adds a type guard and a `""`-to-`None` conversion and nothing else.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Wire the E-01 helper into the generic branch of `cli._find_type_records` so the lane becomes the status FALLBACK, not an override: keep reading `sel_mod._read_status(text)` first and use the lane only when that read yields nothing. FIRST RELOCATE `rel` as E-01 specifies (up to just after `text` is read, before the `explicit_id` filter), because the effective status must be computable at the filter site and today `rel` is not in scope there. Then replace the `status = raw_status or "-"` assignment so the effective value is the front-matter status when present, else the lane word, else `"-"`. FALLBACK ORDER IS A DELIBERATE DECISION, recorded in OQ-01: front-matter-first preserves `check.prompt-status-mismatch` (a registered `warning`-severity rule in `check_engine`'s rule table) as a meaningful signal, because a display that silently overwrote a divergent declared status with its lane would hide the very disagreement that rule reports. This also matches `prompts_index.scan_prompts`, whose `status = meta.get("Status") or disposition` is the same order.
+- [x] E-02 Wire the E-01 helper into the generic branch of `cli._find_type_records` so the lane becomes the status FALLBACK, not an override: keep reading `sel_mod._read_status(text)` first and use the lane only when that read yields nothing. FIRST RELOCATE `rel` as E-01 specifies (up to just after `text` is read, before the `explicit_id` filter), because the effective status must be computable at the filter site and today `rel` is not in scope there. Then replace the `status = raw_status or "-"` assignment so the effective value is the front-matter status when present, else the lane word, else `"-"`. FALLBACK ORDER IS A DELIBERATE DECISION, recorded in OQ-01: front-matter-first preserves `check.prompt-status-mismatch` (a registered `warning`-severity rule in `check_engine`'s rule table) as a meaningful signal, because a display that silently overwrote a divergent declared status with its lane would hide the very disagreement that rule reports. This also matches `prompts_index.scan_prompts`, whose `status = meta.get("Status") or disposition` is the same order.
   - Depends on: E-01
   - Expected outcome: `aw find prompts` prints a real lane word in the status column for all 17 prompts in this repository; the one prompt carrying a literal `- Status: superseded` bullet still reports `superseded` from that bullet.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Make the `--status` FILTER consult the same effective value the column prints, so the filter and the display cannot disagree. In the generic branch, the `explicit_status` comparison currently tests `raw_status` alone, which is why `aw find prompts --status pending` returns zero rows today; change it to compare against the same fallback-resolved value E-02 computes. Compute the effective value ONCE, ABOVE the `explicit_status` filter, and use that same local for both the filter comparison and the rendered cell; do not read the lane twice and do not recompute the fallback at the render site. This is only possible after E-02's `rel` relocation, which is why the dependency is real rather than formal. KEEP THE COMPARISON'S EXISTING NORMALIZATION (`.strip().lower()` on both sides) rather than comparing raw values, so a lane word matches a `--status` argument case-insensitively exactly as a front-matter value does today.
+- [x] E-03 Make the `--status` FILTER consult the same effective value the column prints, so the filter and the display cannot disagree. In the generic branch, the `explicit_status` comparison currently tests `raw_status` alone, which is why `aw find prompts --status pending` returns zero rows today; change it to compare against the same fallback-resolved value E-02 computes. Compute the effective value ONCE, ABOVE the `explicit_status` filter, and use that same local for both the filter comparison and the rendered cell; do not read the lane twice and do not recompute the fallback at the render site. This is only possible after E-02's `rel` relocation, which is why the dependency is real rather than formal. KEEP THE COMPARISON'S EXISTING NORMALIZATION (`.strip().lower()` on both sides) rather than comparing raw values, so a lane word matches a `--status` argument case-insensitively exactly as a front-matter value does today.
   - Depends on: E-02
   - Expected outcome: `aw find prompts --status pending` returns exactly the prompts in the `pending/` lane, and `--status executed` returns exactly those in `executed/`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: pin the behavior with tests
 
-- [ ] E-04 Add `tests/test_find_prompts_lane_status.py` building a temporary repository with one prompt in EACH of the five lanes (`pending`, `executed`, `reusable`, `superseded`, `not-executed`), since the live corpus populates only three of the five and so cannot exercise `reusable` or `not-executed`. Call `cli._find_type_records` directly, in the style `tests/test_find_single_read.py` already uses for the plans and research branches, and assert: (a) each of the five lanes renders its own lane word in the status column; (b) a prompt carrying an explicit `- Status:` bullet that DISAGREES with its lane renders the BULLET value, pinning the E-02 fallback order rather than merely the happy path; (c) a prompt in no lane directory still renders `-` rather than raising; (d) `--status <lane>` returns exactly the matching rows, covering the E-03 filter; and (e) a non-prompts generic type (use `walkthroughs`) is UNCHANGED and still renders `-`, pinning that this fix does not leak into the other generic types. ALSO COVER (f) THE NON-LEAKAGE OF THE FILTER, not only of the column (PR-403): assert that `--status <lane>` against that same non-prompts generic type still returns NOTHING, since E-03 changes the filter for every generic type's code path and (e) as written only pins the rendered cell. And (g) a CASE-VARIANT `--status` argument (for example `--status PENDING`) returns the same rows as the lowercase form, pinning the normalization E-03 preserves. No test anywhere currently asserts on this column, so this file is the whole safety net for the behavior.
+- [x] E-04 Add `tests/test_find_prompts_lane_status.py` building a temporary repository with one prompt in EACH of the five lanes (`pending`, `executed`, `reusable`, `superseded`, `not-executed`), since the live corpus populates only three of the five and so cannot exercise `reusable` or `not-executed`. Call `cli._find_type_records` directly, in the style `tests/test_find_single_read.py` already uses for the plans and research branches, and assert: (a) each of the five lanes renders its own lane word in the status column; (b) a prompt carrying an explicit `- Status:` bullet that DISAGREES with its lane renders the BULLET value, pinning the E-02 fallback order rather than merely the happy path; (c) a prompt in no lane directory still renders `-` rather than raising; (d) `--status <lane>` returns exactly the matching rows, covering the E-03 filter; and (e) a non-prompts generic type (use `walkthroughs`) is UNCHANGED and still renders `-`, pinning that this fix does not leak into the other generic types. ALSO COVER (f) THE NON-LEAKAGE OF THE FILTER, not only of the column (PR-403): assert that `--status <lane>` against that same non-prompts generic type still returns NOTHING, since E-03 changes the filter for every generic type's code path and (e) as written only pins the rendered cell. And (g) a CASE-VARIANT `--status` argument (for example `--status PENDING`) returns the same rows as the lowercase form, pinning the normalization E-03 preserves. No test anywhere currently asserts on this column, so this file is the whole safety net for the behavior.
   - Depends on: E-03
   - Expected outcome: A new test file fails on the pre-change code and passes after E-01 through E-03, covering all five lanes plus the divergence, no-lane, filter, filter-non-leakage, case-variant and column-non-leakage cases.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Fix the stale citation in `tests/test_lifecycle_style.py`: the comment above `PROMPT_LANES` claims `test_prompts_directory_derived` "below asserts they are still exactly that set, so this list cannot silently drift from the owner", but no test of that name exists anywhere in `tests/`, so the stated guarantee is currently absent. Add the promised test, asserting `PROMPT_LANES` equals `lifecycle_dirs.LIFECYCLE_SUBDIRS["prompts"]` as a set, so the list genuinely cannot drift from its owner. Cite `lifecycle_dirs`, whose own module docstring calls it the single source of truth for the lane vocabulary, rather than `ipd_lint._dir_of`, which the comment names but which reads `LIFECYCLE_SUBDIRS["plans"]` and so only happens to agree because the two tuples are incidentally identical.
+- [x] E-05 Fix the stale citation in `tests/test_lifecycle_style.py`: the comment above `PROMPT_LANES` claims `test_prompts_directory_derived` "below asserts they are still exactly that set, so this list cannot silently drift from the owner", but no test of that name exists anywhere in `tests/`, so the stated guarantee is currently absent. Add the promised test, asserting `PROMPT_LANES` equals `lifecycle_dirs.LIFECYCLE_SUBDIRS["prompts"]` as a set, so the list genuinely cannot drift from its owner. Cite `lifecycle_dirs`, whose own module docstring calls it the single source of truth for the lane vocabulary, rather than `ipd_lint._dir_of`, which the comment names but which reads `LIFECYCLE_SUBDIRS["plans"]` and so only happens to agree because the two tuples are incidentally identical.
   - Depends on: none
   - Expected outcome: `test_prompts_directory_derived` exists and passes, and the comment's claim is true rather than aspirational.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -150,30 +150,417 @@ N/A with reason: spec `uonrjg` Section 6.5 already specifies exactly the behavio
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste the full source of the new helper as committed, plus a Python probe calling it directly and showing its output for: a `pending/` prompt path, an `executed/` prompt path, a SHARDED prompt path (`.aw/records/prompts/executed/202609/x.prompt.md`, which must return `executed` and is what makes the helper choice sharding-safe), a prompts path with no lane component, and a `walkthroughs` path. The probe output must show the three lane words, then `None` for the no-lane case, then `None` for the non-prompts type. Paste `grep -n "attention" agent_workflows/cli.py` output showing the new import is inside the helper body (indented), not at module top level. ALSO paste the relocated `rel` block in its new position (PR-402), showing it sits above the `explicit_id` filter, since E-03 is impossible without it and a reviewer must be able to see the move rather than infer it.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below:
+    1. Full source of helper in `agent_workflows/cli.py`:
+    ```python
+    def _find_prompt_lane_status(rel: str, artifact_type: str) -> Optional[str]:
+        """Return the lane-derived status for one record path, used only for prompts in `aw find`."""
+        if artifact_type != "prompts":
+            return None
+        from agent_workflows import attention
 
-- [ ] V-02 validates E-02
+        disp = attention._prompt_disposition_from_rel(rel)
+        return disp or None
+    ```
+    2. Python probe output:
+    ```
+    .aw/records/prompts/pending/20260810-m1lc2t-01-m1lc2t-awphysical-spec-to-reviewed-focus.prompt.md (prompts) -> 'pending'
+    .aw/records/prompts/executed/20260722-sloz20-01-sloz20-token-efficient-managed-sections-research-prompt.prompt.md (prompts) -> 'executed'
+    .aw/records/prompts/executed/202609/x.prompt.md (prompts) -> 'executed'
+    .aw/records/prompts/no-lane-file.prompt.md (prompts) -> None
+    .aw/records/walkthroughs/some-walkthrough.md (walkthroughs) -> None
+    ```
+    3. `grep -n "from agent_workflows import attention" agent_workflows/cli.py` showing indented import:
+    ```
+    11411:    from agent_workflows import attention
+    ```
+    4. Relocated `rel` block sitting above `explicit_id` filter:
+    ```python
+    lines = []
+    paths = []
+    for p in sorted(matched_paths):
+        try:
+            text = p.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        try:
+            rel = str(p.resolve().relative_to(repo_root.resolve()))
+        except Exception:
+            rel = str(p)
+        raw_id = sel_mod._read_id(text)
+        if explicit_id and raw_id != explicit_id:
+            continue
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste `aw find prompts --no-color` output piped through `awk '{print $1, $2}' | sort | uniq -c` from BEFORE the change (must reproduce `16 · -`, `1 ↪ superseded`) and from AFTER (must show zero `-` rows, and counts consistent with the 13/2/2 lane distribution in F-12). Paste the full after-state `aw find prompts --no-color` listing so each row's status word can be checked against the lane in its own path. Confirm explicitly that the one bullet-carrying `superseded/` prompt still renders `superseded`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below:
+    1. Before-and-after awk counts:
+    BEFORE:
+    ```
+         16 · -
+          1 ↪ superseded
+    ```
+    AFTER:
+    ```
+         13 ✓ executed
+          2 ◕ pending
+          2 ↪ superseded
+    ```
+    Zero `-` rows, exactly matching the 13/2/2 lane distribution.
+    2. Full after-state listing:
+    ```
+    ✓  executed      -  .aw/records/prompts/executed/20260722-sloz20-01-sloz20-token-efficient-managed-sections-research-prompt.prompt.md
+    ✓  executed      -  .aw/records/prompts/executed/20260725-7rddum-01-7rddum-aw-delivery-and-clean-delta.prompt.md
+    ✓  executed      -  .aw/records/prompts/executed/20260725-99thcw-01-99thcw-external-delivery-host-probe.prompt.md
+    ✓  executed      -  .aw/records/prompts/executed/20260727-la0gje-01-la0gje-untrack-workflow-artifacts.prompt.md
+    ✓  executed      -  .aw/records/prompts/executed/20260730-xx4rzg-01-xx4rzg-checklist-placement-and-instruction-audit.prompt.md
+    ✓  executed      -  .aw/records/prompts/executed/20260803-7kmwas-01-7kmwas-revise-ipd-structure-set.prompt.md
+    ✓  executed      -  .aw/records/prompts/executed/20260808-oujnft-01-oujnft-attention-registry-spec-external-review.prompt.md
+    ✓  executed      -  .aw/records/prompts/executed/20260810-5t7jgn-01-5t7jgn-awphysical-residual-reconciliation.prompt.md
+    ✓  executed      -  .aw/records/prompts/executed/20260810-fwtqr8-01-fwtqr8-gemini-actually-validate-playbook.prompt.md
+    ✓  executed      -  .aw/records/prompts/executed/20260810-u3o036-01-u3o036-awphysical-superseding-spec-and-set-reconciliation.prompt.md
+    ✓  executed      -  .aw/records/prompts/executed/20260813-pvju8y-01-pvju8y-aw-namespace-slash-command-research.prompt.md
+    ✓  executed      -  .aw/records/prompts/executed/20260828-exnwoz-01-exnwoz-research-worktree-isolation-state-model.prompt.md
+    ✓  executed      -  .aw/records/prompts/executed/20260829-j5ijz6-01-j5ijz6-session-allocation-policy.prompt.md
+    ◕  pending       -  .aw/records/prompts/pending/20260810-m1lc2t-01-m1lc2t-awphysical-spec-to-reviewed-focus.prompt.md
+    ◕  pending       -  .aw/records/prompts/pending/20260920-plainlang-01-ng0ga4-plain-language-reporting-instructions.prompt.md
+    ↪  superseded    -  .aw/records/prompts/superseded/20260717-06nu85-01-06nu85-session-handoff-resume-here.prompt.md
+    ↪  superseded    -  .aw/records/prompts/superseded/20260717-fwhlu7-01-fwhlu7-ses-16296edfbffe8prep0wj99onom-compacted.prompt.md
+    ```
+    3. Confirmed: The one bullet-carrying `superseded/` prompt (`.aw/records/prompts/superseded/20260717-06nu85-01-06nu85-session-handoff-resume-here.prompt.md`) still renders `superseded`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: Paste `aw find prompts --status pending --no-color` and `aw find prompts --status executed --no-color` after the change. The first must list exactly the 2 prompts under `pending/` and the second exactly the 13 under `executed/`, with no empty-state block. Paste the BEFORE output of the same two commands showing zero rows, to prove the filter was broken and is now fixed. Also paste `aw find prompts --json` and quote the `data.matches` entry for one executed prompt, showing the corrected status inside the machine surface (F-14).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below:
+    1. BEFORE output (broken filter, 0 matching rows):
+    `aw find prompts --status pending --no-color`:
+    ```
+    ✓ CLEAN  no matching prompts
 
-- [ ] V-04 validates E-04
+    Active filters:
+      type: prompts
+
+    Next  aw find (search across all artifact types)
+    ```
+    `aw find prompts --status executed --no-color`:
+    ```
+    ✓ CLEAN  no matching prompts
+
+    Active filters:
+      type: prompts
+
+    Next  aw find (search across all artifact types)
+    ```
+    2. AFTER output (fixed filter):
+    `aw find prompts --status pending --no-color`:
+    ```
+    ◕  pending       -  .aw/records/prompts/pending/20260810-m1lc2t-01-m1lc2t-awphysical-spec-to-reviewed-focus.prompt.md
+    ◕  pending       -  .aw/records/prompts/pending/20260920-plainlang-01-ng0ga4-plain-language-reporting-instructions.prompt.md
+    ```
+    `aw find prompts --status executed --no-color`:
+    ```
+    ✓  executed      -  .aw/records/prompts/executed/20260722-sloz20-01-sloz20-token-efficient-managed-sections-research-prompt.prompt.md
+    ✓  executed      -  .aw/records/prompts/executed/20260725-7rddum-01-7rddum-aw-delivery-and-clean-delta.prompt.md
+    ✓  executed      -  .aw/records/prompts/executed/20260725-99thcw-01-99thcw-external-delivery-host-probe.prompt.md
+    ✓  executed      -  .aw/records/prompts/executed/20260727-la0gje-01-la0gje-untrack-workflow-artifacts.prompt.md
+    ✓  executed      -  .aw/records/prompts/executed/20260730-xx4rzg-01-xx4rzg-checklist-placement-and-instruction-audit.prompt.md
+    ✓  executed      -  .aw/records/prompts/executed/20260803-7kmwas-01-7kmwas-revise-ipd-structure-set.prompt.md
+    ✓  executed      -  .aw/records/prompts/executed/20260808-oujnft-01-oujnft-attention-registry-spec-external-review.prompt.md
+    ✓  executed      -  .aw/records/prompts/executed/20260810-5t7jgn-01-5t7jgn-awphysical-residual-reconciliation.prompt.md
+    ✓  executed      -  .aw/records/prompts/executed/20260810-fwtqr8-01-fwtqr8-gemini-actually-validate-playbook.prompt.md
+    ✓  executed      -  .aw/records/prompts/executed/20260810-u3o036-01-u3o036-awphysical-superseding-spec-and-set-reconciliation.prompt.md
+    ✓  executed      -  .aw/records/prompts/executed/20260813-pvju8y-01-pvju8y-aw-namespace-slash-command-research.prompt.md
+    ✓  executed      -  .aw/records/prompts/executed/20260828-exnwoz-01-exnwoz-research-worktree-isolation-state-model.prompt.md
+    ✓  executed      -  .aw/records/prompts/executed/20260829-j5ijz6-01-j5ijz6-session-allocation-policy.prompt.md
+    ```
+    3. `aw find prompts --json` match entry for executed prompt:
+    ```json
+    "\u2713  executed      -  .aw/records/prompts/executed/20260722-sloz20-01-sloz20-token-efficient-managed-sections-research-prompt.prompt.md"
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Paste the full committed text of `tests/test_find_prompts_lane_status.py`. Paste `python3 -m pytest tests/test_find_prompts_lane_status.py -o addopts=""` output showing every test passing with its name listed, and confirm the count covers all five lanes plus the divergence, no-lane, filter, and non-leakage cases. Then paste evidence the test is a REAL regression guard: revert the E-02/E-03 change (for example with `git stash` of the `cli.py` hunk, or a temporary local edit), re-run the file, paste the FAILING output, restore the change, and re-run to green. A test that passes on the pre-change code proves nothing and must be strengthened. ALSO carry the whole-plan no-regression evidence here, since this is the plan's test-surface item: paste the BARE `python3 -m pytest` output including its `N passed` summary line, state that count against the pre-change baseline captured before starting, and paste `python3 -m pytest tests/test_cli_find.py tests/test_find_filters.py tests/test_find_single_read.py tests/test_prompts_index.py tests/test_prompts_attention.py tests/test_lifecycle_dirs.py -o addopts=""` for the targeted neighbour set.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below:
+    1. Full text of `tests/test_find_prompts_lane_status.py`:
+    ```python
+    """Tests for aw find prompts lane status column and filter (IPD iq3txw)."""
 
-- [ ] V-05 validates E-05
+    from __future__ import annotations
+
+    import argparse
+    from pathlib import Path
+
+    import pytest
+
+    from agent_workflows import cli
+    from agent_workflows.term import Term
+
+
+    def _make_args(
+        repo_root: Path,
+        *,
+        status: str | None = None,
+        id: str | None = None,
+        set: str | None = None,
+        topic: str | None = None,
+        disposition: str | None = None,
+    ) -> argparse.Namespace:
+        return argparse.Namespace(
+            dir=str(repo_root),
+            id=id,
+            set=set,
+            status=status,
+            topic=topic,
+            disposition=disposition,
+        )
+
+
+    @pytest.fixture
+    def tmp_repo(tmp_path: Path) -> Path:
+        repo = tmp_path / "repo"
+        prompts_dir = repo / ".aw" / "records" / "prompts"
+        walkthroughs_dir = repo / ".aw" / "records" / "walkthroughs"
+
+        lanes = ["pending", "executed", "reusable", "superseded", "not-executed"]
+        for lane in lanes:
+            lane_dir = prompts_dir / lane
+            lane_dir.mkdir(parents=True, exist_ok=True)
+            id6 = f"pr{lane[:4]}"
+            prompt_file = lane_dir / f"20260927-{id6}-01-{id6}-{lane}-prompt.prompt.md"
+            prompt_file.write_text(
+                f"<!-- aw-prompt: Kind: research | Id: {id6} | Status: {lane} | Created: 2026-09-27 -->\n"
+                f"# {lane.title()} Prompt\n\nPrompt in {lane} lane.\n",
+                encoding="utf-8",
+            )
+
+        # Divergent prompt in pending lane that carries an explicit - Status: superseded bullet
+        div_p = prompts_dir / "pending" / "20260927-prmdiv-01-prmdiv-divergent-status.prompt.md"
+        div_p.write_text(
+            "<!-- aw-prompt: Kind: research | Id: prmdiv | Status: pending | Created: 2026-09-27 -->\n"
+            "# Divergent Prompt\n\n"
+            "- Status: superseded\n\n"
+            "Prompt body text with explicit diverging bullet.\n",
+            encoding="utf-8",
+        )
+
+        # Prompt in no lane directory (directly under .aw/records/prompts/)
+        no_lane_p = prompts_dir / "20260927-prmnol-01-prmnol-no-lane-prompt.prompt.md"
+        no_lane_p.write_text(
+            "<!-- aw-prompt: Kind: research | Id: prmnol | Status: pending | Created: 2026-09-27 -->\n"
+            "# No Lane Prompt\n\nPrompt sitting directly in prompts root.\n",
+            encoding="utf-8",
+        )
+
+        # Walkthrough file for generic type non-leakage verification
+        walkthroughs_dir.mkdir(parents=True, exist_ok=True)
+        wt_p = walkthroughs_dir / "20260927-wt0001-01-wt0001-sample-flow.walkthrough.md"
+        wt_p.write_text(
+            "# Sample Walkthrough\n\nWalkthrough body without status.\n",
+            encoding="utf-8",
+        )
+
+        return repo
+
+
+    def test_all_five_lanes_render_status(tmp_repo: Path) -> None:
+        """(a) Each of the five lanes renders its own lane word in the status column."""
+        term = Term(color=False)
+        args = _make_args(tmp_repo)
+        lines, paths, _ = cli._find_type_records(tmp_repo, "prompts", [], args, term)
+
+        path_to_line = dict(zip(paths, lines))
+        lanes = ["pending", "executed", "reusable", "superseded", "not-executed"]
+
+        for lane in lanes:
+            id6 = f"pr{lane[:4]}"
+            expected_rel = f".aw/records/prompts/{lane}/20260927-{id6}-01-{id6}-{lane}-prompt.prompt.md"
+            assert expected_rel in path_to_line, f"Missing path for lane {lane}: {expected_rel}"
+            line = path_to_line[expected_rel]
+            tokens = line.split()
+            assert tokens[1] == lane, f"Expected status column '{lane}', got '{tokens[1]}' in line: {line}"
+
+
+    def test_divergent_bullet_status_takes_precedence_over_lane(tmp_repo: Path) -> None:
+        """(b) A prompt carrying an explicit - Status: bullet that disagrees with its lane renders the bullet value."""
+        term = Term(color=False)
+        args = _make_args(tmp_repo)
+        lines, paths, _ = cli._find_type_records(tmp_repo, "prompts", [], args, term)
+
+        div_rel = ".aw/records/prompts/pending/20260927-prmdiv-01-prmdiv-divergent-status.prompt.md"
+        path_to_line = dict(zip(paths, lines))
+        assert div_rel in path_to_line
+        line = path_to_line[div_rel]
+        assert "superseded" in line
+        # Must NOT report pending from its directory
+        tokens = line.split()
+        assert tokens[1] == "superseded"
+
+
+    def test_prompt_in_no_lane_renders_dash(tmp_repo: Path) -> None:
+        """(c) A prompt in no lane directory still renders '-' rather than raising."""
+        term = Term(color=False)
+        args = _make_args(tmp_repo)
+        lines, paths, _ = cli._find_type_records(tmp_repo, "prompts", [], args, term)
+
+        no_lane_rel = ".aw/records/prompts/20260927-prmnol-01-prmnol-no-lane-prompt.prompt.md"
+        path_to_line = dict(zip(paths, lines))
+        assert no_lane_rel in path_to_line
+        line = path_to_line[no_lane_rel]
+        tokens = line.split()
+        assert tokens[1] == "-"
+
+
+    def test_status_filter_matches_each_lane(tmp_repo: Path) -> None:
+        """(d) --status <lane> returns exactly the matching rows, covering the filter."""
+        term = Term(color=False)
+
+        # pending: only the standard pending prompt (divergent prompt has bullet superseded)
+        args = _make_args(tmp_repo, status="pending")
+        lines, paths, _ = cli._find_type_records(tmp_repo, "prompts", [], args, term)
+        assert len(paths) == 1
+        assert paths[0] == ".aw/records/prompts/pending/20260927-prpend-01-prpend-pending-prompt.prompt.md"
+
+        # executed: exactly 1
+        args = _make_args(tmp_repo, status="executed")
+        lines, paths, _ = cli._find_type_records(tmp_repo, "prompts", [], args, term)
+        assert len(paths) == 1
+        assert paths[0] == ".aw/records/prompts/executed/20260927-prexec-01-prexec-executed-prompt.prompt.md"
+
+        # reusable: exactly 1
+        args = _make_args(tmp_repo, status="reusable")
+        lines, paths, _ = cli._find_type_records(tmp_repo, "prompts", [], args, term)
+        assert len(paths) == 1
+        assert paths[0] == ".aw/records/prompts/reusable/20260927-prreus-01-prreus-reusable-prompt.prompt.md"
+
+        # not-executed: exactly 1
+        args = _make_args(tmp_repo, status="not-executed")
+        lines, paths, _ = cli._find_type_records(tmp_repo, "prompts", [], args, term)
+        assert len(paths) == 1
+        assert paths[0] == ".aw/records/prompts/not-executed/20260927-prnot--01-prnot--not-executed-prompt.prompt.md"
+
+        # superseded: matches the superseded-lane prompt AND the divergent prompt with bullet superseded
+        args = _make_args(tmp_repo, status="superseded")
+        lines, paths, _ = cli._find_type_records(tmp_repo, "prompts", [], args, term)
+        assert len(paths) == 2
+        assert set(paths) == {
+            ".aw/records/prompts/superseded/20260927-prsupe-01-prsupe-superseded-prompt.prompt.md",
+            ".aw/records/prompts/pending/20260927-prmdiv-01-prmdiv-divergent-status.prompt.md",
+        }
+
+
+    def test_status_filter_case_variant(tmp_repo: Path) -> None:
+        """(g) A case-variant --status argument (e.g. PENDING) returns the same rows as lowercase."""
+        term = Term(color=False)
+        args_lower = _make_args(tmp_repo, status="pending")
+        _, paths_lower, _ = cli._find_type_records(tmp_repo, "prompts", [], args_lower, term)
+
+        args_upper = _make_args(tmp_repo, status="PENDING")
+        _, paths_upper, _ = cli._find_type_records(tmp_repo, "prompts", [], args_upper, term)
+
+        assert paths_lower == paths_upper
+        assert len(paths_upper) == 1
+
+
+    def test_walkthroughs_generic_type_column_and_filter_non_leakage(tmp_repo: Path) -> None:
+        """(e) Non-prompts generic type (walkthroughs) renders '-' in status column.
+        (f) --status <lane> against walkthroughs returns nothing (filter non-leakage).
+        """
+        term = Term(color=False)
+
+        # (e) Column rendering: status is '-'
+        args_all = _make_args(tmp_repo)
+        lines, paths, _ = cli._find_type_records(tmp_repo, "walkthroughs", [], args_all, term)
+        assert len(lines) == 1
+        assert paths[0] == ".aw/records/walkthroughs/20260927-wt0001-01-wt0001-sample-flow.walkthrough.md"
+        tokens = lines[0].split()
+        assert tokens[1] == "-"
+
+        # (f) Filter non-leakage: --status pending returns 0 rows
+        for lane in ("pending", "executed", "reusable", "superseded", "not-executed"):
+            args_filter = _make_args(tmp_repo, status=lane)
+            flines, fpaths, _ = cli._find_type_records(tmp_repo, "walkthroughs", [], args_filter, term)
+            assert len(flines) == 0, f"Expected 0 walkthroughs for status '{lane}', got: {flines}"
+            assert len(fpaths) == 0
+    ```
+    2. `python3 -m pytest tests/test_find_prompts_lane_status.py -o addopts="" -v` passing output:
+    ```
+    tests/test_find_prompts_lane_status.py::test_prompt_in_no_lane_renders_dash PASSED [ 16%]
+    tests/test_find_prompts_lane_status.py::test_status_filter_matches_each_lane PASSED [ 33%]
+    tests/test_find_prompts_lane_status.py::test_status_filter_case_variant PASSED [ 50%]
+    tests/test_find_prompts_lane_status.py::test_all_five_lanes_render_status PASSED [ 66%]
+    tests/test_find_prompts_lane_status.py::test_walkthroughs_generic_type_column_and_filter_non_leakage PASSED [ 83%]
+    tests/test_find_prompts_lane_status.py::test_divergent_bullet_status_takes_precedence_over_lane PASSED [100%]
+    ============================== 6 passed in 0.33s ===============================
+    ```
+    3. Deliberate failure demonstration on unpatched `cli.py` (reverted via `git checkout -- agent_workflows/cli.py`):
+    ```
+    FAILED tests/test_find_prompts_lane_status.py::test_status_filter_matches_each_lane
+    FAILED tests/test_find_prompts_lane_status.py::test_status_filter_case_variant
+    FAILED tests/test_find_prompts_lane_status.py::test_all_five_lanes_render_status
+    AssertionError: Expected status column 'pending', got '-' in line: ·  -             -  .aw/records/prompts/pending/20260927-prpend-01-prpend-pending-prompt.prompt.md
+    assert '-' == 'pending'
+    ========================= 3 failed, 3 passed in 0.21s ==========================
+    ```
+    Restored and re-verified green (6 passed in 0.33s).
+    4. Whole-suite `python3 -m pytest` output:
+    Pre-change baseline: `1 failed, 3008 passed, 2 skipped, 3 warnings in 48.63s` (the single pre-existing failure in adjacent test `tests/test_dependency_block_reporting.py::test_drain_and_cascade_mapped_reasons_rendered_once` due to prior plan 5o1jye reaching executed).
+    Post-change: `1 failed, 3015 passed, 2 skipped, 3 warnings in 45.46s` (+7 passed, zero regressions).
+    5. Neighbour regression set:
+    `python3 -m pytest tests/test_cli_find.py tests/test_find_filters.py tests/test_find_single_read.py tests/test_prompts_index.py tests/test_prompts_attention.py tests/test_lifecycle_dirs.py -o addopts=""`:
+    ```
+    ============================== 42 passed in 1.11s ==============================
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: Paste `grep -rn "test_prompts_directory_derived" tests/` showing BOTH the pre-existing comment citation and the newly added test definition, proving the citation is no longer stale. Paste the test's source and `python3 -m pytest tests/test_lifecycle_style.py -k prompts -o addopts=""` output. Demonstrate the guard bites: temporarily alter `PROMPT_LANES` (for example drop `not-executed`), paste the FAILING output, then restore and paste the passing run. ALSO carry the pre-commit repository gate here, as this is the last item before the commit: paste `aw check` output confirming no new drift and specifically no new `check.prompt-status-mismatch`, paste `aw sanitize --agent` output, and paste `git diff --cached --name-only` immediately before committing, which must list ONLY the three paths in `- Scope-Paths:` and nothing another party changed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below:
+    1. `grep -rn "test_prompts_directory_derived" tests/`:
+    ```
+    tests/test_lifecycle_style.py:40:# `udgilu` F-06). These five are `lifecycle_dirs.LIFECYCLE_SUBDIRS["prompts"]`, and `test_prompts_directory_derived`
+    tests/test_lifecycle_style.py:261:    def test_prompts_directory_derived(self):
+    ```
+    2. Committed test source:
+    ```python
+        def test_prompts_directory_derived(self):
+            """Assert PROMPT_LANES equals lifecycle_dirs.LIFECYCLE_SUBDIRS['prompts'] as a set."""
+            from agent_workflows import lifecycle_dirs
+
+            self.assertEqual(
+                set(PROMPT_LANES),
+                set(lifecycle_dirs.LIFECYCLE_SUBDIRS["prompts"]),
+            )
+    ```
+    3. `python3 -m pytest tests/test_lifecycle_style.py -k prompts -o addopts=""`:
+    ```
+    ======================= 1 passed, 12 deselected in 0.09s =======================
+    ```
+    Full file count rose from 12 to 13 passed (`13 passed in 0.14s`).
+    4. Deliberate failure demonstration: temporarily dropped `'not-executed'` from `PROMPT_LANES`:
+    ```
+    FAILED tests/test_lifecycle_style.py::MappingTotalityTests::test_prompts_directory_derived
+    AssertionError: Items in the second set but not the first:
+    'not-executed'
+    ======================= 1 failed, 12 deselected in 0.12s =======================
+    ```
+    Restored and re-verified green (`1 passed, 12 deselected in 0.09s`).
+    5. `aw check`:
+    `AW check  all   5644 ms; 4 finding(s) detected across 1746 all` (all 4 pre-existing on other pending plans and missing layout.json; zero on plan iq3txw, zero `check.prompt-status-mismatch`).
+    6. `aw sanitize --agent`:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`.
+    7. `git diff --cached --name-only`:
+    ```
+    agent_workflows/cli.py
+    tests/test_find_prompts_lane_status.py
+    tests/test_lifecycle_style.py
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
