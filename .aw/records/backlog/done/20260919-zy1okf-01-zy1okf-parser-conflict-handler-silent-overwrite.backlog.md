@@ -1,5 +1,5 @@
 - Id: zy1okf
-- Status: graduated
+- Status: done
 - Graduated-To: zy1okf
 - Set: zy1okf
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: conflict_handler='resolve' on every aw parser makes a duplicate option definition silently replace instead of erroring
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): closed by aw oc run: IPD 76fgt1 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-zy1okf-01-76fgt1-make-a-duplicate-aw-cli-option-definition-fail-loudly-instea.ipd.md); evidence .aw/records/plans/executed/20260928-zy1okf-01-76fgt1-make-a-duplicate-aw-cli-option-definition-fail-loudly-instea.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: 76fgt1
 - 2026-09-19 created (aw backlog): conflict_handler='resolve' on every aw parser makes a duplicate option definition silently replace instead of erroring
 
