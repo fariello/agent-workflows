@@ -1565,7 +1565,10 @@ def stranded_lane_drift(repo_root: Path) -> List[core.Drift]:
     `aw/lane/03ie04`, safe by construction) and the worktree is rendered repository-relative through
     `runner_shared.lane_worktree_display`, which returns None rather than an absolute path. The
     recorded `preserved_worktree` is an absolute home path in most run items, and `integration_detail`
-    embeds an absolute repository path, so NEITHER is printed.
+    embeds an absolute repository path, so NEITHER is printed. A worktree omitted from display has
+    three distinct causes (never recorded, absent from disk, or existing outside the repository); only
+    the provably absent case reports an explicit 'no worktree remains' marker, while the other two
+    remain omitted.
 
     Returns `[]` on any failure to read the run records, which is the honest answer for a repository
     that has never run a driver: absence of run records is not evidence of a stranded lane.
@@ -1635,6 +1638,8 @@ def stranded_lane_drift(repo_root: Path) -> List[core.Drift]:
         display = rs.lane_worktree_display(target_root, rec.get("worktree"))
         if display:
             bits.append("worktree {0}".format(display))
+        elif rs.lane_worktree_is_absent(target_root, rec.get("worktree")):
+            bits.append("no worktree remains")
         if rec.get("run_id"):
             # ONE ROW PER LANE, so the row must say how many runs touched it: the per-branch collapse in
             # `stranded_lane_records` replaced N identical-in-substance rows with one, and dropping the

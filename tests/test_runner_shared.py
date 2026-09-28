@@ -3525,6 +3525,46 @@ class LaneWorktreeDisplayExistenceTests(unittest.TestCase):
                 if got is not None:
                     self.assertFalse(pathlib.Path(got).is_absolute(), got)
 
+    def test_predicate_absent_inside_returns_true(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            gone = repo / ".aw" / "worktrees" / "reclaimed"
+            self.assertFalse(gone.exists())
+            self.assertTrue(runner_shared.lane_worktree_is_absent(repo, str(gone)))
+            self.assertIsNone(runner_shared.lane_worktree_display(repo, str(gone)))
+
+    def test_predicate_falsy_returns_false(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            for falsy_val in (None, ""):
+                self.assertFalse(runner_shared.lane_worktree_is_absent(repo, falsy_val))
+                self.assertIsNone(runner_shared.lane_worktree_display(repo, falsy_val))
+
+    def test_predicate_existing_inside_returns_false(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            live = repo / ".aw" / "worktrees" / "alive"
+            live.mkdir(parents=True)
+            self.assertTrue(live.exists())
+            self.assertFalse(runner_shared.lane_worktree_is_absent(repo, str(live)))
+            self.assertEqual(
+                runner_shared.lane_worktree_display(repo, str(live)),
+                ".aw/worktrees/alive",
+            )
+
+    def test_predicate_existing_outside_non_lane_returns_false(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            outside = root / "somewhere_else" / "not_worktrees" / "live_tree"
+            outside.mkdir(parents=True)
+            self.assertTrue(outside.exists())
+            self.assertFalse(runner_shared.lane_worktree_is_absent(repo, str(outside)))
+            self.assertIsNone(runner_shared.lane_worktree_display(repo, str(outside)))
+
 
 # ==================================================================================================
 # integpath-04 (`rl67b0`): THE RE-INTEGRATION VERB AND THE RESUME PASS

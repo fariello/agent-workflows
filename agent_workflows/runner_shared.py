@@ -2105,6 +2105,40 @@ def lane_worktree_display(repo: Path, worktree: Any) -> Optional[str]:
     return text if text not in ("", ".") else None
 
 
+def lane_worktree_is_absent(repo: Path, worktree: Any) -> bool:
+    """Answer whether the record named a worktree that is now provably absent from disk.
+
+    Returns True only when ``worktree`` is truthy AND the resolved path does not exist.
+    Returns False when ``worktree`` is falsy (no worktree was ever recorded), and False
+    when the path exists, whether inside or outside the repository.
+
+    Reuses the same existence semantics as :func:`lane_worktree_display`: an unreadable
+    path (raising OSError or RuntimeError) is treated as absent. This predicate therefore
+    inherits that conservative direction, because the cost is one extra marker rather than
+    a wrong verdict.
+    """
+    if not worktree:
+        return False
+
+    def _exists(path: Path) -> bool:
+        try:
+            return path.exists()
+        except (OSError, RuntimeError):
+            return False
+
+    try:
+        candidate = Path(str(worktree))
+        root = Path(repo).resolve()
+        resolved = (
+            candidate.resolve()
+            if candidate.is_absolute()
+            else (root / candidate).resolve()
+        )
+    except (OSError, RuntimeError, ValueError):
+        return True
+    return not _exists(resolved)
+
+
 # ---- already-landed dispatch gate (mergeskip `8k0z40`) --------------------------------------------
 
 ALREADY_LANDED_STATUS: str = "already-landed"
