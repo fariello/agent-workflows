@@ -1,11 +1,13 @@
 - Id: zy1okf
-- Status: open
+- Status: graduated
+- Graduated-To: zy1okf
 - Set: zy1okf
 - Priority: low
 - Work-Kind: chore
 - Summary: conflict_handler='resolve' on every aw parser makes a duplicate option definition silently replace instead of erroring
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: 76fgt1
 - 2026-09-19 created (aw backlog): conflict_handler='resolve' on every aw parser makes a duplicate option definition silently replace instead of erroring
 
 Graduated from the Deferred section of plan `yaxr4i` (ttyflags 01), where it was finding F-14 and was mitigated per-parser rather than fixed.
