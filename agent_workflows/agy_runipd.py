@@ -892,6 +892,95 @@ def agy_prefix_kind(tool_name: str, params: dict[str, Any] | None = None) -> str
     return "tool"
 
 
+def _read_agy_step_transcript(
+    conversation_id: str,
+    step_index: int | None,
+    *,
+    tracker: StreamTracker | None = None,
+    app_data_dir: Path | None = None,
+) -> dict[str, Any] | None:
+    """Read a specific step record from Antigravity's transcript.jsonl.
+
+    Returns the step dictionary if found, or None if absent, unreadable, or missing.
+    Strictly fail-soft: catches all I/O and JSON errors and never raises.
+    """
+    if not conversation_id or step_index is None:
+        return None
+
+    # Check cache on tracker if available
+    cache = getattr(tracker, "_agy_transcript_cache", None)
+    if (
+        cache is not None
+        and getattr(tracker, "_agy_transcript_cid", None) == conversation_id
+    ):
+        if step_index in cache:
+            return cache[step_index]
+
+    try:
+        if app_data_dir is None:
+            raw_app_data = os.environ.get("ANTIGRAVITY_APP_DATA_DIR") or os.environ.get(
+                "GEMINI_CLI_APP_DATA_DIR"
+            )
+            app_data_dir = (
+                Path(raw_app_data)
+                if raw_app_data
+                else Path.home() / ".gemini" / "antigravity-cli"
+            )
+
+        transcript_path = (
+            app_data_dir
+            / "brain"
+            / conversation_id
+            / ".system_generated"
+            / "logs"
+            / "transcript.jsonl"
+        )
+        if not transcript_path.exists():
+            return None
+
+        offset = 0
+        cache = None
+        if tracker is not None:
+            if getattr(tracker, "_agy_transcript_cid", None) != conversation_id:
+                tracker._agy_transcript_cid = conversation_id
+                tracker._agy_transcript_cache = {}
+                tracker._agy_transcript_offset = 0
+            cache = tracker._agy_transcript_cache
+            offset = getattr(tracker, "_agy_transcript_offset", 0)
+
+        with transcript_path.open("r", encoding="utf-8", errors="replace") as f:
+            if offset > 0:
+                f.seek(offset)
+            while True:
+                line = f.readline()
+                if not line:
+                    break
+                line_str = line.strip()
+                if not line_str or not line_str.startswith("{"):
+                    continue
+                try:
+                    obj = json.loads(line_str)
+                except Exception:
+                    continue
+                if isinstance(obj, dict):
+                    idx = obj.get("step_index")
+                    if idx is not None:
+                        if cache is not None:
+                            cache[idx] = obj
+                        if idx == step_index:
+                            if tracker is not None:
+                                tracker._agy_transcript_offset = f.tell()
+                            return obj
+            if tracker is not None:
+                tracker._agy_transcript_offset = f.tell()
+
+        if cache is not None and step_index in cache:
+            return cache[step_index]
+    except Exception:
+        pass
+    return None
+
+
 def render_agy_event(
     raw_line: str,
     pal: Palette,
@@ -900,6 +989,7 @@ def render_agy_event(
     use_unicode: bool = True,
     repo_root: str | Path | None = None,
     tracker: StreamTracker | None = None,
+    app_data_dir: Path | None = None,
 ) -> str | None:
     """Translate one raw JSONL event from `agy --output-format stream-json` into a
     concise, colored terminal line.
@@ -1121,6 +1211,23 @@ def render_agy_event(
             return head
 
         if step_type == "agent_response" and state == "DONE":
+            step_idx = step.get("step_index")
+            conv_id = step.get("conversation_id") or event.get("conversation_id", "")
+            rec = _read_agy_step_transcript(
+                conv_id,
+                step_idx,
+                tracker=tracker,
+                app_data_dir=app_data_dir,
+            )
+            if rec:
+                raw_text = rec.get("thinking") or rec.get("content") or ""
+                text = strip_system_protocol_prefix(raw_text)
+                text = _one_line(text.strip(), 400)
+                if text:
+                    prefix = format_event_prefix(
+                        "think", pal, use_unicode, style="cyan"
+                    )
+                    return f"{prefix}{text}"
             return None
 
         if step_type == "subagent":

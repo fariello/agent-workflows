@@ -1931,6 +1931,119 @@ class AgyVerbosityFlagTests(unittest.TestCase):
         self.assertIsNotNone(rendered_bare_v)
         self.assertIn("unknown_tool", rendered_bare_v)
 
+    def test_render_agy_agent_response_thinking_from_transcript(self):
+        pal = agy_runipd.Palette(False)
+        tracker = agy_runipd.StreamTracker()
+        with tempfile.TemporaryDirectory() as td:
+            app_data = Path(td)
+            cid = "test-conv-12345"
+            log_dir = app_data / "brain" / cid / ".system_generated" / "logs"
+            log_dir.mkdir(parents=True)
+            transcript = log_dir / "transcript.jsonl"
+
+            steps = [
+                {"step_index": 0, "type": "USER_INPUT", "content": "Execute task"},
+                {
+                    "step_index": 1,
+                    "type": "PLANNER_RESPONSE",
+                    "thinking": "Analyzing codebase and checking tests before making edits.",
+                },
+                {"step_index": 2, "type": "GENERIC", "content": "Tool output"},
+                {
+                    "step_index": 3,
+                    "type": "PLANNER_RESPONSE",
+                    "content": "The changes have been verified successfully.",
+                },
+                {"step_index": 4, "type": "PLANNER_RESPONSE"},
+            ]
+            with transcript.open("w", encoding="utf-8") as f:
+                for s in steps:
+                    f.write(json.dumps(s) + "\n")
+
+            # Event for step 1 (thinking)
+            evt_1 = json.dumps(
+                {
+                    "event": "step_update",
+                    "step_update": {
+                        "conversation_id": cid,
+                        "step_index": 1,
+                        "state": "DONE",
+                        "step_type": "agent_response",
+                        "duration_seconds": 2.5,
+                    },
+                }
+            )
+            rendered_1 = agy_runipd.render_agy_event(
+                evt_1, pal, tracker=tracker, app_data_dir=app_data
+            )
+            self.assertIsNotNone(rendered_1)
+            self.assertIn("think:", rendered_1)
+            self.assertIn("Analyzing codebase and checking tests", rendered_1)
+
+            # Event for step 3 (content fallback)
+            evt_3 = json.dumps(
+                {
+                    "event": "step_update",
+                    "step_update": {
+                        "conversation_id": cid,
+                        "step_index": 3,
+                        "state": "DONE",
+                        "step_type": "agent_response",
+                        "duration_seconds": 1.1,
+                    },
+                }
+            )
+            rendered_3 = agy_runipd.render_agy_event(
+                evt_3, pal, tracker=tracker, app_data_dir=app_data
+            )
+            self.assertIsNotNone(rendered_3)
+            self.assertIn("think:", rendered_3)
+            self.assertIn("The changes have been verified successfully", rendered_3)
+
+            # Re-querying an earlier step (step 1) succeeds via tracker cache
+            rendered_1_cached = agy_runipd.render_agy_event(
+                evt_1, pal, tracker=tracker, app_data_dir=app_data
+            )
+            self.assertIsNotNone(rendered_1_cached)
+            self.assertIn("Analyzing codebase and checking tests", rendered_1_cached)
+
+            # Event for step 4 (neither thinking nor content -> None)
+            evt_4 = json.dumps(
+                {
+                    "event": "step_update",
+                    "step_update": {
+                        "conversation_id": cid,
+                        "step_index": 4,
+                        "state": "DONE",
+                        "step_type": "agent_response",
+                        "duration_seconds": 0.5,
+                    },
+                }
+            )
+            self.assertIsNone(
+                agy_runipd.render_agy_event(
+                    evt_4, pal, tracker=tracker, app_data_dir=app_data
+                )
+            )
+
+            # Missing conversation transcript fails softly to None
+            evt_missing = json.dumps(
+                {
+                    "event": "step_update",
+                    "step_update": {
+                        "conversation_id": "nonexistent-cid",
+                        "step_index": 1,
+                        "state": "DONE",
+                        "step_type": "agent_response",
+                    },
+                }
+            )
+            self.assertIsNone(
+                agy_runipd.render_agy_event(
+                    evt_missing, pal, tracker=tracker, app_data_dir=app_data
+                )
+            )
+
 
 class AgyDependencyPathsAreSharedTests(unittest.TestCase):
     """depreview 03ie04 E-03/E-06: THIS HOST's two dependency paths must be the shared ones.
