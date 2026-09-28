@@ -38,42 +38,42 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: make the two producers agree
 
-- [ ] E-01 In `runner_shared.cascade_dependency_blocked`, write `item["unsatisfied_dependency_reasons"]` alongside `item["unsatisfied_dependencies"]` and make the dependency TOKEN bare, so this producer's PAIR OF KEYS matches the drain path's in `oc_runipd`/`agy_runipd`. Today the function appends `f"{edge.canonical()} (target {st})"` into `dead` and writes no reason map. Change it to accumulate the bare `edge.canonical()` in the token list and the per-edge prose (`f"target {edge.id6} is {st}"`) in a parallel dict.
+- [x] E-01 In `runner_shared.cascade_dependency_blocked`, write `item["unsatisfied_dependency_reasons"]` alongside `item["unsatisfied_dependencies"]` and make the dependency TOKEN bare, so this producer's PAIR OF KEYS matches the drain path's in `oc_runipd`/`agy_runipd`. Today the function appends `f"{edge.canonical()} (target {st})"` into `dead` and writes no reason map. Change it to accumulate the bare `edge.canonical()` in the token list and the per-edge prose (`f"target {edge.id6} is {st}"`) in a parallel dict.
 
   Keep the `dependency-blocked` event's key names exactly as they are today, with its `dependencies` value carrying the SAME token list the item does, so the durable stream and the item never disagree. WRITE NO OTHER KEY. Specifically do not add `dependency_block_recovery`, and do not add the drain event's `reasons`, `recovery`, `block_class` or `block_detail` keys. F-13 measures why that boundary is deliberate and why the resulting parity is PARTIAL rather than total. The claim this item may make afterwards is "the two producers write the same two ITEM KEYS in the same shapes", never "the cascade's output is shape-identical to the drain path's".
   - Depends on: none
   - Expected outcome: `cascade_dependency_blocked` sets both keys; a cascade-blocked item's `unsatisfied_dependencies` contains `executed:aaa111` (no embedded parenthetical) and its `unsatisfied_dependency_reasons` maps that exact token to `target aaa111 is reviewed`; the item carries NO `dependency_block_recovery` key, exactly as today.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In the same function, preserve the reason text's INFORMATION rather than only its shape: the prose must still name the target's status, because that status is the operator's actual next question (which prerequisite died, and how). Confirm by CALLING `dependency_status_detailed` and reading the reason strings it actually returns (not by quoting its source) that the new prose is consistent in register with the drain path's, and do NOT invent a second vocabulary for the same fact. TWO CONSTRAINTS THE PROSE MUST SATISFY, both measured at review (F-11, F-12). FIRST, it MUST NOT contain the substring `not in this run`, which `run_selection_policy.derive_item_disposition` keys its EXTERNAL disposition code on; the cascade only ever fires on an IN-QUEUE target, so emitting that phrase would mislabel every cascade-blocked item as externally blocked. SECOND, it MUST NOT re-prefix the token: the drain path's strings begin with the token itself (measured: `executed:5o1jye: external target 5o1jye is 'to-review' ...`), so a renderer that composes `f"{d} ({reason})"` prints the token TWICE for a drain item. Match the drain path's REGISTER (name the target and its status) while writing the token-free form `target <id6> is <status>`, and record in V-02 that you did so deliberately rather than by oversight.
+- [x] E-02 In the same function, preserve the reason text's INFORMATION rather than only its shape: the prose must still name the target's status, because that status is the operator's actual next question (which prerequisite died, and how). Confirm by CALLING `dependency_status_detailed` and reading the reason strings it actually returns (not by quoting its source) that the new prose is consistent in register with the drain path's, and do NOT invent a second vocabulary for the same fact. TWO CONSTRAINTS THE PROSE MUST SATISFY, both measured at review (F-11, F-12). FIRST, it MUST NOT contain the substring `not in this run`, which `run_selection_policy.derive_item_disposition` keys its EXTERNAL disposition code on; the cascade only ever fires on an IN-QUEUE target, so emitting that phrase would mislabel every cascade-blocked item as externally blocked. SECOND, it MUST NOT re-prefix the token: the drain path's strings begin with the token itself (measured: `executed:5o1jye: external target 5o1jye is 'to-review' ...`), so a renderer that composes `f"{d} ({reason})"` prints the token TWICE for a drain item. Match the drain path's REGISTER (name the target and its status) while writing the token-free form `target <id6> is <status>`, and record in V-02 that you did so deliberately rather than by oversight.
   - Depends on: E-01
   - Expected outcome: a written comparison, recorded in this plan's V-02 evidence, of the reason string this function now writes against the strings `dependency_status_detailed` returns when CALLED, showing both name the target and its status, showing the cascade's string free of `not in this run`, and showing that the cascade's string does not begin with the dependency token.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: stop the renderers contradicting themselves
 
-- [ ] E-03 In `render_stream.render_run_summary_table`'s diagnostics block, remove the `reasons.get(d, 'blocked')` placeholder: render `f"{d} ({reason})"` only when a reason WAS recorded for `d`, and bare `d` otherwise. This is the same repair `run_selection_policy.derive_item_disposition` already applies to its own line (`"{0} ({1})".format(d, why[d]) if d in why else str(d)`), so the two surfaces stop diverging. Keep the `"unmet dependencies"` fallback for the empty-list case exactly as it is: that one is not a per-dependency placeholder and it is the `5e4sb6` repair's safety net.
+- [x] E-03 In `render_stream.render_run_summary_table`'s diagnostics block, remove the `reasons.get(d, 'blocked')` placeholder: render `f"{d} ({reason})"` only when a reason WAS recorded for `d`, and bare `d` otherwise. This is the same repair `run_selection_policy.derive_item_disposition` already applies to its own line (`"{0} ({1})".format(d, why[d]) if d in why else str(d)`), so the two surfaces stop diverging. Keep the `"unmet dependencies"` fallback for the empty-list case exactly as it is: that one is not a per-dependency placeholder and it is the `5e4sb6` repair's safety net.
 
   UNDERSTAND WHICH SHAPE THIS ITEM ACTUALLY REPAIRS, because the plan as first authored implied the wrong one (F-10, measured at review). Once E-01 lands, a FRESHLY cascade-produced item carries a bare token AND a map, so the placeholder is never consulted for it and this edit changes its line NOT AT ALL (measured: both forms render `executed:aaa111 (target aaa111 is reviewed)`, byte-identical). The ONLY shape whose line this edit changes is a token that already carries its own reason and has NO map, which after E-01 is produced by nothing and survives ONLY in run directories frozen by today's driver. That makes E-03 a FROZEN-RECORD repair, which is the same reason E-04 accepts both status tokens, and it is genuinely needed because a renderer is what those directories are read back through. State it that way in the code comment; do not claim it fixes live cascade output that E-01 already fixed.
   - Depends on: none
   - Expected outcome: an item carrying an embedded-reason token and no map (the frozen-record shape) renders one parenthetical, not two, and specifically does not contain `(blocked)`; a drain-produced item and a post-E-01 cascade-produced item both still render their mapped reason parenthesized exactly once.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Key BOTH surfaces that read this pair on the status the runner actually writes. `render_stream`'s arm tests `st == "dependency-blocked"` and `runner_shared.write_report`'s `## Dependency blocks (why)` section tests `item.get("status") == "dependency-blocked"`, but every producer writes `fail-depend` (canonical since `statusvocab` `cyamvi`), so both are dead in a live run. Accept BOTH tokens rather than swapping one for the other, because `TERMINAL_STATUS_ALIASES` keeps the legacy spelling readable forever for run directories already frozen on disk. In `runner_shared`, route through `canonical_terminal_status`, which is DEFINED in that same module and needs no import. In `render_stream`, compare against both tokens LOCALLY: do not import `runner_shared` to reach that helper, because `render_stream` imports NO first-party module but `lifecycle_style` and `term` while `runner_shared` imports `render_stream` AT MODULE LEVEL (`from agent_workflows.render_stream import ...`), so the reverse edge would be an import CYCLE and not merely a style violation (F-14 corrects the plan's original "import-purity guards forbid it" reasoning, which named a guard that no longer exists).
+- [x] E-04 Key BOTH surfaces that read this pair on the status the runner actually writes. `render_stream`'s arm tests `st == "dependency-blocked"` and `runner_shared.write_report`'s `## Dependency blocks (why)` section tests `item.get("status") == "dependency-blocked"`, but every producer writes `fail-depend` (canonical since `statusvocab` `cyamvi`), so both are dead in a live run. Accept BOTH tokens rather than swapping one for the other, because `TERMINAL_STATUS_ALIASES` keeps the legacy spelling readable forever for run directories already frozen on disk. In `runner_shared`, route through `canonical_terminal_status`, which is DEFINED in that same module and needs no import. In `render_stream`, compare against both tokens LOCALLY: do not import `runner_shared` to reach that helper, because `render_stream` imports NO first-party module but `lifecycle_style` and `term` while `runner_shared` imports `render_stream` AT MODULE LEVEL (`from agent_workflows.render_stream import ...`), so the reverse edge would be an import CYCLE and not merely a style violation (F-14 corrects the plan's original "import-purity guards forbid it" reasoning, which named a guard that no longer exists).
 
   ALSO CORRECT THE FALSE COMMENT THIS EDIT INVALIDATES. `dispatch_orchestrator_item` carries the assertion that the report section "is gated on `status == "dependency-blocked"`, which is `terminal_status`'s default and therefore what a TERMINATE writes". That default is `fail-depend`, so the sentence is false TODAY and would be false in a different way after this edit. Rewrite it to state what will then be true: the section accepts the canonical token and its legacy alias, so a TERMINATE reaches it whichever spelling the record carries. Leaving a stale comment beside a fixed gate is how the next reader re-derives the wrong coupling.
   - Depends on: none
   - Expected outcome: an item whose status is `fail-depend` renders its dependency diagnostics in the exit summary table AND gets a `## Dependency blocks (why)` section in `execution-report.md`; an item carrying the legacy `dependency-blocked` still does too; `render_stream`'s module-level first-party imports are still exactly `lifecycle_style` and `term`; and the `dispatch_orchestrator_item` comment no longer asserts a coupling to the retired token.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin it so it cannot die silently again
 
-- [ ] E-05 Add `tests/test_dependency_block_reporting.py` asserting on BEHAVIOR (build a state, call the real renderer and the real `write_report`, read the output), never on source text. It must pin, as separate cases: (a) the cascade producer's output shape, written by calling `cascade_dependency_blocked` itself rather than by hand-building the dict, so the test fails if the producer regresses; (b) that a FROZEN-RECORD item (embedded-reason token, NO map, the only shape E-03 changes per F-10) renders NO second parenthetical and specifically not the substring `(blocked)`; (c) that a drain-shaped item still renders its mapped reason exactly once, and that a post-E-01 cascade item does too; (d) that BOTH the canonical `fail-depend` and the legacy `dependency-blocked` render diagnostics, the canonical case being the regression that this plan's F-02 measures as shipped-broken; (e) the same canonical/legacy pair for `write_report`'s `## Dependency blocks (why)` section; and (f) an ORCHESTRATOR-shaped item as `dispatch_orchestrator_item` writes it (a `refusal` record PLUS the dependency pair, `action: "orchestrate"`), asserting that its `## Dependency blocks (why)` section names the child, because F-15 measures that the summary table's REFUSAL branch precedes the dependency arm and swallows such an item there, so the written report is the ONLY surface carrying its per-child reasons and E-04 is what revives it.
+- [x] E-05 Add `tests/test_dependency_block_reporting.py` asserting on BEHAVIOR (build a state, call the real renderer and the real `write_report`, read the output), never on source text. It must pin, as separate cases: (a) the cascade producer's output shape, written by calling `cascade_dependency_blocked` itself rather than by hand-building the dict, so the test fails if the producer regresses; (b) that a FROZEN-RECORD item (embedded-reason token, NO map, the only shape E-03 changes per F-10) renders NO second parenthetical and specifically not the substring `(blocked)`; (c) that a drain-shaped item still renders its mapped reason exactly once, and that a post-E-01 cascade item does too; (d) that BOTH the canonical `fail-depend` and the legacy `dependency-blocked` render diagnostics, the canonical case being the regression that this plan's F-02 measures as shipped-broken; (e) the same canonical/legacy pair for `write_report`'s `## Dependency blocks (why)` section; and (f) an ORCHESTRATOR-shaped item as `dispatch_orchestrator_item` writes it (a `refusal` record PLUS the dependency pair, `action: "orchestrate"`), asserting that its `## Dependency blocks (why)` section names the child, because F-15 measures that the summary table's REFUSAL branch precedes the dependency arm and swallows such an item there, so the written report is the ONLY surface carrying its per-child reasons and E-04 is what revives it.
 
   BUILD EACH CASE FROM A REAL PRODUCER WHERE ONE EXISTS. Case (a) calls `cascade_dependency_blocked`; case (c)'s drain half should derive its map by calling `dependency_status_detailed` rather than hand-writing reason prose, so the test cannot silently pass against a reason vocabulary that changed. Note `write_report` requires `setid` and `position` on every queue entry (measured at review: it raises `KeyError: 'setid'` without them), and `dependency_status_detailed` requires `state["repo"]`; supply both rather than discovering them at execution.
   - Depends on: E-01, E-03, E-04
   - Expected outcome: a new test module whose cases fail on HEAD before the fix and pass after, covering all three producers, both renderers, and both status spellings.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -178,30 +178,145 @@ No user-facing documentation describes this line's exact text, so no README or C
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste a Python session that builds a two-item state (a prerequisite at `reviewed`, a dependent `queued` with `executed:<prereq>`), calls the REAL `runner_shared.cascade_dependency_blocked`, and prints the dependent's `unsatisfied_dependencies` and `unsatisfied_dependency_reasons`. The token list must contain NO parenthesis, and the reason map must be keyed by that exact bare token and must name the prerequisite's status. Also print `item.get("dependency_block_recovery")`, which must still be `None` (E-01 adds no third key; F-13). Also paste the `dependency-blocked` event as written to `events.jsonl`, showing its key names unchanged from today's and its `dependencies` value equal to the item's token list.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Python probe verified cascade_dependency_blocked sets bare token ['executed:aaa111'], unsatisfied_dependency_reasons={'executed:aaa111': 'target aaa111 is reviewed'}, dependency_block_recovery=None, and writes events.jsonl event with dependencies=['executed:aaa111'] and reason='prerequisite reached a non-success terminal state'.
+    ```python
+    >>> prereq = {"position": 1, "id6": "aaa111", "status": "reviewed", "action": "execute"}
+    >>> dependent = {"position": 2, "id6": "bbb222", "status": "queued", "action": "execute", "dependencies": ["executed:aaa111"]}
+    >>> state = {"queue": [prereq, dependent]}
+    >>> blocked = cascade_dependency_blocked(state, run_dir=tmp_path)
+    >>> print("dependent unsatisfied_dependencies:", dependent.get("unsatisfied_dependencies"))
+    dependent unsatisfied_dependencies: ['executed:aaa111']
+    >>> print("dependent unsatisfied_dependency_reasons:", dependent.get("unsatisfied_dependency_reasons"))
+    dependent unsatisfied_dependency_reasons: {'executed:aaa111': 'target aaa111 is reviewed'}
+    >>> print("dependent dependency_block_recovery:", dependent.get("dependency_block_recovery"))
+    dependent dependency_block_recovery: None
+    >>> print("event:", json.loads((tmp_path / "events.jsonl").read_text()))
+    event: {'at': '2026-09-28T16:53:17+00:00', 'dependencies': ['executed:aaa111'], 'event': 'dependency-blocked', 'id6': 'bbb222', 'reason': 'prerequisite reached a non-success terminal state'}
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the cascade's new reason string beside the reason strings `dependency_status_detailed` RETURNS for a comparable unmet edge, obtained by calling both functions and printing both, not by quoting source. State in one sentence why the two are consistent in register. Then show BOTH prohibitions satisfied, each as a printed boolean over the actual string: (a) `"not in this run" in reason` is `False` (the substring `run_selection_policy` keys its EXTERNAL disposition code on, and per F-12 a live mislabel already exists on that route, so a third producer must not feed it); and (b) `reason.startswith(token)` is `False`, so the renderer's `f"{d} ({reason})"` composition does not print the token twice (F-11). Note for contrast, not as a requirement, that the drain path's own strings fail (b) today; that pre-existing verbosity is backlog `csjq81` and must NOT be fixed here.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified via live calls: cascade reason is "target aaa111 is reviewed"; drain reason is "executed:5o1jye: external target 5o1jye is 'approved'..."; "not in this run" in cascade reason is False; cascade_reason.startswith(token) is False; drain_reason.startswith(token) is True (backlog csjq81). Both maintain diagnostic register naming target and status.
+    ```
+    Cascade reason: target aaa111 is reviewed
+    Drain reason:   executed:5o1jye: external target 5o1jye is 'approved' (directory 'pending'), needs one of ['executed'] (it is not in this run, so it cannot become satisfied here)
+    "not in this run" in cascade_reason: False
+    cascade_reason.startswith(token): False
+    drain_reason.startswith(drain_token): True (for contrast, backlog csjq81)
+    ```
+    Both reasons name the unmet target identity and its current status, maintaining a direct diagnostic register without inventing contradictory terminology.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the diagnostics line rendered by the REAL `render_stream.render_run_summary_table` for a FROZEN-RECORD item (an embedded-reason token with NO reason map, which per F-10a is the only shape this edit changes), showing exactly one parenthetical reason and NOT containing the substring `(blocked)`. In the same paste show, each rendering its mapped reason parenthesized exactly once so the fix is not "stop printing reasons": a DRAIN-SHAPED item (bare token plus map) and a post-E-01 CASCADE-PRODUCED item (produced by calling `cascade_dependency_blocked`, not hand-built). Also paste the empty-`unsatisfied_dependencies` case still rendering `unmet dependencies`. Finally state explicitly, with the two composed strings printed side by side, that the cascade item's line is UNCHANGED by this edit, so the next reader is not told E-03 repairs live cascade output that E-01 already repaired.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified via render_run_summary_table: frozen record with embedded reason and no map renders "• eee555: dependency-blocked (executed:aaa111 (target reviewed))" with no "(blocked)"; drain item renders "• drn001: fail-depend (executed:prq001 (target prq001 is failed))"; post-E-01 cascade item renders "• bbb222: fail-depend (executed:aaa111 (target aaa111 is reviewed))"; empty deps renders "• emp001: fail-depend (unmet dependencies)". Post-E-01 cascade item line is identical before and after placeholder edit.
+    ```
+    1. Frozen record diagnostics:
+    ['  • eee555: dependency-blocked (executed:aaa111 (target reviewed))']
+    2. Drain-shaped diagnostics:
+    ['  • drn001: fail-depend (executed:prq001 (target prq001 is failed))']
+    3. Cascade-produced diagnostics:
+    ['  • bbb222: fail-depend (executed:aaa111 (target aaa111 is reviewed))']
+    4. Empty deps diagnostics:
+    ['  • emp001: fail-depend (unmet dependencies)']
+    Old composition on post-E-01 cascade item: executed:aaa111 (target aaa111 is reviewed)
+    New composition on post-E-01 cascade item: executed:aaa111 (target aaa111 is reviewed)
+    Identical: True
+    ```
+    The live post-E-01 cascade item renders `executed:aaa111 (target aaa111 is reviewed)` identically under both old and new compositions because its reason map is populated; E-03 exclusively repairs frozen historical records lacking a reason map.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste, for BOTH the canonical `fail-depend` and the legacy `dependency-blocked` on an otherwise identical queue: (a) the summary table's diagnostics lines, and (b) the presence of `## Dependency blocks (why)` in the `execution-report.md` written by the REAL `runner_shared.write_report` (called with `labels=OC_HOST_LABELS`; note it requires `setid` and `position` on every entry). All four must be non-empty. Paste the same four probes run against HEAD BEFORE the fix, showing the two canonical cases empty, so the regression F-02 and F-03 measure is demonstrated and not merely asserted. ALSO paste the ORCHESTRATOR-shaped probe of F-15 (a `refusal` record plus the dependency pair) under both spellings, and state in one sentence that the summary table shows only its refusal line on BOTH, so the report section is the surface this item revives for that producer; a claim that the table now names its unfinished children would be false. Finally paste `rg -n "^from agent_workflows|^import agent_workflows" agent_workflows/render_stream.py`, which must still list exactly `lifecycle_style` and `term` (F-14), and quote the corrected `dispatch_orchestrator_item` comment.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Probes confirmed fail-depend and dependency-blocked both render diagnostics lines in summary table and produce ## Dependency blocks (why) in execution-report.md (both were absent/empty at HEAD before fix). Orchestrator item renders refusal line in summary table on both spellings while write_report produces child reason under ## Dependency blocks (why). Imports in render_stream.py remain lifecycle_style and term. Comment in dispatch_orchestrator_item corrected.
+    HEAD BEFORE fix:
+    ```
+    Status: fail-depend
+      Diagnostics line: []
+      Report has section: False
+    Status: dependency-blocked
+      Diagnostics line: ['  • eee555: dependency-blocked (executed:aaa111 (target aaa111 is reviewed) (blocked))']
+      Report has section: True
+    ```
+    HEAD AFTER fix:
+    ```
+    Status: fail-depend
+      Diagnostics line: ['  • eee555: fail-depend (executed:aaa111 (target aaa111 is reviewed))']
+      Report has section: True
+    Status: dependency-blocked
+      Diagnostics line: ['  • eee555: dependency-blocked (executed:aaa111 (target aaa111 is reviewed))']
+      Report has section: True
 
-- [ ] V-05 validates E-05
+    Orchestrator probe:
+    Orchestrator status fail-depend:
+      Summary table diag: ['  • orc999: fail-depend (Set carries unfinished children. chi001 is queued)']
+      Report has section: True, child in report: True
+    Orchestrator status dependency-blocked:
+      Summary table diag: ['  • orc999: dependency-blocked (Set carries unfinished children. chi001 is queued)']
+      Report has section: True, child in report: True
+    ```
+    For orchestrator items carrying refusal records, the summary table renders exclusively the refusal line on both status spellings, confirming the `## Dependency blocks (why)` section in `execution-report.md` is the only surface revived for per-child reasons.
+    Imports in `render_stream.py`:
+    ```
+    40:from agent_workflows import lifecycle_style as _LS
+    41:from agent_workflows import term as _T
+    ```
+    Corrected comment in `dispatch_orchestrator_item`:
+    ```python
+        # which `write_report`'s `## Dependency blocks (why)` section reads. That section is now in THIS
+        # module (one shared `write_report`), not a copy per host as it was when this plan was reviewed, so
+        # it reaches both hosts by construction; the section accepts the canonical `fail-depend` and its
+        # legacy alias `dependency-blocked`, so a TERMINATE reaches it whichever spelling the record carries.
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste `python3 -m pytest -o addopts="" tests/test_dependency_block_reporting.py -v` passing with every case named. Then a MUTATION CHECK, one per production edit; each must actually go red, and the SUBJECT of each is named here because review measured that one obvious phrasing of (i) cannot fail (F-10a): (i) restore the `reasons.get(d, 'blocked')` placeholder and show the FROZEN-RECORD case (embedded token, no map) FAIL - do NOT use the post-E-01 cascade item for this, whose line is identical either way; (ii) narrow the diagnostics condition back to `== "dependency-blocked"` and show the canonical-status case FAIL, and separately narrow `write_report`'s gate and show the report case FAIL; (iii) restore the embedded-reason token in `cascade_dependency_blocked` and show the producer-shape case FAIL. Revert each and show the module green. A case that cannot fail is not evidence; if any mutation will not go red, say so and fix the TEST rather than recording the mutation as done. Finally paste a BARE `python3 -m pytest` with its `N passed` summary line, and the targeted runs of `tests/test_terminal_status_vocabulary.py`, `tests/test_runner_shared.py`, `tests/test_oc_runipd.py` and `tests/test_run_selection_policy.py` all green, confirming F-10's bounded blast radius and that the sibling renderer's pins were not disturbed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: tests/test_dependency_block_reporting.py passed 8/8 in 0.79s. Mutation checks confirmed: (i) restoring placeholder failed test_frozen_record; (ii) narrowing diagnostics condition failed fail-depend summary test (0 != 1) and narrowing write_report failed fail-depend report test; (iii) restoring embedded token failed test_cascade_producer_output_shape. Reverted mutations green. Targeted regression suites passed (331 passed in 107.68s). Bare pytest passed: 2959 passed, 2 skipped, 3 warnings in 66.27s.
+    `python3 -m pytest -o addopts="" tests/test_dependency_block_reporting.py -v`:
+    ```
+    tests/test_dependency_block_reporting.py::test_write_report_dependency_blocks_section_for_canonical_and_legacy_statuses[fail-depend] PASSED [ 12%]
+    tests/test_dependency_block_reporting.py::test_summary_table_diagnostics_rendered_for_canonical_and_legacy_statuses[dependency-blocked] PASSED [ 25%]
+    tests/test_dependency_block_reporting.py::test_cascade_producer_output_shape PASSED [ 37%]
+    tests/test_dependency_block_reporting.py::test_orchestrator_item_surfaces_child_in_report_not_summary_table PASSED [ 50%]
+    tests/test_dependency_block_reporting.py::test_write_report_dependency_blocks_section_for_canonical_and_legacy_statuses[dependency-blocked] PASSED [ 62%]
+    tests/test_dependency_block_reporting.py::test_drain_and_cascade_mapped_reasons_rendered_once PASSED [ 75%]
+    tests/test_dependency_block_reporting.py::test_frozen_record_no_duplicate_parenthetical_or_blocked PASSED [ 87%]
+    tests/test_dependency_block_reporting.py::test_summary_table_diagnostics_rendered_for_canonical_and_legacy_statuses[fail-depend] PASSED [100%]
+    ============================== 8 passed in 0.79s ===============================
+    ```
+    Mutation (i) - restored `reasons.get(d, 'blocked')` placeholder:
+    ```
+    FAILED tests/test_dependency_block_reporting.py::test_frozen_record_no_duplicate_parenthetical_or_blocked
+    AssertionError: assert '• eee555: dependency-blocked (executed:aaa111 (target reviewed))' in '  • eee555: dependency-blocked (executed:aaa111 (target reviewed) (blocked))'
+    ```
+    Mutation (ii) Part A - narrowed diagnostics condition to `st == "dependency-blocked"`:
+    ```
+    FAILED tests/test_dependency_block_reporting.py::test_summary_table_diagnostics_rendered_for_canonical_and_legacy_statuses[fail-depend]
+    AssertionError: assert 0 == 1 where 0 = len([])
+    ```
+    Mutation (ii) Part B - narrowed `write_report` gate to `item.get("status") == "dependency-blocked"`:
+    ```
+    FAILED tests/test_dependency_block_reporting.py::test_write_report_dependency_blocks_section_for_canonical_and_legacy_statuses[fail-depend]
+    AssertionError: assert '## Dependency blocks (why)' in ...
+    ```
+    Mutation (iii) - restored embedded-reason token in `cascade_dependency_blocked`:
+    ```
+    FAILED tests/test_dependency_block_reporting.py::test_cascade_producer_output_shape
+    AssertionError: assert ['executed:aa...et reviewed)'] == ['executed:aaa111']
+    ```
+    Targeted runs (`python3 -m pytest -o addopts="" tests/test_terminal_status_vocabulary.py tests/test_runner_shared.py tests/test_oc_runipd.py tests/test_run_selection_policy.py`):
+    ```
+    ======================= 331 passed in 107.68s (0:01:47) ========================
+    ```
+    Bare test suite (`python3 -m pytest`):
+    ```
+    2959 passed, 2 skipped, 3 warnings in 66.27s (0:01:06)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

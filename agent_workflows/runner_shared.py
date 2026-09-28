@@ -19616,8 +19616,8 @@ def dispatch_orchestrator_item(
     # change. The same is true of `unsatisfied_dependencies`/`unsatisfied_dependency_reasons` above,
     # which `write_report`'s `## Dependency blocks (why)` section reads. That section is now in THIS
     # module (one shared `write_report`), not a copy per host as it was when this plan was reviewed, so
-    # it reaches both hosts by construction; it is gated on `status == "dependency-blocked"`, which is
-    # `terminal_status`'s default and therefore what a TERMINATE writes.
+    # it reaches both hosts by construction; the section accepts the canonical `fail-depend` and its
+    # legacy alias `dependency-blocked`, so a TERMINATE reaches it whichever spelling the record carries.
     item["orchestrator_refusal_reason"] = decision.reason
     item["orchestrator_refusal_detail"] = decision.detail
     # THE SAME RECORD THE RECONSIDER PATH WRITES, so the two halves of this one function stop
@@ -26110,7 +26110,7 @@ def write_report(
     blocked = [
         item
         for item in state["queue"]
-        if item.get("status") == "dependency-blocked"
+        if canonical_terminal_status(item.get("status")) == "fail-depend"
         and (
             item.get("unsatisfied_dependencies")
             or item.get("unsatisfied_dependency_reasons")
@@ -35001,6 +35001,7 @@ def cascade_dependency_blocked(
             if item.get("status") != "queued":
                 continue
             dead: list[str] = []
+            reasons: dict[str, str] = {}
             for dep in item.get("dependencies", []):
                 edge = parse_dependency_token(dep)
                 if edge is None or edge.target_type != "ipd":
@@ -35017,11 +35018,14 @@ def cascade_dependency_blocked(
                     else SUCCESS_STATES
                 )
                 if st in TERMINAL_STATES and st not in required:
-                    dead.append(f"{edge.canonical()} (target {st})")
+                    tok = edge.canonical()
+                    dead.append(tok)
+                    reasons[tok] = f"target {edge.id6} is {st}"
             if not dead:
                 continue
             item["status"] = "fail-depend"
             item["unsatisfied_dependencies"] = dead
+            item["unsatisfied_dependency_reasons"] = reasons
             blocked.append(item)
             progressed = True
             if run_dir is not None:
