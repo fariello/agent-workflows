@@ -1,5 +1,6 @@
 - Id: 98zlut
-- Status: open
+- Status: graduated
+- Graduated-To: gatefollows
 - Blocks-Release: next
 - Set: 98zlut
 - Priority: high
@@ -7,6 +8,7 @@
 - Summary: aw backlog set has no --work-kind-aware gate default, so an item reclassified to bug or graduated by hand stays ungated
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: vsgd48
 - 2026-09-18 created (aw backlog): aw backlog set has no --work-kind-aware gate default, so an item reclassified to bug or graduated by hand stays ungated
 
 FOUND 2026-09-18 while executing nobugship rgaasb E-04, from the measurement that the backfill population TRIPLED rather than shrank after child di08i9 shipped the creation default.
