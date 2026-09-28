@@ -6,7 +6,7 @@
 - Scope: Make artifact type flag required in aw partition, supporting plans, backlog, and specs with type-specific candidate collection, status validation, runner action formatting, and chronological sorting
 - Scope-Paths: agent_workflows/partition.py, agent_workflows/cli.py, tests/test_partition.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: high
@@ -15,9 +15,9 @@
 - Highest E allocated: 05
 - Author: Gabriele Fariello
 - Id: j3rlrf
-- Approval: 2026-09-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-28 executed (Antigravity/Gemini): Require artifact type flag in aw partition and support backlog and specs
 - 2026-09-28 approved (aw set): status set to approved
 - 2026-09-28 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; /plan-review (Codex/GPT-6); PR-001 through PR-005 fixed
 - 2026-09-28 to-review (aw set): Restore tool-owned review transition after local commit hook rejected a manually replaced history line
