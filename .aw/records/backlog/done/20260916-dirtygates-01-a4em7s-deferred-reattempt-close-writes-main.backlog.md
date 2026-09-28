@@ -1,5 +1,5 @@
 - Id: a4em7s
-- Status: graduated
+- Status: done
 - Graduated-To: reattclose
 - Blocks-Release: next
 - Set: dirtygates
@@ -8,6 +8,7 @@
 - Summary: A deferred integration re-attempt still closes its backlog item in the shared checkout
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): closed by aw oc run: IPD pjuoyj executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-reattclose-01-pjuoyj-perform-a-deferred-re-attempt-s-backlog-close-in-a-coordinat.ipd.md); evidence .aw/records/plans/executed/20260928-reattclose-01-pjuoyj-perform-a-deferred-re-attempt-s-backlog-close-in-a-coordinat.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: pjuoyj
 - 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-16 created (aw backlog): found while executing dirtygates-03 (9iq461)
