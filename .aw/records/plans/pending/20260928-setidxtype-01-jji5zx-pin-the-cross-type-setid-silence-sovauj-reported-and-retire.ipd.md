@@ -6,7 +6,7 @@
 - Scope: Add the missing plans-plus-walkthrough clean row to the `CollisionTests` table, correct the five tracked walkthroughs whose `- Set:` descriptive asserts the reversed prohibition, and state in the walkthroughs README that a walkthrough MAY declare `- Set:`. No change to `check_engine.check_collisions` behavior.
 - Scope-Paths: tests/test_check_engine.py, .aw/records/walkthroughs/README.md, .aw/records/walkthroughs/20260917-bpclosure-01-ryn48z-build-parser-two-cli-contracts-not-one-with-drift.walkthrough.md, .aw/records/walkthroughs/20260917-eiclosure-01-pi4wof-execute-item-closure-measured-not-split.walkthrough.md, .aw/records/walkthroughs/20260917-irclosure-01-ztmh1b-initialize-run-the-line-count-that-hides-the-divergence.walkthrough.md, .aw/records/walkthroughs/20260917-mnclosure-01-zogmmg-main-is-an-entry-point-and-the-set-shared-nothing.walkthrough.md, .aw/records/walkthroughs/20260917-rqclosure-01-k2vn8p-run-queue-closure-measured-and-a-swallowed-run-fatal-error.walkthrough.md, .aw/records/walkthroughs/20260918-integpath-05-u8tiox-lane-to-main-integration-whole-set-verification-and-residuals.walkthrough.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -19,6 +19,7 @@
 - Id: jji5zx
 
 ## Workflow history
+- 2026-09-28 reviewed (aw set): /plan-review round 1 complete: APPROVE WITH REVISIONS APPLIED; PR-A01 through PR-A06 all FIXED; OQ-01 resolved by the reviewer it was addressed to; review record written; review-finalize lint conforming.
 
 - 2026-09-28 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-A01 through PR-A06 all FIXED. Review record `.aw/records/reviews/20260928-setidxtype-01-jji5zx-pin-the-cross-type-setid-silence-sovauj-reported-and-retire.review.md` Round 1.
   THE PLAN'S CENTRAL JUDGEMENT IS ACCEPTED AND ITS EVIDENCE HOLDS. F-1 re-driven: the exact `sovauj` fixture (pending plan plus walkthrough sharing a setid) returns `[]` from `check_collisions` at both `include_retired` settings AND from the full sweep, so the reported defect genuinely does not reproduce. F-2 re-driven: `c6648722` is an ancestor of HEAD and the `"(different type: ...)"` emission is absent from the module. F-3 re-driven: the parity test's `assertNotIn`/`assertIn` pair does pin the retired-population behavior the item's second fix would have retargeted. F-4, F-5 (two walkthroughs with differing descriptives DO report the within-type collision, so the new row is not vacuous), F-6, F-7 all hold. Re-aiming the plan at the regression pin and the stale prose, rather than re-fixing a fixed defect, is the right call and the plan says so honestly.
