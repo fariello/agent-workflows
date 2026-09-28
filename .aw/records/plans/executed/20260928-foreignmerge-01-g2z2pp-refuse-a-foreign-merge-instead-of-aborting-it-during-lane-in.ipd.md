@@ -6,7 +6,7 @@
 - Scope: Make ownership a POSITIVE PROOF rather than an assumption, in the one shared function both hosts call. Add a `merge_head_commits` reader and an `owns_merge_in_progress` predicate to `runner_shared`; refuse BEFORE attempting any merge when a foreign merge is already in progress, returning the deferrable transient kind with its own distinguishable reason; and narrow the abort so it fires only on a merge this call provably started. Add a `tests/test_foreign_merge_refusal.py` regression file asserting, on BOTH hosts, that a foreign `MERGE_HEAD` yields a refusal with NO abort and a byte-identical staged index, and that the genuine-conflict case still aborts exactly as today. Change nothing about the existing conflict taxonomy, the records-only re-derivation path, the history-append auto-resolution, or the deferral ladder.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_foreign_merge_refusal.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: g2z2pp
-- Approval: 2026-09-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-28 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: g2z2pp verified (set foreignmerge, attempt 1).
 - 2026-09-28 approved (aw set): status set to approved
 - 2026-09-28 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-201 (HIGH) through PR-205 all FIXED in place; findings, decisions and measurements in .aw/records/reviews/20260928-foreignmerge-01-g2z2pp-...review.md
 
