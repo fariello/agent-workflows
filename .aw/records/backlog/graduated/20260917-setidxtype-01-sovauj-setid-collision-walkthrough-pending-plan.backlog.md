@@ -1,5 +1,6 @@
 - Id: sovauj
-- Status: open
+- Status: graduated
+- Graduated-To: setidxtype
 - Blocks-Release: next
 - Set: setidxtype
 - Priority: low
@@ -7,6 +8,7 @@
 - Summary: check.setid-collision reports a false cross-type collision when a walkthrough declares the Set of a plan still in pending/
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: jji5zx
 - 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-17 created (aw backlog): check.setid-collision reports a false cross-type collision when a walkthrough declares the Set of a plan still in pending/
 
