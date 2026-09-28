@@ -6,7 +6,7 @@
 - Scope: Add ONE deterministic reader that answers "which artifact identities occupy more than one lifecycle location", register its rule, and wire it into the once-per-sweep cross-tree seam so `aw check` reports it. IN: the shared predicate, its rule-registry entry, the cross-tree wiring, the terminal-inclusive scope decision, and its regression tests. OUT: the runner-side integration refusal that consumes this predicate (Order 2 owns it, and it is a separate deliverable on a separate surface); any change to `check.id6-collision`'s own behavior, message or severity; the backlog-tree analogue (`5bmq5f`, already `done`); and any repair of an existing duplicate, because this tree has NONE (measured).
 - Scope-Paths: agent_workflows/check_engine.py, tests/test_check_engine.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -19,6 +19,7 @@
 - Id: tl2b2r
 
 ## Workflow history
+- 2026-09-28 reviewed (aw set): /plan-review round 1 complete: APPROVE WITH REVISIONS APPLIED; PR-001 through PR-008 all FIXED; review record written; review-finalize lint conforming.
 
 - 2026-09-28 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 through PR-008 all FIXED. Review record `.aw/records/reviews/20260928-lifecycledup-01-tl2b2r-report-an-artifact-identity-present-at-more-than-one-lifecyc.review.md` Round 1.
   THE ONE FINDING THAT CHANGED THE DESIGN RATHER THAN THE PROSE (PR-002, F-12): Order 2 (`46u3tu`) E-01 asks this plan's predicate about a PREDICTED POST-MERGE GIT TREE, enumerated with `git ls-tree -r --name-only <tree>`, but E-01 as authored delivered a reader whose only enumeration is `check_engine._iter_type_files`, i.e. `Path.rglob` on the real filesystem. That function cannot be called on a tree object, so the Set's entire shared-predicate premise, and the `- Item-Dependencies: executed:tl2b2r` edge that exists to enforce it, would have failed at Order 2's execution with Order 1 already `executed`. E-01 now ships a pure core (gathered records in, grouping out, no filesystem) plus a thin scanning wrapper, with a test pinning that the core runs on paths that do not exist on disk.
