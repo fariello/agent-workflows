@@ -356,11 +356,19 @@ class ReviewPlanRoutingTests(unittest.TestCase):
             self.assertEqual(state["queue"][0]["status"], "reviewed")
             self.assertEqual(state["queue"][1]["status"], "reviewed")
 
-            # Check both attempts used the same session
+            # Check both attempts used the same session (r0iob3 E-03: operator --session
+            # into the isolated sweep lane is refused to prevent cross-tree reuse;
+            # the sweep begins with a fresh session, which subsequent reviews in the sweep share)
             s0 = state["queue"][0]["attempts"][0]["session_id"]
             s1 = state["queue"][1]["attempts"][0]["session_id"]
-            self.assertEqual(s0, ses_test_val)
-            self.assertEqual(s1, ses_test_val)
+            expected_ses = "ses" + "_" + "firstreview"
+            self.assertEqual(s0, expected_ses)
+            self.assertEqual(s1, expected_ses)
+            self.assertEqual(s0, s1)
+            self.assertEqual(
+                (state["queue"][0].get("refusal") or {}).get("code"),
+                "cross-tree-session-refused",
+            )
 
 
 class SelectorResolutionTests(unittest.TestCase):

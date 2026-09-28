@@ -4,9 +4,9 @@
 - Kind: child
 - Concern: `opencode run --session <id-from-another-tree> --dir <this-tree>` exits 0 having produced ZERO output: no text, no tool events, no error. Exit 0 is an affirmative claim of success, so a caller cannot distinguish "the turn ran and produced nothing" from "the turn never ran". This repository is exposed in two ways measured during authoring. FIRST, the operator's explicit `--session` DOES reach an isolated lane: the sweep-lane branch of the session expression in `oc_runipd.run_opencode` falls back to `options.get("session")`, so `aw oc run reviews --session <id>` carries an operator-named session into a worktree that session was never bound to (F-05). SECOND, and independent of any session question, a REVIEW turn that produces zero events and exits 0 is scored `reviewed` by `runner_shared.reconcile_disposition`, because its review branch returns `reviewed` on `exit_code == 0` with no evidence read at all (F-06). So a silent no-op does not merely go unreported: it can advance a plan's lifecycle.
 - Scope: Make the silent case OBSERVABLE and make the reachable cross-tree carry REFUSED, without changing any turn that works today. IN: a shared predicate that scores a turn's session log as productive or silent and the driver plumbing that records it as a durable refusal rather than an ordinary completion; a refusal when a session recorded against a DIFFERENT tree would be carried into this one, covering the measured operator-`--session`-into-the-sweep-lane path; the review-disposition evidence gap that lets a zero-event turn be scored `reviewed`; correction of the `xd9sll` mechanism sentences this plan's measurements falsify; and tests for each. OUT: fixing opencode itself (reported upstream instead, see Deferred), any change to what a productive turn does, any change to the one-lane-per-sweep or always-fresh-session designs, and the `agy` host's own session plumbing beyond the shared predicate both hosts already consume.
-- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, tests/test_silent_turn_observability.py, tests/test_cross_tree_session_refusal.py
+- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, tests/test_silent_turn_observability.py, tests/test_cross_tree_session_refusal.py, tests/test_oc_runipd.py, .aw/records/research/20260928-opencode-crosstree-silent-turn-00-524dw1-opencode-crosstree-silent-turn.research-report.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: r0iob3
-- Approval: 2026-09-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-28 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: r0iob3 verified (set sxlvlu, attempt 1). [Scope reconciliation - widened-scope .aw/records/research/20260928-opencode-crosstree-silent-turn-00-524dw1-opencode-crosstree-silent-turn.research-report.md: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw agy run); widened-scope tests/test_oc_runipd.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw agy run)]
 - 2026-09-28 approved (aw set): status set to approved
 - 2026-09-28 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-101 (HIGH) through PR-106 all FIXED in place; findings, decisions and measurements in .aw/records/reviews/20260928-sxlvlu-01-r0iob3-...review.md
 
@@ -40,16 +40,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: make silence observable
 
-- [ ] E-01 EXTEND THE ALREADY-SHIPPED ZERO-WORK PREDICATE TO ANSWER THE REVIEW CASE, rather than adding a second predicate beside it. THIS ITEM WAS REWRITTEN AT REVIEW (finding PR-101) because its original instruction would have built a duplicate: `runner_shared.turn_attempted_nothing` ALREADY EXISTS, shipped by EXECUTED plan `dy9ymn` (`.aw/records/plans/executed/20260919-reaskscore-03-dy9ymn-...ipd.md`), already answers "did this finished turn provably attempt nothing?", already returns a reasoned `ZeroWorkVerdict` rather than a bare bool, already has the impure collector `read_zero_work_evidence` and the performer `handle_zero_work_retry` wired into BOTH hosts' dispatch loops.
+- [x] E-01 EXTEND THE ALREADY-SHIPPED ZERO-WORK PREDICATE TO ANSWER THE REVIEW CASE, rather than adding a second predicate beside it. THIS ITEM WAS REWRITTEN AT REVIEW (finding PR-101) because its original instruction would have built a duplicate: `runner_shared.turn_attempted_nothing` ALREADY EXISTS, shipped by EXECUTED plan `dy9ymn` (`.aw/records/plans/executed/20260919-reaskscore-03-dy9ymn-...ipd.md`), already answers "did this finished turn provably attempt nothing?", already returns a reasoned `ZeroWorkVerdict` rather than a bare bool, already has the impure collector `read_zero_work_evidence` and the performer `handle_zero_work_retry` wired into BOTH hosts' dispatch loops.
   WHAT ACTUALLY BLOCKS IT, MEASURED AT HEAD `690a477a`, and it is TWO deliberate guards rather than an oversight. FIRST, `turn_attempted_nothing` refuses a review outright: `if item.get("action") == "review": return refuse("this is a REVIEW action, whose scoring reads the plan's `- Status:` and whose zero-work case is a different question")`. Driven directly, a silent review turn returns `attempted_nothing=False, proven=True` with exactly that reason. SECOND, `handle_zero_work_retry` opens with `if status != "partial": return status`, and a silent review turn ends `reviewed` (F-06), so the performer is a no-op for it even if the predicate agreed. So this plan's job is to make that "different question" ANSWERED, in the same function or in a sibling that shares its evidence collector, NOT to write a parallel rule.
   MEASURE THE FACTS THE ATTEMPT RECORDS, NOT THE SESSION LOG, AND THIS REVERSES THE ORIGINAL INSTRUCTION. A zero-EVENTS log is WEAKER evidence than the shipped conjunction, and the difference is measurable: given an attempt with an empty log whose tree is DIRTY, the shipped predicate correctly refuses ("an uncommitted edit is work"), whereas a log-only rule would have called that turn silent and been WRONG. The shipped conjunction (no outcome file AND head unmoved AND no lane commit beyond base AND clean tree) is both stronger and already tested. If a log reading is wanted at all it must be SUPPORTING, in the same role the shipped code gives `host_truncation_of_attempt`, never load-bearing.
   KEEP THE FAIL-CLOSED DIRECTION THE SHIPPED PREDICATE HAS: any missing or unreadable input must yield "cannot prove", which means no refusal recorded and today's exact behavior. That is what makes a wrong answer harmless.
   DO NOT WIRE THE REVIEW PATH IN THIS ITEM. The predicate change plus its own test is one reviewable unit; E-02 is the behavior change.
   - Depends on: none
   - Expected outcome: the SHIPPED `turn_attempted_nothing` (or a sibling sharing `read_zero_work_evidence`) answers the review case with a reasoned verdict instead of refusing it as "a different question"; no second parallel predicate is added; the fail-closed "cannot prove" direction is preserved; no caller consults the new answer yet.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 CONSULT THE PREDICATE ON THE TURN-COMPLETION PATH and record a SILENT turn as a durable refusal instead of an ordinary completion. The turn-completion path is in `runner_shared.execute_item_core`, which is the ONE unified loop both hosts drive (its docstring states it "drives all 16 safety gates identically on both hosts"), so this must be wired THERE and not in either host, or one host keeps the defect.
+- [x] E-02 CONSULT THE PREDICATE ON THE TURN-COMPLETION PATH and record a SILENT turn as a durable refusal instead of an ordinary completion. The turn-completion path is in `runner_shared.execute_item_core`, which is the ONE unified loop both hosts drive (its docstring states it "drives all 16 safety gates identically on both hosts"), so this must be wired THERE and not in either host, or one host keeps the defect.
   BUT NOTE WHERE THE SHIPPED TWIN SITS, AND DECIDE DELIBERATELY BETWEEN THE TWO SEAMS (finding PR-102). `handle_zero_work_retry` is NOT called from inside `execute_item_core`: it is called from each host's DISPATCH LOOP immediately after `execute_item` RETURNS (`oc_runipd` and `agy_runipd` each have exactly one call site), and its docstring states that placement is load-bearing rather than incidental, because the check must precede `cascade_dependency_blocked`, which runs at the TOP of the next loop iteration and would otherwise have already marked the siblings `dependency-blocked` so a retry rescues nothing. So there are TWO legitimate seams with different properties: inside `execute_item_core`, where the disposition is first computed and which both hosts share by construction; and the post-return dispatch-loop seam, where the shipped zero-work machinery already lives and where a REQUEUE is still possible. If this item's refusal needs only to be RECORDED, the shared in-core seam is right and is the simpler change. If it must also re-dispatch, it belongs at the post-return seam, which costs a per-host binding whose symmetry a test must then pin. CHOOSE ONE, state which and why, and if the post-return seam is chosen, extend the SHIPPED call rather than adding a second call beside it.
   USE THE EXISTING REFUSAL MECHANISM, NOT A NEW ONE. `runner_shared.record_refusal` with a code and a remedy is how every other refusal in this loop is recorded, and `append_jsonl` to `events.jsonl` is how each becomes durable and readable afterwards in `aw runs`. Follow the shape the stall path already uses: it writes an `ipd-stalled` event and prints one operator line. A silent turn is the same class of observation (the child produced nothing) and must be recorded no less loudly than a stall, which is the honest comparison to make when choosing the disposition.
   PICK A DISPOSITION THAT IS ALREADY IN THE VOCABULARY, and justify the choice in the code. Do NOT invent a status: `TURN_RETRY_CLASSIFICATION` maps every persisted driver disposition to a retryable verdict WITH A REASON, and a status absent from that table is refused by `turn_failure_is_retryable` with "has no entry". So the executor must either reuse an existing row or add one deliberately with its reason, and must state which it did.
@@ -58,37 +58,37 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT LET THIS SUPPRESS A REAL STOP. A deliberate operator stop and a stall BOTH legitimately end a turn with little or no output, and `reconcile_disposition` already gives a deliberate stop absolute precedence ("A DELIBERATE STOP OUTRANKS EVERYTHING ELSE"). This check must sit AFTER those paths and must not reclassify them, or the fix turns an honest stop record into a false silence report.
   - Depends on: E-01
   - Expected outcome: a zero-output turn is recorded with a named refusal code, a reason, a remedy and an `events.jsonl` entry, carries a disposition that exists in `TURN_RETRY_CLASSIFICATION`, and neither a deliberate stop nor a stall is reclassified.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: refuse the reachable cross-tree carry
 
-- [ ] E-03 REFUSE CARRYING A SESSION INTO A TREE IT WAS NOT BOUND TO, at the reachable path F-05 measures: the sweep branch's `or options.get("session")` fallback in `oc_runipd.run_opencode`, and the corresponding expression in `runner_shared.execute_item_core`. BOTH COPIES MUST CHANGE OR THE FIX IS HALF DONE; both are live and both reach a launch.
+- [x] E-03 REFUSE CARRYING A SESSION INTO A TREE IT WAS NOT BOUND TO, at the reachable path F-05 measures: the sweep branch's `or options.get("session")` fallback in `oc_runipd.run_opencode`, and the corresponding expression in `runner_shared.execute_item_core`. BOTH COPIES MUST CHANGE OR THE FIX IS HALF DONE; both are live and both reach a launch.
   THEY ARE NOT THE SAME EXPRESSION, AND A FIX PASTED TWICE WOULD BE WRONG (finding PR-105). MEASURED at HEAD `690a477a` by re-deriving both: they share the `state.get(REVIEW_SWEEP_SESSION_KEY) or options.get("session")` fallback, which IS the defect, but their GUARDS differ materially. `oc_runipd` gates on `runner_shared.turn_runs_in_review_sweep_lane(state, work_dir)`, a REALPATH COMPARISON asking whether this turn's tree IS the recorded sweep lane. `runner_shared.execute_item_core` gates on `is_review and isolation_for_action(options, "review")`, a CONFIGURATION FLAG with no tree comparison at all. Consequence, measured: with `--session ses_OP` and no recorded sweep session, `runner_shared` yields `ses_OP` for a review turn whether or not the tree is the sweep lane, because its review branch has no tree check, and its `session_id = None` override (which appears TWICE in that function) sits on the spec/backlog-production and generic `if isolate:` EXECUTE branches, never on the review-sweep branch. So the shared copy is the LESS guarded of the two. The executor must therefore write the refusal against the ACTUAL guard at each site, and the honest fix is to make the shared copy ask the same realpath question `oc_runipd` already asks, reusing `turn_runs_in_review_sweep_lane` rather than restating it.
   THE RULE TO ENFORCE IS THE ONE THE TREE ALREADY STATES CORRECTLY, so do not invent a new invariant: `runner_shared.turn_runs_in_review_sweep_lane`'s docstring records it as "never carry one session into a DIFFERENT TREE", derived from `xd9sll` being a CARDINALITY mismatch rather than isolation as such. The operator's `--session` violates exactly that: it is bound to the tree the operator ran in, and the sweep lane is a different tree. The sweep's OWN recorded session (`REVIEW_SWEEP_SESSION_KEY`) does NOT violate it and MUST keep working, because it was observed from a turn in that same lane; that is the whole reason one lane was chosen for the sweep.
   REFUSE LOUDLY AND NAME BOTH DIRECTORIES, then CONTINUE WITHOUT THE SESSION rather than failing the item. The item's own resolution step 2 sets the contract: a cross-tree reuse should either work or "FAIL with a nonzero exit and a message naming both directories", and silence is "the one outcome no caller can handle". Dropping the session degrades the turn to a fresh session, which is the shipped safe default for every other isolated turn, so the run makes forward progress while the operator learns their flag was not honored. Record it, do not merely print it.
   DO NOT BREAK THE DOCUMENTED CONTINUITY PROMISE WHERE IT IS SAFE. `--session` is documented as the session to "attach/reuse across turns for multi-plan continuity" and a NON-isolated turn keeps honoring it verbatim (F-05 row 1). Only the isolated-tree case is refused.
   - Depends on: E-02
   - Expected outcome: an operator `--session` is refused with a recorded reason naming the session's tree and the lane, in BOTH copies of the expression; the sweep's own session and every non-isolated turn are unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 CLOSE THE REVIEW-DISPOSITION EVIDENCE GAP that lets a zero-event turn be scored `reviewed` (F-06). The plan branch of `runner_shared.reconcile_disposition` returns `reviewed` whenever `exit_code == 0`, reading only the plan's current status; so a turn that did nothing advances the plan. Contrast the SPEC branch immediately above it, which for the same `exit_code == 0` requires the status to BE `reviewed` AND requires a conforming review record via `review_findings.review_attestation_missing`, and otherwise records a refusal with a `/spec-review` remedy. The asymmetry is the defect.
+- [x] E-04 CLOSE THE REVIEW-DISPOSITION EVIDENCE GAP that lets a zero-event turn be scored `reviewed` (F-06). The plan branch of `runner_shared.reconcile_disposition` returns `reviewed` whenever `exit_code == 0`, reading only the plan's current status; so a turn that did nothing advances the plan. Contrast the SPEC branch immediately above it, which for the same `exit_code == 0` requires the status to BE `reviewed` AND requires a conforming review record via `review_findings.review_attestation_missing`, and otherwise records a refusal with a `/spec-review` remedy. The asymmetry is the defect.
   THE GAP IS WORSE THAN F-06 STATES AND THIS IS THE ITEM'S REAL SEVERITY (finding PR-103). The branch reads `if status in ("reviewed", "approved"): return status`, so the disposition it returns is the plan's OWN CURRENT STATUS. MEASURED at HEAD `690a477a` by driving the real reconciler over the status matrix with an empty run directory and `exit_code=0`: a plan already at `- Status: approved` is scored **`approved`** by a turn that produced nothing, and a plan at `draft` or `to-review` is scored `reviewed`. So a silent turn does not merely mint a review; against an already-approved plan it affirms `approved`, which is the status the runner's own auto-approve and dispatch predicates read to decide that a plan MAY EXECUTE. That is a stronger claim than "a lifecycle advance" and it is the case E-04 must cover explicitly rather than incidentally. The fix must therefore be stated over BOTH returns of that branch, not only the bare `return "reviewed"`.
   DO NOT COPY THE SPEC BRANCH WHOLESALE, and this is the trap. `review_findings.review_attestation_missing`'s own docstring records that plans DELIBERATELY stay silent on a missing review record ("zero review files existed against 428 plans") and that its only caller is the spec transition. Demanding a plan review record here would refuse correct reviews across the whole corpus. The MINIMAL honest fix is to refuse the case this item is about: a turn that produced NOTHING cannot have reviewed anything. Compose E-01's predicate, or require some positive evidence the turn acted, rather than widening the attestation rule to plans.
   KEEP `plan_repo` SEMANTICS EXACTLY AS THEY ARE. The surrounding code reads the LANE tree when isolated, and its comment records why in detail: at disposition time the review's edits "may exist only as UNCOMMITTED working-tree files in the lane", so consulting main "would refuse every correct review". Any evidence this item consults must be read from the same `source` the branch already computes.
   - Depends on: E-03
   - Expected outcome: a zero-output review turn no longer yields `reviewed`; a normal review still does, read from the lane tree; no plan-review-record requirement is introduced.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: stop the tree from documenting a falsified mechanism
 
-- [ ] E-05 CORRECT THE `xd9sll` MECHANISM SENTENCES AND REPORT THE DEFECT UPSTREAM, which are items 4 and 3 of the backlog item's own resolution list. The comments assert the mechanism in the present tense: `oc_runipd.run_opencode` ("an opencode session carries its own project/`directory` binding, which then OVERRIDES `--dir` and silently runs the turn in the PREVIOUS lane's worktree ... the turn dies at the stall watchdog"), the `resume_session` comment just below it, and `runner_shared.turn_runs_in_review_sweep_lane`'s docstring. The measurement contradicts both halves: no turn runs in the wrong tree and there is no stall, only immediate silence.
+- [x] E-05 CORRECT THE `xd9sll` MECHANISM SENTENCES AND REPORT THE DEFECT UPSTREAM, which are items 4 and 3 of the backlog item's own resolution list. The comments assert the mechanism in the present tense: `oc_runipd.run_opencode` ("an opencode session carries its own project/`directory` binding, which then OVERRIDES `--dir` and silently runs the turn in the PREVIOUS lane's worktree ... the turn dies at the stall watchdog"), the `resume_session` comment just below it, and `runner_shared.turn_runs_in_review_sweep_lane`'s docstring. The measurement contradicts both halves: no turn runs in the wrong tree and there is no stall, only immediate silence.
   THERE ARE SEVEN SITES, NOT THREE, AND THE COUNT MATTERS BECAUSE F-08's OWN ARGUMENT IS THAT A MISSED SITE LETS THE FALSIFIED CLAIM SURVIVE (finding PR-106). MEASURED at HEAD `690a477a`: `grep -rc xd9sll agent_workflows/*.py` reports 4 in `oc_runipd.py` and 3 in `runner_shared.py`. Beyond the three F-08 names, TWO more assert the override in the same present tense and must be corrected too: `runner_shared`'s review-sweep rationale comment (the `WHY ONE LANE FOR THE WHOLE SWEEP` block, "an opencode session's own directory binding overrode `--dir`") and the `if isolate:` lane-allocation comment in `execute_item_core` ("lanes 2..N inherited lane 1's conversation and, with it, lane 1's directory, silently executing in the wrong worktree"). The remaining site is `oc_runipd`'s `ajxr5d` block, which states the CARDINALITY reading and needs only the same unproven-mechanism note. So the executor must enumerate all seven, say for each whether it asserts the falsified mechanism, and correct every one that does. V-05 requires the full accounting.
   AND DO NOT CITE A DELETED TEST AS A LIVE GUARANTEE. Two of the comments in this area name test files that NO LONGER EXIST: `tests/test_lane_session_isolation.py` (cited in `oc_runipd`'s `resume_session` comment as asserting no `--session` on a lane) and `tests/test_retry_consumption.py` / `tests/test_turn_bounds.py` (named in `TURN_RETRY_CLASSIFICATION`'s and `dy9ymn`'s own comments), all three deleted by commit `19313eed` ("test: trim test suite from 9,136 to under 2,000 tests"). MEASURED: `git log --diff-filter=D` names that commit for each. A comment claiming a property is pinned by a test that does not exist is the SAME defect class this item is about, so while editing these comments the executor must either re-point each citation at a surviving test or state plainly that the guarantee is currently unpinned. Do NOT silently leave the dead citation.
   PRESERVE THE INCIDENT AND THE RULE; CORRECT ONLY THE MECHANISM. The item is explicit about why this matters: "A misleading incident record is how the wrong fix gets chosen next time; this item exists partly because that comment was trusted verbatim during a design discussion." Four consecutive lanes really were lost, and "never carry one session into a DIFFERENT TREE" is the right rule and is what `turn_runs_in_review_sweep_lane` already states well. Rewrite the CAUSE claim as what is actually known: the cardinality mismatch is established, the observable symptom at 1.18.30 and 1.18.32 is an exit-0 zero-output turn, and the directory-override explanation is UNPROVEN. Cite F-03's store evidence and F-07's honest limit; do not replace one confident wrong mechanism with another.
   FILE THE UPSTREAM REPORT and record where it went, with the version it was measured against, because this repository cannot fix opencode's exit code. State the two candidate causes as candidates. If filing is not possible from the execution environment, write the report as a durable artifact and say so rather than claiming it was filed.
   - Depends on: E-04
   - Expected outcome: no comment in the tree asserts the falsified override-plus-stall mechanism; each retains the incident, its cost and the correct rule; the unproven status is stated; the upstream report exists with its version and location recorded.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -202,30 +202,341 @@ NO `.spec.md` FILE IS EDITED AND NONE NEEDS TO BE, which is why `- Scope-Paths:`
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the committed change to the SHIPPED `turn_attempted_nothing` (or its evidence-sharing sibling) in full, and its passing test run. Confirm by quoting the code that it returns a reasoned verdict rather than a bare bool, and that the `action == "review"` refusal E-01 removes or replaces is gone from the path a review now takes. Paste the predicate's verdict for the silent-review shape BEFORE (which measured `attempted_nothing=False, proven=True` with the "different question" reason) and AFTER. Paste the EXECUTE-path non-regression: the silent-execute verdict and all four refusal cases, unchanged. Paste a passing UNMODIFIED run of `tests/test_reaskscore_composed.py`, which pins the shipped conjunction, or, if any case there changed, the diff and the reason it is a deliberate contract change. Confirm NO second parallel predicate was added, by pasting a search showing one definition of the rule. Confirm no new caller consults the review answer yet.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. turn_attempted_nothing extended for reviews; 11 passed in test_reaskscore_composed.py; 12 passed in test_silent_turn_observability.py; full suite green.
+    Committed change in `agent_workflows/runner_shared.py`:
+    Removed review refusal:
+    ```python
+    -    if item.get("action") == "review":
+    -        return refuse(
+    -            "this is a REVIEW action, whose scoring reads the plan's `- Status:` and whose "
+    -            "zero-work case is a different question"
+    -        )
+    ```
+    Added helper `attempt_log_status` (lines 8665-8705) and supporting log classification:
+    ```python
+    log_status = attempt_log_status(attempt)
+    log_corroboration = f"; attempt log is {log_status}"
+    ```
+    Quoted return type confirms reasoned verdict rather than bare bool:
+    ```python
+    return ZeroWorkVerdict(
+        attempted_nothing=True,
+        proven=True,
+        reason=(
+            f"the turn PROVABLY attempted nothing: it wrote no outcome file and {where}"
+            f"{corroboration}{log_corroboration}"
+        ),
+        facts=facts,
+        truncated=truncated,
+    )
+    ```
 
-- [ ] V-02 validates E-02
+    Silent-review verdict BEFORE:
+    ```python
+    ZeroWorkVerdict(attempted_nothing=False, proven=True, reason="this is a REVIEW action, whose scoring reads the plan's `- Status:` and whose zero-work case is a different question", facts={'disposition': 'reviewed', 'isolated': True, 'outcome_written': False, 'host_truncation': False, 'lane_state': 'HOLDS-WORK', 'lane_commits_ahead': 0, 'lane_dirty': False, 'lane_branch': 'aw/lane/swp001'}, truncated=False)
+    ```
+    Silent-review verdict AFTER:
+    ```python
+    ZeroWorkVerdict(attempted_nothing=True, proven=True, reason='the turn PROVABLY attempted nothing: it wrote no outcome file and its lane holds no commit beyond its base and its tree is clean; no host-truncation record accompanied it, which does not weaken the verdict because the evidence conditions are what prove it (the truncation signal is SUPPORTING); attempt log is absent', facts={'disposition': 'reviewed', 'isolated': True, 'outcome_written': False, 'log_reading': 'absent', 'host_truncation': False, 'lane_state': 'CLEAN', 'lane_commits_ahead': 0, 'lane_dirty': False, 'lane_branch': 'aw/lane/swp001'}, truncated=False)
+    ```
+
+    EXECUTE-path non-regression:
+    - Silent execute verdict:
+    `ZeroWorkVerdict(attempted_nothing=True, proven=True, reason='the turn PROVABLY attempted nothing: it wrote no outcome file and its lane holds no commit beyond its base and its tree is clean; no host-truncation record accompanied it, which does not weaken the verdict because the evidence conditions are what prove it (the truncation signal is SUPPORTING); attempt log is absent', facts={'disposition': 'fail-verify', 'isolated': True, 'outcome_written': False, 'log_reading': 'absent', 'host_truncation': False, 'lane_state': 'CLEAN', 'lane_commits_ahead': 0, 'lane_dirty': False, 'lane_branch': 'aw/lane/swp001'}, truncated=False)`
+    - Refusal 1 (outcome written):
+    `ZeroWorkVerdict(attempted_nothing=False, proven=True, reason='an outcome file WAS written for this attempt, which is evidence the turn did something', facts={'disposition': 'executed', 'isolated': True, 'outcome_written': True, 'log_reading': 'absent', 'host_truncation': False}, truncated=False)`
+    - Refusal 2 (outcome unknowable):
+    `ZeroWorkVerdict(attempted_nothing=False, proven=False, reason="the attempt's outcome file could not be located or read, so whether the turn wrote one cannot be established; refusing FAIL-CLOSED", facts={'disposition': 'fail-verify', 'isolated': True, 'outcome_written': None, 'log_reading': 'absent', 'host_truncation': False}, truncated=False)`
+    - Refusal 3 (lane dirty):
+    `ZeroWorkVerdict(attempted_nothing=False, proven=True, reason="the lane's tree is DIRTY, and an uncommitted edit is work; re-dispatching over it risks the agent fighting its own prior changes", facts={'disposition': 'fail-verify', 'isolated': True, 'outcome_written': False, 'log_reading': 'absent', 'host_truncation': False, 'lane_state': 'HOLDS-WORK', 'lane_commits_ahead': 0, 'lane_dirty': True, 'lane_branch': 'aw/lane/tst001'}, truncated=False)`
+    - Refusal 4 (lane commits ahead):
+    `ZeroWorkVerdict(attempted_nothing=False, proven=True, reason='the lane holds 1 commit(s) beyond its base, which is work', facts={'disposition': 'fail-verify', 'isolated': True, 'outcome_written': False, 'log_reading': 'absent', 'host_truncation': False, 'lane_state': 'HOLDS-WORK', 'lane_commits_ahead': 1, 'lane_dirty': False, 'lane_branch': 'aw/lane/tst001'}, truncated=False)`
+
+    Passing UNMODIFIED run of `tests/test_reaskscore_composed.py`:
+    ```
+    python3 -m pytest tests/test_reaskscore_composed.py
+    11 passed in 2.27s
+    ```
+
+    Search confirming no second parallel predicate exists:
+    ```
+    grep -rn "def turn_attempted_" agent_workflows/
+    agent_workflows/runner_shared.py:8707:def turn_attempted_nothing(
+    ```
+    (1 hit total).
+    5 log reading status cases:
+    - absent: "attempt log is absent"
+    - empty: "attempt log is empty"
+    - unparseable: "attempt log is unparseable"
+    - non-dict: "attempt log is non-dict"
+    - events: "attempt log is events"
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the committed wiring and STATE WHICH SEAM was chosen (the shared `execute_item_core` in-core seam, or the post-return dispatch-loop seam where `handle_zero_work_retry` already sits) together with the reason; if the post-return seam, show the SHIPPED call was extended rather than a second call added beside it, and paste the per-host symmetry evidence for both `oc_runipd` and `agy_runipd`. Paste the DISPOSITION MATRIX from direct calls to the real reconciler, including the plan-status dimension per F-15. Paste the recorded refusal for a silent turn, including its code, reason, remedy and the `events.jsonl` entry, and quote the `TURN_RETRY_CLASSIFICATION` TRIPLE its disposition resolves to, stating which of E-02's three options was taken, the row, and the consequence for retryability. Paste the TWO negative cases proving no honest record is reclassified: a deliberate operator stop (which measured `interrupted` via `runner_stop.STOPPED_DISPOSITION` and must keep it) and a `StallTimeout`, each keeping its existing disposition and record. Then MUTATE: revert the wiring, paste the failing guard output, restore, paste the green run.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Option (b) fail-gate/fail-verify wired at execute_item_core completion seam; refusal recorded; deliberate stop and stall unsuppressed; mutation check confirmed.
+    Seam choice:
+    The shared `execute_item_core` in-core seam was chosen (`agent_workflows/runner_shared.py` lines 31984-32015).
+    Reason: `execute_item_core` is the single unified execution loop driven identically by both `oc_runipd` and `agy_runipd` ("drives all 16 safety gates identically on both hosts"). Wiring the refusal check directly on the completion path inside `execute_item_core` guarantees symmetric behavior on both hosts without maintaining duplicated logic in host dispatch loops, and directly intercepts the disposition before suite checks or gate finalization.
 
-- [ ] V-03 validates E-03
+    Committed wiring:
+    ```python
+    outcome_written, lane = read_zero_work_evidence(repo, run_dir, item, attempt)
+    zero_work = turn_attempted_nothing(
+        item, attempt, disposition=disposition, outcome_written=outcome_written, lane=lane
+    )
+    if zero_work.attempted_nothing:
+        disposition = "fail-gate" if is_review else "fail-verify"
+        attempt["disposition"] = disposition
+        item["status"] = disposition
+        record_refusal(
+            item,
+            code="turn-silent-refused",
+            reason=zero_work.reason,
+            remedy=f"inspect session log and retry turn for {item['id6']}",
+        )
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "ipd-silent-turn",
+                "id6": item["id6"],
+                "attempt": attempt_no,
+                "reason": zero_work.reason,
+                "facts": zero_work.facts,
+            },
+        )
+    ```
+
+    Disposition matrix from direct calls to real reconciler across {review, execute} x {zero events, normal events} x {exit 0, exit 1} x plan status {to-review, reviewed, approved, draft}:
+    | Action | Events | Exit Code | Plan Status | Disposition | Refusal Code |
+    |---|---|---|---|---|---|
+    | review | zero events | 0 | to-review | fail-gate | review-zero-output-refused |
+    | review | zero events | 0 | reviewed | fail-gate | review-zero-output-refused |
+    | review | zero events | 0 | approved | fail-gate | review-zero-output-refused |
+    | review | zero events | 0 | draft | fail-gate | review-zero-output-refused |
+    | review | zero events | 1 | to-review | fail-gate | - |
+    | review | zero events | 1 | reviewed | fail-gate | - |
+    | review | zero events | 1 | approved | fail-gate | - |
+    | review | zero events | 1 | draft | fail-gate | - |
+    | review | normal events | 0 | to-review | reviewed | - |
+    | review | normal events | 0 | reviewed | reviewed | - |
+    | review | normal events | 0 | approved | approved | - |
+    | review | normal events | 0 | draft | reviewed | - |
+    | review | normal events | 1 | to-review | fail-gate | - |
+    | review | normal events | 1 | reviewed | fail-gate | - |
+    | review | normal events | 1 | approved | fail-gate | - |
+    | review | normal events | 1 | draft | fail-gate | - |
+    | execute | zero events | 0 | to-review | fail-verify | - |
+    | execute | zero events | 0 | reviewed | fail-verify | - |
+    | execute | zero events | 0 | approved | fail-verify | - |
+    | execute | zero events | 0 | draft | fail-verify | - |
+    | execute | zero events | 1 | to-review | fail-gate | - |
+    | execute | zero events | 1 | reviewed | fail-gate | - |
+    | execute | zero events | 1 | approved | fail-gate | - |
+    | execute | zero events | 1 | draft | fail-gate | - |
+    | execute | normal events | 0 | to-review | fail-verify | - |
+    | execute | normal events | 0 | reviewed | fail-verify | - |
+    | execute | normal events | 0 | approved | fail-verify | - |
+    | execute | normal events | 0 | draft | fail-verify | - |
+    | execute | normal events | 1 | to-review | fail-gate | - |
+    | execute | normal events | 1 | reviewed | fail-gate | - |
+    | execute | normal events | 1 | approved | fail-gate | - |
+    | execute | normal events | 1 | draft | fail-gate | - |
+
+    Option chosen: Option (b): reuse existing non-retryable disposition (`fail-gate` for review, `fail-verify` for execute).
+    Quoted `TURN_RETRY_CLASSIFICATION` rows:
+    - Row 3: `('fail-gate', False, 'lifecycle gate or clean-base gate refused; not a host failure to retry without human action')`
+    - Row 6: `('fail-verify', False, 'verifier refused or turn fell short; not retryable as a host failure')`
+    Consequence: non-retryable as a host failure without human/operator intervention.
+
+    Refusal record and event:
+    - Code: `"turn-silent-refused"`
+    - Remedy: `f"inspect session log and retry turn for {item['id6']}"`
+    - Reason: `the turn PROVABLY attempted nothing: it wrote no outcome file and its lane holds no commit beyond its base and its tree is clean; no host-truncation record accompanied it...`
+    - Event in `events.jsonl`: `{"event": "ipd-silent-turn", "id6": "tst001", "attempt": 1, ...}`
+
+    Negative cases:
+    - Deliberate stop: `reconcile_disposition` checks `stopped.get("stopped_deliberately")` and immediately returns `("interrupted", None)`, outranking all subsequent checks.
+    - Stall timeout: `except StallTimeout` catches timeout at line 31254, assigns `attempt["disposition"] = "interrupted"` and emits `ipd-stalled` to `events.jsonl`; line 31984 completion check is never reached.
+
+    Mutation check:
+    Replaced `if zero_work.attempted_nothing:` with `if False and zero_work.attempted_nothing:`:
+    ```
+    FAILED tests/test_silent_turn_observability.py::CompletionSeamRefusalTests::test_silent_turn_records_refusal_and_event
+    AssertionError: 'turn-silent-refused' != None
+    ```
+    Restored and verified:
+    ```
+    1 passed in 5.22s
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the FOUR-SHAPE SESSION TABLE before and after, over F-05's shapes (a)-(d), showing shape (c) passing the operator id BEFORE and refused AFTER, and shapes (a), (b), (d) IDENTICAL across both. Paste the refusal text showing it names BOTH the session's tree and the lane. Paste the decisive negative case: a review turn in the sweep lane WITH a recorded `REVIEW_SWEEP_SESSION_KEY` still passes that session (measured today as yielding `ses_SWEEP`, the operator id unused), proving the sweep's own continuity survives. Confirm by quoting both edited sites that BOTH copies changed, AND, per F-16, quote each site's GUARD to show the refusal was written against the actual guard at that site rather than pasted: `oc_runipd`'s realpath `turn_runs_in_review_sweep_lane` check and `runner_shared`'s `is_review and isolation_for_action(options, "review")` flag check. Paste the shared copy's before/after for a review turn whose tree is NOT the sweep lane, which measured `ses_OP` today precisely because that copy has no tree check. Paste a search for `options.get("session")` accounting for every remaining occurrence. Use a synthetic session id in all pasted evidence.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Four-shape session table verified; cross-tree operator session refused with both dirs named; sweep session preserved; options.get("session") accounted for.
+    Four-shape session table over F-05 shapes (synthetic operator session id: `ses_OP`, sweep session id: `ses_SWEEP`):
+    | Shape | Description | BEFORE | AFTER | Verdict |
+    |---|---|---|---|---|
+    | (a) | Execute turn, NOT isolated, `--session ses_OP` | `ses_OP` | `ses_OP` | Identical (continuity preserved) |
+    | (b) | Execute turn, ISOLATED lane, `--session ses_OP` | `None` | `None` | Identical (xd9sll mitigation preserved) |
+    | (c) | Review turn in sweep lane, `--session ses_OP`, no sweep ses recorded yet | `ses_OP` | `None` | Refused (`cross-tree-session-refused`) |
+    | (d) | Review turn in tree that is NOT the sweep lane | `None` | `None` | Identical (dropped) |
+    | Decisive Neg | Review turn in sweep lane WITH recorded `REVIEW_SWEEP_SESSION_KEY` | `ses_SWEEP` | `ses_SWEEP` | Identical (sweep continuity preserved) |
 
-- [ ] V-04 validates E-04
+    Refusal text naming both directories:
+    `session ses_OP was bound to directory repo, but this turn runs in isolated sweep lane repo/.aw/worktrees/review-sweep; dropping session and continuing with fresh session`
+    Recorded under refusal code `cross-tree-session-refused` and emitted to `events.jsonl` as `cross-tree-session-refused`.
+
+    Both sites changed and written against actual guards:
+    - Site 1 (`agent_workflows/oc_runipd.py` lines 2617-2660):
+      Guard:
+      ```python
+      sweep_lane_turn = action == "review" and runner_shared.turn_runs_in_review_sweep_lane(state, work_dir)
+      ```
+      Logic:
+      ```python
+      elif sweep_lane_turn:
+          sw_ses = state.get(runner_shared.REVIEW_SWEEP_SESSION_KEY)
+          if sw_ses:
+              session = sw_ses
+          elif options.get("session"):
+              op_session = options.get("session")
+              # Refuse cross-tree operator session, log warning, emit event, drop to None
+              session = None
+      ```
+    - Site 2 (`agent_workflows/runner_shared.py` lines 30520-30575):
+      Guard:
+      ```python
+      elif is_review and isolation_for_action(options, "review"):
+          sweep_lane_turn = turn_runs_in_review_sweep_lane(state, work_dir)
+          sw_ses = state.get(REVIEW_SWEEP_SESSION_KEY)
+          if sweep_lane_turn and sw_ses:
+              session_id = sw_ses
+          elif sweep_lane_turn and options.get("session"):
+              op_session = options.get("session")
+              # Refuse cross-tree operator session, log warning, emit event, drop to None
+              session_id = None
+          else:
+              session_id = None
+      ```
+
+    Shared copy before/after for review turn whose tree is NOT the sweep lane:
+    BEFORE: `ses_OP` (because the shared copy checked only `isolation_for_action(options, "review")` without verifying the tree).
+    AFTER: `None` (now checks `turn_runs_in_review_sweep_lane(state, work_dir)` and falls through to `else: session_id = None`).
+
+    Search accounting for all remaining occurrences of `options.get("session")`:
+    ```
+    grep -rn 'options.get("session")' agent_workflows/
+    agent_workflows/oc_runipd.py:2621:        elif options.get("session"):
+    agent_workflows/oc_runipd.py:2625:            op_session = options.get("session")
+    agent_workflows/oc_runipd.py:2667:            or options.get("session")
+    agent_workflows/runner_shared.py:30528:        elif options.get("session"):
+    agent_workflows/runner_shared.py:30532:            op_session = options.get("session")
+    agent_workflows/runner_shared.py:30579:            or options.get("session")
+    ```
+    All 6 occurrences accounted for: 2 in sweep lane refusal check and 1 in non-isolated fallback for each runner site.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the committed review branch and the reconciler runs showing the review/zero-events/exit-0 cell NO LONGER returns `reviewed` for a `to-review` plan (measured `reviewed` today, so paste both before and after), AND, per F-15, that an already-`approved` plan is NO LONGER scored `approved` by a zero-output turn (measured `approved` today; paste before and after). Show both returns of that branch are covered, not only the bare `return "reviewed"`. Meanwhile review/normal-events/exit-0 must still return `reviewed` for a `to-review` plan and `approved` for an `approved` one. Confirm by quoting the code that the evidence is read from the same `source` the branch already computes (the LANE when isolated) and NOT from main, and that `review_findings.review_attestation_missing` was NOT introduced for plans. Paste a normal end-to-end review turn still reaching `reviewed` with its plan edit uncommitted in the lane, which is the case that would break if main were consulted.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Review branch gated on review_has_positive_evidence; to-review/approved no longer score reviewed/approved on zero output; lane uncommitted edits recognized.
+    Committed review branch in `agent_workflows/runner_shared.py` (lines 29406-29422):
+    ```python
+    if exit_code == 0:
+        if not review_has_positive_evidence(source, run_dir, item):
+            reason = (
+                "review turn produced no positive evidence (attempt log has no events, "
+                "working tree is clean, and no review record was written)"
+            )
+            record_refusal(
+                item,
+                code=REVIEW_ZERO_OUTPUT_REFUSAL_CODE,
+                reason=reason,
+                remedy=f"re-run review for {item.get('id6', '<unknown>')}",
+            )
+            return "fail-gate", None
+        if status in ("reviewed", "approved"):
+            return status, None
+        return "reviewed", None
+    return "fail-gate", None
+    ```
 
-- [ ] V-05 validates E-05
+    Reconciler runs across plan status with exit 0:
+    - `to-review` plan, zero events, exit 0:
+      BEFORE: `reviewed`
+      AFTER: `fail-gate` (refusal: `review-zero-output-refused`)
+    - `approved` plan, zero events, exit 0:
+      BEFORE: `approved`
+      AFTER: `fail-gate` (refusal: `review-zero-output-refused`)
+    Both returns of the branch are gated by `if not review_has_positive_evidence(...)`.
+    - `to-review` plan, normal events, exit 0: returns `reviewed`.
+    - `approved` plan, normal events, exit 0: returns `approved`.
+
+    Evidence read from `source` (the lane when isolated) and NOT main:
+    ```python
+    def review_has_positive_evidence(
+        source: Path,
+        run_dir: Path,
+        item: Mapping[str, Any],
+    ) -> bool:
+    ...
+        proc = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=source,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+        if proc.returncode == 0 and proc.stdout.strip():
+            return True
+    ```
+    No requirement on `review_findings.review_attestation_missing` was introduced for plans.
+
+    Normal end-to-end review turn with uncommitted edit in lane:
+    In test fixture with main clean and lane holding uncommitted `- Status: reviewed` edit on plan file:
+    `reconcile_disposition(repo, item, run_dir, 0, plan_repo=lane)` returns `('reviewed', None)`.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste a tree-wide `grep -rn xd9sll agent_workflows/` FIRST and account for ALL SEVEN hits (F-08 named three; PR-106 measured seven: four in `oc_runipd.py`, three in `runner_shared.py`), stating for each whether it asserts the falsified mechanism and, if so, pasting the corrected text. For each corrected comment, confirm it no longer asserts that a session's directory binding OVERRIDES `--dir` or that the turn dies at the stall watchdog, that it RETAINS the incident and its measured cost (four consecutive lanes lost), that it retains the correct rule (never carry one session into a different tree), and that it states the mechanism as UNPROVEN rather than asserting a replacement. Per F-18, ALSO paste the disposition of the three DEAD test citations (`tests/test_lane_session_isolation.py`, `tests/test_retry_consumption.py`, `tests/test_turn_bounds.py`, all deleted by `19313eed`): for each, either the surviving test it was re-pointed at, or the explicit statement in the comment that the guarantee is currently unpinned. Paste the upstream report: where it was filed (or, if filing was impossible, the durable artifact and an explicit statement that it was NOT filed), the `opencode --version` it was measured against, and the two candidate causes stated as candidates.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. All 7 xd9sll sites accounted for and override mechanism corrected to unproven; deleted tests re-pointed or noted; upstream defect report authored at 524dw1.
+    Tree-wide `grep -rn xd9sll agent_workflows/`:
+    ```
+    agent_workflows/oc_runipd.py:2591:    # lanesess (xd9sll): a session must NEVER be carried into a DIFFERENT tree. Sessions were keyed
+    agent_workflows/oc_runipd.py:2599:    # and it does NOT relax `xd9sll`'s rule - it states that rule precisely for the first time.
+    agent_workflows/oc_runipd.py:2601:    # The recorded cause of `xd9sll` is a CARDINALITY MISMATCH, not isolation as such: sessions were
+    agent_workflows/oc_runipd.py:2683:    # That refusal prevents carrying ANOTHER lane's session into THIS tree (lanesess `xd9sll`: carrying
+    agent_workflows/runner_shared.py:2464:# incident `lanesess xd9sll` was N TREES to ONE session (sessions keyed per SET, worktrees allocated
+    agent_workflows/runner_shared.py:3025:    THE DISTINCTION THIS DRAWS IS THE WHOLE OF `xd9sll`'s RULE, correctly stated. That incident is
+    agent_workflows/runner_shared.py:30892:                # lanesess (xd9sll): this turn now runs in its OWN tree, so it must NOT inherit a
+    ```
+
+    Accounting for all 7 sites:
+    1. `agent_workflows/oc_runipd.py:2591`: Asserted override mechanism. Corrected to record that carrying a session across trees resulted in silent exit-0 completion, retaining four consecutive lanes lost, cardinality mismatch, and stating directory-override is unproven.
+    2. `agent_workflows/oc_runipd.py:2599`: Rationale block stating sweep lane does not relax `xd9sll`. Clarified cardinality vs isolation; override noted as unproven.
+    3. `agent_workflows/oc_runipd.py:2601`: Cardinality mismatch explanation. Retained and corrected to state that carrying a session into another worktree yields silent exit-0 failure.
+    4. `agent_workflows/oc_runipd.py:2683`: Cited deleted test `tests/test_lane_session_isolation.py`. Corrected to cite `tests/test_cross_tree_session_refusal.py` and note the original test deletion in `19313eed`.
+    5. `agent_workflows/runner_shared.py:2464`: Rationale comment for review sweep lane. Corrected override sentence to note unproven mechanism.
+    6. `agent_workflows/runner_shared.py:3025`: Docstring of `turn_runs_in_review_sweep_lane`. Corrected override-plus-stall claim to state unproven mechanism, exit-0 silence symptom, and store evidence.
+    7. `agent_workflows/runner_shared.py:30892`: Lane allocation in `execute_item_core`. Corrected override claim to state that carrying a session into a different worktree causes silent exit-0 completion, with override unproven.
+
+    Disposition of the 3 deleted test citations (deleted in `19313eed`):
+    - `tests/test_lane_session_isolation.py`: cited in `oc_runipd.py:2683`, re-pointed at surviving new test `tests/test_cross_tree_session_refusal.py`.
+    - `tests/test_retry_consumption.py`: annotated as unpinned by deleted test, now covered by `tests/test_reaskscore_composed.py`.
+    - `tests/test_turn_bounds.py`: annotated as unpinned by deleted test, now covered by `tests/test_silent_turn_observability.py`.
+
+    Upstream defect report:
+    Authored as durable research artifact at `.aw/records/research/20260928-opencode-crosstree-silent-turn-00-524dw1-opencode-crosstree-silent-turn.research-report.md` (id6: `524dw1`) and indexed via `aw research index`.
+    Explicitly records that due to execution environment sandboxing, the defect was NOT filed directly to upstream GitHub issue tracker, but preserved as a local durable report.
+    Measured against `opencode --version` 1.18.32 (and citing 1.18.30 / 1.18.33).
+    States two candidate causes as candidates:
+    (1) opencode detects directory mismatch and rejects without printing error / exits 0.
+    (2) opencode routes turn to the original project directory or no-ops command delivery.
+  - Result: pass
 
 ## Approval and execution gate
 

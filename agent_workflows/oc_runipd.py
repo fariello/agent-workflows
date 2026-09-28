@@ -2595,22 +2595,21 @@ def run_opencode(
     #
     # lanesess (xd9sll): a session must NEVER be carried into a DIFFERENT tree. Sessions were keyed
     # per SET while worktrees are allocated per ITEM, so lanes 2..N of a set were launched with lane
-    # 1's session; an opencode session carries its own project/`directory` binding, which then
-    # OVERRIDES `--dir` and silently runs the turn in the PREVIOUS lane's worktree. Every main-repo
-    # path is then "external", so the external_directory gate (qyaime) asks with no answerer and the
-    # turn dies at the stall watchdog. Measured: qcqhj7 booted in its own lane, then re-bootstrapped
-    # 8zgybk's and streamed under 8zgybk's session; four consecutive lanes were lost this way.
-    # Therefore an isolated turn (work_dir set) is ALWAYS a fresh session, exactly like the verifier.
+    # 1's session, resulting in silent exit-0 turns (the directory-override-plus-stall explanation is
+    # unproven and contradicted by opencode's store schema, F-03/F-07). Measured: qcqhj7 booted in its
+    # own lane, then streamed under 8zgybk's session; four consecutive lanes were lost to this cardinality
+    # mismatch. Therefore an isolated turn (work_dir set) is ALWAYS a fresh session, exactly like the verifier.
     isolated_turn = bool(work_dir)
     # dirtygates Order 05 (`ajxr5d`) E-04: THE ONE ISOLATED TREE A SESSION MAY LEGITIMATELY PERSIST IN,
     # and it does NOT relax `xd9sll`'s rule - it states that rule precisely for the first time.
     #
     # The recorded cause of `xd9sll` is a CARDINALITY MISMATCH, not isolation as such: sessions were
     # keyed per SET while worktrees were allocated per ITEM, so lanes 2..N inherited lane 1's session and
-    # the session's own directory binding overrode `--dir`. So the invariant is "never carry one session
-    # into a DIFFERENT tree", and a per-item execute lane violates it on every turn (unchanged below,
-    # still always fresh) while the REVIEW SWEEP LANE cannot violate it at all: it is ONE tree for every
-    # review in the run, which is exactly why OQ-02 chose one lane for the sweep.
+    # carrying across trees caused silent exit-0 failures (the override explanation is unproven; F-03/F-07).
+    # So the invariant is "never carry one session into a DIFFERENT tree", and a per-item execute lane
+    # violates it on every turn (unchanged below, still always fresh) while the REVIEW SWEEP LANE cannot
+    # violate it at all: it is ONE tree for every review in the run, which is exactly why OQ-02 chose one
+    # lane for the sweep.
     #
     # THE SESSION READ HERE IS THE SWEEP'S OWN, not the set's. A review sweep is run-wide (`reviews`
     # selects across every Set), and the CLI promises continuity across the whole sweep, so a per-set key
@@ -2619,20 +2618,59 @@ def run_opencode(
     # LATER execute turn in the same set.
     sweep_lane_turn = runner_shared.turn_runs_in_review_sweep_lane(state, work_dir)
     max_items = options.get("max_items_per_session", 4)
-    raw_session = (
-        # THE OPERATOR'S EXPLICIT `--session` STILL SEEDS THE SWEEP, which is why the fallback is here
-        # rather than the sweep key being read alone. `--session <id>` is documented as the session to
-        # "attach/reuse across turns for multi-plan continuity", so honoring it for an execute turn and
-        # ignoring it for a review would break the one surface whose whole purpose is continuity - and it
-        # is SAFE, because the operator names one id for one run and the sweep is one tree.
-        state.get(runner_shared.REVIEW_SWEEP_SESSION_KEY) or options.get("session")
-        if sweep_lane_turn
-        else (
+    raw_session = None
+    if sweep_lane_turn:
+        recorded_sweep_session = state.get(runner_shared.REVIEW_SWEEP_SESSION_KEY)
+        if recorded_sweep_session:
+            raw_session = recorded_sweep_session
+        elif options.get("session"):
+            # r0iob3 E-03: The operator's explicit `--session` was bound to the tree the operator ran in,
+            # not to this isolated sweep lane. Carrying it into a different tree produces silent exit-0 turns.
+            # Refuse loudly, naming both directories, record the refusal, and continue with a fresh session.
+            op_session = options.get("session")
+            op_tree = str(state.get("repo") or "main repository")
+            lane_tree = str(work_dir)
+            refusal_reason = (
+                f"cannot carry operator session {op_session!r} bound to {op_tree!r} into isolated "
+                f"sweep lane {lane_tree!r}: cross-tree session reuse is refused to prevent silent "
+                f"execution failure; continuing with a fresh session"
+            )
+            runner_shared.record_refusal(
+                item,
+                code="cross-tree-session-refused",
+                reason=refusal_reason,
+                remedy=f"run without --session or use a session bound to {lane_tree!r}",
+            )
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": runner_shared.utc_now(),
+                    "event": "cross-tree-session-refused",
+                    "id6": item.get("id6"),
+                    "session_id": op_session,
+                    "operator_tree": op_tree,
+                    "lane_tree": lane_tree,
+                    "reason": refusal_reason,
+                },
+            )
+            pal = runner_shared.Palette(runner_shared.should_color(sys.stderr))
+            print(
+                pal(
+                    f"  ! Refused carrying operator session {op_session!r} into isolated sweep lane: "
+                    f"{refusal_reason}",
+                    "yellow",
+                ),
+                file=sys.stderr,
+            )
+            raw_session = None
+        else:
+            raw_session = None
+    else:
+        raw_session = (
             state.get("session_id")
             or state.get("set_sessions", {}).get(item["setid"])
             or options.get("session")
         )
-    )
     is_rotation = False
     if raw_session and max_items and max_items > 0:
         session_turns = state.get("session_turn_counts", {}).get(raw_session, 0)
@@ -2647,14 +2685,16 @@ def run_opencode(
     )
     # defreport 01 (`b7xarm`) E-05: the ONE caller that may resume a session an isolated turn would
     # otherwise refuse, and it is safe for the exact reason the isolated-turn refusal above exists.
-    # That refusal prevents carrying ANOTHER lane's session into THIS tree (lanesess `xd9sll`: a
-    # session's own project binding overrides `--dir`, and four consecutive lanes were lost to it).
+    # That refusal prevents carrying ANOTHER lane's session into THIS tree (lanesess `xd9sll`: carrying
+    # a session across trees causes silent no-op turns, and four consecutive lanes were lost to the
+    # cardinality mismatch; the override mechanism is unproven).
     # The defect re-ask resumes THIS attempt's OWN session, observed from THIS turn in THIS lane, so
     # the binding it carries is the lane we want; a fresh session would instead have to re-derive the
     # agent's findings from the diff, which is both more expensive and less accurate.
     #
     # Passed ONLY by the re-ask call site and defaulted to None, so every other turn's argv is
-    # byte-identical and `tests/test_lane_session_isolation.py` still sees no `--session` on a lane.
+    # byte-identical and sees no `--session` on a lane (`tests/test_lane_session_isolation.py` was
+    # trimmed in `19313eed`; coverage now asserted in `tests/test_cross_tree_session_refusal.py`).
     if resume_session:
         session = resume_session
     if session:
