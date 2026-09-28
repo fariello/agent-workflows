@@ -1,5 +1,5 @@
 - Id: svqhmp
-- Status: graduated
+- Status: done
 - Graduated-To: svqhmp
 - Set: svqhmp
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Add --tty as two separate axes (presentation and interactivity) behind one interactivity resolver
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): closed by aw oc run: IPD bmf32u executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-svqhmp-02-bmf32u-add-the-interactive-no-interactive-flag-pair-over-the-shippe.ipd.md); evidence .aw/records/plans/executed/20260928-svqhmp-02-bmf32u-add-the-interactive-no-interactive-flag-pair-over-the-shippe.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: bmf32u, da9n1s
 - 2026-09-19 created (aw backlog): Add --tty as two separate axes (presentation and interactivity) behind one interactivity resolver
 
