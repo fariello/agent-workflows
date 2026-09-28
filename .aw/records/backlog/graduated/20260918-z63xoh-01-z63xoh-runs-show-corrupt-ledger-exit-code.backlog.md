@@ -1,5 +1,6 @@
 - Id: z63xoh
-- Status: open
+- Status: graduated
+- Graduated-To: z63xoh
 - Blocks-Release: next
 - Set: z63xoh
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: runs show exits 2 on ledger corruption where every other site exits 5 (EXIT_CORRUPTED_LEDGER)
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: fuuw94
 - 2026-09-18 created (aw backlog): runs show exits 2 on ledger corruption where every other site exits 5 (EXIT_CORRUPTED_LEDGER)
 
 Found while consolidating tests (test_run_recovery_cli.py).
