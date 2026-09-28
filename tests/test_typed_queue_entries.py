@@ -667,28 +667,28 @@ class TestQueueShapeSeams(unittest.TestCase):
             self.assertIn("to-revie", table_output)
 
     def test_item_local_refusal_on_both_hosts(self):
-        """E-09: queued spec review run through run_queue ends refused naming 2ptgds; plan executes."""
+        """E-09: queued undispatchable entry run through run_queue ends refused; plan executes."""
         for host_label, mod in _HOSTS:
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_spec(repo, id6="spc001", status="to-review")
+                    _write_backlog_item(repo, id6="bkg001", status="open")
                     _write_plan(
                         repo, id6="pln001", setid="s1", order=1, status="approved"
                     )
 
-                    # Initialize run with both spec and plan, using --allow-mixed
+                    # Initialize run with both backlog item and plan, using --allow-mixed
                     data = _build_queue_for_selector(
-                        mod, repo, "spc001", "pln001", allow_mixed=True
+                        mod, repo, "bkg001", "pln001", allow_mixed=True
                     )
                     run_dir = Path(data["run_dir"])
                     state_file = run_dir / "state.json"
 
-                    # Mock host spawn function to fail if called for spec, succeed for plan
+                    # Mock host spawn function to fail if called for undispatchable entry, succeed for plan
                     def mock_spawn(rd, st, runnable, **kwargs):
-                        if runnable["id6"] == "spc001":
+                        if runnable["id6"] == "bkg001":
                             raise AssertionError(
-                                "Host spawn must NEVER be called for undispatchable spec entry!"
+                                "Host spawn must NEVER be called for undispatchable entry!"
                             )
                         runnable["status"] = "executed"
                         # The real execute_item PERSISTS its outcome, and run_queue reloads state
@@ -709,12 +709,12 @@ class TestQueueShapeSeams(unittest.TestCase):
                     final_state = json.loads(state_file.read_text(encoding="utf-8"))
                     items_by_id = {item["id6"]: item for item in final_state["queue"]}
 
-                    # Spec was refused ahead of execute_item, naming plan 2ptgds
-                    spec_item = items_by_id["spc001"]
-                    self.assertEqual(spec_item["status"], "failed-safely")
-                    refusal = spec_item.get("refusal") or {}
+                    # Backlog entry was refused ahead of execute_item, naming plans aeq7f8/y3p3p5
+                    bkg_item = items_by_id["bkg001"]
+                    self.assertEqual(bkg_item["status"], "failed-safely")
+                    refusal = bkg_item.get("refusal") or {}
                     self.assertIn(
-                        "2ptgds", refusal.get("reason", "") + refusal.get("code", "")
+                        "aeq7f8", refusal.get("reason", "") + refusal.get("code", "")
                     )
 
                     # Independent plan was executed

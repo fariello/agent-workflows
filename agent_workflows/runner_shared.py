@@ -2289,9 +2289,7 @@ def refuse_undispatchable_typed_entry(
     id6 = str(item.get("id6") or "").strip()
 
     if atype == "spec" and action == "review":
-        code = "missing-dispatcher-2ptgds"
-        reason = f"spec review for '{id6}' has no dispatcher in this runner version; owned by plan 2ptgds"
-        remedy = "wait for plan 2ptgds to land spec review dispatch or review manually with `aw specs set`"
+        return False
     elif action == "plan":
         code = "missing-dispatcher-aeq7f8-y3p3p5"
         reason = f"production dispatch (action 'plan') for {atype} '{id6}' has no dispatcher in this runner version; owned by plans aeq7f8/y3p3p5"
@@ -3291,17 +3289,26 @@ def commit_review_lane_output(
 
 
 def commit_review_shared_output(
-    repo: Path, id6: str, *, host_label: str
+    repo: Path,
+    id6: str,
+    *,
+    host_label: str,
+    allowed_paths: Sequence[str | Path] = (),
 ) -> tuple[str | None, tuple[str, ...]]:
     """Commit a non-isolated review turn's uncommitted output to the shared checkout.
 
-    Path-scoped to the plan under review and its review record, reusing commit_review_lane_output's
+    Path-scoped to the artifact under review and its review record, reusing commit_review_lane_output's
     discipline (never git add -A, hooks run normally with no --no-verify, a hook rejection reported
     as nothing-committed rather than a silent loss).
     """
     rc, out, _err = _run_git(repo, ["status", "--porcelain", "-uall"])
     if rc != 0 or not out.strip():
         return None, ()
+    norm_allowed = {
+        str(p).replace("\\", "/").strip().lstrip("./")
+        for p in allowed_paths
+        if str(p).strip()
+    }
     paths: list[str] = []
     for line in out.splitlines():
         if not line.strip():
@@ -3320,8 +3327,10 @@ def commit_review_shared_output(
                 for sub in cand_path.rglob("*"):
                     if sub.is_file() and str(id6) in sub.name:
                         paths.append(str(sub.relative_to(repo)))
-            elif str(id6) in cand:
-                paths.append(cand)
+            else:
+                norm_c = cand.replace("\\", "/").strip().lstrip("./")
+                if str(id6) in cand or norm_c in norm_allowed:
+                    paths.append(cand)
     paths = sorted({p for p in paths if p})
     if not paths:
         return None, ()
@@ -3338,7 +3347,7 @@ def commit_review_shared_output(
             "-m",
             (
                 "Committed by the driver because the non-isolated review turn left its output "
-                "uncommitted in the shared checkout. Path-scoped to the plan under review and its "
+                "uncommitted in the shared checkout. Path-scoped to the artifact under review and its "
                 "review record; hooks ran normally."
             ),
             "--",
@@ -3450,6 +3459,7 @@ def classify_review_writes(
     *,
     id6: str,
     queued_id6s: Sequence[str] = (),
+    allowed_paths: Sequence[str | Path] = (),
 ) -> ReviewWriteScope:
     """Split a review lane's changed paths into the two files a review is FOR and anything beyond (E-10).
 
@@ -3477,8 +3487,14 @@ def classify_review_writes(
         str(other) for other in queued_id6s if str(other) and str(other) != str(id6)
     )
     queued_siblings: list[str] = []
+    norm_allowed = {
+        str(p).replace("\\", "/").strip().lstrip("./")
+        for p in allowed_paths
+        if str(p).strip()
+    }
     for path in changed:
-        if str(id6) in path:
+        norm_p = str(path).replace("\\", "/").strip().lstrip("./")
+        if str(id6) in path or norm_p in norm_allowed:
             allowed.append(path)
             continue
         out_of_scope.append(path)
@@ -24123,6 +24139,22 @@ def revalidation_was_unmeasured(item: Mapping[str, Any]) -> bool:
     return record.get("measured") is False
 
 
+SPEC_REVIEW_REFUSAL_CODE: str = "spec-review-refused"
+
+
+def review_handler_for(item: Mapping[str, Any]) -> str:
+    """The review handler name for a queue item ('plan-review' or 'spec-review').
+
+    Raises DriverError naming the type if there is no review handler for the item's artifact_type.
+    """
+    atype = queue_entry_type(item)
+    if atype == "ipd":
+        return "plan-review"
+    if atype == "spec":
+        return "spec-review"
+    raise DriverError(f"No review handler for artifact_type {atype!r}")
+
+
 def build_review_prompt(
     item: dict[str, Any],
     state: dict[str, Any],
@@ -24131,7 +24163,7 @@ def build_review_prompt(
     repo: Path,
     lane_root: Path | None = None,
 ) -> str:
-    """Return the slash command for a review turn: `/plan-review <relative path>`, plus - for an
+    """Return the slash command for a review turn: `/<handler> <relative path>`, plus - for an
     ISOLATED review - the in-lane statement on its OWN LINES after it.
 
     Deliberately prose-free ON THE COMMAND LINE (terseout `ntf6sx` E-05). This value is handed to the
@@ -24163,12 +24195,13 @@ def build_review_prompt(
 
     from agent_workflows import lane_containment
 
+    handler = review_handler_for(item)
     root = lane_root if lane_root is not None else repo
     try:
         rel_path = str(plan_path.relative_to(root))
     except ValueError:
         rel_path = str(plan_path)
-    command = f"/plan-review {rel_path}"
+    command = f"/{handler} {rel_path}"
     if lane_root is None:
         return command
     return command + "\n" + lane_containment.isolation_notice(lane_root)
@@ -26596,6 +26629,7 @@ def initialize_run_core(
                     "initial_status": status or "approved",
                     "action": action,
                     "status": initial_queue_status(status, action=action),
+                    "review_handler": "plan-review" if action == "review" else None,
                     "attempts": [],
                     # zz5yxq E-03: the needs-approval fact, made EXPLICIT and DURABLE at queue-build time
                     # rather than left implicit in the queue status. It was already implicit here (an item
@@ -26632,6 +26666,11 @@ def initialize_run_core(
                     "initial_status": status,
                     "action": action,
                     "status": initial_queue_status(status, action=action),
+                    "review_handler": (
+                        "spec-review"
+                        if (atype == "spec" and action == "review")
+                        else None
+                    ),
                     "attempts": [],
                     NEEDS_INPUT_KEY: False,
                 }
@@ -28494,6 +28533,69 @@ def reconcile_disposition(
         return runner_stop.STOPPED_DISPOSITION, None
     if item.get("action") == "review":
         source = plan_repo or repo
+        atype = queue_entry_type(item)
+        if atype == "spec":
+            # WHICH TREE, AND WHY IT MUST BE SAID RATHER THAN ASSUMED (F-9).
+            # Read the LANE tree when isolated, i.e. the existing source = plan_repo or repo,
+            # and pass that SAME root to review_attestation_missing. By call order inside
+            # execute_item_core, reconcile_disposition runs BEFORE commit_review_lane_output
+            # and long before integrate_review_lane_branch, so at disposition time the spec's
+            # new - Status: and its review record may exist only as UNCOMMITTED working-tree
+            # files in the lane and are certainly not in main. The gate works anyway because
+            # BOTH predicates are filesystem reads (review_findings.subject_review_records walks
+            # review_dirs with open(); the status is a read_text), and it would refuse every
+            # correct review if it consulted main or git instead.
+            #
+            # ALSO RESOLVE THROUGH queue_artifact_path BECAUSE THE SPEC MOVES (F-10).
+            # aw specs set reviewed relocates the file from to-review/ to reviewed/ (reproduced
+            # at review), so the frozen configured_file is stale the moment the turn succeeds.
+            # queue_artifact_path resolves a spec through discover_specs, which keys on - Id:
+            # and is location-independent, so it finds the moved file; a cheaper
+            # repo / item["configured_file"] read would produce a spurious fail-gate on
+            # exactly the successful path.
+            from agent_workflows import review_findings
+
+            id6 = str(item.get("id6") or "").strip()
+            spec_path = None
+            try:
+                spec_path = queue_artifact_path(source, item)
+                text = spec_path.read_text(encoding="utf-8")
+                status = _read_status(text)
+            except Exception:
+                status = None
+
+            if exit_code == 0:
+                missing_attestation = review_findings.review_attestation_missing(
+                    source, id6, "spec"
+                )
+                if status == "reviewed" and missing_attestation is None:
+                    return "reviewed", None
+                if status != "reviewed":
+                    reason = f"spec status still {status!r} (expected 'reviewed')"
+                else:
+                    reason = missing_attestation or "missing review attestation record"
+                try:
+                    rel_target = (
+                        str(spec_path.relative_to(source))
+                        if spec_path
+                        else str(item.get("configured_file", ""))
+                    )
+                except Exception:
+                    rel_target = (
+                        str(spec_path)
+                        if spec_path
+                        else str(item.get("configured_file", ""))
+                    )
+                remedy = f"/spec-review {rel_target}"
+                record_refusal(
+                    item,
+                    code=SPEC_REVIEW_REFUSAL_CODE,
+                    reason=reason,
+                    remedy=remedy,
+                )
+                return "fail-gate", None
+            return "fail-gate", None
+
         try:
             current_plan = resolve_plan_path(
                 source, item.get("configured_file", ""), item["id6"]
@@ -29361,9 +29463,12 @@ def execute_item_core(
         raise DriverError(
             f"Cannot execute item {item.get('id6', '<unknown>')}: invalid action {action!r} (expected 'review' or 'execute')"
         )
-    plan_path = queue_plan_path_for(repo, item)
-    attempt_no = len(item.get("attempts", [])) + 1
     is_review = action == "review"
+    if is_review and queue_entry_type(item) == "spec":
+        plan_path = queue_artifact_path(repo, item)
+    else:
+        plan_path = queue_plan_path_for(repo, item)
+    attempt_no = len(item.get("attempts", [])) + 1
 
     # planstale 6h8j1r E-04 (backlog mlc6mj): item-local dispatch refusal on moved-terminal or
     # vanished literal Scope-Paths under .aw/records/. Fails open on exception. Placed before
@@ -29430,6 +29535,8 @@ def execute_item_core(
 
     routing = None if is_review else route_recovery_turn(run_dir, state, item, recovery)
     if is_review:
+        handler = item.get("review_handler") or review_handler_for(item)
+        item["review_handler"] = handler
         prompt_text = build_review_prompt(item, state, run_dir, plan_path, repo)
     else:
         prompt_text = build_prompt(
@@ -29481,21 +29588,27 @@ def execute_item_core(
         "recovery": recovery,
         "action": action,
     }
+    if is_review:
+        attempt["review_handler"] = item.get("review_handler") or review_handler_for(
+            item
+        )
     if scope_target_check_error is not None:
         attempt["scope_target_check_error"] = scope_target_check_error
     item.setdefault("attempts", []).append(attempt)
     item["status"] = "running"
     save_state(run_dir, state)
-    append_jsonl(
-        run_dir / "events.jsonl",
-        {
-            "at": utc_now(),
-            "event": "ipd-started",
-            "id6": item["id6"],
-            "action": action,
-            "attempt": attempt_no,
-        },
-    )
+    start_event = {
+        "at": utc_now(),
+        "event": "ipd-started",
+        "id6": item["id6"],
+        "action": action,
+        "attempt": attempt_no,
+    }
+    if is_review:
+        start_event["review_handler"] = item.get(
+            "review_handler"
+        ) or review_handler_for(item)
+    append_jsonl(run_dir / "events.jsonl", start_event)
 
     # `progdenom`: the `IPD nn/NN` banner counts DISPATCHABLE WORK, not queue length. A Set whose
     # members are partly already executed used to announce `IPD 07/62` for a run that could only ever
@@ -29811,8 +29924,12 @@ def execute_item_core(
     if work_dir and is_review:
         lane_root = Path(work_dir)
         try:
-            lane_plan_path = resolve_plan_path(
-                lane_root, item.get("configured_file", ""), item["id6"]
+            lane_plan_path = (
+                queue_artifact_path(lane_root, item)
+                if queue_entry_type(item) == "spec"
+                else resolve_plan_path(
+                    lane_root, item.get("configured_file", ""), item["id6"]
+                )
             )
         except DriverError:
             lane_plan_path = plan_path
@@ -31077,8 +31194,17 @@ def execute_item_core(
                             )
                         elif entry.strip():
                             lane_status_paths.append(entry.strip().strip('"'))
+            extra_allowed: list[str] = []
+            if queue_entry_type(item) != "ipd":
+                with contextlib.suppress(Exception):
+                    art_p = queue_artifact_path(wt_handle.path, item)
+                    extra_allowed.append(
+                        str(art_p.relative_to(wt_handle.path)).replace("\\", "/")
+                    )
             own_paths = classify_review_writes(
-                lane_status_paths, id6=item["id6"]
+                lane_status_paths,
+                id6=item["id6"],
+                allowed_paths=extra_allowed,
             ).allowed
 
             review_commit, review_committed_paths = commit_review_lane_output(
@@ -31140,6 +31266,7 @@ def execute_item_core(
                         for entry in state.get("queue", [])
                         if entry.get("status") == "queued"
                     ],
+                    allowed_paths=extra_allowed,
                 )
                 attempt["review_write_scope"] = {
                     "changed": list(review_scope.changed),
@@ -31283,8 +31410,18 @@ def execute_item_core(
                     )
                 )
         elif is_review and wt_handle is None:
+            extra_allowed = []
+            if queue_entry_type(item) != "ipd":
+                with contextlib.suppress(Exception):
+                    art_p = queue_artifact_path(repo, item)
+                    extra_allowed.append(
+                        str(art_p.relative_to(repo)).replace("\\", "/")
+                    )
             review_commit, review_committed_paths = commit_review_shared_output(
-                repo, item["id6"], host_label=host_labels.command
+                repo,
+                item["id6"],
+                host_label=host_labels.command,
+                allowed_paths=extra_allowed,
             )
             if review_commit:
                 attempt["review_shared_commit"] = review_commit
@@ -31998,7 +32135,12 @@ def execute_item_core(
 
         full_auto = state.get("options", {}).get("full_auto", False)
         auto_approved = False
-        if is_review and disposition in ("reviewed", "approved") and full_auto:
+        if (
+            is_review
+            and queue_entry_type(item) == "ipd"
+            and disposition in ("reviewed", "approved")
+            and full_auto
+        ):
             plan_curr = resolve_plan_path(
                 repo, item.get("configured_file", ""), item["id6"]
             )
@@ -32028,6 +32170,9 @@ def execute_item_core(
                         ),
                         file=sys.stderr,
                     )
+        elif queue_entry_type(item) == "spec" and disposition == "reviewed":
+            item[NEEDS_INPUT_KEY] = True
+            save_state(run_dir, state)
 
         # zz5yxq E-02, question (3) of the classification at `SUCCESS_STATES`: "should this row show a
         # checkmark?". Both reads used to be unconditional `SUCCESS_STATES` membership, so an EXECUTE item
@@ -32073,6 +32218,13 @@ def execute_item_core(
                 pal(
                     f"  \u2713 IPD {item['id6']} auto-approved (review readiness cleared, "
                     "NOT human approval); progressing to execution",
+                    "cyan",
+                )
+            )
+        elif queue_entry_type(item) == "spec" and disposition == "reviewed":
+            print(
+                pal(
+                    f"  ! Spec {item['id6']} reviewed; awaiting human approval before implementation (stops here, including under --full-auto)",
                     "cyan",
                 )
             )
