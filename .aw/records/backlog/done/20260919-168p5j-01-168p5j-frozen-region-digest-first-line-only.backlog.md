@@ -1,5 +1,5 @@
 - Id: 168p5j
-- Status: graduated
+- Status: done
 - Graduated-To: 168p5j
 - Blocks-Release: next
 - Set: 168p5j
@@ -8,6 +8,7 @@
 - Summary: frozen_region_digest ignores an E-item's continuation lines, so a begin receipt survives a requirement rewrite
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): closed by aw oc run: IPD qurgra executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-168p5j-01-qurgra-key-the-begin-receipt-on-each-e-v-item-s-whole-action-block.ipd.md); evidence .aw/records/plans/executed/20260928-168p5j-01-qurgra-key-the-begin-receipt-on-each-e-v-item-s-whole-action-block.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: qurgra
 - 2026-09-19 created (aw backlog): frozen_region_digest ignores an E-item's continuation lines, so a begin receipt survives a requirement rewrite
 
