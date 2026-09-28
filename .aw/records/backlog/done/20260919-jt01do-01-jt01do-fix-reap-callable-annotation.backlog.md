@@ -1,5 +1,5 @@
 - Id: jt01do
-- Status: graduated
+- Status: done
 - Graduated-To: jt01do
 - Set: jt01do
 - Priority: low
@@ -7,5 +7,6 @@
 - Summary: bound_expiry_reaper's reap annotation Callable[[Any, Path], Any] contradicts its keyword call reaper(process, run_dir=run_dir), so a type checker errors on lane_containment.py:1208
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): closed by aw oc run: IPD 2o9osz executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-jt01do-01-2o9osz-pin-the-shared-reaper-s-keyword-contract-with-a-protocol-so.ipd.md); evidence .aw/records/plans/executed/20260928-jt01do-01-2o9osz-pin-the-shared-reaper-s-keyword-contract-with-a-protocol-so.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: 2o9osz
 - 2026-09-19 created (aw backlog): Found while executing 5w8g8j (laneign). Pre-existing, unrelated to that plan's scope. Runtime-harmless because the default runner_shutdown.clean_shutdown declares run_dir as a named parameter, but the declared Callable type says positional-only-shaped two-arg, so pyright reports 'Expected 1 more positional argument'. Fix: annotate the protocol with the keyword, e.g. Callable[..., Any] replaced by a Protocol with (process, *, run_dir).
