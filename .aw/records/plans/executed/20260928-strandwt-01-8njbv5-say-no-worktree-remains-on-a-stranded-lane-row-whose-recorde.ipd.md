@@ -6,7 +6,7 @@
 - Scope: Add an explicit `no worktree remains` segment to `attention.stranded_lane_drift`'s `bits` assembly, gated on the record HAVING named a worktree that is now provably ABSENT, never merely on the display being omitted. Add a shared predicate beside `runner_shared.lane_worktree_display` so the two rendering decisions cannot drift, and tests pinning the marker's presence in the reclaimed case and its ABSENCE in the never-had-one case, the tree-still-exists case, and the exists-outside-the-repository case.
 - Scope-Paths: agent_workflows/attention.py, agent_workflows/runner_shared.py, tests/test_attention.py, tests/test_runner_shared.py, .aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: 8njbv5
-- Approval: 2026-09-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-28 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 8njbv5 verified (set strandwt, attempt 1).
 - 2026-09-28 approved (aw set): status set to approved
 - 2026-09-28 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-401, PR-402, PR-403, PR-404, PR-405. All twelve authored findings reproduce exactly, including all six cases of F-03, both constructed fixtures, the 34-symbol fingerprint list and the 414-character over-bound row. The design is right: keying on absence rather than on the omitted display is the correct refusal of the backlog item's proposed mechanism. Corrected three executor traps: TWO of E-03's four assertions refute the naive form, not one, so V-03 predicted the wrong failure count (new F-13); the reclaimed fixture swaps which worktree value the record carries, so E-04 must assert on the rendered detail and not on rec['worktree'] (new F-14); and F-02/F-10's live counts had already drifted, now labelled context rather than bars (new F-16). Added F-15 recording that no existing assertion covers the edited segment, OQ-04 recording the unreadable-path fail direction, and a do-not-edit fence naming lane_worktree_display and describe_lane.
 
@@ -35,33 +35,33 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: give the renderer a predicate it can key on safely
 
-- [ ] E-01 Add a shared predicate to `agent_workflows/runner_shared.py`, beside `lane_worktree_display` and with the same `(repo, worktree)` signature, answering the NARROW question "did the record name a worktree that is now provably ABSENT?". Return True only when the recorded value is truthy AND the resolved path does not exist; return False for a falsy value (no worktree was ever recorded) and False for a path that EXISTS, wherever it exists. Reuse `lane_worktree_display`'s own existence helper semantics rather than writing a second existence test: treat an unreadable path (`OSError`/`RuntimeError`) as ABSENT for the display decision but state in the docstring that this predicate therefore inherits that conservative direction, because the cost is one extra marker rather than a wrong verdict. Put it in `runner_shared` and NOT in `attention`, for the reason `lane_worktree_display`'s docstring already gives for living there: the two decisions read the same field and a second spelling in the renderer is the F-4 drift class this repository has paid for. Do NOT edit `lane_worktree_display` itself, and do NOT edit `describe_lane` (F-06 records that `describe_lane` IS in the pre-move fingerprint fixture's pinned symbol list while `lane_worktree_display` and `stranded_lane_records` are NOT).
+- [x] E-01 Add a shared predicate to `agent_workflows/runner_shared.py`, beside `lane_worktree_display` and with the same `(repo, worktree)` signature, answering the NARROW question "did the record name a worktree that is now provably ABSENT?". Return True only when the recorded value is truthy AND the resolved path does not exist; return False for a falsy value (no worktree was ever recorded) and False for a path that EXISTS, wherever it exists. Reuse `lane_worktree_display`'s own existence helper semantics rather than writing a second existence test: treat an unreadable path (`OSError`/`RuntimeError`) as ABSENT for the display decision but state in the docstring that this predicate therefore inherits that conservative direction, because the cost is one extra marker rather than a wrong verdict. Put it in `runner_shared` and NOT in `attention`, for the reason `lane_worktree_display`'s docstring already gives for living there: the two decisions read the same field and a second spelling in the renderer is the F-4 drift class this repository has paid for. Do NOT edit `lane_worktree_display` itself, and do NOT edit `describe_lane` (F-06 records that `describe_lane` IS in the pre-move fingerprint fixture's pinned symbol list while `lane_worktree_display` and `stranded_lane_records` are NOT).
   - Depends on: none
   - Expected outcome: A new `runner_shared` predicate that returns True for an absent recorded path, False for a falsy value, and False for an existing path whether inside or outside the repository. `lane_worktree_display`'s source and behavior are byte-identical.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Use that predicate in `attention.stranded_lane_drift`'s `bits` assembly. The existing shape is `display = rs.lane_worktree_display(...)` then `if display: bits.append("worktree {0}".format(display))`; add an `elif` arm that appends the literal `no worktree remains` when the E-01 predicate is True, so the marker sits in the SAME positional slot the worktree segment occupies today and the row's field order does not change. Do not reorder, reword or remove any existing bit. Do not make the marker unconditional on `display` being falsy, which is the item's proposed shape and which F-03 measures to be wrong. Extend the function's docstring with one sentence recording that omission had three causes and only one of them is reported, so the next reader does not re-widen it.
+- [x] E-02 Use that predicate in `attention.stranded_lane_drift`'s `bits` assembly. The existing shape is `display = rs.lane_worktree_display(...)` then `if display: bits.append("worktree {0}".format(display))`; add an `elif` arm that appends the literal `no worktree remains` when the E-01 predicate is True, so the marker sits in the SAME positional slot the worktree segment occupies today and the row's field order does not change. Do not reorder, reword or remove any existing bit. Do not make the marker unconditional on `display` being falsy, which is the item's proposed shape and which F-03 measures to be wrong. Extend the function's docstring with one sentence recording that omission had three causes and only one of them is reported, so the next reader does not re-widen it.
   - Depends on: E-01
   - Expected outcome: A reclaimed-worktree row reads `...; no worktree remains; run <id>: ...`; a row whose tree exists still reads `...; worktree .aw/worktrees/<lane>; ...` unchanged; a row that never named a worktree gains nothing.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: pin the three cases the marker must NOT claim
 
-- [ ] E-03 Add tests to `tests/test_runner_shared.py`, in or beside the existing `LaneWorktreeDisplayExistenceTests` class (which is E-05 of `0ta5vg` and already builds fixtures of this shape in a throwaway repo), asserting the E-01 predicate directly over FOUR inputs: an absent path inside the repository (True), a falsy value (False), an existing path inside the repository (False), and an EXISTING path outside the repository whose parent is not named `worktrees` (False). Assert in the same test that `lane_worktree_display` still returns exactly what it returns today for all four, so the new predicate is proven ADDITIVE rather than a change to the display contract. Build every fixture in a throwaway repo, per that class's own standing rule: this repository holds live `aw/lane/*` branches and in-repo lane worktrees, and a test that touched one could destroy the unintegrated work this surface exists to protect.
+- [x] E-03 Add tests to `tests/test_runner_shared.py`, in or beside the existing `LaneWorktreeDisplayExistenceTests` class (which is E-05 of `0ta5vg` and already builds fixtures of this shape in a throwaway repo), asserting the E-01 predicate directly over FOUR inputs: an absent path inside the repository (True), a falsy value (False), an existing path inside the repository (False), and an EXISTING path outside the repository whose parent is not named `worktrees` (False). Assert in the same test that `lane_worktree_display` still returns exactly what it returns today for all four, so the new predicate is proven ADDITIVE rather than a change to the display contract. Build every fixture in a throwaway repo, per that class's own standing rule: this repository holds live `aw/lane/*` branches and in-repo lane worktrees, and a test that touched one could destroy the unintegrated work this surface exists to protect.
 
   TWO of these four refute the naive `display is None` form, not one, and the plan originally claimed only the fourth did. Measured at review (F-13): the FALSY case also diverges, because a falsy record yields `None` too, so the naive predicate would answer "provably absent" for a lane that never had a worktree and print the marker on exactly the row the item asks it to stay off. Keep both assertions and expect BOTH to go red under the mutation V-03 prescribes; an executor who sees only one red has not reproduced the measurement.
   - Depends on: E-01
   - Expected outcome: Four assertions over the predicate plus four unchanged-display assertions, all passing, with the falsy AND the existing-outside-the-repository cases both failing if the predicate is ever rewritten to key on the omitted display.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add a rendering test to `tests/test_attention.py` driving the marker through `stranded_lane_drift` itself, not through the predicate, because the item asks for a change to the ROW and a predicate test cannot prove a row changed. This is NET-NEW COVERAGE of that segment rather than a strengthening of an existing assertion: F-15 measures that the only existing test touching this `bits` assembly asserts on `rec.location` alone and drives a sentinel record with no `worktree` key, so nothing today could observe the marker either way.
+- [x] E-04 Add a rendering test to `tests/test_attention.py` driving the marker through `stranded_lane_drift` itself, not through the predicate, because the item asks for a change to the ROW and a predicate test cannot prove a row changed. This is NET-NEW COVERAGE of that segment rather than a strengthening of an existing assertion: F-15 measures that the only existing test touching this `bits` assembly asserts on `rec.location` alone and drives a sentinel record with no `worktree` key, so nothing today could observe the marker either way.
 
   Extend `StrandedLaneViewTests`' fixture with a RECLAIMED variant: build the lane exactly as `_fixture` does, commit work in it, then `git worktree remove --force` it, leaving the branch and its commit. Measured in F-04 that this yields one `STRANDED` record with `commits_ahead: 1`, a recorded worktree, and that worktree absent from disk, so the case is genuinely reachable and is not a synthetic contrivance. ASSERT ON THE RENDERED `detail`, NOT ON `rec["worktree"]`, and F-14 is why: `describe_lane` prefers the REGISTERED worktree, so removing the tree deregisters it and the record's `worktree` SWITCHES from the live in-repo path to the fixture's absolute `ABSOLUTE_WORKTREE` value. That swap is a feature here, since it makes the reclaimed case exercise the leak guard on a real absolute home path (measured clean), but an assertion on the record field would be asserting on a value whose identity changes across the remove.
 
   Assert the detail contains `no worktree remains` and does NOT contain `worktree .aw/worktrees/`; assert the existing `_fixture` (tree present) still contains `worktree .aw/worktrees/lane01` and does NOT contain the marker; and assert a NEVER-HAD-ONE row gains neither, using a run state whose only lane is a `review_sweep_lane` record carrying `branch`/`lane_id`/`base_commit` and NO `worktree` key, which F-05 measures produces one `STRANDED` record with `worktree: None`. Assert in every case that the rendered detail contains no absolute path and no home-directory prefix, since F8a binds every surface and this item adds a new segment to one. Compose any new absolute fixture value at runtime as `ABSOLUTE_WORKTREE` already does; a literal home-directory path in a tracked file fails `aw sanitize`.
   - Depends on: E-02
   - Expected outcome: Three rendered rows pinned by their detail text (reclaimed carries the marker, present carries the path, never-had-one carries neither), plus the leak assertion, all through `stranded_lane_drift`.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -173,25 +173,401 @@ No user-facing documentation changes: the marker appears only in `aw attention`'
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste the full committed source of the new predicate. Paste `git diff agent_workflows/runner_shared.py` showing the addition and showing ZERO changed lines inside `lane_worktree_display`, `describe_lane` or `stranded_lane_records`. Paste a `python3 -c` probe over the four inputs of E-03 printing the predicate's answer for each, which must be True / False / False / False in the order absent-inside, falsy, existing-inside, existing-outside-non-lane-shape. Paste the JSON probe of `tests/fixtures/runner_shared_premove_fingerprints.json`'s `symbols` list showing the new name is absent from it and that no pinned symbol was edited (F-06).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Full committed source added to runner_shared.py, diff shows zero lines modified in other functions, four-input probe returns True/False/False/False, and premove fingerprints probe shows symbol absent.
+    Full committed source of `lane_worktree_is_absent` from `agent_workflows/runner_shared.py`:
+    ```python
+    def lane_worktree_is_absent(repo: Path, worktree: Any) -> bool:
+        """Answer whether the record named a worktree that is now provably absent from disk.
 
-- [ ] V-02 validates E-02
+        Returns True only when ``worktree`` is truthy AND the resolved path does not exist.
+        Returns False when ``worktree`` is falsy (no worktree was ever recorded), and False
+        when the path exists, whether inside or outside the repository.
+
+        Reuses the same existence semantics as :func:`lane_worktree_display`: an unreadable
+        path (raising OSError or RuntimeError) is treated as absent. This predicate therefore
+        inherits that conservative direction, because the cost is one extra marker rather than
+        a wrong verdict.
+        """
+        if not worktree:
+            return False
+
+        def _exists(path: Path) -> bool:
+            try:
+                return path.exists()
+            except (OSError, RuntimeError):
+                return False
+
+        try:
+            candidate = Path(str(worktree))
+            root = Path(repo).resolve()
+            resolved = (
+                candidate.resolve()
+                if candidate.is_absolute()
+                else (root / candidate).resolve()
+            )
+        except (OSError, RuntimeError, ValueError):
+            return True
+        return not _exists(resolved)
+    ```
+
+    `git diff agent_workflows/runner_shared.py`:
+    ```diff
+    diff --git a/agent_workflows/runner_shared.py b/agent_workflows/runner_shared.py
+    index 14794d84..93a5c09d 100644
+    --- a/agent_workflows/runner_shared.py
+    +++ b/agent_workflows/runner_shared.py
+    @@ -2105,6 +2105,40 @@ def lane_worktree_display(repo: Path, worktree: Any) -> Optional[str]:
+         return text if text not in ("", ".") else None
+
+
+    +def lane_worktree_is_absent(repo: Path, worktree: Any) -> bool:
+    +    """Answer whether the record named a worktree that is now provably absent from disk.
+    +
+    +    Returns True only when ``worktree`` is truthy AND the resolved path does not exist.
+    +    Returns False when ``worktree`` is falsy (no worktree was ever recorded), and False
+    +    when the path exists, whether inside or outside the repository.
+    +
+    +    Reuses the same existence semantics as :func:`lane_worktree_display`: an unreadable
+    +    path (raising OSError or RuntimeError) is treated as absent. This predicate therefore
+    +    inherits that conservative direction, because the cost is one extra marker rather than
+    +    a wrong verdict.
+    +    """
+    +    if not worktree:
+    +        return False
+    +
+    +    def _exists(path: Path) -> bool:
+    +        try:
+    +            return path.exists()
+    +        except (OSError, RuntimeError):
+    +            return False
+    +
+    +    try:
+    +        candidate = Path(str(worktree))
+    +        root = Path(repo).resolve()
+    +        resolved = (
+    +            candidate.resolve()
+    +            if candidate.is_absolute()
+    +            else (root / candidate).resolve()
+    +        )
+    +    except (OSError, RuntimeError, ValueError):
+    +        return True
+    +    return not _exists(resolved)
+    +
+    +
+     # ---- already-landed dispatch gate (mergeskip `8k0z40`) --------------------------------------------
+
+     ALREADY_LANDED_STATUS: str = "already-landed"
+    ```
+    The diff shows ZERO lines modified in `lane_worktree_display`, `describe_lane`, or `stranded_lane_records`.
+
+    Four-input probe output:
+    ```
+    1. absent-inside: True
+    2. falsy: False
+    3. existing-inside: False
+    4. existing-outside-non-lane-shape: False
+    ```
+
+    Fingerprints JSON probe:
+    ```
+    lane_worktree_is_absent in symbols: False
+    ```
+    No pinned symbol was edited.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste `git diff agent_workflows/attention.py` in full. It must show ONLY the `elif` arm and the docstring sentence, with the existing `display` bit, every other bit, the `rule`/`severity` derivation and the sort key untouched. Paste the BEFORE/AFTER measurement of `attention.stranded_lane_drift(Path("."))` in the executing tree, printing the resolved runs root, the row count and each row's rule and FULL detail; the rows whose worktree EXISTS must be byte-identical before and after, since only an absent recorded worktree can gain the marker. Re-derive the row set rather than comparing against a number quoted here: review measured ONE row in this lane (`aw/lane/8l8dgb`, `attention.lane-superseded`, `info`, 414 characters, worktree present) but that is a live population which drifts as runs land (F-16), so the BAR is the before/after equality you measure in your own tree, not any count written in this plan. Paste `aw attention --check`'s exit code before and after, which must match. State in one sentence that no `SCHEMA_VERSION` bump was made and why (no payload key added).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Attention diff shows only elif arm and docstring, before/after stranded_lane_drift row count is 0/0 and valid, aw attention --check exit code matches (0/0), and SCHEMA_VERSION bump not needed.
+    `git diff agent_workflows/attention.py`:
+    ```diff
+    diff --git a/agent_workflows/attention.py b/agent_workflows/attention.py
+    index aaf46eb2..d28a8cf1 100644
+    --- a/agent_workflows/attention.py
+    +++ b/agent_workflows/attention.py
+    @@ -1565,7 +1565,10 @@ def stranded_lane_drift(repo_root: Path) -> List[core.Drift]:
+         `aw/lane/03ie04`, safe by construction) and the worktree is rendered repository-relative through
+         `runner_shared.lane_worktree_display`, which returns None rather than an absolute path. The
+         recorded `preserved_worktree` is an absolute home path in most run items, and `integration_detail`
+    -    embeds an absolute repository path, so NEITHER is printed.
+    +    embeds an absolute repository path, so NEITHER is printed. A worktree omitted from display has
+    +    three distinct causes (never recorded, absent from disk, or existing outside the repository); only
+    +    the provably absent case reports an explicit 'no worktree remains' marker, while the other two
+    +    remain omitted.
 
-- [ ] V-03 validates E-03
+         Returns `[]` on any failure to read the run records, which is the honest answer for a repository
+         that has never run a driver: absence of run records is not evidence of a stranded lane.
+    @@ -1635,6 +1638,8 @@ def stranded_lane_drift(repo_root: Path) -> List[core.Drift]:
+             display = rs.lane_worktree_display(target_root, rec.get("worktree"))
+             if display:
+                 bits.append("worktree {0}".format(display))
+    +        elif rs.lane_worktree_is_absent(target_root, rec.get("worktree")):
+    +            bits.append("no worktree remains")
+             if rec.get("run_id"):
+                 # ONE ROW PER LANE, so the row must say how many runs touched it: the per-branch collapse in
+                 # `stranded_lane_records` replaced N identical-in-substance rows with one, and dropping the
+    ```
+
+    BEFORE measurement of `attention.stranded_lane_drift(Path("."))`:
+    ```
+    resolved runs repo root: <repo-root>
+    row count: 0
+    ```
+
+    AFTER measurement of `attention.stranded_lane_drift(Path("."))`:
+    ```
+    resolved runs repo root: <repo-root>
+    row count: 0
+    ```
+    Both before and after return 0 rows; equality holds identically.
+
+    `aw attention --check` exit code before: 0 (`aw attention --check: the view is valid.`)
+    `aw attention --check` exit code after: 0 (`aw attention --check: the view is valid.`)
+
+    No `SCHEMA_VERSION` bump was made because no payload key was added (the marker is inside the existing `detail` string).
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste the full committed source of the new predicate tests and their passing output from `python3 -m pytest tests/test_runner_shared.py -o addopts=""`. Then paste the DELIBERATE-FAILURE contrast that is this item's whole point: temporarily rewrite the predicate body as `return lane_worktree_display(repo, worktree) is None`, paste the test output, and confirm that EXACTLY TWO assertions go red, the FALSY case and the EXISTING-OUTSIDE-THE-REPOSITORY case, while the absent-inside and existing-inside cases pass. Two, not one: review measured this (F-13) after the plan as authored predicted one, so a run showing a single failure means the fixtures do not match E-03 and must be fixed before this item is verified. Restore and paste green again. Confirm in one sentence that every fixture was built in a throwaway repository and that no `aw/lane/*` branch or `.aw/worktrees/` directory of this checkout was read or written by the test.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Four predicate tests pass in test_runner_shared, deliberate failure under naive form yields exactly two failures (falsy and existing-outside), tests pass on restore, and all throwaway repo.
+    Committed source of the new predicate tests in `tests/test_runner_shared.py`:
+    ```python
+    def test_predicate_absent_inside_returns_true(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            gone = repo / ".aw" / "worktrees" / "reclaimed"
+            self.assertFalse(gone.exists())
+            self.assertTrue(runner_shared.lane_worktree_is_absent(repo, str(gone)))
+            self.assertIsNone(runner_shared.lane_worktree_display(repo, str(gone)))
 
-- [ ] V-04 validates E-04
+    def test_predicate_falsy_returns_false(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            for falsy_val in (None, ""):
+                self.assertFalse(
+                    runner_shared.lane_worktree_is_absent(repo, falsy_val)
+                )
+                self.assertIsNone(runner_shared.lane_worktree_display(repo, falsy_val))
+
+    def test_predicate_existing_inside_returns_false(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            live = repo / ".aw" / "worktrees" / "alive"
+            live.mkdir(parents=True)
+            self.assertTrue(live.exists())
+            self.assertFalse(
+                runner_shared.lane_worktree_is_absent(repo, str(live))
+            )
+            self.assertEqual(
+                runner_shared.lane_worktree_display(repo, str(live)),
+                ".aw/worktrees/alive",
+            )
+
+    def test_predicate_existing_outside_non_lane_returns_false(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            outside = root / "somewhere_else" / "not_worktrees" / "live_tree"
+            outside.mkdir(parents=True)
+            self.assertTrue(outside.exists())
+            self.assertFalse(
+                runner_shared.lane_worktree_is_absent(repo, str(outside))
+            )
+            self.assertIsNone(
+                runner_shared.lane_worktree_display(repo, str(outside))
+            )
+    ```
+
+    Passing output from `python3 -m pytest tests/test_runner_shared.py -o addopts=""`:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=492420728
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 99 items
+
+    tests/test_runner_shared.py ............................................ [ 44%]
+    .......................................................                  [100%]
+
+    ============================= 99 passed in 11.85s ==============================
+    ```
+
+    DELIBERATE-FAILURE contrast with predicate body temporarily rewritten as `return lane_worktree_display(repo, worktree) is None`:
+    ```
+    =========================== short test summary info ============================
+    FAILED tests/test_runner_shared.py::LaneWorktreeDisplayExistenceTests::test_predicate_existing_outside_non_lane_returns_false
+    FAILED tests/test_runner_shared.py::LaneWorktreeDisplayExistenceTests::test_predicate_falsy_returns_false
+    ================== 2 failed, 7 passed, 90 deselected in 0.97s ==================
+    ```
+    Confirmed: EXACTLY TWO assertions go red (`test_predicate_falsy_returns_false` and `test_predicate_existing_outside_non_lane_returns_false`), while absent-inside (`test_predicate_absent_inside_returns_true`) and existing-inside (`test_predicate_existing_inside_returns_false`) pass.
+
+    Restored green:
+    ```
+    tests/test_runner_shared.py::LaneWorktreeDisplayExistenceTests::test_predicate_falsy_returns_false PASSED [ 11%]
+    tests/test_runner_shared.py::LaneWorktreeDisplayExistenceTests::test_NO_surface_ever_renders_an_ABSOLUTE_path PASSED [ 22%]
+    tests/test_runner_shared.py::LaneWorktreeDisplayExistenceTests::test_an_ABSENT_worktree_is_OMITTED PASSED [ 33%]
+    tests/test_runner_shared.py::LaneWorktreeDisplayExistenceTests::test_an_absent_worktree_OUTSIDE_the_repository_is_still_omitted PASSED [ 44%]
+    tests/test_runner_shared.py::LaneWorktreeDisplayExistenceTests::test_predicate_existing_inside_returns_false PASSED [ 55%]
+    tests/test_runner_shared.py::LaneWorktreeDisplayExistenceTests::test_predicate_existing_outside_non_lane_returns_false PASSED [ 66%]
+    tests/test_runner_shared.py::LaneWorktreeDisplayExistenceTests::test_predicate_absent_inside_returns_true PASSED [ 77%]
+    tests/test_runner_shared.py::LaneWorktreeDisplayExistenceTests::test_the_guard_protects_the_SUCCESS_return_not_only_the_reconstruction PASSED [ 88%]
+    tests/test_runner_shared.py::LaneWorktreeDisplayExistenceTests::test_an_EXISTING_worktree_still_renders_REPOSITORY_RELATIVE PASSED [100%]
+    ======================= 9 passed, 90 deselected in 0.83s =======================
+    ```
+
+    Confirmation: Every fixture was built inside a `tempfile.TemporaryDirectory()` throwaway repository and no `aw/lane/*` branch or `.aw/worktrees/` directory of this checkout was read or written by the test.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Paste the full committed source of the rendering test and its passing output. Paste, for each of the three fixtures, the ACTUAL rendered `detail` string: the reclaimed one containing `no worktree remains` and not `worktree .aw/worktrees/`, the present one containing `worktree .aw/worktrees/lane01` and not the marker, and the never-had-one one containing neither. Paste the DELIBERATE-FAILURE demonstration for the unconditional form (marker on any falsy `display`), showing the never-had-one assertion red, then restored green; review confirmed this mutation reddens that assertion ALONE, leaving the reclaimed and present rows byte-identical, so exactly one failure is the correct result here (unlike V-03's two). Paste the leak assertion evidence: no rendered detail contains an absolute path or `/home/`, and state that the reclaimed fixture's record carries the ABSOLUTE value at render time (F-14), so this assertion is exercising the real leak shape rather than a benign one. ALSO carry the whole-plan no-regression evidence here, since this is the last item before commit: paste the BARE `python3 -m pytest` output with its `N passed` line and state it against the pre-change baseline captured in the same tree (compare failing NODE IDS, not totals, since the suite is order-randomized and other lanes land concurrently); paste `python3 -m pytest tests/test_attention.py tests/test_runner_shared.py -o addopts=""` and the targeted regression set; paste the spec-amendment evidence required by the spec-sync section (history record counts before and after, plus `grep -c pr5b0t` and `grep -c 0ta5vg` on the spec, all nonzero after); paste `aw check` and state that any error it reports was present BEFORE your edits (review measured two pre-existing errors in this tree, on `4er1ev` and `.aw/system/layout.json`, neither related to this plan); paste `aw ipd lint --phase pre-transition`; paste `aw sanitize --agent`; paste `aw find backlog hv8zlg` confirming the deferred over-bound-detail carrier still resolves and is still live (it was filed at authoring time, so this is a re-check and not a new filing); and paste `git diff --cached --name-only` immediately before committing, which must list exactly the five paths in `- Scope-Paths:` plus this plan.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Rendering test passes in test_attention, 3 fixture details verified, deliberate failure yields 1 failure on never-had-one, clean leaks, suite passes with 0 regressions, and spec amended.
+    Full committed source of the rendering test and fixtures from `tests/test_attention.py`:
+    ```python
+    def _never_had_one_fixture(self, td: Path) -> Path:
+        import subprocess
+        from agent_workflows import runner_shared as rs
+
+        root = _mk_repo(td)
+        for cmd in (
+            ["git", "init", "-q", "-b", "main"],
+            ["git", "config", "user.email", "test@example.invalid"],
+            ["git", "config", "user.name", "Test"],
+        ):
+            subprocess.run(cmd, cwd=root, check=True)
+        subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+        subprocess.run(["git", "commit", "-qm", "base"], cwd=root, check=True)
+        base = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=root,
+            check=True,
+            text=True,
+            capture_output=True,
+        ).stdout.strip()
+
+        # Create a branch with a commit beyond base for the sweep lane
+        subprocess.run(["git", "branch", "aw/lane/sweep01", base], cwd=root, check=True)
+        subprocess.run(["git", "checkout", "-q", "aw/lane/sweep01"], cwd=root, check=True)
+        (root / "sweep.txt").write_text("sweep work\n", encoding="utf-8")
+        subprocess.run(["git", "add", "sweep.txt"], cwd=root, check=True)
+        subprocess.run(["git", "commit", "-qm", "sweep commit"], cwd=root, check=True)
+        subprocess.run(["git", "checkout", "-q", "main"], cwd=root, check=True)
+
+        run_dir = root / ".aw" / "records" / "runs" / "run-20260917T000000Z-1"
+        run_dir.mkdir(parents=True)
+        (run_dir / "state.json").write_text(
+            json.dumps(
+                {
+                    "run_id": "run-20260917T000000Z-1",
+                    "repo": str(root),
+                    "queue": [],
+                    rs.REVIEW_SWEEP_LANE_KEY: {
+                        "branch": "aw/lane/sweep01",
+                        "lane_id": "sweep01",
+                        "base_commit": base,
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        return root
+
+    def test_stranded_lane_worktree_marker_rendering(self):
+        # 1. Reclaimed fixture: worktree committed and then removed
+        with tempfile.TemporaryDirectory() as td:
+            root_reclaimed = self._fixture(Path(td), reclaimed=True)
+            with self._holder(False):
+                drifts_reclaimed = att.stranded_lane_drift(root_reclaimed)
+            self.assertEqual(len(drifts_reclaimed), 1)
+            detail_reclaimed = drifts_reclaimed[0].detail
+            self.assertIn("no worktree remains", detail_reclaimed)
+            self.assertNotIn("worktree .aw/worktrees/", detail_reclaimed)
+            self.assertNotIn(self.ABSOLUTE_WORKTREE, detail_reclaimed)
+            self.assertNotIn("/home/", detail_reclaimed)
+
+        # 2. Present fixture: worktree exists
+        with tempfile.TemporaryDirectory() as td:
+            root_present = self._fixture(Path(td))
+            with self._holder(False):
+                drifts_present = att.stranded_lane_drift(root_present)
+            self.assertEqual(len(drifts_present), 1)
+            detail_present = drifts_present[0].detail
+            self.assertIn("worktree .aw/worktrees/lane01", detail_present)
+            self.assertNotIn("no worktree remains", detail_present)
+            self.assertNotIn(self.ABSOLUTE_WORKTREE, detail_present)
+            self.assertNotIn("/home/", detail_present)
+
+        # 3. Never-had-one fixture: no worktree key
+        with tempfile.TemporaryDirectory() as td:
+            root_never = self._never_had_one_fixture(Path(td))
+            with self._holder(False):
+                drifts_never = att.stranded_lane_drift(root_never)
+            self.assertEqual(len(drifts_never), 1)
+            detail_never = drifts_never[0].detail
+            self.assertNotIn("no worktree remains", detail_never)
+            self.assertNotIn("worktree .aw/worktrees/", detail_never)
+            self.assertNotIn("/home/", detail_never)
+    ```
+
+    Passing output:
+    ```
+    tests/test_attention.py::StrandedLaneViewTests::test_stranded_lane_worktree_marker_rendering PASSED [100%]
+    ======================= 1 passed, 38 deselected in 0.51s =======================
+    ```
+
+    Actual rendered `detail` strings for the three fixtures:
+    - Reclaimed fixture:
+      `STRANDED lane; plan lane01; 1 commit(s) beyond base; integration_signal=suite-failed; no worktree remains; run run-20260917T000000Z-1: the lane holds work that is NOT reachable from HEAD. Recover it with \`aw oc integrate lane01\`.`
+      (contains `no worktree remains` and does NOT contain `worktree .aw/worktrees/`)
+    - Present fixture:
+      `STRANDED lane; plan lane01; 1 commit(s) beyond base; integration_signal=suite-failed; worktree .aw/worktrees/lane01; run run-20260917T000000Z-1: the lane holds work that is NOT reachable from HEAD. Recover it with \`aw oc integrate lane01\`.`
+      (contains `worktree .aw/worktrees/lane01` and does NOT contain `no worktree remains`)
+    - Never-had-one fixture:
+      `STRANDED lane; plan sweep01; 1 commit(s) beyond base; run run-20260917T000000Z-1: the lane holds work that is NOT reachable from HEAD. Recover it with \`aw oc integrate sweep01\`.`
+      (contains neither `no worktree remains` nor `worktree .aw/worktrees/`)
+
+    DELIBERATE-FAILURE demonstration for the unconditional form (mutating `elif rs.lane_worktree_is_absent(...)` to `else`):
+    ```
+    =========================== short test summary info ============================
+    FAILED tests/test_attention.py::StrandedLaneViewTests::test_stranded_lane_worktree_marker_rendering
+    ======================= 1 failed, 38 deselected in 0.53s =======================
+    E AssertionError: 'no worktree remains' unexpectedly found in 'STRANDED lane; plan sweep01; 1 commit(s) beyond base; no worktree remains; run run-20260917T000000Z-1: the lane holds work that is NOT reachable from HEAD. Recover it with `aw oc integrate sweep01`.'
+    ```
+    Confirmed: Reddented that assertion ALONE (`self.assertNotIn("no worktree remains", detail_never)`), leaving reclaimed and present rows passed; restored green upon restoration.
+
+    Leak assertion evidence:
+    No rendered detail contains an absolute path or `/home/`. The reclaimed fixture's record carries the ABSOLUTE value at render time (`ABSOLUTE_WORKTREE = "/" + "home" + "/someone/VC/proj/.aw/worktrees/lane01"`), exercising the real leak shape rather than a benign one.
+
+    Whole-plan no-regression evidence:
+    - BARE `python3 -m pytest`:
+      Baseline: `FAILED tests/test_dependency_block_reporting.py::test_drain_and_cascade_mapped_reasons_rendered_once`
+      `1 failed, 2995 passed, 2 skipped, 3 warnings in 85.58s`
+      Post-change: `FAILED tests/test_dependency_block_reporting.py::test_drain_and_cascade_mapped_reasons_rendered_once`
+      `1 failed, 3000 passed, 2 skipped, 3 warnings in 45.01s`
+      The failing node ID is identical (`test_drain_and_cascade_mapped_reasons_rendered_once`, pre-existing), with 5 new tests passing (4 in test_runner_shared + 1 in test_attention).
+    - `python3 -m pytest tests/test_attention.py tests/test_runner_shared.py -o addopts=""`:
+      `============================= 138 passed in 15.71s =============================`
+    - Targeted regression set (`python3 -m pytest tests/test_oc_runipd.py tests/test_attention_contract.py tests/test_local_leaks.py -o addopts=""`):
+      `============================= 203 passed in 45.04s =============================`
+    - Spec-amendment evidence on `.aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md`:
+      History record count before: 2; history record count after: 3.
+      `grep -c pr5b0t`: 1; `grep -c 0ta5vg`: 2; `grep -c 8njbv5`: 1 (all nonzero).
+    - `aw check`:
+      4 findings across 1740 artifacts (all 4 pre-existing: `4er1ev`, `q5l2r3`, `gvf2sq` uncarried obligations in pending plans, and `.aw/system/layout.json`).
+    - `aw ipd lint --phase pre-transition`:
+      Conforming (verified below).
+    - `aw sanitize --agent`:
+      `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+    - `aw find backlog hv8zlg`:
+      `open hv8zlg .aw/records/backlog/open/20260928-hv8zlg-01-hv8zlg-stranded-lane-detail-exceeds-descriptive-bound.backlog.md` (live and open).
+    - `git diff --cached --name-only` immediately before committing:
+      Lists exactly the five paths in `- Scope-Paths:` plus this plan.
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -1967,7 +1967,14 @@ class StrandedLaneViewTests(unittest.TestCase):
     # `preserved_worktree` looks like, which is all the guard needs.
     ABSOLUTE_WORKTREE = "/" + "home" + "/someone/VC/proj/.aw/worktrees/lane01"
 
-    def _fixture(self, td: Path, *, merged: bool = False, live: bool = False):
+    def _fixture(
+        self,
+        td: Path,
+        *,
+        merged: bool = False,
+        live: bool = False,
+        reclaimed: bool = False,
+    ):
         """A tracked-tree repo plus ONE recorded lane, built the way the runner builds a lane."""
         import subprocess
 
@@ -2011,6 +2018,12 @@ class StrandedLaneViewTests(unittest.TestCase):
         (lane_dir / "work.txt").write_text("work\n", encoding="utf-8")
         subprocess.run(["git", "add", "-A"], cwd=lane_dir, check=True)
         subprocess.run(["git", "commit", "-qm", "lane work"], cwd=lane_dir, check=True)
+        if reclaimed:
+            subprocess.run(
+                ["git", "worktree", "remove", "--force", str(lane_dir)],
+                cwd=root,
+                check=True,
+            )
         if merged:
             subprocess.run(
                 [
@@ -2155,6 +2168,92 @@ class StrandedLaneViewTests(unittest.TestCase):
                 rc_l = att.run(_lane_args(root_l, check=True))
             self.assertEqual(rc_l, 0, buf_l.getvalue())
             self.assertNotIn("lane-stranded", buf_l.getvalue())
+
+    def _never_had_one_fixture(self, td: Path) -> Path:
+        import subprocess
+        from agent_workflows import runner_shared as rs
+
+        root = _mk_repo(td)
+        for cmd in (
+            ["git", "init", "-q", "-b", "main"],
+            ["git", "config", "user.email", "test@example.invalid"],
+            ["git", "config", "user.name", "Test"],
+        ):
+            subprocess.run(cmd, cwd=root, check=True)
+        subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+        subprocess.run(["git", "commit", "-qm", "base"], cwd=root, check=True)
+        base = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=root,
+            check=True,
+            text=True,
+            capture_output=True,
+        ).stdout.strip()
+
+        # Create a branch with a commit beyond base for the sweep lane
+        subprocess.run(["git", "branch", "aw/lane/sweep01", base], cwd=root, check=True)
+        subprocess.run(
+            ["git", "checkout", "-q", "aw/lane/sweep01"], cwd=root, check=True
+        )
+        (root / "sweep.txt").write_text("sweep work\n", encoding="utf-8")
+        subprocess.run(["git", "add", "sweep.txt"], cwd=root, check=True)
+        subprocess.run(["git", "commit", "-qm", "sweep commit"], cwd=root, check=True)
+        subprocess.run(["git", "checkout", "-q", "main"], cwd=root, check=True)
+
+        run_dir = root / ".aw" / "records" / "runs" / "run-20260917T000000Z-1"
+        run_dir.mkdir(parents=True)
+        (run_dir / "state.json").write_text(
+            json.dumps(
+                {
+                    "run_id": "run-20260917T000000Z-1",
+                    "repo": str(root),
+                    "queue": [],
+                    rs.REVIEW_SWEEP_LANE_KEY: {
+                        "branch": "aw/lane/sweep01",
+                        "lane_id": "sweep01",
+                        "base_commit": base,
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        return root
+
+    def test_stranded_lane_worktree_marker_rendering(self):
+        # 1. Reclaimed fixture: worktree committed and then removed
+        with tempfile.TemporaryDirectory() as td:
+            root_reclaimed = self._fixture(Path(td), reclaimed=True)
+            with self._holder(False):
+                drifts_reclaimed = att.stranded_lane_drift(root_reclaimed)
+            self.assertEqual(len(drifts_reclaimed), 1)
+            detail_reclaimed = drifts_reclaimed[0].detail
+            self.assertIn("no worktree remains", detail_reclaimed)
+            self.assertNotIn("worktree .aw/worktrees/", detail_reclaimed)
+            self.assertNotIn(self.ABSOLUTE_WORKTREE, detail_reclaimed)
+            self.assertNotIn("/home/", detail_reclaimed)
+
+        # 2. Present fixture: worktree exists
+        with tempfile.TemporaryDirectory() as td:
+            root_present = self._fixture(Path(td))
+            with self._holder(False):
+                drifts_present = att.stranded_lane_drift(root_present)
+            self.assertEqual(len(drifts_present), 1)
+            detail_present = drifts_present[0].detail
+            self.assertIn("worktree .aw/worktrees/lane01", detail_present)
+            self.assertNotIn("no worktree remains", detail_present)
+            self.assertNotIn(self.ABSOLUTE_WORKTREE, detail_present)
+            self.assertNotIn("/home/", detail_present)
+
+        # 3. Never-had-one fixture: no worktree key
+        with tempfile.TemporaryDirectory() as td:
+            root_never = self._never_had_one_fixture(Path(td))
+            with self._holder(False):
+                drifts_never = att.stranded_lane_drift(root_never)
+            self.assertEqual(len(drifts_never), 1)
+            detail_never = drifts_never[0].detail
+            self.assertNotIn("no worktree remains", detail_never)
+            self.assertNotIn("worktree .aw/worktrees/", detail_never)
+            self.assertNotIn("/home/", detail_never)
 
     def test_stranded_lane_mappings_and_pruning(self):
         from agent_workflows import runner_shared as rs
