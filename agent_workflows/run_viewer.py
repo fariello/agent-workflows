@@ -43,6 +43,7 @@ from agent_workflows.runner_shared import (
     extract_verifier_test_commands,
     landed_verdict,
     path_is_within_analytics,
+    queue_entry_type,
     state_root,
 )
 from agent_workflows.term import Term, strip_ansi
@@ -187,6 +188,9 @@ class StepSummary:
     # runverdict (bxx9af) E-07: verifier evidence (tests_run / corrections_made) surfaced in StepSummary
     tests_run: list[Any] = field(default_factory=list)
     corrections_made: list[str] = field(default_factory=list)
+    # mlhryi E-01: preserve typed queue entry metadata
+    artifact_type: str | None = None
+    initial_status: str | None = None
 
     @property
     def is_projected(self) -> bool:
@@ -629,6 +633,9 @@ def audit_step_artifact(
         is_live=step.is_live,
         evidence=evidence,
         ending_head=step.ending_head or "",
+        artifact_type=step.artifact_type,
+        action=step.action,
+        initial_status=step.initial_status,
     )
 
 
@@ -1009,6 +1016,12 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
                     set_set.add(setid)
                 action = item.get("action", "execute")
                 status = item.get("status", "queued")
+                # mlhryi E-01: preserve typed queue entry metadata
+                raw_atype = item.get("artifact_type")
+                step_atype = queue_entry_type(item) if raw_atype is not None else None
+                step_initial_status = item.get("initial_status")
+                if step_initial_status is not None:
+                    step_initial_status = str(step_initial_status).strip() or None
                 persisted_status = None
                 if status == "running" and holder == HOLDER_NONE:
                     persisted_status = status
@@ -1149,6 +1162,8 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
                         # runverdict (bxx9af) E-07: verifier evidence in StepSummary
                         tests_run=tests_run_list,
                         corrections_made=corrections_list,
+                        artifact_type=step_atype,
+                        initial_status=step_initial_status,
                     )
                 )
 
@@ -1968,7 +1983,7 @@ def format_artifact_audit_summary(
             act_loc_raw = f"{a.actual_dir}/" if a.actual_dir else "-"
             act_loc_disp = _styled(act_loc_raw) if a.location_mismatch else act_loc_raw
 
-        exp_st = a.run_status or "-"
+        exp_st = getattr(a, "expected_status", None) or a.run_status or "-"
         if a.missing_entirely:
             act_st_disp = _styled("-")
         else:

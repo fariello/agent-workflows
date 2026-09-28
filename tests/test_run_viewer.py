@@ -2463,3 +2463,90 @@ def test_violator():
             self.assertNotEqual(res.returncode, 0)
             self.assertIn("Test performed live runs read", res.stdout)
             self.assertIn(".aw/records/runs/ is gitignored and box-local", res.stdout)
+
+
+class TestTypedQueueAuditViewer(TestCase):
+    """Test StepSummary preservation of typed queue metadata and forwarding to audit (mlhryi V-01)."""
+
+    def test_step_summary_captures_and_forwards_typed_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            bk_dir = root / ".aw" / "records" / "backlog" / "graduated"
+            bk_dir.mkdir(parents=True)
+            bk_file = bk_dir / "20260928-test-01-item01.backlog.md"
+            bk_file.write_text("- Id: item01\n- Status: graduated\n", encoding="utf-8")
+
+            step = run_viewer.StepSummary(
+                position=1,
+                id6="item01",
+                setid="test",
+                action="plan",
+                status="executed",
+                configured_file="",
+                stem="20260928-test-01-item01",
+                artifact_type="backlog",
+                initial_status="open",
+            )
+            audit = run_viewer.audit_step_artifact(step, repo_root=root)
+            self.assertEqual(audit.artifact_type, "backlog")
+            self.assertEqual(audit.action, "plan")
+            self.assertEqual(audit.initial_status, "open")
+            self.assertFalse(audit.has_discrepancy)
+            self.assertEqual(audit.difference_class, "unchanged")
+
+    def test_from_run_dir_populates_typed_metadata_from_queue_entry(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            run_dir = root / "runs" / "run-20260928T000000Z-111111"
+            run_dir.mkdir(parents=True)
+            state = {
+                "run_id": "run-20260928T000000Z-111111",
+                "queue": [
+                    {
+                        "position": 1,
+                        "id6": "typed1",
+                        "setid": "set1",
+                        "action": "plan",
+                        "status": "executed",
+                        "artifact_type": "backlog",
+                        "initial_status": "open",
+                    },
+                    {
+                        "position": 2,
+                        "id6": "untyped",
+                        "setid": "set2",
+                        "action": "execute",
+                        "status": "executed",
+                    },
+                ],
+            }
+            (run_dir / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+            summary = run_viewer.load_run_summary(run_dir, repo_root=root)
+            self.assertIsNotNone(summary)
+            assert summary is not None
+            self.assertEqual(len(summary.steps), 2)
+            self.assertEqual(summary.steps[0].artifact_type, "backlog")
+            self.assertEqual(summary.steps[0].initial_status, "open")
+            self.assertIsNone(summary.steps[1].artifact_type)
+            self.assertIsNone(summary.steps[1].initial_status)
+
+    def test_format_artifact_audit_summary_displays_expected_status(self) -> None:
+        term = Term(color=False)
+        audit = run_viewer.StepArtifactAudit(
+            id6="item01",
+            stem="20260928-test-01-item01",
+            run_status="executed",
+            expected_dir="graduated",
+            actual_dir="open",
+            expected_status="graduated",
+            file_status="open",
+            location_mismatch=True,
+            status_mismatch=True,
+            difference_class="regressed",
+        )
+        rendered = run_viewer.format_artifact_audit_summary(
+            [audit], term, all_classes=True
+        )
+        self.assertIn("graduated", rendered)
+        self.assertIn("regressed", rendered)

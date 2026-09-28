@@ -207,6 +207,9 @@ UNKNOWN_NOT_CLASSIFIED = (
 UNKNOWN_TRACKED_ONLY = (
     "a tracked-only sweep cannot see a run record, so direction is unknowable"
 )
+UNKNOWN_TYPE_CONFLICT = (
+    "the queue entry's explicit artifact type conflicts with the artifact found on disk"
+)
 
 
 # --------------------------------------------------------------------------------------
@@ -241,6 +244,8 @@ class FinalizeEvidenceIndex:
     available: bool = False
     unavailable_detail: str = ""
     finalize_commits: Dict[str, List[str]] = field(default_factory=dict)
+    # mlhryi E-03: transition(backlog) and transition(spec) commits: id6 -> [(sha, target_status)]
+    transition_commits: Dict[str, List[Tuple[str, str]]] = field(default_factory=dict)
     parents: Dict[str, List[str]] = field(default_factory=dict)
     head_reachable: Set[str] = field(default_factory=set)
     _ancestor_cache: Dict[str, Set[str]] = field(default_factory=dict, repr=False)
@@ -297,6 +302,34 @@ class FinalizeEvidenceIndex:
                 return commit, ""
         return None, UNKNOWN_NO_EVIDENCE
 
+    def transition_after(
+        self,
+        id6: str,
+        ending_head: str,
+        target_status: Optional[str | Sequence[str]] = None,
+    ) -> Tuple[Optional[str], str]:
+        """Is there a transition commit for ``id6`` (optionally matching target_status) AFTER ``ending_head``?
+
+        Time-bounded to ``<ending_head>..HEAD`` mirroring ``finalize_after`` (mlhryi E-03).
+        """
+        if not self.available:
+            return None, self.unavailable_detail or UNKNOWN_GIT_UNAVAILABLE
+        if not ending_head:
+            return None, UNKNOWN_NO_ENDING_HEAD
+        if ending_head not in self.head_reachable:
+            return None, UNKNOWN_HEAD_UNREACHABLE
+        before = self._ancestors_of(ending_head)
+        targets = (
+            {target_status}
+            if isinstance(target_status, str)
+            else (set(target_status) if target_status is not None else None)
+        )
+        for commit, tgt in self.transition_commits.get(id6, ()):
+            if commit in self.head_reachable and commit not in before:
+                if targets is None or tgt in targets:
+                    return commit, ""
+        return None, "no lifecycle transition commit in the after-the-run range"
+
 
 #: How long the ONE history read may take. Small on purpose: this is a read-only viewer an operator
 #: runs interactively, and `runner_shared._run_git` passes no timeout of its own, so a wedged git
@@ -311,6 +344,11 @@ _FINALIZE_SUBJECT_RE = re.compile(
     r"\A"
     + re.escape(_core.LIFECYCLE_SUBJECT_KEYWORD)
     + r"\((?P<id6>[^)]+)\):\s*finalize\b"
+)
+
+_TRANSITION_SUBJECT_RE = re.compile(
+    r"\Atransition\((?P<type>backlog|specs?)\):\s*move\s+(?P<id6>[^ \t\n\r\f\v-]+)\s*->\s*(?P<target>\S+)",
+    re.IGNORECASE,
 )
 
 
@@ -369,6 +407,11 @@ def build_finalize_evidence_index(repo_root: Path) -> FinalizeEvidenceIndex:
         m = _FINALIZE_SUBJECT_RE.match(subject.strip())
         if m:
             idx.finalize_commits.setdefault(m.group("id6"), []).append(sha)
+        m_trans = _TRANSITION_SUBJECT_RE.match(subject.strip())
+        if m_trans:
+            idx.transition_commits.setdefault(m_trans.group("id6"), []).append(
+                (sha, m_trans.group("target").strip())
+            )
 
     # HEAD's reachable set, from the SAME pass's parent graph rather than a second subprocess. A
     # detached HEAD resolves like any other commit; a HEAD that does not resolve (an empty repository)
@@ -453,6 +496,12 @@ class ArtifactAudit:
     evidence_commit: Optional[str] = None
     #: The run attempt's `ending_head`, i.e. the time bound this row's evidence was searched against.
     evidence_range_from: Optional[str] = None
+    # mlhryi E-02: typed queue entry context
+    artifact_type: Optional[str] = None
+    action: Optional[str] = None
+    initial_status: Optional[str] = None
+    expected_status: Optional[str] = None
+    type_conflict: bool = False
 
     def __post_init__(self) -> None:
         if self.collisions is None:
@@ -490,6 +539,143 @@ def expected_dir_for_status(status: str) -> str:
 
     st = canonical_terminal_status(status)
     return _TERMINAL_EXPECTED_DIR.get(st, "pending")
+
+
+def allowed_lifecycle_pairs(
+    record_type: Optional[str],
+    action: Optional[str],
+    run_status: str,
+    *,
+    initial_status: Optional[str] = None,
+    is_explicit_type: bool = True,
+) -> List[Tuple[str, str]]:
+    """Return the allowed (declared_status, directory) pairs for a step outcome.
+
+    Derived from ``record_placement.target_subdir`` using plural canonical types (mlhryi E-02).
+    """
+    from agent_workflows import status_set as _status_set
+    from agent_workflows.record_placement import target_subdir as _target_subdir
+    from agent_workflows.runner_shared import canonical_terminal_status as _canon_status
+
+    canonical_type = (
+        _status_set.canonical_type(record_type) if record_type else "plans"
+    ) or "plans"
+    act = (action or "execute").strip().lower()
+    norm_status = _canon_status(run_status)
+
+    if norm_status in _RUN_SUCCESS_STATUSES:
+        if canonical_type == "backlog":
+            if act == "execute":
+                return [("done", _target_subdir("backlog", "done") or "done")]
+            # plan (or default)
+            return [
+                ("graduated", _target_subdir("backlog", "graduated") or "graduated"),
+                ("done", _target_subdir("backlog", "done") or "done"),
+            ]
+        if canonical_type == "specs":
+            if act == "plan":
+                return [
+                    (
+                        "implementing",
+                        _target_subdir("specs", "implementing") or "implementing",
+                    ),
+                    (
+                        "implemented",
+                        _target_subdir("specs", "implemented") or "implemented",
+                    ),
+                ]
+            if act == "review":
+                return [
+                    ("reviewed", _target_subdir("specs", "reviewed") or "reviewed"),
+                    ("approved", _target_subdir("specs", "approved") or "approved"),
+                ]
+            if act == "execute":
+                return [
+                    (
+                        "implemented",
+                        _target_subdir("specs", "implemented") or "implemented",
+                    )
+                ]
+            return [
+                (
+                    "implementing",
+                    _target_subdir("specs", "implementing") or "implementing",
+                ),
+                (
+                    "implemented",
+                    _target_subdir("specs", "implemented") or "implemented",
+                ),
+            ]
+        if canonical_type == "plans":
+            if act == "review":
+                return [("reviewed", "pending"), ("approved", "pending")]
+            # execute
+            return [
+                ("executed", "executed"),
+                ("complete", "executed"),
+                ("superseded", "superseded"),
+                ("not-executed", "not-executed"),
+                ("reusable", "reusable"),
+            ]
+        # Any other type fallback
+        d = _target_subdir(canonical_type, "executed") or "pending"
+        return [("executed", d)]
+
+    if norm_status == "retired":
+        return [("superseded", "superseded"), ("not-executed", "not-executed")]
+
+    # Pre-terminal / in-flight / non-terminal outcomes (queued, running, interrupted, fail-gate, failed, etc.)
+    init_st = initial_status.strip().lower() if initial_status else None
+    if init_st:
+        if canonical_type == "plans":
+            exp_d = _target_subdir("plans", init_st) or "pending"
+            pairs = [(init_st, exp_d)]
+            for s in (
+                "approved",
+                "to-review",
+                "draft",
+                "reviewed",
+                "queued",
+                "running",
+            ):
+                if s != init_st:
+                    pairs.append((s, "pending"))
+            return pairs
+        exp_d = _target_subdir(canonical_type, init_st) or init_st
+        return [(init_st, exp_d)]
+
+    if is_explicit_type:
+        # Documented fallback for typed entries lacking initial_status
+        if canonical_type == "backlog":
+            fallback = "open"
+            return [(fallback, _target_subdir("backlog", fallback) or fallback)]
+        if canonical_type == "specs":
+            fallback = "approved" if act == "plan" else "to-review"
+            return [(fallback, _target_subdir("specs", fallback) or fallback)]
+        if canonical_type == "plans":
+            fallback = "approved" if act == "execute" else "to-review"
+            pairs = [(fallback, "pending")]
+            for s in (
+                "approved",
+                "to-review",
+                "draft",
+                "reviewed",
+                "queued",
+                "running",
+            ):
+                if s != fallback:
+                    pairs.append((s, "pending"))
+            return pairs
+        return [(norm_status, _target_subdir(canonical_type, norm_status) or "pending")]
+
+    # Legacy untyped queue records (no artifact_type, no initial_status)
+    # Plans tolerate pre-terminal statuses in pending
+    if canonical_type == "plans":
+        return [
+            (s, "pending")
+            for s in ("approved", "to-review", "draft", "reviewed", "queued", "running")
+        ]
+    return [(_canon_status(run_status), "pending")]
 
 
 def run_status_is_nonterminal(status: str) -> bool:
@@ -584,6 +770,8 @@ def classify_difference(
             else "no artifact found for this step"
         )
         return CLASS_MISSING, detail, None
+    if audit.type_conflict:
+        return CLASS_UNKNOWN, UNKNOWN_TYPE_CONFLICT, None
     if not audit.has_discrepancy:
         return CLASS_UNCHANGED, "the run record and the artifact agree", None
 
@@ -598,6 +786,22 @@ def classify_difference(
         else (audit.actual_dir or "")
     )
     forward = run_status_is_nonterminal(audit.run_status)
+
+    from agent_workflows import status_set as _status_set
+
+    eff_type = (
+        _status_set.canonical_type(audit.artifact_type) if audit.artifact_type else None
+    )
+    if eff_type is None and audit.actual_path is not None:
+        try:
+            detected = _status_set.detect_artifact_type(
+                Path(audit.actual_path), Path(audit.actual_path).resolve().parents[3]
+            )
+            eff_type = _status_set.canonical_type(detected)
+        except Exception:
+            pass
+    if eff_type is None:
+        eff_type = "plans"
 
     # UNATTRIBUTABLE ROWS ARE NEVER `regressed` (review PR-202/F-6e). `find_artifact`'s filename tier
     # resolves an id6 that appears in the grammar's id6 FIELD, but a caller may still hand this audit a
@@ -643,32 +847,138 @@ def classify_difference(
             None,
         )
 
-    if forward and actual == "executed":
-        # THE ONE CLASS THAT NEEDS READ GIT EVIDENCE, TIME-BOUND to after this run ended.
-        if evidence is None:
-            return CLASS_UNKNOWN, UNKNOWN_NOT_CLASSIFIED, None
-        commit, why = evidence.finalize_after(audit.id6, ending_head)
-        if commit:
-            return (
-                CLASS_RESOLVED,
-                f"finalized after the run ended (commit {commit[:12]})",
-                commit,
+    if forward:
+        declared = audit.file_status or ""
+        if (
+            eff_type == "backlog"
+            and actual in ("graduated", "done")
+            and declared == actual
+        ):
+            if evidence is None:
+                return CLASS_UNKNOWN, UNKNOWN_NOT_CLASSIFIED, None
+            commit, why = evidence.transition_after(
+                audit.id6, ending_head, target_status=("graduated", "done")
             )
-        return CLASS_UNKNOWN, why, None
+            if not commit:
+                commit, _ = evidence.finalize_after(audit.id6, ending_head)
+            if commit:
+                return (
+                    CLASS_RESOLVED,
+                    f"transitioned after the run ended (commit {commit[:12]})",
+                    commit,
+                )
+            return CLASS_UNKNOWN, why or UNKNOWN_NO_EVIDENCE, None
 
-    if audit.run_status in _RUN_SUCCESS_STATUSES and actual not in (
-        "executed",
-        *_RETIREMENT_DIRS,
-    ):
-        # BACKWARDS: the run recorded a SUCCESS and the artifact is in neither `executed/` nor a
-        # retirement directory. Evidence the finalize did not stick, which is what the red is FOR.
-        # NARROWER THAN THE ITEM'S RULE deliberately: a retirement is excluded above, and an
-        # unattributable row was excluded further up.
-        return (
-            CLASS_REGRESSED,
-            f"the run recorded {audit.run_status} but the artifact is in {actual or '(nowhere)'}/",
-            None,
-        )
+        if eff_type == "specs":
+            act = (audit.action or "execute").strip().lower()
+            if (
+                act == "plan"
+                and actual in ("implementing", "implemented")
+                and declared == actual
+            ):
+                if evidence is None:
+                    return CLASS_UNKNOWN, UNKNOWN_NOT_CLASSIFIED, None
+                commit, why = evidence.transition_after(
+                    audit.id6,
+                    ending_head,
+                    target_status=("implementing", "implemented"),
+                )
+                if not commit:
+                    commit, _ = evidence.finalize_after(audit.id6, ending_head)
+                if commit:
+                    return (
+                        CLASS_RESOLVED,
+                        f"transitioned after the run ended (commit {commit[:12]})",
+                        commit,
+                    )
+                return CLASS_UNKNOWN, why or UNKNOWN_NO_EVIDENCE, None
+            if (
+                act == "review"
+                and actual in ("reviewed", "approved")
+                and declared == actual
+            ):
+                if evidence is None:
+                    return CLASS_UNKNOWN, UNKNOWN_NOT_CLASSIFIED, None
+                commit, why = evidence.transition_after(
+                    audit.id6, ending_head, target_status=("reviewed", "approved")
+                )
+                if not commit:
+                    commit, _ = evidence.finalize_after(audit.id6, ending_head)
+                if commit:
+                    return (
+                        CLASS_RESOLVED,
+                        f"transitioned after the run ended (commit {commit[:12]})",
+                        commit,
+                    )
+                return CLASS_UNKNOWN, why or UNKNOWN_NO_EVIDENCE, None
+
+        if eff_type == "plans" and actual == "executed":
+            # THE ONE CLASS THAT NEEDS READ GIT EVIDENCE, TIME-BOUND to after this run ended.
+            if evidence is None:
+                return CLASS_UNKNOWN, UNKNOWN_NOT_CLASSIFIED, None
+            commit, why = evidence.finalize_after(audit.id6, ending_head)
+            if commit:
+                return (
+                    CLASS_RESOLVED,
+                    f"finalized after the run ended (commit {commit[:12]})",
+                    commit,
+                )
+            return CLASS_UNKNOWN, why, None
+
+    if audit.run_status in _RUN_SUCCESS_STATUSES:
+        declared = audit.file_status or ""
+        if eff_type == "backlog":
+            if (
+                actual not in ("graduated", "done")
+                or declared not in ("graduated", "done")
+                or actual != declared
+            ):
+                return (
+                    CLASS_REGRESSED,
+                    f"the run recorded {audit.run_status} ({audit.action or 'plan'}) but the artifact is in {actual or '(nowhere)'}/",
+                    None,
+                )
+        elif eff_type == "specs":
+            act = (audit.action or "execute").strip().lower()
+            if act == "plan" and (
+                actual not in ("implementing", "implemented")
+                or declared not in ("implementing", "implemented")
+                or actual != declared
+            ):
+                return (
+                    CLASS_REGRESSED,
+                    f"the run recorded {audit.run_status} (plan) but the artifact is in {actual or '(nowhere)'}/",
+                    None,
+                )
+            elif act == "review" and (
+                actual not in ("reviewed", "approved")
+                or declared not in ("reviewed", "approved")
+                or actual != declared
+            ):
+                return (
+                    CLASS_REGRESSED,
+                    f"the run recorded {audit.run_status} (review) but the artifact is in {actual or '(nowhere)'}/",
+                    None,
+                )
+            elif act == "execute" and (
+                actual != "implemented" or declared != "implemented"
+            ):
+                return (
+                    CLASS_REGRESSED,
+                    f"the run recorded {audit.run_status} (execute) but the artifact is in {actual or '(nowhere)'}/",
+                    None,
+                )
+        else:
+            if actual not in ("executed", *_RETIREMENT_DIRS):
+                # BACKWARDS: the run recorded a SUCCESS and the artifact is in neither `executed/` nor a
+                # retirement directory. Evidence the finalize did not stick, which is what the red is FOR.
+                # NARROWER THAN THE ITEM'S RULE deliberately: a retirement is excluded above, and an
+                # unattributable row was excluded further up.
+                return (
+                    CLASS_REGRESSED,
+                    f"the run recorded {audit.run_status} but the artifact is in {actual or '(nowhere)'}/",
+                    None,
+                )
 
     if forward and actual == "reusable":
         # `reusable/` is a STANDING disposition, not an execution outcome, and no lifecycle commit
@@ -959,6 +1269,9 @@ def audit_artifact(
     record_types: Sequence[str] = TYPE_PRECEDENCE,
     evidence: Optional[FinalizeEvidenceIndex] = None,
     ending_head: str = "",
+    artifact_type: Optional[str] = None,
+    action: Optional[str] = None,
+    initial_status: Optional[str] = None,
 ) -> ArtifactAudit:
     """THE audit predicate: is the artifact for ``id6`` where ``status`` says it should be?
 
@@ -979,19 +1292,65 @@ def audit_artifact(
     so, never a `CLASS_UNCHANGED` or `CLASS_RESOLVED` it did not earn.
     """
     stem = stem or id6
+    from agent_workflows import status_set as _status_set
+    from agent_workflows.record_placement import target_subdir as _target_subdir
     from agent_workflows.runner_shared import canonical_terminal_status
 
     recorded = canonical_terminal_status(status)
-    expected = expected_dir_for_status(status)
+
+    is_explicit_type = artifact_type is not None
+    canonical_queue_type = (
+        _status_set.canonical_type(artifact_type) if artifact_type else None
+    )
+    effective_type = canonical_queue_type or "plans"
+    act = (action or "execute").strip().lower()
+
+    search_types = record_types
+    if canonical_queue_type and canonical_queue_type in TYPE_PRECEDENCE:
+        search_types = (
+            canonical_queue_type,
+            *(t for t in record_types if t != canonical_queue_type),
+        )
 
     actual_file: Optional[Path] = None
     collisions: List[Path] = []
     if configured_file and (Path(repo_root) / configured_file).is_file():
         actual_file = Path(repo_root) / configured_file
     else:
-        lookup = find_artifact(repo_root, id6, stem, record_types=record_types)
+        lookup = find_artifact(repo_root, id6, stem, record_types=search_types)
         actual_file = lookup.path
         collisions = list(lookup.collisions)
+
+    type_conflict = False
+    if actual_file is not None:
+        try:
+            detected = _status_set.detect_artifact_type(actual_file, Path(repo_root))
+            canonical_detected = (
+                _status_set.canonical_type(detected) if detected else None
+            )
+        except Exception:
+            canonical_detected = None
+
+        if is_explicit_type:
+            # Explicit queue type is authoritative (OQ-01)
+            if canonical_detected and canonical_detected != canonical_queue_type:
+                type_conflict = True
+        else:
+            if canonical_detected:
+                effective_type = canonical_detected
+
+    allowed_pairs = allowed_lifecycle_pairs(
+        effective_type,
+        act,
+        recorded,
+        initial_status=initial_status,
+        is_explicit_type=is_explicit_type,
+    )
+    primary_expected_status, primary_expected_dir = (
+        allowed_pairs[0] if allowed_pairs else (recorded, "pending")
+    )
+    expected_status = primary_expected_status
+    expected_dir = primary_expected_dir
 
     if actual_file is None:
         return _classified(
@@ -1000,41 +1359,86 @@ def audit_artifact(
                 stem=stem,
                 run_status=recorded,
                 missing_entirely=True,
-                expected_dir=expected,
+                expected_dir=expected_dir,
                 is_live=is_live,
                 collisions=collisions,
+                artifact_type=artifact_type,
+                action=action,
+                initial_status=initial_status,
+                expected_status=expected_status,
+                type_conflict=type_conflict,
             ),
             evidence=evidence,
             ending_head=ending_head,
         )
 
     actual_dir = actual_file.parent.name
+    actual_disposition = _disposition_dir(actual_file)
     file_status = read_declared_status(actual_file)
+
     # A run status of `retired` (runner_shared.RETIRED_STATUS) names the CLASS of disposition, not
     # which retired directory: the plan's own declared status says whether it is `superseded` or
     # `not-executed`, so the expectation is resolved from the file rather than guessed.
     if recorded == "retired":
-        expected = (
+        expected_dir = (
             file_status if file_status in _RETIREMENT_DIRS else min(_RETIREMENT_DIRS)
         )
-        if actual_dir in _RETIREMENT_DIRS:
-            expected = actual_dir
+        if actual_disposition in _RETIREMENT_DIRS:
+            expected_dir = actual_disposition
+        expected_status = expected_dir
+
+    matching_pair = None
+    if not type_conflict:
+        for st_cand, dir_cand in allowed_pairs:
+            if file_status == st_cand and actual_disposition == dir_cand:
+                matching_pair = (st_cand, dir_cand)
+                break
+
+    if matching_pair is not None:
+        expected_status = matching_pair[0]
+        expected_dir = (
+            actual_dir if actual_dir == matching_pair[1] else matching_pair[1]
+        )
+        location_mismatch = False
+        status_mismatch = False
+    else:
+        if type_conflict:
+            location_mismatch = True
+            status_mismatch = True
+        else:
+            loc_match = any(p[1] == actual_disposition for p in allowed_pairs)
+            st_match = (
+                any(p[0] == file_status for p in allowed_pairs)
+                if file_status is not None
+                else False
+            )
+            if loc_match and st_match:
+                exp_d_for_file = _target_subdir(effective_type, file_status or "")
+                location_mismatch = exp_d_for_file != actual_disposition
+                status_mismatch = True
+            else:
+                location_mismatch = not loc_match
+                status_mismatch = not st_match
+
     return _classified(
         ArtifactAudit(
             id6=id6,
             stem=stem,
             run_status=recorded,
             missing_entirely=False,
-            location_mismatch=actual_dir != expected,
-            status_mismatch=bool(
-                file_status is not None and _status_disagrees(recorded, file_status)
-            ),
+            location_mismatch=location_mismatch,
+            status_mismatch=status_mismatch,
             actual_dir=actual_dir,
-            expected_dir=expected,
+            expected_dir=expected_dir,
             file_status=file_status,
             actual_path=actual_file,
             is_live=is_live,
             collisions=collisions,
+            artifact_type=artifact_type,
+            action=action,
+            initial_status=initial_status,
+            expected_status=expected_status,
+            type_conflict=type_conflict,
         ),
         evidence=evidence,
         ending_head=ending_head,
