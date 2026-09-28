@@ -1,5 +1,6 @@
 - Id: pe7g6r
-- Status: open
+- Status: graduated
+- Graduated-To: pe7g6r
 - Blocks-Release: next
 - Set: pe7g6r
 - Priority: high
@@ -7,6 +8,7 @@
 - Summary: test_the_terminal_rung_still_records_the_item_interrupted fails deterministically in isolation: after 3x SIGINT the in-flight item is left 'running', not 'interrupted', so main's exit-130 item bookkeeping is not preserved at the terminal rung
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: gvf2sq
 - 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-17 created (aw backlog): test_the_terminal_rung_still_records_the_item_interrupted fails deterministically in isolation: after 3x SIGINT the in-flight item is left 'running', not 'interrupted', so main's exit-130 item bookkeeping is not preserved at the terminal rung
 
