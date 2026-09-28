@@ -1,5 +1,5 @@
 - Id: a3ugp1
-- Status: graduated
+- Status: done
 - Graduated-To: a3ugp1
 - Blocks-Release: next
 - Set: a3ugp1
@@ -53,5 +53,6 @@ tree at the same HEAD. Recorded rather than repaired because repairing a verdict
 outside that plan's declared `Scope-Paths` and needs its own review.
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): closed by aw oc run: IPD lqzoi9 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-a3ugp1-01-lqzoi9-pin-the-cleared-no-go-verdict-shape-in-the-default-suite-and.ipd.md); evidence .aw/records/plans/executed/20260928-a3ugp1-01-lqzoi9-pin-the-cleared-no-go-verdict-shape-in-the-default-suite-and.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: lqzoi9
 - 2026-09-19 created (aw backlog): The approval gate refuses three pending reaskscore plans on a stale negative verdict, failing tests/test_plan_readiness.py at HEAD
