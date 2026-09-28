@@ -6,7 +6,7 @@
 - Scope: Add the STATUS-transition call site to both spellings of `aw backlog set`, through the existing shared predicate, and pin all four routes (the two already-working reclassification routes and the two currently-broken transition routes) with tests. No new policy, no new field, no change to `decide_gate_default`'s four conditions.
 - Scope-Paths: agent_workflows/backlog.py, agent_workflows/status_set.py, tests/test_backlog_gate_follows_status.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -19,6 +19,7 @@
 - Id: vsgd48
 
 ## Workflow history
+- 2026-09-28 reviewed (aw set): /plan-review round 1 complete: APPROVE WITH REVISIONS APPLIED; PR-901 through PR-907 all FIXED; review record written; review-finalize lint conforming.
 
 - 2026-09-28 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-901 through PR-907 all FIXED. Review record `.aw/records/reviews/20260928-gatefollows-01-vsgd48-default-the-release-gate-when-a-bug-transitions-into-a-live.review.md` Round 1.
   THE DIAGNOSIS IS CORRECT AND EVERY ROUTE REPRODUCED, ON BOTH SPELLINGS. Driven end to end at review through `backlog.run_set` and through the real CLI for the positional spelling: route (a) `chore -> bug` while `open` writes `- Blocks-Release: next` and announces it (F-01/F-02 hold); routes (b) `open -> graduated`, (c) `parked -> open` and (d) `done -> open` each write NO gate, print no notice, and each leaves a tree on which `check_engine.check_live_bug_gate` returns `['check.live-bug-ungated']` (F-03/F-04/F-05 hold, on BOTH spellings). F-07 (zero gateless live bugs repo-wide) and F-10 (no test anywhere touches `decide_gate_default`) both re-confirmed. The plan's correction of the backlog item's diagnosis is sound and its refusal to claim the item's unreproducible regrowth measurement is the right call.
