@@ -6,7 +6,7 @@
 - Scope: Amend spec `25kzda` with a new Section 2.1c declaring the verification flag surface PER HOST, with the reason for the asymmetry and the operator consequences, and add one test that pins the measured dest table per host per subcommand so a de-duplication cannot silently steal a shipped spelling. The amendment goes in a NEW SUBSECTION and deliberately NOT into 2.1's grammar stanza, for a mechanical reason measured in F-09. CHANGES NO SHIPPED BEHAVIOR: no flag is added, removed, renamed or re-dested on either host, and the existing build-time guard is left exactly as it is.
 - Scope-Paths: .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, tests/test_runner_shared.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 7dz3wv
-- Approval: 2026-09-29, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-29 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 7dz3wv verified (set xdgorn, attempt 1).
 - 2026-09-29 approved (aw set): status set to approved
 - 2026-09-28 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 all fixed; readiness go-pending-approval
 
