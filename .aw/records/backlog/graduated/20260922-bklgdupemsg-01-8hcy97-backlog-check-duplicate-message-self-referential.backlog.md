@@ -1,5 +1,6 @@
 - Id: 8hcy97
-- Status: open
+- Status: graduated
+- Graduated-To: bklgdupemsg
 - Blocks-Release: next
 - Set: bklgdupemsg
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: aw backlog check's id-duplicate message names the file as its own duplicate, so it cannot locate the other copy
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: 8rsxy1
 - 2026-09-22 created (aw backlog): Found while executing ty7w6o. All 20 violations read 'id X also in <the same filename>', which tells an operator nothing about where the other copy is.
 
 `aw backlog check` reports 20 violations at HEAD 64eb8406 and EVERY message is self-referential, e.g.
