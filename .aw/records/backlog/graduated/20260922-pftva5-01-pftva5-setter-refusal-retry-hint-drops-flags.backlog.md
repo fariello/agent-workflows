@@ -1,5 +1,6 @@
 - Id: pftva5
-- Status: open
+- Status: graduated
+- Graduated-To: pftva5
 - Blocks-Release: next
 - Set: pftva5
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: Correct the aw set confirmation refusal's retry hint: it drops the caller's flags and rewrites the verb
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260929T021205Z-3914774: 5poaqh
 - 2026-09-22 created (aw backlog): Correct the aw set confirmation refusal's retry hint: it drops the caller's flags and rewrites the verb
 
 FOUND BY: executing IPD 4bc1nd (Set setterguard), which recorded this as finding F-11 and deferred it with a required carrier.
