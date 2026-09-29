@@ -1,11 +1,13 @@
 - Id: 1zknu7
-- Status: open
+- Status: graduated
+- Graduated-To: 1zknu7
 - Set: 1zknu7
 - Priority: medium
 - Work-Kind: chore
 - Summary: plans cite a spec id6 in prose without carrying - From-Spec:, so coverage is uncomputable for the specs where it matters: 37 plans mention c4gd2h and 0 carry the edge
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260928T235632Z-1358353: 0ykozn
 - 2026-09-20 created (aw backlog): plans cite a spec id6 in prose without carrying - From-Spec:, so coverage is uncomputable for the specs where it matters: 37 plans mention c4gd2h and 0 carry the edge
 
 MEASURED 2026-09-20 at HEAD 96e93f8c by research survey vkub9o (plan si24ia). This is that survey SINGLE most important structural finding and it was not previously filed anywhere.
