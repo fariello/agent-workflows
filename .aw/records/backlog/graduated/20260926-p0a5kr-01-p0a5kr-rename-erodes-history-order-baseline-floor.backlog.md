@@ -1,5 +1,6 @@
 - Id: p0a5kr
-- Status: open
+- Status: graduated
+- Graduated-To: p0a5kr
 - Blocks-Release: next
 - Set: p0a5kr
 - Priority: low
@@ -7,6 +8,7 @@
 - Summary: aw rename of a terminal plan silently erodes test_history_order's 700-path floor because the frozen baseline keys paths and is never rewritten
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260929T021205Z-3914774: rlcq7g
 - 2026-09-26 created (aw backlog): aw rename of a terminal plan silently erodes test_history_order's 700-path floor because the frozen baseline keys paths and is never rewritten
 
 FOUND 2026-09-26 during /plan-review of plan 5xzld0 (renamescan Order 01), which correctly excludes .json from the widened reference-scan suffixes (its F-6) so that tests/fixtures/derive_plan_status_baseline.json is never rewritten by a rename. That exclusion is necessary but NOT sufficient, and the reasoning stops one step short.
