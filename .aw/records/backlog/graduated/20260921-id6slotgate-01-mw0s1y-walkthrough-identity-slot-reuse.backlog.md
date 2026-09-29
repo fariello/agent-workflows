@@ -1,5 +1,6 @@
 - Id: mw0s1y
-- Status: open
+- Status: graduated
+- Graduated-To: id6slotgate
 - Blocks-Release: next
 - Set: id6slotgate
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: Three walkthroughs reuse their source plan's id6 in their own filename identity slot, violating D140 and the walkthroughs README
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: aisk5z
 - 2026-09-21 created (aw backlog): Three walkthroughs reuse their source plan's id6 in their own filename identity slot, violating D140 and the walkthroughs README
 
 MEASURED 2026-09-21 while executing IPD paw8so. This is the DATA half of the defect; the missing DETECTION is filed separately as `e2j5w4`.
