@@ -1,5 +1,6 @@
 - Id: 8mkt5l
-- Status: open
+- Status: graduated
+- Graduated-To: 8mkt5l
 - Blocks-Release: next
 - Set: 8mkt5l
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: artifact_audit's index cache can return a STALE index, because its invalidation signature is directory mtime and two writes inside one mtime tick are invisible to it
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: dea7dr
 - 2026-09-21 created (aw backlog): artifact_audit's index cache can return a STALE index, because its invalidation signature is directory mtime and two writes inside one mtime tick are invisible to it
 
 OBSERVED 2026-09-21 in lane 9lyg5h as a FLAKE, then reproduced DETERMINISTICALLY. During execution of plan 9lyg5h one bare-suite run reported `tests/test_artifact_audit.py::VerdictParityTests::test_four_verdict_shapes` failing with `AssertionError` on `assertTrue(loc.location_mismatch)`. It then passed in isolation and in eight consecutive repeats of its own module, and in five consecutive full bare-suite runs, so it is intermittent rather than a regression. It is NOT caused by that plan's changes: the failing test does not touch the runner, and a bare suite at the pristine base commit was also clean.
