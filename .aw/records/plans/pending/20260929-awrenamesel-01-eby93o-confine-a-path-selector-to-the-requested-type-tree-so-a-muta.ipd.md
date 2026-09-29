@@ -10,6 +10,7 @@
 - Scope-Paths: agent_workflows/selectors.py, tests/test_selector_type_containment.py
 - Item-Dependencies: none
 - Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: gyv9tf
@@ -214,7 +215,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-This plan was authored `to-review` with no `- Readiness:` field, correctly, since that value is an output of review rather than of authoring. It must not be executed on the strength of the authoring turn.
+This plan was authored `to-review` with no `- Readiness:` field, correctly, since that value is an output of review rather than of authoring. It must not be executed on the strength of the authoring turn. `/plan-review` has since run and WROTE that field as `go-pending-approval`, which records a review verdict and NOT human approval; execution still awaits the maintainer's sign-off.
 
 EXECUTION CONTRACT. Stay inside `Scope-Paths`: `agent_workflows/selectors.py` and `tests/test_selector_type_containment.py`. Put the guard in `resolve_for_mutation`, NOT in `resolve`. Leave `status_set.py`, `artifact_rename.py` and `plans_refs.py` byte-unchanged. Do NOT implement the guard as a `detect_artifact_type` type comparison: E-04 pins the measured reason (F-06) and that shape refuses a legitimate target. **FAIL CLOSED WHEN `record_dirs` RETURNS `[]`. This is the one decision that silently reproduces the whole defect if taken the other way, and OQ-02 as originally authored took it the other way: measured, a skip-on-empty predicate leaves `aw rename specs <a plan path> --apply` renaming the plan at exit 0, byte-identically to no guard at all, because the empty list belongs to the ATTACKING type while the victim's tree is full (F-15). It would also leave E-01 red after a correct-looking E-03. V-03 requires the empty-tree case to be demonstrated in a repo where the requested type's tree is ABSENT; a demonstration in a repo where both trees exist cannot tell the two behaviors apart.** Do NOT extend the `plans` path selector to work here: it refuses today for a reason `87m438` owns (F-16), and making it work is that plan's deliverable, not this one's. Commit through `aw commit <plan> -- <paths>` with the staged set verified (the checkout is shared); never `git add -A`, never push, never `--no-verify`.
 EVIDENCE CONTRACT. The failing-first contrast in V-01 and V-02 is the gate: if the new tests cannot be observed failing against unfixed source, stop and report rather than proceeding, because the wrong mutation has then not been pinned. Paste actual runner output for every `V-*`; never record a pass not run. Be aware of the measured hazard behind E-01's in-process requirement: an editable install can make a subprocess `python3 -m agent_workflows` import the MAIN checkout rather than this lane (`ccbe60`), so a subprocess assertion can pass against unfixed source.
