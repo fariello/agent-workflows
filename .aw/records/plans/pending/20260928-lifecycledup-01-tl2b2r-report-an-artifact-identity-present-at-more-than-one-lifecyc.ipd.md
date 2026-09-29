@@ -45,7 +45,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the shared predicate
 
-- [ ] E-01 Add ONE pure reader to `agent_workflows/check_engine.py` that answers "which artifact identities occupy more than one lifecycle location", returning FACTS (a mapping of identity to the sorted list of paths holding it) and emitting no `Drift`, so both this plan's rule and Order 2's refusal consume the same function. Give it a name that says PLACEMENT rather than duplication, and make the return shape include, per identity, the lifecycle bucket of each path, because Order 2 needs the buckets to phrase its refusal and recomputing them there would be the second reader this item exists to avoid.
+- [x] E-01 Add ONE pure reader to `agent_workflows/check_engine.py` that answers "which artifact identities occupy more than one lifecycle location", returning FACTS (a mapping of identity to the sorted list of paths holding it) and emitting no `Drift`, so both this plan's rule and Order 2's refusal consume the same function. Give it a name that says PLACEMENT rather than duplication, and make the return shape include, per identity, the lifecycle bucket of each path, because Order 2 needs the buckets to phrase its refusal and recomputing them there would be the second reader this item exists to avoid.
   SPLIT THE REASONING FROM THE ENUMERATION, BECAUSE ORDER 2 CANNOT CALL A FILESYSTEM WALKER AND THIS IS THE ONE REQUIREMENT THAT DECIDES WHETHER THE SET'S SHARED-PREDICATE PREMISE HOLDS. Order 2 (`46u3tu`) E-01 asks this predicate about a PREDICTED POST-MERGE GIT TREE that exists only as a tree object: its own E-01 says to take the tree `merge_write_set` builds via `git merge-tree --write-tree HEAD <branch>` and "enumerate its record paths with `git ls-tree -r --name-only <tree>`". A reader whose only entry point walks `check_engine._iter_type_files` (which calls `Path.rglob` on the real filesystem) is UNCALLABLE on a tree object, so Order 2 would be forced to re-derive the grouping locally, which is precisely the two-readers drift its `- Item-Dependencies: executed:tl2b2r` exists to prevent. Ship TWO symbols: a PURE CORE that takes an iterable of already-gathered `(path, text_or_None)` records (or an equivalent path+identity record) and returns the grouping, plus a thin REPOSITORY-SCANNING wrapper that gathers from `_iter_type_files` and delegates. This plan's rule (E-02) calls the wrapper; Order 2 calls the core with paths it enumerated from `git ls-tree`. A test must pin that the core needs no filesystem access, by calling it with synthetic path strings that do not exist on disk.
   THE CORE MUST ACCEPT A MISSING BODY, because `git ls-tree` gives Order 2 PATHS and reading each blob costs a `git cat-file` per file. Make the declared-`Id:` key OPTIONAL per record (text `None` -> that record contributes only its stem key) and state that a caller supplying no text gets stem-keyed answers only. That is sufficient for Order 2's plans-tree case, where 0 of 884 plans lack a declared `Id:` yet every plan's stem is unique, but it MUST be documented rather than discovered, since a spec caller passing no text would silently lose the declared-Id key on the 19-of-38 population.
   KEY ON BOTH IDENTITY READINGS, NOT ONE, AND RECORD WHICH FIRED. The declared `- Id:` (via `check_engine._read_declared_id`) and the FILENAME STEM are different keys covering different populations, and the whole defect this plan fixes is that only the first is read today. The stem is what the item's own repro command uses (`for f in .aw/records/plans/*/*.ipd.md; do basename "$f"; done | sort | uniq -d`, item line 55) and it is the ONLY key that sees the no-declared-`Id:` population; MEASURED 2026-09-28 in this tree, that population is 19 of 38 specs and 17 of 17 prompts, versus 0 of 870 plans and 0 of 666 backlog items. So a declared-Id-only reader would be correct for plans today and silent for the majority of specs and for every prompt.
@@ -56,34 +56,34 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   THE BUCKET VOCABULARY IS NOT UNIFORM ACROSS THE FOUR TYPES, AND THE PREDICATE MUST NOT ASSUME PLAN VOCABULARY. MEASURED: `plans` and `prompts` share `('pending','executed','superseded','not-executed','reusable')`, but `specs` is a NINE-member STATUS vocabulary (`draft`,`to-review`,`reviewed`,`approved`,`implementing`,`implemented`,`deferred`,`parked`,`superseded`) and `backlog` a FIVE-member one (`open`,`graduated`,`blocked`,`parked`,`done`). So a spec legitimately MOVES through `draft/` -> `approved/` -> `implemented/` and a backlog item through `open/` -> `done/`; two copies is still a defect for those types, but the word "terminal" (E-03) does not translate. Read each type's buckets from `LIFECYCLE_SUBDIRS[type]` and never from a plan-shaped literal.
   - Depends on: none
   - Expected outcome: a pure function exists, returns per-identity path lists with buckets, is keyed on both the declared `- Id:` and the filename stem with the firing key recorded, resolves a sharded path to its disposition rather than its month, covers exactly the four `LIFECYCLE_SUBDIRS` types with a test pinning that domain and skipping the four flat types explicitly, reads each type's bucket vocabulary from `LIFECYCLE_SUBDIRS[type]` rather than a plan-shaped literal, returns empty for this repository, and emits no `Drift`; the `lifecycle_dirs` import direction is recorded as cycle-free with evidence.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Register the rule id in `check_engine.RULE_REGISTRY` with an explicit severity, assurance, determinism and invariant, and wire the predicate into the ONCE-PER-SWEEP cross-tree seam in `check_engine.check_types` where `check_collisions` already rides, each cross-tree rule inside its own `try/except` so one failure cannot suppress another.
+- [x] E-02 Register the rule id in `check_engine.RULE_REGISTRY` with an explicit severity, assurance, determinism and invariant, and wire the predicate into the ONCE-PER-SWEEP cross-tree seam in `check_engine.check_types` where `check_collisions` already rides, each cross-tree rule inside its own `try/except` so one failure cannot suppress another.
   REGISTRATION IS NOT BOOKKEEPING AND OMITTING IT IS A SILENT DEFECT. An id absent from `RULE_REGISTRY` falls to `_DEFAULT_RULESPEC`, which is `error` with an EMPTY invariant, so a missing entry makes the rule blocking by accident and drops its traceability with no diagnostic.
   CHOOSE `error` AND STATE WHY, BUT KNOW THAT `warning` IS NOT THE SOFTER OPTION IT LOOKS LIKE. `artifact_core.drift_exit_code` exempts ONLY `info`, so a `warning` fails the gate exactly as an `error` does; the honest choice is `error` (the condition is a real lifecycle contradiction and the item asks for it to be "DETECTED and refused") or `info` if it must not go red, and there is no middle. This tree currently has ZERO instances (MEASURED, F-05), so `error` reds nothing today. If `warning` is chosen anyway, note it interacts with `tests/test_work_gate_severity.py`, which enumerates every `warning`-severity registry entry and asserts none appears in a refusal output; that file is NOT in this plan's `Scope-Paths`, so choosing `warning` would require declaring it.
   DO NOT PUT `duplicate` IN THE RULE ID, AND THE PROHIBITION IS MECHANICALLY ENFORCED TODAY, SO A VIOLATION FAILS THE SUITE RATHER THAN MERELY BREAKING CONVENTION. `tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_rule_id_contains_neither_graduation_nor_duplicate` asserts `[k for k in check_engine.RULE_REGISTRY if 'graduation' in k or 'duplicate' in k] == []` over the WHOLE registry, not merely over its own rule id. DRIVEN AT REVIEW 2026-09-28: `python3 -m pytest tests/test_check_engine_spec_criteria.py -o addopts="" -k neither_graduation_nor_duplicate -v` reports `1 passed`. So registering an id containing `duplicate` would RED that test, in a file this plan does NOT declare in `Scope-Paths`; the executor must choose a placement-shaped id rather than widen scope to relax the guard. The convention's rationale is recorded at `check_engine`'s own `check.graduated-to-repeated` entry (which explains why it is named `-repeated`). NOTE the earlier draft of this plan cited `tests/test_graduation_view.py` as the enforcing test and said commit `19313eed` deleted it; that file is indeed absent, but the guard SURVIVED in the file named above, so the prohibition is live and the "deleted, do not cite" framing was wrong in the direction that matters.
   CLAIM `invariant=""` WITH A WRITTEN REASON UNLESS YOU AMEND THE CATALOG. The invariant catalog in spec `pqsx96` has no invariant covering artifact PLACEMENT: `I-09` is filename-grammar conformance and `I-16` is setid semantics, and claiming either would file this rule under a contract it does not test. An empty invariant with a stated reason is established precedent (`check.scope-path-target-stale`, `check.priority-invalid`). Amending the catalog instead is legitimate but would put a `.spec.md` in `Scope-Paths`, which this plan deliberately does not do; if you amend, declare it, per AGENTS.md.
   - Depends on: E-01
   - Expected outcome: the id is registered with a deliberate severity, an assurance class, a determinism tag and either a real `I-*` or `""` plus a written reason; the id contains no `duplicate`; `aw check` reports the finding on a fixture holding two copies and stays silent on this repository; a raised predicate does not suppress a sibling cross-tree rule.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Make the finding's `location`, `detail` and `recovery` name BOTH paths and BOTH statuses, and say which copy the lifecycle reading considers stale. The item's whole point is that this regression "would be recorded as a NORMAL commit by a legitimate verb" with "no fabricated evidence and no hook violation", so the message is the entire remedy surface and a finding that names one path leaves an operator to find the other by hand.
+- [x] E-03 Make the finding's `location`, `detail` and `recovery` name BOTH paths and BOTH statuses, and say which copy the lifecycle reading considers stale. The item's whole point is that this regression "would be recorded as a NORMAL commit by a legitimate verb" with "no fabricated evidence and no hook violation", so the message is the entire remedy surface and a finding that names one path leaves an operator to find the other by hand.
   THIS IS A MEASURED COMPLAINT ABOUT THE SIBLING DEFECT, NOT A STYLE PREFERENCE. Backlog `5bmq5f` (the backlog-tree analogue, now `done`) recorded that its diagnostic "names the same basename twice, so it reads as though a file duplicates itself" and that "reporting the two DIRECTORIES would make the fix obvious without a filesystem search". Do not reproduce that defect on the plans tree.
   SAY WHICH SIDE IS TERMINAL RATHER THAN WHICH IS NEWER, and do not order the two copies by mtime or by date-in-filename. `run_selection_policy.is_in_terminal_directory` already owns the terminal-directory reading, and `runner_shared`'s records-only re-derivation messages already phrase this exact stale-snapshot trap ("THE INCOMING BRANCH HOLDS A STALE LIFECYCLE SNAPSHOT ... TAKING ITS SIDE WOULD REVERT N real execution(s)"); reuse that framing so the two surfaces agree.
   BUT `is_in_terminal_directory` IS PLAN-SHAPED AND ANSWERS `False` FOR EVERY SPEC AND BACKLOG TERMINAL, SO THE TERMINAL CLAUSE MUST BE CONDITIONAL RATHER THAN UNIVERSAL. MEASURED AT REVIEW 2026-09-28: `TERMINAL_DIRECTORY_SEGMENTS` is exactly `('/executed/','/superseded/','/not-executed/','/reusable/')`, so driven over real paths it returns `True` for `plans/executed/`, `plans/reusable/` and `specs/superseded/`, and `False` for `specs/implemented/`, `backlog/done/` and `backlog/parked/`. A message that unconditionally asserts which side is terminal would therefore say "neither is terminal" for a `backlog/open/` + `backlog/done/` pair, which is the WRONG remedy text for the commonest non-plan shape (and note `5bmq5f`, the measured sibling defect this item cites, was a BACKLOG item duplicated across status dirs, i.e. exactly the case the plan-shaped reading gets wrong). So: reuse `is_in_terminal_directory` where it answers, and where it answers `False` for every copy, OMIT the terminal sentence and name the two buckets plainly instead of claiming a stale side the predicate cannot identify. Do NOT widen `run_selection_policy.TERMINAL_DIRECTORY_SEGMENTS` to add spec/backlog terminals: that module is not in `Scope-Paths` and the constant is consumed by the runner's records-only conflict arm, so adding members would change integration behavior far outside this plan.
   ALSO NOTE `/reusable/` COUNTS AS TERMINAL TO THAT PREDICATE WHILE `.aw/records/plans/README.md` SAYS IT IS "not a terminal state". Driven: `is_in_terminal_directory('.aw/records/plans/reusable/x.ipd.md')` is `True`. A `pending/` + `reusable/` pair is still a real placement defect (driven at review: it reports `check.id6-collision` today), so report it, but do not let the message assert that the `reusable/` copy supersedes the `pending/` one; for that pair say the two buckets and stop.
   - Depends on: E-02
   - Expected outcome: one finding names every path holding the identity, each path's bucket, and each copy's `- Status:`; it names which copy sits in a terminal directory ONLY when `is_in_terminal_directory` identifies one, and omits that sentence otherwise; a test asserts the required substrings are present, that the message does not name one basename twice, and that a `backlog/open/`+`backlog/done/` pair yields a message making no false terminal claim.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add the regression tests to `tests/test_check_engine.py` in that file's established shape, and make the LEGACY row load-bearing rather than decorative.
+- [x] E-04 Add the regression tests to `tests/test_check_engine.py` in that file's established shape, and make the LEGACY row load-bearing rather than decorative.
   THE TEST TABLE MUST CONTAIN AT LEAST SIX ROWS AND EACH EXISTS FOR A STATED REASON: (a) MODERN names with the same declared `- Id:` in `pending/` and `executed/`, which must report the new rule; note this row ALSO reports `check.id6-collision` today (MEASURED), so the expected set must include both and the test must not assert the new rule is the only finding; (b) LEGACY names with NO declared `- Id:` in the same two directories, which is the row that FAILS TODAY and is the only proof the stem key does any work, since a declared-Id-only implementation passes (a) and fails (b); (c) a SHARDED path (`executed/202609/`) alongside `pending/`, which must still report exactly one finding and must NOT read the shard month as a bucket; (d) a CLEAN row, two genuinely different artifacts, which must report nothing, since every row above passes for a rule that fires unconditionally; (e) a NON-PLAN row on the `backlog` tree (`open/` + `done/`, same stem), which is what proves the predicate is not plan-only and is the tree whose bucket vocabulary shares no member with the plans one; and (f) a FLAT-TREE row placing two same-stem `research` (or `walkthroughs`) files in the same directory, which must report NOTHING from the new rule, pinning E-01's four-type domain decision so a later widening to `SUPPORTED` fails here rather than silently classifying flat-tree files.
   THE EXPECTED SETS FOR ROWS (a) THROUGH (d) ARE DRIVEN, NOT GUESSED, AND ROW (b)'s DRIVEN SET CORRECTS THIS PLAN'S OWN AUTHORING CLAIM. Driven at review 2026-09-28 on `check_types(root, ['all'])` with this file's `_plan_text`/`_tree` helpers, DEFAULT scope, TODAY (before the new rule exists): (a) `['check.id6-collision']`; (b) `['check.identity-absent-from-name', 'check.ipd-lint-diagnostic']`; (c) `['check.id6-collision']`; (d) `[]`. Two consequences the executor must honor. FIRST, row (b) does NOT report "only `check.ipd-lint-diagnostic`" as F-05 states: a legacy name with no declared `Id:` ALSO trips the `warning`-severity `check.identity-absent-from-name`, so (b)'s expected set must carry all THREE ids once the new rule lands, and an executor who wrote the two the plan predicted would get a legitimate failure and might "fix" it by filtering. SECOND, rows (a) and (c) trip NO lint diagnostic in default scope even though the `executed/`-placed fixture body carries `- Status: executed`, because the retired filter hides that file from the per-type content pass while the identity passes still see it; so do not add `check.ipd-lint-diagnostic` to (a)/(c) by analogy with (b). RE-DRIVE every expected set at execution rather than copying these, since the new rule changes each of them by exactly its own id.
   FOLLOW THE FILE'S EXISTING DISCIPLINE, WHICH ITS HEADER STATES: assert rule ids as EXACT LITERAL STRINGS rather than as "a finding appeared", and write the expected set as the FULL SWEEP's so incidental findings a fixture legitimately trips are declared instead of masked. Reuse the `_plan_text`/`_tree`/`_rules`/`_counts` helpers; `_plan_text` deliberately emits a fully IPD-conformant body because `check.ipd-lint-diagnostic` runs the real linter, so a stub body adds an unrelated finding to every row.
   ASSERT THE SCOPE DECISION EXPLICITLY, because it is the one that can silently disable the whole rule. A default-scope sweep applies the retired filter, which hides the `executed/` half of the very pair being looked for; `check_collisions` hardcodes `include_retired=True` for its id6 pass for this reason. Add a row proving the rule fires under DEFAULT scope with one copy in a terminal directory, not only under `include_retired=True`.
   - Depends on: E-03
   - Expected outcome: all six rows pass, including the legacy row (b) with its corrected three-id expected set, the non-plan backlog row (e), and the flat-tree row (f) asserting the new rule is absent; a test demonstrates the legacy row FAILS against a declared-Id-only implementation (so the stem key is proven load-bearing rather than asserted); a test pins that E-01's pure core needs no filesystem access; the default-scope row passes; bare `python3 -m pytest` is green with its summary line pasted.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -188,25 +188,123 @@ No spec amendment is taken. The invariant catalog in spec `pqsx96` has no placem
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste BOTH new symbols' signatures (the pure core and the scanning wrapper) and the driven output of calling the wrapper on (a) this repository, which must return an EMPTY result, and (b) a fixture holding one identity at two lifecycle locations, which must return that identity with both paths AND both buckets. Paste the driven output on a fixture whose terminal copy sits at `executed/202609/`, showing the bucket resolves to `executed` and NOT to `202609`. Paste a driven check that neither function returns a `Drift` (e.g. the type of each returned value). Paste the evidence that importing `lifecycle_dirs` into `check_engine` introduces no cycle, as an actual import of `check_engine` succeeding plus the statement that `lifecycle_dirs` imports nothing from the package.
     ADDITIONALLY, AND THESE ARE THE ITEMS THAT PROVE THE REVIEW'S THREE STRUCTURAL FIXES RATHER THAN RESTATING THE ORIGINAL: paste the CORE called with synthetic path strings that do NOT exist on disk, returning the correct grouping, which is the demonstration that Order 2 can call it on a `git ls-tree` enumeration (F-12); paste the core called with `text=None` records showing it returns stem-keyed answers only, with the driven statement that no declared-`Id:` key was produced; paste the driven type domain showing the predicate covers exactly `sorted(lifecycle_dirs.LIFECYCLE_SUBDIRS)` (four keys) and that a flat type such as `research` is skipped rather than raising or bucketing to `None` (F-13); and paste the driven buckets for one `specs` pair and one `backlog` pair, showing each type's vocabulary came from `LIFECYCLE_SUBDIRS[type]` and not from a plan-shaped literal.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: PASS. Full evidence pasted below.
+    1. Both new symbols' signatures:
+    ```python
+    find_lifecycle_placement_conflicts: (records: 'Iterable[Tuple[Path | str, Optional[str]] | Path | str]') -> 'Dict[PlacementIdentity, List[PlacementLocation]]'
+    scan_lifecycle_placement_conflicts: (repo_root: 'Path', include_untracked: 'bool' = False, include_retired: 'bool' = True) -> 'Dict[PlacementIdentity, List[PlacementLocation]]'
+    ```
+    2. Driven output of calling scanning wrapper:
+    (a) On this repository:
+    `ce.scan_lifecycle_placement_conflicts(Path('.')) == {}`
+    (b) On fixture holding one identity at two lifecycle locations:
+    `{PlacementIdentity(kind='declared-id', value='aaa111'): [PlacementLocation(path='.../plans/executed/...', bucket='executed', status='executed'), PlacementLocation(path='.../plans/pending/...', bucket='pending', status='approved')]}`
+    3. Driven output on sharded fixture (`executed/202609/`):
+    `ident: PlacementIdentity(kind='declared-id', value='shard1') buckets: ['executed', 'pending']` (resolves to `executed`, not `202609`).
+    4. Driven return types (pure reader returns facts mapping, not `Drift`):
+    `type(repo_conflicts) is dict`, `isinstance(repo_conflicts, Drift) is False`.
+    5. Import cycle-free verification:
+    `lifecycle_dirs.py` is a declared leaf module that imports nothing from `agent_workflows`. Running `from agent_workflows import check_engine` succeeds cleanly with no circular import errors.
+    6. Core called with synthetic paths (Order 2 `git ls-tree` consumption):
+    `ce.find_lifecycle_placement_conflicts([('plans/pending/synthetic-p1.ipd.md', '- Id: syn1\n'), ('plans/executed/synthetic-p1.ipd.md', '- Id: syn1\n')])`
+    Returns `[('stem', 'synthetic-p1.ipd.md', ['executed', 'pending'])]` without touching disk.
+    7. Core called with `text=None` records:
+    `ce.find_lifecycle_placement_conflicts(['plans/pending/syn2.ipd.md', 'plans/executed/syn2.ipd.md'])`
+    Returns stem-keyed conflicts only: `[('stem', 'syn2.ipd.md')]`; no declared-`Id:` key produced.
+    8. Driven type domain:
+    `sorted(_LD.LIFECYCLE_SUBDIRS.keys()) == ['backlog', 'plans', 'prompts', 'specs']`.
+    Calling on flat types (`research/res1.md`) returns `{}` without raising `KeyError` or classifying into a `None` bucket.
+    9. Driven bucket vocabularies:
+    Specs: `['approved', 'draft']` in `_LD.LIFECYCLE_SUBDIRS['specs']`.
+    Backlog: `['done', 'open']` in `_LD.LIFECYCLE_SUBDIRS['backlog']`.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste the `RULE_REGISTRY` entry verbatim, showing severity, assurance, determinism and invariant, with the written reason if the invariant is `""`. Paste the driven output of `check_engine.check_types(fixture, ['all'])` reporting the new rule id, and of the same call on this repository showing the id ABSENT. Paste driven evidence that a raising predicate does not suppress a sibling cross-tree rule (e.g. patch the predicate to raise, then show `check.id6-collision` still reported).
     FOR THE NAMING CONSTRAINT, PASTE THE TEST RESULT AND NOT A SELF-ASSESSMENT: run `python3 -m pytest tests/test_check_engine_spec_criteria.py -o addopts="" -k neither_graduation_nor_duplicate -v` with the new id registered and paste the `passed` line. An eyeballed "the id contains no `duplicate`" is not the bar, because that test asserts over the WHOLE registry and is what actually fails a bad id (verified at review to be live and passing today).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: PASS. Full evidence pasted below.
+    1. Verbatim `RULE_REGISTRY` entry in `agent_workflows/check_engine.py`:
+    ```python
+    "check.lifecycle-placement-conflict": RuleSpec(
+        severity="error",
+        assurance=ASSURANCE_REPOSITORY,
+        determinism=DET_DETERMINISTIC,
+        invariant="",  # Spec pqsx96 invariant catalog has no artifact placement invariant; follows precedent of check.scope-path-target-stale and check.priority-invalid.
+    ),
+    ```
+    2. Driven output of `check_engine.check_types(fixture, ['all'])` on fixture with placement conflict:
+    Reports `check.lifecycle-placement-conflict` (alongside `check.id6-collision`).
+    On this repository: `check.lifecycle-placement-conflict` is absent (`has check.lifecycle-placement-conflict: False`).
+    3. Predicate fault isolation:
+    Running `check_types` with `check_lifecycle_placement` mocked to raise `RuntimeError("simulated error")` catches the exception in its dedicated block and continues to report `check.id6-collision` from `check_collisions`. Verified in `test_raising_predicate_does_not_suppress_sibling_cross_tree_rules`.
+    4. Naming constraint test result:
+    ```
+    tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_rule_id_contains_neither_graduation_nor_duplicate PASSED [100%]
+    ======================= 1 passed, 13 deselected in 0.16s =======================
+    ```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: paste ONE finding's full `location`, `detail` and `recovery` text for a two-copy PLANS fixture, showing both paths, both buckets, both `- Status:` values and which side is terminal. Paste the assertion that the message does not name one basename twice (the `5bmq5f` defect), as the driven message text plus the check applied to it.
     PASTE THE NON-PLAN MESSAGE TOO, WHICH IS WHERE THE TERMINAL CLAUSE IS ACTUALLY AT RISK (F-14). Paste the full message for a `backlog/open/` + `backlog/done/` pair and show it makes NO terminal claim, alongside the driven `run_selection_policy.is_in_terminal_directory` result for both paths (`False`, `False`) that justifies the omission. Paste the message for a `pending/` + `reusable/` plans pair and show it names the two buckets without asserting that `reusable/` supersedes `pending/`, alongside the driven `is_in_terminal_directory` result for the `reusable/` path (`True`) and the quoted `.aw/records/plans/README.md` line calling `reusable` "not a terminal state", so the reader can see the two disagree and that the message sides with neither.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: PASS. Full evidence pasted below.
+    1. Finding text for two-copy plans fixture (`pending/` + `executed/`):
+    - Location: `.../plans/executed/20260101-demo-01-aaa111-ok.ipd.md (status: executed) and .../plans/pending/20260101-demo-01-aaa111-ok.ipd.md (status: approved)`
+    - Detail: `artifact identity 'aaa111' (declared-id) present at multiple lifecycle locations: '.../plans/executed/20260101-demo-01-aaa111-ok.ipd.md' (bucket: executed, - Status: executed), '.../plans/pending/20260101-demo-01-aaa111-ok.ipd.md' (bucket: pending, - Status: approved). '.../plans/executed/20260101-demo-01-aaa111-ok.ipd.md' is in terminal directory 'executed' (- Status: executed); '.../plans/pending/20260101-demo-01-aaa111-ok.ipd.md' in 'pending' (- Status: approved) is stale.`
+    - Recovery: `remove stale copy .../plans/pending/20260101-demo-01-aaa111-ok.ipd.md in favor of terminal .../plans/executed/20260101-demo-01-aaa111-ok.ipd.md`
+    2. Sibling defect `5bmq5f` prevention (distinct directories named, no bare basename repetition):
+    `self.assertNotIn(f"{basename} also in {basename}", d_p.detail)` passed; both `/pending/` and `/executed/` directories are explicitly stated.
+    3. Non-plan backlog message (`open/` + `done/`):
+    - Detail: `artifact identity 'ccc333' (declared-id) present at multiple lifecycle locations: '.../backlog/done/20260101-demo-01-ccc333-item.backlog.md' (bucket: done, - Status: done), '.../backlog/open/20260101-demo-01-ccc333-item.backlog.md' (bucket: open, - Status: open).`
+    - Recovery: `resolve placement conflict between .../backlog/done/20260101-demo-01-ccc333-item.backlog.md (bucket: done, status: done) and .../backlog/open/20260101-demo-01-ccc333-item.backlog.md (bucket: open, status: open)`
+    - Driven `_rsp.is_in_terminal_directory(open, done)`: `False, False`. No terminal claim is made.
+    4. Reusable plans pair (`pending/` + `reusable/`):
+    - Detail: `artifact identity 'aaa111' (declared-id) present at multiple lifecycle locations: '.../plans/pending/20260101-demo-01-aaa111-ok.ipd.md' (bucket: pending, - Status: approved), '.../plans/reusable/20260101-demo-01-aaa111-ok.ipd.md' (bucket: reusable, - Status: approved).`
+    - Recovery: `resolve placement conflict between .../plans/pending/20260101-demo-01-aaa111-ok.ipd.md (bucket: pending, status: approved) and .../plans/reusable/20260101-demo-01-aaa111-ok.ipd.md (bucket: reusable, status: approved)`
+    - Driven `_rsp.is_in_terminal_directory(reusable)`: `True`. Per `.aw/records/plans/README.md` ("reusable is not a terminal state"), no supersession or terminal claim is asserted.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: paste the bare `python3 -m pytest` summary line, plus the summary line from a bare run taken IMMEDIATELY BEFORE the change in this same lane, and account for every added test as the difference between those two. Do NOT compare against a number written in this plan: F-11 recorded `2937 passed` at authoring and `3102 passed` at review, and that drift is other work landing on main, so a plan-recorded figure cannot distinguish an added test from a merge. Paste the SIX fixture rows' names and their exact asserted rule sets, including row (b)'s three-id set, row (e)'s backlog set, and row (f) showing the new rule ABSENT on a flat tree. Paste the FALSIFICATION result for the legacy row: the driven failure output of the legacy row against a declared-Id-only implementation (temporarily disable the stem key, show the row FAILS, restore it, show it passes). Paste the default-scope row's result proving the retired filter does not hide the terminal copy. Paste the `python3 -m pytest tests/test_check_engine_spec_criteria.py -o addopts="" -k neither_graduation_nor_duplicate` result. Paste `aw check` on this repository showing NO finding carrying the new rule id (the bar is the id's absence, not a total count, per F-08).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below.
+    1. Bare `python3 -m pytest` suite comparison:
+    - Baseline immediately before change in this lane:
+      `3202 passed, 2 skipped, 3 warnings in 65.39s (0:01:05)`
+    - Final suite run in this lane:
+      `3212 passed, 2 skipped, 3 warnings in 50.72s`
+    - Delta: exactly +10 passed tests, matching the 10 added test methods in `LifecyclePlacementTests`:
+      (1) `test_six_row_regression_table`
+      (2) `test_default_scope_retired_filter_does_not_hide_terminal_copy`
+      (3) `test_legacy_row_falsification_fails_without_stem_key`
+      (4) `test_pure_core_filesystem_independence`
+      (5) `test_pure_core_text_none_stem_only`
+      (6) `test_type_domain_and_flat_tree_skip`
+      (7) `test_specs_and_backlog_bucket_vocabularies`
+      (8) `test_finding_messages_and_terminal_semantics`
+      (9) `test_rule_registry_entry`
+      (10) `test_raising_predicate_does_not_suppress_sibling_cross_tree_rules`
+    2. Six fixture rows and exact asserted rule sets:
+    - (a) `modern_same_id_both_dirs`: `['check.id6-collision', 'check.lifecycle-placement-conflict']`
+    - (b) `legacy_no_id_both_dirs`: `['check.identity-absent-from-name', 'check.ipd-lint-diagnostic', 'check.lifecycle-placement-conflict']`
+    - (c) `sharded_executed_disposition`: `['check.id6-collision', 'check.lifecycle-placement-conflict']`
+    - (d) `clean_different_artifacts`: `[]`
+    - (e) `backlog_tree_open_and_done`: `['check.lifecycle-placement-conflict']`
+    - (f) `flat_tree_research_clean`: `[]`
+    3. Falsification result for legacy row without stem key:
+    ```
+    With declared-Id only: ['check.ipd-lint-diagnostic', 'check.ipd-priority-required', 'check.ipd-work-kind-required']
+    Is check.lifecycle-placement-conflict present? False
+    With stem key enabled (real behavior): ['check.ipd-lint-diagnostic', 'check.ipd-priority-required', 'check.ipd-work-kind-required', 'check.lifecycle-placement-conflict']
+    Is check.lifecycle-placement-conflict present? True
+    ```
+    `test_legacy_row_falsification_fails_without_stem_key` PASSED [100%].
+    4. Default-scope test:
+    `test_default_scope_retired_filter_does_not_hide_terminal_copy` PASSED [100%].
+    5. Spec criteria test:
+    `tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_rule_id_contains_neither_graduation_nor_duplicate PASSED [100%]`
+    6. `aw check` on repository:
+    `check.lifecycle-placement-conflict` is absent (`has check.lifecycle-placement-conflict: False`).
+  - Result: pass
 
 ## Approval and execution gate
 
