@@ -1,5 +1,6 @@
 - Id: f7a2kc
-- Status: open
+- Status: graduated
+- Graduated-To: f7a2kc
 - Blocks-Release: next
 - Set: f7a2kc
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: aw research set-assign and mv rename the file but never update its set/order/model frontmatter, so the verb emits the name-frontmatter-mismatch it just created
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: ax8eg1
 - 2026-09-20 created (aw backlog): Reproduced at HEAD 9d02743b through the real CLI in a throwaway repo: set-assign left set: oldsetid / order: 03 after renaming to newsetid-01, and mv --model left model: empty. Cause: research_refs._apply_renames never opens the moved file; both planners return rename plans only. The generic backend already does this correctly in one transaction (artifact_rename._update_frontmatter_metadata), so this is an asymmetry between the research backend and the generic one. Checked against 4y4xo5 (different defect, same function, no frontmatter mention) before filing.
 
 REPRODUCED AT HEAD 9d02743b in a throwaway repo, using the real CLI rather than the library, so this is the user-facing behavior and not an internal-call artifact.
