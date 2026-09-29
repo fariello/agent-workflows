@@ -1,5 +1,6 @@
 - Id: fyeg6a
-- Status: open
+- Status: graduated
+- Graduated-To: driftsel
 - Blocks-Release: next
 - Set: driftsel
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: aw attention cannot find a MALFORMED artifact by id6: a parse failure yields drift and no item, so the selector matched nothing
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: a21sr5
 - 2026-09-21 created (aw backlog): aw attention cannot find a MALFORMED artifact by id6: a parse failure yields drift and no item, so the selector matched nothing
 
 FOUND 2026-09-21 by plan fqnj8k's own E-06 test rather than predicted, and PARTIALLY FIXED there; this item covers the part fqnj8k could not reach.
