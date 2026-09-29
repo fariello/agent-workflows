@@ -1,5 +1,6 @@
 - Id: fkmjoy
-- Status: open
+- Status: graduated
+- Graduated-To: fkmjoy
 - Blocks-Release: next
 - Set: fkmjoy
 - Priority: low
@@ -7,6 +8,7 @@
 - Summary: check.scope-drift cannot audit a lane whose base diverged from its receipt's frozen base_head, so such an execution gets no scope advisory at all
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: iqtt8d
 - 2026-09-22 created (aw backlog): Found while executing plan wmnmei (rcptstale-01): measured on lc4unl, whose lane HEAD does not descend from its receipt's base.
 
 MEASURED 2026-09-22 at HEAD 132e8333 while implementing rcptstale wmnmei.
