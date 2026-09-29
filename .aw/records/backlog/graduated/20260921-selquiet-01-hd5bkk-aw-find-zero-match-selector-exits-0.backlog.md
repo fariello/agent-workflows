@@ -1,5 +1,6 @@
 - Id: hd5bkk
-- Status: open
+- Status: graduated
+- Graduated-To: selquiet
 - Blocks-Release: next
 - Set: selquiet
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: aw find reports a zero-match selector as CLEAN exit 0, the same fail-open aw attention just fixed
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: zyj8io
 - 2026-09-21 created (aw backlog): aw find reports a zero-match selector as CLEAN exit 0, the same fail-open aw attention just fixed
 
 MEASURED 2026-09-21 at HEAD ef640388 while executing plan fqnj8k (attsel): `aw find plans zzzzzz` prints `CLEAN  no matching plans` with the selector echoed under "Active filters:" and exits 0, on BOTH the human and the --agent surface.
