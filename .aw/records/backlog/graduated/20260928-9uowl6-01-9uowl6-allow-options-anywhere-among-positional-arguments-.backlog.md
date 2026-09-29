@@ -1,5 +1,6 @@
 - Id: 9uowl6
-- Status: open
+- Status: graduated
+- Graduated-To: optanywhere
 - Blocks-Release: next
 - Set: 9uowl6
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: Allow options anywhere among positional arguments across all aw commands
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260929T021205Z-3914774: z593o5
 - 2026-09-28 created (aw backlog): Allow options anywhere among positional arguments in aw set
 - 2026-09-28 amended: Broaden scope to cover all subparsers and subcommands across aw
 
