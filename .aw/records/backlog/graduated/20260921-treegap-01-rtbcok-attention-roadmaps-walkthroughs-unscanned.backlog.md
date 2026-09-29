@@ -1,11 +1,13 @@
 - Id: rtbcok
-- Status: open
+- Status: graduated
+- Graduated-To: treegap
 - Set: treegap
 - Priority: low
 - Work-Kind: chore
 - Summary: aw attention still cannot see the roadmaps and walkthroughs trees, so a selector naming one is answered only by the vocabulary exemption
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: uxb0tz
 - 2026-09-21 created (aw backlog): aw attention still cannot see the roadmaps and walkthroughs trees, so a selector naming one is answered only by the vocabulary exemption
 
 MEASURED 2026-09-21 at HEAD ef640388 while executing plan fqnj8k (attsel). This is the RESIDUAL of a gap whose other half is already closed, which is why it is filed fresh rather than pointed at the old carrier.
