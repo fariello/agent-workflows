@@ -1,11 +1,13 @@
 - Id: nbu56f
-- Status: open
+- Status: graduated
+- Graduated-To: nbu56f
 - Set: nbu56f
 - Priority: low
 - Work-Kind: chore
 - Summary: run_suite_check's docstring still cites a stale 36-vs-15-failed worktree divergence measurement whose cause (dh0uno) is fixed and whose acceptance claim was retracted
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: cvs2b7
 - 2026-09-21 created (aw backlog): run_suite_check's docstring still cites a stale 36-vs-15-failed worktree divergence measurement whose cause (dh0uno) is fixed and whose acceptance claim was retracted
 
 MEASURED 2026-09-21 in lane 9lyg5h (integearn-05 E-01). `oc_runipd.run_suite_check`'s docstring justifies its PRIMARY-CHECKOUT insistence with: "MEASURED: tests/test_run_viewer.py gives `36 passed` in the primary checkout and `15 failed, 20 passed` in a lane", attributed to `.aw/state` resolving relative to cwd (backlog `dh0uno`).
