@@ -6,7 +6,7 @@
 - Plan: `.aw/records/plans/pending/20260915-rununify-09-orziju-split-initialize-run-into-a-shared-core-and-a-thin-host-hook.ipd.md`
 - Base commit: `87682a3b`
 - Executed by: opencode/its_direct-pt3-claude-opus-5-1m-us, in lane `aw/lane/orziju`
-- Set: irclosure (this walkthrough's own Set; the plan it documents belongs to `rununify`, referenced above by `Target-Id`, because a walkthrough may not reuse the Set id of another artifact type)
+- Set: irclosure (this walkthrough's own Set; the plan it documents belongs to `rununify`, referenced above by `Target-Id`; a setid is a shared cross-type topic label, and this walkthrough carries its own Set while `Target-Id` points at the plan)
 
 ## Why this walkthrough exists
 

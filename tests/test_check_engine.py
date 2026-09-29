@@ -145,9 +145,10 @@ def _spec_text(id6, setid="demo", desc=None, status="draft"):
     )
 
 
-def _walk_text(id6=None):
+def _walk_text(id6=None, setid=None):
     idline = f"- Id: {id6}\n" if id6 else ""
-    return f"# Walkthrough\n\n- Date: 20260101\n{idline}\n## Summary\n\nx\n"
+    setline = f"- Set: {setid}\n" if setid else ""
+    return f"# Walkthrough\n\n- Date: 20260101\n{idline}{setline}\n## Summary\n\nx\n"
 
 
 def _tree(files):
@@ -428,6 +429,28 @@ class CollisionTests(unittest.TestCase):
             "reported 29 findings on this repository's own default scope, EVERY ONE of them for "
             "endorsed behavior. No `info`-severity variant either (spec `2lcqno` OQ-01 rejected it, "
             "because narrating the normal state teaches a reader to ignore the output)",
+        ),
+        (
+            "one setid used by a plan and a walkthrough (the sovauj shape)",
+            (
+                (
+                    f"{PLANS}/20260101-topic-01-aaa111-p.ipd.md",
+                    _plan_text("aaa111", setid="topic", desc="shared topic"),
+                ),
+                (
+                    f"{WALK}/20260101-topic-01-bbb222-w.walkthrough.md",
+                    _walk_text("bbb222", setid="topic (shared topic)"),
+                ),
+            ),
+            (),
+            (),
+            ("setid",),
+            "THE sovauj SHAPE: a plan in pending and a walkthrough sharing a setid across types. "
+            "The existing cross-type clean row uses plans-plus-SPECS and therefore never covered "
+            "walkthroughs, leaving room for the regression sovauj reported. The walkthrough must "
+            "declare its own `- Id:` so the row cannot pass by accidentally tripping "
+            "`check.id6-identity-slot` instead. Expected rules is () because an approved plan and "
+            "walkthrough trip no incidental rules in the full sweep",
         ),
         (
             "one setid reused with a CONSISTENT descriptive",

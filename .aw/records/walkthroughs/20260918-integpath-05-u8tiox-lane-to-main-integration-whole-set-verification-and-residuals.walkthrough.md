@@ -7,6 +7,10 @@
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Verified at: HEAD `36129255`
 
+## Workflow history
+
+- 2026-09-29 note (jji5zx): the cross-type setid collision arm was removed by commit `c6648722`; a setid is a shared cross-type topic label (DECISIONS D153 / spec `2lcqno` N1), so the `- Set:` omission this walkthrough explains is no longer necessary (though still permitted, since the field is optional); the paragraphs below are retained as the primary-source record of the pre-fix behavior.
+
 No `- Set:` line is declared here deliberately, and the reason is mechanical rather than stylistic.
 `check.setid-collision` treats a setid as owned by ONE record type, and it skips `executed/` plans as
 retired, so while this Set's plan is still in `pending/` a walkthrough declaring `- Set: integpath`
