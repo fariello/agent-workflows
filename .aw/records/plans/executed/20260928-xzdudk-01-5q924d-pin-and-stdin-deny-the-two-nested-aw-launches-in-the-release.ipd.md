@@ -6,7 +6,7 @@
 - Scope-Paths: agent_workflows/release_readiness.py, tests/test_release_readiness_child_pin.py
 - Item-Dependencies: none
 - Kind: child
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: 5q924d
-- Approval: 2026-09-29, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-29 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 5q924d verified (set xzdudk, attempt 1).
 - 2026-09-29 approved (aw set): status set to approved
 - 2026-09-28 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 all fixed; readiness go-pending-approval
 
@@ -37,26 +37,26 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: make the suite able to see the defect
 
-- [ ] E-01 Add `tests/test_release_readiness_child_pin.py` with TWO behavioral tests, no source reading of any kind (no `ast`, no `__file__`, no substring search over `release_readiness.py`), per commit `80db6750`'s deletion of 366 structure-pinning tests.
+- [x] E-01 Add `tests/test_release_readiness_child_pin.py` with TWO behavioral tests, no source reading of any kind (no `ast`, no `__file__`, no substring search over `release_readiness.py`), per commit `80db6750`'s deletion of 366 structure-pinning tests.
   (a) A FALSE-VERDICT test, which is the one that proves the defect matters. Build a synthetic tree in `tmp_path` containing `agent_workflows/__init__.py` plus an `agent_workflows/__main__.py` whose whole body is `sys.exit(42)` (use a distinguishable nonzero code, NOT 0, so the assertion cannot pass by accident on a tree where the real scanner also succeeds). Note WHY the decoy must define `__init__.py` as well as `__main__.py`: `runpy` needs the package importable before it can run the module.
   TWO CORRECTIONS MEASURED AT REVIEW, WITHOUT WHICH THIS TEST IS RED BOTH BEFORE AND AFTER THE FIX (PR-002). FIRST, `git init` THE FIXTURE TREE. The real leak scanner refuses a non-git directory, so against a bare `tmp_path` the post-fix `gate_leak_scan` returns `evidence={'returncode': 2}` with stderr `check-local-leaks: not a git repository or git unavailable`. Driven under a scratch application of E-02: without `git init` -> `returncode 2` (test still red, for the WRONG reason); with `git init` -> `returncode 0` for BOTH gates. An earlier draft of this item asserted the post-fix run "passes" without the git step; that was not measured and is false for `gate_leak_scan`. SECOND, MAKE THE PRIMARY ASSERTION `evidence["returncode"] != 42`, i.e. THE DECOY DID NOT RUN, because that is the property the pin actually guarantees and it is independent of the scanner's own preconditions. Keep `== 0` as a secondary assertion on the git-initialised tree. `gate_ipd_lint` passes either way, which is exactly why this asymmetry is easy to miss: do not infer one gate's behavior from the other.
   (b) A KWARG test for the stdin half, which (a) cannot reach, because a decoy child that never reads stdin cannot distinguish an inherited pipe from `DEVNULL`. Patch `release_readiness.subprocess.run` with a spy that records `(argv, kwargs)` and returns an object with `returncode = 0`, call both gates, and assert for EACH recorded call that `kwargs["stdin"] is subprocess.DEVNULL` and that `"env" in kwargs`. MEASURED at this HEAD the spy records `stdin` ABSENT and `env` ABSENT for both calls. Assert also that the recorded argv still ENDS with the same trailing arguments the gates document (`["sanitize", "--agent"]` and `["ipd", "lint", "--all", "--agent"]`), which is what keeps E-02 from silently changing what the child is asked to do while making the kwargs right.
   - Depends on: none
   - Expected outcome: A new test file that is RED at this HEAD on BOTH tests FOR THE RIGHT REASONS (the false-verdict test red because the decoy's 42 was returned, NOT because the scanner refused a non-git tree; the kwarg test red because `stdin` is absent), and GREEN after E-02. A test that is red before and after the fix has proven nothing, which is the trap PR-002 measured.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: pin and stdin-deny the two launches
 
-- [ ] E-02 In `agent_workflows/release_readiness.py`, route both `subprocess.run` calls in `gate_leak_scan` and `gate_ipd_lint` through the `af7i6p` pin and deny them stdin. Replace each bare `[sys.executable, "-m", "agent_workflows", <args...>]` with `pinned_module_argv([<args...>])`, add `env=pinned_child_env()`, and add `stdin=subprocess.DEVNULL`. Add one module-scope import, `from agent_workflows.runner_shared import pinned_child_env, pinned_module_argv`. Keep `cwd=str(root)`, `capture_output=True`, `text=True` and `check=False` exactly as they are, and change no `GateResult` field: the `name`, the two `detail` strings, and the `evidence={"returncode": ...}` key must stay byte-identical, because the aggregate verdict and `render()` table read them.
+- [x] E-02 In `agent_workflows/release_readiness.py`, route both `subprocess.run` calls in `gate_leak_scan` and `gate_ipd_lint` through the `af7i6p` pin and deny them stdin. Replace each bare `[sys.executable, "-m", "agent_workflows", <args...>]` with `pinned_module_argv([<args...>])`, add `env=pinned_child_env()`, and add `stdin=subprocess.DEVNULL`. Add one module-scope import, `from agent_workflows.runner_shared import pinned_child_env, pinned_module_argv`. Keep `cwd=str(root)`, `capture_output=True`, `text=True` and `check=False` exactly as they are, and change no `GateResult` field: the `name`, the two `detail` strings, and the `evidence={"returncode": ...}` key must stay byte-identical, because the aggregate verdict and `render()` table read them.
   BOTH HALVES OF THE PIN ARE REQUIRED AND THIS WAS MEASURED, so do not simplify to one. Against a decoy package in the child's cwd: plain `-m` ran the decoy; `PYTHONPATH=<runner root>` alone ALSO ran the decoy, because the cwd entry precedes `PYTHONPATH` in `sys.path`; `-P` alone avoided the decoy but resolved a STALE pip-installed copy rather than the runner's own; only `pinned_module_argv` together with `pinned_child_env()` ran the real package (F-05, row 3 corrected at review). `pinned_module_argv` supplies the SUPPRESSING half and `pinned_child_env` the SELECTING half, and each alone executes the wrong code in a different way: one runs the decoy, the other runs a different version. Either alone leaves the defect in place while LOOKING fixed.
   - Depends on: E-01
   - Expected outcome: Both gates run the runner's own package regardless of the `repo_root` handed to them, both children get `DEVNULL` on stdin, E-01 goes green, and a live `gate_leak_scan()` / `gate_ipd_lint()` on this repo still returns `passed=True` with `returncode: 0`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Record in each gate's docstring WHAT the pin buys, in the one term a future reader cannot recover from the code: that `cwd=root` is caller-supplied, so without the pin the gate would execute the `agent_workflows` package found in THAT tree and report its exit code as the release verdict. Cite `tests/test_release_readiness_child_pin.py` as the enforcing guard and plan `af7i6p` as the pin's origin. CORRECT THE TWO DOCSTRING CLAIMS E-02 FALSIFIES, rather than leaving them to rot: `gate_leak_scan`'s "Uses `python3 -m agent_workflows sanitize --agent` so it works without `aw` on PATH" no longer describes the argv (it is now a `-c` bootstrap), and its "This is the same code path the `aw sanitize` CLI runs (no fork)" is worth keeping but belongs next to the accurate argv description. Do not restate the module-header INVARIANT about never tagging or publishing, which is already there and unaffected.
+- [x] E-03 Record in each gate's docstring WHAT the pin buys, in the one term a future reader cannot recover from the code: that `cwd=root` is caller-supplied, so without the pin the gate would execute the `agent_workflows` package found in THAT tree and report its exit code as the release verdict. Cite `tests/test_release_readiness_child_pin.py` as the enforcing guard and plan `af7i6p` as the pin's origin. CORRECT THE TWO DOCSTRING CLAIMS E-02 FALSIFIES, rather than leaving them to rot: `gate_leak_scan`'s "Uses `python3 -m agent_workflows sanitize --agent` so it works without `aw` on PATH" no longer describes the argv (it is now a `-c` bootstrap), and its "This is the same code path the `aw sanitize` CLI runs (no fork)" is worth keeping but belongs next to the accurate argv description. Do not restate the module-header INVARIANT about never tagging or publishing, which is already there and unaffected.
   - Depends on: E-02
   - Expected outcome: Both gate docstrings name the caller-supplied-`cwd` hazard and the guard file; no sentence in either docstring still describes the pre-E-02 argv; no other prose in the module changes.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -163,20 +163,337 @@ N/A with reason. No `.spec.md` is in `- Scope-Paths:` and none needs amending. P
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste the full committed source of `tests/test_release_readiness_child_pin.py`. Paste `python3 -m pytest tests/test_release_readiness_child_pin.py -o addopts=""` run on the tree BEFORE E-02, showing BOTH tests RED, and confirm in one sentence that they fail for the two DIFFERENT documented reasons: the false-verdict test must show the decoy's exit code (expected `returncode == 42`, NOT 0, since a 0 decoy would be indistinguishable from success), and the kwarg test must report `stdin` ABSENT from the recorded kwargs. Confirm in one sentence that the file reads no production SOURCE TEXT (no `ast`, no `__file__`, no substring search over `release_readiness.py`), per commit `80db6750`. Confirm that the decoy tree is built under `tmp_path` and that nothing is written inside `agent_workflows/` or `tests/` at runtime. State explicitly whether the kwarg test asserts the TRAILING argv arguments as well as the kwargs; if it does not, add that assertion before proceeding, because without it E-02 could satisfy the kwargs while changing what the child is asked to do.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full committed source and pre-E-02 failure run pasted below.
 
-- [ ] V-02 validates E-02
+Committed source of `tests/test_release_readiness_child_pin.py`:
+```python
+"""Behavioral tests guarding release-readiness subprocess child pinning and stdin denial.
+
+Guards the two shelling-out gates in release_readiness:
+- gate_leak_scan
+- gate_ipd_lint
+
+No source-reading or code-structure tests (no ast, no inspect, no substring search).
+Tests observe runtime behavior and outcomes only.
+"""
+
+from __future__ import annotations
+
+import subprocess
+from pathlib import Path
+from unittest.mock import patch
+
+from agent_workflows import release_readiness
+
+
+def test_gates_do_not_execute_decoy_package_in_caller_repo_root(tmp_path: Path) -> None:
+    """A decoy agent_workflows package in caller repo_root must not be executed.
+
+    Before pinning, Python seeds sys.path[0] from cwd, running the decoy and
+    producing a false verdict. With the af7i6p pin in place, the runner's own
+    package executes instead, so the decoy's exit code is never returned.
+    """
+    # Initialize a git repository in tmp_path so the real leak scanner does not
+    # reject the directory before scanning (PR-002).
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+
+    # Build synthetic decoy package in tmp_path.
+    decoy_pkg = tmp_path / "agent_workflows"
+    decoy_pkg.mkdir()
+    (decoy_pkg / "__init__.py").write_text("# decoy package\n", encoding="utf-8")
+    (decoy_pkg / "__main__.py").write_text(
+        "import sys\nsys.exit(42)\n",
+        encoding="utf-8",
+    )
+
+    # Test gate_leak_scan against the decoy tree.
+    leak_result = release_readiness.gate_leak_scan(tmp_path)
+    assert leak_result.evidence.get("returncode") != 42, (
+        f"gate_leak_scan executed decoy package in repo_root (returncode=42)"
+    )
+    assert leak_result.passed is True
+    assert leak_result.evidence.get("returncode") == 0
+
+    # Test gate_ipd_lint against the decoy tree.
+    lint_result = release_readiness.gate_ipd_lint(tmp_path)
+    assert lint_result.evidence.get("returncode") != 42, (
+        f"gate_ipd_lint executed decoy package in repo_root (returncode=42)"
+    )
+    assert lint_result.passed is True
+    assert lint_result.evidence.get("returncode") == 0
+
+
+def test_gate_subprocesses_deny_stdin_and_pin_env() -> None:
+    """Both gates must pass stdin=subprocess.DEVNULL and env to subprocess.run.
+
+    Also asserts that the trailing argv arguments match the documented commands:
+    ['sanitize', '--agent'] and ['ipd', 'lint', '--all', '--agent'].
+    """
+    recorded_calls: list[tuple[list[str], dict]] = []
+
+    def spy_run(argv, **kwargs):
+        recorded_calls.append((list(argv), dict(kwargs)))
+        return subprocess.CompletedProcess(argv, returncode=0, stdout="", stderr="")
+
+    with patch.object(release_readiness.subprocess, "run", side_effect=spy_run):
+        leak_res = release_readiness.gate_leak_scan()
+        lint_res = release_readiness.gate_ipd_lint()
+
+    assert len(recorded_calls) == 2, f"expected 2 calls, got {len(recorded_calls)}"
+
+    leak_argv, leak_kwargs = recorded_calls[0]
+    lint_argv, lint_kwargs = recorded_calls[1]
+
+    # Verify stdin and env kwargs for both gate calls.
+    for name, kwargs in [("leak_scan", leak_kwargs), ("ipd_lint", lint_kwargs)]:
+        assert "stdin" in kwargs, f"stdin absent from {name} subprocess kwargs: {kwargs}"
+        assert kwargs["stdin"] is subprocess.DEVNULL, (
+            f"stdin is not DEVNULL in {name}: {kwargs.get('stdin')}"
+        )
+        assert "env" in kwargs, f"env absent from {name} subprocess kwargs: {kwargs}"
+        assert kwargs["env"] is not None, f"env is None in {name} subprocess kwargs"
+
+    # Verify trailing argv arguments remain unchanged.
+    assert leak_argv[-2:] == ["sanitize", "--agent"], (
+        f"unexpected leak_scan trailing argv: {leak_argv}"
+    )
+    assert lint_argv[-4:] == ["ipd", "lint", "--all", "--agent"], (
+        f"unexpected ipd_lint trailing argv: {lint_argv}"
+    )
+
+    # Verify GateResults are constructed as expected.
+    assert leak_res.passed is True
+    assert leak_res.name == "leak_scan"
+    assert lint_res.passed is True
+    assert lint_res.name == "ipd_lint"
+```
+
+Output of `python3 -m pytest tests/test_release_readiness_child_pin.py -o addopts=""` BEFORE E-02:
+```
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+rootdir: <repo-root>
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 2 items
+
+tests/test_release_readiness_child_pin.py FF                             [100%]
+
+=================================== FAILURES ===================================
+_________ test_gates_do_not_execute_decoy_package_in_caller_repo_root __________
+
+    def test_gates_do_not_execute_decoy_package_in_caller_repo_root(tmp_path: Path) -> None:
+...
+>       assert leak_result.evidence.get("returncode") != 42, (
+            f"gate_leak_scan executed decoy package in repo_root (returncode=42)"
+        )
+E       AssertionError: gate_leak_scan executed decoy package in repo_root (returncode=42)
+E       assert 42 != 42
+E        +  where 42 = <built-in method get of dict object at ...>('returncode')
+E        +    where <built-in method get of dict object at ...> = {'returncode': 42}.get
+E        +      where {'returncode': 42} = GateResult(name='leak_scan', passed=False, detail='leak scan exit 42', evidence={'returncode': 42}).evidence
+
+tests/test_release_readiness_child_pin.py:42: AssertionError
+________________ test_gate_subprocesses_deny_stdin_and_pin_env _________________
+
+    def test_gate_subprocesses_deny_stdin_and_pin_env() -> None:
+...
+>           assert "stdin" in kwargs, f"stdin absent from {name} subprocess kwargs: {kwargs}"
+E           AssertionError: stdin absent from leak_scan subprocess kwargs: {'cwd': '...', 'capture_output': True, 'text': True, 'check': False}
+E           assert 'stdin' in {'capture_output': True, 'check': False, 'cwd': '...', 'text': True}
+
+tests/test_release_readiness_child_pin.py:80: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_release_readiness_child_pin.py::test_gates_do_not_execute_decoy_package_in_caller_repo_root
+FAILED tests/test_release_readiness_child_pin.py::test_gate_subprocesses_deny_stdin_and_pin_env
+============================== 2 failed in 0.17s ===============================
+```
+
+Confirmation of failure reasons:
+The two tests fail for the two DIFFERENT documented reasons: the false-verdict test fails because the unpinned launch executed the decoy package in the caller's repo_root returning decoy exit code 42 (`assert 42 != 42`), whereas the kwarg test fails because `stdin` is absent from the recorded subprocess kwargs.
+Confirmation of source text non-inspection:
+The file reads no production source text whatsoever (no `ast`, no `__file__`, no inspect, and no substring search over `release_readiness.py`), exercising only runtime behavioral outcomes per commit `80db6750`.
+Confirmation of temp path and runtime hygiene:
+The decoy tree is constructed strictly under pytest's `tmp_path` fixture with `git init`, and nothing is written inside `agent_workflows/` or `tests/` at runtime.
+Confirmation of trailing argv assertion:
+The kwarg test explicitly asserts the trailing argv tokens as well as the kwargs (`leak_argv[-2:] == ["sanitize", "--agent"]` and `lint_argv[-4:] == ["ipd", "lint", "--all", "--agent"]`).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste `git diff agent_workflows/release_readiness.py` IN FULL. Confirm by READING the diff that exactly four things changed: the one added `from agent_workflows.runner_shared import ...` line and, in each of the two gates, the argv replaced by `pinned_module_argv([...])` plus the added `env=` and `stdin=` kwargs. Confirm that `cwd=str(root)`, `capture_output=True`, `text=True` and `check=False` are unchanged in both, and that NO `GateResult` field changed: quote both `detail` strings from the diff context and confirm they are byte-identical to their pre-change form, and confirm `evidence={"returncode": proc.returncode}` is untouched in both. Paste the E-01 tests now PASSING. Paste the four-way pin necessity probe from Required tests with its four outcomes, confirming that the two-part pin is the only variant that resolves the runner's own package. Paste the `ast.parse(..., feature_version=(3,9))` probe and both import-order cycle probes succeeding.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full diff and probe outputs pasted below.
 
-- [ ] V-03 validates E-03
+Full `git diff agent_workflows/release_readiness.py`:
+```diff
+diff --git a/agent_workflows/release_readiness.py b/agent_workflows/release_readiness.py
+index e6833253..fc0d7ff9 100644
+--- a/agent_workflows/release_readiness.py
++++ b/agent_workflows/release_readiness.py
+@@ -44,6 +44,7 @@ from pathlib import Path
+ from typing import Any, Dict, List, Optional, Sequence, Tuple
+
+ from agent_workflows import benchmark_thresholds as bt
++from agent_workflows.runner_shared import pinned_child_env, pinned_module_argv
+
+ VERDICT_GO = "GO"
+ VERDICT_NO_GO = "NO-GO"
+@@ -151,13 +152,23 @@ def _repo_root() -> Path:
+ def gate_leak_scan(repo_root: Optional[Path] = None) -> GateResult:
+     """Run the CANONICAL leak scan (``aw sanitize --agent``) and require exit 0.
+
+-    Uses ``python3 -m agent_workflows sanitize --agent`` so it works without ``aw`` on PATH.
++    Uses :func:`runner_shared.pinned_module_argv` (-c bootstrap) and
++    :func:`runner_shared.pinned_child_env` (plan af7i6p) so it works without ``aw`` on
++    PATH and runs the runner's own tooling rather than any package in the target tree.
+     This is the same code path the ``aw sanitize`` CLI runs (no fork).
++
++    The ``repo_root`` argument is caller-supplied. Without the pin, Python would seed
++    sys.path[0] from cwd, causing the gate to execute the ``agent_workflows`` package
++    found in that tree and report its exit code as the release verdict. Child stdin is
++    denied via ``subprocess.DEVNULL``. Enforced behaviorally by
++    ``tests/test_release_readiness_child_pin.py``.
+     """
+     root = repo_root or _repo_root()
+     proc = subprocess.run(
+-        [sys.executable, "-m", "agent_workflows", "sanitize", "--agent"],
++        pinned_module_argv(["sanitize", "--agent"]),
+         cwd=str(root),
++        env=pinned_child_env(),
++        stdin=subprocess.DEVNULL,
+         capture_output=True,
+         text=True,
+         check=False,
+@@ -174,11 +185,22 @@ def gate_leak_scan(repo_root: Optional[Path] = None) -> GateResult:
+
+
+ def gate_ipd_lint(repo_root: Optional[Path] = None) -> GateResult:
+-    """Run all IPD lint phases (``aw ipd lint --all --agent``) and require exit 0."""
++    """Run all IPD lint phases (``aw ipd lint --all --agent``) and require exit 0.
++
++    Uses :func:`runner_shared.pinned_module_argv` (-c bootstrap) and
++    :func:`runner_shared.pinned_child_env` (plan af7i6p) to execute the runner's own
++    tooling. The ``repo_root`` argument is caller-supplied. Without the pin, Python would
++    seed sys.path[0] from cwd, causing the gate to execute the ``agent_workflows``
++    package found in that tree and report its exit code as the release verdict. Child
++    stdin is denied via ``subprocess.DEVNULL``. Enforced behaviorally by
++    ``tests/test_release_readiness_child_pin.py``.
+     """
+     root = repo_root or _repo_root()
+     proc = subprocess.run(
+-        [sys.executable, "-m", "agent_workflows", "ipd", "lint", "--all", "--agent"],
++        pinned_module_argv(["ipd", "lint", "--all", "--agent"]),
+         cwd=str(root),
++        env=pinned_child_env(),
++        stdin=subprocess.DEVNULL,
+         capture_output=True,
+         text=True,
+         check=False,
+```
+
+Diff review confirmations:
+- Exactly four code changes occurred: the added import `from agent_workflows.runner_shared import pinned_child_env, pinned_module_argv`, and in each of the two gates the argv replaced by `pinned_module_argv([...])` plus the added `env=pinned_child_env()` and `stdin=subprocess.DEVNULL` kwargs.
+- `cwd=str(root)`, `capture_output=True`, `text=True`, and `check=False` are unchanged in both gate calls.
+- NO `GateResult` field changed:
+  Quoted `detail` strings from diff context:
+  `gate_leak_scan`: `detail="aw sanitize --agent exit 0" if passed else f"leak scan exit {proc.returncode}"` (byte-identical)
+  `gate_ipd_lint`: `detail="aw ipd lint --all --agent exit 0" if passed else f"ipd lint exit {proc.returncode}"` (byte-identical)
+  `evidence={"returncode": proc.returncode}` is untouched in both.
+
+E-01 tests passing (`python3 -m pytest tests/test_release_readiness_child_pin.py -o addopts=""`):
+```
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+rootdir: <repo-root>
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 2 items
+
+tests/test_release_readiness_child_pin.py ..                             [100%]
+
+============================== 2 passed in 0.71s ===============================
+```
+
+Four-way pin necessity probe outcomes:
+1. plain `-m`: rc= 42 RESOLVED=<decoy-dir>/agent_workflows/__init__.py
+2. PYTHONPATH only: rc= 42 RESOLVED=<decoy-dir>/agent_workflows/__init__.py
+3. -P only: rc= 0 RESOLVED via -P: RESOLVED=<site-packages-or-other-checkout>/agent_workflows/__init__.py
+4. both helpers: rc= 0 RESOLVED via both: RESOLVED=<runner-root>/agent_workflows/__init__.py
+Confirmed: row 1 and row 2 resolve the decoy, row 3 resolves neither decoy nor runner root (falls through to site-packages / other install), and row 4 (both helpers) is the only variant that resolves the runner root.
+
+AST Python 3.9 parsing probe:
+`python3 -c 'import ast; ast.parse(open("agent_workflows/release_readiness.py").read(), feature_version=(3,9))'` -> exit 0 (clean parse).
+
+Import-order cycle probes:
+`python3 -c 'import agent_workflows.release_readiness, agent_workflows.runner_shared; print("order 1 OK")'` -> `order 1 OK`
+`python3 -c 'import agent_workflows.runner_shared, agent_workflows.release_readiness; print("order 2 OK")'` -> `order 2 OK`
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste both committed gate docstrings in full. Verify by reading that each names the caller-supplied-`cwd` hazard in concrete terms (that `repo_root` comes from the caller, and that without the pin the gate would execute the `agent_workflows` package found in that tree and report ITS exit code as the release verdict), cites `tests/test_release_readiness_child_pin.py` as the enforcing guard, and cites plan `af7i6p`. Confirm that NO sentence in either docstring still describes the pre-E-02 argv: in particular that `gate_leak_scan`'s former "Uses `python3 -m agent_workflows sanitize --agent` so it works without `aw` on PATH" is corrected, since after E-02 the argv is a `-c` bootstrap. Confirm the module-header INVARIANT paragraph is unedited. ALSO carry the whole-plan no-regression evidence here, since this is the last item before commit: paste the LIVE `GateResult` for `gate_leak_scan()` and `gate_ipd_lint()` with no argument, and compare field by field against the pre-change values `passed=True, detail='aw sanitize --agent exit 0', evidence={'returncode': 0}` and `passed=True, detail='aw ipd lint --all --agent exit 0', evidence={'returncode': 0}`; any difference in any field means the gate's meaning changed and E-02 has failed its own prohibition. Paste the BARE `python3 -m pytest` summary and reconcile it against the baseline YOU measured at the clean tree before editing (not against F-13's authoring literal, which review PR-001 measured stale), accounting for the added tests and explaining ANY failure, since there is no longer an expected one. Paste `aw check`, `aw ipd lint --phase pre-transition` conforming, `aw sanitize --agent`, and `git diff --cached --name-only` immediately before committing, which must list exactly `agent_workflows/release_readiness.py` and `tests/test_release_readiness_child_pin.py`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below.
+
+Committed `gate_leak_scan` docstring:
+```python
+    """Run the CANONICAL leak scan (``aw sanitize --agent``) and require exit 0.
+
+    Uses :func:`runner_shared.pinned_module_argv` (-c bootstrap) and
+    :func:`runner_shared.pinned_child_env` (plan af7i6p) so it works without ``aw`` on
+    PATH and runs the runner's own tooling rather than any package in the target tree.
+    This is the same code path the ``aw sanitize`` CLI runs (no fork).
+
+    The ``repo_root`` argument is caller-supplied. Without the pin, Python would seed
+    sys.path[0] from cwd, causing the gate to execute the ``agent_workflows`` package
+    found in that tree and report its exit code as the release verdict. Child stdin is
+    denied via ``subprocess.DEVNULL``. Enforced behaviorally by
+    ``tests/test_release_readiness_child_pin.py``.
+    """
+```
+
+Committed `gate_ipd_lint` docstring:
+```python
+    """Run all IPD lint phases (``aw ipd lint --all --agent``) and require exit 0.
+
+    Uses :func:`runner_shared.pinned_module_argv` (-c bootstrap) and
+    :func:`runner_shared.pinned_child_env` (plan af7i6p) to execute the runner's own
+    tooling. The ``repo_root`` argument is caller-supplied. Without the pin, Python would
+    seed sys.path[0] from cwd, causing the gate to execute the ``agent_workflows``
+    package found in that tree and report its exit code as the release verdict. Child
+    stdin is denied via ``subprocess.DEVNULL``. Enforced behaviorally by
+    ``tests/test_release_readiness_child_pin.py``.
+    """
+```
+
+Docstring review confirmations:
+- Both docstrings name the caller-supplied-`cwd` hazard in concrete terms (that `repo_root` comes from the caller, and without the pin Python seeds sys.path[0] from cwd, causing the gate to execute the `agent_workflows` package found in that tree and report its exit code as the release verdict).
+- Both docstrings cite `tests/test_release_readiness_child_pin.py` as enforcing guard and plan `af7i6p` as the pin's origin.
+- Neither docstring contains stale argv descriptions (`gate_leak_scan`'s former "Uses python3 -m agent_workflows sanitize --agent" was replaced with an accurate `-c bootstrap` description referencing `pinned_module_argv`).
+- Module-header INVARIANT paragraph is completely unedited.
+
+Live GateResult before vs after:
+Pre-change:
+`gate_leak_scan`: `GateResult(name='leak_scan', passed=True, detail='aw sanitize --agent exit 0', evidence={'returncode': 0})`
+`gate_ipd_lint`: `GateResult(name='ipd_lint', passed=True, detail='aw ipd lint --all --agent exit 0', evidence={'returncode': 0})`
+Post-change:
+`gate_leak_scan`: `GateResult(name='leak_scan', passed=True, detail='aw sanitize --agent exit 0', evidence={'returncode': 0})`
+`gate_ipd_lint`: `GateResult(name='ipd_lint', passed=True, detail='aw ipd lint --all --agent exit 0', evidence={'returncode': 0})`
+Field-by-field comparison confirms byte-identical outputs across name, passed, detail, and evidence.
+
+Bare pytest suite reconciliation against measured baseline:
+Pre-change measured baseline on clean tree:
+`3158 passed, 2 skipped, 3 warnings in 162.34s (0:02:42)`
+Post-change bare pytest run:
+`3160 passed, 2 skipped, 3 warnings in 48.64s`
+Zero failures. The delta of exactly +2 passed tests corresponds to the two new tests in `tests/test_release_readiness_child_pin.py`.
+
+Pre-transition checks:
+- `aw check`: Only 3 pre-existing findings across repo (`check.ipd-uncarried-obligation` in pending y43g6q, naming grammar on 9uowl6 backlog, and `check.system-layout-missing` on layout.json); 0 findings in touched files.
+- `aw ipd lint .aw/records/plans/pending/20260928-xzdudk-01-5q924d-pin-and-stdin-deny-the-two-nested-aw-launches-in-the-release.ipd.md --phase pre-transition`: conforming.
+- `aw sanitize --agent`: clean:
+  `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+- `git diff --cached --name-only`: lists exactly `agent_workflows/release_readiness.py` and `tests/test_release_readiness_child_pin.py`.
+  - Result: pass
 
 ## Approval and execution gate
 
