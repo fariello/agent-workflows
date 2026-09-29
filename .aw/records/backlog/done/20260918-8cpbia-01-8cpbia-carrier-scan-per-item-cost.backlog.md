@@ -1,5 +1,5 @@
 - Id: 8cpbia
-- Status: graduated
+- Status: done
 - Graduated-To: 8cpbia
 - Set: 8cpbia
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: find_from_backlog_artifacts re-walks the whole plans and specs corpus per call, so any per-item loop over it is O(items x corpus)
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): closed by aw oc run: IPD jpn6hy executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-8cpbia-01-jpn6hy-document-the-per-item-carrier-scanners-as-single-item-only-a.ipd.md); evidence .aw/records/plans/executed/20260928-8cpbia-01-jpn6hy-document-the-per-item-carrier-scanners-as-single-item-only-a.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: jpn6hy
 - 2026-09-18 created (aw backlog): find_from_backlog_artifacts re-walks the whole plans and specs corpus per call, so any per-item loop over it is O(items x corpus)
 
