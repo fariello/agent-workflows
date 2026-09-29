@@ -1,5 +1,6 @@
 - Id: he9x6j
-- Status: open
+- Status: graduated
+- Graduated-To: toolevtext
 - Blocks-Release: next
 - Set: he9x6j
 - Priority: high
@@ -7,6 +8,7 @@
 - Summary: tool_event carried no output text, so every consumer's stdout read silently yielded empty string
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: emzbut
 - 2026-09-20 created (aw backlog): Found while executing plan h5pyqa. FIXED IN THAT PLAN for the two live readers; filed so the wider class is visible.
 
 ## What is wrong
