@@ -1,11 +1,13 @@
 - Id: 1ffh63
-- Status: open
+- Status: graduated
+- Graduated-To: lanedangling
 - Set: 1ffh63
 - Priority: low
 - Work-Kind: followup
 - Summary: Plan kl18sz F-7 declared a replay source unsatisfiable without checking dangling objects, so a review can retire recoverable evidence
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: 7eqw67
 - 2026-09-22 created (aw backlog): Plan kl18sz F-7 declared a replay source unsatisfiable without checking dangling objects, so a review can retire recoverable evidence
 
 MEASURED 2026-09-23 while executing plan `kl18sz`.
