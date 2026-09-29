@@ -1,11 +1,13 @@
 - Id: 7q9ycn
-- Status: open
+- Status: graduated
+- Graduated-To: 7q9ycn
 - Set: 7q9ycn
 - Priority: high
 - Work-Kind: chore
 - Summary: Update the four documented setter examples that now refuse without --yes
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: xt7n53
 - 2026-09-22 created (aw backlog): Update the four documented setter examples that now refuse without --yes
 
 FOUND BY: executing IPD 4bc1nd (Set setterguard), which recorded this as finding F-13 and deferred it with a required carrier. OQ-02 recommended it land as a follow-up rather than in 4bc1nd, at HIGH priority because it is the only one of that plan's deferrals a user meets directly.
