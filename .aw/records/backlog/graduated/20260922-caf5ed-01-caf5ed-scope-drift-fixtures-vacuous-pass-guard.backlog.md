@@ -1,11 +1,13 @@
 - Id: caf5ed
-- Status: open
+- Status: graduated
+- Graduated-To: caf5ed
 - Set: caf5ed
 - Priority: low
 - Work-Kind: chore
 - Summary: Six scope-drift test arrangements dirty the MAIN checkout and would pass vacuously under lane-scoped measurement; the pattern has no guard
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: qqg41f
 - 2026-09-22 created (aw backlog): Found while executing plan wmnmei (rcptstale-01): the fixtures were repaired in place, but nothing prevents the next one from being written the old way.
 
 FOUND 2026-09-22 while implementing rcptstale wmnmei.
