@@ -1,5 +1,6 @@
 - Id: sj4zte
-- Status: open
+- Status: graduated
+- Graduated-To: reattclose
 - Blocks-Release: next
 - Set: reattclose
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: integrate_retired_lane closes its backlog item in the shared checkout after tearing its lane down, the same defect as a4em7s at a second call site
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260929T021205Z-3914774: eg9jjm
 - 2026-09-28 created (aw backlog): Filed while authoring pjuoyj (graduates a4em7s); measured, see body.
 
 MEASURED 2026-09-28 at HEAD 0df0b094 while authoring plan pjuoyj (which graduates a4em7s and fixes the SIBLING site).
