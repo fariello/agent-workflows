@@ -6,7 +6,7 @@
 - Scope: Close the disagreement at its single source by making `filter_record_fields` preserve every field name `validate_agent_record` CONSULTS, not merely the shared envelope, so no projection of a valid record can produce an invalid one; add a self-maintaining test that DERIVES the required set by deletion rather than restating a hand-written list, so a future validator rule that reads a new field fails the test instead of silently re-opening this defect; and correct the two user-facing documents that state the preserved set as the envelope alone. Does NOT change what any command emits WITHOUT `--fields`, does NOT add a field to any record, does NOT change the validator's rules, and does NOT remove `run_analytics_cli._emit_query_agent`'s deliberate no-context summary call, which is semantically correct on its own terms.
 - Scope-Paths: agent_workflows/agent_schema.py, tests/test_agent_field_projection.py, docs/cli-agent-protocol.md, docs/cli-output-contract.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: gygujf
-- Approval: 2026-09-29, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-29 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: gygujf verified (set 3f4ayi, attempt 1).
 - 2026-09-29 approved (aw set): status set to approved
 - 2026-09-28 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-901 (BLOCKER), PR-902, PR-903 (HIGH), PR-904, PR-905, PR-906 (MEDIUM), PR-907, PR-908 (LOW), all FIXED. Reviewed at HEAD `fdb207d7`; both defect instances reproduced end to end, including F-03 through `AgentRenderer.render`. THE BLOCKER: E-01's derived property, the assertion the plan's whole durability argument rests on, was specified to project with `fields=[]`, which hits `filter_record_fields`'s `if not fields: return dict(record)` early return and therefore PASSES ON TODAY'S BROKEN CODE while V-01 demanded its red output as the non-vacuity proof; fixed by mandating a non-empty projection with the measurement that motivates it. THE SECOND: the same assertion cannot catch `applied` unless the corpus uses the `clean`/`complete: false` shape, because a `preview` outcome already satisfies the greenwash exemption, so the natural corpus pins three of four fields and leaves unpinned the one F-03 exists to protect. THE THIRD: the suite baseline is inverted, not merely stale, since commit `f1b5b9ff` fixed the failure F-09 told the executor to expect (green at `3075 passed, 2 skipped`), which also leaves carrier `03aicr` stale while still `open` and release-gated; E-04 now requires that reported and explicitly not closed. Also: the function's own docstring stated the superseded contract and V-02 would have rejected a diff fixing it; F-04's counts were corpus-dependent but stated as a bar (a review sweep measured 16 of 41 against the authored 30 of 53); F-10 undercounted the call sites (four, not three); F-02 undercounted `_MANDATORY_FIELDS` references (three, not two); and the fix was upgraded from sufficient-on-a-corpus to complete-by-construction against the validator's eleven consulted field names, with the reverse over-retention risk probed. Readiness recorded in the `- Readiness:` field. Findings and four `Decisions` rows in `.aw/records/reviews/20260928-3f4ayi-01-gygujf-make-an-aw-agent-v1-field-projection-preserve-every-per-kind.review.md`.
 
