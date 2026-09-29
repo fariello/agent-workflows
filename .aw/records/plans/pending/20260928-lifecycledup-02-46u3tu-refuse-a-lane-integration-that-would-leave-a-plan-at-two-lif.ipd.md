@@ -45,7 +45,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the pre-merge lifecycle refusal
 
-- [ ] E-01 Add a PRE-MERGE placement reading to `runner_shared.integrate_lane_branch` that asks Order 1's predicate about the PREDICTED POST-MERGE TREE, not about the working tree and not about the lane's diff. Place it immediately after the existing `dirty_tree_overlap` refusal arm and BEFORE the merge-and-revalidate gate, so the refusal costs no suite run and leaves main untouched.
+- [x] E-01 Add a PRE-MERGE placement reading to `runner_shared.integrate_lane_branch` that asks Order 1's predicate about the PREDICTED POST-MERGE TREE, not about the working tree and not about the lane's diff. Place it immediately after the existing `dirty_tree_overlap` refusal arm and BEFORE the merge-and-revalidate gate, so the refusal costs no suite run and leaves main untouched.
   READ THE PREDICTED TREE THAT `merge_write_set` ALREADY BUILDS RATHER THAN ADDING A SECOND `merge-tree` CALL. `merge_write_set` runs `git merge-tree --write-tree HEAD <branch>` and, on the add/add shape, exits 0 with a real tree object; MEASURED 2026-09-28, that is exactly the shape this plan targets. Take the tree from the same invocation (or a single shared one) and enumerate its record paths with `git ls-tree -r --name-only <tree>`; there is precedent for a branch-tree read at `lane_plan_terminal_bucket`, which runs `git ls-tree -r --name-only <branch>` for the same class of question.
   `merge_write_set` RETURNS `None` WHEN IT CANNOT KNOW, AND THAT CASE MUST NOT REFUSE. Its own comment records that `None` means a conflicting merge or a git without `--write-tree`, and that today's behavior on the unknown path is to fall back to the lane's `changed_files` rather than to check nothing. A conflicting merge is git's own to classify and is ALREADY refused (F-02), so an unknown prediction must SKIP this reading and proceed, not manufacture a refusal. State that decision in the code.
   ASK ONLY ABOUT IDENTITIES THIS MERGE WOULD AFFECT, and do not fail the integration for a pre-existing duplicate the lane had nothing to do with. Compare the predicted tree's placement against `HEAD`'s: refuse only where the merge INTRODUCES a second location. A pre-existing duplicate is Order 1's rule to report, and refusing an unrelated lane for it would block recovery of work that is not at fault.
@@ -54,9 +54,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT ADD A THIRD REFUSAL KIND. Reuse the existing terminal kind used for a measured gate refusal, because this IS a measured refusal: the placement was computed from git's own predicted tree, not guessed. A deferrable kind would be wrong, since repeating the merge cannot change the placement.
   - Depends on: none
   - Expected outcome: on the add/add fixture the call returns `integrated=False` with a terminal kind, main's `HEAD` unmoved, the lane branch and worktree preserved, and NO merge left in progress; on a clean lane the arm is silent and integration still succeeds; an unknown prediction (`merge_write_set` returning `None`) proceeds rather than refusing; a pre-existing duplicate not introduced by the lane does not refuse; and a lane that merely SCAFFOLDS a lifecycle bucket (a `README.md` plus `.gitkeep` under a bucket the base lacks) does NOT refuse, because the enumeration excludes non-records before grouping.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add the cause constant and its verdict sentence so the refusal is legible and durable, following the established channel exactly rather than inventing a transport. Add the cause beside the existing `INTEGRATION_CAUSE_*` constants, tag the refusal reason with `tag_integration_cause`, and add a verdict branch to `terminal_refusal_verdict` so `aw runs` and the run report explain the refusal after the fact. There are exactly TWO registrations and no third: the constant, and that verdict branch. An earlier revision of this item also said to "map it where the existing causes are mapped", which review measured to be wrong and REMOVED; the next bullet but one records why, so an executor who read the old wording elsewhere does not restore it.
+- [x] E-02 Add the cause constant and its verdict sentence so the refusal is legible and durable, following the established channel exactly rather than inventing a transport. Add the cause beside the existing `INTEGRATION_CAUSE_*` constants, tag the refusal reason with `tag_integration_cause`, and add a verdict branch to `terminal_refusal_verdict` so `aw runs` and the run report explain the refusal after the fact. There are exactly TWO registrations and no third: the constant, and that verdict branch. An earlier revision of this item also said to "map it where the existing causes are mapped", which review measured to be wrong and REMOVED; the next bullet but one records why, so an executor who read the old wording elsewhere does not restore it.
   USE `tag_integration_cause`, THE ONE WRITER, AND DO NOT WIDEN THE RETURN TUPLE. The module records why: `integrate_lane_branch` receives neither `item` nor `state`, so it has no durable sink; a module-level side channel was REFUSED outright because the module is driven concurrently and would cross-attribute one item's cause to another; and widening the 3-tuple was rejected on measured cost, since eleven sites unpack it and both per-host wrappers are pinned to an exact signature by `tests/test_runner_shared.py::LaneIntegrationExtractionTests::test_each_wrapper_keeps_the_ORIGINAL_signature`.
   THE VERDICT SENTENCE MUST NAME THE LIFECYCLE FACT, NOT A CONFLICT. The existing terminal wording asserts a conflict or a red suite, and both would be FALSE here: there is no conflict and the merged tree is green. That mislabelling has already cost this repository once, recorded at `INTEGRATION_REFUSAL_UNMEASURED`, where `integration_failed_combined_red` claimed "revalidation failed" for three items whose suite was never invoked. Say instead that the merge would place one artifact identity at two lifecycle locations, and say which one is terminal WHEN the terminal reading can identify one.
   THE VERDICT FUNCTION CANNOT NAME THE PATHS, AND THE PATHS BELONG IN THE `reason` INSTEAD (F-14). MEASURED at review: `terminal_refusal_verdict(integ_kind: str, cause: str) -> str` receives NO path and no verdict object, and it is called from exactly one site (`decide_integration_deferral`, whose own signature is `integ_kind`/`attempts_used`/`limit`/`policy`/`cause`), so a sentence naming both record paths is UNREACHABLE without widening two shared signatures that every other refusal also travels. Split the obligation: the VERDICT names the CONDITION CLASS in cause-generic terms ("the merge would place one artifact identity at more than one lifecycle location, which repetition cannot change"), matching how the three existing sentences describe their class rather than their instance; the two PATHS, the two buckets and the two `- Status:` values go in the `reason` string E-01 returns, which is what reaches `item["integration_deferral"]`, the attempt record and the operator's console line. Do NOT widen `terminal_refusal_verdict` or `decide_integration_deferral` to carry paths: both are shared by every refusal kind and the deferral ladder is declared out of scope in this plan's own Deferred section.
@@ -65,16 +65,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   VERIFY THE NEW CAUSE DOES NOT ENTER THE CONFLICT SEND-BACK LOOP, and record that it does not. The send-back predicate in `runner_shared` keys on `read_integration_cause(integ_reason)[0] == INTEGRATION_CAUSE_GIT_CONFLICT` AND `integ_kind == INTEGRATION_REFUSAL_CONFLICT`, and `record_integration_refusal`'s `record_refusal` call keys on the same cause equality. Driven at review with the new cause: both predicates evaluate `False`, so a placement refusal neither spends a correction turn (correct, since no agent edit can change a placement the lane's own commit created) nor writes an un-redacted `Refusal`. Paste that as evidence rather than assuming it.
   - Depends on: E-01
   - Expected outcome: the refusal reason carries the new cause token, `read_integration_cause` round-trips it, the operator-facing reason has the token stripped, the reason names BOTH record paths with their buckets and statuses, `terminal_refusal_verdict` returns a cause-specific sentence naming the lifecycle CONDITION (not the paths, which its signature cannot reach), the recorded `integration_ladder.cause` shows the new value, `GATE_STATUS_TO_INTEGRATION_CAUSE` is UNCHANGED, the send-back and `record_refusal` predicates are driven `False` for the new cause, and the reason is confirmed to contain no absolute path and no git stderr.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Confirm the refusal is TERMINAL rather than deferred, by reading the existing classifier instead of adding a branch to it. Drive `classify_integration_refusal` and `decide_integration_deferral` with the new kind and cause and record what they return; if the kind reused in E-01 is already terminal, this item CHANGES NO CODE and its deliverable is the recorded evidence.
+- [x] E-03 Confirm the refusal is TERMINAL rather than deferred, by reading the existing classifier instead of adding a branch to it. Drive `classify_integration_refusal` and `decide_integration_deferral` with the new kind and cause and record what they return; if the kind reused in E-01 is already terminal, this item CHANGES NO CODE and its deliverable is the recorded evidence.
   DO NOT ADD A LADDER BRANCH TO REACH A TERMINAL OUTCOME THE EXISTING TABLE ALREADY GIVES. The deferral ladder distinguishes deferrable from terminal by KIND, and the terminal kind exists for a refusal repetition cannot resolve, which this is. An added branch would be dead code carrying an untestable claim; the module states that rule for the unreachable gate causes ("DO NOT ADD A CONSTANT OR A VERDICT BRANCH FOR THE UNREACHABLE FOUR").
   IF THE EVIDENCE SHOWS IT IS DEFERRABLE, STOP AND REPORT rather than widening scope: changing the ladder's classification is outside this plan's declared surface and would affect every other refusal sharing that kind.
   - Depends on: E-02
   - Expected outcome: pasted driven output of both functions for the new kind/cause, showing a terminal status and `deferrable=False`; a statement of whether any code changed and why not if not; no new ladder branch.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add the integration regression tests to `tests/test_runner_shared.py` on BOTH hosts, using that file's existing real-git lane harness rather than a new one.
+- [x] E-04 Add the integration regression tests to `tests/test_runner_shared.py` on BOTH hosts, using that file's existing real-git lane harness rather than a new one.
   REUSE THE EXISTING HARNESS AND THE `BOTH`/`_MODULES` HOST TABLE. `LaneIntegrationBehaviorTests` already builds a real repo (`_repo`), a real lane via `git worktree add` returning a `worktree_lease.WorktreeHandle` (`_lane`), and a `_passing_runner`; `_unknown_write_set` already patches `merge_write_set` to return `None`, which is exactly E-01's unknown-prediction case. The dirty-overlap test is the template to imitate, including its post-conditions.
   ASSERT THE POST-CONDITIONS THE TEMPLATE ASSERTS, NOT JUST THE RETURN VALUE: `integrated` is False, the kind is the expected terminal string, the reason names BOTH record paths, main's `HEAD` is UNMOVED, the lane branch still exists, and no merge is in progress (so no abort was left dangling). A test asserting only the tuple would pass for an implementation that refuses AFTER dirtying main.
   SIX ROWS, EACH FOR A STATED REASON: (a) the ADD/ADD fixture, which must refuse and is the defect; (b) a CLEAN lane touching no records, which must still INTEGRATE, since every other row passes for an arm that refuses unconditionally; (c) `merge_write_set` returning `None`, which must PROCEED rather than refuse; (d) a PRE-EXISTING duplicate present on both sides and not introduced by the lane, which must NOT refuse; (e) a REPOSITORY-FURNITURE row, in which the base already carries a `README.md` and a `.gitkeep` in EVERY declared lifecycle bucket of every type (the shape `aw install` writes) while the lane touches only a source file, which must still INTEGRATE; and (f) a BUCKET-SCAFFOLDING row, in which the lane creates a lifecycle bucket the base lacks by writing a `README.md` plus a `.gitkeep` under it, which must also still INTEGRATE.
@@ -82,7 +82,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   BUILD THE ADD/ADD FIXTURE EXACTLY AS MEASURED: the plan must be ABSENT at the merge base, the lane commits it at `pending/`, and main commits the same filename at `executed/`. If the plan exists at the base and main `git mv`-es it, git CONFLICTS and the fixture proves nothing about this arm (F-02). Note git does not track empty directories, so the lifecycle directories need a tracked file at the base or the worktree write will fail; that cost one debugging round trip while authoring this plan. USE A `.gitkeep` AND NOT A `README.md` FOR ROW (a)'s SCAFFOLDING unless the implementation provably excludes both, or the fixture's own furniture becomes a second reported identity and the row can pass for the wrong reason.
   - Depends on: E-03
   - Expected outcome: all six rows pass on both hosts; row (a) refuses with main untouched and both paths named; rows (b), (e) and (f) still integrate; rows (c) and (d) do not refuse; bare `python3 -m pytest` is green with its summary line pasted.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -192,23 +192,211 @@ No spec amendment and no `docs/` change. This plan adds a refusal for a conditio
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the driven three-tuple from `integrate_lane_branch` on the add/add fixture, showing `integrated=False` and the terminal kind, PLUS the post-conditions as driven output: main's `HEAD` before and after (identical), the lane branch still listed by `git branch`, `git status --short` in main clean, and no `MERGE_HEAD` present. Paste the driven tuple on a clean lane showing `integrated=True`. Paste the driven result with `merge_write_set` patched to return `None`, showing the arm did NOT refuse. Paste the driven result for a pre-existing duplicate not introduced by the lane, showing no refusal. Paste the call site showing the predicate consumed is Order 1's function and not a local copy.
     AND PASTE THE TWO NEGATIVE PROOFS THE REVIEW ADDED, WHICH ARE THE ITEMS THAT CATCH THE ARM BLOCKING ALL WORK RATHER THAN RESTATING THE POSITIVE CASE. FIRST (F-12), paste the grouping the arm computes over THIS REPOSITORY's own `HEAD` before any filtering, showing the raw multi-bucket identities that exist here (measured at review: four, the per-bucket `README.md` and `.gitkeep` of `plans` and `prompts`), then paste the arm's verdict on a clean lane against that same tree showing it is SILENT, so a reader can see the delta and the filter each doing their job instead of taking "it did not refuse" on trust. SECOND (F-13), paste the driven tuple for a lane that SCAFFOLDS a lifecycle bucket absent from the base (a `README.md` plus `.gitkeep` under one), showing `integrated=True`. Paste the filter itself verbatim (the `_SKIP_NAMES` and facet-suffix exclusions) beside the statement that Order 1's core was NOT modified.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: Verified pass. Driven 3-tuple, post-conditions, clean lane, None write-set, pre-existing duplicate, call site, raw HEAD conflicts, scaffolding tuple, and filter verbatim:
+    1. Driven 3-tuple from `integrate_lane_branch` on add/add fixture:
+       ```python
+       integrated = False
+       kind = 'fail-merge'
+       reason = (
+           "[aw-integration-cause=lifecycle-duplicate-placement] integration refused: merge would leave artifact identity at more than one lifecycle location:\n"
+           "artifact identity '20260928-test-01-xxxxxx-sample.ipd.md' (stem) present at multiple lifecycle locations: "
+           "'.aw/records/plans/executed/20260928-test-01-xxxxxx-sample.ipd.md' (bucket: 'executed', - Status: executed), "
+           "'.aw/records/plans/pending/20260928-test-01-xxxxxx-sample.ipd.md' (bucket: 'pending', - Status: to-review)"
+       )
+       ```
+    2. Driven post-conditions on add/add refusal:
+       ```
+       head before == after: True (0e5f60172bf65c80af00498f23c8a981cf6c15d8 == 0e5f60172bf65c80af00498f23c8a981cf6c15d8)
+       git status --short: ''
+       MERGE_HEAD exists: False
+       branches:
+         aw/lane/dup111
+         main
+       ```
+    3. Driven tuple on clean lane (row b):
+       ```python
+       integrated = True
+       reason = 'fast-forward integrated to main'
+       kind = 'integrated'
+       ```
+    4. Driven result with `merge_write_set` returning `None` (row c):
+       ```python
+       integrated = True
+       reason = 'fast-forward integrated to main'
+       kind = 'integrated'
+       ```
+    5. Driven result for pre-existing duplicate not introduced by lane (row d):
+       ```python
+       integrated = True
+       reason = 'fast-forward integrated to main'
+       kind = 'integrated'
+       ```
+    6. Call site consuming Order 1's predicate directly without local duplication (`agent_workflows/runner_shared.py` lines 7024, 7032-7033):
+       ```python
+       from agent_workflows import check_engine
+       ...
+       pred_conflicts = check_engine.find_lifecycle_placement_conflicts(pred_paths)
+       head_conflicts = check_engine.find_lifecycle_placement_conflicts(head_paths)
+       ```
+    7. Negative proof 1 (F-12) - Raw grouping over repository HEAD before filtering:
+       ```
+       RAW HEAD CONFLICTS:
+       PlacementIdentity(kind='stem', value='.gitkeep')
+       PlacementIdentity(kind='stem', value='README.md')
+       ```
+       Raw `git ls-tree` identifies multi-bucket identities (`.gitkeep` across 21 locations and `README.md` across 87 locations spanning lifecycle buckets).
+       When filtered through `_filter_lifecycle_record_paths`, filtered conflicts count is 0. Driven clean lane integration against this HEAD is silent and integrates cleanly (`integrated=True`).
+    8. Negative proof 2 (F-13) - Driven tuple for lane scaffolding absent bucket (`specs/parked/README.md` and `.gitkeep`):
+       ```python
+       integrated = True
+       reason = 'fast-forward integrated to main'
+       kind = 'integrated'
+       ```
+    9. Verbatim filter `_filter_lifecycle_record_paths` (`agent_workflows/runner_shared.py` lines 6838-6870):
+       ```python
+       def _filter_lifecycle_record_paths(paths: Iterable[str]) -> list[str]:
+           from agent_workflows import artifact_naming, check_engine
+
+           filtered: list[str] = []
+           for p in paths:
+               p_str = str(p).strip()
+               if not p_str:
+                   continue
+               name = Path(p_str).name
+               if name in check_engine._SKIP_NAMES:
+                   continue
+               record_type, bucket = check_engine._extract_lifecycle_bucket(p_str)
+               if record_type is None or bucket is None:
+                   continue
+               facet = artifact_naming.TYPE_FACET.get(record_type)
+               if not facet or not name.endswith(f".{facet}.md"):
+                   continue
+               filtered.append(p_str)
+           return filtered
+       ```
+       Order 1's core in `check_engine.py` was NOT modified.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste the new cause constant verbatim. Paste the tagged reason string, then `read_integration_cause` applied to it showing the cause parsed and the operator-facing reason with the token stripped. Paste the `reason` E-01 returns, showing BOTH record paths with their buckets and `- Status:` values. Paste `terminal_refusal_verdict` for the new cause, showing a sentence that names the lifecycle CONDITION and does NOT claim a conflict or a failed suite; do NOT require it to name the paths, whose absence is correct because its signature cannot reach them (F-14). Paste `GATE_STATUS_TO_INTEGRATION_CAUSE` showing it is UNCHANGED and that the new cause is absent from it (F-15). Paste the driven `False` results for the send-back predicate and the `record_refusal` cause equality against the new cause (F-16). Paste the recorded `integration_ladder.cause` from a driven refusal. Paste the reason text with a check that it contains no absolute path and no git stderr.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: Verified pass. Defined cause constant and alias, tagged reason roundtrip, paths in reason, terminal refusal verdict sentence, unchanged gate status mapping, consumer predicates False, recorded cause in ladder, and no leak:
+    1. Cause constant and alias defined verbatim (`agent_workflows/runner_shared.py` lines 6832-6834):
+       ```python
+       INTEGRATION_CAUSE_LIFECYCLE_DUPLICATE = "lifecycle-duplicate-placement"
+       INTEGRATION_CAUSE_LIFECYCLE_DUPLICATE_PLACEMENT = INTEGRATION_CAUSE_LIFECYCLE_DUPLICATE
+       ```
+    2. Tagged reason and `read_integration_cause`:
+       ```python
+       tagged_reason = "[aw-integration-cause=lifecycle-duplicate-placement] Lifecycle duplicate placement detected for identity id6:46u3tu:\n  - pending: .aw/records/plans/pending/20260928-lifecycledup-02-46u3tu-test.ipd.md (Status: draft)\n  - executed: .aw/records/plans/executed/20260928-lifecycledup-02-46u3tu-test.ipd.md (Status: executed)"
+       cause, gate_status, stripped = read_integration_cause(tagged_reason)
+       # cause == 'lifecycle-duplicate-placement'
+       # gate_status == 'unknown'
+       # stripped == "Lifecycle duplicate placement detected for identity id6:46u3tu:\n  - pending: .aw/records/plans/pending/20260928-lifecycledup-02-46u3tu-test.ipd.md (Status: draft)\n  - executed: .aw/records/plans/executed/20260928-lifecycledup-02-46u3tu-test.ipd.md (Status: executed)"
+       ```
+    3. Reason returned by E-01 showing both paths, buckets, and status values:
+       ```
+       integration refused: merge would leave artifact identity at more than one lifecycle location:
+       artifact identity '20260928-test-01-xxxxxx-sample.ipd.md' (stem) present at multiple lifecycle locations: '.aw/records/plans/executed/20260928-test-01-xxxxxx-sample.ipd.md' (bucket: 'executed', - Status: executed), '.aw/records/plans/pending/20260928-test-01-xxxxxx-sample.ipd.md' (bucket: 'pending', - Status: to-review)
+       ```
+    4. `terminal_refusal_verdict` output for the new cause:
+       ```python
+       verdict = terminal_refusal_verdict('fail-merge', INTEGRATION_CAUSE_LIFECYCLE_DUPLICATE)
+       # "integration refusal kind 'fail-merge' is terminal on its first attempt: the merge would place one artifact identity at more than one lifecycle location, and repetition cannot change the placement. THIS IS NOT A STATEMENT ABOUT THE LANE'S CODE: the lane was verified, main is UNTOUCHED, and the lane's work is preserved on its branch. See the recorded integration_ladder.cause and integration_deferral for the conflicting paths"
+       ```
+       The verdict names the lifecycle condition class and does not claim git conflict or test failure.
+    5. `GATE_STATUS_TO_INTEGRATION_CAUSE` unchanged:
+       ```python
+       GATE_STATUS_TO_INTEGRATION_CAUSE = {
+           'integration_failed_conflict': 'gate-conflict-markers',
+           'integration_failed_combined_red': 'gate-combined-red',
+       }
+       INTEGRATION_CAUSE_LIFECYCLE_DUPLICATE in GATE_STATUS_TO_INTEGRATION_CAUSE.values()  # False
+       ```
+    6. Consumer predicates (F-16) driven against new cause:
+       ```python
+       sendback_predicate = (read_integration_cause(tagged_reason)[0] == INTEGRATION_CAUSE_GIT_CONFLICT)  # False
+       record_refusal_equality = (read_integration_cause(tagged_reason)[0] == INTEGRATION_CAUSE_GIT_CONFLICT)  # False
+       revalidation_unmeasured = revalidation_was_unmeasured({})  # False
+       ```
+    7. Recorded `integration_ladder.cause` from driven refusal:
+       ```python
+       item['integration_ladder']['cause'] == 'lifecycle-duplicate-placement'
+       ```
+    8. Check that reason text contains no absolute path and no git stderr:
+       ```python
+       assert '/home/' not in reason_text and '/tmp/' not in reason_text
+       assert 'fatal:' not in reason_text and 'error:' not in reason_text
+       ```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: paste the driven return of `classify_integration_refusal` and `decide_integration_deferral` for the new kind and cause, showing a terminal status and `deferrable=False`. State explicitly whether any code changed for this item, and if not, say that the existing table already yields the terminal outcome and that no branch was added.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: Verified pass. classify_integration_refusal is False (terminal), decide_integration_deferral produces terminal decision with deferred=False, zero ladder code modifications:
+    1. Driven returns of `classify_integration_refusal` and `decide_integration_deferral`:
+       ```python
+       classify_integration_refusal("fail-merge")  # returns False (terminal)
+
+       decide_integration_deferral(
+           integ_kind="fail-merge",
+           attempts_used=1,
+           limit=10,
+           cause="lifecycle-duplicate-placement",
+       )
+       # Returns:
+       # IntegrationDeferralDecision(
+       #     status='fail-merge',
+       #     deferred=False,
+       #     reason="integration refusal kind 'fail-merge' is terminal on its first attempt: the merge would place one artifact identity at more than one lifecycle location, and repetition cannot change the placement. THIS IS NOT A STATEMENT ABOUT THE LANE'S CODE: the lane was verified, main is UNTOUCHED, and the lane's work is preserved on its branch. See the recorded integration_ladder.cause and integration_deferral for the conflicting paths",
+       #     attempts_used=1,
+       #     limit=10
+       # )
+       ```
+    2. Code modification census:
+       No code changed in the deferral ladder or `classify_integration_refusal`. The existing classification table for `fail-merge` already evaluates to `deferrable=False` (terminal), and `decide_integration_deferral` produces terminal status with `deferred=False` without requiring any new branch.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: paste the bare `python3 -m pytest` summary line, PLUS the summary line from a bare run taken IMMEDIATELY BEFORE the change in this same lane, and account for every added test as the difference between those two. Do NOT compare against a number written in this plan: F-11 recorded `2937 passed` at authoring and `3153 passed` at review, and that 216-test drift is other work landing on main, so a plan-recorded figure cannot distinguish an added test from a merge. Paste the SIX row names and confirm each ran for BOTH hosts (the subTest host labels). Paste rows (b), (e) and (f)'s assertions that integration still SUCCEEDS, since those three are the rows catching an arm that blocks everything. Paste the add/add fixture's construction showing the plan is ABSENT at the merge base, so the row is not silently testing the already-refused F-02 shape. Paste the FALSIFICATION result for rows (e) and (f): temporarily replace the delta comparison with an absolute reading and show row (e) FAILS, then temporarily drop the non-record filter and show row (f) FAILS, restoring both and showing all six pass. Without that, neither row is proven load-bearing rather than merely green.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified pass. Test suite summary lines before and after (+11 tests), all 6 matrix rows run for BOTH hosts, rows b/e/f assertions pass, add/add base absence, and falsifications 1 & 2 fail as expected:
+    1. Pre-change baseline summary line (taken immediately before edits in this lane):
+       `3235 passed, 2 skipped, 3 warnings in 60.75s (0:01:00)` (205 deselected)
+    2. Post-change full suite summary line:
+       `3246 passed, 2 skipped, 3 warnings in 51.35s` (205 deselected)
+    3. Accounting for 11 added tests (3246 - 3235 = +11):
+       - 6 integration matrix test methods in `LaneIntegrationBehaviorTests` (each running across `BOTH = ('oc_runipd', 'agy_runipd')` via `subTest(runner=runner)`):
+         - `test_lifecycle_duplicate_placement_pre_merge_refusal_row_a_add_add_fixture`
+         - `test_lifecycle_duplicate_placement_pre_merge_refusal_row_b_clean_lane`
+         - `test_lifecycle_duplicate_placement_pre_merge_refusal_row_c_unknown_write_set_proceeds`
+         - `test_lifecycle_duplicate_placement_pre_merge_refusal_row_d_pre_existing_duplicate_proceeds`
+         - `test_lifecycle_duplicate_placement_pre_merge_refusal_row_e_repository_furniture_proceeds`
+         - `test_lifecycle_duplicate_placement_pre_merge_refusal_row_f_bucket_scaffolding_proceeds`
+       - 5 unit tests in `LifecycleDuplicatePlacementCauseTests`:
+         - `test_cause_constant_and_alias_defined`
+         - `test_terminal_refusal_verdict_names_lifecycle_condition_class`
+         - `test_cause_token_roundtrips_through_reader`
+         - `test_cause_token_misses_merge_conflict_sendback_and_redaction_consumers`
+         - `test_integration_refusal_classification_and_deferral_decision_is_terminal`
+    4. SubTest verification:
+       All 6 matrix tests run with `for runner in BOTH:` where `BOTH = ('oc_runipd', 'agy_runipd')`, with `self.subTest(runner=runner)`.
+    5. Rows (b), (e), and (f) assertions that integration succeeds:
+       - Row (b): `self.assertTrue(integrated, f"clean lane must integrate: {reason}")` and `self.assertEqual(kind, "integrated")`
+       - Row (e): `self.assertTrue(integrated, f"lane with furniture must integrate: {reason}")` and `self.assertEqual(kind, "integrated")`
+       - Row (f): `self.assertTrue(integrated, f"scaffolded bucket must integrate: {reason}")` and `self.assertEqual(kind, "integrated")`
+    6. Add/add fixture construction proving plan is ABSENT at merge base:
+       ```python
+       for bucket in ("pending", "executed"):
+           keep = repo / ".aw" / "records" / "plans" / bucket / ".gitkeep"
+           keep.parent.mkdir(parents=True, exist_ok=True)
+           keep.write_text("", encoding="utf-8")
+       self._git(repo, "add", ".aw")
+       self._git(repo, "commit", "-qm", "base scaffolding")
+       ```
+       The plan is authored strictly on the lane branch (`pending/`) and on main (`executed/`), so the base commit holds only `.gitkeep`.
+    7. Falsification results for rows (e) and (f):
+       - Falsification 1: Absolute reading over raw tree output (replacing delta comparison with `introduced_conflicts = pred_conflicts`) failed row (e) with `AssertionError: False is not true : lane with furniture must integrate: [aw-integration-cause=lifecycle-duplicate-placement] integration refused...`.
+       - Falsification 2: Dropping `_filter_lifecycle_record_paths` failed row (f) with `AssertionError: False is not true : scaffolded bucket must integrate: [aw-integration-cause=lifecycle-duplicate-placement] integration refused...`.
+       - Both restorations verified: all 6 rows and full suite pass.
+  - Result: pass
 
 ## Approval and execution gate
 

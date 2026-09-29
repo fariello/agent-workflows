@@ -4059,7 +4059,15 @@ def merge_write_set(repo: Path, branch: str) -> list[str] | None:
     )
     if rc2 != 0:
         return None
-    return sorted({p for p in names.split("\0") if p.strip()})
+    res = MergeWriteSet(sorted({p for p in names.split("\0") if p.strip()}))
+    res.tree = tree
+    return res
+
+
+class MergeWriteSet(list):
+    """Path list returned by merge_write_set, carrying the predicted tree id if available (46u3tu)."""
+
+    tree: str | None = None
 
 
 def dirty_tree_overlap(repo: Path, changed_files: Sequence[str]) -> list[str]:
@@ -4847,6 +4855,11 @@ INTEGRATION_CAUSE_KEY = "cause"
 INTEGRATION_CAUSE_GATE_CONFLICT_MARKERS = "gate-conflict-markers"
 INTEGRATION_CAUSE_GATE_COMBINED_RED = "gate-combined-red"
 INTEGRATION_CAUSE_GIT_CONFLICT = "git-merge-conflict"
+#: lifecycledup Order 02 (`46u3tu`) E-02: refuse a merge that would leave an artifact identity at
+#: more than one lifecycle location. Produced by integrate_lane_branch's pre-merge placement arm.
+INTEGRATION_CAUSE_LIFECYCLE_DUPLICATE = "lifecycle-duplicate-placement"
+INTEGRATION_CAUSE_LIFECYCLE_DUPLICATE_PLACEMENT = INTEGRATION_CAUSE_LIFECYCLE_DUPLICATE
+
 
 #: What an OLD record (or an unrecognized gate status) reads as. Routing an unknown cause to today's
 #: unchanged wording is the FAIL-CLOSED direction: it keeps the conservative sentence rather than
@@ -6821,6 +6834,42 @@ INTEGRATION_ACTION_KINDS: tuple[str, ...] = (
 )
 
 
+def _filter_lifecycle_record_paths(paths: Iterable[str]) -> list[str]:
+    """Filter raw paths down to typed lifecycle artifact records (IPD 46u3tu E-01).
+
+    Order 1's core (:func:`check_engine.find_lifecycle_placement_conflicts`) is deliberately
+    filter-free by construction, taking an arbitrary iterable of paths or records so it can
+    operate directly on git tree enumerations without filesystem I/O. Therefore, filtering
+    out non-record furniture is THIS CALLER'S OBLIGATION.
+
+    Applies the same exclusions as :func:`check_engine._iter_type_files`:
+    1. Skips non-record filenames in :data:`check_engine._SKIP_NAMES` ({'README.md', 'INDEX.md', 'STATUS.md'}).
+    2. Requires the file to sit under a recognized lifecycle bucket of a supported type
+       (:data:`lifecycle_dirs.LIFECYCLE_SUBDIRS`).
+    3. Requires the type's own facet suffix (:data:`artifact_naming.TYPE_FACET`, e.g. ``.ipd.md`` for
+       plans, ``.spec.md`` for specs, ``.backlog.md`` for backlog, ``.prompt.md`` for prompts), which
+       is what makes a file a RECORD rather than directory furniture like ``.gitkeep``.
+    """
+    from agent_workflows import artifact_naming, check_engine
+
+    filtered: list[str] = []
+    for p in paths:
+        p_str = str(p).strip()
+        if not p_str:
+            continue
+        name = Path(p_str).name
+        if name in check_engine._SKIP_NAMES:
+            continue
+        record_type, bucket = check_engine._extract_lifecycle_bucket(p_str)
+        if record_type is None or bucket is None:
+            continue
+        facet = artifact_naming.TYPE_FACET.get(record_type)
+        if not facet or not name.endswith(f".{facet}.md"):
+            continue
+        filtered.append(p_str)
+    return filtered
+
+
 def integrate_lane_branch(
     repo: Path,
     handle: Any,
@@ -6951,6 +7000,95 @@ def integrate_lane_branch(
             format_foreign_merge_refusal_reason(repo),
             INTEGRATION_REFUSAL_TRANSIENT,
         )
+
+    # lifecycledup Order 02 (`46u3tu`) E-01: PRE-MERGE LIFECYCLE PLACEMENT GUARD.
+    # Refuse an integration that would leave one artifact identity at more than one lifecycle
+    # location (e.g. an add/add merge where the lane authors a plan at pending/ while main has
+    # landed the same plan at executed/).
+    #
+    # 1. READ THE PREDICTED TREE THAT `merge_write_set` ALREADY BUILDS without a second merge-tree call.
+    #    When merge_write_set returns None (conflicting merge or git lacking --write-tree), SKIP this
+    #    reading and proceed: a conflicting merge is git's own to classify and is already refused (F-02),
+    #    so an unknown prediction must skip this reading and proceed rather than manufacturing a refusal.
+    if predicted is not None:
+        tree = getattr(predicted, "tree", None)
+        if tree is None:
+            rc_tree, out_tree, _ = _run_git(
+                repo, ["merge-tree", "--write-tree", "HEAD", handle.branch]
+            )
+            lines_tree = out_tree.strip().splitlines()
+            tree = lines_tree[0].strip() if rc_tree == 0 and lines_tree else None
+
+        if tree is not None:
+            from agent_workflows import check_engine
+
+            rc_pt, out_pt, _ = _run_git(repo, ["ls-tree", "-r", "--name-only", tree])
+            rc_ht, out_ht, _ = _run_git(repo, ["ls-tree", "-r", "--name-only", "HEAD"])
+            if rc_pt == 0 and rc_ht == 0:
+                pred_paths = _filter_lifecycle_record_paths(out_pt.splitlines())
+                head_paths = _filter_lifecycle_record_paths(out_ht.splitlines())
+
+                pred_conflicts = check_engine.find_lifecycle_placement_conflicts(
+                    pred_paths
+                )
+                head_conflicts = check_engine.find_lifecycle_placement_conflicts(
+                    head_paths
+                )
+
+                # HEAD-DELTA COMPARISON (E-01, F-12): ask only about identities this merge would affect.
+                # Refuse only where the merge INTRODUCES a duplicate placement.
+                introduced_conflicts = {}
+                for ident, p_locs in pred_conflicts.items():
+                    h_locs = head_conflicts.get(ident)
+                    if not h_locs:
+                        introduced_conflicts[ident] = p_locs
+                    else:
+                        p_paths = {loc.path for loc in p_locs}
+                        h_paths = {loc.path for loc in h_locs}
+                        p_buckets = {loc.bucket for loc in p_locs}
+                        h_buckets = {loc.bucket for loc in h_locs}
+                        if p_paths != h_paths or p_buckets != h_buckets:
+                            introduced_conflicts[ident] = p_locs
+
+                if introduced_conflicts:
+                    conflict_details = []
+                    for ident, locs in sorted(
+                        introduced_conflicts.items(), key=lambda x: x[0].value
+                    ):
+                        loc_descriptions = []
+                        for loc in locs:
+                            status = loc.status
+                            if not status:
+                                rc_blob, blob_txt, _ = _run_git(
+                                    repo, ["cat-file", "-p", f"{tree}:{loc.path}"]
+                                )
+                                if rc_blob == 0 and blob_txt:
+                                    status = (
+                                        check_engine._metadata_status(blob_txt) or ""
+                                    )
+                            status_str = (
+                                f"- Status: {status}" if status else "- Status: unknown"
+                            )
+                            loc_descriptions.append(
+                                f"'{loc.path}' (bucket: '{loc.bucket}', {status_str})"
+                            )
+                        conflict_details.append(
+                            f"artifact identity '{ident.value}' ({ident.kind}) present at multiple lifecycle "
+                            f"locations: {', '.join(loc_descriptions)}"
+                        )
+
+                    reason_text = (
+                        "integration refused: merge would leave artifact identity at more than one "
+                        "lifecycle location:\n" + "\n".join(conflict_details)
+                    )
+                    return (
+                        False,
+                        tag_integration_cause(
+                            INTEGRATION_CAUSE_LIFECYCLE_DUPLICATE,
+                            reason_text,
+                        ),
+                        INTEGRATION_REFUSAL_CONFLICT,
+                    )
 
     # dirtygates Order 05 (`ajxr5d`) E-03: THE ONE STEP A REVIEW SKIPS, and it is skipped by NOT
     # RUNNING, never by fabricating a verdict. `result` stays None for a review and the `not
@@ -9612,6 +9750,13 @@ def terminal_refusal_verdict(integ_kind: str, cause: str) -> str:
             "revalidation MEASURED the merged tree and it was RED, so it asserts a real failure of the "
             "work and repetition alone cannot clear it. See the recorded integration_ladder.cause and "
             "integration_deferral for the gate's own finding"
+        ),
+        INTEGRATION_CAUSE_LIFECYCLE_DUPLICATE: (
+            f"integration refusal kind {integ_kind!r} is terminal on its first attempt: the merge "
+            "would place one artifact identity at more than one lifecycle location, and repetition "
+            "cannot change the placement. THIS IS NOT A STATEMENT ABOUT THE LANE'S CODE: the lane was "
+            "verified, main is UNTOUCHED, and the lane's work is preserved on its branch. See the "
+            "recorded integration_ladder.cause and integration_deferral for the conflicting paths"
         ),
     }
     if cause in known:

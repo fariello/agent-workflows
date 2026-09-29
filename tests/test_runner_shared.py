@@ -948,6 +948,232 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
                     self._git(repo, "branch", "--format=%(refname:short)"),
                 )
 
+    def test_lifecycle_duplicate_placement_pre_merge_refusal_row_a_add_add_fixture(
+        self,
+    ):
+        """lifecycledup-02 (`46u3tu`) E-04 row (a): add/add fixture must refuse with main untouched."""
+        import tempfile
+
+        plan_filename = "20260928-test-01-xxxxxx-sample.ipd.md"
+        pending_path = f".aw/records/plans/pending/{plan_filename}"
+        executed_path = f".aw/records/plans/executed/{plan_filename}"
+        pending_content = "# IPD: Sample\n\n- Status: to-review\n"
+        executed_content = "# IPD: Sample\n\n- Status: executed\n"
+
+        for runner in BOTH:
+            with self.subTest(runner=runner), tempfile.TemporaryDirectory() as tmp:
+                repo = self._repo(pathlib.Path(tmp))
+                # Base commit has .gitkeep in lifecycle dirs so git tracks them (plan absent at merge base)
+                for bucket in ("pending", "executed"):
+                    keep = repo / ".aw" / "records" / "plans" / bucket / ".gitkeep"
+                    keep.parent.mkdir(parents=True, exist_ok=True)
+                    keep.write_text("", encoding="utf-8")
+                self._git(repo, "add", ".aw")
+                self._git(repo, "commit", "-qm", "base scaffolding")
+
+                # Lane branches from base and writes to pending/
+                handle = self._lane(
+                    repo, "dup111", path=pending_path, body=pending_content
+                )
+
+                # Main commits the same plan at executed/
+                exec_file = repo / executed_path
+                exec_file.parent.mkdir(parents=True, exist_ok=True)
+                exec_file.write_text(executed_content, encoding="utf-8")
+                self._git(repo, "add", executed_path)
+                self._git(repo, "commit", "-qm", "main finalizes plan to executed")
+                head_before_integrate = self._git(repo, "rev-parse", "HEAD")
+
+                integrated, reason, kind = _MODULES[runner].integrate_lane_branch(
+                    repo, handle, "dup111", self._passing_runner()
+                )
+
+                self.assertFalse(
+                    integrated, "add/add duplicate placement must be refused"
+                )
+                self.assertEqual(kind, runner_shared.INTEGRATION_REFUSAL_CONFLICT)
+                self.assertIn(pending_path, reason)
+                self.assertIn(executed_path, reason)
+                self.assertIn("- Status: to-review", reason)
+                self.assertIn("- Status: executed", reason)
+
+                # Post-conditions: main untouched, HEAD unmoved, clean status, no MERGE_HEAD, lane preserved
+                self.assertEqual(
+                    self._git(repo, "rev-parse", "HEAD"), head_before_integrate
+                )
+                self.assertEqual(self._git(repo, "status", "--short"), "")
+                git_dir = pathlib.Path(
+                    self._git(repo, "rev-parse", "--absolute-git-dir")
+                )
+                self.assertFalse((git_dir / "MERGE_HEAD").exists())
+                self.assertIn(
+                    handle.branch,
+                    self._git(repo, "branch", "--format=%(refname:short)"),
+                )
+
+    def test_lifecycle_duplicate_placement_pre_merge_refusal_row_b_clean_lane(
+        self,
+    ):
+        """lifecycledup-02 (`46u3tu`) E-04 row (b): clean lane touching no records must integrate."""
+        import tempfile
+
+        for runner in BOTH:
+            with self.subTest(runner=runner), tempfile.TemporaryDirectory() as tmp:
+                repo = self._repo(pathlib.Path(tmp))
+                handle = self._lane(
+                    repo, "cln111", path="src/tool.py", body="print('ok')\n"
+                )
+
+                integrated, reason, kind = _MODULES[runner].integrate_lane_branch(
+                    repo, handle, "cln111", self._passing_runner()
+                )
+
+                self.assertTrue(integrated, f"clean lane must integrate: {reason}")
+                self.assertEqual(kind, "integrated")
+                self.assertEqual(
+                    (repo / "src" / "tool.py").read_text(encoding="utf-8"),
+                    "print('ok')\n",
+                )
+
+    def test_lifecycle_duplicate_placement_pre_merge_refusal_row_c_unknown_write_set_proceeds(
+        self,
+    ):
+        """lifecycledup-02 (`46u3tu`) E-04 row (c): unknown merge_write_set proceeds rather than refusing."""
+        import tempfile
+
+        for runner in BOTH:
+            with self.subTest(runner=runner), tempfile.TemporaryDirectory() as tmp:
+                repo = self._repo(pathlib.Path(tmp))
+                handle = self._lane(
+                    repo, "unk111", path="src/tool.py", body="print('ok')\n"
+                )
+
+                with mock.patch.object(
+                    runner_shared, "merge_write_set", lambda _r, _b: None
+                ):
+                    integrated, reason, kind = _MODULES[runner].integrate_lane_branch(
+                        repo, handle, "unk111", self._passing_runner()
+                    )
+
+                self.assertTrue(integrated, f"unknown write set must proceed: {reason}")
+                self.assertEqual(kind, "integrated")
+
+    def test_lifecycle_duplicate_placement_pre_merge_refusal_row_d_pre_existing_duplicate_proceeds(
+        self,
+    ):
+        """lifecycledup-02 (`46u3tu`) E-04 row (d): pre-existing duplicate on both sides does not refuse."""
+        import tempfile
+
+        plan_filename = "20260928-test-01-xxxxxx-sample.ipd.md"
+        pending_path = f".aw/records/plans/pending/{plan_filename}"
+        executed_path = f".aw/records/plans/executed/{plan_filename}"
+
+        for runner in BOTH:
+            with self.subTest(runner=runner), tempfile.TemporaryDirectory() as tmp:
+                repo = self._repo(pathlib.Path(tmp))
+                for p in (pending_path, executed_path):
+                    f = repo / p
+                    f.parent.mkdir(parents=True, exist_ok=True)
+                    f.write_text(
+                        "# IPD: Pre-existing\n\n- Status: draft\n",
+                        encoding="utf-8",
+                    )
+                self._git(repo, "add", ".aw")
+                self._git(repo, "commit", "-qm", "base with pre-existing duplicate")
+
+                handle = self._lane(
+                    repo, "pre111", path="src/tool.py", body="print('tool')\n"
+                )
+
+                integrated, reason, kind = _MODULES[runner].integrate_lane_branch(
+                    repo, handle, "pre111", self._passing_runner()
+                )
+
+                self.assertTrue(
+                    integrated, f"pre-existing duplicate must not refuse: {reason}"
+                )
+                self.assertEqual(kind, "integrated")
+
+    def test_lifecycle_duplicate_placement_pre_merge_refusal_row_e_repository_furniture_proceeds(
+        self,
+    ):
+        """lifecycledup-02 (`46u3tu`) E-04 row (e): base with README.md and .gitkeep in every bucket integrates."""
+        import tempfile
+        from agent_workflows import lifecycle_dirs
+
+        for runner in BOTH:
+            with self.subTest(runner=runner), tempfile.TemporaryDirectory() as tmp:
+                repo = self._repo(pathlib.Path(tmp))
+                for r_type, subdirs in lifecycle_dirs.LIFECYCLE_SUBDIRS.items():
+                    for bucket in subdirs:
+                        d = repo / ".aw" / "records" / r_type / bucket
+                        d.mkdir(parents=True, exist_ok=True)
+                        (d / ".gitkeep").write_text("", encoding="utf-8")
+                        (d / "README.md").write_text(
+                            f"# {r_type} {bucket}\n", encoding="utf-8"
+                        )
+                self._git(repo, "add", ".aw")
+                self._git(repo, "commit", "-qm", "all lifecycle furniture scaffolded")
+
+                handle = self._lane(
+                    repo, "fur111", path="src/tool.py", body="print('tool')\n"
+                )
+
+                integrated, reason, kind = _MODULES[runner].integrate_lane_branch(
+                    repo, handle, "fur111", self._passing_runner()
+                )
+
+                self.assertTrue(
+                    integrated, f"scaffolded furniture must integrate: {reason}"
+                )
+                self.assertEqual(kind, "integrated")
+
+    def test_lifecycle_duplicate_placement_pre_merge_refusal_row_f_bucket_scaffolding_proceeds(
+        self,
+    ):
+        """lifecycledup-02 (`46u3tu`) E-04 row (f): lane scaffolding a new bucket (README.md + .gitkeep) integrates."""
+        import tempfile
+
+        for runner in BOTH:
+            with self.subTest(runner=runner), tempfile.TemporaryDirectory() as tmp:
+                repo = self._repo(pathlib.Path(tmp))
+                for bucket in ("draft", "approved"):
+                    d = repo / ".aw" / "records" / "specs" / bucket
+                    d.mkdir(parents=True, exist_ok=True)
+                    (d / ".gitkeep").write_text("", encoding="utf-8")
+                    (d / "README.md").write_text(
+                        f"# specs {bucket}\n", encoding="utf-8"
+                    )
+                self._git(repo, "add", ".aw")
+                self._git(repo, "commit", "-qm", "base specs furniture")
+
+                base = self._git(repo, "rev-parse", "HEAD")
+                branch = "aw/lane/scaf111"
+                self._git(repo, "branch", branch)
+                wt = repo.parent / "wt-scaf111"
+                self._git(repo, "worktree", "add", "-q", str(wt), branch)
+                parked = wt / ".aw" / "records" / "specs" / "parked"
+                parked.mkdir(parents=True, exist_ok=True)
+                (parked / ".gitkeep").write_text("", encoding="utf-8")
+                (parked / "README.md").write_text("# specs parked\n", encoding="utf-8")
+                self._git(wt, "add", ".aw")
+                self._git(wt, "commit", "-qm", "lane scaf111: scaffold specs/parked")
+
+                from agent_workflows import worktree_lease
+
+                handle = worktree_lease.WorktreeHandle(
+                    lane_id="scaf111", path=wt, branch=branch, base_commit=base
+                )
+
+                integrated, reason, kind = _MODULES[runner].integrate_lane_branch(
+                    repo, handle, "scaf111", self._passing_runner()
+                )
+
+                self.assertTrue(
+                    integrated, f"scaffolded bucket must integrate: {reason}"
+                )
+                self.assertEqual(kind, "integrated")
+
     def _refusal_repo(self, tmp: pathlib.Path, id6: str):
         """Main + a lane whose merge git will REFUSE TO START because main holds local changes.
 
@@ -1480,6 +1706,73 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
                 runner_shared.INTEGRATION_REFUSAL_CONFLICT
             )
         )
+
+
+class LifecycleDuplicatePlacementCauseTests(unittest.TestCase):
+    """lifecycledup-02 (`46u3tu`) E-02/E-03: cause constant, verdict, classifier, and predicate tests."""
+
+    def test_cause_constant_and_verdict_sentence(self):
+        self.assertEqual(
+            runner_shared.INTEGRATION_CAUSE_LIFECYCLE_DUPLICATE,
+            "lifecycle-duplicate-placement",
+        )
+        verdict = runner_shared.terminal_refusal_verdict(
+            "fail-merge", runner_shared.INTEGRATION_CAUSE_LIFECYCLE_DUPLICATE
+        )
+        self.assertIn("terminal on its first attempt", verdict)
+        self.assertIn(
+            "the merge would place one artifact identity at more than one lifecycle location",
+            verdict,
+        )
+        self.assertIn("repetition cannot change", verdict)
+        self.assertNotIn("BOTH SIDES CHANGED THE SAME REGION", verdict)
+        self.assertNotIn("RED", verdict)
+        self.assertNotIn("UNRESOLVED CONFLICT MARKERS", verdict)
+
+    def test_gate_status_to_integration_cause_is_unchanged(self):
+        # F-15: The new cause fires before the gate runs and has no gate status.
+        self.assertNotIn(
+            runner_shared.INTEGRATION_CAUSE_LIFECYCLE_DUPLICATE,
+            runner_shared.GATE_STATUS_TO_INTEGRATION_CAUSE.values(),
+        )
+
+    def test_cause_token_round_trip(self):
+        reason = "integration refused: test paths"
+        tagged = runner_shared.tag_integration_cause(
+            runner_shared.INTEGRATION_CAUSE_LIFECYCLE_DUPLICATE, reason
+        )
+        cause, shape, op_facing = runner_shared.read_integration_cause(tagged)
+        self.assertEqual(cause, runner_shared.INTEGRATION_CAUSE_LIFECYCLE_DUPLICATE)
+        self.assertEqual(op_facing, reason)
+
+    def test_send_back_and_record_refusal_predicates_are_false(self):
+        # F-16: verify new cause does not enter conflict send-back loop or un-redacting record_refusal
+        cause = runner_shared.INTEGRATION_CAUSE_LIFECYCLE_DUPLICATE
+        integ_kind = runner_shared.INTEGRATION_REFUSAL_CONFLICT
+        send_back = (
+            cause == runner_shared.INTEGRATION_CAUSE_GIT_CONFLICT
+            and integ_kind == runner_shared.INTEGRATION_REFUSAL_CONFLICT
+        )
+        self.assertFalse(send_back)
+        record_refusal_cond = cause == runner_shared.INTEGRATION_CAUSE_GIT_CONFLICT
+        self.assertFalse(record_refusal_cond)
+        self.assertFalse(runner_shared.revalidation_was_unmeasured({}))
+
+    def test_refusal_is_terminal(self):
+        # E-03: classify_integration_refusal and decide_integration_deferral
+        cl = runner_shared.classify_integration_refusal(
+            runner_shared.INTEGRATION_REFUSAL_CONFLICT
+        )
+        self.assertFalse(cl)
+        dec = runner_shared.decide_integration_deferral(
+            integ_kind=runner_shared.INTEGRATION_REFUSAL_CONFLICT,
+            attempts_used=1,
+            limit=10,
+            cause=runner_shared.INTEGRATION_CAUSE_LIFECYCLE_DUPLICATE,
+        )
+        self.assertEqual(dec.status, "fail-merge")
+        self.assertFalse(dec.deferred)
+        self.assertIn("more than one lifecycle location", dec.reason)
 
 
 class CanonicalRunsRootTests(unittest.TestCase):
