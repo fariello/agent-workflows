@@ -50,6 +50,8 @@ COLLISIONS_NOT_CHECKED = "check.collisions-not-checked"
 DRAFT_READY = "check.ipd-draft-ready-to-review"
 MISSING_STATUS = "attention.missing-status"
 HISTORY_MISSING = "attention.history-missing"
+LIFECYCLE_PLACEMENT = "check.lifecycle-placement-conflict"
+IPD_LINT_DIAGNOSTIC = "check.ipd-lint-diagnostic"
 
 PLANS = ".aw/records/plans/pending"
 SPECS = ".aw/records/specs"
@@ -665,6 +667,402 @@ class CollisionTests(unittest.TestCase):
         self.assertEqual(err.determinism, ce.DET_DETERMINISTIC)
         # The length rules must NOT have been homed on the semantics invariant.
         self.assertNotEqual(warn.invariant, ce.rule_spec(SETID_COLLISION).invariant)
+
+
+class LifecyclePlacementTests(unittest.TestCase):
+    """Tests for artifact lifecycle placement checking (IPD tl2b2r, backlog wlyg3g).
+
+    Asserts that artifact identities occupying more than one lifecycle location are reported
+    deterministically across all lifecycle-bearing record types (plans, specs, backlog, prompts).
+    """
+
+    _LEGACY_BODY = (
+        "# IPD\n\n"
+        "- Date: 2026-01-01\n"
+        "- Kind: child\n"
+        "- Concern: a check_engine fixture\n"
+        "- Scope: a check_engine fixture\n"
+        "- Scope-Paths: x.py\n"
+        "- Item-Dependencies: none\n"
+        "- Status: approved\n"
+        "- Set: demo\n"
+        "- Order: 1\n"
+        "- Highest E allocated: 01\n"
+        "- Priority: medium\n"
+        "- Work-Kind: chore\n"
+        "- Author: fixture\n"
+        "- Approval: 2026-01-01, recorded via aw ipd set\n"
+        "\n## Workflow history\n"
+        "- 2026-01-01 approved (t): created.\n"
+        "\n## Goal\n\nx\n"
+        "\n## Detailed Implementation Checklist (TODO)\n\n"
+        "- [ ] E-01 do it.\n"
+        "  - Depends on: none\n"
+        "  - Expected outcome: done\n"
+        "  - Execution state: pending\n"
+        "\n## Project conventions discovered (Step 0)\n\n- none\n"
+        "\n## Findings\n\n"
+        "| Id | Severity | Area | What | Evidence |\n|---|---|---|---|---|\n"
+        "| F-1 | LOW | x | y | z |\n"
+        "\n## Proposed changes (ordered, validatable)\n\n1. do it\n"
+        "\n## Deferred / out of scope (with reason)\n\n"
+        "- nothing deferred.\n  - Carrier-Declined: a fixture has no obligations.\n"
+        "\n## Scope check\n\n- Over-scope: none\n- Under-scope: none\n"
+        "\n## Required tests / validation\n\nthe suite\n"
+        "\n## Spec / documentation sync\n\nnone\n"
+        "\n## Open questions\n\nnone\n"
+        "\n## Validation and cross-check (verify before reporting done)\n\n"
+        "- [ ] V-01 validates E-01\n"
+        "  - Required evidence: paste it\n"
+        "  - Observed evidence:\n"
+        "  - Result: pending\n"
+        "\n## Approval and execution gate\n\n"
+        "- Size assessment: standard\n- Cohesion rationale: not required\n"
+    )
+
+    _BKLG_OPEN = (
+        "- Id: ccc333\n"
+        "- Status: open\n"
+        "- Set: demo\n"
+        "- Priority: high\n"
+        "- Work-Kind: feature\n"
+        "- Summary: Open\n\n"
+        "## Detail\n\nx\n"
+    )
+
+    _BKLG_DONE = (
+        "- Id: ccc333\n"
+        "- Status: done\n"
+        "- Set: demo\n"
+        "- Priority: high\n"
+        "- Work-Kind: feature\n"
+        "- Summary: Done\n\n"
+        "## Detail\n\nx\n"
+    )
+
+    _RESEARCH_TEXT = (
+        "# Research: test doc\n\n"
+        "- Id: ddd444\n"
+        "- Date: 2026-01-01\n"
+        "- Set: demo\n\n"
+        "## Summary\n\nx\n"
+    )
+
+    #: (case, the files as (relative path, text), rules expected from full sweep, why this row exists)
+    ROWS = (
+        (
+            "row (a) modern names with same declared Id in pending/ and executed/",
+            (
+                (
+                    f"{PLANS}/20260101-demo-01-aaa111-ok.ipd.md",
+                    _plan_text("aaa111", status="approved"),
+                ),
+                (
+                    ".aw/records/plans/executed/20260101-demo-01-aaa111-ok.ipd.md",
+                    _plan_text("aaa111", status="executed"),
+                ),
+            ),
+            (ID6_COLLISION, LIFECYCLE_PLACEMENT),
+            "THE MODERN CASE: both copies declare the same Id, so check.id6-collision fires and the new "
+            "lifecycle placement rule also fires. Neither suppresses the other.",
+        ),
+        (
+            "row (b) legacy names with no declared Id in pending/ and executed/",
+            (
+                (f"{PLANS}/20260101-1357-01-assess-bugs.ipd.md", _LEGACY_BODY),
+                (
+                    ".aw/records/plans/executed/20260101-1357-01-assess-bugs.ipd.md",
+                    _LEGACY_BODY,
+                ),
+            ),
+            (IDENTITY_ABSENT, IPD_LINT_DIAGNOSTIC, LIFECYCLE_PLACEMENT),
+            "THE LEGACY ROW AND LOAD-BEARING PROOF OF THE STEM KEY: neither copy declares an Id, so "
+            "check.id6-collision is SILENT. Only the stem key sees the duplication.",
+        ),
+        (
+            "row (c) sharded path executed/202609/ alongside pending/",
+            (
+                (
+                    f"{PLANS}/20260101-demo-01-aaa111-ok.ipd.md",
+                    _plan_text("aaa111", status="approved"),
+                ),
+                (
+                    ".aw/records/plans/executed/202609/20260101-demo-01-aaa111-ok.ipd.md",
+                    _plan_text("aaa111", status="executed"),
+                ),
+            ),
+            (ID6_COLLISION, LIFECYCLE_PLACEMENT),
+            "SHARD SAFETY: bucket resolves to 'executed' and not '202609', so exactly one finding fires.",
+        ),
+        (
+            "row (d) clean row, two genuinely different artifacts",
+            (
+                (
+                    f"{PLANS}/20260101-demo-01-aaa111-ok.ipd.md",
+                    _plan_text("aaa111", status="approved"),
+                ),
+                (
+                    ".aw/records/plans/executed/20260101-demo-02-bbb222-ok.ipd.md",
+                    _plan_text("bbb222", status="executed"),
+                ),
+            ),
+            (),
+            "CLEAN BASELINE: two different artifacts in different directories fire nothing.",
+        ),
+        (
+            "row (e) non-plan backlog row in open/ and done/",
+            (
+                (
+                    ".aw/records/backlog/open/20260101-demo-01-ccc333-item.backlog.md",
+                    _BKLG_OPEN,
+                ),
+                (
+                    ".aw/records/backlog/done/20260101-demo-01-ccc333-item.backlog.md",
+                    _BKLG_DONE,
+                ),
+            ),
+            (ID6_COLLISION, LIFECYCLE_PLACEMENT),
+            "NON-PLAN COVERAGE: proves the predicate is not plan-only and operates over backlog vocabulary.",
+        ),
+        (
+            "row (f) flat-tree research row placing two same-stem files in same directory",
+            (
+                (
+                    ".aw/records/research/20260101-demo-01-ddd444-topic.research-report.md",
+                    _RESEARCH_TEXT,
+                ),
+            ),
+            (),
+            "FLAT TREE EXCLUSION: flat trees have no lifecycle subdirectories; placement rule is absent.",
+        ),
+    )
+
+    def test_six_row_regression_table(self):
+        """E-04: Validate all six rows of the lifecycle placement regression table."""
+        wrong = []
+        for case, files, expected, why in self.ROWS:
+            root = _tree(files)
+            all_drift = ce.check_types(root, ["all"])
+            got = _rules(all_drift)
+            want = sorted(expected)
+            if got != want:
+                wrong.append(
+                    f"{case}:\n  expected {want!r}\n  got {got!r}\n  why: {why}"
+                )
+        self.assertEqual(wrong, [], "\n".join(wrong))
+
+    def test_default_scope_retired_filter_does_not_hide_terminal_copy(self):
+        """E-04: Under default scope (include_retired=False), the placement rule still fires."""
+        files = self.ROWS[0][1]
+        root = _tree(files)
+        drift = ce.check_types(root, ["all"], include_retired=False)
+        self.assertIn(LIFECYCLE_PLACEMENT, _rules(drift))
+
+    def test_legacy_row_falsification_fails_without_stem_key(self):
+        """E-04 / V-04: Falsification - legacy row fails against declared-Id-only grouping."""
+        root = _tree(self.ROWS[1][1])
+        # With stem key (normal operation):
+        normal_drift = ce.check_types(root, ["all"])
+        self.assertIn(LIFECYCLE_PLACEMENT, _rules(normal_drift))
+
+        # Temporarily mock stem grouping to simulate declared-Id-only implementation:
+        from unittest import mock
+
+        orig_find = ce.find_lifecycle_placement_conflicts
+
+        def declared_id_only(records):
+            conflicts = orig_find(records)
+            # Filter out stem-keyed findings
+            return {k: v for k, v in conflicts.items() if k.kind != "stem"}
+
+        with mock.patch.object(
+            ce, "find_lifecycle_placement_conflicts", side_effect=declared_id_only
+        ):
+            falsified_drift = ce.check_types(root, ["all"])
+            self.assertNotIn(LIFECYCLE_PLACEMENT, _rules(falsified_drift))
+
+    def test_pure_core_filesystem_independence(self):
+        """E-01 / V-01: Core runs on synthetic paths without touching disk."""
+        records = [
+            (
+                "plans/pending/20260101-demo-01-syn001-a.ipd.md",
+                "- Id: syn001\n- Status: approved\n",
+            ),
+            (
+                "plans/executed/20260101-demo-01-syn001-a.ipd.md",
+                "- Id: syn001\n- Status: executed\n",
+            ),
+        ]
+        conflicts = ce.find_lifecycle_placement_conflicts(records)
+        self.assertEqual(len(conflicts), 1)
+        ident = list(conflicts.keys())[0]
+        self.assertEqual(ident.kind, "declared-id")
+        self.assertEqual(ident.value, "syn001")
+        locs = conflicts[ident]
+        self.assertEqual(len(locs), 2)
+        self.assertEqual([loc.bucket for loc in locs], ["executed", "pending"])
+
+    def test_pure_core_text_none_stem_only(self):
+        """E-01 / V-01: Supplying no text produces stem-keyed answers only (no declared-Id key)."""
+        records = [
+            "plans/pending/20260101-demo-01-syn002-b.ipd.md",
+            "plans/executed/20260101-demo-01-syn002-b.ipd.md",
+        ]
+        conflicts = ce.find_lifecycle_placement_conflicts(records)
+        self.assertEqual(len(conflicts), 1)
+        ident = list(conflicts.keys())[0]
+        self.assertEqual(ident.kind, "stem")
+        self.assertEqual(ident.value, "20260101-demo-01-syn002-b.ipd.md")
+        self.assertNotIn("declared-id", [k.kind for k in conflicts.keys()])
+
+    def test_type_domain_and_flat_tree_skip(self):
+        """E-01 / V-01: Domain covers exactly the 4 LIFECYCLE_SUBDIRS types; flat types are skipped."""
+        from agent_workflows import lifecycle_dirs as _LD
+
+        self.assertEqual(
+            sorted(_LD.LIFECYCLE_SUBDIRS.keys()),
+            ["backlog", "plans", "prompts", "specs"],
+        )
+        flat_records = [
+            ("research/20260101-demo-01-res001-topic.research-report.md", None),
+            ("research/20260101-demo-01-res001-topic.research-report.md", None),
+        ]
+        self.assertEqual(ce.find_lifecycle_placement_conflicts(flat_records), {})
+
+    def test_specs_and_backlog_bucket_vocabularies(self):
+        """E-01 / V-01: Bucket vocabularies come from LIFECYCLE_SUBDIRS[type], not plan literals."""
+        from agent_workflows import lifecycle_dirs as _LD
+
+        specs_records = [
+            (
+                "specs/draft/20260101-spc111-01-spc111-test.spec.md",
+                "- Id: spc111\n- Status: draft\n",
+            ),
+            (
+                "specs/approved/20260101-spc111-01-spc111-test.spec.md",
+                "- Id: spc111\n- Status: approved\n",
+            ),
+        ]
+        conflicts_s = ce.find_lifecycle_placement_conflicts(specs_records)
+        buckets_s = sorted(loc.bucket for loc in list(conflicts_s.values())[0])
+        self.assertEqual(buckets_s, ["approved", "draft"])
+        for b in buckets_s:
+            self.assertIn(b, _LD.LIFECYCLE_SUBDIRS["specs"])
+
+        bklg_records = [
+            (
+                "backlog/open/20260101-bkl111-01-bkl111-test.backlog.md",
+                "- Id: bkl111\n- Status: open\n",
+            ),
+            (
+                "backlog/done/20260101-bkl111-01-bkl111-test.backlog.md",
+                "- Id: bkl111\n- Status: done\n",
+            ),
+        ]
+        conflicts_b = ce.find_lifecycle_placement_conflicts(bklg_records)
+        buckets_b = sorted(loc.bucket for loc in list(conflicts_b.values())[0])
+        self.assertEqual(buckets_b, ["done", "open"])
+        for b in buckets_b:
+            self.assertIn(b, _LD.LIFECYCLE_SUBDIRS["backlog"])
+
+    def test_finding_messages_and_terminal_semantics(self):
+        """E-03 / V-03: Finding text names both paths, buckets, statuses; terminal semantics handled."""
+        from agent_workflows import run_selection_policy as _rsp
+
+        # 1. Plans pair: pending/ + executed/
+        root_plans = _tree(self.ROWS[0][1])
+        drift_plans = [
+            d
+            for d in ce.check_lifecycle_placement(root_plans)
+            if d.rule == LIFECYCLE_PLACEMENT
+        ]
+        self.assertEqual(len(drift_plans), 1)
+        d_p = drift_plans[0]
+        self.assertIn("pending", d_p.detail)
+        self.assertIn("executed", d_p.detail)
+        self.assertIn("approved", d_p.detail)
+        self.assertIn("executed", d_p.detail)
+        self.assertIn("terminal directory 'executed'", d_p.detail)
+        self.assertIn("is stale", d_p.detail)
+        self.assertIn("remove stale copy", d_p.recovery)
+        # Sibling defect 5bmq5f: ensure message does not merely repeat bare basename without directory
+        basename = "20260101-demo-01-aaa111-ok.ipd.md"
+        self.assertNotIn(f"{basename} also in {basename}", d_p.detail)
+        self.assertNotIn(f"{basename} also on {basename}", d_p.detail)
+        self.assertIn("/pending/", d_p.detail)
+        self.assertIn("/executed/", d_p.detail)
+
+        # 2. Backlog pair: open/ + done/ (is_in_terminal_directory answers False for both)
+        root_bklg = _tree(self.ROWS[4][1])
+        p_open = str(
+            root_bklg
+            / ".aw/records/backlog/open/20260101-demo-01-ccc333-item.backlog.md"
+        )
+        p_done = str(
+            root_bklg
+            / ".aw/records/backlog/done/20260101-demo-01-ccc333-item.backlog.md"
+        )
+        self.assertFalse(_rsp.is_in_terminal_directory(p_open))
+        self.assertFalse(_rsp.is_in_terminal_directory(p_done))
+        drift_bklg = [
+            d
+            for d in ce.check_lifecycle_placement(root_bklg)
+            if d.rule == LIFECYCLE_PLACEMENT
+        ]
+        self.assertEqual(len(drift_bklg), 1)
+        d_b = drift_bklg[0]
+        self.assertNotIn("terminal directory", d_b.detail)
+        self.assertNotIn("is stale", d_b.detail)
+        self.assertIn("open", d_b.detail)
+        self.assertIn("done", d_b.detail)
+
+        # 3. Reusable plans pair: pending/ + reusable/ (is_in_terminal_directory answers True for reusable)
+        root_reuse = _tree(
+            [
+                (
+                    f"{PLANS}/20260101-demo-01-aaa111-ok.ipd.md",
+                    _plan_text("aaa111", status="approved"),
+                ),
+                (
+                    ".aw/records/plans/reusable/20260101-demo-01-aaa111-ok.ipd.md",
+                    _plan_text("aaa111", status="approved"),
+                ),
+            ]
+        )
+        p_reuse = str(
+            root_reuse / ".aw/records/plans/reusable/20260101-demo-01-aaa111-ok.ipd.md"
+        )
+        self.assertTrue(_rsp.is_in_terminal_directory(p_reuse))
+        drift_reuse = [
+            d
+            for d in ce.check_lifecycle_placement(root_reuse)
+            if d.rule == LIFECYCLE_PLACEMENT
+        ]
+        self.assertEqual(len(drift_reuse), 1)
+        d_r = drift_reuse[0]
+        self.assertNotIn("supersedes", d_r.detail)
+        self.assertNotIn("terminal directory", d_r.detail)
+        self.assertIn("pending", d_r.detail)
+        self.assertIn("reusable", d_r.detail)
+
+    def test_rule_registry_entry(self):
+        """E-02: Rule registry entry asserts error severity and empty invariant."""
+        spec = ce.rule_spec(LIFECYCLE_PLACEMENT)
+        self.assertEqual(spec.severity, "error")
+        self.assertEqual(spec.assurance, ce.ASSURANCE_REPOSITORY)
+        self.assertEqual(spec.determinism, ce.DET_DETERMINISTIC)
+        self.assertEqual(spec.invariant, "")
+
+    def test_raising_predicate_does_not_suppress_sibling_cross_tree_rules(self):
+        """E-02 / V-02: Raising check_lifecycle_placement does not suppress check_collisions."""
+        from unittest import mock
+
+        root = _tree(self.ROWS[0][1])
+        with mock.patch.object(
+            ce, "check_lifecycle_placement", side_effect=RuntimeError("simulated error")
+        ):
+            drift = ce.check_types(root, ["all"])
+            self.assertIn(ID6_COLLISION, _rules(drift))
 
 
 class Id6OutsideMetadataRegionTests(unittest.TestCase):

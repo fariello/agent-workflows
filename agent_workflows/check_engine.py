@@ -23,7 +23,7 @@ import importlib.util
 import os
 import re as _re
 from pathlib import Path
-from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
+from typing import Dict, Iterable, List, NamedTuple, Optional, Sequence, Tuple
 
 from agent_workflows import artifact_core as _core
 from agent_workflows import artifact_naming as _naming
@@ -31,7 +31,9 @@ from agent_workflows import engine as _engine
 from agent_workflows import (
     ipd_schema as _S,
 )  # low-level; safe (no cycle) - ipddeps ovbnyq
+from agent_workflows import lifecycle_dirs as _LD
 from agent_workflows import record_producers as _rp
+from agent_workflows import run_selection_policy as _rsp
 
 # Which check kinds each type supports today. "names" = filename-grammar conformity;
 # "content" = front-matter/status/contract; "refs" = reference integrity (via the index drift).
@@ -174,6 +176,19 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     ),
     "check.id6-identity-slot": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-09"
+    ),
+    # lifecycledup tl2b2r (backlog wlyg3g): one artifact identity present at more than one
+    # lifecycle location across plans, specs, backlog, or prompts. Pure reader keys on both
+    # the declared `- Id:` and the filename stem (the latter seeing the no-declared-Id population
+    # covering 19 of 38 specs and 17 of 17 prompts).
+    # Registered `error` because a multi-lifecycle placement is a real lifecycle contradiction
+    # that fails the gate; `warning` fails the gate identically (artifact_core.drift_exit_code
+    # exempts only `info`) while additionally entangling tests/test_work_gate_severity.py.
+    # Invariant is `""`: the invariant catalog in spec pqsx96 has no invariant covering artifact
+    # placement (I-09 is filename grammar and I-16 is setid semantics), and inventing one is out
+    # of scope. The rule id avoids the substrings `graduation` and `duplicate`.
+    "check.lifecycle-placement-conflict": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
     ),
     # Release-gate preservation (catalog I-07).
     "check.blocking-item-closed-without-gate": RuleSpec(
@@ -1596,6 +1611,274 @@ def check_collisions(
                     seen_sets[set_key] = (desc, str(p))
 
     drift.extend(_check_identity_slots(records))
+    return drift
+
+
+# --------------------------------------------------------------------------------------
+# Artifact lifecycle placement (IPD tl2b2r, backlog wlyg3g)
+# --------------------------------------------------------------------------------------
+
+_LIFECYCLE_PLACEMENT_RULE = "check.lifecycle-placement-conflict"
+
+
+class PlacementIdentity(NamedTuple):
+    """An artifact identity key (either declared-id or filename stem)."""
+
+    kind: str  # "declared-id" or "stem"
+    value: str
+
+
+class PlacementLocation(NamedTuple):
+    """An artifact location: path, its lifecycle bucket, and its declared status."""
+
+    path: str
+    bucket: str
+    status: str
+
+
+def _extract_lifecycle_bucket(
+    path: "Path | str",
+) -> Tuple[Optional[str], Optional[str]]:
+    """Return (record_type, bucket) if path sits under a lifecycle directory of a supported type.
+
+    Covers exactly the four types with lifecycle subdirectories in
+    `lifecycle_dirs.LIFECYCLE_SUBDIRS`: plans, specs, backlog, prompts.
+    Flat types (research, walkthroughs, roadmaps, releases) return (None, None).
+    Shard-safe: resolves to the first component under the type root (e.g. executed/202609/x.ipd.md -> executed).
+    """
+    parts = Path(path).parts
+    for r_type, subdirs in _LD.LIFECYCLE_SUBDIRS.items():
+        if r_type in parts:
+            indices = [i for i, part in enumerate(parts) if part == r_type]
+            for idx in indices:
+                if idx + 1 < len(parts):
+                    cand = parts[idx + 1]
+                    if cand in subdirs:
+                        return r_type, cand
+    return None, None
+
+
+def find_lifecycle_placement_conflicts(
+    records: Iterable[Tuple[Path | str, Optional[str]] | Path | str],
+) -> Dict[PlacementIdentity, List[PlacementLocation]]:
+    """Find artifact identities occupying more than one lifecycle location.
+
+    Pure reader: does NO filesystem I/O and emits NO Drift findings. Can be called
+    directly on synthetic path strings or enumerations from `git ls-tree`.
+
+    Records are tuples of `(path, text_or_None)` or bare `path` strings.
+    If `text` is None (or omitted), declared `- Id:` extraction is skipped and that record
+    contributes only its filename stem key. Callers passing no text get stem-keyed answers
+    only (sufficient for git ls-tree enumerations where stems are unique).
+
+    Keys on both the declared `- Id:` (via `_read_declared_id`) and the filename stem,
+    recording which key fired (`kind='declared-id'` or `kind='stem'`).
+    Covers exactly the four types with lifecycle subdirectories (`lifecycle_dirs.LIFECYCLE_SUBDIRS`:
+    plans, specs, backlog, prompts); flat types (research, walkthroughs, roadmaps, releases)
+    have no lifecycle subdirectories and are skipped because more than one lifecycle location
+    is undefined where there is only one location.
+
+    Bucket resolution is shard-safe: resolves to the first component under the type root
+    rather than reading parent directory name, so `executed/202609/x.ipd.md` resolves to
+    bucket `executed` and not `202609`. Each type's bucket vocabulary comes from
+    `LIFECYCLE_SUBDIRS[type]` rather than a plan-shaped literal.
+    """
+
+    class _Item(NamedTuple):
+        path_str: str
+        record_type: str
+        bucket: str
+        status: str
+        declared_id: Optional[str]
+        stem: str
+
+    items: List[_Item] = []
+    for rec in records:
+        if isinstance(rec, (tuple, list)):
+            p = rec[0]
+            text = rec[1] if len(rec) > 1 else None
+        else:
+            p = rec
+            text = None
+
+        p_str = str(p)
+        r_type, bucket = _extract_lifecycle_bucket(p_str)
+        if r_type is None or bucket is None:
+            continue
+
+        status = _metadata_status(text) or "" if text else ""
+        declared_id = _read_declared_id(text) if text else None
+        stem = Path(p_str).name
+
+        items.append(_Item(p_str, r_type, bucket, status, declared_id, stem))
+
+    # Group by declared_id (across all lifecycle types)
+    declared_id_groups: Dict[str, List[_Item]] = {}
+    # Group by (record_type, stem)
+    stem_groups: Dict[Tuple[str, str], List[_Item]] = {}
+
+    for item in items:
+        if item.declared_id:
+            declared_id_groups.setdefault(item.declared_id, []).append(item)
+        stem_groups.setdefault((item.record_type, item.stem), []).append(item)
+
+    conflicts: Dict[PlacementIdentity, List[PlacementLocation]] = {}
+    handled_paths: set = set()
+
+    # Pass 1: declared-id conflicts across >1 lifecycle buckets
+    for decl_id, group in sorted(declared_id_groups.items()):
+        buckets = set(it.bucket for it in group)
+        if len(buckets) > 1:
+            ident = PlacementIdentity(kind="declared-id", value=decl_id)
+            locs = sorted(
+                [
+                    PlacementLocation(
+                        path=it.path_str, bucket=it.bucket, status=it.status
+                    )
+                    for it in group
+                ],
+                key=lambda loc: loc.path,
+            )
+            conflicts[ident] = locs
+            for it in group:
+                handled_paths.add(it.path_str)
+
+    # Pass 2: stem conflicts across >1 lifecycle buckets
+    for (r_type, stem), group in sorted(stem_groups.items()):
+        buckets = set(it.bucket for it in group)
+        if len(buckets) > 1:
+            if all(it.path_str in handled_paths for it in group):
+                continue
+            ident = PlacementIdentity(kind="stem", value=stem)
+            locs = sorted(
+                [
+                    PlacementLocation(
+                        path=it.path_str, bucket=it.bucket, status=it.status
+                    )
+                    for it in group
+                ],
+                key=lambda loc: loc.path,
+            )
+            conflicts[ident] = locs
+
+    return conflicts
+
+
+def scan_lifecycle_placement_conflicts(
+    repo_root: Path,
+    include_untracked: bool = False,
+    include_retired: bool = True,
+) -> Dict[PlacementIdentity, List[PlacementLocation]]:
+    """Scan the repository for artifact identities occupying more than one lifecycle location.
+
+    Gathers records across exactly the four types with lifecycle subdirectories
+    (`lifecycle_dirs.LIFECYCLE_SUBDIRS`: plans, specs, backlog, prompts) using
+    `_iter_type_files(..., include_retired=True)` so terminal locations are visible,
+    and delegates to the pure core `find_lifecycle_placement_conflicts`.
+    Returns facts (mapping of identity to locations) and emits no Drift.
+    """
+    repo_root = Path(repo_root)
+    records: List[Tuple[Path, Optional[str]]] = []
+    for record_type in _LD.LIFECYCLE_SUBDIRS:
+        for p in _iter_type_files(
+            repo_root,
+            record_type,
+            include_untracked=include_untracked,
+            include_retired=True,  # always terminal-inclusive to see both locations
+        ):
+            try:
+                text = p.read_text(encoding="utf-8")
+            except OSError:
+                text = None
+            records.append((p, text))
+    return find_lifecycle_placement_conflicts(records)
+
+
+def check_lifecycle_placement(
+    repo_root: Path,
+    include_untracked: bool = False,
+    include_retired: bool = True,
+) -> List[_core.Drift]:
+    """Report an artifact identity present at more than one lifecycle location (IPD tl2b2r).
+
+    Consumes `scan_lifecycle_placement_conflicts` facts and formats a `Drift` finding
+    for each conflict. Names both paths, both buckets, and both statuses, identifying
+    which copy is in a terminal directory when `run_selection_policy.is_in_terminal_directory`
+    identifies one (excluding `reusable`, which is not a terminal state).
+    """
+    conflicts = scan_lifecycle_placement_conflicts(
+        repo_root,
+        include_untracked=include_untracked,
+        include_retired=include_retired,
+    )
+    drift: List[_core.Drift] = []
+
+    for identity, locations in conflicts.items():
+        if len(locations) < 2:
+            continue
+
+        terminal_locs = [
+            loc
+            for loc in locations
+            if _rsp.is_in_terminal_directory(loc.path) and loc.bucket != "reusable"
+        ]
+        non_terminal_locs = [loc for loc in locations if loc not in terminal_locs]
+
+        terminal_clause = ""
+        if len(terminal_locs) == 1 and non_terminal_locs:
+            term = terminal_locs[0]
+            stales = non_terminal_locs
+            stale_str = ", ".join(
+                f"'{s.path}' in '{s.bucket}' (- Status: {s.status or 'unknown'})"
+                for s in stales
+            )
+            terminal_clause = (
+                f"'{term.path}' is in terminal directory '{term.bucket}' "
+                f"(- Status: {term.status or 'unknown'}); {stale_str} is stale."
+            )
+            recovery = (
+                f"remove stale copy {', '.join(s.path for s in stales)} "
+                f"in favor of terminal {term.path}"
+            )
+        else:
+            loc_summary = " and ".join(
+                f"{loc.path} (bucket: {loc.bucket}, status: {loc.status or 'unknown'})"
+                for loc in locations
+            )
+            recovery = f"resolve placement conflict between {loc_summary}"
+
+        loc_header = " and ".join(
+            f"{loc.path} (status: {loc.status or 'unknown'})" for loc in locations
+        )
+        detail_parts = [
+            f"'{loc.path}' (bucket: {loc.bucket}, - Status: {loc.status or 'unknown'})"
+            for loc in locations
+        ]
+        detail = (
+            f"artifact identity '{identity.value}' ({identity.kind}) present at "
+            f"multiple lifecycle locations: {', '.join(detail_parts)}."
+        )
+        if terminal_clause:
+            detail += f" {terminal_clause}"
+
+        observed = (
+            f"identity '{identity.value}' ({identity.kind}) present in "
+            f"{len(locations)} lifecycle buckets: "
+            f"{', '.join(sorted(set(loc.bucket for loc in locations)))}"
+        )
+        required = (
+            f"identity '{identity.value}' must occupy at most one lifecycle directory"
+        )
+
+        drift.append(
+            enrich_drift(
+                _core.Drift(loc_header, _LIFECYCLE_PLACEMENT_RULE, detail),
+                observed=observed,
+                required=required,
+                recovery=recovery,
+            )
+        )
+
     return drift
 
 
@@ -3323,6 +3606,20 @@ def check_types(
                 include_retired=include_retired,
             )
         )
+
+        # lifecycledup tl2b2r E-02: report an artifact identity present at more than one
+        # lifecycle location. Rides the full-sweep seam beside check_collisions. Its own
+        # try/except matching its neighbours so a failure here cannot suppress another rule.
+        try:
+            drift.extend(
+                check_lifecycle_placement(
+                    repo_root,
+                    include_untracked=include_untracked,
+                    include_retired=include_retired,
+                )
+            )
+        except Exception:
+            pass
 
         # setidlen x75obw E-04 (catalog I-17): setid LENGTH is a repository-wide policy over every
         # type, so it rides this once-per-full-sweep seam beside its `check.setid-collision` sibling
