@@ -1,5 +1,6 @@
 - Id: bn58ha
-- Status: open
+- Status: graduated
+- Graduated-To: bn58ha
 - Blocks-Release: next
 - Set: bn58ha
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: finalize_precheck reports 'precheck passed' for a plan whose finalize is wedged by an unknown-outcome journal, so the preview surface contradicts what --apply will do
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260929T021205Z-3914774: hlv737
 - 2026-09-28 created (aw backlog): Filed while authoring cnf7gw's graduation plan; measured, see body.
 
 MEASURED 2026-09-28 at HEAD 6171375d, in the scratch harness `/tmp` reproduction described below.
