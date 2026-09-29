@@ -1,5 +1,6 @@
 - Id: rrvrwv
-- Status: open
+- Status: graduated
+- Graduated-To: ipdsetback
 - Blocks-Release: next
 - Set: ipdsetback
 - Priority: high
@@ -7,6 +8,7 @@
 - Summary: aw ipd set performs a backwards executed -> reviewed transition that validate_transition refuses
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: nvsz19
 - 2026-09-21 created (aw backlog): aw ipd set performs a backwards executed -> reviewed transition that validate_transition refuses
 
 MEASURED 2026-09-21 while executing plan 76w6mq, reproduced in a clean throwaway git repo with a single plan at '- Status: executed'.
