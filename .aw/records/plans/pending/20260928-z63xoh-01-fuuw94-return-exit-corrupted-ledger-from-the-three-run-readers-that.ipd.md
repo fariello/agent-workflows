@@ -6,7 +6,7 @@
 - Scope: Replace the hardcoded `2` with `run_cli.EXIT_CORRUPTED_LEDGER` at the three corruption sites in `run_cli._run_show`, `run_cli._run_evidence`, and `run_cli._run_verify_ledger` (both the returned code and the `exit_code` key in the machine payload); correct the module docstring's exit-code contract, which currently states the wrong code; and add behavioral coverage asserting the code and payload for every affected verb. Out of scope: the unrelated `except Exception` fallbacks, `EXIT_NOT_A_LEDGER`, and the spec-5.6-versus-`run_cli` table reconciliation.
 - Scope-Paths: agent_workflows/run_cli.py, tests/test_run_cli_corruption_exit.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -19,6 +19,7 @@
 - Id: fuuw94
 
 ## Workflow history
+- 2026-09-29 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-701..PR-705 all FIXED
 
 - 2026-09-28 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-701..PR-705 all FIXED, none deferred, no finding escalated. Reviewed at HEAD `9c665d00` in a lane worktree; `aw ipd lint --phase author --agent` conformed before revision (exit 0, `findings: 0`). ALL SEVEN authored findings reproduced exactly, including the `2,2,2,5,5,5` six-verb sweep and both git-provenance claims. E-01..E-03 were staged IN MEMORY via a pytest plugin outside the tree and the bare suite was unchanged at `3160 passed, 2 skipped` with the post-fix sweep reading `5,5,5` and both payload keys preserved (F-10), so the change is verified safe before approval. Review added F-08..F-11. The two consequential findings: E-04 as written would have traded one false docstring claim for another, because the `Contract:` block lists only exits 0/1/2/7 and `EXIT_INVALID_INVOCATION` is also the read-failure code the preserved `except Exception` branches return (F-08); and E-05's ledger fixture is refused by schema validation in five distinct ways that the plan did not record, which is the likeliest place execution stalls (F-09). Also recorded that a docstring the plan quotes faithfully cites a deleted test file (F-11). No production code was modified by this review.
 - 2026-09-28 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
