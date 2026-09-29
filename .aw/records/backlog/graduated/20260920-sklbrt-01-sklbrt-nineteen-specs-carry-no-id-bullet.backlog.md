@@ -1,11 +1,13 @@
 - Id: sklbrt
-- Status: open
+- Status: graduated
+- Graduated-To: sklbrt
 - Set: sklbrt
 - Priority: low
 - Work-Kind: chore
 - Summary: 19 of 36 specs carry no - Id: bullet, so they are unreachable by id6 selector and cannot be the target of any id6-keyed join
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: h8e3sm
 - 2026-09-20 created (aw backlog): 19 of 36 specs carry no - Id: bullet, so they are unreachable by id6 selector and cannot be the target of any id6-keyed join
 
 MEASURED 2026-09-20 at HEAD 96e93f8c by research survey vkub9o (plan si24ia).
