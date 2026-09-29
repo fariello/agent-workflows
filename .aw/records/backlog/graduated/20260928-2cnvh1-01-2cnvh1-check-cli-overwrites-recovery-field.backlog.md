@@ -1,5 +1,6 @@
 - Id: 2cnvh1
-- Status: open
+- Status: graduated
+- Graduated-To: 2cnvh1
 - Blocks-Release: next
 - Set: 2cnvh1
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: aw check's CLI overwrites every finding's structured recovery with doctor's human fix string, so a rule that populates no recovery gets a fabricated one in the machine record
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260929T021205Z-3914774: wef7yo
 - 2026-09-28 created (aw backlog): filed as the declared carrier for the residue IPD iyilwm (backlog evwmm2) deliberately leaves out of scope
 
 FOUND 2026-09-28 while authoring IPD `iyilwm` from backlog `evwmm2`. That item reports the HUMAN
