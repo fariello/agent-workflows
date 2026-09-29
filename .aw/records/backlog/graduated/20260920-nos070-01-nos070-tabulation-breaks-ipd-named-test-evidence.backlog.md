@@ -1,11 +1,13 @@
 - Id: nos070
-- Status: open
+- Status: graduated
+- Graduated-To: nos070
 - Set: nos070
 - Priority: medium
 - Work-Kind: followup
 - Summary: A tabulated test suite makes named-test and test-count evidence requirements in already-approved IPDs unsatisfiable as written
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: t5txjk, vtup6x
 - 2026-09-20 created (aw backlog): A tabulated test suite makes named-test and test-count evidence requirements in already-approved IPDs unsatisfiable as written
 
 Found 2026-09-20 while executing IPD i4c0c3, which was reviewed on 2026-09-08.
