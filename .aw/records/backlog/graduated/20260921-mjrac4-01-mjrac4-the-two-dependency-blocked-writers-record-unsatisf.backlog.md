@@ -1,11 +1,13 @@
 - Id: mjrac4
-- Status: open
+- Status: graduated
+- Graduated-To: mjrac4
 - Set: mjrac4
 - Priority: low
 - Work-Kind: chore
 - Summary: The two dependency-blocked writers record unsatisfied_dependencies in DIFFERENT shapes, so every consumer needs a special case
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: 8eei5p
 - 2026-09-21 created (aw backlog): Found while executing akzy45.
 
 MEASURED at HEAD `6466cd33` while executing plan `akzy45`.
