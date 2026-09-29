@@ -1,5 +1,6 @@
 - Id: 5hf2qy
-- Status: open
+- Status: graduated
+- Graduated-To: 5hf2qy
 - Blocks-Release: next
 - Set: 5hf2qy
 - Priority: low
@@ -7,6 +8,7 @@
 - Summary: The progress denominator reads 0/1 for a zero-dispatch queue of 8 matched items
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260929T021205Z-3914774: 35mjqc
 - 2026-09-28 created (aw backlog): Found while authoring plan 4po0sc from backlog b7oicl; measured at HEAD b26cced3.
 
 Measured 2026-09-28 at HEAD `b26cced3` while authoring plan `4po0sc` (from backlog `b7oicl`).
