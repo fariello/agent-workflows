@@ -1,11 +1,13 @@
 - Id: 1dvtiq
-- Status: open
+- Status: graduated
+- Graduated-To: warnadvisory
 - Set: warnadvisory
 - Priority: low
 - Work-Kind: chore
 - Summary: warning severity is not advisory: only info exempts drift_exit_code, which is a trap for the next rule author
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: wm40yl
 - 2026-09-21 created (aw backlog): warning severity is not advisory: only info exempts drift_exit_code, which is a trap for the next rule author
 
 SPLIT OUT of plan 76w6mq's 'Deferred / out of scope' section so the obligation has a durable carrier instead of vanishing when that plan reaches executed.
