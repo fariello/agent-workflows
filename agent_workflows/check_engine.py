@@ -3566,7 +3566,13 @@ def _iter_spec_records(repo_root: Path):
 
 
 def find_from_backlog_plans(repo_root: Path, item_id6: str) -> List[Tuple[Path, str]]:
-    """Every plan whose `- From-Backlog:` names `item_id6`. Returns [(path, blocks_release_or_'')]."""
+    """Every plan whose `- From-Backlog:` names `item_id6`. Returns [(path, blocks_release_or_'')].
+
+    SINGLE-ITEM ONLY (IPD jpn6hy): This call costs one full walk of the plans tree, so it is correct for a
+    SINGLE known item and quadratic in a per-item loop. Callers needing many items must use
+    `_from_backlog_carrier_index` instead. Enforced by `tests/test_carrier_scan_single_item_contract.py`.
+    See `find_from_backlog_artifacts` below for the full cost analysis and measurement.
+    """
     out: List[Tuple[Path, str]] = []
     for p, text in _iter_plan_ipds(repo_root):
         val = _from_backlog_value(text)
@@ -3577,7 +3583,13 @@ def find_from_backlog_plans(repo_root: Path, item_id6: str) -> List[Tuple[Path, 
 
 
 def find_from_backlog_specs(repo_root: Path, item_id6: str) -> List[Tuple[Path, str]]:
-    """Every spec whose `- From-Backlog:` names `item_id6`. Returns [(path, blocks_release_or_'')]."""
+    """Every spec whose `- From-Backlog:` names `item_id6`. Returns [(path, blocks_release_or_'')].
+
+    SINGLE-ITEM ONLY (IPD jpn6hy): This call costs one full walk of the specs tree, so it is correct for a
+    SINGLE known item and quadratic in a per-item loop. Callers needing many items must use
+    `_from_backlog_carrier_index` instead. Enforced by `tests/test_carrier_scan_single_item_contract.py`.
+    See `find_from_backlog_artifacts` below for the full cost analysis and measurement.
+    """
     out: List[Tuple[Path, str]] = []
     for p, text in _iter_spec_records(repo_root):
         val = _from_backlog_value(text)
@@ -3591,6 +3603,29 @@ def find_from_backlog_artifacts(
     repo_root: Path, item_id6: str
 ) -> List[Tuple[Path, str]]:
     """Every PLAN or SPEC whose `- From-Backlog:` names ``item_id6``.
+
+    SINGLE-ITEM ONLY (IPD jpn6hy): This call costs one full walk of the plans tree PLUS the specs
+    tree per call, so it is correct for a SINGLE known item and quadratic in a per-item loop.
+    Callers needing many items must use `_from_backlog_carrier_index` instead, which builds the
+    complete mapping in one shared pass. This contract is machine-checked by
+    `tests/test_carrier_scan_single_item_contract.py`, which fails if any call site passes a
+    loop-derived variable.
+
+    COST SHAPE (O(items x corpus) vs O(corpus)):
+    The durable property is the shape, not any single timing number. Because each call re-walks
+    both trees, looping over items costs O(items x corpus), which is two to three orders of magnitude
+    worse than one shared index walk at this repository's scale. For example, 673 per-item calls
+    took 155 s against 259 ms for one shared walk on a corpus of 878 plans and 38 specs (2026-09-28).
+    The ratio scales with the item count and corpus size and is not a constant: backlog item 8cpbia
+    observed 54x at 671 plans and 65 items, and a review re-run on 883 plans and 673 items measured
+    roughly 449x (with the shared walk at 1.023 s rather than 259 ms because filesystem page-cache
+    state dominates a disk walk). Assert the shape, not a fixed ratio.
+
+    A CACHED INDEX IS NOT THE FIX:
+    These functions are read by correctness-critical consumers (such as the runner evaluating backlog
+    closes) that mutate the plans tree between reads, so a process-lifetime cache here causes stale
+    path lookups and falsely refuses valid closes (F-05); see `_from_backlog_carrier_index`'s docstring
+    for details.
 
     bklgrad Order 01 (v58bvy) E-06: the HANDOFF route previously scanned plan IPDs ONLY, so a
     spec-first graduation (a spec carrying `From-Backlog` plus the SAME `Blocks-Release`) was invisible
