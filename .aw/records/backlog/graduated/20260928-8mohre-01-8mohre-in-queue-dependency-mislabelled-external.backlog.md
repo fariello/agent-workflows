@@ -1,5 +1,6 @@
 - Id: 8mohre
-- Status: open
+- Status: graduated
+- Graduated-To: 8mohre
 - Blocks-Release: next
 - Set: 8mohre
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: derive_item_disposition labels an IN-QUEUE unmet dependency 'dependency_not_met_external', telling the operator it is outside this run's queue when it is not
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260929T021205Z-3914774: zhqt51
 - 2026-09-28 created (aw backlog): Filed at /plan-review of plan 5o1jye.
 
 MEASURED 2026-09-28 at HEAD 04352120 while reviewing plan `5o1jye` (from backlog `fvsyqk`).
