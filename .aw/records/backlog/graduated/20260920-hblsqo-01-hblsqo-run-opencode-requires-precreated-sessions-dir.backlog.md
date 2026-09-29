@@ -1,5 +1,6 @@
 - Id: hblsqo
-- Status: open
+- Status: graduated
+- Graduated-To: hblsqo
 - Blocks-Release: next
 - Set: hblsqo
 - Priority: low
@@ -7,6 +8,7 @@
 - Summary: run_opencode opens the attempt log without creating sessions/, so a new caller crashes at launch
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: z3ifg8
 - 2026-09-20 created (aw backlog): Found while wiring the standalone audit verb (plan mp289j).
 
 MEASURED 2026-09-20: `oc_runipd.run_opencode` computes `log_path = attempt_log_path(run_dir, item, attempt_no, suffix=log_suffix)` and then opens it with `log_path.open("w")` inside the `with` that also enters `turn_telemetry`. It does NOT create `log_path.parent`. So any caller that has not already created `<run_dir>/sessions/` dies with `FileNotFoundError` at the moment of launch.
