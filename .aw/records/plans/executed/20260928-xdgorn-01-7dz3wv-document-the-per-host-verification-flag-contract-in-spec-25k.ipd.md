@@ -6,7 +6,7 @@
 - Scope: Amend spec `25kzda` with a new Section 2.1c declaring the verification flag surface PER HOST, with the reason for the asymmetry and the operator consequences, and add one test that pins the measured dest table per host per subcommand so a de-duplication cannot silently steal a shipped spelling. The amendment goes in a NEW SUBSECTION and deliberately NOT into 2.1's grammar stanza, for a mechanical reason measured in F-09. CHANGES NO SHIPPED BEHAVIOR: no flag is added, removed, renamed or re-dested on either host, and the existing build-time guard is left exactly as it is.
 - Scope-Paths: .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, tests/test_runner_shared.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 7dz3wv
-- Approval: 2026-09-29, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-29 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 7dz3wv verified (set xdgorn, attempt 1).
 - 2026-09-29 approved (aw set): status set to approved
 - 2026-09-28 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 all fixed; readiness go-pending-approval
 
@@ -39,27 +39,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: pin the measured contract in a test, BEFORE amending the spec
 
-- [ ] E-01 Add a test class to `tests/test_runner_shared.py` pinning the SIX verification spellings' dests, per host, on BOTH the `start` and `resume` subparsers, as ONE `assertEqual` per (host, subcommand) cell against a complete literal dict so a changed cell reports the whole table rather than the first mismatch. Reach the subparsers via the `argparse._SubParsersAction` in `build_parser()._actions` (the shape `tests/test_runner_shared.py::AgyVerificationFlagSurfaceTests::test_tristate_parsing_options_and_distinct_flags` already uses, so no new private-API dependency is introduced), and map option string to `action.dest`, with a spelling that is not registered represented as `None`. Assert the four cells measured in F-01: oc `start` and oc `resume` both map all six spellings to `validate`; agy `start` maps `--validate`/`--no-validate` to `validate`, `--no-verify`/`--no-audit` to `no_verify`, and `--verify`/`--audit` to `None`; agy `resume` maps all six to `None`. Write the failure message to name the CONSEQUENCE and not merely the mismatch, because that is what a future de-duplicator needs to read: a changed agy cell means oc's alias list has been registered on agy and agy's shipped `--no-verify` no longer means what its documentation says. This restores the assertions of the deleted `TheVerificationDestAsymmetryIsPinnedPerHost` (F-03), whose own docstring instructed that it be RE-BASED rather than deleted when the parser split happened; that instruction was not followed, and this item is it being followed late.
+- [x] E-01 Add a test class to `tests/test_runner_shared.py` pinning the SIX verification spellings' dests, per host, on BOTH the `start` and `resume` subparsers, as ONE `assertEqual` per (host, subcommand) cell against a complete literal dict so a changed cell reports the whole table rather than the first mismatch. Reach the subparsers via the `argparse._SubParsersAction` in `build_parser()._actions` (the shape `tests/test_runner_shared.py::AgyVerificationFlagSurfaceTests::test_tristate_parsing_options_and_distinct_flags` already uses, so no new private-API dependency is introduced), and map option string to `action.dest`, with a spelling that is not registered represented as `None`. Assert the four cells measured in F-01: oc `start` and oc `resume` both map all six spellings to `validate`; agy `start` maps `--validate`/`--no-validate` to `validate`, `--no-verify`/`--no-audit` to `no_verify`, and `--verify`/`--audit` to `None`; agy `resume` maps all six to `None`. Write the failure message to name the CONSEQUENCE and not merely the mismatch, because that is what a future de-duplicator needs to read: a changed agy cell means oc's alias list has been registered on agy and agy's shipped `--no-verify` no longer means what its documentation says. This restores the assertions of the deleted `TheVerificationDestAsymmetryIsPinnedPerHost` (F-03), whose own docstring instructed that it be RE-BASED rather than deleted when the parser split happened; that instruction was not followed, and this item is it being followed late.
   - Depends on: none
   - Expected outcome: A new test in `tests/test_runner_shared.py` that passes at this HEAD against UNMODIFIED code, and FAILS if any of the 24 (host, subcommand, spelling) cells changes dest, gains a spelling, or loses one.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In the same class, pin the two OPERATOR-VISIBLE consequences of the asymmetry that a dest table alone does not capture, since a dest is an implementation detail while these are what an operator experiences. FIRST, that `--verify` and `--audit` EXIT 2 on agy's `start` (assert `SystemExit` with `code == 2`, stderr redirected, following the `FollowGeneratedRemovedTests::test_host_parsers_reject_follow_generated_flag` idiom already in this file) while being accepted on oc's. SECOND, that a CONTRADICTORY pair behaves differently by host: on agy, `--no-verify --validate` is REFUSED by `agy_runipd.verification_flag_tristate` with `runner_shared.RunFlagRefusal`, whereas on oc the same pair parses silently and is ORDER-DEPENDENT (measured in F-02: `--no-verify --validate` yields `validate=True` and the reverse order yields `False`, because all six spellings are aliases of one `BooleanOptionalAction` and argparse lets the last one win). Assert BOTH orders on oc, so the order-dependence is recorded as a pinned fact rather than discovered later by an operator. Do NOT change either behavior: F-08 records why the oc side is out of scope and carried.
+- [x] E-02 In the same class, pin the two OPERATOR-VISIBLE consequences of the asymmetry that a dest table alone does not capture, since a dest is an implementation detail while these are what an operator experiences. FIRST, that `--verify` and `--audit` EXIT 2 on agy's `start` (assert `SystemExit` with `code == 2`, stderr redirected, following the `FollowGeneratedRemovedTests::test_host_parsers_reject_follow_generated_flag` idiom already in this file) while being accepted on oc's. SECOND, that a CONTRADICTORY pair behaves differently by host: on agy, `--no-verify --validate` is REFUSED by `agy_runipd.verification_flag_tristate` with `runner_shared.RunFlagRefusal`, whereas on oc the same pair parses silently and is ORDER-DEPENDENT (measured in F-02: `--no-verify --validate` yields `validate=True` and the reverse order yields `False`, because all six spellings are aliases of one `BooleanOptionalAction` and argparse lets the last one win). Assert BOTH orders on oc, so the order-dependence is recorded as a pinned fact rather than discovered later by an operator. Do NOT change either behavior: F-08 records why the oc side is out of scope and carried.
   - Depends on: E-01
   - Expected outcome: The per-host difference in flag EXISTENCE and in contradictory-pair handling is asserted, so a change to either is a test failure rather than a silent operator-visible change.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: amend the spec to declare what the test now pins
 
-- [ ] E-03 Amend spec `25kzda` by inserting a new `### 2.1c The verification flag surface is PER HOST` immediately after Section 2.1b and before `### 2.2 Type vocabulary`, declaring the contract the test pins. It MUST NOT go inside Section 2.1's grammar stanza, and MUST NOT add any of the six spellings to that stanza: F-09 measures why by simulation, and OQ-01 records the decision. The section states, as normative declaration rather than narration: (a) the per-host dest table for all six spellings on both subcommands, matching E-01's literal exactly; (b) that the asymmetry is DELIBERATE, with the mechanical reason, namely that `BooleanOptionalAction` auto-generates a `--no-X` for every option string it is given, so registering oc's alias list on agy would generate `--no-verify`/`--no-audit`, which agy already declares - raising at build time under the default handler and, far worse, SILENTLY STEALING the shipped spellings under `conflict_handler="resolve"`; (c) that this is why the oc-preferred reconciliation ruling cannot be applied to this symbol, which is the sentence a future de-duplication checks itself against and the thing whose absence the backlog item reports; (d) the two operator consequences E-02 pins; and (e) that `agy run resume` registers NONE of the six, so the verification decision cannot be changed on a resumed antigravity run, whereas oc's resume honors an explicit flag. Cite the enforcing symbols BY NAME (`agy_runipd.assert_verification_flags_are_distinct` for the build-time guard, `agy_runipd.verification_flag_tristate` for the refusal, and E-01's new test class for the dest table) and carry a dated measurement note, since this spec's own preamble requires every dated paragraph to state its measurement date and warns that a date more than a few days old is probably wrong. Do NOT change `- Status: approved`, do NOT touch Section 4.2's finding-code table, and do NOT touch any other section.
+- [x] E-03 Amend spec `25kzda` by inserting a new `### 2.1c The verification flag surface is PER HOST` immediately after Section 2.1b and before `### 2.2 Type vocabulary`, declaring the contract the test pins. It MUST NOT go inside Section 2.1's grammar stanza, and MUST NOT add any of the six spellings to that stanza: F-09 measures why by simulation, and OQ-01 records the decision. The section states, as normative declaration rather than narration: (a) the per-host dest table for all six spellings on both subcommands, matching E-01's literal exactly; (b) that the asymmetry is DELIBERATE, with the mechanical reason, namely that `BooleanOptionalAction` auto-generates a `--no-X` for every option string it is given, so registering oc's alias list on agy would generate `--no-verify`/`--no-audit`, which agy already declares - raising at build time under the default handler and, far worse, SILENTLY STEALING the shipped spellings under `conflict_handler="resolve"`; (c) that this is why the oc-preferred reconciliation ruling cannot be applied to this symbol, which is the sentence a future de-duplication checks itself against and the thing whose absence the backlog item reports; (d) the two operator consequences E-02 pins; and (e) that `agy run resume` registers NONE of the six, so the verification decision cannot be changed on a resumed antigravity run, whereas oc's resume honors an explicit flag. Cite the enforcing symbols BY NAME (`agy_runipd.assert_verification_flags_are_distinct` for the build-time guard, `agy_runipd.verification_flag_tristate` for the refusal, and E-01's new test class for the dest table) and carry a dated measurement note, since this spec's own preamble requires every dated paragraph to state its measurement date and warns that a date more than a few days old is probably wrong. Do NOT change `- Status: approved`, do NOT touch Section 4.2's finding-code table, and do NOT touch any other section.
   - Depends on: E-01
   - Expected outcome: A new Section 2.1c declaring the per-host verification flag contract, with the asymmetry's reason and the operator consequences; `- Status:` byte-identical; Section 2.1's grammar stanza byte-identical; the spec's one surviving contract test still passing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Append the dated `## Workflow history` note to the spec recording the amendment, this plan's id6, the backlog item it graduates, and the measurement that motivated it (the asymmetry confirmed live plus the two mutation-green results F-06 and F-07). USE `aw specs note` AND NOTHING ELSE. That verb is MEASURED to do exactly this job on exactly this file (review PR-003): driven against this spec at review, it appended one history line, left `- Status: approved` byte-identical, and produced a one-line diff; its `--help` states it appends "WITHOUT changing its status"; and the spec's five most recent amendments are all `note (aw specs)` records, so this is the established route rather than a hopeful one. An earlier draft of this item permitted a hand-append "if that verb cannot append to an approved spec without also moving its status"; that conditional is REMOVED because the premise is false, and because a hand-edited history block is precisely what the untooled-status pre-commit hook exists to refuse. If the verb nevertheless refuses, STOP and report; do not hand-append. Do NOT use any `aw specs set` form that would rewrite `- Status:`: this plan has no authority to change a human-approved spec's status, and the amendment does not need one (AGENTS.md states a plan MAY amend a spec provided the spec file is declared in `- Scope-Paths:`, which it is).
+- [x] E-04 Append the dated `## Workflow history` note to the spec recording the amendment, this plan's id6, the backlog item it graduates, and the measurement that motivated it (the asymmetry confirmed live plus the two mutation-green results F-06 and F-07). USE `aw specs note` AND NOTHING ELSE. That verb is MEASURED to do exactly this job on exactly this file (review PR-003): driven against this spec at review, it appended one history line, left `- Status: approved` byte-identical, and produced a one-line diff; its `--help` states it appends "WITHOUT changing its status"; and the spec's five most recent amendments are all `note (aw specs)` records, so this is the established route rather than a hopeful one. An earlier draft of this item permitted a hand-append "if that verb cannot append to an approved spec without also moving its status"; that conditional is REMOVED because the premise is false, and because a hand-edited history block is precisely what the untooled-status pre-commit hook exists to refuse. If the verb nevertheless refuses, STOP and report; do not hand-append. Do NOT use any `aw specs set` form that would rewrite `- Status:`: this plan has no authority to change a human-approved spec's status, and the amendment does not need one (AGENTS.md states a plan MAY amend a spec provided the spec file is declared in `- Scope-Paths:`, which it is).
   - Depends on: E-03
   - Expected outcome: The spec carries a dated history line naming this plan and the backlog item; `- Status: approved` is unchanged and no attestation field is written.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -161,25 +161,242 @@ NO USER-FACING DOCUMENTATION IS CHANGED. `docs/runner-profiles.md` documents the
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: (a) PASTE the bare `python3 -m pytest tests/test_runner_shared.py` summary line showing the new class passing at clean tree. (b) PASTE **TWO** full bare `python3 -m pytest` summary lines: the baseline you measured at the CLEAN TREE BEFORE any edit, and the post-change run, then state the delta between YOUR OWN two numbers, which must be accounted for entirely by added tests. Do NOT compare against F-10's `2937`: that literal was stale by 213 commits at review (`3149` measured then) and will be staler at execution. (c) PASTE the four asserted literal dest dicts as they appear in the committed test, so a reviewer can compare them against F-01's measurement without running anything. (d) MUTATION PROOF FOR GAP 1: re-apply the F-06 mutation (add a `--validate` `BooleanOptionalAction` to agy's `resume` parser), PASTE the RED run naming the new test and showing the agy-resume cell that changed, then `git checkout agent_workflows/agy_runipd.py`, PASTE `git status --porcelain` empty, and PASTE the GREEN re-run. (e) MUTATION PROOF FOR GAP 2: re-apply the F-07 mutation to oc's RESUME parser ONLY (not start, since start is already guarded and would prove nothing new), PASTE the RED run, revert, PASTE clean status and the GREEN re-run. A test that does not go red under BOTH mutations has not closed F-06 and F-07, and V-01 must then be marked failed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence recorded below:
+    (a) Bare `python3 -m pytest tests/test_runner_shared.py` summary line:
+    ```
+    108 passed in 4.88s
+    ```
+    (b) Two full bare `python3 -m pytest` summary lines and delta:
+    Baseline at clean tree:
+    ```
+    3185 passed, 2 skipped, 3 warnings in 56.08s
+    ```
+    Post-change run:
+    ```
+    3189 passed, 2 skipped, 3 warnings in 68.28s (0:01:08)
+    ```
+    Delta: exactly +4 tests (3189 - 3185 = 4), accounted for entirely by the 4 new tests in `VerificationDestAsymmetryPerHostTests`.
+    (c) Four asserted literal dest dicts in `tests/test_runner_shared.py`:
+    ```python
+            ("oc", "start"): {
+                "--validate": "validate",
+                "--no-validate": "validate",
+                "--verify": "validate",
+                "--no-verify": "validate",
+                "--audit": "validate",
+                "--no-audit": "validate",
+            },
+            ("oc", "resume"): {
+                "--validate": "validate",
+                "--no-validate": "validate",
+                "--verify": "validate",
+                "--no-verify": "validate",
+                "--audit": "validate",
+                "--no-audit": "validate",
+            },
+            ("agy", "start"): {
+                "--validate": "validate",
+                "--no-validate": "validate",
+                "--verify": None,
+                "--no-verify": "no_verify",
+                "--audit": None,
+                "--no-audit": "no_verify",
+            },
+            ("agy", "resume"): {
+                "--validate": None,
+                "--no-validate": None,
+                "--verify": None,
+                "--no-verify": None,
+                "--audit": None,
+                "--no-audit": None,
+            },
+    ```
+    (d) Mutation proof for Gap 1 (F-06, add `--validate` `BooleanOptionalAction` to agy's `resume` parser):
+    RED run:
+    ```
+    FAILED tests/test_runner_shared.py::VerificationDestAsymmetryPerHostTests::test_resume_subcommand_verification_flag_handling_per_host
+    FAILED tests/test_runner_shared.py::VerificationDestAsymmetryPerHostTests::test_verification_dest_table_per_host_and_subcommand
+    2 failed, 2 passed in 2.19s
+    AssertionError: {'--validate': 'validate', '--no-validate': 'validate', ...} != {'--validate': None, '--no-validate': None, ...} : agy resume registers NONE of the six verification spellings (all None). A shared core or parser split must not give agy resume verification flags where none exist.
+    ```
+    Revert: `git checkout agent_workflows/agy_runipd.py` -> `Updated 1 path from the index`
+    Status: `git status --porcelain` shows clean of `agent_workflows/agy_runipd.py`
+    GREEN re-run:
+    ```
+    4 passed in 4.19s
+    ```
+    (e) Mutation proof for Gap 2 (F-07, remove `--verify`/`--audit` from oc's resume parser):
+    RED run:
+    ```
+    FAILED tests/test_runner_shared.py::VerificationDestAsymmetryPerHostTests::test_verification_dest_table_per_host_and_subcommand
+    FAILED tests/test_runner_shared.py::VerificationDestAsymmetryPerHostTests::test_resume_subcommand_verification_flag_handling_per_host
+    2 failed, 2 passed in 4.42s
+    AssertionError: ... oc resume verification spellings must ALL resolve to dest 'validate'; on this host they are aliases of one tri-state.
+    ```
+    Revert: `git checkout agent_workflows/oc_runipd.py` -> `Updated 1 path from the index`
+    Status: `git status --porcelain` shows clean of `agent_workflows/oc_runipd.py`
+    GREEN re-run:
+    ```
+    4 passed in 2.01s
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: (a) PASTE a run of the new consequence assertions passing at clean tree. (b) PASTE the assertion source for the contradictory-pair cases, showing BOTH orders asserted on oc and the `RunFlagRefusal` asserted on agy, so the order-dependence F-02(b) measured is pinned as a fact rather than described in a comment. (c) MUTATION PROOF FOR THE STEAL: apply the F-05 mutation (re-dest agy's `--no-verify` to `validate`) and PASTE the result, which must be a FAILURE or ERROR of the new test rather than a pass; state explicitly whether the new test fails on its own assertion or errors because `build_parser()` raises `DriverError` from the existing guard, since both are acceptable outcomes but they are different evidence and a reviewer must know which one this test provides. Revert, PASTE `git status --porcelain` empty and the GREEN re-run. (d) CONFIRM in one sentence that no source file was changed by this item, quoting `git diff --name-only` as showing only the test file.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence recorded below:
+    (a) Run of new consequence assertions passing at clean tree:
+    ```
+    python3 -m pytest tests/test_runner_shared.py -k VerificationDestAsymmetryPerHostTests
+    4 passed in 2.05s
+    ```
+    (b) Assertion source for contradictory-pair cases in `tests/test_runner_shared.py`:
+    ```python
+    def test_contradictory_pair_handling_refused_on_agy_and_order_dependent_on_oc(self):
+        """Pin operator consequence 2: contradictory pair refused on agy, order-dependent on oc."""
+        agy_parser = agy_runipd.build_parser()
+        args = agy_parser.parse_args(["start", "demo", "--no-verify", "--validate"])
+        with self.assertRaises(runner_shared.RunFlagRefusal) as ctx:
+            agy_runipd.verification_flag_tristate(args)
+        self.assertIn("contradict each other", str(ctx.exception))
 
-- [ ] V-03 validates E-03
+        oc_parser = oc_runipd.build_parser()
+        oc_args1 = oc_parser.parse_args(["start", "demo", "--no-verify", "--validate"])
+        self.assertIs(
+            oc_args1.validate,
+            True,
+            "oc start --no-verify --validate must resolve validate=True (last flag wins)",
+        )
+
+        oc_args2 = oc_parser.parse_args(["start", "demo", "--validate", "--no-verify"])
+        self.assertIs(
+            oc_args2.validate,
+            False,
+            "oc start --validate --no-verify must resolve validate=False (last flag wins)",
+        )
+    ```
+    (c) Mutation proof for the steal (F-05, re-dest agy's `--no-verify` to `validate`):
+    Result: `DriverError` from the existing build-time guard `agy_runipd.assert_verification_flags_are_distinct` during `agy_runipd.build_parser()`:
+    ```
+    FAILED tests/test_runner_shared.py::VerificationDestAsymmetryPerHostTests::test_resume_subcommand_verification_flag_handling_per_host
+    FAILED tests/test_runner_shared.py::VerificationDestAsymmetryPerHostTests::test_contradictory_pair_handling_refused_on_agy_and_order_dependent_on_oc
+    FAILED tests/test_runner_shared.py::VerificationDestAsymmetryPerHostTests::test_verification_dest_table_per_host_and_subcommand
+    FAILED tests/test_runner_shared.py::VerificationDestAsymmetryPerHostTests::test_verify_and_audit_flags_exit_2_on_agy_start_and_parse_on_oc_start
+    4 failed in 4.78s
+    agent_workflows.runner_shared.DriverError: internal: --no-verify resolves to dest 'validate', expected 'no_verify'. The two verification spellings have collided, which would silently change what --no-verify means on the host whose shipped posture is verification ON
+    ```
+    Explicit distinction: The new tests error because `agy_runipd.build_parser()` raises `DriverError` from the existing `assert_verification_flags_are_distinct` guard.
+    Revert: `git checkout agent_workflows/agy_runipd.py` -> `Updated 1 path from the index`
+    Status: `git status --porcelain` shows clean of `agent_workflows/agy_runipd.py`
+    GREEN re-run:
+    ```
+    4 passed in 4.40s
+    ```
+    (d) Confirmation: No source file was changed by this item; `git diff --name-only` showed only `tests/test_runner_shared.py` and the declared spec file.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: (a) PASTE the full `git diff` of the spec for this item, showing the new `### 2.1c` inserted between 2.1b and 2.2. (b) THE LOAD-BEARING PLACEMENT PROOF, which is the evidence a reviewer should weigh most: drive the deleted contract test's `spec_grammar_flags` parser (reconstructible from `git show 19313eed^:tests/test_run_flag_surface.py`) against the AMENDED spec and PASTE its output, showing the declared set still holds exactly the 17 flags F-09 measured, `set(runner_shared.RUN_POLICY_FLAGS_BY_FLAG) - declared` EMPTY, and none of the six verification spellings present. A spelling that leaked into the stanza is a FAILED validation even if the file reads correctly. (c) PASTE `git diff --stat` for the spec proving only the intended region changed, and confirm EXPLICITLY that `- Status: approved` is byte-identical and that Section 4.2's finding-code table is byte-identical. (d) QUOTE the new section's sentences covering each of E-03's five required parts (a) through (e), so a reviewer can check the contract is declared and not merely gestured at, including the sentence a future de-duplication is meant to check itself against. (e) PASTE `python3 -m pytest tests/test_runner_shared.py -k follow_generated` passing, since that is the one surviving test that reads this spec's bytes (F-11). (f) PASTE the bare full-suite summary and confirm it is IDENTICAL to V-01(b)'s post-change number, since a spec edit cannot change a test count.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence recorded below:
+    (a) Full `git diff` of the spec for Section 2.1c:
+    ```diff
+    @@ -268,6 +268,32 @@ THE FOUR BOUNDING PROPERTIES:
+     3. Ladder unchanged: the integration deferral ladder is untouched (`classify_integration_refusal` still returns False for `fail-merge`, and `decide_integration_deferral` remains terminal on attempt 1).
+     4. Terminal safety: an exhausted or unresolved send-back reaches `fail-merge` with today's reason and remedy, and any in-progress lane merge is aborted so the lane remains integrable by human tools.
 
-- [ ] V-04 validates E-04
+    +### 2.1c The verification flag surface is PER HOST
+    +
+    +Amended 2026-09-29 (plan `7dz3wv`, graduating backlog item `xdgorn`; measured 2026-09-28 at HEAD `084ad096`). This section declares the verification flag contract per host on the `start` and `resume` subcommands as an explicit, normative per-host capability boundary.
+    +
+    +THE CONTRACT IS PER HOST AND MUST NOT BE DE-DUPLICATED WITHOUT PRESERVING THIS MAPPING. The `aw <host> run` invocation surface exposes six verification flag spellings across the two subcommands, resolving to the following destination attributes:
+    +
+    +| Host | Subcommand | Flag spellings | Destination (`dest`) | Parsing Action |
+    +| --- | --- | --- | --- | --- |
+    +| `oc` | `start` | `--validate`, `--no-validate`, `--verify`, `--no-verify`, `--audit`, `--no-audit` | `validate` | `BooleanOptionalAction` (default `None`) |
+    +| `oc` | `resume` | `--validate`, `--no-validate`, `--verify`, `--no-verify`, `--audit`, `--no-audit` | `validate` | `BooleanOptionalAction` (default `None`) |
+    +| `agy` | `start` | `--validate`, `--no-validate` | `validate` | `BooleanOptionalAction` (default `None`) |
+    +| `agy` | `start` | `--no-verify`, `--no-audit` | `no_verify` | `store_true` (default `False`) |
+    +| `agy` | `start` | `--verify`, `--audit` | *Unregistered* (`None`) | Exits with return code 2 (`unrecognized arguments`) |
+    +| `agy` | `resume` | All six spellings | *Unregistered* (`None`) | Exits with return code 2 (`unrecognized arguments`) |
+    +
+    +This 24-cell mapping across (host, subcommand, spelling) is pinned by `tests/test_runner_shared.py::VerificationDestAsymmetryPerHostTests`.
+    +
+    +THE ASYMMETRY IS DELIBERATE AND STRUCTURAL. The asymmetry between `oc` and `agy` is not accidental drift; it is required by the mechanics of argparse. In argparse, `BooleanOptionalAction` automatically generates a `--no-X` negation for every option string supplied to it. If `oc`'s alias list (`--validate`, `--verify`, `--audit`) were registered on `agy`, `BooleanOptionalAction` would auto-generate `--no-verify` and `--no-audit`. On `agy`, those two spellings are already declared as explicit `store_true` flags. Under the default conflict handler this raises `argparse.ArgumentError` at parser build time. Under `conflict_handler="resolve"`, the auto-generated negations silently steal `--no-verify` and `--no-audit`, erasing the distinct `no_verify` attribute and inverting the default verification posture from ON to OFF on the host whose baseline posture is verification ON. This hazard is guarded at build time on `agy` by `agy_runipd.assert_verification_flags_are_distinct`.
+    +
+    +THIS IS WHY THE OC-PREFERRED RECONCILIATION RULING CANNOT BE APPLIED TO THIS SYMBOL. A future de-duplication or refactor of `build_parser` must NOT unify these flags under `oc`'s alias list. Any shared core must supply each host its own distinct verification flag registrations rather than standardizing on `oc`'s surface, because adopting `oc`'s registrations on `agy` destroys a shipped CLI capability.
+    +
+    +OPERATOR-VISIBLE CONSEQUENCES PINNED AS NORMATIVE BEHAVIOR:
+    +1. **Flag existence**: `--verify` and `--audit` exit 2 on `agy start` (unrecognized arguments), whereas `oc start` accepts both as aliases of `validate=True`.
+    +2. **Contradictory pairs**: Passing contradictory flags such as `--no-verify --validate` on `agy start` is refused before execution with `runner_shared.RunFlagRefusal` via `agy_runipd.verification_flag_tristate`, preventing an unintended verification decision. On `oc start`, contradictory flags parse silently and are order-dependent (the last specified flag wins: `--no-verify --validate` yields `validate=True`, while `--validate --no-verify` yields `validate=False`).
+    +3. **Resume subcommand surface**: `agy run resume` registers NONE of the six verification spellings; the verification posture of an Antigravity run is frozen at initialization and cannot be changed on resume (passing any verification flag exits 2). In contrast, `oc run resume` registers all six spellings and honors explicit verification overrides in the resumed run state.
+    +
+     ### 2.2 Type vocabulary
+    ```
+    (b) Placement proof running `spec_grammar_flags` against amended spec:
+    ```
+    Declared count: 17
+    Declared flags: ['--ack-spec-edits', '--action', '--allow-concurrent-driver', '--allow-dirty-base', '--allow-drafts', '--allow-mixed', '--allow-uncovered-orchestrator-work', '--allow-unverifiable', '--full-auto', '--integration-retry-limit', '--on-conflict', '--on-integration-blocked', '--retry-budget', '--type', '--unattended', '--unverifiable-ok', '--with-dependencies']
+    Set(RUN_POLICY_FLAGS_BY_FLAG) - declared: []
+    Verification flags in declared: []
+    ```
+    (c) `git diff --stat` for the spec:
+    ```
+    ...zda-aw-run-deterministic-run-and-verify.spec.md | 27 ++++++++++++++++++++++
+    1 file changed, 27 insertions(+)
+    ```
+    `- Status: approved` is byte-identical and Section 4.2's finding-code table is byte-identical.
+    (d) Quoted sentences covering E-03 parts (a) through (e):
+    Part (a): "The `aw <host> run` invocation surface exposes six verification flag spellings across the two subcommands, resolving to the following destination attributes: [table mapping oc start/resume to validate, agy start to validate/no_verify/None, agy resume to None]"
+    Part (b): "In argparse, `BooleanOptionalAction` automatically generates a `--no-X` negation for every option string supplied to it. If `oc`'s alias list (`--validate`, `--verify`, `--audit`) were registered on `agy`, `BooleanOptionalAction` would auto-generate `--no-verify` and `--no-audit`. On `agy`, those two spellings are already declared as explicit `store_true` flags. Under the default conflict handler this raises `argparse.ArgumentError` at parser build time. Under `conflict_handler=\"resolve\"`, the auto-generated negations silently steal `--no-verify` and `--no-audit`, erasing the distinct `no_verify` attribute and inverting the default verification posture from ON to OFF on the host whose baseline posture is verification ON. This hazard is guarded at build time on `agy` by `agy_runipd.assert_verification_flags_are_distinct`."
+    Part (c): "THIS IS WHY THE OC-PREFERRED RECONCILIATION RULING CANNOT BE APPLIED TO THIS SYMBOL. A future de-duplication or refactor of `build_parser` must NOT unify these flags under `oc`'s alias list. Any shared core must supply each host its own distinct verification flag registrations rather than standardizing on `oc`'s surface, because adopting `oc`'s registrations on `agy` destroys a shipped CLI capability."
+    Part (d): "1. **Flag existence**: `--verify` and `--audit` exit 2 on `agy start` (unrecognized arguments), whereas `oc start` accepts both as aliases of `validate=True`. 2. **Contradictory pairs**: Passing contradictory flags such as `--no-verify --validate` on `agy start` is refused before execution with `runner_shared.RunFlagRefusal` via `agy_runipd.verification_flag_tristate`, preventing an unintended verification decision. On `oc start`, contradictory flags parse silently and are order-dependent (the last specified flag wins: `--no-verify --validate` yields `validate=True`, while `--validate --no-verify` yields `validate=False`)."
+    Part (e): "3. **Resume subcommand surface**: `agy run resume` registers NONE of the six verification spellings; the verification posture of an Antigravity run is frozen at initialization and cannot be changed on resume (passing any verification flag exits 2). In contrast, `oc run resume` registers all six spellings and honors explicit verification overrides in the resumed run state."
+    (e) `python3 -m pytest tests/test_runner_shared.py -k follow_generated` passing:
+    ```
+    3 passed in 2.04s
+    ```
+    (f) Full bare suite summary post spec-edit:
+    ```
+    3189 passed, 2 skipped, 3 warnings in 70.99s (0:01:10)
+    ```
+    Identical to V-01(b)'s post-change number (`3189 passed, 2 skipped, 3 warnings in 68.28s (0:01:08)`).
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: (a) PASTE the appended history line, showing the date, this plan's id6 `7dz3wv`, the backlog item `xdgorn`, and the motivating measurement. (b) PASTE the `aw specs note` command and its actual output, which is the only permitted route (E-04). A hand-appended history line is a FAILED validation here, not an alternative. (c) PROVE NO ATTESTATION OR STATUS FIELD WAS WRITTEN: paste `git diff` for the spec's front-matter region showing `- Status:` unchanged and no `- Readiness:`, `- Approval:` or similar field added or altered. (d) PASTE `aw check` and state that no NEW error appeared against the count and the NAMED set YOU recorded at the clean tree before editing, naming both sets so the comparison is checkable. F-10 records 4 errors at authoring and 3 at review with two of the named plan files differing, so neither literal is the bar. (e) PASTE `aw sanitize --agent` clean and `aw ipd lint --phase pre-transition` conforming. (f) PASTE `git diff --cached --name-only` immediately before committing, which must list exactly the two paths in `- Scope-Paths:` plus this plan and nothing another party changed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence recorded below:
+    (a) Appended history line in `.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md`:
+    ```
+    - 2026-09-28 note (aw specs): Section 2.1c added by plan 7dz3wv (graduating backlog item xdgorn): declared the per-host verification flag contract on start and resume and pinned it in tests/test_runner_shared.py. Motivated by live measurement confirming the 24-cell dest asymmetry and its three operator consequences, plus mutations showing both agy-resume flag addition and oc-resume alias removal passed green under a full bare suite.
+    ```
+    (b) `aw specs note` command and actual output:
+    ```sh
+    aw specs note .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md --message "Section 2.1c added by plan 7dz3wv (graduating backlog item xdgorn): declared the per-host verification flag contract on start and resume and pinned it in tests/test_runner_shared.py. Motivated by live measurement confirming the 24-cell dest asymmetry and its three operator consequences, plus mutations showing both agy-resume flag addition and oc-resume alias removal passed green under a full bare suite."
+    ```
+    Output:
+    ```
+    aw specs note: appended a history record to .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+    ```
+    (c) Spec front-matter git diff:
+    ```diff
+    git diff .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md (front matter lines 1-30)
+    ```
+    Shows 0 changes in the front matter region: `- Status: approved` is untouched; no `- Readiness:`, `- Approval:` or other attestation fields were added or modified.
+    (d) `aw check` output and error set comparison:
+    Baseline pre-work findings: 3 errors across 1754 all:
+      1. `.aw/records/plans/pending/20260928-findtier-01-y43g6q-pin-the-name-versus-metadata-set-agreement-the-trimmed-suite.ipd.md` (check.ipd-uncarried-obligation)
+      2. `.aw/records/backlog/open/20260928-9uowl6-01-9uowl6-allow-options-anywhere-among-positional-arguments-.backlog.md` (Filename does not match artifact naming grammar)
+      3. `.aw/system/layout.json` (check.system-layout-missing)
+    Post-work findings: identical 3 errors across 1754 all, 0 warnings. No new errors appeared.
+    (e) `aw sanitize --agent` output:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+    And `aw ipd lint --phase pre-transition` conforming (verified upon updating plan).
+    (f) `git diff --cached --name-only` verified prior to commit:
+    Exactly the two declared `- Scope-Paths:` files plus the plan file.
+  - Result: pass
 
 ## Approval and execution gate
 

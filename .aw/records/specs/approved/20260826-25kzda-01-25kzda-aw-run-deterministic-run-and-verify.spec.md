@@ -268,6 +268,32 @@ THE FOUR BOUNDING PROPERTIES:
 3. Ladder unchanged: the integration deferral ladder is untouched (`classify_integration_refusal` still returns False for `fail-merge`, and `decide_integration_deferral` remains terminal on attempt 1).
 4. Terminal safety: an exhausted or unresolved send-back reaches `fail-merge` with today's reason and remedy, and any in-progress lane merge is aborted so the lane remains integrable by human tools.
 
+### 2.1c The verification flag surface is PER HOST
+
+Amended 2026-09-29 (plan `7dz3wv`, graduating backlog item `xdgorn`; measured 2026-09-28 at HEAD `084ad096`). This section declares the verification flag contract per host on the `start` and `resume` subcommands as an explicit, normative per-host capability boundary.
+
+THE CONTRACT IS PER HOST AND MUST NOT BE DE-DUPLICATED WITHOUT PRESERVING THIS MAPPING. The `aw <host> run` invocation surface exposes six verification flag spellings across the two subcommands, resolving to the following destination attributes:
+
+| Host | Subcommand | Flag spellings | Destination (`dest`) | Parsing Action |
+| --- | --- | --- | --- | --- |
+| `oc` | `start` | `--validate`, `--no-validate`, `--verify`, `--no-verify`, `--audit`, `--no-audit` | `validate` | `BooleanOptionalAction` (default `None`) |
+| `oc` | `resume` | `--validate`, `--no-validate`, `--verify`, `--no-verify`, `--audit`, `--no-audit` | `validate` | `BooleanOptionalAction` (default `None`) |
+| `agy` | `start` | `--validate`, `--no-validate` | `validate` | `BooleanOptionalAction` (default `None`) |
+| `agy` | `start` | `--no-verify`, `--no-audit` | `no_verify` | `store_true` (default `False`) |
+| `agy` | `start` | `--verify`, `--audit` | *Unregistered* (`None`) | Exits with return code 2 (`unrecognized arguments`) |
+| `agy` | `resume` | All six spellings | *Unregistered* (`None`) | Exits with return code 2 (`unrecognized arguments`) |
+
+This 24-cell mapping across (host, subcommand, spelling) is pinned by `tests/test_runner_shared.py::VerificationDestAsymmetryPerHostTests`.
+
+THE ASYMMETRY IS DELIBERATE AND STRUCTURAL. The asymmetry between `oc` and `agy` is not accidental drift; it is required by the mechanics of argparse. In argparse, `BooleanOptionalAction` automatically generates a `--no-X` negation for every option string supplied to it. If `oc`'s alias list (`--validate`, `--verify`, `--audit`) were registered on `agy`, `BooleanOptionalAction` would auto-generate `--no-verify` and `--no-audit`. On `agy`, those two spellings are already declared as explicit `store_true` flags. Under the default conflict handler this raises `argparse.ArgumentError` at parser build time. Under `conflict_handler="resolve"`, the auto-generated negations silently steal `--no-verify` and `--no-audit`, erasing the distinct `no_verify` attribute and inverting the default verification posture from ON to OFF on the host whose baseline posture is verification ON. This hazard is guarded at build time on `agy` by `agy_runipd.assert_verification_flags_are_distinct`.
+
+THIS IS WHY THE OC-PREFERRED RECONCILIATION RULING CANNOT BE APPLIED TO THIS SYMBOL. A future de-duplication or refactor of `build_parser` must NOT unify these flags under `oc`'s alias list. Any shared core must supply each host its own distinct verification flag registrations rather than standardizing on `oc`'s surface, because adopting `oc`'s registrations on `agy` destroys a shipped CLI capability.
+
+OPERATOR-VISIBLE CONSEQUENCES PINNED AS NORMATIVE BEHAVIOR:
+1. **Flag existence**: `--verify` and `--audit` exit 2 on `agy start` (unrecognized arguments), whereas `oc start` accepts both as aliases of `validate=True`.
+2. **Contradictory pairs**: Passing contradictory flags such as `--no-verify --validate` on `agy start` is refused before execution with `runner_shared.RunFlagRefusal` via `agy_runipd.verification_flag_tristate`, preventing an unintended verification decision. On `oc start`, contradictory flags parse silently and are order-dependent (the last specified flag wins: `--no-verify --validate` yields `validate=True`, while `--validate --no-verify` yields `validate=False`).
+3. **Resume subcommand surface**: `agy run resume` registers NONE of the six verification spellings; the verification posture of an Antigravity run is frozen at initialization and cannot be changed on resume (passing any verification flag exits 2). In contrast, `oc run resume` registers all six spellings and honors explicit verification overrides in the resumed run state.
+
 ### 2.2 Type vocabulary
 
 The selector layer returns exactly one of these types for every file:
@@ -1577,6 +1603,7 @@ This example demonstrates the revised guarantees: `all` is safely bounded; depen
 
 ## Workflow history
 
+- 2026-09-28 note (aw specs): Section 2.1c added by plan 7dz3wv (graduating backlog item xdgorn): declared the per-host verification flag contract on start and resume and pinned it in tests/test_runner_shared.py. Motivated by live measurement confirming the 24-cell dest asymmetry and its three operator consequences, plus mutations showing both agy-resume flag addition and oc-resume alias removal passed green under a full bare suite.
 - 2026-09-28 note (aw specs): Section 5.3 amended by otr54d: driver record must name the creating module (path and digest); shared initialization core must receive creator module path and host descriptor from caller with no defaults (None reserved for descriptor-only hosts); host attribution is retroactively unfixable once written. Motivated by measurement showing both relocation and omission sabotages left the suite at its unchanged baseline (1 failed, 3038 passed, 2 skipped at review HEAD babcd235).
 - 2026-09-28 note (aw specs): Section 2.5b amended by 3brgb6: probe cache digest now covers unattached allowlisted prose sections in addition to e_items and child_table_rows
 - 2026-09-27 note (aw specs): Amended by artdispatch jdn790 (z7nbn1 OQ-04/5.3b): freeze-time whole-run refusal for undetermined, non-conformant, and provably unsatisfiable dependencies; in-run failures keep per-item fail-depend
