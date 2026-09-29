@@ -1,5 +1,6 @@
 - Id: 42da1n
-- Status: open
+- Status: graduated
+- Graduated-To: 42da1n
 - Blocks-Release: next
 - Set: 42da1n
 - Priority: low
@@ -7,6 +8,7 @@
 - Summary: emits_structured_tool_events is asserted from host identity and reads False for antigravity, which streams stream-json and is parsed
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260929T021205Z-3914774: dwbm7a
 - 2026-09-28 created (aw backlog): emits_structured_tool_events is asserted from host identity and reads False for antigravity, which streams stream-json and is parsed
 
 MEASURED 2026-09-28 at HEAD e0717990 while authoring plan qul11h (backlog plsx3r), and reported rather than fixed because flipping this field CHANGES BEHAVIOR and so needs its own reviewed plan.
