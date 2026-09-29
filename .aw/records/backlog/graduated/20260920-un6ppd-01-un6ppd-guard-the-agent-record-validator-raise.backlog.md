@@ -1,11 +1,13 @@
 - Id: un6ppd
-- Status: open
+- Status: graduated
+- Graduated-To: un6ppd
 - Set: un6ppd
 - Priority: medium
 - Work-Kind: chore
 - Summary: assert_valid_agent_record raises unguarded from the machine renderer, so any out-of-range exit crashes the CLI with a traceback
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: wqiofa
 - 2026-09-20 created (aw backlog): assert_valid_agent_record raises unguarded from the machine renderer, so any out-of-range exit crashes the CLI with a traceback
 
 FOUND while executing IPD quqyc4 (its finding F-9); quqyc4 fixed the one VALUE it knew about and deliberately left the CLASS, which this item carries.
