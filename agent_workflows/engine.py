@@ -5964,23 +5964,28 @@ def ensure_plans_readmes(
     installed: list[str],
     skipped: list[str],
 ) -> None:
-    """Create a README.md in `.agents/`, `.agents/plans/`, and each lifecycle bucket.
+    """Create a records-root README.md, plans README.md, and each lifecycle bucket README.
 
     No-clobber (a user's own README is never overwritten), staged, dry-run aware. Modeled
     on `ensure_workflow_artifacts_readme`. Templates live under the source
-    `.agents/workflows/templates/`; a bucket with no template is skipped defensively.
+    workflows templates directory; the records-root template is selected by layout
+    (`agents-README.md` for aw, `agents-legacy-README.md` for legacy). A bucket with
+    no template is skipped defensively.
     """
 
     # Layout-aware (IPD awretrofit Order 08): the record-root README goes in the FLAT `.aw/records/`
     # (aw) or legacy `.agents/` root; the plans README + its buckets hang off the resolved plans dir.
-    dirs = _record_scaffold_dirs(resolve_target_layout(plan.repo_root))
-    record_root_readme = (
-        ".aw/records/README.md"
-        if resolve_target_layout(plan.repo_root) == "aw"
-        else ".agents/README.md"
-    )
+    # The records-root template is selected by layout (v3cw46).
+    layout = resolve_target_layout(plan.repo_root)
+    dirs = _record_scaffold_dirs(layout)
+    if layout == "aw":
+        record_root_readme = ".aw/records/README.md"
+        record_root_template = "agents-README.md"
+    else:
+        record_root_readme = ".agents/README.md"
+        record_root_template = "agents-legacy-README.md"
     targets = [
-        (record_root_readme, "agents-README.md"),
+        (record_root_readme, record_root_template),
         (f"{dirs['plans']}/README.md", "plans-README.md"),
     ]
     for bucket in PLAN_LIFECYCLE_SUBDIRS:

@@ -5,6 +5,7 @@ workflows themselves. Edit a template here to change what installed repos receiv
 
 Includes: `shim-README.md` (written into the generated `.opencode/`/`.claude/` command
 dirs), `workflow-artifacts-README.md` (written into `.aw/workflow-artifacts/`), and the
-`agents-README.md` / `plans-README.md` / `plans-<bucket>-README.md` files used to
-scaffold the `.aw/records/` and `.aw/records/plans/` directory READMEs. All are written
-no-clobber (a target's existing file is never overwritten).
+`agents-README.md` / `agents-legacy-README.md` (records-root template chosen by layout) /
+`plans-README.md` / `plans-<bucket>-README.md` files used to scaffold the `.aw/records/`
+and `.aw/records/plans/` directory READMEs. All are written no-clobber (a target's
+existing file is never overwritten).
