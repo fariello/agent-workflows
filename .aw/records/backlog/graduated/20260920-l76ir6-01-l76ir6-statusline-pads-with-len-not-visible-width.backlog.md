@@ -1,5 +1,6 @@
 - Id: l76ir6
-- Status: open
+- Status: graduated
+- Graduated-To: l76ir6
 - Blocks-Release: next
 - Set: l76ir6
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: Statusline pads box columns with len() rather than visible_width, so any Ambiguous-width or VS-bearing glyph misaligns the box
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: it6tpj
 - 2026-09-20 created (aw backlog): Found executing plan qdd5jq (lifeglyph 07).
 
 FOUND WHILE EXECUTING plan `qdd5jq` (Set `lifeglyph`, spec `uonrjg`).
