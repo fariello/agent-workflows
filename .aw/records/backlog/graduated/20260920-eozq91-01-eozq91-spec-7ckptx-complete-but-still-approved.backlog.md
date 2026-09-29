@@ -1,11 +1,13 @@
 - Id: eozq91
-- Status: open
+- Status: graduated
+- Graduated-To: specfin7ck
 - Set: eozq91
 - Priority: medium
 - Work-Kind: chore
 - Summary: spec 7ckptx is approved while all 42 of its requirements are implemented by 8 executed plans, so attention reports a finished spec as not-started
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: e9ekuj, uuh71v
 - 2026-09-20 created (aw backlog): spec 7ckptx is approved while all 42 of its requirements are implemented by 8 executed plans, so attention reports a finished spec as not-started
 
 MEASURED 2026-09-20 at HEAD 96e93f8c by research survey vkub9o (plan si24ia), which was surveying requirement addressability and found this as a side effect.
