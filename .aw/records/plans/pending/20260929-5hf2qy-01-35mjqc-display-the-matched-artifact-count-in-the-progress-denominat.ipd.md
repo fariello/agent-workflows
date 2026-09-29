@@ -6,7 +6,8 @@
 - Scope: Give the summary renderer a display denominator that falls back to the MATCHED count instead of to `1`, leaving the divide-guard accessor untouched along with all THREE of its live-display call sites (`runner_shared.run_ipd`'s bare binding behind the `IPD nn/NN` banner, and both hosts' `... or 1` statusline bindings).
 - Scope-Paths: agent_workflows/render_stream.py, tests/test_zero_dispatch_progress_denominator.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
 - From-Backlog: 5hf2qy
@@ -18,6 +19,7 @@
 - Id: 35mjqc
 
 ## Workflow history
+- 2026-09-29 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-301 through PR-304 all fixed; both rejected and chosen fixes prototyped
 
 - 2026-09-29 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-301 through PR-304, all FIXED. Reviewed at `67e532f6` in a lane worktree. Structural preflight conformed before and after revision. `aw check` reports no finding against this plan, and `aw check release-gates` conforms, so the inherited `- Blocks-Release: next` gate is well formed.
   THE PLAN'S DIAGNOSIS, ITS REJECTED ALTERNATIVES AND ITS CHOSEN FIX WERE ALL REPRODUCED, INCLUDING PROTOTYPING THE FIX END TO END, because a design resolved from measurement is only as good as the measurement. Every row of the nine-shape BEFORE matrix reproduced exactly, so F-01 and F-03 hold. F-04 reproduced and is STRONGER than stated: deleting the `or 1` flips FIVE shapes to `QUEUED`, not one, and fails 8 of the 21 tests in the two suites this plan must not disturb, so the naive fix would not have shipped silently. The chosen separate-accessor fix was prototyped: the nine-shape AFTER matrix matched F-07 row for row with no outcome word changed, a unified diff of the eight-`reviewed` render touched exactly the progress line and the totals row, the two pinned suites stayed at `21 passed` UNMODIFIED, and a bare full suite reported `3246 passed, 2 skipped`. F-06's mutation went raw 0 -> 1, F-08 reproduced verbatim, and F-09's spec search returned zero hits. `render_stream.py` was restored; `git diff --stat` on it is empty.
