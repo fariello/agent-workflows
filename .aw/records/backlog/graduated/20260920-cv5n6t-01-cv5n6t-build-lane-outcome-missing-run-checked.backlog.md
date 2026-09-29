@@ -1,5 +1,6 @@
 - Id: cv5n6t
-- Status: open
+- Status: graduated
+- Graduated-To: suppressnarrow
 - Blocks-Release: next
 - Set: cv5n6t
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: build_lane_outcome called without its required run_checked raised TypeError swallowed by suppress, so integration_changed_files was never recorded
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260928T235632Z-1358353: 8o709f
 - 2026-09-20 created (aw backlog): Found while executing plan h5pyqa; the call site was repaired in that plan.
 
 ## What is wrong
