@@ -1,5 +1,6 @@
 - Id: wqk5s2
-- Status: open
+- Status: graduated
+- Graduated-To: wqk5s2
 - Blocks-Release: next
 - Set: wqk5s2
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: Two slow-marked end-to-end stop-trigger tests fail at HEAD: SIGTERM and terminal-rung runs record no 'stopped'/'interrupted' item state
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: oi0sv9
 - 2026-09-21 created (aw backlog): Two slow-marked end-to-end stop-trigger tests fail at HEAD: SIGTERM and terminal-rung runs record no 'stopped'/'interrupted' item state
 
 ## What is wrong
