@@ -1,11 +1,13 @@
 - Id: aced01
-- Status: open
+- Status: graduated
+- Graduated-To: aced01
 - Set: aced01
 - Priority: medium
 - Work-Kind: chore
 - Summary: The THE PRE-WORK SUITE BASELINE prohibition banner in runner_shared states 'NOTHING MAY REFUSE, DOWNGRADE, OR OTHERWISE CHANGE AN OUTCOME ON THE STRENGTH OF IT' without naming the DIRECTION it forbids, so it reads as barring a baseline-relative gate that only ever makes an outcome more permissive
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: kcc71f
 - 2026-09-28 note (aw backlog): Maintainer ruling: We do not test to make sure text in a script or comment banner remains the same. The text-pinning test was deleted in the suite trim and will not be restored. Edits do not need to preserve exact phrases for code pins.
 - 2026-09-22 created (aw backlog): The THE PRE-WORK SUITE BASELINE prohibition banner in runner_shared states 'NOTHING MAY REFUSE, DOWNGRADE, OR OTHERWISE CHANGE AN OUTCOME ON THE STRENGTH OF IT' without naming the DIRECTION it forbids, so it reads as barring a baseline-relative gate that only ever makes an outcome more permissive
 
