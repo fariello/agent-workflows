@@ -5393,5 +5393,120 @@ class AwGitignoreLaneTests(unittest.TestCase):
             )
 
 
+class RecordsRootReadmeResolvableReferenceTests(unittest.TestCase):
+    """Assert the emitted records-root README is TRUE by resolving every path it names against a real install.
+
+    This test asserts repository CONTENT (that the document accurately describes the disk layout
+    the installer created), not production source text or code structure. Under the 2026-09-26
+    ruling (backlog xelvyi, plan 96xtmi), tests that assert user-facing prose where the text is
+    the subject are explicitly reserved and keepable. Resolving what a document names against a
+    real install allows free rewording and fails only when a reference is broken or unresolvable.
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.base = Path(self._tmp.name)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _extract_and_resolve_references(
+        self,
+        repo: Path,
+        readme_path: Path,
+        layout: str,
+        required_pointer: str,
+    ) -> list[dict[str, object]]:
+        content = readme_path.read_text(encoding="utf-8")
+        raw_tokens = re.findall(r"`([^`]+)`", content)
+        path_tokens = [
+            tok.strip() for tok in raw_tokens if "/" in tok and " " not in tok
+        ]
+
+        self.assertGreaterEqual(
+            len(path_tokens),
+            3,
+            f"[{layout}] Extracted {len(path_tokens)} path-shaped tokens from {readme_path}, "
+            f"expected at least 3 to prevent vacuous passing. Raw tokens: {raw_tokens}",
+        )
+
+        records: list[dict[str, object]] = []
+        missing: list[str] = []
+        for tok in path_tokens:
+            if tok.startswith((".aw/", ".agents/")):
+                base_name = "repo-root"
+                resolved = repo / tok
+            else:
+                base_name = "readme-dir"
+                resolved = readme_path.parent / tok
+            exists = resolved.exists()
+            records.append(
+                {
+                    "token": tok,
+                    "base": base_name,
+                    "resolved": resolved,
+                    "exists": exists,
+                }
+            )
+            if not exists:
+                missing.append(
+                    f"token: `{tok}`, base: {base_name}, resolved: {resolved.resolve()}"
+                )
+
+        for rec in records:
+            print(
+                f"[{layout}] token: {rec['token']} | base: {rec['base']} | resolved: {rec['resolved']} | exists: {rec['exists']}"
+            )
+
+        self.assertEqual(
+            missing,
+            [],
+            f"[{layout}] The following {len(missing)} path-shaped reference(s) in {readme_path} do not exist on disk:\n"
+            + "\n".join(missing),
+        )
+
+        self.assertIn(
+            required_pointer,
+            path_tokens,
+            f"[{layout}] Required framework pointer `{required_pointer}` missing from backticked references in {readme_path}",
+        )
+
+        return records
+
+    def test_records_root_readme_references_resolve_aw(self):
+        """Assert every path-shaped reference in .aw/records/README.md resolves for the aw layout."""
+        repo = init_repo(self.base / "aw")
+        proc = run_installer(repo)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        readme_path = repo / ".aw" / "records" / "README.md"
+        self.assertTrue(
+            readme_path.is_file(), f"Expected records-root README at {readme_path}"
+        )
+        self._extract_and_resolve_references(
+            repo,
+            readme_path,
+            layout="aw",
+            required_pointer=".aw/system/workflows/index.md",
+        )
+
+    def test_records_root_readme_references_resolve_legacy(self):
+        """Assert every path-shaped reference in .agents/README.md resolves for the legacy layout."""
+        repo = init_repo(self.base / "legacy")
+        # Legacy trigger: pre-existing .agents/workflows with no .aw/system (resolve_target_layout)
+        (repo / ".agents" / "workflows").mkdir(parents=True, exist_ok=True)
+        proc = run_installer(repo)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        readme_path = repo / ".agents" / "README.md"
+        self.assertTrue(
+            readme_path.is_file(), f"Expected records-root README at {readme_path}"
+        )
+        self._extract_and_resolve_references(
+            repo,
+            readme_path,
+            layout="legacy",
+            required_pointer="workflows/index.md",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
