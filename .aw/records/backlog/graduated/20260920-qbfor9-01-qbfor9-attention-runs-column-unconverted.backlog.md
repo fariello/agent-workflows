@@ -1,5 +1,6 @@
 - Id: qbfor9
-- Status: open
+- Status: graduated
+- Graduated-To: qbfor9
 - Blocks-Release: next
 - Set: qbfor9
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: aw attention --runs Run column hardcodes six lifecycle colors that contradict spec uonrjg Section 5, and two of its run states have no semantic stage at all
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: r61br4
 - 2026-09-20 created (aw backlog): Found while executing plan f9t5hz (lifeglyph-05).
 
 FOUND WHILE EXECUTING PLAN `f9t5hz` (`lifeglyph-05`), which converted `attention.py`'s
