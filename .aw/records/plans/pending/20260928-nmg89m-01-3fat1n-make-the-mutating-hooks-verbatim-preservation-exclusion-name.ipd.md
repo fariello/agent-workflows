@@ -36,7 +36,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: make the exclusion name the tree that exists
 
-- [ ] E-01 In `.pre-commit-config.yaml`, replace the dead `\.aw/records/docs/research/` alternative with the live `\.aw/records/research/` in the `exclude:` regex of ALL FOUR content-mutating hooks (`trailing-whitespace`, `end-of-file-fixer`, `ruff`, `ruff-format`).
+- [x] E-01 In `.pre-commit-config.yaml`, replace the dead `\.aw/records/docs/research/` alternative with the live `\.aw/records/research/` in the `exclude:` regex of ALL FOUR content-mutating hooks (`trailing-whitespace`, `end-of-file-fixer`, `ruff`, `ruff-format`).
   - THE EDIT IS THE SAME ON ALL FOUR AND MUST BE APPLIED TO ALL FOUR. The four `exclude:` values are byte-identical today (`'^(\.agents/docs/research/|\.aw/records/docs/research/|\.aw/system/)'`, occurrences measured at 4), so a single find-and-replace of that exact string is correct. Fixing three of four would leave one hook still rewriting the tree, which is the current bug at 25 percent strength.
   - DROP `\.aw/records/docs/research/` RATHER THAN KEEPING IT BESIDE THE NEW PATH. It is not a legacy read path that might still be populated: spec `20260817-2124-01` G4 states the legacy `.agents/` inputs map DIRECTLY to the final targets with "no intermediate `.aw/records/docs/` migration hop", and its Non-goals explicitly refuse to build one. So no supported layout can ever place a file there, and keeping the alternative preserves the exact misleading text this plan exists to remove.
   - KEEP `\.agents/docs/research/`, even though it also matches zero files here (this repo has no `.agents/` tree at all). It is the LEGACY layout a managed target repo can still be on, and `research_contract.resolve_research_root` still falls back to it, so it is a live read path elsewhere and its presence is correct rather than stale.
@@ -44,18 +44,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - DO NOT TOUCH THE SAFETY HOOKS. `gitleaks`, `check-added-large-files`, and `local-leaks` carry no exclude and must keep applying to these paths; the config comment already promises this, and weakening it would let a secret land in a research file.
   - Depends on: none
   - Expected outcome: `.aw/records/research/` is excluded from all four mutating hooks; `.aw/records/docs/research/` appears nowhere in the file; the safety hooks are unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Update the file's leading comment block so the stated reason matches the regex it explains.
+- [x] E-02 Update the file's leading comment block so the stated reason matches the regex it explains.
   - The comment currently reads "`.agents/docs/research/` and `.aw/records/docs/research/`: cited external research artifacts ... the `.aw/` path mirrors the legacy one after the physical-layout migration". That parenthetical is the FALSE claim that hid this bug for the whole life of the defect, since the migration flattened the path instead of mirroring it. Name the two paths the regex now carries and say the `.aw/` one is the CURRENT flat tree with the legacy `.agents/` path retained for a target repo still on that layout.
   - STATE THE WRITER-SIDE TWIN, so a future reader finds it: note that `artifact_core._VERBATIM_PRESERVED_SEGMENTS` carries the same policy for the toolkit's own writer and that `tests/test_precommit_verbatim_exclusions.py` (E-03) pins the two together. Without this pointer the next layout move updates one and not the other, which is precisely how this defect arose.
   - Depends on: E-01
   - Expected outcome: the comment and the regex agree, and both name the writer-side twin and its pin.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: stop the config and the writer drifting apart again
 
-- [ ] E-03 Add `tests/test_precommit_verbatim_exclusions.py` asserting that every mutating hook's `exclude` regex covers every tree in `artifact_core._VERBATIM_PRESERVED_SEGMENTS` that is a LIVE path in this repository, and that no named path is dead.
+- [x] E-03 Add `tests/test_precommit_verbatim_exclusions.py` asserting that every mutating hook's `exclude` regex covers every tree in `artifact_core._VERBATIM_PRESERVED_SEGMENTS` that is a LIVE path in this repository, and that no named path is dead.
   - (a) PARITY, the load-bearing case: parse `.pre-commit-config.yaml` with `yaml.safe_load`, select the hooks whose ids are in `{trailing-whitespace, end-of-file-fixer, ruff, ruff-format}`, and for each, assert `re.search(exclude, "<tree>/x.py")` matches for `.aw/records/research` and `.agents/docs/research`. Build the probe paths from `_VERBATIM_PRESERVED_SEGMENTS` rather than hardcoding them, so adding a tree to the writer's tuple FAILS this test until the hook config is updated too. Measured against the pre-change config, `.aw/records/research/x.py` is NOT EXCLUDED by all four hooks, so this case fails today.
   - **DERIVE THE PROBE SET FROM THE TUPLE MINUS `.aw/records/docs/research`, OR THIS CASE IS RED AFTER E-01.** This is the one contradiction in this plan and it must be resolved before writing the test, not discovered while running it. The writer tuple has THREE entries and still includes `(".aw", "records", "docs", "research")`, which is exactly the alternative E-01 DELETES from the regex. So a literal "assert every tuple entry is excluded by every mutating hook" is satisfied TODAY for that entry and FAILS after E-01. Measured at review against a simulated post-E-01 config: the two trees the plan names pass, and `.aw/records/docs/research/x.py` reports `excluded=False` on all four hooks, so the test would be RED on the corrected config (F-15). The plan's own prose names only the two live trees, so the INTENT is right and only the derivation is wrong. Implement it by filtering the tuple to the entries this repo means to protect in the HOOKS, and state the exclusion of the `docs/research` entry IN THE TEST with its reason (F-7: unreachable by design per spec `20260817-2124-01` G4, retained in the writer tuple only so an already-written file in a partially-migrated checkout is still passed through byte-for-byte by the writer). DO NOT resolve this the other way by keeping `\.aw/records/docs/research/` in the regex: that preserves the misleading text E-01 exists to remove, and F-7 establishes no supported layout can populate it.
   - DO NOT "FIX" THIS BY EDITING `_VERBATIM_PRESERVED_SEGMENTS`. `agent_workflows/artifact_core.py` is NOT in `- Scope-Paths:`, the tuple is correct for the WRITER (whose job is to pass a file through byte-for-byte wherever it finds one, including a path no new install creates), and the hook regex and the writer tuple are allowed to differ on a dead path for exactly that reason. The parity this test pins is "every tree the hooks must exclude is excluded", not "the two lists are equal".
@@ -66,13 +66,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - MATCH ON THE REGEX, NOT ON THE LITERAL STRING. Asserting the exact regex text would fail on any harmless reordering and would not actually test coverage; driving `re.search` over probe paths tests the property. Note `pre-commit` applies `exclude` as a `re.search` against the repo-relative path, which is what (a) reproduces.
   - Depends on: E-02
   - Expected outcome: (a) and (b) fail against the pre-change config and pass after; (c) and (d) pass both before and after. In particular (a) must pass AFTER E-01, which requires the probe set to exclude the `.aw/records/docs/research` tuple entry as specified above; a red (a) on the corrected config means the derivation was taken literally rather than as the plan's prose states.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Run the bare suite (`python3 -m pytest`) and confirm no regression.
+- [x] E-04 Run the bare suite (`python3 -m pytest`) and confirm no regression.
   - THE BASELINE IS GREEN, RE-MEASURED AT REVIEW as `3087 passed, 2 skipped, 3 warnings` on a clean tree, so the bar is ZERO FAILURES and a red suite is presumed this plan's until a targeted run plus a commit predating the lane proves otherwise. RE-DERIVE the count at lane start rather than comparing against that number: it moved 3069 -> 3075 -> 3081 -> 3087 across four reviews in this one sweep, so the durable requirement is zero failures plus a count that RISES by E-03's tests. This plan is the only one in its sweep that did NOT pin a stale failing baseline, and that posture is correct; keep it.
   - Depends on: E-03
   - Expected outcome: green with zero failures, the passed count risen by exactly the new file's tests against a baseline re-derived at lane start, and any failure named as pre-existing at the base commit or admitted as new.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -163,31 +163,236 @@ N/A with reason: no spec text changes, and no `.spec.md` path is in `- Scope-Pat
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the actual `git diff` of `.pre-commit-config.yaml`. The diff MUST show exactly four changed `exclude:` lines, each gaining `\.aw/records/research/` and losing `\.aw/records/docs/research/`, with `\.agents/docs/research/` and `\.aw/system/` retained in every one. Paste the output of a grep for `exclude:` showing all four final values, and confirm they are byte-identical to each other.
   - ALSO REQUIRED: paste evidence that `.aw/records/docs/research` appears NOWHERE in the final file, and that the three safety hooks (`gitleaks`, `check-added-large-files`, `local-leaks`) are untouched by the diff.
   - ALSO REQUIRED (the load-bearing half, because a regex assertion does not prove a hook stopped firing): re-drive F-2 and F-3 through the REAL hooks and paste the actual output. For F-2, write a probe file with trailing whitespace and no final newline into `.aw/records/research/`, record its md5, run `pre-commit run trailing-whitespace --files <probe>` and `pre-commit run end-of-file-fixer --files <probe>`, and paste both the hook output and the md5 BEFORE and AFTER, which must be IDENTICAL. For F-3, append a deliberately unformatted line to a tracked research `.py`, run `pre-commit run ruff-format --files <that file>`, and paste output plus a `tail` showing the line UNCHANGED. Then delete the probe and `git checkout --` the `.py`, and paste a `git status --short` proving the tree is clean again. A run in which the hooks report `Passed` rather than `Skipped` is NOT sufficient evidence on its own, since a clean file passes either way; the md5 equality and the surviving unformatted line are the actual proof.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS.
+1. `git diff .pre-commit-config.yaml`:
+```diff
+diff --git a/.pre-commit-config.yaml b/.pre-commit-config.yaml
+index 3f42e0cb..3d1fffc7 100644
+--- a/.pre-commit-config.yaml
++++ b/.pre-commit-config.yaml
+@@ -1,11 +1,13 @@
+ # Verbatim-preserved paths. Content-MUTATING hooks (whitespace/eof fixers, ruff lint+format)
+ # are excluded for these so they never rewrite as-delivered artifacts:
+-#   - .agents/docs/research/ and .aw/records/docs/research/: cited external research artifacts
+-#     (their own formatting/punctuation is intentional; the .aw/ path mirrors the legacy one
+-#     after the physical-layout migration).
++#   - .aw/records/research/: the current flat tree of cited external research artifacts
++#     (their own formatting/punctuation is intentional). The legacy .agents/docs/research/
++#     path is retained for a target repo still on that layout.
+ #   - .aw/system/: the migrated workflow bundle (a relocated copy of the delivered .agents/
+ #     workflows/ tree; the legacy source copies are still linted/formatted, so the bundle stays
+ #     clean without re-mutating the migrated tree).
++# Writer-side twin: artifact_core._VERBATIM_PRESERVED_SEGMENTS carries the same policy for the
++# toolkit's own writer, and tests/test_precommit_verbatim_exclusions.py pins the two together.
+ # SAFETY hooks (gitleaks, large-file check, local-leaks) still apply everywhere, including these
+ # paths, so secrets or oversized blobs cannot slip in.
+ # Hook TYPES installed by `pre-commit install` (integpath 29wvmj, OQ-03 option (b)). `pre-commit` alone
+@@ -27,9 +29,9 @@ repos:
+     rev: v4.6.0
+     hooks:
+       - id: trailing-whitespace
+-        exclude: '^(\.agents/docs/research/|\.aw/records/docs/research/|\.aw/system/)'
++        exclude: '^(\.agents/docs/research/|\.aw/records/research/|\.aw/system/)'
+       - id: end-of-file-fixer
+-        exclude: '^(\.agents/docs/research/|\.aw/records/docs/research/|\.aw/system/)'
++        exclude: '^(\.agents/docs/research/|\.aw/records/research/|\.aw/system/)'
+       - id: check-yaml
+       - id: check-added-large-files
+         args: ['--maxkb=500']
+@@ -44,9 +46,9 @@ repos:
+     hooks:
+       - id: ruff
+         args: [--fix]
+-        exclude: '^(\.agents/docs/research/|\.aw/records/docs/research/|\.aw/system/)'
++        exclude: '^(\.agents/docs/research/|\.aw/records/research/|\.aw/system/)'
+       - id: ruff-format
+-        exclude: '^(\.agents/docs/research/|\.aw/records/docs/research/|\.aw/system/)'
++        exclude: '^(\.agents/docs/research/|\.aw/records/research/|\.aw/system/)'
 
-- [ ] V-02 validates E-02
+   # Local guard (D92/D93): no local leaks (identifying info) in TRACKED files. Scans the whole
+   # tracked tree (not just staged files) via the packaged agent_workflows.local_leaks engine,
+```
+2. Grep showing all four final exclude values byte-identical:
+```
+$ grep -n "exclude:" .pre-commit-config.yaml
+32:        exclude: '^(\.agents/docs/research/|\.aw/records/research/|\.aw/system/)'
+34:        exclude: '^(\.agents/docs/research/|\.aw/records/research/|\.aw/system/)'
+49:        exclude: '^(\.agents/docs/research/|\.aw/records/research/|\.aw/system/)'
+51:        exclude: '^(\.agents/docs/research/|\.aw/records/research/|\.aw/system/)'
+```
+3. Verification that dead path appears nowhere in the config and safety hooks are untouched:
+```
+$ grep -n "\.aw/records/docs/research" .pre-commit-config.yaml
+(exit code 1, zero matches found)
+```
+Diff touches only the leading comment and the 4 mutating hooks; `gitleaks`, `check-added-large-files`, and `local-leaks` remain untouched.
+4. Behavioral re-drive of F-2 and F-3 through real pinned hooks:
+F-2 probe:
+```
+$ printf "Line with trailing whitespace   \nSecond line without newline" > .aw/records/research/_probe_v01.md
+$ md5sum .aw/records/research/_probe_v01.md
+e9891b7a55901a0b7d9d11b01b9e35c7  .aw/records/research/_probe_v01.md
+$ pre-commit run trailing-whitespace --files .aw/records/research/_probe_v01.md
+trim trailing whitespace.............................(no files to check)Skipped
+$ pre-commit run end-of-file-fixer --files .aw/records/research/_probe_v01.md
+fix end of files.....................................(no files to check)Skipped
+$ md5sum .aw/records/research/_probe_v01.md
+e9891b7a55901a0b7d9d11b01b9e35c7  .aw/records/research/_probe_v01.md
+$ rm -f .aw/records/research/_probe_v01.md
+```
+md5 BEFORE and AFTER are identical: `e9891b7a55901a0b7d9d11b01b9e35c7`.
+F-3 probe:
+```
+$ BROKER_FILE=".aw/records/research/opencode/20260713-1330-gpt56-opencode-inter-instance-agent-communication/prototype/broker/broker.py"
+$ echo "x   =   1" >> "$BROKER_FILE"
+$ tail -n 3 "$BROKER_FILE"
+if __name__ == "__main__":
+    main()
+x   =   1
+$ pre-commit run ruff-format --files "$BROKER_FILE"
+ruff-format..........................................(no files to check)Skipped
+$ tail -n 3 "$BROKER_FILE"
+if __name__ == "__main__":
+    main()
+x   =   1
+$ git checkout -- "$BROKER_FILE"
+$ git status --short
+ M .pre-commit-config.yaml
+```
+Both mutating formatters reported `Skipped` with content intact. Tree restored cleanly.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the final comment block and state, line by line, which claim each regex alternative now corresponds to. Confirm explicitly that the phrase asserting the `.aw/` path "mirrors the legacy one" is GONE, since F-6 identifies it as factually wrong, and that no new claim about the safety hooks was weakened.
   - ALSO REQUIRED: quote the sentence that names `artifact_core._VERBATIM_PRESERVED_SEGMENTS` and the new test file, which is the pointer E-02 exists to add.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS.
+1. Final leading comment block:
+```yaml
+# Verbatim-preserved paths. Content-MUTATING hooks (whitespace/eof fixers, ruff lint+format)
+# are excluded for these so they never rewrite as-delivered artifacts:
+#   - .aw/records/research/: the current flat tree of cited external research artifacts
+#     (their own formatting/punctuation is intentional). The legacy .agents/docs/research/
+#     path is retained for a target repo still on that layout.
+#   - .aw/system/: the migrated workflow bundle (a relocated copy of the delivered .agents/
+#     workflows/ tree; the legacy source copies are still linted/formatted, so the bundle stays
+#     clean without re-mutating the migrated tree).
+# Writer-side twin: artifact_core._VERBATIM_PRESERVED_SEGMENTS carries the same policy for the
+# toolkit's own writer, and tests/test_precommit_verbatim_exclusions.py pins the two together.
+# SAFETY hooks (gitleaks, large-file check, local-leaks) still apply everywhere, including these
+# paths, so secrets or oversized blobs cannot slip in.
+```
+2. Line-by-line mapping:
+- `.aw/records/research/`: matches line 3 `#   - .aw/records/research/: the current flat tree of cited external research artifacts (their own formatting/punctuation is intentional).`
+- `.agents/docs/research/`: matches lines 4-5 `The legacy .agents/docs/research/ path is retained for a target repo still on that layout.`
+- `.aw/system/`: matches lines 6-8 `#   - .aw/system/: the migrated workflow bundle (a relocated copy of the delivered .agents/ workflows/ tree; the legacy source copies are still linted/formatted, so the bundle stays clean without re-mutating the migrated tree).`
+3. The false claim that the `.aw/` path "mirrors the legacy one" is completely removed.
+4. The safety hooks claim is preserved without being weakened (`# SAFETY hooks (gitleaks, large-file check, local-leaks) still apply everywhere, including these paths, so secrets or oversized blobs cannot slip in.`).
+5. Pointer sentence quoted:
+"Writer-side twin: artifact_core._VERBATIM_PRESERVED_SEGMENTS carries the same policy for the toolkit's own writer, and tests/test_precommit_verbatim_exclusions.py pins the two together."
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the passing run of `python3 -m pytest tests/test_precommit_verbatim_exclusions.py tests/test_executed_transition_gate_e2e.py -o addopts=""` with its summary line and per-test counts.
   - ALSO REQUIRED (the load-bearing half): revert E-01's regex change IN THE WORKTREE, re-run the new test file, and paste the ACTUAL failure output for (a) and (b). (a) must fail by reporting that `.aw/records/research/x.py` is not excluded by all four hooks; (b) must fail by naming `.aw/records/docs/research/` as a dead path. Name the observed failure mode explicitly and confirm each is a behavioral assertion failure, not an import, YAML-parse, or fixture error. Then restore. A reverted run in which (a) and (b) still PASS means the test cannot detect the defect and this item FAILS.
   - ALSO REQUIRED (the F-15 trap, which is the one way this item can be written so that the CORRECT config is red): paste the probe path set (a) actually derives, and confirm it contains `.aw/records/research` and `.agents/docs/research` and NOT `.aw/records/docs/research`. Quote the in-test statement of WHY that tuple entry is filtered out, and confirm `agent_workflows/artifact_core.py` is unmodified by pasting it as absent from `git status --short`. Measured at review: a literal derivation over all three tuple entries reports `excluded=False` on all four hooks for `.aw/records/docs/research/x.py` under the post-E-01 regex, so a red (a) after E-01 is this trap and NOT a reason to restore the dead alternative or to edit the writer tuple.
   - ALSO REQUIRED: state plainly that (c) and (d) pass in BOTH the reverted and the restored runs, and paste the evidence that (d) is not vacuous: show that the test FAILS if the mutating-hook id set is made to select nothing (for example by temporarily renaming one id in a copy of the parsed data, or by an explicit assertion on the selected count that you paste). A parity test over an empty selection passes while proving nothing, and that is the specific rot this case exists to prevent.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS.
+1. Targeted test run output:
+```
+$ python3 -m pytest tests/test_precommit_verbatim_exclusions.py tests/test_executed_transition_gate_e2e.py -o addopts=""
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+Using --randomly-seed=714313645
+rootdir: <repo-root>
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 11 items
 
-- [ ] V-04 validates E-04
+tests/test_executed_transition_gate_e2e.py .......                       [ 63%]
+tests/test_precommit_verbatim_exclusions.py ....                         [100%]
+
+============================== 11 passed in 3.49s ==============================
+```
+4 tests passed in `tests/test_precommit_verbatim_exclusions.py`, 7 tests passed in `tests/test_executed_transition_gate_e2e.py`.
+2. Worktree revert of E-01 regex failure output:
+```
+=================================== FAILURES ===================================
+_ TestPrecommitVerbatimExclusions.test_mutating_hooks_exclude_verbatim_preserved_trees _
+
+    def test_mutating_hooks_exclude_verbatim_preserved_trees(self) -> None:
+...
+>               self.assertIsNotNone(
+                    matched,
+                    f"Mutating hook '{hook_id}' does not exclude verbatim-preserved tree probe '{probe_path}' "
+                    f"(exclude pattern: {exclude_pattern!r})",
+                )
+E               AssertionError: unexpectedly None : Mutating hook 'trailing-whitespace' does not exclude verbatim-preserved tree probe '.aw/records/research/x.py' (exclude pattern: '^(\\.agents/docs/research/|\\.aw/records/docs/research/|\\.aw/system/)')
+
+tests/test_precommit_verbatim_exclusions.py:134: AssertionError
+_ TestPrecommitVerbatimExclusions.test_mutating_hook_excludes_contain_no_dead_paths _
+
+    def test_mutating_hook_excludes_contain_no_dead_paths(self) -> None:
+...
+>               self.assertTrue(
+                    exists or allowlisted,
+                    f"Exclude regex for hook '{hook_id}' contains dead path alternative '{clean_alt}' "
+                    f"which does not exist in repository and is not in legacy allowlist {self.LEGACY_ALLOWLIST}. "
+                    "(Allowlist reason: .agents/docs/research/ is retained for target repositories on the legacy "
+                    "layout; dead paths must be removed, not allowlisted).",
+                )
+E               AssertionError: False is not true : Exclude regex for hook 'trailing-whitespace' contains dead path alternative '.aw/records/docs/research/' which does not exist in repository and is not in legacy allowlist {'.agents/docs/research', '.agents/docs/research/'}. (Allowlist reason: .agents/docs/research/ is retained for target repositories on the legacy layout; dead paths must be removed, not allowlisted).
+
+tests/test_precommit_verbatim_exclusions.py:163: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_precommit_verbatim_exclusions.py::TestPrecommitVerbatimExclusions::test_mutating_hooks_exclude_verbatim_preserved_trees
+FAILED tests/test_precommit_verbatim_exclusions.py::TestPrecommitVerbatimExclusions::test_mutating_hook_excludes_contain_no_dead_paths
+========================= 2 failed, 2 passed in 0.16s ==========================
+```
+Both failures are genuine behavioral assertion failures: (a) fails because `.aw/records/research/x.py` is not excluded by mutating hooks; (b) fails naming `.aw/records/docs/research/` as dead path.
+3. Derived probe paths:
+```python
+Derived probe paths: ['.aw/records/research/x.py', '.agents/docs/research/x.py']
+```
+Contains `.aw/records/research` and `.agents/docs/research`, and does NOT contain `.aw/records/docs/research`.
+In-test statement quoting why the tuple entry is filtered out:
+```python
+    # Spec 20260817-2124-01 G4 flattened .aw/records/docs/research to .aw/records/research
+    # and refused an intermediate .aw/records/docs/ migration hop. The tuple entry
+    # ('.aw', 'records', 'docs', 'research') in artifact_core._VERBATIM_PRESERVED_SEGMENTS
+    # is unreachable by design in repo layout; it is retained in the writer tuple only
+    # so an already-written file in a partially-migrated checkout is still passed through
+    # byte-for-byte by the writer. In the pre-commit hook configuration, E-01 specifically
+    # deleted this dead path, so it must not be in the hook probe set.
+    EXCLUDED_WRITER_SEGMENTS = {
+        (".aw", "records", "docs", "research"),
+    }
+```
+`agent_workflows/artifact_core.py` is unmodified and absent from `git status --short`.
+4. Cases (c) and (d) pass in BOTH the reverted and restored runs:
+- `test_safety_hooks_do_not_exclude_verbatim_preserved_trees PASSED`
+- `test_mutating_hook_ids_are_complete PASSED`
+Evidence that (d) is non-vacuous: when `ruff-format` was modified in parsed data, test (d) failed:
+```
+AssertionError: Items in the first set but not the second:
+'ruff-format' : Mutating hook ids missing from .pre-commit-config.yaml: {'ruff-format'}
+FAILED (failures=1)
+```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the final summary line of a BARE `python3 -m pytest` (no added flags) showing 0 failed. For any failure, paste its node id and evidence that it fails identically at the base commit (pre-existing) or admit it is new. Do not paste a narrowed run in place of the bare one.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Output from bare `python3 -m pytest`:
+```
+NOTE: 205 tests were deselected by -m/-k and did not run (the default run skips 'slow' and 'livecorpus'); run everything with: make test-all
+3166 passed, 2 skipped, 3 warnings in 51.49s
+```
+Baseline at lane start: 3162 passed, 2 skipped, 3 warnings.
+Count increased by exactly 4 (from 3162 to 3166), with 0 failures.
+  - Result: pass
 
 ## Approval and execution gate
 

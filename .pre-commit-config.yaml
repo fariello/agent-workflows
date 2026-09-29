@@ -1,11 +1,13 @@
 # Verbatim-preserved paths. Content-MUTATING hooks (whitespace/eof fixers, ruff lint+format)
 # are excluded for these so they never rewrite as-delivered artifacts:
-#   - .agents/docs/research/ and .aw/records/docs/research/: cited external research artifacts
-#     (their own formatting/punctuation is intentional; the .aw/ path mirrors the legacy one
-#     after the physical-layout migration).
+#   - .aw/records/research/: the current flat tree of cited external research artifacts
+#     (their own formatting/punctuation is intentional). The legacy .agents/docs/research/
+#     path is retained for a target repo still on that layout.
 #   - .aw/system/: the migrated workflow bundle (a relocated copy of the delivered .agents/
 #     workflows/ tree; the legacy source copies are still linted/formatted, so the bundle stays
 #     clean without re-mutating the migrated tree).
+# Writer-side twin: artifact_core._VERBATIM_PRESERVED_SEGMENTS carries the same policy for the
+# toolkit's own writer, and tests/test_precommit_verbatim_exclusions.py pins the two together.
 # SAFETY hooks (gitleaks, large-file check, local-leaks) still apply everywhere, including these
 # paths, so secrets or oversized blobs cannot slip in.
 # Hook TYPES installed by `pre-commit install` (integpath 29wvmj, OQ-03 option (b)). `pre-commit` alone
@@ -27,9 +29,9 @@ repos:
     rev: v4.6.0
     hooks:
       - id: trailing-whitespace
-        exclude: '^(\.agents/docs/research/|\.aw/records/docs/research/|\.aw/system/)'
+        exclude: '^(\.agents/docs/research/|\.aw/records/research/|\.aw/system/)'
       - id: end-of-file-fixer
-        exclude: '^(\.agents/docs/research/|\.aw/records/docs/research/|\.aw/system/)'
+        exclude: '^(\.agents/docs/research/|\.aw/records/research/|\.aw/system/)'
       - id: check-yaml
       - id: check-added-large-files
         args: ['--maxkb=500']
@@ -44,9 +46,9 @@ repos:
     hooks:
       - id: ruff
         args: [--fix]
-        exclude: '^(\.agents/docs/research/|\.aw/records/docs/research/|\.aw/system/)'
+        exclude: '^(\.agents/docs/research/|\.aw/records/research/|\.aw/system/)'
       - id: ruff-format
-        exclude: '^(\.agents/docs/research/|\.aw/records/docs/research/|\.aw/system/)'
+        exclude: '^(\.agents/docs/research/|\.aw/records/research/|\.aw/system/)'
 
   # Local guard (D92/D93): no local leaks (identifying info) in TRACKED files. Scans the whole
   # tracked tree (not just staged files) via the packaged agent_workflows.local_leaks engine,
