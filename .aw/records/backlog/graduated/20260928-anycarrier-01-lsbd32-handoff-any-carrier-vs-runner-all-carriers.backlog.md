@@ -1,5 +1,6 @@
 - Id: lsbd32
-- Status: open
+- Status: graduated
+- Graduated-To: anycarrier
 - Blocks-Release: next
 - Set: anycarrier
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: The shared close predicate's HANDOFF arm closes on ANY executed carrier while the runner requires ALL of them, so the two disagree in one tree
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260929T021205Z-3914774: 2o5wka
 - 2026-09-28 created (aw backlog): The shared close predicate's HANDOFF arm closes on ANY executed carrier while the runner requires ALL of them, so the two disagree in one tree
 
 MEASURED 2026-09-28 at HEAD fe6a1d1e in ONE tree, with NO lane and no --dir split involved, so this is NOT the 10pcd5 coupling and must not be folded into it.
