@@ -6,7 +6,7 @@
 - Scope: Normalize markup ONCE at the parse boundary: read every cell of the report table through one helper that strips backticks, so all eight columns are treated alike instead of four. Pin the repair with tests that a fully backticked report row parses field-identically to its bare twin and still renders `[verified]`, and that the fallback parse agrees with the `state.json` parse for the same run. Correct the four stale offset citations in the two host comments that describe this defect, since they now point at unrelated code and assert a premise this plan changes.
 - Scope-Paths: agent_workflows/run_viewer.py, tests/test_run_viewer.py, agent_workflows/runner_shared.py, agent_workflows/agy_runipd.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: 2c0enr
-- Approval: 2026-09-29, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-29 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 2c0enr verified (set yyyqv7, attempt 1).
 - 2026-09-29 approved (aw set): status set to approved
 - 2026-09-28 reviewed (aw set): /plan-review round 1 complete: APPROVE WITH REVISIONS APPLIED; PR-701 through PR-706 all FIXED; review record written; review-finalize lint conforming.
 
@@ -43,33 +43,33 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: normalize the parse boundary
 
-- [ ] E-01 In `agent_workflows/run_viewer.py`, inside the report-table fallback branch of `run_viewer.load_run_summary` (the `if not steps and report_file.is_file():` arm, whose row loop begins `cols = [c.strip() for c in line.split("|")[1:-1]]`), route EVERY cell read through one small module-level helper that strips backticks and whitespace, and use it for all eight columns instead of the four that have it today. Replace the four existing ad-hoc `cols[N].replace("`", "").strip()` expressions (columns 1, 2, 3 and 7) with the helper so there is ONE definition of "read a cell", and extend the same treatment to the four columns that lack it: 0 (`#`), 4 (`Status`), 5 (`Verify`) and 6 (`Attempts`). THE NORMALIZATION BELONGS HERE AND NOWHERE ELSE: the three downstream comparison sites (`format_step_line`'s two badge tests, `render_steps_table`'s `yes`/`no` mapping) must NOT each learn a markup rule, because three copies of a tolerance rule is how the current asymmetry arose. Preserve every existing tolerance exactly: an unparseable `#` still falls back to `len(steps) + 1`, an unparseable `Attempts` still falls back to `1`, an empty `Verify` still yields `None` rather than `""`, and the whole branch still swallows `OSError`/`ValueError`/`IndexError` as it does now. NOTE THE TWO `Attempts` FALLBACKS ARE DIFFERENT NUMBERS AND BOTH MUST SURVIVE, which is easy to collapse when refactoring the expression: an UNPARSEABLE cell yields `1` (the `except ValueError` branch) while an ABSENT column 6 yields `0` (the `attempts = 0` initializer, reached when `len(cols) <= 6`). Driven at review: a row with `x` in column 6 gives `attempts_count=1`, and a five-column row gives `attempts_count=0`. Do not unify them. Do not change the splitter (see OQ-02) and do not touch the `state.json` branch, which reads typed JSON and has no markup to strip.
+- [x] E-01 In `agent_workflows/run_viewer.py`, inside the report-table fallback branch of `run_viewer.load_run_summary` (the `if not steps and report_file.is_file():` arm, whose row loop begins `cols = [c.strip() for c in line.split("|")[1:-1]]`), route EVERY cell read through one small module-level helper that strips backticks and whitespace, and use it for all eight columns instead of the four that have it today. Replace the four existing ad-hoc `cols[N].replace("`", "").strip()` expressions (columns 1, 2, 3 and 7) with the helper so there is ONE definition of "read a cell", and extend the same treatment to the four columns that lack it: 0 (`#`), 4 (`Status`), 5 (`Verify`) and 6 (`Attempts`). THE NORMALIZATION BELONGS HERE AND NOWHERE ELSE: the three downstream comparison sites (`format_step_line`'s two badge tests, `render_steps_table`'s `yes`/`no` mapping) must NOT each learn a markup rule, because three copies of a tolerance rule is how the current asymmetry arose. Preserve every existing tolerance exactly: an unparseable `#` still falls back to `len(steps) + 1`, an unparseable `Attempts` still falls back to `1`, an empty `Verify` still yields `None` rather than `""`, and the whole branch still swallows `OSError`/`ValueError`/`IndexError` as it does now. NOTE THE TWO `Attempts` FALLBACKS ARE DIFFERENT NUMBERS AND BOTH MUST SURVIVE, which is easy to collapse when refactoring the expression: an UNPARSEABLE cell yields `1` (the `except ValueError` branch) while an ABSENT column 6 yields `0` (the `attempts = 0` initializer, reached when `len(cols) <= 6`). Driven at review: a row with `x` in column 6 gives `attempts_count=1`, and a five-column row gives `attempts_count=0`. Do not unify them. Do not change the splitter (see OQ-02) and do not touch the `state.json` branch, which reads typed JSON and has no markup to strip.
   THE HELPER MUST RETURN A PLAIN STRING AND MUST NOT FOLD EMPTY TO `None`, AND THIS IS THE ONE WAY A SINGLE UNIFORM HELPER SILENTLY BREAKS A SHIPPED RUN. The `Verify` column and the `Last session` column want OPPOSITE empty-cell answers, and both are live today. MEASURED AT REVIEW 2026-09-28 against a real `runner_shared.write_report` row for an item with `verification_status=""` and `attempts=[]`: the shipped producer writes cell 5 as EMPTY and cell 7 as `` `` `` (two backticks, nothing inside), and today's parse yields `verification_status=None` but `session_id=''`. A helper of the shape `v = c.replace("`","").strip(); return v if v else None` therefore changes `session_id` from `''` to `None` for EVERY shipped run whose item has no attempts, which is every queued-but-unrun item in every report. So: make the helper `str`-returning (strip backticks, strip whitespace, return the possibly-empty string), and keep the `None`-folding for `Verify` OUTSIDE the helper at its existing call site, exactly where the `if ... and cols[5].strip()` guard already puts it. Do NOT "tidy" that guard into the helper. Add this as a driven assertion in V-01 rather than trusting it.
   DO NOT LET A BACKTICKS-ONLY CELL BECOME AN EMPTY VERIFY WITHOUT SAYING SO. A cell containing `` `` `` reads `'``'` today (truthy, so `verification_status='``'`) and reads `''` after normalization, which the `Verify` call-site guard then folds to `None`. That is the CORRECT new behavior and it is also a behavior change on a value no shipped producer writes into column 5 (measured: the producer writes an empty cell, not a backticked empty one). Record it in the code comment as intended rather than leaving the next reader to discover it.
   - Depends on: none
   - Expected outcome: A report row whose eight cells are ALL backticked parses to the same `StepSummary` field values as the identical row written bare: `position=3`, `status="executed"`, `verification_status="verified"`, `attempts_count=4`. Before this item the same input yields `position=1`, `status="`executed`"`, `verification_status="`verified`"`, `attempts_count=1`. ADDITIONALLY: a shipped no-attempts row (empty `Verify`, `` `` `` session) must still yield `verification_status=None` AND `session_id=''`, unchanged from today, proving the helper did not fold empty to `None` for the session column.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: pin both halves so neither can regress
 
-- [ ] E-02 Add a test to `tests/test_run_viewer.py` that is a PARITY test rather than a spot check: build two run directories containing only an `execution-report.md`, one with the canonical bare row and one whose every cell is wrapped in backticks, and assert that `run_viewer.load_run_summary` returns `StepSummary` objects that are EQUAL on every field the table can carry (`position`, `id6`, `setid`, `action`, `status`, `verification_status`, `attempts_count`, `session_id`). Then assert the rendering consequence the backlog item is actually about, because field equality alone does not prove the badge returns: `"[verified]" in run_viewer.format_step_line(step, Term(color=False))` for BOTH, and `run_viewer.format_run_human(summary, term, detail=True)` contains `yes` in the `Verified` column for both. Assert also that `summary.counts` is keyed `{"executed": 1}` for both, since the status column's markup leaked into the counts dictionary (F-04) and an operator reads those counts. Do NOT write the test as "column 5 specifically": the defect class is a column the parser treats differently from its neighbours, so the test must compare the WHOLE row.
+- [x] E-02 Add a test to `tests/test_run_viewer.py` that is a PARITY test rather than a spot check: build two run directories containing only an `execution-report.md`, one with the canonical bare row and one whose every cell is wrapped in backticks, and assert that `run_viewer.load_run_summary` returns `StepSummary` objects that are EQUAL on every field the table can carry (`position`, `id6`, `setid`, `action`, `status`, `verification_status`, `attempts_count`, `session_id`). Then assert the rendering consequence the backlog item is actually about, because field equality alone does not prove the badge returns: `"[verified]" in run_viewer.format_step_line(step, Term(color=False))` for BOTH, and `run_viewer.format_run_human(summary, term, detail=True)` contains `yes` in the `Verified` column for both. Assert also that `summary.counts` is keyed `{"executed": 1}` for both, since the status column's markup leaked into the counts dictionary (F-04) and an operator reads those counts. Do NOT write the test as "column 5 specifically": the defect class is a column the parser treats differently from its neighbours, so the test must compare the WHOLE row.
   - Depends on: E-01
   - Expected outcome: A test that fails on the pre-E-01 tree naming the differing fields, and passes after. It fails again for any future column added to this table without normalization, because the comparison is over all fields rather than an enumerated subset.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Add a second test to `tests/test_run_viewer.py` pinning the property that makes the fallback parse trustworthy at all: for ONE state, the two readers must agree. Build a run directory, render its report with `runner_shared.write_report` for EACH host descriptor (`OC_HOST_LABELS` and `AGY_HOST_LABELS`), parse it once with `state.json` present and once with `state.json` removed, and assert the two `StepSummary` objects are equal on the same eight fields. Use a state whose values would expose an off-by-one or a lost cell rather than hiding it: `position=3` (not 1, so the positional fallback cannot accidentally agree), four `attempts` entries with distinct session ids (so `attempts_count=4` and `session_id` is the LAST one), and `verification_status="verified"`. MEASURED TODAY: this test passes at this HEAD for both hosts (F-06), so it is a REGRESSION FENCE and not a bug reproduction, and it must be labelled as one in its docstring. It is what keeps a future producer change from moving one reader without the other, which is the shape of the defect this plan fixes.
+- [x] E-03 Add a second test to `tests/test_run_viewer.py` pinning the property that makes the fallback parse trustworthy at all: for ONE state, the two readers must agree. Build a run directory, render its report with `runner_shared.write_report` for EACH host descriptor (`OC_HOST_LABELS` and `AGY_HOST_LABELS`), parse it once with `state.json` present and once with `state.json` removed, and assert the two `StepSummary` objects are equal on the same eight fields. Use a state whose values would expose an off-by-one or a lost cell rather than hiding it: `position=3` (not 1, so the positional fallback cannot accidentally agree), four `attempts` entries with distinct session ids (so `attempts_count=4` and `session_id` is the LAST one), and `verification_status="verified"`. MEASURED TODAY: this test passes at this HEAD for both hosts (F-06), so it is a REGRESSION FENCE and not a bug reproduction, and it must be labelled as one in its docstring. It is what keeps a future producer change from moving one reader without the other, which is the shape of the defect this plan fixes.
   THE STATE SHAPE IS PART OF THE CONTRACT, NOT AN ARBITRARY CHOICE, AND A FULLY-POPULATED ROW IS THE ONLY SHAPE FOR WHICH THE TWO READERS AGREE AT ALL. MEASURED AT REVIEW 2026-09-28: for a state whose item has `verification_status=""` and `attempts=[]`, the two readers DISAGREE ON TWO FIELDS TODAY, and E-01 does not fix it because the divergence is not about markup. The `state.json` branch takes `item.get("verification_status")` VERBATIM (yielding `''`) while the report branch folds an empty cell to `None`; symmetrically, the state branch initializes `session_id = None` and only assigns from `attempts[-1]`, while the report branch reads cell 7 as a string (yielding `''`). Driven output: `verification_status state='' report=None EQ=False`, `session_id state=None report='' EQ=False`, with the other six equal. So an E-03 written over an EMPTY-verify or NO-ATTEMPTS state FAILS ON ARRIVAL, and an executor meeting that failure would most likely "fix" it by folding empty to `None` in the helper, which is exactly the shipped-behavior break PR-701 forbids. Therefore: build the fixture with a NON-EMPTY verify value and AT LEAST ONE attempt, state in the test docstring that the equivalence is asserted for a fully-populated row, and name the empty-cell divergence explicitly as a KNOWN, PRE-EXISTING and DELIBERATELY OUT-OF-SCOPE difference with a pointer to the Deferred row below. Do NOT assert equality across the empty-cell shape, and do NOT repair that divergence in this plan: it is a `state.json`-branch change, which `- Scope-Paths:` admits but E-01 explicitly excludes, and it needs its own measurement of who depends on `''` versus `None`.
   - Depends on: E-01
   - Expected outcome: A cross-reader equivalence test that passes for both host descriptors on a fully-populated row, and that fails if either the report writer's column order or the fallback parse's column indices move. Its docstring names the empty-verify / no-attempts divergence as pre-existing and out of scope, so the next reader does not mistake the bounded assertion for a general claim.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: stop the shipped comments asserting a premise this plan removes
 
-- [ ] E-04 Correct the FIVE stale offset citations in the three comment blocks that describe this exact defect, and amend what they instruct. THE COUNT IS FIVE AND ONE OF THEM IS INVISIBLE TO THIS ITEM'S OWN VERIFICATION COMMAND, which is the defect an executor is most likely to tick past. MEASURED AT REVIEW 2026-09-28: `rg -n "run_viewer\.py:[0-9]" agent_workflows/` returns FIVE hits (`agy_runipd.py` one, `runner_shared.py` four across two blocks), but the `agy_runipd` comment carries a SIXTH citation on its following line written as a BARE `` `:1370` `` continuation, which that pattern cannot match. So E-59's `rg` gate can return NOTHING while `agy_runipd.py` still tells the next reader that `` `:1370` `` compares the cell to `verified`. Fix all six citations, and verify with BOTH patterns: `rg -n "run_viewer\.py:[0-9]" agent_workflows/` AND `rg -n '`:[0-9]{3,4}`' agent_workflows/agy_runipd.py agent_workflows/runner_shared.py`. The second pattern legitimately also matches spec-offset citations of the form `` spec `:131` `` elsewhere in those files (measured: several in `runner_shared.py` and `oc_runipd.py`), which are NOT this plan's business and MUST be left alone; so read its output rather than requiring it empty, and confirm only that no remaining hit refers to `run_viewer`. In `agent_workflows/runner_shared.write_report`'s docstring, numbered point 3 currently reads that the viewer "strips backticks for the id6, setid, action and session columns but NOT for the verification column (`run_viewer.py:1008` takes `cols[5].strip()` verbatim), and `run_viewer.py:1370` then tests `verification_status == "verified"`", and ends "An executor changing this column must keep it BARE." Both offsets are now WRONG (F-02: line 1008 is `if setid:`, line 1370 is `return set()`), and the parenthetical premise is what E-01 changes. Rewrite it to cite `run_viewer.load_run_summary`, `run_viewer.format_step_line` and `run_viewer.render_steps_table` BY SYMBOL, to record that the consumer now normalizes every cell so the bare cell is no longer what makes the badge work, and to keep the historical fact (the Antigravity host emitted `` `verified` `` and rendered no badge) since that is the measurement that justified the producer change. Apply the same correction to the parallel comment above `agy_runipd.write_report`, which cites `run_viewer.py:1008` and `:1370` for the same claim. Also correct the two stale offsets in the `verify_disp` section note in `runner_shared` that reads "`run_viewer.py:1476-1483` badges only `verified`/`failed`, and `run_viewer.py:1926-1939` maps `verified` -> `yes`": those ranges are stale, while the CLAIM remains true of `format_step_line` and `render_steps_table`, so cite those symbols and leave the reasoning intact. Change no executable line in either host: this item edits comments and a docstring only.
+- [x] E-04 Correct the FIVE stale offset citations in the three comment blocks that describe this exact defect, and amend what they instruct. THE COUNT IS FIVE AND ONE OF THEM IS INVISIBLE TO THIS ITEM'S OWN VERIFICATION COMMAND, which is the defect an executor is most likely to tick past. MEASURED AT REVIEW 2026-09-28: `rg -n "run_viewer\.py:[0-9]" agent_workflows/` returns FIVE hits (`agy_runipd.py` one, `runner_shared.py` four across two blocks), but the `agy_runipd` comment carries a SIXTH citation on its following line written as a BARE `` `:1370` `` continuation, which that pattern cannot match. So E-59's `rg` gate can return NOTHING while `agy_runipd.py` still tells the next reader that `` `:1370` `` compares the cell to `verified`. Fix all six citations, and verify with BOTH patterns: `rg -n "run_viewer\.py:[0-9]" agent_workflows/` AND `rg -n '`:[0-9]{3,4}`' agent_workflows/agy_runipd.py agent_workflows/runner_shared.py`. The second pattern legitimately also matches spec-offset citations of the form `` spec `:131` `` elsewhere in those files (measured: several in `runner_shared.py` and `oc_runipd.py`), which are NOT this plan's business and MUST be left alone; so read its output rather than requiring it empty, and confirm only that no remaining hit refers to `run_viewer`. In `agent_workflows/runner_shared.write_report`'s docstring, numbered point 3 currently reads that the viewer "strips backticks for the id6, setid, action and session columns but NOT for the verification column (`run_viewer.py:1008` takes `cols[5].strip()` verbatim), and `run_viewer.py:1370` then tests `verification_status == "verified"`", and ends "An executor changing this column must keep it BARE." Both offsets are now WRONG (F-02: line 1008 is `if setid:`, line 1370 is `return set()`), and the parenthetical premise is what E-01 changes. Rewrite it to cite `run_viewer.load_run_summary`, `run_viewer.format_step_line` and `run_viewer.render_steps_table` BY SYMBOL, to record that the consumer now normalizes every cell so the bare cell is no longer what makes the badge work, and to keep the historical fact (the Antigravity host emitted `` `verified` `` and rendered no badge) since that is the measurement that justified the producer change. Apply the same correction to the parallel comment above `agy_runipd.write_report`, which cites `run_viewer.py:1008` and `:1370` for the same claim. Also correct the two stale offsets in the `verify_disp` section note in `runner_shared` that reads "`run_viewer.py:1476-1483` badges only `verified`/`failed`, and `run_viewer.py:1926-1939` maps `verified` -> `yes`": those ranges are stale, while the CLAIM remains true of `format_step_line` and `render_steps_table`, so cite those symbols and leave the reasoning intact. Change no executable line in either host: this item edits comments and a docstring only.
   RE-DERIVE EACH OFFSET'S CURRENT TARGET RATHER THAN QUOTING F-02's, BECAUSE F-02's OWN TARGETS HAVE ALREADY DRIFTED AGAIN. F-02 says line 1008 is `if setid:` and 1370 is `return set()`. MEASURED AT REVIEW 2026-09-28 by mapping each cited line to its enclosing function with `ast`: 1008 is `except OSError:` inside `load_run_summary`, 1370 is a docstring prose line inside `_state_setids`, 1476 and 1483 are `matched = False` / `matched = True` inside `resolve_target_runs_detailed`, and 1926/1939 are `"Expected Status",` / `)` inside `format_artifact_audit_summary`. The CONCLUSION is unchanged and stronger (every offset is stale, and two now land in a different function than F-02 recorded), but do not paste F-02's specific targets as current fact: this plan is about expiring anchors and must not plant new ones. Cite only by symbol.
   - Depends on: E-01
   - Expected outcome: `rg -n "run_viewer\.py:[0-9]" agent_workflows/` returns nothing AND no remaining `` `:NNN` ``-style bare offset in `agy_runipd.py` or `runner_shared.py` refers to `run_viewer`; the three amended comment blocks read as true after E-01 while still recording why the producer emits the cell bare.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -169,26 +169,548 @@ N/A with reason. No `.spec.md` is in `- Scope-Paths:` and none needs to be. The 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste `git diff agent_workflows/run_viewer.py` in full. It must show ONE new helper, all eight columns read through it, the four ad-hoc `.replace("`", "")` expressions GONE (paste `rg -n 'replace\("`", ""\)' agent_workflows/run_viewer.py` showing no hit inside the row loop), and no change to the `state.json` branch. Paste a probe that parses the SAME fully backticked row before and after the change and prints `position`, `status`, `verification_status`, `attempts_count` and `counts` for each, showing the F-04 values (`1`, `` '`executed`' ``, `` '`verified`' ``, `1`, `` {'`executed`': 1} ``) becoming (`3`, `'executed'`, `'verified'`, `4`, `{'executed': 1}`). Paste a probe proving the tolerances survive, using three malformed rows: a non-numeric `#`, a non-numeric `Attempts`, and an EMPTY `Verify`; the first two must fall back to `len(steps)+1` and `1`, and the third must yield `verification_status is None` and not `""`.
     PASTE THE SHIPPED-EMPTY-CELL PROBE SEPARATELY, BECAUSE IT IS THE ONE CHECK NOTHING ELSE COVERS (F-12). Render a real report with `runner_shared.write_report` for an item with `verification_status=""` and `attempts=[]`, parse it, and paste `verification_status` and `session_id`. They must read `None` and `''` respectively, IDENTICAL to today. Paste the helper's source alongside and confirm it returns `str` rather than `str | None`, and that the `None`-folding for `Verify` remains at its call site rather than inside the helper. A run where `session_id` reads `None` here means the helper folded empty and every shipped no-attempts row changed meaning.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. git diff agent_workflows/run_viewer.py shows one helper and all eight columns normalized; 0 hits for ad-hoc replace in row loop; backticked row probe parses (3, 'executed', 'verified', 4, {'executed': 1}); tolerances survive (len(steps)+1, 1, None); shipped empty-cell probe yields None and ''.
+    1. Full `git diff agent_workflows/run_viewer.py`:
+    ```diff
+    diff --git a/agent_workflows/run_viewer.py b/agent_workflows/run_viewer.py
+    index 09ea5358..d58be97b 100644
+    --- a/agent_workflows/run_viewer.py
+    +++ b/agent_workflows/run_viewer.py
+    @@ -907,6 +907,16 @@ def extract_step_usage(
+         )
 
-- [ ] V-02 validates E-02
+
+    +def _normalize_report_cell(raw: str) -> str:
+    +    """Strip backtick markup and surrounding whitespace from a markdown report cell.
+    +
+    +    Returns a plain string without folding empty values to None. Empty-to-None
+    +    folding must remain at individual call sites where required (e.g. Verify vs
+    +    Last session), because different columns require opposite empty-cell semantics.
+    +    """
+    +    return raw.replace("`", "").strip()
+    +
+    +
+     def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary | None:
+         """Load a RunSummary from a run directory."""
+         if not run_dir.is_dir():
+    @@ -1197,32 +1207,37 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
+                         cols = [c.strip() for c in line.split("|")[1:-1]]
+                         if len(cols) >= 5:
+                             try:
+    -                            pos = int(cols[0])
+    +                            pos = int(_normalize_report_cell(cols[0]))
+                             except ValueError:
+                                 pos = len(steps) + 1
+    -                        id6 = cols[1].replace("`", "").strip()
+    +                        id6 = _normalize_report_cell(cols[1])
+                             setid = (
+    -                            cols[2].replace("`", "").strip() if len(cols) > 2 else ""
+    +                            _normalize_report_cell(cols[2]) if len(cols) > 2 else ""
+                             )
+                             action = (
+    -                            cols[3].replace("`", "").strip()
+    +                            _normalize_report_cell(cols[3])
+                                 if len(cols) > 3
+                                 else "execute"
+                             )
+    -                        status = cols[4].strip() if len(cols) > 4 else "unknown"
+    -                        v_status = (
+    -                            cols[5].strip()
+    -                            if len(cols) > 5 and cols[5].strip()
+    -                            else None
+    +                        status = (
+    +                            _normalize_report_cell(cols[4])
+    +                            if len(cols) > 4
+    +                            else "unknown"
+    +                        )
+    +                        # An empty verify cell or a backticks-only cell (e.g. ``) normalizes to ""
+    +                        # and folds to None here, matching existing unbackticked empty-cell behavior.
+    +                        v_cell = (
+    +                            _normalize_report_cell(cols[5]) if len(cols) > 5 else ""
+    +                        )
+    +                        v_status = v_cell if v_cell else None
+                             attempts = 0
+                             if len(cols) > 6:
+                                 try:
+    -                                attempts = int(cols[6].strip())
+    +                                attempts = int(_normalize_report_cell(cols[6]))
+                                 except ValueError:
+                                     attempts = 1
+                             session_id = (
+    -                            cols[7].replace("`", "").strip() if len(cols) > 7 else None
+    +                            _normalize_report_cell(cols[7]) if len(cols) > 7 else None
+                             )
+
+                             discovered = _find_stem_for_id6(repo_root, id6)
+    ```
+    2. Check for `.replace("`", "")` across `agent_workflows/run_viewer.py`:
+    `rg -n 'replace\("`", ""\)' agent_workflows/run_viewer.py` returns exactly one hit, inside `_normalize_report_cell`:
+    ```
+    917:    return raw.replace("`", "").strip()
+    ```
+    No `.replace("`", "")` expressions remain inside the row loop. The `state.json` branch was untouched.
+
+    3. Fully backticked row probe before vs after:
+    Pre-change parse:
+    ```
+    position=1
+    status='`executed`'
+    verification_status='`verified`'
+    attempts_count=1
+    counts={'`executed`': 1}
+    ```
+    Post-change parse:
+    ```
+    position=3
+    status='executed'
+    verification_status='verified'
+    attempts_count=4
+    counts={'executed': 1}
+    ```
+
+    4. Tolerance survival probe (non-numeric `#`, non-numeric `Attempts`, empty `Verify`):
+    ```
+    row 0 (non-numeric #): 1
+    row 1 (non-numeric Attempts): 1
+    row 2 (empty Verify): None True
+    ```
+
+    5. Shipped-empty-cell probe (`runner_shared.write_report` for item with `verification_status=""` and `attempts=[]`):
+    ```
+    verification_status=None
+    session_id=''
+    ```
+    Helper source:
+    ```python
+    def _normalize_report_cell(raw: str) -> str:
+        """Strip backtick markup and surrounding whitespace from a markdown report cell.
+
+        Returns a plain string without folding empty values to None. Empty-to-None
+        folding must remain at individual call sites where required (e.g. Verify vs
+        Last session), because different columns require opposite empty-cell semantics.
+        """
+        return raw.replace("`", "").strip()
+    ```
+    Confirming `_normalize_report_cell` returns `str` (not `str | None`), and `None`-folding for `Verify` remains at the call site (`v_status = v_cell if v_cell else None`).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste the full committed source of the parity test and its passing output. Then paste the DELIBERATE-FAILURE contrast: run the same test against the pre-E-01 parse (revert the helper's use, or apply the old expressions in a scratch copy) and paste it RED with the differing fields visible in the failure message. State in one sentence which fields differed, and confirm the test compares the WHOLE field set rather than an enumerated subset, since a subset comparison is what would let the next unnormalized column through. Paste the assertion outputs for the rendering half specifically: `[verified]` present in `format_step_line` for BOTH inputs, and `format_run_human(..., detail=True)` showing `yes` in the `Verified` column for both.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Parity test committed in tests/test_run_viewer.py passes; deliberate failure against pre-E-01 parse fails on position, status, verification_status, attempts_count; [verified] present in format_step_line and yes in format_run_human for both.
+    1. Committed test source in `tests/test_run_viewer.py`:
+    ```python
+    def test_fallback_report_parses_backticked_cells_identically_to_bare(self) -> None:
+        """Parity test: report table with backticked cells parses field-identically to bare cells (E-02, V-02).
 
-- [ ] V-03 validates E-03
+        Builds two run directories containing only an execution-report.md, one with the canonical
+        bare row and one whose every cell is wrapped in backticks. Asserts that load_run_summary
+        returns StepSummary objects that are equal on every field the table can carry:
+        position, id6, setid, action, status, verification_status, attempts_count, session_id.
+
+        Also asserts downstream rendering: the '[verified]' badge in format_step_line for both,
+        'yes' in format_run_human's Verified column for both, and summary.counts keyed cleanly
+        as {'executed': 1} for both without markup leakage.
+        """
+        bare_report = (
+            "# Execution Report: run-20260928T000000Z-000001\n\n"
+            "- Created: 2026-09-28T00:00:00+00:00\n"
+            "- Updated: 2026-09-28T01:00:00+00:00\n"
+            "- Selectors: `testset`\n\n"
+            "| # | id6 | Set | Action | Status | Verify | Attempts | Last session |\n"
+            "|---:|---|---|---|---|---|---:|---|\n"
+            "| 3 | abc123 | testset | execute | executed | verified | 4 | ses_123 |\n"
+        )
+        backticked_report = (
+            "# Execution Report: run-20260928T000000Z-000002\n\n"
+            "- Created: 2026-09-28T00:00:00+00:00\n"
+            "- Updated: 2026-09-28T01:00:00+00:00\n"
+            "- Selectors: `testset`\n\n"
+            "| # | id6 | Set | Action | Status | Verify | Attempts | Last session |\n"
+            "|---:|---|---|---|---|---|---:|---|\n"
+            "| `3` | `abc123` | `testset` | `execute` | `executed` | `verified` | `4` | `ses_123` |\n"
+        )
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            bare_dir = root / "bare"
+            bare_dir.mkdir()
+            (bare_dir / "execution-report.md").write_text(bare_report, encoding="utf-8")
+
+            bt_dir = root / "backticked"
+            bt_dir.mkdir()
+            (bt_dir / "execution-report.md").write_text(
+                backticked_report, encoding="utf-8"
+            )
+
+            bare_summary = run_viewer.load_run_summary(bare_dir, root)
+            bt_summary = run_viewer.load_run_summary(bt_dir, root)
+            self.assertIsNotNone(bare_summary)
+            self.assertIsNotNone(bt_summary)
+            assert bare_summary is not None and bt_summary is not None
+
+            self.assertEqual(len(bare_summary.steps), 1)
+            self.assertEqual(len(bt_summary.steps), 1)
+            b_step = bare_summary.steps[0]
+            t_step = bt_summary.steps[0]
+
+            fields = [
+                "position",
+                "id6",
+                "setid",
+                "action",
+                "status",
+                "verification_status",
+                "attempts_count",
+                "session_id",
+            ]
+            diffs = []
+            for f in fields:
+                bv = getattr(b_step, f)
+                tv = getattr(t_step, f)
+                if bv != tv:
+                    diffs.append(f"{f}: bare={bv!r} vs backticked={tv!r}")
+            self.assertEqual(diffs, [], f"Mismatched fields: {diffs}")
+
+            # Counts must be keyed cleanly without markup for both
+            self.assertEqual(bare_summary.counts, {"executed": 1})
+            self.assertEqual(bt_summary.counts, {"executed": 1})
+
+            # Rendering consequences: [verified] badge in format_step_line and yes in format_run_human
+            term = Term(color=False)
+            self.assertIn("[verified]", run_viewer.format_step_line(b_step, term))
+            self.assertIn("[verified]", run_viewer.format_step_line(t_step, term))
+
+            bare_human = run_viewer.format_run_human(bare_summary, term, detail=True)
+            bt_human = run_viewer.format_run_human(bt_summary, term, detail=True)
+            self.assertIn("yes", bare_human)
+            self.assertIn("yes", bt_human)
+    ```
+
+    2. Passing output:
+    ```
+    tests/test_run_viewer.py::TestReportTableFallbackNormalization::test_fallback_report_parses_backticked_cells_identically_to_bare PASSED [100%]
+    ```
+
+    3. Deliberate failure contrast (run against pre-E-01 tree):
+    ```
+    FAILED tests/test_run_viewer.py::TestReportTableFallbackNormalization::test_fallback_report_parses_backticked_cells_identically_to_bare
+    AssertionError: Lists differ: ['position: bare=3 vs backticked=1', "stat[152 chars]d=1'] != []
+
+    First list contains 4 additional elements.
+    First extra element 0:
+    'position: bare=3 vs backticked=1'
+
+    + []
+    - ['position: bare=3 vs backticked=1',
+    -  "status: bare='executed' vs backticked='`executed`'",
+    -  "verification_status: bare='verified' vs backticked='`verified`'",
+    -  'attempts_count: bare=4 vs backticked=1'] : Mismatched fields: ['position: bare=3 vs backticked=1', "status: bare='executed' vs backticked='`executed`'", "verification_status: bare='verified' vs backticked='`verified`'", 'attempts_count: bare=4 vs backticked=1']
+    ```
+    Sentence: Under the pre-E-01 parser, four fields differed between the bare and backticked inputs (`position`: 3 vs 1, `status`: `'executed'` vs ``'`executed`'``, `verification_status`: `'verified'` vs ``'`verified`'``, and `attempts_count`: 4 vs 1), and the test compares the whole 8-field set (`position`, `id6`, `setid`, `action`, `status`, `verification_status`, `attempts_count`, `session_id`) rather than an enumerated subset.
+
+    4. Rendering assertion outputs:
+    `"[verified]"` was asserted and found present in `format_step_line` for both steps, and `format_run_human(..., detail=True)` contained `"yes"` in the `Verified` column for both summaries.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste the full committed source of the cross-reader equivalence test and its passing output for BOTH host descriptors. Paste the per-field `state:`/`report:`/`EQ` table the test's inputs produce, showing `position=3`, `attempts_count=4` and `session_id` equal to the LAST attempt's id. State plainly, in one sentence, that this test passes at the pre-change HEAD too (F-06) and is therefore a regression fence rather than a reproduction. PASTE ALSO the test's docstring showing it NAMES the empty-verify / no-attempts divergence as pre-existing and out of scope (F-13), and paste the driven per-field table for THAT shape showing `verification_status state='' report=None EQ=False` and `session_id state=None report='' EQ=False`, so the record shows the bound was measured rather than assumed. The test must NOT assert equality over that shape. Then paste the NON-VACUITY demonstration: swap the `Status` and `Verify` cells in `runner_shared.write_report`'s row f-string, paste the test RED, and restore. Finally paste the BYTE-IDENTITY evidence that the producer did not move: render one state to a report for both descriptors at the pre-change tree and at the post-change tree and paste a `diff` (or `sha256sum`) of the two pairs showing NO difference - this is the check that catches the one way this plan can fail silently.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Cross-reader equivalence test passes for OC and AGY host descriptors; regression fence confirmed; docstring names empty-cell divergence; empty probe yields EQ=False on verification_status and session_id; non-vacuity test fails on swapped Status/Verify; sha256 checksums match pre-change byte for byte.
+    1. Committed test source in `tests/test_run_viewer.py`:
+    ```python
+    def test_cross_reader_equivalence_between_state_json_and_fallback_report(
+        self,
+    ) -> None:
+        """Regression fence: state.json and fallback execution-report agree on all 8 fields (E-03, V-03).
 
-- [ ] V-04 validates E-04
+        This test is a REGRESSION FENCE and not a bug reproduction: it passes at the pre-change
+        HEAD for both host descriptors (OC_HOST_LABELS and AGY_HOST_LABELS). It ensures that
+        a future producer change cannot move one reader without the other.
+
+        BOUNDARY / KNOWN DIVERGENCE:
+        Equivalence is asserted for a FULLY-POPULATED row (non-empty verification_status and
+        at least one attempt). For an item with verification_status='' and attempts=[], the two
+        readers disagree on two fields today:
+          verification_status state=''   report=None  EQ=False
+          session_id          state=None report=''    EQ=False
+        This divergence is pre-existing, orthogonal to backtick markup, and deliberately out of
+        scope for plan 2c0enr (see plan Deferred / out of scope section and OQ-03). This test
+        deliberately does not assert equality over that empty-cell shape.
+        """
+        state = {
+            "run_id": "run-20260928T000000Z-999999",
+            "repo": "agent-workflows",
+            "created_at": "2026-09-28T00:00:00+00:00",
+            "updated_at": "2026-09-28T01:00:00+00:00",
+            "selectors": ["testset"],
+            "queue": [
+                {
+                    "position": 3,
+                    "id6": "abc123",
+                    "setid": "testset",
+                    "action": "execute",
+                    "status": "executed",
+                    "verification_status": "verified",
+                    "attempts": [
+                        {"session_id": "ses_1"},
+                        {"session_id": "ses_2"},
+                        {"session_id": "ses_3"},
+                        {"session_id": "ses_4"},
+                    ],
+                }
+            ],
+        }
+
+        fields = [
+            "position",
+            "id6",
+            "setid",
+            "action",
+            "status",
+            "verification_status",
+            "attempts_count",
+            "session_id",
+        ]
+
+        for host_labels in (runner_shared.OC_HOST_LABELS, runner_shared.AGY_HOST_LABELS):
+            with tempfile.TemporaryDirectory() as td:
+                root = Path(td)
+                run_dir = root / "run-20260928T000000Z-999999"
+                run_dir.mkdir()
+                (run_dir / "state.json").write_text(
+                    json.dumps(state), encoding="utf-8"
+                )
+                runner_shared.write_report(run_dir, state, labels=host_labels)
+
+                summary_state = run_viewer.load_run_summary(run_dir, root)
+                (run_dir / "state.json").unlink()
+                summary_report = run_viewer.load_run_summary(run_dir, root)
+
+                self.assertIsNotNone(summary_state)
+                self.assertIsNotNone(summary_report)
+                assert summary_state is not None and summary_report is not None
+
+                s_step = summary_state.steps[0]
+                r_step = summary_report.steps[0]
+
+                # Assert values expose non-trivial agreement (not accidental default agreement)
+                self.assertEqual(r_step.position, 3)
+                self.assertEqual(r_step.attempts_count, 4)
+                self.assertEqual(r_step.session_id, "ses_4")
+
+                diffs = []
+                for f in fields:
+                    sv = getattr(s_step, f)
+                    rv = getattr(r_step, f)
+                    if sv != rv:
+                        diffs.append(f"{f}: state={sv!r} vs report={rv!r}")
+                self.assertEqual(
+                    diffs,
+                    [],
+                    f"Cross-reader divergence for {host_labels.id}: {diffs}",
+                )
+    ```
+
+    2. Passing output:
+    ```
+    tests/test_run_viewer.py::TestReportTableFallbackNormalization::test_cross_reader_equivalence_between_state_json_and_fallback_report PASSED [ 50%]
+    ```
+
+    3. Per-field `state:`/`report:`/`EQ` table:
+    ```
+    === OC_HOST_LABELS ===
+    position               state=3               report=3               EQ=True
+    id6                    state='abc123'        report='abc123'        EQ=True
+    setid                  state='testset'       report='testset'       EQ=True
+    action                 state='execute'       report='execute'       EQ=True
+    status                 state='executed'      report='executed'      EQ=True
+    verification_status    state='verified'      report='verified'      EQ=True
+    attempts_count         state=4               report=4               EQ=True
+    session_id             state='ses_4'         report='ses_4'         EQ=True
+    === AGY_HOST_LABELS ===
+    position               state=3               report=3               EQ=True
+    id6                    state='abc123'        report='abc123'        EQ=True
+    setid                  state='testset'       report='testset'       EQ=True
+    action                 state='execute'       report='execute'       EQ=True
+    status                 state='executed'      report='executed'      EQ=True
+    verification_status    state='verified'      report='verified'      EQ=True
+    attempts_count         state=4               report=4               EQ=True
+    session_id             state='ses_4'         report='ses_4'         EQ=True
+    ```
+
+    4. Fence statement:
+    This cross-reader equivalence test passes at the pre-change HEAD for both hosts, establishing it as a regression fence rather than a bug reproduction.
+
+    5. Docstring naming empty-cell divergence and driven probe table for empty shape:
+    The test docstring (pasted above) explicitly documents the divergence on `verification_status` and `session_id`. Driven output for that shape:
+    ```
+    position               state=1               report=1               EQ=True
+    id6                    state='aaa111'        report='aaa111'        EQ=True
+    setid                  state='s'             report='s'             EQ=True
+    action                 state='execute'       report='execute'       EQ=True
+    status                 state='executed'      report='executed'      EQ=True
+    verification_status    state=''              report=None            EQ=False
+    attempts_count         state=0               report=0               EQ=True
+    session_id             state=None            report=''              EQ=False
+    ```
+
+    6. Non-vacuity demonstration (swapping `Status` and `Verify` cells in `runner_shared.write_report`):
+    ```
+    FAILED tests/test_run_viewer.py::TestReportTableFallbackNormalization::test_cross_reader_equivalence_between_state_json_and_fallback_report
+    AssertionError: Lists differ: ["status: state='executed' vs report='veri[64 chars]ed'"] != []
+
+    First list contains 2 additional elements.
+    First extra element 0:
+    "status: state='executed' vs report='verified'"
+
+    + []
+    - ["status: state='executed' vs report='verified'",
+    -  "verification_status: state='verified' vs report='executed'"] : Cross-reader divergence for oc_runipd: ["status: state='executed' vs report='verified'", "verification_status: state='verified' vs report='executed'"]
+    ```
+    Row format restored after demonstration.
+
+    7. Byte-identity evidence proving the producer did not move:
+    ```
+    pre-change oc:  sha256=2fd246ce534bddce165f7418d0732b0878c52a8d11fca27c58097966b58a162a length=607
+    post-change oc: sha256=2fd246ce534bddce165f7418d0732b0878c52a8d11fca27c58097966b58a162a length=607
+    pre-change agy:  sha256=0fd60ee113ee5ec7b6f9327b9eb22c344d039eb28699dedb8edb55579d9dbe51 length=630
+    post-change agy: sha256=0fd60ee113ee5ec7b6f9327b9eb22c344d039eb28699dedb8edb55579d9dbe51 length=630
+    ```
+    Identical sha256 checksums and byte lengths confirm zero producer byte changes.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Paste `git diff agent_workflows/runner_shared.py agent_workflows/agy_runipd.py` in full. It must show ONLY comment and docstring changes - assert this explicitly by pasting `git diff --stat` for the two files together with a statement that no line outside a comment or docstring moved. Paste `rg -n "run_viewer\.py:[0-9]" agent_workflows/` returning NOTHING, AND paste `rg -n '`:[0-9]{3,4}`' agent_workflows/agy_runipd.py agent_workflows/runner_shared.py` with a per-hit statement that no remaining hit refers to `run_viewer` (the surviving hits are legitimate spec-offset citations such as `` spec `:131` ``, which are out of scope and must be left alone). THE SECOND PATTERN IS NOT OPTIONAL: the `agy_runipd` comment's sixth citation is a BARE `` `:1370` `` continuation line that the first pattern cannot match, so the first command alone can return nothing while a stale `run_viewer` offset survives. Paste the three amended blocks as committed and confirm, per block, that (a) each cites `run_viewer.load_run_summary` / `format_step_line` / `render_steps_table` by symbol, (b) each still records the historical measurement that the Antigravity host emitted `` `verified` `` and rendered no badge, and (c) the "must keep it BARE" instruction now reads as true after E-01 rather than asserting that the bare cell is what makes the badge work. ALSO carry the whole-plan no-regression evidence here, since this is the last item before commit: paste the BARE `python3 -m pytest` output with its `N passed` line and compare it to a baseline RE-MEASURED IN THIS LANE IMMEDIATELY BEFORE THE CHANGE, accounting for every added test as the difference between those two runs; do NOT compare against F-08's `1 failed, 3006 passed, 2 skipped`, which is SUPERSEDED (the suite is green, re-driven at review as `3109 passed, 2 skipped`), and state explicitly that zero failures are expected so any failure is reported rather than excused; paste `python3 -m pytest tests/test_run_viewer.py -o addopts=""`; paste the targeted regression set from `## Required tests / validation`; paste `aw check`; paste `aw sanitize --agent`; and paste `git diff --cached --name-only` immediately before committing, which must list exactly `agent_workflows/run_viewer.py`, `tests/test_run_viewer.py`, `agent_workflows/runner_shared.py`, `agent_workflows/agy_runipd.py` and this plan, and nothing another party changed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. git diff runner_shared.py agy_runipd.py touches comments/docstrings only (0 executable lines); 0 hits for run_viewer.py:[0-9] and 0 stale hits for `:[0-9]{3,4}`; bare pytest suite passes (3160 passed, 2 skipped, exactly +2 passed vs baseline 3158 passed); test_run_viewer passes 38; targeted regression set passes 258; aw check clean in scope; aw sanitize clean.
+    1. Full `git diff agent_workflows/runner_shared.py agent_workflows/agy_runipd.py`:
+    ```diff
+    diff --git a/agent_workflows/agy_runipd.py b/agent_workflows/agy_runipd.py
+    index 3f96c2e7..cd4d8920 100755
+    --- a/agent_workflows/agy_runipd.py
+    +++ b/agent_workflows/agy_runipd.py
+    @@ -2109,10 +2109,12 @@ def initialize_run(args: argparse.Namespace) -> Path:
+     # rununify 04 (`tx6q0h`): one-line wrapper over the shared report renderer. THREE OBSERVABLE CHANGES
+     # to this host's report land here and are deliberate: the verify column header becomes `Verify`, its
+     # cell is no longer BACKTICKED, and its empty placeholder is an empty cell rather than `N/A`. The
+    -# backtick removal is a BUG FIX: `run_viewer.py:1008` does not strip backticks for that column and
+    -# `:1370` compares it to the bare string `verified`, so this host never rendered the `[verified]`
+    -# badge. No `render_launch_identity` is bound: this host has no profile subsystem, so the `- Launch:`
+    -# line would read `profile=(none recorded)` forever (plan `tx6q0h` OQ-01).
+    +# backtick removal was a BUG FIX: historically `run_viewer.load_run_summary` took the verification
+    +# column verbatim while `run_viewer.format_step_line` compared it to bare `verified`, so this host
+    +# emitting `verified` in backticks meant it never rendered the `[verified]` badge. `run_viewer.load_run_summary`
+    +# now normalizes every cell so backticks no longer break the badge, but emitting it bare remains the
+    +# clean canonical form. No `render_launch_identity` is bound: this host has no profile subsystem, so
+    +# the `- Launch:` line would read `profile=(none recorded)` forever (plan `tx6q0h` OQ-01).
+     def write_report(run_dir: Path, state: dict[str, Any]) -> None:
+         runner_shared.write_report(run_dir, state, labels=runner_shared.AGY_HOST_LABELS)
+
+    diff --git a/agent_workflows/runner_shared.py b/agent_workflows/runner_shared.py
+    index 4685b79d..09ddbb14 100644
+    --- a/agent_workflows/runner_shared.py
+    +++ b/agent_workflows/runner_shared.py
+    @@ -21875,8 +21875,8 @@ def verdict_refusal_text(raw: Any, mapping: VerdictMapping) -> tuple[str, str, s
+     # READ by a human in `aw runs` and the run report.
+     #
+     # THE TOKEN WRITTEN TO `verify_disp` IS DELIBERATELY UNCHANGED, AND THAT IS THE LOAD-BEARING DECISION
+    -# HERE. Measured at execution: `run_viewer.py:1476-1483` badges only `verified`/`failed`, and
+    -# `run_viewer.py:1926-1939` maps `verified` -> `yes`, `(unverified, verify-failed, failed)` -> `no`,
+    +# HERE. Measured at execution: `run_viewer.format_step_line` badges only `verified`/`failed`, and
+    +# `run_viewer.render_steps_table` maps `verified` -> `yes`, `(unverified, verify-failed, failed)` -> `no`,
+     # and EVERYTHING ELSE -> a bare `-`. So a novel `verify_disp` value would render in `aw runs` exactly
+     # as "no verification ran" already renders, which INVERTS this change's purpose; and `run_viewer.py` is
+     # not in this plan's declared scope. The distinction therefore rides on the REFUSAL record
+    @@ -26336,13 +26336,14 @@ def write_report(
+           1. The H1 keeps each host's own spelling, through `labels.report_title`.
+           2. The verification column header becomes `Verify` on both (it was `Verification` on
+              Antigravity).
+    -      3. THE VERIFY CELL IS NO LONGER BACKTICKED, and this one is a BUG FIX rather than cosmetics.
+    -         `run_viewer.load_run_summary` strips backticks for the id6, setid, action and session
+    -         columns but NOT for the verification column (`run_viewer.py:1008` takes `cols[5].strip()`
+    -         verbatim), and `run_viewer.py:1370` then tests `verification_status == "verified"`.
+    -         Antigravity emitted `` `verified` ``, which never equals `verified`, so NO Antigravity run
+    -         has ever rendered the `[verified]` badge. Emitting it bare repairs that. An executor
+    -         changing this column must keep it BARE.
+    +      3. THE VERIFY CELL IS NO LONGER BACKTICKED, and this one was a BUG FIX rather than cosmetics.
+    +         Historically, `run_viewer.load_run_summary` stripped backticks for the id6, setid, action
+    +         and session columns but NOT for the verification column, while `run_viewer.format_step_line`
+    +         and `run_viewer.render_steps_table` tested against bare strings (`verified`). Antigravity
+    +         emitted `` `verified` ``, which never equalled `verified`, so NO Antigravity run had ever
+    +         rendered the `[verified]` badge. Emitting it bare repaired that. `run_viewer.load_run_summary`
+    +         now normalizes every cell so backticks no longer break the badge, but emitting it bare
+    +         remains the clean canonical form.
+           4. The empty-verify placeholder becomes an empty cell (it was `N/A` on Antigravity).
+
+         `render_launch_identity` IS INJECTED AND OPTIONAL, and its absence is the point. The `- Launch:`
+    ```
+
+    `git diff --stat agent_workflows/runner_shared.py agent_workflows/agy_runipd.py`:
+    ```
+     agent_workflows/agy_runipd.py    | 10 ++++++----
+     agent_workflows/runner_shared.py | 19 ++++++++++---------
+     2 files changed, 16 insertions(+), 13 deletions(-)
+    ```
+    Statement: No line outside a comment or docstring moved; zero executable lines changed in either host.
+
+    2. `rg -n "run_viewer\.py:[0-9]" agent_workflows/` returned NOTHING (0 hits, exit 1).
+
+    3. `rg -n '`:[0-9]{3,4}`' agent_workflows/agy_runipd.py agent_workflows/runner_shared.py` output:
+    ```
+    agent_workflows/agy_runipd.py
+    4028:            # runflags-01 (`uyeko5`) E-06, symmetric with `oc_runipd`: refuse the flag spec `:131`
+
+    agent_workflows/runner_shared.py
+    14102:      * ``resume_rule`` - ``"refuse"`` (spec `:131` freezes the value, so passing it with `resume` is
+    14182:    # Spec `:129` names exactly this case ("mutually exclusive with ... flags that would change the
+    14183:    # frozen queue"), so unlike `--full-auto` there is no `:129`-versus-`:131` tension to inherit.
+    15576:    SCOPED DELIBERATELY, and the scope is the interesting part. Spec `:129` says `--resume` is
+    15579:    blanket reading and the shipped behavior disagree, and only ONE flag is unambiguous: `:131` says
+    15582:    shipped flag, which belongs to whoever reconciles `:129` with `:131`, not to a plan whose fence is
+    15605:      * `--full-auto` IMPLIES `--unattended` (spec `:134`), and implying nothing else. Implemented
+    16531:    """Check `--unverifiable-ok`'s precondition by CALLING `zub5f1`'s predicate (spec 2.1 `:136`).
+    ```
+    Per-hit statement: Every surviving hit refers to a spec citation (e.g. `spec `:131``, `spec `:129``, `spec `:134``, `spec 2.1 `:136``). The sixth citation in `agy_runipd.py` (bare `:1370`) was eliminated and zero remaining hits refer to `run_viewer`.
+
+    4. Block confirmations:
+    - Block 1 (`agy_runipd.py` lines 2109-2120): (a) cites `run_viewer.load_run_summary` and `run_viewer.format_step_line` by symbol; (b) records that Antigravity emitted `verified` in backticks and never rendered the `[verified]` badge; (c) notes that `run_viewer.load_run_summary` now normalizes every cell, while emitting it bare remains the clean canonical form.
+    - Block 2 (`runner_shared.py` lines 21875-21885): cites `run_viewer.format_step_line` and `run_viewer.render_steps_table` by symbol.
+    - Block 3 (`runner_shared.py` lines 26336-26348): (a) cites `run_viewer.load_run_summary`, `run_viewer.format_step_line` and `run_viewer.render_steps_table` by symbol; (b) records the historical fact that Antigravity emitted `verified` in backticks and never rendered the badge; (c) updates the instruction to reflect that `run_viewer.load_run_summary` now normalizes every cell so backticks no longer break the badge, while emitting it bare remains the clean canonical form.
+
+    5. Full bare pytest suite comparison:
+    Pre-change baseline re-measured in this lane:
+    ```
+    3158 passed, 2 skipped, 3 warnings in 164.00s (0:02:43)
+    ```
+    Post-change bare pytest run:
+    ```
+    3160 passed, 2 skipped, 3 warnings in 56.59s
+    ```
+    Accounting: exactly +2 passed tests (the two new tests in `tests/test_run_viewer.py`), 0 failures, 2 skipped, matching the baseline plus new tests.
+
+    6. `python3 -m pytest tests/test_run_viewer.py -o addopts=""`:
+    ```
+    ============================== 38 passed in 4.41s ==============================
+    ```
+    (baseline 36 passed -> 38 passed)
+
+    7. Targeted regression set:
+    `python3 -m pytest tests/test_verifier_evidence.py tests/test_dependency_block_reporting.py tests/test_hostdedup_third_host.py tests/test_spec_production.py tests/test_run_analytics.py tests/test_oc_runipd.py -o addopts=""`:
+    ```
+    ======================== 258 passed in 65.27s (0:01:05) ========================
+    ```
+
+    8. `aw check`:
+    Zero findings introduced by this change; 3 pre-existing repository-wide findings outside scope.
+
+    9. `aw sanitize --agent`:
+    ```
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+    Outcome clean, exit 0, 0 findings.
+
+    10. `git diff --cached --name-only`: verified immediately prior to commit to match exactly the scope paths plus plan file.
+  - Result: pass
 
 ## Approval and execution gate
 

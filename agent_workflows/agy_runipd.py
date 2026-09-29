@@ -2109,10 +2109,12 @@ def initialize_run(args: argparse.Namespace) -> Path:
 # rununify 04 (`tx6q0h`): one-line wrapper over the shared report renderer. THREE OBSERVABLE CHANGES
 # to this host's report land here and are deliberate: the verify column header becomes `Verify`, its
 # cell is no longer BACKTICKED, and its empty placeholder is an empty cell rather than `N/A`. The
-# backtick removal is a BUG FIX: `run_viewer.py:1008` does not strip backticks for that column and
-# `:1370` compares it to the bare string `verified`, so this host never rendered the `[verified]`
-# badge. No `render_launch_identity` is bound: this host has no profile subsystem, so the `- Launch:`
-# line would read `profile=(none recorded)` forever (plan `tx6q0h` OQ-01).
+# backtick removal was a BUG FIX: historically `run_viewer.load_run_summary` took the verification
+# column verbatim while `run_viewer.format_step_line` compared it to bare `verified`, so this host
+# emitting `verified` in backticks meant it never rendered the `[verified]` badge. `run_viewer.load_run_summary`
+# now normalizes every cell so backticks no longer break the badge, but emitting it bare remains the
+# clean canonical form. No `render_launch_identity` is bound: this host has no profile subsystem, so
+# the `- Launch:` line would read `profile=(none recorded)` forever (plan `tx6q0h` OQ-01).
 def write_report(run_dir: Path, state: dict[str, Any]) -> None:
     runner_shared.write_report(run_dir, state, labels=runner_shared.AGY_HOST_LABELS)
 

@@ -21875,8 +21875,8 @@ def verdict_refusal_text(raw: Any, mapping: VerdictMapping) -> tuple[str, str, s
 # READ by a human in `aw runs` and the run report.
 #
 # THE TOKEN WRITTEN TO `verify_disp` IS DELIBERATELY UNCHANGED, AND THAT IS THE LOAD-BEARING DECISION
-# HERE. Measured at execution: `run_viewer.py:1476-1483` badges only `verified`/`failed`, and
-# `run_viewer.py:1926-1939` maps `verified` -> `yes`, `(unverified, verify-failed, failed)` -> `no`,
+# HERE. Measured at execution: `run_viewer.format_step_line` badges only `verified`/`failed`, and
+# `run_viewer.render_steps_table` maps `verified` -> `yes`, `(unverified, verify-failed, failed)` -> `no`,
 # and EVERYTHING ELSE -> a bare `-`. So a novel `verify_disp` value would render in `aw runs` exactly
 # as "no verification ran" already renders, which INVERTS this change's purpose; and `run_viewer.py` is
 # not in this plan's declared scope. The distinction therefore rides on the REFUSAL record
@@ -26336,13 +26336,14 @@ def write_report(
       1. The H1 keeps each host's own spelling, through `labels.report_title`.
       2. The verification column header becomes `Verify` on both (it was `Verification` on
          Antigravity).
-      3. THE VERIFY CELL IS NO LONGER BACKTICKED, and this one is a BUG FIX rather than cosmetics.
-         `run_viewer.load_run_summary` strips backticks for the id6, setid, action and session
-         columns but NOT for the verification column (`run_viewer.py:1008` takes `cols[5].strip()`
-         verbatim), and `run_viewer.py:1370` then tests `verification_status == "verified"`.
-         Antigravity emitted `` `verified` ``, which never equals `verified`, so NO Antigravity run
-         has ever rendered the `[verified]` badge. Emitting it bare repairs that. An executor
-         changing this column must keep it BARE.
+      3. THE VERIFY CELL IS NO LONGER BACKTICKED, and this one was a BUG FIX rather than cosmetics.
+         Historically, `run_viewer.load_run_summary` stripped backticks for the id6, setid, action
+         and session columns but NOT for the verification column, while `run_viewer.format_step_line`
+         and `run_viewer.render_steps_table` tested against bare strings (`verified`). Antigravity
+         emitted `` `verified` ``, which never equalled `verified`, so NO Antigravity run had ever
+         rendered the `[verified]` badge. Emitting it bare repaired that. `run_viewer.load_run_summary`
+         now normalizes every cell so backticks no longer break the badge, but emitting it bare
+         remains the clean canonical form.
       4. The empty-verify placeholder becomes an empty cell (it was `N/A` on Antigravity).
 
     `render_launch_identity` IS INJECTED AND OPTIONAL, and its absence is the point. The `- Launch:`
