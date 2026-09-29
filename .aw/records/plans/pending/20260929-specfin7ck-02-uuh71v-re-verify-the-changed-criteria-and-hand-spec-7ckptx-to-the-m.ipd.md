@@ -1,0 +1,227 @@
+# IPD: Re-verify the changed criteria and hand spec 7ckptx to the maintainer with an evidenced transition recommendation
+
+- Date: 2026-09-29
+- Kind: child
+- Concern: Whether spec `7ckptx` is genuinely satisfied at HEAD, given that two acceptance criteria were amended after the only whole-Set verification ran, and producing the evidence packet the maintainer needs to decide the `approved -> implementing -> implemented` transition.
+- Scope: Re-derive the live criterion list at HEAD, demonstrate the criteria whose text or behavior changed since `4fodkt` verified, perform the `approved -> implementing` transition (an executor transition), and recommend the human `-> implemented` decision with cited evidence. Explicitly NOT setting `implemented`, which requires evidence this plan produces but a judgement it does not own.
+- Scope-Paths: .aw/records/specs/approved/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md, .aw/records/walkthroughs
+- Item-Dependencies: executed:e9ekuj
+- Status: to-review
+- Work-Kind: chore
+- Priority: medium
+- From-Backlog: eozq91
+- Set: specfin7ck
+- Order: 2
+- Highest E allocated: 06
+- Author: opencode model=its_direct/pt3-claude-opus-5-1m-us
+- Id: uuh71v
+
+## Workflow history
+
+- 2026-09-29 to-review (opencode model=its_direct/pt3-claude-opus-5-1m-us): Authored from backlog `eozq91`. THE ITEM'S DIAGNOSIS IS CORRECT AND ITS PRESCRIPTION IS INCOMPLETE, and this plan is written to the corrected version. What the item gets RIGHT: spec `7ckptx` reads `approved`, `attention_contract._SPEC_MAP` maps `approved` to READY, so `aw attention` reports a spec whose implementing Set is complete as work waiting to START (confirmed at authoring: the spec's attention record reads `"native_status": "approved", "attention_class": "ready"`), and all 8 `lanectn` plans are in `.aw/records/plans/executed/`. What it gets WRONG, and the correction matters because it changes who may act: the item says an agent "may not set a spec `implemented`" and that "the fix is a human act, not code". MEASURED, the first half is false as stated. `attention_contract.TRANSITION_AUTHORITY["->implemented"]` records `"who": "executor"` with `by_human: False` and `evidence: True`, and the human-only gate (`by_human`/`human_token`) is on `->approved`, NOT on `->implemented`; no role check on `AW_EXECUTION_ROLE` exists in `specs.py` or `status_set.py`. So the mechanism permits an executor to set `implemented` with a resolvable citation. AGENTS.md nonetheless withholds it from an agent ("may NOT set `implemented` (needs cited evidence)"), which is a POLICY floor above the mechanical one, and this plan honors the policy: it performs `approved -> implementing`, which IS an executor transition on both the mechanism and the policy, and it STOPS at a recommendation for `-> implemented`. WHY RE-VERIFICATION IS NEEDED AT ALL, which the item does not anticipate: `4fodkt` verified all 31 live criteria on 2026-09-17 at HEAD `e299a9a5`, and the spec was amended TWICE afterwards (2026-09-18, R5.5 and A15; 2026-09-25, R5.1a and A12b). The criteria as they read today were therefore never demonstrated, so adopting `4fodkt`'s verdict wholesale would claim a verification that did not happen against the current text. The live/withdrawn split is unchanged (36 total, 5 withdrawn, 31 live at both HEADs), so the DELTA is small and nameable, which is what makes a targeted re-verification honest rather than a token one.
+- 2026-09-29 draft (opencode model=its_direct/pt3-claude-opus-5-1m-us): created.
+
+## Goal
+
+Establish, at HEAD and against the spec's CURRENT text, whether spec `7ckptx` is satisfied, then move it out of
+the state where `aw attention` misreports finished work as not-started.
+
+Concretely: perform the `approved -> implementing` transition this plan is authorized to make, and leave the
+maintainer a decision-ready packet for `-> implemented` that names its evidence and its counter-evidence.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+### Task group 1: establish what actually needs re-verifying, from the spec and not from a copy
+
+- [ ] E-01 RE-DERIVE THE LIVE CRITERION LIST AT EXECUTION HEAD, and refuse to proceed from any copied enumeration. Read `## 4. Testable acceptance criteria` in the spec and partition every `A*` id into LIVE and WITHDRAWN by whether its own text says WITHDRAWN. Compare against the two prior enumerations and report every difference: `4fodkt`'s measurement (36 total, 5 withdrawn, 31 live) and this plan's authoring measurement (the same). Separately re-derive the requirement-id count, and record that the spec defines 43 distinct `R*` ids rather than the 42 backlog `eozq91` claims, because the item's pattern misses letter-suffixed ids (`R3.3a`, `R4.1a`, `R5.1a`, `R5.6a`). If the spec has changed since authoring, the SPEC WINS and the difference is reported.
+  - Depends on: none
+  - Expected outcome: a pasted table of every `A*` id with LIVE or WITHDRAWN, the totals, the requirement-id count, and an explicit statement of each difference from the two prior enumerations (or "none").
+  - Execution state: pending
+
+- [ ] E-02 COMPUTE THE RE-VERIFICATION DELTA BY DIFFING THE SPEC, not by judgement. Run `git diff e299a9a5 HEAD` over the spec path (it moved into `.aw/records/specs/approved/` by `2fa65732`, so pass both the old and new paths) and enumerate every criterion whose text changed since `4fodkt` verified. At authoring this is exactly TWO: A12b (amended 2026-09-25 by `xzroy8`, adding the shared-lane per-turn revision clause and the coverage sentence Order 01 corrects) and A15 (amended 2026-09-18 by maintainer ruling, removing the unknown-ignored-file refusal). Also identify any criterion whose underlying REQUIREMENT text changed even where the criterion's own wording did not (R5.1a and R5.5 both changed), since a criterion can go stale without being edited.
+  - Depends on: E-01
+  - Expected outcome: the diff output pasted, with a table of every changed criterion and changed requirement, and an explicit statement that the delta is COMPLETE because it was computed by diff rather than by reading. Criteria outside the delta are recorded as carried forward from `4fodkt` with its HEAD cited, which is a weaker claim than re-demonstration and must be labeled as such.
+  - Execution state: pending
+
+### Task group 2: demonstrate the delta, and be explicit about what is carried rather than re-shown
+
+- [ ] E-03 DEMONSTRATE A15 AS AMENDED, with pasted output. The amended text requires that a lane holding an unknown untracked file, a dirty tracked file, OR an uncollected submission is not torn down and an event records the reason; that GITIGNORED files do NOT block teardown; and that a fully classified clean lane IS torn down. The gitignored clause is the half that INVERTED, so it is the load-bearing one: a test proving only the refusals would pass under the pre-amendment behavior too. Drive the real predicate (`lane_containment.teardown_lane_if_classified` and the retention inventory beneath it) against real lanes rather than asserting from test names.
+  - Depends on: E-02
+  - Expected outcome: pasted output for each clause of A15 separately, including a lane holding ONLY gitignored content being torn down, plus the recorded event for each refusal showing it names the lane and the reason. A verdict per clause, with any clause that cannot be demonstrated recorded UNVERIFIED and its reason stated.
+  - Execution state: pending
+
+- [ ] E-04 DEMONSTRATE A12b AS AMENDED, including the clause Order 01 did not cover. A12b requires all three sealed parts plus, for a shared lane, that each turn's attachment resolves to its OWN revision when turns are dispatched OUT OF POSITION ORDER. Order 01 corrected the criterion's stale coverage SENTENCE but demonstrated nothing, so every part is demonstrated here: paste the manifest file's mode and each materialized input's mode showing no owner write bit; show an in-place edit of an existing entry refused while a legitimate change appears as a NEW REVISION; and show the out-of-position dispatch scoping. Confirm the artifact states that read-only is an accident guard and NOT immutability.
+  - Depends on: E-02
+  - Expected outcome: pasted output per part, with the out-of-position dispatch case shown explicitly (two turns sharing one lane, dispatched out of order, each resolving its own revision), and a verdict per part.
+  - Execution state: pending
+
+- [ ] E-05 RE-CONFIRM THE SET'S STANDING FACTS AND THE ONE FINDING THAT WAS LIVE, so the recommendation rests on current state. Confirm: all 8 `lanectn` plans read `Status: executed` on disk in `.aw/records/plans/executed/`; every one of the 43 requirement ids is cited by at least one of them; Order 01 (`e9ekuj`) closed FINDING F1 with its test passing; the spec's remaining open question (OQ-03) is non-blocking and was answered by `cqx5v7`, which recorded the deferred implementation choice as the executor's; and the bare suite is green (`python3 -m pytest`, run BARE, with no added `-n0`, second `-q`, or `-p no:randomly`). ALSO record the outstanding adjacent items honestly rather than omitting them: backlog `nvymif` (`open`, a spec R2.5 design question about the R5.5 gate refusing every interrupted lane) and `4fodkt`'s FINDING F2 (LOW, the R1.2 clause detector's missed rewording, with A1 still passing).
+  - Depends on: E-03, E-04
+  - Expected outcome: each fact pasted with the command that establishes it, the bare suite's summary line verbatim, and the two outstanding items stated as counter-considerations with their severity.
+  - Execution state: pending
+
+### Task group 3: transition what this plan may, recommend what it may not
+
+- [ ] E-06 PERFORM `approved -> implementing` AND WRITE THE MAINTAINER'S DECISION PACKET, stopping short of `implemented`. Run `aw spec set implementing 7ckptx --graduated-to lanectn` (an executor transition: `TRANSITION_AUTHORITY["->implementing"]` records `"who": "executor"`, `by_human: False`, `evidence: False`), which also relocates the file into `.aw/records/specs/implementing/` and records history. Then write a walkthrough to `.aw/records/walkthroughs/` as the decision packet, stating: the per-criterion verdicts from E-03/E-04; which criteria are RE-DEMONSTRATED here versus CARRIED FORWARD from `4fodkt` at HEAD `e299a9a5` (labeled as the weaker claim it is); the exact `aw specs set implemented` command the maintainer would run WITH its resolvable `--evidence` citation; and every counter-consideration from E-05. DO NOT run that command. Record explicitly that AGENTS.md withholds `implemented` from an agent even though `TRANSITION_AUTHORITY` permits an executor, so the stopping point is policy and not inability.
+  - Depends on: E-05
+  - Expected outcome: the `aw spec set implementing` invocation with output, the spec's new path and `- Status:` line, the walkthrough path, and the recommended command quoted but NOT executed.
+  - Execution state: pending
+
+## Project conventions discovered (Step 0)
+
+- `attention_contract._SPEC_MAP` maps spec `approved` to READY and `implementing` to ACTIVE, which is the precise mechanism backlog `eozq91` reports: a finished spec left `approved` is surfaced as work waiting to start.
+- `attention_contract.TRANSITION_AUTHORITY` gates `->approved` with `by_human` and `human_token`, and gates `->implemented` with `evidence` only, recording `"who": "executor"`. `attention_contract.APPROVAL_FLOOR` states the evidence citation is enforced for "presence + format + resolvability, NOT semantic verification that the work truly happened", which is exactly why this plan produces demonstrated evidence rather than relying on the citation check.
+- `attention_contract.SPEC_TRANSITIONS` permits `approved -> implementing` and `implementing -> implemented`, but NOT `approved -> implemented` directly, so the two-step sequence is forced by the transition table.
+- AGENTS.md states an agent "may NOT set `implemented` (needs cited evidence)". That is a policy floor ABOVE the mechanical one; the mechanism has no role check. This plan honors the policy and records the distinction rather than conflating them.
+- The specs README states "Do NOT hand-edit the status or history. Use the owner verbs", and documents `aw spec set implementing <id6> --graduated-to <setid>` as the forward half of the `- From-Spec:` link. E-06 uses exactly that spelling.
+- A spec's status directory is part of its path (`.aw/records/specs/approved/` -> `implementing/`), and `aw spec set` RELOCATES the file as part of the transition. Only the CURRENT path is declared in `- Scope-Paths:`: declaring the future `implementing/` path as well is flagged `check.scope-path-target-stale` (classification `moved`, measured at authoring), because the checker resolves a literal records path against where the artifact actually is today.
+- Plan `4fodkt` set the standard this plan is held to: it recorded "NO TRANSITION performed on spec 7ckptx (still approved)" and reported the evidence for the maintainer instead. This plan advances one legitimate step further and stops at the same boundary.
+- Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
+
+## Findings
+
+| Id | Finding | Evidence | Consequence |
+|---|---|---|---|
+| F-1 | The reported harm is real and mechanical | The spec's `aw attention` record reads `"native_status": "approved", "attention_class": "ready"`; `_SPEC_MAP["approved"]` is READY | A spec whose Set is complete is reported as not-started; E-06's `implementing` transition maps to ACTIVE and ends it |
+| F-2 | The item's claim that an agent may not set `implemented` is a POLICY floor, not a mechanical one | `TRANSITION_AUTHORITY["->implemented"]` is `"who": "executor"`, `by_human: False`, `evidence: True`; no `AW_EXECUTION_ROLE` check exists in `specs.py` or `status_set.py` | The plan may legitimately perform `-> implementing`; it stops at `-> implemented` by policy, and says so rather than implying it cannot |
+| F-3 | `4fodkt`'s verdict is STALE for two criteria | Spec history records amendments 2026-09-18 (R5.5/A15) and 2026-09-25 (R5.1a/A12b); `4fodkt` verified 2026-09-17 at HEAD `e299a9a5` | Adopting its verdict wholesale would claim a verification against text that did not exist; E-03/E-04 re-demonstrate the delta |
+| F-4 | The live/withdrawn split did NOT change across those amendments | 36 total / 5 withdrawn / 31 live at both `e299a9a5` and HEAD | The delta is two criteria, not a whole re-run, which is what makes a targeted re-verification defensible |
+| F-5 | `approved -> implemented` is not a legal single transition | `SPEC_TRANSITIONS["approved"]` contains `implementing` and not `implemented` | The two-step sequence is forced; E-06 performs the first step only |
+| F-6 | One release-blocking adjacent item against this spec is already discharged | Backlog `i4y84y` (R5.1a vocabulary, `Work-Kind: bug`, `Blocks-Release: next`) reads `graduated` to Set `lanevocab`, whose only plan `xzroy8` is executed | Not an obstacle to the transition, but the item is still `graduated` rather than `done`, which E-05 reports rather than resolves |
+| F-7 | One adjacent item remains genuinely open | Backlog `nvymif` (`open`, `chore`): the R5.5 teardown gate refuses every interrupted lane; it states it "needs its own plan" and raises a spec R2.5 question | A standing counter-consideration the maintainer should see; not a Section 4 criterion failure, so it does not block the recommendation |
+
+## Proposed changes (ordered, validatable)
+
+1. Re-derive the live criterion list and the requirement-id count from the spec at HEAD (E-01).
+2. Compute the re-verification delta by diffing the spec against `4fodkt`'s verification HEAD (E-02).
+3. Demonstrate A15 as amended, with the inverted gitignored clause shown explicitly (E-03).
+4. Demonstrate A12b as amended, all three sealed parts plus out-of-position dispatch scoping (E-04).
+5. Re-confirm the Set's standing facts and record the outstanding adjacent items (E-05).
+6. Perform `approved -> implementing` and write the maintainer's decision packet, stopping short of `implemented` (E-06).
+
+## Deferred / out of scope (with reason)
+
+- SETTING THE SPEC `implemented`. Withheld from an agent by AGENTS.md even though `TRANSITION_AUTHORITY` permits an executor. E-06 produces the evidence and the exact command; the maintainer runs it.
+  - Carrier-Declined: NO ITEM IS FILED AND NONE SHOULD BE, because the remaining step is a HUMAN DECISION rather than outstanding work, and filing it would misrepresent a maintainer's judgement as tracked debt an agent could later close. The distinction is the whole point of this plan: AGENTS.md reserves `implemented` to a human precisely because the evidence check (`APPROVAL_FLOOR`) verifies "presence + format + resolvability, NOT semantic verification that the work truly happened", so no artifact and no gate can substitute for the judgement. E-06's packet reduces the step to one quoted command with a resolvable citation, which is the most an agent may legitimately leave behind. Recorded here so a reviewer does not read the absence of a carrier as an oversight.
+- CLOSING BACKLOG `nvymif` (F-7). It is `open`, explicitly needs its own plan, and raises a spec R2.5 design question (what an absent receipt means for a lane that provably submitted nothing) that is a contract decision rather than a conformance fix.
+  - Carrier: nvymif
+- TRANSITIONING BACKLOG `i4y84y` to `done` (F-6). Its graduating plan `xzroy8` is executed, so it is likely closable, but it is a separate release-blocking item with its own close-legitimacy gate and is not this plan's subject.
+  - Carrier: i4y84y
+- TRANSITIONING BACKLOG `vqv9im`, which `4fodkt` left `graduated` and recorded as assigned to orchestrator `h0zljh` E-03. Moving it here would spread that orchestrator's bookkeeping across artifacts, which is the reason `4fodkt` itself declined.
+  - Carrier: vqv9im
+- `4fodkt`'s FINDING F2 (LOW). A1 still passes on the composite check; recorded in E-05 as a counter-consideration rather than fixed.
+  - Carrier-Declined: No future work is owed, for the reason `4fodkt` measured: the COMPOSITE check still fails on the rewording F2 found, so criterion A1 passes and no requirement is violated at HEAD. F2 describes a detector that could be more thorough, not one that returns a wrong answer, and AGENTS.md's filing test is user-perceptible impact, which an unreached branch of a passing check does not have. E-05 reports it to the maintainer as a standing counter-consideration, which is where a measurement needing a judgement belongs. Order 01 declines the same row for the same reason; the two Orders agree deliberately rather than one deferring to the other.
+- RE-DEMONSTRATING THE 29 CRITERIA OUTSIDE THE DELTA. They are carried forward from `4fodkt` with its HEAD cited and LABELED as carried rather than re-shown, which E-06's packet must state plainly so the maintainer knows the strength of each claim.
+  - Carrier-Declined: Nothing is owed, and this row records a DELIBERATE EVIDENCE LIMIT that is disclosed rather than a task postponed. OQ-02 resolves it on the measured delta: E-02 computes the changed set BY DIFF rather than by judgement, so "only these two changed" is falsifiable, and the live/withdrawn split is identical at both HEADs (F-4). Filing an item to re-run the other 29 would assert that someone should redo a verification whose inputs provably did not change. What makes the limit safe is DISCLOSURE, not future work: V-06 requires the packet to label each criterion as re-demonstrated or carried-forward with `4fodkt`'s HEAD cited, so a maintainer who wants the stronger evidence can demand it with full knowledge of what was and was not shown.
+
+## Scope check
+
+- Over-scope: none. The spec's two status paths and the walkthrough directory are exactly what a transition plus a decision packet writes.
+- Under-scope: the `-> implemented` transition is deliberately not performed (see Deferred), so `aw attention` will report this spec ACTIVE rather than DONE until the maintainer acts. That is the honest end state for an agent-executed plan, and E-06's packet makes the remaining step a single command.
+
+## Required tests / validation
+
+- Per-clause demonstrations of A15 and A12b against the real predicates, with pasted output, not test-name assertions.
+- The bare suite (`python3 -m pytest`) green, with its summary line pasted verbatim.
+- The `aw spec set implementing` invocation's own output, plus the spec's `- Status:` line and path after it.
+- `aw specs check` on the transitioned spec, and `aw attention` showing the spec's class moved from `ready` to `active`.
+- `aw sanitize --agent` clean, since the walkthrough is a new public artifact and may quote lane paths.
+
+## Spec / documentation sync
+
+`.aw/records/specs/approved/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md` is declared at its
+CURRENT path and IS modified by E-06, but ONLY through `aw spec set`, which owns the `- Status:` bullet, the
+`## Workflow history` entry, the `- Graduated-To:` field, and the relocation into
+`.aw/records/specs/implementing/`. The destination path is deliberately NOT declared: see the Step 0 note on
+`check.scope-path-target-stale`. An executor should expect the finalize scope gate to see this path as a
+DELETION plus an addition under the new directory, which is the relocation and not an out-of-scope write.
+
+WHY THIS COUNTS AS A DECLARED SPEC EDIT: the status bullet and history are spec file content, so both runners'
+spec-edit announcement and the finalize scope gate will see the change. Declaring it is what keeps the
+reconciliation honest. NO REQUIREMENT OR CRITERION TEXT IS TOUCHED HERE: Order 01 owns the one text correction
+in this Set, and this plan's edit is purely the lifecycle transition.
+
+## Open questions
+
+### OQ-01: Should this plan set the spec `implemented` given that `TRANSITION_AUTHORITY` permits an executor?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: NO, resolved from AGENTS.md's explicit prohibition ("may NOT set `implemented`"), which sits above the mechanical gate and is not overridden by it. The mechanism's own documentation supports the policy rather than undercutting it: `APPROVAL_FLOOR` records that the evidence check verifies "presence + format + resolvability, NOT semantic verification that the work truly happened", so passing it would prove nothing about whether the spec is satisfied. The judgement the citation cannot make is the maintainer's. Recorded as resolved rather than left open because the reasoning is settled by repository policy, and recorded AT ALL because the item's premise (that an agent is mechanically barred) is false and a reviewer should not inherit it.
+
+### OQ-02: Is a targeted re-verification of two criteria sufficient, rather than re-running all 31?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: YES, resolved on the measured delta rather than on effort. E-02 computes the changed set BY DIFF rather than by judgement, so the claim "only these changed" is falsifiable and does not depend on a reader's care. The live/withdrawn split is identical at both HEADs (F-4), and the 29 unchanged criteria are labeled CARRIED FORWARD with `4fodkt`'s HEAD cited, which is a weaker and explicitly-marked claim rather than a silent re-assertion. A full re-run would be stronger; it is declined because the marginal evidence is small against a diff-computed delta, and the packet states the limit so the maintainer can demand more.
+
+### OQ-03: Should the walkthrough recommend `implemented` at all if any criterion comes back UNVERIFIED?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: NO. If E-03 or E-04 records any clause UNVERIFIED or FAILED, the packet must recommend AGAINST `implemented` and name the responsible clauses, and the `approved -> implementing` transition still stands on its own (it asserts work is in progress, not that it is done). This mirrors `4fodkt`'s standard, which recorded that "a criterion silently marked passed is a failure of it" while honest UNVERIFIED is a successful outcome.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [ ] V-01 validates E-01
+  - Required evidence: the full pasted `A*` table with LIVE/WITHDRAWN per id, the three totals, the re-derived requirement-id count with the letter-suffixed ids shown, and an explicit difference statement against BOTH prior enumerations (or "none"). A total asserted without the per-id table does NOT satisfy this item.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-02 validates E-02
+  - Required evidence: the `git diff` output pasted (covering both the pre-move and post-move spec paths), and the resulting changed-criterion and changed-requirement tables. The delta must be shown to be DIFF-COMPUTED; a list of changed criteria presented without the diff that produced it does NOT satisfy this item, because that is precisely the copied-enumeration failure E-01 exists to prevent.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-03 validates E-03
+  - Required evidence: separate pasted output for EACH clause of amended A15: unknown untracked refuses, dirty tracked refuses, uncollected submission refuses, GITIGNORED-ONLY lane is TORN DOWN, fully classified clean lane is torn down, and the recorded event names the lane and reason for each refusal. The gitignored clause is mandatory and load-bearing: evidence omitting it does NOT satisfy this item, because the refusal clauses alone would also pass under the pre-amendment behavior. Evidence must come from driving the real predicate, not from citing a test name.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-04 validates E-04
+  - Required evidence: pasted modes for the manifest file and each materialized input showing no owner write bit; an in-place edit of an existing entry shown REFUSED; a legitimate change shown appearing as a NEW REVISION; and the out-of-position dispatch case shown with two turns sharing one lane where each resolves its OWN revision. The out-of-position half is mandatory: it is the clause the 2026-09-25 amendment ADDED, so evidence omitting it does not demonstrate A12b as it reads today. Also confirm the artifact states read-only is an accident guard and not immutability.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-05 validates E-05
+  - Required evidence: the 8 `lanectn` plan paths with their on-disk `Status: executed` lines; the requirement-citation check output showing zero uncited ids out of 43; Order 01's F1 fix confirmed with its new test passing; the bare `python3 -m pytest` summary line pasted VERBATIM (if the `N passed` line is missing the run was misinvoked and must be rerun); and backlog `nvymif` plus `4fodkt` FINDING F2 stated as counter-considerations with severity. A report omitting the counter-considerations does NOT satisfy this item, since a one-sided packet is exactly what makes a maintainer's decision unsafe.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-06 validates E-06
+  - Required evidence: the `aw spec set implementing 7ckptx --graduated-to lanectn` command with its output; the spec's `- Status:` line BEFORE (`approved`) and AFTER (`implementing`) plus its old and new paths; `aw specs check` passing on it; `aw attention` showing this spec's `attention_class` moved from `ready` to `active`; the walkthrough path with the recommended `aw specs set ... implemented --evidence <path>` command QUOTED; and proof it was NOT run, by pasting the spec's status again at the end of the turn still reading `implementing`. A turn whose final spec status reads `implemented` is a FAILURE of this item regardless of the evidence quality. If any clause in V-03/V-04 came back UNVERIFIED or FAILED, the packet must be shown recommending AGAINST `implemented` and naming those clauses.
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required (6 E-items in 3 task groups, under the 18-leaf / 5-group thresholds). The groups are one concern in sequence: establish the delta, demonstrate it, then transition and recommend. A12b and A15 are split into separate items because they are independent evidence surfaces amended by different rulings on different dates.
+
+EXECUTION CONTRACT. DO NOT EXECUTE BEFORE ORDER 01 REACHES `executed`. This plan declares
+`- Item-Dependencies: executed:e9ekuj` and the edge is load-bearing, not cosmetic: E-05 must confirm that
+Order 01 closed FINDING F1, and E-04 demonstrates the A12b whose coverage sentence Order 01 corrects. Run
+first, this plan would have to recommend a transition while a known R6.1 violation is live against the very
+spec it is closing, and would demonstrate a criterion text it knows to be false. The runner re-checks
+dependencies at dispatch and will mark this item `dependency-blocked` rather than run it; an agent executing
+the Set by hand must honor the same order. DO NOT SET THE SPEC `implemented`, even though `TRANSITION_AUTHORITY` records
+`"who": "executor"` and would accept a resolvable citation: AGENTS.md withholds it, and V-06 requires proving
+the final status still reads `implementing`. HONESTY OVER COMPLETION, which is the point of this plan: paste
+ACTUAL output for every clause, record any clause that cannot be demonstrated as UNVERIFIED with its reason,
+and recommend AGAINST the transition if anything is UNVERIFIED or FAILED. Recording UNVERIFIED honestly is a
+SUCCESSFUL outcome; a clause silently marked passed is a failure. LABEL CARRIED-FORWARD CRITERIA as carried
+rather than re-demonstrated, with `4fodkt`'s HEAD cited. Use `aw spec set` for the transition and never
+hand-edit the `- Status:` bullet, the history, or the file's location. Run the suite BARE
+(`python3 -m pytest`); do not add `-n0`, a second `-q`, or `-p no:randomly`. Run `aw sanitize --agent` before
+treating the walkthrough as shareable, since lane demonstrations surface absolute paths. Commit through
+`aw commit <plan> -- <paths>`, never `git add -A`, never `--no-verify`, and never push. This is a SHARED
+CHECKOUT: run `git diff --cached --name-only` before every commit and `git restore --staged <path>` anything
+not yours. After the gate, move this plan to `.aw/records/plans/executed/` via `aw ipd finalize`; do not claim
+done until `aw ipd lint --phase pre-transition` conforms and every `V-*` above carries real observed evidence.
