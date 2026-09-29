@@ -1,11 +1,13 @@
 - Id: isjodh
-- Status: open
+- Status: graduated
+- Graduated-To: isjodh
 - Set: isjodh
 - Priority: medium
 - Work-Kind: followup
 - Summary: Admit a non-plan dependency target (spec/backlog) into --with-dependencies, which currently refuses it
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: yu47nf
 - 2026-09-20 created (aw backlog): Admit a non-plan dependency target (spec/backlog) into --with-dependencies, which currently refuses it
 
 THE GAP. Spec 25kzda :166 says `--with-dependencies` subjects "any newly introduced type" to the mixed-type gate, which presupposes a `spec` or `backlog` dependency target can join the queue, and `ipd_schema.ITEM_DEP_TYPES` admits `exists:spec:<id6>` and `state:backlog:<status>:<id6>` as legal grammar. depclosure 01 (`dhycim`) shipped the closure PLAN-TARGETS-ONLY: `runner_shared.closure_target_admission` REFUSES a non-plan target, naming the type. So the shipped flag is narrower than the approved spec. The narrowing is deliberate, loud, and stated in the flag's own --help; it is filed here so it is tracked rather than living only inside one plan record.
