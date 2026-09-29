@@ -1,5 +1,6 @@
 - Id: 4y4xo5
-- Status: open
+- Status: graduated
+- Graduated-To: 4y4xo5
 - Blocks-Release: next
 - Set: 4y4xo5
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: aw group research clobbers each record Order to 0 when --order is omitted (the e3hzyc defect in research_refs)
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260928T235632Z-1358353: ao0v8x
 - 2026-09-20 created (aw backlog): Filed while executing plan e3hzyc (F-12): the byte-identical defective line in the sibling backend, deliberately left out of that plan's fence.
 
 MEASURED WHILE EXECUTING PLAN e3hzyc, whose fix covered agent_workflows/plans_refs.py ONLY.
