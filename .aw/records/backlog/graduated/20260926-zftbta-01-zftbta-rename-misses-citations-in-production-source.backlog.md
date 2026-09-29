@@ -1,5 +1,6 @@
 - Id: zftbta
-- Status: open
+- Status: graduated
+- Graduated-To: zftbta
 - Blocks-Release: next
 - Set: zftbta
 - Priority: low
@@ -7,6 +8,7 @@
 - Summary: aw rename leaves 44 record citations dangling in agent_workflows source, so a maintainer keeps hand-fixing the shipped package after every rename
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260929T021205Z-3914774: 68hdic
 - 2026-09-26 created (aw backlog): aw rename leaves 44 record citations dangling in agent_workflows source, so a maintainer keeps hand-fixing the shipped package after every rename
 
 FOUND 2026-09-26 during /plan-review of plan 5xzld0 (renamescan Order 01). That plan fixes the citation rewriter to reach .aw/records/reviews/ and tests/, which is what its carrier item 7oql4z asked for. The same defect class extends to PRODUCTION SOURCE, which 5xzld0 deliberately leaves out of scope, so this item carries the remainder.
