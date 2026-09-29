@@ -1,11 +1,13 @@
 - Id: rd2yh7
-- Status: open
+- Status: graduated
+- Graduated-To: rd2yh7
 - Set: rd2yh7
 - Priority: low
 - Work-Kind: chore
 - Summary: Audit tests that derive leak-detector fixture input from Path(__file__) so no other test asserts a property of its own checkout location
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: yumxwz
 - 2026-09-20 created (aw backlog): Deferred from plan zx9dkq (its second Deferred/out-of-scope row); filed so the obligation survives that plan reaching executed.
 
 DEFERRED BY plan `zx9dkq`, whose "Deferred / out of scope" section reads: "AUDITING EVERY TEST THAT DERIVES A FIXTURE FROM `Path(__file__)`. Plausibly the same shape exists elsewhere, but a repo-wide sweep is its own plan with its own measurement."
