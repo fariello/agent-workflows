@@ -6,7 +6,8 @@
 - Scope: IN: ONE new test file, `tests/test_selector_two_dialect_readers.py`, restoring OUTCOME coverage for the four measured-unguarded properties plus the two measured-guarded ones (so the file is a complete statement of the readers' contract rather than a patch over today's holes), each test proven non-vacuous by the RED-under-mutation measurement recorded in Findings. Every test drives `selectors.resolve`/`resolve_for_mutation`/the three readers on FIXTURE records in a temp repo and asserts observable answers (match KIND, matched paths, refusal text). OUT, and deliberately: any edit to `agent_workflows/selectors.py` (this plan asserts existing behavior and must not change it); restoring the two deleted files verbatim (they carry code-structure pins that `GUIDING_PRINCIPLES.md` P16 now prohibits, enumerated in Findings as X1..X4, and re-adding them would reintroduce exactly what plan `b02ohu` is removing); the two properties measured as genuinely unobservable (M3 bullet-first ordering, M4 the fence pre-filter), which are named in Deferred with the measurement that retired them rather than left implied; and the general audit of `19313eed`, which is backlog `xvp5vx`.
 - Scope-Paths: tests/test_selector_two_dialect_readers.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
 - From-Backlog: 7qvj1c
@@ -17,6 +18,7 @@
 - Id: 3xd1pm
 
 ## Workflow history
+- 2026-09-29 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-201 through PR-205 all fixed; full mutation census reproduced
 
 - 2026-09-29 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-201 through PR-204, all FIXED. Reviewed at `86fafc93` in a lane worktree. Structural preflight conformed before and after revision.
   THE ENTIRE MUTATION CENSUS WAS REPRODUCED INDEPENDENTLY RATHER THAN TRUSTED, because every item in this plan is justified by it and a stale census would have justified the wrong tests. All six consequential mutations gave the plan's exact figures at this head: M5, M1a, M2 and M6 each `3246 passed, 2 skipped` (unguarded, as claimed); M1b `5 failed, 3241 passed`; M1c `3 failed, 3243 passed`, with the incidental failures in exactly the named `tests/test_cli_find.py` and `tests/test_research_archive.py` classes. The live-tree collision claim reproduced to the file: 0 collisions clean, and under M5 exactly one, `uyeko5`, across the three named records. F-1's corpus figures (130 / 123 / 123 / 116), E-05's trap premise (0 research records declare an id6 absent from their filename) and E-04's correction of `xo3244` (0 tracked fenced non-research records) all reproduced unchanged. `agent_workflows/selectors.py` is byte-identical to HEAD; `git diff --stat` on it is empty.
