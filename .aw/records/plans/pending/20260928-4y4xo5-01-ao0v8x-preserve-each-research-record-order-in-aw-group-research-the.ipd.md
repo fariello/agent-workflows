@@ -13,6 +13,7 @@
 - Scope-Paths: agent_workflows/research_refs.py, agent_workflows/cli.py, tests/test_group_verb_policy.py
 - Item-Dependencies: none
 - Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: 4y4xo5
@@ -206,7 +207,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-This plan is `to-review` and requires explicit human approval before execution; it must not be executed on the strength of this authoring turn.
+This plan was authored `to-review` with no `- Readiness:` field, correctly, since that value is an output of review rather than of authoring. Review has now run and written `- Readiness: go-pending-approval`: the plan passed review with no unfixed BLOCKER or HIGH and no open question, and awaits only explicit human approval. It must not be executed on the strength of the authoring turn.
 
 EXECUTION CONTRACT. Stay inside `Scope-Paths`: `agent_workflows/research_refs.py`, `agent_workflows/cli.py`, `tests/test_group_verb_policy.py`. Leave `plans_refs.py` and `artifact_rename.py` byte-unchanged and extract no shared helper between the backends. Do not begin writing research frontmatter: that is `f7a2kc`'s fence, and this plan's filename-only tier decision depends on not pre-empting it. Commit through `aw commit <plan> -- <paths>` with the staged set verified (the checkout is shared); never `git add -A`, never push, never `--no-verify`.
 EVIDENCE CONTRACT. The failing-first contrast in V-01 is the gate: if the new bare-regroup tests cannot be observed failing against unfixed source, stop and report rather than proceeding, because the defect has then not been pinned. Paste actual runner output for every `V-*`; never record a pass not run. Be aware of the measured hazard behind E-01's in-process requirement: an editable install can make a subprocess `python3 -m agent_workflows` import the MAIN checkout rather than this lane (`ccbe60`), so a subprocess assertion can pass against unfixed source.
