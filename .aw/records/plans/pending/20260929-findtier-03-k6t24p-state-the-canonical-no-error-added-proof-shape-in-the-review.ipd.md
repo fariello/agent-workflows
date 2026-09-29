@@ -6,7 +6,8 @@
 - Scope: Record, ONCE, in the two plan-review rubric surfaces, the canonical two-limb no-error-added proof shape an author must demand instead (a registry severity assertion plus a behavioral gate-consequence measurement), and name the exit-0 form as the specific anti-pattern to flag. EXCLUDES any change to `artifact_core.drift_exit_code`, to `check_engine.RULE_REGISTRY`, or to any rule's registered severity: the code is correct and this is an authoring-contract defect. EXCLUDES editing executed plan `3i6rso` beyond nothing at all (its record is immutable and it already documents the refusal). EXCLUDES the suite-coverage half of this area, which sibling `y43g6q` owns. EXCLUDES adding a mechanical lint rule, for the reason the adjacent re-derivation convention states: distinguishing a satisfiable evidence demand from an unsatisfiable one requires semantic reading.
 - Scope-Paths: .aw/system/workflows/plan-review/plan-review.md, .aw/system/workflows/plan-review-long/review-rubric.md, tests/test_plan_review_feasibility_rule.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
 - From-Backlog: hwhbc8
@@ -17,6 +18,7 @@
 - Id: k6t24p
 
 ## Workflow history
+- 2026-09-29 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-101 through PR-106 all fixed
 
 - 2026-09-29 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-101 through PR-105, all FIXED. Reviewed at `0cfc41a9` in a lane worktree. Structural preflight conformed before and after revision. NO PRODUCTION FILE AND NEITHER RUBRIC WAS MODIFIED by this review; every measurement came from read-only probes.
   THE PLAN'S DIAGNOSIS IS CORRECT AND EVERY LOAD-BEARING CLAIM REPRODUCED. `drift_exit_code` returns `warning -> 1`, `error -> 1`, `info -> 0`, `empty -> 0`; the registry holds exactly 52 rules at 33/12/7 and `check.identity-absent-from-name` resolves to `RuleSpec(severity='warning', ...)`; `3i6rso`'s V-04 does demand the impossible exit-0 form and its executor did refuse it on record; `test_the_rule_gates_no_lifecycle_step` was deleted by `80db6750`; GUIDING_PRINCIPLES 16 does prohibit the census the backlog item asked for; and pending plan `0ykozn` does carry the same wording legitimately because its rule is `info`.
