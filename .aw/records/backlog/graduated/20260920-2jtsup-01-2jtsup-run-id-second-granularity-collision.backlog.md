@@ -1,5 +1,6 @@
 - Id: 2jtsup
-- Status: open
+- Status: graduated
+- Graduated-To: runidcollide
 - Blocks-Release: next
 - Set: 2jtsup
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: new_run_id can collide: two runs started within one second from one process share a run directory
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260928T235941Z-1396311: 6mdtnu
 - 2026-09-20 created (aw backlog): Found while wiring the standalone audit verb (plan mp289j).
 
 MEASURED 2026-09-20 at HEAD 4b8f22b5: `runner_shared.new_run_id()` returns `run-<UTC seconds>-<pid>`, so two calls from ONE process inside ONE second return the IDENTICAL id. Verified directly: `{new_run_id(), new_run_id()}` has length 1.
