@@ -1,5 +1,6 @@
 - Id: 03aicr
-- Status: open
+- Status: graduated
+- Graduated-To: 03aicr
 - Blocks-Release: next
 - Set: 03aicr
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: test_drain_and_cascade_mapped_reasons_rendered_once asserts against live repo state and now fails on a clean tree
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260929T021205Z-3914774: jefifu
 - 2026-09-28 created (aw backlog): Filed while authoring the plan for backlog 3f4ayi: the one bare-suite failure at HEAD 71aee0d3 is an unrelated test coupled to plan 5o1jye's live lifecycle status.
 
 MEASURED 2026-09-28 at HEAD `71aee0d3` while authoring the plan for backlog item `3f4ayi`. A BARE `python3 -m pytest` reports `1 failed, 3034 passed, 2 skipped` and the one failure is unrelated to that item's scope:
