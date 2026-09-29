@@ -1,5 +1,6 @@
 - Id: hf76th
-- Status: open
+- Status: graduated
+- Graduated-To: abandonedref
 - Blocks-Release: next
 - Set: hf76th
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: the transaction discards its lifecycle commit by deleting the coordinator branch on every failure arm, so the released evidence bytes survive only as a dangling object gc will prune and no tooled verb can name it
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260929T021205Z-3914774: c8ioct
 - 2026-09-28 created (aw backlog): Filed while authoring cnf7gw's graduation plan; measured, see body.
 
 MEASURED 2026-09-28 at HEAD 6171375d, in a scratch fixture driving a real `ipd_lifecycle.finalize(apply=True)` whose ff-only merge RACED.
