@@ -6,7 +6,7 @@
 - Scope: Make the single-item-only contract VISIBLE where a caller reads it (a docstring on each of the three functions naming `_from_backlog_carrier_index` as the many-item route) and MACHINE-CHECKED by a new AST test that fails when any call site passes a loop-derived id6, so the fourth encounter is a red test rather than a measurement. Deliberately does NOT reimplement the per-item functions on a cached index: authoring MEASURED that a process-lifetime cache makes the runner refuse a legitimate backlog close (F-05), so the item's second suggested fix is not merely unnecessary, it is unsafe as stated.
 - Scope-Paths: agent_workflows/check_engine.py, tests/test_carrier_scan_single_item_contract.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: jpn6hy
-- Approval: 2026-09-29, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-29 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: jpn6hy verified (set 8cpbia, attempt 1).
 - 2026-09-29 approved (aw set): status set to approved
 - 2026-09-28 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-A01, PR-A02 (HIGH), PR-A03 (MEDIUM), PR-A04 (LOW), all FIXED. Reviewed at HEAD `cd967ae7`. This is an unusually well-measured plan and eight of its nine findings reproduce, several exactly: the four call sites and their empty loop-bound intersection (F-04), all eight guard fixtures case for case including the `tmp = i` hole (F-06), the iter-position discriminator that a naive enclosing-loop test gets wrong (F-07), and F-05's rejection of the backlog item's cached-index fix, which was RE-DRIVEN end to end through the real `runner_shared.evaluate_backlog_close` and reproduces with the second item refused citing a stale `pending/` path that `plan_bucket` silently reports as `pending`. THE FINDINGS ARE ABOUT WHAT WAS NOT MEASURED. FIRST, the guard's `agent_workflows/`-only scope is LOAD-BEARING and unexplained: the same analyzer pointed at `tests/` flags two LEGITIMATE sentinel-loop calls in `test_check_engine_release_gate.py`, so the obvious future widening turns the suite red with only bad remedies; E-01 now records that boundary and its reason in the module docstring. SECOND, the suite baseline is INVERTED, not merely stale: commit `f1b5b9ff` fixed the failure F-03 told the executor to expect (green at `3081 passed, 2 skipped`), so the plan as authored licensed accepting a red suite, and carrier `03aicr` is now stale while still `open` and release-gated; E-03 requires that reported and explicitly not closed. THIRD, F-02 warns the ratio is no constant and then had E-02 write one into a docstring; a review re-run measured roughly 449x with a 1.023 s shared walk against the authored 598x at 259 ms, so the durable claim is now the SHAPE. Also recorded: the mapping-equality check must use CARRIED items, since the first 60 backlog items have none. Readiness recorded in the `- Readiness:` field. Findings and three `Decisions` rows in `.aw/records/reviews/20260928-8cpbia-01-jpn6hy-document-the-per-item-carrier-scanners-as-single-item-only-a.review.md`.
 
