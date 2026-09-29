@@ -1,11 +1,13 @@
 - Id: ahlgnm
-- Status: open
+- Status: graduated
+- Graduated-To: attselratify
 - Set: attselratify
 - Priority: medium
 - Work-Kind: followup
 - Summary: Ratify or relax the aw attention no-match exit contract: exit 2 and a refusing --check shipped as the fail-closed default
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: o6ksmw
 - 2026-09-21 created (aw backlog): Ratify or relax the aw attention no-match exit contract: exit 2 and a refusing --check shipped as the fail-closed default
 
 CARRIES OQ-01 AND OQ-02 of plan fqnj8k (attsel-01) past that plan's execution, so the maintainer's outstanding call does not vanish when the plan classes done. Both questions were NON-BLOCKING and both are IMPLEMENTED; what is outstanding is ratification, not design.
