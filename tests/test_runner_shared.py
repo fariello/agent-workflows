@@ -37,6 +37,7 @@ exempting the riskiest symbols is how a harness becomes decorative:
 
 from __future__ import annotations
 
+import argparse
 import ast
 import contextlib
 import copy
@@ -2149,6 +2150,187 @@ class AgyVerificationFlagSurfaceTests(unittest.TestCase):
                         list(runs.glob("run-*")) if runs.exists() else [],
                         [],
                     )
+
+
+class VerificationDestAsymmetryPerHostTests(unittest.TestCase):
+    """Pin the per-host verification flag contract and its operator-visible consequences.
+
+    Restores the assertions of the deleted `TheVerificationDestAsymmetryIsPinnedPerHost` (F-03),
+    whose own docstring instructed that it be re-based rather than deleted when the parser split
+    happened.
+
+    Asserts:
+    1. The 24-cell dest table across all six spellings, both hosts, and both `start` and `resume`
+       subparsers (E-01, F-01).
+    2. `--verify` and `--audit` exit 2 on agy start while accepted on oc start (E-02, F-02(a)).
+    3. Contradictory pair `--no-verify --validate` is refused on agy, but silently parsed and
+       order-dependent on oc (E-02, F-02(b)).
+    4. agy resume rejects all six verification spellings (exit 2), while oc resume accepts
+       `--no-verify` and `--validate` into frozen state (E-02, F-02(c)).
+    """
+
+    VERIFICATION_SPELLINGS: tuple[str, ...] = (
+        "--validate",
+        "--no-validate",
+        "--verify",
+        "--no-verify",
+        "--audit",
+        "--no-audit",
+    )
+
+    def _get_subparsers(
+        self, parser: argparse.ArgumentParser
+    ) -> dict[str, argparse.ArgumentParser]:
+        for action in parser._actions:
+            if isinstance(action, argparse._SubParsersAction):
+                return action.choices
+        self.fail("No _SubParsersAction found on parser")
+
+    def test_verification_dest_table_per_host_and_subcommand(self):
+        """Pin the 24 (host, subcommand, spelling) cells across start and resume.
+
+        Asserts one assertEqual per (host, subcommand) cell against a complete literal dict so a
+        changed cell reports the whole table rather than the first mismatch (E-01).
+        """
+        expected_tables = {
+            ("oc", "start"): {
+                "--validate": "validate",
+                "--no-validate": "validate",
+                "--verify": "validate",
+                "--no-verify": "validate",
+                "--audit": "validate",
+                "--no-audit": "validate",
+            },
+            ("oc", "resume"): {
+                "--validate": "validate",
+                "--no-validate": "validate",
+                "--verify": "validate",
+                "--no-verify": "validate",
+                "--audit": "validate",
+                "--no-audit": "validate",
+            },
+            ("agy", "start"): {
+                "--validate": "validate",
+                "--no-validate": "validate",
+                "--verify": None,
+                "--no-verify": "no_verify",
+                "--audit": None,
+                "--no-audit": "no_verify",
+            },
+            ("agy", "resume"): {
+                "--validate": None,
+                "--no-validate": None,
+                "--verify": None,
+                "--no-verify": None,
+                "--audit": None,
+                "--no-audit": None,
+            },
+        }
+
+        parsers = {
+            "oc": oc_runipd.build_parser(),
+            "agy": agy_runipd.build_parser(),
+        }
+
+        for (host, sub_name), expected_dest_map in expected_tables.items():
+            with self.subTest(host=host, subcommand=sub_name):
+                subs = self._get_subparsers(parsers[host])
+                sub = subs[sub_name]
+                actual_dests = {}
+                for flag in self.VERIFICATION_SPELLINGS:
+                    dest = None
+                    for action in sub._actions:
+                        if flag in (action.option_strings or []):
+                            dest = action.dest
+                            break
+                    actual_dests[flag] = dest
+
+                if host == "oc":
+                    msg = (
+                        f"{host} {sub_name} verification spellings must ALL resolve to dest "
+                        "'validate'; on this host they are aliases of one tri-state."
+                    )
+                elif sub_name == "start":
+                    msg = (
+                        "agy start verification surface must stay DISTINCT from oc: "
+                        "--verify/--audit do not exist here, and --no-verify/--no-audit "
+                        "carry their own dest no_verify. If this failed after a de-duplication, "
+                        "oc's alias list has been registered on agy and agy's shipped --no-verify "
+                        "no longer means what its documentation says."
+                    )
+                else:
+                    msg = (
+                        "agy resume registers NONE of the six verification spellings (all None). "
+                        "A shared core or parser split must not give agy resume verification flags "
+                        "where none exist."
+                    )
+
+                self.assertEqual(actual_dests, expected_dest_map, msg)
+
+    def test_verify_and_audit_flags_exit_2_on_agy_start_and_parse_on_oc_start(self):
+        """Pin operator consequence 1: --verify and --audit exit 2 on agy start, parse on oc start."""
+        for flag in ("--verify", "--audit"):
+            with self.subTest(flag=flag):
+                agy_parser = agy_runipd.build_parser()
+                with contextlib.redirect_stderr(io.StringIO()):
+                    with self.assertRaises(SystemExit) as cm:
+                        agy_parser.parse_args(["start", "demo", flag])
+                self.assertEqual(
+                    cm.exception.code,
+                    2,
+                    f"agy start must reject {flag} with exit code 2 (unrecognized argument)",
+                )
+
+                oc_parser = oc_runipd.build_parser()
+                args = oc_parser.parse_args(["start", "demo", flag])
+                self.assertIs(
+                    args.validate,
+                    True,
+                    f"oc start must accept {flag} as an alias of validate=True",
+                )
+
+    def test_contradictory_pair_handling_refused_on_agy_and_order_dependent_on_oc(self):
+        """Pin operator consequence 2: contradictory pair refused on agy, order-dependent on oc."""
+        agy_parser = agy_runipd.build_parser()
+        args = agy_parser.parse_args(["start", "demo", "--no-verify", "--validate"])
+        with self.assertRaises(runner_shared.RunFlagRefusal) as ctx:
+            agy_runipd.verification_flag_tristate(args)
+        self.assertIn("contradict each other", str(ctx.exception))
+
+        oc_parser = oc_runipd.build_parser()
+        oc_args1 = oc_parser.parse_args(["start", "demo", "--no-verify", "--validate"])
+        self.assertIs(
+            oc_args1.validate,
+            True,
+            "oc start --no-verify --validate must resolve validate=True (last flag wins)",
+        )
+
+        oc_args2 = oc_parser.parse_args(["start", "demo", "--validate", "--no-verify"])
+        self.assertIs(
+            oc_args2.validate,
+            False,
+            "oc start --validate --no-verify must resolve validate=False (last flag wins)",
+        )
+
+    def test_resume_subcommand_verification_flag_handling_per_host(self):
+        """Pin operator consequence 3: agy resume rejects all verification flags (exit 2), oc resume accepts them."""
+        for flag in self.VERIFICATION_SPELLINGS:
+            with self.subTest(flag=flag):
+                agy_parser = agy_runipd.build_parser()
+                with contextlib.redirect_stderr(io.StringIO()):
+                    with self.assertRaises(SystemExit) as cm:
+                        agy_parser.parse_args(["resume", "run-123", flag])
+                self.assertEqual(
+                    cm.exception.code,
+                    2,
+                    f"agy resume must reject {flag} with exit code 2 (unrecognized argument)",
+                )
+
+        oc_parser = oc_runipd.build_parser()
+        args_no_verify = oc_parser.parse_args(["resume", "run-123", "--no-verify"])
+        self.assertIs(args_no_verify.validate, False)
+        args_validate = oc_parser.parse_args(["resume", "run-123", "--validate"])
+        self.assertIs(args_validate.validate, True)
 
 
 class IntegrationDeferralLadderTests(unittest.TestCase):
