@@ -907,6 +907,16 @@ def extract_step_usage(
     )
 
 
+def _normalize_report_cell(raw: str) -> str:
+    """Strip backtick markup and surrounding whitespace from a markdown report cell.
+
+    Returns a plain string without folding empty values to None. Empty-to-None
+    folding must remain at individual call sites where required (e.g. Verify vs
+    Last session), because different columns require opposite empty-cell semantics.
+    """
+    return raw.replace("`", "").strip()
+
+
 def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary | None:
     """Load a RunSummary from a run directory."""
     if not run_dir.is_dir():
@@ -1197,32 +1207,35 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
                     cols = [c.strip() for c in line.split("|")[1:-1]]
                     if len(cols) >= 5:
                         try:
-                            pos = int(cols[0])
+                            pos = int(_normalize_report_cell(cols[0]))
                         except ValueError:
                             pos = len(steps) + 1
-                        id6 = cols[1].replace("`", "").strip()
-                        setid = (
-                            cols[2].replace("`", "").strip() if len(cols) > 2 else ""
-                        )
+                        id6 = _normalize_report_cell(cols[1])
+                        setid = _normalize_report_cell(cols[2]) if len(cols) > 2 else ""
                         action = (
-                            cols[3].replace("`", "").strip()
+                            _normalize_report_cell(cols[3])
                             if len(cols) > 3
                             else "execute"
                         )
-                        status = cols[4].strip() if len(cols) > 4 else "unknown"
-                        v_status = (
-                            cols[5].strip()
-                            if len(cols) > 5 and cols[5].strip()
-                            else None
+                        status = (
+                            _normalize_report_cell(cols[4])
+                            if len(cols) > 4
+                            else "unknown"
                         )
+                        # An empty verify cell or a backticks-only cell (e.g. ``) normalizes to ""
+                        # and folds to None here, matching existing unbackticked empty-cell behavior.
+                        v_cell = (
+                            _normalize_report_cell(cols[5]) if len(cols) > 5 else ""
+                        )
+                        v_status = v_cell if v_cell else None
                         attempts = 0
                         if len(cols) > 6:
                             try:
-                                attempts = int(cols[6].strip())
+                                attempts = int(_normalize_report_cell(cols[6]))
                             except ValueError:
                                 attempts = 1
                         session_id = (
-                            cols[7].replace("`", "").strip() if len(cols) > 7 else None
+                            _normalize_report_cell(cols[7]) if len(cols) > 7 else None
                         )
 
                         discovered = _find_stem_for_id6(repo_root, id6)

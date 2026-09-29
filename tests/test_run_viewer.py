@@ -2550,3 +2550,185 @@ class TestTypedQueueAuditViewer(TestCase):
         )
         self.assertIn("graduated", rendered)
         self.assertIn("regressed", rendered)
+
+
+class TestReportTableFallbackNormalization(TestCase):
+    """Test fallback report-table normalization and cross-reader equivalence (2c0enr)."""
+
+    def test_fallback_report_parses_backticked_cells_identically_to_bare(self) -> None:
+        """Parity test: report table with backticked cells parses field-identically to bare cells (E-02, V-02).
+
+        Builds two run directories containing only an execution-report.md, one with the canonical
+        bare row and one whose every cell is wrapped in backticks. Asserts that load_run_summary
+        returns StepSummary objects that are equal on every field the table can carry:
+        position, id6, setid, action, status, verification_status, attempts_count, session_id.
+
+        Also asserts downstream rendering: the '[verified]' badge in format_step_line for both,
+        'yes' in format_run_human's Verified column for both, and summary.counts keyed cleanly
+        as {'executed': 1} for both without markup leakage.
+        """
+        bare_report = (
+            "# Execution Report: run-20260928T000000Z-000001\n\n"
+            "- Created: 2026-09-28T00:00:00+00:00\n"
+            "- Updated: 2026-09-28T01:00:00+00:00\n"
+            "- Selectors: `testset`\n\n"
+            "| # | id6 | Set | Action | Status | Verify | Attempts | Last session |\n"
+            "|---:|---|---|---|---|---|---:|---|\n"
+            "| 3 | abc123 | testset | execute | executed | verified | 4 | ses_123 |\n"
+        )
+        backticked_report = (
+            "# Execution Report: run-20260928T000000Z-000002\n\n"
+            "- Created: 2026-09-28T00:00:00+00:00\n"
+            "- Updated: 2026-09-28T01:00:00+00:00\n"
+            "- Selectors: `testset`\n\n"
+            "| # | id6 | Set | Action | Status | Verify | Attempts | Last session |\n"
+            "|---:|---|---|---|---|---|---:|---|\n"
+            "| `3` | `abc123` | `testset` | `execute` | `executed` | `verified` | `4` | `ses_123` |\n"
+        )
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            bare_dir = root / "bare"
+            bare_dir.mkdir()
+            (bare_dir / "execution-report.md").write_text(bare_report, encoding="utf-8")
+
+            bt_dir = root / "backticked"
+            bt_dir.mkdir()
+            (bt_dir / "execution-report.md").write_text(
+                backticked_report, encoding="utf-8"
+            )
+
+            bare_summary = run_viewer.load_run_summary(bare_dir, root)
+            bt_summary = run_viewer.load_run_summary(bt_dir, root)
+            self.assertIsNotNone(bare_summary)
+            self.assertIsNotNone(bt_summary)
+            assert bare_summary is not None and bt_summary is not None
+
+            self.assertEqual(len(bare_summary.steps), 1)
+            self.assertEqual(len(bt_summary.steps), 1)
+            b_step = bare_summary.steps[0]
+            t_step = bt_summary.steps[0]
+
+            fields = [
+                "position",
+                "id6",
+                "setid",
+                "action",
+                "status",
+                "verification_status",
+                "attempts_count",
+                "session_id",
+            ]
+            diffs = []
+            for f in fields:
+                bv = getattr(b_step, f)
+                tv = getattr(t_step, f)
+                if bv != tv:
+                    diffs.append(f"{f}: bare={bv!r} vs backticked={tv!r}")
+            self.assertEqual(diffs, [], f"Mismatched fields: {diffs}")
+
+            # Counts must be keyed cleanly without markup for both
+            self.assertEqual(bare_summary.counts, {"executed": 1})
+            self.assertEqual(bt_summary.counts, {"executed": 1})
+
+            # Rendering consequences: [verified] badge in format_step_line and yes in format_run_human
+            term = Term(color=False)
+            self.assertIn("[verified]", run_viewer.format_step_line(b_step, term))
+            self.assertIn("[verified]", run_viewer.format_step_line(t_step, term))
+
+            bare_human = run_viewer.format_run_human(bare_summary, term, detail=True)
+            bt_human = run_viewer.format_run_human(bt_summary, term, detail=True)
+            self.assertIn("yes", bare_human)
+            self.assertIn("yes", bt_human)
+
+    def test_cross_reader_equivalence_between_state_json_and_fallback_report(
+        self,
+    ) -> None:
+        """Regression fence: state.json and fallback execution-report agree on all 8 fields (E-03, V-03).
+
+        This test is a REGRESSION FENCE and not a bug reproduction: it passes at the pre-change
+        HEAD for both host descriptors (OC_HOST_LABELS and AGY_HOST_LABELS). It ensures that
+        a future producer change cannot move one reader without the other.
+
+        BOUNDARY / KNOWN DIVERGENCE:
+        Equivalence is asserted for a FULLY-POPULATED row (non-empty verification_status and
+        at least one attempt). For an item with verification_status='' and attempts=[], the two
+        readers disagree on two fields today:
+          verification_status state=''   report=None  EQ=False
+          session_id          state=None report=''    EQ=False
+        This divergence is pre-existing, orthogonal to backtick markup, and deliberately out of
+        scope for plan 2c0enr (see plan Deferred / out of scope section and OQ-03). This test
+        deliberately does not assert equality over that empty-cell shape.
+        """
+        state = {
+            "run_id": "run-20260928T000000Z-999999",
+            "repo": "agent-workflows",
+            "created_at": "2026-09-28T00:00:00+00:00",
+            "updated_at": "2026-09-28T01:00:00+00:00",
+            "selectors": ["testset"],
+            "queue": [
+                {
+                    "position": 3,
+                    "id6": "abc123",
+                    "setid": "testset",
+                    "action": "execute",
+                    "status": "executed",
+                    "verification_status": "verified",
+                    "attempts": [
+                        {"session_id": "ses_1"},
+                        {"session_id": "ses_2"},
+                        {"session_id": "ses_3"},
+                        {"session_id": "ses_4"},
+                    ],
+                }
+            ],
+        }
+
+        fields = [
+            "position",
+            "id6",
+            "setid",
+            "action",
+            "status",
+            "verification_status",
+            "attempts_count",
+            "session_id",
+        ]
+
+        for host_labels in (
+            runner_shared.OC_HOST_LABELS,
+            runner_shared.AGY_HOST_LABELS,
+        ):
+            with tempfile.TemporaryDirectory() as td:
+                root = Path(td)
+                run_dir = root / "run-20260928T000000Z-999999"
+                run_dir.mkdir()
+                (run_dir / "state.json").write_text(json.dumps(state), encoding="utf-8")
+                runner_shared.write_report(run_dir, state, labels=host_labels)
+
+                summary_state = run_viewer.load_run_summary(run_dir, root)
+                (run_dir / "state.json").unlink()
+                summary_report = run_viewer.load_run_summary(run_dir, root)
+
+                self.assertIsNotNone(summary_state)
+                self.assertIsNotNone(summary_report)
+                assert summary_state is not None and summary_report is not None
+
+                s_step = summary_state.steps[0]
+                r_step = summary_report.steps[0]
+
+                # Assert values expose non-trivial agreement (not accidental default agreement)
+                self.assertEqual(r_step.position, 3)
+                self.assertEqual(r_step.attempts_count, 4)
+                self.assertEqual(r_step.session_id, "ses_4")
+
+                diffs = []
+                for f in fields:
+                    sv = getattr(s_step, f)
+                    rv = getattr(r_step, f)
+                    if sv != rv:
+                        diffs.append(f"{f}: state={sv!r} vs report={rv!r}")
+                self.assertEqual(
+                    diffs,
+                    [],
+                    f"Cross-reader divergence for {host_labels.id}: {diffs}",
+                )
