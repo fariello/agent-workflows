@@ -1,5 +1,6 @@
 - Id: kjr5ol
-- Status: open
+- Status: graduated
+- Graduated-To: agentemitswp
 - Blocks-Release: next
 - Set: kjr5ol
 - Priority: high
@@ -7,6 +8,7 @@
 - Summary: aw attention --agent emitted no record outside a project: a perf commit deleted the emit call and nothing failed
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: f36de0
 - 2026-09-20 created (aw backlog): aw attention --agent emitted no record outside a project: a perf commit deleted the emit call and nothing failed
 
 FIXED BY IPD quqyc4 (this item exists as the durable carrier for the defect and for the CLASS it exposes, not as outstanding work on the fix itself).
