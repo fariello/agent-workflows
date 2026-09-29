@@ -1,11 +1,13 @@
 - Id: baskrx
-- Status: open
+- Status: graduated
+- Graduated-To: baskrx
 - Set: baskrx
 - Priority: medium
 - Work-Kind: chore
 - Summary: Two runner symbols became byte-identical after hostdedup Order 01 was reviewed and are unlifted
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: 9oj6t2
 - 2026-09-22 created (aw backlog): Two runner symbols became byte-identical after hostdedup Order 01 was reviewed and are unlifted
 
 Found while executing plan li44r9 (hostdedup Order 01), by its own committed scanner.
