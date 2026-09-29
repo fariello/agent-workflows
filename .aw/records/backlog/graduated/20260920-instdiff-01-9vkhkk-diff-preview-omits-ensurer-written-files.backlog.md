@@ -1,5 +1,6 @@
 - Id: 9vkhkk
-- Status: open
+- Status: graduated
+- Graduated-To: instdiff
 - Blocks-Release: next
 - Set: instdiff
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: Teach the install --diff preview about the ~49 ensurer-written files it still omits, so the dry run stops under-reporting an apply
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260928T235632Z-1358353: 3pwpq1
 - 2026-09-20 created (aw backlog): Filed by plan at61gc as the durable carrier for its F-13 deferral.
 
 MEASURED at plan at61gc's execution (2026-09-20, HEAD f156e14c, after at61gc's fix landed): `python3 install-workflows.py --repo <throwaway> --diff --no-color` proposes 305 files while a real apply into a throwaway repo writes 353. The residual ~49 are scaffolding written by separate `ensure_*` steps the preview has never modelled: `.aw/records/**` READMEs and `.gitkeep`s, `.aw/.gitignore`, and similar.
