@@ -1,5 +1,6 @@
 - Id: axayfn
-- Status: open
+- Status: graduated
+- Graduated-To: idcapture
 - Blocks-Release: next
 - Set: idcapture
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: Three identity readers outside plan 76w6mq's fence are still unbounded to the metadata region
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: xvon5j
 - 2026-09-21 created (aw backlog): Three identity readers outside plan 76w6mq's fence are still unbounded to the metadata region
 
 MEASURED 2026-09-21 while executing plan 76w6mq, which bounded identity extraction to the metadata region (selectors.metadata_region) for selectors._read_id/_read_status/_read_setid, the two public runner-facing readers, and check_engine's _ID_LINE_RE/_SET_LINE_RE identity+setid readers. THREE readers of the same shape remain unbounded, so the same quoted-metadata defect is still latent in them.
