@@ -1,12 +1,13 @@
-# IPD: Close the R6.1 porcelain fork and refresh spec 7ckptx's two stale coverage claims
+# IPD: Close the R6.1 porcelain fork and correct spec 7ckptx's one false coverage sentence
 
 - Date: 2026-09-29
 - Kind: child
-- Concern: The two substantive obstacles standing between spec `7ckptx` and an honest `implemented` claim: one live R6.1 violation (`runner_shared.dirty_tree_overlap` re-forks the single porcelain parser) and two acceptance-criterion texts (A12b, A15) that assert facts no longer true at HEAD.
+- Concern: Two substantive obstacles standing between spec `7ckptx` and an honest `implemented` claim: one live R6.1 violation (`runner_shared.dirty_tree_overlap` re-forks the single porcelain parser) and ONE acceptance-criterion sentence (A12b's coverage clause) that asserts a fact false at HEAD. A15 is separately stale in the weaker sense that it was amended after its only demonstration, which is a re-verification obligation and is Order 02's, not a text correction this plan can make.
 - Scope: Re-point `runner_shared.dirty_tree_overlap` at the one porcelain parser, add the behavioral test that the existing re-export test structurally cannot catch, and correct A12b's stale coverage sentence. Explicitly NOT the spec status transition, which is Order 02's subject.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_runner_shared.py, .aw/records/specs/approved/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
 - From-Backlog: eozq91
@@ -17,6 +18,7 @@
 - Id: e9ekuj
 
 ## Workflow history
+- 2026-09-29 reviewed (aw set): /plan-review (opencode model=its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 all FIXED, none deferred or open. HIGH PR-001: the conditional-abandon path told the executor to record E-02/E-03 and V-02/V-03 'not-needed', which is not a legal state in either closed vocabulary (probed: IPD-S401/IPD-S402, author disposition conforming -> error), so a fork already closed would have stranded the plan; rewritten onto E-02 'blocked' with a required Execution note, V-02 'blocked', and E-03 STILL PERFORMED because the test gap F-3 measures is independent of who closed the fork, with the honest IPD-S404 consequence stated (a blocked E-item cannot be finalized, so stop and report for retirement or re-scope). PR-003: F-6's arithmetic was backwards; the spec DEFINES 42 requirement ids and MENTIONS 43, the extra being R3.3b which is never defined at HEAD and survives only in WITHDRAWN A7c, so the backlog item's 42 was right and this plan's 43 was the error, and Order 02 must re-derive rather than adopt either figure. F-1, F-3 and F-4 all reproduce at HEAD 17387e25, and two things the plan asserted are now demonstrated: the forked decode and parse_porcelain_paths agree on all 12 probed porcelain inputs (so E-02 is a pure conformance change), and E-03's spy over parse_porcelain_entries records 0 calls at HEAD but 1 through the projection (so the new test genuinely discriminates). Bare suite 3246 passed, 2 skipped.
 
 - 2026-09-29 to-review (opencode model=its_direct/pt3-claude-opus-5-1m-us): Authored from backlog `eozq91`, whose premise is that spec `7ckptx` is finished and needs only a human transition. MEASURED AT AUTHORING AND THE PREMISE IS PARTLY FALSE, which is why this plan exists ahead of any transition. THREE MEASUREMENTS, each reproducible at HEAD `90bb593b`. (1) The item's requirement-coverage claim HOLDS but its count is wrong: it says "all 42 of the spec R<n>.<n> requirement ids", and the spec actually defines 43 distinct ids (the letter-suffixed `R3.3a`, `R4.1a`, `R5.1a`, `R5.6a` and siblings are missed by a `R[0-9]+\.[0-9]+` pattern that does not allow a trailing letter). Every one of the 43 IS cited by an executed `lanectn` plan, so the conclusion survives the arithmetic. (2) FINDING F1, which plan `4fodkt` reported and NOBODY FILED, is still live: `runner_shared.dirty_tree_overlap` decodes the porcelain format inline (`entry = line[3:]`, the `" -> "` split) while `lane_containment.parse_porcelain_entries` documents itself as "THE ONE PORCELAIN PARSER (spec R6.1)". That is the fork R6.1 calls non-conforming, and it is unfiled in every backlog directory (searched for `dirty_tree_overlap` and for `R6.1`). (3) TWO ACCEPTANCE CRITERIA WENT STALE AFTER `4fodkt` VERIFIED THEM, which `aw attention` cannot see because it reads status and not criterion text: the spec was amended twice (2026-09-18 R5.5/A15, 2026-09-25 R5.1a/A12b) after the 2026-09-17 verification at HEAD `e299a9a5`, so A12b and A15 as they read today were never demonstrated. A12b is additionally stale ON ITS FACE: it says parts (i)/(ii) "currently have no shipped test since commit `19313eed` deleted `tests/test_lane_input_manifest.py`", and that file exists at HEAD with 17 tests, restored by `654a3adb` (restorecov `dmxc5h`) on 2026-09-26. WHY THE WORK IS SPLIT FROM THE TRANSITION: F1 is a code change against a release-blocking spec and must be reviewed as one, while the transition is an evidence-and-authority act; bundling them would make one V-item cover both a code fix and a lifecycle claim.
 - 2026-09-29 draft (opencode model=its_direct/pt3-claude-opus-5-1m-us): created.
@@ -38,7 +40,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-01 RE-MEASURE FINDING F1 AT EXECUTION HEAD BEFORE CHANGING ANYTHING, and abandon the fix if it has already been closed. Read `runner_shared.dirty_tree_overlap` and confirm it still decodes the porcelain format itself rather than delegating: the tells are the two-column strip (`entry = line[3:] if len(line) > 3 else line.strip()`) and the rename split on `" -> "`. Confirm `lane_containment.parse_porcelain_entries` still claims sole ownership ("THE ONE PORCELAIN PARSER (spec R6.1)") and that `parse_porcelain_paths` is its path-only projection. Record which surfaces reach the forked copy: both `oc_runipd` and `agy_runipd` re-export the `runner_shared` function rather than defining their own, so the fork is reached by every driver.
   - Depends on: none
-  - Expected outcome: the two function bodies pasted side by side with the duplicated format knowledge identified line by line, plus an explicit statement that the fork IS or IS NOT still present. If absent, E-02/E-03 are recorded not-needed with the commit that closed it cited, and this plan continues at E-04.
+  - Expected outcome: the two function bodies pasted side by side with the duplicated format knowledge identified line by line, plus an explicit statement that the fork IS or IS NOT still present. IF IT IS ALREADY GONE, follow the legal states named in the Approval and execution gate below (E-02 `blocked` with an `Execution note:` citing the closing commit; E-03 still performed, because the test gap F-3 records is independent of who closed the fork) and do NOT invent a state: `not-needed` is not a legal execution state.
   - Execution state: pending
 
 - [ ] E-02 REPOINT `dirty_tree_overlap` AT THE ONE PARSER, changing no behavior. Replace the inline decode with a call to `lane_containment.parse_porcelain_paths`, using the deferred-import form already used elsewhere in this module (`runner_shared.teardown_lane_if_classified` imports `lane_containment` inside the function body) so no import cycle is introduced. Preserve the function's contract exactly: it still runs `git status --short --untracked-files=all`, still intersects with the incoming set, still returns a sorted list, and still treats BOTH endpoints of a rename as dirty. Keep the docstring's merge-result-diff reasoning and its finding F-7 pointer intact, and replace only the paragraph that documents the format it no longer decodes, noting where the format now lives.
@@ -46,14 +48,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: the new body pasted, showing the delegation and no remaining format knowledge, with the behavioral contract paragraphs preserved.
   - Execution state: pending
 
-- [ ] E-03 ADD THE TEST THE EXISTING ONE STRUCTURALLY CANNOT FAIL, because a fix with no new test would leave the next fork equally invisible. `4fodkt` recorded WHY the fork went unnoticed: the driver-level tests assert only the OVERLAP RESULT (`tests/test_oc_runipd.py::test_dirty_tree_overlap_helper_reports_only_overlap` and its `agy` twin), and `tests/test_runner_shared.py` treats `dirty_tree_overlap` as a plain re-export, so every existing assertion passes whether the parser is shared or forked. Add a test that fails on a fork and passes on delegation, WITHOUT reading source text (AGENTS.md forbids `inspect`/`ast`/regex pins on production source): monkeypatch `lane_containment.parse_porcelain_entries` to record its calls, drive `dirty_tree_overlap` against a real repository with a dirty tracked file, and assert the shared parser was actually invoked. Include a rename case, since that is the clause the two copies could most plausibly drift on.
+- [ ] E-03 ADD THE TEST THE EXISTING ONE STRUCTURALLY CANNOT FAIL, because a fix with no new test would leave the next fork equally invisible. `4fodkt` recorded WHY the fork went unnoticed: the driver-level tests assert only the OVERLAP RESULT (`tests/test_oc_runipd.py::test_dirty_tree_overlap_helper_reports_only_overlap` and its `agy` twin), and `tests/test_runner_shared.py` treats `dirty_tree_overlap` as a plain re-export, so every existing assertion passes whether the parser is shared or forked. Add a test that fails on a fork and passes on delegation, WITHOUT reading source text (AGENTS.md forbids `inspect`/`ast`/regex pins on production source): monkeypatch `lane_containment.parse_porcelain_entries` to record its calls, drive `dirty_tree_overlap` against a real repository with a dirty tracked file, and assert the shared parser was actually invoked. Include a rename case, since that is the clause the two copies could most plausibly drift on. PATCH `parse_porcelain_entries` AND NOT `parse_porcelain_paths`, which is load-bearing and was demonstrated at review: the projection calls the decoder by module-global name, so patching the decoder is observed through the projection E-02 delegates to, whereas patching the projection would be bypassed if a later refactor called the decoder directly. Demonstrated in a scratch probe at review: with a spy bound over `parse_porcelain_entries`, `dirty_tree_overlap(repo, ["a.txt"])` on a dirty tracked file returned `['a.txt']` and the spy recorded `0` calls (the fork, so the test FAILS today), while `parse_porcelain_paths(" M a.txt\nR  orig.txt -> dest.txt\n")` returned `['a.txt', 'dest.txt', 'orig.txt']` with the spy recording `1` call (so the patch point is reached through the projection). RESTORE THE SPY IN A `finally` or with `monkeypatch`, since `lane_containment` is imported process-wide and a leaked spy would corrupt unrelated tests under `-n auto`.
   - Depends on: E-02
   - Expected outcome: the new test pasted, plus a demonstration that it FAILS against the pre-E-02 body (stash or temporarily restore the inline parser) and PASSES after, so its discriminating power is shown rather than asserted.
   - Execution state: pending
 
 ### Task group 2: correct the criterion text that is false at HEAD
 
-- [ ] E-04 CORRECT A12b'S STALE COVERAGE SENTENCE, and change nothing else about the criterion. A12b currently asserts that parts (i) and (ii) and the in-place-edit check of part (iii) "currently have no shipped test since commit `19313eed` deleted `tests/test_lane_input_manifest.py`". Verify the present state first: confirm the file exists, count its tests, and identify which of them cover parts (i), (ii), and the in-place-edit half of (iii) BY NAME (at authoring these include `test_an_accidental_in_place_write_fails`, `test_part_iii_a_change_is_a_new_revision_not_an_edit`, and `test_a_restored_write_bit_is_detected`). Then rewrite ONLY that sentence to name the tests that now cover each part, and cite the restoring commit (`654a3adb`, restorecov `dmxc5h`). Do NOT weaken, retarget, or renumber the criterion, and do NOT touch its requirement citation. Append the amendment to the spec's `## Workflow history` using `aw specs note` rather than hand-editing that section.
+- [ ] E-04 CORRECT A12b'S STALE COVERAGE SENTENCE, and change nothing else about the criterion. A12b currently asserts that parts (i) and (ii) and the in-place-edit check of part (iii) "currently have no shipped test since commit `19313eed` deleted `tests/test_lane_input_manifest.py`". Verify the present state first: confirm the file exists, count its tests, and identify which of them cover parts (i), (ii), and the in-place-edit half of (iii) BY NAME (at authoring these include `test_an_accidental_in_place_write_fails`, `test_part_iii_a_change_is_a_new_revision_not_an_edit`, and `test_a_restored_write_bit_is_detected`). Then rewrite ONLY that sentence to name the tests that now cover each part, and cite the restoring commit (`654a3adb`, restorecov `dmxc5h`). CLAIM NO MORE THAN THE TESTS PROVE, which is the trap here: A12b parts (i)/(ii) ask for the manifest's and each input's MODE to be pasted in the artifact, whereas the restored tests prove the BEHAVIOR that mode buys (`test_an_accidental_in_place_write_fails` asserts the write raises `PermissionError`; `test_a_restored_write_bit_is_detected` asserts `verify_lane_input_seal` refuses an unsealed input) and assert no mode string. Those are the right tests by GUIDING_PRINCIPLES P16, so the corrected sentence must say the parts are now covered BEHAVIORALLY and name what each test asserts, NOT that the modes are pasted. Do NOT weaken, retarget, or renumber the criterion, and do NOT touch its requirement citation. Append the amendment to the spec's `## Workflow history` using `aw specs note` rather than hand-editing that section.
   - Depends on: none
   - Expected outcome: the before/after text of A12b's coverage sentence, the test names mapped to parts (i)/(ii)/(iii), and the `aw specs note` invocation with its output.
   - Execution state: pending
@@ -72,6 +74,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - Spec status and history are owned by `aw specs`; the specs README states plainly "Do NOT hand-edit the status or history". E-04 edits only criterion BODY text and records the amendment with `aw specs note`.
 - A plan that amends a spec must declare the `.spec.md` file in `- Scope-Paths:` (AGENTS.md), which this plan does, because both runners announce and then reconcile declared spec edits.
 - Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
+- THE STATE VOCABULARIES ARE CLOSED and there is no "skipped" state. Execution states are `pending`/`performed`/`blocked`/`failed` (`ipd_schema.EXEC_STATES`) and validation results are `pending`/`pass`/`blocked`/`failed` (`ipd_schema.VALIDATION_RESULTS`), per spec `ipd-structure-and-linting` Sections 5.2/5.3. Demonstrated at review by inserting each into a scratch copy of this plan: `Execution state: not-needed` produced `IPD-S401 E-02: unknown execution state 'not-needed'` and `Result: not-needed` produced `IPD-S402 V-02: unknown validation result 'not-needed'`, each turning the `author` disposition from `conforming` to `error`. `blocked` additionally REQUIRES an `Execution note:`, and it is not finalizable: `aw ipd lint --phase pre-transition` emits `IPD-S404` for any `E-*` that is not `performed` and any `V-*` that is not `pass`, and `ipd_lifecycle` fails closed on a non-conforming pre-transition gate. The conditional-abandon branch is written against these facts rather than against an invented state.
 
 ## Findings
 
@@ -82,23 +85,26 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-3 | Existing tests cannot fail on the fork | The two driver tests assert only the overlap RESULT; `tests/test_runner_shared.py` lists `dirty_tree_overlap` among plain re-exports | A fix alone would not prevent recurrence, so E-03 adds a test that discriminates |
 | F-4 | A12b's coverage sentence is false at HEAD | It says `tests/test_lane_input_manifest.py` was deleted by `19313eed`; the file exists with 17 tests, restored by `654a3adb` (2026-09-26) | A criterion asserting a false fact cannot support an `implemented` claim; E-04 corrects it |
 | F-5 | A12b and A15 were both amended AFTER `4fodkt` verified them | Spec history records amendments on 2026-09-18 (R5.5/A15) and 2026-09-25 (R5.1a/A12b); `4fodkt` verified on 2026-09-17 at HEAD `e299a9a5` | The two criteria as they read today were never demonstrated; re-demonstration is Order 02's E-scope, not this plan's |
-| F-6 | The backlog item's requirement count is off by one, and its conclusion still holds | The spec defines 43 distinct requirement ids, not 42; a `R[0-9]+\.[0-9]+` pattern misses the letter-suffixed `R3.3a`, `R4.1a`, `R5.1a`, `R5.6a`. All 43 are cited by executed `lanectn` plans | Recorded so a reviewer is not misled by the item's arithmetic; no action needed |
-| F-7 | `aw attention` currently reports `valid: false` repository-wide | `aw attention --format json` at authoring | Not caused by and not addressed by this plan; noted so its output is not read as clean during execution |
+| F-6 | The backlog item's count of 42 is RIGHT for defined requirements, and this plan's authoring claim of 43 conflated DEFINED with MENTIONED | Re-measured at review: the spec DEFINES 42 ids (unique line-start `R<n>.<n>[a-z] ` matches) and MENTIONS 43; the extra id is `R3.3b`, which is never defined at HEAD and survives only inside withdrawn criterion A7c and R3.3a's supersession prose. A letter-blind `R[0-9]+\.[0-9]+` pattern yields 32, not 42, so it cannot be what produced the item's 42 either | The item's arithmetic needed no correction. Every one of the 42 defined ids IS cited by an executed `lanectn` plan (re-verified at review), so the coverage conclusion holds on both counts. Order 02's E-01 must re-derive this itself and must NOT adopt either number |
+| F-7 | `aw attention` currently reports `valid: false` repository-wide | `aw attention --format json` re-run at review: exactly two violations, both lane-hygiene (`attention.lane-superseded` for lane `3brgb6`, `attention.lane-stranded` for lane `om3rzi`), neither touching a spec, plan, or backlog record | Not caused by and not addressed by this plan; noted with its measured cause so its output is not read as clean during execution and is not mistaken for damage this Set caused |
+| F-8 | A15 is stale in a WEAKER sense than A12b, and conflating them overstated this plan's scope | A12b asserts a checkable fact that is FALSE at HEAD (the deleted test file exists), so its TEXT is wrong; A15's text is correct and merely UNDEMONSTRATED since the 2026-09-18 amendment inverted its gitignored clause | Title, Concern, and Deferred reworded at review: this plan corrects ONE sentence and A15 stays wholly with Order 02, where it is a re-verification obligation rather than a text edit |
 
 ## Proposed changes (ordered, validatable)
 
-1. Re-measure F-1 at execution HEAD and stop if already closed (E-01).
+1. Re-measure F-1 at execution HEAD; if already closed, record E-02 `blocked` with the closing commit and still perform E-03 (E-01, and see the execution gate for why the plan then cannot finalize).
 2. Delegate `runner_shared.dirty_tree_overlap` to `lane_containment.parse_porcelain_paths`, preserving its contract and its merge-result-diff docstring reasoning (E-02).
 3. Add a behavioral test that fails on a forked parser and passes on delegation, including a rename case, and demonstrate it fails before the fix (E-03).
-4. Correct A12b's stale coverage sentence to name the tests that now cover parts (i)/(ii)/(iii), citing the restoring commit, and record the amendment with `aw specs note` (E-04).
+4. Correct A12b's stale coverage sentence to name the tests that now cover parts (i)/(ii)/(iii) BEHAVIORALLY (not by mode string), citing the restoring commit, and record the amendment with `aw specs note` (E-04).
 5. Run the bare suite, the narrowed surfaces, and the sanitizer, attributing any failure (E-05).
 
 ## Deferred / out of scope (with reason)
 
 - THE SPEC STATUS TRANSITION. Order 02 owns it. Splitting it out keeps a code fix and a lifecycle claim from sharing one validation item.
   - Carrier: uuh71v
-- RE-DEMONSTRATING A15 AND THE AMENDED A12b (F-5). That is re-verification of criterion behavior, which is Order 02's subject; this plan only makes A12b's text true.
+- RE-DEMONSTRATING A15 AND THE AMENDED A12b (F-5). That is re-verification of criterion behavior, which is Order 02's subject; this plan only makes A12b's text true. A15 IS NOT TOUCHED AT ALL here, not even textually (F-8): its text is correct and merely undemonstrated, so there is nothing for this plan to correct.
   - Carrier: uuh71v
+- CORRECTING THE BACKLOG ITEM'S OWN SUMMARY, which says "all 42 of its requirements" (F-6). That count turns out to be RIGHT, so nothing is owed.
+  - Carrier-Declined: No future work is owed because there is no defect. Re-measured at review, the spec DEFINES 42 requirement ids and the item's 42 is correct; this plan's authoring claim of 43 was the error, and it is corrected in F-6 rather than propagated. Recorded here because the authoring history line still states 43 and a reader comparing it against F-6 would otherwise wonder which was acted on: the answer is that F-6's re-measurement supersedes the history line, and Order 02's E-01 is instructed to re-derive the count from the spec rather than adopt either figure.
 - BACKLOG `nvymif` (the R5.5 teardown gate refusing every interrupted lane) and the R2.5 question it raises. It is filed, `open`, and explicitly needs its own plan; it is a spec R2.5 design question, not a conformance defect this plan can close.
   - Carrier: nvymif
 - FINDING F2 from `4fodkt` (the R1.2 clause detector misses one plausible rewording, LOW). The composite check still fails, so A1 passes; it is a robustness improvement with no live violation and no bearing on the transition.
@@ -109,7 +115,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Scope check
 
 - Over-scope: none. The three declared paths are the forked function, its test surface, and the one criterion text that is false.
-- Under-scope: A15's re-demonstration and the amended A12b's re-demonstration are not performed here (see Deferred); Order 02 performs them, and this plan's Order-01 position guarantees it runs first.
+- Under-scope: A15's re-demonstration and the amended A12b's re-demonstration are not performed here (see Deferred); Order 02 performs them, and this plan's Order-01 position guarantees it runs first. A15 receives no edit of any kind here (F-8).
 
 ## Required tests / validation
 
@@ -150,7 +156,7 @@ criterion's id, and its substantive obligations are untouched, so no other plan'
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: both function bodies pasted, with the duplicated format knowledge identified clause by clause (the two-column strip and the rename split), and an explicit IS or IS NOT verdict on the fork. A verdict asserted without both bodies pasted does NOT satisfy this item. If the verdict is IS NOT, the commit that closed it must be cited and V-02/V-03 recorded not-needed rather than passed.
+  - Required evidence: both function bodies pasted, with the duplicated format knowledge identified clause by clause (the two-column strip and the rename split), and an explicit IS or IS NOT verdict on the fork. A verdict asserted without both bodies pasted does NOT satisfy this item. If the verdict is IS NOT, the commit that closed it must be cited; V-02 then records `blocked` with its `Observed evidence` naming that commit (`not-needed` is not a legal validation result, and `pass` would assert a delegation this plan did not make), while V-03 is still required to `pass` because E-03 is still performed.
   - Observed evidence:
   - Result: pending
 
@@ -165,7 +171,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: A12b's coverage sentence quoted BEFORE and AFTER; the `tests/test_lane_input_manifest.py` test names mapped to parts (i), (ii), and the in-place-edit half of (iii), with those tests shown passing; the restoring commit cited; and the `aw specs note` command with its output. Also paste the spec's `- Status:` line before and after, proving it is UNCHANGED, since this plan has no authority over it. Any edit to A12b's id, its `(R5.1a)` citation, or its substantive obligations is a FAILURE of this item, not a pass.
+  - Required evidence: A12b's coverage sentence quoted BEFORE and AFTER; the `tests/test_lane_input_manifest.py` test names mapped to parts (i), (ii), and the in-place-edit half of (iii), with those tests shown passing; the restoring commit cited; and the `aw specs note` command with its output. The AFTER text must describe the coverage as BEHAVIORAL and must not claim the tests paste a mode, since they assert `PermissionError` and a `verify_lane_input_seal` refusal rather than a mode string; a corrected sentence that overclaims is a FAILURE of this item, because it would replace one false sentence with another. Also paste the spec's `- Status:` line before and after, proving it is UNCHANGED, since this plan has no authority over it. Any edit to A12b's id, its `(R5.1a)` citation, or its substantive obligations is a FAILURE of this item, not a pass.
   - Observed evidence:
   - Result: pending
 
@@ -179,14 +185,29 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required (5 E-items in 2 task groups, under the 18-leaf / 5-group thresholds). The two groups are one code-conformance concern and one text-correctness concern against the same spec, sharing a single validation run.
 
-EXECUTION CONTRACT. STOP IF E-01 SAYS THE FORK IS GONE: record it, skip E-02/E-03 as not-needed with the
-closing commit cited, and continue at E-04 rather than manufacturing a change. DO NOT TRANSITION THE SPEC;
+EXECUTION CONTRACT. IF E-01 FINDS THE FORK ALREADY CLOSED, do NOT manufacture a change: set E-02's
+`Execution state: blocked` with an `Execution note:` citing the commit that closed it, and record V-02
+`blocked` with that commit as its `Observed evidence`. STILL PERFORM E-03: the test gap F-3 records is that
+no existing assertion can fail on a fork, which is true whoever closed it, so the regression test is owed
+either way and E-03's "demonstrate it fails against the pre-fix body" is then done by temporarily
+re-introducing the inline parser rather than by stashing. USE ONLY THE LEGAL STATES: execution states are
+`pending`/`performed`/`blocked`/`failed` and validation results are `pending`/`pass`/`blocked`/`failed`
+(spec `ipd-structure-and-linting` Sections 5.2/5.3); `not-needed` is not one and `aw ipd lint` reports
+`IPD-S401`/`IPD-S402` on it. NOTE THE CONSEQUENCE HONESTLY: `aw ipd lint --phase pre-transition` requires
+every `E-*` `performed` and every `V-*` `pass` (`IPD-S404`), so a `blocked` E-02 CANNOT be finalized by
+`aw ipd finalize`. On that path STOP after E-05 and report to the maintainer that the plan's premise expired
+and it should be retired to `.aw/records/plans/not-executed/` (or re-scoped to E-03/E-04 alone), rather than
+forcing a transition the gate refuses. DO NOT TRANSITION THE SPEC;
 its `- Status:` must read `approved` before and after this plan, and V-04 requires proving that. Amend ONLY
 A12b's coverage sentence: this plan has no mandate to reword any other criterion, and A15's re-demonstration
 belongs to Order 02. TESTS ASSERT BEHAVIOR, NOT SOURCE TEXT: E-03 must not read production source with
 `inspect`, `ast`, or regex, per AGENTS.md. Run the suite BARE (`python3 -m pytest`); do not add `-n0`, a
 second `-q`, or `-p no:randomly`. Commit through `aw commit <plan> -- <paths>`, never `git add -A`, never
 `--no-verify`, and never push. This is a SHARED CHECKOUT: run `git diff --cached --name-only` before every
-commit and `git restore --staged <path>` anything not yours. After the gate, move this plan to
-`.aw/records/plans/executed/` via `aw ipd finalize`; do not claim done until `aw ipd lint --phase
-pre-transition` conforms and every `V-*` above carries real observed evidence.
+commit and `git restore --staged <path>` anything not yours. POST-GATE LIFECYCLE: reaching
+`.aw/records/plans/executed/` via `aw ipd finalize` is UNCONDITIONALLY OWED, but its OWNER is CONDITIONAL:
+under `aw oc run` / `aw agy run` the RUNNER owns that transition, so do not invoke `aw ipd finalize`
+yourself in a runner-driven execution; a HAND execution invokes it. Never hand-roll a `git mv` to
+`executed/`. Do not claim done until `aw ipd lint --phase pre-transition` conforms and every `V-*` above
+carries real observed evidence. Backlog `eozq91` is already `graduated` and MUST NOT be closed `done` here:
+its gate is carried by Order 02, which is the plan that hands the spec to the maintainer.
