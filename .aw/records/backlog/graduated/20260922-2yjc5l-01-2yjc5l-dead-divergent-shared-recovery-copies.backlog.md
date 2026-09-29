@@ -1,5 +1,6 @@
 - Id: 2yjc5l
-- Status: open
+- Status: graduated
+- Graduated-To: deadshared
 - Blocks-Release: next
 - Set: 2yjc5l
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: Three runner symbols keep a DEAD and DIVERGENT runner_shared copy the hosts never reach, one of which changes which commits count as snapshots
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: vbhat9
 - 2026-09-22 created (aw backlog): Three runner symbols keep a DEAD and DIVERGENT runner_shared copy the hosts never reach, one of which changes which commits count as snapshots
 
 MEASURED 2026-09-23 at HEAD 2d04ef8b while executing IPD gqo6if (runresidue 01). Reported rather than fixed, per that plan's OQ-02.
