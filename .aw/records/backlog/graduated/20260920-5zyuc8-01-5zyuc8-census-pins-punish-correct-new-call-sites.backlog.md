@@ -1,11 +1,13 @@
 - Id: 5zyuc8
-- Status: open
+- Status: graduated
+- Graduated-To: structpin
 - Set: 5zyuc8
 - Priority: medium
 - Work-Kind: chore
 - Summary: Five pinned tests assert launcher/closure CENSUS counts, so adding a correctly-wired call site reads as a regression
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260928T235941Z-1396311: 76ic0k, b02ohu
 - 2026-09-28 note (aw backlog): Maintainer ruling: Confirmed repository testing policy: tests that pin code structure, call counts, or census numbers instead of testing outcomes and functionality must be eliminated.
 - 2026-09-20 created (aw backlog): Found while wiring the standalone audit verb (plan mp289j).
 
