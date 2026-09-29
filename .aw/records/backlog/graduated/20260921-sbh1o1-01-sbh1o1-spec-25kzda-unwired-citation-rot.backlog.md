@@ -1,11 +1,13 @@
 - Id: sbh1o1
-- Status: open
+- Status: graduated
+- Graduated-To: sbh1o1
 - Set: sbh1o1
 - Priority: low
 - Work-Kind: chore
 - Summary: The spec 25kzda 'built but UNWIRED' string cited by several plans no longer exists, so those citations resolve to nothing
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: mt54wr
 - 2026-09-21 created (aw backlog): Found by the i1hlgx execution turn while re-verifying its premise.
 
 MEASURED 2026-09-21.
