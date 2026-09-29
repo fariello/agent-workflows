@@ -247,6 +247,14 @@ _PLAN_FILENAME_RE = re.compile(
     r"^\d{8}-([a-z0-9_-]+)-(\d{1,3})-([a-z0-9]{6})-(.+)\.(ipd|draft|plan)\.md$"
 )
 
+#: pe7g6r (gvf2sq) E-01: sentinel token for an unrequested force stop.
+#: Included in KeyboardInterrupt messages raised by the terminal SIGINT ladder rung
+#: (_terminal), so reconcile_item_on_interrupt distinguishes unrequested stops from
+#: deliberate interactive cleanup (F-3). The message is the only channel
+#: reconcile_item_on_interrupt receives, and the previous message matched neither of
+#: its two sentinels and so silently took the destructive default cleanup arm.
+FORCED_INTERRUPT_SENTINEL: str = "unrequested-force-stop"
+
 
 # ---- errors --------------------------------------------------------------------------------------
 # ONE `DriverError` for the package. It was previously defined in BOTH runners as two DISTINCT
@@ -11795,6 +11803,14 @@ def reconcile_item_on_interrupt(
 ) -> None:
     """Handle per-item state reconciliation when KeyboardInterrupt is raised during execute_item.
 
+    If msg contains FORCED_INTERRUPT_SENTINEL ("unrequested-force-stop"):
+        Unrequested force stop (terminal SIGINT ladder rung or unsentinelled fallback).
+        Unconditionally preserves work (regardless of whether the tree is clean or dirty):
+        leaves begin receipt intact, keeps the attempt, marks item status as interrupted
+        with an indeterminate level-4 stopped record built via runner_stop.forced_disposition
+        (so the spec-R19 requeue_interrupted gate refuses blind re-execution), snapshots
+        dirty lane work if a lane exists and is dirty, and appends an ipd-interrupted event
+        with subevent 'unrequested-force-stop'.
     If msg == "just-terminate-no-cleanup":
         Leaves worktrees and lanes untouched on disk, records item status as interrupted.
     If msg == "clean-up-and-terminate" (or default interrupt cleanup):
@@ -11809,6 +11825,83 @@ def reconcile_item_on_interrupt(
     from agent_workflows import ipd_lifecycle, runner_stop, worktree_lease
 
     now = utc_now()
+    if FORCED_INTERRUPT_SENTINEL in msg:
+        attempt["interrupted_at"] = now
+        attempt["ended_at"] = now
+        attempt["interrupt_reason"] = FORCED_INTERRUPT_SENTINEL
+
+        # Determine git state for the stopped record
+        try:
+            target_repo = Path(work_dir) if work_dir else repo
+            rc, status_out, _err = _run_git(target_repo, ["status", "--porcelain"])
+            observed_git = status_out.strip() if rc == 0 else ""
+        except Exception:
+            observed_git = ""
+
+        # Snapshot lane if worktree exists and is dirty
+        lane_id = attempt.get("worktree_lane_id", item["id6"])
+        base_commit = attempt.get("worktree_base", "")
+        lane_rec = {
+            "id6": item["id6"],
+            "lane_id": lane_id,
+            "base_commit": base_commit,
+            "worktree": work_dir,
+        }
+        lane = describe_lane(repo, lane_rec) if work_dir else None
+        snapshot = None
+        branch_name = ""
+        if work_dir and lane is not None:
+            branch_name = lane["branch"]
+            handle = worktree_lease.WorktreeHandle(
+                lane_id=lane["lane_id"],
+                path=Path(lane["worktree"]) if lane["worktree"] else Path(work_dir),
+                branch=lane["branch"],
+                base_commit=lane["base_sha"] or "",
+            )
+            if lane["dirty"]:
+                with contextlib.suppress(Exception):
+                    snapshot = worktree_lease.snapshot_lane_dirty_work(
+                        repo,
+                        handle,
+                        note=f"Reason: {FORCED_INTERRUPT_SENTINEL}.",
+                    )
+
+        if snapshot:
+            attempt["snapshot_commit"] = snapshot
+
+        item["status"] = "interrupted"
+        item["recovery_next"] = True
+
+        requester = "SIGTERM" if "SIGTERM" in msg else "SIGINT"
+        if "requested by " in msg:
+            requester = msg.split("requested by ", 1)[1].split(" (")[0].strip()
+
+        item["stopped"] = runner_stop.forced_disposition(
+            level=runner_stop.LEVEL_NOW_FORCE,
+            requester=requester,
+            git_state=observed_git,
+            at=now,
+        )
+        item.pop("requires_reconciliation", None)
+
+        save_state_fn(run_dir, state)
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": now,
+                "event": "ipd-interrupted",
+                "subevent": FORCED_INTERRUPT_SENTINEL,
+                "id6": item["id6"],
+                "branch": branch_name,
+            },
+        )
+        branch_info = f" on {branch_name}" if branch_name else ""
+        print(
+            f"  (IPD {seq:02d}/{total} {item['id6']} force-interrupted; state preserved{branch_info})",
+            file=sys.stderr,
+        )
+        return
+
     if "just-terminate-no-cleanup" in msg:
         attempt["interrupted_at"] = now
         attempt["ended_at"] = now
@@ -28284,9 +28377,13 @@ def install_stop_triggers(run_dir: Path, *, labels: HostLabels) -> dict[str, str
     from agent_workflows import runner_stop
 
     def _terminal(level: int, requester: str) -> None:
+        # pe7g6r (gvf2sq) E-01: include FORCED_INTERRUPT_SENTINEL so reconcile_item_on_interrupt
+        # distinguishes this unrequested terminal stop from the interactive menu's cleanup action.
+        # The message is the only channel reconcile_item_on_interrupt receives; without the sentinel,
+        # the message matched neither sentinel and silently took the destructive default cleanup arm (F-3).
         raise KeyboardInterrupt(
             f"stop level {level} ({runner_stop.LEVEL_NAMES.get(level, 'unknown')}) requested by "
-            f"{requester or 'SIGINT'}"
+            f"{requester or 'SIGINT'} ({FORCED_INTERRUPT_SENTINEL})"
         )
 
     status = runner_stop.install_stop_signal_handlers(
