@@ -6,7 +6,7 @@
 - Scope: Make `doctor.build_remediation`'s generic fallback prefer the finding's own `recovery` before falling through to the `inspect ... frontmatter` default, so the if-chain becomes an override rather than the only source, and guard the property with tests. This is one behavioral change in one function. It deliberately does NOT restructure the if-chain, does NOT touch `check_engine.py`, and does NOT fix the `cli._run_check` recovery overwrite (carried by `2cnvh1`).
 - Scope-Paths: agent_workflows/doctor.py, tests/test_doctor.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -19,6 +19,7 @@
 - Id: iyilwm
 
 ## Workflow history
+- 2026-09-29 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-601..PR-609 all FIXED
 
 - 2026-09-28 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-601..PR-609 all FIXED, none deferred, no finding escalated. Reviewed at HEAD `0d11d122` in a lane worktree; `aw ipd lint --phase author --agent` conformed before revision (exit 0, `findings: 0`). Every authored finding re-measured and every one reproduced; the core diagnosis and the 51/44/7 blast radius hold exactly. E-01 was staged IN MEMORY via a pytest plugin outside the tree and the full bare suite ran `3158 passed, 2 skipped` unchanged (F-21), so the change is verified safe before approval. Review added F-13..F-21 and revised F-05/F-06/F-07/OQ-02. The three consequential findings: the plan asserted `command=None` keeps placeholder strings out of a `command` slot, which is false on the `aw check` surface (F-14); the mandatory V-01(d) evidence directed the executor to paste an absolute home path into this committed record, failing the leak-sanitizer's `home-path` and `handle` rules, on a witness that is not even guaranteed to exist (F-19, F-20); and two baselines were stale by 71 tests and 3 findings while V-01(c) made the stale number the bar (F-18). No production code was modified by this review.
 - 2026-09-28 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): authored from backlog item `evwmm2`. Every measurement re-taken against the working tree at HEAD `4873a82a`; none carried over from the item. The item's core diagnosis HOLDS and is understated by a factor of 44 rules (F-01, F-04). Its second claim about the agent surface is FALSIFIED (F-05) and split out to carrier `2cnvh1`. Its cited line numbers are stale (F-03). OQ-01 records why the fix is scoped to the fallback rather than the if-chain; OQ-02 records the measured reason `command` stays `None`.
