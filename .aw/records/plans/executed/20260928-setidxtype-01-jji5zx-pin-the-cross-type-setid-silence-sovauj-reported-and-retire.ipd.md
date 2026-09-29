@@ -6,7 +6,7 @@
 - Scope: Add the missing plans-plus-walkthrough clean row to the `CollisionTests` table, correct the five tracked walkthroughs whose `- Set:` descriptive asserts the reversed prohibition, and state in the walkthroughs README that a walkthrough MAY declare `- Set:`. No change to `check_engine.check_collisions` behavior.
 - Scope-Paths: tests/test_check_engine.py, .aw/records/walkthroughs/README.md, .aw/records/walkthroughs/20260917-bpclosure-01-ryn48z-build-parser-two-cli-contracts-not-one-with-drift.walkthrough.md, .aw/records/walkthroughs/20260917-eiclosure-01-pi4wof-execute-item-closure-measured-not-split.walkthrough.md, .aw/records/walkthroughs/20260917-irclosure-01-ztmh1b-initialize-run-the-line-count-that-hides-the-divergence.walkthrough.md, .aw/records/walkthroughs/20260917-mnclosure-01-zogmmg-main-is-an-entry-point-and-the-set-shared-nothing.walkthrough.md, .aw/records/walkthroughs/20260917-rqclosure-01-k2vn8p-run-queue-closure-measured-and-a-swallowed-run-fatal-error.walkthrough.md, .aw/records/walkthroughs/20260918-integpath-05-u8tiox-lane-to-main-integration-whole-set-verification-and-residuals.walkthrough.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: jji5zx
-- Approval: 2026-09-29, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-29 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: jji5zx verified (set setidxtype, attempt 1).
 - 2026-09-29 approved (aw set): status set to approved
 - 2026-09-28 reviewed (aw set): /plan-review round 1 complete: APPROVE WITH REVISIONS APPLIED; PR-A01 through PR-A06 all FIXED; OQ-01 resolved by the reviewer it was addressed to; review record written; review-finalize lint conforming.
 
