@@ -1,5 +1,6 @@
 - Id: rcjorx
-- Status: open
+- Status: graduated
+- Graduated-To: rcjorx
 - Blocks-Release: next
 - Set: rcjorx
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: Docs advertise --fields as a general agent-mode flag but only four runs subcommands accept it, so the documented example exits 2
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260929T021205Z-3914774: 75ic2f
 - 2026-09-28 created (aw backlog): Filed while authoring plan gygujf (from backlog 3f4ayi): the human guide's --fields example exits 2 with unrecognized arguments, and only the four runs subcommands wire the flag.
 
 MEASURED 2026-09-28 at HEAD `71aee0d3` while authoring plan `gygujf` from backlog item `3f4ayi`.
