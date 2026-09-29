@@ -1,5 +1,6 @@
 - Id: j84jg3
-- Status: open
+- Status: graduated
+- Graduated-To: j84jg3
 - Blocks-Release: next
 - Set: j84jg3
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: aw group plans renames a plan with no - Date: line to the literal 20260101 where aw rename preserves its date
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: 949enf
 - 2026-09-20 created (aw backlog): Filed while executing plan e3hzyc (F-13): a second, measured divergence between group and rename, deliberately excluded from that plan's fence.
 
 MEASURED WHILE EXECUTING PLAN e3hzyc, which fixed the ORDER divergence between `aw group plans` and `aw rename plans` and deliberately left the DATE divergence alone.
