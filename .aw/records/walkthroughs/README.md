@@ -14,6 +14,8 @@ boundary keeps its long setid while a NEW artifact is judged. The intended conse
 artifact may NOT join an existing long-setid topic after the cutover; regroup the topic under a
 shorter setid instead.
 
+A walkthrough MAY declare `- Set:`. Doing so is not a collision because a setid is a shared cross-type topic label (DECISIONS D153 / spec `2lcqno` N1), so a walkthrough and a plan on the same topic legitimately share the token. The programmatic helper (`set_records.write_walkthrough`) does not write the field, so an author adds it by hand when grouping by Set is desired.
+
 
 Walkthroughs are OPTIONAL and are not expected per executed plan. Most executed plans do not have one, and that is fine: the authoritative evidence that a plan was implemented and validated lives in the plan's own verification items (with pasted runner output), the run ledger, and the commit history, not here. Write a walkthrough only when a narrative of what actually happened during an execution adds material value beyond those records (for example, notable deviations from the plan, surprises, or a sequence worth preserving for handoff). Do not create one by default.
 

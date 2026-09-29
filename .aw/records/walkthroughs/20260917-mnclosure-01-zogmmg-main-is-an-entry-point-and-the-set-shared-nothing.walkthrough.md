@@ -6,7 +6,7 @@
 - Plan: `.aw/records/plans/pending/20260915-rununify-11-3dki3o-split-main-into-a-shared-core-and-a-thin-host-hook.ipd.md`
 - Base commit: `761edad3`
 - Executed by: opencode/its_direct-pt3-claude-opus-5-1m-us, in lane `aw/lane/3dki3o`
-- Set: mnclosure (this walkthrough's own Set; the plan it documents belongs to `rununify`, referenced above by `Target-Id`, because a walkthrough may not reuse the Set id of another artifact type)
+- Set: mnclosure (this walkthrough's own Set; the plan it documents belongs to `rununify`, referenced above by `Target-Id`; a setid is a shared cross-type topic label, and this walkthrough carries its own Set while `Target-Id` points at the plan)
 
 ## What this plan did, and what it did not
 

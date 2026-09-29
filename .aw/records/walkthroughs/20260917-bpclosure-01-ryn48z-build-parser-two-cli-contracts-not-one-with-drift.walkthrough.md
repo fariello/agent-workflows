@@ -6,7 +6,7 @@
 - Plan: `.aw/records/plans/pending/20260915-rununify-10-s16omw-split-build-parser-into-a-shared-core-and-a-thin-host-hook.ipd.md`
 - Base commit: `4a1bb873`
 - Executed by: opencode/its_direct-pt3-claude-opus-5-1m-us, in lane `aw/lane/s16omw`
-- Set: bpclosure (this walkthrough's own Set; the plan it documents belongs to `rununify`, referenced above by `Target-Id`, because a walkthrough may not reuse the Set id of another artifact type)
+- Set: bpclosure (this walkthrough's own Set; the plan it documents belongs to `rununify`, referenced above by `Target-Id`; a setid is a shared cross-type topic label, and this walkthrough carries its own Set while `Target-Id` points at the plan)
 
 ## What this plan did, and what it did not
 

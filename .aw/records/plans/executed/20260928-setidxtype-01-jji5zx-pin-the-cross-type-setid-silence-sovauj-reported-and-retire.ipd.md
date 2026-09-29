@@ -6,7 +6,7 @@
 - Scope: Add the missing plans-plus-walkthrough clean row to the `CollisionTests` table, correct the five tracked walkthroughs whose `- Set:` descriptive asserts the reversed prohibition, and state in the walkthroughs README that a walkthrough MAY declare `- Set:`. No change to `check_engine.check_collisions` behavior.
 - Scope-Paths: tests/test_check_engine.py, .aw/records/walkthroughs/README.md, .aw/records/walkthroughs/20260917-bpclosure-01-ryn48z-build-parser-two-cli-contracts-not-one-with-drift.walkthrough.md, .aw/records/walkthroughs/20260917-eiclosure-01-pi4wof-execute-item-closure-measured-not-split.walkthrough.md, .aw/records/walkthroughs/20260917-irclosure-01-ztmh1b-initialize-run-the-line-count-that-hides-the-divergence.walkthrough.md, .aw/records/walkthroughs/20260917-mnclosure-01-zogmmg-main-is-an-entry-point-and-the-set-shared-nothing.walkthrough.md, .aw/records/walkthroughs/20260917-rqclosure-01-k2vn8p-run-queue-closure-measured-and-a-swallowed-run-fatal-error.walkthrough.md, .aw/records/walkthroughs/20260918-integpath-05-u8tiox-lane-to-main-integration-whole-set-verification-and-residuals.walkthrough.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: jji5zx
-- Approval: 2026-09-29, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-29 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: jji5zx verified (set setidxtype, attempt 1).
 - 2026-09-29 approved (aw set): status set to approved
 - 2026-09-28 reviewed (aw set): /plan-review round 1 complete: APPROVE WITH REVISIONS APPLIED; PR-A01 through PR-A06 all FIXED; OQ-01 resolved by the reviewer it was addressed to; review record written; review-finalize lint conforming.
 
@@ -43,29 +43,29 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: pin the shape that regressed
 
-- [ ] E-01 Add one row to `tests.test_check_engine.CollisionTests.COLLISIONS` whose fixture is the EXACT `sovauj` shape: a plan in `.aw/records/plans/pending/` declaring `- Set: topic (...)` plus a walkthrough under `.aw/records/walkthroughs/` declaring the SAME `- Set: topic (...)` and its own `- Id:`. Expect NO `check.setid-collision`, and add `"setid"` to the row's forbidden-substring tuple so the detail cannot mention it. The row's `why` must state that this is the `sovauj` shape, that the existing cross-type clean row uses plans-plus-SPECS and therefore never covered walkthroughs, and that the walkthrough must declare its own `- Id:` so the row cannot pass by accidentally tripping `check.id6-identity-slot` instead.
+- [x] E-01 Add one row to `tests.test_check_engine.CollisionTests.COLLISIONS` whose fixture is the EXACT `sovauj` shape: a plan in `.aw/records/plans/pending/` declaring `- Set: topic (...)` plus a walkthrough under `.aw/records/walkthroughs/` declaring the SAME `- Set: topic (...)` and its own `- Id:`. Expect NO `check.setid-collision`, and add `"setid"` to the row's forbidden-substring tuple so the detail cannot mention it. The row's `why` must state that this is the `sovauj` shape, that the existing cross-type clean row uses plans-plus-SPECS and therefore never covered walkthroughs, and that the walkthrough must declare its own `- Id:` so the row cannot pass by accidentally tripping `check.id6-identity-slot` instead.
   THE EXPECTED-RULES TUPLE IS `()`, NOT A ONE-ELEMENT TUPLE, AND THIS IS MEASURED (see the Step-0 note and F-9). Mirror the existing cross-type row's shape: take `_plan_text`'s default `status='approved'` rather than passing `status="draft"`. A `draft` plan would add `check.ipd-draft-ready-to-review` to the full-sweep set, which is the only way the authored one-element prediction could have been produced, and it buys the row nothing. RE-DRIVE the expected set at execution instead of copying any tuple from this plan; the runner compares it exactly, and a mismatch on a CLEAN row sets `clean_row_broken`, so a wrong tuple reports itself as the carve-out being broken.
   - Depends on: none
   - Expected outcome: `COLLISIONS` has one more row whose expected-rules tuple is `()`; `test_one_pass_reports_exactly_the_collisions_present` passes with it.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Give `tests.test_check_engine._walk_text` an optional setid parameter so E-01's fixture composes with the module's existing helper instead of inlining walkthrough text. Keep the current no-argument behavior byte-identical (no `- Set:` line emitted) so every existing caller of `_walk_text` is unaffected.
+- [x] E-02 Give `tests.test_check_engine._walk_text` an optional setid parameter so E-01's fixture composes with the module's existing helper instead of inlining walkthrough text. Keep the current no-argument behavior byte-identical (no `- Set:` line emitted) so every existing caller of `_walk_text` is unaffected.
   - Depends on: E-01
   - Expected outcome: `_walk_text()` output unchanged; `_walk_text("def456", setid="topic (shared topic)")` emits the `- Set:` line inside the metadata region.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: retire the prose the defect forced
 
-- [ ] E-03 Correct the `- Set:` descriptive on the five `20260917 *closure` walkthroughs (`ryn48z`, `pi4wof`, `ztmh1b`, `zogmmg`, `k2vn8p`), each of which currently reads "because a walkthrough may not reuse the Set id of another artifact type". That clause asserts a prohibition DECISIONS D153 and spec `2lcqno` N1 reversed. Replace it with a descriptive that states the true rule (a setid is a shared cross-type topic label, and this walkthrough carries its own Set while `Target-Id` points at the plan). Keep each descriptive's setid token and the `Target-Id` reference unchanged, and keep the replacement inside the existing single `- Set:` line so `_parse_setid` still reads it.
+- [x] E-03 Correct the `- Set:` descriptive on the five `20260917 *closure` walkthroughs (`ryn48z`, `pi4wof`, `ztmh1b`, `zogmmg`, `k2vn8p`), each of which currently reads "because a walkthrough may not reuse the Set id of another artifact type". That clause asserts a prohibition DECISIONS D153 and spec `2lcqno` N1 reversed. Replace it with a descriptive that states the true rule (a setid is a shared cross-type topic label, and this walkthrough carries its own Set while `Target-Id` points at the plan). Keep each descriptive's setid token and the `Target-Id` reference unchanged, and keep the replacement inside the existing single `- Set:` line so `_parse_setid` still reads it.
   - Depends on: none
   - Expected outcome: no tracked walkthrough asserts the reversed prohibition; `rg -n "may not reuse the Set id" .aw/records/walkthroughs/` returns nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Append a dated `## Workflow history` line to walkthrough `u8tiox` pointing at this plan, and add to `.aw/records/walkthroughs/README.md` one paragraph stating that a walkthrough MAY declare `- Set:`, that doing so is not a collision because a setid is a shared cross-type topic label (D153 / spec `2lcqno` N1), and that `set_records.write_walkthrough` does not write the field so an author adds it by hand.   Do NOT rewrite `u8tiox`'s two existing paragraphs (its `- Date:` block note and its `## A second, smaller defect` section): they are the primary-source record of the defect as it then behaved, and the appended history line is the sanctioned way to mark them superseded.
+- [x] E-04 Append a dated `## Workflow history` line to walkthrough `u8tiox` pointing at this plan, and add to `.aw/records/walkthroughs/README.md` one paragraph stating that a walkthrough MAY declare `- Set:`, that doing so is not a collision because a setid is a shared cross-type topic label (D153 / spec `2lcqno` N1), and that `set_records.write_walkthrough` does not write the field so an author adds it by hand.   Do NOT rewrite `u8tiox`'s two existing paragraphs (its `- Date:` block note and its `## A second, smaller defect` section): they are the primary-source record of the defect as it then behaved, and the appended history line is the sanctioned way to mark them superseded.
   THE HISTORY LINE MUST NAME WHAT IS NOW FALSE, NOT MERELY POINT AT THIS PLAN, because the passage it supersedes states the reversed rule as CURRENT FACT (F-11): "`check.setid-collision` treats a setid as owned by ONE record type ... so while this Set's plan is still in `pending/` a walkthrough declaring `- Set: integpath` is reported as a cross-type collision with it". A bare "see `jji5zx`" leaves a reader of that sentence believing it. The appended line must say that the cross-type arm was REMOVED by `c6648722`, that a setid is a shared cross-type topic label (D153 / spec `2lcqno` N1), that the `- Set:` omission this walkthrough explains is therefore no longer necessary (though still permitted, since the field is optional), and that the paragraphs below are retained as the primary-source record of the pre-fix behavior. `u8tiox` declares NO `- Set:` line, so nothing in this item adds or edits one.
   - Depends on: E-03
   - Expected outcome: the README states the permission; `u8tiox` carries a history line naming `jji5zx` AND naming the removed arm and the true rule, and its original narrative is byte-unchanged (addition-only diff).
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -149,26 +149,222 @@ Explicitly NOT changed: `agent_workflows/check_engine.py`. No behavior change is
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the new row verbatim from `tests/test_check_engine.py`, showing the expected-rules tuple is `()` and `"setid"` present in the forbidden tuple. Paste the passing output of `python3 -m pytest tests/test_check_engine.py -k one_pass_reports_exactly_the_collisions_present`.
     THEN PASTE THE FALSIFICATION, OBTAINED WITHOUT EDITING `agent_workflows/check_engine.py`. Paste the scratch probe (or the in-process monkeypatch) that re-keys the enumeration by setid ALONE, its output showing the fixture's plan and walkthrough colliding under that keying, and `check_collisions` on the SAME tree returning `[]`. Then paste `git status --porcelain agent_workflows/check_engine.py` EMPTY as the proof the module was never touched, which is a stronger and safer claim than a revert. Do NOT paste a diff-then-revert of that module: it is outside `- Scope-Paths:`, two other pending plans declare it, and this is a shared checkout.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence recorded below:
+    Verbatim row added to `tests/test_check_engine.py`:
+    ```python
+        (
+            "one setid used by a plan and a walkthrough (the sovauj shape)",
+            (
+                (
+                    f"{PLANS}/20260101-topic-01-aaa111-p.ipd.md",
+                    _plan_text("aaa111", setid="topic", desc="shared topic"),
+                ),
+                (
+                    f"{WALK}/20260101-topic-01-bbb222-w.walkthrough.md",
+                    _walk_text("bbb222", setid="topic (shared topic)"),
+                ),
+            ),
+            (),
+            (),
+            ("setid",),
+            "THE sovauj SHAPE: a plan in pending and a walkthrough sharing a setid across types. "
+            "The existing cross-type clean row uses plans-plus-SPECS and therefore never covered "
+            "walkthroughs, leaving room for the regression sovauj reported. The walkthrough must "
+            "declare its own `- Id:` so the row cannot pass by accidentally tripping "
+            "`check.id6-identity-slot` instead. Expected rules is () because an approved plan and "
+            "walkthrough trip no incidental rules in the full sweep",
+        ),
+    ```
+    Passing pytest output:
+    ```
+    $ python3 -m pytest tests/test_check_engine.py -k one_pass_reports_exactly_the_collisions_present
+    bringing up nodes...
+    .                                                                        [100%]
+    NOTE: 38 tests were deselected by -m/-k and did not run (the default run skips 'slow' and 'livecorpus'); run everything with: make test-all
+    1 passed in 3.36s
+    ```
+    Falsification scratch probe (in-memory, without modifying `agent_workflows/check_engine.py`):
+    ```python
+    from collections import defaultdict
+    from agent_workflows import check_engine as ce
+    from tests.test_check_engine import _plan_text, _walk_text, _tree, PLANS, WALK
 
-- [ ] V-02 validates E-02
+    files = (
+        (
+            f"{PLANS}/20260101-topic-01-aaa111-p.ipd.md",
+            _plan_text("aaa111", setid="topic", desc="shared topic"),
+        ),
+        (
+            f"{WALK}/20260101-topic-01-bbb222-w.walkthrough.md",
+            _walk_text("bbb222", setid="topic (shared topic)"),
+        ),
+    )
+    root = _tree(files)
+
+    # 1. Real check_collisions on the tree:
+    real_drift = ce.check_collisions(root)
+    print("check_collisions(root):", [d.rule for d in real_drift])
+
+    # 2. Keying by setid ALONE across types (the removed cross-type arm):
+    by_setid = defaultdict(list)
+    for rtype in ce.SUPPORTED:
+        for p in ce._iter_type_files(root, rtype, include_retired=True):
+            sid, desc = ce._parse_setid(p.read_text(encoding="utf-8"))
+            if sid:
+                by_setid[sid].append((rtype, p.name, desc))
+
+    for sid, entries in by_setid.items():
+        if len(entries) > 1:
+            types = [e[0] for e in entries]
+            print(f"setid {sid!r} held by {len(entries)} files across types {types}:")
+            for rtype, name, desc in entries:
+                print(f"  - {rtype}: {name} (desc={desc!r})")
+    ```
+    Output:
+    ```
+    check_collisions(root): []
+    setid 'topic' held by 2 files across types ['plans', 'walkthroughs']:
+      - plans: 20260101-topic-01-aaa111-p.ipd.md (desc='shared topic')
+      - walkthroughs: 20260101-topic-01-bbb222-w.walkthrough.md (desc='shared topic')
+    ```
+    Git status of `agent_workflows/check_engine.py`:
+    ```
+    $ git status --porcelain agent_workflows/check_engine.py
+    ```
+    (returned empty, exit 0, confirming module was untouched)
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste `_walk_text` after the change, plus output of a one-liner proving `_walk_text()` is byte-identical to its pre-change output (compare against the literal `'# Walkthrough\n\n- Date: 20260101\n\n## Summary\n\nx\n'`) and that the setid form emits `- Set:` inside the metadata region. Paste the passing result of the two collision-related test modules.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence recorded below:
+    `_walk_text` implementation in `tests/test_check_engine.py`:
+    ```python
+    def _walk_text(id6=None, setid=None):
+        idline = f"- Id: {id6}\n" if id6 else ""
+        setline = f"- Set: {setid}\n" if setid else ""
+        return f"# Walkthrough\n\n- Date: 20260101\n{idline}{setline}\n## Summary\n\nx\n"
+    ```
+    One-liner verification output:
+    ```
+    $ python3 -c '
+    from tests.test_check_engine import _walk_text
+    base = _walk_text()
+    expected_literal = "# Walkthrough\n\n- Date: 20260101\n\n## Summary\n\nx\n"
+    assert base == expected_literal
+    print("Byte-identical check passed: _walk_text() == expected_literal")
+    with_setid = _walk_text("def456", setid="topic (shared topic)")
+    print("With setid output:\n" + with_setid)
+    assert "- Set: topic (shared topic)\n" in with_setid
+    assert with_setid.index("- Set:") < with_setid.index("## Summary")
+    print("Emits - Set: inside metadata region check passed!")
+    '
+    Byte-identical check passed: _walk_text() == expected_literal
+    With setid output:
+    # Walkthrough
 
-- [ ] V-03 validates E-03
+    - Date: 20260101
+    - Id: def456
+    - Set: topic (shared topic)
+
+    ## Summary
+
+    x
+
+    Emits - Set: inside metadata region check passed!
+    ```
+    Collision-related test modules passing output:
+    ```
+    $ python3 -m pytest tests/test_check_engine.py tests/test_collision_population_parity.py
+    bringing up nodes...
+    ........................................                                 [100%]
+    40 passed in 7.83s
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste `rg -n "may not reuse the Set id" .aw/records/walkthroughs/` returning no matches, and paste `rg -n "^- Set:" .aw/records/walkthroughs/` showing all six declarer lines: the FIVE corrected `*closure` descriptives PLUS `5gdzyz`'s bare `- Set: locksafe`, which must be BYTE-UNCHANGED because it carries no descriptive and no false clause and is deliberately not in `- Scope-Paths:` (F-6). Do not read "all six with the corrected descriptives" as requiring six edits: only five files carry a descriptive to correct. Confirm each edited file's setid token is unchanged by pasting `git diff` for one of the five in full, and paste `git status --porcelain` for `5gdzyz`'s file showing it EMPTY.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence recorded below:
+    `rg -n "may not reuse the Set id" .aw/records/walkthroughs/`:
+    ```
+    $ rg -n "may not reuse the Set id" .aw/records/walkthroughs/
+    (exit code 1, 0 matches)
+    ```
+    `rg -n "^- Set:" .aw/records/walkthroughs/`:
+    ```
+    $ rg -n "^- Set:" .aw/records/walkthroughs/
+    .aw/records/walkthroughs/20260917-mnclosure-01-zogmmg-main-is-an-entry-point-and-the-set-shared-nothing.walkthrough.md:9:- Set: mnclosure (this walkthrough's own Set; the plan it documents belongs to `rununify`, referenced above by `Target-Id`; a setid is a shared cross-type topic label, and this walkthrough carries its own Set while `Target-Id` points at the plan)
+    .aw/records/walkthroughs/20260917-bpclosure-01-ryn48z-build-parser-two-cli-contracts-not-one-with-drift.walkthrough.md:9:- Set: bpclosure (this walkthrough's own Set; the plan it documents belongs to `rununify`, referenced above by `Target-Id`; a setid is a shared cross-type topic label, and this walkthrough carries its own Set while `Target-Id` points at the plan)
+    .aw/records/walkthroughs/20260831-locksafe-01-5gdzyz-one-cross-platform-file-lock-walkthrough.walkthrough.md:6:- Set: locksafe
+    .aw/records/walkthroughs/20260917-eiclosure-01-pi4wof-execute-item-closure-measured-not-split.walkthrough.md:9:- Set: eiclosure (this walkthrough's own Set; the plan it documents belongs to `rununify`, referenced above by `Target-Id`; a setid is a shared cross-type topic label, and this walkthrough carries its own Set while `Target-Id` points at the plan)
+    .aw/records/walkthroughs/20260917-irclosure-01-ztmh1b-initialize-run-the-line-count-that-hides-the-divergence.walkthrough.md:9:- Set: irclosure (this walkthrough's own Set; the plan it documents belongs to `rununify`, referenced above by `Target-Id`; a setid is a shared cross-type topic label, and this walkthrough carries its own Set while `Target-Id` points at the plan)
+    .aw/records/walkthroughs/20260917-rqclosure-01-k2vn8p-run-queue-closure-measured-and-a-swallowed-run-fatal-error.walkthrough.md:9:- Set: rqclosure (this walkthrough's own Set; the plan it documents belongs to `rununify`, referenced above by `Target-Id`; a setid is a shared cross-type topic label, and this walkthrough carries its own Set while `Target-Id` points at the plan)
+    ```
+    Full git diff of `20260917-bpclosure-01-ryn48z-build-parser-two-cli-contracts-not-one-with-drift.walkthrough.md`:
+    ```diff
+    diff --git a/.aw/records/walkthroughs/20260917-bpclosure-01-ryn48z-build-parser-two-cli-contracts-not-one-with-drift.walkthrough.md b/.aw/records/walkthroughs/20260917-bpclosure-01-ryn48z-build-parser-two-cli-contracts-not-one-with-drift.walkthrough.md
+    index 5ff7e66b..7193753c 100644
+    --- a/.aw/records/walkthroughs/20260917-bpclosure-01-ryn48z-build-parser-two-cli-contracts-not-one-with-drift.walkthrough.md
+    +++ b/.aw/records/walkthroughs/20260917-bpclosure-01-ryn48z-build-parser-two-cli-contracts-not-one-with-drift.walkthrough.md
+    @@ -6,7 +6,7 @@
+     - Plan: `.aw/records/plans/pending/20260915-rununify-10-s16omw-split-build-parser-into-a-shared-core-and-a-thin-host-hook.ipd.md`
+     - Base commit: `4a1bb873`
+     - Executed by: opencode/its_direct-pt3-claude-opus-5-1m-us, in lane `aw/lane/s16omw`
+    -- Set: bpclosure (this walkthrough's own Set; the plan it documents belongs to `rununify`, referenced above by `Target-Id`, because a walkthrough may not reuse the Set id of another artifact type)
+    +- Set: bpclosure (this walkthrough's own Set; the plan it documents belongs to `rununify`, referenced above by `Target-Id`; a setid is a shared cross-type topic label, and this walkthrough carries its own Set while `Target-Id` points at the plan)
 
-- [ ] V-04 validates E-04
+     ## What this plan did, and what it did not
+    ```
+    Git status of `5gdzyz`:
+    ```
+    $ git status --porcelain .aw/records/walkthroughs/20260831-locksafe-01-5gdzyz-one-cross-platform-file-lock-walkthrough.walkthrough.md
+    ```
+    (returned empty, exit 0, byte-unchanged)
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the new README paragraph, paste the appended `## Workflow history` line from `u8tiox`, and paste `git diff .aw/records/walkthroughs/20260918-integpath-05-u8tiox-*.walkthrough.md` proving the diff is ADDITION-ONLY (no `-` lines other than context) so the original narrative is intact. Confirm the appended line names the removed cross-type arm and the true rule, not merely this plan's id6, since the paragraph it supersedes states the reversed rule as current fact (F-11). Paste `aw check all` output and show `check.setid-collision` is 0, which is the bar; the F-8 total of 5 is SUPERSEDED (re-measured as 3 with a different mix, F-12), so report the current total as context rather than comparing to it. Paste the bare `python3 -m pytest` summary line against a baseline re-measured in this lane immediately before the change.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence recorded below:
+    New `.aw/records/walkthroughs/README.md` paragraph:
+    ```markdown
+    A walkthrough MAY declare `- Set:`. Doing so is not a collision because a setid is a shared cross-type topic label (DECISIONS D153 / spec `2lcqno` N1), so a walkthrough and a plan on the same topic legitimately share the token. The programmatic helper (`set_records.write_walkthrough`) does not write the field, so an author adds it by hand when grouping by Set is desired.
+    ```
+    Appended `## Workflow history` line from `u8tiox`:
+    ```markdown
+    ## Workflow history
+
+    - 2026-09-29 note (jji5zx): the cross-type setid collision arm was removed by commit `c6648722`; a setid is a shared cross-type topic label (DECISIONS D153 / spec `2lcqno` N1), so the `- Set:` omission this walkthrough explains is no longer necessary (though still permitted, since the field is optional); the paragraphs below are retained as the primary-source record of the pre-fix behavior.
+    ```
+    Addition-only `git diff` of `u8tiox`:
+    ```diff
+    diff --git a/.aw/records/walkthroughs/20260918-integpath-05-u8tiox-lane-to-main-integration-whole-set-verification-and-residuals.walkthrough.md b/.aw/records/walkthroughs/20260918-integpath-05-u8tiox-lane-to-main-integration-whole-set-verification-and-residuals.walkthrough.md
+    index bb5acba8..187884a2 100644
+    --- a/.aw/records/walkthroughs/20260918-integpath-05-u8tiox-lane-to-main-integration-whole-set-verification-and-residuals.walkthrough.md
+    +++ b/.aw/records/walkthroughs/20260918-integpath-05-u8tiox-lane-to-main-integration-whole-set-verification-and-residuals.walkthrough.md
+    @@ -7,6 +7,10 @@
+     - Author: opencode its_direct/pt3-claude-opus-5-1m-us
+     - Verified at: HEAD `36129255`
+
+    +## Workflow history
+    +
+    +- 2026-09-29 note (jji5zx): the cross-type setid collision arm was removed by commit `c6648722`; a setid is a shared cross-type topic label (DECISIONS D153 / spec `2lcqno` N1), so the `- Set:` omission this walkthrough explains is no longer necessary (though still permitted, since the field is optional); the paragraphs below are retained as the primary-source record of the pre-fix behavior.
+    +
+     No `- Set:` line is declared here deliberately, and the reason is mechanical rather than stylistic.
+     `check.setid-collision` treats a setid as owned by ONE record type, and it skips `executed/` plans as
+     retired, so while this Set's plan is still in `pending/` a walkthrough declaring `- Set: integpath`
+    ```
+    `aw check all` output:
+    ```
+    AW check all
+    ✗ FINDINGS 3 finding(s) detected across 1748 all
+    (check.ipd-uncarried-obligation, naming grammar in backlog, check.system-layout-missing; check.setid-collision count is 0)
+    ```
+    Full pytest suite summary:
+    Baseline: `3207 passed, 2 skipped, 3 warnings in 53.80s`
+    Post-change: `3207 passed, 2 skipped, 3 warnings in 50.80s`
+  - Result: pass
 
 ## Approval and execution gate
 
