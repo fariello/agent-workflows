@@ -1,5 +1,6 @@
 - Id: 0b290s
-- Status: open
+- Status: graduated
+- Graduated-To: destshadow
 - Blocks-Release: next
 - Set: 0b290s
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: A parser leaf positional named 'command' silently shadows the subparsers dest and dispatch falls through to help with no error
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: 8kd4eo, zwv1sa
 - 2026-09-22 created (aw backlog): Found while adding 'aw integration-lock' (plan vddpml E-07).
 
 OBSERVED 2026-09-22 while adding the `integration-lock` leaf. The leaf declared a REMAINDER positional named `command`, which is the SAME dest the top-level `sub = parser.add_subparsers(dest="command")` uses. argparse silently overwrote the resolved subcommand name with the REMAINDER list, so `args.command` was `[]` instead of `"integration-lock"`, every `if args.command == ...` branch missed, and `_dispatch` fell through to `parser.print_help(); return 2`.
