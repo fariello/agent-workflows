@@ -1376,21 +1376,31 @@ def run_set(args) -> int:
         if set_work_kind is not None:
             rendered = _releases.set_work_kind_line(rendered, set_work_kind)
 
-    # nobugship di08i9 E-02: DEFAULT THE GATE ON A RECLASSIFICATION TOO, so the gate FOLLOWS a work
-    # kind becoming `bug` instead of depending on the author remembering a second flag. This is the
+    # nobugship di08i9 E-02 / gatefollows vsgd48 E-01: DEFAULT THE GATE ON RECLASSIFICATION AND ON
+    # STATUS TRANSITIONS INTO A LIVE STATUS. The gate follows a work kind becoming `bug` AND follows
+    # an ungated `bug` item transitioning into a live status (open, graduated, blocked). This is the
     # `--status` spelling of `aw backlog set`; the POSITIONAL spelling routes through
-    # `status_set.apply_status_change`, which carries the SAME call to the SAME shared predicate. Both
-    # were required: `aw backlog set` forks on whether `--status` was passed, so a default wired into
+    # `status_set.apply_status_change`, which carries the SAME broadened call to the SAME shared predicate.
+    # Both are required: `aw backlog set` forks on whether `--status` was passed, so a default wired into
     # one path would fire for one spelling and not the other.
+    #
+    # DOWNSTREAM WORKFLOW CONSEQUENCE (DISCLOSED, OQ-02): Gating an item at `graduated` changes what
+    # a LATER close does. An ungated bug taken open -> graduated -> done closed silently before;
+    # with the gate present at `graduated`, a later `set done` REFUSES with rc=1 under the shipped
+    # close-legitimacy gate (evaluate_blocking_close below), demanding a handoff (--from-backlog),
+    # evidence (--evidence), or an explicit de-gate (--blocks-release -). That refusal is intended
+    # policy (AGENTS.md release-gates rule), but makes a previously-silent close interactive.
     #
     # DO NOT REMOVE A GATE WHEN A WORK KIND CHANGES AWAY FROM `bug`: a gate may have been set
     # deliberately for another reason, and silently clearing it would lose a decision. Hence the
     # predicate is consulted only for the kind the item is BECOMING, it never clears, and it declines
-    # when the item already carries a gate (`existing_blocks_release`).
-    if set_work_kind is not None and br is None:
+    # when the item already carries a gate (`existing_blocks_release`). Do not alter `decide_gate_default`
+    # itself: its condition 3 already declines `done` and `parked`, so the broadened guard needs no
+    # status allowlist of its own.
+    if br is None:
         gate_default, gate_default_notice = decide_gate_default(
             repo_root,
-            kind=set_work_kind,
+            kind=set_work_kind or item.kind,
             status=new_status,
             explicit_blocks_release=None,
             existing_blocks_release=item.blocks_release,
