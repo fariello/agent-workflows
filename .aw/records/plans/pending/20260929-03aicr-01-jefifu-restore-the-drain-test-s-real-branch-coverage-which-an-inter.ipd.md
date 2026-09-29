@@ -7,6 +7,7 @@
 - Scope-Paths: tests/test_dependency_block_reporting.py
 - Item-Dependencies: none
 - Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: 03aicr
