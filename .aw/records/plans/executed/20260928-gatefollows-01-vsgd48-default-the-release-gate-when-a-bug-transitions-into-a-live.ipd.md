@@ -6,7 +6,7 @@
 - Scope: Add the STATUS-transition call site to both spellings of `aw backlog set`, through the existing shared predicate, and pin all four routes (the two already-working reclassification routes and the two currently-broken transition routes) with tests. No new policy, no new field, no change to `decide_gate_default`'s four conditions.
 - Scope-Paths: agent_workflows/backlog.py, agent_workflows/status_set.py, tests/test_backlog_gate_follows_status.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: vsgd48
-- Approval: 2026-09-29, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-29 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: vsgd48 verified (set gatefollows, attempt 1).
 - 2026-09-29 approved (aw set): status set to approved
 - 2026-09-28 reviewed (aw set): /plan-review round 1 complete: APPROVE WITH REVISIONS APPLIED; PR-901 through PR-907 all FIXED; review record written; review-finalize lint conforming.
 
@@ -43,34 +43,34 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: wire the status-transition call site into both spellings
 
-- [ ] E-01 In `backlog.run_set`, broaden the gate-default consultation so it also fires when the item is transitioning INTO a live status. Replace the guard `if set_work_kind is not None and br is None:` with one that fires when `br is None` AND (`set_work_kind is not None` OR the item is becoming live), passing `kind=set_work_kind or item.kind` and `status=new_status` to `decide_gate_default`, and keeping `existing_blocks_release=item.blocks_release` so an item that already carries a gate is untouched. Write through `releases.set_blocks_release_line` and announce with the existing `sys.stdout.write(f"aw backlog set: {gate_default_notice}\n")` line. Do NOT alter `decide_gate_default` itself: its condition 3 already declines `done` and `parked`, so the broadened guard needs no status allowlist of its own.
+- [x] E-01 In `backlog.run_set`, broaden the gate-default consultation so it also fires when the item is transitioning INTO a live status. Replace the guard `if set_work_kind is not None and br is None:` with one that fires when `br is None` AND (`set_work_kind is not None` OR the item is becoming live), passing `kind=set_work_kind or item.kind` and `status=new_status` to `decide_gate_default`, and keeping `existing_blocks_release=item.blocks_release` so an item that already carries a gate is untouched. Write through `releases.set_blocks_release_line` and announce with the existing `sys.stdout.write(f"aw backlog set: {gate_default_notice}\n")` line. Do NOT alter `decide_gate_default` itself: its condition 3 already declines `done` and `parked`, so the broadened guard needs no status allowlist of its own.
   THE GATE WRITE MUST STAY BEFORE THE CLOSE-LEGITIMACY GATE, AND IT ALREADY DOES: verified at review that `run_set`'s gate-default block precedes its `evaluate_blocking_close` call in the same function, and that gate reads `rendered`, which the gate write mutates. Keep that order. Moving the new consultation after the close gate would let a same-call `done` transition be judged against a pre-write body.
   - Depends on: none
   - Expected outcome: `aw backlog set --status graduated <ungated-bug>` writes `- Blocks-Release: next` and prints the `defaulted - Blocks-Release: next` notice, where before it printed only the `-> graduated` line. `aw backlog set --status done <ungated-bug>` still writes no gate.
   DISCLOSE THE DOWNSTREAM WORKFLOW CONSEQUENCE, WHICH IS REAL, INTENDED, AND NOT MENTIONED ANYWHERE ELSE IN THIS PLAN. Gating an item at `graduated` changes what a LATER close does. MEASURED AT REVIEW 2026-09-28, end to end through `backlog.run_set`: an ungated bug taken `open -> graduated -> done` today closes cleanly (`rc=0`, no refusal); with the gate present at `graduated`, the same `set done` REFUSES with `rc=1` and "refused: backlog item carries Blocks-Release 'next'; closing it `done` would silently drop that release gate", offering the three shipped remedies (hand off to a plan via `--from-backlog`, cite `--evidence`, or de-gate with `--blocks-release -`). That refusal is CORRECT and is exactly the close-legitimacy policy AGENTS.md describes, so this is not a defect to avoid; but it means this plan makes a previously-silent close path interactive for every graduated bug, which is a behavior change a reviewer and a maintainer must see stated rather than discover. Record it in the code comment beside the new call site so the next reader meets it there too.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Mirror E-01 in `status_set.apply_status_change` for the positional spelling. Broaden its existing guard (`work_kind is not None and rec.record_type == "backlog" and getattr(args, "blocks_release", None) is None`) to also fire on a status-only transition, passing `kind=work_kind` or the record's existing `- Work-Kind:` when the flag is absent, and `status=norm_status`.
+- [x] E-02 Mirror E-01 in `status_set.apply_status_change` for the positional spelling. Broaden its existing guard (`work_kind is not None and rec.record_type == "backlog" and getattr(args, "blocks_release", None) is None`) to also fire on a status-only transition, passing `kind=work_kind` or the record's existing `- Work-Kind:` when the flag is absent, and `status=norm_status`.
   THERE IS NO "EXISTING PARSED `- Work-Kind:`" ON THIS PATH, SO THE EXECUTOR MUST CREATE THE READ, AND THIS IS THE ONE INSTRUCTION IN THIS PLAN THAT CANNOT BE FOLLOWED AS WRITTEN. MEASURED AT REVIEW 2026-09-28: `status_set.apply_status_change`'s ONLY work-kind binding is `work_kind = getattr(args, "work_kind", None)`, which is the FLAG, and it is exactly `None` in the status-only case this item exists to cover. `rg -n "Work-Kind" agent_workflows/status_set.py` returns five hits, all comments or the `set_work_kind_line` WRITE; nothing parses the record's own value, and `rec` carries no such attribute. So an executor who reads "the record's existing parsed `- Work-Kind:`" will look for a binding that does not exist. USE THE SHIPPED READER: `backlog.parse_item(<text>).kind`, which is the same accessor `backlog.run_set` already uses to obtain `item.kind` (driven at review: `backlog.parse_item("- Work-Kind: bug\n...").kind == 'bug'`). Read it from the CURRENT text of the record on this path, and note that `parse_item` also resolves the legacy `- Kind:` fallback (`item.kind = work_kind if work_kind is not None else legacy_kind`), which is a reason to prefer it over a fresh local regex. Do NOT add a second parser for this field: the predicate's "SINGLE AUTHORITY" discipline applies to the READ as much as to the decision.
   NOTE THE ASYMMETRY WITH E-01, WHICH IS WHY THIS ITEM IS NOT A MECHANICAL COPY. `backlog.run_set` already binds `item = parse_item(text)` well before its gate block (verified at review: the assignment precedes the gate block in the same function), so E-01 can write `kind=set_work_kind or item.kind` with no new read. `status_set.apply_status_change` has no equivalent binding, so E-02 must introduce one. An executor who assumes symmetry will either pass `kind=None` (making the predicate decline on condition 1 and the fix silently do nothing on the positional spelling) or invent a regex. Keep the `rec.record_type == "backlog"` guard exactly as-is, for the reason its own comment gives (a plan's `- Work-Kind:` is descriptive, and gating a plan on it "would invent a release obligation from a descriptive edit"). Keep reading the existing gate out of `new_lines` via the current `^- Blocks-Release:` regex so an already-gated item is declined by the predicate.
   - Depends on: E-01
   - Expected outcome: the positional `aw backlog set graduated <ungated-bug>` behaves byte-for-byte like the `--status` spelling from E-01, and a PLAN or SPEC record transitioned through this same function is never gated by a status move.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: pin every route, positive and negative
 
-- [ ] E-03 Add `tests/test_backlog_gate_follows_status.py` covering all FIVE routes into "live and ungated", for BOTH spellings of `aw backlog set`, each asserting on the item's `- Blocks-Release:` line AND on `check_engine.check_live_bug_gate` returning zero findings afterwards: (a) reclassification `chore -> bug` while `open` (already passing, F-01/F-02: this is the regression pin F-10 says does not exist); (b) `open -> graduated` on an ungated bug (F-03); (c) `parked -> open` (F-04); (d) `done -> open` (F-05); (e) a transition into `blocked` (F-11). Each fixture must create a `planned` release record, because `decide_gate_default` condition 2 falls back to ungated when `next` does not resolve.
+- [x] E-03 Add `tests/test_backlog_gate_follows_status.py` covering all FIVE routes into "live and ungated", for BOTH spellings of `aw backlog set`, each asserting on the item's `- Blocks-Release:` line AND on `check_engine.check_live_bug_gate` returning zero findings afterwards: (a) reclassification `chore -> bug` while `open` (already passing, F-01/F-02: this is the regression pin F-10 says does not exist); (b) `open -> graduated` on an ungated bug (F-03); (c) `parked -> open` (F-04); (d) `done -> open` (F-05); (e) a transition into `blocked` (F-11). Each fixture must create a `planned` release record, because `decide_gate_default` condition 2 falls back to ungated when `next` does not resolve.
   `blocked` IS THE FIFTH LIVE STATUS AND THE AUTHORED FOUR-ROUTE TABLE OMITS IT ENTIRELY, WHICH WOULD HAVE SHIPPED A FIX WITH AN UNTESTED THIRD OF ITS OWN SURFACE. The live set is computed as `STATUSES - _GATE_DEFAULT_SKIP_STATUSES`, driven at review as exactly `['blocked', 'graduated', 'open']`, so `blocked` is as live as the two the table does cover, and CREATION already gates it (driven: `aw backlog new --work-kind bug --status blocked` is gated, consistently with `open` and `graduated`). MEASURED AT REVIEW: `parked -> blocked` and `done -> blocked` on an ungated bug BOTH leave no gate and BOTH trip `check.live-bug-ungated`, so this is a real hole of the same shape as (b), (c) and (d), not a theoretical one.
   THE `blocked` ROUTE NEEDS TWO EXTRA FLAGS OR IT REFUSES BEFORE REACHING THE GATE CODE, which is why it cannot simply be appended to the table without a note. Driven at review: `aw backlog set --status blocked <item>` exits `rc=2` with "moving to blocked requires --gate-kind and --gate-ref" and writes nothing at all. The fixture must therefore pass `--gate-kind` and `--gate-ref` (driven working values: `gate_kind='question'`, `gate_ref='<some text>'`), or the test will pass for the wrong reason: it would assert an absent gate on an item the setter never transitioned.
   - Depends on: E-02
   - Expected outcome: a new test module whose (b), (c), (d) and (e) cases FAIL on the pre-E-01 code and PASS after, and whose (a) case passes both before and after.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 In the same module, pin the three negative properties, so the broadened guard cannot silently become an over-reach: (a) `aw backlog set open <ungated-bug> --blocks-release -` leaves the item UNGATED (predicate condition 4, explicit value wins); (b) an item already carrying `- Blocks-Release: <id6>` transitioned to another live status keeps THAT value and is not rewritten to `next`; (c) transitioning a bug to `done` and to `parked` writes NO gate (predicate condition 3 / `_GATE_DEFAULT_SKIP_STATUSES`), which also proves the fix cannot manufacture the `check.blocking-item-closed-without-gate` ERROR that condition 3 exists to avoid.
+- [x] E-04 In the same module, pin the three negative properties, so the broadened guard cannot silently become an over-reach: (a) `aw backlog set open <ungated-bug> --blocks-release -` leaves the item UNGATED (predicate condition 4, explicit value wins); (b) an item already carrying `- Blocks-Release: <id6>` transitioned to another live status keeps THAT value and is not rewritten to `next`; (c) transitioning a bug to `done` and to `parked` writes NO gate (predicate condition 3 / `_GATE_DEFAULT_SKIP_STATUSES`), which also proves the fix cannot manufacture the `check.blocking-item-closed-without-gate` ERROR that condition 3 exists to avoid.
   ALL THREE NEGATIVES ALREADY HOLD AT THIS HEAD, SO THIS ITEM IS A FENCE AND MUST SAY SO IN ITS DOCSTRINGS (F-16). Driven at review: `parked -> open` with `--blocks-release -` leaves the item ungated, and an item pre-gated `rel001` taken `parked -> open` keeps `rel001` rather than being rewritten to `next`. Unlike E-03's (b)/(c)/(d)/(e), these cases do NOT go from red to green, so do not claim a pre-fix failure for them; their value is that they fail if the broadened guard later over-reaches. Note (c) is the one whose protection E-01 must not weaken: condition 3 declining `done`/`parked` is what keeps the fix from manufacturing `check.blocking-item-closed-without-gate`.
   - Depends on: E-03
   - Expected outcome: three negative tests passing, each asserting the ABSENCE or the PRESERVATION of a gate value rather than its presence, and each labelled in its docstring as a FENCE that passes both before and after the fix.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -168,29 +168,234 @@ N/A with reason. This plan changes WHEN an existing predicate is consulted, not 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the actual terminal output of `aw backlog set --status graduated <id6>` run against a temp-fixture ungated `bug` item, showing the literal line `aw backlog set: defaulted - Blocks-Release: next on this bug item`; then paste the item's front matter showing `- Blocks-Release: next`. Separately paste the same command run with `--status done` against another ungated bug, showing NO `defaulted` line and front matter with no `- Blocks-Release:` line. Also paste the `git diff` of `agent_workflows/backlog.py` proving `decide_gate_default` itself was not modified.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below:
+```
+=== CMD1 (graduated):
+$ aw backlog set .aw/records/backlog/open/20260928-v01gaa-01-v01gaa-test.backlog.md --status graduated --no-commit
+aw backlog set: defaulted - Blocks-Release: next on this bug item (no --blocks-release given): every live bug item gates the next release; pass '--blocks-release -' to file an ungated bug item
+aw backlog set: 20260928-v01gaa-01-v01gaa-test.backlog.md -> graduated
 
-- [ ] V-02 validates E-02
+Item front matter:
+- Id: v01gaa
+- Status: graduated
+- Blocks-Release: next
+- Set: v01gaa
+- Priority: medium
+- Work-Kind: bug
+- Summary: Test defect
+
+=== CMD2 (done):
+$ aw backlog set .aw/records/backlog/open/20260928-v01daa-01-v01daa-test.backlog.md --status done --no-commit
+aw backlog set: not defaulting - Blocks-Release: on this bug item because its status is 'done': a gated done item is rejected by check.blocking-item-closed-without-gate, and a parked maybe is not live work
+aw backlog set: 20260928-v01daa-01-v01daa-test.backlog.md -> done
+
+Item front matter:
+- Id: v01daa
+- Status: done
+- Set: v01daa
+- Priority: medium
+- Work-Kind: bug
+- Summary: Test defect
+
+=== git diff agent_workflows/backlog.py (proving decide_gate_default untouched):
+diff --git a/agent_workflows/backlog.py b/agent_workflows/backlog.py
+index 4f4fba18..8d5f5d19 100644
+--- a/agent_workflows/backlog.py
++++ b/agent_workflows/backlog.py
+@@ -1376,21 +1376,31 @@ def run_set(args) -> int:
+         if set_work_kind is not None:
+             rendered = _releases.set_work_kind_line(rendered, set_work_kind)
+
+-    # nobugship di08i9 E-02: DEFAULT THE GATE ON A RECLASSIFICATION TOO, so the gate FOLLOWS a work
+-    # kind becoming `bug` instead of depending on the author remembering a second flag. This is the
++    # nobugship di08i9 E-02 / gatefollows vsgd48 E-01: DEFAULT THE GATE ON RECLASSIFICATION AND ON
++    # STATUS TRANSITIONS INTO A LIVE STATUS. The gate follows a work kind becoming `bug` AND follows
++    # an ungated `bug` item transitioning into a live status (open, graduated, blocked). This is the
+     # `--status` spelling of `aw backlog set`; the POSITIONAL spelling routes through
+-    # `status_set.apply_status_change`, which carries the SAME call to the SAME shared predicate. Both
+-    # were required: `aw backlog set` forks on whether `--status` was passed, so a default wired into
++    # `status_set.apply_status_change`, which carries the SAME broadened call to the SAME shared predicate.
++    # Both are required: `aw backlog set` forks on whether `--status` was passed, so a default wired into
+     # one path would fire for one spelling and not the other.
+     #
++    # DOWNSTREAM WORKFLOW CONSEQUENCE (DISCLOSED, OQ-02): Gating an item at `graduated` changes what
++    # a LATER close does. An ungated bug taken open -> graduated -> done closed silently before;
++    # with the gate present at `graduated`, a later `set done` REFUSES with rc=1 under the shipped
++    # close-legitimacy gate (evaluate_blocking_close below), demanding a handoff (--from-backlog),
++    # evidence (--evidence), or an explicit de-gate (--blocks-release -). That refusal is intended
++    # policy (AGENTS.md release-gates rule), but makes a previously-silent close interactive.
++    #
+     # DO NOT REMOVE A GATE WHEN A WORK KIND CHANGES AWAY FROM `bug`: a gate may have been set
+     # deliberately for another reason, and silently clearing it would lose a decision. Hence the
+     # predicate is consulted only for the kind the item is BECOMING, it never clears, and it declines
+-    # when the item already carries a gate (`existing_blocks_release`).
+-    if set_work_kind is not None and br is None:
++    # when the item already carries a gate (`existing_blocks_release`). Do not alter `decide_gate_default`
++    # itself: its condition 3 already declines `done` and `parked`, so the broadened guard needs no
++    # status allowlist of its own.
++    if br is None:
+         gate_default, gate_default_notice = decide_gate_default(
+             repo_root,
+-            kind=set_work_kind,
++            kind=set_work_kind or item.kind,
+             status=new_status,
+             explicit_blocks_release=None,
+             existing_blocks_release=item.blocks_release,
+```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the actual output of the POSITIONAL spelling (`aw backlog set graduated <id6>`) on an ungated bug fixture, showing the same `defaulted - Blocks-Release: next` notice and resulting front matter as V-01's `--status` run, so the two spellings are demonstrably identical. Then paste a run transitioning a PLAN record carrying `- Work-Kind: bug` through the same function, showing NO gate was written, proving the `rec.record_type == "backlog"` guard still holds.
     PASTE THE WORK-KIND READ ITSELF, because F-13 measured that the value E-02 was originally told to use does not exist on this path. Paste the committed line that obtains the record's own kind and confirm it goes through `backlog.parse_item(...).kind` rather than a new local regex, and paste a driven status-only positional transition on an ungated bug showing the gate IS written, which is the assertion that fails if `kind=None` reached the predicate (in which case condition 1 declines and the fix silently does nothing on this spelling).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below:
+```
+=== Positional spelling on ungated bug fixture:
+$ aw backlog set graduated v02pos --yes --no-commit
+aw backlog set: defaulted - Blocks-Release: next on this bug item (no --blocks-release given): every live bug item gates the next release; pass '--blocks-release -' to file an ungated bug item
+-    backlog     20260928-v02pos-01-v02pos  [medium]  open → ●  graduated
 
-- [ ] V-03 validates E-03
+Front matter:
+- Id: v02pos
+- Status: graduated
+- Blocks-Release: next
+- Set: v02pos
+- Priority: medium
+- Work-Kind: bug
+- Summary: Test defect
+
+=== Plan record carrying Work-Kind: bug transitioned through status_set.apply_status_change:
+$ aw ipd set to-review p00001 --yes --no-commit
+-    plan        20260928-demo-01-p00001  pending → ◔  to-review
+
+Plan content (showing no gate was written):
+# IPD: Test plan
+
+- Date: 2026-09-28
+- Kind: child
+- Status: to-review
+- Work-Kind: bug
+- Set: demo
+- Order: 1
+- Id: p00001
+- Summary: Demo plan
+
+=== Work-Kind read in status_set.py:
+Committed lines:
+        _current_text = "\n".join(new_lines)
+        _effective_kind = work_kind or _backlog.parse_item(_current_text).kind
+Confirmed reading through backlog.parse_item(_current_text).kind rather than a local regex.
+The driven positional transition above on ungated bug (v02pos) wrote '- Blocks-Release: next', confirming kind='bug' reached decide_gate_default rather than None.
+```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the full `python3 -m pytest tests/test_backlog_gate_follows_status.py` output including the `N passed` summary line. Then paste the PRE-FIX run of the same module, showing cases (b), (c), (d) AND (e) FAILING and case (a) PASSING, with the assertion text visible. A module that passes before the fix does not validate E-03.
     DO NOT USE `git stash` IN THIS SHARED CHECKOUT TO OBTAIN THE PRE-FIX RUN. The authored evidence line suggests `git stash` or `git stash push -- agent_workflows/`, and AGENTS.md forbids exactly that shape here: a stash operates on the whole working tree and can discard or unstage a co-worker's uncommitted work in a checkout other agents are using. Obtain the contrast WITHOUT mutating the tree: run the pre-fix module against the two call sites patched IN MEMORY (monkeypatch the broadened guard off, or drive `decide_gate_default`'s call sites through a patched wrapper), or run it before applying the edits and paste that output, keeping the tracked tree untouched throughout. State which route was used.
     PASTE THE `blocked` ROW's FLAGS EXPLICITLY (F-11): show the fixture passes `--gate-kind` and `--gate-ref`, and show the transition's return code is 0, because without those flags the setter exits `rc=2` and writes nothing, and the test would then pass for the wrong reason by asserting an absent gate on an item that never moved.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below:
+```
+=== Post-fix full test output:
+$ python3 -m pytest tests/test_backlog_gate_follows_status.py
+bringing up nodes...
+..................                                                       [100%]
+18 passed in 2.35s
 
-- [ ] V-04 validates E-04
+=== Pre-fix run (obtained before applying edits to agent_workflows/, keeping tracked tree untouched throughout):
+$ python3 -m pytest tests/test_backlog_gate_follows_status.py
+FAILED tests/test_backlog_gate_follows_status.py::TestBacklogGateFollowsStatus::test_route_d_done_to_open_positional_spelling - AssertionError: '- Blocks-Release: next' not found in '- Id: bk0004\n- Status: open\n- Set: bk0004\n- Priority: medium\n- Work-Kind: bug\n- Summary: Test defect\n\n## Workflow history\n- 2026-09-29 open (aw set): status set to open\n- 2026-09-28 created (tester): initial\n'
+FAILED tests/test_backlog_gate_follows_status.py::TestBacklogGateFollowsStatus::test_route_d_done_to_open_status_spelling - AssertionError: '- Blocks-Release: next' not found in '- Id: bk0004\n- Status: open\n- Set: bk0004\n- Priority: medium\n- Work-Kind: bug\n- Summary: Test defect\n\n## Workflow history\n- 2026-09-28 set (aw backlog): status -> open\n- 2026-09-28 created (tester): initial\n'
+FAILED tests/test_backlog_gate_follows_status.py::TestBacklogGateFollowsStatus::test_route_e_transition_to_blocked_positional_spelling - AssertionError: '- Blocks-Release: next' not found in '- Id: bk0005\n- Status: blocked\n- Gate-Kind: question\n- Gate-Ref: Waiting on clarification\n- Set: bk0005\n- Priority: medium\n- Work-Kind: bug\n- Summary: Test defect\n\n## Workflow history\n- 2026-09-29 blocked (aw set): status set to blocked\n- 2026-09-28 created (tester): initial\n'
+FAILED tests/test_backlog_gate_follows_status.py::TestBacklogGateFollowsStatus::test_route_c_parked_to_open_status_spelling - AssertionError: '- Blocks-Release: next' not found in '- Id: bk0003\n- Status: open\n- Set: bk0003\n- Priority: medium\n- Work-Kind: bug\n- Summary: Test defect\n\n## Workflow history\n- 2026-09-28 set (aw backlog): status -> open\n- 2026-09-28 created (tester): initial\n'
+FAILED tests/test_backlog_gate_follows_status.py::TestBacklogGateFollowsStatus::test_route_b_open_to_graduated_status_spelling - AssertionError: '- Blocks-Release: next' not found in '- Id: bk0002\n- Status: graduated\n- Set: bk0002\n- Priority: medium\n- Work-Kind: bug\n- Summary: Test defect\n\n## Workflow history\n- 2026-09-28 set (aw backlog): status -> graduated\n- 2026-09-28 created (tester): initial\n'
+FAILED tests/test_backlog_gate_follows_status.py::TestBacklogGateFollowsStatus::test_route_e_transition_to_blocked_status_spelling - AssertionError: '- Blocks-Release: next' not found in '- Id: bk0005\n- Status: blocked\n- Gate-Kind: question\n- Gate-Ref: Waiting on clarification\n- Set: bk0005\n- Priority: medium\n- Work-Kind: bug\n- Summary: Test defect\n\n## Workflow history\n- 2026-09-28 set (aw backlog): status -> blocked\n- 2026-09-28 created (tester): initial\n'
+FAILED tests/test_backlog_gate_follows_status.py::TestBacklogGateFollowsStatus::test_route_c_parked_to_open_positional_spelling - AssertionError: '- Blocks-Release: next' not found in '- Id: bk0003\n- Status: open\n- Set: bk0003\n- Priority: medium\n- Work-Kind: bug\n- Summary: Test defect\n\n## Workflow history\n- 2026-09-29 open (aw set): status set to open\n- 2026-09-28 created (tester): initial\n'
+FAILED tests/test_backlog_gate_follows_status.py::TestBacklogGateFollowsStatus::test_route_b_open_to_graduated_positional_spelling - AssertionError: '- Blocks-Release: next' not found in '- Id: bk0002\n- Status: graduated\n- Set: bk0002\n- Priority: medium\n- Work-Kind: bug\n- Summary: Test defect\n\n## Workflow history\n- 2026-09-29 graduated (aw set): status set to graduated\n- 2026-09-28 created (tester): initial\n'
+8 failed, 10 passed in 2.35s
+(Cases (b), (c), (d), and (e) failed across both spellings, and case (a) passed both before and after)
+
+=== Route (e) blocked transition flags and return code:
+Flags passed in fixture:
+  --gate-kind question --gate-ref "Waiting on clarification"
+Return code asserted:
+  self.assertEqual(rc, 0)
+```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the three negative tests' names and outcomes from the pytest output, plus, for the `--blocks-release -` case, the actual item front matter after the call showing NO `- Blocks-Release:` line, and for the preserved-gate case, front matter showing the ORIGINAL release id6 (not `next`). State in one sentence that all three pass BOTH before and after the fix (F-16), so they are fences and no pre-fix failure is claimed for them. Then paste `python3 -m pytest` (full fast suite) with its `N passed` summary compared against a baseline re-measured in this lane immediately before the change (NOT against any figure written in this plan), and `aw check release-gates --agent` showing `"outcome":"conforms"` and `"findings":0`.
     PASTE THE DOWNSTREAM-CLOSE EVIDENCE HERE (F-12), since this is the last item before commit and no other check covers it: take one bug `open -> graduated` so the new default gates it, then run `set done` and paste the actual refusal including the `refused: backlog item carries Blocks-Release` line and its three remedies; then paste `set done --blocks-release -` succeeding. Label it explicitly as INTENDED behavior that this plan introduces, not a regression, so a later reader is not left to guess whether the refusal was foreseen.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below:
+```
+=== Three negative tests' names and outcomes:
+PASSED tests/test_backlog_gate_follows_status.py::TestBacklogGateFollowsStatus::test_negative_explicit_blocks_release_dash_wins_status_spelling
+PASSED tests/test_backlog_gate_follows_status.py::TestBacklogGateFollowsStatus::test_negative_explicit_blocks_release_dash_wins_positional_spelling
+PASSED tests/test_backlog_gate_follows_status.py::TestBacklogGateFollowsStatus::test_negative_existing_gate_preserved_status_spelling
+PASSED tests/test_backlog_gate_follows_status.py::TestBacklogGateFollowsStatus::test_negative_existing_gate_preserved_positional_spelling
+PASSED tests/test_backlog_gate_follows_status.py::TestBacklogGateFollowsStatus::test_negative_transition_to_done_writes_no_gate_status_spelling
+PASSED tests/test_backlog_gate_follows_status.py::TestBacklogGateFollowsStatus::test_negative_transition_to_done_writes_no_gate_positional_spelling
+PASSED tests/test_backlog_gate_follows_status.py::TestBacklogGateFollowsStatus::test_negative_transition_to_parked_writes_no_gate_status_spelling
+PASSED tests/test_backlog_gate_follows_status.py::TestBacklogGateFollowsStatus::test_negative_transition_to_parked_writes_no_gate_positional_spelling
+
+All three negative fence properties pass BOTH before and after the fix (F-16), ensuring the broadened guard does not over-reach.
+
+--blocks-release - front matter:
+- Id: bk0006
+- Status: open
+- Set: bk0006
+- Priority: medium
+- Work-Kind: bug
+- Summary: Test defect
+
+Preserved gate front matter:
+- Id: bk0007
+- Status: open
+- Blocks-Release: rel001
+- Set: bk0007
+- Priority: medium
+- Work-Kind: bug
+- Summary: Test defect
+
+=== Full test suite comparison:
+Baseline re-measured in this lane immediately before the change:
+  3217 passed, 2 skipped, 3 warnings in 85.89s (0:01:25)
+Full fast suite post-fix:
+  3235 passed, 2 skipped, 3 warnings in 57.55s
+Outcome: +18 passed (the 18 tests in tests/test_backlog_gate_follows_status.py), 0 regressions.
+
+=== aw check release-gates --agent:
+{"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"release-gates","findings":0,"evidence":["inventory","rules"],"next":"aw releases list"}
+
+=== Downstream-close evidence (F-12, INTENDED behavior):
+1. Transition open -> graduated on ungated bug:
+$ aw backlog set .aw/records/backlog/open/20260928-v04cla-01-v04cla-test.backlog.md --status graduated --no-commit
+Front matter now carries:
+- Id: v04cla
+- Status: graduated
+- Blocks-Release: next
+
+2. Close graduated bug with 'set done':
+$ aw backlog set .aw/records/backlog/graduated/20260928-v04cla-01-v04cla-test.backlog.md --status done --no-commit
+Exit code: 1
+aw backlog set: refused: backlog item carries Blocks-Release 'next'; closing it `done` would silently drop that release gate.
+  - hand the gate to a plan: add `- From-Backlog: <this id6>` (and the same `- Blocks-Release`) to a plan via `aw ipd set ... --from-backlog <id6>`
+  - cite satisfying evidence: `aw backlog set done <item> --evidence <in-tree artifact path>`
+  - explicitly release the gate first: `aw backlog set done <item> --blocks-release -`
+
+3. Close graduated bug using de-gate remedy 'set done --blocks-release -':
+$ aw backlog set .aw/records/backlog/graduated/20260928-v04cla-01-v04cla-test.backlog.md --status done --blocks-release - --no-commit
+Exit code: 0
+aw backlog set: 20260928-v04cla-01-v04cla-test.backlog.md -> done
+Front matter:
+- Id: v04cla
+- Status: done
+- Set: v04cla
+- Priority: medium
+- Work-Kind: bug
+- Summary: Downstream close test
+```
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -1,5 +1,5 @@
 - Id: 98zlut
-- Status: graduated
+- Status: done
 - Graduated-To: gatefollows
 - Blocks-Release: next
 - Set: 98zlut
@@ -8,6 +8,7 @@
 - Summary: aw backlog set has no --work-kind-aware gate default, so an item reclassified to bug or graduated by hand stays ungated
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): closed by aw oc run: IPD vsgd48 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-gatefollows-01-vsgd48-default-the-release-gate-when-a-bug-transitions-into-a-live.ipd.md); evidence .aw/records/plans/executed/20260928-gatefollows-01-vsgd48-default-the-release-gate-when-a-bug-transitions-into-a-live.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: vsgd48
 - 2026-09-18 created (aw backlog): aw backlog set has no --work-kind-aware gate default, so an item reclassified to bug or graduated by hand stays ungated
 

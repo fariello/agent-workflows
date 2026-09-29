@@ -1145,11 +1145,13 @@ def apply_status_change(
         tmp_text = _releases.set_graduated_to_line(tmp_text, graduated_to)
         new_lines = tmp_text.splitlines()
 
-    # nobugship di08i9 E-02: THE POSITIONAL SPELLING'S HALF OF THE RECLASSIFICATION DEFAULT. When an
-    # item's Work-Kind BECOMES `bug` and it carries no gate, the release gate is defaulted here too,
-    # through the SAME shared `backlog.decide_gate_default` predicate `backlog.run_new` and
-    # `backlog.run_set` call, and written through the SAME shared `releases.set_blocks_release_line`
-    # primitive as every other gate write on this path.
+    # nobugship di08i9 E-02 / gatefollows vsgd48 E-02: THE POSITIONAL SPELLING'S DEFAULT (ON
+    # RECLASSIFICATION AND ON STATUS TRANSITIONS INTO A LIVE STATUS). When an item's Work-Kind
+    # BECOMES `bug`, OR when an existing `bug` item transitions into a live status, and it carries no
+    # gate, the release gate is defaulted here too, through the SAME shared
+    # `backlog.decide_gate_default` predicate `backlog.run_new` and `backlog.run_set` call, and
+    # written through the SAME shared `releases.set_blocks_release_line` primitive as every other gate
+    # write on this path.
     #
     # BOTH DISPATCH PATHS ARE REQUIRED AND THAT IS WHY THIS EXISTS. `aw backlog set` forks on whether
     # `--status` was PASSED (cli.py): the positional spelling routes HERE, and the `--status` spelling
@@ -1162,29 +1164,25 @@ def apply_status_change(
     # classification a backlog item carries, and whose gate arrives by graduation (E-03's
     # `--from-backlog` inheritance), not by reclassification. Defaulting a gate onto a plan because
     # someone labelled it `bug` would invent a release obligation from a descriptive edit.
-    if (
-        work_kind is not None
-        and rec.record_type == "backlog"
-        and getattr(args, "blocks_release", None) is None
-    ):
+    if rec.record_type == "backlog" and getattr(args, "blocks_release", None) is None:
         from agent_workflows import backlog as _backlog
         from agent_workflows import releases as _releases
 
+        _current_text = "\n".join(new_lines)
+        _effective_kind = work_kind or _backlog.parse_item(_current_text).kind
         _existing_m = re.search(
-            r"(?m)^- Blocks-Release:[ \t]*(\S+)[ \t]*$", "\n".join(new_lines)
+            r"(?m)^- Blocks-Release:[ \t]*(\S+)[ \t]*$", _current_text
         )
         _existing_br = _existing_m.group(1) if _existing_m else None
         _gate_default, _gate_notice = _backlog.decide_gate_default(
             repo_root,
-            kind=work_kind,
+            kind=_effective_kind,
             status=norm_status,
             explicit_blocks_release=None,
             existing_blocks_release=_existing_br,
         )
         if _gate_default is not None:
-            tmp_text = _releases.set_blocks_release_line(
-                "\n".join(new_lines), _gate_default
-            )
+            tmp_text = _releases.set_blocks_release_line(_current_text, _gate_default)
             new_lines = tmp_text.splitlines()
         if _gate_notice:
             sys.stdout.write(f"aw backlog set: {_gate_notice}\n")
