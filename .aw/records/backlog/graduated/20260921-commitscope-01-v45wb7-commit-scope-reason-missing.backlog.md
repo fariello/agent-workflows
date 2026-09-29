@@ -1,5 +1,6 @@
 - Id: v45wb7
-- Status: open
+- Status: graduated
+- Graduated-To: commitscope
 - Blocks-Release: next
 - Set: commitscope
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: aw commit <plan> has no --scope-reason escape, so a legitimate out-of-scope edit forces --no-plan
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: 9m4ujh
 - 2026-09-21 created (aw backlog): aw commit <plan> has no --scope-reason escape, so a legitimate out-of-scope edit forces --no-plan
 
 FOUND BY: graduate Order 01 (`jxxec8`) execution, 2026-09-22.
