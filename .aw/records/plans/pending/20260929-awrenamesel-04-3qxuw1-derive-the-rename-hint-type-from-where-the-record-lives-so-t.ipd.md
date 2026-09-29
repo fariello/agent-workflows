@@ -9,6 +9,7 @@
 - Scope-Paths: agent_workflows/check_engine.py, tests/test_identity_rename_hint.py
 - Item-Dependencies: none
 - Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
 - From-Backlog: gyv9tf
@@ -204,7 +205,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-This plan was authored `to-review` with no `- Readiness:` field, correctly, since that value is an output of review rather than of authoring. It must not be executed on the strength of the authoring turn.
+This plan was authored `to-review` with no `- Readiness:` field, correctly, since that value is an output of review rather than of authoring. It must not be executed on the strength of the authoring turn. `/plan-review` has since run and WROTE that field as `go-pending-approval`, which records a review verdict and NOT human approval; execution still awaits the maintainer's sign-off.
 
 EXECUTION CONTRACT. Stay inside `Scope-Paths`: `agent_workflows/check_engine.py` and `tests/test_identity_rename_hint.py`. Call `selectors.record_dirs`; do NOT modify `selectors.py`, and leave `status_set.py`, `plans_refs.py` and `artifact_rename.py` byte-unchanged. Do NOT derive the noun with `status_set.detect_artifact_type`: F-06 measures that it returns `roadmaps` for BOTH files and would break the research-tree case. Do NOT change the id6-over-filename selector preference (F-10). Do NOT move any record or decide which tree owns a `.roadmap.md`. Commit through `aw commit <plan> -- <paths>` with the staged set verified (the checkout is shared); never `git add -A`, never push, never `--no-verify`.
 EVIDENCE CONTRACT. The failing-first contrast in V-01 is the gate, and it has a second half unique to this plan: you must also show the fixture PRODUCED a finding, because the branch's real-world population is zero (F-04) and a fixture that fires nothing would make a broken test pass. COVER BOTH EMITTED VERBS: the helper emits `aw group ... --set <setid> --rename` on its `Set`/modern branch and that shape carries the identical wrong-noun defect (F-14), so a failing-first contrast shown only for `aw rename` does not gate this plan. BUILD THE RESEARCH-TREE CONTROL ON THE `Set` FIELD WITH A CONFORMING NAME: measured, a pre-id6 research name refuses for an unrelated confinement reason and a conforming name makes the `Id` branch fire nothing at all (F-15), so the loosely described mirror cannot be built as stated. Every oracle must be that the emitted command RUNS, never that it matches a string; when running an `aw group` hint, substitute a real setid for the `<setid>` placeholder and say which. Paste actual runner output for every `V-*`; never record a pass not run. Be aware of the measured hazard behind E-01's in-process requirement: an editable install can make a subprocess `python3 -m agent_workflows` import the MAIN checkout rather than this lane (`ccbe60`), so a subprocess assertion can pass against unfixed source.
