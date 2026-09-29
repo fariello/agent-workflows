@@ -1,5 +1,6 @@
 - Id: ghff0p
-- Status: open
+- Status: graduated
+- Graduated-To: ghff0p
 - Blocks-Release: next
 - Set: ghff0p
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: The run queue builder's unguarded manifest lookup can raise a bare KeyError after the run directory exists
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: kqb9ok
 - 2026-09-20 created (aw backlog): The run queue builder's unguarded manifest lookup can raise a bare KeyError after the run directory exists
 
 WHERE. `runner_shared.initialize_run_core`'s queue-build loop begins each item with an UNGUARDED `plan = manifest["plans"][id6]`. Two facts make that a defect rather than a style point: (1) it runs AFTER the run directory is created (`run_dir = state_root(repo) / run_id` plus the `sessions`/`outcomes`/`prompts` mkdirs and the decisions file), and (2) the loop immediately ABOVE it - the `selected_plan_paths` build - resolves the SAME lookup inside `except (DriverError, KeyError): continue`, so the two loops disagree about whether a missing entry is survivable.
