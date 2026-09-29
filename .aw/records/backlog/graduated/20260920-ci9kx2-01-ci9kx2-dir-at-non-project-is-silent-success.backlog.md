@@ -1,5 +1,6 @@
 - Id: ci9kx2
-- Status: open
+- Status: graduated
+- Graduated-To: ci9kx2
 - Blocks-Release: next
 - Set: ci9kx2
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: aw attention --dir <non-AW-directory> prints nothing and exits 0, so an explicitly named wrong directory looks like success
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: bjgqez
 - 2026-09-20 created (aw backlog): aw attention --dir <non-AW-directory> prints nothing and exits 0, so an explicitly named wrong directory looks like success
 
 MEASURED at HEAD 283b3c92 while executing IPD quqyc4 (its finding F-17), and CHARACTERIZED rather than fixed there by design.
