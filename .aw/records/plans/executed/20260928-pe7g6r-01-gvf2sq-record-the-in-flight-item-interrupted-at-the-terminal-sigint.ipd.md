@@ -8,20 +8,20 @@
 - Scope: IN: (a) make an UNREQUESTED interrupt DISTINGUISHABLE to `reconcile_item_on_interrupt` so it takes an interrupt-preserving path instead of the destructive no-changes cleanup, and leaves the in-flight item recorded `interrupted` with an INDETERMINATE `stopped` record (so the spec-R19 gate can see it, per F-11) and an `ipd-interrupted` event on a CLEAN tree as well as a dirty one, covering BOTH unsentinelled raisers: the terminal SIGINT rung and `render_stream.install_exit_signal_handler`'s SIGTERM fallback, which F-10 measured to have the identical defect; (b) restore BEHAVIORAL coverage of the terminal-rung contract the `19313eed` trim removed, driving the real `execute_item` of BOTH hosts with the real `_terminal` message rather than a hand-written sentinel, and pinning the message-to-arm routing itself so a future reword of `_terminal` cannot silently re-break it; (c) a regression test that the interactive menu's OWN `clean-up-and-terminate` action still reaches the no-changes cleanup arm, since that arm is correct for a DELIBERATE operator cleanup and must not be collateral damage. OUT: the `running` root cause and the `_run_git` tuple/attempt-key defects (all fixed by executed `87jnym`; this plan re-measures them green as a baseline and changes none of them); the `SigtermTests` level-3 `KeyError: 'stopped'` half of sibling backlog `wqk5s2` (a different rung, still live and still gated); reviving `tests/test_runner_stop_triggers.py` wholesale or reversing the `19313eed` trim; any change to `runner_stop`'s ladder levels, budgets, `interrupt_menu_is_safe`, or the exit-130/143 mapping in either host's `main`; the slow-marker visibility problem the item describes, which is owned by `xuc9v0`.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_interrupt_reconcile.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: pe7g6r
 - Order: 1
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: gvf2sq
-- Approval: 2026-09-29, recorded via aw ipd set: status set to approved
 - From-Backlog: pe7g6r
 - Blocks-Release: next
 - Work-Kind: bug
 - Priority: high
 
 ## Workflow history
+- 2026-09-29 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: gvf2sq verified (set pe7g6r, attempt 1).
 - 2026-09-29 approved (aw set): status set to approved
 - 2026-09-28 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-001 (blocker: CERTAINTY_KNOWN defeats the R19 gate) through PR-004 all fixed; readiness go-pending-approval
 
