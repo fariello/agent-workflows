@@ -1,5 +1,6 @@
 - Id: 5u7mug
-- Status: open
+- Status: graduated
+- Graduated-To: resvocab
 - Blocks-Release: next
 - Set: 5u7mug
 - Priority: high
@@ -7,6 +8,7 @@
 - Summary: aw set accepts done/open/parked for research and refuses the real todo/reference/archive vocabulary
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260928T235632Z-1358353: 4a8yws
 - 2026-09-20 created (aw backlog): aw set accepts done/open/parked for research and refuses the real todo/reference/archive vocabulary
 
 MEASURED 2026-09-20 while executing plan `9zvl2w` (which touched the same function for an unrelated reason).
