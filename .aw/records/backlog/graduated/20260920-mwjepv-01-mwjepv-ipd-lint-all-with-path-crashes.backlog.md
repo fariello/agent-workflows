@@ -1,5 +1,6 @@
 - Id: mwjepv
-- Status: open
+- Status: graduated
+- Graduated-To: mwjepv
 - Blocks-Release: next
 - Set: mwjepv
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: aw ipd lint --all <path> crashes because a list is passed to Path()
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: gonzhl
 - 2026-09-20 created (aw backlog): aw ipd lint --all <path> crashes because a list is passed to Path()
 
 MEASURED 2026-09-20 while executing plan `9zvl2w` (encountered building a quarantine fixture).
