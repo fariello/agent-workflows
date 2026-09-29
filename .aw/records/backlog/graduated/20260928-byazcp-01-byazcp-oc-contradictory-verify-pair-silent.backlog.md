@@ -1,5 +1,6 @@
 - Id: byazcp
-- Status: open
+- Status: graduated
+- Graduated-To: byazcp
 - Blocks-Release: next
 - Set: byazcp
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: oc run silently resolves a contradictory verification flag pair by argparse last-wins, where agy refuses it
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260929T021205Z-3914774: zdgc6t
 - 2026-09-28 created (aw backlog): Filed while authoring plan 7dz3wv (graduating xdgorn); measured at HEAD beb37773.
 
 Measured live at HEAD `beb37773` while authoring plan `7dz3wv`.
