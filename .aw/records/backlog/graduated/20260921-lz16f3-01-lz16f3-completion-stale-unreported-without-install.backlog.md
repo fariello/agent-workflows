@@ -1,11 +1,13 @@
 - Id: lz16f3
-- Status: open
+- Status: graduated
+- Graduated-To: lz16f3
 - Set: lz16f3
 - Priority: low
 - Work-Kind: followup
 - Summary: An installed completion script goes stale silently for any user who never re-runs aw install or aw setup
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: s2yf26
 - 2026-09-21 created (aw backlog): An installed completion script goes stale silently for any user who never re-runs aw install or aw setup
 
 FOUND while executing plan 4y95tp (compargs 01), whose E-06 closed the reportability half of this and
