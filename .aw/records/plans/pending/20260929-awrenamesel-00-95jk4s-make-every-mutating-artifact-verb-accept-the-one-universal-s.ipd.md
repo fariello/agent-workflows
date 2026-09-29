@@ -7,6 +7,7 @@
 - Scope-Paths: .aw/records/plans/pending/20260929-awrenamesel-00-95jk4s-make-every-mutating-artifact-verb-accept-the-one-universal-s.ipd.md
 - Item-Dependencies: none
 - Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: gyv9tf
@@ -213,7 +214,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-This plan was authored `to-review` with no `- Readiness:` field, correctly, since that value is an output of review rather than of authoring. It must not be executed on the strength of the authoring turn.
+This plan was authored `to-review` with no `- Readiness:` field, correctly, since that value is an output of review rather than of authoring. It must not be executed on the strength of the authoring turn. `/plan-review` has since run and WROTE that field as `go-pending-approval`, which records a review verdict and NOT human approval; execution still awaits the maintainer's sign-off.
 
 THIS PLAN CARRIES NO WORK OF ITS OWN, WHICH IS DELIBERATE AND IS WHAT MAKES ITS RETIREMENT HONEST. Every deliverable belongs to a child; this file contributes no code, no test and no record. That matters mechanically: a runner RETIRES an orchestrator once every child is `executed` and SKIPS the pre-transition E/V checkpoint, on the premise that the parent's items are performed by nobody. Any work parked here would therefore be marked complete having never been performed or verified. If a reviewer believes this Set needs a step no child covers, ADD A CHILD for it; do not move it onto this file, and do not delete the child checklist to make the coverage gate pass.
 
