@@ -1,5 +1,5 @@
 - Id: 3f4ayi
-- Status: graduated
+- Status: done
 - Graduated-To: 3f4ayi
 - Blocks-Release: next
 - Set: 3f4ayi
@@ -8,6 +8,7 @@
 - Summary: AgentRenderer.render_summary crashes whenever --fields is set
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): closed by aw oc run: IPD gygujf executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-3f4ayi-01-gygujf-make-an-aw-agent-v1-field-projection-preserve-every-per-kind.ipd.md); evidence .aw/records/plans/executed/20260928-3f4ayi-01-gygujf-make-an-aw-agent-v1-field-projection-preserve-every-per-kind.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: gygujf
 - 2026-09-18 created (aw backlog): AgentRenderer.render_summary crashes whenever --fields is set
 
