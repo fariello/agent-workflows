@@ -555,3 +555,392 @@ class HostBehavioralInterruptTests(unittest.TestCase):
             self.assertEqual(
                 render_stream._interrupt_reason_of(item), "just-terminate-no-cleanup"
             )
+
+
+class TerminalRungInterruptBehavioralTests(unittest.TestCase):
+    """Behavioral tests driving real oc_runipd and agy_runipd execute_item with the terminal rung."""
+
+    def setUp(self) -> None:
+        support.declare_execution_role(self)
+
+    def _state_and_item(
+        self, repo: Path, plan: Path, driver_name: str
+    ) -> tuple[dict, dict]:
+        id6 = "wir001" if driver_name == "oc" else "agy001"
+        item = {
+            "position": 1,
+            "id6": id6,
+            "setid": "demo",
+            "status": "queued",
+            "configured_file": str(plan.relative_to(repo)),
+            "action": "execute",
+        }
+        options = {
+            "model": "opus",
+            "self_finalize": True,
+            "isolate_worktree": False,
+        }
+        if driver_name == "oc":
+            options["opencode"] = "/bin/true"
+            options["no_audit"] = True
+        else:
+            options["no_verify"] = True
+
+        state = {
+            "run_id": "run-test",
+            "created_at": "2026-08-28T00:00:00+00:00",
+            "updated_at": "2026-08-28T00:00:00+00:00",
+            "selectors": ["demo"],
+            "repo": str(repo),
+            "queue": [item],
+            "set_sessions": {},
+            "session_id": None,
+            "options": options,
+        }
+        return state, item
+
+    def _mk_run_dir(self, repo: Path) -> Path:
+        run_dir = repo / ".aw" / "records" / "runs" / "run-test"
+        (run_dir / "outcomes").mkdir(parents=True, exist_ok=True)
+        (run_dir / "prompts").mkdir(parents=True, exist_ok=True)
+        (run_dir / "events.jsonl").touch()
+        return run_dir
+
+    def _capture_terminal_message(
+        self, run_dir: Path, requester: str = "signal pid=12345"
+    ) -> str:
+        """Capture the real KeyboardInterrupt message produced by install_stop_triggers._terminal."""
+        captured_cb = None
+
+        def fake_install(rd, *, command, requester, on_terminal):
+            nonlocal captured_cb
+            captured_cb = on_terminal
+            return {}
+
+        with mock.patch.object(
+            runner_stop, "install_stop_signal_handlers", fake_install
+        ):
+            runner_shared.install_stop_triggers(
+                run_dir,
+                labels=runner_shared.OC_HOST_LABELS,
+            )
+        self.assertIsNotNone(
+            captured_cb, "install_stop_triggers did not register on_terminal callback"
+        )
+        ladder = runner_stop.SIGINT_LADDER
+        terminal_level = ladder[-1]
+        try:
+            captured_cb(terminal_level, requester)
+        except KeyboardInterrupt as exc:
+            return str(exc)
+        self.fail("captured _terminal callback did not raise KeyboardInterrupt")
+
+    def _capture_sigterm_fallback_message(self) -> str:
+        """Capture the message produced by render_stream.install_exit_signal_handler default handler."""
+        captured_handler = None
+
+        def fake_signal(sig, handler):
+            nonlocal captured_handler
+            captured_handler = handler
+            return None
+
+        with mock.patch("signal.signal", fake_signal):
+            render_stream.install_exit_signal_handler()
+        self.assertIsNotNone(
+            captured_handler,
+            "install_exit_signal_handler did not register signal handler",
+        )
+        try:
+            captured_handler(15, None)
+        except KeyboardInterrupt as exc:
+            return str(exc)
+        self.fail("captured SIGTERM fallback handler did not raise KeyboardInterrupt")
+
+    def test_terminal_rung_message_contains_sentinel_routing_pin(self):
+        """Pin the routing contract: _terminal message must contain FORCED_INTERRUPT_SENTINEL (E-01/E-03)."""
+        with tempfile.TemporaryDirectory() as temp:
+            run_dir = Path(temp) / "run_dir"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            msg = self._capture_terminal_message(run_dir, requester="signal pid=42424")
+            self.assertIn("stop level 4 (now-force)", msg)
+            self.assertIn("requested by signal pid=42424", msg)
+            self.assertIn(
+                runner_shared.FORCED_INTERRUPT_SENTINEL,
+                msg,
+                "The message _terminal raises must carry FORCED_INTERRUPT_SENTINEL to route to preserve arm",
+            )
+
+    def test_oc_execute_item_terminal_rung_clean_tree_preserves_and_refuses_requeue(
+        self,
+    ):
+        """End-to-end oc execute_item on clean tree with real _terminal message (E-03)."""
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            plan = _init_repo_with_conforming_plan(repo, "wir001")
+            rcpt = ipd_lifecycle.receipt_path_for(repo, "wir001")
+            rcpt.parent.mkdir(parents=True, exist_ok=True)
+            rcpt.write_text("receipt data\n", encoding="utf-8")
+
+            run_dir = self._mk_run_dir(repo)
+            state, item = self._state_and_item(repo, plan, "oc")
+            terminal_msg = self._capture_terminal_message(run_dir)
+
+            def fake_run(*args, **kwargs):
+                raise KeyboardInterrupt(terminal_msg)
+
+            with (
+                mock.patch.object(oc_runipd, "driver_begin", return_value=(0, "ok")),
+                mock.patch.object(oc_runipd, "run_opencode", fake_run),
+            ):
+                with pytest.raises(KeyboardInterrupt):
+                    oc_runipd.execute_item(run_dir, state, item, recovery=False)
+
+            # Item must be recorded interrupted
+            self.assertEqual(item["status"], "interrupted")
+            self.assertNotIn(item["status"], runner_shared.SUCCESS_STATES)
+            saved_state = json.loads(
+                (run_dir / "state.json").read_text(encoding="utf-8")
+            )
+            saved_item = saved_state["queue"][0]
+            self.assertEqual(saved_item["status"], "interrupted")
+
+            # Begin receipt and attempt must NOT be removed
+            self.assertTrue(
+                rcpt.is_file(), "Begin receipt was unlinked on force interrupt"
+            )
+            self.assertEqual(
+                len(item.get("attempts", [])),
+                1,
+                "Attempt was popped on force interrupt",
+            )
+
+            # Events verification
+            events = [
+                json.loads(line)
+                for line in (run_dir / "events.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
+                if line.strip()
+            ]
+            interrupted_events = [
+                e
+                for e in events
+                if e.get("event") == "ipd-interrupted" and e.get("id6") == "wir001"
+            ]
+            self.assertEqual(len(interrupted_events), 1)
+            self.assertEqual(
+                interrupted_events[0].get("subevent"),
+                runner_shared.FORCED_INTERRUPT_SENTINEL,
+            )
+            cleanup_events = [
+                e
+                for e in events
+                if e.get("event") == "ipd-cleaned-up-no-changes"
+                and e.get("id6") == "wir001"
+            ]
+            self.assertEqual(
+                len(cleanup_events),
+                0,
+                "Clean tree force interrupt emitted ipd-cleaned-up-no-changes",
+            )
+
+            # Mandatory check: indeterminate stopped record
+            self.assertTrue(
+                runner_stop.is_indeterminate(saved_item),
+                "item['stopped']['certainty'] must be CERTAINTY_INDETERMINATE",
+            )
+
+            # Mandatory check: requeue_interrupted REFUSES to re-queue
+            requeued = runner_shared.requeue_interrupted(run_dir, saved_state)
+            self.assertNotIn("wir001", requeued)
+            self.assertEqual(saved_item["status"], "interrupted")
+            self.assertTrue(saved_item.get("requires_reconciliation"))
+
+            # Operator diagnostics line readability
+            reason = render_stream._interrupt_reason_of(saved_item)
+            self.assertEqual(reason, runner_shared.FORCED_INTERRUPT_SENTINEL)
+
+    def test_agy_execute_item_terminal_rung_clean_tree_preserves_and_refuses_requeue(
+        self,
+    ):
+        """End-to-end agy execute_item on clean tree with real _terminal message (E-03)."""
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            plan = _init_repo_with_conforming_plan(repo, "agy001")
+            rcpt = ipd_lifecycle.receipt_path_for(repo, "agy001")
+            rcpt.parent.mkdir(parents=True, exist_ok=True)
+            rcpt.write_text("receipt data\n", encoding="utf-8")
+
+            run_dir = self._mk_run_dir(repo)
+            state, item = self._state_and_item(repo, plan, "agy")
+            terminal_msg = self._capture_terminal_message(run_dir)
+
+            def fake_run(*args, **kwargs):
+                raise KeyboardInterrupt(terminal_msg)
+
+            with (
+                mock.patch.object(agy_runipd, "driver_begin", return_value=(0, "ok")),
+                mock.patch.object(agy_runipd, "run_agy_turn", fake_run),
+            ):
+                with pytest.raises(KeyboardInterrupt):
+                    agy_runipd.execute_item(run_dir, state, item, recovery=False)
+
+            self.assertEqual(item["status"], "interrupted")
+            self.assertNotIn(item["status"], runner_shared.SUCCESS_STATES)
+            saved_state = json.loads(
+                (run_dir / "state.json").read_text(encoding="utf-8")
+            )
+            saved_item = saved_state["queue"][0]
+            self.assertEqual(saved_item["status"], "interrupted")
+            self.assertTrue(rcpt.is_file())
+            self.assertEqual(len(item.get("attempts", [])), 1)
+
+            events = [
+                json.loads(line)
+                for line in (run_dir / "events.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
+                if line.strip()
+            ]
+            interrupted_events = [
+                e
+                for e in events
+                if e.get("event") == "ipd-interrupted" and e.get("id6") == "agy001"
+            ]
+            self.assertEqual(len(interrupted_events), 1)
+            self.assertEqual(
+                interrupted_events[0].get("subevent"),
+                runner_shared.FORCED_INTERRUPT_SENTINEL,
+            )
+            cleanup_events = [
+                e
+                for e in events
+                if e.get("event") == "ipd-cleaned-up-no-changes"
+                and e.get("id6") == "agy001"
+            ]
+            self.assertEqual(len(cleanup_events), 0)
+
+            self.assertTrue(runner_stop.is_indeterminate(saved_item))
+            requeued = runner_shared.requeue_interrupted(run_dir, saved_state)
+            self.assertNotIn("agy001", requeued)
+            self.assertEqual(saved_item["status"], "interrupted")
+            self.assertTrue(saved_item.get("requires_reconciliation"))
+
+    def test_sigterm_fallback_raiser_pinned_behavior(self):
+        """Cover the SIGTERM fallback raiser (F-10) with its measured behavior.
+
+        As documented in E-01/V-01, render_stream.install_exit_signal_handler's fallback raiser
+        is excluded from modification in this plan to preserve Scope-Paths boundaries
+        (agent_workflows/runner_shared.py, tests/test_interrupt_reconcile.py) and prevent
+        import cycles. In standard runs, install_stop_triggers replaces this fallback on the
+        main thread by recording level 3 and returning cleanly (spec R13).
+        This test pins the fallback's message and its clean-tree routing through oc_execute_item.
+        """
+        sigterm_msg = self._capture_sigterm_fallback_message()
+        self.assertEqual(sigterm_msg, "Terminated by SIGTERM")
+        self.assertNotIn(runner_shared.FORCED_INTERRUPT_SENTINEL, sigterm_msg)
+
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            plan = _init_repo_with_conforming_plan(repo, "wir001")
+            rcpt = ipd_lifecycle.receipt_path_for(repo, "wir001")
+            rcpt.parent.mkdir(parents=True, exist_ok=True)
+            rcpt.write_text("dummy receipt\n", encoding="utf-8")
+
+            run_dir = self._mk_run_dir(repo)
+            state, item = self._state_and_item(repo, plan, "oc")
+
+            def fake_run(*args, **kwargs):
+                raise KeyboardInterrupt(sigterm_msg)
+
+            with (
+                mock.patch.object(oc_runipd, "driver_begin", return_value=(0, "ok")),
+                mock.patch.object(oc_runipd, "run_opencode", fake_run),
+            ):
+                with pytest.raises(KeyboardInterrupt):
+                    oc_runipd.execute_item(run_dir, state, item, recovery=False)
+
+            # Unsentinelled SIGTERM fallback routes to cleanup on clean tree
+            self.assertEqual(item["status"], "queued")
+            self.assertEqual(len(item.get("attempts", [])), 0)
+            self.assertFalse(rcpt.exists())
+            events = [
+                json.loads(line)
+                for line in (run_dir / "events.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
+                if line.strip()
+            ]
+            cleaned_events = [
+                e
+                for e in events
+                if e.get("event") == "ipd-cleaned-up-no-changes"
+                and e.get("id6") == "wir001"
+            ]
+            self.assertEqual(len(cleaned_events), 1)
+
+    def test_interactive_menu_cleanup_action_unaffected(self):
+        """E-04: Pin that the interactive menu's deliberate cleanup action remains destructive.
+
+        runner_stop.INTERRUPT_ACTION_CLEANUP raises KeyboardInterrupt('clean-up-and-terminate')
+        without FORCED_INTERRUPT_SENTINEL. On a clean tree, this must reach the no-changes cleanup
+        arm (item queued, attempt popped, receipt unlinked, ipd-cleaned-up-no-changes emitted).
+        The asymmetry with unrequested force stop is deliberate operator consent (F-7).
+        """
+        menu_msg = "clean-up-and-terminate"
+        self.assertNotIn(
+            runner_shared.FORCED_INTERRUPT_SENTINEL,
+            menu_msg,
+            "Interactive menu cleanup message must NOT carry the unrequested force stop sentinel",
+        )
+
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            plan = _init_repo_with_conforming_plan(repo, "wir001")
+            rcpt = ipd_lifecycle.receipt_path_for(repo, "wir001")
+            rcpt.parent.mkdir(parents=True, exist_ok=True)
+            rcpt.write_text("receipt data\n", encoding="utf-8")
+
+            run_dir = self._mk_run_dir(repo)
+            state, item = self._state_and_item(repo, plan, "oc")
+
+            def fake_run(*args, **kwargs):
+                raise KeyboardInterrupt(menu_msg)
+
+            with (
+                mock.patch.object(oc_runipd, "driver_begin", return_value=(0, "ok")),
+                mock.patch.object(oc_runipd, "run_opencode", fake_run),
+            ):
+                with pytest.raises(KeyboardInterrupt):
+                    oc_runipd.execute_item(run_dir, state, item, recovery=False)
+
+            self.assertEqual(item["status"], "queued")
+            self.assertEqual(item.get("attempts", []), [])
+            self.assertFalse(
+                rcpt.exists(), "Deliberate cleanup must unlink begin receipt"
+            )
+            saved_state = json.loads(
+                (run_dir / "state.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(saved_state["queue"][0]["status"], "queued")
+
+            events = [
+                json.loads(line)
+                for line in (run_dir / "events.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
+                if line.strip()
+            ]
+            cleaned_events = [
+                e
+                for e in events
+                if e.get("event") == "ipd-cleaned-up-no-changes"
+                and e.get("id6") == "wir001"
+            ]
+            self.assertEqual(len(cleaned_events), 1)
+            interrupted_events = [
+                e
+                for e in events
+                if e.get("event") == "ipd-interrupted" and e.get("id6") == "wir001"
+            ]
+            self.assertEqual(len(interrupted_events), 0)

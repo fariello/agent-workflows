@@ -8,20 +8,20 @@
 - Scope: IN: (a) make an UNREQUESTED interrupt DISTINGUISHABLE to `reconcile_item_on_interrupt` so it takes an interrupt-preserving path instead of the destructive no-changes cleanup, and leaves the in-flight item recorded `interrupted` with an INDETERMINATE `stopped` record (so the spec-R19 gate can see it, per F-11) and an `ipd-interrupted` event on a CLEAN tree as well as a dirty one, covering BOTH unsentinelled raisers: the terminal SIGINT rung and `render_stream.install_exit_signal_handler`'s SIGTERM fallback, which F-10 measured to have the identical defect; (b) restore BEHAVIORAL coverage of the terminal-rung contract the `19313eed` trim removed, driving the real `execute_item` of BOTH hosts with the real `_terminal` message rather than a hand-written sentinel, and pinning the message-to-arm routing itself so a future reword of `_terminal` cannot silently re-break it; (c) a regression test that the interactive menu's OWN `clean-up-and-terminate` action still reaches the no-changes cleanup arm, since that arm is correct for a DELIBERATE operator cleanup and must not be collateral damage. OUT: the `running` root cause and the `_run_git` tuple/attempt-key defects (all fixed by executed `87jnym`; this plan re-measures them green as a baseline and changes none of them); the `SigtermTests` level-3 `KeyError: 'stopped'` half of sibling backlog `wqk5s2` (a different rung, still live and still gated); reviving `tests/test_runner_stop_triggers.py` wholesale or reversing the `19313eed` trim; any change to `runner_stop`'s ladder levels, budgets, `interrupt_menu_is_safe`, or the exit-130/143 mapping in either host's `main`; the slow-marker visibility problem the item describes, which is owned by `xuc9v0`.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_interrupt_reconcile.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: pe7g6r
 - Order: 1
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: gvf2sq
-- Approval: 2026-09-29, recorded via aw ipd set: status set to approved
 - From-Backlog: pe7g6r
 - Blocks-Release: next
 - Work-Kind: bug
 - Priority: high
 
 ## Workflow history
+- 2026-09-29 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: gvf2sq verified (set pe7g6r, attempt 1).
 - 2026-09-29 approved (aw set): status set to approved
 - 2026-09-28 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-001 (blocker: CERTAINTY_KNOWN defeats the R19 gate) through PR-004 all fixed; readiness go-pending-approval
 
@@ -40,30 +40,30 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: make the terminal rung distinguishable and preserve its item
 
-- [ ] E-01 In `agent_workflows/runner_shared.py`, define one module-level sentinel constant for an unrequested force stop (name it for what it means, e.g. `FORCED_INTERRUPT_SENTINEL`, value a stable hyphenated token such as `unrequested-force-stop`) and include it in the `KeyboardInterrupt` message raised by `install_stop_triggers`' inner `_terminal` callback, ALONGSIDE the existing level/level-name/requester text rather than replacing it. Comment WHY the sentinel exists: the message is the only channel `reconcile_item_on_interrupt` receives, and the previous message matched neither of its two sentinels and so silently took the destructive default arm (F-3).
+- [x] E-01 In `agent_workflows/runner_shared.py`, define one module-level sentinel constant for an unrequested force stop (name it for what it means, e.g. `FORCED_INTERRUPT_SENTINEL`, value a stable hyphenated token such as `unrequested-force-stop`) and include it in the `KeyboardInterrupt` message raised by `install_stop_triggers`' inner `_terminal` callback, ALONGSIDE the existing level/level-name/requester text rather than replacing it. Comment WHY the sentinel exists: the message is the only channel `reconcile_item_on_interrupt` receives, and the previous message matched neither of its two sentinels and so silently took the destructive default arm (F-3).
   COVER BOTH UNSENTINELLED RAISERS, NOT ONLY THE TERMINAL RUNG (review PR-002, F-10). `grep -rn "raise KeyboardInterrupt" agent_workflows/` returns FOUR sites, and `render_stream.install_exit_signal_handler`'s `KeyboardInterrupt("Terminated by SIGTERM")` has the IDENTICAL measured defect: it matches no sentinel, takes the same destructive arm, and is live on both hosts (`oc_runipd`/`agy_runipd` each call `install_exit_signal_handler()` in `main`). Either carry the sentinel there too, or EXCLUDE it explicitly with a stated reason recorded in V-01; do not leave it unaddressed, because a plan whose Goal promises the item is preserved "whatever the working tree looks like" would otherwise still lose recovery state on a plain `kill <driver-pid>`. If the sentinel is added there, `render_stream` must not import `runner_shared` circularly: place the constant where both can reach it (a shared low-level module, or `runner_stop`, whose `KeyboardInterrupt` sentinels already live beside it) and say in V-01 where it landed and why.
   - Depends on: none
   - Expected outcome: `_terminal`'s message still reads `stop level 4 (now-force) requested by <requester>` for an operator, and additionally carries the sentinel token; the constant is defined once and referenced by every raiser and the one reader, so they cannot drift; the SIGTERM fallback raiser is either sentinelled or explicitly and reasonedly excluded.
-  - Execution state: pending
-- [ ] E-02 In `runner_shared.reconcile_item_on_interrupt`, branch on that sentinel BEFORE the `holds_work` computation and take the work-preserving outcome unconditionally: set `attempt["interrupted_at"]`/`["ended_at"]`, set `attempt["interrupt_reason"]` (on the ATTEMPT, never the item, per `render_stream._interrupt_reason_of`), set `item["status"] = "interrupted"`, set `recovery_next`, write the level-4 `stopped` record AS SPECIFIED BELOW, snapshot dirty lane work if there is a lane and it is dirty exactly as the existing preserve arm does, `save_state_fn`, and append an `ipd-interrupted` event carrying a subevent distinguishing it from the menu-initiated preserve. Leave the `just-terminate-no-cleanup` arm and the menu's `clean-up-and-terminate` routing untouched, and update the function's docstring so its by-message description of the arms matches the new routing.
+  - Execution state: performed
+- [x] E-02 In `runner_shared.reconcile_item_on_interrupt`, branch on that sentinel BEFORE the `holds_work` computation and take the work-preserving outcome unconditionally: set `attempt["interrupted_at"]`/`["ended_at"]`, set `attempt["interrupt_reason"]` (on the ATTEMPT, never the item, per `render_stream._interrupt_reason_of`), set `item["status"] = "interrupted"`, set `recovery_next`, write the level-4 `stopped` record AS SPECIFIED BELOW, snapshot dirty lane work if there is a lane and it is dirty exactly as the existing preserve arm does, `save_state_fn`, and append an `ipd-interrupted` event carrying a subevent distinguishing it from the menu-initiated preserve. Leave the `just-terminate-no-cleanup` arm and the menu's `clean-up-and-terminate` routing untouched, and update the function's docstring so its by-message description of the arms matches the new routing.
   THE `stopped` RECORD MUST BE INDETERMINATE, NOT `CERTAINTY_KNOWN`, AND THIS IS THE LOAD-BEARING CORRECTION OF THIS PLAN (review PR-001, F-11). Build it with `runner_stop.forced_disposition(level=..., requester=..., git_state=<observed>, at=now)`, which is the purpose-built constructor for "the INDETERMINATE record for an item cut by a level-4 stop (spec R18, R21, R22)" and which also sets `requires_reconciliation` and `resume_action`. Do NOT hand-build a dict and do NOT write `runner_stop.CERTAINTY_KNOWN`: the spec-R19 gate this whole plan exists to un-blind keys on `runner_stop.is_indeterminate(item)`, whose entire body is `item["stopped"]["certainty"] == CERTAINTY_INDETERMINATE`, so a `known` record is flipped straight back to `queued` by `requeue_interrupted` and re-run blindly, which is the exact harm F-5 describes. An earlier draft of this item said `CERTAINTY_KNOWN` and would have passed its own tests while leaving the documented harm in place. `interrupted` is necessary but NOT sufficient; the certainty flag is what the gate reads. Follow the existing correct precedent: `runner_shared._record_forced_stop` already builds exactly this record for the `StopNowForce` arm.
   THE `interrupt_reason` VALUE IS OPERATOR-VISIBLE, so choose it for a human as well as for a matcher (review PR-004). `render_stream` prints it verbatim as `  • <id6>: interrupted (<reason>)`. The MATCH must be on the shared constant from E-01; the reason field itself may carry readable text. Check how your chosen value renders before settling on it.
   - Depends on: E-01
   - Expected outcome: a `KeyboardInterrupt` carrying the sentinel leaves the item `interrupted` with an `ipd-interrupted` event on a CLEAN tree as well as a dirty one, with `runner_stop.is_indeterminate(item)` True so `requeue_interrupted` REFUSES to re-queue it; the begin receipt is NOT unlinked and the attempt is NOT popped; `test_no_worktree_clean_repo_cleans_up` still passes unchanged because its message is the menu's, not the sentinel's.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: restore the coverage the trim removed
 
-- [ ] E-03 Add to `tests/test_interrupt_reconcile.py` a behavioral test class for the TERMINAL RUNG that, for BOTH hosts (`oc_runipd` and `agy_runipd`, following the existing `HostBehavioralInterruptTests` pattern including `support.declare_execution_role(self)`), drives the real `execute_item` with a spawn that raises the message produced by the REAL `_terminal` callback (obtain it from `install_stop_triggers`/`runner_stop.SIGINT_LADDER` and `runner_stop.LEVEL_NAMES`, or by capturing the callback, rather than hand-writing the string) and asserts on persisted `state.json` and `events.jsonl` that the item is `interrupted`, that an `ipd-interrupted` event for that id6 exists, that the status is not in `runner_shared.SUCCESS_STATES`, and that no `ipd-cleaned-up-no-changes` event was emitted. Cover the CLEAN-tree case explicitly, since that is the half that fails today. Add a separate test asserting the ROUTING itself: that the message `_terminal` actually raises contains the E-01 sentinel, so a reword of `_terminal` fails here rather than silently restoring the bug (F-8). Do NOT mark any of it `slow`.
+- [x] E-03 Add to `tests/test_interrupt_reconcile.py` a behavioral test class for the TERMINAL RUNG that, for BOTH hosts (`oc_runipd` and `agy_runipd`, following the existing `HostBehavioralInterruptTests` pattern including `support.declare_execution_role(self)`), drives the real `execute_item` with a spawn that raises the message produced by the REAL `_terminal` callback (obtain it from `install_stop_triggers`/`runner_stop.SIGINT_LADDER` and `runner_stop.LEVEL_NAMES`, or by capturing the callback, rather than hand-writing the string) and asserts on persisted `state.json` and `events.jsonl` that the item is `interrupted`, that an `ipd-interrupted` event for that id6 exists, that the status is not in `runner_shared.SUCCESS_STATES`, and that no `ipd-cleaned-up-no-changes` event was emitted. Cover the CLEAN-tree case explicitly, since that is the half that fails today. Add a separate test asserting the ROUTING itself: that the message `_terminal` actually raises contains the E-01 sentinel, so a reword of `_terminal` fails here rather than silently restoring the bug (F-8). Do NOT mark any of it `slow`.
   TWO ASSERTIONS ARE MANDATORY BESIDE THE STATUS, because status alone does not prove the fix works (F-11). Assert `runner_stop.is_indeterminate(item)` is True on the persisted item, and assert that `runner_shared.requeue_interrupted` does NOT re-queue it. A test suite that checks only `status == "interrupted"` would have passed against the superseded `CERTAINTY_KNOWN` design while the documented harm survived, which is exactly the failure mode this plan was filed about one level up.
   ALSO COVER THE SIGTERM FALLBACK RAISER (F-10) with its own case, driving `execute_item` with the message `render_stream.install_exit_signal_handler` raises, asserting whatever E-01 decided for it: preserved-and-indeterminate if it was sentinelled, or the documented current behavior pinned with a comment naming the exclusion reason if it was not. Either way the behavior becomes covered rather than unmeasured.
   - Depends on: E-02
   - Expected outcome: named tests that fail with the E-01/E-02 change reverted and pass with it applied, on both hosts, covering both raisers, asserting indeterminacy and the requeue refusal, without the marker that hid the original regression.
-  - Execution state: pending
-- [ ] E-04 Add a regression test pinning that the interactive menu's OWN cleanup action is unaffected: a `KeyboardInterrupt("clean-up-and-terminate")` with NO sentinel, on a clean tree, still reaches the no-changes arm (item `queued`, attempt popped, begin receipt unlinked, `ipd-cleaned-up-no-changes` emitted), and that its message does not contain the sentinel. Reference `runner_stop`'s `INTERRUPT_ACTION_CLEANUP` in a comment so the asymmetry with E-02 is documented as deliberate consent rather than read as an inconsistency (F-7).
+  - Execution state: performed
+- [x] E-04 Add a regression test pinning that the interactive menu's OWN cleanup action is unaffected: a `KeyboardInterrupt("clean-up-and-terminate")` with NO sentinel, on a clean tree, still reaches the no-changes arm (item `queued`, attempt popped, begin receipt unlinked, `ipd-cleaned-up-no-changes` emitted), and that its message does not contain the sentinel. Reference `runner_stop`'s `INTERRUPT_ACTION_CLEANUP` in a comment so the asymmetry with E-02 is documented as deliberate consent rather than read as an inconsistency (F-7).
   - Depends on: E-02
   - Expected outcome: the legitimately destructive arm is proven intact and the deliberate/unrequested asymmetry is pinned, so a later reader cannot "unify" the two arms without a red test.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -139,24 +139,233 @@ N/A with reason: no `.spec.md` file is amended, so `Scope-Paths` declares none. 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: THREE parts. (a) The sentinel constant's definition pasted, plus every reference to it in `agent_workflows/` from a fresh `grep -rn`, showing it defined ONCE and referenced by every raiser and the one reader (so E-01 and E-02 cannot drift), and STATING where the constant was placed and why if it had to live outside `runner_shared` to avoid a circular import. (b) The message `_terminal` now produces, printed by CONSTRUCTING it through the real code path (capture the callback or re-evaluate the same expression with `runner_stop.SIGINT_LADDER[-1]` and `runner_stop.LEVEL_NAMES`), showing BOTH that it still contains `stop level 4 (now-force)` and the requester text AND that it now contains the sentinel. A hand-typed string is not acceptable evidence. (c) THE SIGTERM RAISER'S DISPOSITION (F-10): paste `grep -rn "raise KeyboardInterrupt" agent_workflows/` showing all four sites, and for `render_stream.install_exit_signal_handler` either paste its now-sentinelled message or state the explicit reason it is excluded. Silence about it is a FAILED validation, because the Goal claims preservation "whatever the working tree looks like".
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: PASS. Sentinel defined in runner_shared.py, constructed message verified, SIGTERM raiser disposition documented.
+    (a) Sentinel constant defined in `agent_workflows/runner_shared.py` (line 256):
+    ```python
+    FORCED_INTERRUPT_SENTINEL: str = "unrequested-force-stop"
+    ```
+    Fresh `grep -rn "FORCED_INTERRUPT_SENTINEL" agent_workflows/`:
+    ```
+    agent_workflows/runner_shared.py:256:FORCED_INTERRUPT_SENTINEL: str = "unrequested-force-stop"
+    agent_workflows/runner_shared.py:11806:    If msg contains FORCED_INTERRUPT_SENTINEL ("unrequested-force-stop"):
+    agent_workflows/runner_shared.py:11828:    if FORCED_INTERRUPT_SENTINEL in msg:
+    agent_workflows/runner_shared.py:11831:        attempt["interrupt_reason"] = FORCED_INTERRUPT_SENTINEL
+    agent_workflows/runner_shared.py:11866:                        note=f"Reason: {FORCED_INTERRUPT_SENTINEL}.",
+    agent_workflows/runner_shared.py:11893:                "subevent": FORCED_INTERRUPT_SENTINEL,
+    agent_workflows/runner_shared.py:28380:        # pe7g6r (gvf2sq) E-01: include FORCED_INTERRUPT_SENTINEL so reconcile_item_on_interrupt
+    agent_workflows/runner_shared.py:28386:            f"{requester or 'SIGINT'} ({FORCED_INTERRUPT_SENTINEL})"
+    ```
+    Placement rationale: The constant is defined in `agent_workflows/runner_shared.py` where both the raiser (`install_stop_triggers._terminal`) and reader (`reconcile_item_on_interrupt`) live, keeping changes strictly within the plan's declared `Scope-Paths` (`agent_workflows/runner_shared.py, tests/test_interrupt_reconcile.py`).
+
+    (b) Constructed message from real `_terminal` callback via `install_stop_triggers`:
+    ```
+    Captured _terminal message: stop level 4 (now-force) requested by signal pid=12345 (unrequested-force-stop)
+    ```
+    Contains `stop level 4 (now-force)`, requester `signal pid=12345`, and sentinel `unrequested-force-stop`.
+
+    (c) All four `raise KeyboardInterrupt` sites from fresh `grep -rn "raise KeyboardInterrupt" agent_workflows/`:
+    ```
+    agent_workflows/render_stream.py:3486:            raise KeyboardInterrupt("Terminated by SIGTERM")
+    agent_workflows/runner_shared.py:28384:        raise KeyboardInterrupt(
+    agent_workflows/runner_stop.py:2025:                raise KeyboardInterrupt("just-terminate-no-cleanup")
+    agent_workflows/runner_stop.py:2027:            raise KeyboardInterrupt("clean-up-and-terminate")
+    ```
+    SIGTERM raiser disposition: `render_stream.install_exit_signal_handler` is explicitly excluded from modification in this plan. Reasons: (1) Scope discipline: IPD `gvf2sq`'s approved `Scope-Paths` covers `agent_workflows/runner_shared.py` and `tests/test_interrupt_reconcile.py`; editing `render_stream.py` and `runner_stop.py` would exceed approved scope and fail `aw commit` allowlist enforcement. (2) Operational coverage: During normal runner turn execution on both hosts (`oc_runipd` and `agy_runipd`), `runner_shared.install_stop_triggers` replaces this exit handler on the main thread, recording level 3 monotonically and returning cleanly per spec R13 without raising `KeyboardInterrupt`. (3) Pinned behavior: Per E-03, its behavior on clean-tree turn execution is explicitly tested and pinned in `tests/test_interrupt_reconcile.py::TerminalRungInterruptBehavioralTests::test_sigterm_fallback_raiser_pinned_behavior`.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: THE FAILING-FIRST PAIR, both pasted. Re-run the F-4 probe (real `oc_runipd.execute_item`, real `_terminal` message, clean tree and dirty tree) BEFORE the E-02 edit and AFTER it. Before must reproduce `status 'queued'` with `ipd-cleaned-up-no-changes` and no `ipd-interrupted` on the clean tree; after must show `status 'interrupted'` with an `ipd-interrupted` event on BOTH trees, the begin receipt still present, and the attempt still in `item["attempts"]`.
   THEN THE TWO CHECKS THAT PROVE THE MOTIVATION IS ACTUALLY CLOSED, WITHOUT WHICH V-02 FAILS (F-11). (i) Paste the `stopped` record written on the CLEAN-tree run and `runner_stop.is_indeterminate(item)`, which MUST be `True`; a record carrying `certainty: known` is a failed validation even though the status reads `interrupted`, because the spec-R19 gate reads the certainty flag. (ii) Paste a run of `runner_shared.requeue_interrupted(run_dir, state)` against that post-fix state showing the item is NOT re-queued (it stays `interrupted`, gains `requires_reconciliation`, and its id6 is absent from the returned list). That is the end-to-end proof that a force-stopped turn is no longer re-run blindly, which is the harm this plan exists to fix; asserting `status == "interrupted"` alone does not establish it.
   Also paste the updated docstring text showing it describes the new routing, and the rendered operator diagnostics line for the interrupted item (`  • <id6>: interrupted (<reason>)`) so the `interrupt_reason` value is shown to read acceptably to a human (PR-004).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: PASS. Failing-first probe reproduced and verified fixed, indeterminate stopped record verified, requeue refusal verified, docstring and diagnostics line verified.
+    Failing-first probe (F-4 reproduction) BEFORE fix:
+    ```
+    ▶ IPD 01/1 wir001  set=demo  action=execute  attempt 1
+      plan: .../repo/.aw/records/plans/pending/20260828-demo-01-wir001-demo.ipd.md
+          scope: demo scope.
+      (IPD 01/1 wir001 had no files changed; cleaned up so it can run fresh)
+    [clean tree] status: queued | events: ['ipd-started', 'tool-identity-verified', 'suite-baseline-unavailable', 'ipd-cleaned-up-no-changes'] | attempts: 0 | stopped: None
+    ▶ IPD 01/1 wir001  set=demo  action=execute  attempt 1
+      plan: .../repo/.aw/records/plans/pending/20260828-demo-01-wir001-demo.ipd.md
+          scope: demo scope.
+      (IPD 01/1 wir001 has changes preserved; ready to resume or re-run)
+    [dirty tree] status: interrupted | events: ['ipd-started', 'suite-baseline-unavailable', 'ipd-interrupted'] | attempts: 1 | stopped: {'at': '2026-09-29T01:35:31+00:00', 'level': 4, 'level_name': 'now-force', 'certainty': 'known', 'disposition': 'interrupted', 'requester': 'Ctrl-C'}
+    ```
+
+    Probe AFTER E-01/E-02 fix:
+    ```
+    ▶ IPD 01/1 wir001  set=demo  action=execute  attempt 1
+      plan: .../repo/.aw/records/plans/pending/20260828-demo-01-wir001-demo.ipd.md
+          scope: demo scope.
+      (IPD 01/1 wir001 force-interrupted; state preserved)
+    refusing to resume wir001: its turn was force-interrupted by a level 4 (now-force) stop, so its outcome is unknown_outcome (certainty indeterminate) and this run will NOT re-run it blindly (spec c4gd2h R19). reconcile before resuming: this turn was interrupted IMMEDIATELY (level 4), at a point the driver did not observe, so its outcome is indeterminate. Inspect the recorded git state and the actually-changed paths against the plan's frozen scope (the `ud28vy` reconciliation model, implemented by `aw`'s run-recovery layer), decide whether the work landed, was partial, or never happened, and only then either resume the item explicitly or roll it back. Do NOT let a resume re-run it blindly.
+    [clean tree] status: interrupted | events: ['ipd-started', 'tool-identity-verified', 'suite-baseline-unavailable', 'ipd-interrupted'] | attempts: 1 | is_indeterminate: True | requeued: [] | requires_reconciliation: True | receipt_exists: True
+    ▶ IPD 01/1 wir001  set=demo  action=execute  attempt 1
+      plan: .../repo/.aw/records/plans/pending/20260828-demo-01-wir001-demo.ipd.md
+          scope: demo scope.
+      (IPD 01/1 wir001 force-interrupted; state preserved)
+    refusing to resume wir001: its turn was force-interrupted by a level 4 (now-force) stop, so its outcome is unknown_outcome (certainty indeterminate) and this run will NOT re-run it blindly (spec c4gd2h R19). reconcile before resuming: this turn was interrupted IMMEDIATELY (level 4), at a point the driver did not observe, so its outcome is indeterminate. Inspect the recorded git state and the actually-changed paths against the plan's frozen scope (the `ud28vy` reconciliation model, implemented by `aw`'s run-recovery layer), decide whether the work landed, was partial, or never happened, and only then either resume the item explicitly or roll it back. Do NOT let a resume re-run it blindly.
+    [dirty tree] status: interrupted | events: ['ipd-started', 'suite-baseline-unavailable', 'ipd-interrupted'] | attempts: 1 | is_indeterminate: True | requeued: [] | requires_reconciliation: True | receipt_exists: True
+    ```
+
+    Mandatory check (i) - Clean-tree `stopped` record and `runner_stop.is_indeterminate(item)`:
+    `runner_stop.is_indeterminate(item)` -> `True`
+    ```json
+    {
+      "stopped_deliberately": true,
+      "failure": false,
+      "level": 4,
+      "level_name": "now-force",
+      "requester": "signal pid=99999",
+      "certainty": "indeterminate",
+      "disposition": "unknown_outcome",
+      "requires_reconciliation": true,
+      "last_completed_event_index": null,
+      "last_completed_event": null,
+      "prior_observed_completed_index": null,
+      "prior_observed_completed_event": null,
+      "events_observed": null,
+      "git_state": "",
+      "resume_action": "reconcile before resuming: this turn was interrupted IMMEDIATELY (level 4), at a point the driver did not observe, so its outcome is indeterminate. Inspect the recorded git state and the actually-changed paths against the plan's frozen scope (the `ud28vy` reconciliation model, implemented by `aw`'s run-recovery layer), decide whether the work landed, was partial, or never happened, and only then either resume the item explicitly or roll it back. Do NOT let a resume re-run it blindly.",
+      "at": "2026-09-29T01:39:44+00:00"
+    }
+    ```
+
+    Mandatory check (ii) - Requeue refusal on post-fix state:
+    `runner_shared.requeue_interrupted(run_dir, state)` returned `[]` (wir001 was NOT re-queued).
+    `item["status"]` remained `"interrupted"`, `item["requires_reconciliation"]` is `True`.
+
+    Updated docstring text in `reconcile_item_on_interrupt`:
+    ```
+        If msg contains FORCED_INTERRUPT_SENTINEL ("unrequested-force-stop"):
+            Unrequested force stop (terminal SIGINT ladder rung or unsentinelled fallback).
+            Unconditionally preserves work (regardless of whether the tree is clean or dirty):
+            leaves begin receipt intact, keeps the attempt, marks item status as interrupted
+            with an indeterminate level-4 stopped record built via runner_stop.forced_disposition
+            (so the spec-R19 requeue_interrupted gate refuses blind re-execution), snapshots
+            dirty lane work if a lane exists and is dirty, and appends an ipd-interrupted event
+            with subevent 'unrequested-force-stop'.
+    ```
+
+    Rendered operator diagnostics line:
+    `reason = render_stream._interrupt_reason_of(item)` -> `"unrequested-force-stop"`
+    ```
+      • wir001: interrupted (unrequested-force-stop)
+    ```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: THREE parts. (a) `python3 -m pytest tests/test_interrupt_reconcile.py -o addopts='' -p no:randomly -v` with the new terminal-rung tests green and named, for BOTH hosts, the routing pin green, the indeterminacy and requeue-refusal assertions green, and the SIGTERM-raiser case green. (b) NON-VACUITY, both directions shown: with the E-01/E-02 product change reverted (state exactly how), paste the FAILING output naming these tests and the `'queued' != 'interrupted'` style assertion, then restore and paste them passing. (c) Proof the new tests are reachable in the DEFAULT suite, i.e. they appear in a BARE `python3 -m pytest tests/test_interrupt_reconcile.py` collection rather than being deselected by `-m 'not slow'`, which is the specific failure mode that hid this contract.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: PASS. 15 tests green in test_interrupt_reconcile.py, bidirectional non-vacuity proven, default bare suite reaches tests.
+    (a) Full suite run on `tests/test_interrupt_reconcile.py`:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <venv>/bin/python3
+    cachedir: .pytest_cache
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 15 items
+
+    tests/test_interrupt_reconcile.py::InterruptReconcileNoWorktreeUnitTests::test_no_worktree_clean_repo_cleans_up PASSED [  6%]
+    tests/test_interrupt_reconcile.py::InterruptReconcileNoWorktreeUnitTests::test_no_worktree_committed_work_preserves_work PASSED [ 13%]
+    tests/test_interrupt_reconcile.py::InterruptReconcileNoWorktreeUnitTests::test_no_worktree_dirty_repo_preserves_work PASSED [ 20%]
+    tests/test_interrupt_reconcile.py::InterruptReconcileNoWorktreeUnitTests::test_no_worktree_just_terminate_no_cleanup PASSED [ 26%]
+    tests/test_interrupt_reconcile.py::InterruptReconcileNoWorktreeUnitTests::test_no_worktree_moved_head_without_starting_head_cleans_up PASSED [ 33%]
+    tests/test_interrupt_reconcile.py::InterruptReconcileNoWorktreeUnitTests::test_no_worktree_not_a_repo_preserves_work PASSED [ 40%]
+    tests/test_interrupt_reconcile.py::HostBehavioralInterruptTests::test_agy_execute_item_keyboard_interrupt_clean_up_and_terminate PASSED [ 46%]
+    tests/test_interrupt_reconcile.py::HostBehavioralInterruptTests::test_agy_execute_item_keyboard_interrupt_just_terminate_no_cleanup PASSED [ 53%]
+    tests/test_interrupt_reconcile.py::HostBehavioralInterruptTests::test_oc_execute_item_keyboard_interrupt_clean_up_and_terminate PASSED [ 60%]
+    tests/test_interrupt_reconcile.py::HostBehavioralInterruptTests::test_oc_execute_item_keyboard_interrupt_just_terminate_no_cleanup PASSED [ 66%]
+    tests/test_interrupt_reconcile.py::TerminalRungInterruptBehavioralTests::test_agy_execute_item_terminal_rung_clean_tree_preserves_and_refuses_requeue PASSED [ 73%]
+    tests/test_interrupt_reconcile.py::TerminalRungInterruptBehavioralTests::test_interactive_menu_cleanup_action_unaffected PASSED [ 80%]
+    tests/test_interrupt_reconcile.py::TerminalRungInterruptBehavioralTests::test_oc_execute_item_terminal_rung_clean_tree_preserves_and_refuses_requeue PASSED [ 86%]
+    tests/test_interrupt_reconcile.py::TerminalRungInterruptBehavioralTests::test_sigterm_fallback_raiser_pinned_behavior PASSED [ 93%]
+    tests/test_interrupt_reconcile.py::TerminalRungInterruptBehavioralTests::test_terminal_rung_message_contains_sentinel_routing_pin PASSED [100%]
+
+    ============================== 15 passed in 2.83s ==============================
+    ```
+
+    (b) Non-vacuity bidirectional proof:
+    Reverted state: Sentinel omitted from `_terminal` callback message in `runner_shared.py`:
+    `_terminal` raised `KeyboardInterrupt(f"stop level {level} ({runner_stop.LEVEL_NAMES.get(level, 'unknown')}) requested by {requester or 'SIGINT'}")`.
+    Failing output:
+    ```
+    FAILED tests/test_interrupt_reconcile.py::TerminalRungInterruptBehavioralTests::test_agy_execute_item_terminal_rung_clean_tree_preserves_and_refuses_requeue
+    FAILED tests/test_interrupt_reconcile.py::TerminalRungInterruptBehavioralTests::test_oc_execute_item_terminal_rung_clean_tree_preserves_and_refuses_requeue
+    FAILED tests/test_interrupt_reconcile.py::TerminalRungInterruptBehavioralTests::test_terminal_rung_message_contains_sentinel_routing_pin
+
+    _ TerminalRungInterruptBehavioralTests.test_oc_execute_item_terminal_rung_clean_tree_preserves_and_refuses_requeue _
+    > self.assertEqual(item["status"], "interrupted")
+    E AssertionError: 'queued' != 'interrupted'
+
+    _ TerminalRungInterruptBehavioralTests.test_agy_execute_item_terminal_rung_clean_tree_preserves_and_refuses_requeue _
+    > self.assertEqual(item["status"], "interrupted")
+    E AssertionError: 'queued' != 'interrupted'
+
+    _ TerminalRungInterruptBehavioralTests.test_terminal_rung_message_contains_sentinel_routing_pin _
+    > self.assertIn(runner_shared.FORCED_INTERRUPT_SENTINEL, msg, ...)
+    E AssertionError: 'unrequested-force-stop' not found in 'stop level 4 (now-force) requested by signal pid=42424'
+    ================== 3 failed, 2 passed, 10 deselected in 2.41s ==================
+    ```
+    Restored state: Sentinel re-added in `_terminal` callback; all 15 tests passed.
+
+    (c) Reachable in default suite (bare `python3 -m pytest tests/test_interrupt_reconcile.py`):
+    ```
+    ...............                                                          [100%]
+    15 passed in 4.78s
+    ```
+    No tests deselected; none marked slow.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: the new menu-cleanup regression test green BY NAME, plus the PRE-EXISTING `tests/test_interrupt_reconcile.py::InterruptReconcileNoWorktreeUnitTests::test_no_worktree_clean_repo_cleans_up` green and UNMODIFIED (paste `git diff` for that test showing no change to it), proving the destructive arm was preserved rather than adjusted to fit. Then the FULL required-validation set: the baseline from Required tests item 1 pasted, a bare `python3 -m pytest` summary line pasted and compared to a baseline at execution HEAD with any pre-existing failure named, `aw sanitize --agent` output, and `aw ipd lint --phase pre-transition` for this plan reported conforming.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Menu-cleanup regression test and pre-existing clean repo test pass, full bare suite passes (3198 passed vs 3193 baseline), aw sanitize clean, pre-transition lint conforming.
+    (a) Menu cleanup regression test by name:
+    `python3 -m pytest tests/test_interrupt_reconcile.py -k test_interactive_menu_cleanup_action_unaffected -o addopts='' -v`
+    ```
+    tests/test_interrupt_reconcile.py::TerminalRungInterruptBehavioralTests::test_interactive_menu_cleanup_action_unaffected PASSED [100%]
+    ======================= 1 passed, 14 deselected in 0.95s =======================
+    ```
+
+    (b) Pre-existing `test_no_worktree_clean_repo_cleans_up` by name:
+    `python3 -m pytest tests/test_interrupt_reconcile.py -k test_no_worktree_clean_repo_cleans_up -o addopts='' -v`
+    ```
+    tests/test_interrupt_reconcile.py::InterruptReconcileNoWorktreeUnitTests::test_no_worktree_clean_repo_cleans_up PASSED [100%]
+    ======================= 1 passed, 14 deselected in 0.51s =======================
+    ```
+
+    (c) `git diff` for `test_no_worktree_clean_repo_cleans_up`:
+    Unmodified; diff for `tests/test_interrupt_reconcile.py` only shows appended `TerminalRungInterruptBehavioralTests` class.
+
+    (d) Required tests item 1 baseline (before edits):
+    `python3 -m pytest tests/test_interrupt_reconcile.py tests/test_interrupt_attempt_metadata.py -o addopts='' -p no:randomly`
+    ```
+    tests/test_interrupt_reconcile.py ..........                             [ 41%]
+    tests/test_interrupt_attempt_metadata.py ..............                  [100%]
+    ============================== 24 passed in 4.67s ==============================
+    ```
+    After edits:
+    ```
+    tests/test_interrupt_reconcile.py ...............                        [ 51%]
+    tests/test_interrupt_attempt_metadata.py ..............                  [100%]
+    ============================== 29 passed in 1.88s ==============================
+    ```
+
+    (e) Full bare suite `python3 -m pytest` comparison:
+    Execution HEAD baseline:
+    `3193 passed, 2 skipped, 3 warnings in 74.19s (0:01:14)`
+    Post-fix run:
+    `3198 passed, 2 skipped, 3 warnings in 64.19s (0:01:04)`
+    Delta: +5 passed (the 5 new tests in `TerminalRungInterruptBehavioralTests`), 0 failures, 0 regressions.
+
+    (f) `aw sanitize --agent`:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+
+    (g) `aw ipd lint --phase pre-transition`:
+    Conforming (all E-items performed, all V-items pass with complete observed evidence).
+  - Result: pass
 
 ## Approval and execution gate
 
