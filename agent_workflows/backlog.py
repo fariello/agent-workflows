@@ -641,6 +641,53 @@ def _resolve_backlog_root(repo_root: Path) -> Path:
     return repo_root / ".agents" / "backlog"
 
 
+def _refuse_unsafe_descriptive(
+    verb: str,
+    flag: str,
+    value: Optional[str],
+    *,
+    bound_length: bool = True,
+) -> Optional[str]:
+    """Judge one descriptive value against Section 8.8 output-safety.
+
+    When bound_length is True, delegates the verdict to attention_contract.is_safe_descriptive.
+    When bound_length is False (line-integrity mode), validates newlines/carriage returns
+    and control characters without applying the length bound.
+    Returns None if value is None or valid, else a refusal message naming verb, flag, and cause.
+    """
+    if value is None:
+        return None
+    if bound_length:
+        if A.is_safe_descriptive(value):
+            return None
+        if "\n" in value or "\r" in value:
+            return f"{verb}: {flag} must not contain embedded newlines"
+        if A._CONTROL_CHAR_RE.search(value):
+            return f"{verb}: {flag} must not contain control characters"
+        if len(value) > A.MAX_DESCRIPTIVE_LEN:
+            return (
+                f"{verb}: {flag} exceeds maximum length of {A.MAX_DESCRIPTIVE_LEN} "
+                f"characters ({len(value)} > {A.MAX_DESCRIPTIVE_LEN})"
+            )
+        return f"{verb}: {flag} is not a valid descriptive field"
+    else:
+        has_newline = "\n" in value or "\r" in value
+        is_safe_line = (
+            not has_newline
+            and A.is_safe_descriptive(
+                value.replace("\n", "").replace("\r", "")[: A.MAX_DESCRIPTIVE_LEN]
+            )
+            and not A._CONTROL_CHAR_RE.search(value)
+        )
+        if is_safe_line:
+            return None
+        if has_newline:
+            return f"{verb}: {flag} must not contain embedded newlines"
+        if A._CONTROL_CHAR_RE.search(value):
+            return f"{verb}: {flag} must not contain control characters"
+        return f"{verb}: {flag} is not a valid descriptive field"
+
+
 def _render_item(
     item: BacklogItem,
     body: str,
@@ -890,6 +937,29 @@ def run_new(args) -> int:
     if not (item.summary or "").strip():
         sys.stderr.write("aw backlog new: --summary is required\n")
         return 2
+
+    raw_summary = getattr(args, "summary", None)
+    _summary_val = (
+        raw_summary
+        if (raw_summary and ("\n" in raw_summary or "\r" in raw_summary))
+        else item.summary
+    )
+    _summary_err = _refuse_unsafe_descriptive(
+        "aw backlog new", "--summary", _summary_val
+    )
+    if _summary_err:
+        sys.stderr.write(f"{_summary_err}\n")
+        return 2
+
+    raw_gate_ref = getattr(args, "gate_ref", None)
+    if raw_gate_ref is not None:
+        _gr_err = _refuse_unsafe_descriptive(
+            "aw backlog new", "--gate-ref", raw_gate_ref, bound_length=True
+        )
+        if _gr_err:
+            sys.stderr.write(f"{_gr_err}\n")
+            return 2
+
     if status == "blocked" and (not item.gate_kind or not item.gate_ref):
         sys.stderr.write(
             "aw backlog new: a blocked item requires --gate-kind and --gate-ref\n"
@@ -918,6 +988,13 @@ def run_new(args) -> int:
         item.blocks_release = gate_default
 
     message = getattr(args, "message", None)
+    if message is not None:
+        _msg_err = _refuse_unsafe_descriptive(
+            "aw backlog new", "--message", message, bound_length=False
+        )
+        if _msg_err:
+            sys.stderr.write(f"{_msg_err}\n")
+            return 2
 
     today = datetime.date.today().strftime("%Y%m%d")
     slug = (
@@ -1181,6 +1258,25 @@ def run_set(args) -> int:
     if _gt_err:
         sys.stderr.write(f"aw backlog set: {_gt_err}\n")
         return 2
+
+    set_message = getattr(args, "message", None)
+    if set_message is not None:
+        _msg_err = _refuse_unsafe_descriptive(
+            "aw backlog set", "--message", set_message, bound_length=False
+        )
+        if _msg_err:
+            sys.stderr.write(f"{_msg_err}\n")
+            return 2
+
+    set_gate_ref = getattr(args, "gate_ref", None)
+    if set_gate_ref is not None:
+        _gr_err = _refuse_unsafe_descriptive(
+            "aw backlog set", "--gate-ref", set_gate_ref, bound_length=True
+        )
+        if _gr_err:
+            sys.stderr.write(f"{_gr_err}\n")
+            return 2
+
     # IPD laykok E-03: close the path-only outlier - resolve via the ONE unified resolver so
     # `aw backlog set` now accepts an id6/setid/status/stem/substring, not just a literal path.
     from agent_workflows import selectors as _sel
@@ -1384,7 +1480,8 @@ def run_note(args) -> int:
 
     repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
     target = getattr(args, "path", None) or getattr(args, "selector", None)
-    message = (getattr(args, "message", "") or "").strip()
+    raw_message = getattr(args, "message", None)
+    message = (raw_message or "").strip()
     if not target:
         sys.stderr.write(
             "aw backlog note: a selector (id6, filename, or path) is required\n"
@@ -1394,6 +1491,18 @@ def run_note(args) -> int:
         sys.stderr.write(
             "aw backlog note: --message is required (the note to record)\n"
         )
+        return 2
+
+    _msg_val = (
+        raw_message
+        if (raw_message and ("\n" in raw_message or "\r" in raw_message))
+        else message
+    )
+    _msg_err = _refuse_unsafe_descriptive(
+        "aw backlog note", "--message", _msg_val, bound_length=False
+    )
+    if _msg_err:
+        sys.stderr.write(f"{_msg_err}\n")
         return 2
 
     # The ONE unified resolver, exactly as `run_set` uses: an id6, a filename, a stem, or a path.
