@@ -1,11 +1,13 @@
 - Id: 6if6ko
-- Status: open
+- Status: graduated
+- Graduated-To: verbdouble
 - Set: 6if6ko
 - Priority: low
 - Work-Kind: chore
 - Summary: labels.command already carries the run verb, so every caller suffixing 'run' renders 'aw oc run run <id6>' in an operator-facing remedy
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: z3si7r
 - 2026-09-22 created (aw backlog): labels.command already carries the run verb, so every caller suffixing 'run' renders 'aw oc run run <id6>' in an operator-facing remedy
 
 FOUND WHILE EXECUTING plan `xipfy1` (retrywire), collecting V-05's RENDERED evidence.
