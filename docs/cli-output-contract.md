@@ -229,7 +229,7 @@ Agents (GPT, Gemini, Opus, GLM, etc.) and CI runners must **consume structured r
 To minimize token usage during agent orchestration while preserving complete decision facts:
 
 - **Compact Defaults**: By default, agent records emit concise identifiers (check names in evidence receipts, count of changes when large, minimal diagnostic fields) rather than verbose text paragraphs.
-- **`--fields <list>`**: Projects records down to explicitly requested fields while preserving mandatory envelope metadata (`schema`, `kind`, `cmd`, `exit`, `outcome`, `complete`, `verified`).
+- **`--fields <list>`**: Projects records down to explicitly requested fields while preserving mandatory envelope metadata (`schema`, `kind`, `cmd`, `exit`, `outcome`, `complete`, `verified`). Projections additionally retain whatever the record kind requires to remain valid, including a summary's `total`, `emitted`, and `omitted` counts and a preview result's `applied` flag. A projection never yields a record that fails validation, so `--fields` is safe to pass on any command.
 - **`--limit <N>`**: Bounds stream item emission to at most `N` items and includes total counts, omitted counts, and a continuation command in the terminating `summary` record.
 - **`--verbose` / `--json`**:
   - `--verbose` in agent mode includes full nested diagnostics, change details, and evidence dicts.
