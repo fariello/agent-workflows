@@ -1,5 +1,6 @@
 - Id: eaffgr
-- Status: open
+- Status: graduated
+- Graduated-To: eaffgr
 - Blocks-Release: next
 - Set: eaffgr
 - Priority: medium
@@ -7,4 +8,5 @@
 - Summary: aw ipd finalize --json/--agent emits a non-JSON first line on the success path, so stdout does not parse
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260929T021205Z-3914774: wgp0g3
 - 2026-09-28 created (aw backlog): Found while authoring plan qo9khm (finstruct) from backlog item 144b3x. MEASURED at HEAD b321b602 in throwaway git repos: on the SUCCESS path only, 'aw ipd finalize --apply --json' writes 'plans index --check: clean' to STDOUT before the payload, so json.loads(stdout) raises JSONDecodeError: Expecting value: line 1 column 1. It affects '--agent' identically (same first line). The REFUSAL path is clean on both flags (json.loads succeeds), and 'aw ipd begin --json' is clean, so this is specific to the finalize success path. CAUSE: ipd_lifecycle._refresh_plans_index_fail_loud calls plans_index.run_index(... check=True ...) twice, and run_index's human branch does print('plans index --check: clean'); the quiet=True already present in that argparse.Namespace does not suppress it, and run_index consults getattr(args,'agent',False) rather than the caller's OutputContext, so the nested call has no idea the outer command is emitting machine-readable output. IMPACT: any programmatic consumer of these documented flags must special-case the prefix. Compounding it, JsonRenderer pretty-prints with indent=2, so the payload spans many lines and a per-line JSONL scan recovers ZERO records for --json (measured), meaning a naive reader cannot fall back to line-wise parsing either. WORKAROUND IN FLIGHT: plan qo9khm adds a tolerant balanced-brace parser in runner_shared.driver_finalize so the driver copes; that does NOT fix the flag for third parties and qo9khm's OQ-03 deliberately defers the real fix here. FIX: suppress the nested index-refresh stdout when the outer command is in agent/json mode (or route that line to stderr, or have run_index honour quiet). WHERE: agent_workflows/ipd_lifecycle.py _refresh_plans_index_fail_loud, agent_workflows/plans_index.py run_index.
