@@ -1,11 +1,13 @@
 - Id: 0kdwm3
-- Status: open
+- Status: graduated
+- Graduated-To: 0kdwm3
 - Set: 0kdwm3
 - Priority: low
 - Work-Kind: followup
 - Summary: Plan 65cuw0's V-03 wording requires a gitignored file to refuse lane teardown, contradicting the 2026-09-18 amendment to spec 7ckptx R5.5
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: hyuos6
 - 2026-09-22 created (aw backlog): Plan 65cuw0's V-03 wording requires a gitignored file to refuse lane teardown, contradicting the 2026-09-18 amendment to spec 7ckptx R5.5
 
 FOUND 2026-09-22 while executing plan 65cuw0 (laneorph Order 01).
