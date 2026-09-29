@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/engine.py, tests/test_uninstall_layout_artifacts.py, tests/test_installer.py, CHANGELOG.md
 - Item-Dependencies: none
 - Status: reviewed
+- Readiness: no-go
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: 4vfkl1
@@ -182,9 +183,11 @@ THE ONE RECORD CORRECTION IS A TEST DOCSTRING (E-04), not documentation: it curr
 - Status: open
 - Owner: maintainer
 - Finding: PR-801
+- Carrier: 57dwkc
 - Resolution or deferral rationale: RAISED AT REVIEW AND GENUINELY THE MAINTAINER'S, because it is a duplicate-work and priority question rather than a technical one the repository can answer. THE SITUATION, measured rather than inferred: this plan (`5j7jv1`, Set `4vfkl1`) and plan `g1w58u` (Set `57dwkc`) were authored the same day, both sit at `- Status: to-review`, and both make the SAME EDIT to the same block of `engine.uninstall_repo` using the same two named constants and the same helper trio, and both CREATE the same new file `tests/test_uninstall_layout_artifacts.py` (F-11). Their backlog items are the two the CI comment names for this defect, and plan `baxbdh`'s executed record already called `4vfkl1` "a duplicate umbrella" of `3ypquf` and `57dwkc`.
   WHY THIS IS BLOCKING RATHER THAN A NOTE: executing both would apply the same removal twice and the second run would collide creating a file the first already wrote, and the runner isolates lanes rather than detecting cross-plan duplicate intent, so nothing downstream would catch it. This is exactly the class of thing an author must not resolve on its own authority, because retiring another author's plan is not this plan's decision to make.
   WHAT THE REVIEWER CAN SAY WITHOUT DECIDING: both routes are technically sound and this review verified the shared fix end to end (F-03, F-04 reproduced, bare suite `3246 passed, 2 skipped`, slow subset `1 failed, 201 passed` with only `g0bdgg`'s survivor). The plans differ mainly in packaging: this one declares four Scope-Paths including the `tests/test_installer.py` docstring correction (E-04) and carries the fuller measured findings table including the rejected `_DEEP_CLEANUP_ROOTS` alternative (F-05, reproduced at review as `2 failed, 10 passed`); `g1w58u` declares three Scope-Paths and does not touch that docstring, so the stale `PRE-EXISTING FAILURE` prose would survive it.
+  THE `- Carrier: 57dwkc` IS LOAD-BEARING, NOT DECORATION. `check.ipd-uncarried-obligation` is `error`-severity and reports that a live open question "records an outstanding obligation with NO durable carrier; once this plan reaches `executed` it classes `done` in `aw attention` and this vanishes with no record". `57dwkc` is the right carrier because it is the graduated backlog item whose own plan `g1w58u` is the other half of the collision, it is still live, and it carries `- Blocks-Release: next`, so whichever route the maintainer picks the question survives on an artifact that is still being tracked rather than disappearing when this plan terminates.
   THREE ROUTES, for the maintainer to pick: (1) RUN THIS PLAN and retire `g1w58u` as superseded, then close `57dwkc` with a cited-evidence handoff to this plan; (2) RUN `g1w58u` and retire THIS plan as superseded, then close `4vfkl1` by handoff, accepting that the stale docstring stays until someone fixes it; (3) RUN THIS PLAN for the code and NARROW `g1w58u` to whatever it uniquely carries, which on this reading is nothing. The reviewer's recommendation is route (1), on the single objective difference that this plan also corrects the now-false test docstring and carries the measured rejection of the alternative route, but the call is the maintainer's and nothing here should be read as having made it.
 
 ## Validation and cross-check (verify before reporting done)
@@ -216,7 +219,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-This plan is authored to `to-review` and requires `/plan-review` followed by explicit human approval before execution; no part of it may be executed on the strength of this authoring turn, and no `- Readiness:` field is written here because that value is an output of review, not of authoring.
+This plan was authored to `to-review` with no `- Readiness:` field, correctly, because that value is an output of review rather than of authoring. Review has now run and written `- Readiness: no-go`. THE `no-go` IS NOT A JUDGEMENT ON THE FIX, which review verified end to end: it records the single genuine not-ready condition, the unresolved BLOCKING question OQ-03 about which of two duplicate plans may execute. Answer OQ-03 and the condition is spent; `aw ipd recheck-readiness 5j7jv1` then recomputes the verdict and can raise it to `go-pending-approval` without a fresh review, since no finding needs re-deriving. Explicit human approval is still required after that.
 
 THE JUDGEMENT A MAINTAINER MAY WANT TO OVERRULE is WHERE the removal goes (OQ-01). This plan puts it in `uninstall_repo` because the alternative that sibling item `57dwkc` suggests was applied and MEASURED TO REGRESS TWO TESTS (F-05), and because these are framework-emitted gitignored files rather than user content needing a warned opt-in path. A maintainer who prefers the deep-cleanup route should know it requires an at-risk exemption for both paths on top, in the shape plan `baxbdh` built for `_DEEP_CLEANUP_REGENERABLE`, which is strictly more change for the same outcome.
 
