@@ -1,0 +1,315 @@
+# IPD: Document the two match_selector narrowing sites as independent guards and pin each one from the production call shape
+
+- Date: 2026-09-29
+- Kind: child
+- Concern: `status_set.match_selector` narrows by type in TWO places and a reader cannot tell from the call site whether either is load-bearing, so a test author writes a pin that passes vacuously. Backlog item `ihgjii` diagnosed the two sites as REDUNDANT belt-and-braces covering the same guarantee. MEASURED IN THIS LANE AT HEAD `54190d61`, THAT DIAGNOSIS IS WRONG, and the correction inverts the item's suggested fix: the two sites cover DISJOINT selector kinds. The FAST-PATH filter (`cands = [r for r in all_records if not target_type or r.record_type == target_type]`) is the ONLY type guard for the `id6` and `setid` kinds, which return early and never reach the resolver. The RESOLVER narrowing (`if scoped_type: record_types = (canonical,)`) is the ONLY type guard for the `status`, `stem` and `substring` kinds, which the fast path cannot see. Neither is redundant and removing either is a live cross-type defect. The item's stated remedy ("drop the redundant fast-path filter and let `scoped_type` be the single narrowing authority") would therefore SHIP A BUG: measured, with that filter removed `match_selector('<a backlog id6>', <full inventory>, root, scoped_type='plans')` returns a BACKLOG record under a plans-scoped call. Separately measured and worse than the item knew: the RESOLVER site is entirely UNPINNED. With `if scoped_type:` mutated to `if False:` the ENTIRE suite passes (3246 passed, 2 skipped), so three selector kinds have no regression test at all.
+- Scope: Correct the record for `status_set.match_selector`'s two type-narrowing sites and pin the unpinned half. Write a docstring and two code comments stating WHICH selector kinds each site guards and that neither is redundant, replacing the current docstring's single-authority framing. Add tests pinning the resolver-narrowing site for the `status`, `stem` and `substring` kinds and the fast-path site for the `id6` kind, each passing an UNNARROWED record list so `scoped_type` is the only filter, and each demonstrated by mutation to FAIL when its site is removed. Amend spec `2lcqno` N3, whose "ONE DOCUMENTED HOLE" paragraph names only the direct-PATH exemption and reads as though a single narrowing mechanism covers everything else. Changes NO runtime behavior: no filter is removed, no precedence changes, no public signature changes.
+- Scope-Paths: agent_workflows/status_set.py, tests/test_status_set.py, .aw/records/specs/approved/20260910-2lcqno-01-2lcqno-setid-shared-topic-label-and-type-scoped-resolution.spec.md
+- Item-Dependencies: none
+- Status: to-review
+- Work-Kind: chore
+- Priority: medium
+- From-Backlog: ihgjii
+- Set: selnarrow
+- Order: 1
+- Highest E allocated: 07
+- Author: opencode/its_direct-pt3-claude-opus-5-1m-us
+- Id: jw6cm3
+
+## Workflow history
+
+- 2026-09-29 to-review (opencode/its_direct-pt3-claude-opus-5-1m-us): Authored from backlog item `ihgjii`, graduating it. EVERY claim below was measured in this lane at HEAD `54190d61` by mutating each narrowing site INDEPENDENTLY, which is the step the backlog item did not take: it mutated BOTH sites together, observed one combined effect, and concluded redundancy. Mutating them separately falsifies that. THREE FINDINGS CHANGE THE SHAPE OF THE WORK. FIRST, the two sites are NOT redundant: they cover disjoint selector kinds, the fast path owning `id6`/`setid` (which return early) and the resolver owning `status`/`stem`/`substring` (which the fast path never sees). SECOND, the item's suggested remedy is a DEFECT: dropping the fast-path filter makes a plans-scoped `id6` query return a backlog record, measured end-to-end through `aw ipd dependencies set`, where the refusal message degrades from `No plans artifact matched` to a wrong-type diagnostic. THIRD, the item believed the real coverage gap was already closed by plan `w2y5ac`'s E-01 test; measured, that test pins the FAST-PATH site only (killFAST fails it) and the RESOLVER site survives the FULL suite unmutated-detected, so the gap is larger than the item recorded and its scope is inverted. The plan's deliverable is therefore a pin plus a corrected record, NOT the refactor the item suggested.
+
+## Goal
+
+Make `match_selector`'s type safety legible and tested, so the next author can see from the call site which
+guarantee each narrowing site provides and cannot write a pin that passes vacuously.
+
+The backlog item asked for one of two things: a docstring stating the filters are defensive, or the removal
+of the redundant one. MEASUREMENT REFUSES BOTH, because the premise both rest on (that the two sites cover
+the same guarantee) is false. What is actually needed is the opposite: a record saying the two sites are
+INDEPENDENT and NON-REMOVABLE, plus the missing test for the half nothing pins.
+
+SIX FACTS ESTABLISHED AT AUTHORING, so the executor inherits measurement rather than the item's diagnosis.
+
+1. THE TWO SITES COVER DISJOINT SELECTOR KINDS. `selectors.resolve`'s precedence is `path` -> `id6` ->
+   `setid` -> `status` -> `stem` -> `substring` (stated in its own docstring). `match_selector`'s fast path
+   returns EARLY for `id6` and `setid`, so those two kinds never reach the resolver and the resolver's
+   narrowing cannot possibly guard them. Conversely the fast path only ever compares `r.id6` and
+   `r.set_id`, so it cannot guard `status`, `stem` or `substring`. Measured, mutating each site alone,
+   passing the FULL unnarrowed inventory with `scoped_type="plans"`:
+
+   ```text
+   token kind        HEAD                          killFAST                      killRESOLVER
+   setid   runrecon  ['plans'] n=2                 ['backlog','plans'] n=4       ['plans'] n=2
+   id6     5m43v9    [] n=0                        ['backlog'] n=1               ['backlog'] n=1
+   status  approved  ['plans'] n=5                 ['plans'] n=5                 ['backlog','plans','specs'] n=22
+   status  reviewed  ['plans'] n=26                ['plans'] n=26                ['backlog','plans','prompts','specs'] n=30
+   substr  20260921  ['plans'] n=5                 ['plans'] n=5                 ['backlog','plans'] n=52
+   stem    <backlog> [] n=0                        [] n=0                        ['backlog'] n=1
+   ```
+
+   Read the columns: `killFAST` breaks `setid` and `id6` and nothing else; `killRESOLVER` breaks `status`,
+   `substring` and `stem` and nothing else. (`id6` breaks under BOTH because the fast path's early return is
+   what stops the resolver being consulted at all, so removing either exposes it.)
+
+2. THE ITEM'S SUGGESTED FIX IS A CROSS-TYPE DEFECT, NOT A SIMPLIFICATION. The item proposes dropping the
+   fast-path filter "and let `scoped_type` be the single narrowing authority". Measured end-to-end through
+   a real caller with that filter removed:
+
+   ```text
+   $ aw ipd dependencies set 5m43v9 none --dry-run --yes     # 5m43v9 is a BACKLOG id6
+   HEAD      rc=2  FAIL  No plans artifact matched '5m43v9'.
+   killFAST  rc=2  FAIL  Selector '5m43v9' did not resolve to a plan; `aw ipd dependencies set` only applies to IPDs.
+   ```
+
+   Both refuse, so no write escapes, but the refusal DEGRADES: the correct answer "no plans matched" becomes
+   a wrong-type report about a record a plans-scoped resolver should never have surfaced. The reason no
+   corruption follows is a SECOND, independent guard (`run_dependencies_set_command`'s
+   `plan_matches = [m for m in matches if m.record_type == "plans"]`), so the item's fix would convert a
+   resolver-level guarantee into a reliance on every caller's own post-filter. That is the opposite of the
+   single-authority property it was reaching for.
+
+3. THE RESOLVER-NARROWING SITE IS COMPLETELY UNPINNED. Mutating `if scoped_type:` to `if False:` and running
+   the full suite bare:
+
+   ```text
+   3246 passed, 2 skipped, 3 warnings in 51.35s
+   ```
+
+   Nothing fails. So the guarantee spec `2lcqno` N3 makes normative for `status`/`stem`/`substring` selectors
+   has no test. This is the plan's central deliverable and it is a BIGGER gap than the backlog item
+   described, which believed the remaining hole was documentation.
+
+4. THE FAST-PATH SITE IS ALREADY PINNED, AND THE ITEM MISREAD WHICH SITE ITS OWN PIN COVERS. With
+   `cands = list(all_records)`:
+
+   ```text
+   FAILED tests/test_status_set.py::SharedSetidCrossTypeResolutionTests::test_scoped_setid_resolution_returns_only_the_scoped_type
+   1 failed, 78 passed in 7.23s
+   ```
+
+   `w2y5ac`'s E-01 test therefore pins the FAST PATH, not the resolver. Its in-code comment says
+   `scoped_type` must be "the ONLY thing doing the filtering here", which is true of the call but does not
+   distinguish the two sites, and the item inherited that conflation. This plan must not weaken that test;
+   it adds the complementary kinds beside it.
+
+5. THE PERFORMANCE PREMISE THE ITEM CITED IS REAL AND MUCH LARGER THAN IT IMPLIED. The item says the fast
+   path "exists for performance (commit `4cfa2283`)" and treats that as the only reason to keep it. Measured
+   on this repository's 1903-record corpus:
+
+   ```text
+   HEAD setid (fast path HIT, pre-narrowed):     0.08 ms
+   HEAD status (fast path MISS -> resolver):   134.52 ms
+   HEAD substring (fast path MISS -> resolver):133.60 ms
+   filter comprehension over 977 records:        0.030 ms
+   filter comprehension over 1903 records:       0.053 ms
+   ```
+
+   The fast path avoids roughly 134ms per hit and its own filter costs about 0.05ms, so the filter is not a
+   cost worth reclaiming even if it were redundant. It is not redundant (fact 1), which settles it twice.
+
+6. THE PRODUCTION CALL SHAPE DOES HIDE BOTH SITES, WHICH IS THE ONE THING THE ITEM GOT EXACTLY RIGHT. Every
+   caller in `run_set_command` passes `inventory_all_artifacts(repo_root, scoped_type=scoped_type_canonical)`,
+   already narrowed. Measured with that pre-narrowed list and `scoped_type="plans"`, `killFAST` is INVISIBLE
+   for every kind (`setid` still `['plans']` n=2, `id6` still `[]`), because the caller already removed the
+   foreign records the filter would have removed. `killRESOLVER` stays visible even pre-narrowed, because the
+   resolver reads the FILESYSTEM rather than the supplied list. So a test must pass an UNNARROWED list to
+   observe the fast path, and that requirement is specific to the fast path, not a general rule about this
+   function. TWO CALLERS DO PASS AN UNNARROWED LIST TODAY (`run_dependencies_set_command` and
+   `run_dependencies_remove_command`, both calling `inventory_all_artifacts(repo_root)` with no
+   `scoped_type` and then `match_selector(..., scoped_type="plans")`), which is how fact 2 was measurable
+   end-to-end; the item's claim that "every caller" pre-narrows is true of `run_set_command` only.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+### Task group 1: re-measure before writing anything
+
+- [ ] E-01 RE-DERIVE THE PER-SITE, PER-KIND MUTATION MATRIX in this lane before editing any file, reproducing the table in Goal fact 1 against the tree as it then stands, and RECORD THE RESULT EVEN IF IT DIFFERS from this plan's numbers. Mutate each site SEPARATELY (fast-path filter to `cands = list(all_records)`; resolver branch to `if False:`), never both at once, because mutating both together is exactly the measurement error that produced the backlog item's wrong diagnosis. Cover all six kind/token rows including the `id6` row that breaks under both. Also capture the full-suite result under the resolver mutation (Goal fact 3) as the baseline proving the gap is still open, and the `tests/test_status_set.py` result under the fast-path mutation (fact 4) proving the existing pin still covers that half. RESTORE THE FILE and prove it byte-identical (`git status --short` clean for `agent_workflows/status_set.py`) before proceeding; a mutation left in the tree would be committed.
+  - Depends on: none
+  - Expected outcome: the pasted per-site matrix, the pasted suite summary line under the resolver mutation, the pasted module summary under the fast-path mutation, and a pasted clean `git status` proving both mutations were reverted.
+  - Execution state: pending
+
+### Task group 2: pin the unpinned half
+
+- [ ] E-02 PIN THE RESOLVER-NARROWING SITE FOR THE `status` KIND with a test that passes the FULL UNNARROWED inventory and `scoped_type` as the only filter, asserting the returned records are all of the scoped type. Build the corpus as a FIXTURE holding artifacts of several types that share one status token, not against this repository's live records whose statuses change under the test. Assert on the returned record TYPES, and additionally assert the fixture's foreign-type members EXIST in the corpus (the shape check `w2y5ac`'s test uses via `_research_in_corpus`), so a fixture that silently stops spanning types fails loudly rather than passing for the wrong reason.
+  - Depends on: E-01
+  - Expected outcome: a passing test, plus the pasted failure of that same test under the `if False:` resolver mutation, proving it is not vacuous.
+  - Execution state: pending
+
+- [ ] E-03 PIN THE RESOLVER-NARROWING SITE FOR THE `stem` AND `substring` KINDS, which are the two remaining resolver-owned kinds and are NOT covered by E-02: a status token and a filename token travel different rungs of `selectors.resolve`'s precedence, so one does not imply the other. Use a fixture filename stem belonging to a FOREIGN type and a substring shared across types. KEY THE ASSERTION ON TYPE, NOT ON COUNT, since a count assertion over a fixture is brittle and would break for reasons unrelated to narrowing.
+  - Depends on: E-01
+  - Expected outcome: two passing tests, each shown FAILING under the resolver mutation, with both pasted.
+  - Execution state: pending
+
+- [ ] E-04 PIN THE FAST-PATH SITE FOR THE `id6` KIND, the one kind measured to break under BOTH mutations and the kind whose loss the backlog item's suggested fix would have shipped. Assert that a FOREIGN-type id6 under a `scoped_type` call returns NO match (measured HEAD answer: `[]`), passing the unnarrowed inventory. This is deliberately NOT the same assertion as `w2y5ac`'s setid test: that one proves a scoped setid returns only in-type records, while this one proves a scoped id6 belonging to another type returns nothing at all, which is the property `run_dependencies_set_command` relies on for its `No plans artifact matched` refusal.
+  - Depends on: E-01
+  - Expected outcome: a passing test, shown FAILING under the fast-path mutation, both pasted.
+  - Execution state: pending
+
+### Task group 3: correct the record at the code site
+
+- [ ] E-05 REWRITE `match_selector`'s DOCSTRING to state the measured division of labour, replacing the current text whose "``scoped_type`` NARROWS EVERY SELECTOR KIND EXCEPT THE DIRECT PATH" sentence describes the FUNCTION'S net contract accurately but attributes it to one mechanism, which is what lets a reader believe either site is removable. Name both sites, name WHICH KINDS each one guards, and state that neither is removable, citing the measured consequence of removing each. ADD A SHORT COMMENT AT EACH SITE too, because a reader deleting a line reads the line and not the docstring; that is the same reasoning the existing `Type mismatch` comment in `run_set_command` records for itself. Also record, at the fast-path site, that its guard is INVISIBLE from a pre-narrowed caller list (Goal fact 6), so the next test author knows to pass an unnarrowed list. Do NOT restate the performance rationale as the reason to keep the filter: correctness is now the reason, and leaving performance as the stated justification is what invited the item's proposal to trade it away.
+  - Depends on: E-02, E-03, E-04
+  - Expected outcome: the `git diff` of `agent_workflows/status_set.py` showing the docstring and both site comments, with no executable line changed (diff confirms comments and docstring only).
+  - Execution state: pending
+
+### Task group 4: amend the governing spec
+
+- [ ] E-06 AMEND SPEC `2lcqno` N3, whose "ONE DOCUMENTED HOLE THAT N3 MUST NOT BE READ AS CLOSING" paragraph carves out the direct-PATH exemption and thereby implies everything else is covered by a single mechanism. Add that type-scoped resolution is delivered by TWO independent sites covering disjoint selector kinds, that removing either is a cross-type defect, and that the direct-PATH exemption is a THIRD fact rather than the only caveat. Also correct the spec's acceptance criterion 5, which reads "a REGRESSION TEST that fails when `match_selector`'s type narrowing is reverted" in the singular and was measured to be satisfiable while leaving three selector kinds untested. Cite the measurement, not this plan's prose. STATE WHY IN THE SPEC-SYNC SECTION as the plan contract requires. Write no em or en dashes in the amended spec prose.
+  - Depends on: E-05
+  - Expected outcome: the `git diff` of the spec showing the amended N3 paragraph and the corrected criterion 5, plus the `aw specs` history line recording the amendment.
+  - Execution state: pending
+
+- [ ] E-07 RUN THE FULL REGRESSION GATE, capturing a pre-execution baseline BEFORE any edit in this plan lands and a post-change run after E-06, both with bare `python3 -m pytest` (no added flags: the configured `addopts` already supplies quiet, parallel and the fast subset, and a second `-q` would suppress the `N passed` line this plan requires). Then run `aw ipd lint --phase pre-transition` on this plan, `aw check` compared against its own pre-change baseline, and `aw sanitize --agent`. A pre-existing failure must be shown pre-existing by the baseline rather than argued harmless.
+  - Depends on: E-06
+  - Expected outcome: baseline and post-change summary lines pasted side by side, a conforming pre-transition lint, `aw check` no worse than baseline with both counts pasted, and a clean sanitizer report.
+  - Execution state: pending
+
+Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
+
+## Project conventions discovered (Step 0)
+
+- Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
+- TESTS MUST EXERCISE BEHAVIOR, NOT CODE STRUCTURE (AGENTS.md, GUIDING_PRINCIPLES P16). Every test this plan adds CALLS `match_selector` and asserts on returned records. None reads source text, counts callers, or asserts a comment survives. That constraint is load-bearing here, because the tempting shortcut for "prove the comment is present" is exactly the banned `inspect`/regex pin; E-05 is validated by its DIFF instead.
+- A PLAN MAY AMEND A SPEC AND MUST DECLARE IT (AGENTS.md). The spec file is declared in `- Scope-Paths:` so the runner announces the edit before the run and reconciles it afterward.
+- THE MUTATION-DEMONSTRATION CONVENTION IS ESTABLISHED IN THIS REPOSITORY AND IS THE ONLY EVIDENCE THAT REFUTES VACUITY. Spec `2lcqno` acceptance criterion 2 requires "a mutation check (break the descriptive comparison, show the pin FAILS, restore, show it passes)". Every `V-*` below demands the same, because a test that passes is not evidence it tests anything.
+- `selectors.resolve`'s PRECEDENCE IS THE AUTHORITY ON WHICH KINDS EXIST, and its docstring enumerates them (`path`, `id6`, `setid`, `status`, `stem`, `substring`) with the note that kinds 2 to 5 are EXACT and only `substring` is a substring. The disjointness argument in Goal fact 1 is derived from that list plus the fast path's early return, so a kind added to `resolve` later would need re-examining against both sites.
+- `run_set_command` ALREADY CARRIES A LONG COMMENT WARNING AGAINST DELETING A TYPE GUARD AS DEAD CODE (the `setidfix w2y5ac E-02` block above the `Type mismatch` refusal, which says "DO NOT DELETE IT AS DEAD CODE" and records what deleting it was measured to permit). E-05's site comments follow that established shape rather than inventing one.
+- THE CALLER-SIDE POST-FILTER IS NOT A SUBSTITUTE FOR THE RESOLVER GUARANTEE. `run_dependencies_set_command` and `run_dependencies_remove_command` both re-filter with `plan_matches = [m for m in matches if m.record_type == "plans"]`. That belt is real and is why fact 2's degradation stops short of corruption, but relying on it would move the invariant into every caller, and `run_set_command`'s own `Type mismatch` comment explains why a single guarded resolver is preferred.
+
+## Findings
+
+| # | Finding | Evidence | Consequence for this plan |
+|---|---|---|---|
+| F-1 | The two narrowing sites cover DISJOINT selector kinds and neither is redundant | Per-site mutation matrix: `killFAST` breaks `setid`/`id6` only; `killRESOLVER` breaks `status`/`stem`/`substring` only | The backlog item's redundancy premise is false; the deliverable is a pin plus a corrected record, not a refactor (E-05) |
+| F-2 | The item's suggested remedy would ship a cross-type defect | With the fast-path filter removed, a plans-scoped backlog `id6` returns a `backlog` record, and `aw ipd dependencies set 5m43v9` degrades from `No plans artifact matched` to a wrong-type diagnostic | The "drop the redundant filter" option is REFUSED and recorded as refused, not left as an open choice (Deferred section) |
+| F-3 | The resolver-narrowing site is entirely unpinned | Full suite with `if scoped_type:` -> `if False:`: `3246 passed, 2 skipped` | Three selector kinds need new tests; this is the plan's central work (E-02, E-03) |
+| F-4 | The fast-path site IS pinned, and the item misread which site its pin covers | With `cands = list(all_records)`: `1 failed, 78 passed`, failing `test_scoped_setid_resolution_returns_only_the_scoped_type` | That test must not be weakened; the new `id6` pin sits beside it rather than replacing it (E-04) |
+| F-5 | The fast path saves about 134ms per hit and its filter costs about 0.05ms | `setid` hit 0.08ms versus `status` miss 134.52ms; filter comprehension 0.030ms over 977 and 0.053ms over 1903 records | Removing the filter reclaims nothing even on the item's own performance framing (E-05 must not cite performance as the reason to keep it) |
+| F-6 | Both sites are invisible from the pre-narrowed production call shape, but only the FAST PATH is | With a pre-narrowed list, `killFAST` changes nothing for any kind; `killRESOLVER` still changes `status`/`stem`/`substring` because the resolver reads the filesystem | Every new test passes an UNNARROWED list; the "pass unnarrowed" rule is specific to the fast path and must be recorded as such (E-05) |
+| F-7 | The item's "every caller pre-narrows" claim is true of one caller, not all | `run_set_command` passes `inventory_all_artifacts(repo_root, scoped_type=...)`; `run_dependencies_set_command` and `run_dependencies_remove_command` pass `inventory_all_artifacts(repo_root)` unnarrowed | An unnarrowed production path EXISTS, so the fast-path guard is reachable in production and not merely theoretical (F-2 measured through it) |
+| F-8 | Spec `2lcqno` N3 documents one caveat and one regression test, both singular | N3's "ONE DOCUMENTED HOLE" names only the direct-PATH exemption; criterion 5 asks for "a REGRESSION TEST that fails when `match_selector`'s type narrowing is reverted" | The spec must be amended or it keeps licensing the single-mechanism reading that produced this item (E-06) |
+
+## Proposed changes (ordered, validatable)
+
+1. Re-derive the per-site, per-kind mutation matrix and the two baseline suite results, then restore the file (E-01).
+2. Add a resolver-narrowing pin for the `status` kind over an unnarrowed inventory (E-02).
+3. Add resolver-narrowing pins for the `stem` and `substring` kinds (E-03).
+4. Add a fast-path pin for a foreign-type `id6` under a scoped call (E-04).
+5. Rewrite the docstring and add a comment at each narrowing site, naming the kinds each guards (E-05).
+6. Amend spec `2lcqno` N3 and its acceptance criterion 5 (E-06).
+7. Run the regression gate against a pre-execution baseline (E-07).
+
+## Deferred / out of scope (with reason)
+
+- REMOVING THE FAST-PATH FILTER, which is the backlog item's own second suggestion. REFUSED ON MEASUREMENT, not deferred: F-1 shows it is the only type guard for `id6` and `setid`, and F-2 measures the resulting cross-type leak end-to-end. The item reached for it on a redundancy premise that separate-site mutation falsifies.
+  - Carrier-Declined: Nothing is owed because there is no latent work here, only a proposal this plan measured and refused. Filing an item would assert the repository intends to remove the filter, which the evidence in F-1, F-2 and F-5 contradicts three ways (it guards two kinds, removing it leaks a foreign type through a real caller, and it reclaims about 0.05ms while avoiding about 134ms). The refusal and its evidence are recorded here and, after E-05, at the code site, which is where a future author considering the same removal will read it.
+- CONSOLIDATING THE TWO SITES INTO ONE NARROWING AUTHORITY. Genuinely attractive and deliberately not attempted here. It is a behavior change to a hot path (F-5) requiring its own measurement, and doing it in the same change as the pins would mean the new tests are written against the new shape and could never demonstrate they catch the OLD defect.
+  - Carrier-Declined: No carrier is filed because the prerequisite this plan delivers is what makes the question answerable, and filing now would guess at a design that the pins may well render unnecessary. After E-02 through E-04 land, any consolidation attempt is immediately falsifiable by tests that exist, which is the correct sequencing: pin first, refactor second. If a future author wants it, the measured matrix in E-01's evidence and the site comments from E-05 are the brief they need, and they can file the item then with the design in hand rather than as a placeholder.
+- THE DIRECT-PATH TYPE EXEMPTION and the `Type mismatch` refusal that guards it. Already owned, measured and pinned by `w2y5ac` (its E-02 and `test_scoped_verb_refuses_a_foreign_type_path_and_writes_nothing`), and already documented in spec `2lcqno` N3. This plan cites it as a third fact but changes nothing about it.
+  - Carrier-Declined: Nothing is owed because the work is DONE, by a plan already in `executed/` with a live test. E-06 extends the spec paragraph that describes it without altering the exemption or its guard, so there is no residual behavior to carry. An item here would misrepresent completed, tested work as outstanding.
+- THE YAML-VERSUS-BULLET FRONT-MATTER DIALECT GAP that stops `read_artifact_record` parsing a research doc's `set:` field. Visible while measuring (research records carry `set_id=None` in the inventory) and explicitly owned by plan `xo3244`, Set `selfmdialect`, as recorded in `w2y5ac`'s test docstring.
+  - Carrier-Declined: A carrier already EXISTS and is named (`xo3244`), so filing a second one would duplicate tracked work. This plan's fixtures must not depend on a research doc's setid resolving, for the same reason `w2y5ac`'s did not; E-02's fixture uses types whose bullet dialect parses, which keeps this plan independent of when `xo3244` lands.
+- CHANGING ANY RUNTIME BEHAVIOR of `match_selector`: its precedence, its signature, which records it returns, or the caller-side post-filters. This plan adds tests, comments, a docstring and a spec amendment.
+  - Carrier-Declined: A scope fence, not deferred work. No finding here measures a fault in the function's behavior; F-1 measures that its behavior is CORRECT and merely undocumented and half-untested. The fence is enforced by V-05's requirement that the `agent_workflows/status_set.py` diff change no executable line.
+
+## Scope check
+
+- Over-scope: none. `agent_workflows/status_set.py` carries `match_selector` and both narrowing sites; `tests/test_status_set.py` is that module's test file and already holds the `SharedSetidCrossTypeResolutionTests` class the new pins belong beside; the spec file is the normative statement E-06 must stop contradicting (F-8).
+- Under-scope: `agent_workflows/selectors.py` is deliberately NOT declared. Its precedence list is the authority the disjointness argument reads FROM, and nothing about it needs changing; if the executor concludes the fix requires editing it, that is a scope change to stop and re-declare rather than to absorb. `agent_workflows/cli.py` is likewise undeclared: F-2 was measured through `aw ipd dependencies set` by monkeypatching in a throwaway script, not by editing the verb.
+
+## Required tests / validation
+
+- `python3 -m pytest` run BARE, with the pasted `N passed` summary line, against a pre-execution baseline captured the same way (measured at authoring: `3246 passed, 2 skipped`).
+- A targeted `tests/test_status_set.py` run, since every new test lands there and the module is where F-4's existing pin lives.
+- A MUTATION DEMONSTRATION FOR EVERY NEW TEST: break the site it pins, paste the failure, restore, paste the pass. A new test with no mutation evidence is exactly the vacuous pin this plan exists to prevent, so this is a hard requirement and not a nicety.
+- `aw ipd lint --phase pre-transition` conforming, `aw check` no worse than a pre-change baseline with both counts pasted, and `aw sanitize --agent` clean.
+- A `git status --short` after E-01 proving both exploratory mutations were reverted before any real edit landed.
+
+## Spec / documentation sync
+
+- SPEC `2lcqno` IS AMENDED BY THIS PLAN (declared in `- Scope-Paths:`), and the reason is that leaving it unamended keeps the repository's own approved contract licensing the misreading that produced backlog item `ihgjii`. N3's "ONE DOCUMENTED HOLE THAT N3 MUST NOT BE READ AS CLOSING" paragraph names the direct-PATH exemption as the single caveat, which invites a reader to conclude that one mechanism covers every other kind; measurement (F-1) shows two independent mechanisms cover disjoint kinds. Acceptance criterion 5 compounds it by asking for "a REGRESSION TEST" in the singular, and F-3 measures that criterion as satisfiable today while three selector kinds have no test at all. Both are corrections of fact, not changes of intent: N3's normative requirement (resolution is type-scoped) is untouched.
+- NO OTHER SPEC OR DOC CHANGES. `docs/` carries no statement about `match_selector`'s internals (searched), and `ipd-structure-and-linting` is cited only for the citation-anchor convention this plan follows.
+- THE PRIMARY DOCUMENTATION DELIVERABLE IS THE CODE SITE ITSELF (E-05), deliberately. A reader about to delete a filter reads the filter, so a docstring alone would not have prevented this item; the same reasoning is already recorded in `run_set_command`'s `Type mismatch` comment block.
+
+## Open questions
+
+### OQ-01: Should the two narrowing sites eventually be consolidated into one authority, and does this plan's pin make that safe?
+
+- Blocking: no
+- Status: open
+- Owner: reviewer
+- Resolution or deferral rationale: This plan deliberately does NOT consolidate, for the sequencing reason in the Deferred section: tests written against a consolidated shape cannot demonstrate they catch the pre-consolidation defect, so pinning must come first. The question is whether the reviewer wants consolidation tracked now or left to a future author holding E-01's matrix and E-05's comments. NOT BLOCKING because the answer changes nothing in this plan's checklist: every item is required under either answer, and the pins are the prerequisite in both directions.
+- Carrier-Declined: No carrier is owed under either answer. If the reviewer wants consolidation, the correct artifact is a new plan authored AFTER these pins exist, whose design can be measured against them; a placeholder filed now would have to guess the design and could not cite the evidence that justifies it. If the reviewer does not, there is nothing to carry. Either way the measured matrix and the site comments are the durable brief, and they land inside this plan.
+
+### OQ-02: Should the new tests join the existing `SharedSetidCrossTypeResolutionTests` class or form their own?
+
+- Blocking: no
+- Status: open
+- Owner: reviewer
+- Resolution or deferral rationale: The existing class carries `w2y5ac`'s four properties and a corpus-shape fixture (`_build_shared_topic`, `_research_in_corpus`) that E-02 through E-04 could reuse, which argues for joining it. Against that, its docstring is scoped to "a setid is a SHARED cross-type TOPIC label" and the new pins are about `status`/`stem`/`substring`/`id6` kinds, so joining it would widen a documented class contract. The plan leaves the choice to the executor as a recorded decision; it affects test organization only, and V-02 through V-04 demand the same mutation evidence either way.
+- Carrier-Declined: NOT BLOCKING and carrying no residual work, because both branches are implemented inside E-02 through E-04 and neither leaves anything unbuilt. The executor records whichever it chose and why, and the mutation evidence each `V-*` demands proves the tests work regardless of where they live. Filing an item would imply test placement is outstanding work after this plan executes, and it is not.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [ ] V-01 validates E-01
+  - Required evidence: the re-derived per-site, per-kind matrix PASTED, covering all six kind/token rows for HEAD, killFAST and killRESOLVER separately, with an explicit statement of whether it matches this plan's Goal fact 1 table and, if not, exactly which rows moved. Plus the pasted full-suite summary line under the resolver mutation and the pasted `tests/test_status_set.py` summary under the fast-path mutation. Plus a pasted `git status --short` showing `agent_workflows/status_set.py` unmodified after restoration. A matrix produced by mutating both sites together does NOT satisfy this item.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-02 validates E-02
+  - Required evidence: pasted PASS of the new `status`-kind test, AND pasted FAILURE of that same test with the resolver branch mutated to `if False:`, AND a pasted PASS after restoring. Plus confirmation shown by reading the test that it passes an UNNARROWED record list and that the fixture's foreign-type members are asserted present in the corpus. A pass with no paired failure does not satisfy this item.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-03 validates E-03
+  - Required evidence: the same mutate/fail/restore/pass triple, PASTED SEPARATELY for the `stem` test and for the `substring` test, because one passing does not imply the other (they travel different rungs of `selectors.resolve`'s precedence). Plus confirmation that each asserts on record TYPE rather than on a count.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-04 validates E-04
+  - Required evidence: pasted PASS of the foreign-type `id6` test, pasted FAILURE under the fast-path mutation (`cands = list(all_records)`), pasted PASS after restore. Plus evidence that `test_scoped_setid_resolution_returns_only_the_scoped_type` STILL PASSES unmodified, proving F-4's existing pin was not weakened or absorbed.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-05 validates E-05
+  - Required evidence: the `git diff` of `agent_workflows/status_set.py`, shown to contain ONLY docstring and comment changes with no executable line altered (state how that was confirmed from the diff, for example that every `+`/`-` line is inside a docstring or begins a comment). The diff must show, for each site, which selector kinds it guards and the measured consequence of removing it, and must show the fast-path comment recording that its guard is invisible from a pre-narrowed caller list. Confirm the performance rationale is NOT presented as the reason to keep the filter. Do NOT satisfy this item with a test that inspects source text; the diff is the evidence.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-06 validates E-06
+  - Required evidence: the `git diff` of the spec file showing the amended N3 paragraph and the corrected acceptance criterion 5, the pasted `aw specs` history line recording the amendment, and a confirmation that the amended prose contains no em or en dashes. Plus a statement that N3's normative requirement was not altered, only its account of how many mechanisms deliver it.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-07 validates E-07
+  - Required evidence: bare `python3 -m pytest` output with the `N passed` summary line pasted, beside the pre-execution baseline captured the same way, so any failure is shown pre-existing rather than introduced. Plus `aw ipd lint --phase pre-transition` conforming, `aw check` counts before and after pasted with the after no worse, and `aw sanitize --agent` reporting zero findings.
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+This plan is `to-review` and carries NO `- Readiness:` field, whose absence is deliberate: that field is
+an output of `/plan-review` and writing it at authoring time would forge the attestation a gate reads.
+
+The executor must: perform E-01 through E-07 in order, respecting the declared `Depends on` edges; treat
+E-01 as a hard gate, since every later item rests on its matrix and a matrix produced by mutating both
+sites at once would reproduce the backlog item's original error; commit only the three paths in
+`- Scope-Paths:` via `aw commit <plan> -- <paths>`; never push; paste ACTUAL runner output for every claim
+of a passing test, INCLUDING the paired mutation failure each new test requires; and verify each `V-*` in a
+separate pass from the `E-*` that produced it. Do NOT mark this plan executed or move it to
+`.aw/records/plans/executed/` until every `V-*` carries concrete pasted evidence and
+`aw ipd lint --phase pre-transition` conforms.
+
+Backlog item `ihgjii` is this plan's origin (`- From-Backlog: ihgjii`). That item carries NO
+`- Blocks-Release:` gate and none is invented here, consistent with its `chore` work kind: measurement
+confirms the item's own classification, since HEAD gives no wrong answer and no user waits on the
+difference. What the item got wrong was its diagnosis, not its severity.

@@ -1,11 +1,13 @@
 - Id: ihgjii
-- Status: open
+- Status: graduated
+- Graduated-To: selnarrow
 - Set: ihgjii
 - Priority: medium
 - Work-Kind: chore
 - Summary: match_selector's type narrowing is duplicated and unreachable from the production call shape, so a scoped-resolution test can pass vacuously
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: jw6cm3
 - 2026-09-21 created (aw backlog): match_selector's type narrowing is duplicated and unreachable from the production call shape, so a scoped-resolution test can pass vacuously
 
 MEASURED 2026-09-21 while executing plan `w2y5ac` (setidfix 02), whose V-01 mutation check found it.
