@@ -1,5 +1,6 @@
 - Id: oii7hd
-- Status: open
+- Status: graduated
+- Graduated-To: oii7hd
 - Blocks-Release: next
 - Set: oii7hd
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: run_viewer_cli reads args.dir directly instead of resolve_verb_repo_root, so aw runs cannot see a run from a subdirectory
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260929T021205Z-3914774: e6f0jx
 - 2026-09-22 created (aw backlog): run_viewer_cli reads args.dir directly instead of resolve_verb_repo_root, so aw runs cannot see a run from a subdirectory
 
 FOUND WHILE EXECUTING `d91i3e` (runrecon Order 01), whose finding F-15 axis (c) asserts the
