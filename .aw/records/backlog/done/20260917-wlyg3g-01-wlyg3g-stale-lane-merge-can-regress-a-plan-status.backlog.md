@@ -1,5 +1,5 @@
 - Id: wlyg3g
-- Status: graduated
+- Status: done
 - Graduated-To: lifecycledup
 - Blocks-Release: next
 - Set: wlyg3g
@@ -8,6 +8,7 @@
 - Summary: Merging a stale lane can resurrect a plan in pending/ at an earlier status while main holds it terminal, and no gate refuses the lifecycle regression
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): closed by aw oc run: IPD 46u3tu executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-lifecycledup-01-tl2b2r-report-an-artifact-identity-present-at-more-than-one-lifecyc.ipd.md, .aw/records/plans/executed/20260928-lifecycledup-02-46u3tu-refuse-a-lane-integration-that-would-leave-a-plan-at-two-lif.ipd.md); evidence .aw/records/plans/executed/20260928-lifecycledup-01-tl2b2r-report-an-artifact-identity-present-at-more-than-one-lifecyc.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: 46u3tu, tl2b2r
 - 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-17 created (aw backlog): Merging a stale lane can resurrect a plan in pending/ at an earlier status while main holds it terminal, and no gate refuses the lifecycle regression
