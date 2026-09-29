@@ -1,11 +1,13 @@
 - Id: jb0sc1
-- Status: open
+- Status: graduated
+- Graduated-To: lcnotice
 - Set: livecorpusguard
 - Priority: low
 - Work-Kind: chore
 - Summary: Six live-corpus tests carry no livecorpus marker, so a third party's artifact can still red a lane's suite
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: mvcwsd
 - 2026-09-20 created (aw backlog): Carried forward from plan h3bjue E-04: the livecorpus marker added in 7b9f3ae2 supplies the discriminator a class-wide guard previously lacked; six unmarked live-corpus call sites measured 2026-09-20.
 
 CARRIED FORWARD from plan `h3bjue` (`gatepin` Order 01) E-04, which repaired ONE instance of this
