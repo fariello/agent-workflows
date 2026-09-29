@@ -366,15 +366,27 @@ def assert_valid_agent_record(record: Dict[str, Any]) -> None:
 
 _MANDATORY_FIELDS = {"schema", "kind", "cmd", "exit", "outcome", "complete", "verified"}
 
+# Fields that a projection must not remove in order for the resulting record to remain valid
+# across all kinds. This is a kind-independent superset of _MANDATORY_FIELDS that additionally
+# includes every field validate_agent_record consults:
+# - 'applied': preview exemption for result records with complete=False
+# - 'total', 'emitted', 'omitted': required accounting fields for summary records
+#
+# Preserving a flat union rather than a per-kind mapping avoids a second structure to keep
+# in sync with the validator, and failing closed (retaining a field the validator might consult)
+# prevents crashes at runtime. For records that do not carry these optional/kind-specific fields,
+# filtering is a no-op because only present keys are considered.
+_PRESERVED_FIELDS = _MANDATORY_FIELDS | {"applied", "total", "emitted", "omitted"}
+
 
 def filter_record_fields(
     record: Dict[str, Any], fields: Optional[Sequence[str]] = None
 ) -> Dict[str, Any]:
-    """Project record fields down to requested set while preserving mandatory envelope fields."""
+    """Project record fields down to requested set while preserving whatever the record's kind requires to remain valid."""
     if not fields:
         return dict(record)
 
-    allowed = _MANDATORY_FIELDS | set(fields)
+    allowed = _PRESERVED_FIELDS | set(fields)
     return {k: v for k, v in record.items() if k in allowed}
 
 

@@ -64,7 +64,11 @@ The machine format is compact by default (short identifiers, counts instead of l
 Two escape hatches tune the token cost:
 
 - `--fields <a,b,c>`: project each record down to the requested fields. The mandatory envelope
-  (`schema`, `kind`, `cmd`, `exit`, `outcome`, `verified`, `complete`) is always retained.
+  (`schema`, `kind`, `cmd`, `exit`, `outcome`, `verified`, `complete`) is always retained. A projection
+  additionally retains whatever the record kind requires to remain valid, including a summary's `total`,
+  `emitted`, and `omitted` (so `emitted + omitted == total` remains verifiable to distinguish a bounded
+  answer from a complete one) and a preview result's `applied`. A projection never yields a record that
+  fails validation, so `--fields` is safe to pass on any command.
 - `--verbose`: include full nested diagnostics, change details, and evidence dictionaries.
 
 ## Example records
