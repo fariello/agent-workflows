@@ -1,5 +1,6 @@
 - Id: ldy1al
-- Status: open
+- Status: graduated
+- Graduated-To: commitscope
 - Blocks-Release: next
 - Set: ldy1al
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: aw commit <plan> is unusable for the rest of an execution once one out-of-scope path is legitimately committed
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260929T021205Z-3914774: ygb3nk
 - 2026-09-22 created (aw backlog): aw commit <plan> is unusable for the rest of an execution once one out-of-scope path is legitimately committed
 
 FOUND while executing plan i4ak5n (revladder-01).
