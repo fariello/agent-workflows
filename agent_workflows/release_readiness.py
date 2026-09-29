@@ -38,12 +38,12 @@ Pure stdlib (D138); no runtime YAML (D139). Python 3.9+.
 from __future__ import annotations
 
 import subprocess
-import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from agent_workflows import benchmark_thresholds as bt
+from agent_workflows.runner_shared import pinned_child_env, pinned_module_argv
 
 VERDICT_GO = "GO"
 VERDICT_NO_GO = "NO-GO"
@@ -151,13 +151,23 @@ def _repo_root() -> Path:
 def gate_leak_scan(repo_root: Optional[Path] = None) -> GateResult:
     """Run the CANONICAL leak scan (``aw sanitize --agent``) and require exit 0.
 
-    Uses ``python3 -m agent_workflows sanitize --agent`` so it works without ``aw`` on PATH.
+    Uses :func:`runner_shared.pinned_module_argv` (-c bootstrap) and
+    :func:`runner_shared.pinned_child_env` (plan af7i6p) so it works without ``aw`` on
+    PATH and runs the runner's own tooling rather than any package in the target tree.
     This is the same code path the ``aw sanitize`` CLI runs (no fork).
+
+    The ``repo_root`` argument is caller-supplied. Without the pin, Python would seed
+    sys.path[0] from cwd, causing the gate to execute the ``agent_workflows`` package
+    found in that tree and report its exit code as the release verdict. Child stdin is
+    denied via ``subprocess.DEVNULL``. Enforced behaviorally by
+    ``tests/test_release_readiness_child_pin.py``.
     """
     root = repo_root or _repo_root()
     proc = subprocess.run(
-        [sys.executable, "-m", "agent_workflows", "sanitize", "--agent"],
+        pinned_module_argv(["sanitize", "--agent"]),
         cwd=str(root),
+        env=pinned_child_env(),
+        stdin=subprocess.DEVNULL,
         capture_output=True,
         text=True,
         check=False,
@@ -174,11 +184,22 @@ def gate_leak_scan(repo_root: Optional[Path] = None) -> GateResult:
 
 
 def gate_ipd_lint(repo_root: Optional[Path] = None) -> GateResult:
-    """Run all IPD lint phases (``aw ipd lint --all --agent``) and require exit 0."""
+    """Run all IPD lint phases (``aw ipd lint --all --agent``) and require exit 0.
+
+    Uses :func:`runner_shared.pinned_module_argv` (-c bootstrap) and
+    :func:`runner_shared.pinned_child_env` (plan af7i6p) to execute the runner's own
+    tooling. The ``repo_root`` argument is caller-supplied. Without the pin, Python would
+    seed sys.path[0] from cwd, causing the gate to execute the ``agent_workflows``
+    package found in that tree and report its exit code as the release verdict. Child
+    stdin is denied via ``subprocess.DEVNULL``. Enforced behaviorally by
+    ``tests/test_release_readiness_child_pin.py``.
+    """
     root = repo_root or _repo_root()
     proc = subprocess.run(
-        [sys.executable, "-m", "agent_workflows", "ipd", "lint", "--all", "--agent"],
+        pinned_module_argv(["ipd", "lint", "--all", "--agent"]),
         cwd=str(root),
+        env=pinned_child_env(),
+        stdin=subprocess.DEVNULL,
         capture_output=True,
         text=True,
         check=False,
