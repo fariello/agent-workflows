@@ -1,5 +1,6 @@
 - Id: 8xcsjr
-- Status: open
+- Status: graduated
+- Graduated-To: 8xcsjr
 - Blocks-Release: next
 - Set: 8xcsjr
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: render_run_summary_table pads table cells with len(_strip_ansi(...)), which counts a variation selector as a column
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: 4taj2e
 - 2026-09-20 created (aw backlog): Found executing plan qdd5jq (lifeglyph 07).
 
 FOUND WHILE EXECUTING plan `qdd5jq` (Set `lifeglyph`, spec `uonrjg`).
