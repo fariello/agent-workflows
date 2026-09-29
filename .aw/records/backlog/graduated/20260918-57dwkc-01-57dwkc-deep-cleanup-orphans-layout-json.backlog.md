@@ -1,5 +1,6 @@
 - Id: 57dwkc
-- Status: open
+- Status: graduated
+- Graduated-To: 57dwkc
 - Blocks-Release: next
 - Set: 57dwkc
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: aw uninstall --deep orphans .aw/system/layout.json, so the no-.aw-remains promise fails
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260928T235632Z-1358353: g1w58u
 - 2026-09-26 note (aw backlog): CI step 'Run slow-marked tests' (tests.yml, plan 4petcj) is advisory because of this item's slow-test failure; when the last of the owning items (57dwkc, 3ypquf, 4vfkl1, g0bdgg) closes, remove its continue-on-error so the slow set fails closed.
 - 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-18 created (aw backlog): aw uninstall --deep orphans .aw/system/layout.json, so the no-.aw-remains promise fails
