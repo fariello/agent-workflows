@@ -132,6 +132,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - The structural `aw check` rule and the placement predicate: Order 1 (`tl2b2r`) owns them. This plan consumes the predicate and must not fork it.
   - Carrier: tl2b2r
+  - Carrier-Evidence: .aw/records/plans/executed/20260928-lifecycledup-01-tl2b2r-report-an-artifact-identity-present-at-more-than-one-lifecyc.ipd.md
 - Any change to the deferral ladder's policy vocabulary, budget, statuses or classification: out of scope, and E-03 explicitly stops rather than widening if the evidence contradicts the terminal expectation.
   - Carrier-Declined: NOTHING IS OWED, because the expected outcome requires no change at all. The ladder already yields a terminal status for the kind E-01 reuses, and E-03's deliverable is the pasted evidence of that rather than an edit. A carrier would schedule work that only becomes real if E-03's measurement CONTRADICTS the expectation, and in that case E-03 already instructs the executor to STOP and report, which is the correct handling for a shared classification affecting every other refusal using that kind. Filing it now would assert a defect no evidence supports.
 - The records-only re-derivation and history-append auto-resolve paths: unreachable on a clean merge (F-06).
