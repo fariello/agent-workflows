@@ -6,7 +6,7 @@
 - Scope: Add the STATUS-transition call site to both spellings of `aw backlog set`, through the existing shared predicate, and pin all four routes (the two already-working reclassification routes and the two currently-broken transition routes) with tests. No new policy, no new field, no change to `decide_gate_default`'s four conditions.
 - Scope-Paths: agent_workflows/backlog.py, agent_workflows/status_set.py, tests/test_backlog_gate_follows_status.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: vsgd48
-- Approval: 2026-09-29, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-29 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: vsgd48 verified (set gatefollows, attempt 1).
 - 2026-09-29 approved (aw set): status set to approved
 - 2026-09-28 reviewed (aw set): /plan-review round 1 complete: APPROVE WITH REVISIONS APPLIED; PR-901 through PR-907 all FIXED; review record written; review-finalize lint conforming.
 
