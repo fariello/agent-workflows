@@ -6,7 +6,7 @@
 - Scope: IN: (a) an OPTIONAL, explicit queue-membership signal on `run_selection_policy.derive_item_disposition` plus the three renderers that call it, which OVERRIDES the substring match when supplied and leaves it standing when not; (b) both hosts passing that signal from the queue they already hold, so a real run gets the true code; (c) stopping `runner_shared.edge_satisfied` asserting the word `external` and the clause `it is not in this run` about a target whose queue membership it never checked, replacing them with wording true of every target it can actually resolve; (d) regression tests for the in-queue and genuinely-external cases and for the unparseable-token trap. OUT: changing what `edge_satisfied` DECIDES (the maintainer's 2026-09-19 one-authority ruling stands; `by_id` stays unread by the satisfaction decision), the token-prefix verbosity of the drain path's reason strings (backlog `csjq81`), and the `dependency_not_met` / `dependency_not_met_external` NAMES, which spec `25kzda` 5.4 owns.
 - Scope-Paths: agent_workflows/run_selection_policy.py, agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/render_stream.py, tests/test_run_selection_policy.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -19,6 +19,7 @@
 - Id: zhqt51
 
 ## Workflow history
+- 2026-09-29 reviewed (aw set): status set to reviewed
 
 - 2026-09-29 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-010 all FIXED. Re-measured every finding independently at HEAD `f628be1d`; the core defect reproduces verbatim and the prescribed fix was re-prototyped from scratch. Corrected three overstated findings (F-05's row census and red-row count, F-07's guard test which no longer exists, F-09's outcome word which does not change), added F-16 (mixed-token entry) and F-17 (five human-facing consumers of the reworded string), and added E-05 case (iv) plus V-01(f). Findings and four `D-*` decisions recorded in `.aw/records/reviews/20260929-8mohre-01-zhqt51-...review.md`. No production file modified.
 - 2026-09-29 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
