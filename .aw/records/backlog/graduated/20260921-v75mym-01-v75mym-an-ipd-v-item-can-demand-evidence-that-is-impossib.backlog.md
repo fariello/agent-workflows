@@ -1,11 +1,13 @@
 - Id: v75mym
-- Status: open
+- Status: graduated
+- Graduated-To: vreach
 - Set: v75mym
 - Priority: medium
 - Work-Kind: chore
 - Summary: An IPD V-item can demand evidence that is impossible to produce, and nothing catches it before execution
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: 9aprci
 - 2026-09-21 created (aw backlog): Found while executing akzy45.
 
 MEASURED while executing plan `akzy45`, and it cost a real decision mid-run.
