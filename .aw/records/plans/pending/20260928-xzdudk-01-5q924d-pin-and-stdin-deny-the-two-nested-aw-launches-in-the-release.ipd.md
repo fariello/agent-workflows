@@ -6,7 +6,7 @@
 - Scope-Paths: agent_workflows/release_readiness.py, tests/test_release_readiness_child_pin.py
 - Item-Dependencies: none
 - Kind: child
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: 5q924d
+- Approval: 2026-09-29, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-29 approved (aw set): status set to approved
 - 2026-09-28 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 all fixed; readiness go-pending-approval
 
 - 2026-09-28 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 PR-002 PR-003 PR-004. Re-measured every claim by driving the real gates, including a scratch application of E-02 that was reverted clean. The headline finding reproduces exactly: the shipped `gate_leak_scan` returns `passed=True, evidence={'returncode': 0}` against a decoy tree for a leak scan that never ran. Four findings changed the plan. PR-001: F-13's baseline is stale in BOTH directions (`3153 passed, 2 skipped`, zero failures, 199 commits later) and the failure it told the executor to tolerate is FIXED, so that instruction is inverted rather than updated. PR-002: E-01(a) as written would be RED before AND after the fix, because the real scanner refuses a non-git `tmp_path` with exit 2; the fixture now needs `git init` and the primary assertion is now "the decoy did not run". PR-003: F-05's third row was wrong (`-P` alone avoids the decoy but resolves a stale site-packages copy), which strengthens the two-part-pin conclusion rather than weakening it. PR-004: two deferred rows named the now-`done` carrier `1bxw6o`, failing `check.ipd-carrier-finished-unverified`, and that item's closing maintainer ruling settles OQ-01 as policy. Record: `.aw/records/reviews/20260928-xzdudk-01-5q924d-pin-and-stdin-deny-the-two-nested-aw-launches-in-the-release.review.md`.

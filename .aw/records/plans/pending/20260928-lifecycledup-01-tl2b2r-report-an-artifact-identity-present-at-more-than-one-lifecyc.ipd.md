@@ -6,7 +6,7 @@
 - Scope: Add ONE deterministic reader that answers "which artifact identities occupy more than one lifecycle location", register its rule, and wire it into the once-per-sweep cross-tree seam so `aw check` reports it. IN: the shared predicate, its rule-registry entry, the cross-tree wiring, the terminal-inclusive scope decision, and its regression tests. OUT: the runner-side integration refusal that consumes this predicate (Order 2 owns it, and it is a separate deliverable on a separate surface); any change to `check.id6-collision`'s own behavior, message or severity; the backlog-tree analogue (`5bmq5f`, already `done`); and any repair of an existing duplicate, because this tree has NONE (measured).
 - Scope-Paths: agent_workflows/check_engine.py, tests/test_check_engine.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: tl2b2r
+- Approval: 2026-09-29, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-29 approved (aw set): status set to approved
 - 2026-09-28 reviewed (aw set): /plan-review round 1 complete: APPROVE WITH REVISIONS APPLIED; PR-001 through PR-008 all FIXED; review record written; review-finalize lint conforming.
 
 - 2026-09-28 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 through PR-008 all FIXED. Review record `.aw/records/reviews/20260928-lifecycledup-01-tl2b2r-report-an-artifact-identity-present-at-more-than-one-lifecyc.review.md` Round 1.

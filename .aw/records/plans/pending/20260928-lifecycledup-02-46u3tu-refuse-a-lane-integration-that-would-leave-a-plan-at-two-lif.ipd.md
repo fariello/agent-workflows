@@ -6,7 +6,7 @@
 - Scope: Add ONE pre-merge refusal to the shared integration path for the condition "this merge would leave an artifact identity at more than one lifecycle location", consuming Order 1's predicate rather than re-deriving it, with a cause and a verdict sentence so the refusal is legible and durable. IN: the refusal arm, its cause constant and verdict sentence, the prediction of the post-merge placement from the merge's own result, and the integration regression tests on both hosts. OUT: the structural `aw check` rule and its predicate (Order 1 owns them); any change to the deferral ladder's policy vocabulary, budget or statuses; the records-only re-derivation and history-append auto-resolve paths; and the item's fix-sketch point 3.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_runner_shared.py
 - Item-Dependencies: executed:tl2b2r
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 46u3tu
+- Approval: 2026-09-29, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-29 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): status set to reviewed
 
 - 2026-09-28 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-101 through PR-106 all FIXED. Review record `.aw/records/reviews/20260928-lifecycledup-02-46u3tu-refuse-a-lane-integration-that-would-leave-a-plan-at-two-lif.review.md` Round 1.

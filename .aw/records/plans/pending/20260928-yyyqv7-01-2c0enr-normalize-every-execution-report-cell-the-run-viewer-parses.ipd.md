@@ -6,7 +6,7 @@
 - Scope: Normalize markup ONCE at the parse boundary: read every cell of the report table through one helper that strips backticks, so all eight columns are treated alike instead of four. Pin the repair with tests that a fully backticked report row parses field-identically to its bare twin and still renders `[verified]`, and that the fallback parse agrees with the `state.json` parse for the same run. Correct the four stale offset citations in the two host comments that describe this defect, since they now point at unrelated code and assert a premise this plan changes.
 - Scope-Paths: agent_workflows/run_viewer.py, tests/test_run_viewer.py, agent_workflows/runner_shared.py, agent_workflows/agy_runipd.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: 2c0enr
+- Approval: 2026-09-29, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-29 approved (aw set): status set to approved
 - 2026-09-28 reviewed (aw set): /plan-review round 1 complete: APPROVE WITH REVISIONS APPLIED; PR-701 through PR-706 all FIXED; review record written; review-finalize lint conforming.
 
 - 2026-09-28 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-701 through PR-706 all FIXED. Review record `.aw/records/reviews/20260928-yyyqv7-01-2c0enr-normalize-every-execution-report-cell-the-run-viewer-parses.review.md` Round 1.

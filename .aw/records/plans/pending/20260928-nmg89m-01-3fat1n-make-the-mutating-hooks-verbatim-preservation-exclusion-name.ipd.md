@@ -6,7 +6,7 @@
 - Scope: IN: point the four mutating hooks' exclude regex at the live `.aw/records/research/` tree; drop the dead `.aw/records/docs/research/` alternative; add a test pinning the hook config against `artifact_core._VERBATIM_PRESERVED_SEGMENTS` so the two cannot drift again. OUT: the SAFETY hooks (`gitleaks`, `check-added-large-files`, `local-leaks`), which must keep applying everywhere; the `.aw/system/` alternative in the same regex; the two local IPD gates; `engine.py`'s installed-target config templates (they ship no mutating hooks); reformatting or normalizing any research file.
 - Scope-Paths: .pre-commit-config.yaml, tests/test_precommit_verbatim_exclusions.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 3fat1n
+- Approval: 2026-09-29, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-29 approved (aw set): status set to approved
 - 2026-09-28 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-B01 (BLOCKER), PR-B02 (HIGH), PR-B03 (MEDIUM), PR-B04 (LOW), all FIXED. Reviewed at HEAD `561c9a7f`. Every measurement reproduces and the behavioral ones reproduce exactly, re-driven through the real pinned hooks: the fixers rewrite a live-tree probe (md5 `10d4d198...` -> `9f5911cc...`) while leaving the identical dead-tree copy untouched, `ruff-format` turns `x   =   1` into `x = 1` in the tracked research `broker.py`, and under the corrected regex all three report `Skipped` with content intact. THE BLOCKER: E-03(a) says to derive the parity probe set FROM `_VERBATIM_PRESERVED_SEGMENTS`, whose third entry is the very path E-01 deletes, so a literal derivation is RED on the CORRECTED config (measured: `excluded=False` on all four hooks for `.aw/records/docs/research/x.py`), and the cheapest repair restores the misleading dead alternative and ships a test certifying it; E-03 now states the filter, its reason, and forbids both wrong repairs. THE SECOND: a stop condition would have halted a correct execution, because E-03(b)'s allowlist tension is the specified design rather than a fault to discover, and its blind spot (a future flattening of `.agents/docs/research`) is inherent; the remedy is to record it, so the stop was narrowed and the limit moved into the test docstring. THE THIRD: both resolved open questions carried `- Owner: none`, disclaiming judgements the author made, now `plan author`. Also: E-04 states no baseline, which is the RIGHT posture and uniquely in this sweep pins no stale failing count, so the review added the green measurement (`3087 passed, 2 skipped`) together with a re-derive instruction rather than a pinned figure. Praise where due: F-5 corrects its own naive measurement and reports the honest exposure as 2 files rather than 139, and V-01 already demanded md5 pairs rather than accepting a `Skipped` line. Readiness recorded in the `- Readiness:` field. Findings and two `Decisions` rows in `.aw/records/reviews/20260928-nmg89m-01-3fat1n-make-the-mutating-hooks-verbatim-preservation-exclusion-name.review.md`.
 
 - 2026-09-28 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): Graduated from backlog nmg89m. Resolved the item's open policy question (keep the intent, fix the regex) from repository evidence rather than deferring it, and drove both failure modes end to end through the real pinned hooks instead of asserting the regex by inspection. Added a config-versus-code parity test because the stale path proves inspection alone does not hold.
