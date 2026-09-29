@@ -1,11 +1,13 @@
 - Id: 5mc38x
-- Status: open
+- Status: graduated
+- Graduated-To: testlocality
 - Set: 5mc38x
 - Priority: low
 - Work-Kind: followup
 - Summary: Decide the standing convention for a test that genuinely asserts something about the live checkout root: loud skip or synthesize
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): graduated by run run-20260928T235941Z-1396311: kmzude
 - 2026-09-20 created (aw backlog): Carries OQ-01 from plan zx9dkq, which was narrowed at review to a question about FUTURE tests only; filed so it survives that plan reaching executed.
 
 CARRIES `OQ-01` FROM PLAN `zx9dkq` (non-blocking, owner: maintainer). Filed because the plan is being executed and an open question recorded only inside an `executed` plan classes as `done` in `aw attention` and disappears.
