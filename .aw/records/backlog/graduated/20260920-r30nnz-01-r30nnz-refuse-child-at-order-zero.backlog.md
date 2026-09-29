@@ -1,11 +1,13 @@
 - Id: r30nnz
-- Status: open
+- Status: graduated
+- Graduated-To: r30nnz
 - Set: r30nnz
 - Priority: low
 - Work-Kind: followup
 - Summary: Decide whether aw group/rename should refuse to place a Kind: child at Order 0 (consult IPD-M104 at the write site)
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: qhcojn
 - 2026-09-20 created (aw backlog): Filed while executing plan e3hzyc (E-03/OQ-03): the recorded decision was to NOT build the refusal inside that bug fix, and to carry the question here.
 
 E-03 OF PLAN e3hzyc REQUIRED A RECORDED DECISION, NOT A BUILD, and this item is that record.
