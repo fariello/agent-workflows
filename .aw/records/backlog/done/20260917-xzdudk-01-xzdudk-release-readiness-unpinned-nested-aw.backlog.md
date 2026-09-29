@@ -1,5 +1,5 @@
 - Id: xzdudk
-- Status: graduated
+- Status: done
 - Graduated-To: xzdudk
 - Blocks-Release: next
 - Set: xzdudk
@@ -8,6 +8,7 @@
 - Summary: release_readiness gate launches a nested aw with no stdin= and no tooling pin, invisible to both TTY guards
 
 ## Workflow history
+- 2026-09-28 set (aw backlog): closed by aw oc run: IPD 5q924d executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-xzdudk-01-5q924d-pin-and-stdin-deny-the-two-nested-aw-launches-in-the-release.ipd.md); evidence .aw/records/plans/executed/20260928-xzdudk-01-5q924d-pin-and-stdin-deny-the-two-nested-aw-launches-in-the-release.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: 5q924d
 - 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-17 created (aw backlog): release_readiness gate launches a nested aw with no stdin= and no tooling pin, invisible to both TTY guards
