@@ -7,6 +7,7 @@
 - Scope-Paths: .aw/records/plans/executed/20260908-awinbox-02-9iiqmm-count-waiting-aw-inbox-drops-in-aw-attention-by-listing-the.ipd.md, .aw/records/reviews/20260910-awinbox-02-9iiqmm-count-waiting-aw-inbox-drops-in-aw-attention-by-listing-the.review.md, .aw/records/backlog/graduated/20260920-3sh9d6-01-3sh9d6-stale-nontty-claims-in-awinbox-artifacts.backlog.md, .aw/records/backlog/done/20260905-awinbox-01-plbkp5-attention-inbox-waiting-count.backlog.md, .aw/records/backlog/open
 - Item-Dependencies: none
 - Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
 - From-Backlog: 3sh9d6
@@ -184,7 +185,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-THIS PLAN REQUIRES EXPLICIT HUMAN APPROVAL BEFORE EXECUTION. It carries no `- Readiness:` field by design: that field is an OUTPUT of `/plan-review`, and writing one here would forge the attestation the auto-approve predicate reads first.
+THIS PLAN REQUIRES EXPLICIT HUMAN APPROVAL BEFORE EXECUTION. It carried no `- Readiness:` field AS AUTHORED, correctly: that field is an OUTPUT of `/plan-review`, and an author writing one would forge the attestation the auto-approve predicate reads first. The field is now present because the review that owns it has run (2026-09-28, `go-pending-approval`), which records that the plan passed review and awaits only human sign-off.
 
 EXECUTION CONTRACT. Commit ONLY the paths in `- Scope-Paths:` plus the one new backlog file E-03 creates, through `aw commit <this plan> -- <paths>`; never `git add -A`, never `-a`, never push. This is a SHARED CHECKOUT, so before each commit run `git diff --cached --name-only`, verify every path is one this plan touched, and `git restore --staged <path>` anything else; re-verify after any failed raw commit, since a rejected hook can leave foreign paths staged. Paste ACTUAL command output for every `V-*`; never claim a test run you did not perform.
 
