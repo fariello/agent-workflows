@@ -6,7 +6,7 @@
 - Scope: Stop `aw commit`'s plan-validation gate treating `check.scope-drift` as BLOCKING, routing it to the existing non-blocking advisory channel instead, so the commit-time refusal is the one that already compares the STAGED set (`run_commit`'s own `_in_scope` branch, which measurement shows is already correctly staged-scoped) and the execution-wide reconciliation stays where it already lives, at finalize. This deliberately does NOT add a `--scope-reason` flag to `aw commit`, does NOT change `check_scope_drift`, does NOT change the rule's registered severity, and does NOT touch `aw check`, CI, or the opt-in pre-commit hook. OQ-01 records why the flag route was refused on measurement.
 - Scope-Paths: agent_workflows/work_cmd.py, tests/test_work_gate_severity.py, tests/test_scope_match.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -19,6 +19,7 @@
 - Id: ygb3nk
 
 ## Workflow history
+- 2026-09-29 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; five findings PR-601..PR-605 all fixed; review record written; readiness go-pending-approval
 
 - 2026-09-29 /plan-review findings (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-601, PR-602, PR-603, PR-604, PR-605 all FIXED. Reviewed at HEAD `88d2aab9`; every claim re-measured in this lane, none carried over. The diagnosis and fix reproduce end-to-end (refusal with staged set `[]` before, advisory plus `committed 1 path(s)` after). Five findings: E-05's blast-radius assertions were VACUOUS (three of four consumers are severity-blind between `error` and `warning`, so they stayed green under the mutation V-05 demanded they catch) and were removed; F-11 does NOT reproduce and the corrected condition is one this plan WIDENS (the excuse needs an in-scope commit to anchor cohesion, which is exactly what this plan restores); E-01 denied a real `aw work begin` behavior change and miscited E-04 as pinning it, so E-06/V-06 were added; F-15's deferral rested on a false test claim, now carried by `7gr0vr`; the consumer count is four, not three (`aw doctor`). Four Decisions recorded, all reversible. `aw ipd lint --phase review-finalize` conforms. Backlog `7gr0vr` filed during review.
 - 2026-09-28 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): authored from backlog item `ldy1al`, which `v45wb7` duplicates. Every measurement taken fresh against HEAD `1e522dc5` in this lane; none carried over from either item. The core claim is VERIFIED end-to-end (F-01). The items' shared framing that there is ONE refusal is FALSIFIED: there are TWO, and the one they name by code is already staged-scoped and must be KEPT (F-02, F-03). The measured fix is proven to work and proven not to weaken the other three consumers (F-08, F-09). A separate and OPPOSITE defect was found and filed as `s9z85a` rather than folded in (F-11).
