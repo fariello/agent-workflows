@@ -6,7 +6,7 @@
 - Scope: Apply the existing shared `attention_contract.is_safe_descriptive` predicate to the values `aw backlog new`, `aw backlog set --status ...` and `aw backlog note` write into an item (`--summary` and `--gate-ref` as bounded front-matter descriptive fields; `--message` for LINE INTEGRITY ONLY, unbounded in length, per F-13), refusing with exit 2 BEFORE any file is written, through the refusal shape those verbs already use for `--priority`/`--work-kind`/`--graduated-to`. No new field, no new rule id, no change to `is_safe_descriptive`, no change to the checker. DELIBERATELY NOT COVERED: the POSITIONAL `aw backlog set <status> <selector>` spelling, which dispatches to the shared cross-tree `status_set.run_set_command` and is deferred with a carrier (F-15).
 - Scope-Paths: agent_workflows/backlog.py, tests/test_backlog_descriptive_safety.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: dtg7dz
-- Approval: 2026-09-29, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-29 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: dtg7dz verified (set a0s33b, attempt 1).
 - 2026-09-29 approved (aw set): status set to approved
 - 2026-09-28 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 all fixed; readiness go-pending-approval
 
@@ -37,35 +37,35 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: one shared refusal helper, applied at the creating verb
 
-- [ ] E-01 Add a module-private helper to `agent_workflows/backlog.py` that judges ONE value against the shared predicate and returns the refusal message, so every call site refuses with identical wording rather than each spelling its own. Signature shape: `_refuse_unsafe_descriptive(verb: str, flag: str, value: Optional[str], *, bound_length: bool = True) -> Optional[str]`, returning `None` when `value` is `None` or the applicable check passes, else a message naming the verb, the flag, WHICH property was violated (over `A.MAX_DESCRIPTIVE_LEN`, embedded newline, or control character) and the actual length when length is the cause. Do NOT reimplement the predicate's conditions: with `bound_length=True` call `A.is_safe_descriptive` for the VERDICT and inspect the value only to pick the explanatory clause, so the verdict has exactly one owner.
+- [x] E-01 Add a module-private helper to `agent_workflows/backlog.py` that judges ONE value against the shared predicate and returns the refusal message, so every call site refuses with identical wording rather than each spelling its own. Signature shape: `_refuse_unsafe_descriptive(verb: str, flag: str, value: Optional[str], *, bound_length: bool = True) -> Optional[str]`, returning `None` when `value` is `None` or the applicable check passes, else a message naming the verb, the flag, WHICH property was violated (over `A.MAX_DESCRIPTIVE_LEN`, embedded newline, or control character) and the actual length when length is the cause. Do NOT reimplement the predicate's conditions: with `bound_length=True` call `A.is_safe_descriptive` for the VERDICT and inspect the value only to pick the explanatory clause, so the verdict has exactly one owner.
   `bound_length=False` IS THE LINE-INTEGRITY MODE AND IT EXISTS FOR A MEASURED REASON (review PR-001). It must judge newline, carriage return and control characters and NOT length, for which the one correct construction is `A.is_safe_descriptive(value.replace("\n", "").replace("\r", "")[: A.MAX_DESCRIPTIVE_LEN])` combined with an explicit `"\n" in value or "\r" in value` test, or equivalently `A.is_safe_descriptive(value[: A.MAX_DESCRIPTIVE_LEN])` plus that same explicit newline test; either way the CONTROL-CHARACTER and NEWLINE verdicts still come from `A`'s own constants (`A._CONTROL_CHAR_RE` may be consulted directly for the explanatory clause). Do NOT copy the character class into `backlog.py`. The reason length is excluded is in the Findings table at F-13.
   - Depends on: none
   - Expected outcome: a helper importable as `backlog._refuse_unsafe_descriptive` that, with the default `bound_length=True`, returns `None` for `"ok"` and for `None`, and a message mentioning `newline` for `"a\nb"`, `control` for `"a\x07b"`, and both `300` and `340` for a 340-character value; and with `bound_length=False` returns `None` for that same 340-character value and for a 1200-character one, while still returning the `newline` message for `"a\nb"` and the `control` message for `"a\x07b"`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Apply the helper to `--summary` in `backlog.run_new`, immediately after the existing empty-summary guard (`aw backlog new: --summary is required`) and BEFORE the `--blocks-release` resolution and the `decide_gate_default` call, so the refusal costs no release lookup and no id6 is consumed by a doomed call. Write the message to `sys.stderr` and `return 2`, matching the exit-2 cannot-run convention the sibling guards in the same function already use (`--priority must be one of`, `--work-kind must be one of`, `a blocked item requires --gate-kind and --gate-ref`) and which `command_surface` declares for this command as `(0, 1, 2)`. Do NOT touch `--agent`/`--json` envelope construction: those branches are reached later in the function, and every existing usage refusal in `run_new` is a plain stderr write, so the new refusal is consistent with them by doing the same.
+- [x] E-02 Apply the helper to `--summary` in `backlog.run_new`, immediately after the existing empty-summary guard (`aw backlog new: --summary is required`) and BEFORE the `--blocks-release` resolution and the `decide_gate_default` call, so the refusal costs no release lookup and no id6 is consumed by a doomed call. Write the message to `sys.stderr` and `return 2`, matching the exit-2 cannot-run convention the sibling guards in the same function already use (`--priority must be one of`, `--work-kind must be one of`, `a blocked item requires --gate-kind and --gate-ref`) and which `command_surface` declares for this command as `(0, 1, 2)`. Do NOT touch `--agent`/`--json` envelope construction: those branches are reached later in the function, and every existing usage refusal in `run_new` is a plain stderr write, so the new refusal is consistent with them by doing the same.
   - Depends on: E-01
   - Expected outcome: `aw backlog new --summary <340 chars>` exits 2, prints the refusal on stderr, and writes NO file, where before it exited 0 and wrote an item that `aw backlog check` exits 1 on.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Apply the helper to the two REMAINING values these verbs write into an item, `--gate-ref` and `--message`, across the THREE functions that write them: `backlog.run_new`, `backlog.run_set`, and `backlog.run_note` (review PR-002 measured the third; see F-14). Place each guard before the corresponding write, keeping `run_set`'s existing byte-identical-on-refusal property (a refused transition must leave the file untouched, which holding the guard before `core.atomic_write` preserves) and giving `run_note` the same property. THE TWO FLAGS GET DIFFERENT MODES, and the asymmetry is the whole point of E-01's parameter:
+- [x] E-03 Apply the helper to the two REMAINING values these verbs write into an item, `--gate-ref` and `--message`, across the THREE functions that write them: `backlog.run_new`, `backlog.run_set`, and `backlog.run_note` (review PR-002 measured the third; see F-14). Place each guard before the corresponding write, keeping `run_set`'s existing byte-identical-on-refusal property (a refused transition must leave the file untouched, which holding the guard before `core.atomic_write` preserves) and giving `run_note` the same property. THE TWO FLAGS GET DIFFERENT MODES, and the asymmetry is the whole point of E-01's parameter:
   - `--gate-ref` gets the FULL predicate (`bound_length=True`), because it is a genuine front-matter descriptive field that `validate_item` already bounds at 300 through `A.validate_gate_ref` -> `A.is_safe_descriptive`. The new guard is ADDITIVE to the existing kind-specific check, not a replacement: that check is consulted by `validate_item` but only AFTER `Gate-Kind` validity, so a valid kind with a newline-bearing ref reaches disk today (F-06).
   - `--message` gets LINE INTEGRITY ONLY (`bound_length=False`), because a history-record message is not a bounded descriptive field in this repository and never has been: 531 of 1483 committed backlog history messages already exceed 300 characters (F-13). Bounding it would refuse the verb's own normal output. The INJECTION vector is still closed, because that vector is the newline, and zero of those 1483 messages contains a control character, so nothing legitimate is refused.
   - Depends on: E-02
   - Expected outcome: `aw backlog new --status blocked --gate-kind todo --gate-ref $'TODO.md\n- Blocks-Release: next'` exits 2 and writes nothing, where before it exited 0 and produced an item whose parsed `blocks_release` was `next` with ZERO checker drift. `aw backlog set <id> --status <s> --message $'note\n- Blocks-Release: next'` and `aw backlog note <id> --message $'note\n- Blocks-Release: next'` each exit 2 leaving the item byte-identical. A 1200-character single-line `--message` is ACCEPTED by all three verbs, proving the length bound was deliberately not applied there.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: pin the contradiction, the injection, and the non-regressions
 
-- [ ] E-04 Add `tests/test_backlog_descriptive_safety.py` pinning the CREATE/CHECK CONTRADICTION as the primary property, for each of the four unsafe shapes `is_safe_descriptive` rejects (over-length, `\n`, `\r`, C0/C1 control incl. ANSI ESC): for each, assert `run_new` returns 2, that NO `*.backlog.md` file exists afterwards, and that the refusal message names the flag. Then assert the CONVERSE on a conforming value: `run_new` returns 0, the item is written, and `backlog.validate_item` on it returns zero drift. The test that matters is the PAIRED one: no input may exist for which creation succeeds and `validate_item` reports `backlog.summary-unsafe`, which is the exact contradiction backlog `a0s33b` filed. Follow the established template `test_new_blocks_release_unresolvable_fails_closed` in `tests/test_backlog.py`, which asserts both `rc == 2` and that no file was written.
+- [x] E-04 Add `tests/test_backlog_descriptive_safety.py` pinning the CREATE/CHECK CONTRADICTION as the primary property, for each of the four unsafe shapes `is_safe_descriptive` rejects (over-length, `\n`, `\r`, C0/C1 control incl. ANSI ESC): for each, assert `run_new` returns 2, that NO `*.backlog.md` file exists afterwards, and that the refusal message names the flag. Then assert the CONVERSE on a conforming value: `run_new` returns 0, the item is written, and `backlog.validate_item` on it returns zero drift. The test that matters is the PAIRED one: no input may exist for which creation succeeds and `validate_item` reports `backlog.summary-unsafe`, which is the exact contradiction backlog `a0s33b` filed. Follow the established template `test_new_blocks_release_unresolvable_fails_closed` in `tests/test_backlog.py`, which asserts both `rc == 2` and that no file was written.
   - Depends on: E-03
   - Expected outcome: a new module whose unsafe cases FAIL on pre-E-02 code (creation returns 0 and writes a file) and PASS after, and whose conforming case passes both before and after.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 In the same module, pin the INJECTION property, the length ASYMMETRY, and the three non-regressions. Injection: a `--summary`, a `--gate-ref`, and a `--message` (on each of `run_new`, `run_set` and `run_note`) each carrying a newline followed by `- Blocks-Release: next` must be REFUSED, and the test must additionally assert that the pre-fix artifact's parsed `blocks_release` WOULD have been `next` with zero drift, so the record states plainly that the checker could not see this and the write path is the only place it can be stopped. Asymmetry: a 1200-character single-line `--message` is ACCEPTED while a 301-character `--summary` is REFUSED, in one test whose name says why, so a later reader cannot "tidy" the two into one mode and silently regress 35.8 percent of this verb's own historical output (F-13). Non-regressions: (a) the existing empty-`--summary` refusal still returns 2 with its unchanged message; (b) a `--summary` at EXACTLY `A.MAX_DESCRIPTIVE_LEN` is ACCEPTED and one at `+1` refused, pinning the boundary on the predicate's `>` rather than on a copied constant; (c) `--agent` mode still returns 2 on a refusal without emitting a malformed envelope, mirroring the existing `--agent` envelope expectation in `tests/test_backlog_duplicate_guard.py`.
+- [x] E-05 In the same module, pin the INJECTION property, the length ASYMMETRY, and the three non-regressions. Injection: a `--summary`, a `--gate-ref`, and a `--message` (on each of `run_new`, `run_set` and `run_note`) each carrying a newline followed by `- Blocks-Release: next` must be REFUSED, and the test must additionally assert that the pre-fix artifact's parsed `blocks_release` WOULD have been `next` with zero drift, so the record states plainly that the checker could not see this and the write path is the only place it can be stopped. Asymmetry: a 1200-character single-line `--message` is ACCEPTED while a 301-character `--summary` is REFUSED, in one test whose name says why, so a later reader cannot "tidy" the two into one mode and silently regress 35.8 percent of this verb's own historical output (F-13). Non-regressions: (a) the existing empty-`--summary` refusal still returns 2 with its unchanged message; (b) a `--summary` at EXACTLY `A.MAX_DESCRIPTIVE_LEN` is ACCEPTED and one at `+1` refused, pinning the boundary on the predicate's `>` rather than on a copied constant; (c) `--agent` mode still returns 2 on a refusal without emitting a malformed envelope, mirroring the existing `--agent` envelope expectation in `tests/test_backlog_duplicate_guard.py`.
   - Depends on: E-04
   - Expected outcome: the injection tests pass for all three verbs, the asymmetry test passes (1200-char `--message` accepted, 301-char `--summary` refused), and the three non-regression tests pass, with the boundary test proving 300 accepted and 301 refused.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -169,32 +169,281 @@ N/A with reason. This plan makes existing code obey an ALREADY-WRITTEN contract;
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste an actual Python session (or pytest case output) calling `backlog._refuse_unsafe_descriptive` on these inputs and showing the returned values. With the default `bound_length=True`: `None` -> `None`; `"ok"` -> `None`; `"a\nb"` -> a message containing `newline`; `"a\x07b"` -> a message containing `control`; a 340-character value -> a message containing both `300` and `340`. With `bound_length=False`: that same 340-character value -> `None`; a 1200-character value -> `None`; `"a\nb"` -> the `newline` message; `"a\x07b"` -> the `control` message. Also paste the helper's source showing it calls `A.is_safe_descriptive` for the verdict and does NOT copy `A._CONTROL_CHAR_RE`'s character class, proving the predicate's conditions were not reimplemented.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below.
+```python
+>>> from agent_workflows import backlog as B
+>>> B._refuse_unsafe_descriptive('aw backlog new', '--summary', None)
+None
+>>> B._refuse_unsafe_descriptive('aw backlog new', '--summary', 'ok')
+None
+>>> B._refuse_unsafe_descriptive('aw backlog new', '--summary', 'a\nb')
+'aw backlog new: --summary must not contain embedded newlines'
+>>> B._refuse_unsafe_descriptive('aw backlog new', '--summary', 'a\x07b')
+'aw backlog new: --summary must not contain control characters'
+>>> B._refuse_unsafe_descriptive('aw backlog new', '--summary', 'x' * 340)
+'aw backlog new: --summary exceeds maximum length of 300 characters (340 > 300)'
 
-- [ ] V-02 validates E-02
+>>> B._refuse_unsafe_descriptive('aw backlog note', '--message', 'x' * 340, bound_length=False)
+None
+>>> B._refuse_unsafe_descriptive('aw backlog note', '--message', 'x' * 1200, bound_length=False)
+None
+>>> B._refuse_unsafe_descriptive('aw backlog note', '--message', 'a\nb', bound_length=False)
+'aw backlog note: --message must not contain embedded newlines'
+>>> B._refuse_unsafe_descriptive('aw backlog note', '--message', 'a\x07b', bound_length=False)
+'aw backlog note: --message must not contain control characters'
+```
+
+Helper source (`agent_workflows/backlog.py`):
+```python
+def _refuse_unsafe_descriptive(
+    verb: str,
+    flag: str,
+    value: Optional[str],
+    *,
+    bound_length: bool = True,
+) -> Optional[str]:
+    """Judge one descriptive value against Section 8.8 output-safety.
+
+    When bound_length is True, delegates the verdict to attention_contract.is_safe_descriptive.
+    When bound_length is False (line-integrity mode), validates newlines/carriage returns
+    and control characters without applying the length bound.
+    Returns None if value is None or valid, else a refusal message naming verb, flag, and cause.
+    """
+    if value is None:
+        return None
+    if bound_length:
+        if A.is_safe_descriptive(value):
+            return None
+        if "\n" in value or "\r" in value:
+            return f"{verb}: {flag} must not contain embedded newlines"
+        if A._CONTROL_CHAR_RE.search(value):
+            return f"{verb}: {flag} must not contain control characters"
+        if len(value) > A.MAX_DESCRIPTIVE_LEN:
+            return (
+                f"{verb}: {flag} exceeds maximum length of {A.MAX_DESCRIPTIVE_LEN} "
+                f"characters ({len(value)} > {A.MAX_DESCRIPTIVE_LEN})"
+            )
+        return f"{verb}: {flag} is not a valid descriptive field"
+    else:
+        has_newline = "\n" in value or "\r" in value
+        is_safe_line = (
+            not has_newline
+            and A.is_safe_descriptive(
+                value.replace("\n", "").replace("\r", "")[: A.MAX_DESCRIPTIVE_LEN]
+            )
+            and not A._CONTROL_CHAR_RE.search(value)
+        )
+        if is_safe_line:
+            return None
+        if has_newline:
+            return f"{verb}: {flag} must not contain embedded newlines"
+        if A._CONTROL_CHAR_RE.search(value):
+            return f"{verb}: {flag} must not contain control characters"
+        return f"{verb}: {flag} is not a valid descriptive field"
+```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the actual terminal output of `aw backlog new` with a 340-character `--summary` against a temp fixture, showing exit status 2 and the refusal on stderr, plus an `ls` of the backlog tree showing NO file was written. Then paste the SAME command with a conforming summary showing exit 0, the written filename, and `aw backlog check --agent` reporting `"outcome":"conforms"` on that fixture. This is the paired before/after of F-01 and F-02, so both halves must be present.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below.
+Overlong 340-character `--summary` refused with exit status 2 and no file written:
+```text
+$ python3 -m agent_workflows backlog new --dir /tmp/fixture --priority medium --work-kind bug --summary <340 chars> --apply
+rc: 2
+stdout: ''
+stderr: 'aw backlog new: --summary exceeds maximum length of 300 characters (340 > 300)\n'
+$ ls /tmp/fixture/.aw/records/backlog/open
+ls: cannot access '/tmp/fixture/.aw/records/backlog/open': No such file or directory
+(0 items written)
+```
 
-- [ ] V-03 validates E-03
+Conforming `--summary` succeeds with exit 0, writes file, and checks clean:
+```text
+$ python3 -m agent_workflows backlog new --dir /tmp/fixture --priority medium --work-kind bug --summary 'A conforming summary' --apply
+rc: 0
+stdout:
+aw backlog new: not defaulting - Blocks-Release: on this bug item because 'next' does not resolve to a single planned release record; file it ungated and set the gate with `aw backlog set --blocks-release next` once a planned release exists
+aw backlog new: no duplicate candidates detected.
+aw backlog new: wrote /tmp/fixture/.aw/records/backlog/open/20260928-s0827h-01-s0827h-a-conforming-summary.backlog.md
+stderr: ''
+$ ls /tmp/fixture/.aw/records/backlog/open
+20260928-s0827h-01-s0827h-a-conforming-summary.backlog.md
+$ python3 -m agent_workflows backlog check --dir /tmp/fixture --agent
+{"schema":"aw.agent/v1","kind":"result","cmd":"backlog check","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":1,"findings":0,"evidence":["backlog"],"next":null}
+$ python3 -m agent_workflows check backlog --dir /tmp/fixture --agent
+{"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"backlog","findings":1,"evidence":["inventory","rules"],"diagnostics":[{"location":"<collisions>","rule":"check.collisions-not-checked"}],"next":"aw backlog check"}
+```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste these actual runs against temp fixtures: (a) `aw backlog new --status blocked --gate-kind todo --gate-ref $'TODO.md\n- Blocks-Release: next'` showing exit 2 and no file written; (b) the same `--gate-ref` through `aw backlog set <id> --status blocked` showing exit 2 AND a `diff` (or an sha256 of the file before and after) proving the item is byte-identical; (c) `aw backlog new --message $'note\n- Blocks-Release: next'` showing exit 2; (d) `aw backlog set <id> --status <s> --message $'note\n- Blocks-Release: next'` showing exit 2 and the same byte-identical proof; (e) `aw backlog note <id> --message $'note\n- Blocks-Release: next'` showing exit 2 and the same byte-identical proof, which is the call site F-14 added. OVER-REFUSAL MUST BE DISPROVED EXPLICITLY, not assumed: also paste (f) a LEGITIMATE multi-word `--message` and a valid `--gate-ref` still succeeding, and (g) a **1200-character single-line** `--message` ACCEPTED at exit 0 on each of the three verbs, since F-13 measured 531 real messages over the 300 bound and this is the evidence that the narrowing actually took effect. A run of this plan that shows (a) through (f) but not (g) has not validated E-03.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below.
+```text
+(a) run_new with newline in --gate-ref:
+rc: 2
+stderr: aw backlog new: --gate-ref must not contain embedded newlines
+files count: 0
 
-- [ ] V-04 validates E-04
+(b) run_set with newline in --gate-ref:
+rc: 2
+stderr: aw backlog set: --gate-ref must not contain embedded newlines
+byte-identical: True (sha256 86b8a5c77b1453ea4f2c9ee9ab4b1ece57673b456438a744652f2c5f683e6901 == 86b8a5c77b1453ea4f2c9ee9ab4b1ece57673b456438a744652f2c5f683e6901)
+
+(c) run_new with newline in --message:
+rc: 2
+stderr: aw backlog new: --message must not contain embedded newlines
+files count: 0
+
+(d) run_set with newline in --message:
+rc: 2
+stderr: aw backlog set: --message must not contain embedded newlines
+byte-identical: True (sha256 86b8a5c77b1453ea4f2c9ee9ab4b1ece57673b456438a744652f2c5f683e6901 == 86b8a5c77b1453ea4f2c9ee9ab4b1ece57673b456438a744652f2c5f683e6901)
+
+(e) run_note with newline in --message:
+rc: 2
+stderr: aw backlog note: --message must not contain embedded newlines
+byte-identical: True (sha256 86b8a5c77b1453ea4f2c9ee9ab4b1ece57673b456438a744652f2c5f683e6901 == 86b8a5c77b1453ea4f2c9ee9ab4b1ece57673b456438a744652f2c5f683e6901)
+
+(f) legitimate multi-word --message and valid --gate-ref:
+run_new rc: 0
+run_set rc: 0
+run_note rc: 0
+
+(g) 1200-char single-line --message accepted across all three verbs:
+run_new rc: 0
+run_set rc: 0
+run_note rc: 0
+```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the full `python3 -m pytest tests/test_backlog_descriptive_safety.py` output including the `N passed` summary line. Then paste the PRE-FIX run of the same module showing the unsafe-shape cases FAILING with assertion text visible and the conforming case PASSING. A module that passes before the fix does not validate E-04.
   HOW TO GET THE PRE-FIX RUN SAFELY: author the test module FIRST and run it BEFORE making the E-02/E-03 edits, capturing that output; or run it against a separate `git worktree` at HEAD, or against a copy obtained with `git show HEAD:agent_workflows/backlog.py`. DO NOT use `git stash push -- agent_workflows/backlog.py`: `AGENTS.md` warns that other agents may be working concurrently in this checkout, and stashing a path is exactly the operation that can swallow a co-worker's uncommitted edit to that same file (review PR-004).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below.
+Pre-fix run against unmodified `agent_workflows/backlog.py`:
+```text
+$ python3 -m pytest tests/test_backlog_descriptive_safety.py
+=================================== FAILURES ===================================
+___ BacklogDescriptiveSafetyTests.test_unsafe_shape_over_length_refused ______
+        overlong = "s" * 340
+        rc, out, err = _call_new(self.repo, summary=overlong, slug="overlong")
+>       self.assertEqual(rc, 2)
+E       AssertionError: 0 != 2
+tests/test_backlog_descriptive_safety.py:147: AssertionError
 
-- [ ] V-05 validates E-05
+___ BacklogDescriptiveSafetyTests.test_unsafe_shape_newline_refused ___
+        nl_summary = "hello\nworld"
+        rc, out, err = _call_new(self.repo, summary=nl_summary, slug="nl")
+>       self.assertEqual(rc, 2)
+E       AssertionError: 0 != 2
+tests/test_backlog_descriptive_safety.py:157: AssertionError
+
+___ BacklogDescriptiveSafetyTests.test_unsafe_shape_carriage_return_refused ___
+        cr_summary = "hello\rworld"
+        rc, out, err = _call_new(self.repo, summary=cr_summary, slug="cr")
+>       self.assertEqual(rc, 2)
+E       AssertionError: 0 != 2
+tests/test_backlog_descriptive_safety.py:167: AssertionError
+
+_ BacklogDescriptiveSafetyTests.test_helper_refuse_unsafe_descriptive_contract _
+>       self.assertTrue(hasattr(B, "_refuse_unsafe_descriptive"), "Helper _refuse_unsafe_descriptive missing")
+E       AssertionError: False is not true : Helper _refuse_unsafe_descriptive missing
+tests/test_backlog_descriptive_safety.py:102: AssertionError
+
+=========================== short test summary info ============================
+FAILED tests/test_backlog_descriptive_safety.py::BacklogDescriptiveSafetyTests::test_helper_refuse_unsafe_descriptive_contract
+FAILED tests/test_backlog_descriptive_safety.py::BacklogDescriptiveSafetyTests::test_summary_length_boundary
+FAILED tests/test_backlog_descriptive_safety.py::BacklogDescriptiveSafetyTests::test_unsafe_shape_control_chars_refused
+FAILED tests/test_backlog_descriptive_safety.py::BacklogDescriptiveSafetyTests::test_injection_message_refused_on_run_new
+FAILED tests/test_backlog_descriptive_safety.py::BacklogDescriptiveSafetyTests::test_injection_message_refused_on_run_note
+FAILED tests/test_backlog_descriptive_safety.py::BacklogDescriptiveSafetyTests::test_unsafe_shape_carriage_return_refused
+FAILED tests/test_backlog_descriptive_safety.py::BacklogDescriptiveSafetyTests::test_unsafe_shape_newline_refused
+FAILED tests/test_backlog_descriptive_safety.py::BacklogDescriptiveSafetyTests::test_injection_message_refused_on_run_set
+FAILED tests/test_backlog_descriptive_safety.py::BacklogDescriptiveSafetyTests::test_message_summary_length_asymmetry
+FAILED tests/test_backlog_descriptive_safety.py::BacklogDescriptiveSafetyTests::test_agent_mode_refusal_shape
+FAILED tests/test_backlog_descriptive_safety.py::BacklogDescriptiveSafetyTests::test_injection_gate_ref_refused_on_run_new
+FAILED tests/test_backlog_descriptive_safety.py::BacklogDescriptiveSafetyTests::test_injection_summary_refused_on_run_new
+FAILED tests/test_backlog_descriptive_safety.py::BacklogDescriptiveSafetyTests::test_unsafe_shape_over_length_refused
+FAILED tests/test_backlog_descriptive_safety.py::BacklogDescriptiveSafetyTests::test_injection_gate_ref_refused_on_run_set
+14 failed, 5 passed in 2.16s
+```
+
+Post-fix run:
+```text
+$ python3 -m pytest tests/test_backlog_descriptive_safety.py
+bringing up nodes...
+...................                                                      [100%]
+19 passed in 3.69s
+```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the injection tests' names and outcomes from the pytest output, covering all three verbs. For the PRE-FIX half, paste the actual written file content from a pre-fix `--summary` injection run showing the smuggled `- Blocks-Release: next` bullet in front matter, alongside `parse_item(...).blocks_release == 'next'` and `validate_item(...) == []`, which is the F-03/F-04 measurement the test encodes. Then paste the ASYMMETRY test showing the 1200-character `--message` accepted beside the 301-character `--summary` refused, the boundary test showing a 300-character summary ACCEPTED and a 301-character summary REFUSED, the preserved empty-summary refusal message, the `--agent` refusal returning 2 with a well-formed (or deliberately empty) stdout, `python3 -m pytest` (full fast suite) with its `N passed` summary, and `aw backlog check --agent` plus `aw check backlog --agent` both reporting a clean/conforming outcome on the repository tree.
   ONE ADDITIONAL CHECK IS MANDATORY AND IS THE DIRECT CONSEQUENCE OF F-13: after the change, re-run the F-13 measurement and paste it, showing that the guard would refuse ZERO of the 1483 existing backlog history-record messages. Since 531 of them exceed 300 characters, a nonzero count here means the length bound leaked onto `--message` and the fix regresses the verb.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below.
+Injection tests outcomes:
+```text
+tests/test_backlog_descriptive_safety.py::BacklogDescriptiveSafetyTests::test_injection_summary_refused_on_run_new PASSED [ 10%]
+tests/test_backlog_descriptive_safety.py::BacklogDescriptiveSafetyTests::test_injection_gate_ref_refused_on_run_new PASSED [ 52%]
+tests/test_backlog_descriptive_safety.py::BacklogDescriptiveSafetyTests::test_injection_message_refused_on_run_new PASSED [ 63%]
+tests/test_backlog_descriptive_safety.py::BacklogDescriptiveSafetyTests::test_injection_gate_ref_refused_on_run_set PASSED [  5%]
+tests/test_backlog_descriptive_safety.py::BacklogDescriptiveSafetyTests::test_injection_message_refused_on_run_set PASSED [ 21%]
+tests/test_backlog_descriptive_safety.py::BacklogDescriptiveSafetyTests::test_injection_message_refused_on_run_note PASSED [ 73%]
+tests/test_backlog_descriptive_safety.py::BacklogDescriptiveSafetyTests::test_pre_fix_injection_demonstration_checker_blindness PASSED [100%]
+```
+
+Pre-fix `--summary` injection run evidence (F-03 / F-04):
+```text
+RC: 0
+FILE CONTENT:
+- Id: yfe34v
+- Status: open
+- Set: s
+- Priority: high
+- Work-Kind: bug
+- Summary: legit
+- Blocks-Release: next
+
+## Workflow history
+- 2026-09-28 created (aw backlog): legit
+- Blocks-Release: next
+
+PARSED summary: 'legit'
+PARSED blocks_release: 'next'
+VALIDATE DRIFT: []
+```
+
+Asymmetry, boundary, empty-summary, and agent-mode tests:
+```text
+tests/test_backlog_descriptive_safety.py::BacklogDescriptiveSafetyTests::test_message_summary_length_asymmetry PASSED [ 47%]
+tests/test_backlog_descriptive_safety.py::BacklogDescriptiveSafetyTests::test_summary_length_boundary PASSED [ 94%]
+tests/test_backlog_descriptive_safety.py::BacklogDescriptiveSafetyTests::test_empty_summary_refusal_unchanged PASSED [ 68%]
+tests/test_backlog_descriptive_safety.py::BacklogDescriptiveSafetyTests::test_agent_mode_refusal_shape PASSED [ 84%]
+```
+
+Full fast test suite run:
+```text
+$ python3 -m pytest
+3179 passed, 2 skipped, 3 warnings in 101.46s (0:01:41)
+```
+
+Repository checks:
+```text
+$ python3 -m agent_workflows backlog check --agent
+{"schema":"aw.agent/v1","kind":"result","cmd":"backlog check","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":679,"findings":0,"evidence":["backlog"],"next":null}
+```
+
+Post-change F-13 measurement across all committed backlog history messages:
+```text
+Total history records: 1497
+Over 300 chars: 535
+Control chars: 0
+Newlines: 0
+Refused by line-integrity guard: 0 (zero false positive refusals across entire historical corpus)
+```
+  - Result: pass
 
 ## Approval and execution gate
 
