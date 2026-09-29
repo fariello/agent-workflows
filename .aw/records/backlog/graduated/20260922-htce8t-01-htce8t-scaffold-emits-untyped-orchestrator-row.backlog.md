@@ -1,11 +1,13 @@
 - Id: htce8t
-- Status: open
+- Status: graduated
+- Graduated-To: htce8t
 - Set: htce8t
 - Priority: medium
 - Work-Kind: chore
 - Summary: aw ipd scaffold emits a non-conforming orchestrator checklist row, so the typed-row rule cannot gate aw ipd begin
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: zojfn6
 - 2026-09-22 created (aw backlog): aw ipd scaffold emits a non-conforming orchestrator checklist row, so the typed-row rule cannot gate aw ipd begin
 
 Spec r07vma R1a defines the typed child-tracking row and plan dpdyed landed the rule (ipd_lint.orchestrator_row_conformance, IPD-S407). Measured 2026-09-22 while executing dpdyed: ipd_authoring.build_skeleton(kind='orchestrator', ...) emits the checklist row '- [ ] E-01 TODO one observable action.' and the prose placeholder 'TODO: child IPD table (Order | File | What it does | Depends on).' where the child table goes, so a FRESHLY SCAFFOLDED orchestrator does not conform to the rule the same toolkit now enforces.
