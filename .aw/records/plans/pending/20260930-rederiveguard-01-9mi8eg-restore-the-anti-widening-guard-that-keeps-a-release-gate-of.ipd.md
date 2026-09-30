@@ -117,6 +117,8 @@ No change to `REDERIVABLE_FRONT_MATTER_KEYS`, to the classifier, to the writer, 
 
 N/A for spec text, with reason: spec `25kzda` Section 2.1a already states the required property in full ("The keys eligible for re-derivation MUST therefore be enumerated, and widening the enumeration is a deliberate, visible change"). The defect is that the property is UNENFORCED, not that it is unstated or misstated, so the spec needs no amendment and none is declared in `- Scope-Paths:`. The only documentation-shaped change is the stale in-source comment corrected by E-05 (F-07). No file under `docs/` cites the deleted path, so item `ikxtkj`'s docs-citation scope is untouched.
 
+NO `- From-Spec:` IS CARRIED, AND THAT IS DELIBERATE RATHER THAN OVERLOOKED. `aw check plans` raises the advisory `check.plan-spec-link-missing` (severity `info`) on this plan because its `- Concern:` and `- Scope:` cite the resolvable spec id6 `25kzda`. The field is declined because it would assert something untrue: `AGENTS.md` defines `- From-Spec:` as naming the spec a plan GRADUATED FROM, and this plan graduated from backlog item `mgz3f1`, which `- From-Backlog:` already records. The spec is cited here as the GOVERNING CONTRACT whose stated property is unenforced, not as this plan's origin, and the plan neither implements nor amends it. Noted explicitly so a reviewer can overrule the judgement rather than assume the nudge went unread. (Measured at authoring: `aw check plans` already exits 1 on this tree WITHOUT this plan present, and 33 pending plans carry the same advisory, so this plan neither introduces nor worsens that exit code.)
+
 ## Open questions
 
 ### OQ-01: Should the restored file also pin that a re-derivation failure falls through to the Section 2.1b agent send-back?
