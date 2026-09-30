@@ -1,11 +1,13 @@
 - Id: ariaau
-- Status: open
+- Status: graduated
+- Graduated-To: malgate
 - Set: malgate
 - Priority: medium
 - Work-Kind: chore
 - Summary: Audit every gate and check for ones that exist only to stop a malicious agent (GUIDING_PRINCIPLES P15) and keep, simplify, or delete each
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: 38pxaz, bec7ee, dmjp0u, qtz0us
 - 2026-09-26 created (aw backlog): Filed 2026-09-26 at the maintainer's request (lifegate dvonrn D5), for hand-off to another agent.
 
 WHAT. Apply GUIDING_PRINCIPLES P15 (added 2026-09-26: we guard against honest mistakes, never against a malicious agent) to the existing gates. For EACH gate, check, refusal, or scaffold found, decide one of: KEEP (it catches an honest mistake with a clear message), SIMPLIFY (turn it into a plain refusal with a remedy and, where a human may need one, a recorded override), or DELETE (its only purpose is stopping a deliberately hostile agent). Record the decision per item with the evidence.
