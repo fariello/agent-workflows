@@ -4,20 +4,27 @@
 - Kind: child
 - Concern: Backlog `mw0s1y` reports three walkthroughs reusing their source plan's id6 in their own filename identity slot. MEASURED IN THIS LANE AT HEAD `9434331c`, THE DATA DEFECT IS ALREADY FIXED and the item is stale: all three files were renamed and given their own `- Id:` by IPD `nrqo90` (commit `e83cb542`, "Mint a walkthrough's own id6 in write_walkthrough, add the walkthrough id6 cutover, and re-id the three D140 walkthroughs"). `check_engine.check_collisions(root)` and `check_collisions(root, include_retired=True)` BOTH return zero findings of every rule, so `e2j5w4`'s liveness-filter half is fixed too (by `t0jyb2`). WHAT IS STILL BROKEN IS THE GUARD nrqo90 left behind. `tests/test_walkthrough_id6.py::TestWalkthroughDeclaredIdMatchesSlot::test_clustered_walkthroughs_declare_matching_id` opens with `assertEqual(len(all_files), 24, "Census must find exactly 24 walkthroughs")` and a hardcoded 11-name `LEGACY_WALKTHROUGHS` literal it also asserts `len(exempt) == 11` on. Measured: adding ONE fully conformant walkthrough (own `- Id:` equal to its slot, `- Target-Id:` present) reds the suite with `AssertionError: 25 != 24 : Census must find exactly 24 walkthroughs`, BEFORE the loop that checks anything. So the next walkthrough anyone writes breaks CI, and the standing repair is to bump the literal, which mechanically retires the D140 assertion.
 - Scope: Close `mw0s1y` honestly and leave the invariant defended. IN: (a) rewrite the census guard's preamble to assert the D140 PROPERTY over whatever walkthroughs exist (every clustered name declares a `- Id:` equal to its slot id6) instead of pinning a population count and a name list, keeping the two real exemptions (no-identity-slot legacy names, and the one deliberately bullet-less `35xfvu` file) as DERIVED predicates rather than as a frozen census; (b) prove the rewritten guard still fails on the original defect shape by mutation, so unpinning the count does not silently unpin the rule; (c) correct the three stale records that still assert the violation is live, namely backlog `mw0s1y`, backlog `e2j5w4`, and DECISIONS D140's `sk7ggr` paragraph, whose parenthetical still says the identity-slot pass deliberately honors the liveness filter "to avoid mass-flagging the legitimate shared-setid and walkthrough-slot conventions" after `t0jyb2` removed exactly that behavior. OUT: renaming any walkthrough (the renames already happened and re-renaming would rewrite cited history); minting an `- Id:` for the grandfathered `35xfvu` file; renaming the 11 legacy walkthroughs; any change to `check_engine._check_identity_slots` or to the `walkthrough_id6` cutover, both of which measure correct.
-- Scope-Paths: tests/test_walkthrough_id6.py, DECISIONS.md, .aw/records/backlog/open/20260921-id6slotgate-01-mw0s1y-walkthrough-identity-slot-reuse.backlog.md, .aw/records/backlog/open/20260921-id6slotgate-01-e2j5w4-check-identity-slot-liveness-filter.backlog.md
+- Scope-Paths: tests/test_walkthrough_id6.py, DECISIONS.md, .aw/records/backlog/graduated/20260921-id6slotgate-01-mw0s1y-walkthrough-identity-slot-reuse.backlog.md, .aw/records/backlog/graduated/20260921-id6slotgate-01-e2j5w4-check-identity-slot-liveness-filter.backlog.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: mw0s1y
 - Blocks-Release: next
 - Set: id6slotgate
 - Order: 1
-- Highest E allocated: 06
+- Highest E allocated: 09
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: aisk5z
 
 ## Workflow history
+
+- 2026-09-30 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 through PR-010, all FIXED in place. Reviewed at HEAD `9bf03bd9` in an isolated lane; typed record at `.aw/records/reviews/20260929-id6slotgate-01-aisk5z-retire-the-walkthrough-identity-slot-defect-unpin-the-census.review.md`. `aw ipd lint --phase author` conformed BEFORE semantic review and `--phase review-finalize` conforms after revision, so nothing found was structural.
+  ALL SIX AUTHORING FACTS RE-DERIVED AND ALL SIX HOLD, including both mutations: adding one conformant walkthrough still reds `AssertionError: 25 != 24` and deleting the `cceh3w` file's `- Id:` still fires `slot id6='cceh3w', declared in metadata region=None`. So the plan's inversion of backlog `mw0s1y` is correct and its residue diagnosis stands.
+  FOUR HIGH FINDINGS, TWO OF THEM RULES ALREADY FIRING ON THIS PLAN. PR-001: both declared backlog paths pointed at `open/` while the runner had moved the items to `graduated/` 35 seconds after the plan commit, which `check.scope-path-target-stale` reports at `error`; retargeted. PR-002: five deferred rows named no durable carrier, which `check.ipd-uncarried-obligation` reports at `error` while the sibling plan `dta75n` carries the fields on every row; typed `Carrier`/`Carrier-Evidence`/`Carrier-Declined` added. PR-003: E-02's instruction to derive the legacy exemption from `_identity_slot_token` was DEAD CODE, measured three ways (literal, pre-filter, and no exemption all return `examined=12, failures=[]`) because the loop's own `if not token: continue` already does it; the instruction now forbids the redundant branch. PR-004: that left the anti-vacuity floor as the only new protection, and BOTH plausible forms of it are vacuous, measured by simulating two normalizer regressions: `examined > 0` passes while examining 1 of 12, and `examined == expected` with both sides from `_identity_slot_token` stayed true at `12/12`, `9/9`, `0/0`; new E-07 computes the expectation from an independent legacy-name-shape rule, which fails those same regressions at `9 != 12` and `0 != 12`.
+  SIX FURTHER FINDINGS COMPLETED THE SWEEP. PR-005 applied the plan's own mutation standard to the assertion it ADDED rather than only to the two it kept (new E-09 must paste the floor failing). PR-006 gave the gate the scope fence and the conditional runner/executor finalize ownership it lacked. PR-007 split E-03's three bundled mutation surfaces into E-03/E-08/E-09 via `aw ipd sync` after `IPD-Z602` flagged the density. PR-008 replaced E-05's "if that verb exists" conditional with the verified `aw backlog note` invocation. PR-009 made the `aw check` baseline comparison per-rule, since two of this review's own fixes legitimately lower the total by three. PR-010 corrected `mint_id6` to carry its required `repo_root` positional.
+  ONE IRREVERSIBLE DECISION RECORDED AND ESCALATED (D-6): the test must NOT be narrowed toward `aw check`, because a walkthrough with a unique slot id6 and no declared `- Id:` satisfies `_check_identity_slots` rule (b) as sole holder and returns `Counter()` from `check_collisions`, while the test's loop fails it. Measured in a scratch repo; surfaced to the maintainer in the review report rather than as a blocking question, because the decision is to change nothing.
 
 - 2026-09-29 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): Authored from backlog item `mw0s1y`, graduating it. Every claim below was measured in this lane at HEAD `9434331c`. THE ITEM'S PREMISE NO LONGER HOLDS AND THAT INVERTS THE WORK. The three named walkthroughs were re-id'd by IPD `nrqo90` after the item was filed, so the remediation the item asks for is DONE and re-performing it would rewrite cited history. What the measurement surfaced instead is a regression guard `nrqo90` shipped that cannot survive its own success: its census assertion reds on the next conformant walkthrough, before the D140 loop executes. The deliverable is therefore an unpinning plus three record corrections, not the rename the item describes. The item's release gate is inherited unchanged because the defect class is live until the guard defends it.
 
@@ -135,14 +142,31 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: unpin the guard without unpinning the rule
 
-- [ ] E-02 REWRITE THE CENSUS PREAMBLE OF `test_clustered_walkthroughs_declare_matching_id` SO IT ASSERTS THE PROPERTY, NOT THE POPULATION. Delete the `assertEqual(len(all_files), 24, ...)` assertion and the `assertEqual(len(exempt), 11, ...)` assertion, and delete the `LEGACY_WALKTHROUGHS` literal that the second one exists to police. Derive the legacy exemption instead: a file is exempt iff `check_engine._identity_slot_token(p.name)` returns falsey, which is the shipped normalizer's own answer to "does this name have an identity slot" and is already the discriminator the checker uses (fact 6 measured the derived set equals the literal set exactly). KEEP `BULLETLESS_GRANDFATHERED` as an explicit one-name frozenset with its `9a1c4206` provenance comment, because that one is a per-file historical concession rather than a derivable class, and a reader must be able to see it is exactly one file. Assert instead that the directory is non-empty and that at least one clustered walkthrough was actually examined, so the test cannot pass vacuously by examining nothing (the failure mode a derived exemption introduces). Report the examined count in the assertion message. Do NOT change the loop body, which fact 5 measured to work: it must keep reading the declaration through `check_engine._identity_declared_values` so the test and the checker agree on what "declared in the metadata region" means and a quoted example cannot satisfy it.
+- [ ] E-02 REWRITE THE CENSUS PREAMBLE OF `test_clustered_walkthroughs_declare_matching_id` SO IT ASSERTS THE PROPERTY, NOT THE POPULATION. Delete the `assertEqual(len(all_files), 24, ...)` assertion and the `assertEqual(len(exempt), 11, ...)` assertion, and delete the `LEGACY_WALKTHROUGHS` literal that the second one exists to police. The legacy exemption becomes the loop's EXISTING `if not token: continue` guard, which is the shipped normalizer's own answer to "does this name have an identity slot" and is already the discriminator the checker uses (fact 6 measured the derived set equals the literal set exactly). DO NOT ADD A SEPARATE DERIVED-EXEMPTION BRANCH: measured at review, `if p.name in LEGACY_WALKTHROUGHS` and a `not _identity_slot_token(p.name)` pre-filter are BOTH redundant with that guard, returning identical `(examined=12, failures=[])` whether the pre-filter is present, absent, or replaced by no exemption at all, so adding one would be dead code a later reader must re-derive the harmlessness of. KEEP `BULLETLESS_GRANDFATHERED` as an explicit one-name frozenset with its `9a1c4206` provenance comment, because that one is a per-file historical concession rather than a derivable class, and a reader must be able to see it is exactly one file. Do NOT change the loop body, which fact 5 measured to work: it must keep reading the declaration through `check_engine._identity_declared_values` so the test and the checker agree on what "declared in the metadata region" means and a quoted example cannot satisfy it.
   - Depends on: E-01
   - Expected outcome: `python3 -m pytest tests/test_walkthrough_id6.py -o addopts=""` reports 4 passed, and the test no longer contains any hardcoded walkthrough count or legacy-name list.
   - Execution state: pending
 
-- [ ] E-03 PROVE THE UNPINNING BY THE TWO MUTATIONS THAT DEFINE IT, since "the count is gone" and "the rule still fires" are independent claims and E-02 is only correct if both hold. FIRST, add a conformant walkthrough to `.aw/records/walkthroughs/` (own `- Id:` equal to its slot id6, a `- Target-Id:` naming some executed plan, minted with `artifact_core.mint_id6` so it cannot collide), run the test, observe PASS where fact 4 measured a census failure, then REMOVE the file and re-run. SECOND, with the tree restored, delete one conformant walkthrough's `- Id:` bullet, run the test, observe the fact-5 failure naming that file and its slot id6, then `git checkout --` the file and re-run. Both temporary files/edits MUST be gone before this plan commits; verify with `git status --short` showing a clean `.aw/records/walkthroughs/`. Add NO permanent fixture under `.aw/records/`: the repository tree is a records tree, not a test fixture directory, and leaving a synthetic walkthrough behind would corrupt the very census this test reads.
+- [ ] E-07 ADD THE ANTI-VACUITY FLOOR AS AN EQUALITY AGAINST AN INDEPENDENT DISCRIMINATOR, because removing the population assertion removes the only thing that made silent under-examination visible, and the two cheaper floors both measurably fail. FIRST, "examined > 0" is too weak: the eligible population measured 12 at review, so that floor passes while examining 1 of 12. SECOND, and this is the trap to avoid, an equality whose EXPECTED side is also computed from `_identity_slot_token` is VACUOUS, measured at review by simulating two normalizer regressions: one recognizing only `202609*` names and one recognizing none, both of which kept `examined == expected` true (`12/12`, then `9/9`, then `0/0`) because the regression moved both sides together. So compute the EXPECTED side from an INDEPENDENT NAME-SHAPE RULE: a file is expected to be examined iff its name does NOT match the legacy `YYYYMMDD-HHMM-NN-` prefix shape and is not in `BULLETLESS_GRANDFATHERED`. Measured at review, that expectation equals the shipped normalizer's answer exactly (12 == 12) while the same two simulated regressions now FAIL it (`9 != 12` and `0 != 12`), which is the whole point. Assert that equality, assert the walkthroughs directory is non-empty, and report both counts in the assertion message so a failure says which side moved. Write the legacy-shape regex as a LOCAL TEST CONSTANT with a comment stating it is deliberately independent of `check_engine` so the test can disagree with the normalizer, and that collapsing it onto `_identity_slot_token` to "remove duplication" would make the assertion vacuous again. This is the ONE place this plan permits a second implementation of a naming question, and the Project-conventions note on single-source naming is amended below to record why. Add no count literal.
   - Depends on: E-02
-  - Expected outcome: pasted PASS with the extra conformant walkthrough present (the fact-4 false positive is gone), pasted FAILURE naming the file whose `- Id:` was removed (the fact-5 true positive survives), and `git status --short` clean for the walkthroughs directory afterwards.
+  - Expected outcome: `python3 -m pytest tests/test_walkthrough_id6.py -o addopts=""` reports 4 passed; the assertion message names both the examined count and the independently computed expectation; and the test file contains no integer literal standing for a walkthrough population.
+  - Execution state: pending
+
+Mutation-hygiene rule governing E-03, E-08 and E-09 below (stated once rather than repeated in each): every mutation is TEMPORARY. Revert it by PATH NAME before the next item, never with `git stash`, a bare `git reset`, or `git checkout .`, since this checkout may be shared. Add NO permanent fixture under `.aw/records/` and NO committed test double: the repository tree is a records tree, not a test fixture directory, and a synthetic walkthrough left behind would corrupt the very census this test reads.
+
+- [ ] E-03 PROVE THE FIX DIRECTION: THE FALSE POSITIVE IS GONE. Add ONE conformant walkthrough to `.aw/records/walkthroughs/`, with its own `- Id:` equal to its filename slot id6 and a `- Target-Id:` naming some executed plan, minting the id6 with `artifact_core.mint_id6(repo_root)` so it cannot collide (note the REQUIRED positional `repo_root`, measured at review: a bare `mint_id6()` raises `TypeError: mint_id6() missing 1 required positional argument: 'repo_root'`). Run the test and observe PASS, where fact 4 measured `AssertionError: 25 != 24` before E-02. Then REMOVE the file and re-run to confirm the tree is back at rest. This is the defect the plan exists to close, and it is the one direction a green suite alone could never demonstrate.
+  - Depends on: E-07
+  - Expected outcome: three pasted runs (PASS with the extra walkthrough present, the file removed, PASS again) plus the minted id6 and the `repo_root` argument used, and `git status --short` clean for `.aw/records/walkthroughs/`.
+  - Execution state: pending
+
+- [ ] E-08 PROVE THE PRESERVATION DIRECTION: THE D140 RULE STILL FIRES. With the tree at rest, delete ONE conformant walkthrough's `- Id:` bullet, run the test, and observe the fact-5 failure naming that file together with its slot id6 (measured at review on the `cceh3w` file: `slot id6='cceh3w', declared in metadata region=None`). Then `git checkout --` that file and re-run to confirm PASS. This is the rule being KEPT, and it is why the deliverable is a preamble rewrite rather than a deletion of the test: E-02 is only correct if this failure survives it.
+  - Depends on: E-03
+  - Expected outcome: three pasted runs (PASS at rest, FAILURE naming the file and its slot id6, PASS after restore), with the failure output matching fact 5's shape.
+  - Execution state: pending
+
+- [ ] E-09 PROVE THE FLOOR DIRECTION: SILENT UNDER-EXAMINATION IS CAUGHT. This is what makes E-07 more than an assertion nobody has watched fail. Temporarily narrow the slot discriminator the test consults, inside the test run only, so it recognizes only names beginning `202609`, then run the test and observe the E-07 equality FAIL with BOTH counts named (measured at review: `9 != 12`). Restore and re-run to confirm PASS. Do this as an in-run monkeypatch or a local wrapper, NOT as a committed test double, and do NOT add a permanent test that patches `check_engine`. If this mutation does NOT fail the test, E-07's expected side is still computed from the discriminator under test and E-07 must be reworked before this item can pass.
+  - Depends on: E-08
+  - Expected outcome: two pasted runs (FAILURE of the E-07 equality under the narrowed discriminator with both counts visible, then PASS after restoring) and `git status --short` clean for `agent_workflows/`.
   - Execution state: pending
 
 ### Task group 3: correct the records that still assert a live defect
@@ -152,22 +176,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: the `git diff` of `DECISIONS.md` shows one appended dated bullet under D140 and no modification to any existing bullet.
   - Execution state: pending
 
-- [ ] E-05 CORRECT BOTH BACKLOG ITEMS' MEASUREMENTS WITHOUT TOUCHING THEIR REQUIREMENTS, since each still presents a remediated defect as live and each is `Blocks-Release: next`, so a release reviewer reading them would believe two blockers are outstanding. Append to `mw0s1y` a dated paragraph recording that the three renames shipped in `nrqo90` (commit `e83cb542`), that the `aw find` symptom no longer reproduces, and that the residual work is the census guard this plan fixes. Append to `e2j5w4` a dated paragraph recording that `t0jyb2` gave the identity-slot pass the terminal-inclusive corpus its "SUGGESTED FIX" asked for, and that both collision calls now return zero. DO NOT edit either item's existing measurement text: its whole value is as the record of what was true on 2026-09-21, and `nrqo90`'s E-07 deliberately preserved these two items byte-identical for that reason ("KEEP unchanged: ... (iii) the measurement text in backlog items `mw0s1y` and `e2j5w4`, which describe the defect as it was"). DO NOT change either item's `- Status:`, which this plan's authoring contract reserves to the runner, and DO NOT change `- Blocks-Release:`. Use `aw backlog note` if that verb exists for appending history; otherwise append the paragraph directly and say which you did and why.
+- [ ] E-05 CORRECT BOTH BACKLOG ITEMS' MEASUREMENTS WITHOUT TOUCHING THEIR REQUIREMENTS, since each still presents a remediated defect as live and each is `Blocks-Release: next`, so a release reviewer reading them would believe two blockers are outstanding. Append to `mw0s1y` a dated paragraph recording that the three renames shipped in `nrqo90` (commit `e83cb542`), that the `aw find` symptom no longer reproduces, and that the residual work is the census guard this plan fixes. Append to `e2j5w4` a dated paragraph recording that `t0jyb2` gave the identity-slot pass the terminal-inclusive corpus its "SUGGESTED FIX" asked for, and that both collision calls now return zero. DO NOT edit either item's existing measurement text: its whole value is as the record of what was true on 2026-09-21, and `nrqo90`'s E-07 deliberately preserved these two items byte-identical for that reason ("KEEP unchanged: ... (iii) the measurement text in backlog items `mw0s1y` and `e2j5w4`, which describe the defect as it was"). DO NOT change either item's `- Status:`, which this plan's authoring contract reserves to the runner, and DO NOT change `- Blocks-Release:`. USE `aw backlog note <id6> --message '<text>'`, WHICH EXISTS: verified at review from `aw backlog note --help`, which documents it as appending "a workflow-history record to a backlog item WITHOUT changing its status or moving its file" and takes an id6, filename, stem, or path selector. The earlier conditional wording is removed because it invited a hand append the tooled path already covers. Note the mechanical consequence, so the evidence is read correctly: the verb writes into the `## Workflow history` block near the TOP of the item, not at the end of the file, so the `git diff` will show the addition high in the file while the measurement prose below stays untouched; that is the correct shape, not a sign the wrong thing moved. BOTH ITEMS ARE NOW UNDER `graduated/`, so select them by id6 rather than by a path built from `open/`. If the verb refuses, STOP and report rather than hand-editing around it.
   - Depends on: E-04
-  - Expected outcome: the `git diff` of both backlog files shows only appended text, with every pre-existing line including the three old walkthrough filenames unchanged, and with `- Status:` and `- Blocks-Release:` untouched.
+  - Expected outcome: the `git diff` of both backlog files shows only appended text, with every pre-existing line including the three old walkthrough filenames unchanged, and with `- Status:` and `- Blocks-Release:` untouched. The addition appears inside each item's `## Workflow history` block (the verb's documented placement), not appended at end of file.
   - Execution state: pending
 
 ### Task group 4: regression gate
 
-- [ ] E-06 RUN THE FULL REGRESSION GATE and compare it against the E-01 baseline, so any failure is shown pre-existing rather than argued harmless. Run bare `python3 -m pytest` (no added flags: the configured `addopts` already supplies quiet, parallel and the fast subset, and a second `-q` would suppress the `N passed` line this plan requires). Then `aw ipd lint --phase pre-transition` on this plan, `aw check` compared against its E-01 baseline count, and `aw sanitize --agent`. ALSO re-run the fact-1 census one final time, because E-03 temporarily added and removed a file under `.aw/records/walkthroughs/` and the cheapest way this plan could do damage is to leave residue there.
-  - Depends on: E-03, E-05
-  - Expected outcome: suite summary line pasted beside the E-01 baseline with no new failure; a conforming pre-transition lint; `aw check` no worse than baseline with both counts pasted; a clean sanitizer report; and a final census identical to E-01's.
+- [ ] E-06 RUN THE FULL REGRESSION GATE and compare it against the E-01 baseline, so any failure is shown pre-existing rather than argued harmless. Run bare `python3 -m pytest` (no added flags: the configured `addopts` already supplies quiet, parallel and the fast subset, and a second `-q` would suppress the `N passed` line this plan requires). Then `aw ipd lint --phase pre-transition` on this plan, `aw check` compared against its E-01 baseline count, and `aw sanitize --agent`, which is not a formality here because E-03's probe output may contain temp-directory paths. ALSO re-run the fact-1 census one final time, because E-03 temporarily added and removed a file under `.aw/records/walkthroughs/` and E-09 temporarily narrowed a discriminator, and the cheapest way this plan could do damage is to leave residue in either place. FINALLY confirm with `git status --short` that the modified set is EXACTLY the four declared Scope-Paths, with nothing under `.aw/records/walkthroughs/` and no change to `agent_workflows/`. Restore any residue by path name, never with `git stash`, a bare `git reset`, or `git checkout .`, since this checkout may be shared. WHEN COMPARING `aw check`, compare the RULE BREAKDOWN and not only the total: two of this plan's own review fixes (`check.scope-path-target-stale` on the two backlog paths, and `check.ipd-uncarried-obligation` on the deferred rows) were findings against THIS plan at review, so the baseline should already be lower by three findings than it was before review; a total that merely fails to grow can hide a new finding offsetting a resolved one.
+  - Depends on: E-09, E-05
+  - Expected outcome: suite summary line pasted beside the E-01 baseline with no new failure; a conforming pre-transition lint; `aw check` no worse than baseline with both counts AND both rule breakdowns pasted; a clean sanitizer report; a final census identical to E-01's; and a `git status --short` showing exactly the four declared paths.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
 
 - TESTS ASSERT OUTCOMES, NOT CODE STRUCTURE. AGENTS.md forbids tests that read production source with `inspect`/`ast`/regex or that assert symbol censuses and line counts as proxies for correctness (GUIDING_PRINCIPLES P16). The guard this plan repairs is a borderline case worth naming: it reads the RECORDS TREE rather than source code, which is legitimate (the records are the subject), but its census assertion is the same anti-pattern one level out, pinning a POPULATION SIZE as a proxy for a property. E-02 moves it onto the property.
-- THE NAMING AUTHORITY IS A SINGLE SOURCE AND MUST BE CONSULTED, NOT REIMPLEMENTED. `check_engine._identity_slot_token` documents itself as using "the naming authority's clustered parse (single source, IPD o6b8l3)" and carries the `_HHMM_RE` exclusion that keeps a legacy `YYYYMMDD-HHMM-NN-<slug>` name from being misread as clustered. E-02 derives the legacy exemption from it for exactly that reason; a hand-written regex would re-introduce the bug that exclusion exists to prevent.
+- THE NAMING AUTHORITY IS A SINGLE SOURCE AND MUST BE CONSULTED, NOT REIMPLEMENTED, WITH ONE NAMED EXCEPTION. `check_engine._identity_slot_token` documents itself as using "the naming authority's clustered parse (single source, IPD o6b8l3)" and carries the `_HHMM_RE` exclusion that keeps a legacy `YYYYMMDD-HHMM-NN-<slug>` name from being misread as clustered. E-02 therefore leans on it for the exemption itself (via the loop's existing `if not token: continue`) and adds no second parse there. THE EXCEPTION IS E-07'S EXPECTED SIDE, and the reason is that a test whose expectation is computed by the very function under scrutiny cannot detect that function regressing: measured at review, an equality with both sides derived from `_identity_slot_token` stayed true (`12/12`, `9/9`, `0/0`) across two simulated normalizer regressions. So E-07's legacy-shape regex is a DELIBERATE second implementation, confined to the expectation side, whose whole value is that it can disagree with the normalizer. It is not a violation of the single-source convention but the standard reason a test asserts an outcome independently of the code producing it; the convention governs PRODUCTION parsing, which this plan does not touch.
 - A RECORD UNDER `.aw/records/` IS APPENDED TO, NOT REWRITTEN. D140's `sk7ggr` bullet states the convention explicitly for itself ("deliberately left intact rather than rewritten"), and `nrqo90`'s E-07 applied the same rule to these two backlog items and to fenced command transcripts in `t0jyb2`. E-04 and E-05 both append.
 - `aw check` IS SILENT ON THE `35xfvu` FILE FOR A STATED REASON, not by oversight: `_check_identity_slots` rule (b) requires only that a file declaring no `- Id:` be the SOLE holder of its slot id6, and measurement confirms `35xfvu` appears in no other file's identity or filename. So the test's exemption and the checker's silence agree, and neither is a hole this plan should close.
 
@@ -181,16 +205,23 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-4 | The regression guard `nrqo90` shipped reds on the NEXT conformant walkthrough, before its D140 loop runs, and the cheap repair (bump the literal) mechanically retires the assertion. This is the live residue. | Goal fact 4 pasted `AssertionError: 25 != 24`. |
 | F-5 | The guard's actual D140 assertion works and fires on the exact defect shape the item describes, so it must be preserved rather than replaced. | Goal fact 5 pasted failure naming `slot id6='cceh3w', declared in metadata region=None`. |
 | F-6 | Both exemptions are legitimate; the 11-name legacy list is exactly the derivable no-identity-slot class, while the one bullet-less file is a per-file concession recorded in commit `9a1c4206`. | Goal fact 6 counts (24 total, 13 clustered, 11 slotless) and the quoted commit message. |
+| F-7 | ADDED AT REVIEW. The legacy exemption needs no new derived predicate at all, because the loop's pre-existing `if not token: continue` already performs it. Measured over the live tree, the loop returns identical `(examined=12, failures=[])` with the `LEGACY_WALKTHROUGHS` literal, with a `_identity_slot_token` pre-filter, and with NO exemption whatsoever. So E-02's original instruction to add a derived pre-filter would have produced dead code. | Review probe over `.aw/records/walkthroughs/` comparing the three exemption shapes; E-02 as revised. |
+| F-8 | ADDED AT REVIEW. An anti-vacuity floor is only meaningful if its expected side is INDEPENDENT of the discriminator under test. A `examined > 0` floor passes while examining 1 of 12, and an `examined == expected` floor with both sides from `_identity_slot_token` survived two simulated normalizer regressions (`12/12`, `9/9`, `0/0`). Recomputing the expectation from an independent legacy-name-shape rule keeps `12 == 12` at rest and fails both regressions (`9 != 12`, `0 != 12`). | Review probe simulating a narrowed and an empty normalizer; E-07 and V-07. |
+| F-9 | ADDED AT REVIEW. The plan's two declared backlog paths pointed at `open/` while the runner had already moved both items to `graduated/` (commits `0f777712`, `4eec8292`), so `check.scope-path-target-stale` reported both at severity `error`, and its five deferred rows named no durable carrier, so `check.ipd-uncarried-obligation` reported at `error` too. Both are fixed in place; the rule is silent on this plan afterwards. | `ce.stale_record_scope_paths` and `ce.check_durable_carrier` before and after the fix, both returning empty for this plan. |
 
 ## Proposed changes (ordered, validatable)
 
 1. Re-verify the six facts at the execution HEAD and capture the suite and `aw check` baselines, refusing to
    proceed if the tree still holds the old filenames or any identity-slot finding (E-01 / V-01).
 2. Replace the guard's census preamble with a property assertion: drop the hardcoded 24 and the 11-name
-   literal, derive the legacy exemption from `check_engine._identity_slot_token`, keep the one-file
-   bullet-less concession named, and add an anti-vacuity floor that reports the examined count (E-02 / V-02).
-3. Demonstrate the unpinning by two mutations, one proving the false positive is gone and one proving the
-   true positive survives, leaving no residue in the records tree (E-03 / V-03).
+   literal, let the loop's existing slot guard carry the legacy exemption rather than adding a redundant
+   pre-filter, and keep the one-file bullet-less concession named (E-02 / V-02).
+2b. Add the anti-vacuity floor as an equality between the examined count and an INDEPENDENTLY computed
+   expectation (a local legacy-name-shape rule), because an equality derived from the same normalizer the
+   test scrutinizes was measured vacuous across two simulated regressions (E-07 / V-07).
+3. Demonstrate the unpinning by three mutations: the false positive is gone, the true positive survives, and
+   the new floor fails under a narrowed discriminator, leaving no residue in the records tree (E-03 / V-03,
+   E-08 / V-08, E-09 / V-09).
 4. Append a dated `Applied` bullet to DECISIONS D140 correcting the parenthetical that still calls the
    walkthrough-slot shape a legitimate convention the checker deliberately tolerates (E-04 / V-04).
 5. Append dated measurement corrections to both backlog items, leaving their requirements, statuses, gates
@@ -201,25 +232,34 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - RENAMING ANY WALKTHROUGH. Already done by `nrqo90`; re-renaming would rewrite names other artifacts cite
   and would be the history damage `mw0s1y` itself warns against.
+  - Carrier-Evidence: .aw/records/plans/executed/20260926-wkthid6-01-nrqo90-mint-a-walkthrough-s-own-id6-in-write-walkthrough-add-the-wa.ipd.md
 - MINTING AN `- Id:` FOR THE GRANDFATHERED `35xfvu` WALKTHROUGH. Its bullet-less state is a recorded
   concession (commit `9a1c4206`) and it satisfies `_check_identity_slots` rule (b) as the sole holder of its
   id6, so there is no defect to fix. Adding bullets to a historical record is a separate decision with its
   own cost and belongs to a maintainer, not to this plan.
+  - Carrier-Declined: nobody's task, because there is no defect to carry. Measured at review: `35xfvu` appears in no other file's `- Id:` and in no other filename, so it satisfies `_check_identity_slots` rule (b) as the sole holder of its id6 and `aw check` is correctly silent on it. Naming a carrier would schedule an edit to tracked history that no rule asks for. OQ-01 records the maintainer-facing question if anyone later wants it reopened.
 - RENAMING THE 11 LEGACY WALKTHROUGHS. Explicitly out of scope in `nrqo90` ("OUT: renaming the 11
   grandfathered legacy walkthroughs") and grandfathered by the `walkthrough_id6` cutover, which measured at
   `20260927` and returns `False` from `_walkthrough_requires_id6` for every one of them.
+  - Carrier-Declined: grandfathered by shipped contract, not postponed. `_walkthrough_requires_id6` returns `False` for all 11 (re-measured at review over the whole directory), and `.aw/records/walkthroughs/README.md` states "the 11 pre-cutover legacy names stay valid". A carrier here would own work the repository's own cutover exempts permanently.
 - ANY CHANGE TO `check_engine._check_identity_slots`, its corpus, or the `walkthrough_id6` cutover. All
   measure correct at HEAD; changing a passing gate to close a stale ticket is how a real rule gets narrowed.
+  - Carrier-Declined: there is no outstanding work to carry. Both collision calls return zero findings of every rule at HEAD and the corpus is terminal-inclusive by contract, so this row records a NON-task; naming a carrier would assert someone still owes a behavior fix that nobody owes.
 - CLOSING `e2j5w4`. It is a separate item with its own id6 and its own gate. This plan corrects its
   measurement so a reviewer is not misled, and deliberately does not touch its `- Status:`: a second item's
   closure is not this plan's authority, and `aw check`'s close-legitimacy predicate is the right gate for it.
+  - Carrier: dta75n
 
 ## Scope check
 
-- Over-scope: none. Each of the four declared paths is touched by exactly one task group: the test by E-02
-  and E-03, `DECISIONS.md` by E-04, and the two backlog items by E-05. No product code under
+- Over-scope: none. Each of the four declared paths is touched by exactly one task group: the test by E-02,
+  E-07, E-03, E-08 and E-09, `DECISIONS.md` by E-04, and the two backlog items by E-05. No product code under
   `agent_workflows/` is changed, which is deliberate: every code path this plan investigated measured
-  correct, and the defect is in a test and in three records.
+  correct, and the defect is in a test and in three records. NOTE THE DECLARED BACKLOG PATHS ARE
+  `graduated/`, not `open/`: the runner moved both items when this plan was authored (commits `0f777712` and
+  `4eec8292`), and the original `open/` declarations were corrected at review after `check.scope-path-target-stale`
+  reported both as `moved`. If either item has moved again by execution time, re-derive the path rather than
+  assuming this one.
 - Under-scope: the plan changes NO product behavior, so no user-visible surface, CLI output, or check rule
   moves. A reader expecting `mw0s1y` to produce a rename or a checker change will find neither, and facts 1
   and 3 are the evidence that neither is needed. The `.aw/records/walkthroughs/` tree appears in no declared
@@ -237,11 +277,14 @@ thing. Every claim about the guard is therefore demonstrated by MUTATION, in bot
   `AssertionError: 25 != 24`. This is the defect being closed.
 - The preservation direction: with a conformant walkthrough's `- Id:` bullet deleted, the test must FAIL
   naming that file and its slot id6, reproducing fact 5. This is the rule being kept.
-- The anti-vacuity direction: the test must report how many clustered walkthroughs it examined, and that
-  count must be greater than zero, so a future change to the derived exemption cannot make the test pass by
-  examining nothing.
-- Residue: `git status --short` must show `.aw/records/walkthroughs/` clean after the mutations, and E-06
-  re-runs the fact-1 census to confirm it.
+- The anti-vacuity direction: the test must report how many clustered walkthroughs it examined AND an
+  independently computed expectation, and assert they are EQUAL. A bare "greater than zero" floor is
+  explicitly insufficient (it passes while examining 1 of 12), and so is an equality whose expected side is
+  computed from `_identity_slot_token`, which was measured vacuous across two simulated normalizer
+  regressions. This direction is itself demonstrated by mutation in E-09, because an assertion
+  nobody has watched fail is not yet known to work.
+- Residue: `git status --short` must show `.aw/records/walkthroughs/` AND `agent_workflows/` clean after the
+  mutations, and E-06 re-runs the fact-1 census to confirm it.
 - The gate: bare `python3 -m pytest` compared against the E-01 baseline, `aw ipd lint --phase pre-transition`
   conforming, `aw check` no worse than baseline, `aw sanitize --agent` clean.
 
@@ -275,7 +318,7 @@ paragraph states for itself.
 - Blocking: no
 - Status: resolved
 - Owner: none
-- Resolution or deferral rationale: RESOLVED FROM THE REPOSITORY'S OWN CLOSE-LEGITIMACY CONTRACT. AGENTS.md's handoff fix requires "an EXECUTED plan (or an implemented spec) carrying `- From-Backlog: <this id6>` and the same `- Blocks-Release: <R>`", which this plan is and does. The gate is therefore preserved rather than dropped, and the item reaches `graduated` on authoring and `done` only when this plan executes. The substantive question underneath is whether a plan that does NOT perform the item's stated action may carry it, and the answer here is yes for a specific reason: facts 1 through 3 measure that the action was already performed by `nrqo90`, so performing it again is impossible, and the item's residual obligation (an invariant left defended only by a guard that breaks on the next walkthrough) IS carried by this plan's E-02 and E-03. What this plan must NOT do is claim to have performed the renames, which is why E-05 appends a correction naming `nrqo90` as the actor rather than rewriting the item to look satisfied.
+- Resolution or deferral rationale: RESOLVED FROM THE REPOSITORY'S OWN CLOSE-LEGITIMACY CONTRACT. AGENTS.md's handoff fix requires "an EXECUTED plan (or an implemented spec) carrying `- From-Backlog: <this id6>` and the same `- Blocks-Release: <R>`", which this plan is and does. The gate is therefore preserved rather than dropped, and the item reaches `graduated` on authoring and `done` only when this plan executes. The substantive question underneath is whether a plan that does NOT perform the item's stated action may carry it, and the answer here is yes for a specific reason: facts 1 through 3 measure that the action was already performed by `nrqo90`, so performing it again is impossible, and the item's residual obligation (an invariant left defended only by a guard that breaks on the next walkthrough) IS carried by this plan's E-02 and E-07, demonstrated by E-03, E-08 and E-09. What this plan must NOT do is claim to have performed the renames, which is why E-05 appends a correction naming `nrqo90` as the actor rather than rewriting the item to look satisfied.
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -287,12 +330,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: the `git diff` of `tests/test_walkthrough_id6.py` showing the `assertEqual(len(all_files), 24, ...)` and `assertEqual(len(exempt), 11, ...)` assertions and the `LEGACY_WALKTHROUGHS` literal all removed, the legacy exemption derived from `check_engine._identity_slot_token`, `BULLETLESS_GRANDFATHERED` retained with its provenance comment, and an anti-vacuity assertion that reports the examined count. Plus pasted `python3 -m pytest tests/test_walkthrough_id6.py -o addopts=""` output showing 4 passed, and a grep-free confirmation from the diff that no hardcoded walkthrough count or legacy filename remains in the test. State the examined count the new assertion reports.
+  - Required evidence: the `git diff` of `tests/test_walkthrough_id6.py` showing the `assertEqual(len(all_files), 24, ...)` and `assertEqual(len(exempt), 11, ...)` assertions and the `LEGACY_WALKTHROUGHS` literal all removed, `BULLETLESS_GRANDFATHERED` retained with its provenance comment, and the loop body unchanged. Plus pasted `python3 -m pytest tests/test_walkthrough_id6.py -o addopts=""` output showing 4 passed, and a confirmation read off the diff that no hardcoded walkthrough count and no legacy filename remains in the test. STATE EXPLICITLY that no redundant derived-exemption pre-filter was added and that the loop's pre-existing `if not token: continue` carries the exemption, since adding one is the specific dead code E-02 forbids.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: THREE pasted runs for the fix direction (PASS with the extra conformant walkthrough present, the file removed, PASS again) and THREE for the preservation direction (PASS at rest, FAILURE naming the file whose `- Id:` was deleted together with its slot id6, PASS after `git checkout --`). The failure output must name the file, matching fact 5's shape. Plus `git status --short` pasted showing no modified or untracked file under `.aw/records/walkthroughs/`, and a statement of how the synthetic walkthrough's id6 was minted so it could not collide. A green run with no paired failure does NOT satisfy this item.
+  - Required evidence: THREE pasted runs (PASS with the extra conformant walkthrough present, the file removed, PASS again), the minted id6, and a statement of how it was minted naming the `repo_root` argument passed to `artifact_core.mint_id6` so it could not collide. Plus `git status --short` pasted showing no modified or untracked file under `.aw/records/walkthroughs/`. A green run at rest does NOT satisfy this item: the PASS that matters is the one taken WITH the extra walkthrough present, because that is the input fact 4 measured as failing.
   - Observed evidence:
   - Result: pending
 
@@ -302,14 +345,28 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: the `git diff` of both backlog files, shown to be append-only, with the three old walkthrough filenames still present verbatim in each item's original measurement text and with `- Status:` and `- Blocks-Release:` unchanged on both (paste those two lines from each file after the edit). Plus a statement of whether `aw backlog note` was used or the paragraph was appended directly, and why. Any `-` line in either diff other than a trailing-newline artifact fails this item.
+  - Required evidence: the `git diff` of both backlog files, shown to be append-only, with the three old walkthrough filenames still present verbatim in each item's original measurement text and with `- Status:` and `- Blocks-Release:` unchanged on both (paste those two lines from each file after the edit). Plus the pasted `aw backlog note` invocation and its output for each item; a hand append fails this item unless the verb itself refused, in which case paste the refusal. Any `-` line in either diff other than a trailing-newline artifact fails this item.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-06 validates E-06
-  - Required evidence: bare `python3 -m pytest` output with the `N passed` summary line pasted beside the E-01 baseline line, so any failure is shown pre-existing rather than introduced; `aw ipd lint --phase pre-transition` on this plan reporting conforming; `aw check` counts before and after pasted with the after no worse; `aw sanitize --agent` reporting zero findings; and the final walkthrough census pasted and stated to be identical to E-01's, proving E-03 left no residue.
+  - Required evidence: bare `python3 -m pytest` output with the `N passed` summary line pasted beside the E-01 baseline line, so any failure is shown pre-existing rather than introduced, AND a statement of whether the test COUNT moved (it should be unchanged: E-02 and E-07 edit assertions inside one existing test, so a changed count means something else moved and must be explained). `aw ipd lint --phase pre-transition` on this plan reporting conforming. `aw check` counts before and after pasted WITH the per-rule breakdown on both sides, the after no worse on every rule. `aw sanitize --agent` reporting zero findings. The final walkthrough census pasted and stated to be identical to E-01's. And `git status --short` pasted showing exactly the four declared Scope-Paths modified, with nothing under `.aw/records/walkthroughs/` and no change to `agent_workflows/`, proving E-03 left no residue in either place.
   - Observed evidence:
   - Result: pending
+- [ ] V-07 validates E-07
+  - Required evidence: the `git diff` hunk containing the new floor, showing (i) the examined count compared for EQUALITY against an expectation computed from the local legacy-name-shape rule and NOT from `check_engine._identity_slot_token`, (ii) the local regex defined as a test constant carrying the comment that its independence is deliberate, (iii) the non-empty directory assertion, and (iv) an assertion message naming BOTH counts. Plus the two counts the assertion reports on this tree, stated as numbers. If the expectation side is computed from `_identity_slot_token` in any form, this item FAILS regardless of a green run, because the review measured that shape vacuous.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-08 validates E-08
+  - Required evidence: THREE pasted runs (PASS at rest, FAILURE, PASS after `git checkout --`). The FAILURE output must name the file whose `- Id:` bullet was deleted AND its slot id6, matching fact 5's shape (`slot id6=<token>, declared in metadata region=None`); a failure that reports only a count, or that names no file, does NOT satisfy this item because it would not distinguish the D140 rule firing from the census assertion firing. Name which walkthrough was mutated and confirm `git status --short` shows it restored.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-09 validates E-09
+  - Required evidence: TWO pasted runs (FAILURE under the slot discriminator narrowed to `202609*` names, then PASS after restoring). The FAILURE message must show BOTH counts, so the two sides of the E-07 equality are visible and the reviewer can see they diverged (measured at review: `9 != 12`). State the mechanism used to narrow the discriminator and confirm it was an in-run patch, with `git status --short` pasted showing `agent_workflows/` unmodified. IF THIS MUTATION PASSES rather than fails, record that as a FAILED validation and do not proceed: it proves E-07's expected side is still derived from the discriminator under test, which is the vacuous shape the review measured and rejected.
+  - Observed evidence:
+  - Result: pending
+
+
 
 ## Approval and execution gate
 
@@ -325,13 +382,29 @@ collision call returns a `check.id6-identity-slot` finding, the tree is not the 
 against: STOP, report, and do not proceed into E-02. Proceeding would produce a plan that claims to have
 verified a remediation it did not observe.
 
-The executor must further: perform E-01 through E-06 respecting the declared `Depends on` edges; commit only
-the four paths in `- Scope-Paths:` via `aw commit <plan> -- <paths>`; never push; paste ACTUAL runner output
-for every claim of a passing test, INCLUDING the paired mutation failure E-03 requires; leave
-`.aw/records/walkthroughs/` byte-identical to its pre-execution state; and verify each `V-*` in a pass
-separate from the `E-*` that produced it. Do NOT mark this plan executed or move it to
-`.aw/records/plans/executed/` until every `V-*` carries concrete pasted evidence and
-`aw ipd lint --phase pre-transition` conforms.
+The executor must further: perform E-01 through E-09 respecting the declared `Depends on` edges (note the
+execution order is E-01, E-02, E-07, E-03, E-08, E-09, E-04, E-05, E-06; E-07, E-08 and E-09 were allocated at review by `aw ipd sync` and
+so carries a number out of sequence with its position, which is expected and is not a defect to "tidy");
+commit only the four paths in `- Scope-Paths:` via `aw commit <plan> -- <paths>`; never push; paste ACTUAL
+runner output for every claim of a passing test, INCLUDING the paired mutation failures E-08 and E-09 require;
+leave `.aw/records/walkthroughs/` and `agent_workflows/` byte-identical to their pre-execution state; and
+verify each `V-*` in a pass separate from the `E-*` that produced it.
+
+SCOPE FENCE (a declaration, not a stop directive). The four declared paths are the whole intended surface.
+E-03 temporarily writes under `.aw/records/walkthroughs/` and E-09 temporarily narrows a discriminator, and both
+must be fully reverted, so NEITHER path is declared. If the work genuinely requires a path outside the fence,
+MAKE the edit and JUSTIFY it: `aw ipd finalize` refuses to complete until every out-of-scope path carries a
+`--scope-reason` and every declared-but-unmodified path carries a `--scope-ack`. Do not make a cosmetic edit
+to satisfy the gate, and do not widen `- Scope-Paths:` to pre-empt it.
+
+POST-GATE LIFECYCLE. Do not claim done and do not move this plan to `.aw/records/plans/executed/` until
+`aw ipd lint --phase pre-transition` conforms and every `V-*` carries concrete pasted evidence. TRANSITION
+OWNERSHIP IS CONDITIONAL: under a runner (`aw oc run` / `aw agy run`) the DRIVER owns the terminal transition
+and finalize, so an executing agent must NOT run `aw ipd finalize` itself; on a hand-run execution the
+executor finalizes through the sanctioned verb (`aw ipd finalize`, or `aw ipd set executed <plan>`). Either
+way, NEVER hand-edit `- Status:` and NEVER `git mv` this file into `executed/` yourself: a hand-rolled move
+skips the pre-transition checkpoint that is the only thing standing between an unvalidated plan and a
+terminal record.
 
 THE EXECUTOR MUST NOT change the `- Status:` of either backlog item, nor either item's `- Blocks-Release:`.
 `mw0s1y` reaches `graduated` by the runner's own transition on this plan's authoring and `done` only once
@@ -342,4 +415,5 @@ Backlog item `mw0s1y` is this plan's origin (`- From-Backlog: mw0s1y`) and its `
 is inherited here unchanged. The gate is kept even though the item's original symptom no longer reproduces,
 because the defect CLASS is still undefended: the only regression test standing between the repository and a
 recurrence is the one that fact 4 measures as breaking on the next walkthrough anyone writes. When E-02 and
-E-03 land, that is no longer true, and the gate is legitimately satisfied rather than merely cleared.
+E-07 land and E-03, E-08 and E-09 demonstrate them by mutation, that is no longer true, and the gate is
+legitimately satisfied rather than merely cleared.
