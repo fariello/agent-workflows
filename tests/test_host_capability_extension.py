@@ -28,13 +28,12 @@ import sys
 import unittest
 from contextlib import contextmanager, redirect_stdout
 
-from agent_workflows import host_cmd
+from agent_workflows import host_cmd, run_evidence
 from agent_workflows import host_sandbox_profile as hsp
 from agent_workflows.host_sandbox_profile import (
     ACTION_CAPABILITY_REQUIREMENTS,
     ACTION_CLASSES,
     ACTION_READ_ONLY,
-    ActionRequirement,
     CAP_COMMIT_GATEWAY,
     CAP_FRESH_VERIFIER_SESSION,
     OUTCOME_FAILED,
@@ -42,12 +41,13 @@ from agent_workflows.host_sandbox_profile import (
     RUN_HOST_CAPABILITY,
     RUNNER_SAFETY_CAPABILITIES,
     UNREPRESENTED_SPEC_CAPABILITIES,
+    ActionRequirement,
     HostSandboxCapabilities,
     UnknownActionError,
     check_action_capabilities,
     detect_host_capabilities,
-    format_host_capability_finding,
     forced_runner_safety_verdicts,
+    format_host_capability_finding,
     preflight_host_capabilities,
     probe_runner_safety_capabilities,
 )
@@ -722,6 +722,54 @@ class SessionResumeArgvTrackingTests(unittest.TestCase):
 
         caps = detect_host_capabilities("antigravity")
         self.assertTrue(caps.supports_session_resume)
+
+
+class CommitGatewayClaimConsistencyTests(unittest.TestCase):
+    """Invariant: nothing in this package enforces a commit gateway, so any artifact
+    reporting otherwise is the fail-open drift backlog b7tlsh recorded.
+
+    The three shipped artifacts must agree:
+    (1) detect_host_capabilities('opencode').supports_commit_gateway is False and its
+        probe_notes entry contains 'DECLARED, NOT PROBED';
+    (2) the RUN-COMMIT-GATEWAY row of run_evidence.RUN_FINDING_CODES has
+        binding == run_evidence.UNBOUND_BY_DEPENDENCY and empty predicates, i.e. no predicate decides it;
+    (3) no member of ACTION_CAPABILITY_REQUIREMENTS lists CAP_COMMIT_GATEWAY in required,
+        so the capability gates no production action.
+
+    Legs (1) and (3) are deliberately restated here to make the three-way agreement
+    checkable together in one place, even though leg (1) is also tested in
+    test_the_unenforced_capability_is_declared_and_not_probed,
+    test_a_forced_verdict_does_not_leak_out_of_the_context, and
+    test_the_production_path_is_unchanged_with_no_mock_supplied, and a form of leg (3)
+    is tested in test_requirement_map_structure_and_coverage. Leg (2) is asserted nowhere else.
+    """
+
+    def test_commit_gateway_claim_consistency(self):
+        # Leg 1: host capability descriptor is unsupported and declared unprobed
+        caps = detect_host_capabilities("opencode")
+        self.assertFalse(caps.supports_commit_gateway)
+        self.assertIn(
+            "DECLARED, NOT PROBED", caps.probe_notes.get("supports_commit_gateway", "")
+        )
+
+        # Leg 2: RUN-COMMIT-GATEWAY finding code is UNBOUND-BY-DEPENDENCY with no predicates
+        finding_code_rows = [
+            row
+            for row in run_evidence.RUN_FINDING_CODES
+            if row.code == "RUN-COMMIT-GATEWAY"
+        ]
+        self.assertEqual(len(finding_code_rows), 1)
+        row = finding_code_rows[0]
+        self.assertEqual(row.binding, run_evidence.UNBOUND_BY_DEPENDENCY)
+        self.assertEqual(row.predicates, ())
+
+        # Leg 3: no member of ACTION_CAPABILITY_REQUIREMENTS lists CAP_COMMIT_GATEWAY in required
+        requiring_actions = [
+            action_name
+            for action_name, requirement in ACTION_CAPABILITY_REQUIREMENTS.items()
+            if CAP_COMMIT_GATEWAY in requirement.required
+        ]
+        self.assertEqual(requiring_actions, [])
 
 
 if __name__ == "__main__":

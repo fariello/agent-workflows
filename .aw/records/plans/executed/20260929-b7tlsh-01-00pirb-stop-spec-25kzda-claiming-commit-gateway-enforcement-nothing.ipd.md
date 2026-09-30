@@ -6,7 +6,7 @@
 - Scope: IN: amend spec `25kzda` at the TWO sites that still assert commit-gateway enforcement in the present tense (2.1's "the commit gateway rejects `--no-verify`" clause, whose dead "5.8 row 3" cross-reference is repaired in the same rewrite, and 5.2's guarantee-2 `Enforcement or proof` cell), add ONE behavioral regression test pinning the three-way agreement between the descriptor field, the finding-code binding, and the action-requirement map so the drift this item records cannot silently recur, and VERIFY the durable carrier (`ymlyqf`, filed at review) for the two sibling guarantee rows that carry the same overclaim and are measured to have no owner. OUT, each for a stated reason: REMOVING `supports_commit_gateway` (the sibling question, answered No here from repository evidence, see OQ-01); AMENDING 5.2 guarantee rows 1 and 3 (same defect class, deliberately carried by backlog `ymlyqf` rather than swept in, see F-11); the 5.2 host-requirement bullet, the 5.2 action table, and the 5.6 packet example's `"commit_gateway"` string, all of which state what a HOST must prove and were deliberately preserved by plan `01reg8`; Section 7's worked-example sentence, already corrected by `4h7tt0` and correct as it stands; BUILDING commit-gateway enforcement; and reintroducing or rebinding any finding code.
 - Scope-Paths: .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, tests/test_host_capability_extension.py, .aw/records/backlog/open
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 00pirb
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 00pirb verified (set b7tlsh, attempt 1). [Scope reconciliation - in-scope-unmodified .aw/records/backlog/open: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): status set to reviewed
 
@@ -49,41 +49,41 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure, and file the residual carrier, before editing any record
 
-- [ ] E-01 Re-measure the three artifacts this plan's edits describe, on the executing host, and retain the verbatim output: (a) `python3 -c` printing `host_sandbox_profile.probe_runner_safety_capabilities()` and `detect_host_capabilities('opencode').supports_commit_gateway` with its `probe_notes` entry; (b) the `RUN-COMMIT-GATEWAY` row's `binding` and `predicates` from `run_evidence.RUN_FINDING_CODES`; (c) `ACTION_CAPABILITY_REQUIREMENTS`, `ACTION_CLASSES`, and the list of actions whose `required` contains `CAP_COMMIT_GATEWAY`; plus (d) `python3 -m agent_workflows host capabilities opencode`. Do NOT trust this plan's authoring numbers: the spec's own preamble states every dated paragraph is a point-in-time snapshot that must be re-measured, and this plan is about a claim that rotted.
+- [x] E-01 Re-measure the three artifacts this plan's edits describe, on the executing host, and retain the verbatim output: (a) `python3 -c` printing `host_sandbox_profile.probe_runner_safety_capabilities()` and `detect_host_capabilities('opencode').supports_commit_gateway` with its `probe_notes` entry; (b) the `RUN-COMMIT-GATEWAY` row's `binding` and `predicates` from `run_evidence.RUN_FINDING_CODES`; (c) `ACTION_CAPABILITY_REQUIREMENTS`, `ACTION_CLASSES`, and the list of actions whose `required` contains `CAP_COMMIT_GATEWAY`; plus (d) `python3 -m agent_workflows host capabilities opencode`. Do NOT trust this plan's authoring numbers: the spec's own preamble states every dated paragraph is a point-in-time snapshot that must be re-measured, and this plan is about a claim that rotted.
   - Depends on: none
   - Expected outcome: Four captured outputs establishing the premise every later item rests on: the capability is False and declared-not-probed, the finding code is `UNBOUND-BY-DEPENDENCY` with zero predicates, and NO action requires the capability. If any of the three has changed since authoring, STOP and report rather than editing: a capability that has since become probed would make E-03 and E-04 assert the opposite of the truth.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 VERIFY, do not re-file, the DURABLE CARRIER for guarantee rows 1 and 3 of the same 5.2 table, which review measured carry the identical overclaim this plan fixes in row 2 and which no other artifact owns. Backlog `ymlyqf` was FILED AT REVIEW (2026-09-30) rather than left to this item, deliberately: a carrier that only exists if this plan executes is the obligation-loss `sv9ce4` was filed at authoring time to avoid, and this plan's own Deferred row needs a resolvable id6 or `check.ipd-uncarried-obligation` fails. Confirm it is still `open`, still `Work-Kind: bug` with `- Blocks-Release: next`, and still carries BOTH measurements it was filed with: for row 1, that `supports_deny_push`/`CAP_DENY_PUSH` were removed by `01reg8` and `RUN-NO-PUSH` retired by `4h7tt0`; for row 3, that `hook_preserving_commit` sits in `UNREPRESENTED_SPEC_CAPABILITIES` with no field able to carry the proof. RE-MEASURE both claims on the executing host rather than trusting the item's text, and if either has moved, correct the item with `aw backlog set` and record what changed; if the item was closed or removed, re-file it with the same content and record why. Do NOT amend either spec row here.
+- [x] E-06 VERIFY, do not re-file, the DURABLE CARRIER for guarantee rows 1 and 3 of the same 5.2 table, which review measured carry the identical overclaim this plan fixes in row 2 and which no other artifact owns. Backlog `ymlyqf` was FILED AT REVIEW (2026-09-30) rather than left to this item, deliberately: a carrier that only exists if this plan executes is the obligation-loss `sv9ce4` was filed at authoring time to avoid, and this plan's own Deferred row needs a resolvable id6 or `check.ipd-uncarried-obligation` fails. Confirm it is still `open`, still `Work-Kind: bug` with `- Blocks-Release: next`, and still carries BOTH measurements it was filed with: for row 1, that `supports_deny_push`/`CAP_DENY_PUSH` were removed by `01reg8` and `RUN-NO-PUSH` retired by `4h7tt0`; for row 3, that `hook_preserving_commit` sits in `UNREPRESENTED_SPEC_CAPABILITIES` with no field able to carry the proof. RE-MEASURE both claims on the executing host rather than trusting the item's text, and if either has moved, correct the item with `aw backlog set` and record what changed; if the item was closed or removed, re-file it with the same content and record why. Do NOT amend either spec row here.
   - Depends on: E-01
   - Expected outcome: `ymlyqf` is confirmed present, `open`, gated, and honestly worded, so the residual overclaim stays visible in `aw attention` regardless of what the rest of this plan does. VERIFYING rather than filing is the stronger arrangement: the obligation already exists on disk and cannot be lost by this plan failing.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: pin the agreement behaviorally, before changing prose
 
-- [ ] E-02 Add a test class `CommitGatewayClaimConsistencyTests` to `tests/test_host_capability_extension.py` asserting the THREE-WAY agreement between shipped artifacts, by CALLING them and reading their outputs: (1) `detect_host_capabilities('opencode').supports_commit_gateway` is False and its `probe_notes` entry contains `DECLARED, NOT PROBED`; (2) the `RUN-COMMIT-GATEWAY` row of `run_evidence.RUN_FINDING_CODES` has `binding == run_evidence.UNBOUND_BY_DEPENDENCY` and empty `predicates`, i.e. no predicate decides it; (3) no member of `ACTION_CAPABILITY_REQUIREMENTS` lists `CAP_COMMIT_GATEWAY` in `required`, so the capability gates no production action. Write the class docstring to state the INVARIANT the three express jointly: nothing in this package enforces a commit gateway, so any artifact reporting otherwise is the fail-open drift backlog `b7tlsh` recorded. Assert on returned VALUES only; do not read source text, count callers, or grep for symbols (AGENTS.md's no-code-pinning rule, GUIDING_PRINCIPLES P16).
+- [x] E-02 Add a test class `CommitGatewayClaimConsistencyTests` to `tests/test_host_capability_extension.py` asserting the THREE-WAY agreement between shipped artifacts, by CALLING them and reading their outputs: (1) `detect_host_capabilities('opencode').supports_commit_gateway` is False and its `probe_notes` entry contains `DECLARED, NOT PROBED`; (2) the `RUN-COMMIT-GATEWAY` row of `run_evidence.RUN_FINDING_CODES` has `binding == run_evidence.UNBOUND_BY_DEPENDENCY` and empty `predicates`, i.e. no predicate decides it; (3) no member of `ACTION_CAPABILITY_REQUIREMENTS` lists `CAP_COMMIT_GATEWAY` in `required`, so the capability gates no production action. Write the class docstring to state the INVARIANT the three express jointly: nothing in this package enforces a commit gateway, so any artifact reporting otherwise is the fail-open drift backlog `b7tlsh` recorded. Assert on returned VALUES only; do not read source text, count callers, or grep for symbols (AGENTS.md's no-code-pinning rule, GUIDING_PRINCIPLES P16).
   KNOW WHAT ALREADY EXISTS, measured at review, so this class adds the missing leg rather than a third copy of an existing one: the SAME file already asserts leg (1) in three places (`test_the_unenforced_capability_is_declared_and_not_probed`, `test_a_forced_verdict_does_not_leak_out_of_the_context`, `test_the_production_path_is_unchanged_with_no_mock_supplied` all assert False plus `DECLARED, NOT PROBED`) and already asserts a form of leg (3) (`test_requirement_map_structure_and_coverage` asserts `ACTION_CAPABILITY_REQUIREMENTS[ACTION_READ_ONLY].required == ()` and `len(ACTION_CLASSES) == 1`). Leg (2) is asserted NOWHERE: `grep -rn RUN_FINDING_CODES tests/` returns no match, which is precisely the gap that let 4.2's binding and the spec's prose drift apart. So the class's VALUE is (2) plus the JOINT statement, and it must be written as such: keep all three legs so the invariant is readable in one place, and state in the docstring that legs (1) and (3) are deliberately restated here to make the three-way agreement checkable together, naming the existing tests so a later reader does not delete one as redundant. Do NOT weaken leg (3) to the existing test's form: assert that NO member of the map lists `CAP_COMMIT_GATEWAY` in `required`, which holds however many action classes exist, rather than pinning the map to one key.
   - Depends on: E-01
   - Expected outcome: The class passes at current HEAD (it encodes the measured state) and would FAIL if any one artifact drifted from the other two, which is the regression this plan adds. Run it alone first with `python3 -m pytest tests/test_host_capability_extension.py -o addopts="" -k CommitGatewayClaimConsistency` and keep that output.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: amend the two spec sites that still read as live guarantees
 
-- [ ] E-03 Amend spec `25kzda` Section 2.1's flag paragraph, whose final clause currently reads "the commit gateway rejects `--no-verify` in its git sense (Sections 4.2 `RUN-COMMIT-GATEWAY` and 5.8 row 3)". As written this is a PRESENT-TENSE claim that a gateway exists and performs a rejection, inside a paragraph otherwise careful to say what is bound TODAY versus what is an unbound name (its own preceding sentence does exactly that for `IPD-EXEC-V-EVIDENCE`). Rewrite the clause so it states the PROHIBITION, which is real and unchanged, and separates it from the ENFORCEMENT, which does not exist: `--no-verify` in its git sense is forbidden and no flag on `run` offers it, AND the commit-gateway interception that would prove no bypass occurred is unbuilt, so `RUN-COMMIT-GATEWAY` is `UNBOUND-BY-DEPENDENCY` and `supports_commit_gateway` is declared-never-probed and fails closed. Do NOT weaken the prohibition itself: `git_commit_helper` never passes `--no-verify` (its module docstring states "never ``--no-verify``; never ``push``") and that is a real property of the driver-side helper.
+- [x] E-03 Amend spec `25kzda` Section 2.1's flag paragraph, whose final clause currently reads "the commit gateway rejects `--no-verify` in its git sense (Sections 4.2 `RUN-COMMIT-GATEWAY` and 5.8 row 3)". As written this is a PRESENT-TENSE claim that a gateway exists and performs a rejection, inside a paragraph otherwise careful to say what is bound TODAY versus what is an unbound name (its own preceding sentence does exactly that for `IPD-EXEC-V-EVIDENCE`). Rewrite the clause so it states the PROHIBITION, which is real and unchanged, and separates it from the ENFORCEMENT, which does not exist: `--no-verify` in its git sense is forbidden and no flag on `run` offers it, AND the commit-gateway interception that would prove no bypass occurred is unbuilt, so `RUN-COMMIT-GATEWAY` is `UNBOUND-BY-DEPENDENCY` and `supports_commit_gateway` is declared-never-probed and fails closed. Do NOT weaken the prohibition itself: `git_commit_helper` never passes `--no-verify` (its module docstring states "never ``--no-verify``; never ``push``") and that is a real property of the driver-side helper.
   ALSO REPAIR THE CLAUSE'S SECOND CROSS-REFERENCE, which is DEAD, measured at review: "5.8 row 3" does not name the hooks guarantee. Section 5.8 is the interactive/unattended PARITY table and its row 3 is "Incomplete draft"; the hooks row is row 3 of the 5.2 GUARANTEE-CLASSIFICATION table. The reference was accurate when written (commit `844d195c`, 2026-09-06, whose own message cites "5.8 row 3" and whose tree has the hooks row inside the section then numbered 5.8) and rotted when later sections were inserted above it. So RETARGET it to "5.2 guarantee row 3" and cite it by its quoted text ("Hooks are not bypassed and a hook refusal remains a failure") rather than by a row ordinal, since an ordinal is the very thing that just rotted. Keep the `RUN-COMMIT-GATEWAY` reference, which resolves. Repairing this here rather than filing it is deliberate: the clause is being rewritten by this same item, so leaving a known-dead pointer inside text this plan authors would ship a defect knowingly.
   - Depends on: E-01, E-02
   - Expected outcome: 2.1 no longer asserts that a gateway rejects anything, while the prohibition it exists to state survives verbatim in force. The paragraph's own convention (name today's enforcer, name the unbound specifier) is now applied to this clause as it already was to its neighbor. Both cross-references now RESOLVE, and the surviving one is anchored on quoted text rather than a row ordinal.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Amend ONE table cell: spec `25kzda` 5.2's guarantee-classification row 2, `Enforcement or proof`, which currently reads "Commit interception and gateway capability; the gateway uses explicit argv/path lists." It names that mechanism as if it were in place, in a table whose OWN preamble distinguishes Host-dependent guarantees that "require controlled execution" from Host-independent ones re-derived afterwards. Reframe the cell so it reads as a specification rather than a description: keep the mechanism as what WOULD prove the guarantee, name `supports_commit_gateway` as the field that would carry the proof, and record that it is declared-never-probed on every host, so the guarantee is NOT in force and fails closed. Leave the `Bucket` column (`Host-dependent`) unchanged: the classification is correct and is precisely why the guarantee cannot be recovered by trusting the agent afterwards. Do NOT touch rows 1 or 3; they carry the SAME overclaim shape as row 2 and are deliberately left to backlog `ymlyqf`, for the reason recorded in Deferred (see `F-11`). Scope discipline is the reason, NOT an owner claim: review measured that NO artifact owns either row, so do not repeat this plan's authoring assertion that they "belong to the `denypush` Set and to E-03".
+- [x] E-04 Amend ONE table cell: spec `25kzda` 5.2's guarantee-classification row 2, `Enforcement or proof`, which currently reads "Commit interception and gateway capability; the gateway uses explicit argv/path lists." It names that mechanism as if it were in place, in a table whose OWN preamble distinguishes Host-dependent guarantees that "require controlled execution" from Host-independent ones re-derived afterwards. Reframe the cell so it reads as a specification rather than a description: keep the mechanism as what WOULD prove the guarantee, name `supports_commit_gateway` as the field that would carry the proof, and record that it is declared-never-probed on every host, so the guarantee is NOT in force and fails closed. Leave the `Bucket` column (`Host-dependent`) unchanged: the classification is correct and is precisely why the guarantee cannot be recovered by trusting the agent afterwards. Do NOT touch rows 1 or 3; they carry the SAME overclaim shape as row 2 and are deliberately left to backlog `ymlyqf`, for the reason recorded in Deferred (see `F-11`). Scope discipline is the reason, NOT an owner claim: review measured that NO artifact owns either row, so do not repeat this plan's authoring assertion that they "belong to the `denypush` Set and to E-03".
   - Depends on: E-01, E-02
   - Expected outcome: The highest-authority statement of guarantee 2 carries its own enforcement status, matching what `host_sandbox_profile`'s `_DECLARED_UNENFORCED` note has said since `mjx7ne`. A reader auditing guarantees from the classification table now gets the same answer as one reading the module docstring.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Record provenance. Append a dated `## Workflow history` record to spec `25kzda` naming this plan, this backlog item, and what was amended, using `python3 -m agent_workflows specs note <spec path> --message "..."` rather than hand-editing the section. Do NOT change the spec's `- Status:` (it stays `approved`) or its `- Blocks-Release:`.
+- [x] E-05 Record provenance. Append a dated `## Workflow history` record to spec `25kzda` naming this plan, this backlog item, and what was amended, using `python3 -m agent_workflows specs note <spec path> --message "..."` rather than hand-editing the section. Do NOT change the spec's `- Status:` (it stays `approved`) or its `- Blocks-Release:`.
   - Depends on: E-03, E-04
   - Expected outcome: The spec's history gains one AMENDED line naming `00pirb` and `b7tlsh`, written by the owning tool, and its status and release gate are byte-unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -177,36 +177,301 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: All four captured outputs pasted verbatim. (a) must show `supports_commit_gateway` False AND its note containing `DECLARED, NOT PROBED`. (b) must show `binding` `UNBOUND-BY-DEPENDENCY` and an EMPTY `predicates` tuple; a non-empty tuple means a predicate now decides the code and E-03/E-04 must be re-authored, so this item FAILS rather than proceeding. (c) must show the list of actions requiring `CAP_COMMIT_GATEWAY` is EMPTY and `ACTION_CLASSES` is `('read_only',)`. (d) must show the `NO   supports_commit_gateway (runner-safety)` line and `0 (host, action) pair(s) refused`. State explicitly whether each matches this plan's authoring measurement.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All four measurements captured verbatim at lane HEAD:
+    (a) `probe_runner_safety_capabilities()` and `detect_host_capabilities('opencode').supports_commit_gateway`:
+    ```
+    PROBE_RUNNER_SAFETY_CAPABILITIES: ({'supports_commit_gateway': False, 'supports_fresh_verifier_session': True}, {'supports_commit_gateway': 'DECLARED, NOT PROBED: no commit-interception enforcement exists in this package to attempt, so this capability is permanently not-supported (fail-closed). `git_commit_helper.offer_commit` / `aw commit` is a DRIVER-side path-scoped commit helper the driver chooses to call, NOT a boundary the agent cannot evade, so inferring support from its presence would report a guarantee the host does not provide (spec 25kzda 5.2 guarantee 2, classified Host-dependent).', 'supports_fresh_verifier_session': "fresh-verifier separation enforced: a distinct-identity run finalized and a reused-identity run was REFUSED (executor='agy-executor-fe55cfeb90189c1f', verifier='agy-verifier-a263de56d36e3784')"})
+    SUPPORTS_COMMIT_GATEWAY: False
+    PROBE_NOTES: DECLARED, NOT PROBED: no commit-interception enforcement exists in this package to attempt, so this capability is permanently not-supported (fail-closed). `git_commit_helper.offer_commit` / `aw commit` is a DRIVER-side path-scoped commit helper the driver chooses to call, NOT a boundary the agent cannot evade, so inferring support from its presence would report a guarantee the host does not provide (spec 25kzda 5.2 guarantee 2, classified Host-dependent).
+    ```
+    (b) `RUN-COMMIT-GATEWAY` row binding and predicates:
+    ```
+    CODE: RUN-COMMIT-GATEWAY
+    BINDING: UNBOUND-BY-DEPENDENCY
+    PREDICATES: ()
+    ROW: RunFindingCode(code='RUN-COMMIT-GATEWAY', inspects='Captured commit-gateway event and argv', pass_criterion='The engine, not the agent, invoked `git commit ... -- <explicit paths>` as an argv list; no `-a`, broad add, shell string, or `git commit --no-verify` occurred', message='[RUN-COMMIT-GATEWAY] <item> lacks a valid path-scoped, hook-respecting commit receipt. The item was quarantined. Retry through a capable host with: aw <host> run <selector>', action='FAIL ITEM after containment; ABORT RUN for a hook-bypass attempt', abort='conditional', abort_classes=('Hook-bypass attempt',), binding='UNBOUND-BY-DEPENDENCY', predicates=(), waiting_on="a captured commit-gateway RECEIPT. `git_commit_helper.offer_commit` is a helper the driver CHOOSES to call, not a boundary an agent cannot evade, and `host_sandbox_profile` declares `supports_commit_gateway` False-by-default and NEVER PROBED for exactly that reason; `m73aet`'s executed receipt states this code 'remains wholly unbuilt'")
+    ```
+    (c) `ACTION_CAPABILITY_REQUIREMENTS`, `ACTION_CLASSES`, and list of actions requiring `CAP_COMMIT_GATEWAY`:
+    ```
+    ACTION_CAPABILITY_REQUIREMENTS: {'read_only': ActionRequirement(action='read_only', required=(), unrepresented=('complete_diff_capture',), spec_basis="spec 25kzda 5.2: 'Repository read and captured evidence only; no agent session for a skip'. Nothing this contract represents is required, so a read-only action is never refused by this gate.")}
+    ACTION_CLASSES: ('read_only',)
+    ACTIONS_REQUIRING_CAP_COMMIT_GATEWAY: []
+    ```
+    (d) `python3 -m agent_workflows host capabilities opencode`:
+    ```
+    host opencode  platform=linux  sandbox_mechanism=landlock
+      NO   supports_inline_permissions
+      yes  supports_read_only_phase
+      yes  supports_session_resume
+           why: observed --session ses-probe-sentinel in the host's own resume argv (launch refused before exec; git subprocess executed in temp tree)
+      yes  emits_structured_tool_events
+      NO   emits_child_permission_events
+      yes  supports_process_tree_kill
+      yes  supports_os_sandbox
+      NO   supports_commit_gateway (runner-safety)
+           why: DECLARED, NOT PROBED: no commit-interception enforcement exists in this package to attempt, so this capability is permanently not-supported (fail-closed). `git_commit_helper.offer_commit` / `aw commit` is a DRIVER-side path-scoped commit helper the driver chooses to call, NOT a boundary the agent cannot evade, so inferring support from its presence would report a guarantee the host does not provide (spec 25kzda 5.2 guarantee 2, classified Host-dependent).
+      yes  supports_fresh_verifier_session (runner-safety)
+           why: fresh-verifier separation enforced: a distinct-identity run finalized and a reused-identity run was REFUSED (executor='agy-executor-fe55cfeb90189c1f', verifier='agy-verifier-a263de56d36e3784')
+      actions:
+        ALLOWED  read_only
+                 not representable by this contract: complete_diff_capture
 
-- [ ] V-02 validates E-02
+    1 host(s) reported; 0 (host, action) pair(s) refused
+    ```
+    Explicit confirmation: each of (a), (b), (c), and (d) matches this plan's authoring measurement exactly.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: The new test's code pasted, plus `python3 -m pytest tests/test_host_capability_extension.py -o addopts="" -k CommitGatewayClaimConsistency` output showing it PASSES. Then prove it is NON-VACUOUS by making each of the three assertions fail once and pasting the failure: use the shipped `hsp.forced_runner_safety_verdicts({CAP_COMMIT_GATEWAY: (True, 'forced')})` seam for (1), and the shipped `synthetic_gated_action()` seam for (3), which registers an action requiring the capability. For (2) there is no shipped seam, and REVIEW DEMONSTRATED the mechanism to use rather than leaving the executor to invent one: `run_evidence.RunFindingCode` is a NamedTuple (`type(row).__mro__` contains `tuple`; `hasattr(row, '_replace')` is True), so substitute a mutated row and restore it in a `finally`, measured working at review:
     `row._replace(binding='BOUND', predicates=('fake_pred',))`, rebind `re_.RUN_FINDING_CODES` to the tuple with that row swapped in, assert the test FAILS, then restore the saved tuple. Observed: `MUTATED -> BOUND ('fake_pred',)` then `RESTORED -> UNBOUND-BY-DEPENDENCY`. Do this in the FALSIFICATION step only; do NOT ship a test that mutates the module-level table, because the rebind is process-global and a leak would corrupt later tests (the same hazard `forced_runner_safety_verdicts`'s own leak test exists to catch). An assertion that cannot be made to fail proves nothing. Also confirm by inspection of the pasted test code that it reads NO production source text and counts NO callers (AGENTS.md no-code-pinning rule); a test using `inspect`, `ast`, or a source grep FAILS this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: New test class code in `tests/test_host_capability_extension.py`:
+    ```python
+    class CommitGatewayClaimConsistencyTests(unittest.TestCase):
+        """Invariant: nothing in this package enforces a commit gateway, so any artifact
+        reporting otherwise is the fail-open drift backlog b7tlsh recorded.
 
-- [ ] V-03 validates E-03
+        The three shipped artifacts must agree:
+        (1) detect_host_capabilities('opencode').supports_commit_gateway is False and its
+            probe_notes entry contains 'DECLARED, NOT PROBED';
+        (2) the RUN-COMMIT-GATEWAY row of run_evidence.RUN_FINDING_CODES has
+            binding == run_evidence.UNBOUND_BY_DEPENDENCY and empty predicates, i.e. no predicate decides it;
+        (3) no member of ACTION_CAPABILITY_REQUIREMENTS lists CAP_COMMIT_GATEWAY in required,
+            so the capability gates no production action.
+
+        Legs (1) and (3) are deliberately restated here to make the three-way agreement
+        checkable together in one place, even though leg (1) is also tested in
+        test_the_unenforced_capability_is_declared_and_not_probed,
+        test_a_forced_verdict_does_not_leak_out_of_the_context, and
+        test_the_production_path_is_unchanged_with_no_mock_supplied, and a form of leg (3)
+        is tested in test_requirement_map_structure_and_coverage. Leg (2) is asserted nowhere else.
+        """
+
+        def test_commit_gateway_claim_consistency(self):
+            # Leg 1: host capability descriptor is unsupported and declared unprobed
+            caps = detect_host_capabilities("opencode")
+            self.assertFalse(caps.supports_commit_gateway)
+            self.assertIn("DECLARED, NOT PROBED", caps.probe_notes.get("supports_commit_gateway", ""))
+
+            # Leg 2: RUN-COMMIT-GATEWAY finding code is UNBOUND-BY-DEPENDENCY with no predicates
+            finding_code_rows = [
+                row for row in run_evidence.RUN_FINDING_CODES if row.code == "RUN-COMMIT-GATEWAY"
+            ]
+            self.assertEqual(len(finding_code_rows), 1)
+            row = finding_code_rows[0]
+            self.assertEqual(row.binding, run_evidence.UNBOUND_BY_DEPENDENCY)
+            self.assertEqual(row.predicates, ())
+
+            # Leg 3: no member of ACTION_CAPABILITY_REQUIREMENTS lists CAP_COMMIT_GATEWAY in required
+            requiring_actions = [
+                action_name
+                for action_name, requirement in ACTION_CAPABILITY_REQUIREMENTS.items()
+                if CAP_COMMIT_GATEWAY in requirement.required
+            ]
+            self.assertEqual(requiring_actions, [])
+    ```
+    Isolated test execution output:
+    ```
+    $ python3 -m pytest tests/test_host_capability_extension.py -o addopts="" -k CommitGatewayClaimConsistency
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 40 items / 39 deselected / 1 selected
+
+    tests/test_host_capability_extension.py .                                [100%]
+
+    ======================= 1 passed, 39 deselected in 0.36s =======================
+    ```
+    Three-way falsification demonstrations:
+    (1) Falsifying Leg 1 via `hsp.forced_runner_safety_verdicts({CAP_COMMIT_GATEWAY: (True, 'forced')})`:
+    ```
+    Traceback (most recent call last):
+      File "<string>", line 9, in <module>
+        test_case.test_commit_gateway_claim_consistency()
+      File "tests/test_host_capability_extension.py", line 751, in test_commit_gateway_claim_consistency
+        self.assertFalse(caps.supports_commit_gateway)
+    AssertionError: True is not false
+    ```
+    (2) Falsifying Leg 2 via mutating `re_.RUN_FINDING_CODES` in a `try...finally`:
+    ```
+    MUTATED -> BOUND ('fake_pred',)
+    Traceback (most recent call last):
+      File "<string>", line 19, in <module>
+        test_case.test_commit_gateway_claim_consistency()
+      File "tests/test_host_capability_extension.py", line 760, in test_commit_gateway_claim_consistency
+        self.assertEqual(row.binding, run_evidence.UNBOUND_BY_DEPENDENCY)
+    AssertionError: 'BOUND' != 'UNBOUND-BY-DEPENDENCY'
+    - BOUND
+    + UNBOUND-BY-DEPENDENCY
+    RESTORED -> UNBOUND-BY-DEPENDENCY
+    ```
+    (3) Falsifying Leg 3 via `synthetic_gated_action()` seam:
+    ```
+    Traceback (most recent call last):
+      File "<string>", line 8, in <module>
+        test_case.test_commit_gateway_claim_consistency()
+      File "tests/test_host_capability_extension.py", line 769, in test_commit_gateway_claim_consistency
+        self.assertEqual(requiring_actions, [])
+    AssertionError: Lists differ: ['_gated_for_test'] != []
+    First list contains 1 additional elements.
+    First extra element 0:
+    '_gated_for_test'
+    - ['_gated_for_test']
+    + []
+    ```
+    Confirmation: The test code reads NO production source text, uses no `inspect`, `ast`, or source greps, and counts no callers (strictly adheres to AGENTS.md no-code-pinning rule and GUIDING_PRINCIPLES P16).
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: `git diff` of the spec showing the 2.1 clause rewritten, plus a grep proving the string "the commit gateway rejects `--no-verify` in its git sense" no longer appears. The replacement text must state BOTH halves: that git-sense `--no-verify` remains prohibited with no flag offering it, AND that the interception proving no bypass is unbuilt (`RUN-COMMIT-GATEWAY` unbound, `supports_commit_gateway` declared-never-probed, fail-closed). A diff that DELETES the prohibition FAILS this item: the prohibition is real and only the enforcement claim is at issue. ALSO prove the cross-references RESOLVE, by command and not by assertion: paste a grep showing the string "5.8 row 3" no longer appears anywhere in the spec, and paste the replacement reference beside a grep locating the text it names ("Hooks are not bypassed and a hook refusal remains a failure") together with the `### 5.2`/`#### Guarantee classification` heading that encloses it, demonstrating the target is inside 5.2 and not 5.8. A replacement that cites a row by ORDINAL alone, without the quoted text, FAILS this item, since an ordinal is what rotted.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git diff` of Section 2.1 clause in `.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md`:
+    ```diff
+    @@ -231,1 +231,1 @@
+    -- No flag may cause a run to CLAIM verified success while the deterministic V-evidence checks of Section 4.2 have not passed. That guarantee is enforced by reading repository artifacts, so no flag can reach it. TODAY the enforcer is `ipd_lint --phase pre-transition` plus the `ipd_lifecycle` finalize gates (see the Section 1.3 row for exact symbols); Section 4.2's `IPD-EXEC-V-EVIDENCE` and siblings SPECIFY the same guarantee but are unbound names as of 2026-09-05. A flag that merely selects whether an ADDITIONAL independent verifier turn runs is not a bypass of it, and an item whose V-evidence is incomplete is failed regardless of any flag. There is no `--skip-audit` flag and no GIT hook-bypass flag on `run`: the commit gateway rejects `--no-verify` in its git sense (Sections 4.2 `RUN-COMMIT-GATEWAY` and 5.8 row 3), and a hook-bypass attempt is one of the six `ABORT RUN` classes.
+    +- No flag may cause a run to CLAIM verified success while the deterministic V-evidence checks of Section 4.2 have not passed. That guarantee is enforced by reading repository artifacts, so no flag can reach it. TODAY the enforcer is `ipd_lint --phase pre-transition` plus the `ipd_lifecycle` finalize gates (see the Section 1.3 row for exact symbols); Section 4.2's `IPD-EXEC-V-EVIDENCE` and siblings SPECIFY the same guarantee but are unbound names as of 2026-09-05. A flag that merely selects whether an ADDITIONAL independent verifier turn runs is not a bypass of it, and an item whose V-evidence is incomplete is failed regardless of any flag. There is no `--skip-audit` flag and no GIT hook-bypass flag on `run`: `--no-verify` in its git sense is forbidden and no flag on `run` offers it, and the commit-gateway interception that would prove no bypass occurred is unbuilt, so `RUN-COMMIT-GATEWAY` (Section 4.2) is `UNBOUND-BY-DEPENDENCY` and `supports_commit_gateway` is declared-never-probed and fails closed (see Section 5.2 guarantee row 3, "Hooks are not bypassed and a hook refusal remains a failure"), and a hook-bypass attempt is one of the six `ABORT RUN` classes.
+    ```
+    Prohibition and enforcement separation:
+    - Prohibition stated: "`--no-verify` in its git sense is forbidden and no flag on `run` offers it"
+    - Unbuilt enforcement stated: "the commit-gateway interception that would prove no bypass occurred is unbuilt, so `RUN-COMMIT-GATEWAY` (Section 4.2) is `UNBOUND-BY-DEPENDENCY` and `supports_commit_gateway` is declared-never-probed and fails closed"
+    Grep confirming old overclaiming string no longer appears (returned exit code 1):
+    ```
+    $ grep -n "the commit gateway rejects \`--no-verify\` in its git sense" .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+    (exit 1, no match)
+    ```
+    Grep proving "5.8 row 3" no longer appears anywhere in spec (returned exit code 1):
+    ```
+    $ grep -n "5.8 row 3" .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+    (exit 1, no match)
+    ```
+    Resolution of retargeted reference under Section 5.2:
+    ```
+    $ sed -n '1157,1208p' .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+    ### 5.2 Safety policy
+    ...
+    #### Guarantee classification
 
-- [ ] V-04 validates E-04
+    Each safety guarantee belongs to one bucket. Host-independent guarantees are re-derived after the action from repository/Git state. Host-dependent guarantees require controlled execution and cannot be recovered by trusting the agent afterward.
+
+    | # | Safety guarantee | Bucket | Enforcement or proof |
+    | --- | --- | --- | --- |
+    | 1 | `run` does not push, tag, publish, release, or change remote configuration | Host-dependent | Tool/network/credential denial plus captured process policy. An actual push attempt aborts the run. |
+    | 2 | The agent cannot commit except through a path-scoped engine gateway | Host-dependent | Commit interception and gateway capability using explicit argv/path lists would prove this guarantee. The field that would carry the proof is `supports_commit_gateway`, which is declared-never-probed on every host; the guarantee is not in force today and fails closed. |
+    | 3 | Hooks are not bypassed and a hook refusal remains a failure | Host-dependent | Hook-preserving gateway and deny policy for `git commit --no-verify` or equivalent. Spelled with `git` since 2026-09-05: this row is about the GIT flag that bypasses pre-commit hooks, never about a runner flag selecting whether an independent verifier turn runs. |
+    ```
+    The reference is anchored on quoted text "Hooks are not bypassed and a hook refusal remains a failure" inside Section 5.2, resolving unambiguously.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: `git diff` of the spec showing ONLY row 2's `Enforcement or proof` cell changed in the guarantee-classification table. Paste greps proving four things are BYTE-UNCHANGED: the guarantee-2 statement "The agent cannot commit except through a path-scoped engine gateway", its `Host-dependent` bucket, row 1 (push denial), and row 3 (hooks). Also paste greps proving the three sites `01reg8` preserved are unchanged: the 5.2 bullet "prevent the agent from committing except through the engine's commit gateway", the 5.2 action-table row containing "commit gateway, hook-preserving commit", and the packet example line containing `"commit_gateway"`. A diff touching any of those FAILS this item (F-9).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git diff` of guarantee-classification table in spec:
+    ```diff
+    @@ -1206,1 +1206,1 @@
+    -| 2 | The agent cannot commit except through a path-scoped engine gateway | Host-dependent | Commit interception and gateway capability; the gateway uses explicit argv/path lists. |
+    +| 2 | The agent cannot commit except through a path-scoped engine gateway | Host-dependent | Commit interception and gateway capability using explicit argv/path lists would prove this guarantee. The field that would carry the proof is `supports_commit_gateway`, which is declared-never-probed on every host; the guarantee is not in force today and fails closed. |
+    ```
+    Verification script output confirming all 7 sites are byte-unchanged:
+    ```
+    guarantee-2 statement: count=1
+    guarantee-2 row: count=1
+    row 1 (push denial): count=1
+    row 3 (hooks): count=1
+    5.2 bullet: count=1
+    5.2 action-table row: count=1
+    packet example line: count=1
+    ALL 7 CHECKS PASSED BYTE-UNCHANGED
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: The tail of the spec's `## Workflow history` showing the new dated record naming `00pirb` and `b7tlsh`, plus the `aw specs note` command output. Paste a grep proving the spec's `- Status: approved` and `- Blocks-Release: next` lines are unchanged. Also paste: the BARE `python3 -m pytest` summary line; `aw ipd lint` on this plan reporting conforming; `aw check` showing no new violations; and `aw sanitize --agent` exiting zero. F-10's carrier (`089bq4`) was filed at authoring time, so confirm it still resolves rather than filing it here: paste `aw find backlog 089bq4` (or the equivalent) showing the item exists.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `aw specs note` command run and spec history record:
+    ```
+    $ python3 -m agent_workflows specs note .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md --message "AMENDED (plan 00pirb, backlog b7tlsh): Section 2.1 flag paragraph rewritten to state that git-sense --no-verify is prohibited and commit-gateway interception is unbuilt (RUN-COMMIT-GATEWAY unbound, supports_commit_gateway declared-never-probed, fails closed), retargeting dead 5.8 row 3 citation to Section 5.2 guarantee row 3 quoted text; Section 5.2 guarantee row 2 Enforcement or proof cell amended to specify commit interception mechanism and record that supports_commit_gateway is declared-never-probed on every host"
+    aw specs note: appended a history record to .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+    ```
+    Spec `## Workflow history` entry:
+    ```
+    ## Workflow history
 
-- [ ] V-06 validates E-06
+    - 2026-09-30 note (aw specs): AMENDED (plan 00pirb, backlog b7tlsh): Section 2.1 flag paragraph rewritten to state that git-sense --no-verify is prohibited and commit-gateway interception is unbuilt (RUN-COMMIT-GATEWAY unbound, supports_commit_gateway declared-never-probed, fails closed), retargeting dead 5.8 row 3 citation to Section 5.2 guarantee row 3 quoted text; Section 5.2 guarantee row 2 Enforcement or proof cell amended to specify commit interception mechanism and record that supports_commit_gateway is declared-never-probed on every host
+    ```
+    Frontmatter verification:
+    ```
+    - Status: approved
+    - Blocks-Release: next
+    ```
+    Bare `python3 -m pytest` summary:
+    ```
+    3388 passed, 2 skipped, 3 warnings in 72.19s (0:01:12)
+    ```
+    `aw ipd lint` on this plan:
+    ```
+    $ python3 -m agent_workflows ipd lint .aw/records/plans/pending/20260929-b7tlsh-01-00pirb-stop-spec-25kzda-claiming-commit-gateway-enforcement-nothing.ipd.md
+    - >  ◕  approved     plan        20260929-b7tlsh-01-00pirb  [medium]  [blocking]  conforming
+    ```
+    `aw check release-gates` output:
+    ```
+    AW check  release-gates                                                  1137 ms
+    ✓ CONFORMS  538 release-gates checked
+
+    Evidence
+      backlog  330   specs  20   plans  187   releases  1
+      errors  0   warnings  0
+    ```
+    `aw sanitize --agent` output:
+    ```
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+    F-10 carrier `089bq4` resolution:
+    ```
+    $ python3 -m agent_workflows find backlog 089bq4
+    ◕  open          089bq4  .aw/records/backlog/open/20260929-089bq4-01-089bq4-spec-cites-deleted-finding-table-guard.backlog.md
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: `aw find backlog ymlyqf` output showing it resolves and is `open`, plus its pasted front matter showing `- Status: open`, `- Work-Kind: bug`, and `- Blocks-Release: next`. Paste the item's body showing BOTH measurements are present: for row 1, the quoted cell text plus the names `supports_deny_push`/`CAP_DENY_PUSH` (removed by `01reg8`), `RUN-NO-PUSH` (retired by `4h7tt0`), and `sv9ce4`; for row 3, the quoted cell text plus `hook_preserving_commit` and `UNREPRESENTED_SPEC_CAPABILITIES`. Then RE-MEASURE both, pasting command output rather than restating the item: `python3 -c` printing `'hook_preserving_commit' in hsp.UNREPRESENTED_SPEC_CAPABILITIES` as True with the note text beside it, and `python3 -c` printing `hasattr(hsp, 'supports_deny_push')` and `hasattr(hsp, 'CAP_DENY_PUSH')` as False for each. If a re-measurement CONTRADICTS the item, this item is satisfied by CORRECTING the item and recording the change, not by leaving it stale. Also paste `aw check` showing no `check.ipd-uncarried-obligation` violation on this plan, which is what proves the `Carrier: ymlyqf` reference resolves, and no new `release-gates` violation from the gated item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `aw find backlog ymlyqf` resolution and verification:
+    ```
+    $ python3 -m agent_workflows find backlog ymlyqf
+    ◕  open          ymlyqf  .aw/records/backlog/open/20260930-b7tlsh-01-ymlyqf-spec-25kzda-guarantee-rows-1-and-3-overclaim.backlog.md
+    ```
+    Frontmatter of `.aw/records/backlog/open/20260930-b7tlsh-01-ymlyqf-spec-25kzda-guarantee-rows-1-and-3-overclaim.backlog.md`:
+    ```yaml
+    - Id: ymlyqf
+    - Status: open
+    - Blocks-Release: next
+    - Set: b7tlsh
+    - Priority: medium
+    - Work-Kind: bug
+    - Summary: Spec 25kzda 5.2 guarantee rows 1 and 3 assert push-denial and hook-preserving enforcement that no field can even carry
+    ```
+    Body of `ymlyqf` confirming both measurements:
+    ```markdown
+    ## Workflow history
+    - 2026-09-30 created (aw backlog): Filed AT REVIEW of plan 00pirb (/plan-review finding PR-802), as the DURABLE CARRIER for the two sibling guarantee rows that plan does not amend. Filed at review rather than promised to the plan's E-06 deliberately: a carrier that only exists if a plan executes is the obligation-loss backlog sv9ce4 was filed at authoring time to avoid, and 00pirb's Deferred row needs a resolvable id6 for check.ipd-uncarried-obligation to pass. THE DEFECT, measured in lane b7tlsh at HEAD 4e7dd52c. Spec 25kzda 5.2's guarantee-classification table has three Host-dependent rows whose Enforcement or proof cells name mechanisms as if in place. Plan 00pirb amends ROW 2 (commit gateway). ROWS 1 AND 3 CARRY THE IDENTICAL OVERCLAIM AND ARE MEASURED TO HAVE NO OWNER. Row 1 reads 'Tool/network/credential denial plus captured process policy. An actual push attempt aborts the run.' while hasattr(host_sandbox_profile, 'supports_deny_push') is False and CAP_DENY_PUSH does not resolve (both REMOVED by plan 01reg8), and the RUN-NO-PUSH finding code was RETIRED by plan 4h7tt0; backlog sv9ce4 is the open carrier for ever BUILDING the mechanism, but nothing owns the spec SENTENCE. Row 3 reads 'Hook-preserving gateway and deny policy for git commit --no-verify or equivalent' while hook_preserving_commit is a member of host_sandbox_profile.UNREPRESENTED_SPEC_CAPABILITIES whose own note reads 'this contract has no field for it, so it cannot be gated here', so there is not even a descriptor field that could carry the proof. OWNERSHIP MEASURED, not assumed: plan 01reg8 E-09's DO-NOT-TOUCH list names the 5.2 host-requirement bullet, the 5.2 action table and the packet example, and does NOT name the guarantee table; and grepping all four denypush Set plans for the guarantee table, its rows, or the 'Enforcement or proof' column returns ZERO hits, with x2dwu5 E-03 declaring the action table and packet example UNCHANGED. So 00pirb's authoring claim that these rows 'belong to the denypush Set and to E-03' was false in both halves and would have orphaned them. ROW 1 IS THE WORSE OF THE TWO because 'An actual push attempt aborts the run' asserts a RUNTIME BEHAVIOR rather than merely naming a mechanism, so a reader auditing what the host guarantees is told a run-time abort happens that nothing performs. WHY NOT FIXED IN 00pirb: each row needs a judgement that plan has not made. Row 1's correction is entangled with the live maintainer decision in backlog wcbpqf about how a PARTIAL push-denial guarantee should read now that research uq4y6q measured Landlock net rules to be port-only and address-blind. Row 3 cannot use 00pirb's row-2 shape at all, because that shape names the descriptor field that WOULD carry the proof and row 3 has no such field, so the honest amendment has a different form. DO NOT close this by deleting the guarantee rows: they are SPECIFICATIONS of what a host must provide and are the landing site for any future probed capability, exactly as 01reg8 recorded for the push-denial requirement bullet. The fix is to make each Enforcement or proof cell state its enforcement STATUS, as 00pirb does for row 2.
+    ```
+    Live re-measurement on executing host:
+    ```
+    $ python3 -c "
+    import agent_workflows.host_sandbox_profile as hsp
+    print('hook_preserving_commit in UNREPRESENTED:', 'hook_preserving_commit' in hsp.UNREPRESENTED_SPEC_CAPABILITIES)
+    print('UNREPRESENTED note:', hsp.UNREPRESENTED_SPEC_CAPABILITIES.get('hook_preserving_commit'))
+    print('hasattr supports_deny_push:', hasattr(hsp, 'supports_deny_push'))
+    print('hasattr CAP_DENY_PUSH:', hasattr(hsp, 'CAP_DENY_PUSH'))
+    "
+    hook_preserving_commit in UNREPRESENTED: True
+    UNREPRESENTED note: preserve normal Git hook execution and reject hook-bypass arguments (spec 25kzda 5.2)
+    hasattr supports_deny_push: False
+    hasattr CAP_DENY_PUSH: False
+    ```
+    Release gates and uncarried obligations verification:
+    - `aw check release-gates` reports 0 errors and 0 warnings (538 release-gates checked, backlog 330, specs 20, plans 187, releases 1).
+    - `aw check plans` reports no `check.ipd-uncarried-obligation` violation on `00pirb` (the `Carrier: ymlyqf` reference resolves cleanly to the open backlog item).
+  - Result: pass
 
 ## Approval and execution gate
 
