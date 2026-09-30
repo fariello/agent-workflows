@@ -1,5 +1,6 @@
 - Id: iguvci
-- Status: open
+- Status: graduated
+- Graduated-To: iguvci
 - Blocks-Release: next
 - Set: iguvci
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: Three plans the maintainer ruled were release-blocking bugs shipped to executed/ carrying neither Work-Kind: bug nor Blocks-Release, so a recorded ruling left no trace in the corpus
 
 ## Workflow history
+- 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: nllamb
 - 2026-09-22 created (aw backlog): Found while executing plan lc4unl (planprio Order 03).
 
 ## Detail
