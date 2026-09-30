@@ -1231,10 +1231,24 @@ def build_remediation(d: core.Drift, repo_root: Path) -> Remediation:
         )
 
     title = detail if len(detail) < 60 else rule
+    # Prefer the finding's structured recovery command over the generic fallback,
+    # treating the if-chain above as an override layer rather than the only source.
+    # command stays None: 8 of 22 recovery literals in check_engine carry <placeholder>
+    # segments (e.g. <low|medium|high>) that test_remediation_family_guard forbids.
+    # Note that command=None does NOT fence the aw check surface: cli._run_check
+    # builds next_actions from detailed_fix, so a placeholder-bearing recovery can
+    # still appear in a NextAction.command slot there (F-14).
+    # In addition, aw doctor summary groups on (title, summary_fix), so path- or
+    # id6-interpolating recoveries will fragment summary counts (F-17).
+    # The cli._run_check agent-surface overwrite remains open and is carried by 2cnvh1.
     return Remediation(
         title=title,
-        summary_fix="inspect artifact frontmatter and schema conformity.",
-        detailed_fix=f"inspect {loc} frontmatter and schema conformity.",
+        summary_fix=d.recovery
+        if d.recovery
+        else "inspect artifact frontmatter and schema conformity.",
+        detailed_fix=d.recovery
+        if d.recovery
+        else f"inspect {loc} frontmatter and schema conformity.",
         command=None,
         file_path=loc,
     )

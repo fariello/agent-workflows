@@ -15,6 +15,7 @@ from pathlib import Path
 from unittest import mock
 
 from agent_workflows import artifact_core as core
+from agent_workflows import check_engine
 from agent_workflows import cli
 from agent_workflows import doctor
 from agent_workflows import engine, versioning
@@ -794,6 +795,85 @@ class DoctorRemediationTests(unittest.TestCase):
                     self.assertIsNone(rem.command)
                     self.assertIn("aw commit", rem.detailed_fix)
                     self.assertNotIn("git commit -m", rem.detailed_fix)
+
+    def test_remediation_fallback_prefers_recovery_when_populated(self) -> None:
+        """E-02/V-02: Terminal fallback in build_remediation prefers d.recovery for summary_fix
+        and detailed_fix when populated, but preserves the generic inspect strings when empty.
+        command remains None, and title is identical across both cases."""
+        root = Path(".")
+        rule_id = "check.live-bug-ungated"
+        loc = ".aw/records/backlog/open/20260928-test-01-aaa111-demo.backlog.md"
+        detail = "live bug is ungated"
+        rec = "aw backlog set open aaa111 --blocks-release next"
+
+        base_drift = core.Drift(loc, rule_id, detail)
+
+        # (a), (c): populated recovery
+        enriched_with_rec = check_engine.enrich_drift(base_drift, recovery=rec)
+        rem_with_rec = doctor.build_remediation(enriched_with_rec, root)
+        self.assertEqual(rem_with_rec.summary_fix, rec)
+        self.assertEqual(rem_with_rec.detailed_fix, rec)
+        self.assertIsNone(rem_with_rec.command)
+
+        # (b): empty recovery
+        enriched_empty = check_engine.enrich_drift(base_drift, recovery="")
+        rem_empty = doctor.build_remediation(enriched_empty, root)
+        self.assertEqual(
+            rem_empty.summary_fix,
+            "inspect artifact frontmatter and schema conformity.",
+        )
+        self.assertEqual(
+            rem_empty.detailed_fix,
+            f"inspect {loc} frontmatter and schema conformity.",
+        )
+        self.assertIsNone(rem_empty.command)
+
+        # (d): title is identical between the two cases
+        self.assertEqual(rem_with_rec.title, rem_empty.title)
+
+    def test_remediation_fallback_prefers_recovery_non_regressive_over_representative_drifts(
+        self,
+    ) -> None:
+        """E-03/V-03: Enriching REPRESENTATIVE_DRIFTS with a sentinel recovery proves the fallback
+        is an override: branch-owning rows keep their own remediations, and only the fallback row
+        consumes the sentinel recovery."""
+        root = Path(".")
+        sentinel = "SENTINEL-RECOVERY"
+        fallback_rows = []
+        branch_rows = []
+
+        for d in self.REPRESENTATIVE_DRIFTS:
+            baseline_rem = doctor.build_remediation(d, root)
+            if (
+                baseline_rem.summary_fix
+                == "inspect artifact frontmatter and schema conformity."
+            ):
+                fallback_rows.append((d, baseline_rem))
+            else:
+                branch_rows.append((d, baseline_rem))
+
+        # Assert fallback partition is exactly the check.generic-fallback row
+        self.assertEqual([d.rule for d, _ in fallback_rows], ["check.generic-fallback"])
+        self.assertTrue(len(branch_rows) > 0)
+
+        # Assert fallback row returns the sentinel recovery
+        for d, _ in fallback_rows:
+            d_enriched = check_engine.enrich_drift(d, recovery=sentinel)
+            rem = doctor.build_remediation(d_enriched, root)
+            self.assertEqual(rem.summary_fix, sentinel)
+            self.assertEqual(rem.detailed_fix, sentinel)
+
+        # Assert every branch-owning row does NOT return sentinel and matches its own remediation
+        for d, baseline_rem in branch_rows:
+            with self.subTest(rule=d.rule, loc=d.location):
+                d_enriched = check_engine.enrich_drift(d, recovery=sentinel)
+                rem = doctor.build_remediation(d_enriched, root)
+                self.assertNotEqual(rem.summary_fix, sentinel)
+                self.assertNotEqual(rem.detailed_fix, sentinel)
+                self.assertEqual(rem.summary_fix, baseline_rem.summary_fix)
+                self.assertEqual(rem.detailed_fix, baseline_rem.detailed_fix)
+                self.assertEqual(rem.command, baseline_rem.command)
+                self.assertEqual(rem.title, baseline_rem.title)
 
 
 if __name__ == "__main__":
