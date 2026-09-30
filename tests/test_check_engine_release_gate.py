@@ -1281,6 +1281,87 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                         f"check_engine.check_from_spec_dangling reported dangling finding for sentinel {sentinel!r}",
                     )
 
+    def test_valid_release_exempt_pair_yields_zero_findings(self) -> None:
+        """A valid exempt pair on a live bug item yields zero check.live-bug-ungated and zero check.blocks-release-dangling findings."""
+        with TemporaryDirectory() as tmp:
+            repo = _create_minimal_repo(Path(tmp))
+            bug_file = (
+                repo
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "open"
+                / "20260920-bug002-01-bug002-exempt-bug.backlog.md"
+            )
+            bug_file.write_text(
+                "- Id: bug002\n"
+                "- Status: open\n"
+                "- Set: bug002\n"
+                "- Priority: medium\n"
+                "- Work-Kind: bug\n"
+                "- Summary: Live exempt bug\n"
+                "- Release-Exempt-Kind: decision\n"
+                "- Release-Exempt-Ref: D42\n",
+                encoding="utf-8",
+            )
+            findings = check_engine.check_release_gates(repo)
+            rules = [d.rule for d in findings]
+            self.assertNotIn("check.live-bug-ungated", rules)
+            self.assertNotIn("check.blocks-release-dangling", rules)
+
+    def test_malformed_release_exempt_pair_does_not_silence_rule(self) -> None:
+        """A malformed exempt pair does NOT silence check.live-bug-ungated."""
+        with TemporaryDirectory() as tmp:
+            repo = _create_minimal_repo(Path(tmp))
+            bug_file = (
+                repo
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "open"
+                / "20260920-bug003-01-bug003-bad-exempt-bug.backlog.md"
+            )
+            bug_file.write_text(
+                "- Id: bug003\n"
+                "- Status: open\n"
+                "- Set: bug003\n"
+                "- Priority: medium\n"
+                "- Work-Kind: bug\n"
+                "- Summary: Live bad exempt bug\n"
+                "- Release-Exempt-Kind: decision\n"
+                "- Release-Exempt-Ref: garbage\n",
+                encoding="utf-8",
+            )
+            findings = check_engine.check_release_gates(repo)
+            rules = [d.rule for d in findings]
+            self.assertIn("check.live-bug-ungated", rules)
+
+    def test_blocks_release_dash_marker_still_produces_dangling_finding(self) -> None:
+        """The literal '- Blocks-Release: -' marker STILL produces check.blocks-release-dangling (pinned non-change)."""
+        with TemporaryDirectory() as tmp:
+            repo = _create_minimal_repo(Path(tmp))
+            bug_file = (
+                repo
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "open"
+                / "20260920-bug004-01-bug004-dash-bug.backlog.md"
+            )
+            bug_file.write_text(
+                "- Id: bug004\n"
+                "- Status: open\n"
+                "- Set: bug004\n"
+                "- Priority: medium\n"
+                "- Work-Kind: bug\n"
+                "- Summary: Live dash bug\n"
+                "- Blocks-Release: -\n",
+                encoding="utf-8",
+            )
+            findings = check_engine.check_release_gates(repo)
+            rules = [d.rule for d in findings]
+            self.assertIn("check.blocks-release-dangling", rules)
+
 
 if __name__ == "__main__":
     unittest.main()

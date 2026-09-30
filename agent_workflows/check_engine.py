@@ -4791,13 +4791,16 @@ def check_live_bug_gate(repo_root: Path) -> List[_core.Drift]:
     DIVISION OF LABOUR WITH THE REST OF THE I-07 FAMILY, so no reader mistakes this for a duplicate:
     this rule catches an ABSENT gate; `check.blocks-release-dangling` catches an UNRESOLVABLE one;
     `check.from-backlog-gate-mismatch` catches a carrier CONTRADICTING its item; and
-    `check.from-backlog-dangling` catches a carrier pointing at nothing.
+    `check.from-backlog-dangling` catches a carrier pointing at nothing. A valid typed exemption
+    (`- Release-Exempt-Kind:` and `- Release-Exempt-Ref:`) satisfies this rule, while a malformed
+    pair is flagged by `backlog.release-exempt-*`.
 
     HONEST LIMIT: the rule keys on `- Work-Kind:`, which is an AUTHOR'S CLASSIFICATION. A genuine
     defect filed as `chore` or `followup` is invisible to it, and that leak is real and measured
     (backlog `59t9x5` was filed `chore` and reclassified `bug` by the maintainer). This is a strict
     improvement over nothing; it is NOT a completeness claim.
     """
+    from agent_workflows import attention_contract as _A
     from agent_workflows import backlog as _backlog
     from agent_workflows import config as _config
 
@@ -4818,6 +4821,13 @@ def check_live_bug_gate(repo_root: Path) -> List[_core.Drift]:
         if (item.status or "") not in live:
             continue
         if item.blocks_release:
+            continue
+        if (
+            item.release_exempt_kind
+            and item.release_exempt_ref
+            and item.release_exempt_kind in _A.GATE_KINDS
+            and _A.validate_gate_ref(item.release_exempt_kind, item.release_exempt_ref)
+        ):
             continue
         # Only now is the carrier index needed, so a clean tree never pays for the walk.
         if carrier_index is None:
@@ -4849,7 +4859,7 @@ def check_live_bug_gate(repo_root: Path) -> List[_core.Drift]:
                 recovery=(
                     f"aw backlog set {item.status} {selector} --blocks-release next"
                     "  (or hand the gate to the plan/spec that graduated it, or file an explicit "
-                    "exemption if this bug genuinely does not gate the release)"
+                    "exemption with - Release-Exempt-Kind: and - Release-Exempt-Ref: if this bug genuinely does not gate the release)"
                 ),
             )
         )

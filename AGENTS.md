@@ -161,7 +161,7 @@ outstanding release-blocker set for the active release.
 
 We do not ship known bugs. So a backlog item, spec, or plan whose `- Work-Kind:` is in the repository's
 gating set (default `bug`) (the enum is defined once, in `.aw/records/backlog/README.md`) MUST carry
-`- Blocks-Release:` while it is LIVE, meaning `open`, `blocked`, or `graduated`. This is a policy about WHICH
+`- Blocks-Release:` while it is LIVE, meaning `open`, `blocked`, or `graduated`, or for a backlog item record a typed exemption (`- Release-Exempt-Kind:` and `- Release-Exempt-Ref:`); a spec or plan has no exemption field today and so must carry the gate (the gap is latent: no live spec or plan bug is ungated today). This is a policy about WHICH
 artifacts must carry the field, not a change to what the field means, so the BLOCKS-RELEASE versus BLOCKED-BY
 distinction above is untouched: a bug that is merely `open` is still a release blocker. Maintainer ruling, 2026-09-11.
 The gating work-kind set is configured per repository via `release_gate_work_kinds` in `.aw/config/project.json`
@@ -195,7 +195,9 @@ Two limits, stated plainly so the rule is not trusted further than it holds. FIR
 AUTHOR'S CLASSIFICATION, so a genuine defect filed as `chore` or `followup` escapes it; the rule is a strict
 improvement over nothing and it is not a completeness claim. The perceptibility test makes this limit bite in
 BOTH directions: a user-visible performance defect is easy to under-file as `chore` (which `59t9x5`
-measurably was), and an invisible one is now easy to over-file as `bug`. Both are misfilings. SECOND, the
+measurably was), and an invisible one is now easy to over-file as `bug`. Both are misfilings. An exemption
+is equally an AUTHOR'S ASSERTION: the checker validates that the exemption pair is well-formed and cites a
+valid ref shape (such as a decision or artifact), not that the reasoning is sound. SECOND, the
 rule governs LIVE items only. A bug already `done` is not retroactively gated, because writing a gate onto it
 now would assert a history that did not happen.
 

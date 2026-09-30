@@ -4316,6 +4316,19 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Blocks-Release flag.",
     )
+    # relexempt ghna7l E-05: register release exemption flags on untyped setter
+    p_set.add_argument(
+        "--release-exempt-kind",
+        dest="release_exempt_kind",
+        default=None,
+        help="Release-Exempt-Kind (one of artifact, date, decision, external, issue, todo; '-' to clear).",
+    )
+    p_set.add_argument(
+        "--release-exempt-ref",
+        dest="release_exempt_ref",
+        default=None,
+        help="Release-Exempt-Ref (typed reference for the release exemption; '-' to clear).",
+    )
     # setidhard bwgyum E-04: the untyped surface reaches the same shared write in `status_set`, so the
     # flag is declared here too rather than being reachable only through a typed spelling.
     p_set.add_argument(
@@ -5505,6 +5518,19 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Declare this item gates a release: a release id6, 'next', or '-' to omit.",
     )
+    # relexempt ghna7l E-05: register release exemption flags on backlog creation
+    p_backlog_new.add_argument(
+        "--release-exempt-kind",
+        dest="release_exempt_kind",
+        default=None,
+        help="Declare this bug is exempt from gating the release: kind (one of artifact, date, decision, external, issue, todo).",
+    )
+    p_backlog_new.add_argument(
+        "--release-exempt-ref",
+        dest="release_exempt_ref",
+        default=None,
+        help="Typed reference for the release exemption (requires --release-exempt-kind).",
+    )
     p_backlog_new.add_argument(
         "--message",
         default="",
@@ -5571,6 +5597,19 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="blocks_release",
         default=None,
         help="Declare this item gates a release: a release id6, 'next', or '-' to clear.",
+    )
+    # relexempt ghna7l E-05: register release exemption flags on backlog setter
+    p_backlog_set.add_argument(
+        "--release-exempt-kind",
+        dest="release_exempt_kind",
+        default=None,
+        help="Declare this bug is exempt from gating the release: kind (one of artifact, date, decision, external, issue, todo; '-' to clear).",
+    )
+    p_backlog_set.add_argument(
+        "--release-exempt-ref",
+        dest="release_exempt_ref",
+        default=None,
+        help="Typed reference for the release exemption ('-' to clear).",
     )
     p_backlog_set.add_argument(
         "--evidence",

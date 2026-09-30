@@ -1430,6 +1430,233 @@ class BacklogPreservationTests(unittest.TestCase):
             done_files = list((r / ".aw" / "records" / "backlog" / "done").glob("*.md"))
             self.assertEqual(done_files, [])
 
+    def test_validate_item_release_exempt_findings(self):
+        """Validate item release exemption rules: incomplete, kind-invalid, ref-invalid, contradicts-gate."""
+        with tempfile.TemporaryDirectory() as tmp:
+            d = Path(tmp)
+            p = d / "test.backlog.md"
+
+            # 1. kind without ref -> backlog.release-exempt-incomplete
+            p.write_text(
+                "- Id: b00001\n- Status: open\n- Set: s\n- Priority: high\n- Work-Kind: bug\n- Summary: Item\n- Release-Exempt-Kind: decision\n"
+            )
+            drift = B.validate_item(p, p.read_text())
+            rules = [x.rule for x in drift]
+            self.assertIn("backlog.release-exempt-incomplete", rules)
+
+            # 2. ref without kind -> backlog.release-exempt-incomplete
+            p.write_text(
+                "- Id: b00001\n- Status: open\n- Set: s\n- Priority: high\n- Work-Kind: bug\n- Summary: Item\n- Release-Exempt-Ref: D42\n"
+            )
+            drift = B.validate_item(p, p.read_text())
+            rules = [x.rule for x in drift]
+            self.assertIn("backlog.release-exempt-incomplete", rules)
+
+            # 3. kind bogus -> backlog.release-exempt-kind-invalid
+            p.write_text(
+                "- Id: b00001\n- Status: open\n- Set: s\n- Priority: high\n- Work-Kind: bug\n- Summary: Item\n- Release-Exempt-Kind: bogus\n- Release-Exempt-Ref: D42\n"
+            )
+            drift = B.validate_item(p, p.read_text())
+            rules = [x.rule for x in drift]
+            self.assertIn("backlog.release-exempt-kind-invalid", rules)
+
+            # 4. decision + garbage -> backlog.release-exempt-ref-invalid
+            p.write_text(
+                "- Id: b00001\n- Status: open\n- Set: s\n- Priority: high\n- Work-Kind: bug\n- Summary: Item\n- Release-Exempt-Kind: decision\n- Release-Exempt-Ref: garbage\n"
+            )
+            drift = B.validate_item(p, p.read_text())
+            rules = [x.rule for x in drift]
+            self.assertIn("backlog.release-exempt-ref-invalid", rules)
+
+            # 5. valid pair, no gate -> clean (no new findings)
+            p.write_text(
+                "- Id: b00001\n- Status: open\n- Set: s\n- Priority: high\n- Work-Kind: bug\n- Summary: Item\n- Release-Exempt-Kind: decision\n- Release-Exempt-Ref: D42\n"
+            )
+            drift = B.validate_item(p, p.read_text())
+            exempt_rules = [
+                x.rule for x in drift if x.rule.startswith("backlog.release-exempt-")
+            ]
+            self.assertEqual(exempt_rules, [])
+
+            # 6. valid pair PLUS - Blocks-Release: next -> backlog.release-exempt-contradicts-gate
+            p.write_text(
+                "- Id: b00001\n- Status: open\n- Set: s\n- Priority: high\n- Work-Kind: bug\n- Summary: Item\n- Blocks-Release: next\n- Release-Exempt-Kind: decision\n- Release-Exempt-Ref: D42\n"
+            )
+            drift = B.validate_item(p, p.read_text())
+            rules = [x.rule for x in drift]
+            self.assertIn("backlog.release-exempt-contradicts-gate", rules)
+
+    def test_render_item_preserves_release_exempt_with_source_text(self):
+        """_render_item preserves Release-Exempt-Kind and Release-Exempt-Ref in original order when source_text is passed."""
+        text = (
+            "- Id: b00001\n"
+            "- Status: open\n"
+            "- Set: s\n"
+            "- Priority: high\n"
+            "- Work-Kind: bug\n"
+            "- Summary: Item\n"
+            "- Release-Exempt-Kind: decision\n"
+            "- Release-Exempt-Ref: D42\n\n"
+            "## Workflow history\n"
+            "- 2026-09-01 created (aw backlog): initial\n\n"
+            "Prose body\n"
+        )
+        item = B.parse_item(text)
+        rendered = B._render_item(item, "Prose body\n", source_text=text)
+        self.assertIn("- Release-Exempt-Kind: decision\n", rendered)
+        self.assertIn("- Release-Exempt-Ref: D42\n", rendered)
+        kind_pos = rendered.index("- Release-Exempt-Kind: decision\n")
+        ref_pos = rendered.index("- Release-Exempt-Ref: D42\n")
+        self.assertLess(kind_pos, ref_pos)
+
+    def test_render_item_drops_unknown_without_source_text_and_creation_emits_pair(
+        self,
+    ):
+        """_render_item drops exempt fields when source_text is omitted, and run_new emits them via post-render writer."""
+        text = (
+            "- Id: b00001\n"
+            "- Status: open\n"
+            "- Set: s\n"
+            "- Priority: high\n"
+            "- Work-Kind: bug\n"
+            "- Summary: Item\n"
+            "- Release-Exempt-Kind: decision\n"
+            "- Release-Exempt-Ref: D42\n"
+        )
+        item = B.parse_item(text)
+        rendered_no_source = B._render_item(item, "body")
+        self.assertNotIn("- Release-Exempt-Kind:", rendered_no_source)
+        self.assertNotIn("- Release-Exempt-Ref:", rendered_no_source)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            (repo / ".aw" / "records" / "backlog" / "open").mkdir(
+                parents=True, exist_ok=True
+            )
+            args = _args(
+                dir=str(repo),
+                summary="exempt bug",
+                set="s",
+                priority="high",
+                work_kind="bug",
+                slug="exempt-bug",
+                release_exempt_kind="decision",
+                release_exempt_ref="D42",
+                apply=True,
+            )
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                rc = B.run_new(args)
+            self.assertEqual(rc, 0)
+            created_files = list(
+                (repo / ".aw" / "records" / "backlog" / "open").glob("*.md")
+            )
+            self.assertEqual(len(created_files), 1)
+            content = created_files[0].read_text(encoding="utf-8")
+            self.assertIn("- Release-Exempt-Kind: decision\n", content)
+            self.assertIn("- Release-Exempt-Ref: D42\n", content)
+            self.assertNotIn("- Blocks-Release:", content)
+
+    def test_release_exempt_setter_roundtrip_and_parity(self):
+        """Setter roundtrip through both spellings writes bullets and history, and produces field-identical output."""
+        from agent_workflows import status_set
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            (repo / ".aw" / "records" / "backlog" / "open").mkdir(
+                parents=True, exist_ok=True
+            )
+
+            item1_text = (
+                "- Id: bk0001\n"
+                "- Status: open\n"
+                "- Set: s\n"
+                "- Priority: high\n"
+                "- Work-Kind: bug\n"
+                "- Summary: Bug 1\n\n"
+                "## Workflow history\n"
+                "- 2026-09-01 created (tester): initial\n\n"
+                "Prose\n"
+            )
+            item2_text = (
+                "- Id: bk0002\n"
+                "- Status: open\n"
+                "- Set: s\n"
+                "- Priority: high\n"
+                "- Work-Kind: bug\n"
+                "- Summary: Bug 2\n\n"
+                "## Workflow history\n"
+                "- 2026-09-01 created (tester): initial\n\n"
+                "Prose\n"
+            )
+            f1 = (
+                repo
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "open"
+                / "20260901-s-01-bk0001-bug-1.backlog.md"
+            )
+            f2 = (
+                repo
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "open"
+                / "20260901-s-01-bk0002-bug-2.backlog.md"
+            )
+            f1.write_text(item1_text, encoding="utf-8")
+            f2.write_text(item2_text, encoding="utf-8")
+
+            # Route 1: run_set (--status spelling)
+            set_args1 = _args(
+                dir=str(repo),
+                path=str(f1),
+                status="open",
+                release_exempt_kind="decision",
+                release_exempt_ref="D42",
+                message="exempted reason",
+            )
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                rc1 = B.run_set(set_args1)
+            self.assertEqual(rc1, 0)
+            res1_text = f1.read_text(encoding="utf-8")
+            self.assertIn("- Release-Exempt-Kind: decision\n", res1_text)
+            self.assertIn("- Release-Exempt-Ref: D42\n", res1_text)
+            self.assertIn("exempted reason", res1_text)
+
+            # Route 2: positional spelling via run_set_command
+            set_args2 = _args(
+                dir=str(repo),
+                args=["open", "bk0002"],
+                release_exempt_kind="decision",
+                release_exempt_ref="D42",
+                message="exempted reason",
+                yes=True,
+                force=False,
+                scoped_type="backlog",
+            )
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                rc2 = status_set.run_set_command(
+                    set_args2.args, scoped_type="backlog", args=set_args2
+                )
+            self.assertEqual(rc2, 0)
+            res2_text = f2.read_text(encoding="utf-8")
+            self.assertIn("- Release-Exempt-Kind: decision\n", res2_text)
+            self.assertIn("- Release-Exempt-Ref: D42\n", res2_text)
+            self.assertIn("exempted reason", res2_text)
+
+            norm1 = (
+                res1_text.replace("bk0001", "bkXXXX")
+                .replace("Bug 1", "Bug X")
+                .replace("set (aw backlog)", "HIST_ACTOR")
+            )
+            norm2 = (
+                res2_text.replace("bk0002", "bkXXXX")
+                .replace("Bug 2", "Bug X")
+                .replace("same-status (aw set)", "HIST_ACTOR")
+            )
+            self.assertEqual(norm1, norm2)
+
 
 if __name__ == "__main__":
     unittest.main()

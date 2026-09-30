@@ -114,6 +114,12 @@ _WORK_KIND_RE = re.compile(r"^- Work-Kind:[ \t]*(?P<value>\S+)[ \t]*$")
 _KIND_RE = re.compile(r"^- Kind:[ \t]*(?P<value>\S+)[ \t]*$")
 _SUMMARY_RE = re.compile(r"^- Summary:[ \t]*(?P<value>.+?)[ \t]*$")
 _BLOCKS_RELEASE_RE = re.compile(r"^- Blocks-Release:[ \t]*(?P<value>\S+)[ \t]*$")
+_RELEASE_EXEMPT_KIND_RE = re.compile(
+    r"^- Release-Exempt-Kind:[ \t]*(?P<value>\S+)[ \t]*$"
+)
+_RELEASE_EXEMPT_REF_RE = re.compile(
+    r"^- Release-Exempt-Ref:[ \t]*(?P<value>.+?)[ \t]*$"
+)
 _TOP_KEY_RE = re.compile(r"^- ([A-Za-z0-9_-]+):(?:\s*(.*))?$")
 _TEMPLATE_OWNED_KEYS = frozenset(
     (
@@ -307,6 +313,8 @@ class BacklogItem:
         "id",
         "kind",
         "priority",
+        "release_exempt_kind",
+        "release_exempt_ref",
         "set",
         "status",
         "summary",
@@ -322,6 +330,8 @@ class BacklogItem:
         self.gate_kind: Optional[str] = None
         self.gate_ref: Optional[str] = None
         self.blocks_release: Optional[str] = None
+        self.release_exempt_kind: Optional[str] = None
+        self.release_exempt_ref: Optional[str] = None
 
 
 def parse_item(text: str) -> BacklogItem:
@@ -347,6 +357,8 @@ def parse_item(text: str) -> BacklogItem:
             ("priority", _PRIORITY_RE),
             ("summary", _SUMMARY_RE),
             ("blocks_release", _BLOCKS_RELEASE_RE),
+            ("release_exempt_kind", _RELEASE_EXEMPT_KIND_RE),
+            ("release_exempt_ref", _RELEASE_EXEMPT_REF_RE),
         ):
             m = rx.match(line)
             if m and getattr(item, attr) is None:
@@ -475,6 +487,43 @@ def validate_item(path: Path, text: str) -> List[core.Drift]:
             )
         )
 
+    # Release exemption validation (IPD ghna7l E-02).
+    has_exempt_kind = item.release_exempt_kind is not None
+    has_exempt_ref = item.release_exempt_ref is not None
+    if has_exempt_kind != has_exempt_ref:
+        drift.append(
+            core.Drift(
+                rel,
+                "backlog.release-exempt-incomplete",
+                "release exemption requires both - Release-Exempt-Kind: and - Release-Exempt-Ref:",
+            )
+        )
+    elif has_exempt_kind and has_exempt_ref:
+        if item.release_exempt_kind not in A.GATE_KINDS:
+            drift.append(
+                core.Drift(
+                    rel,
+                    "backlog.release-exempt-kind-invalid",
+                    f"Release-Exempt-Kind not in {sorted(A.GATE_KINDS)}: {item.release_exempt_kind!r}",
+                )
+            )
+        elif not A.validate_gate_ref(item.release_exempt_kind, item.release_exempt_ref):
+            drift.append(
+                core.Drift(
+                    rel,
+                    "backlog.release-exempt-ref-invalid",
+                    f"Release-Exempt-Ref invalid for kind {item.release_exempt_kind!r}: {item.release_exempt_ref!r}",
+                )
+            )
+        elif item.blocks_release and item.blocks_release != "-":
+            drift.append(
+                core.Drift(
+                    rel,
+                    "backlog.release-exempt-contradicts-gate",
+                    f"item carries both a valid release exemption and - Blocks-Release: {item.blocks_release}",
+                )
+            )
+
     return drift
 
 
@@ -566,10 +615,11 @@ def decide_gate_default(
     status: Optional[str],
     explicit_blocks_release: Optional[str],
     existing_blocks_release: Optional[str] = None,
+    is_exempt: bool = False,
 ) -> Tuple[Optional[str], Optional[str]]:
     """Decide whether an item should have `- Blocks-Release:` DEFAULTED, and say why either way.
 
-    nobugship di08i9 E-01/E-02. Returns `(value_to_apply, notice)`: `value_to_apply` is the gate to
+    nobugship di08i9 E-01/E-02 / relexempt ghna7l E-04. Returns `(value_to_apply, notice)`: `value_to_apply` is the gate to
     write (today always `next`) or None to write nothing, and `notice` is the human/agent-facing
     explanation, or None when no defaulting decision arose at all (so a non-bug item stays silent).
 
@@ -579,7 +629,7 @@ def decide_gate_default(
     into one spelling of the setter and not the other would fire inconsistently, which is worse than
     not shipping it because it teaches a false expectation.
 
-    FOUR CONDITIONS SHAPE IT AND EACH WAS MEASURED, NOT ASSUMED:
+    FIVE CONDITIONS SHAPE IT AND EACH WAS MEASURED, NOT ASSUMED:
 
     1. ONLY work kinds configured in `release_gate_work_kinds` (defaulting to `bug` alone via
        `config.RELEASE_GATE_WORK_KINDS_DEFAULT`) are defaulted. The rule is "we don't ship known
@@ -601,8 +651,13 @@ def decide_gate_default(
        obligation nobody has taken on.
     4. AN EXPLICIT VALUE ALWAYS WINS, INCLUDING `-`. A default is not a prohibition; an author may
        legitimately file an ungated bug, and an existing gate is never overwritten.
+    5. A VALID RELEASE EXEMPTION SUPPRESSES THE DEFAULT (IPD ghna7l E-04). When an item carries or is
+       being given a valid typed release exemption, no gate is defaulted, avoiding contradictory gate
+       generation.
     """
 
+    if is_exempt:
+        return None, None
     if explicit_blocks_release is not None:
         return None, None
     gating_kinds = _config.release_gate_work_kinds(repo_root)
@@ -859,6 +914,74 @@ def _render_item(
     return "\n".join(lines).rstrip() + "\n"
 
 
+# --------------------------------------------------------------------------------------
+# Release exemption line writers and validation (IPD ghna7l E-04)
+# --------------------------------------------------------------------------------------
+
+_RELEASE_EXEMPT_KIND_LINE_RE = re.compile(
+    r"(?m)^- Release-Exempt-Kind:[ \t]*[^\n]*$\n?"
+)
+_RELEASE_EXEMPT_REF_LINE_RE = re.compile(r"(?m)^- Release-Exempt-Ref:[ \t]*[^\n]*$\n?")
+
+
+def set_release_exempt_kind_line(text: str, value: Optional[str]) -> str:
+    """Return `text` with the `- Release-Exempt-Kind:` metadata line set to `value`, or removed when
+    `value` is '-' or None. Idempotent: replaces an existing line or inserts one after `- Status:`
+    (falling back to after `- Id:`, or leaving unchanged)."""
+    text = _RELEASE_EXEMPT_KIND_LINE_RE.sub("", text)
+    if value in (None, "-"):
+        return text
+    new_line = f"- Release-Exempt-Kind: {value}\n"
+    for anchor in (r"(?m)^- Status:[^\n]*\n", r"(?m)^- Id:[^\n]*\n"):
+        m = re.search(anchor, text)
+        if m:
+            i = m.end()
+            return text[:i] + new_line + text[i:]
+    return text
+
+
+def set_release_exempt_ref_line(text: str, value: Optional[str]) -> str:
+    """Return `text` with the `- Release-Exempt-Ref:` metadata line set to `value`, or removed when
+    `value` is '-' or None. Idempotent: replaces an existing line or inserts one after `- Status:`
+    (falling back to after `- Id:`, or leaving unchanged)."""
+    text = _RELEASE_EXEMPT_REF_LINE_RE.sub("", text)
+    if value in (None, "-"):
+        return text
+    new_line = f"- Release-Exempt-Ref: {value}\n"
+    for anchor in (r"(?m)^- Status:[^\n]*\n", r"(?m)^- Id:[^\n]*\n"):
+        m = re.search(anchor, text)
+        if m:
+            i = m.end()
+            return text[:i] + new_line + text[i:]
+    return text
+
+
+def validate_release_exempt_flags(
+    verb: str, kind: Optional[str], ref: Optional[str]
+) -> Optional[str]:
+    """Validate release exemption flags at the point of typing.
+
+    Enforces that both flags are provided together, kind is in GATE_KINDS, and ref is valid
+    for that kind under validate_gate_ref. '-' for kind clears both bullets.
+    Returns an error message string if invalid, or None if valid.
+    """
+    if kind is None and ref is None:
+        return None
+    if kind == "-":
+        if ref is not None and ref != "-":
+            return (
+                f"{verb}: cannot specify a ref when clearing release exemption with '-'"
+            )
+        return None
+    if kind is None or ref is None or ref == "-":
+        return f"{verb}: release exemption requires both --release-exempt-kind and --release-exempt-ref"
+    if kind not in A.GATE_KINDS:
+        return f"{verb}: --release-exempt-kind must be one of {sorted(A.GATE_KINDS)}"
+    if not A.validate_gate_ref(kind, ref):
+        return f"{verb}: --release-exempt-ref is invalid for kind {kind!r}: {ref!r}"
+    return None
+
+
 def run_new(args) -> int:
     from agent_workflows.project_context import resolve_verb_repo_root
 
@@ -966,6 +1089,21 @@ def run_new(args) -> int:
         )
         return 2
 
+    rel_exempt_kind = getattr(args, "release_exempt_kind", None)
+    rel_exempt_ref = getattr(args, "release_exempt_ref", None)
+    _exempt_err = validate_release_exempt_flags(
+        "aw backlog new", rel_exempt_kind, rel_exempt_ref
+    )
+    if _exempt_err:
+        sys.stderr.write(f"{_exempt_err}\n")
+        return 2
+
+    is_exempt = bool(rel_exempt_kind and rel_exempt_kind != "-")
+    if rel_exempt_kind and rel_exempt_kind != "-":
+        item.release_exempt_kind = rel_exempt_kind
+    if rel_exempt_ref and rel_exempt_ref != "-":
+        item.release_exempt_ref = rel_exempt_ref
+
     br = getattr(args, "blocks_release", None)
     if br is not None and br != "-":
         from agent_workflows import releases as _releases
@@ -981,7 +1119,11 @@ def run_new(args) -> int:
     # creation and reclassification (E-02) cannot diverge. See `decide_gate_default` for the three
     # measured conditions (fall back rather than refuse, skip `done`/`parked`, keep the `-` escape).
     gate_default, gate_default_notice = decide_gate_default(
-        repo_root, kind=item.kind, status=status, explicit_blocks_release=br
+        repo_root,
+        kind=item.kind,
+        status=status,
+        explicit_blocks_release=br,
+        is_exempt=is_exempt,
     )
     if gate_default is not None:
         br = gate_default
@@ -1012,6 +1154,16 @@ def run_new(args) -> int:
         from agent_workflows import releases as _releases
 
         rendered = _releases.set_blocks_release_line(rendered, br)
+
+    if rel_exempt_kind is not None or rel_exempt_ref is not None:
+        if rel_exempt_kind == "-":
+            rendered = set_release_exempt_kind_line(rendered, "-")
+            rendered = set_release_exempt_ref_line(rendered, "-")
+        else:
+            if rel_exempt_ref is not None:
+                rendered = set_release_exempt_ref_line(rendered, rel_exempt_ref)
+            if rel_exempt_kind is not None:
+                rendered = set_release_exempt_kind_line(rendered, rel_exempt_kind)
 
     # IPD fwgq2u E-02 / OQ-01: near-duplicate advisory guard. Reuses the existing_items_data walk
     # performed above rather than doing a second corpus pass (which would be 59t9x5 double-read in
@@ -1244,6 +1396,14 @@ def run_set(args) -> int:
             f"aw backlog set: --priority must be one of {sorted(PRIORITIES)}\n"
         )
         return 2
+    set_rel_exempt_kind = getattr(args, "release_exempt_kind", None)
+    set_rel_exempt_ref = getattr(args, "release_exempt_ref", None)
+    _exempt_err = validate_release_exempt_flags(
+        "aw backlog set", set_rel_exempt_kind, set_rel_exempt_ref
+    )
+    if _exempt_err:
+        sys.stderr.write(f"{_exempt_err}\n")
+        return 2
     # setidhard bwgyum E-04: validate the FORWARD graduation link's value HERE, before anything is
     # resolved or written, in the same exit-2 shape the two flags above use. A setter that accepts a
     # typo writes a link `aw check` then reports as malformed, turning one clear refusal into a
@@ -1352,6 +1512,16 @@ def run_set(args) -> int:
 
         rendered = _releases_gt.set_graduated_to_line(rendered, set_graduated_to)
 
+    if set_rel_exempt_kind is not None or set_rel_exempt_ref is not None:
+        if set_rel_exempt_kind == "-":
+            rendered = set_release_exempt_kind_line(rendered, "-")
+            rendered = set_release_exempt_ref_line(rendered, "-")
+        else:
+            if set_rel_exempt_ref is not None:
+                rendered = set_release_exempt_ref_line(rendered, set_rel_exempt_ref)
+            if set_rel_exempt_kind is not None:
+                rendered = set_release_exempt_kind_line(rendered, set_rel_exempt_kind)
+
     # bklgkind b5sfwm E-03/E-04: apply the two CLASSIFICATION fields. APPLIED AFTER THE RENDER,
     # THROUGH THE SHARED LINE WRITERS, exactly as `--blocks-release` above is, so `_render_item` stays
     # untouched and BOTH spellings of this verb funnel through ONE write mechanism: the positional
@@ -1398,12 +1568,20 @@ def run_set(args) -> int:
     # itself: its condition 3 already declines `done` and `parked`, so the broadened guard needs no
     # status allowlist of its own.
     if br is None:
+        _rendered_item = parse_item(rendered)
+        _is_exempt = bool(
+            _rendered_item.release_exempt_kind
+            and _rendered_item.release_exempt_ref
+            and _rendered_item.release_exempt_kind != "-"
+            and _rendered_item.release_exempt_ref != "-"
+        )
         gate_default, gate_default_notice = decide_gate_default(
             repo_root,
             kind=set_work_kind or item.kind,
             status=new_status,
             explicit_blocks_release=None,
             existing_blocks_release=item.blocks_release,
+            is_exempt=_is_exempt,
         )
         if gate_default is not None:
             from agent_workflows import releases as _releases
