@@ -21,7 +21,8 @@ readers. `aw run` is NOT retired: it stays the writing/dispatch noun.
 Contract:
   * exit 0 = success / clean / complete;
     exit 1 = incomplete / invalid evidence / unsatisfied requirements;
-    exit 2 = invocation error, missing ledger, or corrupted hash chain / unparseable JSON;
+    exit 2 = invocation error, missing ledger, or unexpected read failure;
+    exit 5 = corrupted hash chain / unparseable JSON;
     exit 7 = the target is healthy JSONL of some OTHER format, i.e. not a ledger at all.
   * WRONG-FORMAT IS NOT CORRUPTION. A file that carries none of the ledger envelope fields gets a
     'not a run ledger file' verdict (exit 7), never a corruption verdict: reporting healthy driver
@@ -514,11 +515,16 @@ def _run_show(args: argparse.Namespace) -> int:
         if machine:
             _emit_machine(
                 args,
-                {"ok": False, "error": err_msg, "corrupted": True, "exit_code": 2},
+                {
+                    "ok": False,
+                    "error": err_msg,
+                    "corrupted": True,
+                    "exit_code": EXIT_CORRUPTED_LEDGER,
+                },
             )
         else:
             print(err_msg)
-        return 2
+        return EXIT_CORRUPTED_LEDGER
     except Exception as exc:
         err_msg = f"error: failed to read ledger: {exc}"
         if machine:
@@ -617,11 +623,16 @@ def _run_evidence(args: argparse.Namespace) -> int:
         if machine:
             _emit_machine(
                 args,
-                {"ok": False, "error": err_msg, "corrupted": True, "exit_code": 2},
+                {
+                    "ok": False,
+                    "error": err_msg,
+                    "corrupted": True,
+                    "exit_code": EXIT_CORRUPTED_LEDGER,
+                },
             )
         else:
             print(err_msg)
-        return 2
+        return EXIT_CORRUPTED_LEDGER
     except Exception as exc:
         err_msg = f"error: failed to read ledger: {exc}"
         if machine:
@@ -748,13 +759,13 @@ def _run_verify_ledger(args: argparse.Namespace) -> int:
                     "chain_clean": False,
                     "error": err_details,
                     "records_checked": chain_ver.count,
-                    "exit_code": 2,
+                    "exit_code": EXIT_CORRUPTED_LEDGER,
                 },
             )
         else:
             print(f"FAIL: Ledger verification failed for {ledger_file}")
             print(f"  {err_details}")
-        return 2
+        return EXIT_CORRUPTED_LEDGER
 
     # Chain is clean, now verify evidence and completion predicates
     records = ledger_store.read_records(verify=False)
