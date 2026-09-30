@@ -6,7 +6,7 @@
 - Scope: Restore behavioral coverage for the `drift` bucket (a modern id6-clustered filename whose declared `- Set:`/`- Id:` disagrees with its name) as fixture-driven rows in `tests/test_check_engine.py`, and correct the incidental name-vs-metadata mismatch in the four fixtures where it is genuinely accidental AND the fixture's own module asserts nothing about setid resolution. Does NOT change `check_engine` behavior, does NOT touch the deliberate legacy-trap fixtures, and does NOT mass-rewrite all 36 hits.
 - Scope-Paths: tests/test_check_engine.py, tests/test_find_filters.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: y43g6q
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: y43g6q verified (set findtier, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; five findings PR-801..PR-805 fixed, two BLOCKER (the chosen table cannot assert the drift bucket, and the surviving rule-id-only assertion survives the plan's own mutant); review record written; readiness go-pending-approval
 
