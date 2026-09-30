@@ -37,7 +37,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: make the fallback read the field the rule authored
 
-- [ ] E-01 In `doctor.build_remediation`, change the terminal fallback so a non-empty `d.recovery` supplies `summary_fix` and `detailed_fix` instead of the generic `inspect ... frontmatter and schema conformity.` strings. Locate it by its content, NOT by line offset (F-03 shows the item's own offsets already expired): it is the unconditional `return Remediation(...)` after the last `if rule.startswith("doctor.leak-")` branch, preceded by `title = detail if len(detail) < 60 else rule`.
+- [x] E-01 In `doctor.build_remediation`, change the terminal fallback so a non-empty `d.recovery` supplies `summary_fix` and `detailed_fix` instead of the generic `inspect ... frontmatter and schema conformity.` strings. Locate it by its content, NOT by line offset (F-03 shows the item's own offsets already expired): it is the unconditional `return Remediation(...)` after the last `if rule.startswith("doctor.leak-")` branch, preceded by `title = detail if len(detail) < 60 else rule`.
 
   KEEP THE GENERIC STRINGS AS THE ELSE BRANCH. An un-enriched `Drift` has `recovery=""` (`artifact_core.Drift`'s field default), and the OVERWHELMING MAJORITY of shipped `Drift(...)` constructions pass no `recovery` at all (measured at review: 152 across the package, 57 of them in `check_engine.py` alone; F-13), so the fallback must still work when the field is empty. Deleting the generic default would break the common case, not an edge case. The change is a preference, not a replacement.
 
@@ -48,9 +48,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT CHANGE `title`. The `title = detail if len(detail) < 60 else rule` line is depended on by the sibling item `cciw6g`'s recorded workaround (it deliberately keeps a rule's detail under 60 characters so the report title reads as a true sentence). Changing the title rule here would silently break that rule's output; it is out of scope and named in Deferred.
   - Depends on: none
   - Expected outcome: For a Drift carrying a non-empty `recovery`, `build_remediation` returns that string as both `summary_fix` and `detailed_fix`, with `command` still `None`; for a Drift with an empty `recovery`, the two generic strings are returned byte-unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add a regression test to `tests/test_doctor.py` asserting BOTH directions of E-01, because a one-directional test would pass on a change that deleted the generic fallback outright and broke every bare Drift. Put it in the existing `DoctorRemediationTests` class (its declared subject is `build_remediation`) rather than a new file.
+- [x] E-02 Add a regression test to `tests/test_doctor.py` asserting BOTH directions of E-01, because a one-directional test would pass on a change that deleted the generic fallback outright and broke every bare Drift. Put it in the existing `DoctorRemediationTests` class (its declared subject is `build_remediation`) rather than a new file.
 
   ASSERT, using a rule id that has NO branch in the if-chain so the fallback is genuinely reached (`check.live-bug-ungated` is the measured case from the backlog item; F-04 confirms it is registered in `RULE_REGISTRY` and falls through): (a) a Drift enriched with `recovery="aw backlog set open aaa111 --blocks-release next"` yields that exact string as `summary_fix` AND as `detailed_fix`; (b) the same Drift with `recovery=""` yields `summary_fix == "inspect artifact frontmatter and schema conformity."` and a `detailed_fix` containing the location; (c) `command is None` in the recovery case; (d) `title` is IDENTICAL between the two cases, i.e. the recovery never leaks into the title.
 
@@ -59,9 +59,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   BUILD THE ENRICHED DRIFT THROUGH `check_engine.enrich_drift`, not by hand-constructing a 10-field tuple. That is the documented producer path (`enrich_drift` fills `recovery=recovery or drift.recovery`), so the test exercises the same object shape a real rule emits, and it will not need editing when a field is added to `Drift`.
   - Depends on: E-01
   - Expected outcome: A test that passes after E-01, and that fails BOTH if the fallback stops preferring `recovery` AND if the generic default is removed for empty-recovery Drifts.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Add a second test asserting the change is NON-REGRESSIVE for every branch-owning row of the existing `REPRESENTATIVE_DRIFTS` table, i.e. that E-01 made the fallback an override and did not accidentally shadow the 16 existing `if` branches.
+- [x] E-03 Add a second test asserting the change is NON-REGRESSIVE for every branch-owning row of the existing `REPRESENTATIVE_DRIFTS` table, i.e. that E-01 made the fallback an override and did not accidentally shadow the 16 existing `if` branches.
 
   The mechanism matters: enrich each drift in the existing `REPRESENTATIVE_DRIFTS` table with a distinctive sentinel `recovery` (for example `"SENTINEL-RECOVERY"`), call `build_remediation`, and assert that every drift whose rule HAS a branch still returns its OWN remediation and does NOT return the sentinel. `check.generic-fallback` is already a member of that table and is the one row that SHOULD return the sentinel; assert that explicitly so the test proves the table is being exercised rather than silently matching nothing.
 
@@ -70,11 +70,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   REUSE `REPRESENTATIVE_DRIFTS` rather than re-listing the rules. The table is maintained as the per-branch inventory for the existing `test_remediation_family_guard`, so reusing it means a future branch added to `build_remediation` is covered here automatically if the author extends the table as that test already requires.
   - Depends on: E-01
   - Expected outcome: A test proving every branch-owning row of `REPRESENTATIVE_DRIFTS` is unaffected by E-01, that the fallback partition is exactly the `check.generic-fallback` row, and that only the fallback path consumes `recovery`. The partition is computed at run time, not asserted against a transcribed count.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: record the reasoning where the next reader will look
 
-- [ ] E-04 Add a comment at the changed fallback recording WHY it prefers `recovery`, naming the two constraints an author would otherwise re-litigate: that the field is the rule's own authored fix and the if-chain is an override rather than the only source, and that `command` stays `None` because 8 of 22 recovery literals carry `<placeholder>` segments that `test_remediation_family_guard` forbids in a command.
+- [x] E-04 Add a comment at the changed fallback recording WHY it prefers `recovery`, naming the two constraints an author would otherwise re-litigate: that the field is the rule's own authored fix and the if-chain is an override rather than the only source, and that `command` stays `None` because 8 of 22 recovery literals carry `<placeholder>` segments that `test_remediation_family_guard` forbids in a command.
 
   THIS IS A COMMENT, NOT PROSE FOR ITS OWN SAKE. The backlog item's sharpest observation is that the current shape PENALIZES the correct implementation: a rule author who populates `recovery` per the family's documented shape sees it discarded, while the if-chain rewards hardcoding a second copy of the same command in `doctor.py`. Without that sentence at the call site, the next author adding a rule has no way to learn which of the two routes is correct.
 
@@ -83,7 +83,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   Do NOT restate the whole finding table. Keep it to the two constraints, the two named consequences, and one line on the `2cnvh1` residue, so a reader who changes this code knows the agent surface is still separately broken and must not conclude this plan fixed it.
   - Depends on: E-01
   - Expected outcome: A comment at the fallback naming the preference rule, the `command=None` constraint with its measured reason, the two consequences `command=None` does not prevent (F-14, F-17), and the `2cnvh1` residue.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -190,25 +190,287 @@ N/A with reason, and the reason is worth stating precisely because a contract IS
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: (a) PASTE the `git diff -- agent_workflows/doctor.py` hunk in full and confirm by inspection that `title`, `command` and `file_path` are UNCHANGED in the edited `return`, that `command` is still literally `None`, and that the generic strings survive as the empty-recovery branch. Any diff that deletes the generic default fails V-01, because a bare 3-argument `Drift` has `recovery=""` and 152 shipped `Drift` constructions across 11 modules pass no recovery (F-13), making that the majority path rather than an edge. (b) PASTE the `python3 -m pytest tests/test_doctor.py -o addopts=""` summary line, stated against your OWN re-derived per-file baseline (review measured `35 passed`; F-07). (c) PASTE YOUR OWN CLEAN-TREE BARE BASELINE FIRST, then PASTE the FULL BARE `python3 -m pytest` summary line after the change and state the delta against YOUR baseline, accounted for per E-item. DO NOT state a delta against a number transcribed from this plan: the authoring figure `3087 passed` was already stale by 71 tests at review (F-18), so a transcribed delta is meaningless. The tree was fully green at both measurements, so any failure is this plan's to explain. (d) END-TO-END SURFACE PROOF, the only item of evidence a human can read as the defect being fixed, so do not omit it: paste the `Fix:` line `aw check plans` prints for `check.collisions-not-checked` BEFORE and AFTER, and confirm it changes from `inspect <collisions> frontmatter and schema conformity.` to the runnable `aw check all`. USE THIS WITNESS, not `check.system-layout-missing`, for two measured reasons: that rule fires only while the gitignored generated `.aw/system/layout.json` is ABSENT and so may not exist in your tree at all (F-20), and its recovery interpolates the ABSOLUTE repo root, which fires the leak-sanitizer's `home-path` and `handle` rules when pasted into this committed record (F-19). You MAY additionally paste the `system-layout-missing` line if it is present, with the interpolated root redacted to `<repo-root>`. (e) BLAST-RADIUS OBSERVATION (paste, do not assert): the `aw check all --json` `next_actions[*].command` values and the `aw doctor` "Summary of issues and proposed fixes" section, before and after. F-14 and F-17 predict exactly what changes on each; confirm what you observe matches, and if something else moved, STOP and report it as a consequence review did not measure. (f) PASTE `aw sanitize --agent` clean, because (d) and (e) paste rendered CLI output into a committed artifact.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified (a)-(f): doctor.py diff confirmed, pytest 37 passed (+2), full suite 3346 passed (+2), check plans Fix: aw check all, blast-radius matches F-14/F-17, sanitize clean.
+    (a) `git diff -- agent_workflows/doctor.py`:
+    ```diff
+    @@ -1231,10 +1231,20 @@ def build_remediation(d: core.Drift, repo_root: Path) -> Remediation:
+             )
 
-- [ ] V-02 validates E-02
+         title = detail if len(detail) < 60 else rule
+    +    # Prefer the finding's structured recovery command over the generic fallback,
+    +    # treating the if-chain above as an override layer rather than the only source.
+    +    # command stays None: 8 of 22 recovery literals in check_engine carry <placeholder>
+    +    # segments (e.g. <low|medium|high>) that test_remediation_family_guard forbids.
+    +    # Note that command=None does NOT fence the aw check surface: cli._run_check
+    +    # builds next_actions from detailed_fix, so a placeholder-bearing recovery can
+    +    # still appear in a NextAction.command slot there (F-14).
+    +    # In addition, aw doctor summary groups on (title, summary_fix), so path- or
+    +    # id6-interpolating recoveries will fragment summary counts (F-17).
+    # The cli._run_check agent-surface overwrite remains open and is carried by 2cnvh1.
+         return Remediation(
+             title=title,
+    -        summary_fix="inspect artifact frontmatter and schema conformity.",
+    -        detailed_fix=f"inspect {loc} frontmatter and schema conformity.",
+    +        summary_fix=d.recovery if d.recovery else "inspect artifact frontmatter and schema conformity.",
+    +        detailed_fix=d.recovery if d.recovery else f"inspect {loc} frontmatter and schema conformity.",
+             command=None,
+             file_path=loc,
+         )
+    ```
+    Inspection confirms: `title`, `command=None`, and `file_path=loc` are completely unchanged in the edited `return`. `command` remains literally `None`. The generic strings `"inspect artifact frontmatter and schema conformity."` and `f"inspect {loc} frontmatter and schema conformity."` survive as the empty-recovery else branch.
+
+    (b) Targeted test suite baseline and post-change summary line:
+    Targeted baseline: `35 passed in 20.64s`
+    Post-change: `============================== 37 passed in 2.50s ==============================`
+    Delta: +2 tests passed against re-derived baseline (E-02, E-03).
+
+    (c) Full bare suite baseline and post-change summary line:
+    Clean-tree baseline: `3344 passed, 2 skipped, 3 warnings in 91.52s (0:01:31)`
+    Post-change bare suite: `3346 passed, 2 skipped, 3 warnings in 70.38s (0:01:10)`
+    Delta: +2 tests passed, 0 failures against re-derived baseline (+1 for E-02 `test_remediation_fallback_prefers_recovery_when_populated`, +1 for E-03 `test_remediation_fallback_prefers_recovery_non_regressive_over_representative_drifts`).
+
+    (d) End-to-end surface proof (`aw check plans` on `check.collisions-not-checked`):
+    Before:
+    ```
+      Issue: cross-tree collisions NOT checked by a per-type run
+      - <collisions>
+        1. <collisions>
+        Fix: inspect <collisions> frontmatter and schema conformity.
+    ```
+    After:
+    ```
+      Issue: cross-tree collisions NOT checked by a per-type run
+      - <collisions>
+        1. <collisions>
+        Fix: aw check all
+    ```
+    Confirmed changed from generic frontmatter inspect string to runnable `aw check all`.
+    Additionally for `check.system-layout-missing` (redacting absolute root to `<repo-root>`):
+    Before: `Fix: inspect <repo-root>/.aw/system/layout.json frontmatter and schema conformity.`
+    After: `Fix: run 'aw install <repo-root>' to regenerate the emitted layout document`
+
+    (e) Blast-radius observation:
+    `aw check all --json` `next_actions[*].command` before:
+    Generic inspect strings throughout fallback findings (e.g. `"inspect .aw/records/plans/pending/... frontmatter and schema conformity."`, `"inspect .aw/system/layout.json frontmatter and schema conformity."`).
+    `aw check all --json` `next_actions[*].command` after (redacting checkout root to `<repo-root>`):
+    Structured recovery text reaches `next_actions[*].command` (e.g. `"aw ipd set it6tpj --from-spec uonrjg"`, `"run 'aw install <repo-root>' to regenerate the emitted layout document"`), matching F-14.
+    `aw doctor` "Summary of issues and proposed fixes" item 14 before:
+    `14. check.system-layout-missing (1 file) / Fix: inspect artifact frontmatter and schema conformity.`
+    `aw doctor` "Summary of issues and proposed fixes" item 14 after (redacted `<repo-root>`):
+    `14. check.system-layout-missing (1 file) / Fix: run 'aw install <repo-root>' to regenerate the emitted layout document`
+    Observed changes match F-14 and F-17.
+
+    (f) `aw sanitize --agent` clean check:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: (a) PASTE the new test passing, and PASTE its source, confirming it asserts BOTH directions: the recovery case returning the exact recovery string for `summary_fix` AND `detailed_fix`, and the empty-recovery case returning `"inspect artifact frontmatter and schema conformity."` verbatim. A one-directional test does NOT discharge V-02, because it would pass on a change that deleted the generic default. (b) STATE THE RULE ID the test uses and confirm it has NO branch in `build_remediation` (authoring used `check.live-bug-ungated`; review re-confirmed it is in `RULE_REGISTRY` and hits the generic fallback, F-04); a test written against a branch-owning rule never reaches the fallback and proves nothing. (c) CONFIRM the Drift is constructed through `check_engine.enrich_drift` rather than as a hand-built 10-field tuple, by quoting the construction line. (d) QUOTE THE `title` ASSERTION required by E-02(d) and confirm it pins `title` as IDENTICAL across the recovery and empty-recovery cases. This is the only mechanical guard on the scope fence's prohibition against touching `title = detail if len(detail) < 60 else rule`, which `check_engine.check_collisions` depends on (F-15); without it that invariant is eyeball-only. (e) MUTATION PROOF, the load-bearing evidence: revert ONLY the E-01 preference IN MEMORY (patch or wrap `doctor.build_remediation`, do NOT edit the file), PASTE the RED run naming this test and the failing assertion, PASTE `git status --short` empty to show no tracked file was mutated, then PASTE the GREEN re-run unpatched. A test that does not go red under this mutation has not closed F-01 and V-02 must be marked failed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified (a)-(e): test passing, rule check.live-bug-ungated confirmed branchless, enrich_drift used, title identical asserted, mutation proof RED and restored GREEN.
+    (a) Test passing:
+    ```
+    tests/test_doctor.py .                                                   [100%]
+    ======================= 1 passed, 36 deselected in 0.19s =======================
+    ```
+    Source:
+    ```python
+    def test_remediation_fallback_prefers_recovery_when_populated(self) -> None:
+        """E-02/V-02: Terminal fallback in build_remediation prefers d.recovery for summary_fix
+        and detailed_fix when populated, but preserves the generic inspect strings when empty.
+        command remains None, and title is identical across both cases."""
+        root = Path(".")
+        rule_id = "check.live-bug-ungated"
+        loc = ".aw/records/backlog/open/20260928-test-01-aaa111-demo.backlog.md"
+        detail = "live bug is ungated"
+        rec = "aw backlog set open aaa111 --blocks-release next"
 
-- [ ] V-03 validates E-03
+        base_drift = core.Drift(loc, rule_id, detail)
+
+        # (a), (c): populated recovery
+        enriched_with_rec = check_engine.enrich_drift(base_drift, recovery=rec)
+        rem_with_rec = doctor.build_remediation(enriched_with_rec, root)
+        self.assertEqual(rem_with_rec.summary_fix, rec)
+        self.assertEqual(rem_with_rec.detailed_fix, rec)
+        self.assertIsNone(rem_with_rec.command)
+
+        # (b): empty recovery
+        enriched_empty = check_engine.enrich_drift(base_drift, recovery="")
+        rem_empty = doctor.build_remediation(enriched_empty, root)
+        self.assertEqual(
+            rem_empty.summary_fix,
+            "inspect artifact frontmatter and schema conformity.",
+        )
+        self.assertEqual(
+            rem_empty.detailed_fix,
+            f"inspect {loc} frontmatter and schema conformity.",
+        )
+        self.assertIsNone(rem_empty.command)
+
+        # (d): title is identical between the two cases
+        self.assertEqual(rem_with_rec.title, rem_empty.title)
+    ```
+    Confirms both directions: populated `recovery` supplies `summary_fix` and `detailed_fix`; empty `recovery` yields `"inspect artifact frontmatter and schema conformity."` and `f"inspect {loc} frontmatter and schema conformity."`.
+
+    (b) Rule ID: `check.live-bug-ungated` is registered in `RULE_REGISTRY` and has no branch in `build_remediation`, falling through to the generic fallback.
+
+    (c) Constructed through `check_engine.enrich_drift`:
+    `enriched_with_rec = check_engine.enrich_drift(base_drift, recovery=rec)`
+    `enriched_empty = check_engine.enrich_drift(base_drift, recovery="")`
+
+    (d) Title assertion:
+    `self.assertEqual(rem_with_rec.title, rem_empty.title)`
+
+    (e) Mutation proof (staged in memory via pytest plugin without modifying tracked files):
+    RED run output:
+    ```
+    FAILED tests/test_doctor.py::DoctorRemediationTests::test_remediation_fallback_prefers_recovery_when_populated
+    >       self.assertEqual(rem_with_rec.summary_fix, rec)
+    E       AssertionError: 'inspect artifact frontmatter and schema conformity.' != 'aw backlog set open aaa111 --blocks-release next'
+    E       - inspect artifact frontmatter and schema conformity.
+    E       + aw backlog set open aaa111 --blocks-release next
+    tests/test_doctor.py:814: AssertionError
+    ======================= 1 failed, 36 deselected in 0.12s =======================
+    ```
+    `git status --short` during mutation (no tracked files mutated for proof):
+    ```
+     M agent_workflows/doctor.py
+     M tests/test_doctor.py
+    ```
+    GREEN unpatched re-run:
+    ```
+    tests/test_doctor.py .                                                   [100%]
+    ======================= 1 passed, 36 deselected in 0.19s =======================
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: (a) PASTE the new non-regression test passing, and PASTE its source. (b) CONFIRM IT ACTUALLY EXERCISES THE TABLE rather than vacuously matching nothing: state how many rows it iterated and how the fallback/branch partition came out, and paste the assertion that the `check.generic-fallback` row DOES return the sentinel while every branch-owning row does NOT. A test where no row returns the sentinel would pass even if E-01 were never applied. RE-DERIVE THE PARTITION AT RUN TIME AND DO NOT TRANSCRIBE A COUNT: review measured 21 rows, 19 distinct rule ids, 1 fallback row and 20 branch rows, over 16 `if` branches, of which only 7 are `RULE_REGISTRY` ids (F-16); a test hard-coding any of those four numbers breaks the moment a branch or a row is added, which is the opposite of the reuse E-03 is for. (c) PASTE the pre-existing `test_remediation_family_guard` and `test_resolve_next_actions_advisory_rules_return_no_action` PASSING, since F-06 identifies those two as the tests E-01 could plausibly break; if either fails, E-01 has promoted `recovery` into `command` contrary to OQ-02 and V-03 fails. (Review measured both passing with the preference staged in memory, F-21, so a failure here is an implementation defect and not an inherent consequence.)
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified (a)-(c): non-regression test passing, 21 rows iterated with runtime partition 1 fallback / 20 branch rows, family guard and advisory rules guard passing.
+    (a) Test passing:
+    ```
+    tests/test_doctor.py .                                                   [100%]
+    ======================= 1 passed, 36 deselected in 0.20s =======================
+    ```
+    Source:
+    ```python
+    def test_remediation_fallback_prefers_recovery_non_regressive_over_representative_drifts(
+        self,
+    ) -> None:
+        """E-03/V-03: Enriching REPRESENTATIVE_DRIFTS with a sentinel recovery proves the fallback
+        is an override: branch-owning rows keep their own remediations, and only the fallback row
+        consumes the sentinel recovery."""
+        root = Path(".")
+        sentinel = "SENTINEL-RECOVERY"
+        fallback_rows = []
+        branch_rows = []
 
-- [ ] V-04 validates E-04
+        for d in self.REPRESENTATIVE_DRIFTS:
+            baseline_rem = doctor.build_remediation(d, root)
+            if (
+                baseline_rem.summary_fix
+                == "inspect artifact frontmatter and schema conformity."
+            ):
+                fallback_rows.append((d, baseline_rem))
+            else:
+                branch_rows.append((d, baseline_rem))
+
+        # Assert fallback partition is exactly the check.generic-fallback row
+        self.assertEqual(
+            [d.rule for d, _ in fallback_rows], ["check.generic-fallback"]
+        )
+        self.assertTrue(len(branch_rows) > 0)
+
+        # Assert fallback row returns the sentinel recovery
+        for d, _ in fallback_rows:
+            d_enriched = check_engine.enrich_drift(d, recovery=sentinel)
+            rem = doctor.build_remediation(d_enriched, root)
+            self.assertEqual(rem.summary_fix, sentinel)
+            self.assertEqual(rem.detailed_fix, sentinel)
+
+        # Assert every branch-owning row does NOT return sentinel and matches its own remediation
+        for d, baseline_rem in branch_rows:
+            with self.subTest(rule=d.rule, loc=d.location):
+                d_enriched = check_engine.enrich_drift(d, recovery=sentinel)
+                rem = doctor.build_remediation(d_enriched, root)
+                self.assertNotEqual(rem.summary_fix, sentinel)
+                self.assertNotEqual(rem.detailed_fix, sentinel)
+                self.assertEqual(rem.summary_fix, baseline_rem.summary_fix)
+                self.assertEqual(rem.detailed_fix, baseline_rem.detailed_fix)
+                self.assertEqual(rem.command, baseline_rem.command)
+                self.assertEqual(rem.title, baseline_rem.title)
+    ```
+
+    (b) The test dynamically iterates all 21 rows of `REPRESENTATIVE_DRIFTS`. At runtime, the partition yields 1 fallback row (`check.generic-fallback`) and 20 branch rows.
+    Asserted that the fallback partition is exactly `check.generic-fallback`:
+    `self.assertEqual([d.rule for d, _ in fallback_rows], ["check.generic-fallback"])`
+    Asserted that fallback returns the sentinel:
+    `self.assertEqual(rem.summary_fix, sentinel)` and `self.assertEqual(rem.detailed_fix, sentinel)`
+    Asserted that branch-owning rows do not return sentinel and retain their baseline:
+    `self.assertNotEqual(rem.summary_fix, sentinel)` and `self.assertNotEqual(rem.detailed_fix, sentinel)`
+
+    (c) Pre-existing guards passing:
+    ```
+    python3 -m pytest tests/test_doctor.py -o addopts="" -k "test_remediation_family_guard or test_resolve_next_actions_advisory_rules_return_no_action"
+    tests/test_doctor.py ..                                                  [100%]
+    ======================= 2 passed, 35 deselected in 0.18s =======================
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: (a) PASTE the added comment verbatim and confirm it names all FIVE required points: that a non-empty `recovery` is preferred and the if-chain is an override; that `command` stays `None` because recovery literals carry `<placeholder>` segments a shipped guard forbids in a command; that `command=None` nevertheless does NOT fence the `aw check` surface, whose `next_actions` are built from the `detailed_fix` (F-14); that the `aw doctor` summary groups on `summary_fix` and so fragments where a recovery interpolates a path (F-17); and that the `cli._run_check` agent-surface overwrite remains open and is carried by `2cnvh1`. A comment missing the `2cnvh1` pointer does NOT discharge this: without it a future reader concludes this plan fixed the agent surface, which F-10 measures to be true only for rules that populate recovery. A comment missing the F-14 point does not discharge it either, because the `command=None` sentence alone reads as a guarantee it does not give. (b) CONFIRM the comment is at the changed fallback and not at the top of the function, by pasting the surrounding lines. (c) PASTE the bare full-suite summary, which must be unchanged from V-01(c), since a comment cannot change a test count.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified (a)-(c): comment verbatim with 5 required points confirmed, location at changed fallback confirmed, full bare suite summary unchanged.
+    (a) Added comment verbatim:
+    ```python
+    # Prefer the finding's structured recovery command over the generic fallback,
+    # treating the if-chain above as an override layer rather than the only source.
+    # command stays None: 8 of 22 recovery literals in check_engine carry <placeholder>
+    # segments (e.g. <low|medium|high>) that test_remediation_family_guard forbids.
+    # Note that command=None does NOT fence the aw check surface: cli._run_check
+    # builds next_actions from detailed_fix, so a placeholder-bearing recovery can
+    # still appear in a NextAction.command slot there (F-14).
+    # In addition, aw doctor summary groups on (title, summary_fix), so path- or
+    # id6-interpolating recoveries will fragment summary counts (F-17).
+    # The cli._run_check agent-surface overwrite remains open and is carried by 2cnvh1.
+    ```
+    Confirms all five points:
+    1. Prefers non-empty `recovery` and treats if-chain as override layer;
+    2. `command` stays `None` because 8 of 22 recovery literals in check_engine carry `<placeholder>` segments forbidden by `test_remediation_family_guard`;
+    3. `command=None` does not fence `aw check` where `cli._run_check` builds `next_actions` from `detailed_fix` (F-14);
+    4. `aw doctor` summary groups on `(title, summary_fix)` and fragments when path or id6 is interpolated (F-17);
+    5. `cli._run_check` agent-surface overwrite remains open and is carried by `2cnvh1`.
+
+    (b) Surrounding lines in `agent_workflows/doctor.py` (lines 1230-1248):
+    ```python
+            file_path=loc,
+        )
+
+    title = detail if len(detail) < 60 else rule
+    # Prefer the finding's structured recovery command over the generic fallback,
+    # treating the if-chain above as an override layer rather than the only source.
+    # command stays None: 8 of 22 recovery literals in check_engine carry <placeholder>
+    # segments (e.g. <low|medium|high>) that test_remediation_family_guard forbids.
+    # Note that command=None does NOT fence the aw check surface: cli._run_check
+    # builds next_actions from detailed_fix, so a placeholder-bearing recovery can
+    # still appear in a NextAction.command slot there (F-14).
+    # In addition, aw doctor summary groups on (title, summary_fix), so path- or
+    # id6-interpolating recoveries will fragment summary counts (F-17).
+    # The cli._run_check agent-surface overwrite remains open and is carried by 2cnvh1.
+    return Remediation(
+        title=title,
+        summary_fix=d.recovery if d.recovery else "inspect artifact frontmatter and schema conformity.",
+        detailed_fix=d.recovery if d.recovery else f"inspect {loc} frontmatter and schema conformity.",
+        command=None,
+        file_path=loc,
+    )
+    ```
+
+    (c) Full bare suite summary line:
+    `3346 passed, 2 skipped, 3 warnings in 70.38s (0:01:10)` (unchanged from V-01(c)).
+  - Result: pass
 
 ## Approval and execution gate
 
