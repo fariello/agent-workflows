@@ -377,11 +377,10 @@ def close_on_answer(repo_root: Path, backlog_path: Path) -> Path:
     # Preserve the existing body (everything after the first blank line following the metadata block
     # and history) by re-extracting the prose that is not the metadata/history header.
     body = _extract_body(text)
-    today = datetime.date.today().isoformat()
-    close_note = "- {0} done (aw set): question answered; close-on-answer".format(today)
     rendered = _backlog._render_item(item, body, source_text=text)
-    # Append the close-on-answer history line right after the created line.
-    rendered = _inject_history_line(rendered, close_note)
+    rendered = _backlog._reattach_history(
+        text, rendered, "done", "question answered; close-on-answer"
+    )
 
     # rendrop 2yqt0a E-08 (review PR-004, F-11): refuse closing an item that carries a live release
     # gate with no handoff and no evidence, so close_on_answer cannot manufacture a done item
@@ -406,7 +405,11 @@ def close_on_answer(repo_root: Path, backlog_path: Path) -> Path:
 
 
 def _extract_body(text: str) -> str:
-    """Extract the prose body after the ``## Workflow history`` block (best-effort)."""
+    """Extract the prose body after the ``## Workflow history`` block (best-effort).
+
+    The pre-history prose region is deliberately not this function's job;
+    ``backlog._render_item(..., source_text=...)`` preserves and re-emits it.
+    """
     lines = text.splitlines()
     out: List[str] = []
     in_hist = False
@@ -422,41 +425,6 @@ def _extract_body(text: str) -> str:
         if hist_done:
             out.append(ln)
     return "\n".join(out).strip()
-
-
-def _inject_history_line(rendered: str, line: str) -> str:
-    """Insert a history line immediately after the ``## Workflow history`` heading's first entry."""
-    lines = rendered.splitlines()
-    out: List[str] = []
-    injected = False
-    for ln in lines:
-        out.append(ln)
-        if not injected and ln.strip() == "## Workflow history":
-            # find the first history bullet after this and insert AFTER it
-            injected = True  # will insert once we emit the next bullet below
-    if not injected:
-        return rendered
-    # Reconstruct: insert `line` after the first bullet following the history heading.
-    final: List[str] = []
-    seen_heading = False
-    inserted = False
-    for ln in out:
-        final.append(ln)
-        if ln.strip() == "## Workflow history":
-            seen_heading = True
-            continue
-        if seen_heading and not inserted and ln.startswith("- "):
-            final.append(line)
-            inserted = True
-    if not inserted:
-        # No existing bullet; append after heading.
-        final2: List[str] = []
-        for ln in final:
-            final2.append(ln)
-            if ln.strip() == "## Workflow history":
-                final2.append(line)
-        final = final2
-    return "\n".join(final).rstrip() + "\n"
 
 
 # --------------------------------------------------------------------------------------------------

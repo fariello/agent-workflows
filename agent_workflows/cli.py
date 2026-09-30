@@ -391,7 +391,11 @@ _DESCRIPTIONS = {
         "operational action ledger (an action id, or id@generation) if nothing matches. Use --dir to "
         "point the records lookup at a specific repo."
     ),
-    "record-history": "Print a record's full chronological workflow history from the global .aw/records/history.jsonl sidecar, looked up by its 6-char id6.",
+    "record-history": (
+        "Print workflow history from the machine-local .aw/records/history.jsonl activity log by "
+        "6-char id6. The sidecar is gitignored, does not survive a clone, and covers only the "
+        "writers that feed it; durable history lives in the record's own inline ## Workflow history."
+    ),
     "graduation": (
         "Pre-graduation view: report every PLAN and SPEC that already carries a `- From-Spec:` or "
         "`- From-Backlog:` bullet naming the given source id6, with each artifact's type, status and "
@@ -3977,7 +3981,11 @@ def _build_parser() -> argparse.ArgumentParser:
     p_record_history = sub.add_parser(
         "record-history",
         parents=[common],
-        help="Print a record's full chronological workflow history from the global sidecar (by id6).",
+        help=(
+            "Print workflow history from the machine-local activity log (by id6). The sidecar is "
+            "gitignored, does not survive a clone, and covers only writers that feed it; durable "
+            "history lives in the record's own inline ## Workflow history."
+        ),
     )
     p_record_history.add_argument(
         "id6", help="The 6-char record id (from a file's `- Id:`)."

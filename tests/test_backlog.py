@@ -1048,6 +1048,146 @@ class BacklogPreservationTests(unittest.TestCase):
             self.assertNotIn("- Gate-Kind:", text)
             self.assertNotIn("- Gate-Ref:", text)
 
+    def test_close_on_answer_preserves_prior_history_records(self):
+        """(a) close_on_answer on a 3-record item yields 4 records, close-record first, originals byte-identical."""
+        from agent_workflows import attention as att
+        from agent_workflows import attention_contract as ac
+        from agent_workflows import set_records
+
+        with tempfile.TemporaryDirectory() as tmp:
+            r = Path(tmp)
+            self._setup_repo(r)
+            p = (
+                r
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "blocked"
+                / "20260901-demo-01-bk0001-test.backlog.md"
+            )
+            original_records = [
+                "- 2026-09-20 note (aw backlog): note 1",
+                "- 2026-09-10 set (aw backlog): set 1",
+                "- 2026-09-01 created (aw backlog): created 1",
+            ]
+            p.write_text(
+                "- Id: bk0001\n"
+                "- Status: blocked\n"
+                "- Set: demo\n"
+                "- Priority: high\n"
+                "- Work-Kind: bug\n"
+                "- Gate-Kind: decision\n"
+                "- Gate-Ref: D1\n"
+                "- Summary: test item\n\n"
+                "## Workflow history\n" + "\n".join(original_records) + "\n\n"
+                "## Body\n"
+                "Test body\n",
+                encoding="utf-8",
+            )
+
+            dest = set_records.close_on_answer(r, p)
+            self.assertTrue(dest.exists())
+            text = dest.read_text(encoding="utf-8")
+            history_lines = [
+                ln
+                for ln in att._history_section_lines(text)
+                if ac.HISTORY_RECORD_RE.match(ln)
+            ]
+            self.assertEqual(len(history_lines), 4)
+            self.assertIn("question answered; close-on-answer", history_lines[0])
+            self.assertIn("set (aw backlog)", history_lines[0])
+            self.assertEqual(history_lines[1:], original_records)
+            self.assertNotIn("created (aw backlog): test item", text)
+
+    def test_close_on_answer_preserves_pre_history_prose_exactly_once(self):
+        """(b) close_on_answer on an item with pre-history prose keeps it exactly once."""
+        from agent_workflows import set_records
+
+        with tempfile.TemporaryDirectory() as tmp:
+            r = Path(tmp)
+            self._setup_repo(r)
+            p = (
+                r
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "blocked"
+                / "20260901-demo-01-bk0002-test.backlog.md"
+            )
+            p.write_text(
+                "- Id: bk0002\n"
+                "- Status: blocked\n"
+                "- Set: demo\n"
+                "- Priority: high\n"
+                "- Work-Kind: bug\n"
+                "- Gate-Kind: decision\n"
+                "- Gate-Ref: D1\n"
+                "- Summary: test item\n\n"
+                "PRE_HISTORY_PROSE_PARA_DISTINCTIVE\n\n"
+                "## Workflow history\n"
+                "- 2026-09-01 created (aw backlog): created 1\n\n"
+                "## Body\n\n"
+                "POST_HISTORY_PROSE_PARA_DISTINCTIVE\n",
+                encoding="utf-8",
+            )
+
+            dest = set_records.close_on_answer(r, p)
+            self.assertTrue(dest.exists())
+            text = dest.read_text(encoding="utf-8")
+            self.assertEqual(text.count("PRE_HISTORY_PROSE_PARA_DISTINCTIVE"), 1)
+            self.assertEqual(text.count("POST_HISTORY_PROSE_PARA_DISTINCTIVE"), 1)
+
+    def test_close_on_answer_does_not_promote_indented_prose_quoted_history_lines(self):
+        """(c) indented prose-quoted history-shaped line in body is not promoted into history block."""
+        from agent_workflows import attention as att
+        from agent_workflows import attention_contract as ac
+        from agent_workflows import set_records
+
+        with tempfile.TemporaryDirectory() as tmp:
+            r = Path(tmp)
+            self._setup_repo(r)
+            p = (
+                r
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "blocked"
+                / "20260901-demo-01-bk0003-test.backlog.md"
+            )
+            p.write_text(
+                "- Id: bk0003\n"
+                "- Status: blocked\n"
+                "- Set: demo\n"
+                "- Priority: high\n"
+                "- Work-Kind: bug\n"
+                "- Gate-Kind: decision\n"
+                "- Gate-Ref: D1\n"
+                "- Summary: test item\n\n"
+                "## Workflow history\n"
+                "- 2026-09-01 created (aw backlog): created 1\n\n"
+                "## Body\n\n"
+                "Here is an indented quote:\n\n"
+                "    - 2020-01-01 fake (aw fake): DO_NOT_PROMOTE\n\n"
+                "End of body.\n",
+                encoding="utf-8",
+            )
+
+            dest = set_records.close_on_answer(r, p)
+            self.assertTrue(dest.exists())
+            text = dest.read_text(encoding="utf-8")
+            history_lines = [
+                ln
+                for ln in att._history_section_lines(text)
+                if ac.HISTORY_RECORD_RE.match(ln)
+            ]
+            self.assertEqual(len(history_lines), 2)
+            self.assertTrue(
+                any("question answered; close-on-answer" in ln for ln in history_lines)
+            )
+            for h in history_lines:
+                self.assertNotIn("DO_NOT_PROMOTE", h)
+            self.assertEqual(text.count("DO_NOT_PROMOTE"), 1)
+
     def test_header_prose_survives(self):
         """(a) Header prose between metadata bullets and ## Workflow history survives re-render."""
         from agent_workflows import cli
