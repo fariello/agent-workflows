@@ -1,5 +1,5 @@
 - Id: 2jtsup
-- Status: graduated
+- Status: done
 - Graduated-To: runidcollide
 - Blocks-Release: next
 - Set: 2jtsup
@@ -8,6 +8,7 @@
 - Summary: new_run_id can collide: two runs started within one second from one process share a run directory
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): closed by aw oc run: IPD 6mdtnu executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-runidcollide-01-6mdtnu-lift-the-collision-free-run-directory-mint-into-runner-share.ipd.md); evidence .aw/records/plans/executed/20260928-runidcollide-01-6mdtnu-lift-the-collision-free-run-directory-mint-into-runner-share.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T235941Z-1396311: 6mdtnu
 - 2026-09-20 created (aw backlog): Found while wiring the standalone audit verb (plan mp289j).
 
