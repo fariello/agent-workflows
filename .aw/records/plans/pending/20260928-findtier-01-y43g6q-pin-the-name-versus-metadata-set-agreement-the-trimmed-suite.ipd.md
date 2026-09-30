@@ -36,7 +36,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: restore the lost coverage (the census's real finding)
 
-- [ ] E-01 Add behavioral coverage for the `drift` bucket to `tests/test_check_engine.py` as a SMALL FOCUSED TEST that drives `check_engine.check_name_identity` DIRECTLY and asserts the `[drift]` bucket marker in the finding's detail. Build the fixture with the module's existing `_plan_text(id6, setid=...)` helper under a filename whose setid segment differs from the `setid=` argument (the exact shape the backlog item describes: a plan named `20260927-demo-01-aaa111-p.ipd.md` declaring `- Set: topic`). Assert three things: the rule set is exactly `[check.identity-absent-from-name]`, the detail CONTAINS `[drift]`, and the detail names the declared value (`Set: topic`). Document beside it that this is what `tests/test_name_identity_report.py` held before commit `19313eed` deleted it, that the `drift` bucket is the ONLY one of the rule's four buckets with no live member on this tree (so a fixture is the only possible coverage), and that disabling the branch was measured to leave the whole suite green.
+- [x] E-01 Add behavioral coverage for the `drift` bucket to `tests/test_check_engine.py` as a SMALL FOCUSED TEST that drives `check_engine.check_name_identity` DIRECTLY and asserts the `[drift]` bucket marker in the finding's detail. Build the fixture with the module's existing `_plan_text(id6, setid=...)` helper under a filename whose setid segment differs from the `setid=` argument (the exact shape the backlog item describes: a plan named `20260927-demo-01-aaa111-p.ipd.md` declaring `- Set: topic`). Assert three things: the rule set is exactly `[check.identity-absent-from-name]`, the detail CONTAINS `[drift]`, and the detail names the declared value (`Set: topic`). Document beside it that this is what `tests/test_name_identity_report.py` held before commit `19313eed` deleted it, that the `drift` bucket is the ONLY one of the rule's four buckets with no live member on this tree (so a fixture is the only possible coverage), and that disabling the branch was measured to leave the whole suite green.
 
   DO NOT PUT THIS IN `CollisionTests.COLLISIONS`. An earlier draft of this item did, and REVIEW MEASURED THAT IT CANNOT WORK; this is the load-bearing correction in this plan (see F-9, F-10). Two facts make that table the wrong home, and the second one is fatal:
   - THE RULE IS NOT IN THE COLLISIONS PASS AT ALL. Measured on the exact fixture shape above: `check_collisions(root)` returns ZERO findings, while `check_types(root, ["all"])` returns the one `check.identity-absent-from-name`. The rule comes from `check_name_identity`, which rides the types sweep.
@@ -46,9 +46,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   FOLLOW `SetidLengthTests`' PRECEDENT, which is the in-module pattern for a non-collisions rule: it drives its own rule function directly (`ce.check_setid_length(root)`) over a small tree and asserts outcomes. This is NOT the dedicated 585-line module OQ-01 rightly refuses to recreate; it is a few assertions in the surviving module.
   - Depends on: none
   - Expected outcome: `tests/test_check_engine.py` carries a test that calls `check_name_identity` on the drift fixture and asserts the `[drift]` marker; it passes, and (per E-02) fails under the mutation. Measured at review on this exact fixture: `check_name_identity(root, include_retired=True)` returns exactly one `check.identity-absent-from-name` whose detail begins `[drift] declared \`Set: topic\` is absent from an otherwise MODERN id6-clustered filename`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Prove the new test is not vacuous by MUTATION rather than by assertion: with E-01's test in place, confirm that neutering the `drift` branch in `check_engine._identity_finding` (the `elif modern:` arm that sets `bucket = "drift"`) makes the new test FAIL, then confirm the tracked module is byte-unchanged. Record the failing node id and the clean `git status --porcelain` for that module as the evidence.
+- [x] E-02 Prove the new test is not vacuous by MUTATION rather than by assertion: with E-01's test in place, confirm that neutering the `drift` branch in `check_engine._identity_finding` (the `elif modern:` arm that sets `bucket = "drift"`) makes the new test FAIL, then confirm the tracked module is byte-unchanged. Record the failing node id and the clean `git status --porcelain` for that module as the evidence.
 
   A WORKING IN-MEMORY MECHANISM IS ALREADY KNOWN, SO DO NOT EDIT THE TRACKED MODULE. `agent_workflows/check_engine.py` is deliberately OUTSIDE this plan's `- Scope-Paths:`, other pending plans declare it, and a write-then-revert can race a co-worker while a failed revert leaves the repository's rule mutated with the suite still green. Review performed this mutation successfully by rebinding the function and forcing the `modern` argument False, which makes the `elif modern:` arm unreachable and routes the finding into the `legacy` bucket:
 
@@ -60,21 +60,21 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   THE MUTANT MUST KILL THE TEST ON THE BUCKET, NOT ON THE RULE ID, and this is the check that makes E-02 meaningful. Measured at review: under this mutation `check_name_identity` STILL returns exactly one `check.identity-absent-from-name`, so a test asserting only the rule id survives the mutant. Only the `[drift]` detail assertion dies (the detail becomes `[legacy] declared \`Set: topic\` is absent from this pre-id6-grammar filename ...`). So if the mutant does NOT kill E-01's test, the defect is in E-01's assertions, not in the mutation: fix the assertion rather than concluding the branch is covered.
   - Depends on: E-01
   - Expected outcome: the mutant kills the new test (a named failing node id whose failure names the missing `[drift]` marker), and `git status --porcelain agent_workflows/check_engine.py` is empty afterwards.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: correct only the provably incidental mismatches
 
-- [ ] E-03 Correct the four `tests/test_find_filters.py` fixture filenames whose setid segment contradicts their own declared `- Set:`, so each fixture carries only the property its test asserts. These are the clearest incidental members of the census: `20260927-spc001-01-spc001-one.spec.md` declares `- Set: setalpha`, `spc002` declares `setbeta`, `spc003` declares `setalpha`, and `20260927-rel001-01-rel001-release.release.md` declares `- Set: setrel`, i.e. each repeats its own id6 in the setid slot instead of its Set. Rename each to carry its declared setid, leaving every assertion and every declared `- Set:` value unchanged.
+- [x] E-03 Correct the four `tests/test_find_filters.py` fixture filenames whose setid segment contradicts their own declared `- Set:`, so each fixture carries only the property its test asserts. These are the clearest incidental members of the census: `20260927-spc001-01-spc001-one.spec.md` declares `- Set: setalpha`, `spc002` declares `setbeta`, `spc003` declares `setalpha`, and `20260927-rel001-01-rel001-release.release.md` declares `- Set: setrel`, i.e. each repeats its own id6 in the setid slot instead of its Set. Rename each to carry its declared setid, leaving every assertion and every declared `- Set:` value unchanged.
   THIS MODULE IS THE RIGHT ONE TO CORRECT AND THE REASON IS MEASURABLE. Its own sibling fixtures in the SAME `setUp` already do it correctly (the backlog fixtures are named `20260927-setgamma-01-bkl001-item-one.backlog.md`, i.e. setid-in-the-setid-slot), so the four are an internal inconsistency rather than a convention. And the tests resolve their Sets from METADATA, so the rename is behavior-preserving: verified at authoring by making exactly this rename and running the module, which reported `11 passed`.
   - Depends on: none
   - Expected outcome: `tests/test_find_filters.py` passes unchanged in assertions; no fixture in it declares a `- Set:` contradicting its own filename.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Record the census in a short comment beside the new test so the next reader does not re-derive it: 36 fixtures across 14 modules currently declare a `- Set:` contradicting their own filename, the large majority are harmless because their module asserts nothing about setid resolution, and this plan deliberately corrects only `test_find_filters.py`'s four. Name the two classes that must NOT be "fixed": the deliberate legacy-name traps, and the orchestrator fixtures whose setid differs by construction.
+- [x] E-04 Record the census in a short comment beside the new test so the next reader does not re-derive it: 36 fixtures across 14 modules currently declare a `- Set:` contradicting their own filename, the large majority are harmless because their module asserts nothing about setid resolution, and this plan deliberately corrects only `test_find_filters.py`'s four. Name the two classes that must NOT be "fixed": the deliberate legacy-name traps, and the orchestrator fixtures whose setid differs by construction.
   NAME THE DELIBERATE CASES EXPLICITLY, because a future sweep will otherwise break them. `tests/test_check_engine.py`'s `20260101-1357-01-assess-bugs.ipd.md` row is a legacy `YYYYMMDD-HHMM-NN-<slug>` name whose HHMM occupies the setid segment ON PURPOSE (its `why` already explains the mass-flagging trap, and its expected set already contains `check.identity-absent-from-name` twice). `tests/test_orchestrator_shape_composed.py`'s `_make_orchestrator_doc` emits `- Set: set{id6}` while its files are named `20260924-setgod-00-god001-good.ipd.md`, so the mismatch is generated by the helper's own formula and is incidental to a shape-gate test that never resolves a Set.
   - Depends on: E-01
   - Expected outcome: the census and both do-not-touch classes are recorded in the test file, so a later sweep has the reasoning rather than only the count.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -116,10 +116,15 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 ## Deferred / out of scope (with reason)
 
 - THE OTHER 32 CENSUS MEMBERS ARE DELIBERATELY NOT RENAMED. None of their modules resolves a Set through `check_engine` or the selector rules (measured: zero references per module), so renaming them changes no assertion and no outcome; it is churn across 13 files in a shared checkout. If a future plan makes one of those modules resolve a Set, that plan should correct its own fixtures then.
+  - Carrier-Declined: harmless fixture mismatches whose modules assert nothing about setid resolution.
 - NO CHANGE TO `agent_workflows/check_engine.py`. The rule behaves correctly; only its coverage was lost. The module is outside `- Scope-Paths:` on purpose, and E-02 is explicitly forbidden from editing it.
+  - Carrier-Declined: check_engine behavior is correct and requires no changes.
 - NO NEW CHECK RULE, and specifically no rule asserting that a FIXTURE's name matches its metadata. The existing `check.identity-absent-from-name` already covers tracked records, and test fixtures are written to temp directories that no sweep reaches.
+  - Carrier-Declined: fixture temp dirs are unreached by check engine; tracked records already checked.
 - NO ATTEMPT TO RESTORE THE DELETED 585-LINE MODULE WHOLESALE. Most of it covered buckets that either have live members or were pinned structurally, and the trim commits that removed it were deliberate policy (AGENTS.md forbids code-pinning tests). Only the behavioral `drift` coverage is restored, as a small focused test in the surviving module (NOT as a row in `CollisionTests.COLLISIONS`, which F-9 measures cannot express the bucket assertion).
+  - Carrier-Declined: intentional trim of code-pinning tests per AGENTS.md policy.
 - THE OTHER THREE BUCKETS (`non-identifier`, `artifact`, `legacy`) GAIN NO NEW COVERAGE HERE. The `legacy` bucket is exercised incidentally by the existing table row, and review did not measure whether `non-identifier` and `artifact` have live members or tests; this plan's subject is the ONE bucket F-1 proves is unguarded. Recorded so nobody reads it as a claim that all four buckets are now covered.
+  - Carrier-Declined: only the drift bucket was demonstrated unguarded and in need of coverage.
 
 ## Scope check
 
@@ -162,25 +167,171 @@ If the executor finds that the deleted `tests/test_name_identity_report.py` is b
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: (a) paste the new test's SOURCE as committed and its PASSING node id and output. (b) QUOTE the assertion that checks the detail contains `[drift]`, and paste the ACTUAL finding detail observed, showing the `[drift]` bucket prefix and the declared `Set: topic`. A test that passes on a `legacy` or `artifact` finding asserts the wrong bucket and leaves the gap open. (c) CONFIRM the test drives `check_name_identity` (or the full types sweep) DIRECTLY and is NOT a row in `CollisionTests.COLLISIONS`; a row there FAILS V-01, because F-9 measures that the table's detail columns see only `check_collisions` output, where this rule never appears, so the bucket could not be asserted and F-10 measures the surviving rule-id-only assertion to be mutation-insensitive. (d) CONFIRM the test asserts the rule set is exactly `[check.identity-absent-from-name]` so an unexpected extra finding is not silently tolerated.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Pass. Verified behavioral drift coverage with direct check_name_identity assertion:
+    (a) Source of new test from `tests/test_check_engine.py`:
+    ```python
+    def test_name_identity_reports_drift_when_modern_filename_setid_differs_from_declared_set(
+        self,
+    ):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            plan_dir = root / PLANS
+            plan_dir.mkdir(parents=True, exist_ok=True)
+            (plan_dir / "20260927-demo-01-aaa111-p.ipd.md").write_text(
+                _plan_text("aaa111", setid="topic"),
+                encoding="utf-8",
+            )
+            drift = ce.check_name_identity(root)
+            self.assertEqual(
+                [d.rule for d in drift],
+                ["check.identity-absent-from-name"],
+            )
+            self.assertIn("[drift]", drift[0].detail)
+            self.assertIn("Set: topic", drift[0].detail)
+    ```
+    Passing node id and output:
+    `tests/test_check_engine.py::NameIdentityDriftTests::test_name_identity_reports_drift_when_modern_filename_setid_differs_from_declared_set`
+    Output:
+    ```
+    tests/test_check_engine.py .                                             [100%]
+    1 passed in 2.18s
+    ```
+    (b) Quoted assertion:
+    ```python
+    self.assertIn("[drift]", drift[0].detail)
+    self.assertIn("Set: topic", drift[0].detail)
+    ```
+    Actual finding detail observed:
+    `[drift] declared `Set: topic` is absent from an otherwise MODERN id6-clustered filename, so the name and the metadata genuinely disagree (this is the exception set that forces `aw find`'s content fallback; it is expected to shrink)`
+    (c) Confirmed: The test is housed in `class NameIdentityDriftTests(unittest.TestCase)` and drives `ce.check_name_identity(root)` directly on the isolated fixture tree rather than adding a row to `CollisionTests.COLLISIONS`.
+    (d) Confirmed: The test explicitly asserts `self.assertEqual([d.rule for d in drift], ["check.identity-absent-from-name"])`, pinning the exact rule set.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: (a) paste the FAILING node id and the assertion output with the `drift` branch neutered, then the passing run unmutated, then `git status --porcelain agent_workflows/check_engine.py` showing EMPTY output. (b) STATE which mechanism was used (in-memory rebind / `mock.patch.object` / pytest plugin / throwaway tree copy) and confirm the tracked module was never written. If the tracked module had to be edited, say so explicitly and name the window during which it was mutated; do not present a clean final `git status` as proof it never happened. (c) CONFIRM THE MUTANT DIED ON THE BUCKET, NOT ON THE RULE ID, by pasting the failure message and showing it names the missing `[drift]` marker. This is the load-bearing half: review measured that under this mutation the rule STILL reports the same id, so a failure that instead reads "expected rule set X, got Y" means the mutation changed something else and the proof does not hold. (d) If the mutant does NOT kill the test, do NOT record V-02 as verified and do NOT conclude the branch is covered: fix E-01's assertions, because F-10 measures that exactly this shape of test survives the mutant.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Pass. Verified in-memory mutation kills test on missing [drift] bucket:
+    (a) Failing node id and assertion output with `drift` branch neutered:
+    Failing node id: `tests/test_check_engine.py::NameIdentityDriftTests::test_name_identity_reports_drift_when_modern_filename_setid_differs_from_declared_set`
+    Assertion output:
+    ```
+    =================================== FAILURES ===================================
+    _ NameIdentityDriftTests.test_name_identity_reports_drift_when_modern_filename_setid_differs_from_declared_set _
 
-- [ ] V-03 validates E-03
+    self = <tests.test_check_engine.NameIdentityDriftTests testMethod=test_name_identity_reports_drift_when_modern_filename_setid_differs_from_declared_set>
+
+        def test_name_identity_reports_drift_when_modern_filename_setid_differs_from_declared_set(
+            self,
+        ):
+            with tempfile.TemporaryDirectory() as td:
+                root = Path(td)
+                plan_dir = root / PLANS
+                plan_dir.mkdir(parents=True, exist_ok=True)
+                (plan_dir / "20260927-demo-01-aaa111-p.ipd.md").write_text(
+                    _plan_text("aaa111", setid="topic"),
+                    encoding="utf-8",
+                )
+                drift = ce.check_name_identity(root)
+                self.assertEqual(
+                    [d.rule for d in drift],
+                    ["check.identity-absent-from-name"],
+                )
+    >           self.assertIn("[drift]", drift[0].detail)
+    E           AssertionError: '[drift]' not found in "[legacy] declared `Set: topic` is absent from this pre-id6-grammar filename, so the record cannot be located by name; the rename is OPTIONAL and a maintainer call (grandfathered, not overdue) (this is the exception set that forces `aw find`'s content fallback; it is expected to shrink)"
+
+    tests/test_check_engine.py:2223: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_check_engine.py::NameIdentityDriftTests::test_name_identity_reports_drift_when_modern_filename_setid_differs_from_declared_set
+    ============================== 1 failed in 0.14s ===============================
+    ```
+    Passing run unmutated:
+    ```
+    tests/test_check_engine.py .                                             [100%]
+    1 passed in 2.18s
+    ```
+    `git status --porcelain agent_workflows/check_engine.py` output:
+    (empty - no changes)
+    (b) Mechanism: In-memory mutation via `unittest.mock.patch.object` on `agent_workflows.check_engine._identity_finding` forcing `modern=False`:
+    `with mock.patch.object(ce, "_identity_finding", side_effect=lambda rt, p, f, v, ir, m, s: orig(rt, p, f, v, ir, False, s)):`
+    The tracked file `agent_workflows/check_engine.py` was never written and remained byte-unchanged throughout.
+    (c) Confirmed: Under mutation, the rule still reports `["check.identity-absent-from-name"]`, and the test failure died on `AssertionError: '[drift]' not found in "[legacy] declared `Set: topic`..."`, proving it died on the bucket marker and not on the rule ID.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste `git diff --stat tests/test_find_filters.py`, the four old and new filenames side by side, and the module's passing output. Confirm by inspection that NO declared `- Set:` value and NO assertion changed, i.e. the diff touches filenames only. Then paste a re-run of the census probe (or an equivalent targeted check) showing those four filenames are no longer members, so the correction is measured rather than assumed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Pass. Verified 4 fixture filenames corrected and no longer in census:
+    `git diff --stat tests/test_find_filters.py`:
+    ```
+     tests/test_find_filters.py | 8 ++++----
+     1 file changed, 4 insertions(+), 4 deletions(-)
+    ```
+    Four old and new filenames side by side:
+    - Old: `20260927-spc001-01-spc001-one.spec.md` -> New: `20260927-setalpha-01-spc001-one.spec.md`
+    - Old: `20260927-spc002-01-spc002-two.spec.md` -> New: `20260927-setbeta-01-spc002-two.spec.md`
+    - Old: `20260927-spc003-01-spc003-three.spec.md` -> New: `20260927-setalpha-01-spc003-three.spec.md`
+    - Old: `20260927-rel001-01-rel001-release.release.md` -> New: `20260927-setrel-01-rel001-release.release.md`
 
-- [ ] V-04 validates E-04
+    Module passing output:
+    ```
+    tests/test_find_filters.py ...........                                   [100%]
+    11 passed in 4.39s
+    ```
+    Confirmation: Inspection of `git diff tests/test_find_filters.py` confirms that NO declared `- Set:` value and NO assertion changed; only the fixture filenames in `setUp` were updated.
+    Census probe output on `tests/test_find_filters.py` fixtures:
+    ```
+    filename: 20260927-setalpha-01-spc001-one.spec.md, filename_setid: setalpha, declared_set: setalpha, mismatch: False
+    filename: 20260927-setbeta-01-spc002-two.spec.md, filename_setid: setbeta, declared_set: setbeta, mismatch: False
+    filename: 20260927-setalpha-01-spc003-three.spec.md, filename_setid: setalpha, declared_set: setalpha, mismatch: False
+    filename: 20260927-setrel-01-rel001-release.release.md, filename_setid: setrel, declared_set: setrel, mismatch: False
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the census text as it appears in the test file, and confirm it names BOTH do-not-touch classes with their reasons (the legacy HHMM trap row and the `_make_orchestrator_doc` formula). Paste the legacy row's expected-rules tuple UNCHANGED as proof E-04 documented that row without altering it. Also paste the BARE `python3 -m pytest` summary before and after with the failure-set delta stated by node id against YOUR OWN measured baseline, and note that the three installer/subparser failures visible under `-o addopts=""` are pre-existing (F-8) and not this plan's. DO NOT transcribe any total from this plan: authoring recorded `3158 passed` and review measured `3246 passed, 2 skipped` on a clean tree at `bf3cf2d7`, which is exactly the drift the execution contract warns about. The three pre-existing failures are named by node id in F-8; confirm you observe that same set and no other.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Pass. Verified census documentation, untouched legacy row, and full suite run delta:
+    Census text as it appears in `tests/test_check_engine.py`:
+    ```python
+        """Behavioral coverage for check_name_identity's `drift` bucket (findtier y43g6q E-01/E-04).
+
+        Before commit 19313eed deleted `tests/test_name_identity_report.py` (585 lines), that module
+        held coverage for `check_engine.check_name_identity`'s four buckets. The `drift` bucket is the
+        ONLY one of the rule's four buckets with no live member on this tree (so a fixture is the
+        only possible coverage), and disabling the branch was measured to leave the whole suite green.
+
+        THE CENSUS (backlog 0f809c sweep):
+        36 fixtures across 14 modules currently declare a `- Set:` contradicting their own filename.
+        The large majority are harmless because their module asserts nothing about setid resolution,
+        and plan y43g6q deliberately corrects only `tests/test_find_filters.py`'s four.
+
+        TWO CLASSES MUST NOT BE "FIXED" BY FUTURE SWEEPS:
+        1. Deliberate legacy-name traps: `tests/test_check_engine.py`'s
+           `20260101-1357-01-assess-bugs.ipd.md` row in `CollisionTests` is a legacy
+           `YYYYMMDD-HHMM-NN-<slug>` name whose HHMM occupies the setid segment ON PURPOSE
+           (its `why` explains the mass-flagging trap, and its expected set already contains
+           `check.identity-absent-from-name` twice).
+        2. Orchestrator fixtures whose setid differs by construction:
+           `tests/test_orchestrator_shape_composed.py`'s `_make_orchestrator_doc` emits
+           `- Set: set{id6}` while its files are named `20260924-setgod-00-god001-good.ipd.md`,
+           so the mismatch is generated by the helper's own formula and is incidental to a
+           shape-gate test that never resolves a Set.
+        """
+    ```
+    Legacy row's expected-rules tuple UNCHANGED in `CollisionTests.COLLISIONS`:
+    ```python
+    (DRAFT_READY, IDENTITY_ABSENT, IDENTITY_ABSENT),
+    ```
+    Bare `python3 -m pytest` run summaries:
+    Before (baseline at HEAD `de9605a5`):
+    `3382 passed, 2 skipped, 3 warnings in 112.01s (0:01:52)`
+    After:
+    `3383 passed, 2 skipped, 3 warnings in 65.86s (0:01:05)`
+    Failure set delta: 0 failures; delta is exactly +1 passing test (`tests/test_check_engine.py::NameIdentityDriftTests::test_name_identity_reports_drift_when_modern_filename_setid_differs_from_declared_set`).
+    Pre-existing failures under `-o addopts=""` (F-8): exactly the 3 known node ids observed and no others:
+    - `tests/test_installer.py::UninstallCompletenessTests::test_deep_cleanup_records_remove_leaves_no_aw_directory`
+    - `tests/test_cli.py::InstallAtomicWizardTests::test_interactive_deep_cleanup_records_remove_fully_cleans_aw`
+    - `tests/test_cli.py::SubcommandDescriptionTests::test_every_subparser_has_fuller_description`
+  - Result: pass
 
 ## Approval and execution gate
 

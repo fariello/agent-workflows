@@ -45,17 +45,17 @@ class TestFindFilters(unittest.TestCase):
         specs_to_review.mkdir(parents=True, exist_ok=True)
         specs_approved.mkdir(parents=True, exist_ok=True)
 
-        self.spec_1 = specs_to_review / "20260927-spc001-01-spc001-one.spec.md"
+        self.spec_1 = specs_to_review / "20260927-setalpha-01-spc001-one.spec.md"
         self.spec_1.write_text(
             "# Spec: One\n\n- Id: spc001\n- Status: to-review\n- Set: setalpha\n",
             encoding="utf-8",
         )
-        self.spec_2 = specs_to_review / "20260927-spc002-01-spc002-two.spec.md"
+        self.spec_2 = specs_to_review / "20260927-setbeta-01-spc002-two.spec.md"
         self.spec_2.write_text(
             "# Spec: Two\n\n- Id: spc002\n- Status: to-review\n- Set: setbeta\n",
             encoding="utf-8",
         )
-        self.spec_3 = specs_approved / "20260927-spc003-01-spc003-three.spec.md"
+        self.spec_3 = specs_approved / "20260927-setalpha-01-spc003-three.spec.md"
         self.spec_3.write_text(
             "# Spec: Three\n\n- Id: spc003\n- Status: approved\n- Set: setalpha\n",
             encoding="utf-8",
@@ -81,7 +81,7 @@ class TestFindFilters(unittest.TestCase):
         # 3. Release record in .aw/records/releases/
         releases_dir = self.repo_root / ".aw" / "records" / "releases"
         releases_dir.mkdir(parents=True, exist_ok=True)
-        self.release_1 = releases_dir / "20260927-rel001-01-rel001-release.release.md"
+        self.release_1 = releases_dir / "20260927-setrel-01-rel001-release.release.md"
         self.release_1.write_text(
             "# Release: 1.0.0\n\n- Id: rel001\n- Status: planned\n- Set: setrel\n",
             encoding="utf-8",
