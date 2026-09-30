@@ -1,5 +1,5 @@
 - Id: 6b9zd9
-- Status: graduated
+- Status: done
 - Graduated-To: modelvocab
 - Blocks-Release: next
 - Set: modelvocab
@@ -8,6 +8,7 @@
 - Summary: Research model vocabulary is a closed list in code, so aw refuses correct artifacts from any new model or variant (Gemini 4, GPT-5.5, DeepSeek, a new reasoning tier); make it an editable data file with an add verb and a warn-not-refuse validator
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): closed by aw oc run: IPD t38a4o executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-modelvocab-01-t38a4o-make-the-research-model-vocabulary-an-open-data-driven-set-w.ipd.md); evidence .aw/records/plans/executed/20260928-modelvocab-01-t38a4o-make-the-research-model-vocabulary-an-open-data-driven-set-w.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T235632Z-1358353: t38a4o
 - 2026-09-20 created (aw backlog): Research model vocabulary is a closed list in code, so aw refuses correct artifacts from any new model or variant (Gemini 4, GPT-5.5, DeepSeek, a new reasoning tier); make it an editable data file with an add verb and a warn-not-refuse validator
 
