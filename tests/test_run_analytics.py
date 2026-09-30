@@ -1287,5 +1287,142 @@ class ModelAttributionTests(unittest.TestCase):
         )
 
 
+class ProducerVocabularyTests(unittest.TestCase):
+    """E-03 and E-04: Producer vocabulary self-enforcing guard and cache invalidation staleness tests."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.tmp = Path(self._tmp.name)
+        self.addCleanup(self._tmp.cleanup)
+        self.repo = self.tmp / "repo"
+        self.runs_root = self.repo / ".aw" / "records" / "runs"
+        self.runs_root.mkdir(parents=True)
+        (self.repo / ".aw" / "config").mkdir(parents=True)
+
+    def test_producer_vocabulary_guard_matches_rich_run(self):
+        """E-03: Self-enforcing guard that PRODUCER_METRIC_KEYS and PRODUCER_EVENT_KEYS match build_cache_facts.
+
+        Equality is against a rich reference run only: a thin run legitimately emits a subset
+        (omitting optional cost, tokens, and model) because _metric_payload omits rather than zero-fills.
+        """
+        run = _write_run(
+            self.runs_root,
+            "run-20260908T100000Z-1001",
+            items=[
+                _item(
+                    attempts=[
+                        _attempt(
+                            tokens={"input": 100, "output": 50, "total": 150},
+                            cost=1.5,
+                        )
+                    ]
+                )
+            ],
+            events=['{"at":"2026-09-08T10:00:00Z","event":"run-created"}'],
+            state_extra={"options": {"model": "test/model"}},
+        )
+
+        metric_facts, event_facts, _flags, _warns = ingest.build_cache_facts(run)
+
+        observed_metric_keys = tuple(sorted(metric_facts.keys()))
+        observed_event_keys = tuple(
+            sorted({k for ef in event_facts for k in ef.keys()})
+        )
+
+        # Confirm the reference run is rich enough that optional keys are present
+        for required_optional_key in (
+            "model",
+            "cost",
+            "tokens",
+            "token_total",
+            "event_count",
+        ):
+            self.assertIn(required_optional_key, observed_metric_keys)
+
+        # Assert exact equality derived at runtime, not containment and with no hard-coded count
+        self.assertEqual(observed_metric_keys, ingest.PRODUCER_METRIC_KEYS)
+        self.assertEqual(observed_event_keys, ingest.PRODUCER_EVENT_KEYS)
+
+    def test_cache_staleness_and_vocabulary_invalidation(self):
+        """E-04: End-to-end test for analytics cache vocabulary invalidation and readability."""
+        from unittest.mock import patch
+        from agent_workflows import run_analytics_cache as cache
+        from agent_workflows import run_analytics_query as query
+
+        run = _write_run(
+            self.runs_root,
+            "run-20260908T100000Z-1002",
+            items=[
+                _item(
+                    attempts=[
+                        _attempt(
+                            tokens={"input": 100, "output": 50, "total": 150},
+                            cost=1.5,
+                        )
+                    ]
+                )
+            ],
+            events=['{"at":"2026-09-08T10:00:00Z","event":"run-created"}'],
+            state_extra={"options": {"model": "test/model"}},
+        )
+
+        salt = privacy.load_or_create_salt(cache.cache_root(self.repo))
+        root_id = cache.source_root_id(self.runs_root, salt=salt)
+        target = cache.entry_path(root_id, run.name, self.repo)
+
+        # Initial sweep under old vocabulary (pre-invalidation token)
+        old_metric_keys = tuple(
+            k for k in ingest.PRODUCER_METRIC_KEYS if k != "event_count"
+        )
+        with patch.object(ingest, "PRODUCER_METRIC_KEYS", old_metric_keys):
+            rep1 = ingest.update_analytics_cache([run], repo=self.repo)
+            self.assertEqual(rep1.decisions[0].verdict, "rebuild")
+            entry1 = cache.load_entry(target)
+            self.assertIn("event_count", entry1.metric_facts)
+
+        # Reproduce pre-6krsym entry by STRIPPING only event_count from metric_facts
+        # (leaving schema_version, is_complete and source_fingerprint intact)
+        entry_data = json.loads(target.read_text(encoding="utf-8"))
+        self.assertIn("event_count", entry_data["metric_facts"])
+        del entry_data["metric_facts"]["event_count"]
+        target.write_text(json.dumps(entry_data), encoding="utf-8")
+
+        # Confirm pre-6krsym entry state: event_count stripped, but envelope valid
+        stripped_entry = cache.load_entry(target)
+        self.assertNotIn("event_count", stripped_entry.metric_facts)
+        self.assertTrue(stripped_entry.is_complete)
+        self.assertEqual(stripped_entry.schema_version, cache.CACHE_SCHEMA_VERSION)
+
+        # Readability check across transition: all entries readable, 0 unreadable
+        entries_before = query._cache_entries(self.repo)
+        self.assertEqual(len(entries_before), 1)
+        overview_before = query.view_overview(entries_before, repo=self.repo)
+        self.assertEqual(overview_before.payload["unreadable_entries"], 0)
+
+        # 1. Defect arm: with vocabulary pinned to the value the entry was written under,
+        # sweep returns hit / fresh-complete-entry and the key stays absent.
+        with patch.object(ingest, "PRODUCER_METRIC_KEYS", old_metric_keys):
+            rep_defect = ingest.update_analytics_cache([run], repo=self.repo)
+            self.assertEqual(rep_defect.decisions[0].verdict, "hit")
+            self.assertEqual(rep_defect.decisions[0].reason, "fresh-complete-entry")
+            entry_defect = cache.load_entry(target)
+            self.assertNotIn("event_count", entry_defect.metric_facts)
+
+        # 2. Fixed arm: under CURRENT vocabulary, sweep returns rebuild / fingerprint-changed
+        # and republishes the key.
+        rep_fixed = ingest.update_analytics_cache([run], repo=self.repo)
+        self.assertEqual(rep_fixed.decisions[0].verdict, "rebuild")
+        self.assertEqual(rep_fixed.decisions[0].reason, "fingerprint-changed")
+        entry_fixed = cache.load_entry(target)
+        self.assertIn("event_count", entry_fixed.metric_facts)
+        self.assertEqual(entry_fixed.metric_facts["event_count"], 1)
+
+        # Confirm readability after rebuild
+        entries_after = query._cache_entries(self.repo)
+        self.assertEqual(len(entries_after), 1)
+        overview_after = query.view_overview(entries_after, repo=self.repo)
+        self.assertEqual(overview_after.payload["unreadable_entries"], 0)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -477,6 +477,115 @@ class RunAnalyticsCliUxTests(unittest.TestCase):
         self.assertIn("verifier", payload_phases)
         self.assertIn("recovery", payload_phases)
 
+    def test_run_analyze_rebuild_behavior(self) -> None:
+        """E-05: `aw runs analyze --rebuild` clears cache entries, preserves salt, removes stats cache, and leaves source runs immutable."""
+        import time
+        from agent_workflows import run_dashboard as dash_mod
+
+        # Initial run_analyze with rebuild=False to populate cache
+        args_initial = argparse.Namespace(
+            dir=str(self.repo),
+            path=False,
+            list=False,
+            open=False,
+            rebuild=False,
+            keep_snapshot=None,
+            targets=[],
+            agent=False,
+            json=False,
+            color=False,
+            no_color=True,
+            fields=None,
+            verbose=False,
+            limit=None,
+        )
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            rc_init = analytics_cli.run_analyze(args_initial)
+        self.assertEqual(rc_init, 0)
+
+        # Resolve paths through cache_mod resolver (never hand-composing .aw/records/runs)
+        cache_root = cache_mod.cache_root(self.repo)
+        salt_file = cache_root / "salt"
+        self.assertTrue(salt_file.is_file())
+        salt_initial = salt_file.read_text(encoding="utf-8").strip()
+        root_id_initial = cache_mod.source_root_id(
+            cache_root.parent.parent, salt=salt_initial
+        )
+
+        entry1_path = cache_mod.entry_path(root_id_initial, self.run1.name, self.repo)
+        entry2_path = cache_mod.entry_path(root_id_initial, self.run2.name, self.repo)
+        self.assertTrue(entry1_path.is_file())
+        self.assertTrue(entry2_path.is_file())
+
+        entry1_before = cache_mod.load_entry(entry1_path)
+        entry2_before = cache_mod.load_entry(entry2_path)
+
+        # Plant dashboard stats cache file to assert _clear_cache removes it
+        stats_cache_file = cache_root / dash_mod.STATS_CACHE_FILENAME
+        stats_cache_file.write_text('{"planted": true}', encoding="utf-8")
+        self.assertTrue(stats_cache_file.is_file())
+
+        # Snapshot non-analytics source run files (size, mtime_ns).
+        # Must EXCLUDE analytics/ subtree because analytics/ lives under the runs root
+        # and contains the cache files that are legitimately deleted and rebuilt.
+        def _source_snapshot() -> dict[Path, tuple[int, int]]:
+            snap: dict[Path, tuple[int, int]] = {}
+            for run_dir in (self.run1, self.run2):
+                for p in run_dir.rglob("*"):
+                    if p.is_file():
+                        st = p.stat()
+                        snap[p] = (st.st_size, st.st_mtime_ns)
+            return snap
+
+        snapshot_before = _source_snapshot()
+        self.assertTrue(len(snapshot_before) > 0)
+
+        # Pause briefly to ensure generated_at (ISO timestamp seconds) advances
+        time.sleep(1.05)
+
+        # Drive run_analyze with rebuild=True namespace built identical to rebuild=False
+        args_rebuild = argparse.Namespace(
+            dir=str(self.repo),
+            path=False,
+            list=False,
+            open=False,
+            rebuild=True,
+            keep_snapshot=None,
+            targets=[],
+            agent=False,
+            json=False,
+            color=False,
+            no_color=True,
+            fields=None,
+            verbose=False,
+            limit=None,
+        )
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            rc_rebuild = analytics_cli.run_analyze(args_rebuild)
+        self.assertEqual(rc_rebuild, 0)
+
+        # Property 1: salt file survives and source_root_id is unchanged
+        self.assertTrue(salt_file.is_file())
+        salt_after = salt_file.read_text(encoding="utf-8").strip()
+        self.assertEqual(salt_initial, salt_after)
+        root_id_after = cache_mod.source_root_id(
+            cache_root.parent.parent, salt=salt_after
+        )
+        self.assertEqual(root_id_initial, root_id_after)
+
+        # Property 2: dashboard stats cache file was removed by _clear_cache
+        self.assertFalse(stats_cache_file.exists())
+
+        # Property 3: every entry was discarded and republished (generated_at updated)
+        entry1_after = cache_mod.load_entry(entry1_path)
+        entry2_after = cache_mod.load_entry(entry2_path)
+        self.assertNotEqual(entry1_before.generated_at, entry1_after.generated_at)
+        self.assertNotEqual(entry2_before.generated_at, entry2_after.generated_at)
+
+        # Property 4: no file under source run directories changed in (size, mtime_ns)
+        snapshot_after = _source_snapshot()
+        self.assertEqual(snapshot_before, snapshot_after)
+
 
 if __name__ == "__main__":
     unittest.main()
