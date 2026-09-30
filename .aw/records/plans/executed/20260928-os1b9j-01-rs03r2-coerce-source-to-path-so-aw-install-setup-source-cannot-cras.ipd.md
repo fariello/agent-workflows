@@ -6,7 +6,7 @@
 - Scope: Make a string `--source` work everywhere it is accepted, and add the CLI-level regression coverage whose absence let this ship. IN: coercing inside `engine.resolve_source_root` so every caller (CLI, library, future) is hardened at the boundary, widening its annotation to `Path | str | None` to match, adding `type=Path` to both `--source` argparse declarations (`install` and `setup`) so the namespace carries the declared type, and a new regression test driving `--source` as a string through the real CLI parser to a real target repo. OUT: any change to resolution ORDER or validation semantics inside `resolve_source_root`, any change to what `--source` accepts or means, the `--dry-run` early-return ordering that happens to mask this (see Deferred), and the redundant `Path(...)` coercions already at the three other call sites.
 - Scope-Paths: agent_workflows/engine.py, agent_workflows/cli.py, tests/test_install_source_option.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: rs03r2
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: rs03r2 verified (set os1b9j, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-901..PR-906 all FIXED; Readiness go-pending-approval
 
