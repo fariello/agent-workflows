@@ -290,7 +290,19 @@ def _validate_plan_via_engine(
         enriched = _ce.enrich_drift(d)
         if enriched.severity == "info":
             continue  # advisory nudge, dropped silently
-        if enriched.severity == "warning":
+        # Routed by rule ID and NOT by severity: check.scope-drift is registered error
+        # so aw check and CI still see error and fail closed, and the opt-in pre-commit
+        # hook still refuses. Lowering registered severity would affect all consumers.
+        # The commit-time refusal which REMAINS is run_commit's own staged/named
+        # comparison (_in_scope), so nothing about a staged out-of-scope path became
+        # permissible. The execution-wide comparison belongs to finalize where
+        # --scope-reason answers it, per the catalog's I-01/I-05 split. The drift finding
+        # is still printed at commit time so the agent is warned early.
+        # One thing this does not fix: s9z85a carries finalize's silent excuse for an
+        # untrailered solo out-of-scope commit.
+        if enriched.rule == _ce._SCOPE_DRIFT_RULE:
+            advisory.append(enriched)
+        elif enriched.severity == "warning":
             advisory.append(enriched)
         else:
             blocking.append(enriched)

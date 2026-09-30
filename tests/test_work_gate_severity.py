@@ -296,9 +296,72 @@ class WorkGateSeverityTest(unittest.TestCase):
         ).strip()
         self.assertEqual(head_before, head_after)
 
+    def test_commit_scope_drift_commits_with_advisory(self):
+        """IPD ygb3nk E-03: check.scope-drift finding prints advisory notice and permits commit."""
+        (self.root / "src" / "f.py").write_text(
+            "print('modified scope')\n", encoding="utf-8"
+        )
+        drift = artifact_core.Drift(
+            str(self.plan_path),
+            "check.scope-drift",
+            "probe scope drift",
+        )
+        with mock.patch.object(check_engine, "check_type", return_value=[drift]):
+            rc, out = self._run(
+                [
+                    "commit",
+                    "wk0001",
+                    "--dir",
+                    str(self.root),
+                    "-m",
+                    "update f with scope drift",
+                    "--",
+                    "src/f.py",
+                ]
+            )
+        self.assertEqual(rc, 0, f"Expected rc 0, got {rc}. Output:\n{out}")
+        self.assertIn("advisory", out)
+        self.assertIn("check.scope-drift", out)
+        # Verify commit succeeded
+        show = subprocess.check_output(
+            ["git", "show", "--stat", "HEAD"], cwd=self.root, text=True
+        )
+        self.assertIn("src/f.py", show)
+
+    def test_scope_drift_registered_severity_is_error(self):
+        """IPD ygb3nk E-05: check.scope-drift registered severity must be error.
+
+        Honest blast radius: lowering error -> warning moves the aw commit / aw work begin
+        lifecycle partition ONLY. aw check, CI, aw doctor, and the opt-in pre-commit hook
+        all still fail closed at warning because drift_exit_code exempts only info and the
+        hook is severity-blind; only a lowering to info would retire them. The registry
+        assertion pins the declared contract and catches any lowering to info outright,
+        without relying on vacuous assertions on severity-blind consumers.
+        """
+        self.assertEqual(
+            check_engine.rule_spec("check.scope-drift").severity,
+            "error",
+        )
+
     # ----------------------------------------------------------------------------------
     # aw work begin cases (E-04)
     # ----------------------------------------------------------------------------------
+
+    def test_work_begin_scope_drift_allocates_with_advisory(self):
+        """IPD ygb3nk E-06: check.scope-drift finding prints advisory notice and allocates worktree."""
+        drift = artifact_core.Drift(
+            str(self.plan_path),
+            "check.scope-drift",
+            "probe scope drift",
+        )
+        with mock.patch.object(check_engine, "check_type", return_value=[drift]):
+            rc, out = self._run(["work", "begin", "wk0001", "--dir", str(self.root)])
+        self.assertEqual(rc, 0, f"Expected rc 0, got {rc}. Output:\n{out}")
+        self.assertIn("allocated worktree", out)
+        self.assertIn("advisory", out)
+        self.assertIn("check.scope-drift", out)
+        lease_file = self.root / ".aw" / "state" / "work" / "wk0001" / "work-lease.json"
+        self.assertTrue(lease_file.is_file(), "Lease file must exist after allocation")
 
     def test_work_begin_warning_drift_allocates_with_advisory(self):
         """(a) warning-severity finding prints advisory notice and allocates worktree."""
