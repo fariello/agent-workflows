@@ -1,5 +1,6 @@
 - Id: e2j5w4
-- Status: open
+- Status: graduated
+- Graduated-To: id6slotgate
 - Blocks-Release: next
 - Set: id6slotgate
 - Priority: high
@@ -7,6 +8,7 @@
 - Summary: aw check misses check.id6-identity-slot on a live D140 violation because check_collisions gates the slot pass on the caller's liveness filter
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: dta75n
 - 2026-09-21 created (aw backlog): aw check misses check.id6-identity-slot on a live D140 violation because check_collisions gates the slot pass on the caller's liveness filter
 
 MEASURED 2026-09-21 while executing IPD paw8so.
