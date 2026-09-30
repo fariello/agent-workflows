@@ -1,0 +1,312 @@
+# IPD: Delete the driver token and the location guess and check the live holder inside all three core transitions
+
+- Date: 2026-09-30
+- Kind: child
+- Concern: The terminal lifecycle gate shipped by executed plan `u27oh3` guesses "a runner owns this plan" from the FOLDER PATH (`lane_worktree_active` returns True for anything under `.aw/worktrees/` or on an `aw/lane/*` branch) and then demands a per-run secret (`AW_DRIVER_ATTEST`) to proceed. Both halves are wrong under GUIDING_PRINCIPLES P15. The location guess wrongly blocks a human's own feature worktree placed under `.aw/worktrees/` (measured 2026-09-26: `feat-partition`, refused with `AW-LIFECYCLE-ROLE-001`) and blocks recovery of a lane whose runner died, because a dead runner's lane still looks exactly like a live one to a path test. The token stops only honest actors, which the gate's own comment concedes ("a same-user agent inside the lane can still read `<main>/.aw/records/runs/<run-id>/driver-attest.token` by absolute path or cd to the main checkout"), and honest actors are already stopped by the worker label and its clear message. P15 names this very mechanism as its measured example and directs the fix: "Key checks on the real condition (is a live run working on this plan?) rather than on a proxy (does this folder look like a lane?)." A second defect compounds it: `begin` has no gate at all below its CLI handler, so a direct `ipd_lifecycle.begin` caller skips the worker-label check entirely.
+- Scope: Replace the location-plus-token gate with the one plan-scoped live-holder check Order 01 built, and move both that check and the existing worker-label check INSIDE the three core functions so no caller can route around them. Delete `mint_driver_attestation`, `verify_driver_attestation`, `DRIVER_ATTEST_ENV`, `DRIVER_ATTEST_FILENAME`, `lane_worktree_active`, `runner_shared.get_run_attestation`, the token minting and unlinking in the run lifecycle, the `driver_attestation` and `attestation` parameters threaded through both hosts, and the child-env scrubbing that exists only to withhold the token. Add the deliberate `--take-over '<reason>'` override that records its reason in the plan's history. Amend spec `7ckptx` (R4.5, A11) and spec `llbr2b` (3.2, C-8), which describe the refusal this plan changes. EXCLUDES the worker-label check's own semantics, which D1 keeps verbatim. EXCLUDES the lane nudge, which is Order 03. EXCLUDES the opt-in OS sandbox, which D7 keeps as optional isolation.
+- Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/cli.py, agent_workflows/status_set.py, tests/test_driver_attestation_gate.py, tests/test_lifecycle_holder_gate.py, .aw/records/specs/approved/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md, .aw/records/specs/to-review/20260920-llbr2b-01-llbr2b-lifecycle-automation-policy.spec.md, CHANGELOG.md
+- Item-Dependencies: executed:urv602
+- Status: to-review
+- Work-Kind: bug
+- Priority: high
+- From-Backlog: dvonrn
+- Blocks-Release: next
+- Set: lifegate
+- Order: 2
+- Highest E allocated: 09
+- Author: opencode its_direct/pt3-claude-opus-5-1m-us
+- Id: e25iy9
+
+## Workflow history
+
+- 2026-09-30 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored while graduating backlog `dvonrn`, whose D1-D8 were settled with the maintainer on 2026-09-26 and are not reopened. Every entry point in D4's table was re-measured in this lane, and THREE measurements change the plan's shape from the item's description. FIRST, D2 specifies that the runner passes its own run id so the check ignores that run, and measurement found the transport already exists and is already exported to the agent turn: both hosts set `git_commit_helper.RUN_ID_ENV` (`AW_RUN_ID`) into the child environment for trailer stamping, for isolated AND non-isolated turns. That is a material simplification (the runner's own in-process calls pass the id as an argument; no new env var is invented) and a HAZARD the plan must fence: because `AW_RUN_ID` reaches the WORKER too, the run id must NEVER be read from the environment as the holder exception, or the lane agent would inherit the exception the design denies it. E-05 states that fence and V-05 pins it. SECOND, D4's table says `begin`'s label check is "CLI handler only", and the consequence is sharper than the table states: `ipd_lifecycle.begin` today has NO role gate and NO location gate of any kind, so `begin` is not gaining a replacement gate, it is gaining its FIRST one. THIRD, the token's deletion surface is wider than the two gate blocks: `runner_shared` mints it at run start, caches it in a module-level `_RUN_ATTESTATIONS` dict, re-mints it lazily in `get_run_attestation` (which will mint a token for ANY existing run directory on demand), unlinks it in the run-lock teardown, and threads it through `driver_finalize`, `finalize_with_contention_retry`, `_call_driver_finalize` (which inspects the callee signature for an `attestation` keyword) and both host wrappers. E-06 enumerates that surface so the deletion does not leave a dead parameter threaded through five functions.
+- 2026-09-30 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
+
+## Goal
+
+Make the lifecycle gate refuse for the one real reason (someone else is actively working on this plan) and
+allow begin and finalize everywhere else, so a human's own worktree and a dead runner's lane both stop being
+collateral damage.
+
+WHAT THE GATE BECOMES, stated as a single rule so a reviewer can check it in one reading. `begin`,
+`finalize` and `retire_orchestrator` each perform, in this order: (1) the EXISTING worker-label refusal
+(`AW_EXECUTION_ROLE=worker`, `AW-LIFECYCLE-ROLE-001`, unchanged wording, unchanged exit code); then (2) the
+NEW plan-scoped check, which refuses ONLY when a live run other than the caller's own holds this plan.
+Nothing else refuses. No path is consulted. No secret is presented.
+
+WHY THE ORDER IS LOAD-BEARING AND NOT STYLISTIC (D2). The worker label runs FIRST because the runner's own
+agent is the ONE honest mistake actually observed: it completed its work correctly, ran `aw ipd finalize`
+inside its lane as the repository contract then told it to, and forked a second receipt the driver could not
+see. That agent never receives a run id to pass, so it never qualifies for the holder exception, and putting
+the label check first means it gets the message written for it ("this is the runner's step, you are done")
+rather than a message about a live holder.
+
+WHY THE RUN ID IS NOT A SECRET, and why that is the whole point. The token was random, minted per run, and
+withheld from the worker; this design replaces it with a plain run id that anyone could pass. D2 accepts
+that deliberately: the check exists to stop an honest mistake, and nobody passes another run's id by
+accident. P15 states the general form ("WHAT NOT TO BUILD: secrets or tokens meant to be hidden from an
+agent"). The practical gain is what the token cost: a human in their own worktree, and an operator
+recovering a dead lane, both stop being refused by a mechanism that never stopped the thing it named.
+
+SIX FACTS ESTABLISHED AT AUTHORING. The executor re-measures each (E-01).
+
+1. THE GATE IS A LOCATION GUESS FOLLOWED BY A SECRET. `finalize` and `retire_orchestrator` both contain the
+   block `if lane_worktree_active(repo_root):` and then require `verify_driver_attestation` to pass,
+   returning `ROLLUP_REFUSED_NO_DRIVER_ATTESTATION`. `lane_worktree_active` returns True for a path under
+   `checkout_control_root(repo_root) / "worktrees"` OR a branch matching `aw/lane/*`, which is precisely the
+   proxy P15 forbids.
+
+2. `begin` HAS NO GATE BELOW THE CLI. `ipd_lifecycle.begin` performs actor, plan, lint, base-head, freeze
+   and baseline checks and NO role or location check; the only label check is in the CLI handler `run_begin`
+   (`_refuse_worker_role_verb("begin")`). So this plan gives `begin` its first core-level gate rather than
+   replacing one.
+
+3. `finalize` IS THE CHOKE POINT FOR THREE CALLERS, and its own comment says why that matters:
+   `aw set executed` / `aw ipd set executed` delegate through
+   `status_set._delegate_plan_executed_to_finalize` straight into `finalize`, which is why the label check
+   was moved into `finalize` rather than copied into `status_set`. The same reasoning applies to the new
+   check, so it goes in the same place.
+
+4. THE RUN-ID TRANSPORT ALREADY EXISTS, AND ALREADY REACHES THE WORKER. Both hosts set
+   `child_env[_gch.RUN_ID_ENV] = str(state["run_id"])` (`AW_RUN_ID`) for isolated and non-isolated turns so
+   `aw commit` can stamp trailers. This is why the run id must be an explicit ARGUMENT at the holder
+   exception and must never be read from the environment there.
+
+5. THE TOKEN'S SURFACE IS ELEVEN SITES, not two. `ipd_lifecycle`: `DRIVER_ATTEST_ENV`,
+   `DRIVER_ATTEST_FILENAME`, `mint_driver_attestation`, `verify_driver_attestation`,
+   `ROLLUP_REFUSED_NO_DRIVER_ATTESTATION`, the two gate blocks, and the two `driver_attestation`
+   parameters. `runner_shared`: the mint at run start, the `_RUN_ATTESTATIONS` cache, `get_run_attestation`
+   (which lazily MINTS for any existing run dir), the teardown unlink, `driver_finalize`'s `attestation`
+   parameter and its `env[DRIVER_ATTEST_ENV]` assignment, `finalize_with_contention_retry` and
+   `_call_driver_finalize` (which signature-inspects for the keyword), and the `retire_orchestrator` call
+   site. Both hosts: the `child_env.pop(DRIVER_ATTEST_ENV, None)` scrub and `driver_finalize`'s parameter.
+
+6. TWO SPECS DESCRIBE THE REFUSAL AND MUST BE AMENDED; THE TOKEN ITSELF IS IN NO SPEC. D8 searched every
+   `.spec.md` and found the per-run token and the location guess specified NOWHERE, so their deletion needs
+   no amendment by itself. What does need amending is the REFUSAL's stated shape: `7ckptx` R4.5 requires the
+   child environment carry "the execution-role selector that causes driver-owned lifecycle verbs to refuse
+   inside a lane" and A11 asserts "An in-lane invocation of a driver-owned lifecycle verb refuses with the
+   documented code"; `llbr2b` 3.2 says "A worker-role process is refused outright at the CLI wrapper" and
+   C-8 names the role as an INVARIANT. Verified at authoring: `llbr2b` is still `to-review`, so it is
+   updated in place per D8.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+### Task group 1: measure the surface before changing it
+
+- [ ] E-01 RE-DERIVE THE SIX FACTS AND ENUMERATE EVERY DELETION SITE IN YOUR OWN LANE. Confirm Order 01's predicate exists and is callable, and paste its signature and result type: every item below calls it, and if `urv602` did not land this plan cannot proceed. Then search the whole tree for `AW_DRIVER_ATTEST`, `DRIVER_ATTEST_ENV`, `DRIVER_ATTEST_FILENAME`, `driver-attest`, `driver_attestation`, `attestation`, `mint_driver_attestation`, `verify_driver_attestation`, `get_run_attestation`, `_RUN_ATTESTATIONS`, `ROLLUP_REFUSED_NO_DRIVER_ATTESTATION` and `lane_worktree_active`, and produce a table of every hit with its file, symbol and role (definition, caller, parameter, test, comment, CHANGELOG). Confirm fact 2 by reading `ipd_lifecycle.begin` and stating that it contains no role or location check. Confirm fact 4 by pasting both hosts' `RUN_ID_ENV` assignment. Confirm fact 6 by pasting the four spec passages and by checking each spec's current `- Status:`.
+  - Depends on: none
+  - Expected outcome: the predicate's signature; the full deletion-site table; the explicit statement that `begin` has no core gate; both hosts' run-id export pasted; the four spec passages pasted with each spec's live status. If `llbr2b` has left `to-review`, say so: D8 directs a note-amendment instead of an in-place edit in that case.
+  - Execution state: pending
+
+### Task group 2: place the two checks inside the core functions
+
+- [ ] E-02 MOVE THE WORKER-LABEL CHECK INTO `ipd_lifecycle.begin`, closing fact 2's hole. Call the existing `worker_role_active` predicate (do not write a second one) and return the existing refusal, keeping `AW-LIFECYCLE-ROLE-001`, the existing message text and `EXIT_CANNOT_RUN` byte-identical, because `tests/test_runner_finalize_message.py` pins that string and both drivers parse the refusal out of nested `aw` output. Check it FIRST, before the actor check and before any receipt write, so a refused call has NO side effect, matching the discipline `finalize` and `retire_orchestrator` already state. Accept an `env` parameter defaulting to `os.environ`, exactly as `finalize` and `retire_orchestrator` do, so the refusal is testable without mutating global process state. LEAVE the CLI handler's own `_refuse_worker_role_verb("begin")` in place: it produces the richer expected-path message on stderr for the common case and removing it would change what an agent sees.
+  - Depends on: E-01
+  - Expected outcome: a direct `ipd_lifecycle.begin` call with a worker-labelled env refuses with the unchanged code and writes no receipt; the CLI path's message is unchanged; the diff shows no second role predicate.
+  - Execution state: pending
+
+- [ ] E-03 ADD THE PLAN-SCOPED HOLDER CHECK TO ALL THREE CORE FUNCTIONS (`begin`, `finalize`, `retire_orchestrator`), sited IMMEDIATELY AFTER the worker-label check in each, calling Order 01's predicate once per function with no second implementation (spec `7ckptx` R6.1). Refuse when the verdict is HELD by a run other than the caller's, and ALSO when the verdict is UNDETERMINABLE, which is D3's maintainer ruling for an unreadable lock and for a record naming a different machine. Do not refuse for any other reason: no path test, no token, no branch name. The refusal MUST name the run and offer the two choices D1 requires (wait, or `aw <host> run stop <run-id>`) plus the `--take-over` override, and for the foreign-machine arm it must name the machine, composed from the predicate's structured machine FIELD rather than parsed out of its reason text. Mint a distinct finding id for this refusal rather than reusing `ROLLUP_REFUSED_NO_DRIVER_ATTESTATION`, whose name asserts a mechanism that no longer exists; follow the typed-vocabulary discipline the `ROLLUP_REFUSED_*` constants already establish so a caller never string-matches prose.
+  - Depends on: E-02
+  - Expected outcome: each of the three functions refuses when a live foreign run holds the plan and proceeds when none does; the refusal text pasted for the HELD, the unreadable-lock and the foreign-machine arms; the new finding id shown as distinct from every existing one.
+  - Execution state: pending
+
+- [ ] E-04 DELETE THE LOCATION GUESS AND THE TOKEN GATE. Remove both `if lane_worktree_active(repo_root):` blocks with their `verify_driver_attestation` calls, then delete `lane_worktree_active`, `mint_driver_attestation`, `verify_driver_attestation`, `DRIVER_ATTEST_ENV`, `DRIVER_ATTEST_FILENAME` and `ROLLUP_REFUSED_NO_DRIVER_ATTESTATION` from `ipd_lifecycle`, plus the now-unused `hmac` and `secrets` imports IF nothing else in the module uses them (check, do not assume). Delete the two `driver_attestation` parameters. Update `ROLLUP_SHARED_GATES` so its enumeration matches what the rollup now performs: that tuple exists precisely so a test can fail when the two transition paths drift, and its own comment warns that a short list would let the rollup run with gates missing while the test passed. Also remove the honest-limit comment block that names the token and points at `1o4eif` as the fix for a "determined same-user agent": D7 rules the sandbox is optional isolation and NOT the real fix, and P15 forbids that justification. Keep `private_file`: its other consumer is the analytics pseudonym salt, which is a privacy mechanism and not anti-malice machinery.
+  - Depends on: E-03
+  - Expected outcome: the six symbols and both gate blocks are gone; `ROLLUP_SHARED_GATES` reflects the real gate set; no dangling import remains (shown by a clean import of the module and the pasted check for `hmac`/`secrets` usage); the `1o4eif` justification comment is gone from the deleted region.
+  - Execution state: pending
+
+### Task group 3: give the runner the exception and the human the override
+
+- [ ] E-05 PASS THE CALLER'S OWN RUN ID AS AN EXPLICIT ARGUMENT at every driver call site, so the runner never blocks itself, and FENCE IT AGAINST THE ENVIRONMENT. Thread a run id parameter into `begin` and `finalize` and reuse `retire_orchestrator`'s EXISTING `run_id` parameter (it already takes one and already receives `state["run_id"]` from the rollup call site, so no new parameter is needed there). Add the CLI flag that carries it for the subprocess path, since `driver_begin` and `driver_finalize` invoke `aw ipd begin` / `aw ipd finalize` as subprocesses and cannot pass a Python argument. THE FENCE IS THE POINT OF THIS ITEM: the holder exception MUST come from an explicit argument or flag and MUST NEVER be defaulted from `AW_RUN_ID` or any other environment variable, because fact 4 measured that both hosts export `AW_RUN_ID` into the WORKER's environment for commit trailers, so an environment default would hand the lane agent exactly the exception D2 denies it. Write that reason as a comment at the site, not merely in this plan. Pass the run id in the subprocess ENV or ARGV per the site's existing convention, but note the token was deliberately kept out of argv (a test asserts it is "in subprocess env not argv"); a run id is not a secret, so argv is acceptable and is easier to see in a process listing, which is a diagnostic gain.
+  - Depends on: E-04
+  - Expected outcome: all four driver call sites (`driver_begin`, `driver_finalize`, the rollup's `retire_orchestrator`, and the in-process paths) pass the run id; a worker-labelled turn with `AW_RUN_ID` set in its environment is still refused; the pasted comment stating the fence.
+  - Execution state: pending
+
+- [ ] E-06 REMOVE THE TOKEN PLUMBING FROM THE RUNNERS AND BOTH HOSTS, using E-01's table so nothing is left threaded. In `runner_shared`: delete the mint at run start, the `_RUN_ATTESTATIONS` module cache, `get_run_attestation` (note it currently MINTS lazily for any existing run directory, so deleting it removes a write as well as a read), the teardown unlink, `driver_finalize`'s `attestation` parameter and its `env[DRIVER_ATTEST_ENV]` assignment, and the `attestation` threading through `finalize_with_contention_retry` and `_call_driver_finalize`. DELETE `_call_driver_finalize`'s SIGNATURE INSPECTION if the keyword it probes for is gone: it exists only to tolerate a callee with or without `attestation`, so leaving it would be dead compatibility machinery for a parameter that no longer exists. In both hosts: delete `child_env.pop(ipd_lifecycle.DRIVER_ATTEST_ENV, None)` and the `attestation` parameter on each `driver_finalize` wrapper. KEEP the `EXECUTION_ROLE_ENV` worker marking in both hosts exactly as it is: D1 keeps the worker label, and only the token scrub beside it is deleted.
+  - Depends on: E-05
+  - Expected outcome: no reference to the token remains in `runner_shared`, `oc_runipd` or `agy_runipd` (shown by search); the worker-label marking is unchanged in both hosts (shown by diff); `_call_driver_finalize` carries no dead signature probe.
+  - Execution state: pending
+
+- [ ] E-07 ADD THE `--take-over '<reason>'` OVERRIDE, which D1 requires to be deliberate and RECORDED. It must require a non-empty reason (an override with no reason is the unrecorded bypass this design is replacing), apply to `begin` and `finalize` and the retirement path, and write the reason into the plan's `## Workflow history` through the repository's existing history writer rather than a second formatter. Record it whether or not the transition later succeeds in the reader-visible sense that matters: the history entry must state that a live holder was overridden, name the run overridden, and carry the supplied reason verbatim. It is a SPEED BUMP AND AN HONEST RECORD, not a lock, which is exactly the model P15 endorses and the same shape `--by-human` already has; say so in the flag's help text so the next author does not mistake it for authorization.
+  - Depends on: E-06
+  - Expected outcome: `--take-over` with a reason proceeds past a live holder and the plan's history carries the reason, the overridden run id and an explicit statement that a holder was overridden, all pasted; `--take-over` with an empty reason refuses; the help text pasted.
+  - Execution state: pending
+
+### Task group 4: make the tests and the contracts match
+
+- [ ] E-08 REPLACE THE GATE'S TEST FILE WITH ONE THAT PINS THE NEW BEHAVIOR, and make it cover D4's entry-point obligation. `tests/test_driver_attestation_gate.py` tests the deleted mechanism throughout (it mints tokens, verifies them, asserts the lane refusal and asserts the token reaches the subprocess env), so it is deleted rather than patched; write `tests/test_lifecycle_holder_gate.py` in its place. D4 REQUIRES ONE TEST THAT DRIVES EVERY ENTRY POINT in its table against a plan held by a live run and asserts each refuses IDENTICALLY, and that each proceeds when the caller passes the holder's run id, so that a future new caller cannot silently skip the check: `aw ipd begin`, `aw ipd finalize`, `aw set executed`, `aw ipd set executed`, orchestrator retirement, and the runner's own begin and finalize. Also pin, as separate cases: a human's own worktree under `.aw/worktrees/` with NO live run now SUCCEEDS (the measured `feat-partition` defect); a lane whose run is DEAD now succeeds (the recovery case); a worker-labelled caller is still refused even with `AW_RUN_ID` set in its environment (E-05's fence); an UNDETERMINABLE verdict refuses; and `--take-over` with a reason proceeds while an empty reason refuses. Assert on returned values, exit codes, rendered messages and the plan's on-disk history ONLY: do not read module source, do not census callers, and do not assert which module defines a symbol (AGENTS.md; GUIDING_PRINCIPLES P16). Drive the entry points through their real surfaces (the CLI for the CLI verbs, the real functions for the in-process ones) so the test would catch a caller that bypassed the core check.
+  - Depends on: E-07
+  - Expected outcome: the old file deleted, the new file passing with its bare `python3 -m pytest` output pasted, and an explicit enumeration showing every row of D4's table is exercised.
+  - Execution state: pending
+
+- [ ] E-09 AMEND BOTH SPECS AND WRITE THE CHANGELOG ENTRY. In `7ckptx`: restate R4.5 so the obligation is that an isolated turn's child environment carries the execution-role selector causing driver-owned lifecycle verbs to refuse FOR A WORKER-LABELLED CALLER (unchanged), and restate the location claim so that for anyone else the refusal is conditioned on a live run holding the PLAN, anywhere, not on location; update A11's wording the same way, keeping its still-true half (an in-lane worker invocation refuses with the documented code and performs no transition, while the driver's own invocation succeeds). KEEP R4.5's existing honest-limit sentence ("an environment selector and not a hardened boundary") verbatim: D8 records that it already matches P15. In `llbr2b`: correct 3.2's note that "A worker-role process is refused outright at the CLI wrapper", which E-02 and E-03 make wrong by moving the check into the core functions, and extend invariant C-8 to name the new held-by-a-live-run refusal as a second lifecycle invariant. Append a dated amendment line to each spec's `## Workflow history` naming this plan. Write the CHANGELOG entry, which must CORRECT the existing one: the shipped entry describes the token as closing "an authority bypass", and the honest replacement says the location-plus-token gate is replaced by a plan-scoped live-holder check, that begin and finalize are now allowed anywhere, and that a human's own worktree and a dead lane are no longer refused. Use no em or en dashes in the CHANGELOG (AGENTS.md: it is user-facing prose).
+  - Depends on: E-08
+  - Expected outcome: the `git diff` of both spec files plus their appended history lines, with R4.5's honest-limit sentence shown unchanged; the CHANGELOG entry pasted; and a statement that `77tr3o`, `25kzda`, `c4gd2h`, `pqsx96` and `i4gpto` were re-read and needed no change, or naming precisely what did.
+  - Execution state: pending
+
+Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
+
+## Project conventions discovered (Step 0)
+
+- Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`). Every citation here is by symbol or quoted string.
+- A PLAN MAY AMEND A SPEC AND MUST DECLARE IT (AGENTS.md). Both spec files are in `- Scope-Paths:` so the runners announce the spec edits before the run starts and the finalize scope gate reconciles them. E-09 is the amendment and the reason is in Spec / documentation sync.
+- ONE PREDICATE PER RULE (spec `7ckptx` R6.1): "A containment rule consumed by more than one surface MUST live in one predicate that every surface calls. Forking the rule is non-conforming even when the copies agree." Three entry points, one predicate from Order 01, no local copies.
+- GUARD AGAINST HONEST MISTAKES, NEVER AGAINST A MALICIOUS AGENT (GUIDING_PRINCIPLES P15). This plan is P15's own worked example, and P15 prescribes the replacement shape directly: key on the real condition, refuse with a clear message naming cause and remedy, offer a deliberate recorded override, and make recovery easy. The plan does all four.
+- TESTS MUST EXERCISE BEHAVIOR, NOT CODE STRUCTURE (AGENTS.md; GUIDING_PRINCIPLES P16). Doubly load-bearing here. The obvious test for E-04 ("assert `lane_worktree_active` is gone") and for E-03 ("assert the predicate is called from three places") are both forbidden; E-08 pins the behavior by DRIVING every entry point, which is also the stronger check.
+- A REFUSAL STRING CAN BE A CONTRACT. `AW-LIFECYCLE-ROLE-001` and its message are pinned by `tests/test_runner_finalize_message.py` and PARSED by both drivers out of nested `aw` output (`nested_aw_message` exists because a refusal prints on stdout while advisories print on stderr). E-02 keeps that text byte-identical; the NEW refusal gets its own typed finding id rather than reusing a name that asserts a deleted mechanism.
+- AN EXECUTED PLAN'S RECORD IS IMMUTABLE (AGENTS.md). Executed plan `u27oh3` built the token and `1o4eif` built the sandbox; neither file is edited. A dated `## Workflow history` line pointing at this plan is the permitted addition and this plan does not require one.
+- RUN THE SUITE BARE (AGENTS.md). `pyproject.toml` `addopts` already supplies quiet, parallel and the fast subset; a second `-q` compounds into `-qq` and suppresses the `N passed` line this plan requires pasted.
+
+## Findings
+
+| # | Finding | Evidence | Consequence for this plan |
+|---|---|---|---|
+| F-1 | The gate is a location guess plus a secret | Both `finalize` and `retire_orchestrator` contain `if lane_worktree_active(repo_root):` then require `verify_driver_attestation`; `lane_worktree_active` tests a path under `.aw/worktrees/` or an `aw/lane/*` branch | E-04 deletes both halves; the proxy is exactly what P15 forbids |
+| F-2 | The gate's own comment concedes the token does not work | "a same-user agent inside the lane can still read `<main>/.aw/records/runs/<run-id>/driver-attest.token` by absolute path or cd to the main checkout" | The token stops only honest actors, who the worker label already stops; deleting it removes no real protection |
+| F-3 | `begin` has NO core-level gate at all | `ipd_lifecycle.begin` performs actor, plan, lint, base-head, freeze and baseline checks and no role or location check; only `run_begin` calls `_refuse_worker_role_verb` | E-02 gives `begin` its FIRST core gate; this is a hole being closed, not a gate being swapped |
+| F-4 | `finalize` is the choke point for three callers | `status_set._delegate_plan_executed_to_finalize` delegates `aw set executed` straight into `finalize`; `finalize`'s comment records that `status_set` contains zero references to the role predicate | Both checks belong in `finalize`, not in `status_set`; one site covers the CLI, the rollup and `aw set executed` |
+| F-5 | The run-id transport exists and reaches the worker | Both hosts set `child_env[_gch.RUN_ID_ENV] = str(state["run_id"])` for isolated and non-isolated turns, for commit trailers | Simplifies E-05 (no new variable) AND creates the hazard it must fence: an env default would grant the worker the exception D2 denies it |
+| F-6 | The token surface is eleven sites, not two | `ipd_lifecycle` (6 symbols + 2 gate blocks + 2 parameters), `runner_shared` (mint, cache, lazy-minting getter, teardown unlink, 3 functions threading it), both hosts (scrub + parameter) | E-06 exists as its own item; a two-site deletion would leave a dead parameter threaded through five functions |
+| F-7 | `get_run_attestation` is a WRITER disguised as a getter | It mints a token for any existing run directory when none is cached or on disk | Its deletion removes a write, not only a read; the executor must not treat it as a pure accessor |
+| F-8 | `_call_driver_finalize` exists only for the token keyword | It inspects the callee signature for an `attestation` parameter to tolerate hosts with and without it | E-06 removes the probe; keeping it would be dead compatibility machinery for a deleted parameter |
+| F-9 | The token is in NO spec, but the REFUSAL is in two | D8's search found the token and location guess specified nowhere; `7ckptx` R4.5 and A11, and `llbr2b` 3.2 and C-8, describe the refusal | E-09 amends exactly those four passages and nothing else; the deletion itself needs no amendment |
+| F-10 | `llbr2b` is still `to-review` | Its front matter reads `- Status: to-review` | D8's condition for an in-place update holds; E-01 re-checks in case it advanced |
+| F-11 | `ROLLUP_SHARED_GATES` is a drift detector that must be updated with the gates | Its comment: an earlier short list "would have PASSED while the rollup silently ran with no exclusive lock, no transaction journal and no crash recovery" | E-04 must update the tuple; leaving it stale would make the drift test assert a gate set that no longer exists |
+| F-12 | `private_file` is not orphaned by the token's deletion | Its other consumer is `run_analytics_privacy.load_or_create_salt`, the analytics pseudonym salt | No cleanup is owed there; the module is a privacy mechanism, not anti-malice machinery |
+
+## Proposed changes (ordered, validatable)
+
+1. Re-derive the six facts and table every deletion site (E-01).
+2. Move the worker-label check into `ipd_lifecycle.begin`, closing its gate hole (E-02).
+3. Add the plan-scoped holder check to all three core functions, refusing on HELD and UNDETERMINABLE (E-03).
+4. Delete the location guess, the token gate, their six symbols, and the `1o4eif` justification comment; update `ROLLUP_SHARED_GATES` (E-04).
+5. Pass the caller's run id explicitly at every driver site and fence it against the environment (E-05).
+6. Remove the token plumbing from `runner_shared` and both hosts, including the dead signature probe (E-06).
+7. Add the `--take-over '<reason>'` override, recording the reason in the plan's history (E-07).
+8. Replace the gate's test file with one driving every entry point in D4's table (E-08).
+9. Amend `7ckptx` and `llbr2b`, and correct the CHANGELOG (E-09).
+
+## Deferred / out of scope (with reason)
+
+- THE WORKER-LABEL CHECK'S SEMANTICS. D1 keeps `AW_EXECUTION_ROLE=worker`, `worker_role_active`, the `AW-LIFECYCLE-ROLE-001` code and its message unchanged: it is the one honest mistake actually observed, and D2 requires it to run first. This plan RELOCATES where it is checked (E-02 adds it to `begin`) and changes nothing about what it means or says.
+  - Carrier-Declined: Nothing is owed because the check is already in the state P15 wants. It is an environment selector that produces a clear message about whose step it is, which is P15's prescribed shape, and its own honest limit is already stated.
+- THE LANE NUDGE when begin or finalize runs in main while a lane for the plan exists. D1 requires it to be a print and never a refusal, so it is separable and lowest risk.
+  - Carrier: m47znv
+- THE OPT-IN OS SANDBOX (`host_sandbox_profile`, plan `1o4eif`). D7 keeps it exactly as shipped: opt-in, off by default, Linux only, selected by explicit request. This plan removes only the COMMENT that frames it as the fix for a determined same-user agent, and adds no dependency on it. Nothing in this design may require it to be on.
+  - Carrier-Declined: Nothing is owed because D7 rules the mechanism is kept as optional isolation and only its framing was wrong. The framing is corrected here for the comment beside the deleted token; every other such comment is already filed.
+- EVERY OTHER ANTI-MALICE MECHANISM IN THE TREE. D5 rules explicitly that this design does not sweep them, and they are audited separately in backlog `ariaau`, now graduated into the `malgate` Set.
+  - Carrier: ariaau
+- THE REMAINING `1o4eif` AND HOSTILE-AGENT JUSTIFICATION COMMENTS ELSEWHERE IN THE PACKAGE. `ipd_lifecycle`'s module-header comment and `orchestrate_isolation`'s docstring are the subject of a sibling plan in the `malgate` Set, which measured them and fenced this plan's region out of its own scope. This plan removes only the justification comment inside the code it deletes, so the two do not collide.
+  - Carrier: dmjp0u
+- MAKING THE NEW CHECK A HARD BOUNDARY. Out of scope by construction, not by preference: P15 says "If real isolation is ever required, it comes from the operating system (a separate user, a sandbox such as the opt-in hardened profile), never from checks in our own code." The new check is guidance for honest actors, which the backlog item's own honest-limits section states.
+  - Carrier-Declined: Nothing is owed because filing it would assert the repository intends to build a mechanism its own guiding principle forbids, which is the exact machinery this plan is deleting.
+- RESTORING ANY COVERAGE FOR THE DELETED MECHANISM. `tests/test_driver_attestation_gate.py` is deleted rather than adapted because every one of its cases tests the token or the location guess. No replacement is owed for a deleted behavior; E-08's file covers the replacement behavior instead.
+  - Carrier-Declined: Nothing is owed because the tested behavior no longer exists. Preserving the file would pin a mechanism this plan removes, and adapting it would mean asserting the new gate through the old one's shape.
+
+## Scope check
+
+- Over-scope: none, and each path earns its place. `ipd_lifecycle.py` holds the three core functions and every deleted symbol. `runner_shared.py` holds the token's minting, caching, teardown and threading, and the rollup call site. Both host files hold the scrub and the wrapper parameter. `cli.py` is required for the run-id flag and the `--take-over` flag (E-05, E-07); note it is also where the `finalize` and `ipd set` parsers live, so the flags must be declared on the right ones. `status_set.py` is declared because `aw set executed` delegates into `finalize` and its forwarding of the new flags must match (F-4); if measurement shows no edit is needed there, say so and the finalize reconciliation will record the declared-but-unmodified path. Both test files are the deletion and its replacement. Both specs are amended by E-09. `CHANGELOG.md` corrects the entry the token shipped with.
+- Under-scope: `agent_workflows/platform_lock.py` and `agent_workflows/run_viewer.py` are NOT declared: this plan consumes Order 01's predicate and adds no liveness logic of its own, so an edit to either means the predicate was insufficient, which is a scope change to stop and re-declare rather than absorb. `agent_workflows/worktree_lease.py` is not declared: the lane owner records are deliberately not this check's source (D2) and are unchanged. `agent_workflows/private_file.py` is not declared (F-12). `GUIDING_PRINCIPLES.md` is not declared: P15 already exists and already cites this design, so the plan APPLIES the principle rather than amending it. No other `.spec.md` is declared, which is a measured claim from D8's exhaustive search and is re-confirmed by E-01.
+
+## Required tests / validation
+
+- `tests/test_lifecycle_holder_gate.py` is the plan's own surface and must include the D4 entry-point matrix (every row of that table driven against a plan held by a live run, each refusing identically, each proceeding with the holder's run id), the two regression cases that motivated the whole design (a human's own worktree under `.aw/worktrees/` with no live run succeeds; a dead runner's lane succeeds), the E-05 environment fence (a worker-labelled caller with `AW_RUN_ID` set is still refused), the UNDETERMINABLE refusal, and both `--take-over` arms.
+- THE TWO REGRESSION CASES ARE THE ACCEPTANCE TEST FOR THE WHOLE SET, and they must be pinned as cases rather than asserted in prose: they are the measured defects (`feat-partition`, 2026-09-26) and the recovery hole this plan exists to close.
+- THE MUTATION DEMONSTRATION IS REQUIRED. For the holder refusal, the UNDETERMINABLE refusal, the worker-label refusal and the run-id exception, break the implementation in the smallest way that should flip the outcome (drop the UNDETERMINABLE arm; let any caller pass any run id; read the run id from `AW_RUN_ID`) and paste the resulting failure, then restore. The `AW_RUN_ID` mutation is the most important of the four: it is the one that would silently reintroduce a worker bypass.
+- THE ORCHESTRATOR RETIREMENT AND RUNNER SUITES MUST STILL PASS, since E-04 changes `ROLLUP_SHARED_GATES` and E-06 changes `driver_finalize`'s signature. Name and run at minimum `tests/test_orchestrator_retirement.py`, `tests/test_runner_finalize_message.py`, `tests/test_oc_runipd.py`, `tests/test_agy_runipd_cli.py` and the `ipd_lifecycle` CLI suites, and paste each summary. `tests/support.py` declares the worker role for tests and several suites set it, so a change to when the label is checked can surface anywhere.
+- `aw ipd lint`, `aw check` and the lifecycle CLI verbs must be exercised end to end, not only unit-tested: run a real `aw ipd begin` and `aw ipd finalize` cycle in a scratch checkout and paste the output, because this plan changes the gate those verbs run.
+- The full suite, run BARE as `python3 -m pytest` (AGENTS.md), with the actual `N passed` line pasted, plus the pre-edit baseline from the same bare invocation so a pre-existing failure is not attributed here. Do not add `-q`, `-n0` or `-p no:randomly`.
+
+## Spec / documentation sync
+
+- `7ckptx` (worker lane containment, `approved`) IS AMENDED, and the reason is that this plan changes the behavior its R4.5 and A11 describe. R4.5 requires the child environment carry the selector "that causes driver-owned lifecycle verbs to refuse inside a lane"; after this plan the refusal for a worker-labelled caller is unchanged, but for anyone else it is conditioned on a live run holding the PLAN, anywhere, not on location. A11 asserts an in-lane invocation refuses with the documented code; its worker half stays true and its location implication does not. R4.5's honest-limit sentence ("an environment selector and not a hardened boundary") is KEPT VERBATIM because D8 measured that it already matches P15. NOTE FOR THE EXECUTOR: two other pending plans (`e9ekuj` and `uuh71v`, Set `specfin7ck`) also declare this spec file, and `uuh71v` intends to transition it toward `implemented`. They touch different passages (R6.1's porcelain fork and A12b's coverage sentence), so the edits are compatible, but if that Set has already moved the spec out of `approved/` the path in `- Scope-Paths:` will not resolve: re-resolve it by `<id6>` rather than assuming the directory, and say so in the evidence.
+- `llbr2b` (lifecycle automation policy, `to-review`) IS UPDATED IN PLACE, per D8's condition, which E-01 re-checks. Its 3.2 note that a worker-role process "is refused outright at the CLI wrapper" becomes false once E-02 and E-03 move the check into the core functions, and its invariant C-8 must name the new held-by-a-live-run refusal as a second lifecycle invariant. If the spec has left `to-review` by execution time, D8 directs a note-amendment instead.
+- FOUR SPECS ARE RE-READ AND EXPECTED TO NEED NOTHING, each named so the executor checks rather than assumes. `77tr3o` (orchestrator retirement, `approved`) mentions the `aw set executed` worker-role bypass as outside its scope; E-03 closes that path, so the plan MAY add a one-line history note pointing at it, which is permitted because it adds to the record without rewriting it. `25kzda` (run-and-verify, `approved`): `IPD-EXEC-BEGIN-RECEIPT` and the begin-receipt staleness rules are untouched. `c4gd2h` (runner lifecycle, `implementing`): its R2 on `driver.lock` release is consistent with this design and Order 01 already confirmed adding a field does not change when the lock is taken or released. `pqsx96` and `i4gpto` (both `draft`) mention begin receipts only.
+- THE CHANGELOG ENTRY MUST CORRECT THE EXISTING ONE, not merely add to it. The shipped entry says the token "closed an authority bypass where an agent could execute the driver-owned finalize transaction directly"; F-2 shows the gate's own code comment concedes the bypass remained. The honest replacement states what changed for a user: the location-plus-token gate is replaced by a plan-scoped live-holder check, begin and finalize are allowed anywhere, a human's own worktree and a dead runner's lane are no longer refused, and a deliberate recorded `--take-over` override exists. User-facing prose, so no em or en dashes.
+- `GUIDING_PRINCIPLES.md` IS NOT EDITED. P15 already exists (added 2026-09-26, commit `40868bb1`) and already cites this design as its measured example. The Set implements the principle; amending it here would be circular.
+- NO `docs/` FILE DESCRIBES THE TOKEN OR THE LOCATION GUESS, measured by search at authoring: the only mention outside code and tests is the CHANGELOG entry E-09 corrects. The executor re-confirms by search rather than assumption, since a missed mention would leave the repository documenting a deleted mechanism.
+
+## Open questions
+
+### OQ-01: Should the run-id holder exception travel in the subprocess ARGV or in its environment?
+
+- Blocking: no
+- Status: open
+- Owner: reviewer
+- Resolution or deferral rationale: The plan permits argv and states the reasoning rather than deferring the choice. The token was deliberately kept OUT of argv, and a test asserts it reaches the "subprocess env not argv", because a secret in argv is visible in any process listing. A run id is NOT a secret under D2 ("a plain label, not a secret: anyone could pass it"), so that constraint does not transfer, and argv is easier to see when diagnosing a run, which is a small gain. The counter-argument is consistency with the existing `AW_RUN_ID` export, which already carries the same value into the child for trailers. NOT BLOCKING, and the reason is that the DANGEROUS choice is fenced either way: E-05 forbids DEFAULTING the exception from any environment variable, which is the property that matters, and that fence holds whether the explicit value arrives by flag or by a purpose-named variable. A reviewer preferring env transport changes one call site and one test case.
+- Carrier-Declined: No carrier is owed under either answer. Both transports are fully realizable in this plan, the refusal behavior is identical, and no deliverable goes unbuilt; only the mechanism of one argument changes.
+
+### OQ-02: Should an UNDETERMINABLE verdict refuse, given that it will refuse for an unreadable lock on any platform where a permission bit cannot be set?
+
+- Blocking: no
+- Status: open
+- Owner: maintainer
+- Resolution or deferral rationale: It refuses, and this is a RECORDED MAINTAINER RULING rather than this plan's judgement: D3's liveness order states "Lock file unreadable (permissions or similar): REFUSE (maintainer ruling)" and gives the foreign-machine arm the same consequence. The plan implements it as ruled. The tension worth surfacing to a reviewer is that UNDETERMINABLE is the one arm that can refuse when NOTHING is actually working on the plan, which is the class of false refusal this whole design exists to remove, and it is reachable on a network filesystem where the OS lock may not work across machines (D3's stated honest limit). What makes it acceptable is that the refusal is not a dead end: it names the run and the machine, and `--take-over '<reason>'` is available and recorded, so the cost is one deliberate override rather than a stranded plan. NOT BLOCKING because the behavior is specified and the escape hatch is in the same plan.
+- Carrier-Declined: No carrier is owed. The ruling is already made and implemented here, and the alternative (proceeding on an undeterminable verdict) would permit the double transition the design exists to prevent, so there is no latent work either way.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [ ] V-01 validates E-01
+  - Required evidence: Order 01's predicate signature and result type pasted, with confirmation `urv602` is `executed`; the full deletion-site table naming every hit of the twelve searched symbols with its file, symbol and role; the pasted body of `ipd_lifecycle.begin`'s check sequence with the explicit statement that it contains no role or location check; both hosts' `RUN_ID_ENV` assignment pasted; and the four spec passages pasted with each spec's live `- Status:`.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-02 validates E-02
+  - Required evidence: a driven direct call to `ipd_lifecycle.begin` with a worker-labelled `env` showing the refusal, its exit code, and proof NO receipt was written (the receipt path checked and absent). The `AW-LIFECYCLE-ROLE-001` message shown byte-identical to HEAD, with `tests/test_runner_finalize_message.py` passing. Confirmation the CLI handler's own refusal message is unchanged and that no second role predicate was introduced.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-03 validates E-03
+  - Required evidence: for EACH of `begin`, `finalize` and `retire_orchestrator`, a driven refusal against a plan held by a live run, with the message pasted showing the run named, both remedies offered (wait, or `aw <host> run stop <run-id>`) and the override mentioned; a driven success for each when no run holds the plan; the foreign-machine message pasted showing the machine named and composed from the predicate's machine field rather than parsed from its reason text; the UNDETERMINABLE refusal pasted; and the new finding id shown distinct from every existing `ROLLUP_REFUSED_*` value.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-04 validates E-04
+  - Required evidence: the search output proving `lane_worktree_active`, `mint_driver_attestation`, `verify_driver_attestation`, `DRIVER_ATTEST_ENV`, `DRIVER_ATTEST_FILENAME` and `ROLLUP_REFUSED_NO_DRIVER_ATTESTATION` no longer exist anywhere in `agent_workflows/`; the pasted check of whether `hmac` and `secrets` remain used, with the import diff matching; a clean `python3 -c "import agent_workflows.ipd_lifecycle"`; the `ROLLUP_SHARED_GATES` diff with the orchestrator-retirement drift test passing; and the pasted proof that the honest-limit comment naming `1o4eif` as the fix for a determined same-user agent is gone from the deleted region.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-05 validates E-05
+  - Required evidence: each of the four driver call sites shown passing the run id, pasted; a driven demonstration that a run does NOT block itself (the holder's own call proceeds); and THE FENCE, pinned: a worker-labelled caller with `AW_RUN_ID` set in its environment to the holding run's id is STILL refused, plus the pasted comment stating why the exception must never default from the environment. Include the mutation: make the exception read `AW_RUN_ID` and paste the resulting test failure, then restore.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-06 validates E-06
+  - Required evidence: the search output showing no token reference remains in `runner_shared.py`, `oc_runipd.py` or `agy_runipd.py`; the diff showing `EXECUTION_ROLE_ENV` worker marking unchanged in BOTH hosts; the diff showing `_call_driver_finalize` carries no signature probe for a deleted keyword; and the passing summaries of `tests/test_oc_runipd.py`, `tests/test_agy_runipd_cli.py` and the runner finalize suites, pasted.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-07 validates E-07
+  - Required evidence: a driven `--take-over '<reason>'` past a live holder, with the plan's resulting `## Workflow history` entry pasted showing the reason verbatim, the overridden run id, and an explicit statement that a live holder was overridden; a driven empty-reason invocation showing the refusal; the flag's help text pasted showing it is described as a recorded speed bump and not authorization; and confirmation the history was written through the repository's existing history writer rather than a second formatter.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-08 validates E-08
+  - Required evidence: `tests/test_driver_attestation_gate.py` shown deleted; `tests/test_lifecycle_holder_gate.py` passing with its bare `python3 -m pytest` output pasted; and an explicit row-by-row enumeration showing every entry point in D4's table is driven (`aw ipd begin`, `aw ipd finalize`, `aw set executed`, `aw ipd set executed`, orchestrator retirement, the runner's own begin and finalize), each refusing identically against a held plan and each proceeding with the holder's run id. Plus the two regression cases pasted as passing: a human worktree under `.aw/worktrees/` with no live run succeeds, and a dead runner's lane succeeds. Plus the mutation demonstration for the holder, UNDETERMINABLE and worker-label refusals. Plus an explicit statement that no test reads module source, censuses callers, or asserts which module defines a symbol.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-09 validates E-09
+  - Required evidence: the `git diff` of both spec files, showing R4.5 and A11 restated as worker-label-plus-live-holder rather than location, C-8 extended with the second invariant, 3.2's CLI-wrapper note corrected, and R4.5's honest-limit sentence UNCHANGED; the appended `## Workflow history` line in each spec; the CHANGELOG entry pasted, checked for em and en dashes and for whether it corrects rather than merely supplements the token's original entry; an explicit statement of the re-read result for `77tr3o`, `25kzda`, `c4gd2h`, `pqsx96` and `i4gpto`; and the pre-edit and post-edit full-suite `N passed` lines from bare `python3 -m pytest` runs, plus the real `aw ipd begin` / `aw ipd finalize` end-to-end cycle output.
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: Four task groups and nine `E-*` leaves, both under the schema's warning thresholds (`ipd_schema.MAX_TASK_GROUPS` 5, `MAX_E_LEAVES` 18), so `standard` is the conformant assessment rather than a claim that the plan is small. It is deliberately one unit despite nine items, because the pieces cannot be landed separately without leaving the repository in a worse state than either end. Removing the token before the holder check exists would leave the terminal transition with no concurrency protection at all. Adding the holder check before removing the location gate would leave BOTH refusals live, so a lane would need the check to pass AND a token to be presented, which is strictly more blocking than today and would break every run in between. The spec amendments describe the refusal this plan changes and AGENTS.md requires them in the same change. The test file must be replaced in the same unit because every one of its cases tests the deleted mechanism, so any intermediate state has a failing suite. What IS separable was separated: the records work went to Order 01 and the nudge went to Order 03.
+
+EXECUTION CONTRACT. Commit ONLY the paths declared in `- Scope-Paths:`, through `aw commit <plan> -- <paths>`; never `git add -A`, never `-a`, never push. Paste ACTUAL runner output for every test claim. Verify the staged set with `git diff --cached --name-only` before every commit and unstage anything you did not change with `git restore --staged <path>`: this checkout is shared, and a failed raw commit can leave a co-worker's restored path in the index. Do not mix this plan with any sibling in one commit.
+
+THE ORDER OF THE TWO CHECKS IS THE PROPERTY MOST LIKELY TO BE GOT WRONG, and it is not cosmetic. The worker label runs FIRST in all three functions. If the holder check runs first, the runner's own agent (which holds no run id and whose run DOES hold the plan) receives a message about a live holder instead of the message written for it, and the one honest mistake this whole mechanism was built for gets a worse answer than it gets today.
+
+THE SECOND MOST LIKELY ERROR IS THE ENVIRONMENT FENCE. `AW_RUN_ID` is already exported into the worker's environment for commit trailers. If the holder exception defaults from any environment variable, the lane agent inherits the exception by accident and the design's central refusal evaporates silently, with every test still passing unless V-05's mutation case exists. Write the fence as a comment at the site.
+
+DO NOT WIDEN THIS INTO A GATE SWEEP. D5 rules that other anti-malice mechanisms are audited separately (`ariaau`, the `malgate` Set), and that Set has already fenced this plan's region out of its own scope. Touching `wtiso_gate.py`, the adversarial scaffolding, or the other `1o4eif` comment sites here would collide with plans already pending.
+
+POST-GATE LIFECYCLE MOVE. Do NOT perform a hand-rolled terminal move. In a managed lane the runner performs `aw ipd begin` and `aw ipd finalize`; in an unmanaged or manual run the executor finalizes with `aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply` after `aw ipd lint --phase pre-transition` reports conforming and every `V-*` above carries concrete pasted evidence. Never `git mv` the plan and never hand-edit `- Status:`. NOTE THE SELF-REFERENCE: this plan changes the very gate that finalizes it, so finalize it with the code AS CHANGED and paste that output, which is itself the strongest end-to-end evidence the plan can produce.
