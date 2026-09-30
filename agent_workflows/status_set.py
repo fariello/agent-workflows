@@ -1082,6 +1082,30 @@ def apply_status_change(
                         f"{fb} (graduation handoff: the gate travels with the work)\n"
                     )
 
+    # From-Spec write (IPD 0ykozn E-02): the same hoisted, status-branch-independent shape as the
+    # Blocks-Release and From-Backlog writes above, so `aw ipd set --from-spec <id6|->` persists even
+    # on a no-op (same-status) transition. Funnels through the single shared
+    # `releases.set_from_spec_line` primitive (no duplicate write path).
+    fs = getattr(args, "from_spec", None)
+    if fs is not None:
+        if fs != "-":
+            # IPD 0ykozn E-02 / review finding PR-504: validation backstop in apply_status_change.
+            # Deliberately STRICTER than its twin (--from-backlog writes unchecked), preventing
+            # unresolvable dangling links from being written even via direct calls.
+            # An empty union skips the refusal so an invisible spec corpus cannot make every write fail.
+            from agent_workflows import check_engine as _ce
+
+            known = _ce.known_spec_ids(repo_root)
+            if known and fs not in known:
+                raise ValueError(
+                    f"unresolvable spec id '{fs}' (does not resolve to an existing spec)"
+                )
+        from agent_workflows import releases as _releases
+
+        tmp_text = "\n".join(new_lines)
+        tmp_text = _releases.set_from_spec_line(tmp_text, fs)
+        new_lines = tmp_text.splitlines()
+
     # Item-Dependencies write (ipddeps g69y23): the SAME hoisted, status-branch-independent shape as
     # the Blocks-Release / From-Backlog writes above, so `aw ipd dependencies set` persists even on a
     # no-op (same-status) transition. Funnels through the single shared
@@ -1689,6 +1713,30 @@ def run_set_command(
             term.status("fail", f"aw set: {_gt_err}")
             return 2
         args.graduated_to = _gt_canonical
+
+    # IPD 0ykozn E-02 (review finding PR-504): validate `--from-spec` value BEFORE any artifact
+    # is resolved or written, so an unresolvable spec id6 refuses with a nonzero exit instead of
+    # creating a dangling link.
+    # THE ASYMMETRY WITH `--from-backlog` IS DELIBERATE AND MUST BE STATED IN THE CODE:
+    # `--from-backlog` performs no value validation at all, so an unresolvable backlog ID is
+    # caught only afterwards by `check.from-backlog-dangling`. Adding a refusal here is
+    # deliberately STRICTER than its twin, because adding a refusal costs nothing while the
+    # alternative writes a known-bad link that errors on `check.from-spec-dangling`.
+    # The id is resolved against the SAME `_iter_spec_records` plus `specs._existing_spec_ids`
+    # union E-04 uses, reached through the shared `check_engine.known_spec_ids` helper rather
+    # than a second construction (P8). An EMPTY union skips the refusal so an invisible spec
+    # corpus cannot make every write fail.
+    fs_val = getattr(args, "from_spec", None)
+    if fs_val is not None and fs_val != "-":
+        from agent_workflows import check_engine as _ce
+
+        known = _ce.known_spec_ids(repo_root)
+        if known and fs_val not in known:
+            term.status(
+                "fail",
+                f"aw set: unresolvable spec id '{fs_val}' (does not resolve to an existing spec)",
+            )
+            return 2
 
     scoped_type_canonical = canonical_type(scoped_type)
 

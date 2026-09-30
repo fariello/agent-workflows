@@ -1558,6 +1558,12 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Link this plan to the backlog item it graduated from (a backlog id6); '-' clears it.",
     )
+    p_ipd_set.add_argument(
+        "--from-spec",
+        dest="from_spec",
+        default=None,
+        help="Record the spec id6 this plan graduated from; '-' clears it.",
+    )
     # setidhard bwgyum E-04: declared on this surface too because `status_set` (which performs the
     # write) is record-type-agnostic, and `releases.check_graduated_to` tolerates the field on a plan
     # for the same symmetry reason its `From-Backlog` twin does. The field's PRIMARY home is the SOURCE
