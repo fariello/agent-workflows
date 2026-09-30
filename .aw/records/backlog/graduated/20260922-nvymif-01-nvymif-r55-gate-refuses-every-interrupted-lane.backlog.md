@@ -1,11 +1,13 @@
 - Id: nvymif
-- Status: open
+- Status: graduated
+- Graduated-To: nvymif
 - Set: nvymif
 - Priority: medium
 - Work-Kind: chore
 - Summary: The R5.5 teardown gate refuses every interrupted lane, because an absent collection receipt reads as uncollected even for a lane that submitted nothing
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: z8ex9f
 - 2026-09-22 created (aw backlog): The R5.5 teardown gate refuses every interrupted lane, because an absent collection receipt reads as uncollected even for a lane that submitted nothing
 
 MEASURED 2026-09-22 while executing plan 65cuw0 (laneorph Order 01), on a real git lane with a real run directory and a real queue item:
