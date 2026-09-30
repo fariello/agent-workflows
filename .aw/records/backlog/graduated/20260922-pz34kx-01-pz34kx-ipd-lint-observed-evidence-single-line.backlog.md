@@ -1,11 +1,13 @@
 - Id: pz34kx
-- Status: open
+- Status: graduated
+- Graduated-To: obsevcont
 - Set: pz34kx
 - Priority: medium
 - Work-Kind: chore
 - Summary: IPD lint's V-item 'Observed evidence' is a same-line field, so a multi-line evidence block reads as empty
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053059Z-3200713: 0nxa8o
 - 2026-09-22 created (aw backlog): IPD lint's V-item 'Observed evidence' is a same-line field, so a multi-line evidence block reads as empty
 
 FOUND WHILE EXECUTING `d91i3e` (runrecon Order 01).
