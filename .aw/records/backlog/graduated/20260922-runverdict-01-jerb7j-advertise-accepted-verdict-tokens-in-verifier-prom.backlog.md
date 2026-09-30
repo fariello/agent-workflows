@@ -1,11 +1,13 @@
 - Id: jerb7j
-- Status: open
+- Status: graduated
+- Graduated-To: runverdict
 - Set: runverdict
 - Priority: medium
 - Work-Kind: chore
 - Summary: Advertise the accepted verifier verdict tokens in the verifier prompt so the schema and its fail-closed consumer cannot disagree
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: 3x5wx9
 - 2026-09-22 created (aw backlog): Found while executing plan 1bfppy.
 
 The verifier prompt's schema line advertises `"verdict": "VERIFIED|CORRECTION_REQUIRED|BLOCKED"`, but `runner_shared.map_verdict` (plan `1bfppy`) recognizes a FOURTH token, `NOT CONFORMING`, as a rejection. It is mapped because the pre-existing gate honored it, so mapping it preserved behavior rather than changing it.
