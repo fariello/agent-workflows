@@ -1,11 +1,13 @@
 - Id: fcua9q
-- Status: open
+- Status: graduated
+- Graduated-To: fcua9q
 - Set: fcua9q
 - Priority: low
 - Work-Kind: chore
 - Summary: No static type checker in the toolchain, so annotation defects like g321ny fail open
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053053Z-3200037: m7fllj
 - 2026-09-28 created (aw backlog): Filed as the named carrier for plan yifr0h's deferred toolchain decision (backlog g321ny).
 
 Plan `yifr0h` (from backlog `g321ny`) fixed a wrong `Callable[[Any, Path], Any]` annotation on `lane_containment.bound_expiry_reaper`, whose `reap` parameter promised two positional parameters while the body calls `reaper(process, run_dir=run_dir)`. NOTHING IN THE TOOLCHAIN WOULD HAVE CAUGHT IT and nothing will catch the next one.
