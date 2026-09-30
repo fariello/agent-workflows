@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/specs.py, tests/test_specs_date_containment.py
 - Item-Dependencies: none
 - Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: qbz8i1
