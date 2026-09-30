@@ -1,11 +1,13 @@
 - Id: 52zt7n
-- Status: open
+- Status: graduated
+- Graduated-To: readmestale
 - Set: 52zt7n
 - Priority: low
 - Work-Kind: followup
 - Summary: A stale records-root README survives forever in an already-installed repo because the ensurer is no-clobber
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053059Z-3200713: xqf71x
 - 2026-09-28 created (aw backlog): A stale records-root README survives forever in an already-installed repo because the ensurer is no-clobber
 
 MEASURED 2026-09-28 at HEAD db024a61 while authoring plan v3cw46 (backlog 2oq6s8).
