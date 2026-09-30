@@ -7442,24 +7442,44 @@ def integrate_lane_branch(
 # `attempts[-1]`, so it works precisely because the refused attempt is still the LAST attempt when the
 # next turn builds its prompt - which is why a test asserts on the RENDERED PROMPT and not on a flag.
 
-#: The retryable pre-transition finding TEXTS, matched positively. Four strings, MEASURED from
-#: `ipd_lint`'s `pre-transition` checkpoint rather than transcribed from a spec.
+#: The retryable pre-transition finding TEXTS, matched positively as a fallback. Three strings,
+#: MEASURED from `ipd_lint`'s `pre-transition` checkpoint rather than transcribed from a spec.
 #:
-#: WHY NOT THE FINDING CODE, which is the obvious and WRONG trigger: `IPD-S404` is
-#: `ipd_lint.C_CHECKPOINT`, the code for EVERY checkpoint diagnostic, including the
-#: status/checkpoint-mismatch and the pre-execution blocking-question cases. And the code cannot be
-#: rescued by the exit status either, because `finalize_precheck` returns the SAME `(1, message)`
-#: shape for a MISSING begin receipt, a STALE begin receipt, and a scope-reconciliation refusal, while
-#: the driver keeps only `(fin_rc, fin_msg)` and treats every nonzero identically. A stale receipt is
-#: spec 5.5's "changed frozen requirements" and an out-of-scope mutation is the FIRST entry on its
-#: never-retry list, so a trigger keyed on the code or the exit status would retry two classes the
-#: spec explicitly forbids retrying.
+#: WHY NOT THE FINDING CODE ALONE, AND WHY C_CHECKPOINT IS EXCLUDED:
+#: `driver_finalize` now requests `--json` (qo9khm E-01) and `finalize_refusal_is_retryable`
+#: keys primarily on lint CODES (`C_EXEC_STATE`, `C_VALID_STATE`, `C_CROSS_STATE`), with the
+#: prose allowlist retained as a fallback (OQ-02). The fallback is kept because `finalize_precheck`'s
+#: own receipt findings carry no lint code, and because `C_CHECKPOINT` (`IPD-S404`) is DELIBERATELY
+#: EXCLUDED from the code set (F-17).
 #:
-#: WHY PROSE AND NOT STRUCTURED DIAGNOSTICS: there is no structured path to consume.
-#: `finalize_precheck` does compute a `findings` tuple, but `driver_finalize` shells out to
-#: `aw ipd finalize` and keeps only the process's exit code and its combined output, so the structure
-#: is lost at the subprocess boundary. The strings are therefore PINNED BY A TEST, so a wording change
-#: in `ipd_lint` breaks that test loudly instead of silently widening or disabling the send-back.
+#: `C_CHECKPOINT` is a catch-all: `ipd_lint.check_checkpoint` attaches it to the three answerable
+#: pre-transition messages, AND to `status '<x>' is incompatible with checkpoint '<cp>'` (emitted
+#: unconditionally at the top of the function, so it can co-occur with the pre-transition summary),
+#: AND to `<OQ>: unresolved blocking question at pre-execution`. Neither of the latter two is
+#: answerable by an agent turn (the second requires a human decision). Admitting `C_CHECKPOINT` by code
+#: was measured to flip both non-answerable classes from terminal to retryable (F-17). Keeping
+#: `C_CHECKPOINT` excluded from the code set and admitting its three answerable messages through the
+#: PROSE fallback is the mechanism that keeps them retryable while non-answerable variants stay terminal.
+#:
+#: WHY NOT --agent: `--agent` is not usable for this because its compact record drops every `detail`
+#: and emits no `summary` field (F-03), and `--verbose` is not registered on `ipd finalize`. `--json`
+#: is lossless and preserves both `summary` and per-diagnostic `detail`.
+#:
+#: TOLERANT FAIL-SOFT PARSER: `parse_finalize_payload` uses a balanced-brace reader rather than a naive
+#: `json.loads` because `aw ipd finalize --json`'s stdout is polluted by the index refresh on the
+#: success path (`plans index --check: clean` prefix, carried by backlog `eaffgr`), and because the
+#: worker-role path (`AW_EXECUTION_ROLE=worker`, F-11) writes nothing to stdout under `--json`, which
+#: is a normal managed-lane path and must return None without raising.
+#:
+#: SHIPPED ENFORCER CODES vs SPEC CODES: Spec `25kzda`'s `IPD-EXEC-*` codes remain unbound names and
+#: their binding is sibling item `ibuxe6`'s work (F-07). Per the spec's preamble instruction to cite the
+#: shipped enforcer by symbol, the code-keyed arm keys on `ipd_lint`'s shipped `IPD-S40x` constants
+#: (`C_EXEC_STATE`, `C_VALID_STATE`, `C_CROSS_STATE`, F-08).
+#:
+#: CLOSING A MEASURED FALSE NEGATIVE: The code-keyed arm closes a measured false negative on the
+#: `IPD-S401`/`IPD-S402` checkbox-mismatch class (F-02), where an agent sets `Execution state: performed`
+#: and `Result: pass` with evidence but leaves the checkboxes unticked. Under prose matching alone, that
+#: refusal classified as terminal; under code matching, it correctly classifies as retryable.
 RETRYABLE_FINALIZE_FINDING_TEXTS: tuple[str, ...] = (
     "not 'performed' at pre-transition",
     "not 'pass' at pre-transition",
@@ -7533,6 +7553,29 @@ def parse_finalize_lock_holder(fin_msg: str) -> tuple[int | None, str | None]:
     return pid, desc
 
 
+def retryable_finalize_finding_codes() -> frozenset[str]:
+    """The retryable pre-transition finding CODES, referenced from `ipd_lint`.
+
+    Deliberately excludes `ipd_lint.C_CHECKPOINT` (F-17): that code is a catch-all covering
+    unanswerable status/checkpoint mismatches and pre-execution blocking questions.
+    """
+    from agent_workflows import ipd_lint
+
+    return frozenset(
+        {
+            ipd_lint.C_EXEC_STATE,
+            ipd_lint.C_VALID_STATE,
+            ipd_lint.C_CROSS_STATE,
+        }
+    )
+
+
+def __getattr__(name: str) -> Any:
+    if name == "RETRYABLE_FINALIZE_FINDING_CODES":
+        return retryable_finalize_finding_codes()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
 def finalize_refusal_is_retryable(fin_msg: str) -> bool:
     """Is this finalize refusal in the RETRYABLE class a correction turn can safely fix?
 
@@ -7545,8 +7588,9 @@ def finalize_refusal_is_retryable(fin_msg: str) -> bool:
 
     Arm 1 (pre-transition gate):
       1. the refusal summary is :data:`RETRYABLE_FINALIZE_SUMMARY`, and
-      2. EVERY finding line in the message (located by the `IPD-` prefix) is one of
-         :data:`RETRYABLE_FINALIZE_FINDING_TEXTS`.
+      2. EVERY finding line in the message (located by the `IPD-` prefix) has a leading code token in
+         the retryable code set (`C_EXEC_STATE`, `C_VALID_STATE`, `C_CROSS_STATE`) OR (fallback) is
+         one of :data:`RETRYABLE_FINALIZE_FINDING_TEXTS`.
 
     Arm 2 (stale begin receipt / scope reduction):
       1. the refusal summary contains :data:`RETRYABLE_STALE_RECEIPT_SUMMARY`, and
@@ -7570,6 +7614,7 @@ def finalize_refusal_is_retryable(fin_msg: str) -> bool:
 
     # Arm 1: Pre-transition gate refusal
     if RETRYABLE_FINALIZE_SUMMARY in text:
+        retryable_codes = retryable_finalize_finding_codes()
         # The finding lines `aw ipd finalize` prints are `  <RULE> <detail>`, one per diagnostic. Locate
         # them by the rule prefix rather than by indentation, which a wrapper could reflow.
         finding_lines = [
@@ -7582,6 +7627,15 @@ def finalize_refusal_is_retryable(fin_msg: str) -> bool:
             # which class it refused on. Refuse to guess.
             return False
         for line in finding_lines:
+            parts = line.split()
+            code_token = ""
+            if len(parts) > 1 and parts[0] == "IPD-FINALIZE":
+                code_token = parts[1]
+            elif parts:
+                code_token = parts[0]
+
+            if code_token in retryable_codes:
+                continue
             if not any(token in line for token in RETRYABLE_FINALIZE_FINDING_TEXTS):
                 return False
         return True
@@ -28363,6 +28417,62 @@ def _default_stall_reaper(process: subprocess.Popen) -> None:
     runner_shutdown.terminate_process(process)
 
 
+def parse_finalize_payload(stdout: str | None) -> dict[str, Any] | None:
+    """Extract and parse the typed `aw.agent/v1` payload from `aw ipd finalize --json` stdout.
+
+    Tolerant parser (E-01):
+      - Locates a balanced top-level `{...}` object instead of calling `json.loads` on the
+        whole stream, because the success path prefixes stdout with `plans index --check: clean`
+        (F-05).
+      - Accepts only an object whose `schema` is `aw.agent/v1`.
+      - Returns `None` (never raises) on unparseable, empty, or absent payloads (e.g. the
+        worker-role exit-2 path where stdout is empty, F-11).
+    """
+    if not stdout or "{" not in stdout:
+        return None
+
+    candidates: list[dict[str, Any]] = []
+    in_string = False
+    escape = False
+    depth = 0
+    start_idx = -1
+
+    for idx, ch in enumerate(stdout):
+        if in_string:
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == '"':
+                in_string = False
+            continue
+
+        if ch == '"':
+            in_string = True
+            continue
+
+        if ch == "{":
+            if depth == 0:
+                start_idx = idx
+            depth += 1
+        elif ch == "}":
+            if depth > 0:
+                depth -= 1
+                if depth == 0 and start_idx != -1:
+                    chunk = stdout[start_idx : idx + 1]
+                    try:
+                        obj = json.loads(chunk)
+                        if isinstance(obj, dict) and obj.get("schema") == "aw.agent/v1":
+                            candidates.append(obj)
+                    except Exception:
+                        pass
+                    start_idx = -1
+
+    if not candidates:
+        return None
+    return candidates[-1]
+
+
 def driver_finalize(
     repo: Path,
     plan_path: Path,
@@ -28408,6 +28518,7 @@ def driver_finalize(
             "--apply",
             "--dir",
             str(repo),
+            "--json",
         ]
     )
     for path, reason in reasons.items():
@@ -28431,6 +28542,17 @@ def driver_finalize(
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
+    payload = parse_finalize_payload(result.stdout)
+    if payload is not None:
+        prefix = {0: "", 1: "refused: ", 2: "error: "}.get(result.returncode, "")
+        summary = payload.get("summary") or ""
+        diags = payload.get("diagnostics") or []
+        lines = [f"{prefix}{summary}"]
+        for d in diags:
+            rule = d.get("rule", "")
+            detail = d.get("detail", "")
+            lines.append(f"  {rule} {detail}")
+        result.stdout = "\n".join(lines) + "\n"
     # finidem `ld8lb3` E-04/E-05, PRESERVED THROUGH hostdedup `li44r9`'s CONSOLIDATION.
     #
     # WHY THIS IS SPELLED OUT: `li44r9` was authored BEFORE `ld8lb3` landed, so the lane's shared

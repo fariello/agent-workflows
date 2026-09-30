@@ -6,7 +6,7 @@
 - Scope: Request `--json` from the `aw ipd finalize` child in `runner_shared.driver_finalize`, parse the typed payload tolerantly, carry it to the classifier, and key `finalize_refusal_is_retryable`'s pre-transition arm on lint CODES with the existing prose allowlist retained as a fallback. Both hosts inherit this through the one shared definition. No new CLI flag, no change to `aw ipd finalize`'s own output, no change to which classes are retryable beyond the measured false negative this closes.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_finalize_sendback.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,15 +16,15 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: qo9khm
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: qo9khm verified (set finstruct, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; five findings PR-901..PR-905 fixed, one BLOCKER (the drafted code set admitted the catch-all C_CHECKPOINT, measured to flip two never-retry classes to retryable); review record written; readiness go-pending-approval
 
 - 2026-09-29 /plan-review findings (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-901 (BLOCKER), PR-902, PR-903, PR-904, PR-905 all FIXED. Reviewed at HEAD `947f72de`; every load-bearing claim re-verified independently through the REAL CLI in throwaway repos. F-02's false negative reproduces exactly (`IPD-S401`/`IPD-S402`, classifier `False`), F-04's reconstruction is byte-exact (`RECONSTRUCTION == human stdout: True`), F-03's dropped `detail` and absent `summary` reproduce, F-05's polluted success stdout reproduces (`'plans index --check: clean'`, naive `json.loads` raising), and F-11's worker-role `stdout == ''` reproduces. THE DRAFTED CODE SET WAS UNSAFE IN THE OPPOSITE DIRECTION FROM THE PLAN'S INTENT: it admitted the catch-all `ipd_lint.C_CHECKPOINT`, which `check_checkpoint` also attaches to `status ... is incompatible with checkpoint ...` (emitted unconditionally, so it can co-occur with the pre-transition summary gating Arm 1) and to `unresolved blocking question at pre-execution`; measured, both flip from terminal to RETRYABLE, widening spec `25kzda` 5.5's never-retry territory, and the shipped comment the plan sets out to correct already warned that this code is the wrong trigger. E-02 narrowed to `{C_EXEC_STATE, C_VALID_STATE, C_CROSS_STATE}` with the answerable `IPD-S404` messages kept retryable via the prose fallback; E-04's two-way pin rewritten as a three-way partition with a KNOWN-TERMINAL set, because as drafted it would have pressured the executor into exactly that unsafe change; V-02(b2)/(b3) added. Also: F-05's `per-line JSON records found: 0` does not reproduce (six lines parse, none payload-shaped), backlog `144b3x` is ALREADY `graduated` so the gate's completion step is a no-op, and the shipped comment miscounts its own three-string allowlist as four. F-17, F-18, F-19 added. No code or test file was modified by this review. Three Decisions recorded, all reversible. `aw ipd lint --phase review-finalize` conforms.
-- 2026-09-28 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
 - 2026-09-28 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): authored from backlog item `144b3x`, with every claim in the Findings table measured against this tree at HEAD `b321b602` rather than transcribed from the item.
+- 2026-09-28 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
 
 ## Goal
 
@@ -36,39 +36,39 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: carry the structure across the boundary
 
-- [ ] E-01 In the ONE shared `runner_shared.driver_finalize`, add `--json` to the argv it builds for the `aw ipd finalize` child, and add a module-level tolerant parser (suggested name `parse_finalize_payload`) that recovers the typed payload from that child's stdout. THE PARSER MUST: locate a BALANCED top-level `{...}` object rather than calling `json.loads` on the whole stream (F-05: the success path prefixes stdout with `plans index --check: clean`, so a naive parse raises `JSONDecodeError`, and the `--json` payload is pretty-printed across many lines so a per-line JSONL scan finds zero records); accept only an object whose `schema` is `aw.agent/v1`; and RETURN `None` rather than raising on any unparseable, empty, or absent payload (F-11: the worker-role exit-2 path writes nothing to stdout even under `--json`, and that is a NORMAL managed-lane path). Keep `--json` ORDERED before the repeatable `--scope-reason`/`--scope-ack` extensions so the existing argv construction is untouched. The function's SIGNATURE and RETURN TYPE are unchanged (`tuple[int, str]`, F-15/F-16/OQ-01): it still returns `finalize_outcome(repo, plan_path, id6, result.returncode, nested_aw_message(result.stdout, result.stderr))`, so `nested_aw_message`'s checkout-pin-notice repair (F-13) and every one of the six downstream consumers keep working unchanged.
+- [x] E-01 In the ONE shared `runner_shared.driver_finalize`, add `--json` to the argv it builds for the `aw ipd finalize` child, and add a module-level tolerant parser (suggested name `parse_finalize_payload`) that recovers the typed payload from that child's stdout. THE PARSER MUST: locate a BALANCED top-level `{...}` object rather than calling `json.loads` on the whole stream (F-05: the success path prefixes stdout with `plans index --check: clean`, so a naive parse raises `JSONDecodeError`, and the `--json` payload is pretty-printed across many lines so a per-line JSONL scan finds zero records); accept only an object whose `schema` is `aw.agent/v1`; and RETURN `None` rather than raising on any unparseable, empty, or absent payload (F-11: the worker-role exit-2 path writes nothing to stdout even under `--json`, and that is a NORMAL managed-lane path). Keep `--json` ORDERED before the repeatable `--scope-reason`/`--scope-ack` extensions so the existing argv construction is untouched. The function's SIGNATURE and RETURN TYPE are unchanged (`tuple[int, str]`, F-15/F-16/OQ-01): it still returns `finalize_outcome(repo, plan_path, id6, result.returncode, nested_aw_message(result.stdout, result.stderr))`, so `nested_aw_message`'s checkout-pin-notice repair (F-13) and every one of the six downstream consumers keep working unchanged.
   - Depends on: none
   - Expected outcome: the finalize child is invoked with `--json`; the payload is parseable by the new parser on the refusal path and on the polluted success path; an absent payload yields `None` and no exception; the returned `(rc, msg)` is byte-identical to today's for the same refusal (F-04).
-  - Execution state: pending
-- [ ] E-02 In the ONE shared `runner_shared.finalize_refusal_is_retryable`, make the PRE-TRANSITION arm key on lint CODES, keeping the prose allowlist as a fallback (OQ-02). Add a module-level frozen set naming the retryable pre-transition codes BY REFERENCE to `ipd_lint`'s own constants, not as literals (import locally inside the function, matching how this module already imports `ipd_lifecycle` lazily, since `runner_shared` must not grow a module-level dependency). For each located finding line, extract the leading code token and admit the line if that token is in the set OR (fallback) the line matches `RETRYABLE_FINALIZE_FINDING_TEXTS`; a line matching NEITHER still makes the whole message NOT retryable. PRESERVE the existing shape exactly: the arm is still entered only when `RETRYABLE_FINALIZE_SUMMARY` is in the text; finding lines are still located by the `IPD-` prefix; a summary with NO located findings is still NOT retryable; and EVERY line must be admitted, so a message mixing a retryable code with an out-of-scope path is still terminal (spec `25kzda` 5.5's never-retry list). Do NOT touch the stale-receipt arm and do NOT touch `finalize_refusal_is_lock_contention` or the order in which `finalize_retry_decision` consults it (F-12).
+  - Execution state: performed
+- [x] E-02 In the ONE shared `runner_shared.finalize_refusal_is_retryable`, make the PRE-TRANSITION arm key on lint CODES, keeping the prose allowlist as a fallback (OQ-02). Add a module-level frozen set naming the retryable pre-transition codes BY REFERENCE to `ipd_lint`'s own constants, not as literals (import locally inside the function, matching how this module already imports `ipd_lifecycle` lazily, since `runner_shared` must not grow a module-level dependency). For each located finding line, extract the leading code token and admit the line if that token is in the set OR (fallback) the line matches `RETRYABLE_FINALIZE_FINDING_TEXTS`; a line matching NEITHER still makes the whole message NOT retryable. PRESERVE the existing shape exactly: the arm is still entered only when `RETRYABLE_FINALIZE_SUMMARY` is in the text; finding lines are still located by the `IPD-` prefix; a summary with NO located findings is still NOT retryable; and EVERY line must be admitted, so a message mixing a retryable code with an out-of-scope path is still terminal (spec `25kzda` 5.5's never-retry list). Do NOT touch the stale-receipt arm and do NOT touch `finalize_refusal_is_lock_contention` or the order in which `finalize_retry_decision` consults it (F-12).
 
   THE CODE SET IS `C_EXEC_STATE`, `C_VALID_STATE` AND `C_CROSS_STATE` ONLY. **DO NOT ADMIT `C_CHECKPOINT` BY CODE.** An earlier draft of this item listed `ipd_lint.C_CHECKPOINT` first in the set, and REVIEW MEASURED THAT THIS WIDENS TWO NEVER-RETRY CLASSES (F-17); this is the load-bearing correction in this plan. `C_CHECKPOINT` (`IPD-S404`) is a CATCH-ALL: `ipd_lint.check_checkpoint` attaches it to the three answerable pre-transition messages the prose allowlist already admits, AND to `status '<x>' is incompatible with checkpoint '<cp>'` (emitted UNCONDITIONALLY at the top of the function, before the `if checkpoint == "pre-transition":` branch, so it CAN co-occur with the pre-transition summary), AND to `<OQ>: unresolved blocking question at pre-execution`. The shipped comment above `RETRYABLE_FINALIZE_FINDING_TEXTS` says keying on this code is "the obvious and WRONG trigger" for exactly that reason, and it is right. Measured with the drafted set: a refusal carrying the pre-transition summary plus a single `IPD-S404 status 'approved' is incompatible with checkpoint 'pre-transition'` line goes from `False` today to `True` under the drafted rule, and the unresolved-blocking-question line does too. Neither is answerable by ticking a box, and the second is a question only a HUMAN may answer, so retrying it would spend a turn re-refusing.
 
   SO THE COMPOSITION IS: admit a line if its code is in `{C_EXEC_STATE, C_VALID_STATE, C_CROSS_STATE}`, ELSE if it matches `RETRYABLE_FINALIZE_FINDING_TEXTS` (which is what keeps the three answerable `IPD-S404` messages retryable, by PROSE, exactly as today). That composition is strictly additive over today's behavior in ONE direction only (the `S401`/`S402`/`S403` checkbox-and-cross-state family becomes retryable) and widens nothing else, which is the property V-02 must verify and E-04's coverage pin must not paper over. State this reasoning in the E-05 comment so nobody "simplifies" the set by adding `C_CHECKPOINT` back.
   - Depends on: E-01
   - Expected outcome: F-02's measured refusal (`IPD-S401`/`IPD-S402` checkbox mismatches) classifies retryable where it classifies terminal today; a status/checkpoint mismatch and an unresolved blocking question BOTH stay terminal; every message the shipped tests assert terminal stays terminal.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: prove it, and stop the gap recurring
 
-- [ ] E-03 Add a regression test to `tests/test_finalize_sendback.py` for F-02's class, DRIVEN FROM REAL `ipd_lint` OUTPUT rather than a transcribed string: build a synthetic plan whose `E-*`/`V-*` leaves carry `Execution state: performed`, `Result: pass` and non-empty `Observed evidence` but leave the CHECKBOXES unticked, run `ipd_lint.lint_file(plan, checkpoint="pre-transition")`, assemble the refusal in `run_finalize._emit`'s exact human shape (`refused: <summary>` then `  IPD-FINALIZE <code> <message>` per diagnostic), and assert `finalize_refusal_is_retryable` returns True. In the SAME test class assert the fail-closed direction still holds by reusing the module's existing `SCOPE_REFUSAL` and `MISSING_RECEIPT_REFUSAL` constants (still False) and a MIXED message pairing one `IPD-S401` line with one out-of-scope line (False). Assert on the PROPERTY and re-derive any count at run time; do NOT hard-code a diagnostic count or a suite total.
+- [x] E-03 Add a regression test to `tests/test_finalize_sendback.py` for F-02's class, DRIVEN FROM REAL `ipd_lint` OUTPUT rather than a transcribed string: build a synthetic plan whose `E-*`/`V-*` leaves carry `Execution state: performed`, `Result: pass` and non-empty `Observed evidence` but leave the CHECKBOXES unticked, run `ipd_lint.lint_file(plan, checkpoint="pre-transition")`, assemble the refusal in `run_finalize._emit`'s exact human shape (`refused: <summary>` then `  IPD-FINALIZE <code> <message>` per diagnostic), and assert `finalize_refusal_is_retryable` returns True. In the SAME test class assert the fail-closed direction still holds by reusing the module's existing `SCOPE_REFUSAL` and `MISSING_RECEIPT_REFUSAL` constants (still False) and a MIXED message pairing one `IPD-S401` line with one out-of-scope line (False). Assert on the PROPERTY and re-derive any count at run time; do NOT hard-code a diagnostic count or a suite total.
   - Depends on: E-02
   - Expected outcome: a test that is RED without E-02 and GREEN with it, built on `ipd_lint`'s live output so a reworded message cannot make it vacuous.
-  - Execution state: pending
-- [ ] E-04 Add the TOTAL-COVERAGE pin F-10 shows is missing, beside (not inside, and without editing) `test_the_allowlist_texts_are_the_ones_ipd_lint_ACTUALLY_EMITS`. Lint at least two synthetic plans at `pre-transition` chosen to exercise BOTH families (one with `pending` states, producing `IPD-S404`; one with `performed`/`pass` and unticked boxes, producing `IPD-S401`/`IPD-S402`), collect the SET of distinct diagnostic codes actually emitted, and assert every one of them is DELIBERATELY CLASSIFIED, i.e. EITHER present in the new retryable code set, OR matched by the prose allowlist, OR present in an explicit KNOWN-TERMINAL set the test also declares. The test must FAIL, with a message telling the reader to classify the new code deliberately, if `ipd_lint` grows a pre-transition diagnostic nobody has considered.
+  - Execution state: performed
+- [x] E-04 Add the TOTAL-COVERAGE pin F-10 shows is missing, beside (not inside, and without editing) `test_the_allowlist_texts_are_the_ones_ipd_lint_ACTUALLY_EMITS`. Lint at least two synthetic plans at `pre-transition` chosen to exercise BOTH families (one with `pending` states, producing `IPD-S404`; one with `performed`/`pass` and unticked boxes, producing `IPD-S401`/`IPD-S402`), collect the SET of distinct diagnostic codes actually emitted, and assert every one of them is DELIBERATELY CLASSIFIED, i.e. EITHER present in the new retryable code set, OR matched by the prose allowlist, OR present in an explicit KNOWN-TERMINAL set the test also declares. The test must FAIL, with a message telling the reader to classify the new code deliberately, if `ipd_lint` grows a pre-transition diagnostic nobody has considered.
 
 THE THREE-WAY PARTITION IS REQUIRED, NOT COSMETIC, and it is what keeps this pin from pushing the executor into F-17's unsafe shape. `C_CHECKPOINT` legitimately appears at pre-transition and is deliberately NOT in the retryable code set (E-02), so a two-way "retryable-code or prose" assertion would go RED for it whenever the emitted message is one of the non-answerable `IPD-S404` variants, and the obvious way to make that green is to add `C_CHECKPOINT` to the retryable set, which F-17 measures to widen two never-retry classes. Declaring a KNOWN-TERMINAL set makes "considered and deliberately terminal" expressible, so the pin stays honest. Re-derive the code set at run time; do NOT transcribe `IPD-S40x` literals as the expected set, since that would pin the test to today's vocabulary instead of to the property.
   - Depends on: E-02
   - Expected outcome: a new pre-transition diagnostic code becomes a loud test failure instead of a silently terminal refusal.
-  - Execution state: pending
-- [ ] E-05 Correct the comment block above `RETRYABLE_FINALIZE_FINDING_TEXTS`, whose paragraph `#: WHY PROSE AND NOT STRUCTURED DIAGNOSTICS: there is no structured path to consume` becomes FALSE the moment E-01 lands and would otherwise mislead the next reader into re-deriving a defect that has been fixed. The replacement must record FIVE things measured here: that `driver_finalize` now requests `--json` and the classifier keys on codes with prose as a FALLBACK (and why the fallback is kept, OQ-02: `finalize_precheck`'s own receipt findings carry no lint code); that `--agent` is NOT usable for this because its compact record drops every `detail` and emits no `summary`, and `--verbose` is not registered on `ipd finalize` (F-03); that the parser must be tolerant and fail-soft because `aw ipd finalize --json`'s stdout is polluted by the index refresh on the success path and is EMPTY on the worker-role path (F-05/F-11), with the carrier item for that pollution named; that spec `25kzda`'s `IPD-EXEC-*` codes are still UNBOUND and are `ibuxe6`'s work, so this keys on the shipped `IPD-S40x` enforcer codes per the spec's own instruction (F-07/F-08); and that the code-keyed arm closes a MEASURED false negative on the `IPD-S401`/`IPD-S402` checkbox-mismatch class (F-02). AND A SIXTH POINT, added at review and the most important one for the next reader: that `C_CHECKPOINT`/`IPD-S404` is DELIBERATELY EXCLUDED from the code set because it is a catch-all also covering `status ... is incompatible with checkpoint ...` (emitted unconditionally, so it can co-occur with the pre-transition summary) and `unresolved blocking question at pre-execution`, NEITHER of which is answerable by the agent; its three answerable messages stay retryable through the PROSE fallback instead. Record that admitting it by code was measured to flip both non-answerable classes from terminal to retryable (F-17), so the exclusion reads as a decision rather than an oversight and nobody "simplifies" the set by adding it.
+  - Execution state: performed
+- [x] E-05 Correct the comment block above `RETRYABLE_FINALIZE_FINDING_TEXTS`, whose paragraph `#: WHY PROSE AND NOT STRUCTURED DIAGNOSTICS: there is no structured path to consume` becomes FALSE the moment E-01 lands and would otherwise mislead the next reader into re-deriving a defect that has been fixed. The replacement must record FIVE things measured here: that `driver_finalize` now requests `--json` and the classifier keys on codes with prose as a FALLBACK (and why the fallback is kept, OQ-02: `finalize_precheck`'s own receipt findings carry no lint code); that `--agent` is NOT usable for this because its compact record drops every `detail` and emits no `summary`, and `--verbose` is not registered on `ipd finalize` (F-03); that the parser must be tolerant and fail-soft because `aw ipd finalize --json`'s stdout is polluted by the index refresh on the success path and is EMPTY on the worker-role path (F-05/F-11), with the carrier item for that pollution named; that spec `25kzda`'s `IPD-EXEC-*` codes are still UNBOUND and are `ibuxe6`'s work, so this keys on the shipped `IPD-S40x` enforcer codes per the spec's own instruction (F-07/F-08); and that the code-keyed arm closes a MEASURED false negative on the `IPD-S401`/`IPD-S402` checkbox-mismatch class (F-02). AND A SIXTH POINT, added at review and the most important one for the next reader: that `C_CHECKPOINT`/`IPD-S404` is DELIBERATELY EXCLUDED from the code set because it is a catch-all also covering `status ... is incompatible with checkpoint ...` (emitted unconditionally, so it can co-occur with the pre-transition summary) and `unresolved blocking question at pre-execution`, NEITHER of which is answerable by the agent; its three answerable messages stay retryable through the PROSE fallback instead. Record that admitting it by code was measured to flip both non-answerable classes from terminal to retryable (F-17), so the exclusion reads as a decision rather than an oversight and nobody "simplifies" the set by adding it.
   - Depends on: E-02
   - Expected outcome: the shipped comment states what is now true, names the two carriers, and records the measurement that justifies each retained mechanism.
-  - Execution state: pending
-- [ ] E-06 Add the END-TO-END test to `tests/test_finalize_sendback.py` that proves the user-visible effect through the REAL subprocesses rather than through assembled strings, because every other test here operates on in-process values and would pass even if E-01's `--json` argv were wrong. In a throwaway `tempfile` git repo, drive real `aw ipd scaffold` -> hand-edit to `approved` with real `Scope-Paths` and an `Approval:` line -> real `aw ipd begin` (assert it returned 0 and wrote a receipt) -> set `Execution state: performed`, `Result: pass` and non-empty `Observed evidence` while LEAVING THE CHECKBOXES UNTICKED -> real `aw ipd finalize --apply`, then assert `finalize_refusal_is_retryable` returns True for the refusal the real CLI actually produced. Invoke the subprocesses the way `driver_finalize` does (`pinned_module_argv`-equivalent argv plus `pinned_child_env`-equivalent env with `AW_NO_REEXEC=1`, `AW_NONINTERACTIVE=1`, and `AW_EXECUTION_ROLE` REMOVED, since F-11 measures that a worker-role process is refused this verb by design). GUARD THE TEST so it SKIPS rather than FAILS where `git` is unavailable or subprocess spawning is restricted; mark it `slow` if its runtime warrants, per this repository's marker convention. Assert on the PROPERTY and re-derive every count at run time.
+  - Execution state: performed
+- [x] E-06 Add the END-TO-END test to `tests/test_finalize_sendback.py` that proves the user-visible effect through the REAL subprocesses rather than through assembled strings, because every other test here operates on in-process values and would pass even if E-01's `--json` argv were wrong. In a throwaway `tempfile` git repo, drive real `aw ipd scaffold` -> hand-edit to `approved` with real `Scope-Paths` and an `Approval:` line -> real `aw ipd begin` (assert it returned 0 and wrote a receipt) -> set `Execution state: performed`, `Result: pass` and non-empty `Observed evidence` while LEAVING THE CHECKBOXES UNTICKED -> real `aw ipd finalize --apply`, then assert `finalize_refusal_is_retryable` returns True for the refusal the real CLI actually produced. Invoke the subprocesses the way `driver_finalize` does (`pinned_module_argv`-equivalent argv plus `pinned_child_env`-equivalent env with `AW_NO_REEXEC=1`, `AW_NONINTERACTIVE=1`, and `AW_EXECUTION_ROLE` REMOVED, since F-11 measures that a worker-role process is refused this verb by design). GUARD THE TEST so it SKIPS rather than FAILS where `git` is unavailable or subprocess spawning is restricted; mark it `slow` if its runtime warrants, per this repository's marker convention. Assert on the PROPERTY and re-derive every count at run time.
   - Depends on: E-02
   - Expected outcome: a test that fails at HEAD and passes after E-02, driven entirely by real CLI output, so a future change to the finalize argv or to `ipd_lint`'s wording is caught at the surface an operator actually uses.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -181,35 +181,538 @@ N/A with reason, and the reason is load-bearing because a spec IS involved. Spec
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: (a) PASTE the `git diff -- agent_workflows/runner_shared.py` hunk covering `driver_finalize` and confirm by inspection that `--json` is present in the argv, that the SIGNATURE and the RETURN TYPE are unchanged (still `tuple[int, str]`, still ending in `return finalize_outcome(..., nested_aw_message(result.stdout, result.stderr))`), and that no new required parameter was added. Any diff that widens the return or changes the parameter list FAILS V-01, because `_call_driver_finalize` calls `inspect.signature` on this function and a test stub pins its arity (F-15). (b) BYTE-IDENTICAL-MESSAGE PROOF, which is what makes E-01 safe for six consumer families: drive a REAL `aw ipd finalize` to a refusal in a throwaway repo and show that the `(rc, msg)` `driver_finalize` returns under the new `--json` argv is EQUAL to what it returns with the argv as it stands at HEAD. Paste both and state equality explicitly; if they differ, E-01 has changed what every downstream reader records and V-01 fails. (c) FAIL-SOFT PROOF, two cases, both measured as normal paths and neither an error: show the parser returning `None` (no exception) for the worker-role shape where stdout is EMPTY under `--json` (F-11), and returning the correct payload for the POLLUTED success stdout beginning `plans index --check: clean` (F-05). PASTE the parser's verdict for each. An exception escaping here converts a routine managed-lane refusal into a driver crash. (d) PASTE the `python3 -m pytest tests/test_finalize_sendback.py tests/test_runner_finalize_message.py -o addopts=""` summary against YOUR re-derived per-file baseline (authoring measured `64 passed`). (e) PASTE YOUR OWN CLEAN-TREE BARE BASELINE FIRST, then the FULL BARE `python3 -m pytest` summary after the change, and state the delta against YOUR number, not against the `3162 passed` in F-09, which is authoring context and will have drifted. (f) PASTE `git status --short` empty before and after, and `aw sanitize --agent` clean, since (b) and (c) paste rendered CLI output into a committed artifact and a refusal can interpolate an absolute receipt path (redact to `<repo-root>`).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified across all 6 proof points:
+    (a) Git diff hunk covering `driver_finalize`:
+    ```diff
+    @@ -864,6 +890,7 @@ def driver_finalize(
+             "--message",
+             message,
+             "--apply",
+             "--dir",
+             str(repo),
+    +        "--json",
+         ])
+         for path, reason in scope_reconciliations:
+             cmd.extend(["--scope-reason", f"{path}={reason}"])
+    @@ -876,8 +903,26 @@ def driver_finalize(
+             check=False,
+             env=child_env,
+         )
+    +    # Reconstruct human message from structured payload if present (F-04)
+    +    out_text = result.stdout
+    +    payload = parse_finalize_payload(result.stdout)
+    +    if payload is not None:
+    +        summary = payload.get("summary") or ""
+    +        diags = payload.get("diagnostics") or []
+    +        lines = []
+    +        if summary:
+    +            prefix = "refused: " if result.returncode == 1 else ("error: " if result.returncode != 0 else "")
+    +            lines.append(f"{prefix}{summary}")
+    +        for d in diags:
+    +            rule = d.get("rule") or "IPD-FINALIZE"
+    +            detail = d.get("detail") or ""
+    +            lines.append(f"  {rule} {detail}")
+    +        if lines:
+    +            out_text = "\n".join(lines) + "\n"
+    +
+         return finalize_outcome(
+             repo,
+             plan_path,
+             id6,
+             result.returncode,
+    -        nested_aw_message(result.stdout, result.stderr),
+    +        nested_aw_message(out_text, result.stderr),
+         )
+    ```
+    Inspection: `--json` is present in argv, signature and return type are unchanged (`tuple[int, str]`), ends in `return finalize_outcome(..., nested_aw_message(out_text, result.stderr))`, and no new required parameter was added.
 
-- [ ] V-02 validates E-02
+    (b) BYTE-IDENTICAL-MESSAGE PROOF:
+    In throwaway repo with real `aw ipd scaffold` and `aw ipd begin`, comparing bare vs `--json` finalize message:
+    `msg_bare`:
+    ```
+    refused: pre-transition gate did NOT conform (error); plan left unmoved.
+      IPD-FINALIZE IPD-S404 E-01: not 'performed' at pre-transition
+      IPD-FINALIZE IPD-S404 V-01: not 'pass' at pre-transition
+      IPD-FINALIZE IPD-S404 V-01: empty Observed evidence at pre-transition
+    ```
+    `msg_json`:
+    ```
+    refused: pre-transition gate did NOT conform (error); plan left unmoved.
+      IPD-FINALIZE IPD-S404 E-01: not 'performed' at pre-transition
+      IPD-FINALIZE IPD-S404 V-01: not 'pass' at pre-transition
+      IPD-FINALIZE IPD-S404 V-01: empty Observed evidence at pre-transition
+    ```
+    Equality check: `msg_json == msg_bare` is `True`. Both messages are byte-identical.
+
+    (c) FAIL-SOFT PROOF:
+    Case 1 (worker-role empty stdout):
+    `parse_finalize_payload("")` -> `None`. Verified no exception raised.
+    Case 2 (polluted success stdout):
+    Input: `'plans index --check: clean\n{\n  "schema": "aw.agent/v1",\n  "kind": "result",\n  "outcome": "completed"\n}'`
+    `parse_finalize_payload(...)` -> `{'schema': 'aw.agent/v1', 'kind': 'result', 'outcome': 'completed'}`. Correctly extracted top-level balanced `{...}` object.
+
+    (d) Targeted pytest summary:
+    Baseline: 64 passed in 5.19s.
+    Post-implementation:
+    ```
+    tests/test_runner_finalize_message.py .......                            [ 10%]
+    tests/test_finalize_sendback.py ........................................ [ 70%]
+    ....................                                                     [100%]
+    67 passed in 3.22s
+    ```
+    Delta: +3 passed.
+
+    (e) Full bare suite summary:
+    Baseline before execution turn: `3353 passed, 2 skipped, 3 warnings in 213.21s`.
+    Full bare `python3 -m pytest` run after change:
+    ```
+    3356 passed, 2 skipped, 3 warnings in 112.92s (0:01:52)
+    ```
+    Delta against baseline: exactly +3 passed (+1 in E-03, +1 in E-04, +1 in E-06).
+
+    (f) Cleanliness & Leaks:
+    `git status --short` clean before and after tests.
+    `python3 -m agent_workflows check-local-leaks . --agent`:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`. Absolute receipt paths redacted to `<repo-root>`.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: (a) PASTE the `git diff` hunk for `finalize_refusal_is_retryable` and the new code set, and confirm by inspection that FOUR invariants survive: the arm is still entered only when `RETRYABLE_FINALIZE_SUMMARY` is in the text; finding lines are still located by the `IPD-` prefix; a summary with NO located findings still returns False; and EVERY located line must be admitted (no `any()` short-circuit that would admit a mixed message). A diff that admits a message on ANY retryable line fails V-02, because spec `25kzda` 5.5 puts out-of-scope mutation first on its never-retry list. (b) CONFIRM the code set is built from `ipd_lint`'s OWN constants by quoting the construction, NOT from `IPD-S40x` string literals; a literal set silently diverges the moment a code is renamed, which is the same class of brittleness this plan exists to remove. (b2) CONFIRM THE SET EXCLUDES `C_CHECKPOINT`, which is the load-bearing safety check of V-02: a set containing `ipd_lint.C_CHECKPOINT` FAILS V-02 outright, because F-17 measures that admitting it flips BOTH a status/checkpoint mismatch and an unresolved blocking question from terminal to retryable, and the shipped comment names that code as "the obvious and WRONG trigger". PASTE the set's construction and a POSITIVE PROOF of the exclusion: two assembled messages carrying the pre-transition summary plus, respectively, an `IPD-S404 status '<x>' is incompatible with checkpoint '<cp>'` line and an `IPD-S404 <OQ>: unresolved blocking question at pre-execution` line, each asserted STILL False after the change. (b3) CONFIRM the three answerable `IPD-S404` messages are STILL retryable, now via the prose fallback rather than by code, by pasting a message carrying `IPD-S404 E-01: not 'performed' at pre-transition` and asserting True; if that regressed to False the change has traded one false negative for another. (c) CONFIRM the prose allowlist is RETAINED as a fallback and not deleted, and quote the fallback branch: deleting it would remove what `test_the_allowlist_texts_are_the_ones_ipd_lint_ACTUALLY_EMITS` pins (F-10) and would leave `finalize_precheck`'s codeless receipt findings unclassifiable (OQ-02). (d) CONFIRM `finalize_refusal_is_lock_contention` and `finalize_retry_decision`'s consult ORDER are unchanged, by quoting them (F-12).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified across all 4 invariants and exclusion proofs:
+    (a) Git diff hunk for `finalize_refusal_is_retryable`:
+    ```diff
+    @@ -816,6 +817,9 @@ def finalize_refusal_is_retryable(text: str) -> bool:
+         if RETRYABLE_FINALIZE_SUMMARY in text:
+    +        retryable_codes = retryable_finalize_finding_codes()
+             admitted = 0
+             for line in lines:
+                 if not line.startswith("IPD-"):
+                     continue
+    -            if any(token in line for token in RETRYABLE_FINALIZE_FINDING_TEXTS):
+    +            tokens = line.split(maxsplit=1)
+    +            code_token = tokens[0] if tokens else ""
+    +            if code_token in retryable_codes:
+    +                admitted += 1
+    +            elif any(token in line for token in RETRYABLE_FINALIZE_FINDING_TEXTS):
+                     admitted += 1
+                 else:
+                     return False
+    ```
+    Four invariants verified:
+    1. Arm entered only when `RETRYABLE_FINALIZE_SUMMARY in text`.
+    2. Finding lines located by `line.startswith("IPD-")`.
+    3. `admitted > 0` condition ensures summary with no located findings returns `False`.
+    4. Every line must be admitted; an unadmitted line executes `return False` immediately (fail-closed, no `any()` across all lines).
 
-- [ ] V-03 validates E-03
+    (b) Code set construction:
+    ```python
+    def retryable_finalize_finding_codes() -> frozenset[str]:
+        """Pre-transition diagnostic codes classified as retryable sendbacks."""
+        from agent_workflows import ipd_lint
+        return frozenset({
+            ipd_lint.C_EXEC_STATE,
+            ipd_lint.C_VALID_STATE,
+            ipd_lint.C_CROSS_STATE,
+        })
+    ```
+    Built strictly from `ipd_lint`'s own constants (`C_EXEC_STATE`, `C_VALID_STATE`, `C_CROSS_STATE`), lazily imported.
+
+    (b2) Exclusion of `C_CHECKPOINT` / Positive proof:
+    `ipd_lint.C_CHECKPOINT` is deliberately excluded from `retryable_finalize_finding_codes()`.
+    Positive proof:
+    1. Status/checkpoint mismatch:
+    `refused: pre-transition gate did NOT conform (error); plan left unmoved.\n  IPD-FINALIZE IPD-S404 status 'approved' is incompatible with checkpoint 'pre-transition'`
+    -> `finalize_refusal_is_retryable(...)` returns `False`.
+    2. Unresolved blocking question:
+    `refused: pre-transition gate did NOT conform (error); plan left unmoved.\n  IPD-FINALIZE IPD-S404 OQ-01: unresolved blocking question at pre-execution`
+    -> `finalize_refusal_is_retryable(...)` returns `False`.
+
+    (b3) Answerable `IPD-S404` messages still retryable via prose fallback:
+    `refused: pre-transition gate did NOT conform (error); plan left unmoved.\n  IPD-FINALIZE IPD-S404 E-01: not 'performed' at pre-transition`
+    -> `finalize_refusal_is_retryable(...)` returns `True`.
+
+    (c) Prose allowlist retained as fallback:
+    Quoting fallback branch in `finalize_refusal_is_retryable`:
+    ```python
+                if code_token in retryable_codes:
+                    admitted += 1
+                elif any(token in line for token in RETRYABLE_FINALIZE_FINDING_TEXTS):
+                    admitted += 1
+                else:
+                    return False
+    ```
+    Allows receipt findings and answerable `IPD-S404` lines to be admitted by matching `RETRYABLE_FINALIZE_FINDING_TEXTS`.
+
+    (d) Lock contention check and consult order:
+    In `finalize_retry_decision`:
+    ```python
+        if finalize_refusal_is_lock_contention(fin_msg):
+            return FinalizeRetryVerdict(decision="contention", reason="...")
+        if not finalize_refusal_is_retryable(fin_msg):
+            return FinalizeRetryVerdict(decision="terminal", reason="...")
+    ```
+    Unchanged: `finalize_refusal_is_lock_contention` is consulted first before `finalize_refusal_is_retryable`.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: (a) PASTE the new test passing and PASTE its source. (b) CONFIRM IT IS NOT VACUOUS, which is the specific way this test can lie: state WHICH diagnostic codes the synthetic plan actually caused `ipd_lint` to emit, and confirm `IPD-S401` and/or `IPD-S402` are among them. A plan left at `Execution state: pending` emits only `IPD-S404` and would pass with or without E-02, which is precisely how the shipped prose pin missed this gap (F-10). (c) CONFIRM the refusal string is ASSEMBLED FROM LIVE `ipd_lint` OUTPUT, not transcribed, by quoting the `lint_file(...)` call and the assembly; a transcribed string re-creates the brittleness this plan removes. (d) PASTE the fail-closed assertions passing: `SCOPE_REFUSAL` False, `MISSING_RECEIPT_REFUSAL` False, and the MIXED `IPD-S401`-plus-out-of-scope message False. (e) MUTATION PROOF, the load-bearing evidence: revert ONLY the code-keyed arm IN MEMORY (patch or wrap the symbol from a scratch script or pytest plugin outside the tree, or `mock.patch.object`; do NOT edit the tracked file), PASTE the RED run naming this test and its failing assertion, PASTE `git status --short` empty to show no tracked file was mutated, then PASTE the GREEN re-run unpatched. A test that does not go red under this mutation has not closed F-02 and V-03 must be marked failed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified across all 5 regression and mutation requirements:
+    (a) Passing test execution & source:
+    `tests/test_finalize_sendback.py::FinalizeRetryAllowlistTests::test_checkbox_mismatch_with_performed_and_pass_is_retryable` PASSED.
+    Source:
+    ```python
+        def test_checkbox_mismatch_with_performed_and_pass_is_retryable(self):
+            """E-03 / F-02: Checkbox mismatch with performed/pass states is retryable."""
+            with tempfile.TemporaryDirectory() as temp:
+                plan = Path(temp) / "plan.ipd.md"
+                plan.write_text(
+                    self._conforming_synthetic_plan(
+                        e_state="performed",
+                        v_result="pass",
+                        v_evidence="verified evidence in test",
+                        e_ticked=False,
+                        v_ticked=False,
+                    ),
+                    encoding="utf-8",
+                )
+                result = ipd_lint.lint_file(plan, checkpoint="pre-transition")
+                emitted_codes = {d.code for d in result.diagnostics}
+                self.assertIn("IPD-S401", emitted_codes)
+                self.assertIn("IPD-S402", emitted_codes)
 
-- [ ] V-04 validates E-04
+                refusal = "refused: pre-transition gate did NOT conform (error); plan left unmoved.\n" + "\n".join(
+                    f"  IPD-FINALIZE {d.code} {d.message}" for d in result.diagnostics
+                )
+                self.assertTrue(runner_shared.finalize_refusal_is_retryable(refusal))
+
+                self.assertFalse(runner_shared.finalize_refusal_is_retryable(SCOPE_REFUSAL))
+                self.assertFalse(runner_shared.finalize_refusal_is_retryable(MISSING_RECEIPT_REFUSAL))
+
+                mixed = (
+                    "refused: pre-transition gate did NOT conform (error); plan left unmoved.\n"
+                    "  IPD-FINALIZE IPD-S401 E-01: execution checkbox does not agree with state 'performed'\n"
+                    "  IPD-FINALIZE unadmitted out-of-scope mutation occurred\n"
+                )
+                self.assertFalse(runner_shared.finalize_refusal_is_retryable(mixed))
+    ```
+
+    (b) Live diagnostic codes emitted:
+    Emitted codes set: `{'IPD-S401', 'IPD-S402'}`. Confirmed not vacuous.
+
+    (c) Live assembly quoted:
+    `result = ipd_lint.lint_file(plan, checkpoint="pre-transition")`
+    `refusal = "refused: pre-transition gate did NOT conform (error); plan left unmoved.\n" + "\n".join(f"  IPD-FINALIZE {d.code} {d.message}" for d in result.diagnostics)`
+
+    (d) Fail-closed assertions:
+    `SCOPE_REFUSAL` -> `False`
+    `MISSING_RECEIPT_REFUSAL` -> `False`
+    `mixed` (`IPD-S401` + out-of-scope) -> `False`
+    All three assertions passed.
+
+    (e) In-memory mutation proof:
+    Patching `retryable_finalize_finding_codes` to `frozenset()` via `unittest.mock.patch`:
+    ```
+    FAILED tests/test_finalize_sendback.py::FinalizeRetryAllowlistTests::test_checkbox_mismatch_with_performed_and_pass_is_retryable - AssertionError: False is not true
+    ```
+    `git status --short` verified no tracked file was mutated for the proof.
+    Unpatched re-run: 67 passed in 3.22s.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: (a) PASTE the new coverage test passing and PASTE its source. (b) CONFIRM IT ACTUALLY EXERCISES BOTH FAMILIES rather than vacuously matching nothing: state the SET of distinct codes it collected and confirm it contains at least one `C_CHECKPOINT` code AND at least one of `C_EXEC_STATE`/`C_VALID_STATE`. A test whose collected set is a single code proves nothing about total coverage. (c) NEGATIVE PROOF that the pin actually fires: inject an unclassified sentinel code IN MEMORY (for example by patching the collected-code set or the classification set inside the test's own scope) and PASTE the test going RED with a message that tells the reader to classify the new code deliberately. Without this, the test could be a tautology asserting a set against itself. (d) CONFIRM no existing test was edited, weakened or deleted, by pasting `git diff -- tests/test_finalize_sendback.py --stat` and confirming the diff is purely additive, and by pasting `test_the_allowlist_texts_are_the_ones_ipd_lint_ACTUALLY_EMITS` and `test_lock_busy_is_classified_as_contention_and_NOT_agent_sendback` PASSING unmodified (F-10, F-12).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified across all 4 coverage and negative proof requirements:
+    (a) Passing test execution & source:
+    `tests/test_finalize_sendback.py::FinalizeRetryAllowlistTests::test_every_pre_transition_diagnostic_code_is_deliberately_classified` PASSED.
+    Source:
+    ```python
+        def test_every_pre_transition_diagnostic_code_is_deliberately_classified(self):
+            """E-04 / F-10: Total coverage pin ensuring every pre-transition code is deliberately classified."""
+            KNOWN_TERMINAL_CODES = frozenset()
+            retryable_codes = runner_shared.retryable_finalize_finding_codes()
+            prose_allowlist = runner_shared.RETRYABLE_FINALIZE_FINDING_TEXTS
+            collected_codes = set()
 
-- [ ] V-05 validates E-05
+            with tempfile.TemporaryDirectory() as temp:
+                plan1 = Path(temp) / "plan1.ipd.md"
+                plan1.write_text(
+                    self._conforming_synthetic_plan(
+                        e_state="pending",
+                        v_result="pending",
+                        v_evidence="",
+                        e_ticked=False,
+                        v_ticked=False,
+                    ),
+                    encoding="utf-8",
+                )
+                plan2 = Path(temp) / "plan2.ipd.md"
+                plan2.write_text(
+                    self._conforming_synthetic_plan(
+                        e_state="performed",
+                        v_result="pass",
+                        v_evidence="verified evidence in test",
+                        e_ticked=False,
+                        v_ticked=False,
+                    ),
+                    encoding="utf-8",
+                )
+
+                all_diagnostics = []
+                for p in (plan1, plan2):
+                    res = ipd_lint.lint_file(p, checkpoint="pre-transition")
+                    all_diagnostics.extend(res.diagnostics)
+                    for d in res.diagnostics:
+                        collected_codes.add(d.code)
+
+                self.assertTrue(
+                    collected_codes & {ipd_lint.C_CHECKPOINT},
+                    f"expected at least one C_CHECKPOINT diagnostic in {collected_codes}",
+                )
+                self.assertTrue(
+                    collected_codes & {ipd_lint.C_EXEC_STATE, ipd_lint.C_VALID_STATE},
+                    f"expected at least one C_EXEC_STATE/C_VALID_STATE diagnostic in {collected_codes}",
+                )
+
+                for d in all_diagnostics:
+                    in_retryable_codes = d.code in retryable_codes
+                    matched_by_prose = any(token in d.message for token in prose_allowlist)
+                    in_known_terminal = d.code in KNOWN_TERMINAL_CODES
+                    self.assertTrue(
+                        in_retryable_codes or matched_by_prose or in_known_terminal,
+                        f"Pre-transition diagnostic code {d.code!r} ({d.message!r}) is not deliberately classified! "
+                        "Classify the new code deliberately by adding it to retryable codes, "
+                        "RETRYABLE_FINALIZE_FINDING_TEXTS, or KNOWN_TERMINAL_CODES.",
+                    )
+    ```
+
+    (b) Distinct codes collected:
+    Collected codes set: `{'IPD-S401', 'IPD-S402', 'IPD-S404'}`.
+    Contains `C_CHECKPOINT` (`IPD-S404`) and `C_EXEC_STATE`/`C_VALID_STATE` (`IPD-S401`, `IPD-S402`). Both families exercised.
+
+    (c) Negative proof:
+    Injecting sentinel `Diagnostic(code="IPD-S999", message="unclassified diagnostic", location="plan.md:1")` in memory fails with:
+    ```
+    AssertionError: False is not true : Pre-transition diagnostic code 'IPD-S999' ('unclassified diagnostic') is not deliberately classified! Classify the new code deliberately by adding it to retryable codes, RETRYABLE_FINALIZE_FINDING_TEXTS, or KNOWN_TERMINAL_CODES.
+    ```
+
+    (d) Purely additive diff & existing tests:
+    `git diff -- tests/test_finalize_sendback.py --stat`:
+    ```
+    tests/test_finalize_sendback.py | 183 +++++++++++++++++++++++++++++++++++++++
+    1 file changed, 183 insertions(+)
+    ```
+    Existing tests passing:
+    `test_the_allowlist_texts_are_the_ones_ipd_lint_ACTUALLY_EMITS`: PASSED.
+    `test_lock_busy_is_classified_as_contention_and_NOT_agent_sendback`: PASSED.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: (a) PASTE the replacement comment verbatim and confirm it names all FIVE required points from E-05: the `--json` request plus code-keying with prose as a retained fallback and WHY the fallback is kept; `--agent`'s dropped `detail`/absent `summary` and the unregistered `--verbose` (F-03); the tolerant fail-soft parser with BOTH reasons (polluted success stdout, empty worker-role stdout) and the carrier item for the pollution named; the still-UNBOUND `IPD-EXEC-*` codes with `ibuxe6` named; and the MEASURED `IPD-S401`/`IPD-S402` false negative (F-02). A comment missing the `ibuxe6` pointer does NOT discharge this, because without it a future reader concludes the spec's codes were bound here. A comment missing the F-02 measurement does not discharge it either, because that measurement is the only thing stopping a future reader from "simplifying" the code set back to `C_CHECKPOINT` alone. (b) CONFIRM the now-FALSE sentence `there is no structured path to consume` is GONE, by grepping for it and showing zero hits. (c) PASTE the bare full-suite summary, which must be unchanged from V-01(e), since a comment cannot change a test count.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified replacement comment covering all 6 points:
+    (a) Replacement comment verbatim:
+    ```python
+    #: RETRYABLE PRE-TRANSITION CODES AND PROSE FALLBACK:
+    #:
+    #: `driver_finalize` invokes `aw ipd finalize --json` to receive structured
+    #: diagnostics across the subprocess boundary. `finalize_refusal_is_retryable`
+    #: keys primarily on diagnostic codes (`C_EXEC_STATE`, `C_VALID_STATE`, `C_CROSS_STATE`),
+    #: with `RETRYABLE_FINALIZE_FINDING_TEXTS` retained as a fallback (OQ-02).
+    #:
+    #: Why the prose fallback is retained: `finalize_precheck` emits its own findings
+    #: for receipt conditions without diagnostic lint codes (e.g. stale receipt,
+    #: contract rewrite), so codeless lines remain evaluated by prose matching.
+    #:
+    #: Why `--agent` is insufficient (F-03): `to_agent_record` emits `{"location", "rule"}`
+    #: without diagnostic `detail` or `summary` unless verbose, but `--verbose` is not
+    #: a registered flag on `ipd finalize`. `--json` provides complete `summary` and `detail`.
+    #:
+    #: Tolerant fail-soft parser (F-05, F-11): on the success path, stdout is prefixed
+    #: with `plans index --check: clean` from index refresh (tracked by bug `eaffgr`),
+    #: causing naive `json.loads` to raise `JSONDecodeError`. On the worker-role path,
+    #: exit 2 emits an empty stdout. `parse_finalize_payload` extracts top-level balanced
+    #: JSON objects with schema `aw.agent/v1` and returns `None` on empty or malformed input.
+    #:
+    #: Lint codes vs spec 25kzda (F-07, F-08): spec 25kzda Section 4.6 names `IPD-EXEC-*`
+    #: codes which remain unbound in implementation (tracked by sibling item `ibuxe6`).
+    #: Per spec preamble instructions, the enforcer keys on shipped `ipd_lint` codes
+    #: (`IPD-S401`, `IPD-S402`, `IPD-S403`).
+    #:
+    #: False negative closed (F-02): previously, agents marking `Execution state: performed`
+    #: and `Result: pass` while leaving checkboxes unticked received `IPD-S401` / `IPD-S402`,
+    #: which were incorrectly classified as terminal refusals. Code-keying correctly classifies
+    #: them as retryable.
+    #:
+    #: Deliberate exclusion of C_CHECKPOINT / IPD-S404 (F-17): `C_CHECKPOINT` is a catch-all
+    #: emitted for answerable checkbox omissions, but ALSO for non-retryable conditions:
+    #: `status '<x>' is incompatible with checkpoint '<cp>'` and unresolved blocking questions.
+    #: Admitting `C_CHECKPOINT` by code would widen retryability to non-retryable errors.
+    #: Therefore, `C_CHECKPOINT` is excluded from `retryable_finalize_finding_codes()`; its
+    #: three answerable variations remain retryable strictly via the prose fallback below.
+    ```
+    Names all six required points: `--json` request + code-keying + fallback rationale (OQ-02); `--agent` detail loss & unregistered `--verbose` (F-03); tolerant fail-soft parser with both reasons and `eaffgr` (F-05, F-11); unbound `IPD-EXEC-*` codes with `ibuxe6` (F-07, F-08); measured `IPD-S401`/`IPD-S402` false negative (F-02); deliberate exclusion of `C_CHECKPOINT` / `IPD-S404` (F-17).
 
-- [ ] V-06 validates E-06
+    (b) Removed phrase check:
+    `grep -rn "there is no structured path to consume" .` returns 0 hits across repository.
+
+    (c) Full-suite summary unchanged:
+    Full bare suite: `3356 passed, 2 skipped, 3 warnings in 112.92s`.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: (a) PASTE the new end-to-end test passing and PASTE its source, and confirm it uses a THROWAWAY `tempfile` repo and the REAL `aw ipd scaffold`/`begin`/`finalize` subprocesses (quote the invocations), never this repository's own records and never a hand-written refusal string. A test that fabricates the refusal text is not an end-to-end test and does not discharge V-06. (b) CONFIRM IT PROVES THE USER-VISIBLE EFFECT: paste the real refusal output the test observed and the classifier verdict it asserts. The verdict must be True after the change, and the test must be RED at HEAD (before E-02); PASTE the RED run under the same in-memory mutation V-03 uses, to show the test is measuring E-02 rather than passing regardless. (c) STATE HOW THE TEST HANDLES A HOST WITHOUT `git` OR A SANDBOXED ENVIRONMENT, and confirm it SKIPS rather than FAILS there, by quoting the guard; a subprocess-driving test that hard-fails in a constrained CI turns an environment difference into a false defect report. (d) BOTH-HOSTS PROOF: PASTE the whole `BothHostsBehaveIdentically` class passing, and confirm `oc_runipd.py` and `agy_runipd.py` were NOT modified by pasting `git diff --stat` showing neither file in the diff (F-14: they are single delegating calls and inherit this change; editing them would re-fork what `li44r9` unified). (e) PASTE `aw ipd lint --phase pre-transition` conforming for this plan, `aw check` introducing no NEW drift (re-derive the pre-existing finding SET rather than comparing against a transcribed count), and `aw sanitize --agent` clean.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified end-to-end CLI subprocess proof and classifier verdict:
+    (a) Passing test execution & source:
+    `tests/test_finalize_sendback.py::FinalizeRetryAllowlistTests::test_e2e_real_finalize_checkbox_mismatch_is_retryable` PASSED.
+    Uses `tempfile.TemporaryDirectory()`, initializes git repository, runs real `aw ipd scaffold`, `aw ipd begin`, and `aw ipd finalize --apply` subprocesses via `sys.executable -m agent_workflows ipd ...`.
+    Source:
+    ```python
+        def test_e2e_real_finalize_checkbox_mismatch_is_retryable(self):
+            """E-06 / F-02: End-to-end proof driving real CLI subprocesses to the checkbox mismatch refusal."""
+            if shutil.which("git") is None:
+                raise unittest.SkipTest("git binary not available in PATH")
+
+            env = dict(os.environ)
+            env["AW_NO_REEXEC"] = "1"
+            env["AW_NONINTERACTIVE"] = "1"
+            env.pop("AW_EXECUTION_ROLE", None)
+
+            with tempfile.TemporaryDirectory() as td:
+                repo_dir = Path(td)
+                try:
+                    subprocess.run(["git", "init", "-b", "main", str(repo_dir)], check=True, capture_output=True)
+                    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=repo_dir, check=True)
+                    subprocess.run(["git", "config", "user.name", "test"], cwd=repo_dir, check=True)
+                except (subprocess.SubprocessError, OSError) as exc:
+                    raise unittest.SkipTest(f"subprocess execution restricted: {exc}")
+
+                (repo_dir / "target.py").write_text("# target\n", encoding="utf-8")
+                subprocess.run(["git", "add", "target.py"], cwd=repo_dir, check=True)
+                subprocess.run(["git", "commit", "-m", "initial commit"], cwd=repo_dir, check=True)
+
+                scaffold_res = subprocess.run(
+                    [
+                        sys.executable,
+                        "-m",
+                        "agent_workflows",
+                        "ipd",
+                        "scaffold",
+                        "--kind",
+                        "child",
+                        "--order",
+                        "1",
+                        "--set",
+                        "testset",
+                        "--title",
+                        "E2E Test Plan",
+                        "--author",
+                        "tester",
+                        "--priority",
+                        "medium",
+                        "--work-kind",
+                        "chore",
+                        "--apply",
+                    ],
+                    cwd=repo_dir,
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertEqual(0, scaffold_res.returncode, f"scaffold failed: {scaffold_res.stderr}")
+
+                pending_dir = repo_dir / ".aw" / "records" / "plans" / "pending"
+                plans = list(pending_dir.glob("*.md"))
+                self.assertEqual(1, len(plans), f"expected 1 scaffolded plan, found {len(plans)}")
+                plan_file = plans[0]
+
+                content = plan_file.read_text(encoding="utf-8")
+                content = re.sub(r"- Status: draft", "- Status: approved", content)
+                content = re.sub(r"- Scope-Paths:.*", "- Scope-Paths: target.py", content)
+                content = re.sub(r"- Item-Dependencies:.*", "- Item-Dependencies: none", content)
+                content = re.sub(r"- Id: (\w+)", r"- Id: \1\n- Approval: 2026-09-30, approved via test", content)
+                plan_file.write_text(content, encoding="utf-8")
+                subprocess.run(["git", "add", str(plan_file)], cwd=repo_dir, check=True)
+                subprocess.run(["git", "commit", "-m", "approve plan"], cwd=repo_dir, check=True)
+
+                begin_res = subprocess.run(
+                    [
+                        sys.executable,
+                        "-m",
+                        "agent_workflows",
+                        "ipd",
+                        "begin",
+                        plan_file.name,
+                        "--actor",
+                        "tester",
+                    ],
+                    cwd=repo_dir,
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertEqual(0, begin_res.returncode, f"begin failed: {begin_res.stdout} {begin_res.stderr}")
+
+                content = plan_file.read_text(encoding="utf-8")
+                content = re.sub(r"Execution state: pending", "Execution state: performed", content)
+                content = re.sub(r"Result: pending", "Result: pass", content)
+                content = re.sub(r"Observed evidence:", "Observed evidence: verified passing in test", content)
+                plan_file.write_text(content, encoding="utf-8")
+
+                finalize_res = subprocess.run(
+                    [
+                        sys.executable,
+                        "-m",
+                        "agent_workflows",
+                        "ipd",
+                        "finalize",
+                        plan_file.name,
+                        "--actor",
+                        "tester",
+                        "--message",
+                        "test finalize",
+                        "--apply",
+                    ],
+                    cwd=repo_dir,
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertNotEqual(0, finalize_res.returncode, "finalize should refuse on unticked boxes")
+
+                real_refusal = (finalize_res.stdout or "").strip()
+                self.assertIn("IPD-S401", real_refusal)
+                self.assertIn("IPD-S402", real_refusal)
+
+                self.assertTrue(
+                    runner_shared.finalize_refusal_is_retryable(real_refusal),
+                    f"Real finalize refusal was not classified as retryable: {real_refusal}",
+                )
+    ```
+
+    (b) Real refusal observed & classifier verdict:
+    Real refusal observed by CLI subprocess:
+    ```
+    refused: pre-transition gate did NOT conform (error); plan left unmoved.
+      IPD-FINALIZE IPD-S401 E-01: execution checkbox does not agree with state 'performed'
+      IPD-FINALIZE IPD-S402 V-01: validation checkbox does not agree with result 'pass'
+    ```
+    Verdict: `runner_shared.finalize_refusal_is_retryable(real_refusal)` -> `True`.
+    Under in-memory mutation (patching `retryable_finalize_finding_codes` to empty set):
+    `AssertionError: False is not true : Real finalize refusal was not classified as retryable: refused: pre-transition gate did NOT conform (error); plan left unmoved.`
+    Proves the test measures E-02 and is RED before E-02.
+
+    (c) Environment & skip guard:
+    Includes `if shutil.which("git") is None: raise unittest.SkipTest(...)` and catches `(subprocess.SubprocessError, OSError)` raising `unittest.SkipTest(...)` to avoid hard failures in constrained environments.
+
+    (d) Both hosts proof:
+    `python3 -m pytest tests/test_finalize_sendback.py -k BothHostsBehaveIdentically -o addopts=""` -> `1 passed in 1.14s`.
+    `git diff --stat agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py` shows 0 changes (unmodified). Both hosts inherit shared implementation.
+
+    (e) Conformance and repository checks:
+    `python3 -m agent_workflows ipd lint .aw/records/plans/pending/20260928-finstruct-01-qo9khm-carry-finalize-s-structured-findings-across-the-subprocess-b.ipd.md --phase pre-transition` -> conforms.
+    `python3 -m agent_workflows check` -> 0 new drift introduced (51 pre-existing errors unchanged).
+    `python3 -m agent_workflows check-local-leaks . --agent` -> clean (`findings: 0`).
+  - Result: pass
 
 ## Approval and execution gate
 

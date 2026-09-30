@@ -11,6 +11,11 @@ statusvocab Order 02 (`787hb4`) refines the retryable trigger to per-class arms 
 
 from __future__ import annotations
 
+import os
+import re
+import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -313,6 +318,342 @@ class TheRetryTriggerIsAPositiveAllowlist(unittest.TestCase):
                     f"ipd_lint emits {diag.message!r} at pre-transition but the retry allowlist "
                     f"does not match it; update RETRYABLE_FINALIZE_FINDING_TEXTS deliberately",
                 )
+
+    @staticmethod
+    def _conforming_synthetic_plan(
+        *,
+        e_state: str = "pending",
+        v_result: str = "pending",
+        v_evidence: str = "",
+        e_ticked: bool = False,
+        v_ticked: bool = False,
+    ) -> str:
+        e_box = "x" if e_ticked else " "
+        v_box = "x" if v_ticked else " "
+        return (
+            "# IPD: Synthetic Plan\n\n"
+            "- Date: 2026-09-30\n"
+            "- Kind: child\n"
+            "- Concern: test\n"
+            "- Scope: test\n"
+            "- Scope-Paths: test.py\n"
+            "- Item-Dependencies: none\n"
+            "- Status: approved\n"
+            "- Work-Kind: chore\n"
+            "- Priority: low\n"
+            "- Author: test\n"
+            "- Highest E allocated: 01\n"
+            "- Set: test\n"
+            "- Order: 1\n"
+            "- Id: tst001\n"
+            "- Approval: 2026-09-30, approved\n\n"
+            "## Workflow history\n"
+            "- 2026-09-30: approved\n\n"
+            "## Goal\n"
+            "test\n\n"
+            "## Detailed Implementation Checklist (TODO)\n\n"
+            f"- [{e_box}] E-01 work item\n"
+            f"  - Execution state: {e_state}\n\n"
+            "## Project conventions discovered (Step 0)\n"
+            "none\n\n"
+            "## Findings\n"
+            "none\n\n"
+            "## Proposed changes (ordered, validatable)\n"
+            "none\n\n"
+            "## Deferred / out of scope (with reason)\n"
+            "none\n\n"
+            "## Scope check\n"
+            "none\n\n"
+            "## Required tests / validation\n"
+            "none\n\n"
+            "## Spec / documentation sync\n"
+            "none\n\n"
+            "## Open questions\n"
+            "none\n\n"
+            "## Validation and cross-check (verify before reporting done)\n\n"
+            f"- [{v_box}] V-01 validates E-01\n"
+            f"  - Observed evidence: {v_evidence}\n"
+            f"  - Result: {v_result}\n\n"
+            "## Approval and execution gate\n"
+            "none\n"
+        )
+
+    def test_checkbox_mismatch_with_performed_and_pass_is_retryable(self):
+        """E-03 / F-02: Unticked checkboxes with performed/pass are answerable and retryable."""
+        with tempfile.TemporaryDirectory() as temp:
+            plan = Path(temp) / "plan.ipd.md"
+            plan.write_text(
+                self._conforming_synthetic_plan(
+                    e_state="performed",
+                    v_result="pass",
+                    v_evidence="verified evidence in test",
+                    e_ticked=False,
+                    v_ticked=False,
+                ),
+                encoding="utf-8",
+            )
+            result = ipd_lint.lint_file(plan, checkpoint="pre-transition")
+            # Confirm not vacuous: assert IPD-S401 and/or IPD-S402 are emitted
+            codes = {d.code for d in result.diagnostics}
+            self.assertTrue(
+                codes & {ipd_lint.C_EXEC_STATE, ipd_lint.C_VALID_STATE},
+                f"expected C_EXEC_STATE or C_VALID_STATE in {codes}",
+            )
+            # Assemble refusal in run_finalize._emit's exact human shape
+            summary = "pre-transition gate did NOT conform (error); plan left unmoved."
+            refusal_lines = [f"refused: {summary}"]
+            for d in result.diagnostics:
+                refusal_lines.append(f"  IPD-FINALIZE {d.code} {d.message}")
+            assembled = "\n".join(refusal_lines)
+
+            self.assertTrue(
+                runner_shared.finalize_refusal_is_retryable(assembled),
+                f"checkbox mismatch refusal should be retryable: {assembled}",
+            )
+
+            # Fail-closed assertions in the same test:
+            self.assertFalse(
+                runner_shared.finalize_refusal_is_retryable(SCOPE_REFUSAL),
+                "out-of-scope refusal must remain terminal",
+            )
+            self.assertFalse(
+                runner_shared.finalize_refusal_is_retryable(MISSING_RECEIPT_REFUSAL),
+                "missing receipt refusal must remain terminal",
+            )
+            # Mixed message pairing IPD-S401 line with an out-of-scope line
+            mixed = (
+                f"refused: {summary}\n"
+                f"  IPD-FINALIZE {ipd_lint.C_EXEC_STATE} E-01: execution checkbox does not agree with state 'performed'\n"
+                f"  IPD-FINALIZE {ipd_lint.C_CHECKPOINT} out-of-scope path needs a --scope-reason: agent_workflows/cli.py"
+            )
+            self.assertFalse(
+                runner_shared.finalize_refusal_is_retryable(mixed),
+                "mixed retryable and out-of-scope findings must remain terminal",
+            )
+
+    def test_every_pre_transition_diagnostic_code_is_deliberately_classified(self):
+        """E-04 / F-10: Total coverage pin ensuring every pre-transition diagnostic code is deliberately classified."""
+        KNOWN_TERMINAL_CODES = frozenset({ipd_lint.C_CHECKPOINT})
+        retryable_codes = runner_shared.retryable_finalize_finding_codes()
+        prose_allowlist = runner_shared.RETRYABLE_FINALIZE_FINDING_TEXTS
+
+        collected_codes = set()
+        with tempfile.TemporaryDirectory() as temp:
+            # Plan 1: pending states family -> produces C_CHECKPOINT (IPD-S404)
+            plan1 = Path(temp) / "plan1.ipd.md"
+            plan1.write_text(
+                self._conforming_synthetic_plan(
+                    e_state="pending",
+                    v_result="pending",
+                    v_evidence="",
+                ),
+                encoding="utf-8",
+            )
+            # Plan 2: performed/pass with unticked checkboxes -> produces C_EXEC_STATE (IPD-S401) and C_VALID_STATE (IPD-S402)
+            plan2 = Path(temp) / "plan2.ipd.md"
+            plan2.write_text(
+                self._conforming_synthetic_plan(
+                    e_state="performed",
+                    v_result="pass",
+                    v_evidence="verified evidence in test",
+                    e_ticked=False,
+                    v_ticked=False,
+                ),
+                encoding="utf-8",
+            )
+
+            all_diagnostics = []
+            for p in (plan1, plan2):
+                res = ipd_lint.lint_file(p, checkpoint="pre-transition")
+                all_diagnostics.extend(res.diagnostics)
+                for d in res.diagnostics:
+                    collected_codes.add(d.code)
+
+            # Confirm both families are exercised
+            self.assertTrue(
+                collected_codes & {ipd_lint.C_CHECKPOINT},
+                f"expected at least one C_CHECKPOINT diagnostic in {collected_codes}",
+            )
+            self.assertTrue(
+                collected_codes & {ipd_lint.C_EXEC_STATE, ipd_lint.C_VALID_STATE},
+                f"expected at least one C_EXEC_STATE/C_VALID_STATE diagnostic in {collected_codes}",
+            )
+
+            # Three-way partition assertion: every diagnostic must be deliberately classified
+            for d in all_diagnostics:
+                in_retryable_codes = d.code in retryable_codes
+                matched_by_prose = any(token in d.message for token in prose_allowlist)
+                in_known_terminal = d.code in KNOWN_TERMINAL_CODES
+                self.assertTrue(
+                    in_retryable_codes or matched_by_prose or in_known_terminal,
+                    f"Pre-transition diagnostic code {d.code!r} ({d.message!r}) is not deliberately classified! "
+                    "Classify the new code deliberately by adding it to retryable codes, "
+                    "RETRYABLE_FINALIZE_FINDING_TEXTS, or KNOWN_TERMINAL_CODES.",
+                )
+
+    def test_e2e_real_finalize_checkbox_mismatch_is_retryable(self):
+        """E-06 / F-02: End-to-end proof driving real CLI subprocesses to the checkbox mismatch refusal."""
+        if shutil.which("git") is None:
+            raise unittest.SkipTest("git binary not available in PATH")
+
+        env = dict(os.environ)
+        env["AW_NO_REEXEC"] = "1"
+        env["AW_NONINTERACTIVE"] = "1"
+        env.pop("AW_EXECUTION_ROLE", None)
+
+        with tempfile.TemporaryDirectory() as td:
+            repo_dir = Path(td)
+            try:
+                subprocess.run(
+                    ["git", "init", "-b", "main", str(repo_dir)],
+                    check=True,
+                    capture_output=True,
+                )
+                subprocess.run(
+                    ["git", "config", "user.email", "test@example.com"],
+                    cwd=repo_dir,
+                    check=True,
+                )
+                subprocess.run(
+                    ["git", "config", "user.name", "test"], cwd=repo_dir, check=True
+                )
+            except (subprocess.SubprocessError, OSError) as exc:
+                raise unittest.SkipTest(f"subprocess execution restricted: {exc}")
+
+            (repo_dir / "target.py").write_text("# target\n", encoding="utf-8")
+            subprocess.run(["git", "add", "target.py"], cwd=repo_dir, check=True)
+            subprocess.run(
+                ["git", "commit", "-m", "initial commit"], cwd=repo_dir, check=True
+            )
+
+            # 1. Real aw ipd scaffold
+            scaffold_res = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "agent_workflows",
+                    "ipd",
+                    "scaffold",
+                    "--kind",
+                    "child",
+                    "--order",
+                    "1",
+                    "--set",
+                    "testset",
+                    "--title",
+                    "E2E Test Plan",
+                    "--author",
+                    "tester",
+                    "--priority",
+                    "medium",
+                    "--work-kind",
+                    "chore",
+                    "--apply",
+                ],
+                cwd=repo_dir,
+                env=env,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(
+                0, scaffold_res.returncode, f"scaffold failed: {scaffold_res.stderr}"
+            )
+
+            pending_dir = repo_dir / ".aw" / "records" / "plans" / "pending"
+            plans = list(pending_dir.glob("*.md"))
+            self.assertEqual(
+                1, len(plans), f"expected 1 scaffolded plan, found {len(plans)}"
+            )
+            plan_file = plans[0]
+
+            # 2. Hand-edit to approved with Scope-Paths and Approval:
+            content = plan_file.read_text(encoding="utf-8")
+            content = re.sub(r"- Status: draft", "- Status: approved", content)
+            content = re.sub(r"- Scope-Paths:.*", "- Scope-Paths: target.py", content)
+            content = re.sub(
+                r"- Item-Dependencies:.*", "- Item-Dependencies: none", content
+            )
+            content = re.sub(
+                r"- Id: (\w+)",
+                r"- Id: \1\n- Approval: 2026-09-30, approved via test",
+                content,
+            )
+            plan_file.write_text(content, encoding="utf-8")
+            subprocess.run(["git", "add", str(plan_file)], cwd=repo_dir, check=True)
+            subprocess.run(
+                ["git", "commit", "-m", "approve plan"], cwd=repo_dir, check=True
+            )
+
+            # 3. Real aw ipd begin
+            begin_res = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "agent_workflows",
+                    "ipd",
+                    "begin",
+                    plan_file.name,
+                    "--actor",
+                    "tester",
+                ],
+                cwd=repo_dir,
+                env=env,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(
+                0,
+                begin_res.returncode,
+                f"begin failed: {begin_res.stdout} {begin_res.stderr}",
+            )
+
+            # 4. Set performed/pass/evidence but leave checkboxes unticked
+            content = plan_file.read_text(encoding="utf-8")
+            content = re.sub(
+                r"Execution state: pending", "Execution state: performed", content
+            )
+            content = re.sub(r"Result: pending", "Result: pass", content)
+            content = re.sub(
+                r"Observed evidence:",
+                "Observed evidence: verified passing in test",
+                content,
+            )
+            plan_file.write_text(content, encoding="utf-8")
+
+            # 5. Real aw ipd finalize --apply
+            finalize_res = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "agent_workflows",
+                    "ipd",
+                    "finalize",
+                    plan_file.name,
+                    "--actor",
+                    "tester",
+                    "--message",
+                    "test finalize",
+                    "--apply",
+                ],
+                cwd=repo_dir,
+                env=env,
+                capture_output=True,
+                text=True,
+            )
+            self.assertNotEqual(
+                0, finalize_res.returncode, "finalize should refuse on unticked boxes"
+            )
+
+            # Refusal observed by the real CLI
+            real_refusal = (finalize_res.stdout or "").strip()
+            self.assertIn("IPD-S401", real_refusal)
+            self.assertIn("IPD-S402", real_refusal)
+
+            # Assert retryable classifier recognizes real refusal
+            self.assertTrue(
+                runner_shared.finalize_refusal_is_retryable(real_refusal),
+                f"Real finalize refusal was not classified as retryable: {real_refusal}",
+            )
 
     def test_finalize_precheck_stale_receipt_refusal_is_retryable(self):
         """The retry allowlist recognizes the stale-receipt refusal emitted by finalize_precheck."""
