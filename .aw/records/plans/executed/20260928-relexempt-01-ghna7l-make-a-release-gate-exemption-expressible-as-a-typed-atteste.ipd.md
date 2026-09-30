@@ -6,7 +6,7 @@
 - Scope: Add a TYPED, ATTESTED exemption as a sibling front-matter pair on a backlog item - `- Release-Exempt-Kind:` (a closed enum reusing `attention_contract.GATE_KINDS`) plus `- Release-Exempt-Ref:` (validated per kind by the shipped `attention_contract.validate_gate_ref`) - modelled directly on the existing `Gate-Kind`/`Gate-Ref` typed pair. Teach `check_live_bug_gate` to treat a VALID exempt pair as satisfying, add the conditional-presence validation both directions (a malformed pair is a finding; an exempt pair alongside a live gate is a contradiction), wire both `aw backlog set` dispatch paths and `aw backlog new`, and amend the two docs surfaces plus the I-07 catalog row. Does NOT touch `check.blocks-release-dangling`, does NOT make `- Blocks-Release: -` mean anything new, does NOT extend the exemption to specs or plans, and does NOT re-gate or exempt any existing item.
 - Scope-Paths: agent_workflows/backlog.py, agent_workflows/check_engine.py, agent_workflows/cli.py, agent_workflows/status_set.py, tests/test_backlog.py, tests/test_check_engine_release_gate.py, AGENTS.md, .aw/records/backlog/README.md, .aw/records/specs/draft/20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 08
 - Author: opencode
 - Id: ghna7l
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: ghna7l verified (set relexempt, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-A01..PR-A06 all FIXED; Readiness go-pending-approval
 
