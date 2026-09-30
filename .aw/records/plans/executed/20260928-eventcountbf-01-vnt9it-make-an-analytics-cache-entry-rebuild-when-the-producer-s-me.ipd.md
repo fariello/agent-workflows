@@ -6,7 +6,7 @@
 - Scope: Fold the producer's declared metric/event vocabulary into `run_analytics_cache.source_fingerprint`, so a producer that adds or removes a metric key invalidates every entry written under the old vocabulary and the next ordinary sweep rebuilds it. Add a self-enforcing guard so the declaration cannot silently drift from what the producer actually emits, first-ever coverage for `aw runs analyze --rebuild`, and the docs amendment for the invalidation table.
 - Scope-Paths: agent_workflows/run_analytics.py, agent_workflows/run_analytics_cache.py, tests/test_run_analytics.py, tests/test_run_analytics_cli.py, docs/run-analytics.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: vnt9it
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: vnt9it verified (set eventcountbf, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; five findings PR-701..PR-705 all fixed (two HIGH on the grain-dependent vocabulary definition and the per-run fold hazard); review record written; readiness go-pending-approval
 
