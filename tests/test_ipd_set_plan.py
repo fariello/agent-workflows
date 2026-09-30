@@ -623,8 +623,10 @@ class TestCorpusNoRegression(unittest.TestCase):
     def test_tracked_orchestrators_mostly_parse(self):
         import glob
 
+        repo_root = Path(__file__).resolve().parent.parent
+        plans_pattern = str(repo_root / ".aw" / "records" / "plans" / "*" / "*.ipd.md")
         total = parsed = 0
-        for f in glob.glob(".aw/records/plans/*/*.ipd.md"):
+        for f in glob.glob(plans_pattern):
             try:
                 txt = Path(f).read_text(encoding="utf-8")
             except OSError:
@@ -648,16 +650,22 @@ class TestCorpusNoRegression(unittest.TestCase):
         """The load-bearing invariant: a table may be refused, but never silently."""
         import glob
 
-        for f in glob.glob(".aw/records/plans/*/*.ipd.md"):
+        repo_root = Path(__file__).resolve().parent.parent
+        plans_pattern = str(repo_root / ".aw" / "records" / "plans" / "*" / "*.ipd.md")
+        total = 0
+        for f in glob.glob(plans_pattern):
             try:
                 txt = Path(f).read_text(encoding="utf-8")
             except OSError:
                 continue
             if "## " + sp._schema.H_CHILD_IPDS not in txt:
                 continue
+            total += 1
             res = sp.parse_child_table(txt)
             if res.rows is None:
                 self.assertTrue(res.reason, f"{f} refused with no reason")
+        if total == 0:
+            self.skipTest("no tracked orchestrators visible from the test cwd")
 
 
 if __name__ == "__main__":
