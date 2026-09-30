@@ -1,11 +1,13 @@
 - Id: 3wofej
-- Status: open
+- Status: graduated
+- Graduated-To: 3wofej
 - Set: 3wofej
 - Priority: low
 - Work-Kind: chore
 - Summary: Managed AGENTS.md instruction text says addopts supplies -m 'not slow' but the actual value is -m 'not slow and not livecorpus'
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053053Z-3200037: zb81ah
 - 2026-09-28 created (aw backlog): Managed AGENTS.md instruction text says addopts supplies -m 'not slow' but the actual value is -m 'not slow and not livecorpus'
 
 FILED AS THE CARRIER FOR FINDING `F6` OF PLAN `kmzude` (set `testlocality`, from backlog `5mc38x`), which found this while measuring how the default test run treats deselected and skipped tests. Out of scope there: that plan's `- Scope-Paths:` covers `GUIDING_PRINCIPLES.md`, `CONTRIBUTING.md` and one test file, while this fix lands in `agent_workflows/engine.py`, whose text installs into EVERY managed repository.
