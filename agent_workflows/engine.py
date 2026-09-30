@@ -652,7 +652,7 @@ def is_source_checkout(
     return True
 
 
-def resolve_source_root(provided: Path | None) -> Path:
+def resolve_source_root(provided: Path | str | None) -> Path:
     """Resolve the source directory and validate it (E-01, E-02).
 
     Resolution order:
@@ -664,7 +664,7 @@ def resolve_source_root(provided: Path | None) -> Path:
     """
 
     if provided is not None:
-        candidate = provided.expanduser().resolve()
+        candidate = Path(provided).expanduser().resolve()
         if (candidate / ".aw" / "system").is_dir():
             candidate = candidate / ".aw" / "system"
         elif (candidate / ".agents" / "workflows").is_dir():

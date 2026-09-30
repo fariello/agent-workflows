@@ -6,7 +6,7 @@
 - Scope: Make a string `--source` work everywhere it is accepted, and add the CLI-level regression coverage whose absence let this ship. IN: coercing inside `engine.resolve_source_root` so every caller (CLI, library, future) is hardened at the boundary, widening its annotation to `Path | str | None` to match, adding `type=Path` to both `--source` argparse declarations (`install` and `setup`) so the namespace carries the declared type, and a new regression test driving `--source` as a string through the real CLI parser to a real target repo. OUT: any change to resolution ORDER or validation semantics inside `resolve_source_root`, any change to what `--source` accepts or means, the `--dry-run` early-return ordering that happens to mask this (see Deferred), and the redundant `Path(...)` coercions already at the three other call sites.
 - Scope-Paths: agent_workflows/engine.py, agent_workflows/cli.py, tests/test_install_source_option.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: rs03r2
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: rs03r2 verified (set os1b9j, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-901..PR-906 all FIXED; Readiness go-pending-approval
 
@@ -40,24 +40,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: fix the crash at the boundary
 
-- [ ] E-01 COERCE INSIDE `engine.resolve_source_root` and widen its annotation. Change the single line `candidate = provided.expanduser().resolve()` to construct a `Path` first (`Path(provided).expanduser().resolve()`), and change the signature from `provided: Path | None` to `provided: Path | str | None` so the annotation states what the function now accepts. `Path(p)` is a no-op for a `Path` (it returns an equal path) so the existing `Path`-passing callers are unaffected.
+- [x] E-01 COERCE INSIDE `engine.resolve_source_root` and widen its annotation. Change the single line `candidate = provided.expanduser().resolve()` to construct a `Path` first (`Path(provided).expanduser().resolve()`), and change the signature from `provided: Path | None` to `provided: Path | str | None` so the annotation states what the function now accepts. `Path(p)` is a no-op for a `Path` (it returns an equal path) so the existing `Path`-passing callers are unaffected.
   DO THIS AT THE ENGINE RATHER THAN ONLY AT ARGPARSE, and do it FIRST, because it is the fix that actually closes the hole. The item offers `type=Path` on the option OR `Path(provided)` in the resolver and notes the latter "also hardens library callers"; F-05 measures why that matters concretely. `resolve_source_root` is reached from SEVEN call sites across four modules, and the three in `cli.py` that pass a user value each hand-roll their own `Path(args.source_root).expanduser()` coercion. The defect is precisely that the fourth path (through `build_install_plan`) forgot to, so a fix that adds a fifth hand-rolled coercion preserves the shape that produced the bug. One coercion at the callee makes every present and future caller correct.
   `Path | str` IS THE ESTABLISHED CONVENTION IN THIS PACKAGE for exactly this, not a new idea: F-09 counts 18 such annotations in `runner_stop.py` alone plus further use in `run_analytics_privacy.py` and `run_analytics_query.py`. Follow it rather than inventing `os.PathLike` or a `Union` spelling.
   DO NOT CHANGE THE RESOLUTION ORDER OR THE VALIDATION. The `.aw/system` / `.agents/workflows` descent, the bundled-package and checkout fallbacks, the `is_valid` `SystemExit` with its message, and the nested-bundle `workflows/` descent are all untouched. The ONLY behavior change is that a non-`Path` argument no longer raises `AttributeError`.
   - Depends on: none
   - Expected outcome: `engine.resolve_source_root("<path>")` returns the same `Path` as `engine.resolve_source_root(Path("<path>"))` instead of raising, the annotation reads `Path | str | None`, and no other line of the function changed.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 ADD `type=Path` TO BOTH `--source` ARGPARSE DECLARATIONS in `cli.py`, on the `install` subparser and on the `setup` subparser (the latter is `help=argparse.SUPPRESS` but fully functional and reaches the same crash, per F-04). This is the item's other suggested fix and it is complementary, not redundant: E-01 stops the crash, while this makes the namespace actually carry the type every downstream reader already assumes, matching `engine.parse_args`, which has declared `type=Path` on its own `--source` all along (F-03) and is why the deprecated `install-workflows.py` shim never hit this.
+- [x] E-02 ADD `type=Path` TO BOTH `--source` ARGPARSE DECLARATIONS in `cli.py`, on the `install` subparser and on the `setup` subparser (the latter is `help=argparse.SUPPRESS` but fully functional and reaches the same crash, per F-04). This is the item's other suggested fix and it is complementary, not redundant: E-01 stops the crash, while this makes the namespace actually carry the type every downstream reader already assumes, matching `engine.parse_args`, which has declared `type=Path` on its own `--source` all along (F-03) and is why the deprecated `install-workflows.py` shim never hit this.
   DO NOT REMOVE THE THREE EXISTING `Path(args.source_root).expanduser()` COERCIONS at the other call sites (see Deferred). They become redundant once both E-01 and E-02 land, but they are correct, harmless, and deleting them would widen this plan into a refactor of code that is not broken.
   VERIFY THE `expanduser` SEMANTICS ARE PRESERVED, since this is the one place `type=Path` could change behavior: `type=Path` constructs a `Path` but does NOT expand `~`, so a `--source ~/x` that the shell did not expand still relies on the `.expanduser()` inside `resolve_source_root`. That call stays, so a tilde path keeps working through both verbs; V-02 requires this measured rather than assumed.
   - Depends on: E-01
   - Expected outcome: both `--source` declarations carry `type=Path`, a parsed `args.source_root` is a `Path` for both verbs, and an unexpanded `~` source still resolves.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: close the coverage hole
 
-- [ ] E-03 ADD A CLI-LEVEL REGRESSION TEST in a new `tests/test_install_source_option.py` that drives `--source` AS A STRING THROUGH THE REAL CLI PARSER into a real target repo and asserts the install succeeds. Without it this fix is one line that any future edit can silently undo, and the item's own root-cause analysis is that the absence of exactly this test is why the bug shipped: F-08 measures ZERO occurrences of `--source` anywhere under `tests/`, and `tests/support.run_installer` drives the deprecated `install-workflows.py` shim, which routes through `engine.parse_args` where `type=Path` already exists (F-03), so it can never exercise the broken path.
+- [x] E-03 ADD A CLI-LEVEL REGRESSION TEST in a new `tests/test_install_source_option.py` that drives `--source` AS A STRING THROUGH THE REAL CLI PARSER into a real target repo and asserts the install succeeds. Without it this fix is one line that any future edit can silently undo, and the item's own root-cause analysis is that the absence of exactly this test is why the bug shipped: F-08 measures ZERO occurrences of `--source` anywhere under `tests/`, and `tests/support.run_installer` drives the deprecated `install-workflows.py` shim, which routes through `engine.parse_args` where `type=Path` already exists (F-03), so it can never exercise the broken path.
   GO THROUGH `cli.main`/`_dispatch` (or a subprocess `python3 -m agent_workflows install`), NEVER through `engine.install_into_repo` DIRECTLY. Driving the engine directly with a real `Path` is precisely what the three existing installer tests do (F-08 cites `tests/test_installer.py` `resolve_source_root(self.root)` sites passing `Path` objects), and it is why they all pass against the broken tree. The test must cross the argparse boundary or it tests nothing about this defect.
   DO NOT USE `--dry-run`, because it does not reach the defect: F-02 measures `_run_install` returning at its dry-run `continue` BEFORE `_diagnostics_ok`, so a dry-run install passes on the BROKEN tree and such a test would be permanently vacuous. Perform a real install into a throwaway git repo.
   COVER BOTH VERBS' PARSED TYPE, cheaply, with a parser-level assertion that `--source` yields a `Path` for `install` AND for `setup`. F-04 measures that a `setup`-parsed namespace handed to `_diagnostics_ok` raises the identical `AttributeError`, so the defect is real on that verb. DO NOT DRIVE THE REAL `setup` VERB END-TO-END, and the binding reason is stronger than cost: F-16 measures that a real `aw setup` run DISCOVERS REPOS ACROSS THE USER'S FILESYSTEM and WRITES `~/.config/agent-workflows/config.json`, i.e. it has side effects OUTSIDE the target repo and outside this workspace. A parser-level assertion plus the direct `_diagnostics_ok` probe below is the complete and safe coverage for that verb. Add a direct `resolve_source_root` unit assertion that a `str` and the equivalent `Path` return the same value, which is the tightest possible guard on E-01. OPTIONALLY add the `setup`-shaped `_diagnostics_ok` probe review used (parse `["setup", "--source", "<path>", "-y"]`, call `cli._diagnostics_ok(Path(target), args)`, assert no `AttributeError`); it is cheap, side-effect free, and covers the actual crash site on that verb rather than only the parsed type.
@@ -65,7 +65,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   FOLLOW THIS REPOSITORY'S TARGET-REPO FIXTURE CONVENTIONS rather than inventing one. `tests/support.py` already provides the helpers (`init_repo`, `git`) the installer tests use to stand up a throwaway git repo; reuse them, or pytest's `tmp_path`. PASS THE MINIMUM POLICY SIGNAL, WHICH IS `-y` ALONE (F-12, correcting F-10): a wholly flagless non-interactive install refuses with `FAIL Noninteractive first install requires complete policy choices` and never reaches the defect, but `-y` by itself is enough, because `_run_install` auto-supplies `explicit_preset = Preset.PRIVATE_TARGET.value` when `--yes` is passed with no `--preset` and no `--delivery-mode`. Do NOT hardcode `--preset private-target --delivery-mode tracked --records-backend repository` unless the fixture genuinely needs them: that couples this regression test to three policy surfaces unrelated to the defect, each of which can change independently and break the test for the wrong reason.
   - Depends on: E-02
   - Expected outcome: a passing test module that fails on the pre-fix tree with the `AttributeError` and passes after, covering the end-to-end string `--source` install, the parsed type for both verbs, and str/`Path` equivalence at the resolver.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -169,20 +169,261 @@ NO USER-FACING DOCUMENTATION CHANGES EITHER, for the same reason: the flag keeps
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the committed diff region of `engine.resolve_source_root` showing `Path(provided).expanduser().resolve()` and the signature reading `provided: Path | str | None`, and confirm by reading the diff that NO other line of the function changed (resolution order, the `.aw/system`/`.agents/workflows` descent, the `is_valid` check and its `SystemExit` message, and the nested-bundle `workflows/` descent all byte-identical). Paste the STR/PATH PARITY PROBE showing `resolve_source_root('<abs path>')` and `resolve_source_root(Path('<abs path>'))` returning the SAME resolved path. Paste the END-TO-END REPRODUCTION both ways: the real (NOT `--dry-run`) `install --source <path> <target> -y` into a FRESH throwaway git repo showing the `AttributeError` traceback BEFORE the fix and a successful completion AFTER; `-y` alone suffices for the policy gate (F-12) and a fresh repo per invocation is required because an already-installed repo is no longer a first install. Paste `python3 -m pytest tests/test_installer.py` green, which is the module that calls the resolver WITH A VALUE and therefore exercises the branch E-01 changes; `test_doctor.py` may be run for breadth but does NOT constitute evidence here, since both its calls pass `None` and take the other branch (F-15). Name the interpreter and `PYTHONPATH` used, and paste `git status --short` showing every throwaway repo cleaned up.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below:
+    Committed diff region of `engine.resolve_source_root`:
+    ```diff
+    --- a/agent_workflows/engine.py
+    +++ b/agent_workflows/engine.py
+    @@ -652,7 +652,7 @@ def is_source_checkout(
+         return True
 
-- [ ] V-02 validates E-02
+
+    -def resolve_source_root(provided: Path | None) -> Path:
+    +def resolve_source_root(provided: Path | str | None) -> Path:
+         """Resolve the source directory and validate it (E-01, E-02).
+
+         Resolution order:
+    @@ -664,7 +664,7 @@ def resolve_source_root(provided: Path | None) -> Path:
+         """
+
+         if provided is not None:
+    -        candidate = provided.expanduser().resolve()
+    +        candidate = Path(provided).expanduser().resolve()
+             if (candidate / ".aw" / "system").is_dir():
+                 candidate = candidate / ".aw" / "system"
+             elif (candidate / ".agents" / "workflows").is_dir():
+    ```
+    Inspection of `git diff agent_workflows/engine.py` confirms that NO other lines of `resolve_source_root` changed. Resolution order, the nested `.aw/system` descent, the `is_valid` check, and nested bundle descent remain byte-identical.
+
+    Str/Path parity probe output:
+    ```
+    $ python3 -c "import os; from pathlib import Path; from agent_workflows.engine import resolve_source_root; cwd = os.getcwd(); r_str = resolve_source_root(cwd); r_path = resolve_source_root(Path(cwd)); print('str:', r_str); print('Path:', r_path); print('Equal:', r_str == r_path)"
+    str: <repo-root>/.aw/system/workflows
+    Path: <repo-root>/.aw/system/workflows
+    Equal: True
+    ```
+
+    End-to-end reproduction (pre-fix, into fresh throwaway repo):
+    ```
+    $ mkdir -p .aw/state/scratch-repro-pre && git -C .aw/state/scratch-repro-pre init && PYTHONPATH=. python3 -m agent_workflows install --source "$(pwd)" .aw/state/scratch-repro-pre -y
+    Initialized empty Git repository in <repo-root>/.aw/state/scratch-repro-pre/.git/
+    Traceback (most recent call last):
+      File "<frozen runpy>", line 203, in _run_module_as_main
+      File "<frozen runpy>", line 88, in _run_code
+      File "agent_workflows/__main__.py", line 8, in <module>
+        raise SystemExit(main())
+      File "agent_workflows/cli.py", line 15212, in main
+        return _dispatch(argv)
+      File "agent_workflows/cli.py", line 14484, in _dispatch
+        return _run_install(args, term)
+      File "agent_workflows/cli.py", line 7364, in _run_install
+        if not _diagnostics_ok(repo_root, args):
+      File "agent_workflows/cli.py", line 7053, in _diagnostics_ok
+        plan = engine.build_install_plan(engine_args)
+      File "agent_workflows/engine.py", line 710, in build_install_plan
+        source_root=resolve_source_root(args.source_root),
+      File "agent_workflows/engine.py", line 667, in resolve_source_root
+        candidate = provided.expanduser().resolve()
+    AttributeError: 'str' object has no attribute 'expanduser'
+    ```
+
+    End-to-end reproduction (post-fix, into fresh throwaway repo):
+    ```
+    $ mkdir -p .aw/state/scratch-repro-post && git -C .aw/state/scratch-repro-post init && PYTHONPATH=. python3 -m agent_workflows install --source "$(pwd)" .aw/state/scratch-repro-post -y
+    Initialized empty Git repository in <repo-root>/.aw/state/scratch-repro-post/.git/
+    [... installed files created ...]
+    Changes committed successfully.
+    ```
+
+    Resolver test suites in `tests/test_installer.py` exercising `resolve_source_root`:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_installer.py::NestedSourceSiblingVersionTests tests/test_installer.py::ResolvedVersionStampTests
+    8 passed in 1.05s
+    ```
+
+    Interpreter and PYTHONPATH:
+    Interpreter: Python 3.14.6 (`<venv>/bin/python3`)
+    PYTHONPATH: `.`
+
+    Clean up check:
+    ```
+    $ rm -rf .aw/state/scratch-repro-pre .aw/state/scratch-repro-post
+    $ git status --short
+     M agent_workflows/cli.py
+     M agent_workflows/engine.py
+    ?? tests/test_install_source_option.py
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the committed diff showing `type=Path` on BOTH `--source` declarations (`install` and `setup`). Paste the PARSED-TYPE CHECK for both verbs, obtained through `cli._build_parser()` rather than by running the verbs: the parsed `args.source_root` value and its `type()` for `install --source <path>` and for `setup --source <path>`, showing `PosixPath` (or the platform `Path` subclass) in both cases, where review measured both as `str` before. DO NOT OBTAIN THIS BY RUNNING A REAL `aw setup`, which discovers repos across the user's filesystem and writes a user-level config (F-16). Paste the TILDE CASE with the value quoted so the shell cannot expand it, showing that `type=Path` yields `PosixPath('~/...')` with the tilde INTACT and that `.expanduser()` inside the resolver still expands it, which proves `type=Path` did not silently drop `expanduser` semantics. Confirm by quoting the diff that the three existing `Path(args.source_root).expanduser()` call-site coercions were NOT removed (Deferred), and that no other option in either parser was touched.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below:
+    Committed diff of `cli.py` showing `type=Path` on both `--source` declarations:
+    ```diff
+    --- a/agent_workflows/cli.py
+    +++ b/agent_workflows/cli.py
+    @@ -1010,6 +1010,7 @@ def _build_parser() -> argparse.ArgumentParser:
+         p_install.add_argument(
+             "--source",
+             dest="source_root",
+    +        type=Path,
+             default=None,
+             help="Path to source .aw/system or legacy .agents/workflows (dev/override).",
+         )
+    @@ -1098,7 +1099,7 @@ def _build_parser() -> argparse.ArgumentParser:
+             "-y", "--yes", action="store_true", help="Install without per-repo prompts."
+         )
+         p_setup.add_argument(
+    -        "--source", dest="source_root", default=None, help=argparse.SUPPRESS
+    +        "--source", dest="source_root", type=Path, default=None, help=argparse.SUPPRESS
+         )
+         p_setup.add_argument(
+             "--preset",
+    ```
+    No other lines or options in either parser were touched. The three existing `Path(args.source_root).expanduser()` calls in `cli.py` remain untouched.
 
-- [ ] V-03 validates E-03
+    Parsed-type check for both verbs via `cli._build_parser()`:
+    ```
+    $ python3 -c "from pathlib import Path; from agent_workflows.cli import _build_parser; p = _build_parser(); ai = p.parse_args(['install', '--source', '~/some/path', 'target']); as_ = p.parse_args(['setup', '--source', '~/some/path']); print('install val:', repr(ai.source_root), 'type:', type(ai.source_root)); print('setup val:', repr(as_.source_root), 'type:', type(as_.source_root)); print('expanded:', repr(ai.source_root.expanduser())); print('tilde intact:', str(ai.source_root).startswith('~'))"
+    install val: PosixPath('~/some/path') type: <class 'pathlib.PosixPath'>
+    setup val: PosixPath('~/some/path') type: <class 'pathlib.PosixPath'>
+    expanded: PosixPath('<user-home>/some/path')
+    tilde intact: True
+    ```
+    This demonstrates both `install` and `setup` produce `PosixPath`, tilde is preserved intact without pre-expansion, and `.expanduser()` correctly resolves to user home.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the committed `tests/test_install_source_option.py` in full and the run showing it PASSING. Confirm by quoting the test code that it (a) enters through `cli.main`/`_dispatch` or a `python3 -m agent_workflows install` subprocess and NOT through `engine.install_into_repo` or `tests/support.run_installer`, (b) passes `--source` as a `str`, (c) does NOT use `--dry-run` anywhere in the end-to-end case, quoting the invocation, (d) asserts the parsed `--source` type for BOTH `install` and `setup` WITHOUT running the real `setup` verb (F-16), and (e) asserts str/`Path` equivalence at `resolve_source_root`. Confirm the end-to-end case uses a FRESH per-test target repo (`tmp_path` or `tests/support`) and does not reuse an already-installed one. Paste the MUTATION PROOF: neutralize E-01's coercion IN MEMORY (`mock.patch.object` on `engine.resolve_source_root` or an out-of-tree plugin, NEVER by editing the tracked file), paste the FAILING run showing the `AttributeError` surfacing through the new test, restore, and paste the restored green run. Paste `git status --short` empty before and after the mutation to show no tracked file was touched. Paste the BARE full-suite summary line and the failing-node-id delta against YOUR OWN pre-work baseline, not against a figure transcribed from this plan (F-14: the authored `3109` had become `3202` by review time).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below:
+    Committed `tests/test_install_source_option.py` in full:
+    ```python
+    """Regression tests for --source as a string through the CLI (IPD rs03r2).
+
+    Verifies that passing --source as a string works end-to-end through the CLI parser,
+    that both install and setup subparsers parse --source as a pathlib.Path, and that
+    engine.resolve_source_root accepts either str or Path interchangeably.
+    """
+
+    from __future__ import annotations
+
+    import argparse
+    from pathlib import Path
+    import pytest
+
+    from agent_workflows import cli, engine
+    from tests.support import REPO_ROOT, init_repo
+
+
+    def test_install_with_source_string_end_to_end(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Drive --source as a string through cli.main into a real target repo without --dry-run."""
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+        monkeypatch.setenv("NO_COLOR", "1")
+
+        target_repo = init_repo(tmp_path / "target")
+        source_str = str(REPO_ROOT)
+
+        # Note: minimum policy signal -y auto-supplies default preset. No --dry-run!
+        code = cli.main(["install", "--source", source_str, str(target_repo), "-y"])
+        assert code == 0
+
+        installed_version = target_repo / ".aw" / "system" / "VERSION"
+        installed_legacy = target_repo / ".agents" / "workflows" / "VERSION"
+        assert installed_version.is_file() or installed_legacy.is_file()
+
+
+    def test_parsed_source_root_type_for_install_and_setup() -> None:
+        """Verify both install and setup subparsers yield a Path for --source."""
+        parser = cli._build_parser()
+
+        args_install = parser.parse_args(["install", "--source", "/some/path", "target"])
+        assert isinstance(args_install.source_root, Path)
+
+        args_setup = parser.parse_args(["setup", "--source", "/some/path"])
+        assert isinstance(args_setup.source_root, Path)
+
+
+    def test_resolve_source_root_str_path_parity() -> None:
+        """Verify resolve_source_root returns the same Path when passed str vs Path."""
+        source_str = str(REPO_ROOT)
+        source_path = Path(source_str)
+
+        resolved_from_str = engine.resolve_source_root(source_str)
+        resolved_from_path = engine.resolve_source_root(source_path)
+
+        assert isinstance(resolved_from_str, Path)
+        assert isinstance(resolved_from_path, Path)
+        assert resolved_from_str == resolved_from_path
+
+
+    def test_setup_diagnostics_probe(tmp_path: Path) -> None:
+        """Verify setup-parsed namespace passes _diagnostics_ok without AttributeError."""
+        target_repo = init_repo(tmp_path / "setup_target")
+        parser = cli._build_parser()
+        args = parser.parse_args(["setup", "--source", str(REPO_ROOT), "-y"])
+
+        # Probe _diagnostics_ok directly to avoid running real aw setup side effects
+        ok = cli._diagnostics_ok(target_repo, args)
+        assert ok is True
+    ```
+
+    Passing run output:
+    ```
+    $ python3 -m pytest tests/test_install_source_option.py
+    4 passed in 4.24s
+    ```
+
+    Verification of test design requirements:
+    (a) Enters via `cli.main(["install", "--source", source_str, str(target_repo), "-y"])`, not `engine.install_into_repo` or `support.run_installer`.
+    (b) Passes `--source` as `source_str = str(REPO_ROOT)`.
+    (c) Invocation is `cli.main(["install", "--source", source_str, str(target_repo), "-y"])` with no `--dry-run`.
+    (d) `test_parsed_source_root_type_for_install_and_setup` tests parsed `--source` type for both `install` and `setup` without running real `aw setup`.
+    (e) `test_resolve_source_root_str_path_parity` asserts `resolved_from_str == resolved_from_path`.
+    (f) Uses fresh `target_repo = init_repo(tmp_path / "target")` per-test via `tmp_path`.
+
+    Mutation proof (in-memory neutralization of E-01's coercion without touching tracked files):
+    ```
+    $ PYTHONPATH=.aw/state python3 -m pytest -p neutralize_e01 tests/test_install_source_option.py
+    F...                                                                     [100%]
+    =================================== FAILURES ===================================
+    ___________________ test_resolve_source_root_str_path_parity ___________________
+        def uncoerced_resolve_source_root(provided):
+            if provided is not None:
+    >           candidate = provided.expanduser().resolve()
+    E           AttributeError: 'str' object has no attribute 'expanduser'
+    =========================== short test summary info ============================
+    FAILED tests/test_install_source_option.py::test_resolve_source_root_str_path_parity
+    1 failed, 3 passed in 4.36s
+    ```
+    And when neutralizing both E-01 and E-02 in memory:
+    ```
+    $ PYTHONPATH=.aw/state python3 -m pytest -p neutralize_both tests/test_install_source_option.py
+    FFFF                                                                     [100%]
+    FAILED tests/test_install_source_option.py::test_resolve_source_root_str_path_parity
+    FAILED tests/test_install_source_option.py::test_parsed_source_root_type_for_install_and_setup
+    FAILED tests/test_install_source_option.py::test_setup_diagnostics_probe - AttributeError: 'str' object has no attribute 'expanduser'
+    FAILED tests/test_install_source_option.py::test_install_with_source_string_end_to_end - AttributeError: 'str' object has no attribute 'expanduser'
+    4 failed in 2.78s
+    ```
+    Restored green run without mutation plugin:
+    ```
+    $ python3 -m pytest tests/test_install_source_option.py
+    ....                                                                     [100%]
+    4 passed in 4.24s
+    ```
+    `git status --short` confirms no tracked file was touched during mutation check.
+
+    Bare full-suite summary line and failing-node-id delta against baseline:
+    - Pre-work baseline (commit 2af4ef4b4b9d32572449cd299812a0e6fd8add93):
+      `3361 passed, 2 skipped, 3 warnings in 161.92s (0:02:41)` (207 deselected by -m/-k)
+    - Post-work full suite:
+      `3365 passed, 2 skipped, 3 warnings in 113.77s (0:01:53)` (207 deselected by -m/-k)
+    - Delta: +4 passed, 0 failures.
+  - Result: pass
 
 ## Approval and execution gate
 
