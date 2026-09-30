@@ -1,5 +1,6 @@
 - Id: 71wqol
-- Status: open
+- Status: graduated
+- Graduated-To: relwriteempty
 - Blocks-Release: next
 - Set: 71wqol
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: releases.set_from_backlog_line and set_blocks_release_line duplicate their field when an empty-valued line exists, because their \S+ value regex cannot match it; and aw ipd set --from-backlog writes any value unvalidated, so it can mint the dangling link check.from-backlog-dangling then errors on
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053053Z-3200037: izh17y
 - 2026-09-28 created (aw backlog): releases.set_from_backlog_line and set_blocks_release_line duplicate their field when an empty-valued line exists, because their \S+ value regex cannot match it; and aw ipd set --from-backlog writes any value unvalidated, so it can mint the dangling link check.from-backlog-dangling then errors on
 
 MEASURED 2026-09-28 at HEAD `b471551a` during `/plan-review` of plan `0ykozn`, which found this while
