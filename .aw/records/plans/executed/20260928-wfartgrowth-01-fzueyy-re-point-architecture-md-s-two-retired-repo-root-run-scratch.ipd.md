@@ -6,7 +6,7 @@
 - Scope: IN: (a) re-point the two `ARCHITECTURE.md` occurrences to `.aw/workflow-artifacts/`; (b) correct the SAME PARAGRAPH's stale tracking claim, `File-based state makes runs recoverable, auditable, committable, and`, which D117 inverted and which would leave the section still teaching the pre-relocation policy after a path-only edit; (c) re-point the one `CONTRIBUTING.md` occurrence, which must be clean before any guard can cover the root docs; (d) restore the deleted run-scratch path guard as a new focused test file, widened from the shipped-workflow tree alone to ALSO cover `docs/` and the root user-facing docs, the last DERIVED as a glob minus an explicitly reasoned exclusion constant rather than enumerated (corrected at review, PR-701), with a non-emptiness assertion PER SURFACE (PR-702); (e) prove the guard fails per surface and on each allowed spelling, in a THROWAWAY COPY of the tree rather than by mutating tracked files (PR-703); (f) VERIFY the two already-existing carrier items for the adjacent findings this plan deliberately does not fix, creating nothing new. OUT: `DECISIONS.md` (40 occurrences) and `CHANGELOG.md` (5), which are DATED HISTORICAL RECORDS where a past decision legitimately names the path it then used (D19 literally decided the repo-root location), and which are the exclusion constant's only two entries; `tools/README.md` (5) and `tools/untrack-workflow-artifacts.py`, owned by pending plan `cf7f8z` and today carrying the bare spelling correctly because its SUBJECT is the retired path, for the same reason `scan_secrets.py`'s `SKIP_DIR_NAMES` entry is deliberately bare (note, per F-12, that the file is UNREACHABLE by any of this guard's three surfaces, so it gets NO exclusion entry); every other class deleted from `tests/test_docs.py` (docs-exist, dash, support-table, model-profile, benchmark-threshold, analytics-privacy), whose restoration is its own decision; the dangling `tests/test_packaging.py` reference in the CONTRIBUTING.md sentence being edited; any production code change; `.aw/records/` history.
 - Scope-Paths: ARCHITECTURE.md, CONTRIBUTING.md, tests/test_run_scratch_path_guard.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: fzueyy
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: fzueyy verified (set wfartgrowth, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): status set to reviewed
 
