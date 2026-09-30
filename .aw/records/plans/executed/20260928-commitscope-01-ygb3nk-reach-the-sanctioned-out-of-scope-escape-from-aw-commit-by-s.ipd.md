@@ -6,7 +6,7 @@
 - Scope: Stop `aw commit`'s plan-validation gate treating `check.scope-drift` as BLOCKING, routing it to the existing non-blocking advisory channel instead, so the commit-time refusal is the one that already compares the STAGED set (`run_commit`'s own `_in_scope` branch, which measurement shows is already correctly staged-scoped) and the execution-wide reconciliation stays where it already lives, at finalize. This deliberately does NOT add a `--scope-reason` flag to `aw commit`, does NOT change `check_scope_drift`, does NOT change the rule's registered severity, and does NOT touch `aw check`, CI, or the opt-in pre-commit hook. OQ-01 records why the flag route was refused on measurement.
 - Scope-Paths: agent_workflows/work_cmd.py, tests/test_work_gate_severity.py, tests/test_scope_match.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: ygb3nk
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: ygb3nk verified (set commitscope, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; five findings PR-601..PR-605 all fixed; review record written; readiness go-pending-approval
 
