@@ -37,23 +37,23 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: accept the alias the contract already defines
 
-- [ ] E-01 Teach the research alias to `status_set.normalize_target_status`, the SHARED helper, by routing a research token through `research_contract.normalize_status`, so the `intake` alias resolves to canonical `todo` instead of being refused. Today that helper only rewrites `done`/`pending` and only `for record_type in ("plans", "prompts")`, so no research alias is ever applied, while `research_contract.STATUS_NORMALIZATIONS` is `{"intake": "todo"}` and its docstring states that read sites call `normalize_status(raw).value` "BEFORE any map/compare/band selection"; the setter is the one WRITE site that does not, which is the defect. Keep the derivation intact: do not re-list statuses, and leave `TYPE_STATUSES["research"] = set(_research_contract.HOT_STATUSES)` as-is.
+- [x] E-01 Teach the research alias to `status_set.normalize_target_status`, the SHARED helper, by routing a research token through `research_contract.normalize_status`, so the `intake` alias resolves to canonical `todo` instead of being refused. Today that helper only rewrites `done`/`pending` and only `for record_type in ("plans", "prompts")`, so no research alias is ever applied, while `research_contract.STATUS_NORMALIZATIONS` is `{"intake": "todo"}` and its docstring states that read sites call `normalize_status(raw).value` "BEFORE any map/compare/band selection"; the setter is the one WRITE site that does not, which is the defect. Keep the derivation intact: do not re-list statuses, and leave `TYPE_STATUSES["research"] = set(_research_contract.HOT_STATUSES)` as-is.
 
   THE CHANGE SITE IS THE SHARED HELPER, NOT `validate_transition_allowed`, AND THIS IS LOAD-BEARING RATHER THAN A PREFERENCE. The authored version named `validate_transition_allowed`, and measured at review that is INSUFFICIENT for this item's own requirement: `apply_status_change` (the function that actually writes the file) calls `normalize_target_status(target_status, rec.record_type)` INDEPENDENTLY on the RAW target, so normalizing inside the validator makes `intake` pass validation and then writes the literal legacy spelling. Simulated against the shipped code, the validator-only change gave `aw set intake sc0002 -> exit 0` with the file reading `status: intake`, which is precisely the outcome this item forbids; patching the shared helper instead gave `status: todo`. `normalize_target_status` has 13 call sites, all inside `status_set.py` and none elsewhere, including the two `--dry-run`/agent preview `detail=f"status: ... -> {normalize_target_status(...)}"` sites that V-01's "TARGET is `todo`, not `intake`" requirement depends on, so the one helper is the only site that satisfies validation, the write, and the preview together. Verified at review that patching the helper leaves the full suite green (`3246 passed, 2 skipped`).
   - Depends on: none
   - Expected outcome: `aw set intake <research-id6>` exits 0 and writes `status: todo` (never `status: intake`), the dry-run preview names `todo` as the target, and `aw set done|open|parked <research-id6>` still exits 1 with the existing `is not valid for research` message.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: refuse a hot target that would strand a cold-sharded doc
 
-- [ ] E-02 In the research branch of `status_set.validate_transition_allowed`, refuse a HOT target (`todo`/`active`) when the record's path is inside a cold shard tier, naming `aw research promote <id6> --to <status>` exactly as the existing cold-target refusal does. Judge the tier from `rec.path` relative to the resolved research root using the directory names the contract already owns (`research_contract.REFERENCE_DIR`, `research_contract.ARCHIVE_DIR`) and `research_contract.resolve_research_root`; do not hardcode the strings `"reference"`/`"archive"` a second time. The tier test is "the first path segment below the research root is one of those two directory names", which needs NO shard-month arithmetic at all: ignore the authored instruction to reuse `research_archive._shard_subpath`, which measured at review is the WRONG symbol for this job (its signature is `_shard_subpath(status: str, created: str)`, so it computes a DESTINATION from a status plus a date and returns `None` for any hot status; it cannot answer "which tier is this file in?" from a path). The reason a refusal is needed at all is mechanical and is the SAME reason `5e3nj2` E-09 gave for refusing a cold target: re-measured at review, `record_placement.has_lifecycle_subdirs("research")` is `False` and `record_placement.target_subdir("research", s)` returns `None` for all four of `todo`/`active`/`reference`/`archive`, so `aw set` writes the status line and CANNOT move the file. `5e3nj2` blocked the cold direction and left the hot direction open, which is an asymmetry in one guard rather than a new subsystem. `rec.path` and the optional `repo_root` are both available in this function, so the tier can be resolved without a new parameter.
+- [x] E-02 In the research branch of `status_set.validate_transition_allowed`, refuse a HOT target (`todo`/`active`) when the record's path is inside a cold shard tier, naming `aw research promote <id6> --to <status>` exactly as the existing cold-target refusal does. Judge the tier from `rec.path` relative to the resolved research root using the directory names the contract already owns (`research_contract.REFERENCE_DIR`, `research_contract.ARCHIVE_DIR`) and `research_contract.resolve_research_root`; do not hardcode the strings `"reference"`/`"archive"` a second time. The tier test is "the first path segment below the research root is one of those two directory names", which needs NO shard-month arithmetic at all: ignore the authored instruction to reuse `research_archive._shard_subpath`, which measured at review is the WRONG symbol for this job (its signature is `_shard_subpath(status: str, created: str)`, so it computes a DESTINATION from a status plus a date and returns `None` for any hot status; it cannot answer "which tier is this file in?" from a path). The reason a refusal is needed at all is mechanical and is the SAME reason `5e3nj2` E-09 gave for refusing a cold target: re-measured at review, `record_placement.has_lifecycle_subdirs("research")` is `False` and `record_placement.target_subdir("research", s)` returns `None` for all four of `todo`/`active`/`reference`/`archive`, so `aw set` writes the status line and CANNOT move the file. `5e3nj2` blocked the cold direction and left the hot direction open, which is an asymmetry in one guard rather than a new subsystem. `rec.path` and the optional `repo_root` are both available in this function, so the tier can be resolved without a new parameter.
 
   THE REMEDY THE MESSAGE NAMES IS VERIFIED TO WORK, which matters because this refusal points at a DIFFERENT promote direction than the shipped cold-target refusal does. F-3 measured only `promote --to reference`; this item's message sends the user to `promote --to <hot status>`. Confirmed at review end to end: `aw research promote sc0001 --to active` and `--to todo` both preview exit 0, and `--to active --apply` moved the doc out of `reference/202609/` back to the hot root (`still in cold shard: False`). So the refusal is not a dead end (F-13).
   - Depends on: E-01
   - Expected outcome: `aw set active <id6-of-a-doc-in-reference/YYYYMM>` exits 1, changes no bytes, and names `aw research promote`. A hot target on a doc at the hot root is unaffected and still succeeds.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 FIRST REPAIR THE ONE PRE-EXISTING TEST E-02 NECESSARILY BREAKS, then add the new coverage. The authored version of this item was built on a false premise and promised something impossible, both measured at review, so read this paragraph before touching the file.
+- [x] E-03 FIRST REPAIR THE ONE PRE-EXISTING TEST E-02 NECESSARILY BREAKS, then add the new coverage. The authored version of this item was built on a false premise and promised something impossible, both measured at review, so read this paragraph before touching the file.
 
   THE FIXTURE ALREADY SHARDS, AND ITS DEFAULT IS A COLD SHARD. The authored text says `create_research` "writes into `self.repo_root / '.aw' / 'records' / 'research'` with no shard component" and so "cannot place a doc in a shard at all". Measured, its signature is `create_research(filename, id6, set_id, status="active", kind="research-report", disposition="reference/202609")`, and it builds `base / disposition / filename`. So sharding is ALREADY supported and `reference/202609` is the DEFAULT; no fixture extension is required, and the correct way to place a doc at the HOT ROOT is the explicit `disposition=""` that `test_set_hot_status_on_prompt_refuses` already passes.
 
@@ -62,7 +62,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   THEN ADD the new outcome tests, each asserting on exit code AND on the file's bytes: (a) `intake` accepted and written as `todo` (not `intake`), which is the E-01 regression guard the review found the authored change site would have failed; (b) a hot target on a cold-sharded doc refused, byte-unchanged, with the `aw research promote` message; (c) a hot target on a hot-root doc still accepted, the guard that E-02 did not over-refuse. Show (a) and (b) FAILING against HEAD before the fix and paste that output in V-03.
   - Depends on: E-01, E-02
   - Expected outcome: three new tests; `test_set_active_writes_status_for_report` repaired by a one-argument `disposition=""` change with its assertions intact; the other three pre-existing cases byte-untouched; the full `tests/test_status_set.py` green.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -144,20 +144,130 @@ Spec `5tapom` (`.aw/records/specs/approved/20260824-5tapom-01-5tapom-research-li
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: STATE WHICH FUNCTION WAS CHANGED and confirm it is the shared `normalize_target_status` and not `validate_transition_allowed` alone (F-14: the latter passes validation and then writes `status: intake`, the exact legacy spelling this item forbids). Paste the full command and output of `aw set intake <research-id6> --dry-run` showing exit 0 and a transition line whose TARGET is `todo` (not `intake`), plus the applied (non-dry-run) run on a scratch or fixture doc showing `status: todo` in the file afterwards via a pasted `grep -n "^status:"`. That written-bytes check is the load-bearing one: a validator-only change passes the dry-run assertion and still fails here. Also paste `aw set done <id6> --dry-run` and `aw set parked <id6> --dry-run` still exiting 1 with `is not valid for research`, proving the alias did not widen the accepted set, and confirm no NON-research type's aliasing changed (paste the `plans` `done -> executed` and `pending -> to-review` cases still resolving, since the shared helper serves every type). Paste `python3 -c "from agent_workflows import status_set as s; print(sorted(s.TYPE_STATUSES['research']))"` still printing `['active', 'todo']`, proving the derivation was not replaced by a hand-listed set.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified function changed to shared normalize_target_status; dry-run target is todo; applied write yields status: todo; invalid targets refused; non-research aliasing preserved.
+    1. Function changed: `status_set.normalize_target_status` (the shared helper) was changed, guarded to `record_type == "research"`, routing via `_research_contract.normalize_status(norm)`. `validate_transition_allowed` was not modified for normalization alone.
+    2. Dry-run output:
+    ```
+    $ aw set intake fedqe6 --dry-run
+    aw: invoked in checkout .../agent-workflows/.aw/worktrees/4a8yws but imported agent_workflows from .../agent-workflows; re-running with .../.aw/worktrees/4a8yws's package (set AW_NO_REEXEC=1 to disable)
+    -    research    20260922-runresidue-00-fedqe6  active → ◕  todo  (dry-run)
+    Exit code: 0
+    ```
+    Target is canonical `todo` (not `intake`), exit 0.
+    3. Applied non-dry-run on fixture doc:
+    ```
+    BEFORE:
+    3:status: active
+    SET RC: 0
+    OUTPUT: -    research    20260928-test-01-tst001  active → ◕  todo
+    AFTER:
+    3:status: todo
+    ```
+    Grep shows `status: todo` written to disk.
+    4. Rejected non-vocabulary targets:
+    ```
+    $ aw set done fedqe6 --dry-run
+    FAIL     Validation error on 20260922-runresidue-00-fedqe6-runner-residue-per-symbol-decisions.findings.md: Status 'done' is not valid for research (valid: ['active', 'todo']). Refusing before making changes.
+    Exit code: 1
 
-- [ ] V-02 validates E-02
+    $ aw set parked fedqe6 --dry-run
+    FAIL     Validation error on 20260922-runresidue-00-fedqe6-runner-residue-per-symbol-decisions.findings.md: Status 'parked' is not valid for research (valid: ['active', 'todo']). Refusing before making changes.
+    Exit code: 1
+    ```
+    5. Non-research type aliasing preserved:
+    ```
+    $ python3 -c "from agent_workflows.status_set import normalize_target_status; print('done ->', normalize_target_status('done', 'plans')); print('pending ->', normalize_target_status('pending', 'plans'))"
+    done -> executed
+    pending -> to-review
+    ```
+    6. Vocabulary derivation preserved:
+    ```
+    $ python3 -c "from agent_workflows import status_set as s; print(sorted(s.TYPE_STATUSES['research']))"
+    ['active', 'todo']
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the command and output of `aw set active <id6-of-a-doc-under-reference/YYYYMM>` (or the fixture equivalent) showing exit 1 and a message naming `aw research promote <id6> --to active`, AND evidence the file is byte-unchanged (a pasted `git diff --stat` showing no change, or a before/after `sha256sum`). Separately paste a hot target on a HOT-ROOT doc still exiting 0 with the status written, proving the refusal is placement-scoped and did not break the normal path. Confirm the tier test uses a first-path-segment comparison against `research_contract.REFERENCE_DIR`/`ARCHIVE_DIR` and that `research_archive._shard_subpath` was NOT used (F-15: wrong signature for this job). Paste the ESCAPE-HATCH check, so the refusal is demonstrably not a dead end: `aw research promote <same-id6> --to active --apply` exiting 0 and the file moved OUT of the shard to the hot root (F-13 verified this works at review; re-run it here against the changed tree). Also paste the `archive/` tier case, not only `reference/`, since both directory names gate the refusal. Paste the F-8 corpus scan re-run reporting `HOT status sitting in COLD shard: 0`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Hot target active on reference shard 6zf5av refused naming promote (exit 1, byte-unchanged sha256); hot target on hot root tvnq50 accepted (exit 0); archive shard rrwr0z refused; promote escape hatch confirmed working; corpus scan shows 0 hot in cold shards.
+    1. Hot target on doc in reference shard refused, naming promote:
+    ```
+    $ aw set active 6zf5av --yes
+    FAIL     Validation error on 20260810-gemini-actually-validate-playbook-00-6zf5av-gemini-actually-validate-playbook.gpt56medium.research-report.md: Setting research status to 'active' is not supported via aw set; use 'aw research promote 6zf5av --to active' instead.. Refusing before making changes.
+    Exit code: 1
+    ```
+    File byte-unchanged:
+    Before sha256: 6be8c3236f40793cc6f51a33b3fc8897ca12f529c3acb1166f27ebe3f3a52140
+    After sha256:  6be8c3236f40793cc6f51a33b3fc8897ca12f529c3acb1166f27ebe3f3a52140
+    git diff --stat: 0 changes.
+    2. Hot target on hot-root doc still accepted:
+    ```
+    $ aw set active tvnq50 --dry-run
+    -    research    20260903-rununify-00-tvnq50  todo → ●  active  (dry-run)
+    Exit code: 0
+    ```
+    3. Tier test confirmation: tier check in `status_set.validate_transition_allowed` resolves research root via `_research_contract.resolve_research_root` and checks `first_seg in (_research_contract.REFERENCE_DIR, _research_contract.ARCHIVE_DIR)`; `research_archive._shard_subpath` was not used.
+    4. Escape hatch check (`aw research promote sc0001 --to active --apply`):
+    ```
+    $ python3 -m agent_workflows.cli research promote sc0001 --to active --apply --dir <temp_repo>
+    active: sc0001 -> 20260905-test-01-sc0001-sample.research-report.md
+    old file exists: False
+    new hot file exists: True
+    Exit code: 0
+    ```
+    Doc moved from `reference/202609/` out to hot root.
+    5. Archive tier case refused:
+    ```
+    $ aw set active rrwr0z --dry-run
+    FAIL     Validation error on 20260712-planrev-02-rrwr0z-chatgpt-improved-v1-780-lines.gpt56.research-report.md: Setting research status to 'active' is not supported via aw set; use 'aw research promote rrwr0z --to active' instead.. Refusing before making changes.
+    Exit code: 1
+    ```
+    6. Corpus scan re-run:
+    ```
+    Total conformant docs: 124
+    Cold shard: 64
+    Hot root: 60
+    HOT status sitting in COLD shard: 0
+    COLD status sitting at HOT root: 35
+    ```
+    `HOT status sitting in COLD shard: 0` confirmed.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the pre-fix FAILING output of the two new tests run against HEAD (the assertion text, not a summary claim), then the post-fix `python3 -m pytest tests/test_status_set.py` output including the `N passed` line, then the BARE `python3 -m pytest` summary line compared against a baseline re-run at execution time (F-17). Paste the `git diff` for `tests/test_status_set.py` and use it to state, per method, the disposition of all four pre-existing `ResearchStatusSetTests` cases: `test_set_done_refuses_for_research`, `test_set_reference_refuses_naming_research_promote` and `test_set_hot_status_on_prompt_refuses` must be BYTE-UNCHANGED, while `test_set_active_writes_status_for_report` is EXPECTED to change by exactly the `disposition=""` argument (F-12) with its `assertEqual(rc, 0)` and its `status: active` assertion intact. Confirm explicitly that `create_research` was NOT extended and no sibling helper was added, because measured at review the helper already shards by default (F-11); if the executor did add one, justify why the existing `disposition` parameter was insufficient. Finally, state that the repaired test still pins the behavior it was written for (a hot status IS writable on a hot-root report) rather than having been weakened into vacuity.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Pre-fix failures captured against HEAD (AssertionError: 1 != 0 for intake alias, AssertionError: 0 != 1 for hot on cold shard, and AssertionError: 1 != 0 for pre-existing test under E-02); post-fix tests/test_status_set.py 82 passed; bare pytest 3249 passed, 2 skipped, 3 warnings (+3 over baseline); git diff shows 3 pre-existing tests byte-unchanged and test_set_active_writes_status_for_report repaired with disposition="".
+    1. Pre-fix failing output against HEAD:
+    ```
+    FAILED tests/test_status_set.py::ResearchStatusSetTests::test_set_intake_alias_writes_todo_for_report - AssertionError: 1 != 0
+    Captured stdout: FAIL     Validation error on 20260924-rs0005-01-rs0005-test-report.research-report.md: Status 'intake' is not valid for research (valid: ['active', 'todo']). Refusing before making changes.
+
+    FAILED tests/test_status_set.py::ResearchStatusSetTests::test_set_hot_status_on_cold_sharded_report_refuses - AssertionError: 0 != 1
+    ```
+    Also confirmed F-12 pre-existing test collision under E-02 before repair:
+    ```
+    FAILED tests/test_status_set.py::ResearchStatusSetTests::test_set_active_writes_status_for_report - AssertionError: 1 != 0
+    Captured stdout: FAIL     Validation error on 20260924-rs0002-01-rs0002-test-report.research-report.md: Setting research status to 'active' is not supported via aw set; use 'aw research promote rs0002 --to active' instead.. Refusing before making changes.
+    ```
+    2. Post-fix `python3 -m pytest tests/test_status_set.py` output:
+    ```
+    82 passed in 4.03s
+    ```
+    3. Bare `python3 -m pytest` full suite run:
+    Baseline run at execution turn start:
+    `3246 passed, 2 skipped, 3 warnings in 95.82s (0:01:35)`
+    Post-fix run:
+    `3249 passed, 2 skipped, 3 warnings in 53.44s`
+    (+3 passed tests: `test_set_intake_alias_writes_todo_for_report`, `test_set_hot_status_on_cold_sharded_report_refuses`, `test_set_hot_status_on_hot_root_report_accepted`).
+    4. Git diff for `tests/test_status_set.py` and pre-existing cases disposition:
+    - `test_set_done_refuses_for_research`: BYTE-UNCHANGED
+    - `test_set_reference_refuses_naming_research_promote`: BYTE-UNCHANGED
+    - `test_set_hot_status_on_prompt_refuses`: BYTE-UNCHANGED
+    - `test_set_active_writes_status_for_report`: repaired by adding `disposition="",` to `create_research` with `assertEqual(rc, 0)` and `self.assertIn("status: active", ...)` intact.
+    - `create_research` was NOT extended and no sibling helper was added because `create_research` already accepted `disposition`.
+    - Repaired test continues to verify that a hot status (`active`) is writable on a hot-root report.
+  - Result: pass
 
 ## Approval and execution gate
 
