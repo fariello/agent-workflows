@@ -271,8 +271,10 @@ _CLOSED_VOCABULARIES: dict[str, frozenset[str]] = {
 #: "looks like a label" test. Each pattern is deliberately narrow enough that a path, a network
 #: address, a session id, or a hostname fails it.
 _SHAPED_ID_KEYS: dict[str, re.Pattern[str]] = {
-    #: A driver run id, exactly as the runners mint it: ``run-<UTC stamp>-<pid>``.
-    "run_id": re.compile(r"^run-\d{8}T\d{6}Z-\d+$"),
+    #: A driver run id, exactly as the runners mint it: ``run-<UTC stamp>-<pid>``, plus the
+    #: optional trailing numeric ``-N`` collision suffix that :func:`runner_shared.mint_run_dir`
+    #: appends on collision.
+    "run_id": re.compile(r"^run-\d{8}T\d{6}Z-\d+(?:-\d+)?$"),
     #: This package's stable 6-character artifact handle.
     "ipd_id6": re.compile(r"^[a-z0-9]{6}$"),
     #: A Set id: lowercase alphanumeric, no separator, as `aw ipd scaffold` derives it.

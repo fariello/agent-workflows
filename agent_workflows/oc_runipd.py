@@ -4781,37 +4781,19 @@ def handle_audit_command(args: argparse.Namespace) -> int:
 def _fresh_audit_run_dir(repo: Path) -> tuple[str, Path]:
     """A run directory that does NOT already exist, returned as ``(run_id, path)``.
 
-    reverify-01 (`mp289j`) E-03. THIS EXISTS BECAUSE `new_run_id` ALONE IS NOT ENOUGH, which was
-    measured while writing this verb's own tests rather than assumed: the id is
-    `run-<UTC seconds>-<pid>`, so two invocations from ONE shell inside the SAME second produce the
-    IDENTICAL id (`{new_run_id(), new_run_id()}` had length 1). For a queued run that is harmless,
-    because a run is long-lived and one process owns it. For an on-demand audit it is not: the whole
-    append-versus-overwrite answer in E-03 is that a second opinion cannot erase the first, and two
-    verdicts sharing a directory would overwrite exactly that.
+    reverify-01 (`mp289j`) E-03, runidcollide (`6mdtnu`) E-03. THIS SEAM EXISTS BECAUSE
+    `new_run_id` ALONE IS NOT ENOUGH, which was measured while writing this verb's own tests: the id
+    is `run-<UTC seconds>-<pid>`, so two invocations from ONE shell inside the SAME second produce the
+    IDENTICAL id (`{new_run_id(), new_run_id()}` had length 1). A second opinion cannot erase the
+    first, and two verdicts sharing a directory would overwrite each other.
 
-    SO THE GUARANTEE IS MADE STRUCTURAL rather than probabilistic: the base id is suffixed `-2`, `-3`
-    ... until the path is free, using `mkdir` itself as the test via `exist_ok=False`, which is atomic
-    against a concurrent audit rather than a check-then-create race.
-
-    A DELIBERATELY NARROW FIX. `new_run_id` is shared by both drivers and every queued run, so changing
-    ITS format here would alter run ids repository-wide for a hazard only this verb has; the collision
-    in the shared helper is reported as a finding with its own backlog carrier instead.
+    THE GUARANTEE IS STRUCTURAL rather than probabilistic: the base id is suffixed `-2`, `-3` ...
+    until the path is free, using `mkdir` itself via `exist_ok=False` as the atomic reservation test.
+    Lifted into :func:`runner_shared.mint_run_dir` so every runner and queued execution inherits it;
+    this wrapper delegates to the shared helper while preserving the named seam spec `i4gpto` R-7
+    requires.
     """
-
-    root = runner_shared.state_root(repo)
-    base = runner_shared.new_run_id()
-    for suffix in range(1, 100):
-        run_id = base if suffix == 1 else f"{base}-{suffix}"
-        candidate = root / run_id
-        try:
-            candidate.mkdir(parents=True, exist_ok=False)
-            return run_id, candidate
-        except FileExistsError:
-            continue
-    raise runner_shared.DriverError(
-        f"could not mint a free audit run directory under {root} after 99 attempts; something is "
-        f"creating run directories faster than this verb can name them"
-    )
+    return runner_shared.mint_run_dir(repo)
 
 
 def _audit_launch_options(args: argparse.Namespace) -> dict[str, Any]:

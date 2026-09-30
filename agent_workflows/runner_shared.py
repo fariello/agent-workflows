@@ -375,6 +375,46 @@ def state_root(repo: Path | str | None = None) -> Path:
     return records_dir / "runs"
 
 
+def mint_run_dir(
+    repo: Path | str | None = None,
+    run_id: str | None = None,
+) -> tuple[str, Path]:
+    """Atomically allocate and create a collision-free run directory.
+
+    Returns ``(run_id, run_dir)`` with the directory already created on disk.
+
+    When ``run_id`` is supplied by the caller, it is taken verbatim without
+    suffixing. If that directory already exists, raises
+    :class:`DriverError("Run already exists: <run_id>")`.
+
+    When ``run_id`` is omitted or None, derives a base ID from :func:`new_run_id`
+    and tries ``base``, ``base-2``, ``base-3`` ... up to 99 attempts, using
+    ``mkdir(parents=True, exist_ok=False)`` as the atomic reservation test.
+    """
+    root = state_root(repo)
+    if run_id:
+        target = root / run_id
+        try:
+            target.mkdir(parents=True, exist_ok=False)
+            return run_id, target
+        except FileExistsError:
+            raise DriverError(f"Run already exists: {run_id}")
+
+    base = new_run_id()
+    for suffix in range(1, 100):
+        candidate_id = base if suffix == 1 else f"{base}-{suffix}"
+        candidate = root / candidate_id
+        try:
+            candidate.mkdir(parents=True, exist_ok=False)
+            return candidate_id, candidate
+        except FileExistsError:
+            continue
+    raise DriverError(
+        f"could not mint a free run directory under {root} after 99 attempts; something is "
+        f"creating run directories faster than this process can name them"
+    )
+
+
 _RUN_ATTESTATIONS: dict[str, str] = {}
 
 
@@ -27676,10 +27716,7 @@ def initialize_run_core(
 
     enforce_orchestrator_shape_gate({"queue": queue}, repo=repo)
 
-    run_id = getattr(args, "run_id", None) or new_run_id()
-    run_dir = state_root(repo) / run_id
-    if run_dir.exists():
-        raise DriverError(f"Run already exists: {run_id}")
+    run_id, run_dir = mint_run_dir(repo, getattr(args, "run_id", None))
     for name in ("sessions", "outcomes", "prompts"):
         (run_dir / name).mkdir(parents=True, exist_ok=True)
     (run_dir / "decisions-and-questions.md").write_text(

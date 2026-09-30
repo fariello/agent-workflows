@@ -236,8 +236,9 @@ _TIMESTAMP_RE = re.compile(
     r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?$"
 )
 _PSEUDONYM_RE = re.compile(r"^[a-z][a-z0-9-]{0,15}:[0-9a-f]{16}$")
-#: A run id as the drivers mint it: ``run-<UTC stamp>-<pid>``.
-_RUN_ID_RE = re.compile(r"^run-\d{8}T\d{6}Z-\d+$")
+#: A run id as the drivers mint it: ``run-<UTC stamp>-<pid>``, plus the optional trailing
+#: numeric ``-N`` collision suffix that :func:`runner_shared.mint_run_dir` appends on collision.
+_RUN_ID_RE = re.compile(r"^run-\d{8}T\d{6}Z-\d+(?:-\d+)?$")
 
 #: Keys whose value MUST already be a pseudonym produced by :func:`pseudonymize`. A raw value here
 #: is a refusal, not a value to be hashed on the fly: hashing at the boundary would hide from the

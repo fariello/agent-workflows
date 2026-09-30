@@ -39,7 +39,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: one shared, collision-free mint
 
-- [ ] E-01 Add `mint_run_dir(repo, run_id=None)` to `runner_shared`, beside `new_run_id` and `state_root`, returning `(run_id, run_dir)` with the directory ALREADY CREATED. Body: resolve the root with `state_root(repo)`; take `run_id` verbatim when the caller supplies one; otherwise derive a base from `new_run_id()` and try `base`, then `f"{base}-2"`, `f"{base}-3"` ... using `mkdir(parents=True, exist_ok=False)` as the test, returning the first that succeeds and catching only `FileExistsError`. Bound the loop (99 attempts, matching the existing helper) and raise `DriverError` naming the root when it is exhausted.
+- [x] E-01 Add `mint_run_dir(repo, run_id=None)` to `runner_shared`, beside `new_run_id` and `state_root`, returning `(run_id, run_dir)` with the directory ALREADY CREATED. Body: resolve the root with `state_root(repo)`; take `run_id` verbatim when the caller supplies one; otherwise derive a base from `new_run_id()` and try `base`, then `f"{base}-2"`, `f"{base}-3"` ... using `mkdir(parents=True, exist_ok=False)` as the test, returning the first that succeeds and catching only `FileExistsError`. Bound the loop (99 attempts, matching the existing helper) and raise `DriverError` naming the root when it is exhausted.
 
   KEEP `new_run_id` ITSELF UNCHANGED, which is the whole point of this shape. The item records that changing the id FORMAT alters run ids repository-wide (how they sort, how the analytics reader parses them, what an operator has in shell history) and calls the mkdir loop "the smallest behavioral change: the id format is unchanged for the common case and only a genuine collision produces a suffixed name". This E-item implements exactly that reading. Do NOT add a random suffix and do NOT widen the timestamp; F-7 and OQ-01 record why both are refused, and either would make every id in the repository a new shape.
 
@@ -50,55 +50,55 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   ONE PREDICATE CHANGE IS UNAVOIDABLE AND IS AN IMPROVEMENT, recorded so it is not mistaken for a regression. The shipped guard is `run_dir.exists()`, which FOLLOWS a symlink; `mkdir(exist_ok=False)` does not. Measured: for a DANGLING SYMLINK at the run path, `exists()` returns `False` (so the shipped code proceeds and then fails later, deeper in the run) while `mkdir` raises `FileExistsError` (so the new code refuses cleanly up front). For an existing directory and for an existing plain FILE the two agree. State this in V-02 rather than claiming byte-identical predicate behavior.
   - Depends on: none
   - Expected outcome: `mint_run_dir` called twice in one second from one process returns two DIFFERENT ids and two directories that both exist; called with an explicit `run_id` that is already taken, it raises `DriverError` whose message is exactly `Run already exists: <run_id>` and contains no filesystem path.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Repoint `runner_shared.initialize_run_core` at `mint_run_dir`, replacing its `run_id = getattr(args, "run_id", None) or new_run_id()` / `run_dir = state_root(repo) / run_id` / `if run_dir.exists(): raise DriverError(f"Run already exists: {run_id}")` trio. PRESERVE THAT REFUSAL MESSAGE VERBATIM for the explicit-`--run-id` case: it is the only user-visible string in this change, an operator may be matching on it, and F-2 records that this guard is the reason the item's "silently overwrites" claim does not hold for the queued path. E-01 owns the translation that makes this possible; verified at review that the message survives byte-for-byte only if `mint_run_dir` raises `DriverError` itself rather than letting `FileExistsError` propagate (F-11). The subsequent `for name in ("sessions", "outcomes", "prompts")` loop stays as it is (`mint_run_dir` creates the run directory, not its members).
+- [x] E-02 Repoint `runner_shared.initialize_run_core` at `mint_run_dir`, replacing its `run_id = getattr(args, "run_id", None) or new_run_id()` / `run_dir = state_root(repo) / run_id` / `if run_dir.exists(): raise DriverError(f"Run already exists: {run_id}")` trio. PRESERVE THAT REFUSAL MESSAGE VERBATIM for the explicit-`--run-id` case: it is the only user-visible string in this change, an operator may be matching on it, and F-2 records that this guard is the reason the item's "silently overwrites" claim does not hold for the queued path. E-01 owns the translation that makes this possible; verified at review that the message survives byte-for-byte only if `mint_run_dir` raises `DriverError` itself rather than letting `FileExistsError` propagate (F-11). The subsequent `for name in ("sessions", "outcomes", "prompts")` loop stays as it is (`mint_run_dir` creates the run directory, not its members).
 
   NOTE WHAT ACTUALLY CHANGES ON DISK, which the authored item glossed. The shipped code NEVER creates `run_dir` itself: it checks `exists()` and then mkdirs only the three MEMBER directories with `parents=True, exist_ok=True`, so the run directory comes into being as a side effect of the first member. After this change `mint_run_dir` creates `run_dir` explicitly with `exist_ok=False` and the member loop then fills it. That is the intended atomicity (the directory's creation IS the lock), and it is why no caller can be relying on the old tolerance: the shipped guard already refused any pre-existing path, so by construction no caller ever passed one.
 
   NOTE THE ORDERING CONSTRAINT rather than discovering it: this trio sits AFTER `enforce_freeze_time_refusal` and `enforce_orchestrator_shape_gate`, and a comment block immediately above it states that siting those gates before the run directory is a DECISION resting on "NO DURABLE WRITE: raising before `run_dir` is created ensures no run directory, events.jsonl, state.json, or prompt logs are created on a shape refusal". `mint_run_dir` CREATES a directory, so it must be called at exactly the point the current `mkdir` calls happen and not one line earlier.
   - Depends on: E-01
   - Expected outcome: a queued run start behaves identically for the common case and for an explicit duplicate `--run-id` (same refusal, same message), while two same-second automatic starts now get distinct directories instead of the second being refused.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Replace the body of `oc_runipd._fresh_audit_run_dir` with a delegation to `runner_shared.mint_run_dir(repo)`, keeping the function and its name so the audit verb's call site is untouched. Rewrite its docstring: the current one is a 14-line argument for why the fix is DELIBERATELY NARROW and states that "the collision in the shared helper is reported as a finding with its own backlog carrier instead" - that carrier is `2jtsup`, this plan, so the docstring must now record that the guarantee moved into the shared helper rather than continuing to justify a local workaround. PRESERVE the measurement it carries (`{new_run_id(), new_run_id()}` had length 1) and the reason the guarantee must be structural rather than probabilistic; those are still true and still the rationale.
+- [x] E-03 Replace the body of `oc_runipd._fresh_audit_run_dir` with a delegation to `runner_shared.mint_run_dir(repo)`, keeping the function and its name so the audit verb's call site is untouched. Rewrite its docstring: the current one is a 14-line argument for why the fix is DELIBERATELY NARROW and states that "the collision in the shared helper is reported as a finding with its own backlog carrier instead" - that carrier is `2jtsup`, this plan, so the docstring must now record that the guarantee moved into the shared helper rather than continuing to justify a local workaround. PRESERVE the measurement it carries (`{new_run_id(), new_run_id()}` had length 1) and the reason the guarantee must be structural rather than probabilistic; those are still true and still the rationale.
 
   DO NOT DELETE THE WRAPPER. It is a one-line delegation whose name documents the audit verb's requirement at the call site, and spec `i4gpto` R-7 is a requirement ABOUT this verb ("Each invocation MUST get its own directory, so a second opinion cannot erase the first"), so a named seam is worth keeping even when the body is shared.
   - Depends on: E-01
   - Expected outcome: exactly one implementation of the suffix loop exists in the package; `aw oc run audit <id6>` twice in one second still gets two directories, now via the shared helper.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: make the suffixed shape analyzable
 
-- [ ] E-04 Widen `run_analytics_privacy._RUN_ID_RE` from `^run-\d{8}T\d{6}Z-\d+$` to admit an optional `-N` collision suffix (`^run-\d{8}T\d{6}Z-\d+(?:-\d+)?$`), and update the comment above it, which currently reads `A run id as the drivers mint it: ``run-<UTC stamp>-<pid>``` and is now incomplete. State in the comment that the optional trailing group is the collision suffix `mint_run_dir` appends, so a reader knows the alternative is not free text.
+- [x] E-04 Widen `run_analytics_privacy._RUN_ID_RE` from `^run-\d{8}T\d{6}Z-\d+$` to admit an optional `-N` collision suffix (`^run-\d{8}T\d{6}Z-\d+(?:-\d+)?$`), and update the comment above it, which currently reads `A run id as the drivers mint it: ``run-<UTC stamp>-<pid>``` and is now incomplete. State in the comment that the optional trailing group is the collision suffix `mint_run_dir` appends, so a reader knows the alternative is not free text.
 
   THIS IS A PRIVACY BOUNDARY, so justify the widening on its own terms rather than on convenience. The pattern's job is to refuse a value that could carry identifying information; the added group admits only `-` followed by digits, which cannot express a path, a username, a hostname or a session id. The boundary is not loosened in kind, only in the count of trailing numeric components. `_PSEUDONYM_RE`, the alternative this key already accepts, is untouched.
   - Depends on: none
   - Expected outcome: `project_metric_facts({"run_id": "run-20260929T013453Z-1234-2"})` returns the value instead of raising `PrivacyRefusal`, while a non-numeric trailing component (`run-20260929T013453Z-good`) is still refused.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Apply the same widening to `run_analytics_telemetry._SHAPED_ID_KEYS["run_id"]` and its `#:` comment (`A driver run id, exactly as the runners mint it: ``run-<UTC stamp>-<pid>```). These are two INDEPENDENT definitions of the same grammar in two modules, and both must move or the seam stays half-fixed: `runner_shared.telemetry_safe_context` pre-filters each correlation field through `validate_event`, so a run id this pattern refuses is DROPPED FROM THE EVENT rather than refused loudly (measured in F-6), leaving a telemetry stream that cannot be joined to its run.
+- [x] E-05 Apply the same widening to `run_analytics_telemetry._SHAPED_ID_KEYS["run_id"]` and its `#:` comment (`A driver run id, exactly as the runners mint it: ``run-<UTC stamp>-<pid>```). These are two INDEPENDENT definitions of the same grammar in two modules, and both must move or the seam stays half-fixed: `runner_shared.telemetry_safe_context` pre-filters each correlation field through `validate_event`, so a run id this pattern refuses is DROPPED FROM THE EVENT rather than refused loudly (measured in F-6), leaving a telemetry stream that cannot be joined to its run.
 
   DO NOT UNIFY THE TWO PATTERNS INTO ONE SHARED CONSTANT. Each module's docstring states that it is a self-contained boundary (the telemetry one notes its sibling "carries the identical requirement, so the two agree"), and `run_analytics_privacy` imports only stdlib while `run_analytics_telemetry` imports `run_analytics_config`; introducing a cross-import to share a regex is a structural change neither module's contract asks for and is not what this bug needs. Keeping them separate and correct is the minimal fix; a third definition (`work_cmd._RUN_ID_RE`) ALREADY admits the suffix, which is the precedent that the grammar is duplicated deliberately (F-4).
   - Depends on: none
   - Expected outcome: `run_analytics_telemetry._validate_scalar("run_id", "run-20260929T013453Z-1234-2")` returns the value, so a suffixed run's telemetry events keep their `run_id` correlation field instead of having it silently dropped.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin all three behaviors
 
-- [ ] E-06 Add `tests/test_run_id_collision.py` covering the MINT, with three behavioral cases that drive the real helper against a real temporary directory tree and assert on observable outcomes (never on source text): (1) two `mint_run_dir` calls in immediate succession from one process return two distinct ids AND two extant directories, which is the item's measured defect stated as a passing assertion; (2) a caller-supplied `run_id` is returned VERBATIM and is not suffixed; (3) a caller-supplied `run_id` whose directory already exists RAISES rather than renaming. Add a fourth case pinning that the first automatic id is UNSUFFIXED when the path is free, because the whole argument for this shape over a format change is that the common case keeps today's id.
+- [x] E-06 Add `tests/test_run_id_collision.py` covering the MINT, with three behavioral cases that drive the real helper against a real temporary directory tree and assert on observable outcomes (never on source text): (1) two `mint_run_dir` calls in immediate succession from one process return two distinct ids AND two extant directories, which is the item's measured defect stated as a passing assertion; (2) a caller-supplied `run_id` is returned VERBATIM and is not suffixed; (3) a caller-supplied `run_id` whose directory already exists RAISES rather than renaming. Add a fourth case pinning that the first automatic id is UNSUFFIXED when the path is free, because the whole argument for this shape over a format change is that the common case keeps today's id.
 
   FORCE THE COLLISION DETERMINISTICALLY rather than racing the clock. Two back-to-back calls are overwhelmingly likely to land in one second, but "overwhelmingly likely" is a flaky test; monkeypatch `new_run_id` to return a FIXED string for the duration of case (1) so the second call provably takes the suffix branch. Build every directory under `tempfile`, never under the checkout's gitignored `.aw/records/runs/`.
   - Depends on: E-03
   - Expected outcome: a test module that fails on the pre-fix tree (no `mint_run_dir` exists) and passes post-fix, pinning distinctness, verbatim-explicit-id, refusal, and the unsuffixed common case.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Extend the same file with the ANALYTICS half, which is what proves the widening was the point rather than incidental. Two cases: (1) both validators ACCEPT a `-N` suffixed id and still REFUSE a non-numeric trailing component, driven through the public-facing entry points (`privacy.project_metric_facts` and `telemetry.validate_event`) rather than the private scalar helpers, so the test pins the boundary a producer actually crosses; (2) an END-TO-END case building two terminal run directories under `tempfile`, one with a plain id and one with a `-2` suffixed id, and calling `run_analytics_cache.update_cache(..., build_facts=...)` over both, asserting BOTH produce a `rebuild` decision. Pre-fix that second run yields `skip` / `build-refused` (the exact measurement in F-5), so this case is the one that demonstrates user-visible harm rather than a pattern mismatch.
+- [x] E-07 Extend the same file with the ANALYTICS half, which is what proves the widening was the point rather than incidental. Two cases: (1) both validators ACCEPT a `-N` suffixed id and still REFUSE a non-numeric trailing component, driven through the public-facing entry points (`privacy.project_metric_facts` and `telemetry.validate_event`) rather than the private scalar helpers, so the test pins the boundary a producer actually crosses; (2) an END-TO-END case building two terminal run directories under `tempfile`, one with a plain id and one with a `-2` suffixed id, and calling `run_analytics_cache.update_cache(..., build_facts=...)` over both, asserting BOTH produce a `rebuild` decision. Pre-fix that second run yields `skip` / `build-refused` (the exact measurement in F-5), so this case is the one that demonstrates user-visible harm rather than a pattern mismatch.
 
   ASSERT ON THE DECISION, NOT ON THE MESSAGE TEXT. `update_cache` returns `CacheDecision` records carrying `verdict` and `reason`; assert `verdict == "rebuild"` and that no decision has `reason == "build-refused"`. Also assert through `runner_shared.telemetry_safe_context` that `run_id` SURVIVES the pre-filter for a suffixed id, since a dropped-but-not-refused field is the failure mode E-05 exists to fix and it is invisible to a validator-only test.
   - Depends on: E-05, E-06
   - Expected outcome: the analytics corpus admits a suffixed run (no `build-refused`), and a suffixed run's telemetry keeps its `run_id` correlation field; both fail pre-fix.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -201,40 +201,205 @@ WHAT CHANGES FOR A USER, STATED PLAINLY. In the common case, nothing: the id is 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste a transcript that calls `runner_shared.mint_run_dir` TWICE against a temporary runs root with `new_run_id` monkeypatched to a FIXED value, showing two distinct returned ids (`<base>` and `<base>-2`) and `is_dir()` True for both paths. Then paste a third call with an explicit `run_id` already on disk, showing the raised exception's CLASS and MESSAGE and asserting all three of: it is `DriverError` (not `FileExistsError`), the message is exactly `Run already exists: <run_id>`, and the message contains NO filesystem path (F-11: the propagating form leaks an absolute path and escapes `except DriverError`). Also paste the function source once, to show it calls `state_root` (not a hand-joined `.aw/records/runs`) and catches only `FileExistsError` internally.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Distinct collision IDs returned, DriverError with exact message and no filesystem path raised on taken ID, state_root called, only FileExistsError caught internally. Detail:
+    ```python
+    >>> # 1. Two calls with monkeypatched new_run_id
+    >>> id1, dir1 = rs.mint_run_dir(repo)
+    >>> id2, dir2 = rs.mint_run_dir(repo)
+    Call 1 id: run-20260928T120000Z-99999 is_dir: True
+    Call 2 id: run-20260928T120000Z-99999-2 is_dir: True
+    Distinct IDs: True
+    Distinct Dirs: True
 
-- [ ] V-02 validates E-02
+    >>> # 2. Explicit run_id already on disk
+    >>> rs.mint_run_dir(repo, run_id=id1)
+    Exception class: DriverError
+    Exception message: Run already exists: run-20260928T120000Z-99999
+    Is DriverError not FileExistsError: True
+    Exact message match: True
+    No filesystem path in message: True
+
+    >>> # 3. Function source
+    def mint_run_dir(
+        repo: Path | str | None = None,
+        run_id: str | None = None,
+    ) -> tuple[str, Path]:
+        root = state_root(repo)
+        if run_id:
+            target = root / run_id
+            try:
+                target.mkdir(parents=True, exist_ok=False)
+                return run_id, target
+            except FileExistsError:
+                raise DriverError(f"Run already exists: {run_id}")
+
+        base = new_run_id()
+        for suffix in range(1, 100):
+            candidate_id = base if suffix == 1 else f"{base}-{suffix}"
+            candidate = root / candidate_id
+            try:
+                candidate.mkdir(parents=True, exist_ok=False)
+                return candidate_id, candidate
+            except FileExistsError:
+                continue
+        raise DriverError(
+            f"could not mint a free run directory under {root} after 99 attempts; something is "
+            f"creating run directories faster than this process can name them"
+        )
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste `grep -n "Run already exists" agent_workflows/runner_shared.py` showing the refusal message is still present and still the only copy, plus the rewritten call site source showing `mint_run_dir` is called at the SAME point the old path resolution was (after `enforce_orchestrator_shape_gate`, before the `("sessions", "outcomes", "prompts")` loop), per the no-durable-write-before-the-gates constraint E-02 cites. Then paste an observed run start with a duplicate explicit `--run-id` showing the unchanged refusal, and confirm the two shape gates still refuse BEFORE any directory is created (the whole point of the ordering constraint is now sharper, because `mint_run_dir` creates `run_dir` explicitly where the shipped code only created its members). STATE THE ONE PREDICATE CHANGE rather than claiming byte-identical behavior: per F-12, a DANGLING SYMLINK at the run path was previously NOT refused by `exists()` and now IS refused by `mkdir(exist_ok=False)`; paste that case and note it as an intentional improvement.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Only one code copy of 'Run already exists' in runner_shared.py, mint_run_dir called at correct ordering site in initialize_run_core, duplicate explicit ID refused, shape gates refuse before run directory minted, dangling symlink refused cleanly. Detail:
+    ```sh
+    $ grep -n "Run already exists" agent_workflows/runner_shared.py
+    388:    :class:`DriverError("Run already exists: <run_id>")`.
+    401:            raise DriverError(f"Run already exists: {run_id}")
+    ```
 
-- [ ] V-03 validates E-03
+    Call site in `runner_shared.initialize_run_core`:
+    ```python
+        enforce_orchestrator_shape_gate({"queue": queue}, repo=repo)
+
+        run_id, run_dir = mint_run_dir(repo, getattr(args, "run_id", None))
+        for name in ("sessions", "outcomes", "prompts"):
+            (run_dir / name).mkdir(parents=True, exist_ok=True)
+    ```
+
+    Observed duplicate explicit `--run-id` refusal through `oc_runipd.initialize_run`:
+    `Duplicate explicit --run-id refusal: Run already exists: run-20260930T000000Z-55555`
+
+    Shape gate preflight refusal before directory is created:
+    `[RUN-STRUCTURE-PREFLIGHT] ... No work started, and nothing durable was created.`
+    Target runs directory check: `bad_dir.exists()` is False.
+
+    Predicate change on dangling symlink (intentional improvement per F-12):
+    ```python
+    dangling_path.symlink_to(runs_dir / "non-existent-target")
+    # Shipped exists() returned False; new code refuses cleanly up front:
+    dangling_path.exists() -> False
+    mint_run_dir(repo, run_id=dangling_id) -> DriverError: Run already exists: run-20260930T000000Z-dangling
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the new `_fresh_audit_run_dir` body showing it delegates to `runner_shared.mint_run_dir`, and the rewritten docstring, confirming it no longer claims the collision "is reported as a finding with its own backlog carrier instead" and that it still records the original measurement. Paste a transcript calling `_fresh_audit_run_dir` twice against a temporary repo, showing two distinct extant directories, so the delegation is proven to preserve spec `i4gpto` R-7 behaviorally and not just structurally.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. _fresh_audit_run_dir delegates to runner_shared.mint_run_dir, rewritten docstring preserves measurement and drops stale local-fix rationale, two distinct extant directories returned across two calls. Detail:
+    ```python
+    def _fresh_audit_run_dir(repo: Path) -> tuple[str, Path]:
+        """A run directory that does NOT already exist, returned as ``(run_id, path)``.
 
-- [ ] V-04 validates E-04
+        reverify-01 (`mp289j`) E-03, runidcollide (`6mdtnu`) E-03. THIS SEAM EXISTS BECAUSE
+        `new_run_id` ALONE IS NOT ENOUGH, which was measured while writing this verb's own tests: the id
+        is `run-<UTC seconds>-<pid>`, so two invocations from ONE shell inside the SAME second produce the
+        IDENTICAL id (`{new_run_id(), new_run_id()}` had length 1). A second opinion cannot erase the
+        first, and two verdicts sharing a directory would overwrite each other.
+
+        THE GUARANTEE IS STRUCTURAL rather than probabilistic: the base id is suffixed `-2`, `-3` ...
+        until the path is free, using `mkdir` itself via `exist_ok=False` as the atomic reservation test.
+        Lifted into :func:`runner_shared.mint_run_dir` so every runner and queued execution inherits it;
+        this wrapper delegates to the shared helper while preserving the named seam spec `i4gpto` R-7
+        requires.
+        """
+        return runner_shared.mint_run_dir(repo)
+    ```
+
+    Transcript calling `_fresh_audit_run_dir` twice in temporary repo:
+    `Call 1: run-20260928T120000Z-99999 exists: True`
+    `Call 2: run-20260928T120000Z-99999-2 exists: True`
+    `Distinct IDs: True`
+    `Distinct Dirs: True`
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste THREE measurements through the public entry point `run_analytics_privacy.project_metric_facts`: a suffixed id ACCEPTED (returned unchanged), a plain id still ACCEPTED, and `run-20260908T100000Z-good` still REFUSED with `PrivacyRefusal`. The third is required because `tests/test_run_analytics.py` asserts that exact refusal, so it is the shipped assertion E-04 must not break. Paste the updated comment beside the pattern showing it now names the collision suffix.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. project_metric_facts accepts suffixed ID, accepts plain ID, and preserves PrivacyRefusal on malformed suffix. Detail:
+    ```python
+    >>> rap.project_metric_facts({"run_id": "run-20260929T013453Z-1234-2"})
+    {'run_id': 'run-20260929T013453Z-1234-2'}
+    >>> rap.project_metric_facts({"run_id": "run-20260929T013453Z-1234"})
+    {'run_id': 'run-20260929T013453Z-1234'}
+    >>> rap.project_metric_facts({"run_id": "run-20260908T100000Z-good"})
+    PrivacyRefusal: privacy refusal: key 'run_id' must be a driver run id or a pseudonym
+    ```
 
-- [ ] V-05 validates E-05
+    Updated comment and pattern in `agent_workflows/run_analytics_privacy.py`:
+    ```python
+    #: A run id as the drivers mint it: ``run-<UTC stamp>-<pid>``, plus the optional trailing
+    #: numeric ``-N`` collision suffix that :func:`runner_shared.mint_run_dir` appends on collision.
+    _RUN_ID_RE = re.compile(r"^run-\d{8}T\d{6}Z-\d+(?:-\d+)?$")
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste a full `run_analytics_telemetry.validate_event` call (not the private scalar helper) on an event carrying a suffixed `run_id`, showing it validates, and the same for a malformed trailing component showing it still refuses. Then paste `runner_shared.telemetry_safe_context` called with the seven-field correlation context for BOTH a plain and a suffixed id, showing `run_id` is now KEPT in both; pre-fix the suffixed case kept six of seven and dropped `run_id` (F-6), so this before/after pair is the proof that the silent-drop path is closed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. validate_event accepts suffixed ID and refuses malformed suffix; telemetry_safe_context retains all 7 fields including run_id for both plain and suffixed IDs. Detail:
+    ```python
+    >>> rat.validate_event(event_suffixed)["run_id"]
+    'run-20260929T013453Z-1234-2'
+    >>> rat.validate_event(event_bad)
+    SchemaRefusal: telemetry schema refusal: 'run_id' does not match this identifier's required shape (^run-\d{8}T\d{6}Z-\d+(?:-\d+)?$); a value that is merely 'a short label' is REFUSED here
+    ```
 
-- [ ] V-06 validates E-06
+    telemetry_safe_context retention:
+    Plain kept count: 7 has run_id: True
+    Suffixed kept count: 7 has run_id: True value: run-20260929T013453Z-1234-2
+    (Pre-fix, suffixed kept 6 of 7 and dropped run_id; now 7 of 7 preserved).
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the PRE-fix run of `python3 -m pytest tests/test_run_id_collision.py` and the POST-fix run showing `N passed`. State explicitly that the mint cases fail pre-fix only with `AttributeError` (a weak red, since the symbol does not exist) so the record is honest about what that red proves; V-07 carries the strong red. Also paste `git status --short` empty, proving no tracked file was mutated to stage a comparison.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Pre-fix run 7 failed (weak red on mint, strong red on analytics), post-fix run 7 passed; clean git status before staging. Detail:
+    PRE-fix run (unmodified code, weak red on mint cases due to missing `mint_run_dir` symbol, strong red on analytics):
+    ```
+    FAILED tests/test_run_id_collision.py::RunIdCollisionTests::test_two_mint_calls_on_collision_return_distinct_ids_and_extant_dirs - AttributeError: module 'agent_workflows.runner_shared' has no attribute 'mint_run_dir'
+    FAILED tests/test_run_id_collision.py::RunIdCollisionTests::test_first_automatic_id_is_unsuffixed_when_path_is_free - AttributeError: module 'agent_workflows.runner_shared' has no attribute 'mint_run_dir'
+    FAILED tests/test_run_id_collision.py::RunIdCollisionTests::test_caller_supplied_run_id_is_returned_verbatim_not_suffixed - AttributeError: module 'agent_workflows.runner_shared' has no attribute 'mint_run_dir'
+    FAILED tests/test_run_id_collision.py::RunIdCollisionTests::test_caller_supplied_run_id_whose_directory_already_exists_raises - AttributeError: module 'agent_workflows.runner_shared' has no attribute 'mint_run_dir'
+    FAILED tests/test_run_id_collision.py::RunIdCollisionTests::test_analytics_validators_accept_suffixed_id_and_refuse_malformed - PrivacyRefusal: privacy refusal: key 'run_id' must be a driver run id or a pseudonym
+    FAILED tests/test_run_id_collision.py::RunIdCollisionTests::test_telemetry_safe_context_preserves_suffixed_run_id - AssertionError: 'run_id' not found in {'execution_id': 'exec-1', ...}
+    FAILED tests/test_run_id_collision.py::RunIdCollisionTests::test_analytics_cache_update_sweep_admits_suffixed_run_end_to_end - AssertionError: 'skip' != 'rebuild'
+    7 failed in 4.73s
+    ```
 
-- [ ] V-07 validates E-07
+    POST-fix run:
+    ```
+    7 passed in 4.45s
+    ```
+
+    No tracked file mutated prior to staging: `git status --short` showed only untracked `?? tests/test_run_id_collision.py`.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: THREE pasted artifacts. (1) The STRONG PRE-FIX RED: E-07's analytics cases run against the UNMODIFIED `run_analytics_*` modules, showing the suffixed run decided `skip` / `build-refused` and the telemetry `run_id` dropped - this is the measurement of shipped behavior that gives the fix its meaning, and it must be captured before E-04/E-05 are applied (in memory, per the validation section). (2) The POST-fix two-run `update_cache` sweep showing BOTH decisions `rebuild` and no decision carrying `reason == "build-refused"`. ASSERT ON `verdict`, NOT ON `reason`: per F-14 the passing `reason` is `no-entry` for a TERMINAL run and `run-not-terminal` for a live one, so pinning `no-entry` would make the test depend on how the fixture builds its runs rather than on the behavior under test. (3) YOUR OWN re-derived clean-tree bare baseline, then the post-change bare `python3 -m pytest`, with the delta stated against your baseline and accounted for by the cases E-06/E-07 add; do not state a delta against the `3189 passed, 2 skipped` this plan records, which review re-measured at `3246 passed, 2 skipped` (F-14), nor against that figure either. Additionally paste the targeted neighbour run over `tests/test_run_analytics.py tests/test_runner_shared.py tests/test_run_viewer.py tests/test_commit_run_trailers_env.py`, since those four are the modules that already touch the run-id grammar or the changed module; review measured them green at `194 passed`, so a failure there is this plan's to explain.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Strong pre-fix red reproduced; update_cache rebuilds both runs with no build-refused; post-change bare pytest 3285 passed, 2 skipped (+7 delta from 3278 baseline); neighbour suite 194 passed. Detail:
+    1. Strong pre-fix red:
+    ```
+    run-20260901T000000Z-1111111 verdict: rebuild reason: no-entry
+    run-20260901T000000Z-1111111-2 verdict: skip reason: build-refused
+    F-6 safe keys count: 6 has run_id: False
+    ```
+
+    2. Post-fix two-run update_cache sweep:
+    ```
+    run-20260901T000000Z-1111111 verdict: rebuild reason: no-entry
+    run-20260901T000000Z-1111111-2 verdict: rebuild reason: no-entry
+    ```
+    Both verdicts are rebuild; neither has reason == "build-refused".
+
+    3. Re-derived clean-tree bare baseline:
+    `3278 passed, 2 skipped, 3 warnings in 94.01s (0:01:34)`
+
+    Post-change bare pytest:
+    `3285 passed, 2 skipped, 3 warnings in 84.16s (0:01:24)`
+    Delta: exactly +7 passed, matching the 7 tests added in `tests/test_run_id_collision.py`.
+
+    Targeted neighbour suite:
+    `194 passed in 24.64s`
+  - Result: pass
 
 ## Approval and execution gate
 
