@@ -1,5 +1,6 @@
 - Id: 0ndipg
-- Status: open
+- Status: graduated
+- Graduated-To: isoraced
 - Blocks-Release: next
 - Set: 0ndipg
 - Priority: low
@@ -7,6 +8,7 @@
 - Summary: commit_isolated leaves its commit dangling when the compare-and-swap loses the race, recoverable only by git fsck until gc prunes it
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: a1ygjp
 - 2026-09-29 created (aw backlog): commit_isolated leaves its commit dangling when the compare-and-swap loses the race, recoverable only by git fsck until gc prunes it
 
 MEASURED 2026-09-29 at HEAD `74b9c5c2`, by inducing the compare-and-swap race against the real
