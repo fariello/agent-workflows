@@ -18586,7 +18586,12 @@ def probe_orchestrator(
     )
 
 
-def probe_refusal_remedy(labels: HostLabels, id6: str) -> str:
+def probe_refusal_remedy(
+    labels: HostLabels,
+    id6: str,
+    *,
+    pal: Palette | None = None,
+) -> str:
     """WHAT TO DO about an orchestrator carrying uncovered work. THE WORDING IS THE DELIVERABLE.
 
     NEVER PHRASED AS A PROHIBITION. `AGENTS.md` records the measured failure mode: a message saying
@@ -18600,9 +18605,9 @@ def probe_refusal_remedy(labels: HostLabels, id6: str) -> str:
     command, exactly as `DEPENDENCY_BLOCK_RECOVERY_HINT` does; what must be ONE object is this
     function. A remedy naming the wrong host is a defect even though the identity check passes.
     """
-
+    styled_id6 = pal(id6, "bold", "yellow") if pal else id6
     return (
-        f"ADD A CHILD for the uncovered work: author a child plan of {id6}'s Set that owns it, add "
+        f"ADD A CHILD for the uncovered work: author a child plan of {styled_id6}'s Set that owns it, add "
         f"its row to the orchestrator's `## Child IPDs` table, and leave the parent's existing "
         f"checklist in place. Do NOT delete the parent's items - that checklist is what makes "
         f"`execute <setid>` complete when no runner is involved. Then re-run "
@@ -18610,6 +18615,70 @@ def probe_refusal_remedy(labels: HostLabels, id6: str) -> str:
         f"what it keys on. To launch anyway, accepting that the parent's own items will be reported "
         f"complete having never been performed or verified, pass "
         f"`--allow-uncovered-orchestrator-work '<why you accept it>'`."
+    )
+
+
+def format_orchestrator_probe_refusal(
+    labels: HostLabels,
+    blocking_id6s: Sequence[str],
+    *,
+    unknown: bool = False,
+    color: bool | None = None,
+) -> str:
+    """Format the orchestrator probe refusal notice with structured remedy steps.
+
+    When color is enabled (defaulting to stderr capability), all id6 references
+    are styled in bold yellow (\\033[1;33m...\\033[0m). When color is disabled,
+    plain text is returned.
+    """
+    enabled = should_color(sys.stderr) if color is None else bool(color)
+    pal = Palette(enabled)
+    styled_names = ", ".join(pal(x, "bold", "yellow") for x in blocking_id6s)
+    verb = "carries" if len(blocking_id6s) == 1 else "carry"
+    unknown_note = (
+        " (or answered unusably, which is treated the same way)" if unknown else ""
+    )
+    target_phrase = (
+        f"{styled_names}'s Set"
+        if len(blocking_id6s) == 1
+        else f"the affected Set(s) ({styled_names})"
+    )
+    lines = [
+        f"The orchestrator coverage probe reports that {styled_names} {verb} work no child covers{unknown_note}.",
+        "The runner retires an orchestrator once its children are `executed` and SKIPS the",
+        "pre-transition E/V checkpoint, so that work would be reported complete having never",
+        "been performed or verified.",
+        "",
+        "ADD A CHILD for the uncovered work:",
+        f"  1. Author a child plan of {target_phrase} that owns it.",
+        "  2. Add its row to the orchestrator's `## Child IPDs` table.",
+        "  3. Leave the parent's existing checklist in place. Do NOT delete the parent's",
+        "     items; that checklist is what makes `execute <setid>` complete when no runner",
+        "     is involved.",
+        f"  4. Re-run `{labels.command}`; the verdict cache re-probes automatically",
+        "     because both edits change what it keys on.",
+        "",
+        "To launch anyway, accepting that the parent's own items will be reported complete",
+        "having never been performed or verified, pass:",
+        "  --allow-uncovered-orchestrator-work '<why you accept it>'",
+    ]
+    return "\n".join(lines)
+
+
+def format_orchestrator_probe_prompt(
+    labels: HostLabels,
+    blocking_id6s: Sequence[str],
+    *,
+    unknown: bool = False,
+    color: bool | None = None,
+) -> str:
+    """Format the interactive prompt for the orchestrator coverage probe gate."""
+    body = format_orchestrator_probe_refusal(
+        labels, blocking_id6s, unknown=unknown, color=color
+    )
+    return (
+        f"\n{body}\n\nType '{PROBE_CONFIRM_PHRASE}' to launch anyway, "
+        "anything else to refuse: "
     )
 
 
@@ -18661,6 +18730,7 @@ def enforce_orchestrator_probe_gate(
     runner: Any = None,
     response: Any = None,
     prompt: Any = None,
+    color: bool | None = None,
 ) -> ProbeGateDecision:
     """Gate the run on the probe: PROMPT on a TTY, FAIL without one, and honor a JUSTIFIED override.
 
@@ -18697,6 +18767,8 @@ def enforce_orchestrator_probe_gate(
         else max(0, int(retry_budget))
     )
     justification = (override_justification or "").strip()
+    enabled_color = should_color(sys.stderr) if color is None else bool(color)
+    pal = Palette(enabled_color)
 
     outcomes: list[ProbeOutcome] = []
     calls = 0
@@ -18744,9 +18816,12 @@ def enforce_orchestrator_probe_gate(
                         remedy=remedy,
                     )
             save_state(Path(run_dir), state, write_report=write_report_fn)
+            styled_unavail = ", ".join(
+                pal(o.id6, "bold", "yellow") for o in unavailable
+            )
             message = (
                 "WARNING: the orchestrator coverage probe could not be asked about "
-                + ", ".join(o.id6 for o in unavailable)
+                + styled_unavail
                 + f" (retried to the budget of {budget}). The run is PROCEEDING with a KNOWN HOLE: "
                 "nothing established whether those orchestrators carry work no child covers. "
                 + remedy
@@ -18769,7 +18844,9 @@ def enforce_orchestrator_probe_gate(
             message=message,
         )
 
-    names = ", ".join(o.id6 for o in blocking)
+    blocking_id6s = [o.id6 for o in blocking]
+    styled_names = ", ".join(pal(x, "bold", "yellow") for x in blocking_id6s)
+    names = ", ".join(blocking_id6s)
     reason = (
         f"the orchestrator coverage probe reports that {names} carr"
         + ("ies" if len(blocking) == 1 else "y")
@@ -18811,7 +18888,7 @@ def enforce_orchestrator_probe_gate(
             },
         )
         message = (
-            f"orchestrator coverage probe OVERRIDDEN for {names}: {reason}. "
+            f"orchestrator coverage probe OVERRIDDEN for {styled_names}: {reason}. "
             f"Justification recorded: {justification}"
         )
         print(message, file=sys.stderr)
@@ -18827,10 +18904,13 @@ def enforce_orchestrator_probe_gate(
     answer = response
     if answer is None and interactive:
         asker_fn = prompt if prompt is not None else prompt_for_gate_phrase
-        answer = asker_fn(
-            f"{reason}\n{remedy}\nType '{PROBE_CONFIRM_PHRASE}' to launch anyway, "
-            "anything else to refuse: "
+        prompt_text = format_orchestrator_probe_prompt(
+            labels,
+            blocking_id6s,
+            unknown=any(o.answer == PROBE_ANSWER_UNKNOWN for o in blocking),
+            color=color,
         )
+        answer = asker_fn(prompt_text)
     if answer is not None and str(answer).strip() == PROBE_CONFIRM_PHRASE:
         # An interactive consent is still an override and is recorded as one, with the phrase as its
         # justification: an operator who typed it at 03:00 must be distinguishable in the record from
@@ -18849,7 +18929,7 @@ def enforce_orchestrator_probe_gate(
                 "blocking": [o.id6 for o in blocking],
             },
         )
-        message = f"orchestrator coverage probe OVERRIDDEN interactively for {names}: {reason}"
+        message = f"orchestrator coverage probe OVERRIDDEN interactively for {styled_names}: {reason}"
         print(message, file=sys.stderr)
         return ProbeGateDecision(
             proceed=True,
@@ -18872,12 +18952,18 @@ def enforce_orchestrator_probe_gate(
             "remedy": remedy,
         },
     )
+    refusal_message = format_orchestrator_probe_refusal(
+        labels,
+        blocking_id6s,
+        unknown=any(o.answer == PROBE_ANSWER_UNKNOWN for o in blocking),
+        color=color,
+    )
     return ProbeGateDecision(
         proceed=False,
         outcomes=tuple(outcomes),
         calls=calls,
         refusal=refusal,
-        message=f"{reason}. {remedy}",
+        message=refusal_message,
     )
 
 

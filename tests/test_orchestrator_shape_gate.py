@@ -594,5 +594,154 @@ class TheShapeRefusalSpendsZeroModelCalls(unittest.TestCase):
             )
 
 
+class TestOrchestratorProbeFormatting(unittest.TestCase):
+    """Observable behavior tests for orchestrator coverage probe refusal formatting and bold yellow id6 highlighting."""
+
+    def test_format_orchestrator_probe_refusal_plain(self):
+        """Plain-text formatting structures problem, remedy steps, and override instructions."""
+        formatted = rs.format_orchestrator_probe_refusal(
+            rs.OC_HOST_LABELS, ["1u4olp"], color=False
+        )
+        # Structured problem statement
+        self.assertIn(
+            "The orchestrator coverage probe reports that 1u4olp carries work no child covers.",
+            formatted,
+        )
+        self.assertIn("SKIPS the\npre-transition E/V checkpoint", formatted)
+        # Structured remedy steps
+        self.assertIn("ADD A CHILD for the uncovered work:", formatted)
+        self.assertIn("1. Author a child plan of 1u4olp's Set that owns it.", formatted)
+        self.assertIn(
+            "2. Add its row to the orchestrator's `## Child IPDs` table.", formatted
+        )
+        self.assertIn("3. Leave the parent's existing checklist in place.", formatted)
+        self.assertIn(
+            "4. Re-run `aw oc run`; the verdict cache re-probes automatically",
+            formatted,
+        )
+        # Override option
+        self.assertIn(
+            "--allow-uncovered-orchestrator-work '<why you accept it>'", formatted
+        )
+        # No ANSI codes present when color=False
+        self.assertNotIn("\033[", formatted)
+
+    def test_format_orchestrator_probe_refusal_bold_yellow_id6(self):
+        """When color is enabled, references to id6 are highlighted in bold yellow."""
+        formatted = rs.format_orchestrator_probe_refusal(
+            rs.OC_HOST_LABELS, ["1u4olp"], color=True
+        )
+        bold_yellow_id6 = "\033[1;33m1u4olp\033[0m"
+        # Highlighted in finding
+        self.assertIn(f"reports that {bold_yellow_id6} carries", formatted)
+        # Highlighted in remedy step 1
+        self.assertIn(f"child plan of {bold_yellow_id6}'s Set", formatted)
+        # Stripped of ANSI, matches plain text
+        from agent_workflows.term import strip_ansi
+
+        plain = rs.format_orchestrator_probe_refusal(
+            rs.OC_HOST_LABELS, ["1u4olp"], color=False
+        )
+        self.assertEqual(strip_ansi(formatted), plain)
+
+    def test_format_orchestrator_probe_refusal_multiple_orchestrators(self):
+        """Plural verb and multiple bold yellow id6 tokens when multiple orchestrators block."""
+        formatted = rs.format_orchestrator_probe_refusal(
+            rs.OC_HOST_LABELS, ["1u4olp", "xhr0dj"], color=True
+        )
+        bold_yellow_1 = "\033[1;33m1u4olp\033[0m"
+        bold_yellow_2 = "\033[1;33mxhr0dj\033[0m"
+        self.assertIn(
+            f"reports that {bold_yellow_1}, {bold_yellow_2} carry work", formatted
+        )
+        self.assertIn(
+            f"the affected Set(s) ({bold_yellow_1}, {bold_yellow_2})", formatted
+        )
+
+    def test_format_orchestrator_probe_prompt(self):
+        """Interactive prompt has clean line separation and confirm phrase."""
+        prompt_text = rs.format_orchestrator_probe_prompt(
+            rs.OC_HOST_LABELS, ["1u4olp"], color=True
+        )
+        self.assertTrue(prompt_text.startswith("\n"))
+        self.assertTrue(
+            prompt_text.endswith(
+                f"\n\nType '{rs.PROBE_CONFIRM_PHRASE}' to launch anyway, anything else to refuse: "
+            )
+        )
+        bold_yellow_id6 = "\033[1;33m1u4olp\033[0m"
+        self.assertIn(bold_yellow_id6, prompt_text)
+
+    def test_enforce_orchestrator_probe_gate_color_integration(self):
+        """enforce_orchestrator_probe_gate integrates color for prompt and decision.message."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            plans_dir = repo / ".aw" / "records" / "plans" / "pending"
+            plans_dir.mkdir(parents=True)
+            p = plans_dir / "20260924-fixprose-00-prs001.ipd.md"
+            p.write_text(CONFORMING_WITH_BARE_INDENTED_PROSE_TEXT, encoding="utf-8")
+            state = {
+                "queue": [
+                    {
+                        "id6": "prs001",
+                        "kind": "orchestrator",
+                        "position": 1,
+                        "setid": "fixprose",
+                        "configured_file": str(p),
+                    }
+                ]
+            }
+            run_dir = rs.state_root(repo) / "run-test"
+            run_dir.mkdir(parents=True)
+            (run_dir / "events.jsonl").touch()
+
+            def double_asker(*args, **kwargs):
+                return (rs.PROBE_ANSWER_EXECUTIONS, "uncovered work found")
+
+            captured_prompts: list[str] = []
+
+            def mock_prompt(q):
+                captured_prompts.append(q)
+                return None  # refuse
+
+            # Test with color=True
+            decision_color = rs.enforce_orchestrator_probe_gate(
+                run_dir,
+                state,
+                repo=repo,
+                host="oc",
+                interactive=True,
+                write_report_fn=lambda *a: None,
+                asker=double_asker,
+                prompt=mock_prompt,
+                color=True,
+            )
+            self.assertFalse(decision_color.proceed)
+            bold_yellow_id6 = "\033[1;33mprs001\033[0m"
+            self.assertIn(bold_yellow_id6, decision_color.message)
+            self.assertEqual(len(captured_prompts), 1)
+            self.assertIn(bold_yellow_id6, captured_prompts[0])
+
+            # Test with color=False
+            captured_prompts.clear()
+            decision_plain = rs.enforce_orchestrator_probe_gate(
+                run_dir,
+                state,
+                repo=repo,
+                host="oc",
+                interactive=True,
+                write_report_fn=lambda *a: None,
+                asker=double_asker,
+                prompt=mock_prompt,
+                color=False,
+            )
+            self.assertFalse(decision_plain.proceed)
+            self.assertNotIn("\033[", decision_plain.message)
+            self.assertIn("prs001", decision_plain.message)
+            self.assertEqual(len(captured_prompts), 1)
+            self.assertNotIn("\033[", captured_prompts[0])
+            self.assertIn("prs001", captured_prompts[0])
+
+
 if __name__ == "__main__":
     unittest.main()
