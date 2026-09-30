@@ -1101,15 +1101,37 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         ),
         exit_contract=(0, 2, 3, 5, 6),
     ),
+    # `command_class="read"`: `runs resume` reconstructs state and reports resumable steps without
+    # writing to the ledger or disk, matching `runs next` and `RUNS_VIEWER_LEAF_NAMES`.
+    #
+    # `exit_contract=(0, 2, 5, 7)`:
+    # - 0: successful report of resumable steps or pending state.
+    # - 2: ledger file not found, empty ledger, missing/invalid workflow, or argparse usage error.
+    # - 5: `EXIT_CORRUPTED_LEDGER` from `LedgerCorruption` (e.g. broken hash chain or unparseable JSON).
+    # - 7: `EXIT_NOT_A_LEDGER` from `NotALedgerError` (e.g. non-ledger JSONL missing envelope fields).
+    #
+    # Two negatives are deliberate:
+    # (a) Exit 3 is REMOVED AS UNREACHABLE, not as undesirable: `_run_resume` returns `EXIT_BLOCKED`
+    # only in its `except run_recovery.UnknownOutcomeError` arm. `run_recovery.detect_unknown_outcomes`
+    # raises only for a step whose reconstructed state is `run_state.STATE_RUNNING` with
+    # `last_attempt_state is None`. However, `STATE_RUNNING` is absent from `run_ledger_schema.ATTEMPT_STATES`,
+    # so `RunLedgerStore.append` refuses any `step_attempt` carrying it (`RL-E030`). The sole producer
+    # of `STATE_RUNNING` is `run_engine.start_step`'s in-process `_ephemeral_step_states` dict, which a
+    # separate CLI process cannot observe. Removing 3 documents a latent bug rather than blessing it (backlog tzqvjn).
+    # (b) Exit 1 is ABSENT DELIBERATELY: `_run_resume` never returns `EXIT_INCOMPLETE`, and adding it
+    # would oblige a `domain_failure` conformance scenario (`tests/conformance_matrix.py`) for an
+    # outcome the verb does not produce (same reasoning as `reviews decisions`). The contract is not
+    # capped at (0, 1, 2) because `run_cli._emit_error` machine payloads are deliberately not `aw.agent/v1`
+    # records and `run_cli` imports `agent_schema` zero times.
     CommandDeclaration(
         command="runs resume",
-        command_class="mutation",
+        command_class="read",
         human_recipe="status",
         agent_record_kind="result",
         mutation_gate="none",
         empty_error_renderer="renderer_boundary",
         legacy_flags=("--workflow", "--agent", "--json"),
-        exit_contract=(0, 3),
+        exit_contract=(0, 2, 5, 7),
     ),
     CommandDeclaration(
         command="run cancel",

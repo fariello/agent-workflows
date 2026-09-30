@@ -1,5 +1,5 @@
 - Id: cldbus
-- Status: graduated
+- Status: done
 - Graduated-To: cldbus
 - Set: cldbus
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: aw runs resume is declared a mutation but writes nothing
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): closed by aw oc run: IPD ck0vya executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-cldbus-01-ck0vya-declare-aw-runs-resume-by-its-measured-behavior-a-read-whose.ipd.md); evidence .aw/records/plans/executed/20260928-cldbus-01-ck0vya-declare-aw-runs-resume-by-its-measured-behavior-a-read-whose.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: ck0vya
 - 2026-09-18 created (aw backlog): aw runs resume is declared a mutation but writes nothing
 
