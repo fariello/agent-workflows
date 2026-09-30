@@ -1,11 +1,13 @@
 - Id: aaoapo
-- Status: open
+- Status: graduated
+- Graduated-To: structpin
 - Set: structpin
 - Priority: low
 - Work-Kind: chore
 - Summary: Two tests pin a redundant literal length beside a correct set-equality assertion, so the literal only goes stale
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: 44c42h
 - 2026-09-28 created (aw backlog): Two tests pin a redundant literal length beside a correct set-equality assertion, so the literal only goes stale
 
 OBSERVED 2026-09-28 while sweeping the code-structure pins for backlog `5zyuc8` (plan `b02ohu`). Two tests assert a literal COUNT on the line beside an assertion that already pins the same collection by SET EQUALITY, so the literal proves nothing the neighbouring line does not, and its only future is to go stale when the collection legitimately grows.
