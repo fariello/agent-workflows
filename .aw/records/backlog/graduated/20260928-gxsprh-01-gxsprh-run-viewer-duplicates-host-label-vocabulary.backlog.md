@@ -1,9 +1,11 @@
 - Id: gxsprh
-- Status: open
+- Status: graduated
+- Graduated-To: gxsprh
 - Set: gxsprh
 - Priority: low
 - Work-Kind: chore
 - Summary: run_viewer hardcodes its own host id sets and product strings, duplicating what HostLabels.product and argv_tokens already hold
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: o55eli
 - 2026-09-28 created (aw backlog): Filed while authoring plan otr54d (from backlog 9zyanj) as the durable carrier for that plan's deferred viewer-vocabulary row. MEASURED at HEAD 7f7efe87 by reading run_viewer.load_run_summary: it branches on driver_id in the literal tuples ("oc_runipd", "opencode", "oc") and ("agy_runipd", "antigravity", "agy", "runagy") and returns the literal product strings "OpenCode"/"Antigravity", all four of which runner_shared.HostLabels already carries as .id, .argv_tokens and .product; a third host therefore falls through to the else branch and renders its raw id. WHY CHORE AND NOT BUG: no value is wrong today and no user-perceptible behavior is affected; both live hosts render correctly and an unregistered host renders its id rather than crashing or lying. WHY IT WAS NOT FIXED IN otr54d: that plan's scope is restoring producer-side driver-identity coverage, and the consolidation has its own blast radius because the viewer MUST keep labelling pre-cutover records whose ids match no live host (its elif driver_path substring fallback), so a naive descriptor lookup would regress historical runs. MITIGATION ALREADY LANDING: otr54d E-03 asserts the viewer label equals each host's HostLabels.product on genuinely-produced state, so a future divergence between the viewer's literals and the descriptor fails a test rather than shipping silently; that is why this is low. FIX DIRECTION (not decided): have the viewer resolve a live host label from the HostLabels instances defined in runner_shared while KEEPING the path-basename fallback intact for pre-cutover records.
