@@ -1,5 +1,6 @@
 - Id: an77ub
-- Status: open
+- Status: graduated
+- Graduated-To: awinbox
 - Blocks-Release: next
 - Set: awinbox
 - Priority: high
@@ -7,6 +8,7 @@
 - Summary: Plan 9iiqmm is executed and its backlog item closed done, but its inbox-counter implementation never landed: both declared Scope-Paths carry zero inbox references on main and the code survives only in unreachable dangling git objects
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053059Z-3200713: olmvgw
 - 2026-09-28 created (aw backlog): Filed at authoring of plan dv7c49 (from backlog 3sh9d6), which found this while verifying which artifacts carry 3sh9d6's stale non-TTY claim. Filed now rather than left to the executor because check.ipd-uncarried-obligation is error-severity and refuses a - Carrier: naming a non-resolving id6.
 
 WHAT IS WRONG. Plan `9iiqmm` (`.aw/records/plans/executed/20260908-awinbox-02-9iiqmm-count-waiting-aw-inbox-drops-in-aw-attention-by-listing-the.ipd.md`) sits in `executed/` with `- Status: executed`, a self-finalize history record, and `V-*` blocks pasting test output said to be PASSING. The feature it describes, an advisory footer line in the `aw attention` human board counting raw drops waiting in `.aw/inbox/`, DOES NOT EXIST IN THE TREE. Its backlog item `plbkp5` is closed `done` on that basis.
