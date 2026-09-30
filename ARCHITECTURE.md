@@ -144,7 +144,7 @@ execution mode.
 
 ### State: the authoritative run directory
 
-Every run creates `workflow-artifacts/<workflow-name>/<RUN_ID>/` (timestamped;
+Every run creates `.aw/workflow-artifacts/<workflow-name>/<RUN_ID>/` (timestamped;
 `release-review` for the runbook). This directory, not
 the chat transcript, is the authoritative record: metadata, inventory,
 finding/action registers (CSV), decisions, commands, commits, checkpoints, the
@@ -154,9 +154,9 @@ assessment, cold-start orientation, persona review) and `section-summaries/`
 per-phase reports.
 
 **Why externalize state to files:** long multi-step LLM runs degrade when state lives
-only in context. File-based state makes runs recoverable, auditable, committable, and
-enables fresh-context phase isolation. This is a load-bearing architectural
-decision (see `DECISIONS.md` D7).
+only in context. File-based state makes runs recoverable, auditable, local-only (never
+committed), and enables fresh-context phase isolation. This is a load-bearing
+architectural decision (see `DECISIONS.md` D7).
 
 ### Decision policy: the Fix Bar
 
@@ -198,7 +198,7 @@ differ from the source are updated in place (backed up first unless `--no-backup
 framework files no longer in the source (renamed or removed) are pruned, so the target
 never accumulates stale instruction files and updating is just a re-run. Pruning is strictly scoped to the framework namespace
 (`.aw/system/workflows/` plus generated shim files) and never touches
-`workflow-artifacts/` run records, user code, or `.aw/records/`.
+`.aw/workflow-artifacts/` run records, user code, or `.aw/records/`.
 
 The installer is git-aware but never commits: installed files are staged with `git add`, pruned
 tracked files with `git rm`, untracked files are written/removed on disk, and the

@@ -37,24 +37,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: repair the user-facing prose
 
-- [ ] E-01 RE-POINT THE TWO `ARCHITECTURE.md` OCCURRENCES to `.aw/workflow-artifacts/`. Locate them by CONTENT, not by the offsets quoted here: the run-directory section's `Every run creates `workflow-artifacts/<workflow-name>/<RUN_ID>/` (timestamped;` under the heading `### State: the authoritative run directory`, and the installer section's `` `workflow-artifacts/` run records, user code, or `.aw/records/`.`` following `Pruning is strictly scoped to the framework namespace`. Write the prefixed spelling exactly as the shipped bodies do (`.aw/workflow-artifacts/`), and re-read the result for the doubled-prefix hazard Order 03 recorded as its finding F-5: a substitution applied twice yields `.aw/.aw/workflow-artifacts/`. Do NOT touch `ARCHITECTURE.md`'s sentence about the legacy `repository-review/` migration if one is present nearby; D120 examined that sentence and VERIFIED IT CORRECT, because it describes a git-mv of a directory whose history genuinely moved.
+- [x] E-01 RE-POINT THE TWO `ARCHITECTURE.md` OCCURRENCES to `.aw/workflow-artifacts/`. Locate them by CONTENT, not by the offsets quoted here: the run-directory section's `Every run creates `workflow-artifacts/<workflow-name>/<RUN_ID>/` (timestamped;` under the heading `### State: the authoritative run directory`, and the installer section's `` `workflow-artifacts/` run records, user code, or `.aw/records/`.`` following `Pruning is strictly scoped to the framework namespace`. Write the prefixed spelling exactly as the shipped bodies do (`.aw/workflow-artifacts/`), and re-read the result for the doubled-prefix hazard Order 03 recorded as its finding F-5: a substitution applied twice yields `.aw/.aw/workflow-artifacts/`. Do NOT touch `ARCHITECTURE.md`'s sentence about the legacy `repository-review/` migration if one is present nearby; D120 examined that sentence and VERIFIED IT CORRECT, because it describes a git-mv of a directory whose history genuinely moved.
   - Depends on: none
   - Expected outcome: `grep -rnoP '(?<![/\w-])workflow-artifacts/' ARCHITECTURE.md` returns NOTHING, `grep -c '\.aw/workflow-artifacts/' ARCHITECTURE.md` returns 2, and `grep -n '\.aw/\.aw/' ARCHITECTURE.md` returns nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 CORRECT THE SAME PARAGRAPH'S STALE TRACKING CLAIM, `File-based state makes runs recoverable, auditable, committable, and`, which sits three lines below the first E-01 occurrence inside the same `**Why externalize state to files:**` paragraph. THIS IS IN SCOPE FOR A NAMED REASON, not opportunism: D117 INVERTED the tracking policy (run records became local-only and gitignored), and D120 exists ONLY because the D117 sweep left exactly this class of residue behind, five separate prose defects that each still called run artifacts committed deliverables and had to be repaired by a later corrective IPD. Fixing the path while leaving the adjacent word `committable` would hand the next reader a section that names the right directory and then invites them to commit it, which is the same D92 leak by a different sentence. Replace the stale property with the true one (the run record is recoverable, auditable and LOCAL-ONLY / never committed), keeping the sentence's `enables fresh-context phase isolation` clause and its `DECISIONS.md` D7 citation intact, and keeping the prose free of em and en dashes as the user-facing convention requires. IF A REVIEWER JUDGES THIS OVER-SCOPE, it is severable: E-01 and the guard stand without it, and this item can be cut to a backlog entry instead.
+- [x] E-02 CORRECT THE SAME PARAGRAPH'S STALE TRACKING CLAIM, `File-based state makes runs recoverable, auditable, committable, and`, which sits three lines below the first E-01 occurrence inside the same `**Why externalize state to files:**` paragraph. THIS IS IN SCOPE FOR A NAMED REASON, not opportunism: D117 INVERTED the tracking policy (run records became local-only and gitignored), and D120 exists ONLY because the D117 sweep left exactly this class of residue behind, five separate prose defects that each still called run artifacts committed deliverables and had to be repaired by a later corrective IPD. Fixing the path while leaving the adjacent word `committable` would hand the next reader a section that names the right directory and then invites them to commit it, which is the same D92 leak by a different sentence. Replace the stale property with the true one (the run record is recoverable, auditable and LOCAL-ONLY / never committed), keeping the sentence's `enables fresh-context phase isolation` clause and its `DECISIONS.md` D7 citation intact, and keeping the prose free of em and en dashes as the user-facing convention requires. IF A REVIEWER JUDGES THIS OVER-SCOPE, it is severable: E-01 and the guard stand without it, and this item can be cut to a backlog entry instead.
   - Depends on: E-01
   - Expected outcome: the paragraph no longer asserts run records are committable, still cites D7, still carries the phase-isolation clause, and introduces no unicode dash (`python3 -c` over `docs_check.check_no_unicode_dashes` on the file reports no finding).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 RE-POINT THE ONE `CONTRIBUTING.md` OCCURRENCE, in the wheel-boundary bullet whose text is `contains only the package + `_data` tree and NONE of `tests/`, `workflow-artifacts/`,`. This is a PREREQUISITE, not an extra: the guard in E-04 covers the user-facing root docs, so leaving this occurrence alive would make the guard fail on a tree this plan declares clean. CHANGE ONLY THE PATH. The same sentence also names `tests/test_packaging.py`, which `19313eed` DELETED (`ls tests/test_packaging.py` reports no such file), so the bullet additionally claims enforcement by a test that does not exist; that is a DIFFERENT defect with a different owner and it is filed in E-06 rather than fixed here, because deciding what the wheel boundary is enforced by now is a packaging question, not a path question.
+- [x] E-03 RE-POINT THE ONE `CONTRIBUTING.md` OCCURRENCE, in the wheel-boundary bullet whose text is `contains only the package + `_data` tree and NONE of `tests/`, `workflow-artifacts/`,`. This is a PREREQUISITE, not an extra: the guard in E-04 covers the user-facing root docs, so leaving this occurrence alive would make the guard fail on a tree this plan declares clean. CHANGE ONLY THE PATH. The same sentence also names `tests/test_packaging.py`, which `19313eed` DELETED (`ls tests/test_packaging.py` reports no such file), so the bullet additionally claims enforcement by a test that does not exist; that is a DIFFERENT defect with a different owner and it is filed in E-06 rather than fixed here, because deciding what the wheel boundary is enforced by now is a packaging question, not a path question.
   - Depends on: none
   - Expected outcome: `grep -rnoP '(?<![/\w-])workflow-artifacts/' CONTRIBUTING.md` returns NOTHING, the bullet still reads as a list of excluded top-level entries, and the `tests/test_packaging.py` mention is left exactly as it was.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: restore the guard, widened
 
-- [ ] E-04 RESTORE THE DELETED GUARD AS `tests/test_run_scratch_path_guard.py`, WIDENED TO THE DOC SURFACES. Recover the helper and both classes from before the trim with `git show 19313eed^:tests/test_docs.py` and take ONLY `_bare_run_scratch_refs`, `ShippedRunScratchPathTests` and `ShippedRunScratchGuardFalsifiabilityTests`; every other class in that file is out of scope. Keep `_bare_run_scratch_refs` BYTE-FOR-BYTE, including its docstring: it already encodes, with reasons, the three spellings that must NOT match (any slash-preceded form, which subsumes the live `.aw/` path and the anchored `.aw/.gitignore` pattern `/workflow-artifacts/`; the installer template filename `workflow-artifacts-README.md`; and the bare path SEGMENT in `scan_secrets.py`'s `SKIP_DIR_NAMES`, which must stay bare because that set is matched per segment). Follow the restorecov precedent (`6vozur`) for the shape of a restoration: a module docstring stating that this is the guard `19313eed` deleted, which plan restored it and why. THEN WIDEN THE SWEPT SURFACE from the shipped tree alone to three surfaces, each enumerated in the test so a reader can see what is covered: (1) `.aw/system/workflows/**/*.{md,py}` excluding `__pycache__`, exactly as before, since that sweep is ALSO unguarded today; (2) `docs/**/*.md`; (3) the user-facing root docs, derived as GLOB-MINUS-EXCLUSIONS per the paragraph below. Keep the doubled-prefix assertion (`.aw/.aw/`) over every swept file. NOTE FOR A REVIEWER WEIGHING THIS AGAINST THE SRCGUARD RULING: the maintainer's 2026-09-26 ruling forbids tests that pin PRODUCTION SOURCE text or structure, and plan `96xtmi` explicitly placed tests that read NON-production files (specs, workflow bodies, READMEs) OUTSIDE that census. This guard reads documentation content only and never `agent_workflows/*`, so it is not the class that ruling retired.
+- [x] E-04 RESTORE THE DELETED GUARD AS `tests/test_run_scratch_path_guard.py`, WIDENED TO THE DOC SURFACES. Recover the helper and both classes from before the trim with `git show 19313eed^:tests/test_docs.py` and take ONLY `_bare_run_scratch_refs`, `ShippedRunScratchPathTests` and `ShippedRunScratchGuardFalsifiabilityTests`; every other class in that file is out of scope. Keep `_bare_run_scratch_refs` BYTE-FOR-BYTE, including its docstring: it already encodes, with reasons, the three spellings that must NOT match (any slash-preceded form, which subsumes the live `.aw/` path and the anchored `.aw/.gitignore` pattern `/workflow-artifacts/`; the installer template filename `workflow-artifacts-README.md`; and the bare path SEGMENT in `scan_secrets.py`'s `SKIP_DIR_NAMES`, which must stay bare because that set is matched per segment). Follow the restorecov precedent (`6vozur`) for the shape of a restoration: a module docstring stating that this is the guard `19313eed` deleted, which plan restored it and why. THEN WIDEN THE SWEPT SURFACE from the shipped tree alone to three surfaces, each enumerated in the test so a reader can see what is covered: (1) `.aw/system/workflows/**/*.{md,py}` excluding `__pycache__`, exactly as before, since that sweep is ALSO unguarded today; (2) `docs/**/*.md`; (3) the user-facing root docs, derived as GLOB-MINUS-EXCLUSIONS per the paragraph below. Keep the doubled-prefix assertion (`.aw/.aw/`) over every swept file. NOTE FOR A REVIEWER WEIGHING THIS AGAINST THE SRCGUARD RULING: the maintainer's 2026-09-26 ruling forbids tests that pin PRODUCTION SOURCE text or structure, and plan `96xtmi` explicitly placed tests that read NON-production files (specs, workflow bodies, READMEs) OUTSIDE that census. This guard reads documentation content only and never `agent_workflows/*`, so it is not the class that ruling retired.
 
     THE RECOVERED HELPER AND CLASSES NEED EXACTLY FOUR FREE NAMES, MEASURED AT REVIEW, NOT THREE AND NOT SEVEN (PR-704, F-10). The sibling review of `cf7f8z` found a restoration recipe that produced 13 `NameError`s because the recovered class closed over module-level helpers the plan never named, so review ran the same AST free-variable pass here rather than assume: `_bare_run_scratch_refs` closes over `re`; `ShippedRunScratchPathTests` over `REPO_ROOT`, `_bare_run_scratch_refs` and `unittest`; `ShippedRunScratchGuardFalsifiabilityTests` over `_bare_run_scratch_refs` and `unittest`. So the needed imports are `re`, `unittest`, and `REPO_ROOT`. Take `REPO_ROOT` from `tests.support` (`from tests.support import REPO_ROOT`), which defines it identically as `Path(__file__).resolve().parent.parent` and is the repository's shared convention, rather than re-deriving it. Do NOT carry the deleted file's other imports (`docs_check as dc`, `docs_render as dr`, `host_adapters as ha`, `host_capability_registry as hcr`, `Path`): none of the three recovered symbols references any of them, so carrying them would ship unused imports that imply dependencies this guard does not have AND would make a file the plan declares free of production-source reads import three production modules.
 
@@ -65,21 +65,21 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     BUILD THE SWEEP AS A ROOT-PARAMETERIZED FUNCTION, because E-05 depends on it (PR-703). Express the three surfaces and the sweep as a helper taking the tree root as an argument (defaulting to `REPO_ROOT`), not as methods that hard-code `REPO_ROOT` internally. Review verified the whole guard, green and red, against a scratch copy of the tree this way; without the parameter E-05 has no way to prove a red run except by editing tracked files in a shared checkout.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: a new test file whose sweep passes over all three surfaces on the post-E-03 tree, asserting a non-empty scanned count PER SURFACE (not one shared total) so a vanished surface cannot pass silently; the root-doc surface derived as `glob("*.md")` minus a named exclusion constant carrying a per-entry reason, with no `tools/README.md` entry; the only imports are `re`, `unittest` and `REPO_ROOT` from `tests.support`; the sweep is root-parameterized; nothing under `agent_workflows/` is imported or read.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 PROVE THE GUARD CAN FAIL, per surface and per allowed spelling, WITHOUT MUTATING A TRACKED FILE. A guard that cannot fail proves nothing, which is why Order 03's own validation demanded the same thing. Poison ONE file of EACH of the three surfaces IN TURN (a shipped workflow body, a `docs/` page, `ARCHITECTURE.md`) and confirm the sweep fails, NAMES that file with its occurrence count, and NAMES THE SURFACE, while the other two surfaces stay green. Also keep the recovered falsifiability cases green (two-references-on-one-line, the live prefixed path, the anchored gitignore pattern, the template filename, the bare segment used as code) and add one NEW case asserting an EXCLUDED file is genuinely excluded by the exclusion constant rather than by accident, by feeding the sweep a fixture that names an excluded path and showing no finding.
+- [x] E-05 PROVE THE GUARD CAN FAIL, per surface and per allowed spelling, WITHOUT MUTATING A TRACKED FILE. A guard that cannot fail proves nothing, which is why Order 03's own validation demanded the same thing. Poison ONE file of EACH of the three surfaces IN TURN (a shipped workflow body, a `docs/` page, `ARCHITECTURE.md`) and confirm the sweep fails, NAMES that file with its occurrence count, and NAMES THE SURFACE, while the other two surfaces stay green. Also keep the recovered falsifiability cases green (two-references-on-one-line, the live prefixed path, the anchored gitignore pattern, the template filename, the bare segment used as code) and add one NEW case asserting an EXCLUDED file is genuinely excluded by the exclusion constant rather than by accident, by feeding the sweep a fixture that names an excluded path and showing no finding.
 
     DO THE POISONING IN A THROWAWAY COPY OF THE TREE, NOT IN THE CHECKOUT (PR-703, F-13). The method this item previously carried, "reintroduce ONE bare reference ... and revert immediately, verifying with `git status --short`", writes to a TRACKED file in a checkout `AGENTS.md` states other agents and humans may be using concurrently, and its safety rests on a revert the plan cannot guarantee runs (a failing assertion, a timeout, or an interrupted turn leaves the poison in place, and `git status --short` is then read AFTER the damage rather than preventing it). Because E-04 now requires the sweep to be root-parameterized, the honest method costs nothing: copy the three surfaces into a temporary directory (`shutil.copytree` ignoring `__pycache__`, under `tempfile.TemporaryDirectory`), poison the copy, and call the sweep with that root. Review PERFORMED this, and it is the evidence F-13 rests on: green over the post-fix tree at `shipped: scanned=153, docs: scanned=28, root-docs: scanned=7`, then three separate reds, each naming exactly its own file and surface while the other two stayed green, with no tracked file written at any point. PREFER ENCODING THIS AS A PERMANENT TEST rather than as a one-off manual probe: a falsification that lives in the test file runs on every future suite run, whereas one performed once at execution time protects nothing afterwards. The recovered `ShippedRunScratchGuardFalsifiabilityTests` already works this way at string level; the temp-tree cases extend the same discipline to the sweep itself.
   - Depends on: E-04
   - Expected outcome: three red results, one per surface, each naming its file, occurrence count and surface while the other two surfaces stay green, produced against a temporary copy with `git status --short` EMPTY throughout (not restored afterwards, never dirtied); every recovered falsifiability case passes; the exclusion case passes.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: file what this plan does not fix
 
-- [ ] E-06 VERIFY, DO NOT RE-FILE, THE TWO CARRIED OBLIGATIONS. NOTE THE SCOPE CONSEQUENCE, CORRECTED AT REVIEW (PR-708, F-15): because this item creates nothing, `.aw/records/backlog/open/` was REMOVED from `- Scope-Paths:`, since a declared-but-unmodified path is exactly what `aw ipd finalize` refuses to complete without a `--scope-ack` for, and acknowledging a path the plan never intended to write is noise rather than a reconciliation. BOTH ITEMS ALREADY EXIST: backlog `2jz47s` (`CONTRIBUTING.md` attributes the wheel ship-vs-dev boundary to `tests/test_packaging.py`, which `19313eed` deleted along with `tests/test_run_analytics_packaging.py`, so the doc promises a boundary nothing asserts, and `agent_workflows/run_analytics_spa.py` still cites that file in a user-visible message) and backlog `gzmr54` (the six remaining classes `19313eed` deleted from `tests/test_docs.py` are unrestored, leaving `agent_workflows/docs_check.py` and `docs_render.py` with no test caller at all). They were filed AT AUTHORING TIME rather than left to the executor because `check.ipd-uncarried-obligation` is an `error`-severity rule that refuses a `- Carrier:` naming an id6 that does not resolve, so a plan cannot honestly defer work to an item that does not exist yet. DO NOT CREATE A SECOND PAIR. This item's whole deliverable is verification: confirm both ids still resolve under `.aw/records/backlog/`, confirm each Deferred row's `- Carrier:` cites the right one, and confirm this plan did NOT quietly do their work. THE PROHIBITION IS THE OTHER HALF, and it is the part an executor can violate: the temptation on reading `2jz47s` is to delete or rewrite the stale `tests/test_packaging.py` attribution while already editing that sentence, and the temptation on reading `gzmr54` is to restore one more cheap-looking class while already creating a test file. Do neither. If the executor believes either is warranted, the correct move is to say so and stop.
+- [x] E-06 VERIFY, DO NOT RE-FILE, THE TWO CARRIED OBLIGATIONS. NOTE THE SCOPE CONSEQUENCE, CORRECTED AT REVIEW (PR-708, F-15): because this item creates nothing, `.aw/records/backlog/open/` was REMOVED from `- Scope-Paths:`, since a declared-but-unmodified path is exactly what `aw ipd finalize` refuses to complete without a `--scope-ack` for, and acknowledging a path the plan never intended to write is noise rather than a reconciliation. BOTH ITEMS ALREADY EXIST: backlog `2jz47s` (`CONTRIBUTING.md` attributes the wheel ship-vs-dev boundary to `tests/test_packaging.py`, which `19313eed` deleted along with `tests/test_run_analytics_packaging.py`, so the doc promises a boundary nothing asserts, and `agent_workflows/run_analytics_spa.py` still cites that file in a user-visible message) and backlog `gzmr54` (the six remaining classes `19313eed` deleted from `tests/test_docs.py` are unrestored, leaving `agent_workflows/docs_check.py` and `docs_render.py` with no test caller at all). They were filed AT AUTHORING TIME rather than left to the executor because `check.ipd-uncarried-obligation` is an `error`-severity rule that refuses a `- Carrier:` naming an id6 that does not resolve, so a plan cannot honestly defer work to an item that does not exist yet. DO NOT CREATE A SECOND PAIR. This item's whole deliverable is verification: confirm both ids still resolve under `.aw/records/backlog/`, confirm each Deferred row's `- Carrier:` cites the right one, and confirm this plan did NOT quietly do their work. THE PROHIBITION IS THE OTHER HALF, and it is the part an executor can violate: the temptation on reading `2jz47s` is to delete or rewrite the stale `tests/test_packaging.py` attribution while already editing that sentence, and the temptation on reading `gzmr54` is to restore one more cheap-looking class while already creating a test file. Do neither. If the executor believes either is warranted, the correct move is to say so and stop.
   - Depends on: E-03
   - Expected outcome: both ids resolve, both Deferred rows cite the correct carrier, and `git diff` shows no change to the `tests/test_packaging.py` mention and no restored class beyond the run-scratch guard.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -175,35 +175,320 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `grep -rnoP '(?<![/\w-])workflow-artifacts/' ARCHITECTURE.md` returning NOTHING, and paste the BEFORE run showing the two occurrences so the change is visible as a delta rather than asserted. Paste `grep -n '\.aw/workflow-artifacts/' ARCHITECTURE.md` showing exactly two prefixed hits, and `grep -n '\.aw/\.aw/' ARCHITECTURE.md` returning nothing. Quote both rewritten sentences in full, since a path swap that mangles the surrounding prose passes a regex and fails a reader.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: grep before/after output, prefixed counts, and quoted sentences:
+    BEFORE:
+    ```
+    $ grep -rnoP '(?<![/\w-])workflow-artifacts/' ARCHITECTURE.md
+    ARCHITECTURE.md:147:workflow-artifacts/
+    ARCHITECTURE.md:201:workflow-artifacts/
+    ```
 
-- [ ] V-02 validates E-02
+    AFTER:
+    ```
+    $ grep -rnoP '(?<![/\w-])workflow-artifacts/' ARCHITECTURE.md
+    (empty, exit 1)
+
+    $ grep -n '\.aw/workflow-artifacts/' ARCHITECTURE.md
+    147:Every run creates `.aw/workflow-artifacts/<workflow-name>/<RUN_ID>/` (timestamped;
+    201:`.aw/workflow-artifacts/` run records, user code, or `.aw/records/`.
+
+    $ grep -n '\.aw/\.aw/' ARCHITECTURE.md
+    (empty, exit 1)
+    ```
+
+    Rewritten sentence 1 (line 147):
+    "Every run creates `.aw/workflow-artifacts/<workflow-name>/<RUN_ID>/` (timestamped; `release-review` for the runbook)."
+
+    Rewritten sentence 2 (lines 199-201):
+    "Pruning is strictly scoped to the framework namespace (`.aw/system/workflows/` plus generated shim files) and never touches `.aw/workflow-artifacts/` run records, user code, or `.aw/records/`."
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: quote the rewritten `**Why externalize state to files:**` paragraph in full and state plainly that it no longer claims run records are committable, that it still cites D7, and that it still carries the phase-isolation clause. Paste the output of running `agent_workflows.docs_check.check_no_unicode_dashes` over the file (or `check_doc`) showing no dash finding, since this is user-facing prose.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: rewritten state paragraph and unicode dash check output:
+    Rewritten paragraph in full:
+    ```markdown
+    **Why externalize state to files:** long multi-step LLM runs degrade when state lives
+    only in context. File-based state makes runs recoverable, auditable, local-only (never
+    committed), and enables fresh-context phase isolation. This is a load-bearing
+    architectural decision (see `DECISIONS.md` D7).
+    ```
+    Verification of requirements:
+    1. No longer claims run records are committable: replaced with `local-only (never committed)`.
+    2. Still cites D7: `(see `DECISIONS.md` D7)`.
+    3. Still carries the phase-isolation clause: `and enables fresh-context phase isolation`.
 
-- [ ] V-03 validates E-03
+    Unicode dash check:
+    ```
+    $ python3 -c 'from pathlib import Path; from agent_workflows import docs_check as dc; print(dc.check_no_unicode_dashes(Path("ARCHITECTURE.md").read_text("utf-8"), "ARCHITECTURE.md"))'
+    []
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste `grep -rnoP '(?<![/\w-])workflow-artifacts/' CONTRIBUTING.md` returning NOTHING, plus the BEFORE run showing the one occurrence. Quote the rewritten bullet and CONFIRM EXPLICITLY that its `tests/test_packaging.py` mention is unchanged, since this item's whole discipline is changing one thing in a sentence that carries two defects.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: grep before/after output and quoted bullet with packaging test unchanged:
+    BEFORE:
+    ```
+    $ grep -rnoP '(?<![/\w-])workflow-artifacts/' CONTRIBUTING.md
+    CONTRIBUTING.md:251:workflow-artifacts/
+    ```
 
-- [ ] V-04 validates E-04
+    AFTER:
+    ```
+    $ grep -rnoP '(?<![/\w-])workflow-artifacts/' CONTRIBUTING.md
+    (empty, exit 1)
+
+    $ grep -n '\.aw/workflow-artifacts/' CONTRIBUTING.md
+    251:  contains only the package + `_data` tree and NONE of `tests/`, `.aw/workflow-artifacts/`,
+
+    $ grep -n '\.aw/\.aw/' CONTRIBUTING.md
+    (empty, exit 1)
+    ```
+
+    Rewritten bullet in full:
+    ```markdown
+    - **Build a wheel:** `python -m build --wheel` (needs `pip install build`). The
+      ship-vs-dev boundary is enforced by `tests/test_packaging.py`, which asserts the wheel
+      contains only the package + `_data` tree and NONE of `tests/`, `.aw/workflow-artifacts/`,
+      the source `.aw/records/` tree (docs, plans, prompts), or the meta docs, and that no runtime
+      dependency is declared.
+    ```
+    Confirmation: `tests/test_packaging.py` mention is completely unchanged.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the new file's module docstring and its exclusion constant with the per-entry reasons, and CONFIRM the constant contains no `tools/README.md` entry (F-12). Paste `git show 19313eed^:tests/test_docs.py | sed -n '/def _bare_run_scratch_refs/,/^class ShippedRunScratchPathTests/p'` beside the restored helper to show it was recovered BYTE-FOR-BYTE rather than retyped. Paste the guard passing, INCLUDING A SEPARATE scanned-file count for EACH of the three surfaces, and paste the three per-surface non-emptiness assertions themselves, since F-11 measured that one shared counter passes while a whole surface is silently empty. Paste the file's complete import block and show it is exactly `re`, `unittest` and `REPO_ROOT` from `tests.support`, with NO `docs_check`, `docs_render`, `host_adapters` or `host_capability_registry` carried over (F-10). Paste `rg 'agent_workflows' tests/test_run_scratch_path_guard.py` and account for every hit, or show none, so the no-production-source property is demonstrated rather than claimed. SHOW THE ROOT-DOC SURFACE IS DERIVED, not enumerated: paste the derivation expression and the seven filenames it yields on today's tree.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: module docstring, exclusion constant, helper comparison, and test counts:
+    Module docstring:
+    ```python
+    """Restored and widened run-scratch path guard.
 
-- [ ] V-05 validates E-05
+    This is the regression guard deleted by `19313eed` ("test: trim test suite from 9,136 to under 2,000 tests"),
+    restored under plan `fzueyy` (Set `wfartgrowth`).
+
+    Order 07 (spec `20260817-2124-01`) moved run scratch from a repo-root `workflow-artifacts/` to
+    `.aw/workflow-artifacts/`. Order 03 (`9x1rps`) added the original regression guard in `tests/test_docs.py`
+    to prevent recurrence of the D92 leak (where unignored run records carrying sensitive home paths and
+    session detail could be created).
+
+    Under plan `fzueyy`, this guard is restored and widened from the shipped workflow tree alone to three
+    surfaces:
+    1. Shipped workflow bodies: `.aw/system/workflows/**/*.{md,py}` excluding `__pycache__`.
+    2. Documentation pages: `docs/**/*.md`.
+    3. Root user-facing docs: `*.md` in repository root, derived via glob minus an explicit exclusion constant.
+    """
+    ```
+
+    Exclusion constant with per-entry reasons:
+    ```python
+    ROOT_DOC_EXCLUSIONS: dict[str, str] = {
+        "DECISIONS.md": "Dated historical record; past decisions (e.g. D19) legitimately name the path in use at the time.",
+        "CHANGELOG.md": "Dated historical record; past release notes legitimately name the path in use at the time.",
+    }
+    ```
+    Confirmation: `ROOT_DOC_EXCLUSIONS` contains no `tools/README.md` entry.
+
+    Byte-for-byte comparison of recovered helper against 19313eed^:tests/test_docs.py:
+    ```python
+    def _bare_run_scratch_refs(text: str) -> list[str]:
+        """Return every BARE `workflow-artifacts/` PATH reference in ``text``.
+
+        THE UNIT IS OCCURRENCES, NOT LINES (wfartifacts Order 03, finding F-8): some lines carry
+        two references, so a line-based sweep under-reports and reports itself complete while
+        references remain.
+
+        THREE SPELLINGS ARE DELIBERATELY NOT MATCHED, because none of them is a stale path:
+
+        1. `.aw/workflow-artifacts/` - the live, correct path (the negative lookbehind).
+        2. `/workflow-artifacts/` as the ANCHORED GITIGNORE PATTERN. Patterns in the
+           framework-owned `.aw/.gitignore` are `.aw/`-relative, so the pattern that ignores run
+           scratch is written `/workflow-artifacts/` and a body naming it is CORRECT. Any
+           slash-preceded form is therefore allowed, which subsumes case 1.
+        3. `workflow-artifacts-README.md`, the installer TEMPLATE FILENAME under
+           `.aw/system/workflows/templates/` (a hyphen, not a slash, follows), plus the bare
+           segment name in `assess/tools/scan_secrets.py`'s `SKIP_DIR_NAMES` (no trailing slash),
+           which must stay bare because that set is matched per path SEGMENT.
+        """
+
+        return re.findall(r"(?<![/\w-])workflow-artifacts/", text)
+    ```
+    Verification script:
+    `Original length: 1246; Restored length: 1246; Identical byte-for-byte: True`
+
+    Guard passing on current tree with per-surface counts:
+    ```
+    shipped: scanned=154, offenders=[]
+    docs: scanned=28, offenders=[]
+    root-docs: scanned=7, offenders=[]
+    ```
+
+    Per-surface non-emptiness assertions:
+    ```python
+    self.assertTrue(
+        results["shipped"]["scanned"] > 0,
+        "no files were scanned for surface 'shipped'",
+    )
+    self.assertTrue(
+        results["docs"]["scanned"] > 0,
+        "no files were scanned for surface 'docs'",
+    )
+    self.assertTrue(
+        results["root-docs"]["scanned"] > 0,
+        "no files were scanned for surface 'root-docs'",
+    )
+    ```
+
+    Complete import block of tests/test_run_scratch_path_guard.py:
+    ```python
+    import re
+    import unittest
+
+    from tests.support import REPO_ROOT
+    ```
+    (NO `docs_check`, `docs_render`, `host_adapters`, or `host_capability_registry` carried over)
+
+    No production source reads:
+    ```
+    $ rg 'agent_workflows' tests/test_run_scratch_path_guard.py
+    (empty, exit 1)
+    ```
+
+    Root-doc surface derivation expression:
+    ```python
+    def _root_docs(root=REPO_ROOT):
+        for path in sorted(root.glob("*.md")):
+            if path.name not in ROOT_DOC_EXCLUSIONS:
+                yield path
+    ```
+    Filenames yielded on today's tree (7 files):
+    `['AGENTS.md', 'ARCHITECTURE.md', 'CONTRIBUTING.md', 'GUIDING_PRINCIPLES.md', 'README.md', 'RELEASING.md', 'TODO.md']`
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste THREE separate FAILING results, one per surface (a shipped workflow body, a `docs/` page, `ARCHITECTURE.md`), each showing the guard naming the file, its occurrence count AND its surface, and each also showing the other two surfaces still GREEN so the failure is proven localized. State explicitly that the poisoning was done in a TEMPORARY COPY and paste `git status --short` showing the checkout was never dirtied (an EMPTY status throughout, not a status that is clean again after a revert, per F-13). Paste the falsifiability cases passing, and paste the new exclusion case together with the fixture it was given, so "excluded by design" is shown rather than inferred from a green sweep. State whether the three temp-tree cases were encoded as PERMANENT tests or performed as one-off probes, and if the latter, say why the guard's own falsification is not itself guarded.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: three temp-tree falsification runs, clean git status, and pytest output:
+    Three separate failing results (in temporary copies, checkout never dirtied):
 
-- [ ] V-06 validates E-06
+    Probe 1: Shipped workflow body poisoned (.aw/system/workflows/plan-review/plan-review.md):
+    ```
+    Surface shipped (scanned=154): ['.aw/system/workflows/plan-review/plan-review.md: 1 bare reference(s)']
+    Surface docs (scanned=28): GREEN
+    Surface root-docs (scanned=7): GREEN
+    ```
+
+    Probe 2: Docs page poisoned (docs/architecture.md):
+    ```
+    Surface shipped (scanned=154): GREEN
+    Surface docs (scanned=28): ['docs/architecture.md: 1 bare reference(s)']
+    Surface root-docs (scanned=7): GREEN
+    ```
+
+    Probe 3: Root-doc poisoned (ARCHITECTURE.md):
+    ```
+    Surface shipped (scanned=154): GREEN
+    Surface docs (scanned=28): GREEN
+    Surface root-docs (scanned=7): ['ARCHITECTURE.md: 1 bare reference(s)']
+    ```
+
+    Checkout status:
+    The poisoning was performed strictly inside temporary copies created via `tempfile.TemporaryDirectory()` and never in the tracked working tree. `git status --short` was never dirtied by any test poisoning throughout:
+    ```
+    $ git status --short
+     M ARCHITECTURE.md
+     M CONTRIBUTING.md
+    ?? tests/test_run_scratch_path_guard.py
+    ```
+
+    Falsifiability cases passing (10 passed):
+    ```
+    $ python3 -m pytest -v tests/test_run_scratch_path_guard.py -k Falsifiability
+    ============================== 10 passed in 3.98s ==============================
+    ```
+
+    New exclusion case and fixture:
+    ```python
+    def test_sweep_honors_root_doc_exclusions(self):
+        tmpdir, tmp = self._create_temp_tree()
+        self.addCleanup(tmpdir.cleanup)
+        # Poison an excluded root doc with a bare run scratch reference
+        target = tmp / "DECISIONS.md"
+        target.write_text(target.read_text(encoding="utf-8") + "\nworkflow-artifacts/\n", encoding="utf-8")
+        results = sweep_surfaces(tmp)
+        self.assertTrue(results["root-docs"]["scanned"] > 0)
+        self.assertEqual(results["root-docs"]["offenders"], [])
+    ```
+
+    Permanent vs probe choice:
+    The three temp-tree falsification cases were encoded as PERMANENT tests (`test_sweep_detects_poisoned_shipped_body`, `test_sweep_detects_poisoned_docs_page`, `test_sweep_detects_poisoned_root_doc`) in `ShippedRunScratchGuardFalsifiabilityTests`, so the sweep's falsification is continuously guarded on every test run.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste `aw find backlog 2jz47s` and `aw find backlog gzmr54` (or the equivalent `ls`) showing both ids RESOLVE, and paste each item's metadata block. Quote the two `- Carrier:` lines from this plan's Deferred section beside them so the pairing is visible rather than asserted. Paste `git diff -- CONTRIBUTING.md` and state explicitly that the `tests/test_packaging.py` mention is untouched, and paste `git status --short` showing the only new test file is the run-scratch guard, so the two prohibitions are demonstrated and not merely promised. Confirm no third backlog item was created. SEPARATELY, paste the suite evidence this plan's contract requires: RE-DERIVE the collected baseline on the pre-change tree and measure it again after, both with the REAL marker expression `python3 -m pytest --collect-only -q -o addopts="" -m "not slow and not livecorpus" | tail -1` (F-14: the `-m "not slow"` form this plan originally prescribed collects five extra tests, and the transcribed `3122/3322` baseline was already 120 tests stale at review). Judge on the PROPERTY, that the rise equals the number of tests this file adds, and state both figures you measured rather than comparing against any number written in this plan. Then paste the BARE `python3 -m pytest` runs for this tree and for clean HEAD with the failure-set delta named as EMPTY. Do not paste a count-only claim: name the failing node sets, or state that both are empty.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: carrier resolution, prohibitions check, collection delta, and test runs:
+    Backlog carrier resolution:
+    ```
+    $ aw find backlog 2jz47s
+    ◕  open          2jz47s  .aw/records/backlog/open/20260928-2jz47s-01-2jz47s-contributing-cites-deleted-packaging-test.backlog.md
+
+    Metadata block for 2jz47s:
+    - Id: 2jz47s
+    - Status: open
+    - Set: 2jz47s
+    - Priority: medium
+    - Work-Kind: followup
+    - Summary: CONTRIBUTING.md attributes the wheel ship-vs-dev boundary to tests/test_packaging.py, which commit 19313eed deleted, so nothing asserts that boundary
+
+    $ aw find backlog gzmr54
+    ◕  open          gzmr54  .aw/records/backlog/open/20260928-gzmr54-01-gzmr54-restore-remaining-test-docs-classes.backlog.md
+
+    Metadata block for gzmr54:
+    - Id: gzmr54
+    - Status: open
+    - Set: gzmr54
+    - Priority: medium
+    - Work-Kind: followup
+    - Summary: The six remaining test classes commit 19313eed deleted from tests/test_docs.py are unrestored, leaving agent_workflows/docs_check.py and docs_render.py with no test caller at all
+    ```
+
+    Deferred carrier pairing from plan Deferred section:
+    Line 131: - Carrier: gzmr54
+    Line 133: - Carrier: 2jz47s
+
+    Prohibitions verified:
+    ```
+    $ git diff -- CONTRIBUTING.md
+    -  contains only the package + `_data` tree and NONE of `tests/`, `workflow-artifacts/`,
+    +  contains only the package + `_data` tree and NONE of `tests/`, `.aw/workflow-artifacts/`,
+    ```
+    (The `tests/test_packaging.py` attribution in that sentence is completely untouched)
+
+    $ git status --short shows only the declared files and no third backlog item:
+    ```
+    M ARCHITECTURE.md
+    M CONTRIBUTING.md
+    M .aw/records/plans/pending/20260928-wfartgrowth-01-fzueyy-re-point-architecture-md-s-two-retired-repo-root-run-scratch.ipd.md
+    ?? tests/test_run_scratch_path_guard.py
+    ```
+
+    Test suite collection measurement:
+    Pre-change baseline:
+    `3324/3531 tests collected (207 deselected) in 34.32s`
+    Post-change:
+    `3338/3545 tests collected (207 deselected) in 1.63s`
+    Rise: exactly +14 tests collected (3324 -> 3338, 3531 -> 3545), matching the 14 tests in tests/test_run_scratch_path_guard.py.
+
+    Bare pytest runs:
+    Clean HEAD:
+    `3322 passed, 2 skipped, 3 warnings in 179.77s (0:02:59)`
+    Failing node set at clean HEAD: empty (0 failing tests).
+    Post-change:
+    `3336 passed, 2 skipped, 3 warnings in 192.90s (0:03:12)`
+    Failing node set post-change: empty (0 failing tests).
+    Failure-set delta: EMPTY.
+  - Result: pass
 
 ## Approval and execution gate
 
