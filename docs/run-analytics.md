@@ -150,7 +150,7 @@ can read in `aw runs query cache-status`:
 | --- | --- | --- |
 | unchanged, finished run with a valid entry | hit | `fresh-complete-entry` |
 | first time seen, or newly added | rebuild | `no-entry` |
-| an analytics-relevant input changed | rebuild | `fingerprint-changed` |
+| an analytics-relevant input or the producer vocabulary changed | rebuild | `fingerprint-changed` |
 | the run is still live, or was resumed | rebuild | `run-not-terminal` |
 | the entry was stored mid-run | rebuild | `entry-incomplete` |
 | the entry came from another cache schema | rebuild | `schema-version-mismatch` |
@@ -162,9 +162,14 @@ BEFORE the file fingerprint: "the files did not change" is not evidence of stabi
 may still be writing. And a contended entry SKIPS with a reason rather than waiting, because the work
 is recomputable, so a skip costs one rebuild next time while a block would cost you your command.
 
+A release that adds or removes an analytics metric automatically rebuilds affected entries on the
+next ordinary `aw runs analyze`, because the producer's declared vocabulary participates in the
+fingerprint. Upgrades self-heal without operator intervention, so you do not need to run a manual
+rebuild when a new metric lands.
+
 Recovery from damage needs no special verb: one corrupt run degrades ITSELF, the sweep completes over
-the rest, and the skipped run is reported. `aw runs analyze --rebuild` discards cached entries and
-recomputes; it never touches a source run.
+the rest, and the skipped run is reported. `aw runs analyze --rebuild` remains available for a damaged
+or hand-edited tree; it discards cached entries and recomputes without touching a source run.
 
 Removals are found by comparing your run list against the cache listing, not by a decision: a run that
 is gone is not enumerated, so it produces no verdict at all.

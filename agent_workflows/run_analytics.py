@@ -69,6 +69,8 @@ from agent_workflows.run_analytics_schema import (
 
 __all__ = [
     "INGEST_SCHEMA_VERSION",
+    "PRODUCER_METRIC_KEYS",
+    "PRODUCER_EVENT_KEYS",
     "RunFacts",
     "build_run_facts",
     "build_cache_facts",
@@ -81,6 +83,52 @@ __all__ = [
 
 #: The ingestion layer's own version, bumped when the :class:`RunFacts` SHAPE changes.
 INGEST_SCHEMA_VERSION = 1
+
+#: The producer's declared output vocabulary for run-grain metrics and event-grain facts.
+#:
+#: THESE CONSTANTS EXIST TO INVALIDATE CACHE ENTRIES when the producer's emitted vocabulary
+#: changes, folding into :func:`agent_workflows.run_analytics_cache.source_fingerprint`.
+#: They are the producer's own vocabulary and are deliberately NOT
+#: :data:`agent_workflows.run_analytics_privacy.ALLOWED_METRIC_KEYS`: 6krsym changed the producer
+#: without touching the allowlist (which already permitted event_count before 6krsym computed it),
+#: and the allowlist is a loose superset (49 keys against the 19 a rich run emits).
+#:
+#: Both constants are defined in terms of :func:`build_cache_facts`, which is the function
+#: whose output the cache envelope actually persists. A constant covering keys the envelope
+#: never stores (such as the 26-key all-grain union across finer grains) could never equal what
+#: tests observe, and one covering fewer would invalidate every corpus on the first run that emits
+#: the missing key.
+#:
+#: The guard in tests/test_run_analytics.py keeps this declaration honest by asserting exact
+#: equality against what build_cache_facts emits for a rich reference run.
+PRODUCER_METRIC_KEYS: tuple[str, ...] = (
+    "cost",
+    "cost_currency",
+    "cost_is_estimate",
+    "driver_generation",
+    "ended_at",
+    "event_count",
+    "host_kind",
+    "model",
+    "observed_activity_seconds",
+    "overlap_seconds",
+    "phase",
+    "quality_flags",
+    "run_id",
+    "started_at",
+    "status",
+    "token_total",
+    "tokens",
+    "unattributed_seconds",
+    "wall_seconds",
+)
+
+PRODUCER_EVENT_KEYS: tuple[str, ...] = (
+    "event_type",
+    "phase",
+    "sequence",
+    "timestamp",
+)
 
 #: Queue-item statuses that mean the item finished successfully. Used only to label an outcome, never
 #: to decide whether a fact exists.

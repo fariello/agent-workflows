@@ -90,9 +90,11 @@ __all__ = [
     "update_cache",
 ]
 
-#: The envelope's own schema version. BUMP THIS when a field's meaning changes; a reader refuses a
-#: version it does not know rather than misparsing it, and the cache is disposable so a bump
-#: simply rebuilds.
+#: The envelope's own schema version. BUMP THIS when an envelope field's meaning changes; a reader
+#: refuses a version it does not know rather than misparsing it, and the cache is disposable so a
+#: bump simply rebuilds. It is NOT needed for producer metric additions or removals, which
+#: invalidate cache entries via the producer vocabulary folded into source_fingerprint without
+#: making existing cache entries unreadable during a reader upgrade.
 CACHE_SCHEMA_VERSION = 1
 
 ENTRY_FILENAME = "entry.json"
@@ -339,12 +341,13 @@ def analytics_relevant_files(run_dir: Path | str) -> list[Path]:
 
 
 def source_fingerprint(run_dir: Path | str) -> str:
-    """A deterministic digest of every analytics-relevant input plus terminal state.
+    """A deterministic digest of every analytics-relevant input, terminal state, and producer vocabulary.
 
     Covers each file's RELATIVE path, byte size and mtime in nanoseconds, plus the run's
-    terminal/in-progress flag and the schema version. Deterministic across processes: the inputs
-    are sorted, the digest is fed a canonical JSON encoding with sorted keys, and no absolute path,
-    dict ordering, locale or process-local value participates.
+    terminal/in-progress flag, the schema version, and the producer's declared metric and event
+    vocabulary. Deterministic across processes: the inputs are sorted, the digest is fed a canonical
+    JSON encoding with sorted keys, and no absolute path, dict ordering, locale or process-local
+    value participates.
     """
 
     base = Path(run_dir)
@@ -365,6 +368,7 @@ def source_fingerprint(run_dir: Path | str) -> str:
         "cache_schema_version": CACHE_SCHEMA_VERSION,
         "is_terminal": run_is_terminal(base),
         "members": members,
+        "producer_vocabulary": _producer_vocabulary(),
     }
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return "sha256:" + hashlib.sha256(encoded.encode("utf-8")).hexdigest()
@@ -562,17 +566,17 @@ def decide(
 
     The verdict table, each case with the reason code a consumer sees:
 
-    ================================  ==========  ==========================
-    Case                              Verdict     Reason
-    ================================  ==========  ==========================
-    unchanged, terminal, valid entry  ``hit``     ``fresh-complete-entry``
-    no entry yet (first scan, added)  ``rebuild`` ``no-entry``
-    inputs mutated                    ``rebuild`` ``fingerprint-changed``
-    run not terminal (live, resumed)  ``rebuild`` ``run-not-terminal``
-    entry was stored as incomplete    ``rebuild`` ``entry-incomplete``
-    entry from another schema         ``rebuild`` ``schema-version-mismatch``
-    entry corrupt or unreadable       ``rebuild`` ``entry-unreadable``
-    ================================  ==========  ==========================
+    ======================================  ==========  ==========================
+    Case                                    Verdict     Reason
+    ======================================  ==========  ==========================
+    unchanged, terminal, valid entry        ``hit``     ``fresh-complete-entry``
+    no entry yet (first scan, added)        ``rebuild`` ``no-entry``
+    inputs or producer vocabulary changed   ``rebuild`` ``fingerprint-changed``
+    run not terminal (live, resumed)        ``rebuild`` ``run-not-terminal``
+    entry was stored as incomplete          ``rebuild`` ``entry-incomplete``
+    entry from another schema               ``rebuild`` ``schema-version-mismatch``
+    entry corrupt or unreadable             ``rebuild`` ``entry-unreadable``
+    ======================================  ==========  ==========================
 
     A REMOVED run produces no decision at all, because it is not enumerated; callers that must
     report removals compare their run list against the cache directory listing.
@@ -614,7 +618,10 @@ def decide(
     if current != envelope.source_fingerprint:
         return (
             CacheDecision(
-                rid, "rebuild", "fingerprint-changed", "analytics inputs changed"
+                rid,
+                "rebuild",
+                "fingerprint-changed",
+                "analytics inputs or the producer's vocabulary changed",
             ),
             None,
         )
@@ -776,6 +783,19 @@ def _tool_version() -> str:
         return str(version)
     except Exception:  # noqa: BLE001 - a version lookup must never break a cache write
         return "unknown"
+
+
+def _producer_vocabulary() -> dict[str, list[str]]:
+    """The producer's declared vocabulary, read lazily to preserve the cache's import surface."""
+    try:
+        from agent_workflows import run_analytics
+
+        return {
+            "event_keys": sorted(run_analytics.PRODUCER_EVENT_KEYS),
+            "metric_keys": sorted(run_analytics.PRODUCER_METRIC_KEYS),
+        }
+    except Exception:  # noqa: BLE001 - a lookup failure must never break fingerprinting silently
+        return {"event_keys": [], "metric_keys": []}
 
 
 def _utc_now() -> str:

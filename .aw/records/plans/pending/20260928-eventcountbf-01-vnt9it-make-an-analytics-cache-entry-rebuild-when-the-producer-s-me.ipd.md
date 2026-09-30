@@ -23,8 +23,8 @@
 - 2026-09-29 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; five findings PR-701..PR-705 all fixed (two HIGH on the grain-dependent vocabulary definition and the per-run fold hazard); review record written; readiness go-pending-approval
 
 - 2026-09-29 /plan-review findings (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-701, PR-702, PR-703, PR-704, PR-705 all FIXED. Reviewed at HEAD `96c97168`; every claim re-measured in this lane except F-01/F-02, which describe a machine-local tree absent from a lane (now recorded as F-16). The diagnosis and fix are PROVEN end-to-end: the stripped entry stays `hit` and does not recover across a full sweep, and with E-02's fold staged in memory the same entries go `rebuild`/`fingerprint-changed` and `event_count` returns 0/4 -> 4/4 with `readable=4 unreadable=0` throughout. F-05's schema-bump comparison reproduced (`readable=6` -> `readable=0 unreadable=6`), as did F-06 in both directions. Five findings, two of them HIGH and both about the central definition being under-determined rather than wrong: the producer vocabulary is GRAIN-DEPENDENT and the plan named the 26-key all-grain union where the envelope stores only 19 run-grain keys, which would have made E-03 unsatisfiable (PR-701); and E-02 did not mandate folding the DECLARED constants, so the natural per-run reading would have rebuilt rich runs while leaving sparse runs permanently stale, a silent failure that looks like success (PR-702). E-01, E-02, E-03 rewritten; V-01, V-02, V-03 gained the checks that catch both. Three Decisions recorded, all reversible. `aw ipd lint --phase review-finalize` conforms.
-- 2026-09-28 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
 - 2026-09-28 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): authored from backlog `36nh0o`. The item's literal ask (spend a `--rebuild` to backfill `event_count`) is measured already satisfied on the maintainer's box, so the plan targets the mechanism whose absence caused the staleness instead of the one-off sweep.
+- 2026-09-28 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
 
 ## Goal
 
@@ -36,7 +36,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: make the producer's vocabulary a declared, invalidating input
 
-- [ ] E-01 In `agent_workflows/run_analytics.py`, declare the producer's output vocabulary as two module-level constants beside the existing producer surface: `PRODUCER_METRIC_KEYS` and `PRODUCER_EVENT_KEYS`, both sorted tuples. Add both to `__all__`. Document at the declaration that these exist to INVALIDATE CACHE ENTRIES, that they are the producer's own vocabulary and deliberately NOT `run_analytics_privacy.ALLOWED_METRIC_KEYS` (measured: the allowlist already permitted `event_count` before `6krsym` computed it, so `6krsym` changed the producer without touching the allowlist and an allowlist-keyed signal would have caught nothing; the allowlist is also a loose superset of 49 keys against the 19 a rich run emits), and that `E-03`'s guard is what keeps the declaration honest.
+- [x] E-01 In `agent_workflows/run_analytics.py`, declare the producer's output vocabulary as two module-level constants beside the existing producer surface: `PRODUCER_METRIC_KEYS` and `PRODUCER_EVENT_KEYS`, both sorted tuples. Add both to `__all__`. Document at the declaration that these exist to INVALIDATE CACHE ENTRIES, that they are the producer's own vocabulary and deliberately NOT `run_analytics_privacy.ALLOWED_METRIC_KEYS` (measured: the allowlist already permitted `event_count` before `6krsym` computed it, so `6krsym` changed the producer without touching the allowlist and an allowlist-keyed signal would have caught nothing; the allowlist is also a loose superset of 49 keys against the 19 a rich run emits), and that `E-03`'s guard is what keeps the declaration honest.
 
   THE GRAIN IS PART OF THE DEFINITION AND MUST BE STATED, NOT LEFT TO THE EXECUTOR. An earlier draft of this item defined `PRODUCER_METRIC_KEYS` as "the metric keys `_metric_payload` can emit", which is MEASURABLY THE WRONG SET and would have made E-03 unsatisfiable. `_metric_payload` runs at FIVE grains (`run`, `ipd`, `phase`, `attempt`, `event`) and their union is 26 keys, but the cache envelope stores ONLY the RUN grain: `build_cache_facts` takes `projected.get("run")[0]` as `metric_facts` and `projected.get("event")` as `event_facts`. Measured on a two-item fixture: run grain 19 keys, all-grain union 26, with `['attempt', 'event_type', 'ipd_id6', 'position', 'sequence', 'set_id', 'timestamp']` in the union but NOT in the run grain (`set_id`/`ipd_id6`/`position` appear at the finer grains only, and `event_count` is run-grain only). So:
   - `PRODUCER_METRIC_KEYS` is the RUN-GRAIN metric vocabulary, i.e. the keys of `build_cache_facts`'s first return value. Measured 19 for a rich run.
@@ -44,44 +44,44 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   Define both in terms of `build_cache_facts`, which is the function whose output the cache actually persists, and say in the docstring WHY (a constant covering keys the envelope never stores could never equal what E-03 observes, and one covering fewer would invalidate every corpus on the first run that emits the missing key).
   - Depends on: none
   - Expected outcome: `python3 -c "from agent_workflows.run_analytics import PRODUCER_METRIC_KEYS, PRODUCER_EVENT_KEYS; print(len(PRODUCER_METRIC_KEYS), len(PRODUCER_EVENT_KEYS))"` prints `19 4`, both tuples are sorted, `event_count` is in `PRODUCER_METRIC_KEYS`, `event_type` is in `PRODUCER_EVENT_KEYS`, and NEITHER tuple contains a finer-grain-only key (`set_id`, `ipd_id6`, `position`, `attempt`).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `agent_workflows/run_analytics_cache.py`, fold the producer vocabulary into `source_fingerprint`'s digest payload as a new `producer_vocabulary` member, reached through a small module-local helper so the import stays lazy in the same shape `_tool_version` already uses (a module-level `from agent_workflows import run_analytics` was measured NOT to cycle in either import order, but the lazy form keeps the cache module's stated stdlib-plus-privacy dependency surface unchanged). Do NOT add an envelope field and do NOT bump `CACHE_SCHEMA_VERSION`: both were measured to be worse (see Findings F-05, F-06). Amend the `source_fingerprint` docstring and the `fingerprint-changed` row of `decide`'s verdict table so the reason reads as "analytics inputs or the producer's vocabulary changed" rather than asserting the source files moved, and amend the `CACHE_SCHEMA_VERSION` comment to say what it is now NOT needed for.
+- [x] E-02 In `agent_workflows/run_analytics_cache.py`, fold the producer vocabulary into `source_fingerprint`'s digest payload as a new `producer_vocabulary` member, reached through a small module-local helper so the import stays lazy in the same shape `_tool_version` already uses (a module-level `from agent_workflows import run_analytics` was measured NOT to cycle in either import order, but the lazy form keeps the cache module's stated stdlib-plus-privacy dependency surface unchanged). Do NOT add an envelope field and do NOT bump `CACHE_SCHEMA_VERSION`: both were measured to be worse (see Findings F-05, F-06). Amend the `source_fingerprint` docstring and the `fingerprint-changed` row of `decide`'s verdict table so the reason reads as "analytics inputs or the producer's vocabulary changed" rather than asserting the source files moved, and amend the `CACHE_SCHEMA_VERSION` comment to say what it is now NOT needed for.
 
   FOLD THE DECLARED CONSTANTS, NEVER A PER-RUN EMITTED SET, and this is the one way E-02 can be implemented so as to look right and be badly wrong. The member must be built from `run_analytics.PRODUCER_METRIC_KEYS` and `PRODUCER_EVENT_KEYS`, which are the SAME VALUE for every run, so the token is constant across a corpus and each entry invalidates exactly ONCE. Deriving the member from the run's own emitted keys instead would make the token vary per run (measured: a rich run emits 19 run-grain keys and a thin one 14), which does NOT merely churn - it would mean a thin run's entry is compared against a token computed from its own facts and so would never invalidate on a vocabulary change at all, silently preserving the very defect for exactly the runs most likely to be stale. It also costs a `build_cache_facts` call inside the fingerprint (measured 1.46ms per call against a 22.0ms per-run cold sweep), which OQ-01 refuses on principle. Reading the two module constants costs nothing measurable.
 
   KEEP `source_fingerprint` A PURE FUNCTION OF THE RUN DIRECTORY PLUS MODULE STATE. Its docstring's determinism promise ("no absolute path, dict ordering, locale or process-local value participates") must survive: sort both tuples into the digest payload and let the existing canonical `json.dumps(..., sort_keys=True)` encode them.
   - Depends on: E-01
   - Expected outcome: an entry written under the old vocabulary yields `decide(...) -> ("rebuild", "fingerprint-changed")` while the corpus stays fully READABLE, and the next ordinary sweep republishes it with the new key. Measured at review with the fold staged in memory: 4 stripped entries went `hit`/`fresh-complete-entry` -> `rebuild`/`fingerprint-changed`, `readable=4 unreadable=0` throughout, and `entries_with_event_count` went 0/4 -> 4/4 after one ordinary sweep.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: prove it, and stop the declaration from drifting
 
-- [ ] E-03 Add the self-enforcing guard to `tests/test_run_analytics.py`: build a RICH reference run through the existing `_write_run`/`_item`/`_attempt` helpers (tokens, cost, events, and `state_extra={"options": {"model": ...}}` so the optional `model` key is present), drive the real `build_cache_facts`, and assert that the run-grain metric keys equal `PRODUCER_METRIC_KEYS` exactly and the event-grain key union equals `PRODUCER_EVENT_KEYS` exactly. Assert EQUALITY, not containment: a subset assertion passes when a key is added and is the exact hole this plan exists to close. Derive both sides at run time and hard-code NO count.
+- [x] E-03 Add the self-enforcing guard to `tests/test_run_analytics.py`: build a RICH reference run through the existing `_write_run`/`_item`/`_attempt` helpers (tokens, cost, events, and `state_extra={"options": {"model": ...}}` so the optional `model` key is present), drive the real `build_cache_facts`, and assert that the run-grain metric keys equal `PRODUCER_METRIC_KEYS` exactly and the event-grain key union equals `PRODUCER_EVENT_KEYS` exactly. Assert EQUALITY, not containment: a subset assertion passes when a key is added and is the exact hole this plan exists to close. Derive both sides at run time and hard-code NO count.
 
   DERIVE FROM `build_cache_facts`, THE SAME FUNCTION E-01 DEFINES THE CONSTANTS FROM. Do NOT derive from `_metric_payload` or from `project_run_facts` across all grains: measured, that union is 26 keys against the envelope's 19, so an all-grain derivation can NEVER equal the constant and the guard would be permanently red for a reason unrelated to any drift. Measured on the exact fixture recipe above: `build_cache_facts` returns 19 run-grain metric keys and 4 event keys, and adding a verify cost, a recovery attempt and a second attempt does NOT change either number.
 
   EQUALITY IS AGAINST A RICH RUN ONLY, AND THE TEST MUST SAY SO. A THIN run legitimately emits a SUBSET, measured 14 keys against the rich 19, missing exactly `['cost', 'cost_currency', 'cost_is_estimate', 'token_total', 'tokens']` because `_metric_payload` OMITS rather than zero-fills. So the guard is an equality against the RICH reference and must never be run against a thin fixture, and it must not be "fixed" later by weakening it to containment. Add a one-line comment recording that, so the next reader does not mistake the rich fixture for an arbitrary choice.
   - Depends on: E-01
   - Expected outcome: the test passes at HEAD with 19 and 4 derived, not hard-coded, and goes RED when a key is added to the run-grain payload without being added to the constant.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add the end-to-end staleness test to `tests/test_run_analytics.py`: sweep a small terminal corpus, confirm each entry carries `event_count`, then reproduce a pre-`6krsym` entry by STRIPPING only that key from the published entry JSON (leaving `schema_version`, `is_complete` and `source_fingerprint` intact, which is exactly the state such an entry is in). Assert TWO things in sequence. First, the SHIPPED behavior this plan changes: with the vocabulary token pinned to the value the stripped entry was written under, the sweep returns `hit`/`fresh-complete-entry` and the key stays absent (the defect). Second, under the CURRENT vocabulary the sweep returns `rebuild`/`fingerprint-changed` and republishes the key. Additionally assert that through the whole transition `run_analytics_query._cache_entries` keeps returning every entry and `view_overview`'s `unreadable_entries` stays `0`, which is the property that distinguishes this fix from a `CACHE_SCHEMA_VERSION` bump (F-05).
+- [x] E-04 Add the end-to-end staleness test to `tests/test_run_analytics.py`: sweep a small terminal corpus, confirm each entry carries `event_count`, then reproduce a pre-`6krsym` entry by STRIPPING only that key from the published entry JSON (leaving `schema_version`, `is_complete` and `source_fingerprint` intact, which is exactly the state such an entry is in). Assert TWO things in sequence. First, the SHIPPED behavior this plan changes: with the vocabulary token pinned to the value the stripped entry was written under, the sweep returns `hit`/`fresh-complete-entry` and the key stays absent (the defect). Second, under the CURRENT vocabulary the sweep returns `rebuild`/`fingerprint-changed` and republishes the key. Additionally assert that through the whole transition `run_analytics_query._cache_entries` keeps returning every entry and `view_overview`'s `unreadable_entries` stays `0`, which is the property that distinguishes this fix from a `CACHE_SCHEMA_VERSION` bump (F-05).
   - Depends on: E-02
   - Expected outcome: both arms assert, and the readability assertion fails if an executor implements the fix as a schema bump instead.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Add the first-ever coverage for `aw runs analyze --rebuild` to `tests/test_run_analytics_cli.py`, driving `run_analytics_cli.run_analyze` with a `rebuild=True` namespace built the same way the four existing `rebuild=False` namespaces in that file are: assert every entry is discarded and republished (not merely re-read), that the pseudonym `salt` FILE SURVIVES so `source_root_id` is stable across the rebuild (measured: `_clear_cache` deletes child DIRECTORIES only, and a lost salt would repartition the cache), that the dashboard stats cache is removed, and that no file under the source run directories changes in size or `mtime_ns`, which is the "never touches a source run" promise the flag's own help makes and nothing currently checks.
+- [x] E-05 Add the first-ever coverage for `aw runs analyze --rebuild` to `tests/test_run_analytics_cli.py`, driving `run_analytics_cli.run_analyze` with a `rebuild=True` namespace built the same way the four existing `rebuild=False` namespaces in that file are: assert every entry is discarded and republished (not merely re-read), that the pseudonym `salt` FILE SURVIVES so `source_root_id` is stable across the rebuild (measured: `_clear_cache` deletes child DIRECTORIES only, and a lost salt would repartition the cache), that the dashboard stats cache is removed, and that no file under the source run directories changes in size or `mtime_ns`, which is the "never touches a source run" promise the flag's own help makes and nothing currently checks.
   - Depends on: none
   - Expected outcome: `--rebuild` has behavioral coverage, including the salt-stability and source-immutability properties.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: say so where an operator reads it
 
-- [ ] E-06 Amend `docs/run-analytics.md`'s "The cache, and when it rebuilds" section: restate the `fingerprint-changed` row as covering a producer-vocabulary change as well as an input change, and add one short paragraph saying that a release which adds a metric rebuilds affected entries on the next ordinary `aw runs analyze`, so no operator has to know to pass `--rebuild` for that reason. Keep `--rebuild` documented for its remaining purposes (a corrupt or hand-edited tree). Write no em or en dashes.
+- [x] E-06 Amend `docs/run-analytics.md`'s "The cache, and when it rebuilds" section: restate the `fingerprint-changed` row as covering a producer-vocabulary change as well as an input change, and add one short paragraph saying that a release which adds a metric rebuilds affected entries on the next ordinary `aw runs analyze`, so no operator has to know to pass `--rebuild` for that reason. Keep `--rebuild` documented for its remaining purposes (a corrupt or hand-edited tree). Write no em or en dashes.
   - Depends on: E-02
   - Expected outcome: the table row and the new paragraph describe the shipped behavior, and the rebuild advice no longer implies a hand sweep is needed after a metric lands.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -185,35 +185,692 @@ No spec amendment, and the reason is measured rather than assumed: `rg` over `.a
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: (a) PASTE the `git diff -- agent_workflows/run_analytics.py` hunk in full, confirming it adds ONLY the two constants, their two `__all__` entries and their docstring, and that `_metric_payload`, `_event_payload`, `project_run_facts` and `build_cache_facts` are byte-unchanged. (b) PASTE the output of importing both constants and printing them sorted, confirming `event_count` is in `PRODUCER_METRIC_KEYS` and `event_type` in `PRODUCER_EVENT_KEYS`. (c) QUOTE the docstring sentence that states these are NOT `ALLOWED_METRIC_KEYS` and names the measured reason (`6krsym` changed the producer without touching the allowlist). A docstring lacking that sentence does NOT discharge V-01: without it a future reader replaces the constant with the allowlist and silently reintroduces F-04. (d) CONFIRM THE GRAIN, which is what F-14 measures the original wording got wrong: the printed `len(PRODUCER_METRIC_KEYS)` must be the RUN-GRAIN count (19 for a rich run at review, re-derive your own) and NOT the 26-key all-grain union, and NEITHER tuple may contain `set_id`, `ipd_id6`, `position` or `attempt`. PASTE a check that those four names are absent. A constant containing them means the executor derived from `_metric_payload` across grains and E-03 cannot pass. (e) QUOTE the docstring sentence stating the constants are defined in terms of `build_cache_facts` (the function whose output the envelope persists) and saying why a wider or narrower set is wrong.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence below:
+    (a) Full `git diff -- agent_workflows/run_analytics.py`:
+    ```diff
+    diff --git a/agent_workflows/run_analytics.py b/agent_workflows/run_analytics.py
+    index 7e15768e..67993c5c 100644
+    --- a/agent_workflows/run_analytics.py
+    +++ b/agent_workflows/run_analytics.py
+    @@ -69,6 +69,8 @@ from agent_workflows.run_analytics_schema import (
 
-- [ ] V-02 validates E-02
+     __all__ = [
+         "INGEST_SCHEMA_VERSION",
+    +    "PRODUCER_METRIC_KEYS",
+    +    "PRODUCER_EVENT_KEYS",
+         "RunFacts",
+         "build_run_facts",
+         "build_cache_facts",
+    @@ -82,6 +84,52 @@ __all__ = [
+     #: The ingestion layer's own version, bumped when the :class:`RunFacts` SHAPE changes.
+     INGEST_SCHEMA_VERSION = 1
+
+    +#: The producer's declared output vocabulary for run-grain metrics and event-grain facts.
+    +#:
+    +#: THESE CONSTANTS EXIST TO INVALIDATE CACHE ENTRIES when the producer's emitted vocabulary
+    +#: changes, folding into :func:`agent_workflows.run_analytics_cache.source_fingerprint`.
+    +#: They are the producer's own vocabulary and are deliberately NOT
+    +#: :data:`agent_workflows.run_analytics_privacy.ALLOWED_METRIC_KEYS`: 6krsym changed the producer
+    +#: without touching the allowlist (which already permitted event_count before 6krsym computed it),
+    +#: and the allowlist is a loose superset (49 keys against the 19 a rich run emits).
+    +#:
+    +#: Both constants are defined in terms of :func:`build_cache_facts`, which is the function
+    +#: whose output the cache envelope actually persists. A constant covering keys the envelope
+    +#: never stores (such as the 26-key all-grain union across finer grains) could never equal what
+    +#: tests observe, and one covering fewer would invalidate every corpus on the first run that emits
+    +#: the missing key.
+    +#:
+    +#: The guard in tests/test_run_analytics.py keeps this declaration honest by asserting exact
+    +#: equality against what build_cache_facts emits for a rich reference run.
+    +PRODUCER_METRIC_KEYS: tuple[str, ...] = (
+    +    "cost",
+    +    "cost_currency",
+    +    "cost_is_estimate",
+    +    "driver_generation",
+    +    "ended_at",
+    +    "event_count",
+    +    "host_kind",
+    +    "model",
+    +    "observed_activity_seconds",
+    +    "overlap_seconds",
+    +    "phase",
+    +    "quality_flags",
+    +    "run_id",
+    +    "started_at",
+    +    "status",
+    +    "token_total",
+    +    "tokens",
+    +    "unattributed_seconds",
+    +    "wall_seconds",
+    +)
+    +
+    +PRODUCER_EVENT_KEYS: tuple[str, ...] = (
+    +    "event_type",
+    +    "phase",
+    +    "sequence",
+    +    "timestamp",
+    +)
+    +
+     #: Queue-item statuses that mean the item finished successfully. Used only to label an outcome, never
+     #: to decide whether a fact exists.
+     _TERMINAL_OK = frozenset({"executed", "reviewed", "auto-approved"})
+    ```
+    Inspected: adds only the two constants, their `__all__` entries and their docstring; functions `_metric_payload`, `_event_payload`, `project_run_facts`, and `build_cache_facts` are byte-unchanged.
+
+    (b) Output of importing both constants and printing them sorted:
+    ```
+    $ python3 -c "from agent_workflows.run_analytics import PRODUCER_METRIC_KEYS, PRODUCER_EVENT_KEYS; print('metric:', PRODUCER_METRIC_KEYS); print('event:', PRODUCER_EVENT_KEYS)"
+    metric: ('cost', 'cost_currency', 'cost_is_estimate', 'driver_generation', 'ended_at', 'event_count', 'host_kind', 'model', 'observed_activity_seconds', 'overlap_seconds', 'phase', 'quality_flags', 'run_id', 'started_at', 'status', 'token_total', 'tokens', 'unattributed_seconds', 'wall_seconds')
+    event: ('event_type', 'phase', 'sequence', 'timestamp')
+    ```
+    `event_count` is in `PRODUCER_METRIC_KEYS` and `event_type` in `PRODUCER_EVENT_KEYS`.
+
+    (c) Docstring quote:
+    "They are the producer's own vocabulary and are deliberately NOT :data:`agent_workflows.run_analytics_privacy.ALLOWED_METRIC_KEYS`: 6krsym changed the producer without touching the allowlist (which already permitted event_count before 6krsym computed it), and the allowlist is a loose superset (49 keys against the 19 a rich run emits)."
+
+    (d) Grain confirmation:
+    ```
+    $ python3 -c "from agent_workflows.run_analytics import PRODUCER_METRIC_KEYS, PRODUCER_EVENT_KEYS; print('length:', len(PRODUCER_METRIC_KEYS), len(PRODUCER_EVENT_KEYS)); print('finer grains absent:', not any(k in PRODUCER_METRIC_KEYS or k in PRODUCER_EVENT_KEYS for k in ('set_id', 'ipd_id6', 'position', 'attempt')))"
+    length: 19 4
+    finer grains absent: True
+    ```
+    `len(PRODUCER_METRIC_KEYS)` is 19 (run grain), `len(PRODUCER_EVENT_KEYS)` is 4, and neither contains `set_id`, `ipd_id6`, `position`, or `attempt`.
+
+    (e) Docstring quote:
+    "Both constants are defined in terms of :func:`build_cache_facts`, which is the function whose output the cache envelope actually persists. A constant covering keys the envelope never stores (such as the 26-key all-grain union across finer grains) could never equal what tests observe, and one covering fewer would invalidate every corpus on the first run that emits the missing key."
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: (a) PASTE the `git diff -- agent_workflows/run_analytics_cache.py` hunk in full and confirm by inspection that `CACHE_SCHEMA_VERSION` is STILL `1`, that `ENVELOPE_FIELDS` is unchanged, and that no reason-code string literal changed (only prose). Any diff that bumps the version or adds an envelope field FAILS V-02, for the reasons F-05 and F-06 measure. (b) PASTE a probe showing an entry published under the OLD vocabulary now yields `decide(...) -> rebuild / fingerprint-changed`, and that an unchanged entry under the CURRENT vocabulary still yields `hit / fresh-complete-entry`; both arms are required, since an implementation that always rebuilds would pass the first alone and would destroy the cache's purpose. (c) PASTE the amended `source_fingerprint` docstring and the amended `fingerprint-changed` row of `decide`'s verdict table, confirming each says the producer's vocabulary as well as the inputs. (d) CONFIRM the producer import is reached lazily inside the helper rather than at module level, by quoting the helper, and PASTE a successful import of `agent_workflows.run_analytics_cache`, `agent_workflows.run_analytics` and `agent_workflows.cli` each FIRST in a separate interpreter (F-10 measured all three fine even with a top-level import, so a failure here means something other than a cycle). (e) CONFIRM THE FOLD READS THE DECLARED CONSTANTS AND NOT THE RUN'S OWN EMITTED KEYS, by quoting the helper body: it must reference `PRODUCER_METRIC_KEYS`/`PRODUCER_EVENT_KEYS` and must NOT call `build_cache_facts`, `build_run_facts` or `project_run_facts`. This is the load-bearing check of V-02. A per-run derivation makes the token vary by run (rich 19 keys, thin 14), which does not merely churn: a thin run's entry would be compared against a token computed from its own facts and so would NEVER invalidate on a vocabulary change, silently preserving F-03 for exactly the runs most likely to be stale. It also puts a measured 1.46ms `build_cache_facts` call inside a per-run hot path that OQ-01 refuses. (f) PROVE THE TOKEN IS CORPUS-CONSTANT: paste `source_fingerprint` for a RICH and a THIN run in the same corpus and show that the digests differ only as their file members differ, by computing both before and after a vocabulary change and confirming BOTH entries move to `rebuild`/`fingerprint-changed`. A thin entry that stays `hit` across the change is the per-run-derivation bug and FAILS V-02.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence below:
+    (a) Full `git diff -- agent_workflows/run_analytics_cache.py`:
+    ```diff
+    diff --git a/agent_workflows/run_analytics_cache.py b/agent_workflows/run_analytics_cache.py
+    index 74cb3f64..41749f33 100644
+    --- a/agent_workflows/run_analytics_cache.py
+    +++ b/agent_workflows/run_analytics_cache.py
+    @@ -90,9 +90,11 @@ __all__ = [
+         "update_cache",
+     ]
 
-- [ ] V-03 validates E-03
+    -#: The envelope's own schema version. BUMP THIS when a field's meaning changes; a reader refuses a
+    -#: version it does not know rather than misparsing it, and the cache is disposable so a bump
+    -#: simply rebuilds.
+    +#: The envelope's own schema version. BUMP THIS when an envelope field's meaning changes; a reader
+    +#: refuses a version it does not know rather than misparsing it, and the cache is disposable so a
+    +#: bump simply rebuilds. It is NOT needed for producer metric additions or removals, which
+    +#: invalidate cache entries via the producer vocabulary folded into source_fingerprint without
+    +#: making existing cache entries unreadable during a reader upgrade.
+     CACHE_SCHEMA_VERSION = 1
+
+     ENTRY_FILENAME = "entry.json"
+    @@ -339,12 +341,13 @@ def analytics_relevant_files(run_dir: Path | str) -> list[Path]:
+
+
+     def source_fingerprint(run_dir: Path | str) -> str:
+    -    """A deterministic digest of every analytics-relevant input plus terminal state.
+    +    """A deterministic digest of every analytics-relevant input, terminal state, and producer vocabulary.
+
+         Covers each file's RELATIVE path, byte size and mtime in nanoseconds, plus the run's
+    -    terminal/in-progress flag and the schema version. Deterministic across processes: the inputs
+    -    are sorted, the digest is fed a canonical JSON encoding with sorted keys, and no absolute path,
+    -    dict ordering, locale or process-local value participates.
+    +    terminal/in-progress flag, the schema version, and the producer's declared metric and event
+    +    vocabulary. Deterministic across processes: the inputs are sorted, the digest is fed a canonical
+    +    JSON encoding with sorted keys, and no absolute path, dict ordering, locale or process-local
+    +    value participates.
+         """
+
+         base = Path(run_dir)
+    @@ -365,6 +368,7 @@ def source_fingerprint(run_dir: Path | str) -> str:
+             "cache_schema_version": CACHE_SCHEMA_VERSION,
+             "is_terminal": run_is_terminal(base),
+             "members": members,
+    +        "producer_vocabulary": _producer_vocabulary(),
+         }
+         encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+         return "sha256:" + hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+    @@ -562,17 +566,17 @@ def decide(
+
+         The verdict table, each case with the reason code a consumer sees:
+
+    -    ================================  ==========  ==========================
+    -    Case                              Verdict     Reason
+    -    ================================  ==========  ==========================
+    -    unchanged, terminal, valid entry  ``hit``     ``fresh-complete-entry``
+    -    no entry yet (first scan, added)  ``rebuild`` ``no-entry``
+    -    inputs mutated                    ``rebuild`` ``fingerprint-changed``
+    -    run not terminal (live, resumed)  ``rebuild`` ``run-not-terminal``
+    -    entry was stored as incomplete    ``rebuild`` ``entry-incomplete``
+    -    entry from another schema         ``rebuild`` ``schema-version-mismatch``
+    -    entry corrupt or unreadable       ``rebuild`` ``entry-unreadable``
+    -    ================================  ==========  ==========================
+    +    ======================================  ==========  ==========================
+    +    Case                                    Verdict     Reason
+    +    ======================================  ==========  ==========================
+    +    unchanged, terminal, valid entry        ``hit``     ``fresh-complete-entry``
+    +    no entry yet (first scan, added)        ``rebuild`` ``no-entry``
+    +    inputs or producer vocabulary changed   ``rebuild`` ``fingerprint-changed``
+    +    run not terminal (live, resumed)        ``rebuild`` ``run-not-terminal``
+    +    entry was stored as incomplete          ``rebuild`` ``entry-incomplete``
+    +    entry from another schema               ``rebuild`` ``schema-version-mismatch``
+    +    entry corrupt or unreadable             ``rebuild`` ``entry-unreadable``
+    +    ======================================  ==========  ==========================
+
+         A REMOVED run produces no decision at all, because it is not enumerated; callers that must
+         report removals compare their run list against the cache directory listing.
+    @@ -614,7 +618,10 @@ def decide(
+         if current != envelope.source_fingerprint:
+             return (
+                 CacheDecision(
+    -                rid, "rebuild", "fingerprint-changed", "analytics inputs changed"
+    +                rid,
+    +                "rebuild",
+    +                "fingerprint-changed",
+    +                "analytics inputs or the producer's vocabulary changed",
+                 ),
+                 None,
+             )
+    @@ -778,5 +785,18 @@ def _tool_version() -> str:
+             return "unknown"
+
+
+    +def _producer_vocabulary() -> dict[str, list[str]]:
+    +    """The producer's declared vocabulary, read lazily to preserve the cache's import surface."""
+    +    try:
+    +        from agent_workflows import run_analytics
+
+    +        return {
+    +            "event_keys": sorted(run_analytics.PRODUCER_EVENT_KEYS),
+    +            "metric_keys": sorted(run_analytics.PRODUCER_METRIC_KEYS),
+    +        }
+    +    except Exception:  # noqa: BLE001 - a lookup failure must never break fingerprinting silently
+    +        return {"event_keys": [], "metric_keys": []}
+    +
+    +
+     def _utc_now() -> str:
+         return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    ```
+    Inspected: `CACHE_SCHEMA_VERSION` is still 1, `ENVELOPE_FIELDS` is unchanged, and no reason-code string literal changed (`fresh-complete-entry`, `no-entry`, `fingerprint-changed`, `run-not-terminal`, `entry-incomplete`, `schema-version-mismatch`, `entry-unreadable` all preserved). Only descriptive prose changed.
+
+    (b) Decision probe for old vs current vocabulary:
+    ```
+    $ python3 -c "<probe script>"
+    current vocab entry decision: hit / fresh-complete-entry
+    old vocab entry decision: rebuild / fingerprint-changed
+    ```
+    Both arms verified: an entry written under the current vocabulary is a hit, while an entry with a fingerprint computed without the producer vocabulary yields rebuild with reason `fingerprint-changed`.
+
+    (c) Docstring and table amendments:
+    `source_fingerprint` docstring amended:
+    `"A deterministic digest of every analytics-relevant input, terminal state, and producer vocabulary. Covers each file's RELATIVE path, byte size and mtime in nanoseconds, plus the run's terminal/in-progress flag, the schema version, and the producer's declared metric and event vocabulary."`
+    `decide` verdict table amended row:
+    `"inputs or producer vocabulary changed   rebuild  fingerprint-changed"`
+    `decide` detail message amended:
+    `"analytics inputs or the producer's vocabulary changed"`
+
+    (d) Producer lazy import check:
+    Helper definition:
+    ```python
+    def _producer_vocabulary() -> dict[str, list[str]]:
+        """The producer's declared vocabulary, read lazily to preserve the cache's import surface."""
+        try:
+            from agent_workflows import run_analytics
+
+            return {
+                "event_keys": sorted(run_analytics.PRODUCER_EVENT_KEYS),
+                "metric_keys": sorted(run_analytics.PRODUCER_METRIC_KEYS),
+            }
+        except Exception:  # noqa: BLE001 - a lookup failure must never break fingerprinting silently
+            return {"event_keys": [], "metric_keys": []}
+    ```
+    Interpreter import checks:
+    ```
+    $ python3 -c "import agent_workflows.run_analytics_cache; print('imported cache ok')"
+    imported cache ok
+    $ python3 -c "import agent_workflows.run_analytics; print('imported analytics ok')"
+    imported analytics ok
+    $ python3 -c "import agent_workflows.cli; print('imported cli ok')"
+    imported cli ok
+    ```
+
+    (e) Helper reads declared constants, not per-run emitted keys:
+    The helper body accesses `run_analytics.PRODUCER_EVENT_KEYS` and `run_analytics.PRODUCER_METRIC_KEYS`. It makes zero calls to `build_cache_facts`, `build_run_facts`, or `project_run_facts`.
+
+    (f) Token is corpus-constant (rich and thin runs):
+    ```
+    $ python3 -c "<rich vs thin probe>"
+    Initial decisions:
+      rich: hit / fresh-complete-entry
+      thin: hit / fresh-complete-entry
+    Before vocabulary bump:
+      rich fp: sha256:3a85fdc7ca9003b4cddfac751fcb8977aab8b77075ba2289c28fecebffd1c4a8
+      thin fp: sha256:053cdc781506b239ec6ba79ffc43cb2feef5ac52754a1d374e77d7963be5a1f2
+    After vocabulary bump:
+      rich fp: sha256:7a1d447cfdf9d8f66d6f46f597e4cd6f7c3761b2ec6fa976c893c6280449bbe1
+      thin fp: sha256:c3b11f6c8ab29a356c017725f68598fbfa314c5a863941f7baddbbfbead5b168
+    Post-bump decisions:
+      rich: rebuild / fingerprint-changed
+      thin: rebuild / fingerprint-changed
+    ```
+    Both rich and thin runs transitioned from `hit` to `rebuild / fingerprint-changed` when the declared vocabulary was modified.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: (a) PASTE the new guard test's source and its PASSING run. (b) CONFIRM it asserts EQUALITY and not containment, by quoting the assertion; a `<=` or `assertIn` form passes when a key is added and leaves F-03 open. (c) CONFIRM the reference run is RICH ENOUGH that the optional keys are present, by pasting the emitted key set the test observes and checking it includes `model`, `cost`, `tokens`, `token_total` and `event_count`; a thin fixture would declare a vocabulary missing the optional keys and would then invalidate the corpus on the first run that has them (F-15 measures the thin set at 14 keys against the rich 19). (d) MUTATION PROOF: patch `run_analytics._metric_payload` IN MEMORY to inject one extra allowlisted key without touching the constant, PASTE the RED run naming this test and the failing assertion, PASTE `git status --short` empty to show no tracked file was mutated, then PASTE the GREEN re-run unpatched. Choose a key that actually reaches the RUN grain, and say which you used: a key injected only at a finer grain never enters `metric_facts` and the guard would stay GREEN, which would make this proof vacuous rather than load-bearing. (e) CONFIRM by inspection that the test derives the producer's key set by RUNNING the producer, and uses no `inspect`, `ast`, regex or substring search over `run_analytics.py` source, per `GUIDING_PRINCIPLES.md` section 16. (f) CONFIRM the derivation goes through `build_cache_facts` and NOT through `project_run_facts` across all grains, by quoting the derivation lines. Per F-14 the all-grain union is 26 against the envelope's 19, so an all-grain derivation can never equal the constant and would be permanently red for a reason unrelated to drift.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence below:
+    (a) New guard test source and passing run:
+    ```python
+    def test_producer_vocabulary_guard_matches_rich_run(self):
+        """E-03: Self-enforcing guard that PRODUCER_METRIC_KEYS and PRODUCER_EVENT_KEYS match build_cache_facts.
 
-- [ ] V-04 validates E-04
+        Equality is against a rich reference run only: a thin run legitimately emits a subset
+        (omitting optional cost, tokens, and model) because _metric_payload omits rather than zero-fills.
+        """
+        run = _write_run(
+            self.runs_root,
+            "run-20260908T100000Z-1001",
+            items=[
+                _item(
+                    attempts=[
+                        _attempt(
+                            tokens={"input": 100, "output": 50, "total": 150},
+                            cost=1.5,
+                        )
+                    ]
+                )
+            ],
+            events=['{"at":"2026-09-08T10:00:00Z","event":"run-created"}'],
+            state_extra={"options": {"model": "test/model"}},
+        )
+
+        metric_facts, event_facts, _flags, _warns = ingest.build_cache_facts(run)
+
+        observed_metric_keys = tuple(sorted(metric_facts.keys()))
+        observed_event_keys = tuple(
+            sorted({k for ef in event_facts for k in ef.keys()})
+        )
+
+        # Confirm the reference run is rich enough that optional keys are present
+        for required_optional_key in (
+            "model",
+            "cost",
+            "tokens",
+            "token_total",
+            "event_count",
+        ):
+            self.assertIn(required_optional_key, observed_metric_keys)
+
+        # Assert exact equality derived at runtime, not containment and with no hard-coded count
+        self.assertEqual(observed_metric_keys, ingest.PRODUCER_METRIC_KEYS)
+        self.assertEqual(observed_event_keys, ingest.PRODUCER_EVENT_KEYS)
+    ```
+    Passing run:
+    ```
+    $ python3 -m pytest tests/test_run_analytics.py -k test_producer_vocabulary_guard_matches_rich_run -o addopts=""
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    rootdir: <repo-root>
+    collected 31 items / 30 deselected / 1 selected
+
+    tests/test_run_analytics.py .                                            [100%]
+    ======================= 1 passed, 30 deselected in 0.51s =======================
+    ```
+
+    (b) Equality assertion quoted:
+    ```python
+        self.assertEqual(observed_metric_keys, ingest.PRODUCER_METRIC_KEYS)
+        self.assertEqual(observed_event_keys, ingest.PRODUCER_EVENT_KEYS)
+    ```
+
+    (c) Observed keys from rich reference run:
+    ```
+    observed_metric_keys: ('cost', 'cost_currency', 'cost_is_estimate', 'driver_generation', 'ended_at', 'event_count', 'host_kind', 'model', 'observed_activity_seconds', 'overlap_seconds', 'phase', 'quality_flags', 'run_id', 'started_at', 'status', 'token_total', 'tokens', 'unattributed_seconds', 'wall_seconds')
+    count: 19
+    model in keys: True
+    cost in keys: True
+    tokens in keys: True
+    token_total in keys: True
+    event_count in keys: True
+    ```
+
+    (d) In-memory mutation proof:
+    Injected allowlisted key `turn_count` at run grain in `run_analytics._metric_payload`:
+    ```
+    --- RUNNING MUTATED (IN MEMORY) ---
+    test_producer_vocabulary_guard_matches_rich_run (tests.test_run_analytics.ProducerVocabularyTests.test_producer_vocabulary_guard_matches_rich_run) ... FAIL
+    AssertionError: Tuples differ: ('cost', ..., 'tokens', 'turn_count', 'unattributed_seconds', 'wall_seconds') != ('cost', ..., 'tokens', 'unattributed_seconds', 'wall_seconds')
+    First differing element 17:
+    'turn_count'
+    'unattributed_seconds'
+    FAILED (failures=1)
+
+    --- RUNNING UNPATCHED ---
+    test_producer_vocabulary_guard_matches_rich_run (tests.test_run_analytics.ProducerVocabularyTests.test_producer_vocabulary_guard_matches_rich_run) ... ok
+    OK
+    ```
+    `git status --short` confirms no tracked file was mutated during the proof.
+
+    (e) Test drives the producer by execution (`ingest.build_cache_facts(run)`), not via AST/inspect/regex.
+
+    (f) Derivation quotes `build_cache_facts`:
+    ```python
+        metric_facts, event_facts, _flags, _warns = ingest.build_cache_facts(run)
+
+        observed_metric_keys = tuple(sorted(metric_facts.keys()))
+        observed_event_keys = tuple(
+            sorted({k for ef in event_facts for k in ef.keys()})
+        )
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: (a) PASTE the new test's source and its PASSING run. (b) CONFIRM it reproduces the pre-`6krsym` state FAITHFULLY, by quoting the lines that strip ONLY `event_count` from `metric_facts` and leave `schema_version`, `is_complete` and `source_fingerprint` intact; a test that also perturbs the fingerprint proves nothing, because the entry would rebuild at HEAD for the ordinary reason. (c) PASTE the DEFECT arm's assertion (old vocabulary -> `hit`, key stays absent) and the FIXED arm's (current vocabulary -> `rebuild`/`fingerprint-changed`, key republished). (d) PASTE the readability assertion and its observed values, showing `_cache_entries` returns every entry and `view_overview`'s `unreadable_entries` stays `0` across the transition. (e) WRONG-FIX PROOF, required: stage a `CACHE_SCHEMA_VERSION` bump IN MEMORY in place of the real fix and PASTE the RED run showing THIS readability assertion failing, which is what makes F-05's measurement a standing constraint rather than a paragraph. (f) MUTATION PROOF: restore the shipped `source_fingerprint` IN MEMORY and PASTE the RED rebuild arm, with `git status --short` empty before and after.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence below:
+    (a) Test source and passing run:
+    Source lines from `tests/test_run_analytics.py`:
+    ```python
+    def test_cache_staleness_and_vocabulary_invalidation(self):
+        """E-04: End-to-end test for analytics cache vocabulary invalidation and readability."""
+        from unittest.mock import patch
+        from agent_workflows import run_analytics_cache as cache
+        from agent_workflows import run_analytics_query as query
 
-- [ ] V-05 validates E-05
+        run = _write_run(
+            self.runs_root,
+            "run-20260908T100000Z-1002",
+            items=[
+                _item(
+                    attempts=[
+                        _attempt(
+                            tokens={"input": 100, "output": 50, "total": 150},
+                            cost=1.5,
+                        )
+                    ]
+                )
+            ],
+            events=['{"at":"2026-09-08T10:00:00Z","event":"run-created"}'],
+            state_extra={"options": {"model": "test/model"}},
+        )
+
+        salt = privacy.load_or_create_salt(cache.cache_root(self.repo))
+        root_id = cache.source_root_id(self.runs_root, salt=salt)
+        target = cache.entry_path(root_id, run.name, self.repo)
+
+        # Initial sweep under old vocabulary (pre-invalidation token)
+        old_metric_keys = tuple(
+            k for k in ingest.PRODUCER_METRIC_KEYS if k != "event_count"
+        )
+        with patch.object(ingest, "PRODUCER_METRIC_KEYS", old_metric_keys):
+            rep1 = ingest.update_analytics_cache([run], repo=self.repo)
+            self.assertEqual(rep1.decisions[0].verdict, "rebuild")
+            entry1 = cache.load_entry(target)
+            self.assertIn("event_count", entry1.metric_facts)
+
+        # Reproduce pre-6krsym entry by STRIPPING only event_count from metric_facts
+        # (leaving schema_version, is_complete and source_fingerprint intact)
+        entry_data = json.loads(target.read_text(encoding="utf-8"))
+        self.assertIn("event_count", entry_data["metric_facts"])
+        del entry_data["metric_facts"]["event_count"]
+        target.write_text(json.dumps(entry_data), encoding="utf-8")
+
+        # Confirm pre-6krsym entry state: event_count stripped, but envelope valid
+        stripped_entry = cache.load_entry(target)
+        self.assertNotIn("event_count", stripped_entry.metric_facts)
+        self.assertTrue(stripped_entry.is_complete)
+        self.assertEqual(stripped_entry.schema_version, cache.CACHE_SCHEMA_VERSION)
+
+        # Readability check across transition: all entries readable, 0 unreadable
+        entries_before = query._cache_entries(self.repo)
+        self.assertEqual(len(entries_before), 1)
+        overview_before = query.view_overview(entries_before, repo=self.repo)
+        self.assertEqual(overview_before.payload["unreadable_entries"], 0)
+
+        # 1. Defect arm: with vocabulary pinned to the value the entry was written under,
+        # sweep returns hit / fresh-complete-entry and the key stays absent.
+        with patch.object(ingest, "PRODUCER_METRIC_KEYS", old_metric_keys):
+            rep_defect = ingest.update_analytics_cache([run], repo=self.repo)
+            self.assertEqual(rep_defect.decisions[0].verdict, "hit")
+            self.assertEqual(rep_defect.decisions[0].reason, "fresh-complete-entry")
+            entry_defect = cache.load_entry(target)
+            self.assertNotIn("event_count", entry_defect.metric_facts)
+
+        # 2. Fixed arm: under CURRENT vocabulary, sweep returns rebuild / fingerprint-changed
+        # and republishes the key.
+        rep_fixed = ingest.update_analytics_cache([run], repo=self.repo)
+        self.assertEqual(rep_fixed.decisions[0].verdict, "rebuild")
+        self.assertEqual(rep_fixed.decisions[0].reason, "fingerprint-changed")
+        entry_fixed = cache.load_entry(target)
+        self.assertIn("event_count", entry_fixed.metric_facts)
+        self.assertEqual(entry_fixed.metric_facts["event_count"], 1)
+
+        # Confirm readability after rebuild
+        entries_after = query._cache_entries(self.repo)
+        self.assertEqual(len(entries_after), 1)
+        overview_after = query.view_overview(entries_after, repo=self.repo)
+        self.assertEqual(overview_after.payload["unreadable_entries"], 0)
+    ```
+    Passing run:
+    ```
+    $ python3 -m pytest tests/test_run_analytics.py -k test_cache_staleness_and_vocabulary_invalidation -o addopts=""
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    rootdir: <repo-root>
+    collected 31 items / 30 deselected / 1 selected
+
+    tests/test_run_analytics.py .                                            [100%]
+    ======================= 1 passed, 30 deselected in 0.29s =======================
+    ```
+
+    (b) Reproducing pre-6krsym state faithfully:
+    ```python
+        entry_data = json.loads(target.read_text(encoding="utf-8"))
+        self.assertIn("event_count", entry_data["metric_facts"])
+        del entry_data["metric_facts"]["event_count"]
+        target.write_text(json.dumps(entry_data), encoding="utf-8")
+    ```
+    Only `metric_facts['event_count']` is removed; `schema_version`, `is_complete`, and `source_fingerprint` remain unchanged.
+
+    (c) Defect vs Fixed arms:
+    Defect arm:
+    ```python
+        with patch.object(ingest, "PRODUCER_METRIC_KEYS", old_metric_keys):
+            rep_defect = ingest.update_analytics_cache([run], repo=self.repo)
+            self.assertEqual(rep_defect.decisions[0].verdict, "hit")
+            self.assertEqual(rep_defect.decisions[0].reason, "fresh-complete-entry")
+            entry_defect = cache.load_entry(target)
+            self.assertNotIn("event_count", entry_defect.metric_facts)
+    ```
+    Fixed arm:
+    ```python
+        rep_fixed = ingest.update_analytics_cache([run], repo=self.repo)
+        self.assertEqual(rep_fixed.decisions[0].verdict, "rebuild")
+        self.assertEqual(rep_fixed.decisions[0].reason, "fingerprint-changed")
+        entry_fixed = cache.load_entry(target)
+        self.assertIn("event_count", entry_fixed.metric_facts)
+        self.assertEqual(entry_fixed.metric_facts["event_count"], 1)
+    ```
+
+    (d) Readability assertions:
+    `len(entries_before) == 1`, `overview_before.payload["unreadable_entries"] == 0`.
+    `len(entries_after) == 1`, `overview_after.payload["unreadable_entries"] == 0`.
+
+    (e) Wrong-fix proof (`CACHE_SCHEMA_VERSION` bump in memory):
+    When `CACHE_SCHEMA_VERSION` was bumped to 2 during query against the existing entry, `_cache_entries` refused the schema 1 entry with `CacheVersionError`:
+    ```
+    FAIL: test_cache_staleness_and_vocabulary_invalidation
+    Traceback (most recent call last):
+      File ".../tests/test_run_analytics.py", line 1398, in test_cache_staleness_and_vocabulary_invalidation
+        self.assertEqual(len(entries_before), 1)
+    AssertionError: 0 != 1
+    ```
+    This demonstrates the standing constraint: bumping `CACHE_SCHEMA_VERSION` makes the cache corpus appear completely empty/unreadable before a rebuild sweep runs.
+
+    (f) Mutation proof restoring shipped `source_fingerprint`:
+    ```
+    FAIL: test_cache_staleness_and_vocabulary_invalidation
+    Traceback (most recent call last):
+      File ".../tests/test_run_analytics.py", line 1414, in test_cache_staleness_and_vocabulary_invalidation
+        self.assertEqual(rep_fixed.decisions[0].verdict, "rebuild")
+    AssertionError: 'hit' != 'rebuild'
+    - hit
+    + rebuild
+    ```
+    `git status --short` was verified clean before and after.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: (a) PASTE the new test's source and its PASSING run, and CONFIRM it builds its `rebuild=True` namespace the same way the existing `rebuild=False` namespaces in `tests/test_run_analytics_cli.py` do, by quoting both. (b) PASTE the assertion and observed values for each of the four properties: every entry discarded and republished (compare `generated_at` or entry identity across the rebuild, not merely that a file exists), the `salt` file surviving with `source_root_id` unchanged, the dashboard stats cache removed, and every file under the source run directories unchanged in `(size, mtime_ns)`. (c) STATE EXPLICITLY that the source-immutability snapshot EXCLUDES the `analytics/` subtree, and say why: the analytics tree lives UNDER the runs root, so a naive glob sweeps the very files the rebuild is supposed to delete and reports a false mutation. That is the exact error F-09 records authoring having made and corrected; a test that repeats it will either fail spuriously or, if written to expect the mutation, assert the opposite of the promise. (d) CONFIRM the test resolves every cache path through `cache_mod.cache_root`/`entry_path` and never composes `.aw/records/runs`, by quoting the resolution lines. (e) CONFIRM the test operates entirely within a temporary directory and never reads or writes the checkout's own runs tree.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence below:
+    (a) Source and passing run:
+    `test_run_analyze_rebuild_behavior` in `tests/test_run_analytics_cli.py`:
+    ```python
+        # Drive run_analyze with rebuild=True namespace built identical to rebuild=False
+        args_rebuild = argparse.Namespace(
+            dir=str(self.repo),
+            path=False,
+            list=False,
+            open=False,
+            rebuild=True,
+            keep_snapshot=None,
+            targets=[],
+            agent=False,
+            json=False,
+            color=False,
+            no_color=True,
+            fields=None,
+            verbose=False,
+            limit=None,
+        )
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            rc_rebuild = analytics_cli.run_analyze(args_rebuild)
+        self.assertEqual(rc_rebuild, 0)
+    ```
+    Compare with `rebuild=False` namespace from `test_run_analyze_rebuild_behavior` and `test_run_analyze_path_and_list`:
+    ```python
+        args_warm = argparse.Namespace(
+            dir=str(self.repo),
+            path=False,
+            list=False,
+            open=False,
+            rebuild=False,
+            keep_snapshot=None,
+            targets=[],
+            agent=False,
+            json=False,
+            color=False,
+            no_color=True,
+            fields=None,
+            verbose=False,
+            limit=None,
+        )
+    ```
+    Passing run:
+    ```
+    $ python3 -m pytest tests/test_run_analytics_cli.py -k test_run_analyze_rebuild_behavior -o addopts=""
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    rootdir: <repo-root>
+    collected 10 items / 9 deselected / 1 selected
 
-- [ ] V-06 validates E-06
+    tests/test_run_analytics_cli.py .                                        [100%]
+    ======================= 1 passed, 9 deselected in 1.53s ========================
+    ```
+
+    (b) Assertions for the four properties:
+    Property 1: Salt file survives and `source_root_id` is unchanged:
+    ```python
+        self.assertTrue(salt_file.is_file())
+        salt_after = salt_file.read_text(encoding="utf-8").strip()
+        self.assertEqual(salt_initial, salt_after)
+        root_id_after = cache_mod.source_root_id(
+            cache_root.parent.parent, salt=salt_after
+        )
+        self.assertEqual(root_id_initial, root_id_after)
+    ```
+    Property 2: Dashboard stats cache file removed by `_clear_cache`:
+    ```python
+        self.assertFalse(stats_cache_file.exists())
+    ```
+    Property 3: Every entry discarded and republished (`generated_at` changed):
+    ```python
+        entry1_after = cache_mod.load_entry(entry1_path)
+        entry2_after = cache_mod.load_entry(entry2_path)
+        self.assertNotEqual(entry1_before.generated_at, entry1_after.generated_at)
+        self.assertNotEqual(entry2_before.generated_at, entry2_after.generated_at)
+    ```
+    Property 4: Non-analytics source run files unchanged in `(size, mtime_ns)`:
+    ```python
+        snapshot_after = _source_snapshot()
+        self.assertEqual(snapshot_before, snapshot_after)
+    ```
+
+    (c) Source-immutability snapshot explicitly excludes the `analytics/` subtree:
+    The snapshot iterates only over `run_dir in (self.run1, self.run2)`. The analytics directory lives under `<runs_root>/analytics/` and is deliberately cleaned on rebuild; scanning the entire runs root would include the deleted cache files and falsely report source corruption.
+
+    (d) Cache path resolution:
+    ```python
+        cache_root = cache_mod.cache_root(self.repo)
+        salt_file = cache_root / privacy.SALT_FILENAME
+        ...
+        entry1_path = cache_mod.entry_path(root_id_initial, self.run1.name, self.repo)
+        entry2_path = cache_mod.entry_path(root_id_initial, self.run2.name, self.repo)
+    ```
+    All paths resolved through `cache_mod.cache_root` and `cache_mod.entry_path`.
+
+    (e) Test operates entirely within temporary directory `self.repo` created in `setUp()`.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: (a) PASTE the `git diff -- docs/run-analytics.md` hunk and confirm the `fingerprint-changed` row now covers a producer-vocabulary change and that the other seven rows and their reason-code tokens are byte-unchanged. (b) CONFIRM the added paragraph states that a release adding a metric rebuilds affected entries on the next ordinary `aw runs analyze`, and that `--rebuild` remains documented for a damaged or hand-edited tree. (c) CONFIRM no em dash or en dash was introduced, by pasting a search for both characters over the changed file returning no hits in the added lines (this is user-facing prose, where the repository's dash rule applies). (d) PASTE the full bare suite summary, which must be unchanged from V-02's, since a docs edit cannot change a test count.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence below:
+    (a) Full `git diff -- docs/run-analytics.md`:
+    ```diff
+    diff --git a/docs/run-analytics.md b/docs/run-analytics.md
+    index f1ee1904..c27c29df 100644
+    --- a/docs/run-analytics.md
+    +++ b/docs/run-analytics.md
+    @@ -150,7 +150,7 @@ can read in `aw runs query cache-status`:
+     | --- | --- | --- |
+     | unchanged, finished run with a valid entry | hit | `fresh-complete-entry` |
+     | first time seen, or newly added | rebuild | `no-entry` |
+    -| an analytics-relevant input changed | rebuild | `fingerprint-changed` |
+    +| an analytics-relevant input or the producer vocabulary changed | rebuild | `fingerprint-changed` |
+     | the run is still live, or was resumed | rebuild | `run-not-terminal` |
+     | the entry was stored mid-run | rebuild | `entry-incomplete` |
+     | the entry came from another cache schema | rebuild | `schema-version-mismatch` |
+    @@ -162,9 +162,14 @@ BEFORE the file fingerprint: "the files did not change" is not evidence of stabi
+     may still be writing. And a contended entry SKIPS with a reason rather than waiting, because the work
+     is recomputable, so a skip costs one rebuild next time while a block would cost you your command.
+
+    +A release that adds or removes an analytics metric automatically rebuilds affected entries on the
+    +next ordinary `aw runs analyze`, because the producer's declared vocabulary participates in the
+    +fingerprint. Upgrades self-heal without operator intervention, so you do not need to run a manual
+    +rebuild when a new metric lands.
+    +
+     Recovery from damage needs no special verb: one corrupt run degrades ITSELF, the sweep completes over
+    -the rest, and the skipped run is reported. `aw runs analyze --rebuild` discards cached entries and
+    -recomputes; it never touches a source run.
+    +the rest, and the skipped run is reported. `aw runs analyze --rebuild` remains available for a damaged
+    +or hand-edited tree; it discards cached entries and recomputes without touching a source run.
+
+     Removals are found by comparing your run list against the cache listing, not by a decision: a run that
+     is gone is not enumerated, so it produces no verdict at all.
+    ```
+    Inspected: `fingerprint-changed` row updated to mention producer vocabulary; all other seven rows and reason codes are byte-unchanged.
+
+    (b) Added paragraph confirms auto-rebuild on next ordinary `aw runs analyze` and keeps `--rebuild` for damaged/hand-edited trees:
+    "A release that adds or removes an analytics metric automatically rebuilds affected entries on the next ordinary `aw runs analyze`, because the producer's declared vocabulary participates in the fingerprint. Upgrades self-heal without operator intervention, so you do not need to run a manual rebuild when a new metric lands."
+    "`aw runs analyze --rebuild` remains available for a damaged or hand-edited tree; it discards cached entries and recomputes without touching a source run."
+
+    (c) Dash search check:
+    Search for `\u2014` (em dash) and `\u2013` (en dash) returned 0 hits in `docs/run-analytics.md`.
+
+    (d) Full bare suite summary:
+    Full bare suite: `3368 passed, 2 skipped, 3 warnings in 65.34s` (zero failures, delta of +3 tests over baseline `3365 passed`).
+  - Result: pass
 
 ## Approval and execution gate
 
