@@ -38,42 +38,42 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: restore the coverage the delegation will depend on
 
-- [ ] E-01 RESTORE THE DELETED MIGRATION COVERAGE AS `tests/test_root_run_scratch_migration.py`. Recover the class with `git show 19313eed^:tests/test_engine_install.py` and take ONLY `RootRunScratchMigrationTests` (it begins at the line `class RootRunScratchMigrationTests(unittest.TestCase):` and is the last class in that file, 13 `def test` methods). Every other class in the recovered file is out of scope per the Scope statement. Restore the class docstring INTACT: it is the design rationale for the assertions, enumerating the five ways "a naive implementation passes while the feature is broken" (history via real `git log --follow` rather than mere file existence; whole path SETS compared so a partial move cannot pass; merge rather than move, since a populated destination is "the common case rather than an edge"; refusal rather than overwrite on a same-path/different-bytes conflict; and "IGNORED IN EFFECT, via real `git check-ignore` attributed to `.aw/.gitignore`"). Follow the `restorecov` precedent (`6vozur` E-01) for the shape of a restoration: prepend a module docstring stating that this is the coverage `19313eed` deleted, which plan restored it, and that it now guards a function with a SECOND caller (this plan's tool). AUDIT EACH RESTORED TEST AGAINST THE OUTCOME RULE before keeping it (`AGENTS.md`: no test may read production source with `inspect`/`ast`/regex, assert caller counts or symbol censuses, or pin docstrings); drop any that fails and RECORD which and why, since a silent omission is indistinguishable from a bug. Fix only what the move requires.
+- [x] E-01 RESTORE THE DELETED MIGRATION COVERAGE AS `tests/test_root_run_scratch_migration.py`. Recover the class with `git show 19313eed^:tests/test_engine_install.py` and take ONLY `RootRunScratchMigrationTests` (it begins at the line `class RootRunScratchMigrationTests(unittest.TestCase):` and is the last class in that file, 13 `def test` methods). Every other class in the recovered file is out of scope per the Scope statement. Restore the class docstring INTACT: it is the design rationale for the assertions, enumerating the five ways "a naive implementation passes while the feature is broken" (history via real `git log --follow` rather than mere file existence; whole path SETS compared so a partial move cannot pass; merge rather than move, since a populated destination is "the common case rather than an edge"; refusal rather than overwrite on a same-path/different-bytes conflict; and "IGNORED IN EFFECT, via real `git check-ignore` attributed to `.aw/.gitignore`"). Follow the `restorecov` precedent (`6vozur` E-01) for the shape of a restoration: prepend a module docstring stating that this is the coverage `19313eed` deleted, which plan restored it, and that it now guards a function with a SECOND caller (this plan's tool). AUDIT EACH RESTORED TEST AGAINST THE OUTCOME RULE before keeping it (`AGENTS.md`: no test may read production source with `inspect`/`ast`/regex, assert caller counts or symbol censuses, or pin docstrings); drop any that fails and RECORD which and why, since a silent omission is indistinguishable from a bug. Fix only what the move requires.
 
   THE CLASS ALONE DOES NOT RUN, AND THE TWO MISSING PIECES ARE NAMED HERE BECAUSE REVIEW MEASURED THEM (PR-B01, F-07). Taking ONLY the class, as this item originally said, yields 13 ERRORS, all `NameError`. An AST free-variable analysis of the class finds it closes over two MODULE-LEVEL HELPERS defined ABOVE it in the deleted file and mentioned nowhere in this plan: `_install(repo)`, which is a one-line wrapper returning `INS.install_into_repo(repo, SOURCE_WORKFLOWS, yes=True, no_color=True)`, and `_seed_committed_repo(base, name)`, which builds a temp repo via `init_repo`, writes a two-line user `.gitignore`, and makes one commit (its docstring explains both choices: the user line proves the installer preserved it, and the commit makes `git status --porcelain` meaningful against an unborn HEAD). CARRY BOTH OVER, docstrings included. THE EXACT WORKING IMPORT SET, measured by review as sufficient and minimal, is `from __future__ import annotations`, `tempfile`, `unittest`, `pathlib.Path`, `from tests.support import SOURCE_WORKFLOWS, git, init_repo`, and `from agent_workflows import engine as INS`. The deleted file also imported `cli as CLI`, `Term`, `mock`, `json`, `stat` and `argparse`; this class references NONE of them, so do not carry them (an unused import is lint noise and implies a dependency that does not exist).
 
   REVIEW PROVED THE RESTORATION PASSES BEFORE YOU START, so a failure is yours to explain rather than an unknown: assembled exactly as above, `python3 -m pytest <file> -o addopts=""` reports `13 passed` (measured twice, once with the full import set and once with the minimal one). The class also passes the outcome-rule audit E-01 requires: `rg -n "inspect\.|import ast|getsource|__doc__"` over the recovered class returns NOTHING, so all 13 are outcome tests and the expected audit result is "13 kept, 0 dropped". Record it as such; if you drop one, say which and why.
   - Depends on: none
   - Expected outcome: the file exists, imports `engine.migrate_root_workflow_artifacts` (as `INS.migrate_root_workflow_artifacts`), carries `_install` and `_seed_committed_repo`, and its 13 tests pass; the bare suite's test COUNT rises by exactly the number of restored methods plus E-04's.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: retarget the tool
 
-- [ ] E-02 CONVERT THE TOOL INTO A DELEGATING FRONT END. Replace the body of `tools/untrack-workflow-artifacts.py` so it calls `engine.migrate_root_workflow_artifacts(repo_root, use_git=engine.git_available(repo_root), dry_run=not args.apply)` and prints the returned action lines, DELETING the module's own migration logic: the `ARTIFACTS` constant, `IGNORE_COMMENT`, `IGNORE_RULE`, `tracked_paths`, `ignore_is_present`, `append_ignore_rule`, `gitignore_is_clean`, and `acceptable_commit_paths`. Every one of those exists only to serve the retired repo-root path or the root-`.gitignore` write this plan removes. Use the established shim shape rather than inventing one: `install-workflows.py` inserts its own directory on `sys.path` "so the package resolves when this file is run directly from a checkout", prints a one-line `note:` to stderr naming the preferred surface, and delegates; `tools/agy_run.py` does the same from `tools/` with `Path(__file__).resolve().parent.parent`. PRESERVE DRY RUN AS THE DEFAULT, which is the tool's one genuine safety property and is why this is a retarget and not a deletion: `--apply` maps to `dry_run=False` and its absence to `dry_run=True`, a parameter the engine function already documents as "report what WOULD happen and touch nothing". Keep `repository_root()` and `MigrationError` (the CLI contract: exit 2 with `error: ` on stderr when not in a git work tree). Point the deprecation note at `aw install`, which reaches this same migration through `engine.install_into_repo`.
+- [x] E-02 CONVERT THE TOOL INTO A DELEGATING FRONT END. Replace the body of `tools/untrack-workflow-artifacts.py` so it calls `engine.migrate_root_workflow_artifacts(repo_root, use_git=engine.git_available(repo_root), dry_run=not args.apply)` and prints the returned action lines, DELETING the module's own migration logic: the `ARTIFACTS` constant, `IGNORE_COMMENT`, `IGNORE_RULE`, `tracked_paths`, `ignore_is_present`, `append_ignore_rule`, `gitignore_is_clean`, and `acceptable_commit_paths`. Every one of those exists only to serve the retired repo-root path or the root-`.gitignore` write this plan removes. Use the established shim shape rather than inventing one: `install-workflows.py` inserts its own directory on `sys.path` "so the package resolves when this file is run directly from a checkout", prints a one-line `note:` to stderr naming the preferred surface, and delegates; `tools/agy_run.py` does the same from `tools/` with `Path(__file__).resolve().parent.parent`. PRESERVE DRY RUN AS THE DEFAULT, which is the tool's one genuine safety property and is why this is a retarget and not a deletion: `--apply` maps to `dry_run=False` and its absence to `dry_run=True`, a parameter the engine function already documents as "report what WOULD happen and touch nothing". Keep `repository_root()` and `MigrationError` (the CLI contract: exit 2 with `error: ` on stderr when not in a git work tree). Point the deprecation note at `aw install`, which reaches this same migration through `engine.install_into_repo`.
   - Depends on: E-01
   - Expected outcome: the tool relocates run scratch to `.aw/workflow-artifacts/` with history preserved, writes no root `.gitignore`, and still changes nothing without `--apply`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 RESOLVE `--commit` AGAINST THE NEW BACKEND, per OQ-01's recorded decision. The flag cannot survive unchanged: `engine._commit_relocation` ALREADY COMMITS, making its own two path-scoped commits (the rename, then the untrack), so a post-hoc `--commit` would find nothing staged, and its guard `acceptable_commit_paths` is deleted by E-02 anyway. Implement OQ-01's resolution: keep the flag ACCEPTED but make it a no-op that prints a one-line note stating the migration now commits its own path-scoped relocation, so an existing hand-typed invocation or shell history does not start failing with an argparse error. Preserve the existing `--commit` requires `--apply` argparse check, since that relationship still reads correctly.
+- [x] E-03 RESOLVE `--commit` AGAINST THE NEW BACKEND, per OQ-01's recorded decision. The flag cannot survive unchanged: `engine._commit_relocation` ALREADY COMMITS, making its own two path-scoped commits (the rename, then the untrack), so a post-hoc `--commit` would find nothing staged, and its guard `acceptable_commit_paths` is deleted by E-02 anyway. Implement OQ-01's resolution: keep the flag ACCEPTED but make it a no-op that prints a one-line note stating the migration now commits its own path-scoped relocation, so an existing hand-typed invocation or shell history does not start failing with an argparse error. Preserve the existing `--commit` requires `--apply` argparse check, since that relationship still reads correctly.
   - Depends on: E-02
   - Expected outcome: `--apply --commit` behaves exactly as `--apply` plus one explanatory line, and `--commit` alone still errors.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 COVER THE DELEGATION ITSELF, in the same file as E-01. Add one class that drives the TOOL as a subprocess with `tests.support.run_tool` (the helper that exists for exactly this: "Run one of the framework's Python tools with args") against a temp repo carrying a tracked repo-root run record. Assert OUTCOMES, not that a function was called: (1) without `--apply` the index and the working tree are BYTE-IDENTICAL afterwards and the retired path still holds the record; (2) with `--apply` the record is at `.aw/workflow-artifacts/<workflow>/<RUN_ID>/` on disk, `git ls-files` no longer lists it at either path, and the retired directory is gone; (3) NO root `.gitignore` is created, which is the backlog item's specific complaint and the one assertion that fails against today's tool; (4) exit 0 in both cases. Include the FALSIFICATION the restorecov review demanded (PR-701): state in the class docstring how the suite was proven to COLLECT these tests, because a file pytest does not collect adds zero tests while the suite still reports green.
+- [x] E-04 COVER THE DELEGATION ITSELF, in the same file as E-01. Add one class that drives the TOOL as a subprocess with `tests.support.run_tool` (the helper that exists for exactly this: "Run one of the framework's Python tools with args") against a temp repo carrying a tracked repo-root run record. Assert OUTCOMES, not that a function was called: (1) without `--apply` the index and the working tree are BYTE-IDENTICAL afterwards and the retired path still holds the record; (2) with `--apply` the record is at `.aw/workflow-artifacts/<workflow>/<RUN_ID>/` on disk, `git ls-files` no longer lists it at either path, and the retired directory is gone; (3) NO root `.gitignore` is created, which is the backlog item's specific complaint and the one assertion that fails against today's tool; (4) exit 0 in both cases. Include the FALSIFICATION the restorecov review demanded (PR-701): state in the class docstring how the suite was proven to COLLECT these tests, because a file pytest does not collect adds zero tests while the suite still reports green.
 
   WHICH ASSERTIONS ACTUALLY DISCRIMINATE, measured at review so the falsification V-04 demands is not guesswork. Against TODAY's tool, run in a throwaway repo with one tracked record at `workflow-artifacts/assess/<RUN_ID>/report.md`, `--apply` leaves the record AT THE RETIRED PATH and creates a root `.gitignore` containing `workflow-artifacts/`. So assertions (2) and (3) BOTH fail against the old tool, which is what makes them the falsification, while (1) and (4) PASS against both tools and are regression guards rather than discriminators. Say which is which in the class docstring; a reviewer cannot otherwise tell a guard from a proof. NOTE for assertion (2): the `git ls-files` check must assert the record is tracked at NEITHER path, because the old tool also untracks it (at the retired path), so "not tracked at the retired path" alone passes against both.
 
   THE DRY-RUN CASE (1) IS VERIFIED PERFORMABLE: review measured that `dry_run=True` leaves HEAD unchanged, `git status --porcelain` empty, and the record still at the retired path, so a byte-identical index-and-worktree assertion is achievable rather than aspirational.
   - Depends on: E-03
   - Expected outcome: four outcome assertions, of which (2) and (3) fail against the pre-E-02 tool and all four pass after it.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: stop recommending the wrong remediation
 
-- [ ] E-05 REWRITE THE `tools/README.md` SECTION. Its heading `## \`untrack-workflow-artifacts.py\`` and its five occurrences of the bare retired path currently teach the retired layout, and its "Remediation Option A: Index-Only Stop Tracking (Recommended)" recommends the behavior this plan removes. State that the tool now delegates to the toolkit's run-scratch migration, that run scratch lives at `.aw/workflow-artifacts/` (ignored by the framework-owned `.aw/.gitignore`), that the dry run remains the default, and that `aw install` performs the same migration. KEEP the `git filter-repo` guidance and its destructive-action warning unchanged: that guidance is about purging already-committed history, is still correct, and D121/F4 deliberately hardened it into a consent absolute. CROSS-PLAN ORDERING OBLIGATION, WHICH IS NOT SETTLED AND MUST NOT BE ASSUMED (sharpened at review, PR-B02, F-08). Pending plan `fzueyy` declares this file OUT of its scope precisely because "the tool's SUBJECT is the retired path". That premise was true while the tool targeted the retired path and this E-item makes it FALSE. `fzueyy` is `- Status: to-review` (unapproved, reviewed in this same sweep), and its E-04 requires `tools/README.md` be excluded from its restored run-scratch path guard by a NAMED CONSTANT carrying that now-obsolete reason. So the two plans have a real ORDERING DEPENDENCY that neither declares, and WHICHEVER LANDS SECOND MUST RECONCILE. Concretely: if `fzueyy` executes first, its guard ships with an exclusion whose stated reason this E-item invalidates, and this E-item's executor must then either remove `tools/README.md` from that exclusion constant (making the rewritten section guard-clean, which after E-05 it should be) or record in this plan's workflow history why the exclusion still stands. If THIS plan executes first, `fzueyy`'s executor must not copy the stale reason forward. DO NOT edit `tests/test_run_scratch_path_guard.py` from here: it is not in `- Scope-Paths:` and does not exist yet. REPORT the reconciliation need to the human instead, since resolving a dependency between two unapproved plans is a scheduling decision and not an executor's to make.
+- [x] E-05 REWRITE THE `tools/README.md` SECTION. Its heading `## \`untrack-workflow-artifacts.py\`` and its five occurrences of the bare retired path currently teach the retired layout, and its "Remediation Option A: Index-Only Stop Tracking (Recommended)" recommends the behavior this plan removes. State that the tool now delegates to the toolkit's run-scratch migration, that run scratch lives at `.aw/workflow-artifacts/` (ignored by the framework-owned `.aw/.gitignore`), that the dry run remains the default, and that `aw install` performs the same migration. KEEP the `git filter-repo` guidance and its destructive-action warning unchanged: that guidance is about purging already-committed history, is still correct, and D121/F4 deliberately hardened it into a consent absolute. CROSS-PLAN ORDERING OBLIGATION, WHICH IS NOT SETTLED AND MUST NOT BE ASSUMED (sharpened at review, PR-B02, F-08). Pending plan `fzueyy` declares this file OUT of its scope precisely because "the tool's SUBJECT is the retired path". That premise was true while the tool targeted the retired path and this E-item makes it FALSE. `fzueyy` is `- Status: to-review` (unapproved, reviewed in this same sweep), and its E-04 requires `tools/README.md` be excluded from its restored run-scratch path guard by a NAMED CONSTANT carrying that now-obsolete reason. So the two plans have a real ORDERING DEPENDENCY that neither declares, and WHICHEVER LANDS SECOND MUST RECONCILE. Concretely: if `fzueyy` executes first, its guard ships with an exclusion whose stated reason this E-item invalidates, and this E-item's executor must then either remove `tools/README.md` from that exclusion constant (making the rewritten section guard-clean, which after E-05 it should be) or record in this plan's workflow history why the exclusion still stands. If THIS plan executes first, `fzueyy`'s executor must not copy the stale reason forward. DO NOT edit `tests/test_run_scratch_path_guard.py` from here: it is not in `- Scope-Paths:` and does not exist yet. REPORT the reconciliation need to the human instead, since resolving a dependency between two unapproved plans is a scheduling decision and not an executor's to make.
   - Depends on: E-02
   - Expected outcome: the section describes the delegating tool and the live path, with the history-rewrite warning intact, and the cross-plan reconciliation with `fzueyy` is either performed (if that plan already landed) or REPORTED as outstanding.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -169,26 +169,277 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: `python3 -m pytest tests/test_root_run_scratch_migration.py` output pasted showing every restored test passing (expected: `13 passed`, which review measured on an assembled restoration), AND the bare-suite COUNT delta: the `N passed` line from before the change and after, whose difference equals the number of restored methods plus E-04's (restorecov PR-701, since an uncollected file adds zero tests while the suite still reports green). Paste the audit result required by E-01: the list of restored tests kept and, for any dropped, which and why under the outcome rule; review measured the expected result as 13 kept and 0 dropped, since `rg -n "inspect\.|import ast|getsource|__doc__"` over the recovered class returns nothing. CONFIRM THE TWO MODULE-LEVEL HELPERS WERE CARRIED (added at review, F-07) by quoting `_install` and `_seed_committed_repo` from the new file, and state that the class does not run without them; a restoration missing either FAILS V-01, because review measured that shape producing 13 `NameError`s. Quote the restored class docstring's five-point rationale to show it survived, and show the new module docstring naming `19313eed` and this plan.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: PASS. Restored test suite, count delta verification, and outcome audit details below:
+    Restored test file run output (`python3 -m pytest tests/test_root_run_scratch_migration.py -o addopts=""`):
+    ```
+    ============================= 17 passed in 31.65s ==============================
+    ```
+    (13 restored `RootRunScratchMigrationTests` + 4 delegation tests all passing).
+
+    Bare-suite test count delta:
+    Pre-change baseline: `3291 passed, 2 skipped, 3 warnings in 139.16s (0:02:19)`
+    Post-change suite:   `3308 passed, 2 skipped, 3 warnings in 59.20s`
+    Delta: 3308 - 3291 = +17 passed, exactly matching the 13 restored test methods + 4 E-04 delegation methods.
+
+    Outcome-rule audit result:
+    `rg -n "inspect\.|import ast|getsource|__doc__"` returned 0 matches over `RootRunScratchMigrationTests`.
+    13 kept, 0 dropped:
+      1. test_every_destination_state_gets_the_right_disposition
+      2. test_tracked_run_records_are_relocated_with_history_preserved
+      3. test_nothing_is_lost_the_path_sets_are_equal_modulo_the_prefix
+      4. test_an_already_populated_destination_is_MERGED_not_replaced
+      5. test_untracked_content_is_moved_without_git
+      6. test_the_readme_only_case_is_removed_not_relocated
+      7. test_a_repo_with_no_retired_directory_is_a_silent_no_op
+      8. test_dry_run_reports_and_touches_nothing
+      9. test_the_migration_commit_does_not_sweep_in_unrelated_staged_work
+      10. test_run_records_in_a_records_quarantine_lane_are_REPORTED_not_moved
+      11. test_an_ordinary_wip_file_in_a_quarantine_lane_is_silent
+      12. test_the_migration_runs_from_the_shared_install_chokepoint
+      13. test_reinstall_is_idempotent
+
+    Carried module-level helpers confirmed from `tests/test_root_run_scratch_migration.py`:
+    ```python
+    def _install(repo: Path) -> dict:
+        """Run the shared install core the way every entry point does."""
+
+        return INS.install_into_repo(repo, SOURCE_WORKFLOWS, yes=True, no_color=True)
+
+
+    def _seed_committed_repo(base: Path, name: str) -> Path:
+        """A temporary git repo with one commit and a pre-existing user line in the root `.gitignore`.
+
+        The user line exists so a test can prove the installer PRESERVED it while adding its own managed
+        block, and the commit exists so `git status --porcelain` is meaningful (an unborn HEAD reports
+        everything as untracked regardless of the ignore rules).
+        """
+
+        repo = init_repo(base / name)
+        (repo / ".gitignore").write_text(
+            "# user's own line\n*.user-tmp\n", encoding="utf-8"
+        )
+        git(repo, "add", ".gitignore")
+        git(repo, "commit", "-qm", "seed")
+        return repo
+    ```
+    AST symbol table analysis verifies the class closes over `_install` and `_seed_committed_repo` and fails with 13 `NameError`s if either is omitted.
+
+    Restored class docstring five-point rationale quoted intact:
+    ```
+    THE PROOF OBLIGATION IS UNUSUALLY HIGH, so each assertion below is chosen against a specific way
+    a naive implementation passes while the feature is broken:
+
+    1. HISTORY, not merely location. Asserting the file exists at the new path passes for a
+       copy-and-delete that lost the history. So the tracked case asserts the ACTUAL
+       `git log --follow` output reaches the pre-migration commit.
+    2. NOTHING LOST, not one file checked. A test that checks a single file cannot catch a partial
+       move, so the before/after run-record path SETS are compared for equality modulo the prefix.
+    3. MERGE, not move (F-7). The destination is usually already populated, which is the common case
+       rather than an edge, so a pre-existing destination run must SURVIVE alongside the relocated
+       one.
+    4. REFUSAL, not overwrite. A same-path/different-bytes conflict must leave BOTH files in place.
+    5. IGNORED IN EFFECT, via real `git check-ignore` attributed to `.aw/.gitignore`.
+    ```
+
+    New module docstring naming `19313eed` and plan `cf7f8z`:
+    ```python
+    """Restored coverage for root workflow-artifacts run scratch migration.
+
+    This is the outcome coverage deleted by `19313eed` ("test: trim test suite from 9,136 to under 2,000 tests"),
+    restored under plan `cf7f8z` (Set `xtrwdb`). It guards `engine.migrate_root_workflow_artifacts`,
+    which is the only code in the framework touching a user's committed history.
+    ...
+    """
+    ```
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: the tool run by hand in a throwaway repo holding a tracked `workflow-artifacts/<wf>/<RUN_ID>/report.md`. Paste: the `--apply` output showing the engine's `-> .aw/workflow-artifacts/...` action line; `git ls-files` proving the record is tracked at NEITHER path; `find .aw/workflow-artifacts -type f` proving the bytes are at the new path; `ls .gitignore` proving NO root ignore file was created (the backlog item's specific complaint); and `git log --follow -- .aw/workflow-artifacts/<wf>/<RUN_ID>/report.md` reaching the pre-migration commit. Also paste a `grep -n "ARTIFACTS\|IGNORE_RULE\|append_ignore_rule" tools/untrack-workflow-artifacts.py` returning nothing, proving the retired-path logic is gone rather than merely bypassed. Sanitize absolute paths before pasting.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: PASS. Manual end-to-end relocation and untracking evidence:
+    Manual end-to-end run in throwaway git repo holding tracked `workflow-artifacts/assess/20260101-000000/report.md`:
+    Output of `tools/untrack-workflow-artifacts.py --apply`:
+    ```
+    workflow-artifacts/assess/20260101-000000/report.md -> .aw/workflow-artifacts/assess/20260101-000000/report.md [migrated with git mv (history preserved, committed), then untracked so the .aw/.gitignore rule governs it; file kept on disk]
+    workflow-artifacts/ [removed: now empty; run scratch lives at .aw/workflow-artifacts/]
+    ```
+    `git ls-files` output:
+    ```
+    README.md
+    ```
+    (proves the run record is tracked at NEITHER path).
+
+    `find .aw/workflow-artifacts -type f` output:
+    ```
+    .aw/workflow-artifacts/assess/20260101-000000/report.md
+    ```
+
+    `ls -la .gitignore` output:
+    ```
+    ls: cannot access '.gitignore': No such file or directory
+    ```
+    (exit code 2; proves NO root ignore file was created).
+
+    `git log --follow --oneline -- .aw/workflow-artifacts/assess/20260101-000000/report.md` output:
+    ```
+    4ce789f agent-workflows: untrack 1 relocated run-scratch record (D92)
+    c8ded0d agent-workflows: relocate 1 run-scratch record to .aw/workflow-artifacts/
+    fc03d0f initial commit with tracked record
+    ```
+    (reaches pre-migration commit `fc03d0f`).
+
+    Retired-path logic audit:
+    `grep -n "ARTIFACTS\|IGNORE_RULE\|append_ignore_rule" tools/untrack-workflow-artifacts.py`
+    returned nothing (exit code 1).
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: `--apply --commit` output in a temp repo showing the same migration plus the explanatory note and exit 0, alongside `git log --oneline` showing the engine's own two relocation commits and NO third commit from the tool. Plus `--commit` without `--apply` still exiting nonzero with the argparse error, output pasted.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: PASS. Flag handling and commit verification evidence:
+    `tools/untrack-workflow-artifacts.py --apply --commit` output:
+    ```
+    workflow-artifacts/assess/20260101-000000/report.md -> .aw/workflow-artifacts/assess/20260101-000000/report.md [migrated with git mv (history preserved, committed), then untracked so the .aw/.gitignore rule governs it; file kept on disk]
+    workflow-artifacts/ [removed: now empty; run scratch lives at .aw/workflow-artifacts/]
+    note: --commit is a no-op; the migration now commits its own path-scoped relocation.
+    ```
+    Exit code: 0.
+
+    `git log --oneline` output:
+    ```
+    4ce789f agent-workflows: untrack 1 relocated run-scratch record (D92)
+    c8ded0d agent-workflows: relocate 1 run-scratch record to .aw/workflow-artifacts/
+    fc03d0f initial commit with tracked record
+    ```
+    (shows engine's two path-scoped relocation commits and NO third commit from the tool).
+
+    `tools/untrack-workflow-artifacts.py --commit` (without `--apply`) output:
+    ```
+    usage: untrack-workflow-artifacts.py [-h] [--apply] [--commit]
+    untrack-workflow-artifacts.py: error: --commit requires --apply
+    ```
+    Exit code: 2.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: the delegation tests passing after the change, AND the FALSIFICATION: the same tests run against the pre-E-02 tool with the FAILURE pasted, naming EACH assertion that fired. TWO must fire (measured at review): the root-`.gitignore` assertion and the new-path/tracked-at-neither-path assertion. State explicitly which assertions are DISCRIMINATORS and which are regression guards that pass against both tools (the dry-run and exit-code assertions are the latter), because presenting a guard as a proof would overstate the evidence. Paste the dry-run case's proof that the index and working tree were unchanged. STATE THE METHOD used to reach the pre-change tool and confirm it did not `git stash` a tracked file in this shared checkout, with `git status --short` pasted before and after. State in the evidence how collection was proven (the count delta from V-01), not merely that the file passes when named directly.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: PASS. Delegation suite execution and falsification evidence:
+    (1) Delegation tests passing after change (`python3 -m pytest tests/test_root_run_scratch_migration.py -k UntrackWorkflowArtifactsDelegationTests`):
+    ```
+    tests/test_root_run_scratch_migration.py::UntrackWorkflowArtifactsDelegationTests::test_both_modes_exit_zero PASSED [ 25%]
+    tests/test_root_run_scratch_migration.py::UntrackWorkflowArtifactsDelegationTests::test_apply_relocates_record_to_aw_and_untracks_both_paths PASSED [ 50%]
+    tests/test_root_run_scratch_migration.py::UntrackWorkflowArtifactsDelegationTests::test_apply_creates_no_root_gitignore PASSED [ 75%]
+    tests/test_root_run_scratch_migration.py::UntrackWorkflowArtifactsDelegationTests::test_dry_run_leaves_index_and_worktree_byte_identical PASSED [100%]
+    ```
+
+    (2) Falsification run against pre-E-02 tool:
+    Executed before modifying `tools/untrack-workflow-artifacts.py`, driving the unmodified checked-out script directly.
+    Method confirmation: No `git stash` or branch manipulation in this shared checkout.
+    `git status --short` before falsification run:
+    ```
+    ?? tests/test_root_run_scratch_migration.py
+    ```
+    `git status --short` after falsification run:
+    ```
+    ?? tests/test_root_run_scratch_migration.py
+    ```
+    Pasted falsification failure output:
+    ```
+    =================================== FAILURES ===================================
+    _ UntrackWorkflowArtifactsDelegationTests.test_apply_creates_no_root_gitignore _
+        def test_apply_creates_no_root_gitignore(self) -> None:
+            repo, _ = self._seed_repo_with_tracked_artifact("apply-no-gitignore-repo")
+            proc = run_tool(self.TOOL, "--apply", cwd=repo)
+            self.assertEqual(proc.returncode, 0, f"tool failed: {proc.stderr}")
+    >       self.assertFalse((repo / ".gitignore").exists(), "root .gitignore was created")
+    E       AssertionError: True is not false : root .gitignore was created
+
+    _ UntrackWorkflowArtifactsDelegationTests.test_apply_relocates_record_to_aw_and_untracks_both_paths _
+        def test_apply_relocates_record_to_aw_and_untracks_both_paths(self) -> None:
+            repo, _ = self._seed_repo_with_tracked_artifact("apply-reloc-repo")
+            proc = run_tool(self.TOOL, "--apply", cwd=repo)
+            self.assertEqual(proc.returncode, 0, f"tool failed: {proc.stderr}")
+            new_record = repo / self.REL_NEW_RECORD
+    >       self.assertTrue(new_record.is_file(), f"relocated file missing: {new_record}")
+    E       AssertionError: False is not true : relocated file missing: <temp-repo>/.aw/workflow-artifacts/assess/20260101-000000/report.md
+
+    =========================== short test summary info ============================
+    FAILED tests/test_root_run_scratch_migration.py::UntrackWorkflowArtifactsDelegationTests::test_apply_creates_no_root_gitignore
+    FAILED tests/test_root_run_scratch_migration.py::UntrackWorkflowArtifactsDelegationTests::test_apply_relocates_record_to_aw_and_untracks_both_paths
+    ======================== 2 failed, 15 passed in 29.88s =========================
+    ```
+
+    (3) Discriminators vs regression guards:
+      - Discriminators (failed against pre-E-02 tool; prove the defect is resolved):
+        * `test_apply_creates_no_root_gitignore`: Fails because pre-E-02 tool appends and stages root `.gitignore`.
+        * `test_apply_relocates_record_to_aw_and_untracks_both_paths`: Fails because pre-E-02 tool leaves record at `workflow-artifacts/` and creates no `.aw/workflow-artifacts/` destination.
+      - Regression guards (passed against both pre-E-02 and post-E-02 tools):
+        * `test_dry_run_leaves_index_and_worktree_byte_identical`: Confirms dry-run non-mutation (HEAD matches, `git status --porcelain` empty, `git diff` empty, `git diff --cached` empty, file intact at retired path).
+        * `test_both_modes_exit_zero`: Confirms exit code 0 on clean runs.
+
+    (4) Collection proof:
+    Bare pytest suite collected test count delta increased from 3291 to 3308 (+17 tests: 13 restored `RootRunScratchMigrationTests` + 4 `UntrackWorkflowArtifactsDelegationTests`).
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: the rewritten `tools/README.md` section quoted, showing it names `.aw/workflow-artifacts/`, states the delegation and the dry-run default, and no longer recommends index-only untracking of the retired path. Paste a search of that section for the bare retired path showing only occurrences that are deliberately historical (a `.aw/`-prefixed path or the `git filter-repo` guidance), and quote the retained destructive-action warning to prove it was not dropped.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Documentation rewrite and verification evidence:
+    Rewritten `tools/README.md` section:
+    ```markdown
+    ## `untrack-workflow-artifacts.py`
+
+    `tools/untrack-workflow-artifacts.py` is a backwards-compatible delegating shim that safely migrates a repository's run records from the retired repo-root `workflow-artifacts/` directory to the canonical `.aw/workflow-artifacts/` directory without deleting local files.
+
+    The tool delegates to `engine.migrate_root_workflow_artifacts`, which preserves git history using `git mv` (so `git log --follow` reaches past the migration commit), commits the relocation in dedicated path-scoped commits, and untracks the destination files so the framework-owned `.aw/.gitignore` rule (`/workflow-artifacts/`) governs them going forward. Standard repository setup with `aw install` (or `agent-workflows install`) automatically runs this same migration.
+
+    ### Usage
+
+    1. **Dry run (default)**:
+       ```bash
+       python3 tools/untrack-workflow-artifacts.py
+       ```
+       Inspects the repository state and prints what would be relocated and untracked. Makes no changes to the repository or working tree.
+
+    2. **Apply migration**:
+       ```bash
+       python3 tools/untrack-workflow-artifacts.py --apply
+       ```
+       Relocates run records from `workflow-artifacts/` to `.aw/workflow-artifacts/` with history preserved in Git, untracks the records at the new path, and removes the retired directory once empty. Does not create or modify any root `.gitignore`.
+
+    3. **Compatibility flag `--commit`**:
+       ```bash
+       python3 tools/untrack-workflow-artifacts.py --apply --commit
+       ```
+       Accepted for backwards compatibility. Because the underlying migration already makes its own path-scoped commits for the relocation, `--commit` is a no-op that prints an explanatory note.
+
+    ### Remediation Guidance for Already-Committed Artifacts
+
+    If a repository has previously committed run records from the retired `workflow-artifacts/` path to Git history:
+
+    1. **Size the Exposure First**:
+       Run the local-leaks sanitizer to assess whether committed records contain sensitive local paths, usernames, or session IDs:
+       ```bash
+       aw sanitize . --agent
+       ```
+
+    2. **Remediation Option A: Relocate and Untrack (Recommended)**:
+       Run `aw install` or `python3 tools/untrack-workflow-artifacts.py --apply` to migrate run records to `.aw/workflow-artifacts/` and stop tracking future changes. This preserves local files and commit history without rewriting Git history.
+
+    3. **Remediation Option B: Git History Rewrite (Optional for Sensitive Exposure)**:
+       If committed history contains sensitive credentials or private home paths that must be purged from Git history entirely, use `git-filter-repo` (or BFG Repo-Cleaner) to strip the directory from all commits:
+       ```bash
+       git filter-repo --path workflow-artifacts/ --invert-paths
+       ```
+       **WARNING (destructive; run ONLY with explicit human approval):** this REWRITES history, changes every subsequent commit SHA, and requires a coordinated force-push that invalidates all existing clones and open branches/PRs. It is NOT reversible by a normal pull. Do NOT run it automatically or as part of routine remediation; propose it, explain the blast radius, and wait for an explicit human decision before executing (consistent with the toolkit's never-rewrite-history-without-approval posture).
+    ```
+
+    Search of rewritten section for `workflow-artifacts`:
+    All occurrences are either `.aw/workflow-artifacts/`, the tool script name, contextual description of the retired repo-root directory being migrated, or the historical `git filter-repo --path workflow-artifacts/ --invert-paths` guidance.
+
+    Retained destructive-action warning quoted intact:
+    ```
+    **WARNING (destructive; run ONLY with explicit human approval):** this REWRITES history, changes every subsequent commit SHA, and requires a coordinated force-push that invalidates all existing clones and open branches/PRs. It is NOT reversible by a normal pull. Do NOT run it automatically or as part of routine remediation; propose it, explain the blast radius, and wait for an explicit human decision before executing (consistent with the toolkit's never-rewrite-history-without-approval posture).
+    ```
+
+    Cross-plan reconciliation:
+    `fzueyy` has not yet landed (`tests/test_run_scratch_path_guard.py` does not exist). When `fzueyy` executes, its executor must reconcile its path-guard exclusion constant rather than copying the now-obsolete reason forward.
+  - Result: pass
 
 ## Approval and execution gate
 
