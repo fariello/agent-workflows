@@ -1,15 +1,18 @@
 """Global append-only workflow-history sidecar (spec 20260818-1525-02, Section 3).
 
 ONE file per repo: `.aw/records/history.jsonl`, keyed by id6. Each line is a JSON object
-`{id6, date, tree, workflow, actor, message}`. Append-only, so line order is irrelevant and
-concurrent-append git merges rarely conflict. Pure (no CLI, no argparse). Consumed by the status
-writers (Order 02) and the migration + read verb (Order 03).
+`{id6, date, tree, workflow, actor, message}`. Note that the original design rationale claiming
+concurrent-append git merges rarely conflict was measured false in spec 2vev8j E1 (two branches
+each appending one line to the same JSONL produce an ordinary content conflict, making a shared
+file a conflict magnet under the isolated worktrees aw oc run uses by default), and the claim is
+moot for a gitignored file that is never committed. Pure (no CLI, no argparse). Consumed by the
+status writers (Order 02) and the read verb (Order 03).
 
 The sidecar ALSO carries an additive, non-authoritative RENAME/regroup ledger (IPD 52zgqr,
 unifyfileio Order 04): every applied `aw rename`/`aw group` that changes a name appends ONE record
 via `record_rename`/`append_rename`. A rename record is a SUPERSET of a status record - it reuses the
 same key order/shape and adds `verb` (rename|group), `from_name`/`to_name` (basenames), and
-`key_kind` (id6|synthetic). Status readers/migration key only on id6/date/message and ignore the
+`key_kind` (id6|synthetic). Status readers key only on id6/date/message and ignore the
 extra keys, so the addition is backward-compatible. The ledger is NON-AUTHORITATIVE: no aw command's
 correctness depends on it (deleting the sidecar changes only what an audit query can report), and the
 emit is failure-isolated so a ledger problem never breaks a rename. Endpoint cases (OQ-01): id6->id6
@@ -27,7 +30,6 @@ from typing import List, Optional, Tuple as _Tuple
 from agent_workflows import artifact_core as _core
 from agent_workflows.attention_contract import (
     HISTORY_RECORD_RE as _HISTORY_RECORD_RE,
-    newest_history_record as _newest_history_record,
 )
 
 SIDECAR_RELPATH = ".aw/records/history.jsonl"
@@ -54,8 +56,8 @@ def append(
     """Append ONE history record line to the global sidecar (creating file + parent dir if absent).
 
     `id6` MUST match `artifact_core.ID6_RE` (else ValueError). `date` defaults to today as YYYYMMDD.
-    Fixed key order; utf-8; one JSON object per line followed by `\\n`. Append-only, so order is
-    irrelevant."""
+    Fixed key order; utf-8; one JSON object per line followed by `\\n`. Note that concurrent-append
+    merges were measured to conflict (spec 2vev8j E1), though moot as this sidecar is gitignored."""
     if not _core.ID6_RE.match(id6 or ""):
         raise ValueError(f"record_history.append: {id6!r} is not a valid id6")
     if date is None:
@@ -328,25 +330,11 @@ def record_rename(
 
 
 # --------------------------------------------------------------------------------------
-# awhistory Order 03: one-time idempotent inline->sidecar migration + slim (spec R4, AC3)
+# Inline history parsing helpers (shared with ipd_lifecycle)
 # --------------------------------------------------------------------------------------
 
-# id6 line + the record trees to walk (first path segment under .aw/records/ is the sidecar `tree`).
-_ID_LINE_RE = _re.compile(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$")
 _HIST_HEADING = "## Workflow history"
-# CRITICAL: `plans` is DELIBERATELY EXCLUDED. IPDs keep their FULL inline `## Workflow history`
-# because `ipd_lint` IPD-S405 REQUIRES an inline `executed` entry at post-transition; folding+slimming
-# plan history would delete that entry across every executed plan and break the whole plans tree's
-# lint. The IPD lifecycle owns plan history; the sidecar covers the other record types only.
-_RECORD_TREES = (
-    "specs",
-    "research",
-    "backlog",
-    "prompts",
-    "walkthroughs",
-    "roadmaps",
-    "releases",
-)
+
 # Parse "workflow" + "actor" out of the free tail when it matches "<workflow> (<actor>): <message>".
 #
 # LAZY ACTOR CAPTURE, for the reason spelled out at `ipd_lint._HISTORY_ATTRIB_RE` (plan fn2l1u E-08b).
@@ -363,11 +351,6 @@ _RECORD_TREES = (
 # rather than a bound widening, and it affects only this sidecar migration path (no gate). Left out of
 # fn2l1u on purpose; see that plan's Deferred section.
 _TAIL_RE = _re.compile(r"^(?P<workflow>\S+)\s*\((?P<actor>.*?)\):\s*(?P<message>.*)$")
-
-
-def _record_id6(text: str):
-    m = _ID_LINE_RE.search(text)
-    return m.group(1) if m else None
 
 
 def _inline_history_records(text: str) -> List[str]:
@@ -400,92 +383,3 @@ def _parse_record_line(line: str) -> _Tuple[str, str, str, str]:
             tm.group("message").strip(),
         )
     return date, "", "", tail
-
-
-def _iter_record_files(repo_root: Path):
-    """Yield every record .md file across the known trees (skips index/readme sentinels)."""
-    base = Path(repo_root) / ".aw" / "records"
-    for tree in _RECORD_TREES:
-        d = base / tree
-        if not d.is_dir():
-            continue
-        for p in sorted(d.rglob("*.md")):
-            if p.name in ("README.md", "INDEX.md", "STATUS.md"):
-                continue
-            yield tree, p
-
-
-def _slim_inline_history(path: Path, text: str, records: List[str]) -> None:
-    """Rewrite path's ## Workflow history block to keep ONLY the newest record line.
-    No-op if <=1 record. Preserves everything outside the block (spec OQ-2: keep the latest one)."""
-    if len(records) <= 1:
-        return
-    keep = _newest_history_record(records)
-    if not keep:
-        return
-    lines = text.split("\n")
-    out: List[str] = []
-    in_hist = False
-    wrote_keep = False
-    for line in lines:
-        if line.strip() == _HIST_HEADING:
-            in_hist = True
-            out.append(line)
-            continue
-        if in_hist:
-            if line.startswith("## "):
-                in_hist = False
-                out.append(line)
-                continue
-            if _HISTORY_RECORD_RE.match(line):
-                if not wrote_keep:
-                    out.append(keep)
-                    wrote_keep = True
-                continue
-            out.append(line)
-            continue
-        out.append(line)
-    path.write_text("\n".join(out), encoding="utf-8")
-
-
-def migrate_inline_history(repo_root: Path, apply: bool = False) -> int:
-    """Fold every inline ## Workflow history record across the record trees (EXCEPT plans) into the
-    global sidecar (idempotent, keyed on id6+date+message), then slim each file's inline block to its
-    newest ONE record. apply=False (default) previews and writes nothing; returns the count of records
-    that WOULD be (apply=False) or WERE (apply=True) newly folded."""
-    repo_root = Path(repo_root)
-    existing = {
-        (r.get("id6"), r.get("date"), r.get("message")) for r in read_all(repo_root)
-    }
-    folded = 0
-    for tree, path in _iter_record_files(repo_root):
-        try:
-            text = path.read_text(encoding="utf-8")
-        except OSError:
-            continue
-        id6 = _record_id6(text)
-        if not id6:
-            continue
-        records = _inline_history_records(text)
-        if not records:
-            continue
-        for line in records:
-            date, workflow, actor, message = _parse_record_line(line)
-            key = (id6, date, message)
-            if key in existing:
-                continue
-            if apply:
-                append(
-                    repo_root,
-                    id6=id6,
-                    date=date,
-                    tree=tree,
-                    workflow=workflow,
-                    actor=actor,
-                    message=message,
-                )
-            existing.add(key)
-            folded += 1
-        if apply:
-            _slim_inline_history(path, text, records)
-    return folded

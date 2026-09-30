@@ -8,6 +8,7 @@
 - Summary: The durable workflow history lives in a GITIGNORED sidecar while the inline record is slimmed to one line, so reasoning recorded by aw specs note / aw backlog set does not survive a clone
 
 ## Workflow history
+- 2026-09-30 note (aw backlog): Carried by plan eikajx: headline defect was re-measured as already fixed by vhbvwz (inline history is preserved across transitions); eikajx closes the remaining provenance residue (close_on_answer, dead slimmer, misleading help and spec passages).
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: eikajx
 - 2026-09-13 open (aw set): Gate on next per the all-bugs-block-release ruling: every bug blocks the next release
 - 2026-09-10 created (aw backlog): aw backlog set on a same-status item DESTROYS the existing workflow history, replacing every prior line with one new line, and exits 0
