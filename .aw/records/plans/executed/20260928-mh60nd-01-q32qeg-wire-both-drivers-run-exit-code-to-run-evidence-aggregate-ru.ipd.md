@@ -6,7 +6,7 @@
 - Scope: Replace each driver's single exit-code return with a call to `run_evidence.aggregate_run_exit`, fed by ONE new shared projection in `runner_shared` that maps a queue entry onto an `AggregatedItem`. The projection carries the deliberate-stop concession and the needs-approval discrimination that `exit_code_statuses` and `item_reached_success` already decide, so no third reader of the success bar is created. It deliberately does NOT edit `_CLASSIFICATION_EXITS`, does NOT edit `aggregate_run_exit`, does NOT retire `exit_code_statuses` or `deliberate_stop_exit_code`, does NOT bind spec 5.6's exit 4 or 2 (neither is representable in driver state, F-09), and does NOT reconcile the two conflicting exit tables spec 5.6 records as an open conflict.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_runner_shared.py, tests/test_run_exit_aggregate.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: q32qeg
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: q32qeg verified (set mh60nd, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-801..PR-806 all FIXED; Readiness go-pending-approval
 
