@@ -1,11 +1,13 @@
 - Id: 4bicgv
-- Status: open
+- Status: graduated
+- Graduated-To: runsexits
 - Set: runsexits
 - Priority: low
 - Work-Kind: chore
 - Summary: runs next and runs status under-declare their exit contracts: reachable codes 2, 5 and 7 are missing
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: 69rdv6
 - 2026-09-28 created (aw backlog): runs next and runs status under-declare their exit contracts: reachable codes 2, 5 and 7 are missing
 
 Measured at plan review of ck0vya (2026-09-28) by driving all three sibling verbs over identical fixtures.
