@@ -6,7 +6,7 @@
 - Scope: Request `--json` from the `aw ipd finalize` child in `runner_shared.driver_finalize`, parse the typed payload tolerantly, carry it to the classifier, and key `finalize_refusal_is_retryable`'s pre-transition arm on lint CODES with the existing prose allowlist retained as a fallback. Both hosts inherit this through the one shared definition. No new CLI flag, no change to `aw ipd finalize`'s own output, no change to which classes are retryable beyond the measured false negative this closes.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_finalize_sendback.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: qo9khm
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: qo9khm verified (set finstruct, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; five findings PR-901..PR-905 fixed, one BLOCKER (the drafted code set admitted the catch-all C_CHECKPOINT, measured to flip two never-retry classes to retryable); review record written; readiness go-pending-approval
 
