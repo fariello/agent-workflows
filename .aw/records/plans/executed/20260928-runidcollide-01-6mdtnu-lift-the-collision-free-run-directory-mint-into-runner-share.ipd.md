@@ -6,7 +6,7 @@
 - Scope: Add a `mint_run_dir(repo, run_id=None)` helper to `runner_shared` that makes the collision-free guarantee STRUCTURAL for every caller by using `mkdir(exist_ok=False)` as the atomic test; repoint `oc_runipd._fresh_audit_run_dir` and `runner_shared.initialize_run_core` at it; widen the two analytics run-id patterns (`run_analytics_privacy._RUN_ID_RE`, `run_analytics_telemetry._SHAPED_ID_KEYS["run_id"]`) to admit the `-N` suffix so a suffixed run is analyzable rather than skipped; and add behavioral coverage for the mint, for the two validators, and for the end-to-end sweep. Out of scope: changing the id's TIMESTAMP granularity (sub-second), renaming any existing run directory, `run_ledger_schema`'s unrelated `run-<hex>` grammar, and `run_viewer`'s substring run-id matching.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/run_analytics_privacy.py, agent_workflows/run_analytics_telemetry.py, tests/test_run_id_collision.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 6mdtnu
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 6mdtnu verified (set runidcollide, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): plan-review: revisions applied; PR-901..PR-905 fixed
 
