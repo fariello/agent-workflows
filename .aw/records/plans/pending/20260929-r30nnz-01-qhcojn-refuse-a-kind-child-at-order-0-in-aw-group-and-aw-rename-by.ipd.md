@@ -153,6 +153,7 @@ Every row was measured at HEAD `62871f64` by running the real CLI, not by readin
   - Carrier-Declined: NOT A DEFERRED DEFECT. The rule is plan-specific by construction (it keys on `Kind: child`, a field only IPDs carry), so there is no equivalent gap in those backends to hand on. Their SEPARATE Order-preservation defect is `ao0v8x`'s, named below.
 - `aw group research`'s ORDER-PRESERVATION DEFECT: the byte-identical `start_order=start if start is not None else 0` collapse `e3hzyc` removed from `plans_refs` still lives in `research_refs`. It is a different defect (preservation, not validity) in a different tree and it already has an authored plan.
   - Carrier: ao0v8x
+  - Carrier-Evidence: .aw/records/plans/executed/20260928-4y4xo5-01-ao0v8x-preserve-each-research-record-order-in-aw-group-research-the.ipd.md
 - `aw group plans`'s DATE FALLBACK: `plan_set_assign` derives the name date from `_plan_date(text)`, whose no-match fallback is the literal `20260101`. Measured and deferred by `e3hzyc` F-13; already carried.
   - Carrier: 949enf
 - SWEEPING OR REPAIRING ANY EXISTING PLAN: none needs it. Measured across every plan in `.aw/records/plans/**`, ZERO carry both `- Kind: child` and `- Order: 0` (re-verified at review over 1033 plans; the authoring run said 950, which is the same answer over a smaller tree, so RE-MEASURE rather than trusting either count). If the executor finds one, REPORT it rather than regrouping another party's plan in a shared checkout.
