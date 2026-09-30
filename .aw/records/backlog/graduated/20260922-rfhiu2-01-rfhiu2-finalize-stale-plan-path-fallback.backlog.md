@@ -1,11 +1,13 @@
 - Id: rfhiu2
-- Status: open
+- Status: graduated
+- Graduated-To: rfhiu2
 - Set: rfhiu2
 - Priority: medium
 - Work-Kind: followup
 - Summary: The finalize re-resolution silently falls back to a known-stale plan path, the twin of the verify-side hole closed by fzxfph
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053059Z-3200713: 1fzist
 - 2026-09-22 created (aw backlog): Identified while executing IPD fzxfph (runverdict-06).
 
 WHAT IS WRONG. In `runner_shared.execute_item_core`, the FINALIZE step re-resolves the plan path and
