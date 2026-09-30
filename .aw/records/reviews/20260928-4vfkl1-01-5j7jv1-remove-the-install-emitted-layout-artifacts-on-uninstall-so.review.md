@@ -128,3 +128,11 @@ the collision, so the question cannot vanish when this plan terminates.
 PR-801 is left OPEN at BLOCKER severity, above the repository's default `HIGH` gate threshold, and is
 therefore escalated into the plan as a `- Blocking: yes` question carrying `- Finding: PR-801`, per the
 Step 4 escalation rule. No `Reversible: no` decision was taken, so no further escalation is owed.
+
+## Round 2
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+| --- | -------- | ----- | ---- | -------- | ------- | ---------------- | -------- | ---------- |
+| PR-801 | blocker | IN-SCOPE | C. Architecture; G. Executability | `g1w58u` at `- Status: to-review`, `- From-Backlog: 57dwkc`; its E-02 ("ALSO removes the two install-emitted layout artifacts ... Iterate the NAMED CONSTANTS `AW_LAYOUT_JSON_PATH` and `AW_LAYOUT_SCHEMA_PATH`") and its E-03 naming `tests/test_uninstall_layout_artifacts.py`; `- Graduated-To: 57dwkc` plus the graduation record on item `57dwkc` | A second pending plan makes this identical edit and creates the same new test file, so exactly one of the two may execute; running both applies the removal twice and collides on the file. OQ-02's premise that `57dwkc` is an unclosed duplicate awaiting an evidence handoff is falsified: it is already `graduated` to `g1w58u`. | C:Medium; U:Low; S:Low; F:Medium; Overall:Medium-High (choosing which plan runs, and retiring the other, is a scope and priority decision the reviewer has no authority to make) | fixed | STALE ESCALATION CLOSED 2026-09-30 by agent (aw ipd recheck-readiness). The question this finding was escalated as (OQ-03) is `- Status: resolved`, so the finding it gated on has been answered and the record is caught up. NO FINDING WAS RE-DERIVED and no plan content was re-critiqued: the match was made on the question's declared `- Finding: PR-801` back-reference, not on a judgement about what the question was about. Previous decision: open. |
