@@ -6,7 +6,7 @@
 - Scope: Replace the hardcoded `2` with `run_cli.EXIT_CORRUPTED_LEDGER` at the three corruption sites in `run_cli._run_show`, `run_cli._run_evidence`, and `run_cli._run_verify_ledger` (both the returned code and the `exit_code` key in the machine payload); correct the module docstring's exit-code contract, which currently states the wrong code; and add behavioral coverage asserting the code and payload for every affected verb. Out of scope: the unrelated `except Exception` fallbacks, `EXIT_NOT_A_LEDGER`, and the spec-5.6-versus-`run_cli` table reconciliation.
 - Scope-Paths: agent_workflows/run_cli.py, tests/test_run_cli_corruption_exit.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: fuuw94
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: fuuw94 verified (set z63xoh, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-701..PR-705 all FIXED
 
