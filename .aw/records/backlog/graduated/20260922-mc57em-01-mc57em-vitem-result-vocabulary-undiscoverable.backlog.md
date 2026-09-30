@@ -1,11 +1,13 @@
 - Id: mc57em
-- Status: open
+- Status: graduated
+- Graduated-To: vresultvocab
 - Set: mc57em
 - Priority: low
 - Work-Kind: chore
 - Summary: the IPD validation-result vocabulary is 'pass' but every V-item's own instruction and the lint error say nothing about it
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053059Z-3200713: uh9jsk
 - 2026-09-22 created (aw backlog): the IPD validation-result vocabulary is 'pass' but every V-item's own instruction and the lint error say nothing about it
 
 FOUND while executing plan i4ak5n.
