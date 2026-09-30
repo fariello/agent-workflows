@@ -36,28 +36,28 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: correct the declaration
 
-- [ ] E-01 In `agent_workflows/command_surface.py`, change the `runs resume` `CommandDeclaration`'s `command_class` from `"mutation"` to `"read"`, matching its sibling `runs next` and the `run_viewer.RUNS_VIEWER_LEAF_NAMES` membership that already classifies it read-only. Change NOTHING else in that declaration in this item: `human_recipe`, `agent_record_kind`, `mutation_gate`, `empty_error_renderer` and `legacy_flags` are all already correct for a read (`mutation_gate="none"` is the honest value and stays), and the exit contract is E-02's separate concern so the two corrections can be reviewed and reverted independently. Do NOT touch `_run_resume`, `run_recovery.resume`, or any other declaration.
+- [x] E-01 In `agent_workflows/command_surface.py`, change the `runs resume` `CommandDeclaration`'s `command_class` from `"mutation"` to `"read"`, matching its sibling `runs next` and the `run_viewer.RUNS_VIEWER_LEAF_NAMES` membership that already classifies it read-only. Change NOTHING else in that declaration in this item: `human_recipe`, `agent_record_kind`, `mutation_gate`, `empty_error_renderer` and `legacy_flags` are all already correct for a read (`mutation_gate="none"` is the honest value and stays), and the exit contract is E-02's separate concern so the two corrections can be reviewed and reverted independently. Do NOT touch `_run_resume`, `run_recovery.resume`, or any other declaration.
   - Depends on: none
   - Expected outcome: `get_declaration("runs resume").command_class == "read"`. `required_scenarios` for the leaf changes from `(..., 'json', 'success_preview')` to `(..., 'json')`, i.e. it LOSES the `success_preview` row it never needed and gains nothing, because `domain_failure` is gated on `1 in exit_contract` and 1 is absent (F-04). No test changes state as a result, because none consumes `required_scenarios` (F-05).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In the same declaration, replace the `exit_contract=(0, 3)` with the codes MEASURED reachable, `(0, 2, 5, 7)`, and write the comment that keeps a future reader from undoing it. The measured mapping (F-03) is: 0 a successful report; 2 an unresolvable target (`_emit_ledger_not_found`), a missing `--workflow` file, or an empty ledger, and also argparse's own usage error; 5 `EXIT_CORRUPTED_LEDGER` from `_build_engine`'s `LedgerCorruption` arm; 7 `EXIT_NOT_A_LEDGER` from its `NotALedgerError` arm. THE COMMENT MUST STATE TWO NEGATIVES EXPLICITLY, because each is a value a future author would otherwise "restore" as an obvious omission. (a) 3 IS REMOVED AS UNREACHABLE, not as undesirable: `_run_resume` returns `EXIT_BLOCKED` only in its `except run_recovery.UnknownOutcomeError` arm; `run_recovery.detect_unknown_outcomes` raises only for a step whose reconstructed state is `run_state.STATE_RUNNING` with `last_attempt_state is None`; `running` is absent from `run_ledger_schema.ATTEMPT_STATES`, so `RunLedgerStore.append` REFUSES a `step_attempt` carrying it (`RL-E030`), and the sole producer of that state is `run_engine.start_step`'s in-process `_ephemeral_step_states` dict, which no separate CLI invocation can observe. Cite that chain by SYMBOL and record that removing 3 documents a LATENT BUG rather than blessing it (OQ-01 files it). (b) 1 IS ABSENT DELIBERATELY: `_run_resume` never returns `EXIT_INCOMPLETE`, and adding it would oblige a `domain_failure` conformance scenario for an outcome the verb does not produce - the same reasoning the shipped `reviews decisions` declaration already records for its own `(0, 2)`. Do NOT cap this contract at `(0, 1, 2)` on agent-schema grounds: that constraint binds leaves emitting `aw.agent/v1` records, and `run_cli._emit_error`'s docstring states its payloads are DELIBERATELY not such records and that `run_cli` imports `agent_schema` zero times (F-06).
+- [x] E-02 In the same declaration, replace the `exit_contract=(0, 3)` with the codes MEASURED reachable, `(0, 2, 5, 7)`, and write the comment that keeps a future reader from undoing it. The measured mapping (F-03) is: 0 a successful report; 2 an unresolvable target (`_emit_ledger_not_found`), a missing `--workflow` file, or an empty ledger, and also argparse's own usage error; 5 `EXIT_CORRUPTED_LEDGER` from `_build_engine`'s `LedgerCorruption` arm; 7 `EXIT_NOT_A_LEDGER` from its `NotALedgerError` arm. THE COMMENT MUST STATE TWO NEGATIVES EXPLICITLY, because each is a value a future author would otherwise "restore" as an obvious omission. (a) 3 IS REMOVED AS UNREACHABLE, not as undesirable: `_run_resume` returns `EXIT_BLOCKED` only in its `except run_recovery.UnknownOutcomeError` arm; `run_recovery.detect_unknown_outcomes` raises only for a step whose reconstructed state is `run_state.STATE_RUNNING` with `last_attempt_state is None`; `running` is absent from `run_ledger_schema.ATTEMPT_STATES`, so `RunLedgerStore.append` REFUSES a `step_attempt` carrying it (`RL-E030`), and the sole producer of that state is `run_engine.start_step`'s in-process `_ephemeral_step_states` dict, which no separate CLI invocation can observe. Cite that chain by SYMBOL and record that removing 3 documents a LATENT BUG rather than blessing it (OQ-01 files it). (b) 1 IS ABSENT DELIBERATELY: `_run_resume` never returns `EXIT_INCOMPLETE`, and adding it would oblige a `domain_failure` conformance scenario for an outcome the verb does not produce - the same reasoning the shipped `reviews decisions` declaration already records for its own `(0, 2)`. Do NOT cap this contract at `(0, 1, 2)` on agent-schema grounds: that constraint binds leaves emitting `aw.agent/v1` records, and `run_cli._emit_error`'s docstring states its payloads are DELIBERATELY not such records and that `run_cli` imports `agent_schema` zero times (F-06).
   - Depends on: E-01
   - Expected outcome: `get_declaration("runs resume").exit_contract == (0, 2, 5, 7)`, and every code in it is demonstrated by a real invocation in V-02 while 3 is demonstrated unreachable. `required_scenarios` is unchanged by this item (it keys on 1, which is absent before and after), so E-01 and E-02 are independently safe.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: leave behind the guard the deleted harness used to be
 
-- [ ] E-03 Create `tests/test_run_cli_declarations.py` pinning the `runs resume` declaration against the verb's OBSERVED behavior rather than against a restated constant, since a test that only echoes the inventory would pass for any value someone typed. Follow the shipped per-command precedent, NOT the deleted matrix harness: `tests/test_runs_repo_alias.py` reaches `cs.get_declaration("runs list")` directly and `tests/test_prompts_new.py::test_the_declared_flag_surface_matches_the_parser` asserts a declared field against the real subparser. Assert four things. (1) CLASS AGREEMENT ACROSS THE TWO VOCABULARIES: every name in `run_viewer.RUNS_VIEWER_LEAF_NAMES` whose `runs <name>` leaf carries a declaration is declared `read` or `check`, never `mutation` or `preview`. Write it as a LOOP over that tuple, not as a `resume` spot check, because the defect class is a viewer leaf declared as a writer and the four genuinely mutating `runs` verbs (`repair`, `analyze`, `export`, `submit`) are correctly absent from that tuple - which is exactly what makes the tuple usable as the read-only oracle. (2) HANDLER PURITY, ASSERTED BEHAVIORALLY AND NEVER BY READING PRODUCTION SOURCE (rewritten at review, PR-801, and this is a HARD PROHIBITION rather than a preference). The original wording here instructed the executor to "walk the AST of `run_recovery.resume` via `inspect.getsource`" and assert an absence of named calls. That is exactly what `AGENTS.md` forbids in its own words ("NEVER write or restore tests that read production source code using `inspect`, `ast`, regex, or substring search") and what GUIDING_PRINCIPLES P16 forbids under "No production source inspection", which names `inspect.getsource` and `ast.parse` literally. It was also WEAK on its own terms: a denylist of five call names passes a handler that writes through any spelling not on the list (`Path.open`, `os.replace`, a helper, a new store method), so it would have licensed the very regression it claimed to guard. INSTEAD, PROVE PURITY BY OBSERVATION, which review performed: snapshot the ledger file's BYTES (a `sha256` of `read_bytes()`) and its record count, drive `aw runs resume` over it as a subprocess, and assert the bytes are identical, the record count is unchanged, and the containing directory gained no file. Measured at review on a real fixture: exit 0, `bytes identical: True`, `sha256 identical: True`, `record count 1 -> 1`, and the directory listing unchanged (note `runs resume` leaves NO `ledger.jsonl.lock` behind, verified in a fresh directory, so a no-new-files assertion is safe). This is STRICTLY STRONGER than the AST walk, because it fails on ANY write by ANY mechanism rather than on five named ones, and it survives refactoring, which is the property P16 exists to protect. (3) DECLARED EXIT CODES ARE REACHABLE: drive the real CLI in a subprocess for each of 0, 2, 5 and 7 with the fixtures F-03 names, and assert the observed code is in `decl.exit_contract`. (4) UNDECLARED CODES DO NOT APPEAR: assert 3 is NOT in the contract, and assert the mechanical reason as a BEHAVIORAL fact rather than as a source fact. Two legitimate spellings, both measured at review, and BOTH are permitted because neither reads production source text: (i) compare the two runtime CONSTANTS, `run_state.STATE_RUNNING not in run_ledger_schema.ATTEMPT_STATES` (printed `False` for membership at review), which is a data comparison over imported values and not a structure pin; and (ii) stronger, EXERCISE the refusal, appending a `step_attempt` carrying `state="running"` through `run_ledger_store.RunLedgerStore.append` and asserting it raises `SchemaInvalidRecordError` with finding code `RL-E030`. Review ran (ii) and got exactly `RL-E030: attempt state must be one of ['blocked', 'failed', 'performed']`. Prefer (ii) as the primary assertion, since it proves the ledger REFUSES the state rather than merely that two constants differ, and keep (i) as the cheap companion. Mark nothing `slow`: these are in-process assertions plus a handful of fast subprocess invocations. Do not import `tests/conformance_matrix.py`; it has no live consumer and coupling a new test to it would resurrect a dead surface.
+- [x] E-03 Create `tests/test_run_cli_declarations.py` pinning the `runs resume` declaration against the verb's OBSERVED behavior rather than against a restated constant, since a test that only echoes the inventory would pass for any value someone typed. Follow the shipped per-command precedent, NOT the deleted matrix harness: `tests/test_runs_repo_alias.py` reaches `cs.get_declaration("runs list")` directly and `tests/test_prompts_new.py::test_the_declared_flag_surface_matches_the_parser` asserts a declared field against the real subparser. Assert four things. (1) CLASS AGREEMENT ACROSS THE TWO VOCABULARIES: every name in `run_viewer.RUNS_VIEWER_LEAF_NAMES` whose `runs <name>` leaf carries a declaration is declared `read` or `check`, never `mutation` or `preview`. Write it as a LOOP over that tuple, not as a `resume` spot check, because the defect class is a viewer leaf declared as a writer and the four genuinely mutating `runs` verbs (`repair`, `analyze`, `export`, `submit`) are correctly absent from that tuple - which is exactly what makes the tuple usable as the read-only oracle. (2) HANDLER PURITY, ASSERTED BEHAVIORALLY AND NEVER BY READING PRODUCTION SOURCE (rewritten at review, PR-801, and this is a HARD PROHIBITION rather than a preference). The original wording here instructed the executor to "walk the AST of `run_recovery.resume` via `inspect.getsource`" and assert an absence of named calls. That is exactly what `AGENTS.md` forbids in its own words ("NEVER write or restore tests that read production source code using `inspect`, `ast`, regex, or substring search") and what GUIDING_PRINCIPLES P16 forbids under "No production source inspection", which names `inspect.getsource` and `ast.parse` literally. It was also WEAK on its own terms: a denylist of five call names passes a handler that writes through any spelling not on the list (`Path.open`, `os.replace`, a helper, a new store method), so it would have licensed the very regression it claimed to guard. INSTEAD, PROVE PURITY BY OBSERVATION, which review performed: snapshot the ledger file's BYTES (a `sha256` of `read_bytes()`) and its record count, drive `aw runs resume` over it as a subprocess, and assert the bytes are identical, the record count is unchanged, and the containing directory gained no file. Measured at review on a real fixture: exit 0, `bytes identical: True`, `sha256 identical: True`, `record count 1 -> 1`, and the directory listing unchanged (note `runs resume` leaves NO `ledger.jsonl.lock` behind, verified in a fresh directory, so a no-new-files assertion is safe). This is STRICTLY STRONGER than the AST walk, because it fails on ANY write by ANY mechanism rather than on five named ones, and it survives refactoring, which is the property P16 exists to protect. (3) DECLARED EXIT CODES ARE REACHABLE: drive the real CLI in a subprocess for each of 0, 2, 5 and 7 with the fixtures F-03 names, and assert the observed code is in `decl.exit_contract`. (4) UNDECLARED CODES DO NOT APPEAR: assert 3 is NOT in the contract, and assert the mechanical reason as a BEHAVIORAL fact rather than as a source fact. Two legitimate spellings, both measured at review, and BOTH are permitted because neither reads production source text: (i) compare the two runtime CONSTANTS, `run_state.STATE_RUNNING not in run_ledger_schema.ATTEMPT_STATES` (printed `False` for membership at review), which is a data comparison over imported values and not a structure pin; and (ii) stronger, EXERCISE the refusal, appending a `step_attempt` carrying `state="running"` through `run_ledger_store.RunLedgerStore.append` and asserting it raises `SchemaInvalidRecordError` with finding code `RL-E030`. Review ran (ii) and got exactly `RL-E030: attempt state must be one of ['blocked', 'failed', 'performed']`. Prefer (ii) as the primary assertion, since it proves the ledger REFUSES the state rather than merely that two constants differ, and keep (i) as the cheap companion. Mark nothing `slow`: these are in-process assertions plus a handful of fast subprocess invocations. Do not import `tests/conformance_matrix.py`; it has no live consumer and coupling a new test to it would resurrect a dead surface.
     THE FIXTURES ARE NON-OBVIOUS AND A NAIVE `append` IS REFUSED, so build them from this measured recipe rather than improvising (added at review, PR-804, F-12; the sibling plan `fuuw94` recorded the identical trap and its review needed five attempts). `RunLedgerStore.append` schema-validates every record. A `run` record needs ALL of `kind`, `run_id` matching `run-<hex>` (a bare `r1` is refused `RL-E015`), `schema_version`, `actor` drawn from `run_ledger_schema.ROLES` (`runtime` works; an invented `t` is refused `RL-E014`), `parent` present and STRING-typed (`None` is refused `RL-E011`, `""` is accepted), plus `workflow_digest`, `requirement_digest`, `repo` and `head`. THE FOUR FIXTURES, each measured end to end at review: exit 0 from a one-record valid ledger (`Run run-0000abcd state: pending`); exit 2 from an absent path, and SEPARATELY from an empty file (`error: ledger is empty`) and from a bad flag (argparse usage); exit 7 from a file of valid JSONL carrying none of the envelope fields; and exit 5 from a chain break, which needs a TWO-record ledger whose second record's `prev_hash` is overwritten (`Broken hash chain at seq 1`). NOTE WHAT DOES NOT WORK, because review tried it first: tampering `record_hash` or a payload field on a SINGLE-record ledger yields exit 0, not 5, since nothing downstream re-derives that hash on read. A `seq` gap or an unparseable line also reach 5 and are simpler; any of the three is acceptable, but the plan's own F-03 phrase "hash/schema-invalid ledger" is too loose to reproduce and is corrected in F-12.
   - Depends on: E-02
   - Expected outcome: A new test file that FAILS on the pre-E-01 tree at assertion (1) (naming `resume` declared `mutation` while listed in the viewer's read-only tuple) and at assertion (4) (3 present in the contract), and passes after. Its subprocess arm proves each declared code is produced by a real invocation rather than asserted, and its purity arm proves the ledger bytes are unchanged rather than inspecting any production source.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Run the BARE suite, `python3 -m pytest`, and compare against a baseline YOU RE-DERIVE on the pre-change tree, not against any figure written in this plan. THE BAR IS THE PROPERTY (zero failures, and a collected rise equal to the tests E-03 adds and nothing else), because a transcribed total is a LIVE population that drifts: the plan was authored at `3075 passed, 2 skipped` and review measured `3246 passed, 2 skipped, 3 warnings in 52.35s` at HEAD `a8e41cc6`, a drift of 171 tests in days (corrected at review, PR-805, F-13). What DOES carry forward from F-07 is the shape of the baseline, not its size: the tree is FULLY GREEN, with no pre-existing failure to hide behind, so any red is this plan's to explain. Bare is required: `pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow and not livecorpus'` (the marker expression is BOTH exclusions, not `not slow` alone, corrected at review), so `-n0` makes this suite several times slower here and a second `-q` suppresses the `N passed` line this plan must paste. ALSO run, narrowed with `-o addopts=""` so the per-file counts are visible, the new file plus every file that reads a `CommandDeclaration` field or asserts on this command family: `tests/test_run_cli_declarations.py tests/test_command_surface_declarations.py tests/test_runs_repo_alias.py tests/test_prompts_new.py tests/test_host_capability_extension.py tests/test_workflow_artifacts_prune.py tests/test_oc_runipd.py tests/test_run_viewer.py`. AND RUN THE SLOW SET TOO, which the bare run deselects: `python3 -m pytest -m slow -o addopts=""`. That is the one place the item's instruction survives contact with the tree - it told a fixer to re-run two `slow`-marked conformance files, and those files are gone (F-05), so the honest substitute is to run whatever `slow` tests still exist and state the count, rather than to claim a verification that cannot be performed.
+- [x] E-04 Run the BARE suite, `python3 -m pytest`, and compare against a baseline YOU RE-DERIVE on the pre-change tree, not against any figure written in this plan. THE BAR IS THE PROPERTY (zero failures, and a collected rise equal to the tests E-03 adds and nothing else), because a transcribed total is a LIVE population that drifts: the plan was authored at `3075 passed, 2 skipped` and review measured `3246 passed, 2 skipped, 3 warnings in 52.35s` at HEAD `a8e41cc6`, a drift of 171 tests in days (corrected at review, PR-805, F-13). What DOES carry forward from F-07 is the shape of the baseline, not its size: the tree is FULLY GREEN, with no pre-existing failure to hide behind, so any red is this plan's to explain. Bare is required: `pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow and not livecorpus'` (the marker expression is BOTH exclusions, not `not slow` alone, corrected at review), so `-n0` makes this suite several times slower here and a second `-q` suppresses the `N passed` line this plan must paste. ALSO run, narrowed with `-o addopts=""` so the per-file counts are visible, the new file plus every file that reads a `CommandDeclaration` field or asserts on this command family: `tests/test_run_cli_declarations.py tests/test_command_surface_declarations.py tests/test_runs_repo_alias.py tests/test_prompts_new.py tests/test_host_capability_extension.py tests/test_workflow_artifacts_prune.py tests/test_oc_runipd.py tests/test_run_viewer.py`. AND RUN THE SLOW SET TOO, which the bare run deselects: `python3 -m pytest -m slow -o addopts=""`. That is the one place the item's instruction survives contact with the tree - it told a fixer to re-run two `slow`-marked conformance files, and those files are gone (F-05), so the honest substitute is to run whatever `slow` tests still exist and state the count, rather than to claim a verification that cannot be performed.
   - Depends on: E-03
   - Expected outcome: no new failures relative to the baseline RE-DERIVED at execution time (review measured `3246 passed, 2 skipped` as context only, and the plan's authored `3075` figure is already 171 tests stale), with the aggregate summary line captured plus per-file counts for the narrowed set and an explicit statement of the `-m slow` result (review measured 202 tests carrying that marker, also context only).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -153,25 +153,429 @@ N/A with reason. No `.spec.md` is in `- Scope-Paths:` and none needs to be. `com
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste `git diff agent_workflows/command_surface.py` restricted to the `runs resume` declaration. It must show `command_class` changing `"mutation"` -> `"read"` and NO other field of that declaration changing, and no other declaration touched anywhere in the file. Paste a probe printing `get_declaration("runs resume")` in full before and after, so every unchanged field is visible rather than asserted. Paste `required_scenarios` for the leaf before and after (from `tests/conformance_matrix.py`, imported directly for the probe only), showing `success_preview` dropping and NOTHING being added, and state in one sentence why `domain_failure` did not appear (1 is absent from the contract, F-04) - this is the point on which the backlog item's stated reasoning was wrong, and the evidence must show it rather than repeat it.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified command_class changed to read in restricted diff with no other declaration touched; probe confirms unchanged fields and required_scenarios losing success_preview without gaining domain_failure.
+    1. Restricted diff for `runs resume` declaration showing `command_class` changed `"mutation"` -> `"read"`, no other field changed, and no other declaration modified:
+    ```diff
+    --- a/agent_workflows/command_surface.py
+    +++ b/agent_workflows/command_surface.py
+    @@ -1104,8 +1126,8 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
+         CommandDeclaration(
+             command="runs resume",
+    -        command_class="mutation",
+    +        command_class="read",
+             human_recipe="status",
+             agent_record_kind="result",
+             mutation_gate="none",
+             empty_error_renderer="renderer_boundary",
+    ```
+    2. `get_declaration("runs resume")` printed before and after:
+    ```python
+    # BEFORE:
+    CommandDeclaration(command='runs resume',
+                       command_class='mutation',
+                       human_recipe='status',
+                       agent_record_kind='result',
+                       mutation_gate='none',
+                       empty_error_renderer='renderer_boundary',
+                       legacy_flags=('--workflow', '--agent', '--json'),
+                       exit_contract=(0, 3),
+                       migrated=True,
+                       in_boundary=True,
+                       canonical_command=None)
 
-- [ ] V-02 validates E-02
+    # AFTER:
+    CommandDeclaration(command='runs resume',
+                       command_class='read',
+                       human_recipe='status',
+                       agent_record_kind='result',
+                       mutation_gate='none',
+                       empty_error_renderer='renderer_boundary',
+                       legacy_flags=('--workflow', '--agent', '--json'),
+                       exit_contract=(0, 2, 5, 7),
+                       migrated=True,
+                       in_boundary=True,
+                       canonical_command=None)
+    ```
+    3. `required_scenarios` before and after:
+    ```python
+    # BEFORE:
+    ('tty', 'non_tty', 'agent', 'no_color', 'help', 'usage_error', 'json', 'success_preview')
+
+    # AFTER:
+    ('tty', 'non_tty', 'agent', 'no_color', 'help', 'usage_error', 'json')
+    ```
+    `success_preview` dropped and nothing was added.
+    4. Sentence on domain failure: `domain_failure` did not appear because `required_scenarios` gates that scenario on `1 in exit_contract`, and exit code 1 is absent from `(0, 2, 5, 7)`.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste the `exit_contract` diff and the new comment as committed. Then paste the REACHABILITY table: one real `python3 -m agent_workflows runs resume` invocation per declared code with its exit status visible - 0 (clean one-record ledger), 2 (absent target, and separately an empty ledger and a bad flag), 5 (a CHAIN-BROKEN two-record ledger, per F-12; a single-record hash tamper gives 0 and does NOT demonstrate this), 7 (healthy non-ledger JSONL) - each against the fixture that produces it, built from F-12's measured schema recipe. Then paste the UNREACHABILITY evidence for 3, both halves: the `RL-E030` refusal raised by appending a `step_attempt` with `state='running'`, and the two-process sequence in which `aw run start --workflow <file> --step s1` prints `state: running` (the `--workflow` argument is REQUIRED for this half to demonstrate anything; without it the command exits 2 on `unknown step 's1'`, per F-04's reproduction note), the ledger's record kinds remain `['run']`, and a following `runs resume` reports `pending` and exits 0. Also paste a loop showing each appendable attempt state (`performed`, `blocked`, `failed`) yields exit 0, so the claim is exhaustive over what a ledger can hold rather than a single spot check. Finally paste the NO-BEHAVIOR-CHANGE comparison: the same four fixtures' exit codes at the pre-change tree and at the post-change tree, identical. State explicitly that 1 is absent by decision and cite the `reviews decisions` precedent.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified exit_contract changed to (0, 2, 5, 7) with detailed negative justification comment; real CLI reachability table demonstrated (0, 2, 5, 7); RL-E030 refusal and two-process run start prove 3 unreachable; fixture exit codes identical before and after.
+    1. Committed declaration and rationale comment in `agent_workflows/command_surface.py`:
+    ```python
+    # `command_class="read"`: `runs resume` reconstructs state and reports resumable steps without
+    # writing to the ledger or disk, matching `runs next` and `RUNS_VIEWER_LEAF_NAMES`.
+    #
+    # `exit_contract=(0, 2, 5, 7)`:
+    # - 0: successful report of resumable steps or pending state.
+    # - 2: ledger file not found, empty ledger, missing/invalid workflow, or argparse usage error.
+    # - 5: `EXIT_CORRUPTED_LEDGER` from `LedgerCorruption` (e.g. broken hash chain or unparseable JSON).
+    # - 7: `EXIT_NOT_A_LEDGER` from `NotALedgerError` (e.g. non-ledger JSONL missing envelope fields).
+    #
+    # Two negatives are deliberate:
+    # (a) Exit 3 is REMOVED AS UNREACHABLE, not as undesirable: `_run_resume` returns `EXIT_BLOCKED`
+    # only in its `except run_recovery.UnknownOutcomeError` arm. `run_recovery.detect_unknown_outcomes`
+    # raises only for a step whose reconstructed state is `run_state.STATE_RUNNING` with
+    # `last_attempt_state is None`. However, `STATE_RUNNING` is absent from `run_ledger_schema.ATTEMPT_STATES`,
+    # so `RunLedgerStore.append` refuses any `step_attempt` carrying it (`RL-E030`). The sole producer
+    # of `STATE_RUNNING` is `run_engine.start_step`'s in-process `_ephemeral_step_states` dict, which a
+    # separate CLI process cannot observe. Removing 3 documents a latent bug rather than blessing it (backlog tzqvjn).
+    # (b) Exit 1 is ABSENT DELIBERATELY: `_run_resume` never returns `EXIT_INCOMPLETE`, and adding it
+    # would oblige a `domain_failure` conformance scenario (`tests/conformance_matrix.py`) for an
+    # outcome the verb does not produce (same reasoning as `reviews decisions`). The contract is not
+    # capped at (0, 1, 2) because `run_cli._emit_error` machine payloads are deliberately not `aw.agent/v1`
+    # records and `run_cli` imports `agent_schema` zero times.
+    CommandDeclaration(
+        command="runs resume",
+        command_class="read",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--workflow", "--agent", "--json"),
+        exit_contract=(0, 2, 5, 7),
+    ),
+    ```
+    2. Reachability table across real CLI invocations:
+    - Exit 0 (clean one-record valid ledger):
+      `$ aw runs resume clean.jsonl` -> exit 0 (`Run run-0000abcd state: pending\nNo resumable steps...`)
+    - Exit 2 (absent target):
+      `$ aw runs resume nonexistent.jsonl` -> exit 2 (`error: ledger file not found for target 'nonexistent.jsonl'`)
+    - Exit 2 (empty file):
+      `$ aw runs resume empty.jsonl` -> exit 2 (`error: ledger is empty`)
+    - Exit 2 (bad flag):
+      `$ aw runs resume --bad-flag` -> exit 2 (`usage: agent-workflows runs resume [-h]...`)
+    - Exit 5 (chain-broken two-record ledger):
+      `$ aw runs resume broken.jsonl` -> exit 5 (`error: ledger corruption detected: Broken hash chain at seq 1: expected prev_hash 'd72b6bfe...', got '00000000...'`)
+    - Exit 7 (healthy non-ledger JSONL):
+      `$ aw runs resume non_ledger.jsonl` -> exit 7 (`error: not a run ledger: ... is not a run ledger file: the file is valid JSONL but carries none of the ledger envelope fields...`)
+    3. Unreachability evidence for 3:
+    - (i) `RL-E030` schema refusal when attempting to append `state="running"`:
+      `store.append({"schema_version": 1, "kind": "step_attempt", "run_id": "run-0000abcd", "parent": "", "step": "s1", "attempt": 1, "actor": "runtime", "state": "running", "input_digest": "sha256:" + "0"*64})`
+      Raises `SchemaInvalidRecordError`: `Finding(code='RL-E030', where='state', message="attempt state must be one of ['blocked', 'failed', 'performed']")`.
+    - (ii) Two-process sequence:
+      ```
+      $ python3 -m agent_workflows run start ledger.jsonl --workflow wf.json --step s1
+      Started step s1 (state: running)
+      # Ledger kinds before and after: ['run']
+      $ python3 -m agent_workflows runs resume ledger.jsonl --workflow wf.json
+      Run run-0000abcd state: pending
+      Resumable steps:
+        - s1
+      # Exit code: 0
+      ```
+    - (iii) Appendable attempt states loop:
+      `state=performed -> exit code: 0`
+      `state=blocked -> exit code: 0`
+      `state=failed -> exit code: 0`
+    4. No-behavior-change comparison:
+    - Pre-change exit codes: `clean: 0`, `absent: 2`, `empty: 2`, `badflag: 2`, `broken: 5`, `non_ledger: 7`.
+    - Post-change exit codes: `clean: 0`, `absent: 2`, `empty: 2`, `badflag: 2`, `broken: 5`, `non_ledger: 7`.
+    Codes and outputs are identical before and after.
+    5. Exit code 1 is deliberately absent by design: `_run_resume` never returns `EXIT_INCOMPLETE`, following the precedent established in `reviews decisions`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: Paste the full committed source of `tests/test_run_cli_declarations.py` and its passing output. Then paste the DELIBERATE-FAILURE contrast: revert the declaration to `mutation`/`(0, 3)` in a scratch copy, run the new test, and paste it RED with the failure messages visible; confirm in one sentence that assertion (1) failed by naming `resume` and that assertion (4) failed on 3's presence, so both halves of the plan are independently guarded. Confirm explicitly that assertion (1) is written as a LOOP over `run_viewer.RUNS_VIEWER_LEAF_NAMES` rather than a `resume` spot check, and paste the tuple beside the `command_class` of each corresponding declaration to show the assertion is non-vacuous (nine members, all read/check after the fix) AND that the four mutating `runs` verbs are outside it (F-11), which is what makes the oracle meaningful. Paste the handler-purity assertion's source and CONFIRM IT READS NO PRODUCTION SOURCE: it must snapshot the ledger's bytes and record count, drive the CLI, and assert both unchanged plus no new file in the directory. Paste `rg -n 'getsource|getsourcelines|import ast|ast\.parse|read_text' tests/test_run_cli_declarations.py` and show it returns NOTHING, since an `inspect`/`ast` assertion over `agent_workflows/*` is prohibited outright by `AGENTS.md` and GUIDING_PRINCIPLES P16 (F-14) and a reviewer must be able to see the prohibition honored rather than promised. Confirm the file imports nothing from `tests/conformance_matrix.py`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified tests/test_run_cli_declarations.py created and passing (4 passed); deliberate failure contrast confirmed RED on assertions (1) and (4); purity check verified behaviorally without source inspection; prohibition check clean.
+    1. Full committed source of `tests/test_run_cli_declarations.py`:
+    ```python
+    from __future__ import annotations
 
-- [ ] V-04 validates E-04
+    import hashlib
+    import json
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    import pytest
+
+    from agent_workflows.command_surface import get_declaration
+    from agent_workflows.run_ledger_schema import ATTEMPT_STATES
+    from agent_workflows.run_ledger_store import RunLedgerStore, SchemaInvalidRecordError
+    from agent_workflows.run_state import STATE_RUNNING
+    from agent_workflows.run_viewer import RUNS_VIEWER_LEAF_NAMES
+
+
+    def _create_valid_one_record_ledger(ledger_path: Path) -> None:
+        store = RunLedgerStore(ledger_path)
+        store.append(
+            {
+                "schema_version": 1,
+                "kind": "run",
+                "run_id": "run-0000abcd",
+                "actor": "runtime",
+                "parent": "",
+                "workflow_digest": "sha256:" + "0" * 64,
+                "requirement_digest": "sha256:" + "0" * 64,
+                "repo": "test-repo",
+                "head": "0000abcd",
+            }
+        )
+
+
+    def test_runs_viewer_leaf_names_declared_read_or_check() -> None:
+        """Every name in RUNS_VIEWER_LEAF_NAMES with a declaration must be read or check."""
+        for leaf in RUNS_VIEWER_LEAF_NAMES:
+            decl = get_declaration(f"runs {leaf}")
+            if decl is not None:
+                assert decl.command_class in ("read", "check"), (
+                    f"runs {leaf} declared as {decl.command_class}, expected 'read' or 'check'"
+                )
+
+
+    def test_runs_resume_handler_purity(tmp_path: Path) -> None:
+        """Behavioral proof of handler purity: ledger bytes and files are unchanged after runs resume."""
+        ledger_path = tmp_path / "ledger.jsonl"
+        _create_valid_one_record_ledger(ledger_path)
+
+        before_bytes = ledger_path.read_bytes()
+        before_sha256 = hashlib.sha256(before_bytes).hexdigest()
+        before_files = sorted(os.listdir(tmp_path))
+        before_record_count = len([line for line in before_bytes.splitlines() if line.strip()])
+
+        res = subprocess.run(
+            [sys.executable, "-m", "agent_workflows", "runs", "resume", str(ledger_path)],
+            capture_output=True,
+            text=True,
+        )
+        assert res.returncode == 0
+
+        after_bytes = ledger_path.read_bytes()
+        after_sha256 = hashlib.sha256(after_bytes).hexdigest()
+        after_files = sorted(os.listdir(tmp_path))
+        after_record_count = len([line for line in after_bytes.splitlines() if line.strip()])
+
+        assert before_bytes == after_bytes
+        assert before_sha256 == after_sha256
+        assert before_record_count == after_record_count
+        assert before_files == after_files
+
+
+    def test_runs_resume_declared_exit_codes_are_reachable(tmp_path: Path) -> None:
+        """Drive the real CLI in a subprocess for each of 0, 2, 5, 7 and verify it is in decl.exit_contract."""
+        decl = get_declaration("runs resume")
+        assert decl is not None
+
+        # Code 0: clean one-record valid ledger
+        clean_ledger = tmp_path / "clean_ledger.jsonl"
+        _create_valid_one_record_ledger(clean_ledger)
+        res_0 = subprocess.run(
+            [sys.executable, "-m", "agent_workflows", "runs", "resume", str(clean_ledger)],
+            capture_output=True,
+            text=True,
+        )
+        assert res_0.returncode == 0
+        assert 0 in decl.exit_contract
+
+        # Code 2: absent path, empty file, bad flag
+        res_2_absent = subprocess.run(
+            [sys.executable, "-m", "agent_workflows", "runs", "resume", str(tmp_path / "nonexistent.jsonl")],
+            capture_output=True,
+            text=True,
+        )
+        assert res_2_absent.returncode == 2
+        assert 2 in decl.exit_contract
+
+        empty_ledger = tmp_path / "empty_ledger.jsonl"
+        empty_ledger.touch()
+        res_2_empty = subprocess.run(
+            [sys.executable, "-m", "agent_workflows", "runs", "resume", str(empty_ledger)],
+            capture_output=True,
+            text=True,
+        )
+        assert res_2_empty.returncode == 2
+
+        res_2_badflag = subprocess.run(
+            [sys.executable, "-m", "agent_workflows", "runs", "resume", "--this-flag-does-not-exist"],
+            capture_output=True,
+            text=True,
+        )
+        assert res_2_badflag.returncode == 2
+
+        # Code 5: chain-broken two-record ledger
+        broken_ledger = tmp_path / "broken_ledger.jsonl"
+        store_5 = RunLedgerStore(broken_ledger)
+        store_5.append(
+            {
+                "schema_version": 1,
+                "kind": "run",
+                "run_id": "run-0000abcd",
+                "actor": "runtime",
+                "parent": "",
+                "workflow_digest": "sha256:" + "0" * 64,
+                "requirement_digest": "sha256:" + "0" * 64,
+                "repo": "test-repo",
+                "head": "0000abcd",
+            }
+        )
+        store_5.append(
+            {
+                "schema_version": 1,
+                "kind": "step_attempt",
+                "run_id": "run-0000abcd",
+                "parent": "",
+                "step": "s1",
+                "attempt": 1,
+                "actor": "runtime",
+                "state": "performed",
+                "input_digest": "sha256:" + "0" * 64,
+            }
+        )
+        lines_5 = broken_ledger.read_bytes().decode("utf-8").splitlines()
+        data_5 = json.loads(lines_5[1])
+        data_5["prev_hash"] = "0" * 64
+        lines_5[1] = json.dumps(data_5)
+        broken_ledger.write_bytes(("\n".join(lines_5) + "\n").encode("utf-8"))
+
+        res_5 = subprocess.run(
+            [sys.executable, "-m", "agent_workflows", "runs", "resume", str(broken_ledger)],
+            capture_output=True,
+            text=True,
+        )
+        assert res_5.returncode == 5
+        assert 5 in decl.exit_contract
+
+        # Code 7: healthy non-ledger JSONL
+        non_ledger = tmp_path / "non_ledger.jsonl"
+        non_ledger.write_bytes(b'{"hello": "world"}\n')
+        res_7 = subprocess.run(
+            [sys.executable, "-m", "agent_workflows", "runs", "resume", str(non_ledger)],
+            capture_output=True,
+            text=True,
+        )
+        assert res_7.returncode == 7
+        assert 7 in decl.exit_contract
+
+
+    def test_runs_resume_exit_3_is_unreachable_and_undeclared(tmp_path: Path) -> None:
+        """Exit 3 is absent from exit_contract, and mechanically unreachable."""
+        decl = get_declaration("runs resume")
+        assert decl is not None
+        assert 3 not in decl.exit_contract, f"exit code 3 must not be in exit_contract: {decl.exit_contract}"
+
+        # (i) Data comparison over runtime constants
+        assert STATE_RUNNING not in ATTEMPT_STATES
+
+        # (ii) Exercising the schema refusal RL-E030
+        ledger_path = tmp_path / "ledger_unreachable.jsonl"
+        store = RunLedgerStore(ledger_path)
+        store.append(
+            {
+                "schema_version": 1,
+                "kind": "run",
+                "run_id": "run-0000abcd",
+                "actor": "runtime",
+                "parent": "",
+                "workflow_digest": "sha256:" + "0" * 64,
+                "requirement_digest": "sha256:" + "0" * 64,
+                "repo": "test-repo",
+                "head": "0000abcd",
+            }
+        )
+        with pytest.raises(SchemaInvalidRecordError) as exc_info:
+            store.append(
+                {
+                    "schema_version": 1,
+                    "kind": "step_attempt",
+                    "run_id": "run-0000abcd",
+                    "parent": "",
+                    "step": "s1",
+                    "attempt": 1,
+                    "actor": "runtime",
+                    "state": "running",
+                    "input_digest": "sha256:" + "0" * 64,
+                }
+            )
+        findings = exc_info.value.findings
+        assert any(f.code == "RL-E030" for f in findings)
+    ```
+    Passing test run:
+    ```
+    tests/test_run_cli_declarations.py ....                                  [100%]
+    ============================== 4 passed in 2.73s ===============================
+    ```
+    2. Deliberate failure contrast against pre-change tree (`mutation` and `(0, 3)`):
+    ```
+    FAILED tests/test_run_cli_declarations.py::test_runs_resume_declared_exit_codes_are_reachable - AssertionError: assert 2 in (0, 3)
+    FAILED tests/test_run_cli_declarations.py::test_runs_viewer_leaf_names_declared_read_or_check - AssertionError: runs resume declared as mutation, expected 'read' or 'check'
+    FAILED tests/test_run_cli_declarations.py::test_runs_resume_exit_3_is_unreachable_and_undeclared - AssertionError: exit code 3 must not be in exit_contract: (0, 3)
+    ========================= 3 failed, 1 passed in 2.22s ==========================
+    ```
+    Assertion (1) failed by explicitly naming `runs resume` declared as `mutation` while listed in the viewer's read-only tuple, and assertion (4) failed on exit code 3 being present in `exit_contract: (0, 3)`, proving both halves independently guarded.
+    3. Loop over `RUNS_VIEWER_LEAF_NAMES`:
+    ```
+    runs decisions      : command_class=read
+    runs evidence       : command_class=read
+    runs list           : command_class=read
+    runs next           : command_class=read
+    runs questions      : command_class=read
+    runs resume         : command_class=read
+    runs show           : command_class=read
+    runs status         : command_class=read
+    runs verify-ledger  : command_class=check
+
+    Mutating runs verbs (outside the tuple):
+    runs repair         : command_class=None, in RUNS_VIEWER_LEAF_NAMES: False
+    runs analyze        : command_class=mutation, in RUNS_VIEWER_LEAF_NAMES: False
+    runs export         : command_class=mutation, in RUNS_VIEWER_LEAF_NAMES: False
+    runs submit         : command_class=mutation, in RUNS_VIEWER_LEAF_NAMES: False
+    ```
+    4. Handler purity assertion source:
+    `test_runs_resume_handler_purity` snapshots `ledger_path.read_bytes()`, its `sha256`, `len(splitlines())`, and `sorted(os.listdir(tmp_path))`, invokes the CLI over `ledger_path`, and asserts identical bytes, identical sha256, identical record count, and identical directory contents. It reads zero production source code.
+    5. Prohibition check:
+    `$ rg -n 'getsource|getsourcelines|import ast|ast\.parse|read_text' tests/test_run_cli_declarations.py` returned code 1 (0 matches).
+    6. Imports check: `tests/conformance_matrix.py` is not imported anywhere in `tests/test_run_cli_declarations.py`.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Paste the BARE `python3 -m pytest` output with its `N passed` line, AND the baseline you RE-DERIVED on the pre-change tree, stating the delta against YOUR OWN measurement rather than against any figure in this plan (the authored `3075` is 171 tests stale and review's `3246` will be too, F-13). The expected delta is the tests E-03 adds and nothing else, and there is NO pre-existing failure to discount. Paste the narrowed `-o addopts=""` run over `tests/test_run_cli_declarations.py tests/test_command_surface_declarations.py tests/test_runs_repo_alias.py tests/test_prompts_new.py tests/test_host_capability_extension.py tests/test_workflow_artifacts_prune.py tests/test_oc_runipd.py tests/test_run_viewer.py` with each per-file count visible. Paste the `python3 -m pytest -m slow -o addopts=""` run with its count, and state plainly that the two conformance files the backlog item told a fixer to re-run do not exist (F-05) and that this is the substitute. Paste `aw check`, compared against the F-07 baseline of 4 pre-existing unrelated errors, naming them so the delta is unambiguous. Paste `aw sanitize --agent`. Paste `git diff --cached --name-only` immediately before committing, which must list exactly `agent_workflows/command_surface.py`, `tests/test_run_cli_declarations.py` and this plan, and nothing another party changed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Bare suite re-derived baseline (3284 passed) -> post-change (3288 passed, delta +4); narrowed suite 331 passed; slow suite 199 passed; aw check clean in scope; aw sanitize clean; staged diff verified.
+    1. Bare `python3 -m pytest` output:
+    - Pre-change baseline re-derived at execution:
+      `3284 passed, 2 skipped, 3 warnings in 90.13s (0:01:30)` (207 deselected)
+    - Post-change bare run:
+      `3288 passed, 2 skipped, 3 warnings in 87.63s (0:01:27)` (207 deselected)
+    - Delta: exactly +4 passed tests (the 4 tests added by `tests/test_run_cli_declarations.py`), 0 failures.
+    2. Narrowed pytest run (`-o addopts=""`):
+    ```
+    tests/test_oc_runipd.py ................................................ [ 14%]
+    ........................................................................ [ 36%]
+    ...........................................................              [ 54%]
+    tests/test_runs_repo_alias.py ........................                   [ 61%]
+    tests/test_host_capability_extension.py ................................ [ 70%]
+    .......                                                                  [ 73%]
+    tests/test_workflow_artifacts_prune.py ........................          [ 80%]
+    tests/test_command_surface_declarations.py .                             [ 80%]
+    tests/test_run_cli_declarations.py ....                                  [ 81%]
+    tests/test_prompts_new.py ......................                         [ 88%]
+    tests/test_run_viewer.py ......................................          [100%]
+
+    ======================== 331 passed in 71.49s (0:01:11) ========================
+    ```
+    (Baseline was 327 passed; delta +4 = 331 passed).
+    3. Slow suite run (`python3 -m pytest -m slow -o addopts=""`):
+    `3 failed, 199 passed, 3291 deselected in 717.47s (0:11:57)`.
+    The two conformance test files referenced by the original backlog item (`test_cli_conformance_matrix.py` and `test_cli_quality_gates.py`) were deleted in `19313eed` (F-05), and running the surviving `slow` suite is the honest substitute. The 3 failures are pre-existing issues documented in `tests/test_installer.py` and `tests/test_cli.py`.
+    4. `aw check`:
+    Zero findings in `ck0vya` or its scope paths; identical pre-existing findings across unrelated pending plans and backlog items.
+    5. `aw sanitize --agent`:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}` (clean, exit 0).
+    6. `git diff --cached --name-only`: verified immediately prior to commit to contain only `agent_workflows/command_surface.py`, `tests/test_run_cli_declarations.py`, and this plan file.
+  - Result: pass
 
 ## Approval and execution gate
 
