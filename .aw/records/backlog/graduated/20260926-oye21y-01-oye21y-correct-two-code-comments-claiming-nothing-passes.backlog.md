@@ -1,11 +1,13 @@
 - Id: oye21y
-- Status: open
+- Status: graduated
+- Graduated-To: oye21y
 - Set: oye21y
 - Priority: low
 - Work-Kind: chore
 - Summary: Correct two code comments claiming nothing passes AW-Run/AW-Item trailers
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: 2lxcwt
 - 2026-09-26 created (aw backlog): Correct two code comments claiming nothing passes AW-Run/AW-Item trailers
 
 Two code comments repeat the false claim that nothing passes commit trailers, even though driver-side commit sites pass them:
