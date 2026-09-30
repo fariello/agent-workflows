@@ -23,7 +23,7 @@ import importlib.util
 import os
 import re as _re
 from pathlib import Path
-from typing import Dict, Iterable, List, NamedTuple, Optional, Sequence, Tuple
+from typing import Dict, Iterable, List, NamedTuple, Optional, Sequence, Set, Tuple
 
 from agent_workflows import artifact_core as _core
 from agent_workflows import artifact_naming as _naming
@@ -221,6 +221,15 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     # existing I-* row that does not fit: I-05 governs plan validation at finalize and I-07 governs
     # release-gate preservation. The rule id avoids the substrings `graduation` and `duplicate`.
     "check.spec-criteria-uncovered": RuleSpec(
+        "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
+    # IPD 0ykozn (backlog 1zknu7): advisory pending-scoped nudge flagging a pending plan whose
+    # front-matter bullets cite a resolvable spec id6 while carrying no `- From-Spec:`.
+    # Advisory by design (`info` severity) because citing a spec as a constraint does not necessarily
+    # mean graduating from it (OQ-02). Scoped to `pending/` so terminal plans (executed/superseded)
+    # are never examined, while the nudge remains visible on `aw check plans` throughout authoring.
+    # Claims invariant `""` matching `check.spec-criteria-uncovered`.
+    "check.plan-spec-link-missing": RuleSpec(
         "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
     ),
     # planstale 6h8j1r (backlog mlc6mj): a pending plan whose literal Scope-Paths entry under
@@ -1245,6 +1254,19 @@ def check_content(
                     repo_root,
                     include_untracked=include_untracked,
                     include_retired=include_retired,
+                )
+            )
+        except Exception:
+            pass
+        # IPD 0ykozn (backlog 1zknu7): flag a pending plan citing a known spec without carrying From-Spec.
+        # Advisory (`info`), so it cannot move any exit code. Reached by BOTH `aw check plans` and the
+        # `aw check all` fan-out exactly once. Scoped to `pending/` so a terminal record is never
+        # examined. Fail-isolated in its own try/except matching every neighbour here.
+        try:
+            drift.extend(
+                check_plan_spec_link_missing(
+                    repo_root,
+                    include_untracked=include_untracked,
                 )
             )
         except Exception:
@@ -5686,6 +5708,35 @@ _FROM_SPEC_DANGLING_RULE = "check.from-spec-dangling"
 _ITEM_FROM_SPEC_RE = _re.compile(r"(?m)^-[ \t]*From-Spec:[ \t]*(\S+)[ \t]*$")
 
 
+def known_spec_ids(repo_root: Path) -> Set[str]:
+    """Return the set of known spec id6s across the repository.
+
+    The known-id set is the UNION of two existing authorities, and the union is load-bearing rather
+    than belt-and-braces (measured in `check_from_spec_dangling`): `_iter_spec_records` walks the
+    in-tree `.aw/records/specs` / `.agents/specs` trees, while `specs._existing_spec_ids` goes through
+    `record_producers.resolve_record_read_paths`, which in an EXTERNALLY-REDIRECTED project resolves
+    to a path outside the repo entirely. Verified on a scratch repo: the resolver returned only
+    `~/.aw/projects/<slug>/records/specs` and `_existing_spec_ids` was therefore EMPTY while the
+    in-tree spec plainly existed, which made a perfectly valid link look dangling. Consulting either
+    source alone yields false positives on some real layout; the union yields them on neither.
+    """
+    repo_root = Path(repo_root)
+    known: Set[str] = set()
+    for _p, _t in _iter_spec_records(repo_root):
+        m = _ITEM_ID_RE.search(_t)
+        if m:
+            known.add(m.group(1))
+    try:
+        from agent_workflows import specs as _specs
+
+        known |= _specs._existing_spec_ids(repo_root)
+    except Exception:
+        # Fail SAFE: a resolver failure must not turn every valid link into a finding. The in-tree
+        # scan above already stands on its own; this only widens the set.
+        pass
+    return known
+
+
 def check_from_spec_dangling(repo_root: Path) -> List[_core.Drift]:
     """Flag a plan (or spec) whose `- From-Spec:` does not resolve to an existing spec id6.
 
@@ -5722,19 +5773,7 @@ def check_from_spec_dangling(repo_root: Path) -> List[_core.Drift]:
     primary home is a plan, but tolerating it anywhere keeps one rule instead of two.
     """
     drift: List[_core.Drift] = []
-    known: set = set()
-    for _p, _t in _iter_spec_records(repo_root):
-        m = _ITEM_ID_RE.search(_t)
-        if m:
-            known.add(m.group(1))
-    try:
-        from agent_workflows import specs as _specs
-
-        known |= _specs._existing_spec_ids(Path(repo_root))
-    except Exception:
-        # Fail SAFE: a resolver failure must not turn every valid link into a finding. The in-tree
-        # scan above already stands on its own; this only widens the set.
-        pass
+    known = known_spec_ids(repo_root)
     if not known:
         # No spec identity is discoverable at all (no specs tree, or an unreadable one). We cannot
         # distinguish a dangling link from an invisible spec corpus, so report nothing rather than
@@ -5766,6 +5805,113 @@ def check_from_spec_dangling(repo_root: Path) -> List[_core.Drift]:
                     ),
                 )
             )
+    return drift
+
+
+# --------------------------------------------------------------------------------------
+# IPD 0ykozn (backlog 1zknu7): flag a pending plan citing a known spec without carrying
+# - From-Spec: and provide the --from-spec setter.
+
+_TARGET_BULLET_RE = _re.compile(r"^-\s*(?:Concern|Scope|Scope-Paths):[ \t]*(.*)$")
+_CITED_SPEC_TOKEN_RE = _re.compile(r"\b([0-9a-z]{6})\b")
+_PLAN_SPEC_LINK_MISSING_RULE = "check.plan-spec-link-missing"
+
+
+def parse_cited_spec_ids(plan_text: str, known_spec_ids: Iterable[str]) -> List[str]:
+    """Return ordered, deduplicated spec id6s cited in Concern/Scope/Scope-Paths bullets.
+
+    Pure function (IPD 0ykozn E-03 / PR-502).
+    Consumes each target bullet as its header line plus all following continuation lines
+    until the next `- ` bullet, the next heading, or a blank line.
+    Filters candidate 6-character [0-9a-z]{6} tokens on word boundaries against `known_spec_ids`.
+    """
+    known = set(known_spec_ids)
+    if not known:
+        return []
+
+    lines = plan_text.splitlines()
+    in_target = False
+    chunks: List[str] = []
+
+    for line in lines:
+        m = _TARGET_BULLET_RE.match(line)
+        if m:
+            in_target = True
+            chunks.append(m.group(1))
+            continue
+        if in_target:
+            if line.startswith("- ") or line.startswith("#") or not line.strip():
+                in_target = False
+            else:
+                chunks.append(line)
+
+    joined = "\n".join(chunks)
+    cited: List[str] = []
+    for m in _CITED_SPEC_TOKEN_RE.finditer(joined):
+        tok = m.group(1)
+        if tok in known and tok not in cited:
+            cited.append(tok)
+    return cited
+
+
+def check_plan_spec_link_missing(
+    repo_root: Path, include_untracked: bool = False
+) -> List[_core.Drift]:
+    """Pending-scoped advisory rule flagging a pending plan citing a known spec without From-Spec.
+
+    IPD 0ykozn E-04 / PR-501.
+    Flags a plan in a `pending/` lane whose `- Concern:`, `- Scope:`, or `- Scope-Paths:` front matter
+    cites a resolvable spec id6 while carrying no `- From-Spec:`.
+    Pending-scoping ensures historical records (executed/superseded) are never examined, while keeping
+    the advisory nudge visible on `aw check plans` throughout the plan's authoring/review lifecycle.
+    """
+    repo_root = Path(repo_root)
+    drift: List[_core.Drift] = []
+    known = known_spec_ids(repo_root)
+    if not known:
+        # No spec identity is discoverable at all (fail SAFE).
+        return drift
+
+    from agent_workflows import ipd_schema as _ipd_schema
+
+    for p in _iter_type_files(repo_root, "plans", include_untracked=include_untracked):
+        if "pending" not in p.parts:
+            continue
+        try:
+            text = p.read_text(encoding="utf-8")
+        except OSError:
+            continue
+
+        # Check existing From-Spec
+        m_fs = _ITEM_FROM_SPEC_RE.search(text)
+        if m_fs is not None:
+            target = m_fs.group(1)
+            if not _ipd_schema.source_link_is_absent(target):
+                # Valid edge already present
+                continue
+
+        cited = parse_cited_spec_ids(text, known)
+        if not cited:
+            continue
+
+        mid = _ITEM_ID_RE.search(text)
+        id6 = mid.group(1) if mid else p.stem
+        cited_str = ", ".join(cited)
+        recovery = f"aw ipd set {id6} --from-spec {cited[0]}"
+
+        drift.append(
+            enrich_drift(
+                _core.Drift(
+                    str(p),
+                    _PLAN_SPEC_LINK_MISSING_RULE,
+                    f"plan cites spec {cited_str} in front matter without carrying - From-Spec:",
+                    severity="info",
+                ),
+                observed=f"cites {cited_str} in front matter with no - From-Spec: edge",
+                required=f"- From-Spec: {cited[0]}",
+                recovery=recovery,
+            )
+        )
     return drift
 
 

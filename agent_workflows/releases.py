@@ -500,6 +500,30 @@ def set_from_backlog_line(text: str, value: Optional[str]) -> str:
     return text
 
 
+_FROM_SPEC_LINE_RE = re.compile(r"(?m)^- From-Spec:[ \t]*[^\n]*$\n?")
+
+
+def set_from_spec_line(text: str, value: Optional[str]) -> str:
+    """Return `text` with the `- From-Spec:` metadata line set to `value`, or removed when
+    `value` is '-' or None. Idempotent: replaces an existing line or inserts one after `- Status:`
+    (falling back to after `- Id:`, or leaving unchanged). Spec-side sibling of
+    `set_from_backlog_line` (IPD 0ykozn). Tolerates any value in `_FROM_SPEC_LINE_RE` so an
+    existing malformed or empty-valued line is still replaced (matching `set_priority_line`/
+    `set_work_kind_line`)."""
+    # Always strip any existing line first.
+    text = _FROM_SPEC_LINE_RE.sub("", text)
+    if value in (None, "-"):
+        return text
+    new_line = f"- From-Spec: {value}\n"
+    # Insert after the `- Status:` line if present, else after `- Id:`, else before the first blank.
+    for anchor in (r"(?m)^- Status:[^\n]*\n", r"(?m)^- Id:[^\n]*\n"):
+        m = re.search(anchor, text)
+        if m:
+            i = m.end()
+            return text[:i] + new_line + text[i:]
+    return text
+
+
 _ITEM_DEPENDENCIES_LINE_RE = re.compile(r"(?m)^- Item-Dependencies:[^\n]*\n?")
 
 

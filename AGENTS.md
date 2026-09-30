@@ -218,8 +218,9 @@ spec, so a spec-to-plan handoff is machine-readable in exactly the shape a backl
 already is. Both fields are recognized but optional, so no existing artifact is retroactively invalid.
 `aw check` flags a `From-Spec` value that resolves to no spec (`check.from-spec-dangling`), the same
 error severity its `From-Backlog` twin carries, because a spec is an equally valid release-gate carrier
-and a link pointing at nothing is a broken handoff claim either way. Note there is no
-`--from-spec` setter yet: write the field when authoring the plan.
+and a link pointing at nothing is a broken handoff claim either way. Set the field
+with `aw ipd set ... --from-spec <spec-id6>`, or let the advisory `check.plan-spec-link-missing`
+rule nudge when a pending plan cites a spec without carrying the link.
 
 Close-legitimacy rule for a release-blocking backlog item: `aw backlog set done` on an item carrying
 `- Blocks-Release: <R>` FAILS CLOSED unless the gate is provably preserved or released via one of three

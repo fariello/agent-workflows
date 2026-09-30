@@ -412,6 +412,46 @@ class CheckEngineSpecCriteriaTests(unittest.TestCase):
                 drift = check_engine.check_content(repo, "plans")
                 self.assertIsInstance(drift, list)
 
+    def test_plan_gaining_from_spec_edge_uncovers_criteria(self) -> None:
+        """IPD 0ykozn / F-02 linkage: gaining - From-Spec: edge activates check_spec_criteria_uncovered."""
+        with TemporaryDirectory() as tmp:
+            repo = _create_minimal_repo(Path(tmp))
+            spec_id6 = "c4gd2h"
+            _create_spec(
+                repo,
+                spec_id6,
+                "- **A1** First criterion\n- **A2** Second criterion\n",
+            )
+            # Initially plan has no From-Spec, mentions A1 in required tests
+            plan_path = _create_plan(
+                repo,
+                "plan01",
+                from_spec="",
+                required_tests_lines="- Validates A1 behavior",
+            )
+            # Strip From-Spec line entirely
+            text = plan_path.read_text(encoding="utf-8")
+            text = re.sub(r"(?m)^- From-Spec:[^\n]*\n?", "", text)
+            plan_path.write_text(text, encoding="utf-8")
+
+            # Without From-Spec, check_spec_criteria_uncovered emits nothing
+            drift_before = check_engine.check_spec_criteria_uncovered(repo)
+            self.assertEqual(len(drift_before), 0)
+
+            # Now add - From-Spec: c4gd2h
+            from agent_workflows import releases
+
+            new_text = releases.set_from_spec_line(
+                plan_path.read_text(encoding="utf-8"), spec_id6
+            )
+            plan_path.write_text(new_text, encoding="utf-8")
+
+            # With From-Spec, A1 matches and A2 is reported uncovered
+            drift_after = check_engine.check_spec_criteria_uncovered(repo)
+            self.assertEqual(len(drift_after), 1)
+            self.assertEqual(drift_after[0].rule, "check.spec-criteria-uncovered")
+            self.assertIn("A2", drift_after[0].observed)
+
 
 if __name__ == "__main__":
     unittest.main()

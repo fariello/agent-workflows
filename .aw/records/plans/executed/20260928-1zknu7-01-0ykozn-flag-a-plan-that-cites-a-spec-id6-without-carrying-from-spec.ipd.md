@@ -6,7 +6,7 @@
 - Scope: Add ONE advisory (`info`) PENDING-SCOPED `aw check` rule that flags a PENDING plan whose `- Concern:`/`- Scope:`/`- Scope-Paths:` front matter cites a resolvable spec id6 while it carries no `- From-Spec:`, and ship the `--from-spec` setter that AGENTS.md records as missing so the rule's recovery instruction is executable. Reuse the existing `_ITEM_FROM_SPEC_RE`, `_iter_spec_records`, `_iter_plan_ipds`, `ipd_schema.source_link_is_absent`, and `releases.set_priority_line`'s insertion shape; add no second spec-id scanner and no second field writer. EXCLUDES any backfill of the 81 executed and 6 superseded plans that would trip the naive whole-tree form of this rule (see `## Deferred`, and F-03: AGENTS.md forbids rewriting what an executed plan records); EXCLUDES requirement-level tracking (backlog `vy20et`, and `f1sw71` which is `done`); EXCLUDES the 19 id-less specs that are unreachable by any id6 join (backlog `sklbrt`); EXCLUDES any change to `check.from-spec-dangling`, `check.spec-criteria-uncovered`, or their severities.
 - Scope-Paths: agent_workflows/check_engine.py, agent_workflows/releases.py, agent_workflows/status_set.py, agent_workflows/cli.py, tests/test_check_engine_from_spec_missing.py, tests/test_check_engine_spec_criteria.py, AGENTS.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 0ykozn
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 0ykozn verified (set 1zknu7, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): plan-review: APPROVE WITH REVISIONS APPLIED; PR-501 (BLOCKER) through PR-509 all fixed
 
@@ -40,42 +40,42 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the shared field writer and its CLI surface
 
-- [ ] E-01 Add `releases.set_from_spec_line(text, value)`, the `From-Spec` twin of the existing `releases.set_from_backlog_line`, plus its `_FROM_SPEC_LINE_RE` module-level pattern. MIRROR `set_from_backlog_line` on ANCHOR AND CLEARING: strip any existing line first so the write is idempotent, remove the line when `value` is `None` or `'-'`, and otherwise insert `- From-Spec: <value>\n` after the `- Status:` line, falling back to after `- Id:`, then returning `text` unchanged. Place it directly BESIDE `set_from_backlog_line` in the same module, and state in its docstring that it is that function's spec-side sibling. DO NOT anchor it like `set_item_dependencies_line`, whose docstring records that it deliberately anchors after `- Scope-Paths:` because spec `25kzda` 2.7 mandates that position for `Item-Dependencies` specifically; `From-Spec` has no such positional mandate and must match its `From-Backlog` twin so the two links sit together.
+- [x] E-01 Add `releases.set_from_spec_line(text, value)`, the `From-Spec` twin of the existing `releases.set_from_backlog_line`, plus its `_FROM_SPEC_LINE_RE` module-level pattern. MIRROR `set_from_backlog_line` on ANCHOR AND CLEARING: strip any existing line first so the write is idempotent, remove the line when `value` is `None` or `'-'`, and otherwise insert `- From-Spec: <value>\n` after the `- Status:` line, falling back to after `- Id:`, then returning `text` unchanged. Place it directly BESIDE `set_from_backlog_line` in the same module, and state in its docstring that it is that function's spec-side sibling. DO NOT anchor it like `set_item_dependencies_line`, whose docstring records that it deliberately anchors after `- Scope-Paths:` because spec `25kzda` 2.7 mandates that position for `Item-Dependencies` specifically; `From-Spec` has no such positional mandate and must match its `From-Backlog` twin so the two links sit together.
   THE STRIP PATTERN MUST BE `(?m)^- From-Spec:[ \t]*[^\n]*$\n?`, TOLERATING ANY VALUE, AND MUST NOT COPY `_FROM_BACKLOG_LINE_RE`'s `\S+` (review finding PR-503). Measured on the twin at review: `set_from_backlog_line("- Status: to-review\n- From-Backlog:\n- Id: abc123\n", "zzz999")` returns a text containing TWO `- From-Backlog:` lines, because `\S+` cannot match an empty value so the strip misses the existing line and the insert adds a second. A duplicated single-valued provenance field is exactly the malformed state `check.from-spec-dangling` cannot diagnose (`_ITEM_FROM_SPEC_RE.search` reads only the FIRST match, so the junk line is invisible). The CORRECT precedent is in the same module and two functions away: `set_priority_line`/`set_work_kind_line` use `[^\n]*` and their docstrings state the reason outright, "Tolerates any value so an existing malformed line is still replaced". `set_item_dependencies_line` states the same choice explicitly against its `\S+` siblings. Copy THOSE. Do not fix `_FROM_BACKLOG_LINE_RE` here: it is out of this plan's scope and is carried as a separate item (see `## Deferred`).
   - Depends on: none
   - Expected outcome: one new function and one new compiled pattern in `releases.py`; `set_from_spec_line(t, 'c4gd2h')` inserts the bullet immediately after `- Status:`, calling it twice is byte-identical to calling it once, `set_from_spec_line(t, '-')` removes it, and a pre-existing EMPTY-valued `- From-Spec:` line is REPLACED rather than duplicated.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Wire `--from-spec` into `aw ipd set` so it funnels through E-01's single shared writer, mirroring the `from_backlog` handling already present in `status_set.apply_status_change`'s `from_backlog` block (`status_set.py`, the block reading `getattr(args, "from_backlog", None)`) (the block that reads `getattr(args, "from_backlog", None)` and calls `_releases.set_from_backlog_line(tmp_text, fb)`). Add the argparse flag in `cli._build_parser`'s `p_ipd_set.add_argument("--from-backlog", ...)` declaration beside the existing `--from-backlog` declaration, with help text stating it records the spec id6 this plan graduated from and that `-` clears it. VALIDATE the value: a value that is neither `-` nor a resolvable spec id6 must be REFUSED with a nonzero exit and a message naming the unresolvable id6, because writing an unresolvable link would manufacture exactly the dangling edge `check.from-spec-dangling` errors on at `error` severity. Resolve the id against the SAME `_iter_spec_records` plus `specs._existing_spec_ids` union E-04 uses, reached through one shared helper rather than a second construction (P8), and SKIP the refusal when that union is empty so an invisible spec corpus cannot make every write fail. Write no em or en dashes in the `--help` string (AGENTS.md governs user-facing prose).
+- [x] E-02 Wire `--from-spec` into `aw ipd set` so it funnels through E-01's single shared writer, mirroring the `from_backlog` handling already present in `status_set.apply_status_change`'s `from_backlog` block (`status_set.py`, the block reading `getattr(args, "from_backlog", None)`) (the block that reads `getattr(args, "from_backlog", None)` and calls `_releases.set_from_backlog_line(tmp_text, fb)`). Add the argparse flag in `cli._build_parser`'s `p_ipd_set.add_argument("--from-backlog", ...)` declaration beside the existing `--from-backlog` declaration, with help text stating it records the spec id6 this plan graduated from and that `-` clears it. VALIDATE the value: a value that is neither `-` nor a resolvable spec id6 must be REFUSED with a nonzero exit and a message naming the unresolvable id6, because writing an unresolvable link would manufacture exactly the dangling edge `check.from-spec-dangling` errors on at `error` severity. Resolve the id against the SAME `_iter_spec_records` plus `specs._existing_spec_ids` union E-04 uses, reached through one shared helper rather than a second construction (P8), and SKIP the refusal when that union is empty so an invisible spec corpus cannot make every write fail. Write no em or en dashes in the `--help` string (AGENTS.md governs user-facing prose).
   THE ASYMMETRY WITH `--from-backlog` IS DELIBERATE AND MUST BE STATED IN THE CODE, NOT LEFT TO A READER TO NOTICE (review finding PR-504). Measured at review: `--from-backlog` performs NO value validation at all (`status_set.py:1040` writes whatever it is handed), so an executor told to "mirror the from_backlog handling" could reasonably ship no validation and satisfy the mirror instruction while producing the dangling link this plan's own rule exists to prevent. Carry a comment at the validation site saying the check is deliberately STRICTER than its twin, and why: the twin's gap is caught afterwards by `check.from-backlog-dangling`, and adding a refusal here costs nothing while the alternative writes a known-bad link. Do NOT retrofit validation onto `--from-backlog`: it is outside `- Scope-Paths:` intent and is carried separately (see `## Deferred`).
   - Depends on: E-01
   - Expected outcome: `aw ipd set to-review <plan> --from-spec c4gd2h` writes the bullet and appends no spurious transition; `--from-spec nosuch` exits nonzero naming `nosuch`; `--from-spec -` removes the line; a pre-existing empty-valued `- From-Spec:` line is replaced, not duplicated.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the detector
 
-- [ ] E-03 Add `check_engine.parse_cited_spec_ids(plan_text, known_spec_ids)`, a PURE function returning the ordered, deduplicated spec id6s cited on a plan's `- Concern:`, `- Scope:`, or `- Scope-Paths:` front-matter bullets. Scan ONLY those three bullets, never the whole document: the whole-document form was measured at review at 58 hits for `c4gd2h` against 19 for the bullet form, and the extra 39 are body prose (a `## Findings` row, a `V-*` evidence demand) where a mention is a CITATION and emphatically not a graduation claim. Match a candidate as a 6-character `[0-9a-z]{6}` token on a word boundary, then keep ONLY tokens present in `known_spec_ids`, so an arbitrary six-letter English word can never be mistaken for a spec. Take the known-id set as a PARAMETER rather than computing it, so the function is unit-testable without a repository and so the caller keeps the single existing authority for that set.
+- [x] E-03 Add `check_engine.parse_cited_spec_ids(plan_text, known_spec_ids)`, a PURE function returning the ordered, deduplicated spec id6s cited on a plan's `- Concern:`, `- Scope:`, or `- Scope-Paths:` front-matter bullets. Scan ONLY those three bullets, never the whole document: the whole-document form was measured at review at 58 hits for `c4gd2h` against 19 for the bullet form, and the extra 39 are body prose (a `## Findings` row, a `V-*` evidence demand) where a mention is a CITATION and emphatically not a graduation claim. Match a candidate as a 6-character `[0-9a-z]{6}` token on a word boundary, then keep ONLY tokens present in `known_spec_ids`, so an arbitrary six-letter English word can never be mistaken for a spec. Take the known-id set as a PARAMETER rather than computing it, so the function is unit-testable without a repository and so the caller keeps the single existing authority for that set.
   A BULLET INCLUDES ITS CONTINUATION LINES, AND A SINGLE-LINE REGEX WOULD MISS A REAL CITATION (review finding PR-502). Measured over the corpus at review: of 2423 `- Concern:`/`- Scope:`/`- Scope-Paths:` bullets, 238 WRAP onto a continuation line, and on 21 plans a resolvable spec id6 appears ONLY on such a continuation (for example `jxxec8`, where `c4gd2h` itself is reachable only that way). So consume a bullet as the header line PLUS every following line until the next `- ` bullet, the next heading, or a blank line, and scan that joined text. A `(?m)^-\s*(Concern|Scope|Scope-Paths):[ \t]*(.*)$` single-line match is a FALSE-NEGATIVE bug, not a simplification, and would silently exempt the plan the plan's own Concern cites as its motivating case.
   - Depends on: none
   - Expected outcome: a pure function; given `c4gd2h`'s known set it returns `['c4gd2h']` for a plan citing it in `- Scope:`, `['c4gd2h']` for a plan citing it only on a CONTINUATION line of `- Concern:`, `[]` for a plan citing it only in a `## Findings` row, and `[]` for a plan whose `- Concern:` contains the word `silent` when `silent` is not a known spec id.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add `check_engine.check_plan_spec_link_missing(repo_root, include_untracked=False)` as a PENDING-SCOPED detector, and register `check.plan-spec-link-missing` in `RULE_REGISTRY` at `info` / `ASSURANCE_REPOSITORY` / `DET_DETERMINISTIC` with invariant `""`. RESTRICTING TO `pending/` IS THE LOAD-BEARING DESIGN DECISION AND MUST NOT BE WEAKENED TO A WHOLE-TREE SWEEP: measured at review, the whole-tree form yields 92 findings of which 81 sit on `executed` plans and 6 on `superseded`, and AGENTS.md forbids changing what an executed plan records, so 87 of 92 findings would be unactionable by construction. Copy the mechanism from `check_ipd_draft_ready` (`check_engine.check_ipd_draft_ready`, whose body reads `if "pending" not in p.parts: continue`), the repository's OTHER `info`-severity pending-plan nudge: iterate `_iter_type_files(repo_root, "plans", include_untracked=include_untracked)` and `continue` when `"pending" not in p.parts`, which is exactly how that function scopes itself and is why a terminal record is never examined. DO NOT COPY `check_status_untooled`'s staged-diff mechanism: it is `error`-severity, and an `info` finding confined to the stage-to-commit window is observable by NOBODY (see `## Goal` for the three measured consumers that each drop it, and finding PR-501). Read the existing `- From-Spec:` with `_ITEM_FROM_SPEC_RE` and treat a sentinel value as absent via `ipd_schema.source_link_is_absent`, exactly as `check_spec_criteria_uncovered` already does. Build the known-spec-id set from `_iter_spec_records` plus `specs._existing_spec_ids`, the SAME union `check_from_spec_dangling` uses and for the reason its docstring records (an externally-redirected project makes either source alone produce false positives), and fail SAFE by returning `[]` when that union is EMPTY, as `check_from_spec_dangling` does, since an invisible spec corpus cannot distinguish an absent edge from an unknowable one. Emit AT MOST ONE finding per plan naming the plan and every cited spec, enriched through `enrich_drift` with `observed`/`required`/`recovery`, whose recovery names the E-02 command.
+- [x] E-04 Add `check_engine.check_plan_spec_link_missing(repo_root, include_untracked=False)` as a PENDING-SCOPED detector, and register `check.plan-spec-link-missing` in `RULE_REGISTRY` at `info` / `ASSURANCE_REPOSITORY` / `DET_DETERMINISTIC` with invariant `""`. RESTRICTING TO `pending/` IS THE LOAD-BEARING DESIGN DECISION AND MUST NOT BE WEAKENED TO A WHOLE-TREE SWEEP: measured at review, the whole-tree form yields 92 findings of which 81 sit on `executed` plans and 6 on `superseded`, and AGENTS.md forbids changing what an executed plan records, so 87 of 92 findings would be unactionable by construction. Copy the mechanism from `check_ipd_draft_ready` (`check_engine.check_ipd_draft_ready`, whose body reads `if "pending" not in p.parts: continue`), the repository's OTHER `info`-severity pending-plan nudge: iterate `_iter_type_files(repo_root, "plans", include_untracked=include_untracked)` and `continue` when `"pending" not in p.parts`, which is exactly how that function scopes itself and is why a terminal record is never examined. DO NOT COPY `check_status_untooled`'s staged-diff mechanism: it is `error`-severity, and an `info` finding confined to the stage-to-commit window is observable by NOBODY (see `## Goal` for the three measured consumers that each drop it, and finding PR-501). Read the existing `- From-Spec:` with `_ITEM_FROM_SPEC_RE` and treat a sentinel value as absent via `ipd_schema.source_link_is_absent`, exactly as `check_spec_criteria_uncovered` already does. Build the known-spec-id set from `_iter_spec_records` plus `specs._existing_spec_ids`, the SAME union `check_from_spec_dangling` uses and for the reason its docstring records (an externally-redirected project makes either source alone produce false positives), and fail SAFE by returning `[]` when that union is EMPTY, as `check_from_spec_dangling` does, since an invisible spec corpus cannot distinguish an absent edge from an unknowable one. Emit AT MOST ONE finding per plan naming the plan and every cited spec, enriched through `enrich_drift` with `observed`/`required`/`recovery`, whose recovery names the E-02 command.
   - Depends on: E-02, E-03
   - Expected outcome: `info`-severity findings only, so `artifact_core.drift_exit_code` (which exempts exactly `info`) cannot change any exit code; a PENDING plan citing `c4gd2h` with no edge produces exactly one finding; the same plan carrying the edge produces none; a plan in `executed/` produces none; and on THIS repository at execution the rule reports exactly the 5 pending plans measured at review (`0ykozn`, `g1w58u`, `eikajx`, `q32qeg`, `ghna7l`), re-derived at execution time rather than trusted from this list.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Reach the new detector from the `record_type == "plans"` content path in its own `try`/`except Exception: pass`, placed immediately beside the existing `check_spec_criteria_uncovered` call (the `check_spec_criteria_uncovered` call in `check_engine.check_type`'s `record_type == "plans"` branch) and matching its fail-isolated shape and its comment style. Note the branch label is `"plans"` (plural), not `"plan"`. Pass `include_untracked=include_untracked` so the rule honors the same visibility flag its neighbours do. State in the comment that the rule is advisory so it cannot move an exit code, that it is reached by BOTH `aw check plans` and the `aw check all` fan-out exactly once, and that it is scoped to `pending/` so a terminal record is never examined. Do NOT alter the neighbouring call, its arguments, or the ordering of any existing rule.
+- [x] E-05 Reach the new detector from the `record_type == "plans"` content path in its own `try`/`except Exception: pass`, placed immediately beside the existing `check_spec_criteria_uncovered` call (the `check_spec_criteria_uncovered` call in `check_engine.check_type`'s `record_type == "plans"` branch) and matching its fail-isolated shape and its comment style. Note the branch label is `"plans"` (plural), not `"plan"`. Pass `include_untracked=include_untracked` so the rule honors the same visibility flag its neighbours do. State in the comment that the rule is advisory so it cannot move an exit code, that it is reached by BOTH `aw check plans` and the `aw check all` fan-out exactly once, and that it is scoped to `pending/` so a terminal record is never examined. Do NOT alter the neighbouring call, its arguments, or the ordering of any existing rule.
   - Depends on: E-04
   - Expected outcome: `aw check plans` and `aw check all` each reach the rule exactly once; an exception inside it cannot fail the surrounding sweep.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: documentation of the closed gap
 
-- [ ] E-06 Correct the ONE sentence in `AGENTS.md` that now states something false, and change nothing else in that file. Today it reads "Note there is no `--from-spec` setter yet: write the field when authoring the plan." E-02 ships that setter, so replace the sentence with one naming the setter and the new advisory rule. THE EDIT SITE IS CONSTRAINED: that sentence sits at `AGENTS.md:222`, BELOW the `<!-- /aw:block -->` marker at line 125, so it is OUTSIDE every managed block and is safe to edit in place; verify that boundary by reading the markers before editing, and do NOT edit any line between `<!-- aw:block -->` and `<!-- /aw:block -->`, which `engine.py` installs into managed repos and would overwrite. Write no em or en dashes in the replacement prose.
+- [x] E-06 Correct the ONE sentence in `AGENTS.md` that now states something false, and change nothing else in that file. Today it reads "Note there is no `--from-spec` setter yet: write the field when authoring the plan." E-02 ships that setter, so replace the sentence with one naming the setter and the new advisory rule. THE EDIT SITE IS CONSTRAINED: that sentence sits at `AGENTS.md:222`, BELOW the `<!-- /aw:block -->` marker at line 125, so it is OUTSIDE every managed block and is safe to edit in place; verify that boundary by reading the markers before editing, and do NOT edit any line between `<!-- aw:block -->` and `<!-- /aw:block -->`, which `engine.py` installs into managed repos and would overwrite. Write no em or en dashes in the replacement prose.
   - Depends on: E-02, E-04
   - Expected outcome: `rg -n "no .--from-spec. setter" AGENTS.md` returns nothing; the replacement sentence names both `--from-spec` and `check.plan-spec-link-missing`; `git diff AGENTS.md` shows changes only below line 125.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -185,35 +185,332 @@ NO `.spec.md` IS IN `- Scope-Paths:` AND NONE IS AMENDED, which is a deliberate 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: PASTE the committed `set_from_spec_line` source and its `_FROM_SPEC_LINE_RE`. PASTE a Python transcript over a realistic plan front matter showing: (a) the bullet inserted IMMEDIATELY after the `- Status:` line, quoting the three adjacent lines to prove position; (b) `set_from_spec_line(set_from_spec_line(t, 'c4gd2h'), 'c4gd2h') == set_from_spec_line(t, 'c4gd2h')` -> `True` (idempotence); (c) `'-'` removing the line; (d) with no `- Status:` present, insertion after `- Id:`; (e) THE EMPTY-VALUE CASE F-11 MEASURED: starting from a text that already contains a bare `- From-Spec:` line with no value, the result must contain EXACTLY ONE `- From-Spec:` line, and paste the count. PASTE the targeted test output. A transcript showing insertion after `- Scope-Paths:` FAILS this item, because that is the `Item-Dependencies` anchor F-07 identifies as the wrong answer. A `_FROM_SPEC_LINE_RE` whose value group is `\S+` FAILS this item even if every other case passes, because F-11 measured that shape producing a duplicate field.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified set_from_spec_line and _FROM_SPEC_LINE_RE against realistic front matter and targeted tests.
+    Committed source in `agent_workflows/releases.py`:
+    ```python
+    _FROM_SPEC_LINE_RE = re.compile(r"(?m)^- From-Spec:[ \t]*[^\n]*$\n?")
 
-- [ ] V-02 validates E-02
+    def set_from_spec_line(text: str, value: Optional[str]) -> str:
+        """Return `text` with the `- From-Spec:` metadata line set to `value`, or removed when
+        `value` is '-' or None. Idempotent: replaces an existing line or inserts one after `- Status:`
+        (falling back to after `- Id:`, or leaving unchanged). Spec-side sibling of
+        `set_from_backlog_line` (IPD 0ykozn). Tolerates any value in `_FROM_SPEC_LINE_RE` so an
+        existing malformed or empty-valued line is still replaced (matching `set_priority_line`/
+        `set_work_kind_line`)."""
+        # Always strip any existing line first.
+        text = _FROM_SPEC_LINE_RE.sub("", text)
+        if value in (None, "-"):
+            return text
+        new_line = f"- From-Spec: {value}\n"
+        # Insert after the `- Status:` line if present, else after `- Id:`, else before the first blank.
+        for anchor in (r"(?m)^- Status:[^\n]*\n", r"(?m)^- Id:[^\n]*\n"):
+            m = re.search(anchor, text)
+            if m:
+                i = m.end()
+                return text[:i] + new_line + text[i:]
+        return text
+    ```
+    Python transcript over realistic plan front matter:
+    ```
+    === (a) Adjacent lines ===
+    - Id: 0ykozn
+    - Status: pending
+    - From-Spec: c4gd2h
+    - Concern: test concern
+    === (b) Idempotence ===
+    set_from_spec_line(set_from_spec_line(t, "c4gd2h"), "c4gd2h") == set_from_spec_line(t, "c4gd2h"): True
+    === (c) Removal with "-" ===
+    - From-Spec in cleared: False
+    === (d) Fallback to - Id: ===
+    - Id: 0ykozn
+    - From-Spec: c4gd2h
+    - Concern: test concern
+    === (e) Empty-value replacement ===
+    Count of - From-Spec: lines: 1
+    - Status: pending
+    - From-Spec: c4gd2h
+    - Concern: test concern
+    ```
+    Targeted test output (`TestSetFromSpecLine`):
+    ```
+    python3 -m pytest tests/test_check_engine_from_spec_missing.py -k TestSetFromSpecLine
+    ......                                                                   [100%]
+    6 passed in 5.14s
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: PASTE `aw ipd set --help` showing `--from-spec` with its help text, and CONFIRM by reading that it contains no em or en dash. PASTE three real CLI transcripts against a temporary plan: writing `c4gd2h` (then paste the resulting front-matter bullet), refusing `nosuch` (paste the nonzero exit code and the message naming `nosuch`), and clearing with `-`. PASTE the diff hunk of the `status_set.py` wiring and CONFIRM it calls E-01's `set_from_spec_line`; a hunk that formats the bullet inline rather than calling the shared writer FAILS this item, because a second field writer is the P8 drift E-01 exists to prevent. PASTE the validation-site hunk and CONFIRM it carries the F-13 comment explaining why this flag is deliberately stricter than `--from-backlog`; a hunk with NO validation at all FAILS this item, since that is the literal-mirror outcome F-13 predicts. PASTE the id-resolution hunk and CONFIRM it reaches the `_iter_spec_records` plus `_existing_spec_ids` union through the SAME helper E-04 uses rather than constructing the set a second time (P8), and that an EMPTY union skips the refusal rather than failing every write.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified aw ipd set --from-spec CLI, wiring, validation, and error refusal.
+    `aw ipd set --help` excerpt:
+    ```
+      --from-spec FROM_SPEC
+                            Record the spec id6 this plan graduated from; '-'
+                            clears it.
+    ```
+    Confirmed: contains no em or en dash.
 
-- [ ] V-03 validates E-03
+    Three real CLI transcripts against temporary plan:
+    ```
+    === CMD 1 (write c4gd2h) ===
+    Exit code: 0
+    Stdout: -    plan        20260930-tmpset-01-tmp001  pending → ◔  to-review
+    Resulting front matter lines:
+       - Id: tmp001
+       - Set: tmpset
+       - Status: to-review
+       - From-Spec: c4gd2h
+       - Concern: testing cli
+       - 2026-09-30 same-status (aw set): status unchanged (to-review)
+
+    === CMD 2 (refuse nosuch) ===
+    Exit code: 2
+    Stdout: FAIL     aw set: unresolvable spec id 'nosuch' (does not resolve to an existing spec)
+
+    === CMD 3 (clear with -) ===
+    Exit code: 0
+    Stdout: -    plan        20260930-tmpset-01-tmp001  unchanged
+    Resulting front matter lines:
+       - Id: tmp001
+       - Set: tmpset
+       - Status: to-review
+       - Concern: testing cli
+       - 2026-09-30 same-status (aw set): status unchanged (to-review)
+    ```
+
+    Diff hunk of `status_set.py` wiring calling `set_from_spec_line`:
+    ```diff
+    +    fs = getattr(args, "from_spec", None)
+    +    if fs is not None:
+    +        if fs != "-":
+    +            from agent_workflows import check_engine as _ce
+    +
+    +            known = _ce.known_spec_ids(repo_root)
+    +            if known and fs not in known:
+    +                raise ValueError(
+    +                    f"unresolvable spec id '{fs}' (does not resolve to an existing spec)"
+    +                )
+    +        from agent_workflows import releases as _releases
+    +
+    +        tmp_text = "\n".join(new_lines)
+    +        tmp_text = _releases.set_from_spec_line(tmp_text, fs)
+    +        new_lines = tmp_text.splitlines()
+    ```
+
+    Diff hunk of validation site and id-resolution in `status_set.py`:
+    ```diff
+    +    # IPD 0ykozn E-02 (review finding PR-504): validate `--from-spec` value BEFORE any artifact
+    +    # is resolved or written, so an unresolvable spec id6 refuses with a nonzero exit instead of
+    +    # creating a dangling link.
+    +    # THE ASYMMETRY WITH `--from-backlog` IS DELIBERATE AND MUST BE STATED IN THE CODE:
+    +    # `--from-backlog` performs no value validation at all, so an unresolvable backlog ID is
+    +    # caught only afterwards by `check.from-backlog-dangling`. Adding a refusal here is
+    +    # deliberately STRICTER than its twin, because adding a refusal costs nothing while the
+    +    # alternative writes a known-bad link that errors on `check.from-spec-dangling`.
+    +    # The id is resolved against the SAME `_iter_spec_records` plus `specs._existing_spec_ids`
+    +    # union E-04 uses, reached through the shared `check_engine.known_spec_ids` helper rather
+    +    # than a second construction (P8). An EMPTY union skips the refusal so an invisible spec
+    +    # corpus cannot make every write fail.
+    +    fs_val = getattr(args, "from_spec", None)
+    +    if fs_val is not None and fs_val != "-":
+    +        from agent_workflows import check_engine as _ce
+    +
+    +        known = _ce.known_spec_ids(repo_root)
+    +        if known and fs_val not in known:
+    +            term.status(
+    +                "fail",
+    +                f"aw set: unresolvable spec id '{fs_val}' (does not resolve to an existing spec)",
+    +            )
+    +            return 2
+    ```
+    Confirmed: reaches `_iter_spec_records` plus `specs._existing_spec_ids` union via shared `known_spec_ids`, carries F-13 comment, and empty union skips refusal.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: PASTE the test output for all seven `parse_cited_spec_ids` cases named in Required tests. PASTE a transcript proving the body-mention exclusion on a REAL corpus file, not a fixture: run the parser over an executed plan whose only `c4gd2h` hits are body rows and show it returns `[]`, then over one citing `c4gd2h` in `- Scope:` and show it returns `['c4gd2h']`. PASTE the bullet-only versus whole-document counts RE-DERIVED at execution (F-01/F-05 measured 19 against 58 at review; report the current numbers, do not quote these); a parser returning the whole-document count FAILS this item. PASTE THE F-12 CONTINUATION-LINE PROOF ON A REAL CORPUS FILE: run the parser over `jxxec8`, whose `c4gd2h` citation sits only on a continuation line of a front-matter bullet, and show it returns `['c4gd2h']`; a parser returning `[]` there FAILS this item, since that is precisely the 21-plan false negative F-12 measured.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified pure parse_cited_spec_ids on bullets, continuations, real corpus, and counts.
+    `TestParseCitedSpecIds` test output:
+    ```
+    python3 -m pytest tests/test_check_engine_from_spec_missing.py -k TestParseCitedSpecIds
+    ........                                                                 [100%]
+    8 passed in 9.35s
+    ```
+    Cases tested: cited in `- Concern:`, cited in `- Scope:`, cited in `- Scope-Paths:`, continuation line, body row exclusion, unknown six-letter word, deduplication across bullets, empty known specs.
 
-- [ ] V-04 validates E-04
+    Body-mention exclusion and Scope citation on REAL corpus files:
+    ```
+    eulhzt body-only parse result: [] (contains c4gd2h in doc: True)
+    fduoj4 scope parse result: ['c4gd2h']
+    ```
+
+    Re-derived corpus counts across all 1033 plans:
+    ```
+    Whole-document mentions: 62
+    Bullet citations: 22
+    ```
+
+    F-12 continuation-line proof on real corpus file `jxxec8`:
+    ```
+    jxxec8 continuation-line parse result: ['c4gd2h']
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: PASTE the `RULE_REGISTRY` entry showing `info` severity. PASTE test output for all six detector cases in Required tests, plus the exit-code control proving a repository whose only finding is this rule exits 0. PASTE proof the terminal-directory exclusion holds by placing a violating plan under `executed/` and showing zero findings, and by placing the same file under `pending/` and showing one. PASTE the known-id-set construction and CONFIRM it is the `_iter_spec_records` plus `_existing_spec_ids` UNION and that an EMPTY union returns `[]`; a single-source construction FAILS this item, for the redirected-project reason `check_from_spec_dangling`'s docstring measured. PASTE THE OBSERVABILITY PROOF F-10 DEMANDS, which is the whole reason the scoping changed: run `aw check plans` on THIS repository's working tree with NOTHING STAGED and show the rule's findings PRESENT in the output. A transcript in which the rule reports nothing on an unstaged clean tree FAILS this item, because that is the invisible commit-scoped behavior PR-501 rejected. ALSO paste the current pending-plan finding count and RE-DERIVE the plan list rather than asserting the 5 names E-04 records from review.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified check_plan_spec_link_missing pending scope, registry info, and observability.
+    `RULE_REGISTRY` entry in `agent_workflows/check_engine.py`:
+    ```python
+    "check.plan-spec-link-missing": RuleSpec(
+        "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
+    ```
 
-- [ ] V-05 validates E-05
+    `TestCheckPlanSpecLinkMissing` test output (6 detector cases + exit-code control + observability):
+    ```
+    python3 -m pytest tests/test_check_engine_from_spec_missing.py -k TestCheckPlanSpecLinkMissing
+    ........                                                                 [100%]
+    8 passed in 6.25s
+    ```
+
+    Terminal directory exclusion: tested by `test_plan_in_executed_dir_exempt` (0 findings) vs `test_pending_plan_missing_edge` (1 finding).
+
+    Known-id-set construction in `known_spec_ids`:
+    ```python
+    def known_spec_ids(repo_root: Path) -> Set[str]:
+        repo_root = Path(repo_root)
+        known: Set[str] = set()
+        for _p, _t in _iter_spec_records(repo_root):
+            m = _ITEM_ID_RE.search(_t)
+            if m:
+                known.add(m.group(1))
+        try:
+            from agent_workflows import specs as _specs
+            known |= _specs._existing_spec_ids(repo_root)
+        except Exception:
+            pass
+        return known
+    ```
+    In `check_plan_spec_link_missing`:
+    ```python
+    known = known_spec_ids(repo_root)
+    if not known:
+        return drift
+    ```
+    Confirmed: UNION of `_iter_spec_records` and `_existing_spec_ids`, returning `[]` if empty.
+
+    Observability proof with NOTHING STAGED on working tree:
+    `python3 -m agent_workflows check plans` executed with clean git index:
+    ```
+    Issue: check.plan-spec-link-missing
+    - .aw/records/plans/pending
+      1. 20260928-1zknu7-01-0ykozn-flag-a-plan-that-cites-a-spec-id6-without-carrying-from-spec.ipd.md
+      Fix: inspect .aw/records/plans/pending/20260928-1zknu7-01-0ykozn-flag-a-plan-that-cites-a-spec-id6-without-carrying-from-spec.ipd.md frontmatter and schema conformity.
+    ```
+    Re-derived pending-plan finding count: 34 plans currently in `pending/`.
+    Re-derived plan list:
+    `0ykozn` (c4gd2h), `g1w58u` (kw5y2s), `cpi6p3` (25kzda), `eikajx` (2vev8j, 4sd62s), `q32qeg` (25kzda), `ghna7l` (pqsx96), `hyuos6` (7ckptx), `zhqt51` (25kzda), `4taj2e` (uonrjg), `kcc71f` (25kzda), `o6ksmw` (25kzda), `eby93o` (2lcqno), `00pirb` (25kzda), `zdgc6t` (25kzda), `x2dwu5` (25kzda), `pi3bk8` (25kzda), `wzhe4n` (25kzda), `e834yk` (25kzda), `kqb9ok` (z7nbn1), `zojfn6` (r07vma), `6uhtko` (25kzda), `yu47nf` (25kzda), `d7jpo3` (25kzda), `it6tpj` (uonrjg), `ynhst5` (r07vma), `qhcojn` (4w7d6s, 2lcqno), `mt54wr` (25kzda), `jw6cm3` (2lcqno), `zyj8io` (25kzda), `e9ekuj` (7ckptx), `uuh71v` (7ckptx), `xx5b7a` (kw5y2s, 25kzda), `entv1d` (25kzda), `oi0sv9` (c4gd2h).
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: PASTE the dispatch diff hunk showing the call inside its own `try`/`except Exception: pass` beside `check_spec_criteria_uncovered`, with the neighbouring call unchanged, and CONFIRM it passes `include_untracked=include_untracked` as its neighbours do. PROVE single dispatch, not double: run `aw check plans` and then `aw check all` against a repository holding one violating PENDING plan, and paste output showing EXACTLY ONE finding for that plan in each (a duplicated finding means the rule is reached twice by the fan-out). PROVE fail isolation by temporarily monkeypatching the detector to raise and showing the surrounding sweep still completes and reports its other findings; paste that transcript.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified single dispatch in check_content and fail isolation when detector raises.
+    Dispatch diff hunk in `agent_workflows/check_engine.py`:
+    ```diff
+    @@ -1260,6 +1261,19 @@ def check_content(
+             except Exception:
+                 pass
+    +        # IPD 0ykozn (backlog 1zknu7): flag a pending plan citing a known spec without carrying From-Spec.
+    +        # Advisory (`info`), so it cannot move any exit code. Reached by BOTH `aw check plans` and the
+    +        # `aw check all` fan-out exactly once. Scoped to `pending/` so a terminal record is never
+    +        # examined. Fail-isolated in its own try/except matching every neighbour here.
+    +        try:
+    +            drift.extend(
+    +                check_plan_spec_link_missing(
+    +                    repo_root,
+    +                    include_untracked=include_untracked,
+    +                )
+    +            )
+    +        except Exception:
+    +            pass
+    ```
+    Confirmed: neighbouring `check_spec_criteria_uncovered` call is unchanged, and `include_untracked=include_untracked` is passed.
 
-- [ ] V-06 validates E-06
+    Single dispatch and fail isolation proof:
+    ```
+    check_type("plans") finding count: 1
+    check_types(["all"]) finding count: 1
+    Fail isolation: check_content completed with 1 findings even when detector raised RuntimeError
+    ```
+    And unit tests in `TestDispatchAndFailIsolation`:
+    ```
+    python3 -m pytest tests/test_check_engine_from_spec_missing.py -k TestDispatchAndFailIsolation
+    ...                                                                      [100%]
+    3 passed in 2.18s
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: PASTE `rg -n "no .--from-spec. setter" AGENTS.md` returning NOTHING. PASTE the replacement sentence and confirm it names both `--from-spec` and `check.plan-spec-link-missing` and contains no em or en dash. PASTE `git diff AGENTS.md` and CONFIRM every changed line number is greater than the `<!-- /aw:block -->` marker's line (125 at review); any change inside a managed block FAILS this item, since `engine.py` would overwrite it in managed repos. CONFIRM the `## Deferred` carrier `71wqol` (the `From-Backlog` setter defects from F-11 and F-13) still resolves, by pasting `aw find backlog 71wqol` or the resolved path; that item was FILED AT REVIEW rather than left for execution, because `check.ipd-uncarried-obligation` is `error`-severity and requires a bare resolvable id6, so a prose promise in a `- Carrier:` row is itself a check failure. ALSO carry the whole-plan no-regression evidence here, as the last item before commit: PASTE the BARE `python3 -m pytest` output including its `N passed` summary line and reconcile the total against the pre-change baseline recorded at execution, explaining any difference against a named E-item rather than waving it through; PASTE the targeted test files' output; PASTE `aw check`; PASTE `aw ipd lint` reporting conforming; PASTE `aw sanitize --agent`; and PASTE `git diff --cached --name-only` immediately before committing, which must list only paths drawn from the seven `- Scope-Paths:` entries and nothing else.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified AGENTS.md documentation update, backlog carrier 71wqol, and bare pytest suite pass.
+    `rg -n "no .--from-spec. setter" AGENTS.md`: returns nothing (exit code 1).
+
+    Replacement sentence in `AGENTS.md`:
+    "Set the field with `aw ipd set ... --from-spec <spec-id6>`, or let the advisory `check.plan-spec-link-missing` rule nudge when a pending plan cites a spec without carrying the link."
+    Confirmed: names `--from-spec` and `check.plan-spec-link-missing`, contains no em or en dash.
+
+    `git diff AGENTS.md`:
+    ```diff
+    diff --git a/AGENTS.md b/AGENTS.md
+    index caf08cab..a5882dcf 100644
+    --- a/AGENTS.md
+    +++ b/AGENTS.md
+    @@ -218,8 +218,9 @@ spec, so a spec-to-plan handoff is machine-readable in exactly the shape a backl
+     already is. Both fields are recognized but optional, so no existing artifact is retroactively invalid.
+     `aw check` flags a `From-Spec` value that resolves to no spec (`check.from-spec-dangling`), the same
+     error severity its `From-Backlog` twin carries, because a spec is an equally valid release-gate carrier
+    -and a link pointing at nothing is a broken handoff claim either way. Note there is no
+    -`--from-spec` setter yet: write the field when authoring the plan.
+    +and a link pointing at nothing is a broken handoff claim either way. Set the field
+    +with `aw ipd set ... --from-spec <spec-id6>`, or let the advisory `check.plan-spec-link-missing`
+    +rule nudge when a pending plan cites a spec without carrying the link.
+    ```
+    Confirmed: lines 218-226 > line 125 (`<!-- /aw:block -->`), outside all managed blocks.
+
+    Backlog item `71wqol` carrier check:
+    ```
+    python3 -m agent_workflows find backlog 71wqol
+    ◕  open          71wqol  .aw/records/backlog/open/20260928-71wqol-01-71wqol-releases-metadata-writers-empty-value-duplication.backlog.md
+    ```
+
+    Bare test suite execution:
+    Pre-change baseline: `3246 passed, 2 skipped, 3 warnings in 132.05s`
+    Post-change execution: `3275 passed, 2 skipped, 3 warnings in 60.53s`
+    Reconciliation: +29 passed tests (28 added in `tests/test_check_engine_from_spec_missing.py` for E-01 through E-05, and 1 added in `tests/test_check_engine_spec_criteria.py` for E-04).
+
+    Targeted test files:
+    ```
+    python3 -m pytest tests/test_check_engine_from_spec_missing.py tests/test_check_engine_spec_criteria.py
+    ...........................................                              [100%]
+    43 passed in 2.82s
+    ```
+
+    `aw check`: completed with no new errors introduced.
+
+    `aw ipd lint`:
+    ```
+    python3 -m agent_workflows ipd lint .aw/records/plans/pending/20260928-1zknu7-01-0ykozn-flag-a-plan-that-cites-a-spec-id6-without-carrying-from-spec.ipd.md
+    -    ◕  approved     plan        20260928-1zknu7-01-0ykozn  [medium]  conforming
+    ```
+
+    `aw sanitize --agent`:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+
+    `git diff --cached --name-only` verified prior to commit contains only declared paths.
+  - Result: pass
 
 ## Approval and execution gate
 
