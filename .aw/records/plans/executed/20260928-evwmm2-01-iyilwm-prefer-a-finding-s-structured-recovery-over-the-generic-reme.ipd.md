@@ -6,7 +6,7 @@
 - Scope: Make `doctor.build_remediation`'s generic fallback prefer the finding's own `recovery` before falling through to the `inspect ... frontmatter` default, so the if-chain becomes an override rather than the only source, and guard the property with tests. This is one behavioral change in one function. It deliberately does NOT restructure the if-chain, does NOT touch `check_engine.py`, and does NOT fix the `cli._run_check` recovery overwrite (carried by `2cnvh1`).
 - Scope-Paths: agent_workflows/doctor.py, tests/test_doctor.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: iyilwm
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: iyilwm verified (set evwmm2, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-601..PR-609 all FIXED
 
