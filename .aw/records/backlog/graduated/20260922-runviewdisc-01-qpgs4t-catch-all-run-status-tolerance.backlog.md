@@ -1,11 +1,13 @@
 - Id: qpgs4t
-- Status: open
+- Status: graduated
+- Graduated-To: runviewdisc
 - Set: runviewdisc
 - Priority: medium
 - Work-Kind: chore
 - Summary: Seven terminal-failure run statuses are still reported as artifact-status discrepancies by aw runs
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053053Z-3200037: p5yaqw
 - 2026-09-22 created (aw backlog): Filed from IPD vdabn5 execution (F-10). Each needs its own measured argument about which declared statuses are legitimate for it.
 
 Measured at HEAD 49848926 by calling `artifact_audit.audit_artifact` against a synthetic repo with a plan at `- Status: approved` in `pending/`.
