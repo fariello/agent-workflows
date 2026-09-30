@@ -6,7 +6,7 @@
 - Scope: Add ONE advisory (`info`) PENDING-SCOPED `aw check` rule that flags a PENDING plan whose `- Concern:`/`- Scope:`/`- Scope-Paths:` front matter cites a resolvable spec id6 while it carries no `- From-Spec:`, and ship the `--from-spec` setter that AGENTS.md records as missing so the rule's recovery instruction is executable. Reuse the existing `_ITEM_FROM_SPEC_RE`, `_iter_spec_records`, `_iter_plan_ipds`, `ipd_schema.source_link_is_absent`, and `releases.set_priority_line`'s insertion shape; add no second spec-id scanner and no second field writer. EXCLUDES any backfill of the 81 executed and 6 superseded plans that would trip the naive whole-tree form of this rule (see `## Deferred`, and F-03: AGENTS.md forbids rewriting what an executed plan records); EXCLUDES requirement-level tracking (backlog `vy20et`, and `f1sw71` which is `done`); EXCLUDES the 19 id-less specs that are unreachable by any id6 join (backlog `sklbrt`); EXCLUDES any change to `check.from-spec-dangling`, `check.spec-criteria-uncovered`, or their severities.
 - Scope-Paths: agent_workflows/check_engine.py, agent_workflows/releases.py, agent_workflows/status_set.py, agent_workflows/cli.py, tests/test_check_engine_from_spec_missing.py, tests/test_check_engine_spec_criteria.py, AGENTS.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 0ykozn
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 0ykozn verified (set 1zknu7, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): plan-review: APPROVE WITH REVISIONS APPLIED; PR-501 (BLOCKER) through PR-509 all fixed
 
