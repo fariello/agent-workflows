@@ -182,7 +182,7 @@ def plan_set_assign(
     id6s: List[str],
     set_id: str,
     date_str: str,
-    start_order: int = 0,
+    start_order: Optional[int] = None,
     *,
     repo_root: Optional[Path] = None,
 ) -> Tuple[Optional[List[RenamePlan]], Optional[str]]:
@@ -206,11 +206,17 @@ def plan_set_assign(
                 None,
                 f"file '{src.name}' is not a conformant research document: {parse_err}",
             )
+        # IPD ao0v8x: Preserve each record's existing filename Order when start_order is None.
+        # Resolves from the filename NN (parsed.order) rather than frontmatter order: because
+        # these mutating verbs leave frontmatter order: stale (defect f7a2kc), so reading
+        # frontmatter first would preserve a value previously corrupted by this verb.
         new_name = R.format_name(
             R.ResearchName(
                 date=date_str,
                 set_id=set_k,
-                order=f"{start_order + i:02d}",
+                order=f"{start_order + i:02d}"
+                if start_order is not None
+                else parsed.order,
                 id6=parsed.id6,
                 slug=parsed.slug,
                 model=parsed.model,
@@ -411,7 +417,7 @@ def run_set_assign(args: argparse.Namespace) -> "MutationResult":
         ids,
         getattr(args, "set", "") or "",
         date_str,
-        start_order=start if start is not None else 0,
+        start_order=start,
         repo_root=repo_root,
     )
     if err:

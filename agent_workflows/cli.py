@@ -3038,7 +3038,13 @@ def _build_parser() -> argparse.ArgumentParser:
         "--set", dest="set", required=True, help="Set id."
     )
     p_research_setassign.add_argument(
-        "--order", type=int, default=None, help="Starting NN (default 0)."
+        "--order",
+        type=int,
+        default=None,
+        help=(
+            "Starting NN. Omit it to PRESERVE each record's existing Order; "
+            "give it to renumber the named records sequentially from NN."
+        ),
     )
     p_research_setassign.add_argument(
         "--date", default=None, help="Set date (YYYYMMDD; default today)."
