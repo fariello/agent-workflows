@@ -6,7 +6,7 @@
 - Scope: Replace the hardcoded `2` with `run_cli.EXIT_CORRUPTED_LEDGER` at the three corruption sites in `run_cli._run_show`, `run_cli._run_evidence`, and `run_cli._run_verify_ledger` (both the returned code and the `exit_code` key in the machine payload); correct the module docstring's exit-code contract, which currently states the wrong code; and add behavioral coverage asserting the code and payload for every affected verb. Out of scope: the unrelated `except Exception` fallbacks, `EXIT_NOT_A_LEDGER`, and the spec-5.6-versus-`run_cli` table reconciliation.
 - Scope-Paths: agent_workflows/run_cli.py, tests/test_run_cli_corruption_exit.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: fuuw94
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: fuuw94 verified (set z63xoh, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-701..PR-705 all FIXED
 
@@ -37,41 +37,41 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: use the module's own constant at the three divergent sites
 
-- [ ] E-01 In `run_cli._run_show`, replace the `store.LedgerCorruption` handler's hardcoded `"exit_code": 2` and `return 2` with `EXIT_CORRUPTED_LEDGER`. Change ONLY the `LedgerCorruption` branch; leave the adjacent `except Exception` branch (which is a read failure, not corruption) at `EXIT_INVALID_INVOCATION`, and keep `"corrupted": True` in the payload.
+- [x] E-01 In `run_cli._run_show`, replace the `store.LedgerCorruption` handler's hardcoded `"exit_code": 2` and `return 2` with `EXIT_CORRUPTED_LEDGER`. Change ONLY the `LedgerCorruption` branch; leave the adjacent `except Exception` branch (which is a read failure, not corruption) at `EXIT_INVALID_INVOCATION`, and keep `"corrupted": True` in the payload.
   - Depends on: none
   - Expected outcome: `aw runs show <corrupt-ledger>` exits 5, and its `--agent` payload carries `"exit_code": 5` alongside the unchanged `"corrupted": true`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `run_cli._run_evidence`, make the same single-branch change to its `store.LedgerCorruption` handler. This is a byte-identical duplicate of the `_run_show` handler (F-2), so it must move in the same pass or the asymmetry merely relocates.
+- [x] E-02 In `run_cli._run_evidence`, make the same single-branch change to its `store.LedgerCorruption` handler. This is a byte-identical duplicate of the `_run_show` handler (F-2), so it must move in the same pass or the asymmetry merely relocates.
   - Depends on: E-01
   - Expected outcome: `aw runs evidence <corrupt-ledger>` exits 5 with `"exit_code": 5` and `"corrupted": true`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 In `run_cli._run_verify_ledger`, replace the `not chain_ver.clean` branch's `"exit_code": 2` and `return 2` with `EXIT_CORRUPTED_LEDGER`. Note this site reports corruption through a `verify_chain(raise_on_error=False)` RETURN VALUE rather than a raised `LedgerCorruption`, so it is not found by grepping for the exception (F-2); its `chain_clean: False` payload key is unchanged.
+- [x] E-03 In `run_cli._run_verify_ledger`, replace the `not chain_ver.clean` branch's `"exit_code": 2` and `return 2` with `EXIT_CORRUPTED_LEDGER`. Note this site reports corruption through a `verify_chain(raise_on_error=False)` RETURN VALUE rather than a raised `LedgerCorruption`, so it is not found by grepping for the exception (F-2); its `chain_clean: False` payload key is unchanged.
   - Depends on: E-02
   - Expected outcome: `aw runs verify-ledger <corrupt-ledger>` exits 5, and its payload keeps `"chain_clean": false` while `"exit_code"` becomes 5.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: correct the stated contract and pin the behavior
 
-- [ ] E-04 Correct the module docstring's `Contract:` block in `run_cli.py`, whose exit-code line currently reads `exit 2 = invocation error, missing ledger, or corrupted hash chain / unparseable JSON`. Corruption is no longer part of that line; state exit 5 for the corrupted hash chain / unparseable JSON class, matching `EXIT_CORRUPTED_LEDGER`'s own definition comment. Leave the `WRONG-FORMAT IS NOT CORRUPTION` paragraph and the exit-7 line untouched: `e6b9kt` settled that distinction and this plan does not revisit it.
+- [x] E-04 Correct the module docstring's `Contract:` block in `run_cli.py`, whose exit-code line currently reads `exit 2 = invocation error, missing ledger, or corrupted hash chain / unparseable JSON`. Corruption is no longer part of that line; state exit 5 for the corrupted hash chain / unparseable JSON class, matching `EXIT_CORRUPTED_LEDGER`'s own definition comment. Leave the `WRONG-FORMAT IS NOT CORRUPTION` paragraph and the exit-7 line untouched: `e6b9kt` settled that distinction and this plan does not revisit it.
 
   WRITE THE EXIT-2 LINE AS A RESIDUAL, NOT AS A NEW ENUMERATION. The block lists only exits 0, 1, 2 and 7 (measured at review: exits 3, 4, 5 and 6 appear nowhere in it, F-8), so deleting the corruption clause leaves `exit 2 = invocation error, missing ledger` reading as if those were the only two causes when `EXIT_INVALID_INVOCATION` is also the module's generic read-failure code, including at the `except Exception` branches E-01/E-02 deliberately leave alone. State exit 2 as covering a bad invocation, a missing ledger, and an unexpected read failure, then add the exit-5 line beside it. DO NOT expand the block into a full eight-code table: the module's constant definitions are the authority for that, adding four lines the plan measured nothing about would be gold-plating, and the sole defect here is one clause asserting the wrong code.
   - Depends on: E-03
   - Expected outcome: the docstring no longer contradicts the `EXIT_CORRUPTED_LEDGER` definition in the same module; a reader who trusts the docstring gets the shipped code; and the surviving exit-2 line does not imply that a read failure now exits 5.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Add `tests/test_run_cli_corruption_exit.py`: build a real two-record ledger with `run_ledger_store.RunLedgerStore.append`, tamper `prev_hash` on the second record to break the chain, then drive each verb as a subprocess and assert on the exit code and the machine payload. Table-drive it over the verbs so all six corruption-reporting readers are one row each: `show`, `evidence`, `verify-ledger` (the three this plan fixes) AND `status`, `next`, `resume` (the three that already return 5, included as the control that proves the fix converges on existing behavior rather than inventing a new code). Assert the payload keys too (`corrupted: true` for `show`/`evidence`, `chain_clean: false` for `verify-ledger`), so the machine-readable signal is pinned whichever code is chosen later. Build the ledger in a `tempfile` directory, never under the checkout's gitignored `.aw/records/runs/`.
+- [x] E-05 Add `tests/test_run_cli_corruption_exit.py`: build a real two-record ledger with `run_ledger_store.RunLedgerStore.append`, tamper `prev_hash` on the second record to break the chain, then drive each verb as a subprocess and assert on the exit code and the machine payload. Table-drive it over the verbs so all six corruption-reporting readers are one row each: `show`, `evidence`, `verify-ledger` (the three this plan fixes) AND `status`, `next`, `resume` (the three that already return 5, included as the control that proves the fix converges on existing behavior rather than inventing a new code). Assert the payload keys too (`corrupted: true` for `show`/`evidence`, `chain_clean: false` for `verify-ledger`), so the machine-readable signal is pinned whichever code is chosen later. Build the ledger in a `tempfile` directory, never under the checkout's gitignored `.aw/records/runs/`.
 
   THE LEDGER FIXTURE IS THE HARD PART OF THIS E-ITEM, AND A NAIVE `append` CALL IS REFUSED BY SCHEMA VALIDATION, so budget for it rather than discovering it mid-execution. `RunLedgerStore.append` validates every record and raises `SchemaInvalidRecordError`; review needed five attempts to land a valid pair. The measured minimum (F-09) is: a `common` mapping of `schema_version=2` (an INT, not the string `"1"`), `actor` drawn from `run_ledger_schema.ROLES` (for example `coordinator`; an arbitrary label such as `test` is refused `RL-E014`), `parent`, and `run_id` matching `run_ledger_schema._RUN_ID_RE` (`^run-[0-9a-f]{8,}$`, so `r1` is refused `RL-E015`); a seq-0 `kind="run"` additionally carrying `repo`, `workflow_digest`, `requirement_digest` and `head`; and a seq-1 record of a kind in `RECORD_KINDS` (`item`, `requirement` and `note` are NOT in it) whose required fields come from `run_ledger_schema._KIND_FIELDS`, for which the measured-working choice is `kind="step_attempt"` with `step`, `state` and `attempt` (an int). DERIVE the role and the kind's field list from those module symbols rather than transcribing review's literals, so the fixture tracks the schema instead of pinning a snapshot of it. Confirm the fixture is genuinely broken before asserting anything on it: `verify_chain(raise_on_error=False).clean` must be True BEFORE the tamper and False after, which is what distinguishes a real chain break from a fixture that merely fails to build.
   - Depends on: E-04
   - Expected outcome: a new test module that fails on the pre-fix tree for exactly the three rows in scope and passes on the post-fix tree for all six, built on a fixture whose chain is proven clean-then-broken rather than assumed.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Add one more row to the same new test file asserting the MISSING-ledger case is NOT affected: `aw runs show /nonexistent/ledger.jsonl` must still exit `EXIT_INVALID_INVOCATION` (2). This is the separating assertion that gives the fix its meaning, because the whole point is that 2 and 5 become distinguishable; without it the suite would still pass if someone made every failure return 5.
+- [x] E-06 Add one more row to the same new test file asserting the MISSING-ledger case is NOT affected: `aw runs show /nonexistent/ledger.jsonl` must still exit `EXIT_INVALID_INVOCATION` (2). This is the separating assertion that gives the fix its meaning, because the whole point is that 2 and 5 become distinguishable; without it the suite would still pass if someone made every failure return 5.
   - Depends on: E-05
   - Expected outcome: the test file pins BOTH sides of the contract: corrupt ledger -> 5, absent ledger -> 2.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -151,35 +151,149 @@ A DELIBERATE BEHAVIOR CHANGE, STATED PLAINLY. This alters a machine-visible cont
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the observed exit code and full `--agent` payload for `aw runs show <tampered-ledger>`. Must show exit `5` and a payload containing BOTH `"exit_code":5` and `"corrupted":true`. Also paste the adjacent `except Exception` branch source to show it still reads `EXIT_INVALID_INVOCATION`, proving only the corruption branch moved.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Details:
+    Observed command output on tampered ledger:
+    ```sh
+    $ python3 -m agent_workflows runs show /tmp/.../corrupted_run.ledger.jsonl --agent
+    {"corrupted":true,"error":"error: ledger corruption detected: Broken hash chain at seq 1: expected prev_hash '5cdcea55a7b3357c267c494c8465a394a82118abefae6c22d8c5f27bd61224b9', got '0000000000000000000000000000000000000000000000000000000000000000'","exit_code":5,"ok":false}
+    Exit code: 5
+    ```
 
-- [ ] V-02 validates E-02
+    Adjacent `except Exception` branch in `_run_show` (agent_workflows/run_cli.py lines 528-534) showing it is preserved and returns exit 2 (EXIT_INVALID_INVOCATION):
+    ```python
+    except Exception as exc:
+        err_msg = f"error: failed to read ledger: {exc}"
+        if machine:
+            _emit_machine(args, {"ok": False, "error": err_msg, "exit_code": 2})
+        else:
+            print(err_msg)
+        return 2
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the observed exit code and `--agent` payload for `aw runs evidence <tampered-ledger>`: exit `5`, payload with `"exit_code":5` and `"corrupted":true`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Details:
+    Observed command output on tampered ledger:
+    ```sh
+    $ python3 -m agent_workflows runs evidence /tmp/.../corrupted_run.ledger.jsonl --agent
+    {"corrupted":true,"error":"error: ledger corruption detected: Broken hash chain at seq 1: expected prev_hash 'b43ef4c402bd3f471be96b67e234d3ed8ad2801797e7ec6a9b322e3a9ad42099', got '0000000000000000000000000000000000000000000000000000000000000000'","exit_code":5,"ok":false}
+    Exit code: 5
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the observed exit code and `--agent` payload for `aw runs verify-ledger <tampered-ledger>`: exit `5`, payload with `"exit_code":5` AND the unchanged `"chain_clean":false`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Details:
+    Observed command output on tampered ledger:
+    ```sh
+    $ python3 -m agent_workflows runs verify-ledger /tmp/.../corrupted_run.ledger.jsonl --agent
+    {"chain_clean":false,"error":"Broken chain at seq 1: prev_hash mismatch (expected '6fe7fe097bac2dd37848a11d07c2022fc8cf9f7316e1f3d6acec6eb6224d3ee9', got '0000000000000000000000000000000000000000000000000000000000000000')","exit_code":5,"ok":false,"records_checked":1}
+    Exit code: 5
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the corrected `Contract:` block from the `run_cli` module docstring beside the `EXIT_CORRUPTED_LEDGER: int = 5` definition line, showing the two now agree and that the exit-7 wrong-format line is unchanged. Additionally paste `grep -n "corrupted hash chain" agent_workflows/run_cli.py` showing that phrase is no longer on the exit-2 line. THEN CONFIRM THE SURVIVING EXIT-2 LINE IS NOT ITSELF NOW FALSE (F-8): it must still cover the unexpected-read-failure case, because `EXIT_INVALID_INVOCATION` is what the `except Exception` branches E-01/E-02 preserve return, and a line reading only `invocation error, missing ledger` would imply those branches exit 5. Also confirm the block was NOT expanded into a full eight-code table; only the corruption clause moves and the exit-5 line is added.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Details:
+    Corrected `Contract:` block (agent_workflows/run_cli.py lines 21-29):
+    ```python
+    Contract:
+      * exit 0 = success / clean / complete;
+        exit 1 = incomplete / invalid evidence / unsatisfied requirements;
+        exit 2 = invocation error, missing ledger, or unexpected read failure;
+        exit 5 = corrupted hash chain / unparseable JSON;
+        exit 7 = the target is healthy JSONL of some OTHER format, i.e. not a ledger at all.
+      * WRONG-FORMAT IS NOT CORRUPTION. A file that carries none of the ledger envelope fields gets a
+        'not a run ledger file' verdict (exit 7), never a corruption verdict: reporting healthy driver
+        event logs as corrupt accused good data of damage it did not have (`e6b9kt`).
+    ```
 
-- [ ] V-05 validates E-05
+    Constant definition (agent_workflows/run_cli.py lines 55-63):
+    ```python
+    EXIT_CORRUPTED_LEDGER: int = 5  # hash chain / schema / torn-line corruption
+    EXIT_OPERATIONAL: int = (
+        6  # operational failure (lock contention, illegal transition, unauthorized)
+    )
+    EXIT_INVALID_INVOCATION: int = 2  # bad invocation / missing ledger
+    EXIT_NOT_A_LEDGER: int = (
+        7  # the target is healthy JSONL but is NOT a ledger (wrong format, NOT corruption)
+    )
+    ```
+
+    Grep output confirming "corrupted hash chain" is on the exit-5 line and no longer on the exit-2 line:
+    ```sh
+    $ grep -n "corrupted hash chain" agent_workflows/run_cli.py
+    25:    exit 5 = corrupted hash chain / unparseable JSON;
+    ```
+    Surviving exit-2 line correctly states: `exit 2 = invocation error, missing ledger, or unexpected read failure;` covering unexpected read failure (from the preserved `except Exception` branches). The block was not expanded into an eight-code table.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: FIVE pasted artifacts. (1) The PRE-fix run of `python3 -m pytest tests/test_run_cli_corruption_exit.py` showing the three in-scope rows FAILING with observed `2 != 5`, which proves the test detects the bug, AND the three control rows (`status`, `next`, `resume`) PASSING in that same pre-fix run, which is what makes them controls rather than decoration. (2) The POST-fix run of the same file showing `N passed`. (3) YOUR OWN re-derived clean-tree bare baseline, then the post-change bare `python3 -m pytest`, with the delta stated against your baseline and accounted for by the tests E-05/E-06 add; do not state a delta against any number transcribed from this plan (F-10). (4) THE FIXTURE'S OWN INTEGRITY PROOF: `verify_chain(raise_on_error=False).clean` True BEFORE the tamper and False after, with the `ChainBreak` reason, so the record shows a real chain break rather than a fixture that merely failed to build (F-9). (5) `git status --short` empty, proving the pre-fix comparison was staged in memory and no tracked file was mutated. A test that was never observed red does not satisfy this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Details:
+    (1) PRE-fix run of pytest tests/test_run_cli_corruption_exit.py before applying edits to run_cli.py:
+    ```
+    FAILED tests/test_run_cli_corruption_exit.py::test_corrupted_ledger_readers[evidence]
+    FAILED tests/test_run_cli_corruption_exit.py::test_corrupted_ledger_readers[show]
+    FAILED tests/test_run_cli_corruption_exit.py::test_corrupted_ledger_readers[verify-ledger]
+    3 failed, 5 passed in 2.68s
+    ```
+    Observed assertions: `AssertionError: Verb 'aw runs show' exited 2, expected 5` (`assert 2 == 5`), `AssertionError: Verb 'aw runs evidence' exited 2, expected 5` (`assert 2 == 5`), `AssertionError: Verb 'aw runs verify-ledger' exited 2, expected 5` (`assert 2 == 5`). Control rows `status`, `next`, `resume`, along with `missing_ledger` and `fixture_integrity`, passed in this pre-fix run.
 
-- [ ] V-06 validates E-06
+    (2) POST-fix run of pytest tests/test_run_cli_corruption_exit.py:
+    ```
+    8 passed in 2.47s
+    ```
+
+    (3) Suite baseline and post-change comparison:
+    Re-derived clean-tree bare baseline:
+    ```
+    3312 passed, 2 skipped, 3 warnings in 213.80s (0:03:33)
+    ```
+    Post-change bare pytest run:
+    ```
+    3320 passed, 2 skipped, 3 warnings in 144.53s (0:02:24)
+    ```
+    Delta: exactly +8 passed, fully accounted for by the 8 tests added in tests/test_run_cli_corruption_exit.py (6 reader cases + 1 missing ledger case + 1 fixture integrity test).
+
+    (4) Fixture integrity proof:
+    `verify_chain(raise_on_error=False).clean` is True before tamper and False after tamper:
+    ```
+    Before tamper clean: True
+    After tamper clean: False ChainBreak(seq=1, expected='a42952e22ca2a14e23af60d2a290356e38f3bb86a224a8684e78e04c95445a60', actual='0000000000000000000000000000000000000000000000000000000000000000', reason='prev_hash mismatch')
+    ```
+    Also pinned by `test_fixture_integrity` passing.
+
+    (5) Clean tree verification before modifying tracked files:
+    `git status --short` was empty at turn start; `tests/test_run_cli_corruption_exit.py` was created and run against untracked/unmodified `agent_workflows/run_cli.py`, capturing the red state without mutating tracked files.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: TWO pasted artifacts. (1) The observed exit code of `aw runs show /nonexistent/ledger.jsonl`, which must still be `2`, proving exit 2 still means invalid invocation and that the two classes are now distinguishable. (2) A single measurement sweep over all six corruption-reporting readers (`show`, `evidence`, `verify-ledger`, `status`, `next`, `resume`) against one tampered ledger, showing ALL SIX at exit `5`: pre-fix this sweep read `2,2,2,5,5,5` (F-3) and post-fix it must read `5,5,5,5,5,5`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Details:
+    (1) Observed command output for nonexistent ledger:
+    ```sh
+    $ python3 -m agent_workflows runs show /nonexistent/ledger.jsonl --agent
+    {"error":"ledger file not found for target '/nonexistent/ledger.jsonl'","exit_code":2,"ok":false}
+    Exit code: 2
+    ```
+
+    (2) Sweep over all six corruption-reporting readers against one tampered ledger:
+    ```
+    SWEEP RESULTS:
+      show: exit 5
+      evidence: exit 5
+      verify-ledger: exit 5
+      status: exit 5
+      next: exit 5
+      resume: exit 5
+    SWEEP CODES: [5, 5, 5, 5, 5, 5]
+    ```
+    Post-fix reads 5, 5, 5, 5, 5, 5 (converged from pre-fix 2, 2, 2, 5, 5, 5).
+  - Result: pass
 
 ## Approval and execution gate
 
