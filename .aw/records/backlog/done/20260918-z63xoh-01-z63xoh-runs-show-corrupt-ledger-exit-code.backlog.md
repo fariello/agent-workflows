@@ -1,5 +1,5 @@
 - Id: z63xoh
-- Status: graduated
+- Status: done
 - Graduated-To: z63xoh
 - Blocks-Release: next
 - Set: z63xoh
@@ -8,6 +8,7 @@
 - Summary: runs show exits 2 on ledger corruption where every other site exits 5 (EXIT_CORRUPTED_LEDGER)
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): closed by aw oc run: IPD fuuw94 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-z63xoh-01-fuuw94-return-exit-corrupted-ledger-from-the-three-run-readers-that.ipd.md); evidence .aw/records/plans/executed/20260928-z63xoh-01-fuuw94-return-exit-corrupted-ledger-from-the-three-run-readers-that.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: fuuw94
 - 2026-09-18 created (aw backlog): runs show exits 2 on ledger corruption where every other site exits 5 (EXIT_CORRUPTED_LEDGER)
 
