@@ -1,5 +1,5 @@
 - Id: b0dcyp
-- Status: graduated
+- Status: done
 - Graduated-To: relexempt
 - Blocks-Release: next
 - Set: b0dcyp
@@ -8,6 +8,7 @@
 - Summary: There is no way to record a bug's release-gate EXEMPTION: a literal Blocks-Release dash trades one error rule for another
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): closed by aw oc run: IPD ghna7l executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-relexempt-01-ghna7l-make-a-release-gate-exemption-expressible-as-a-typed-atteste.ipd.md); evidence .aw/records/plans/executed/20260928-relexempt-01-ghna7l-make-a-release-gate-exemption-expressible-as-a-typed-atteste.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: ghna7l
 - 2026-09-18 created (aw backlog): There is no way to record a bug's release-gate EXEMPTION: a literal Blocks-Release dash trades one error rule for another
 

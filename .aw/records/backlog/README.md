@@ -55,6 +55,8 @@ attention `Gate-Kind`/`Gate-Ref` bullets), then a prose body:
 - Gate-Kind: <artifact|decision|todo|issue|date|external>   # iff blocked
 - Gate-Ref: <ref>                                            # iff blocked
 - Graduated-To: <setid>[, <setid>...]                        # optional, multi-valued
+- Release-Exempt-Kind: <artifact|decision|todo|issue|date|external>  # optional exemption pair
+- Release-Exempt-Ref: <ref>                                          # optional exemption pair
 
 ## Workflow history
 - YYYY-MM-DD <event> (<actor>): <one line>
@@ -70,7 +72,7 @@ and the `- Gate-Kind:` bullet right above). The old spelling is still READ, so a
 long-lived branch keeps parsing, but only `- Work-Kind:` is written. Unlike plans and specs, where the
 field is optional, backlog REQUIRES it: an item with no value is a `backlog.kind-invalid` error.
 
-Choosing `bug` also sets a RELEASE GATE: a live `bug` item must carry `- Blocks-Release:`, because we do not
+Choosing `bug` also sets a RELEASE GATE: a live `bug` item must carry `- Blocks-Release:` (or record a typed exemption via `- Release-Exempt-Kind:` and `- Release-Exempt-Ref:`), because we do not
 ship known bugs. The rule, what counts as a bug (including when a slow-but-correct path does), and its two
 limits are stated in `AGENTS.md` under "Every live bug gates the next release"; read it there rather than
 here, so the policy has one home.

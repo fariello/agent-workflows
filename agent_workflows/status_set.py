@@ -609,6 +609,18 @@ def validate_transition_allowed(
     """
     norm_status = normalize_target_status(target_status, rec.record_type)
     valid_statuses = TYPE_STATUSES.get(rec.record_type, set())
+
+    # relexempt ghna7l E-05: validate release exemption flags
+    _rel_exempt_kind = getattr(args, "release_exempt_kind", None)
+    _rel_exempt_ref = getattr(args, "release_exempt_ref", None)
+    if _rel_exempt_kind is not None or _rel_exempt_ref is not None:
+        from agent_workflows import backlog as _backlog
+
+        _exempt_err = _backlog.validate_release_exempt_flags(
+            "aw set", _rel_exempt_kind, _rel_exempt_ref
+        )
+        if _exempt_err:
+            return False, _exempt_err
     # resstatus Order 01 (5e3nj2) E-09: research-specific validation
     if rec.record_type == "research":
         if (
@@ -1056,6 +1068,27 @@ def apply_status_change(
         tmp_text = _releases.set_blocks_release_line(tmp_text, br)
         new_lines = tmp_text.splitlines()
 
+    # relexempt ghna7l E-05: release exemption write, beside Blocks-Release above.
+    rel_exempt_kind = getattr(args, "release_exempt_kind", None)
+    rel_exempt_ref = getattr(args, "release_exempt_ref", None)
+    if rel_exempt_kind is not None or rel_exempt_ref is not None:
+        from agent_workflows import backlog as _backlog
+
+        tmp_text = "\n".join(new_lines)
+        if rel_exempt_kind == "-":
+            tmp_text = _backlog.set_release_exempt_kind_line(tmp_text, "-")
+            tmp_text = _backlog.set_release_exempt_ref_line(tmp_text, "-")
+        else:
+            if rel_exempt_ref is not None:
+                tmp_text = _backlog.set_release_exempt_ref_line(
+                    tmp_text, rel_exempt_ref
+                )
+            if rel_exempt_kind is not None:
+                tmp_text = _backlog.set_release_exempt_kind_line(
+                    tmp_text, rel_exempt_kind
+                )
+        new_lines = tmp_text.splitlines()
+
     # From-Backlog write (bklggrad ku93tn): the same hoisted, status-branch-independent shape as the
     # Blocks-Release write above, so `aw ipd set --from-backlog <id6|->` persists even on a no-op
     # (same-status) transition. Funnels through the single shared `releases.set_from_backlog_line`
@@ -1221,12 +1254,20 @@ def apply_status_change(
             r"(?m)^- Blocks-Release:[ \t]*(\S+)[ \t]*$", _current_text
         )
         _existing_br = _existing_m.group(1) if _existing_m else None
+        _parsed_item = _backlog.parse_item(_current_text)
+        _is_exempt = bool(
+            _parsed_item.release_exempt_kind
+            and _parsed_item.release_exempt_ref
+            and _parsed_item.release_exempt_kind != "-"
+            and _parsed_item.release_exempt_ref != "-"
+        )
         _gate_default, _gate_notice = _backlog.decide_gate_default(
             repo_root,
             kind=_effective_kind,
             status=norm_status,
             explicit_blocks_release=None,
             existing_blocks_release=_existing_br,
+            is_exempt=_is_exempt,
         )
         if _gate_default is not None:
             tmp_text = _releases.set_blocks_release_line(_current_text, _gate_default)
@@ -1759,6 +1800,19 @@ def run_set_command(
                 "fail",
                 f"aw set: unresolvable spec id '{fs_val}' (does not resolve to an existing spec)",
             )
+            return 2
+
+    # relexempt ghna7l E-05: validate release exemption flags BEFORE resolving or writing anything
+    _rel_exempt_kind = getattr(args, "release_exempt_kind", None)
+    _rel_exempt_ref = getattr(args, "release_exempt_ref", None)
+    if _rel_exempt_kind is not None or _rel_exempt_ref is not None:
+        from agent_workflows import backlog as _backlog
+
+        _exempt_err = _backlog.validate_release_exempt_flags(
+            "aw set", _rel_exempt_kind, _rel_exempt_ref
+        )
+        if _exempt_err:
+            term.status("fail", _exempt_err)
             return 2
 
     scoped_type_canonical = canonical_type(scoped_type)
