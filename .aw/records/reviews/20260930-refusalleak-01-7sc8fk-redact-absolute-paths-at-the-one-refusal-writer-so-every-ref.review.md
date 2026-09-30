@@ -1,0 +1,113 @@
+# Review findings: plan 7sc8fk
+
+- Subject-Id: 7sc8fk
+- Subject-Type: ipd
+- Reviewed-At: 2026-09-30
+- Reviewer: opencode/its_direct/pt3-claude-opus-5-1m-us
+- Verdict: APPROVE WITH REVISIONS APPLIED
+- Findings: PR-901 (MEDIUM, fixed), PR-902 (MEDIUM, fixed), PR-903 (MEDIUM, fixed), PR-904 (LOW, fixed), PR-905 (LOW, fixed), PR-906 (LOW, fixed)
+
+## Round 1
+
+Reviewed at HEAD `9c003d0b` in an isolated review lane. The plan file was committed and byte-identical to
+the lane input (`diff` reports no difference), so no pre-review snapshot was needed. Structural preflight
+`aw ipd lint --phase author --agent` reported `conforming` (exit 0, zero findings) BEFORE semantic review;
+`--phase review-finalize --agent` reports `conforming` after revision. The plan is `- Kind: child`, so the
+`IPD-S407` orchestrator row check does not apply.
+
+THIS IS AN UNUSUALLY WELL EVIDENCED PLAN AND ITS CENTRAL CORRECTION OF ITS OWN BACKLOG ITEM IS RIGHT. I did
+not take the prototype findings on trust; I re-ran both. Applying the naive one-line writer-side redaction
+alone reproduces F-04's THREE failures with the exact node ids the plan names
+(`test_oc_runipd_sweep_lane_turn_refusal` plus `TestSpecReviewDispatchE07::test_case3_...` and
+`test_case4_...`). Adding the quantifier widening reproduces F-06 exactly: one remaining failure, the
+spec-review pair gone. The slash-command mangling of F-05 reproduces verbatim (`/spec-review`,
+`/plan-review`, `/exec-set`, `/whatnext` all become `<path>` under the shipped pattern, and
+`/spec-review .aw/records/specs/to-review/x.spec.md` becomes `<path> .aw/records/...`), and the redaction
+coverage of F-06 holds across all five path shapes. F-07's gitignore claim, F-09's 37 call sites
+(34/2/1 across the three files), F-10's idempotence, F-13's disjoint pending-plan regions, and F-15's
+two-spec grep all verified. The ordering argument (widen, THEN redact) is the plan's best contribution and
+it survives scrutiny: the two spec-review failures are a genuine operator-facing regression, not test churn,
+and the plan is right that the correct response is to fix the pattern rather than relax the tests.
+
+WHAT REVIEW FOUND WERE THREE GAPS OF MEASUREMENT. None changes the production fix, and that is worth saying
+plainly: E-01 and E-02 as specified are correct and I would ship them. What was wrong was the plan's account
+of WHAT MUST BE CHECKED, and in a plan whose entire subject is "did the leak actually stop", an incomplete
+verification list is the defect that matters.
+
+FIRST, AND THE ONE THAT WOULD HAVE LET A LEAK THROUGH A GREEN RUN: there are FIVE reader surfaces, not four.
+`run_viewer.step_issue_reasons` appends `f"refused: {refusal.reason}"` to its reason list, and the
+`_issue_records` builder writes that list to `rec["issue_reasons"]` in the SAME JSON record that carries
+`rec["refusal"]`. So the refusal reason reaches `aw runs --json`, `aw runs --agent --issues` and the human
+`--issues` view by a SECOND, independent key. The production fix covers it for free, because that function
+reads through the shared `step_refusal` -> `refusal_of_item` reader, which is precisely the argument for
+fixing the one writer. But V-02 and V-04 as written would have been satisfied by asserting on
+`rec["refusal"]`, and an executor doing exactly that gets a green test and a JSON record still containing the
+home path one key over. This is the plan's own F-4-defect-class shape (a surface nobody enumerated), found in
+the enumeration meant to prevent it.
+
+SECOND, the widening has a cost the plan did not measure: `/home`, `/tmp`, `/root` and `/var` are redacted
+to `<path>` by the shipped pattern and pass through UNCHANGED under the widened one. I judge this the correct
+trade and left the design alone, because a bare root identifies no user, no machine and no repository, while
+`/spec-review` being destroyed is a live regression. But V-01's coverage probe asks the executor to state
+that "no input lost its redaction", which is false as an unqualified claim, and the four losses would have
+surfaced later as an unexplained coverage regression in a pattern whose whole justification is that it costs
+nothing. Recorded in the pattern's own comment so the next person to widen or narrow it knows which losses
+were deliberate.
+
+THIRD, the cross-tree refusal loses a distinction its own sentence depends on. Its reason exists to say that
+the operator tree and the sweep lane DIFFER, and after the change both render as `<path>`, so it now asserts
+a difference while displaying none. I checked how bad this is rather than reporting it as a blocker: a REAL
+sweep lane lives under `.aw/`, so the marker arm preserves its tail (`.aw/worktrees/review-sweep-run-<id>`,
+or `.aw/runs/run-x/review_sweep_lane`), and only the bare operator repository root collapses, which is
+exactly the string the leak rule targets. The full pair also survives in `events.jsonl`. So the loss is
+bounded and acceptable, and it is now disclosed. What needed fixing was V-05's requirement to confirm that
+"every single difference is a path becoming `<path>` or a marker-relative tail and that no ... sentence
+structure changed", which has one expected exception it did not name.
+
+ONE STALE MEASUREMENT, of the class the workflow's re-derivation convention exists for. F-14 records the
+suite baseline as `3246 passed, 2 skipped` at HEAD `7dfefc82`; re-measured at review on a later HEAD of the
+same branch it is `3278 passed, 2 skipped`, both green. The count moved by 32 because merged lanes add tests
+(my own preceding review in this sweep added some). Three places instructed the executor to compare against
+`3246`, which would have read a drifted total as a regression. Corrected to re-measure at execution HEAD and
+compare failing NODE IDS, which is what the plan already does correctly in F-04's spirit.
+
+WHAT I CHECKED AND FOUND SOUND, recorded so a later reader knows it was examined. F-11's reasoning on `code`
+is correct: `render_run_summary_table` dispatches on `refusal.code == GATE_ANSWER_NEEDS_HUMAN_CODE` and no
+code constant contains a path, so redacting it would risk the dispatch for no benefit. F-12's decision to
+leave `Refusal.from_obj` alone is right and honestly bounded, and its disclosure that a frozen run still
+renders old text is correct. F-07's separation of the copied surface from gitignored durable state is the
+load-bearing distinction in the whole plan and it holds (`git check-ignore -v` resolves to
+`.aw/.gitignore:14:records/runs/`). OQ-03's reasoning that the one retargeted assertion encodes the defect
+is correct, and its insistence that the `events.jsonl` assertions stay untouched is what keeps the change a
+redaction rather than a data loss. I additionally probed a hazard class the plan does not discuss and found
+it clean: nine non-path slash-bearing strings a refusal legitimately carries (a `https://` URL, a git ref
+`main..aw/lane/03ie04_attempt2`, a bare branch, a date `2026/09/30`, a repo-relative path, a test node id,
+`and/or`, `50/50`, a `--dist=` flag) are unchanged under BOTH patterns, because the `(?<![\w/])` lookbehind
+requires the slash to follow a non-word character. That is now F-06c, and it is the evidence that makes the
+writer-side application safe beyond the single slash-command case E-01 fixes.
+
+NO SPEC AMENDMENT IS OWED and I verified the claim rather than accepting it: `redact` appears in exactly two
+specs, and `25kzda`'s single hit is a host-capability bullet about worker evidence capture that names neither
+`record_refusal` nor the Diagnostics block.
+
+## Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-901 | MEDIUM | UNDER-SCOPE | E. Testing / D. Anti-regression (a leak surviving a green verification) | `run_viewer.step_issue_reasons` body: `reasons.append(f"refused: {refusal.reason}")`; the `_issue_records` builder sets `rec["issue_reasons"] = reasons` AND `rec["refusal"] = rf.to_dict()` on the same record; that builder feeds `aw runs --json`, `aw runs --agent --issues` and the human `--issues` view, its docstring recording it was extracted so those "cannot report different issue sets" | **F-08 enumerates FOUR reader surfaces and there are FIVE**, the missed one carrying the refusal reason into the SAME JSON record by a second key. The production fix covers it (it reads through the shared `step_refusal` -> `refusal_of_item` reader), so nothing is broken; what fails is the EVIDENCE. V-02 and V-04 as written are satisfied by asserting on `rec["refusal"]` alone, so an executor gets a green red-then-green demonstration while `rec["issue_reasons"][0]` still reads `refused: ... /home/<user>/...`. In a plan whose subject is whether the leak stopped, an incomplete surface list is the defect that matters | C:Low; U:Low; S:Medium; F:Low; Overall:Medium | FIXED | F-08 corrected from four to five surfaces. New F-08b records the second-key route, the three dispatch sites, and the fact that no production change is needed for it (which is itself the strongest evidence for the one-writer design). E-04 now names all five explicitly and requires `run_viewer.py` shown unmodified throughout. V-02 and V-04 both require the fifth surface, V-04 stating that a four-of-five red demonstration is insufficient precisely because the fifth is the one an authoring pass already missed. A fifth silent-failure mode added to the gate. The four-surface count corrected in OQ-01, the scope check, and the proposed-changes list |
+| PR-902 | MEDIUM | IN-SCOPE | Evidence accuracy (an unmeasured coverage loss) | Side-by-side probe of the shipped and widened patterns: `/home`, `/tmp`, `/root`, `/var` all render `<path>` under the shipped pattern and pass through UNCHANGED under the widened one; `/Users/<user>/proj` renders `<path>` under both | **F-06 claims the widening "costs no redaction coverage at all" and V-01 asks the executor to state that "no input lost its redaction"; four bare system roots do lose it.** The judgement (accept the loss) is correct, because a bare root identifies no user, machine or repository while `/spec-review` being destroyed is a live regression. But the unqualified claim is false, and a later reader checking the pattern would find four uncovered cases with nothing recording that they were considered rather than missed. That matters more than usual here because the entire argument for E-01 is that it is free | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | New F-06b records all four measured losses, the two-segment control that still redacts, and the reason the trade is right. E-01 must now record the deliberate losses IN THE PATTERN'S COMMENT, so the next person widening or narrowing it inherits the reasoning. V-01 now requires the losses pasted SEPARATELY and stated as intended, and says a coverage probe omitting them is incomplete evidence rather than a clean result; its claim is narrowed to "no input in the LEAK CLASS lost its redaction" |
+| PR-903 | MEDIUM | IN-SCOPE | A. Correctness (an information loss the plan reports as loss-free) | Probe after both changes: the cross-tree reason renders `cannot carry operator session 'ses_x' bound to '<path>' into isolated sweep lane '<path>': ...`, two DISTINCT trees as one token. Bounding probes: `/home/<user>/VC/agent-workflows/.aw/worktrees/review-sweep-run-<id>` -> `.aw/worktrees/review-sweep-run-<id>`; `.../.aw/runs/run-x/review_sweep_lane` -> `.aw/runs/run-x/review_sweep_lane`; bare repo root -> `<path>` | **The refusal whose whole purpose is that two trees DIFFER now displays them identically**, so the sentence asserts a difference it cannot show. V-05 requires the executor to confirm that every difference is "a path becoming `<path>` or a marker-relative tail" and that no "sentence structure changed", which has one expected exception it does not name, so the honest report would have had to contradict the plan | C:Low; U:Medium; S:Low; F:Low; Overall:Medium | FIXED | New F-16 records the collapse, measures that the severity is BOUNDED (a real `.aw`-rooted lane keeps its distinguishing tail; only the bare operator root collapses, which is the string the leak rule targets), and notes the full pair survives in `events.jsonl`, which is a further reason E-03 must not weaken those assertions. V-02 now requires the F-16 probe with an explicit statement that this surface is NOT loss-free. V-05 names it as its one expected exception. A sixth silent-failure mode added to the gate. No design change: the loss is accepted and disclosed, not fixed |
+| PR-904 | LOW | IN-SCOPE | G. Plan executability (a stale live-artifact count as a success bar) | BARE `python3 -m pytest` at review: `3278 passed, 2 skipped, 3 warnings`, green, against F-14's authoring measurement of `3246 passed, 2 skipped` at HEAD `7dfefc82`. Both prototypes re-measured consistently (`3 failed, 3275 passed` and `1 failed, 3277 passed`) | **Three places instruct the executor to compare the suite against `3246 passed`**, a count that has already drifted by 32 because every merged lane adds tests. An executor comparing totals would read normal growth as a regression, or worse, would "reconcile" it. The durable facts are that the suite is GREEN before the change and which NODE IDS fail, both of which the plan already uses correctly in F-04's spirit | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | F-14 rewritten to record both measurements, to state that the count is a live population, and to make the property "green before the change" with node-id comparison as the durable bar. F-04 and F-06 restated on their NODE IDS with the totals demoted to corroboration and the review re-measurement added. The Required-tests bullet and V-05 both now require a FRESH baseline captured at execution HEAD rather than any count written in the plan |
+| PR-906 | LOW | IN-SCOPE | A. Correctness (a latent history-order defect, found by adding a record) | `ipd_lifecycle._plan_status_event_groups` over the plan as authored returns `[('2026-09-29', [('draft',...), ('to-review',...)], False)]`, the trailing `False` being `ordered`. The two same-date records sat OLDEST-first, contradicting the newest-first convention the workflow states ("a new record goes directly under the `## Workflow history` heading"). With only two records the parser could not classify direction, so it yielded `ordered=False` and `check_lifecycle_transitions` skipped validation entirely | **The plan's history was in the wrong order, and the defect was INVISIBLE until a third record was added.** Adding the review record made the block's direction classifiable, at which point the parser read the stream as `to-review -> draft` and `aw check plans` reported `check.lifecycle-transition-invalid` (a backwards transition). So a correct edit surfaced a pre-existing fault; the alternative reading, that the review introduced it, is wrong and was checked by re-running the parser on the stashed original | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | The two 2026-09-29 records reordered into newest-first (`to-review` above `draft`), which is the convention the workflow already states and which the surrounding plans follow. Re-measured: the group is now `ordered=True` with a valid `draft -> to-review` stream, `aw check plans` reports zero findings against this plan, and the repository-wide `check.lifecycle-transition-invalid` count is back to its pre-review 3 (all on other plans). No content was changed, only record order |
+| PR-905 | LOW | UNDER-SCOPE | G. Plan executability (execution contract) | Plan gate as authored: a bare "do not move this plan to `executed/` until lint conforms" naming no verb and no owner | **The gate's lifecycle instruction names no mechanism and no owner**, so an executor under a managed runner cannot tell whether to call `aw ipd finalize` itself (it must not) and a hand-runner is not told which verb performs the transition. The workflow names an unconditional finalize instruction and a hand-rolled `git mv` as findings in their own right | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Replaced with a post-gate lifecycle paragraph carrying the `AW-LIFECYCLE-ROLE-001` conditional (runner owns finalize in a managed lane; the executor calls `aw ipd finalize` for a hand run) and an explicit prohibition on a hand-rolled `git mv`, noting it would bypass the scope reconciliation this plan's fence depends on. The pre-existing scope-fence wording was checked and left alone: it already says an out-of-scope edit is to be MADE and then JUSTIFIED with a `--scope-reason` and carries no stop directive, which is correct per the 2026-09-01 ruling |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-1 | PR-902: the widening stops redacting four bare system roots. Accept the loss, or narrow E-01 to preserve them? | ACCEPT the loss, record it in the pattern comment, and require it pasted as evidence | (a) Add an alternation preserving single-segment matches for a known root set (`/home`, `/tmp`, `/root`, `/var`, `/etc`, `/usr`); (b) keep the shipped pattern and reword every slash-command remedy instead; (c) accept silently without recording | Option (a) is the tempting one and I rejected it: it reintroduces exactly the coarseness the plan is narrowing, needs a maintained root list that will rot, and buys nothing, because a bare `/home` names no user, machine or repository and so is not the leak class `AGENTS.md`'s rule describes. Option (b) is what OQ-02 already refuses on measured grounds (it is the per-call-site discipline OQ-01 rejects, forever). Option (c) is what the plan did, and PR-902 exists because the next person to touch this pattern would find four uncovered cases with no record that they were weighed | yes |
+| D-2 | PR-903: the cross-tree refusal collapses two distinct trees into one token. Fix it, or disclose it? | DISCLOSE it, having measured the bound; change no design | (a) Exempt the cross-tree arm from writer-side redaction; (b) render a stable distinguishing suffix per distinct path (`<path:1>`, `<path:2>`); (c) rewrite the producer to emit repository-relative trees; (d) report it as loss-free, as the plan did | Option (a) punches a hole in the one-writer property the whole plan rests on, for the single producer most likely to embed a home path. Option (b) is real machinery (a per-call-site path registry) inside a display fix, and would change every refusal's text for one arm's benefit. Option (c) is the 37-producer route the plan and its item both reject on stated grounds. What decided it against all three is the MEASUREMENT: a real sweep lane lives under `.aw/` and keeps its tail, so only the bare operator root collapses, and that root is precisely the string being removed on purpose; the full pair also survives in `events.jsonl`. Option (d) is rejected because an unqualified "nothing else changed" claim in V-05 would have forced the executor to either miss this or contradict the plan | yes |
+| D-3 | PR-901: should the fifth surface be verified only, or does it need a production change? | VERIFICATION ONLY; no production change | (a) Redact in `step_issue_reasons` as well; (b) leave the evidence list at four and note the fifth in prose | Read the code: `step_issue_reasons` calls `step_refusal`, whose docstring records that it goes through `render_stream.refusal_of_item` "rather than re-deriving the key", so it consumes the already-redacted stored text and needs nothing. Option (a) would put the policy in a second place, which is the exact drift F-10's convergence argument and the plan's own OQ-01 reject. Option (b) fails the plan's purpose: the surface is reachable by a key no required evidence inspects, so a prose note would leave a green verification over a live leak | yes |
+| D-4 | PR-904: the baseline count drifted 32. Update the number, or change the comparison? | CHANGE THE COMPARISON to failing node ids with a freshly measured baseline; record both counts as history | (a) Just update `3246` to `3278`; (b) leave it and let the executor notice | Option (a) buys one lane's worth of accuracy and then rots identically, and this plan will be executed after further merges. The count is a live-artifact population, which the workflow's re-derivation convention addresses directly: state the property (green before the change) and re-derive at execution. Node ids are also the stronger comparison for this specific plan, since its two prototypes are DEFINED by which three and which one test fail | yes |
+| D-6 | PR-906: adding the review record made `aw check plans` report a backwards lifecycle transition. Did the review introduce it, or expose it? | EXPOSED a pre-existing defect; fix by reordering the two existing records, and record that the review did not cause it | (a) Assume the review caused it and drop or reword the review record to make the check pass; (b) leave the finding and report it as pre-existing without fixing | Determined by measurement rather than by assumption: `git stash`ed my edits and re-ran `_plan_status_event_groups` on the ORIGINAL file, which returns the two records oldest-first with `ordered=False`, so the wrong order was already there and validation was merely SKIPPED because two records give the parser no direction to classify. Option (a) is the dangerous one, because making a check pass by removing true information is the deletion-by-compliance failure this very plan's `Refusal` docstring warns about. Option (b) leaves a plan that fails `aw check` for a one-line ordering fix that the workflow's own newest-first rule already prescribes | yes |
+| D-5 | Does the writer-side redaction mangle any non-path slash-bearing string a real refusal carries (URLs, git refs, dates, test node ids)? | NO, verified over nine shapes under both patterns; recorded as F-06c | (a) Assume the `_redact_absolute_paths` docstring's "safe to print a branch name verbatim" claim transfers to the writer without checking | The docstring's claim was made for DRIVER PROSE read back by two sibling readers; this plan applies the same function to every refusal message in the product, which is a wider input set, so the claim needed re-establishing rather than inheriting. Measured: all nine unchanged under both patterns, because `(?<![\w/])` requires the slash to follow a non-word character. Recorded as a finding and as an E-01 comment obligation so a later narrowing of the lookbehind is visibly dangerous | yes |
