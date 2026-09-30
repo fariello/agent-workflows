@@ -6,7 +6,7 @@
 - Scope: Record the decision RULE (an ordering of three options with the criteria for choosing between them) in the canonical home for test-authoring conventions, point at it from `CONTRIBUTING.md` without restating it, and apply it to the ONE genuinely location-dependent case that exists in the tree today. Does NOT add a new pytest marker (there is no test needing one, and building one now is the hypothetical-need generality P6 forbids), does NOT edit the managed `AGENTS.md` block or `engine.py`, and does NOT revisit the code-pinning half of P16.
 - Scope-Paths: GUIDING_PRINCIPLES.md, CONTRIBUTING.md, tests/test_ipd_set_plan.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: kmzude
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: kmzude verified (set testlocality, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): plan-review: revisions applied; PR-A01..PR-A04 fixed
 
