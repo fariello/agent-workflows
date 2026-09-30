@@ -1,5 +1,5 @@
 - Id: mh60nd
-- Status: graduated
+- Status: done
 - Graduated-To: mh60nd
 - Set: mh60nd
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Wire the drivers to run_evidence.aggregate_run_exit so a needs_input run returns spec 25kzda 5.6's exit 3 instead of 1
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): closed by aw oc run: IPD q32qeg executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-mh60nd-01-q32qeg-wire-both-drivers-run-exit-code-to-run-evidence-aggregate-ru.ipd.md); evidence .aw/records/plans/executed/20260928-mh60nd-01-q32qeg-wire-both-drivers-run-exit-code-to-run-evidence-aggregate-ru.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: q32qeg
 - 2026-09-18 created (aw backlog): Wire the drivers to run_evidence.aggregate_run_exit so a needs_input run returns spec 25kzda 5.6's exit 3 instead of 1
 

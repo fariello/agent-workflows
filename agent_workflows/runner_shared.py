@@ -25896,11 +25896,10 @@ AGY_IMPORTS_FROM_OC_RUNIPD = frozenset()
 #: `runner_shutdown.KNOWN_ITEM_STATUSES` already admits, so an R3 ledger-coherence check and a
 #: resume are both unaffected.
 #:
-#: NOT WIRED TO `run_evidence.aggregate_run_exit`. That aggregator already maps `needs_input` to
-#: spec `25kzda` 5.6's exit 3 and already outranks a plain item failure, but neither driver calls it
-#: (measured: zero call sites), so reaching 3 means wiring the drivers to it - a change to EVERY
-#: run's exit classification and deliberately outside zz5yxq's fence (its OQ-02). The bar fixed here
-#: therefore emits 1, which is what corrects the measured silent 0.
+#: WIRED TO `run_evidence.aggregate_run_exit` via `runner_shared.run_exit_code` (mh60nd/q32qeg).
+#: That aggregator maps `needs_input` to spec `25kzda` 5.6's exit 3 and outranks a plain item failure.
+#: Both drivers call `run_exit_code`, which projects the queue through `aggregated_run_items`, so
+#: a human-gated run now emits 3 rather than 1.
 NEEDS_INPUT_TOKEN = "needs_input"
 
 #: The queue-entry key carrying :data:`NEEDS_INPUT_TOKEN`'s fact. Named separately from the token so
@@ -26102,6 +26101,91 @@ def exit_code_statuses(queue: Sequence[Mapping[str, Any]]) -> list[str]:
         else:
             projected.append(str(status))
     return projected
+
+
+def aggregated_run_items(
+    queue: Sequence[Mapping[str, Any]], *, stopped: bool
+) -> tuple[Any, ...]:
+    """Project queue entries onto run_evidence.AggregatedItem (mh60nd/q32qeg E-01).
+
+    The mapping clauses are strictly ORDERED to enforce spec c4gd2h A1/A4:
+    1. Malformed entry: AggregatedItem(item_id="<malformed>", contribution_hint=CONTRIBUTION_FAILURE, needs_input=False)
+    2. status == "queued" under stopped=True: benign_skip=True, needs_input=False
+    3. status == "queued" under stopped=False: falls through to general rule below
+    4. item_reached_success(entry) is True: verified=True
+    5. Gate predicate (bool(entry.get(NEEDS_INPUT_KEY)) and not item_reached_success(entry)): needs_input=True
+    6. Failure default: contribution_hint=CONTRIBUTION_FAILURE
+    """
+    from agent_workflows import run_evidence
+
+    items: list[run_evidence.AggregatedItem] = []
+    for entry in queue:
+        # Clause 1: A non-mapping entry
+        if not isinstance(entry, Mapping):
+            items.append(
+                run_evidence.AggregatedItem(
+                    item_id="<malformed>",
+                    contribution_hint=run_evidence.CONTRIBUTION_FAILURE,
+                    needs_input=False,
+                )
+            )
+            continue
+
+        status = entry.get("status")
+        item_id = str(entry.get("id6") or entry.get("id") or "")
+
+        # Clause 2: status == "queued" under stopped=True becomes benign_skip=True
+        # and needs_input is NOT set (suppressed), even if the entry carries the flag.
+        if status == "queued" and stopped:
+            items.append(
+                run_evidence.AggregatedItem(
+                    item_id=item_id,
+                    outcome=str(status),
+                    benign_skip=True,
+                    needs_input=False,
+                )
+            )
+        # Clause 3: status == "queued" under stopped=False takes the general rule below
+        # (falls through to clauses 4, 5, 6).
+        elif item_reached_success(entry):
+            # Clause 4: Met its action's success bar
+            items.append(
+                run_evidence.AggregatedItem(
+                    item_id=item_id,
+                    outcome=str(status),
+                    verified=True,
+                    needs_input=False,
+                )
+            )
+        elif bool(entry.get(NEEDS_INPUT_KEY)) and not item_reached_success(entry):
+            # Clause 5: Human-gated item
+            items.append(
+                run_evidence.AggregatedItem(
+                    item_id=item_id,
+                    outcome=str(status),
+                    needs_input=True,
+                )
+            )
+        else:
+            # Clause 6: Everything else contributes plain failure
+            items.append(
+                run_evidence.AggregatedItem(
+                    item_id=item_id,
+                    outcome=str(status),
+                    contribution_hint=run_evidence.CONTRIBUTION_FAILURE,
+                    needs_input=False,
+                )
+            )
+    return tuple(items)
+
+
+def run_exit_code(queue: Sequence[Mapping[str, Any]], *, stopped: bool) -> int:
+    """Return the spec 25kzda 5.6 aggregate run exit code for a queue (mh60nd/q32qeg E-02)."""
+    from agent_workflows import run_evidence
+
+    return run_evidence.aggregate_run_exit(
+        aggregated_run_items(queue, stopped=stopped)
+    ).exit_code
 
 
 def compute_scope_reconciliation(

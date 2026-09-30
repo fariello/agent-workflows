@@ -305,6 +305,12 @@ from agent_workflows.runner_shared import (
     exit_code_statuses as exit_code_statuses,
 )
 from agent_workflows.runner_shared import (
+    aggregated_run_items as aggregated_run_items,
+)
+from agent_workflows.runner_shared import (
+    run_exit_code as run_exit_code,
+)
+from agent_workflows.runner_shared import (
     EXIT_SUCCESS_TOKEN as EXIT_SUCCESS_TOKEN,
 )
 from agent_workflows.runner_shared import (
@@ -3472,9 +3478,13 @@ def run_queue(
     # at the OpenCode site and the call-site classification at `runner_shared.SUCCESS_STATES`: a
     # `reviewed`-but-unapproved EXECUTE item is never dispatched and must not exit 0, while a
     # `reviewed` REVIEW item still must. No status is rewritten and `queued` passes through verbatim.
-    return runner_stop.deliberate_stop_exit_code(
-        runner_shared.exit_code_statuses(state["queue"]),
-        success_states={runner_shared.EXIT_SUCCESS_TOKEN},
+    #
+    # mh60nd/q32qeg: wire the exit code to spec 25kzda 5.6's run aggregate via `runner_shared.run_exit_code`.
+    # `run_evidence.aggregate_run_exit` now decides the run's exit code from the higher-fidelity
+    # `aggregated_run_items` projection, preserving the deliberate-stop concession and action-aware
+    # success bar while making exit 3 reachable when a human gate stopped the run.
+    return runner_shared.run_exit_code(
+        state["queue"],
         stopped=wind_down is not None or stopped_at_checkpoint,
     )
 

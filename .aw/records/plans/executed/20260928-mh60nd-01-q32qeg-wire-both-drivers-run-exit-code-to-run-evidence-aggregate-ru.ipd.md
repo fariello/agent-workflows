@@ -6,7 +6,7 @@
 - Scope: Replace each driver's single exit-code return with a call to `run_evidence.aggregate_run_exit`, fed by ONE new shared projection in `runner_shared` that maps a queue entry onto an `AggregatedItem`. The projection carries the deliberate-stop concession and the needs-approval discrimination that `exit_code_statuses` and `item_reached_success` already decide, so no third reader of the success bar is created. It deliberately does NOT edit `_CLASSIFICATION_EXITS`, does NOT edit `aggregate_run_exit`, does NOT retire `exit_code_statuses` or `deliberate_stop_exit_code`, does NOT bind spec 5.6's exit 4 or 2 (neither is representable in driver state, F-09), and does NOT reconcile the two conflicting exit tables spec 5.6 records as an open conflict.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_runner_shared.py, tests/test_run_exit_aggregate.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: q32qeg
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: q32qeg verified (set mh60nd, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-801..PR-806 all FIXED; Readiness go-pending-approval
 
@@ -36,7 +36,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the shared projection from a queue entry onto an AggregatedItem
 
-- [ ] E-01 Add a function `aggregated_run_items(queue, *, stopped)` to `agent_workflows/runner_shared.py`, returning a tuple of `run_evidence.AggregatedItem`, one per queue entry, in queue order. Site it DIRECTLY BELOW `exit_code_statuses` (locate that function by symbol, not by offset), because it is the same projection at a higher fidelity and the two must be read together.
+- [x] E-01 Add a function `aggregated_run_items(queue, *, stopped)` to `agent_workflows/runner_shared.py`, returning a tuple of `run_evidence.AggregatedItem`, one per queue entry, in queue order. Site it DIRECTLY BELOW `exit_code_statuses` (locate that function by symbol, not by offset), because it is the same projection at a higher fidelity and the two must be read together.
 
   THE MAPPING, stated exactly, since every clause is load-bearing and each is measured in the Findings. THE CLAUSES ARE ORDERED AND THE ORDER IS PART OF THE CONTRACT (PR-801): write them as a single `if`/`elif` chain in exactly this sequence, because clause 2 must WIN over clause 5 and a flat "set each field independently" reading is measurably wrong (F-14).
 
@@ -52,9 +52,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   WRITE NOTHING. This is a projection exactly as `exit_code_statuses` is: it returns fresh objects and never touches `entry["status"]`. Manufacturing a success by rewriting a status is what spec `c4gd2h` R22 forbids.
   - Depends on: none
   - Expected outcome: `aggregated_run_items` exists in `runner_shared`, is pure, mutates no entry, and returns one `AggregatedItem` per entry with the six-clause ORDERED mapping above. Specifically: a `queued` entry under `stopped=True` carries `benign_skip=True` and `needs_input=False` even when the entry's own flag is True, and a non-mapping entry carries `needs_input=False`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add a function `run_exit_code(queue, *, stopped)` to `agent_workflows/runner_shared.py`, directly below E-01's, returning the `int` exit code by calling `run_evidence.aggregate_run_exit(aggregated_run_items(queue, stopped=stopped))` and returning its `.exit_code`.
+- [x] E-02 Add a function `run_exit_code(queue, *, stopped)` to `agent_workflows/runner_shared.py`, directly below E-01's, returning the `int` exit code by calling `run_evidence.aggregate_run_exit(aggregated_run_items(queue, stopped=stopped))` and returning its `.exit_code`.
 
   ONE FUNCTION FOR BOTH HOSTS, which is the point rather than tidiness. The exit decision is question (2) of the classification at `runner_shared.SUCCESS_STATES`, recorded there as "ONE SITE PER HOST". Two hosts computing one verdict from two call sites is precisely the shape that note documents going wrong before (`EXECUTION_SUCCESS_STATES` was "equal but not identical" and needed a tripwire test), so the new decision lands as one shared object both hosts re-export.
 
@@ -63,11 +63,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   RETURN THE CODE, NOT THE `RunAggregation`. The drivers' `run_queue` returns an `int` and this plan does not change that signature. A caller that later wants the reasons can call the aggregator directly, which is exactly why E-01 is a separate public function.
   - Depends on: E-01
   - Expected outcome: `run_exit_code(queue, stopped=...)` returns the spec 5.6 aggregate exit code for a queue, and is the single definition both hosts will call.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: call it from both hosts
 
-- [ ] E-03 In `agent_workflows/oc_runipd.py`, replace the `return runner_stop.deliberate_stop_exit_code(...)` at the END of `run_queue` with `return runner_shared.run_exit_code(state["queue"], stopped=wind_down is not None or stopped_at_checkpoint)`. Locate it by content: it is the final `return` of `run_queue`, immediately after `emit_shutdown_report()`, and it is the ONLY `deliberate_stop_exit_code` call in the file (F-03 measured exactly one per host).
+- [x] E-03 In `agent_workflows/oc_runipd.py`, replace the `return runner_stop.deliberate_stop_exit_code(...)` at the END of `run_queue` with `return runner_shared.run_exit_code(state["queue"], stopped=wind_down is not None or stopped_at_checkpoint)`. Locate it by content: it is the final `return` of `run_queue`, immediately after `emit_shutdown_report()`, and it is the ONLY `deliberate_stop_exit_code` call in the file (F-03 measured exactly one per host).
 
   PRESERVE THE `stopped` EXPRESSION BYTE-FOR-BYTE (`wind_down is not None or stopped_at_checkpoint`). It is the deliberate-stop contract spec `c4gd2h` A1/A4 require and this plan does not re-decide when a stop occurred, only what the aggregate says about one.
 
@@ -76,18 +76,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   ADD `run_exit_code` AND `aggregated_run_items` TO THE HOST'S RE-EXPORT BLOCK, in the `as <same-name>` form the file already uses beside `exit_code_statuses` and `EXIT_SUCCESS_TOKEN`. E-05 asserts identity across hosts, and the re-export is what makes that assertion true.
   - Depends on: E-02
   - Expected outcome: `oc_runipd.run_queue` returns `runner_shared.run_exit_code(...)`; `oc_runipd.run_exit_code is runner_shared.run_exit_code`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Make the identical change in `agent_workflows/agy_runipd.py`: the final `return` of its `run_queue`, the same `stopped` expression, the same comment extension, the same two re-exports.
+- [x] E-04 Make the identical change in `agent_workflows/agy_runipd.py`: the final `return` of its `run_queue`, the same `stopped` expression, the same comment extension, the same two re-exports.
 
   SYMMETRY IS A REQUIREMENT, NOT A PREFERENCE (orchestrator CID-3, cited at both existing call sites). The two comments already say the hosts must not disagree about whether a run succeeded; after this change they must not disagree about HOW it failed either.
   - Depends on: E-02
   - Expected outcome: `agy_runipd.run_queue` returns `runner_shared.run_exit_code(...)`; `agy_runipd.run_exit_code is runner_shared.run_exit_code`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin the behavior and the equivalence
 
-- [ ] E-05 Add a new test file `tests/test_run_exit_aggregate.py` asserting the BEHAVIOR of E-01/E-02. A new file rather than an addition to an existing one, because the subject is new and no shipped file owns it: the five files that touch `deliberate_stop_exit_code` each own a different subject (F-11).
+- [x] E-05 Add a new test file `tests/test_run_exit_aggregate.py` asserting the BEHAVIOR of E-01/E-02. A new file rather than an addition to an existing one, because the subject is new and no shipped file owns it: the five files that touch `deliberate_stop_exit_code` each own a different subject (F-11).
 
   ASSERT, each case as its own test method:
   (a) THE DEFECT IS FIXED: a one-entry queue `{"action": "execute", "status": "reviewed", "needs_input": True}` yields exit 3, and assert against `run_evidence._CLASSIFICATION_EXITS[run_evidence.AGGREGATE_NEEDS_INPUT]` rather than a bare literal `3`, so the test reads the spec transcription instead of duplicating it.
@@ -99,9 +99,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   (f) NOTHING IS MUTATED: deep-copy the queue, call `run_exit_code`, and assert the queue is unchanged (spec `c4gd2h` R22). Include a GATED entry in that queue, so the case whose predicate reads two keys is the one covered.
   - Depends on: E-02
   - Expected outcome: Seven passing tests covering the fix, the spec-review regression guard, precedence, the stop concession, the GATED stop concession (d2), the malformed entry, and non-mutation.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Add an EQUIVALENCE test to the same new file proving the change is a strict, bounded refinement rather than a rewrite of the exit contract: exhaustively sweep `runner_shutdown.KNOWN_ITEM_STATUSES` x actions (`execute`, `review`, `plan`, `skip`, `orchestrate`, `None`) x `needs_input` in (False, True) x `stopped` in (False, True), and for every combination compare the OLD computation (`runner_stop.deliberate_stop_exit_code(runner_shared.exit_code_statuses([entry]), success_states={runner_shared.EXIT_SUCCESS_TOKEN}, stopped=stopped)`) against the new `runner_shared.run_exit_code([entry], stopped=stopped)`.
+- [x] E-06 Add an EQUIVALENCE test to the same new file proving the change is a strict, bounded refinement rather than a rewrite of the exit contract: exhaustively sweep `runner_shutdown.KNOWN_ITEM_STATUSES` x actions (`execute`, `review`, `plan`, `skip`, `orchestrate`, `None`) x `needs_input` in (False, True) x `stopped` in (False, True), and for every combination compare the OLD computation (`runner_stop.deliberate_stop_exit_code(runner_shared.exit_code_statuses([entry]), success_states={runner_shared.EXIT_SUCCESS_TOKEN}, stopped=stopped)`) against the new `runner_shared.run_exit_code([entry], stopped=stopped)`.
 
   ASSERT THE EXACT PROPERTY AUTHORING MEASURED (F-08) AND REVIEW RE-MEASURED, not merely "mostly equal": every differing combination has `needs_input=True`, and every differing combination is exactly `(old, new) == (1, 3)`. Also assert the difference set is NON-EMPTY, so the test cannot pass vacuously if the wiring were reverted.
 
@@ -112,7 +112,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   ALSO ADD THE IDENTITY ASSERTIONS to `tests/test_runner_shared.py`, extending the existing loop that already `assertIs`-checks `exit_code_statuses` and `item_reached_success` across both hosts: add `run_exit_code` and `aggregated_run_items` to that tuple. That is the shipped mechanism for "one definition, two hosts" and reusing it means a future re-fork fails a test instead of drifting. LOCATE IT BY SYMBOL: it is the `for name in (...)` tuple inside `CrossHostSuccessBarEqualityTests.test_cross_host_success_bar_constants_and_tokens`, which today holds `success_states_for_action`, `item_reached_success`, `item_needs_approval`, `exit_code_statuses`. Append to that tuple; do not create a second loop.
   - Depends on: E-03, E-04
   - Expected outcome: A sweep test proving the ONLY behavior change is `1 -> 3` for human-gated items, with the `(0, 3)` rows F-14 measured ABSENT, plus both new symbols pinned identical across hosts.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -228,35 +228,535 @@ N/A with reason, and the reason is precise because a spec IS involved. Spec `25k
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: (a) PASTE the `git diff -- agent_workflows/runner_shared.py` hunk for `aggregated_run_items` in full, and confirm by inspection that all SIX clauses of E-01 are present: the malformed-entry clause, the `queued`-under-`stopped` benign-skip clause, the `queued`-not-stopped fall-through, the `item_reached_success` -> `verified=True` clause, the gate clause, and the failure default. (b) CONFIRM THE GATE PREDICATE CARRIES BOTH CONJUNCTS by quoting the exact line; a predicate reading only `entry.get(NEEDS_INPUT_KEY)` FAILS V-01 outright, because F-05 measures that shape regressing a successful spec review from 0 to 3. (c) CONFIRM the function calls `item_reached_success` rather than re-deriving a success bar, by quoting the call; a re-derived bar fails V-01 (it would be the fourth reader of a bar whose duplication the note at `runner_shared.SUCCESS_STATES` records as having caused a measured incident). (d) CONFIRM NO ENTRY IS MUTATED and no exit-code integer literal appears in the new function, by inspection of the pasted diff. (e) CONFIRM THE CLAUSE ORDER, added at review (PR-801, F-14): quote the branch structure and show that the `queued`-under-`stopped` clause is evaluated BEFORE the gate clause can set `needs_input`, and that it produces `needs_input=False` on an entry whose own flag is True. PROVE IT BY VALUE, not by reading: paste a call on `[{"action":"execute","status":"queued","needs_input":True}]` with `stopped=True` and show the returned `AggregatedItem` has `benign_skip=True` and `needs_input=False`. A mapping that returns `needs_input=True` there FAILS V-01, because F-14 measures that shape turning a correct deliberate stop from exit 0 into exit 3. (f) CONFIRM the malformed-entry clause sets `needs_input=False`, by quoting it.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full git diff inspection confirms all six ordered clauses, dual-conjunct gate, item_reached_success reuse, no mutation/literals, by-value clause order proof, and explicit needs_input=False on malformed.
+    (a) Full `git diff -- agent_workflows/runner_shared.py` hunk for `aggregated_run_items`:
+    ```python
+    def aggregated_run_items(
+        queue: Sequence[Mapping[str, Any]], *, stopped: bool
+    ) -> tuple[Any, ...]:
+        """Project queue entries onto run_evidence.AggregatedItem (mh60nd/q32qeg E-01).
 
-- [ ] V-02 validates E-02
+        The mapping clauses are strictly ORDERED to enforce spec c4gd2h A1/A4:
+        1. Malformed entry: AggregatedItem(item_id="<malformed>", contribution_hint=CONTRIBUTION_FAILURE, needs_input=False)
+        2. status == "queued" under stopped=True: benign_skip=True, needs_input=False
+        3. status == "queued" under stopped=False: falls through to general rule below
+        4. item_reached_success(entry) is True: verified=True
+        5. Gate predicate (bool(entry.get(NEEDS_INPUT_KEY)) and not item_reached_success(entry)): needs_input=True
+        6. Failure default: contribution_hint=CONTRIBUTION_FAILURE
+        """
+        from agent_workflows import run_evidence
+
+        items: list[run_evidence.AggregatedItem] = []
+        for entry in queue:
+            # Clause 1: A non-mapping entry
+            if not isinstance(entry, Mapping):
+                items.append(
+                    run_evidence.AggregatedItem(
+                        item_id="<malformed>",
+                        contribution_hint=run_evidence.CONTRIBUTION_FAILURE,
+                        needs_input=False,
+                    )
+                )
+                continue
+
+            status = entry.get("status")
+            item_id = str(entry.get("id6") or entry.get("id") or "")
+
+            # Clause 2: status == "queued" under stopped=True becomes benign_skip=True
+            # and needs_input is NOT set (suppressed), even if the entry carries the flag.
+            if status == "queued" and stopped:
+                items.append(
+                    run_evidence.AggregatedItem(
+                        item_id=item_id,
+                        outcome=str(status),
+                        benign_skip=True,
+                        needs_input=False,
+                    )
+                )
+            # Clause 3: status == "queued" under stopped=False takes the general rule below
+            # (falls through to clauses 4, 5, 6).
+            elif item_reached_success(entry):
+                # Clause 4: Met its action's success bar
+                items.append(
+                    run_evidence.AggregatedItem(
+                        item_id=item_id,
+                        outcome=str(status),
+                        verified=True,
+                        needs_input=False,
+                    )
+                )
+            elif bool(entry.get(NEEDS_INPUT_KEY)) and not item_reached_success(entry):
+                # Clause 5: Human-gated item
+                items.append(
+                    run_evidence.AggregatedItem(
+                        item_id=item_id,
+                        outcome=str(status),
+                        needs_input=True,
+                    )
+                )
+            else:
+                # Clause 6: Everything else contributes plain failure
+                items.append(
+                    run_evidence.AggregatedItem(
+                        item_id=item_id,
+                        outcome=str(status),
+                        contribution_hint=run_evidence.CONTRIBUTION_FAILURE,
+                        needs_input=False,
+                    )
+                )
+        return tuple(items)
+    ```
+    All six clauses are present as documented above.
+    (b) The gate predicate line carries both conjuncts:
+    `elif bool(entry.get(NEEDS_INPUT_KEY)) and not item_reached_success(entry):`
+    (c) The function calls `item_reached_success`:
+    `elif item_reached_success(entry):`
+    and in the gate predicate:
+    `not item_reached_success(entry)`
+    No success bar is re-derived.
+    (d) By inspection of the diff above, entries are read-only and never mutated. No exit-code integer literal appears in the function.
+    (e) Branch structure confirms Clause 2 (`if status == "queued" and stopped:`) precedes Clause 5 (`elif bool(entry.get(NEEDS_INPUT_KEY)) and not item_reached_success(entry):`), and produces `needs_input=False`.
+    By-value proof:
+    ```
+    >>> from agent_workflows import runner_shared
+    >>> item = runner_shared.aggregated_run_items([{'action': 'execute', 'status': 'queued', 'needs_input': True}], stopped=True)[0]
+    >>> repr(item)
+    "AggregatedItem(item_id='', outcome='queued', verification='', unverifiable=False, verified=False, benign_skip=True, dependency_not_met=False, needs_input=False, contribution_hint=None)"
+    >>> item.benign_skip
+    True
+    >>> item.needs_input
+    False
+    ```
+    (f) Clause 1 sets `needs_input=False` explicitly:
+    ```python
+            if not isinstance(entry, Mapping):
+                items.append(
+                    run_evidence.AggregatedItem(
+                        item_id="<malformed>",
+                        contribution_hint=run_evidence.CONTRIBUTION_FAILURE,
+                        needs_input=False,
+                    )
+                )
+                continue
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: (a) PASTE the `run_exit_code` diff hunk and confirm it returns `aggregate_run_exit(...).exit_code` and contains NO integer literal, so spec 5.6's table stays transcribed only in `run_evidence._CLASSIFICATION_EXITS`. (b) CONFIRM the `run_evidence` import is LAZY (inside the function body), matching `evaluate_unverifiable_admission`'s established precedent in the same module, and confirm no module-level first-party import was added by pasting the file's import block. (c) SHOW the function is a single definition by pasting `rg -n "def run_exit_code" agent_workflows/` and confirming exactly one hit.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Single definition confirmed, lazy import of run_evidence in function body, returns aggregate_run_exit(...).exit_code with no integer literals.
+    (a) `run_exit_code` diff hunk in `agent_workflows/runner_shared.py`:
+    ```python
+    def run_exit_code(queue: Sequence[Mapping[str, Any]], *, stopped: bool) -> int:
+        """Return the spec 25kzda 5.6 aggregate run exit code for a queue (mh60nd/q32qeg E-02)."""
+        from agent_workflows import run_evidence
 
-- [ ] V-03 validates E-03
+        return run_evidence.aggregate_run_exit(
+            aggregated_run_items(queue, stopped=stopped)
+        ).exit_code
+    ```
+    Returns `aggregate_run_exit(...).exit_code` with no integer literal.
+    (b) Import `from agent_workflows import run_evidence` is lazy inside the function body. No module-level first-party import was added to `runner_shared.py`.
+    (c) Single definition confirmed:
+    ```
+    $ rg -n "def run_exit_code" agent_workflows/
+    agent_workflows/runner_shared.py:26182:def run_exit_code(queue: Sequence[Mapping[str, Any]], *, stopped: bool) -> int:
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: (a) PASTE the `oc_runipd` diff hunk and confirm the `stopped` expression is `wind_down is not None or stopped_at_checkpoint`, byte-identical to what it replaced; a changed stop expression fails V-03 because it silently re-decides the spec `c4gd2h` A1/A4 contract this plan does not own. (b) CONFIRM the pre-existing comment block was EXTENDED and not replaced, by showing the `1qxuke`, `foi1b3`, and `zz5yxq` references still present. (c) PASTE `rg -n "deliberate_stop_exit_code" agent_workflows/oc_runipd.py` showing ZERO hits, and paste the re-export lines proving `oc_runipd.run_exit_code is runner_shared.run_exit_code`. (d) PASTE the stale-comment fix required by Spec sync: the note at `runner_shared.NEEDS_INPUT_TOKEN` must no longer claim "NOT WIRED" or "zero call sites" or "therefore emits 1"; quote the updated text. Leaving that paragraph unchanged fails V-03, because it would leave a false measurement in the exact place a future reader checks.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Byte-identical stopped expression, extended comment block preserving all prior citations, zero hits for deliberate_stop_exit_code, re-exports verified by identity, and stale NEEDS_INPUT_TOKEN comment updated.
+    (a) `oc_runipd.py` diff hunk:
+    ```diff
+    @@ -4092,9 +4098,13 @@ def run_queue(
+         # bar its OWN action earns before the shared predicate judges it, so a `reviewed` EXECUTE item
+         # exits 1 while a `reviewed` REVIEW item still exits 0. NO STATUS IS REWRITTEN (spec R22) and
+         # `queued` is passed through verbatim so the deliberate-stop concession above still applies.
+    -    return runner_stop.deliberate_stop_exit_code(
+    -        runner_shared.exit_code_statuses(state["queue"]),
+    -        success_states={runner_shared.EXIT_SUCCESS_TOKEN},
+    +    #
+    +    # mh60nd/q32qeg: wire the exit code to spec 25kzda 5.6's run aggregate via `runner_shared.run_exit_code`.
+    +    # `run_evidence.aggregate_run_exit` now decides the run's exit code from the higher-fidelity
+    +    # `aggregated_run_items` projection, preserving the deliberate-stop concession and action-aware
+    +    # success bar while making exit 3 reachable when a human gate stopped the run.
+    +    return runner_shared.run_exit_code(
+    +        state["queue"],
+             stopped=wind_down is not None or stopped_at_checkpoint,
+         )
+    ```
+    The `stopped` expression `wind_down is not None or stopped_at_checkpoint` is byte-identical.
+    (b) Comment block preserved and extended (`1qxuke`, `foi1b3`, and `zz5yxq` remain present at lines 4068, 4074, 4079).
+    (c) Zero hits for `deliberate_stop_exit_code` in `oc_runipd.py`:
+    ```
+    $ rg -n "deliberate_stop_exit_code" agent_workflows/oc_runipd.py
+    (empty, exit 1)
+    ```
+    Re-export block in `oc_runipd.py`:
+    ```python
+    from agent_workflows.runner_shared import (
+        aggregated_run_items as aggregated_run_items,
+    )
+    from agent_workflows.runner_shared import (
+        run_exit_code as run_exit_code,
+    )
+    ```
+    Identity check:
+    ```
+    >>> from agent_workflows import oc_runipd, runner_shared
+    >>> oc_runipd.run_exit_code is runner_shared.run_exit_code
+    True
+    >>> oc_runipd.aggregated_run_items is runner_shared.aggregated_run_items
+    True
+    ```
+    (d) Stale comment fix at `runner_shared.NEEDS_INPUT_TOKEN`:
+    ```python
+    #: WIRED TO `run_evidence.aggregate_run_exit` via `runner_shared.run_exit_code` (mh60nd/q32qeg).
+    #: That aggregator maps `needs_input` to spec `25kzda` 5.6's exit 3 and outranks a plain item failure.
+    #: Both drivers call `run_exit_code`, which projects the queue through `aggregated_run_items`, so
+    #: a human-gated run now emits 3 rather than 1.
+    NEEDS_INPUT_TOKEN = "needs_input"
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: (a) PASTE the `agy_runipd` diff hunk beside E-03's and confirm the two are SYMMETRIC: the same `stopped` expression, the same call, the same two re-exports. Asymmetry fails V-04, because both existing call-site comments cite orchestrator CID-3 requiring the hosts not to disagree about a run's outcome. (b) PASTE `rg -n "deliberate_stop_exit_code" agent_workflows/agy_runipd.py` showing ZERO hits. (c) CONFIRM this host's comment block was likewise extended rather than replaced, by showing its `1qxuke`/`foi1b3`/`zz5yxq` references still present. (d) PASTE `tests/test_agy_runipd_cli.py` PASSING, since it is the host-specific suite for the file changed here.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Symmetric run_queue return and re-exports, zero deliberate_stop_exit_code hits, comment block preserved/extended, tests/test_agy_runipd_cli.py passing (59 passed).
+    (a) `agy_runipd.py` diff hunk:
+    ```diff
+    @@ -3478,9 +3484,13 @@ def run_queue(
+         # at the OpenCode site and the call-site classification at `runner_shared.SUCCESS_STATES`: a
+         # `reviewed`-but-unapproved EXECUTE item is never dispatched and must not exit 0, while a
+         # `reviewed` REVIEW item still must. No status is rewritten and `queued` passes through verbatim.
+    -    return runner_stop.deliberate_stop_exit_code(
+    -        runner_shared.exit_code_statuses(state["queue"]),
+    -        success_states={runner_shared.EXIT_SUCCESS_TOKEN},
+    +    #
+    +    # mh60nd/q32qeg: wire the exit code to spec 25kzda 5.6's run aggregate via `runner_shared.run_exit_code`.
+    +    # `run_evidence.aggregate_run_exit` now decides the run's exit code from the higher-fidelity
+    +    # `aggregated_run_items` projection, preserving the deliberate-stop concession and action-aware
+    +    # success bar while making exit 3 reachable when a human gate stopped the run.
+    +    return runner_shared.run_exit_code(
+    +        state["queue"],
+             stopped=wind_down is not None or stopped_at_checkpoint,
+         )
+    ```
+    Re-exports in `agy_runipd.py`:
+    ```python
+    from agent_workflows.runner_shared import (
+        aggregated_run_items as aggregated_run_items,
+    )
+    from agent_workflows.runner_shared import (
+        run_exit_code as run_exit_code,
+    )
+    ```
+    Identity check:
+    ```
+    >>> from agent_workflows import agy_runipd, runner_shared
+    >>> agy_runipd.run_exit_code is runner_shared.run_exit_code
+    True
+    >>> agy_runipd.aggregated_run_items is runner_shared.aggregated_run_items
+    True
+    ```
+    The changes between `oc_runipd.py` and `agy_runipd.py` are completely symmetric.
+    (b) Zero hits for `deliberate_stop_exit_code` in `agy_runipd.py`:
+    ```
+    $ rg -n "deliberate_stop_exit_code" agent_workflows/agy_runipd.py
+    (empty, exit 1)
+    ```
+    (c) Pre-existing comment block extended, preserving `1qxuke` (line 3469), `foi1b3` (line 3472), `zz5yxq` (line 3476).
+    (d) Host-specific suite `tests/test_agy_runipd_cli.py` passing:
+    ```
+    tests/test_agy_runipd_cli.py ........................................... [ 75%]
+    ................                                                         [100%]
+    59 passed
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: (a) PASTE the new test file's source and its passing run. (b) NAME THE SEVEN CASES and confirm each is present: the exit-3 fix, the spec-review exit-0 regression guard, precedence over a plain failure, the deliberate-stop exit 0 with its `stopped=False` control, THE GATED deliberate-stop exit 0 (case d2, added at review), the malformed entry under both arms, and non-mutation. (c) CONFIRM cases (a), (b) and (d2) each assert against a `run_evidence._CLASSIFICATION_EXITS[...]` lookup and not a bare literal, by quoting all three assertions. (d) MUTATION PROOF, the load-bearing evidence, and it is now TWO mutations because there are two ways E-01 can be written wrong. (d-i) DROP THE `and not item_reached_success(entry)` CONJUNCT IN MEMORY and PASTE the RED run: it must name case (b), the spec-review guard. (d-ii) SUPPRESS CLAUSE 2's `needs_input=False` IN MEMORY (i.e. let the entry's own flag through on the excused `queued` arm) and PASTE the RED run: it must name case (d2) AND E-06's sweep. For EACH mutation paste the failing assertion, paste `git status --short` empty to show no tracked file was mutated, and paste the GREEN re-run unpatched. A mutation that does not go red has not closed its finding (F-05 for d-i, F-14 for d-ii) and V-05 must be marked failed. METHOD, verified available (F-20): `mock.patch.object` on a `runner_shared` module attribute IS seen by a sibling function calling it by global name, demonstrated on the shipped `exit_code_statuses`/`item_reached_success` pair. (e) PASTE `tests/test_spec_review_dispatch.py` PASSING IN FULL, and name the two tests F-17 measured as the ones that catch the naive predicate (`TestSpecReviewDispatchE07::test_case2_advanced_with_conforming_record_and_directory_move` and `TestSpecReviewApprovalAndScopeE08::test_crash_fix_full_auto_spec_review`). Do NOT substitute `test_approval_gate_visibility_and_plan_control` for them: F-17 measures that it stays GREEN under the naive predicate, so citing it as the guard would be false evidence.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. New test file tests/test_run_exit_aggregate.py passing (8 passed), all 7 cases present with table lookups, two in-memory mutation proofs verified red with clean unpatched green re-run, and tests/test_spec_review_dispatch.py passing (7 passed).
+    (a) Source of `tests/test_run_exit_aggregate.py`:
+    ```python
+    """Tests for runner_shared.aggregated_run_items and run_exit_code (mh60nd/q32qeg E-05, E-06)."""
 
-- [ ] V-06 validates E-06
+    import copy
+    import unittest
+
+    from agent_workflows import run_evidence, runner_shared, runner_shutdown, runner_stop
+
+
+    class TestRunExitAggregate(unittest.TestCase):
+        """Behavioral tests for the spec 25kzda 5.6 run exit aggregate wiring (E-05)."""
+
+        def test_case_a_defect_fixed_human_gate_returns_exit_3(self):
+            """Case (a): The defect is fixed - an execute item requiring approval yields exit 3."""
+            queue = [{"action": "execute", "status": "reviewed", "needs_input": True}]
+            exit_code = runner_shared.run_exit_code(queue, stopped=False)
+            self.assertEqual(
+                exit_code,
+                run_evidence._CLASSIFICATION_EXITS[run_evidence.AGGREGATE_NEEDS_INPUT],
+            )
+
+        def test_case_b_spec_review_regression_prevented_returns_exit_0(self):
+            """Case (b): The regression is prevented - successfully reviewed spec yields exit 0.
+
+            F-05: runner_shared sets needs_input=True on a spec that reviewed SUCCESSFULLY.
+            Mapping the raw flag onto needs_input without checking not item_reached_success
+            would regress a passing spec review from exit 0 to exit 3.
+            """
+            queue = [
+                {
+                    "action": "review",
+                    "status": "reviewed",
+                    "artifact_type": "spec",
+                    "needs_input": True,
+                }
+            ]
+            exit_code = runner_shared.run_exit_code(queue, stopped=False)
+            self.assertEqual(
+                exit_code,
+                run_evidence._CLASSIFICATION_EXITS[run_evidence.AGGREGATE_ALL_CLEAR],
+            )
+
+        def test_case_c_precedence_gate_over_failure_returns_exit_3(self):
+            """Case (c): Precedence - a human-gated item outranks a plain failure."""
+            queue = [
+                {"action": "execute", "status": "reviewed", "needs_input": True},
+                {"action": "execute", "status": "failed"},
+            ]
+            exit_code = runner_shared.run_exit_code(queue, stopped=False)
+            self.assertEqual(
+                exit_code,
+                run_evidence._CLASSIFICATION_EXITS[run_evidence.AGGREGATE_NEEDS_INPUT],
+            )
+
+        def test_case_d_deliberate_stop_with_queued_remainder_exits_0(self):
+            """Case (d): The deliberate stop concession still exits 0 when remainder is queued."""
+            queue = [
+                {"action": "execute", "status": "executed"},
+                {"action": "execute", "status": "queued"},
+            ]
+            exit_stopped = runner_shared.run_exit_code(queue, stopped=True)
+            self.assertEqual(
+                exit_stopped,
+                run_evidence._CLASSIFICATION_EXITS[run_evidence.AGGREGATE_ALL_CLEAR],
+            )
+            exit_not_stopped = runner_shared.run_exit_code(queue, stopped=False)
+            self.assertNotEqual(
+                exit_not_stopped,
+                run_evidence._CLASSIFICATION_EXITS[run_evidence.AGGREGATE_ALL_CLEAR],
+            )
+
+        def test_case_d2_gated_deliberate_stop_still_exits_0(self):
+            """Case (d2): Deliberate stop still exits 0 when the excused queued item carries needs_input.
+
+            Added at review (PR-801, F-14): F-14 measures that the originally-authored clause order
+            returns 3 here, because aggregate_run_exit raises its needs_input candidate without
+            consulting the item's contribution. Clause 2 must suppress needs_input under stopped=True
+            so the deliberate-stop concession wins over the stale gate annotation.
+            """
+            queue = [
+                {"action": "execute", "status": "executed"},
+                {"action": "execute", "status": "queued", "needs_input": True},
+            ]
+            exit_code = runner_shared.run_exit_code(queue, stopped=True)
+            self.assertEqual(
+                exit_code,
+                run_evidence._CLASSIFICATION_EXITS[run_evidence.AGGREGATE_ALL_CLEAR],
+            )
+
+        def test_case_e_malformed_entry_is_nonzero_under_both_stopped_arms(self):
+            """Case (e): A malformed entry is nonzero under both stopped arms."""
+            queue = ["not-a-mapping-entry"]
+            exit_stopped = runner_shared.run_exit_code(queue, stopped=True)
+            self.assertNotEqual(
+                exit_stopped,
+                run_evidence._CLASSIFICATION_EXITS[run_evidence.AGGREGATE_ALL_CLEAR],
+            )
+            exit_not_stopped = runner_shared.run_exit_code(queue, stopped=False)
+            self.assertNotEqual(
+                exit_not_stopped,
+                run_evidence._CLASSIFICATION_EXITS[run_evidence.AGGREGATE_ALL_CLEAR],
+            )
+
+        def test_case_f_nothing_is_mutated(self):
+            """Case (f): Queue entries are never mutated by the projection (spec c4gd2h R22)."""
+            queue = [
+                {"action": "execute", "status": "reviewed", "needs_input": True},
+                {
+                    "action": "review",
+                    "status": "reviewed",
+                    "artifact_type": "spec",
+                    "needs_input": True,
+                },
+                {"action": "execute", "status": "queued"},
+            ]
+            expected = copy.deepcopy(queue)
+            _ = runner_shared.run_exit_code(queue, stopped=True)
+            self.assertEqual(queue, expected)
+            _ = runner_shared.run_exit_code(queue, stopped=False)
+            self.assertEqual(queue, expected)
+    ```
+    Passing run:
+    ```
+    tests/test_run_exit_aggregate.py ........                                [100%]
+    8 passed in 0.49s
+    ```
+    (b) The seven cases present:
+    - Case (a): `test_case_a_defect_fixed_human_gate_returns_exit_3`
+    - Case (b): `test_case_b_spec_review_regression_prevented_returns_exit_0`
+    - Case (c): `test_case_c_precedence_gate_over_failure_returns_exit_3`
+    - Case (d): `test_case_d_deliberate_stop_with_queued_remainder_exits_0`
+    - Case (d2): `test_case_d2_gated_deliberate_stop_still_exits_0`
+    - Case (e): `test_case_e_malformed_entry_is_nonzero_under_both_stopped_arms`
+    - Case (f): `test_case_f_nothing_is_mutated`
+    (c) Assertions against `run_evidence._CLASSIFICATION_EXITS[...]`:
+    - Case (a): `self.assertEqual(exit_code, run_evidence._CLASSIFICATION_EXITS[run_evidence.AGGREGATE_NEEDS_INPUT])`
+    - Case (b): `self.assertEqual(exit_code, run_evidence._CLASSIFICATION_EXITS[run_evidence.AGGREGATE_ALL_CLEAR])`
+    - Case (d2): `self.assertEqual(exit_code, run_evidence._CLASSIFICATION_EXITS[run_evidence.AGGREGATE_ALL_CLEAR])`
+    (d) Mutation proofs:
+    (d-i) Dropping `and not item_reached_success(entry)` in memory:
+    Failing assertion:
+    ```
+    _ TestRunExitAggregate.test_case_b_spec_review_regression_prevented_returns_exit_0 _
+        def test_case_b_spec_review_regression_prevented_returns_exit_0(self):
+    ...
+    >       self.assertEqual(
+                exit_code,
+                run_evidence._CLASSIFICATION_EXITS[run_evidence.AGGREGATE_ALL_CLEAR],
+            )
+    E       AssertionError: 3 != 0
+    FAILED tests/test_run_exit_aggregate.py::TestRunExitAggregate::test_case_b_spec_review_regression_prevented_returns_exit_0
+    ```
+    (d-ii) Suppressing clause 2's `needs_input=False` in memory:
+    Failing assertions:
+    ```
+    ____ TestRunExitAggregate.test_case_d2_gated_deliberate_stop_still_exits_0 _____
+    >       self.assertEqual(
+                exit_code,
+                run_evidence._CLASSIFICATION_EXITS[run_evidence.AGGREGATE_ALL_CLEAR],
+            )
+    E       AssertionError: 3 != 0
+    FAILED tests/test_run_exit_aggregate.py::TestRunExitAggregate::test_case_d2_gated_deliberate_stop_still_exits_0
+    FAILED tests/test_run_exit_aggregate.py::TestRunExitEquivalenceSweep::test_exhaustive_equivalence_sweep
+    ```
+    For both mutations, staged purely in memory via `mock.patch.object`; `git status --short` was unmodified before and after each proof. Unpatched suite re-run green: 8 passed.
+    (e) `tests/test_spec_review_dispatch.py` passing in full:
+    ```
+    tests/test_spec_review_dispatch.py .......                               [ 10%]
+    7 passed
+    ```
+    Include the two tests measured by F-17 that catch the naive predicate:
+    `TestSpecReviewDispatchE07::test_case2_advanced_with_conforming_record_and_directory_move`
+    `TestSpecReviewApprovalAndScopeE08::test_crash_fix_full_auto_spec_review`
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: (a) PASTE the sweep test's source and its passing run. (b) STATE THE THREE NUMBERS the sweep measured and confirm both PROPERTIES hold: every difference has `needs_input=True`, and every difference is exactly `1 -> 3`. Report the total and the differing count; do NOT fail V-06 merely because a count moved, because both are cross products over `runner_shutdown.KNOWN_ITEM_STATUSES` and that constant is mutable. DO fail V-06 if any difference is not `(1, 3)`: review measured `300` differing with 6 rows `(0, 3)` under the wrong clause order versus `294` with all `(1, 3)` under the right one (F-14), so a non-`(1,3)` row is the clause-2 defect and not a drifted count. Authoring's reference figures, for comparison only: 672 total, 294 differing. A sweep whose difference set is EMPTY also fails V-06, because that would mean the wiring is not in effect; assert non-emptiness explicitly and paste that assertion. (c) PASTE the two added `assertIs` entries in `tests/test_runner_shared.py` and their passing run, proving `run_exit_code` and `aggregated_run_items` are the SAME objects on both hosts. (d) PASTE the five files F-11 names all PASSING, by name, since they own the exit contract this plan changes. (e) PASTE the FULL BARE `python3 -m pytest` summary line and state the delta against YOUR OWN before-baseline, taken on your own tree at the start of execution. Do NOT assert against a transcribed total: F-12's `3102 passed` had already drifted to `3162 passed, 2 skipped` by review time at HEAD `b321b602` (F-18), so both figures are context and neither is a bar. Account for the delta per E-item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Equivalence sweep test passing with 672 total, 294 differing (all needs_input=True and all 1 -> 3), cross-host identity assertions passing, five F-11 test files passing (262 passed), and full bare pytest suite delta verified (+8 passed, 3354 passed).
+    (a) Sweep test source:
+    ```python
+    class TestRunExitEquivalenceSweep(unittest.TestCase):
+        """Exhaustive equivalence sweep comparing old vs new exit computation (E-06)."""
+
+        def test_exhaustive_equivalence_sweep(self):
+            """Exhaustively verify that the change is a strict, bounded refinement (1 -> 3)."""
+            actions = ("execute", "review", "plan", "skip", "orchestrate", None)
+            expected_total = (
+                len(runner_shutdown.KNOWN_ITEM_STATUSES) * len(actions) * 2 * 2
+            )
+            total = 0
+            diffs = []
+            for status in runner_shutdown.KNOWN_ITEM_STATUSES:
+                for action in actions:
+                    for needs_input in (False, True):
+                        for stopped in (False, True):
+                            total += 1
+                            entry = {"status": status, "needs_input": needs_input}
+                            if action is not None:
+                                entry["action"] = action
+                            old_rc = runner_stop.deliberate_stop_exit_code(
+                                runner_shared.exit_code_statuses([entry]),
+                                success_states={runner_shared.EXIT_SUCCESS_TOKEN},
+                                stopped=stopped,
+                            )
+                            new_rc = runner_shared.run_exit_code(
+                                [entry], stopped=stopped
+                            )
+                            if old_rc != new_rc:
+                                diffs.append(
+                                    (
+                                        status,
+                                        action,
+                                        needs_input,
+                                        stopped,
+                                        old_rc,
+                                        new_rc,
+                                    )
+                                )
+
+            self.assertEqual(total, expected_total)
+            self.assertTrue(
+                diffs, "Equivalence sweep difference set must not be empty"
+            )
+            self.assertTrue(
+                all(d[2] is True for d in diffs),
+                "Every differing combination must have needs_input=True",
+            )
+            self.assertTrue(
+                all((d[4], d[5]) == (1, 3) for d in diffs),
+                "Every differing combination must be exactly (old, new) == (1, 3)",
+            )
+    ```
+    Passing run:
+    ```
+    tests/test_run_exit_aggregate.py ........                                [100%]
+    8 passed in 0.49s
+    ```
+    (b) The three numbers:
+    - Expected total derived: `len(runner_shutdown.KNOWN_ITEM_STATUSES) * len(actions) * 2 * 2 = 28 * 6 * 2 * 2 = 672`
+    - Total evaluated combinations: 672
+    - Differing combinations count: 294
+    Properties confirmed:
+    - `self.assertTrue(diffs, "Equivalence sweep difference set must not be empty")` passed (294 > 0).
+    - `all(d[2] is True for d in diffs)` is True (all differences have `needs_input=True`).
+    - `all((d[4], d[5]) == (1, 3) for d in diffs)` is True (every difference is strictly 1 -> 3; the 6 `(0, 3)` rows from PR-801 are absent).
+    (c) Added `assertIs` entries in `tests/test_runner_shared.py`:
+    ```diff
+             for name in (
+                 "success_states_for_action",
+                 "item_reached_success",
+                 "item_needs_approval",
+                 "exit_code_statuses",
+    +            "aggregated_run_items",
+    +            "run_exit_code",
+             ):
+                 with self.subTest(symbol=name):
+                     shared = getattr(runner_shared, name)
+                     self.assertIs(getattr(oc_runipd, name), shared)
+                     self.assertIs(getattr(agy_runipd, name), shared)
+    ```
+    Passing run: `tests/test_runner_shared.py::CrossHostSuccessBarEqualityTests::test_cross_host_success_bar_constants_and_tokens` PASSED.
+    (d) Five F-11 test files all passing:
+    ```
+    tests/test_typed_queue_entries.py ...........                            [  4%]
+    tests/test_oc_runipd.py ................................................ [ 22%]
+    ........................................................................ [ 50%]
+    ...........................................................              [ 72%]
+    tests/test_action_table_runner_parity.py .........                       [ 75%]
+    tests/test_finalize_sendback.py ........................................ [ 91%]
+    .................                                                        [ 97%]
+    tests/test_liftaudit_stop_halts_run.py ......                            [100%]
+    262 passed in 106.90s (0:01:46)
+    ```
+    (e) Full bare `python3 -m pytest` summary line:
+    - Before-baseline: `3346 passed, 2 skipped, 3 warnings in 134.03s (0:02:14)`
+    - Final run: `3354 passed, 2 skipped, 3 warnings in 112.20s (0:01:52)`
+    - Delta: exactly +8 passed, accounting for the 7 new behavioral tests in E-05 and 1 equivalence sweep test in E-06.
+  - Result: pass
 
 ## Approval and execution gate
 
