@@ -1,11 +1,13 @@
 - Id: 1urnej
-- Status: open
+- Status: graduated
+- Graduated-To: sevreg
 - Set: sevreg
 - Priority: low
 - Work-Kind: chore
 - Summary: five live drift rules are absent from RULE_REGISTRY and silently default to error severity
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: qgpanb
 - 2026-09-29 created (aw backlog): Carrier for an obligation deferred by plan nwcf8j (sevtruth), which declined to register them because changing a severity moves exit codes.
 
 `check_engine.rule_spec` falls back to a default `RuleSpec` at `error` severity for any rule id absent from `RULE_REGISTRY`. That fallback is deliberate and conservative (an unregistered rule fails loudly rather than passing quietly), but it means an unregistered rule's severity is an ACCIDENT of the fallback rather than a recorded decision.
