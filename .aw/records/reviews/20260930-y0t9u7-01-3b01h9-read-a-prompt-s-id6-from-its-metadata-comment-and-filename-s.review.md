@@ -1,0 +1,111 @@
+# Review findings: plan 3b01h9
+
+- Subject-Id: 3b01h9
+- Subject-Type: ipd
+- Reviewed-At: 2026-09-30
+- Reviewer: opencode/its_direct/pt3-claude-opus-5-1m-us
+- Verdict: APPROVE WITH REVISIONS APPLIED
+- Findings: PR-801 (HIGH, fixed), PR-802 (HIGH, fixed), PR-803 (MEDIUM, fixed), PR-804 (MEDIUM, fixed), PR-805 (MEDIUM, fixed), PR-806 (LOW, fixed)
+
+## Round 1
+
+Reviewed at HEAD `1d8fc76e` in an isolated review lane. The plan file was committed and byte-identical to
+the lane input (`diff` reports no difference), so no pre-review snapshot was needed. Structural preflight
+`aw ipd lint --phase author --agent` reported `conforming` (exit 0, zero findings) BEFORE semantic review;
+`--phase review-finalize --agent` reports `conforming` after revision, including the new `E-07`/`V-07` pair.
+The plan is `- Kind: child`, so the `IPD-S407` orchestrator row check does not apply.
+
+THE PLAN'S DIRECTION IS RIGHT AND ITS CENTRAL ARGUMENT IS UNUSUALLY WELL EVIDENCED. Every one of its 14
+findings reproduced: 17 of 17 prompts render `-` (F-1), `--id la0gje` and `--set plainlang` each return zero
+rows at exit 0 (F-2, F-3), the comment/slot/`_read_id` split is exactly 17/15/0 (F-4), `oujnft` and `exnwoz`
+resolve only from the comment because `_HAS_DIGIT_RE` rejects their all-letter slot tokens (F-5),
+`parse_clustered("20260810-1958-01-prompt-purity-lint.prompt.md").group("id6")` is `'prompt'` while
+`filename_slot_id6` is `None` (F-6), and the existing test module asserts `tokens[1]` in every test and never
+`tokens[2]` (F-10). The purity-contract reasoning is sound and correctly sourced, and locating the fix in the
+display layer rather than in `selectors` is the right call for the reason the code itself gives.
+
+WHAT REVIEW FOUND WAS TWO ERRORS OF MECHANISM, both in the two items that write the code, and both of a kind
+the plan's own evidence already contradicted without the author noticing.
+
+FIRST, THE PRESCRIBED READER ORDER WAS BACKWARDS FOR THIS TYPE. E-03 said to keep `selectors._read_id` as
+primary and use the prompt reader as a FALLBACK, reasoning that "a declared bullet, if a record ever had one,
+still wins". For a prompt that reasoning inverts: a prompt has no sanctioned `- Id:` bullet BY CONTRACT, so a
+bullet present in one is not a declaration but PROSE. I measured what that costs. `selectors.metadata_region`
+bounds the bullet dialect at the first `##` heading, and a prompt legitimately has body text above that point,
+so on a prompt whose comment declares `ng0ga4` and whose body quotes `- Id: aaa111`, `_read_id` returns
+`aaa111`. Worse, 5 of 17 live prompts contain no `##` heading at all, so for them the "metadata region" is the
+whole file and any bullet anywhere wins. The corpus where such a bullet is most likely is precisely a prompt
+ABOUT the metadata convention, which is a plausible next prompt in this repository. Fixed by reversing the
+order, which is a measured NO-OP today (0 of 17 prompts carry such a bullet) and a correctness guard for the
+next one.
+
+SECOND, THE `Set:` HALF NAMED NO READER, AND THE SYMMETRIC-LOOKING CHOICE IS A TRAP THE PLAN'S OWN F-6
+DESCRIBES. E-03 said only "resolve it from the metadata comment then the filename setid group". The setid
+group has exactly the hazard the id6 group has: `parse_clustered` returns `set='1958'` for a legacy
+`YYYYMMDD-HHMM-NN-<slug>` name, because HHMM occupies the setid position without being one.
+`check_engine._filename_setid` exists with precisely that guard and its docstring records the reason. Fixed by
+naming it, in a new E-07 rather than as an E-03 clause, because it resolves a different field from a different
+pair of sources and needs its own guard evidence (and because the source split is inverted from the id6 case:
+measured 1 of 17 prompts declare a comment `Set:` while 17 of 17 have a readable filename setid).
+
+THE SAME MEASUREMENT FALSIFIED A PREMISE THE PLAN STATES FOUR TIMES. "Mirror the precedence
+`prompts_index.scan_prompts` already ships" appears in the Scope, in E-02, in the conventions section, and in
+F-7. But `scan_prompts`'s second source is the RAW `parse_clustered(...).group("id6")` with no guard: driven
+over a legacy-named comment-less prompt it returns `id6='prompt'`, `set_id='1958'`. So the plan's F-6 and its
+E-02 instruction contradict each other, and an executor following E-02 literally would have written the exact
+identity-manufacturing read F-6 exists to forbid. The plan's ORDER is right and its FIRST source is right;
+only its second reader was wrong to copy. Corrected in all four places.
+
+THREE FURTHER PREMISES WERE WRONG IN WAYS THAT WOULD HAVE COST THE EXECUTOR TURNS RATHER THAN CORRECTNESS.
+F-14 claimed `--agent` and `--json` both carry `data.matches`; measured, `--agent` takes `_run_find`'s
+`all_paths` branch on a matching query and returns before any `CommandResult` is built (its own comment says
+so), emitting 17 bare paths and zero `schema` tokens, so only `--json` changes. V-05 demanded the `--json`
+record validate against the schema validator; it cannot, because `--json` is a different surface
+(`renderers.JsonRenderer` over `CommandResult.to_dict()`, keys `command`/`exit_code`) and
+`agent_schema.validate_agent_record` requires `kind`/`cmd`/`exit`, returning two errors on today's output. And
+E-06 required both prompts checkers "conforming"; neither is clean at HEAD (`check prompts` prints
+`✓ CONFORMS` yet reports `errors 1` for `<collisions>`, and `index prompts --check` reports two
+`check.stale-index-missing` rows), both exiting 0, so an executor would have chased a pre-existing condition.
+
+ONE COVERAGE HOLE OF THE SAME CLASS AS F-10, FOUND BY CHECKING THE FIXTURE E-01 PLANS TO REUSE. None of the
+seven fixture id6s in `tests/test_find_prompts_lane_status.py` can reach the filename-slot branch:
+`filename_slot_id6` returns `None` for all of `prpend`, `prexec`, `prreus`, `prsupe`, `prnot-`, `prmdiv`,
+`prmnol`, because every one is all-letters and `_HAS_DIGIT_RE` rejects them. E-01's case (c) (a comment-less
+prompt whose id6 lives only in the slot) written with an all-letter id6 would therefore assert `-` and pass
+both before AND after the fix. That is the same silent-green shape F-10 records, reproduced inside the very
+item meant to close it.
+
+WHAT I CHECKED AND FOUND SOUND, recorded so a later reader knows it was examined rather than skipped. The
+F-13 single-read property: the new readers take the already-read `text` and the `path` is the loop variable
+already in hand, so no second open is introduced. The type gate: `_find_prompt_lane_status` is the correct
+precedent and returns `None` for every other type at the same site. The F-9 reasoning about reviews holds and
+its numbers have merely drifted (416 of 478 at authoring, 452 of 519 at review), which the plan now states as
+drift rather than as a bar. E-04's premise that `_detect_id6_collisions` keys on the selector token and not on
+the rendered cell is correct by reading, and its measured `reference` verdicts for `oujnft`/`exnwoz` reproduce
+exactly. The A10 styling contract is satisfied unchanged, since both cells still come from
+`_find_status_and_id6`. The "no spec amendment" finding is correct: no `.spec.md` is touched and the naming
+spec already asserts the behavior being delivered. Carrier obligations: `_deferred_section_obligations`
+reports four rows, each carrying a distinct `Carrier-Declined`, and `aw check plans` reports nothing against
+this plan.
+
+## Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-801 | HIGH | IN-SCOPE | A. Correctness (identity manufactured from prose) | `agent_workflows/selectors.py` `metadata_region` (bullet dialect "everything before the first `##`"); measured on a prompt declaring `Id: ng0ga4` in its comment and quoting `- Id: aaa111` / `- Set: bogusset` in its body above the first `##`: `_read_id` -> `aaa111`, `_read_setid` -> `bogusset`. 5 of 17 live prompts contain NO `##` heading, so their region is the whole file | **E-03's prescribed FALLBACK ordering (`selectors._read_id` primary, prompt reader second) is unsafe for prompts specifically.** For this type that reader is not merely silent but WRONG-CAPABLE: a prompt has no sanctioned `- Id:` bullet by contract, so a bullet in one is prose, and the fallback would print a quoted example as the prompt's own identity. The corpus most likely to contain such a bullet is a prompt about the metadata convention, which is a plausible next prompt here. The plan's stated justification ("a declared bullet, if a record ever had one, still wins") inverts the purity contract it correctly cites everywhere else | C:Low; U:Low; S:Low; F:Medium; Overall:Medium | FIXED | New F-15 records the measurement. E-03 rewritten to mandate PROMPT-READER-FIRST with the reason, stating explicitly that it reverses the earlier draft and that it is a measured NO-OP on today's corpus (0 of 17 prompts carry such a bullet) and a guard for the next prompt authored. The Scope bullet carries the same rule so it is visible before the checklist. V-03 gains a required proof (iii): a fixture whose comment and body disagree, shown rendering the COMMENT value, beside the measured `_read_id` return for the same text. Applied to the `Set:` half too, where the identical measurement holds |
+| PR-802 | HIGH | IN-SCOPE | A. Correctness / G. Plan executability (unnamed reader with a measured trap) | `prompts_index.scan_prompts`: `id6 = meta.get("Id") or fn_id6` where `fn_id6` is the RAW `parse_clustered(...).group("id6")`; driven over a legacy-named comment-less prompt it returns `id6='prompt'`, `set_id='1958'`. `check_engine._filename_setid` docstring: reading `2147` as a setid "would invent findings on legacy names" | **The `Set:` half named no reader ("the filename setid group"), and the plan's four-times-repeated instruction to mirror `prompts_index`'s precedence points at an UNGUARDED reader that its own F-6 forbids.** An executor following E-02/E-03 literally writes `parse_clustered(...).group("id6")` and `group("set")`, manufacturing `'prompt'` and `'1958'` as identity and setid: the exact defect F-6 exists to prevent. The plan's own findings therefore contradict its own implementation instruction | C:Low; U:Low; S:Low; F:Medium; Overall:Medium | FIXED | New **E-07/V-07** owns the setid reader as its own item (different field, different source pair, and an inverted source split: measured 1 of 17 comment `Set:` versus 17 of 17 filename setid), naming `prompts_index._parse_metadata_comment` then `check_engine._filename_setid` with the `'1958'` measurement and the docstring rationale. `Highest E allocated` raised to 07; E-03 now `Depends on: E-02, E-07`. F-7 rewritten from "mirror the shipped precedence" to "mirror its ORDER and FIRST source only", with the raw-group measurement. E-02 gains an explicit DO-NOT-MIRROR-LITERALLY paragraph and V-02 now requires the divergence shown beside `scan_prompts`'s own output. The Scope bullet and the conventions section corrected in place |
+| PR-803 | MEDIUM | IN-SCOPE | E. Testing (a test that passes before and after) | Measured `selectors.filename_slot_id6` -> `None` for all seven fixture id6s in `tests/test_find_prompts_lane_status.py` (`prpend`, `prexec`, `prreus`, `prsupe`, `prnot-`, `prmdiv`, `prmnol`), because `_HAS_DIGIT_RE` rejects an all-letter token; the same module's walkthrough fixture `wt0001` DOES resolve | **E-01's case (c) can be written so it proves nothing.** A comment-less fixture row whose id6 is all-letters asserts `-` both before AND after the fix, so the slot-resolution path stays untested while the suite goes green. That is the same silent-green shape F-10 records as the reason 17 broken rows shipped, reproduced inside the item meant to close it | C:Low; U:Low; S:Low; F:Medium; Overall:Medium | FIXED | New F-16 records the seven measured verdicts and the digit rule. E-01 now names this as its SECOND trap beside the existing `prnot-` one, requires the case-(c) row's id6 to be digit-bearing, and points at `wt0001` as the in-module precedent. A fourth case (d) added for the body-quoted-bullet path PR-801 turns on. V-01 now requires the measured `filename_slot_id6` verdict for the case-(c) row to be pasted, so a vacuous assertion is visible rather than assumed away. E-01 also gains the verified row format (`glyph  status  id6  path`) so `tokens[2]` is justified rather than guessed |
+| PR-804 | MEDIUM | IN-SCOPE | Evidence accuracy (which surfaces change) | `cli._run_find`'s `all_paths` branch fires for `ctx.is_agent and all_paths` and returns before any `CommandResult` is built (its own comment: "this branch returns before any `CommandResult` is built"); measured `find prompts --agent` emits 17 bare paths and `grep -c schema` is `0`. The `--agent` envelope appears only on an EMPTY match and that record has no `data` key (keys: `cmd`, `complete`, `evidence`, `exit`, `findings`, `kind`, `next`, `outcome`, `schema`, `verified`) | **F-14 and E-05 assert that `--agent` carries `data.matches` and therefore changes; it does not.** An executor would look for a diff on a surface that is byte-identical, and OQ-02's blast-radius premise (two machine surfaces) is twice the real one. The genuinely interesting `--agent` change is a SHAPE transition on `--id la0gje` (empty-record to bare-paths) that the plan does not mention at all | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | F-14 rewritten with the measurement and the code's own comment as evidence. E-05 corrected to require `--paths` AND `--agent` both byte-identical on a matching query, `--json` alone shown changed, and the `--id la0gje` shape transition stated. V-05 updated to match. OQ-02's resolution records the narrowed blast radius as part of its answer |
+| PR-805 | MEDIUM | IN-SCOPE | E. Testing (an unsatisfiable validation demand) | `--json` is rendered by `renderers.JsonRenderer` from `CommandResult.to_dict()` (keys `command`, `exit_code`, no `kind`); `agent_schema.validate_agent_record` requires `schema`/`kind`/`cmd`/`exit`. Measured on today's `find prompts --json`: `["Invalid kind: 'None' must be one of ('result', 'summary', 'item', 'error')", "Field 'cmd' must be a non-empty string"]` | **V-05 demands the `--json` record be "accepted by the schema validator", which is impossible by construction and always has been.** A `V-*` that cannot be satisfied is not strictness; it either blocks the transition on a false premise or teaches the executor that validation demands are negotiable. Separately, E-06 requires both prompts checkers "conforming" when neither is clean at HEAD | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | New F-17 and F-18 record both measurements. E-05/V-05 now require `validate_agent_record` on the `--agent` EMPTY-match record (its real contract) and envelope-key stability for `--json`, with an explicit instruction not to accept a validation claim for `--json`. E-06/V-06 replace "conforming" with BYTE-IDENTICAL before/after and name both pre-existing conditions (the `<collisions>` per-type-run artifact, the two `check.stale-index-missing` rows), stating that a "conforming, no findings" report is a FALSE report against the measured baseline. Required tests section corrected to match |
+| PR-806 | LOW | UNDER-SCOPE | G. Plan executability (execution contract) | Plan `## Approval and execution gate` as authored: no scope fence, no statement of what a human approves, no runner/executor conditional on finalize, and a bare "do not move it to `executed/`" that names no verb; `- Scope-Paths:` did not account for E-07's cross-module private imports | **The gate lacked required execution-contract elements** and the scope check did not cover the new imports, so a reviewer applying the 2026-09-01 ruling could not tell whether an out-of-scope edit should be justified or refused | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Gate rewritten with: a "what a human is approving" paragraph naming both mechanism corrections and the three corrected premises; a scope fence as a DECLARATION with the make-and-then-JUSTIFY clause and `aw ipd finalize`'s `--scope-reason`/`--scope-ack` reconciliation, explicitly not a stop directive, plus one SANCTIONED stop for the genuinely unsafe condition of a consumed reader being absent or re-signatured; two named silent-failure modes (F-16's vacuous test, F-18's false "conforming" claim); the corrected execution order with E-03's two-edge dependency; and a post-gate lifecycle paragraph carrying the `AW-LIFECYCLE-ROLE-001` runner/executor conditional and forbidding a hand-rolled `git mv`. Under-scope note extended with the four consumed readers and the in-tree precedent for the private import (`check_engine.check_prompt_content` already imports `prompts_index._parse_metadata_comment`) |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-1 | PR-802: should the setid reader be a clause of E-02/E-03 or its own E-item? | Its own **E-07/V-07** pair, with E-03 depending on both | (a) A clause inside E-02, which is where the plan implicitly put it; (b) a clause inside E-03 beside the wiring; (c) leaving the reader unnamed and letting the executor choose | The setid resolves a DIFFERENT field from a DIFFERENT source pair and needs its own guard demonstration, and the source split is INVERTED from the id6 case (measured 1 of 17 comment `Set:` versus 17 of 17 filename setid, against 17 of 17 versus 15 of 17 for the id6), so one V-item could not state which half it validated. Option (c) is what the plan did and is what PR-802 exists for: the obvious symmetric reader is `group("set")`, which returns `'1958'` on a legacy name | yes |
+| D-2 | PR-801: reverse the reader order, or keep the fallback and add a warning? | REVERSE it: prompt reader first, `selectors._read_id` last | (a) Keep `_read_id` primary and note the hazard in prose; (b) keep it primary but only when the prompt has no comment; (c) drop the `_read_id` consultation for prompts entirely | Option (a) leaves a measured wrong answer reachable and relies on a reader noticing prose. Option (b) IS prompt-first, spelled less clearly. Option (c) was tempting and rejected as gratuitously narrower: leaving `_read_id` as an unreachable last resort costs nothing (measured 0 of 17 prompts carry a bullet, so it never fires today) and keeps the generic branch's shape uniform, whereas special-casing the whole read for prompts diverges further from `_find_prompt_lane_status`'s established pattern. The reversal is a no-op on today's corpus and a guard for the next prompt, which is the cheapest possible form of this fix | yes |
+| D-3 | OQ-01: should `--id` match a filename-slot-only id6, or only a declared one? | MATCH BOTH, comment first then the guarded slot, resolved at review rather than left open | (a) Declaration-only for strictness; (b) leaving it open for the maintainer | The strictness the alternative buys is already bought by the GUARD: `filename_slot_id6` refuses any non-id6 slot token, so the residual permissiveness is only "accept a real id6 a prompt failed to declare", which is EMPTY on today's corpus (17 of 17 carry a comment `Id:`), making both branches byte-identical for every tracked prompt. For the next prompt the tree already has a policy and it is not strictness: `prompts.inject_metadata_id6`'s docstring says a comment-less file is returned UNCHANGED and "the id6 then lives in the FILENAME only, which is stated plainly rather than silently repaired". A filter refusing such a prompt would make `find` disagree with the writer that created it. Not a maintainer question because the repository already answered it at the write site | yes |
+| D-4 | OQ-02: does the `--json` `data.matches` change need a version bump or a CHANGELOG entry? | NO to both, resolved at review | (a) A CHANGELOG entry (which would require declaring `CHANGELOG.md`); (b) a version bump; (c) leaving it open | The question's premise narrowed first: PR-804 measured that only ONE surface carries the string, not two. On that surface the envelope SHAPE is untouched (measured key sets before the change, both top-level and under `data`), and `docs/cli-output-contract.md` documents `find`'s output modes and empty states with no per-column contract on the rendered line, so `matches` is a human-rendered string rather than a parsed field; a consumer wanting the id6 as a field has `paths`. Announcing the correction of a placeholder to a correct value is noise. Recorded as reversible because announcing it later costs one CHANGELOG line | yes |
+| D-5 | F-9's review counts (416 of 478) have drifted to 452 of 519. Correct the number, or change the bar? | BOTH: correct it, label it as drift, and restate the BAR as a byte-identical before/after capture | (a) Just update the number; (b) leave it as an authoring-time measurement | The reviews population grows every time a review runs (this review adds one), so any absolute count in a success criterion is a live-artifact count that expires, which the workflow's re-derivation convention addresses directly. Updating the number alone would leave the next reader re-deriving the same staleness. The non-regression property (other types render byte-identically) is what actually needs to hold and it is count-free | yes |
+| D-6 | PR-806: the gate needs a stop directive for an absent consumed reader. Does the 2026-09-01 anti-stop ruling forbid it? | NO: include it, and annotate it as the SANCTIONED unsafe-condition kind | (a) Omit every stop directive; (b) include it unannotated | The ruling forbids a stop over a SCOPE question and explicitly preserves one for "a prerequisite whose symbols are absent", which is exactly this case: if `filename_slot_id6` or `_filename_setid` is gone or re-signatured, the plan's whole mechanism is gone and improvising would re-create the unguarded reads F-6/F-7 measure as the hazard. Annotated so a later reviewer applying the ruling mechanically does not flag it. The out-of-scope-edit case correctly gets make-and-then-JUSTIFY with no stop | yes |
