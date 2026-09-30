@@ -1,11 +1,13 @@
 - Id: ikxtkj
-- Status: open
+- Status: graduated
+- Graduated-To: ikxtkj
 - Set: ikxtkj
 - Priority: medium
 - Work-Kind: chore
 - Summary: Four published docs cite five test files the 2026-09-24 suite trim deleted, so each names a guard that no longer exists and a reader cannot verify the claim
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: 1jg2m2
 - 2026-09-28 created (aw backlog): Found while graduating backlog bar5t8 (the FORCE_COLOR section 1.1 row 2 wording defect).
 
 MEASURED 2026-09-28 at HEAD c763a2fa by extracting every `tests/test_*.py` citation from `docs/*.md` and testing each for existence. Five citations resolve to no file, all five deleted by commit 19313eed ("test: trim test suite from 9,136 to under 2,000 tests", 2026-09-24):
