@@ -1,11 +1,13 @@
 - Id: cm80ge
-- Status: open
+- Status: graduated
+- Graduated-To: cm80ge
 - Set: cm80ge
 - Priority: low
 - Work-Kind: chore
 - Summary: run_analytics_cli._emit_query_agent's crash-workaround comment goes stale once the --fields projection defect is fixed
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: mcdvx0
 - 2026-09-28 created (aw backlog): Filed while authoring plan gygujf (from backlog 3f4ayi): that plan removes the crash this comment describes as unfixed, but deliberately leaves run_analytics_cli.py out of scope.
 
 MEASURED 2026-09-28 at HEAD `71aee0d3` while authoring plan `gygujf` from backlog item `3f4ayi`.
