@@ -1,11 +1,13 @@
 - Id: mgz3f1
-- Status: open
+- Status: graduated
+- Graduated-To: rederiveguard
 - Set: mgz3f1
 - Priority: medium
 - Work-Kind: followup
 - Summary: The records-only re-derivation carve-out does not cover a backfill that also writes Blocks-Release, so lc4unl-shaped lanes still strand
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053053Z-3200037: 9mi8eg
 - 2026-09-22 created (aw backlog): The records-only re-derivation carve-out does not cover a backfill that also writes Blocks-Release, so lc4unl-shaped lanes still strand
 
 MEASURED 2026-09-23 while executing plan `kl18sz`, which landed the records-only front-matter re-derivation carve-out (spec `25kzda` Section 2.1a).
