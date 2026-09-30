@@ -12,6 +12,7 @@
 - Scope-Paths: agent_workflows/ipd_lint.py, tests/test_ipd_lint.py, .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md
 - Item-Dependencies: none
 - Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
 - From-Backlog: hesb87
