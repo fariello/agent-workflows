@@ -1,11 +1,12 @@
 - Id: plbkp5
-- Status: done
+- Status: graduated
 - Set: awinbox
 - Priority: low
 - Work-Kind: feature
 - Summary: surface a plain count of waiting .aw/inbox/ drops in aw attention, by LISTING the directory only and never opening a file, so a forgotten drop is visible without inbox content ever being parsed
 
 ## Workflow history
+- 2026-09-30 graduated (aw set): re-open from done to graduated per dv7c49: 9iiqmm's inbox-counter implementation never landed on main and survives only in unreachable dangling git objects, now owned by live carrier an77ub; graduated is chosen per AGENTS.md because design was handed off while code is not yet written and live carrier an77ub carries the work
 - 2026-09-20 set (aw backlog): closed by aw oc run: IPD 9iiqmm executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260908-awinbox-02-9iiqmm-count-waiting-aw-inbox-drops-in-aw-attention-by-listing-the.ipd.md); evidence .aw/records/plans/executed/20260908-awinbox-02-9iiqmm-count-waiting-aw-inbox-drops-in-aw-attention-by-listing-the.ipd.md
 - 2026-09-08 graduated (aw set): FULLY LIVE, nothing obsolete. Graduated to plan 9iiqmm. Verified unimplemented: grep for inbox over attention.py and attention_contract.py returns ZERO hits, so this plan writes the first reader of that directory; no plan carries From-Backlog: plbkp5; the sibling lznpv6 covers aw adopt only. I REPRODUCED the justifying hazard: selectors._ID_RE (selectors.py:111) is position-unanchored and matched a - Id: line sitting at line 5 of a body inside prose labelled a quoted example, so the listing-only constraint rests on measured behavior. The --check recommendation now has a citation: the exit code is owned solely by drift (attention.py:2715, :2956) and both existing advisory sections document that they never affect it. THREE things the item does not say, all load-bearing: .aw/inbox/ does not exist in a fresh worktree (gitignored, per-checkout), so absent must mean zero silently; the footer is an if/elif chain (:2940-2948) so an elif addition would hide the nudge exactly when setup is needed; and a new top-level JSON key would bump SCHEMA_VERSION 3, so OQ-01 keeps the count out of the JSON.
 - 2026-09-05 created (aw backlog): surface a plain count of waiting .aw/inbox/ drops in aw attention, by LISTING the directory only and never opening a file, so a forgotten drop is visible without inbox content ever being parsed

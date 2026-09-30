@@ -19,6 +19,7 @@
 - From-Backlog: plbkp5
 
 ## Workflow history
+- 2026-09-30 note (dv7c49): The premise in F-12, the under-scope paragraph, and OQ-04 that "select_output routes to OutputMode.AGENT on ANY NON-TTY STDOUT" was FALSE WHEN WRITTEN and was never implemented; the published promise was RETRACTED 2026-09-19 in docs/cli-output-contract.md Section 9. The TRUE reach is the opposite of F-12: the line renders on the human board INCLUDING a piped or redirected invocation, and is absent only under --agent, --json/--format json, --check, and the --id6-only/--paths/--filenames early return, so the feature reach was BROADER than promised, not narrower. OQ-04's remaining question is strictly NARROWER than recorded (whether an EXPLICIT --agent/--json consumer should get the count) while the F-13 severity-blind findings cost it cites is INDEPENDENT and still true. Additionally, the plan's implementation never landed in the tree and survives only in unreachable git objects, tracked by backlog an77ub.
 - 2026-09-20 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: 9iiqmm verified (set awinbox, attempt 1).
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-10 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-601..PR-606 all FIXED. Readiness go-pending-approval. Typed record at .aw/records/reviews/20260910-awinbox-02-9iiqmm-...review.md
