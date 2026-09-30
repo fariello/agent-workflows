@@ -6,7 +6,7 @@
 - Scope: IN: (a) convert `tools/untrack-workflow-artifacts.py` into a thin delegating front end over `engine.migrate_root_workflow_artifacts`, on the `install-workflows.py` / `tools/agy_run.py` shim precedent, so the hand-run entry point performs the CORRECT migration and stops writing a root ignore rule for a retired path; (b) preserve the tool's one genuine safety property, DRY RUN BY DEFAULT, by routing it to the `dry_run=` parameter the engine function already exposes; (c) restore the deleted `RootRunScratchMigrationTests` as a focused new test file so the delegated-to function has outcome coverage again, keeping only tests that assert outcomes; (d) cover the delegation itself by driving the tool as a subprocess and asserting the relocation actually happened on disk and in the index; (e) rewrite the `tools/README.md` section, which currently recommends the wrong remediation. OUT: any change to `engine.migrate_root_workflow_artifacts` itself (it is `executed`, measured correct here, and this plan only gains it callers and tests); the `--commit` flag's removal versus retention beyond what OQ-01 decides; the separate root-doc path references owned by pending plan `fzueyy` (`ARCHITECTURE.md`, `CONTRIBUTING.md`), whose `- Scope-Paths:` already claims them and which explicitly declares `tools/README.md` and this tool OUT of its own scope; restoring any other class from the deleted `tests/test_engine_install.py` (`LayoutEmissionFreshInstallTests`, `AwGitignoreLaneTests`, `MachineLocalStatePremiseTests`, `InstallerCommitSetTests`), each its own decision; the `git-filter-repo` history-rewrite guidance in `tools/README.md`, which remains correct and stays; `DECISIONS.md` D119, a dated record of what was decided then.
 - Scope-Paths: tools/untrack-workflow-artifacts.py, tools/README.md, tests/test_root_run_scratch_migration.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: cf7f8z
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: cf7f8z verified (set xtrwdb, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-B01..PR-B05 all FIXED; Readiness go-pending-approval
 
