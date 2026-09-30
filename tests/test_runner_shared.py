@@ -412,6 +412,8 @@ class CrossHostSuccessBarEqualityTests(unittest.TestCase):
             "item_reached_success",
             "item_needs_approval",
             "exit_code_statuses",
+            "aggregated_run_items",
+            "run_exit_code",
         ):
             with self.subTest(symbol=name):
                 shared = getattr(runner_shared, name)
