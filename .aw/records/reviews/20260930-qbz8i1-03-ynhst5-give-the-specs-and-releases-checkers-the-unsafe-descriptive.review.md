@@ -1,0 +1,126 @@
+# Review findings: plan ynhst5
+
+- Subject-Id: ynhst5
+- Subject-Type: ipd
+- Reviewed-At: 2026-09-30
+- Reviewer: opencode/its_direct/pt3-claude-opus-5-1m-us
+- Verdict: APPROVE WITH REVISIONS APPLIED
+- Findings: PR-901 (HIGH, fixed), PR-902 (MEDIUM, fixed), PR-903 (MEDIUM, fixed), PR-904 (LOW, fixed), PR-905 (LOW, fixed)
+
+## Round 1
+
+Reviewed at HEAD `009ae490` in an isolated review lane. The plan file was committed and byte-identical to
+the lane input (`diff` reports no difference), so no pre-review snapshot was needed. Structural preflight
+`aw ipd lint --phase author --agent` reported `clean` (exit 0, zero findings) BEFORE semantic review;
+`--phase review-finalize` reports `clean` after revision. The plan is `- Kind: child`, so the `IPD-S407`
+orchestrator row check does not apply. This is Order 03 of Set `qbz8i1`; Orders 00, 01 and 02 and the
+backlog item `qbz8i1` were read as evidence and are NOT in the review scope.
+
+EVERY AUTHORED FINDING RE-DRIVES. I re-measured all eleven rather than reading them. F-01 and F-02: a
+900-character `- Scope:` and an ANSI-bearing one both pass `validate_spec` and `aw specs check` clean, and
+the ANSI value reaches `aw attention --details --no-color` as literal escape bytes while `--format json`
+reports `"valid": true` with `"violations": []`. F-03: `releases.validate_release`'s body reports exactly
+four rule ids, none descriptive. F-04: `attention.unsafe-field` is in `A.RULE_IDS` and `grep -rn
+"unsafe-field" agent_workflows/*.py` matches exactly two files, the catalog and the one `Gate-Summary`
+site. F-05, the plan's defining limit, reproduces: the smuggled bullet parses as the record's real gate
+while the predicate is handed only `'legit'`. F-06's census reproduces exactly (`- Scope:` n=22, 2 unsafe
+at 366 and 314; `- Summary:` n=1; `- Gate-Summary:` n=3 counting the one body example; `- Concern:` n=0;
+zero `- Summary:` bullets in the release tree). F-07's compressibility reading is accurate on both values.
+F-08's `drift_exit_code` quotation is verbatim. F-09 and F-11 reproduce with corrections noted below.
+F-10's grep results are accurate. The plan's conventions section is accurate throughout, including the
+`releases.py` docstring quotation about there deliberately being no `run_check`.
+
+THEN I AUDITED WHAT THE PLAN DID NOT PRESENT, which is where the HIGH finding came from: I asked, for each
+tree, WHICH VALUE ACTUALLY REACHES A HUMAN, rather than accepting the field names the plan chose to judge.
+
+THE HIGH. For the release tree the answer is not the bullet. `releases.parse_release` resolves `summary`
+as `_SUMMARY_RE.search(text)` first and `_summary_section(text)` (the `## Summary` prose paragraph) as the
+fallback, and `ReleaseRecord.summary` is exactly what `run_show` prints on its `Summary:` line and what
+`run_list` puts in its table column. The committed `2.0.0` record has NO bullet, so its effective summary
+is the 457-character prose paragraph, and the tree contains zero `- Summary:` bullets in total. The
+authored E-03 therefore shipped a rule that fires on nothing, and its Expected outcome ("`aw check
+releases` stays clean") was true only because nothing was being checked. I drove the harm it leaves open:
+with an ANSI-bearing prose summary, `aw releases show aaaaaa` printed `Summary: red\x1b[31mINJECTED\x1b[0m`
+as literal bytes and `aw releases list` the same, while `validate_release` returned `[]`. That is the same
+Section 8.8 violation the plan's own F-02 cites for the specs half.
+
+THE FIX IS NOT "APPLY THE SAME PREDICATE", and measuring that is what produced the split-strictness
+design. `A.is_safe_descriptive` on the committed record's 457-character effective summary returns False on
+LENGTH, so a full-predicate rule at `error` severity (which E-04 makes it) exits 1 on a clean checkout and
+reintroduces exactly the grandfather-tier problem OQ-01 resolved by cleaning the specs tree first. A
+control-character-only test on the same value passes, fires on zero committed records, and still closes the
+measured renderer vector. `_summary_section` also collapses the paragraph to one line, so an embedded
+newline is structurally impossible in the prose value and needs no test. The prose form is judged for line
+integrity and deliberately left unbounded in length; the bullet form keeps the full predicate.
+
+TWO MORE MEASURED FACTS THE PLAN SHOULD HAVE CARRIED, both recorded as findings because each changed an
+item. FIRST, the checker and the renderer READ DIFFERENT REGIONS. `attention._extract_detail` searches the
+whole document with `(?mi)^-\s*Scope:\s*(.+)$` and cascades `Summary -> Scope -> Concern -> Question ->
+Title -> H1`, while the validator (correctly, per F-11) reads only before the first `## `. Driven: a spec
+with no metadata `- Scope:` but a body `- Scope: red\x1b[31mINJECTED\x1b[0m` yields `validate_spec == []`,
+`_extract_detail == ('scope', 'red\x1b[31mINJECTED\x1b[0m')`, raw escapes in `aw attention --details
+--no-color`, and `"valid": true` in the JSON. An ANSI `# ` H1 does the same through the `title` fallback.
+This is NOT an argument to widen the checker (that breaks the documentary-quotation property
+`test_body_gate_example_is_not_a_real_gate` pins); it is a renderer-side gap that belongs to `llnvwj`, and
+the plan must say so rather than leave a reader to infer that `aw attention` is now safe. SECOND, the
+BLAST RADIUS of widening `validate_spec` is larger than `aw check`: four consumers read it, including
+`attention._spec_record` (a drift DROPS the item from the view) and `runner_shared`'s run pre-flight
+(a drift BLOCKS dispatch), and `specs.run_set`/`run_migrate` re-run it on the prospective text and REFUSE
+a nonconforming result. Driven: a 400-character `- Scope:` validates clean today, so `aw specs set`
+accepts it; after E-02 that spec cannot be transitioned AT ALL until the value is hand-shortened. That is
+a second, independent reason E-01 must precede the rule, and it is the stronger one, because one of the
+two offenders is `approved` and a run may need to move it.
+
+TWO AUTHORED FIGURES ARE LIVE COUNTS AND DRIFTED, which is the repository's re-derivation convention
+rather than an error at authoring. `RULE_REGISTRY` was 52 entries at the plan's HEAD `f4b00263` and is 56
+at `009ae490` (verified both by reading the dict literal out of `git show f4b00263:`); the absence of
+`attention.unsafe-field` and the `_DEFAULT_RULESPEC` severity, which are the actual claims, both hold.
+`backlog.validate_item` was cited on 674 items and now runs on 763, still with zero `backlog.summary-unsafe`
+findings; again the property holds and the count does not. F-11's body-quotation claim was the one
+overstatement: the plan says the specs tree "contains specs that quote `- Scope:`-style bullets in body
+prose", and the measured population is `- Status:` 36, `- Gate-Kind:`/`- Gate-Ref:`/`- Gate-Summary:` 1
+each, and `- Scope:`/`- Summary:` ZERO. The bound is still required (one spec does quote `- Gate-Summary:`
+in prose, so the practice is live), but the plan should not assert a population it does not have.
+
+WHAT I CHECKED AND LEFT ALONE. OQ-01's fix-not-grandfather decision is right and its cost statement is
+honest. OQ-02's answer is right and its shared-constant argument holds. OQ-03 is right and its reasoning
+that `A.escape_detail` "deliberately does NOT strip C0/C1 controls" is verbatim true. The three carriers
+(`uz05bl`, `llnvwj`, `7w6zsl`) all resolve to real live backlog items whose own text matches what this
+plan defers to them, and both `Carrier-Declined` rows argue their case properly. The two `Carrier-Declined`
+rationales survive scrutiny: the history-message one correctly locates the forgery vector at the write
+path, and the rule-id one correctly reads the catalog's own prohibition on free-handing ids. E-05's
+fixture template exists as cited and the `unsafe-field.md` fixture does carry an over-length
+`- Gate-Summary:` and nothing else. The `implemented`/`approved` spec paths in `- Scope-Paths:` both exist
+at the paths given.
+
+ONE THING I DELIBERATELY DID NOT DO. `validate_release` emits `str(path)` as its drift location while
+`validate_spec` routes through `specs.drift_location` to a repo-relative POSIX path, and
+`check_engine._iter_type_files` feeds both absolute paths. I verified the absolute value does not reach a
+user (`check_engine.finding_dict` relativizes against `repo_root` first, and the `--agent` envelope's
+`_HOME_PATH_RE` would refuse it if it did), so this is a latent asymmetry and not a live leak. I recorded
+it in the plan's conventions section as something an executor must NOT "helpfully" change while adding a
+rule, rather than filing it as a finding against this plan, because fixing it would silently alter three
+shipped drifts' output shape under cover of a rule addition.
+
+Nothing in `agent_workflows/` or `tests/` was modified. All probe work lived in throwaway temporary
+directories; `git diff --stat agent_workflows/ tests/` is empty.
+
+## Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-901 | HIGH | IN-SCOPE | A. Correctness / E. Testing (a rule with no coverage of the population it claims to check) | `releases.parse_release`: `msum = _SUMMARY_RE.search(text)` then `if not summary: summary = _summary_section(text)`; `ReleaseRecord` docstring "`summary` is the `- Summary:` bullet when present, else the first paragraph of a `## Summary` prose section". Driven: the committed `2.0.0` record's `parse_release(...).summary` is the 457-character prose paragraph, `is_safe_descriptive` **False** on length; `- Summary:` bullets in the whole release tree: **0**. With an ANSI prose summary, `aw releases show aaaaaa` emitted `Summary: red\x1b[31mINJECTED\x1b[0m` and `aw releases list` the same, while `validate_release` returned `[]` | **E-03 judged the `- Summary:` BULLET only, and the bullet form does not exist in the live release tree, so the rule would have fired on nothing while its Expected outcome claimed `aw check releases` stayed clean.** The value that actually reaches `aw releases show`/`list` is the `## Summary` prose paragraph, and an ANSI escape in it reaches a terminal raw at zero checker drift, which is the exact Section 8.8 violation this plan exists to make a named finding. Shipping as authored would close the specs half of a `Blocks-Release: next` bug and leave the release half measurably open while recording it as covered | C:Low; U:Low; S:Medium; F:Medium; Overall:Medium | FIXED | E-03 rewritten to judge the EFFECTIVE summary with split strictness: full predicate on the bullet, control characters only on the prose form, with the measurement forcing the asymmetry stated inline. Its Expected outcome now names six cases including the 457-character record passing BY DESIGN and a 400-character prose case that must NOT flag. V-03 expanded from four to six cases and now requires TWO pre-fix counterparts (bullet and prose), since only the prose one distinguishes the corrected item from the authored one, plus the measured `aw releases show` vector. E-05 gains the prose cases. New OQ-04 records the decision and its three rejected alternatives; F-12 and F-13 record the measurements; the `- Concern:`, `- Scope:`, proposed change 3, and Scope check item (e) all corrected |
+| PR-902 | MEDIUM | UNDER-SCOPE | B. Security / F. Honest limits (a gap the plan's own framing invites a reader to think is closed) | `attention._FIELD_PATTERNS` is `(?mi)^-\s*Scope:\s*(.+)$` with no metadata bound, cascading `summary -> scope -> concern -> question -> title -> H1`; `specs._metadata_end` stops at the first `## `. Driven: a spec with no metadata `- Scope:` but a body `- Scope: red\x1b[31mINJECTED\x1b[0m` after a `## ` heading yields `validate_spec == []`, `_extract_detail == ('scope', 'red\x1b[31mINJECTED\x1b[0m')`, literal escape bytes in `aw attention --details --no-color`, `"valid": true` in `--format json`. Same via an ANSI `# ` H1 (`title: 9.9.9\x1b[31mINJ\x1b[0m` observed on a release). Live spec cascade: `scope` 21, `title` 16, `summary` 1 | **The checker reads a narrower region than the renderer, so a control character still reaches `aw attention` through two paths this plan cannot see, and the plan never says so.** Its `- Concern:` and F-02 both cite the raw-escape-reaches-a-terminal harm as the motivation, so a reader naturally concludes the rule closes it. Narrowing is not the fix (F-11's documentary-quotation property is pinned by a test), which means the residue is real and permanent until a renderer-side change | C:Low; U:Low; S:Medium; F:Low; Overall:Medium | FIXED | F-14 records both vectors with the driven output and the live cascade census. E-02 gains a paragraph stating the divergence, why the metadata bound is nonetheless correct, and that the residue belongs to `llnvwj`. A new Deferred row carries it to `llnvwj` with a `Carrier-Note` observing that item is `low`/`chore` on a pipe-only assessment and that the ANSI vector measured here is stronger, so its priority should be re-judged (flagged, not re-prioritized, since editing another tree's item is outside this plan's fence). Scope check gains item (g). E-05 must pin the limit as a two-sided assertion so no later reader misreads the module |
+| PR-903 | MEDIUM | UNDER-SCOPE | C. Architecture / G. Executability (an undeclared blast radius with a lifecycle deadlock in it) | `validate_spec` consumers: `check_engine` (`aw check specs`), `specs.run_check` (`aw specs check`), `attention._spec_record` (drift drops the item from the view), `runner_shared` (`[RUN-STRUCTURE-PREFLIGHT] spec <id6> ... violates <rule>`, blocks dispatch). `specs.run_set` and `run_migrate` each re-run it on the prospective text and refuse ("the resulting spec would not conform; refused (file unchanged)"). Driven: a spec with a 400-character `- Scope:` validates clean today so `aw specs set` accepts it; after E-02 that spec cannot be transitioned until the value is hand-shortened | **The plan presents E-02 as a checker change and never states that it also makes `aw specs set` refuse, blocks a spec's dispatch by `aw oc run`, and drops a spec from `aw attention`.** The setter consequence is a LIFECYCLE DEADLOCK: a spec the new rule rejects cannot be moved through its own lifecycle to fix itself, and one of the two known offenders is `approved`, so a run may need to move it. E-01's ordering rationale cites only the CI reason, which is the weaker of the two | C:Low; U:Low; S:Low; F:Medium; Overall:Medium | FIXED | E-02 gains a paragraph enumerating all four consumers plus the two refusing setters, with the driven 400-character deadlock. E-01's ordering rationale now states BOTH independent reasons (CI and lifecycle deadlock) and adds an instruction to edit the two specs BY HAND rather than through `aw specs set`, since a conformance repair is not a transition and the setter would append a spurious history record. A conventions bullet records the same for a later reader |
+| PR-904 | LOW | IN-SCOPE | E. Testing (a validation bar two of its four commands cannot meet) | Measured at HEAD `009ae490`: `aw specs check --agent` is `"checked":38,"findings":0` exit 0; `aw check specs --agent` and `aw check releases --agent` each `"outcome":"conforms","findings":1` exit 0, the finding being `{"location":"<collisions>","rule":"check.collisions-not-checked"}`; `aw check all` exits **1** with 59 findings across the plans tree, none `attention.unsafe-field` | **V-05 and the validation section require all four commands to report "clean/conforms", but two already emit a pre-existing advisory and `aw check all` already exits 1 with 59 unrelated findings.** An executor would either chase findings their change did not cause or conclude it did, and the "no grandfather tier needed" evidence would be unobtainable as stated | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | V-05 and the validation section now state the bar as an EXIT-CODE and RULE-SET claim ("adds no `attention.unsafe-field` finding and changes no exit code"), name the pre-existing `check.collisions-not-checked` advisory and the 59 plans-tree findings explicitly as the measured baseline, and instruct comparing rule sets rather than totals because the plans-tree count drifts with every landed change |
+| PR-905 | LOW | IN-SCOPE | G. Executability / evidence accuracy (a gate missing four required elements, two drifted counts, one overstated population, and an over-length own field) | The gate had no honesty MUST, no scope fence, no open-questions statement, and no conditional-ownership transition (it said "move the plan ... through the tooled transition (`aw ipd set executed`)"), where sibling Order 01's gate carries all four. `RULE_REGISTRY`: 52 at `f4b00263` (read from `git show`), 56 at `009ae490`. `backlog.validate_item`: 674 cited, 763 measured, zero findings either way. Body-quoted bullets measured as `- Status:` 36, gate fields 1 each, `- Scope:`/`- Summary:` **0**. The plan's own `- Scope:` field was 611 characters, failing the very predicate it ships | **Five executability and accuracy gaps.** The gate omits four required execution-contract elements; two cited figures are live counts stated as flat facts; F-11 asserts a body-quoted `- Scope:` population that is empirically zero; and the plan's own `- Scope:` line violates the bound it is adding, which a reader may reasonably read as the author not believing the rule | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Gate rewritten with the paste-the-actual-output honesty MUST (naming that BOTH validators need pre-fix failing runs), a declaration-style scope fence with the one genuinely-unsafe stop condition, the explicit `aw commit ynhst5 -- <six paths>` line, the open-questions statement, and the unconditional-finalize/conditional-owner paragraph with the never-hand-roll prohibition. F-09 and OQ-02 now carry both measurement sets with the PROPERTY named as the durable claim. F-11 corrected to the measured population with the reason the bound still holds. The `- Scope:` field compressed to 290 characters (`is_safe_descriptive` True) and `- Concern:` extended to state the release half. The findings-table preamble now separates authored from review-driven findings |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-1 | PR-901: the release prose summary is the field that actually renders. Judge it, and if so by the same 300-character bound as the bullet? | JUDGE IT, with SPLIT STRICTNESS: full predicate on the bullet, control characters only on the prose | (a) bullet-only as authored; (b) full predicate on both forms; (c) raise the bound for the prose form only | Option (a) ships a rule with zero coverage of the live tree (measured: zero `- Summary:` bullets in the release tree) inside a plan whose subject is closing an unchecked surface, and leaves the driven `aw releases show` ANSI vector open. Option (b) is refuted by measurement: the committed record's effective summary is 457 characters, so `A.is_safe_descriptive` returns False and at `error` severity `aw check releases` exits 1 on a clean checkout, reintroducing the grandfather tier OQ-01 exists to avoid. Option (c) forks `A.MAX_DESCRIPTIVE_LEN`, which OQ-02 declined to touch on a cross-tree argument. Line integrity alone fires on zero committed records and still closes the measured vector, so it is the only option that closes the harm without failing the tree | yes |
+| D-2 | PR-902: the renderer reads a wider region than the checker. Widen the checker to match, or record the divergence as a carried limit? | RECORD IT as a limit carried by `llnvwj`, and pin it as a two-sided test assertion | (a) widen `validate_spec` to read the whole document; (b) say nothing, since the metadata bound is defensible on its own | Option (a) breaks a pinned property: `tests/test_specs_verbs.py::test_body_gate_example_is_not_a_real_gate` asserts that metadata bullets quoted after a `## ` heading are not read as real metadata, and one committed spec quotes `- Gate-Summary:` in exactly that way, so an unbounded read produces false findings on documentary quotations. Option (b) leaves a reader of this plan (whose `- Concern:` cites the raw-escape harm) to conclude the rule closed it; the driven evidence shows it does not. The `llnvwj` item's own text already names "WHICH surfaces escape" as undecided and records that `A.escape_detail` does not touch C0/C1 controls, so it is the correct owner | yes |
+| D-3 | PR-902 follow-on: `llnvwj` is `low`/`chore` on a pipe-only assessment; the ANSI vector measured here is stronger. Re-prioritize that item? | NO; flag it in the plan's carrier note and leave the item untouched | (a) run `aw backlog set llnvwj --priority medium --work-kind bug`; (b) say nothing about the mismatch | Option (a) has a reviewer mutating another tree's artifact outside the reviewed plan's declared `- Scope-Paths:`, which `plan-review.md` 2.4 (surgical edits, no unsupported scope expansion) forbids, and the bug-versus-chore call turns on user-perceptible impact, which is a maintainer judgement per `AGENTS.md`. Option (b) loses the measurement: `llnvwj`'s own text argues `low` because "a pipe does not in fact break a table today", and the ANSI evidence is materially different (Section 8.8 forbids raw control characters outright), so a triager inheriting the pipe-only reasoning would under-rate it. Recording the mismatch on the carrier row puts the evidence where whoever triages it will read it | yes |
+| D-4 | The `validate_release` absolute-path drift location is asymmetric with `validate_spec`'s repo-relative one. File it as a finding against this plan? | NO; record it as a conventions bullet warning the executor NOT to change it | (a) file it as a finding and have E-03 fix it; (b) omit it entirely | Verified it is latent rather than live: `check_engine.finding_dict` relativizes the location against `repo_root` before serializing, and the `--agent` envelope's `_HOME_PATH_RE` would refuse an absolute home path if it reached there, confirmed by driving `aw check releases --agent` on a fixture repo and seeing a repo-relative location. Option (a) would have a rule addition silently change three shipped drifts' output shape, which is undeclared behavior change under cover of an unrelated fix. Option (b) risks an executor "tidying" it while editing the function. The bullet is the minimum that prevents both | yes |
+| D-5 | Should the review implement E-01 through E-05, having measured every case? | NO; the probes stay throwaway | (a) implement directly, since the change is small and fully measured; (b) paste probe source into the plan | The workflow edits planning documents only, and this plan carries `Blocks-Release: next`, so a reviewer landing unreviewed production code into a release-gating change is the worst case for that rule. The probes also cut corners the deliverable must not: they call internals directly, build fixtures by hand rather than through the established helpers, and assert nothing about the agent envelope. What they legitimately contribute is the three new findings plus verified feasibility of the corrected E-03 on both summary forms | yes |
