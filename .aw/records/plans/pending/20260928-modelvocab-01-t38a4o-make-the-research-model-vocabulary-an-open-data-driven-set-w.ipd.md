@@ -36,58 +36,58 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the data file and its loader
 
-- [ ] E-01 Add `agent_workflows/data/research-models.toml`, a tracked, commented data file carrying the canonical model tokens and the drift-spelling map, seeded with EXACTLY today's `research_contract.MODELS` and `MODEL_NORMALIZATIONS` so the migration is behavior-preserving by construction. RE-DERIVE BOTH SETS FROM HEAD AT EXECUTION TIME; the bar is set EQUALITY, not a transcribed count. For context only, measured at review: `len(MODELS) == 13` and `len(MODEL_NORMALIZATIONS) == 22` (the authored figure of 20 was wrong, which is exactly why the equality assertion and not the digit is the bar). Emit only shapes the repo's minimal TOML reader round-trips AFTER the E-02 extension: flat string arrays and flat `key = "value"` pairs, following the `.aw/config/local-leaks-allowlist.toml` precedent, whose own header says "It is read by a minimal TOML reader (3.9-safe, no tomllib), so keep entries to flat string arrays and flat booleans". Represent the normalization MAP as a flat `[normalizations]` section of `from = "to"` pairs rather than nested tables, and note the reader is SECTION-BLIND (F-24), so no key name may repeat across sections. Carry the same commentary the code holds today, specifically the "A NEW MODEL IS NOT A SPELLING VARIANT" rule and the reasoning-effort-in-identity rule, because that is the review guidance a human editing this file needs and it must not be lost in the move.
+- [x] E-01 Add `agent_workflows/data/research-models.toml`, a tracked, commented data file carrying the canonical model tokens and the drift-spelling map, seeded with EXACTLY today's `research_contract.MODELS` and `MODEL_NORMALIZATIONS` so the migration is behavior-preserving by construction. RE-DERIVE BOTH SETS FROM HEAD AT EXECUTION TIME; the bar is set EQUALITY, not a transcribed count. For context only, measured at review: `len(MODELS) == 13` and `len(MODEL_NORMALIZATIONS) == 22` (the authored figure of 20 was wrong, which is exactly why the equality assertion and not the digit is the bar). Emit only shapes the repo's minimal TOML reader round-trips AFTER the E-02 extension: flat string arrays and flat `key = "value"` pairs, following the `.aw/config/local-leaks-allowlist.toml` precedent, whose own header says "It is read by a minimal TOML reader (3.9-safe, no tomllib), so keep entries to flat string arrays and flat booleans". Represent the normalization MAP as a flat `[normalizations]` section of `from = "to"` pairs rather than nested tables, and note the reader is SECTION-BLIND (F-24), so no key name may repeat across sections. Carry the same commentary the code holds today, specifically the "A NEW MODEL IS NOT A SPELLING VARIANT" rule and the reasoning-effort-in-identity rule, because that is the review guidance a human editing this file needs and it must not be lost in the move.
   - Depends on: none
   - Expected outcome: a new data file whose parsed content equals today's in-code vocabulary exactly; `sorted(parsed_models) == sorted(research_contract.MODELS)` and the parsed normalization map equals `MODEL_NORMALIZATIONS`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add `agent_workflows/model_vocab.py` with the READER only: resolve the effective vocabulary by merging three ADDITIVE layers, lowest precedence first. The layers are the PACKAGE DEFAULT `agent_workflows/data/research-models.toml` (always present, read via `Path(__file__).parent / "data"`, the same `__file__`-relative idiom `run_dashboard._asset` already uses for `run_dashboard_assets`), then the TARGET REPO file `.aw/config/research-models.toml` when present, then the per-user layer beside the repo config, mirroring the allowlist's "never-committed, per-user layer" split. Merging is ADD-ONLY: a later layer contributes tokens and normalizations and can never delete a package token, which is what stops an artifact already named under a shipped token from becoming unparseable through a config edit (see OQ-01). Reuse the repo's existing minimal TOML reader rather than writing a second one, because `leak_sanitizer._parse_simple_toml_lists` is the established 3.9-safe parser and the support floor forbids `tomllib` (3.11+). MEASURED AT REVIEW, THE EXTENSION IS REQUIRED AND NOT CONDITIONAL, so do not plan for the branch where it turns out unnecessary: `_parse_simple_toml_lists` reads ONLY `key = [...]` arrays and `_parse_simple_toml_bools` ONLY `key = true|false`, so on the E-01 file shape the pair `gpt-56 = "gpt56"` yields `{}` from both (`lists reader: {'models': [...]}`, `bools reader: {}`). Extend `leak_sanitizer` in place with a flat-scalar-pairs reader beside the flat-array one (declared in `- Scope-Paths:`), and note the reader is SECTION-BLIND (measured: two `models =` keys under different `[section]` headers collapse to last-wins), so the E-01 file must not reuse one key name across sections and the scalar-pairs reader must be given the section it should read from, or the file must use unambiguous key names. The WRITER belongs to E-08, not here.
+- [x] E-02 Add `agent_workflows/model_vocab.py` with the READER only: resolve the effective vocabulary by merging three ADDITIVE layers, lowest precedence first. The layers are the PACKAGE DEFAULT `agent_workflows/data/research-models.toml` (always present, read via `Path(__file__).parent / "data"`, the same `__file__`-relative idiom `run_dashboard._asset` already uses for `run_dashboard_assets`), then the TARGET REPO file `.aw/config/research-models.toml` when present, then the per-user layer beside the repo config, mirroring the allowlist's "never-committed, per-user layer" split. Merging is ADD-ONLY: a later layer contributes tokens and normalizations and can never delete a package token, which is what stops an artifact already named under a shipped token from becoming unparseable through a config edit (see OQ-01). Reuse the repo's existing minimal TOML reader rather than writing a second one, because `leak_sanitizer._parse_simple_toml_lists` is the established 3.9-safe parser and the support floor forbids `tomllib` (3.11+). MEASURED AT REVIEW, THE EXTENSION IS REQUIRED AND NOT CONDITIONAL, so do not plan for the branch where it turns out unnecessary: `_parse_simple_toml_lists` reads ONLY `key = [...]` arrays and `_parse_simple_toml_bools` ONLY `key = true|false`, so on the E-01 file shape the pair `gpt-56 = "gpt56"` yields `{}` from both (`lists reader: {'models': [...]}`, `bools reader: {}`). Extend `leak_sanitizer` in place with a flat-scalar-pairs reader beside the flat-array one (declared in `- Scope-Paths:`), and note the reader is SECTION-BLIND (measured: two `models =` keys under different `[section]` headers collapse to last-wins), so the E-01 file must not reuse one key name across sections and the scalar-pairs reader must be given the section it should read from, or the file must use unambiguous key names. The WRITER belongs to E-08, not here.
   - Depends on: E-01
   - Expected outcome: `model_vocab.load(repo_root)` returns the merged `(models, normalizations)`; with no repo file present the result equals the package default; with a repo file adding `deepseek4`, that token is present and every package token still is.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-10 THREAD THE REPO ROOT TO THE VALIDATOR, which is the load-bearing wiring E-02/E-03 presuppose and which no other item delivers. Measured at review: `normalize_model(token)` takes ONLY a token, and so do its two in-module callers `parse_name(filename)` and `validate_frontmatter(data)`; none receives a repo root, so `model_vocab.load(repo_root)` has no root to be given and the E-03 cache has no key. THE CWD-CLIMBING SHORTCUT IS WRONG AND MUST NOT BE TAKEN: `research_index._roots` resolves through `project_context.resolve_verb_repo_root(args.dir)`, and measured with cwd in repo A and `--dir` repo B, the climbed root and the operated-on root DIFFER (`SAME ROOT: False`), so a cwd-climbing loader validates repo B's documents against repo A's blessed tokens. Choose ONE explicit mechanism and state which in V-10: (a) add an OPTIONAL keyword `repo_root` to `normalize_model`, `parse_name` and `validate_frontmatter`, threaded from each caller that already holds a root; or (b) an explicit process-scoped ACTIVE-ROOT set once per verb by the CLI entry point (`research_index._roots` and its siblings) and read by `model_vocab`, never inferred from cwd. Either way the DEFAULT with no root supplied must be the PACKAGE DEFAULT ALONE, never a cwd climb, so a library caller with no root gets the shipped vocabulary rather than an accidental one. Call-site census measured at review, to size the threading: `normalize_model` 4 production calls in 3 files (`artifact_adopt`, `research_cmd` x2, `research_refs`); `parse_name` 14 production calls in 5 files plus 7 test calls in 2 files; `validate_frontmatter` 1 production call plus 7 test calls in 3 files. If option (a) is chosen, every one of those calls keeps working unchanged because the parameter is optional; that is the point of making it optional.
+- [x] E-10 THREAD THE REPO ROOT TO THE VALIDATOR, which is the load-bearing wiring E-02/E-03 presuppose and which no other item delivers. Measured at review: `normalize_model(token)` takes ONLY a token, and so do its two in-module callers `parse_name(filename)` and `validate_frontmatter(data)`; none receives a repo root, so `model_vocab.load(repo_root)` has no root to be given and the E-03 cache has no key. THE CWD-CLIMBING SHORTCUT IS WRONG AND MUST NOT BE TAKEN: `research_index._roots` resolves through `project_context.resolve_verb_repo_root(args.dir)`, and measured with cwd in repo A and `--dir` repo B, the climbed root and the operated-on root DIFFER (`SAME ROOT: False`), so a cwd-climbing loader validates repo B's documents against repo A's blessed tokens. Choose ONE explicit mechanism and state which in V-10: (a) add an OPTIONAL keyword `repo_root` to `normalize_model`, `parse_name` and `validate_frontmatter`, threaded from each caller that already holds a root; or (b) an explicit process-scoped ACTIVE-ROOT set once per verb by the CLI entry point (`research_index._roots` and its siblings) and read by `model_vocab`, never inferred from cwd. Either way the DEFAULT with no root supplied must be the PACKAGE DEFAULT ALONE, never a cwd climb, so a library caller with no root gets the shipped vocabulary rather than an accidental one. Call-site census measured at review, to size the threading: `normalize_model` 4 production calls in 3 files (`artifact_adopt`, `research_cmd` x2, `research_refs`); `parse_name` 14 production calls in 5 files plus 7 test calls in 2 files; `validate_frontmatter` 1 production call plus 7 test calls in 3 files. If option (a) is chosen, every one of those calls keeps working unchanged because the parameter is optional; that is the point of making it optional.
   - Depends on: E-02
   - Expected outcome: with repo A blessing `deepseek4` and repo B blessing nothing, a validation run scoped to repo B does NOT recognize `deepseek4` while one scoped to repo A does, with cwd held constant in A for both; and `normalize_model("deepseek4")` with NO root supplied returns unrecognized (package default), never a cwd-derived answer.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Give the loader a per-repo-root CACHE so the vocabulary is read from disk ONCE per process rather than per token. This is load-bearing, not an optimization flourish: `normalize_model` is called at least twice per document (`parse_name` for the filename facet and `validate_frontmatter` for the `model:` key), which is at least 260 calls for this repo's 130 research docs in a single `aw research index` run (F-8), and a naive loader would turn each into a file stat plus parse. Key the cache on the resolved repo root and expose an explicit invalidation entry point for the add verb and for tests, so a write through E-05 is visible to a subsequent read in the same process. Do NOT cache on a mutable default argument or a module-level dict keyed by a relative path; a test that chdirs between repos must not see another repo's vocabulary.
+- [x] E-03 Give the loader a per-repo-root CACHE so the vocabulary is read from disk ONCE per process rather than per token. This is load-bearing, not an optimization flourish: `normalize_model` is called at least twice per document (`parse_name` for the filename facet and `validate_frontmatter` for the `model:` key), which is at least 260 calls for this repo's 130 research docs in a single `aw research index` run (F-8), and a naive loader would turn each into a file stat plus parse. Key the cache on the resolved repo root and expose an explicit invalidation entry point for the add verb and for tests, so a write through E-05 is visible to a subsequent read in the same process. Do NOT cache on a mutable default argument or a module-level dict keyed by a relative path; a test that chdirs between repos must not see another repo's vocabulary.
   - Depends on: E-10
   - Expected outcome: with a counter patched over the file read, a loop of 500 `normalize_model` calls performs exactly one read per repo root; after the invalidation call a subsequent read picks up a newly added token.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: warn instead of refuse, without breaking the detector
 
-- [ ] E-04 Change `research_contract.normalize_model` to WARN-NOT-REFUSE, and do it WITHOUT breaking the two callers that legitimately depend on a false result. Today the function returns `VocabResult(False, None, sugg, "unknown model ...")` for anything not in `MODELS`, and two call sites read that `ok=False` as a real answer rather than as an error: `artifact_adopt.suggest_metadata` loops over every trailing filename facet and uses `res.ok` to DECIDE WHICH FACET IS THE MODEL (measured F-5: `some-report.gemini31prohigh.agy.md` yields model `gemini31prohigh` precisely because `agy` returns not-ok), and `research_index._doc_entry` turns a not-ok result into blocking drift. So a blanket flip of `ok` to `True` would make `artifact_adopt` label `agy` (or the kind facet) as the model, which is a NEW provenance-corruption bug in the very field this plan exists to protect. Resolve it by distinguishing RECOGNIZED from ACCEPTED: extend `VocabResult` with a `recognized: bool` (defaulting so existing positional construction and every `normalize_kind`/`normalize_status` caller are untouched), have the model path return `ok=True, recognized=False, value=<the normalized token>` with a warning message for an unknown-but-well-formed token, and convert `artifact_adopt`'s facet detector to test `recognized` instead of `ok`. State in V-04 which predicate each of the four `normalize_model` call sites now reads.
+- [x] E-04 Change `research_contract.normalize_model` to WARN-NOT-REFUSE, and do it WITHOUT breaking the two callers that legitimately depend on a false result. Today the function returns `VocabResult(False, None, sugg, "unknown model ...")` for anything not in `MODELS`, and two call sites read that `ok=False` as a real answer rather than as an error: `artifact_adopt.suggest_metadata` loops over every trailing filename facet and uses `res.ok` to DECIDE WHICH FACET IS THE MODEL (measured F-5: `some-report.gemini31prohigh.agy.md` yields model `gemini31prohigh` precisely because `agy` returns not-ok), and `research_index._doc_entry` turns a not-ok result into blocking drift. So a blanket flip of `ok` to `True` would make `artifact_adopt` label `agy` (or the kind facet) as the model, which is a NEW provenance-corruption bug in the very field this plan exists to protect. Resolve it by distinguishing RECOGNIZED from ACCEPTED: extend `VocabResult` with a `recognized: bool` (defaulting so existing positional construction and every `normalize_kind`/`normalize_status` caller are untouched), have the model path return `ok=True, recognized=False, value=<the normalized token>` with a warning message for an unknown-but-well-formed token, and convert `artifact_adopt`'s facet detector to test `recognized` instead of `ok`. State in V-04 which predicate each of the four `normalize_model` call sites now reads.
   - Depends on: E-03
   - Expected outcome: `normalize_model("deepseek4")` returns ok, `recognized=False`, `value="deepseek4"`, and a message naming the add command; `normalize_model("sonnet5")` returns ok with `recognized=True`; `artifact_adopt.suggest_metadata("x.gemini31prohigh.agy.md", ...)` still proposes `gemini31prohigh` and NOT `agy`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Make the warning TEACH THE FIX, which the backlog item requires as its own numbered point and which the current message fails: `unknown model 'gemini4pro'; did you mean 'gemini31pro'?` leaves the user exactly where the defect found them, and its closest-match hint actively misleads, because `gemini31pro` is a DIFFERENT MODEL and accepting the suggestion would file a report under a model that did not write it. The new message must name the exact command (`aw research add-model <token>`) and must keep the proximity hint clearly subordinate to it, marked as a spelling check rather than a recommendation. Also REJECT a malformed token rather than recording it, BUT THE GATE MUST ADMIT A HYPHEN, which the authored version got wrong and which review measured as a residual outage. A canonical token is `[a-z0-9]+` (F-7), and the authored rule refused a hyphen on that basis; measured, that REINTRODUCES the F-2 outage for a hyphenated unknown model. A filename facet is split on `.`, so a hyphen is legal INSIDE a facet: `...slug.gemini-4-pro.research-report.md` parses its model facet as `gemini-4-pro`, which has no `MODEL_NORMALIZATIONS` entry (only KNOWN spellings do), so a hyphen-refusing gate returns `ok=False`, `parse_name` fails, `_doc_entry` emits `name-invalid`, and the regenerate branch blocks `INDEX.json` for the WHOLE tree. Measured at review: a scratch repo with one `gemini-4-pro` doc plus one `sonnet5` control gave `exit: 1  INDEX.json written: False`. Hyphenated spellings are not hypothetical, since 21 of the 22 `MODEL_NORMALIZATIONS` KEYS are hyphenated (`gpt-56`, `gemini-31-pro-deep-think`, `sonnet-5-high`), which is the corpus evidence that vendors and humans write them. SO: the accepted syntax gate is `[a-z0-9-]+`, refusing a DOT (the only character that changes facet arity), whitespace, underscore, uppercase-after-lowering, and empty. Verified at review that admitting the hyphen is arity-safe: `format_name` with model `gemini-4-pro` produces a 3-segment stem that `parse_name` round-trips back to `model='gemini-4-pro'`, and `a.b`/`gemini 4`/`gemini_4`/`""` all still fail the gate. RECORD THE TOKEN VERBATIM, do not auto-collapse the hyphen: generalized hyphen-stripping reproduces only 20 of the 22 existing mappings (`gemini31prodeepthink-high` and `chatgpt` diverge), so a blanket strip would contradict two recorded decisions, and OQ-02 already forbids auto-collapsing onto a different model. That refusal is a SYNTAX check, not a vocabulary check, and it is the one place a hard refusal stays correct.
+- [x] E-05 Make the warning TEACH THE FIX, which the backlog item requires as its own numbered point and which the current message fails: `unknown model 'gemini4pro'; did you mean 'gemini31pro'?` leaves the user exactly where the defect found them, and its closest-match hint actively misleads, because `gemini31pro` is a DIFFERENT MODEL and accepting the suggestion would file a report under a model that did not write it. The new message must name the exact command (`aw research add-model <token>`) and must keep the proximity hint clearly subordinate to it, marked as a spelling check rather than a recommendation. Also REJECT a malformed token rather than recording it, BUT THE GATE MUST ADMIT A HYPHEN, which the authored version got wrong and which review measured as a residual outage. A canonical token is `[a-z0-9]+` (F-7), and the authored rule refused a hyphen on that basis; measured, that REINTRODUCES the F-2 outage for a hyphenated unknown model. A filename facet is split on `.`, so a hyphen is legal INSIDE a facet: `...slug.gemini-4-pro.research-report.md` parses its model facet as `gemini-4-pro`, which has no `MODEL_NORMALIZATIONS` entry (only KNOWN spellings do), so a hyphen-refusing gate returns `ok=False`, `parse_name` fails, `_doc_entry` emits `name-invalid`, and the regenerate branch blocks `INDEX.json` for the WHOLE tree. Measured at review: a scratch repo with one `gemini-4-pro` doc plus one `sonnet5` control gave `exit: 1  INDEX.json written: False`. Hyphenated spellings are not hypothetical, since 21 of the 22 `MODEL_NORMALIZATIONS` KEYS are hyphenated (`gpt-56`, `gemini-31-pro-deep-think`, `sonnet-5-high`), which is the corpus evidence that vendors and humans write them. SO: the accepted syntax gate is `[a-z0-9-]+`, refusing a DOT (the only character that changes facet arity), whitespace, underscore, uppercase-after-lowering, and empty. Verified at review that admitting the hyphen is arity-safe: `format_name` with model `gemini-4-pro` produces a 3-segment stem that `parse_name` round-trips back to `model='gemini-4-pro'`, and `a.b`/`gemini 4`/`gemini_4`/`""` all still fail the gate. RECORD THE TOKEN VERBATIM, do not auto-collapse the hyphen: generalized hyphen-stripping reproduces only 20 of the 22 existing mappings (`gemini31prodeepthink-high` and `chatgpt` diverge), so a blanket strip would contradict two recorded decisions, and OQ-02 already forbids auto-collapsing onto a different model. That refusal is a SYNTAX check, not a vocabulary check, and it is the one place a hard refusal stays correct.
   - Depends on: E-04
   - Expected outcome: the unknown-token message contains `aw research add-model`; `normalize_model("gemini-4-pro")` returns `ok=True` with `recognized=False` and `value="gemini-4-pro"` (hyphen ADMITTED, recorded verbatim); `normalize_model("gemini 4")`, `normalize_model("a.b")`, `normalize_model("gemini_4")` and `normalize_model("")` return `ok=False` with a message saying MALFORMED.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Stop an unrecognized model from taking the WHOLE INDEX DOWN, which is the most damaging half of this defect and the half the filed item did not know about. Measured (F-2): `research_index.run_index` reads "Refuse to write over invalid input; report and exit nonzero" and returns 1 before writing, so with one unknown-model doc present `INDEX.json` is never created and all 130 docs lose the manifest that `aw research find` and the attention scanner read. After E-04 an unknown model is no longer a `validate_frontmatter` error or a `parse_name` failure, so the doc INDEXES normally; this item's work is to verify that end to end and to add the advisory drift rule below, not to weaken the refuse-on-invalid-input rule, which stays correct for genuinely invalid input.
+- [x] E-06 Stop an unrecognized model from taking the WHOLE INDEX DOWN, which is the most damaging half of this defect and the half the filed item did not know about. Measured (F-2): `research_index.run_index` reads "Refuse to write over invalid input; report and exit nonzero" and returns 1 before writing, so with one unknown-model doc present `INDEX.json` is never created and all 130 docs lose the manifest that `aw research find` and the attention scanner read. After E-04 an unknown model is no longer a `validate_frontmatter` error or a `parse_name` failure, so the doc INDEXES normally; this item's work is to verify that end to end and to add the advisory drift rule below, not to weaken the refuse-on-invalid-input rule, which stays correct for genuinely invalid input.
   - Depends on: E-05
   - Expected outcome: in a scratch repo containing one unknown-model doc plus one known-model doc, `aw research index` exits 0, writes `INDEX.json`, and the unknown-model doc appears in it with its `model` recorded verbatim.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Add an ADVISORY drift rule reporting an unrecognized model in `aw research index --check`, registered at `info` severity in `check_engine.RULE_REGISTRY`. The severity is load-bearing and is not a style choice: `artifact_core.drift_exit_code` returns `1 if any(getattr(d, "severity", "") != "info" for d in drift) else 0`, so `info` is the UNIQUE severity that does not fail the gate, and registering this as `warning` would make every repo carrying a not-yet-blessed model exit nonzero, which is the same fail-closed behavior this plan is removing. Registration is also NOT optional bookkeeping: an unregistered rule id falls through to `_DEFAULT_RULESPEC` at severity `error`. This is what keeps the backlog item's own stated consequence handled: a typo like `sonnet5hgih` is now RECORDED rather than rejected, so it needs a mechanical surface that still notices it.
+- [x] E-07 Add an ADVISORY drift rule reporting an unrecognized model in `aw research index --check`, registered at `info` severity in `check_engine.RULE_REGISTRY`. The severity is load-bearing and is not a style choice: `artifact_core.drift_exit_code` returns `1 if any(getattr(d, "severity", "") != "info" for d in drift) else 0`, so `info` is the UNIQUE severity that does not fail the gate, and registering this as `warning` would make every repo carrying a not-yet-blessed model exit nonzero, which is the same fail-closed behavior this plan is removing. Registration is also NOT optional bookkeeping: an unregistered rule id falls through to `_DEFAULT_RULESPEC` at severity `error`. This is what keeps the backlog item's own stated consequence handled: a typo like `sonnet5hgih` is now RECORDED rather than rejected, so it needs a mechanical surface that still notices it.
 
   EMIT THE FINDING IN `check_drift`, NOT IN `_doc_entry`/`_scan_docs`, AND THE `info` SEVERITY DOES NOT SAVE YOU FROM THIS. Measured at review: `info` governs the `--check` branch ONLY, because `drift_exit_code` is consulted there alone; the REGENERATE branch of `research_index.run_index` tests raw truthiness ("Refuse to write over invalid input", `if drift: ... return 1`) and never reads severity. Simulating the post-E-04/E-06/E-07 state with the advisory emitted from `_doc_entry` gave `drift_exit_code(drift) = 0` (so `--check` passed) while `aw research index` returned `exit: 1` with `INDEX.json written: False`: the advisory rule silently RESTORES the exact F-2 outage E-06 exists to remove, and it does so for an `info` finding that fails nothing. Emitting it in `check_drift` instead confines it correctly, because `check_drift` calls `_scan_docs` and then APPENDS its own rule families (stale-index, dangling-citation, stale-state-to-promote) while the regenerate branch calls `_scan_docs` DIRECTLY and never calls `check_drift`. Verified: with the advisory emitted in `check_drift`, the same scratch repo gives regenerate `exit: 0  INDEX.json written: True  indexed models: ['sonnet5', 'gemini4pro']` and `--check` exit 0 with the advisory still reported. That location also serves `aw check research`, which reaches the same producer (`check_engine` calls `_ridx.check_drift(repo_root, dirs[0])`), so one emission covers both surfaces.
   - Depends on: E-06
   - Expected outcome: with an unknown-model doc present, `aw research index --check` reports the unrecognized model and still exits 0; the SAME repo's bare `aw research index` exits 0 and writes `INDEX.json` containing the unknown-model doc; with a hand-broken frontmatter field present `--check` still exits 1, proving the advisory rule did not soften real drift.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: the add verb, packaging, and the contract text
 
-- [ ] E-08 Add the `aw research add-model <token>` CLI verb (with optional `--normalize-from <spelling>` for a drift alias and the repo's standard dry-run-by-default plus `--apply`, matching `research new`'s documented "'new' and 'new-comparison' are dry-run by default; pass --apply to write" convention). It writes the TARGET REPO layer `.aw/config/research-models.toml`, never the packaged default, atomically through `artifact_core.atomic_write` (which passes a non-`.md` path through byte-for-byte, so the TOML is not markdown-normalized), creating the file with its explanatory header when absent. Wire it into `cli.py` beside the existing `research` subparsers and add its one-line entry to the command-help table that already carries `research new` / `research mv` / `research promote`. Registering the leaf in `command_surface.COMMAND_INVENTORY` is part of ADDING the verb rather than separate bookkeeping, so it belongs in this same pass: measured at review by adding a bare `research add-model` leaf to the built parser, `find_undeclared_leaves` went from `[]` to `['research add-model']` (and `conformance_matrix.build_matrix().undeclared` likewise), which makes `tests/test_command_surface_declarations.py::test_zero_undeclared_parser_leaves` fail. Declare it as a `mutation` with `mutation_gate="dry_run_default"` to match its `--apply` behavior and the neighbouring `research mv` / `research promote` declarations, carrying `--normalize-from`/`--apply` in `legacy_flags`. The written file lives at `.aw/config/research-models.toml`, a TRACKED repo layer like `local-leaks-allowlist.toml` (verified at review that the path is NOT gitignored, since `.gitignore` covers `.aw/state/` and `.aw/config/local.json` only), which the verb writes but must never stage or commit. This is the backlog item's point 3, whose whole purpose is that blessing a model becomes one terminal command instead of a Python edit plus a spec amendment.
+- [x] E-08 Add the `aw research add-model <token>` CLI verb (with optional `--normalize-from <spelling>` for a drift alias and the repo's standard dry-run-by-default plus `--apply`, matching `research new`'s documented "'new' and 'new-comparison' are dry-run by default; pass --apply to write" convention). It writes the TARGET REPO layer `.aw/config/research-models.toml`, never the packaged default, atomically through `artifact_core.atomic_write` (which passes a non-`.md` path through byte-for-byte, so the TOML is not markdown-normalized), creating the file with its explanatory header when absent. Wire it into `cli.py` beside the existing `research` subparsers and add its one-line entry to the command-help table that already carries `research new` / `research mv` / `research promote`. Registering the leaf in `command_surface.COMMAND_INVENTORY` is part of ADDING the verb rather than separate bookkeeping, so it belongs in this same pass: measured at review by adding a bare `research add-model` leaf to the built parser, `find_undeclared_leaves` went from `[]` to `['research add-model']` (and `conformance_matrix.build_matrix().undeclared` likewise), which makes `tests/test_command_surface_declarations.py::test_zero_undeclared_parser_leaves` fail. Declare it as a `mutation` with `mutation_gate="dry_run_default"` to match its `--apply` behavior and the neighbouring `research mv` / `research promote` declarations, carrying `--normalize-from`/`--apply` in `legacy_flags`. The written file lives at `.aw/config/research-models.toml`, a TRACKED repo layer like `local-leaks-allowlist.toml` (verified at review that the path is NOT gitignored, since `.gitignore` covers `.aw/state/` and `.aw/config/local.json` only), which the verb writes but must never stage or commit. This is the backlog item's point 3, whose whole purpose is that blessing a model becomes one terminal command instead of a Python edit plus a spec amendment.
   - Depends on: E-07
   - Expected outcome: `aw research add-model deepseek4 --apply` exits 0, creates or extends `.aw/config/research-models.toml`, and a subsequent `normalize_model("deepseek4")` in a fresh process returns `recognized=True`; without `--apply` it writes nothing and previews the change; `find_undeclared_leaves(cli._build_parser())` is still empty.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-09 Add `tests/test_model_vocab.py` and extend the three affected existing test files, all as OUTCOME tests that drive real functions and CLI commands and assert on real outputs, exit codes, and file bytes (never by reading source text or counting symbols). The required coverage is enumerated below. Note that `tests/test_research_cmd_create.py::test_unknown_model_rejected` asserts `assertIn("unknown model", err)` on a refusal this plan deliberately removes, so it must be REPLACED (never silently deleted) by a test that an unknown model is now accepted and recorded while a malformed one is still refused, with the replacement described in V-09. That one assertion is the ONLY model-vocabulary coverage in the suite today (F-13), so everything else listed here is NEW coverage.
+- [x] E-09 Add `tests/test_model_vocab.py` and extend the three affected existing test files, all as OUTCOME tests that drive real functions and CLI commands and assert on real outputs, exit codes, and file bytes (never by reading source text or counting symbols). The required coverage is enumerated below. Note that `tests/test_research_cmd_create.py::test_unknown_model_rejected` asserts `assertIn("unknown model", err)` on a refusal this plan deliberately removes, so it must be REPLACED (never silently deleted) by a test that an unknown model is now accepted and recorded while a malformed one is still refused, with the replacement described in V-09. That one assertion is the ONLY model-vocabulary coverage in the suite today (F-13), so everything else listed here is NEW coverage.
 
   Coverage list, one row per behavior:
   - E-01 seed equivalence against git HEAD's values.
@@ -103,7 +103,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - The `add-model` round trip, including `--normalize-from`.
   - Depends on: E-08
   - Expected outcome: new and updated tests pass; the bare full suite passes with its `N passed` line pasted; no test inspects production source text.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -213,55 +213,338 @@ No change to spec `5tapom` (research lifecycle reliability): it governs status a
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the full content of the new `agent_workflows/data/research-models.toml`, then paste the output of a command that parses it and compares against the PRE-CHANGE vocabulary, showing set equality for both the model tokens and the normalization entries (for example a printed `sorted(parsed) == sorted(expected) -> True` for each, with the expected values taken from git HEAD's `research_contract`, not from the new loader, so the comparison cannot be circular). RE-DERIVE BOTH COUNTS FROM HEAD AT EXECUTION TIME rather than trusting a number written here: measured at review, `len(MODELS) == 13` but `len(MODEL_NORMALIZATIONS) == 22`, not the 20 the authored E-01 and V-01 both claimed, and the corrected figures could drift again before execution. State the exact counts found and assert set EQUALITY, which is the real bar; a count is only a cross-check.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Parsed content equals git HEAD vocabulary (13 models, 22 normalizations):
+    Full content of `agent_workflows/data/research-models.toml`:
+    ```toml
+    # Research model vocabulary (tracked, package default).
+    #
+    # It is read by a minimal TOML reader (3.9-safe, no tomllib), so keep entries to flat
+    # string arrays and flat key = "value" pairs.
+    #
+    # Target repo layer lives at .aw/config/research-models.toml. Layers are additive.
+    #
+    # ``<model>`` authorship facet. ``reconciliation`` denotes a synthesis with no single author.
+    #
+    # THE TOKEN IDENTIFIES A MODEL *PLUS ITS REASONING EFFORT*, because effort materially changes the
+    # output and a comparison set exists precisely to hold two such outputs side by side. The original
+    # vocabulary encoded effort for the gpt56 family ONLY (`gpt56medium`/`gpt56high`) and offered no
+    # equivalent for Sonnet or Gemini, so a genuine `sonnet5` high-effort report could not be named. The
+    # effort suffix is therefore GENERALIZED here rather than kept as a gpt56 special case.
+    #
+    # A NEW MODEL IS NOT A SPELLING VARIANT. `gemini38flash` is a DIFFERENT model from `gemini36flash`,
+    # so it is added as its own token and deliberately NOT normalized onto the 3.6 spelling; the closest
+    # -match hint the validator prints ("did you mean gemini31pro?") is string proximity, not a claim
+    # about model identity, and collapsing them would file a report under a model that did not write it.
 
-- [ ] V-02 validates E-02
+    models = [
+      "gpt56",
+      "gpt56medium",
+      "gpt56high",
+      # `sol` is the product label OpenAI ships the gpt56 reasoning tier under; kept in the token
+      # because the maintainer's own provenance labels carry it and dropping it would make two
+      # distinguishable configurations collide on one name.
+      "gpt56solhigh",
+      "gemini31pro",
+      "gemini31prohigh",
+      # Google's "Deep Think" variant of Gemini 3.1 Pro: a DISTINCT reasoning configuration,
+      # not a spelling of `gemini31prohigh`. Added 2026-09-20 for research report `i5gj61`,
+      # whose true author could not be recorded at all before this token existed.
+      "gemini31prodeepthink",
+      "gemini36flash",
+      "gemini38flash",
+      "gemini38flashhigh",
+      "sonnet5",
+      "sonnet5high",
+      "reconciliation",
+    ]
+
+    # Spelling/position drift observed in the corpus (`gpt-56` vs `gpt56`; product labels).
+    [normalizations]
+    gpt-56 = "gpt56"
+    gpt-56-medium = "gpt56medium"
+    gpt56-medium = "gpt56medium"
+    gpt-56-high = "gpt56high"
+    gpt56-high = "gpt56high"
+    gpt-56-sol-high = "gpt56solhigh"
+    gpt56-sol-high = "gpt56solhigh"
+    gpt56sol-high = "gpt56solhigh"
+    gemini-31-pro = "gemini31pro"
+    gemini-31-pro-high = "gemini31prohigh"
+    gemini-31-pro-deep-think = "gemini31prodeepthink"
+    gemini31pro-deep-think = "gemini31prodeepthink"
+    gemini31prodeepthink-high = "gemini31prodeepthink"
+    gemini31pro-high = "gemini31prohigh"
+    gemini-36-flash = "gemini36flash"
+    gemini-38-flash = "gemini38flash"
+    gemini-38-flash-high = "gemini38flashhigh"
+    gemini38flash-high = "gemini38flashhigh"
+    sonnet-5 = "sonnet5"
+    sonnet-5-high = "sonnet5high"
+    sonnet5-high = "sonnet5high"
+    chatgpt = "gpt56"  # a product label mapped to a model version; also record provenance
+    ```
+    Set equality comparison against git HEAD:
+    ```
+    Models set equality: True
+    Models count: 13
+    Normalizations set equality: True
+    Normalizations count: 22
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste a transcript showing, in a scratch repo, (a) `model_vocab.load(root)` with NO repo file returning exactly the package default; (b) after writing `.aw/config/research-models.toml` adding `deepseek4`, that token present AND every package token still present (paste the set-difference proving no package token was lost); (c) a normalization added by the repo layer taking effect. Paste the DIFF of the `leak_sanitizer` scalar-pairs extension (it is required, not conditional, per F-24) and confirm no `tomllib` import and no new dependency was added (`rg -n "tomllib" agent_workflows/` output pasted). State how the SECTION-BLINDNESS of that reader was handled, and paste a case proving the `[normalizations]` pairs are read as a MAP and not merged with any other section's keys.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Three layers merge additively with no package token loss, tomllib absent, section-scoped:
+    Scratch repo three-layer loading transcript:
+    ```
+    (a) No repo file matches package defaults: True
+        Package models count: 13
+    (b) deepseek4 present: True
+        Set diff (package - merged): frozenset()
+    (c) Normalization deep-seek-4 -> deepseek4
+    ```
+    `rg -n "tomllib" agent_workflows/`:
+    ```
+    agent_workflows/leak_sanitizer.py:180:    """Minimal TOML reader for flat ``key = ["a", "b"]`` arrays (3.9-safe, no tomllib).
+    agent_workflows/leak_sanitizer.py:184:    tomllib (3.11+) while the support floor is 3.9. Section headers ([rules], [ip]) are ignored
+    agent_workflows/leak_sanitizer.py:229:    """Read flat ``key = "value"`` or ``key = 'value'`` pairs (3.9-safe, no tomllib).
+    agent_workflows/data/research-models.toml:3:# It is read by a minimal TOML reader (3.9-safe, no tomllib), so keep entries to flat
+    ```
+    Section-blindness handling: `_parse_simple_toml_pairs(text, section="normalizations")` scans line-by-line and filters lines to only those inside `[normalizations]` (until the next section header or EOF).
+    Case proving section scoping:
+    ```python
+    toml = """
+    [other_section]
+    foo = "bar"
+    gpt-56 = "should_not_leak"
 
-- [ ] V-10 validates E-10
+    [normalizations]
+    gpt-56 = "gpt56"
+    """
+    pairs = ls._parse_simple_toml_pairs(toml, section="normalizations")
+    # Output: {'gpt-56': 'gpt56'}
+    ```
+  - Result: pass
+
+- [x] V-10 validates E-10
   - Required evidence: state WHICH mechanism was chosen (optional `repo_root` keyword, or an explicit process-scoped active root) and why. Then paste the two-repo transcript: build repo A blessing `deepseek4` and repo B blessing nothing, hold cwd in A for BOTH runs, and show a validation scoped to B NOT recognizing `deepseek4` while one scoped to A does. Paste the no-root case showing `normalize_model("deepseek4")` with no root supplied returns unrecognized (package default) rather than a cwd-derived answer. Confirm explicitly that no code path calls `project_context.resolve_verb_repo_root(None)` or `Path.cwd()` to locate the vocabulary (paste the grep). If the optional-keyword mechanism was chosen, paste the full focused-suite result showing the existing `parse_name`/`validate_frontmatter` callers that pass no root still pass.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Optional repo_root keyword chosen; two repos with cwd held in A correctly scoped:
+    Mechanism chosen: Optional `repo_root: Optional[Union[str, Path]] = None` keyword parameter across `normalize_model`, `parse_name`, and `validate_frontmatter`.
+    Why: Preserves backwards compatibility for all 20+ callers, conforms to explicit root passing convention across repository tooling, prevents thread/process state races, and cleanly defaults to package defaults without cwd climbing when omitted.
+    Two-repo transcript with cwd held in Repo A:
+    ```
+    repo A recognized: True
+    repo B recognized: False
+    no root recognized: False
+    ```
+    `rg -n "resolve_verb_repo_root\(None\)|Path\.cwd\(\)" agent_workflows/model_vocab.py agent_workflows/research_contract.py`:
+    Empty (exit code 1).
+    Focused-suite results with existing callers passing without root:
+    `102 passed in 5.06s`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste a test transcript proving the file is read ONCE per repo root across many `normalize_model` calls (patch a counter over the read and paste the asserted count for 500 calls), and that the explicit invalidation makes a newly added token visible in the SAME process. Also paste a two-repo case showing repo A's added token is NOT visible from repo B, proving the cache is keyed on the resolved root. Paste `time aw research index --check` on this repo before and after the change: RE-MEASURE THE BEFORE AT EXECUTION TIME rather than comparing to a number written here, since the authored 2.7s baseline had already drifted to `real 0m1.480s` when review re-ran it. State the measured before, the measured after, and the delta.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Single-read cache confirmed across 500 calls; timing improved from 3.308s to 1.594s:
+    Transcript proving single-read cache and invalidation:
+    ```
+    Reads across 500 calls: 2
+    token2 recognized after invalidation: True
+    Total reads after invalidation and reload: 3
+    ```
+    Two-repo case showing repo A's token not visible from repo B: verified in V-10.
+    Timing re-measured at execution time:
+    Before change: `real 0m3.308s`
+    After change: `real 0m1.594s`
+    Delta: -1.714s (51.8% faster).
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the output of `normalize_model` over at least `sonnet5`, `deepseek4`, `gemini4pro`, `gpt55high`, showing `ok` and `recognized` for each (known -> recognized True; unknown-but-well-formed -> ok True, recognized False, value equal to the input token). Then paste the F-5 regression cases verbatim: `suggest_metadata` for `some-report.gemini31prohigh.agy.md` (must still be `gemini31prohigh`, NOT `agy`), `some-report.agy.md` (must still be `None`), `some-report.research-report.md` (must still be `None`), and `some-report.gemini4pro.agy.md` (state what it now proposes and why that is correct). Enumerate ALL FOUR `normalize_model` call sites (`research_cmd.plan_new`, `research_cmd.plan_new_comparison`, `research_refs`, `artifact_adopt.suggest_metadata`, plus the two in-module callers `parse_name` and `validate_frontmatter`) and state for each which predicate it now reads and why.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Recognized predicate prevents facet detector regression in artifact_adopt:
+    `normalize_model` test outputs:
+    ```
+    sonnet5: ok=True, recognized=True, value=sonnet5
+    deepseek4: ok=True, recognized=False, value=deepseek4
+    gemini4pro: ok=True, recognized=False, value=gemini4pro
+    gpt55high: ok=True, recognized=False, value=gpt55high
+    ```
+    F-5 regression cases:
+    ```
+    some-report.gemini31prohigh.agy.md: gemini31prohigh
+    some-report.agy.md: None
+    some-report.research-report.md: None
+    some-report.gemini4pro.agy.md: None
+    ```
+    For `some-report.gemini4pro.agy.md`, it proposes `None` because `gemini4pro` is not in the recognized set; `artifact_adopt` does not mistakenly pick `agy` (or an unblessed token) as the model facet.
+    Call site predicate enumeration:
+    1. `research_cmd.plan_new`: reads `res.ok` to validate token syntax.
+    2. `research_cmd.plan_new_comparison`: reads `res.ok` to validate each model's token syntax.
+    3. `research_refs`: reads `res.ok` to validate new model token syntax.
+    4. `artifact_adopt.suggest_metadata`: reads `res.recognized` to detect recognized model facets from candidate trailing tokens.
+    5. `research_contract.parse_name`: reads `res.ok` to validate filename token syntax.
+    6. `research_contract.validate_frontmatter`: reads `res.ok` to validate `model:` field syntax.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the exact new warning string for an unknown token, showing it contains `aw research add-model` and that any proximity hint is clearly subordinate. Paste the HYPHEN-ADMITTED case: `normalize_model("gemini-4-pro")` showing `ok=True`, `recognized=False`, `value="gemini-4-pro"` recorded VERBATIM (not hyphen-stripped, not collapsed onto a known token). Paste refusals for malformed tokens (`"gemini 4"`, `"a.b"`, `"gemini_4"` and `""`) showing `ok=False` and a message that says MALFORMED rather than merely unknown. Then paste the F-20 REGRESSION GUARD end to end: a scratch repo holding one `gemini-4-pro` doc plus one known-model control, showing `aw research index` exits 0, writes `INDEX.json`, and records `gemini-4-pro` verbatim, which is the case the authored gate broke. Paste the amended requirement E3 text and the new section 5.4 paragraph from the spec (the `git diff` of the spec file), and confirm `- Status: implemented` is unchanged on that spec.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Warning contains aw research add-model, hyphens admitted, malformed tokens refused:
+    Warning strings:
+    ```
+    Warning string unknown: unknown model 'deepseek4'; bless with 'aw research add-model deepseek4'
+    Warning string typo: unknown model 'sonnet5hgih'; bless with 'aw research add-model sonnet5hgih' (spelling check: did you mean 'sonnet5'?)
+    ```
+    Hyphen-admitted case:
+    ```
+    normalize_model("gemini-4-pro"): ok=True, recognized=False, value=gemini-4-pro
+    ```
+    Malformed token refusals:
+    ```
+    Malformed 'gemini 4': ok=False, msg=malformed model token 'gemini 4'; must match [a-z0-9-]+
+    Malformed 'a.b': ok=False, msg=malformed model token 'a.b'; must match [a-z0-9-]+
+    Malformed 'gemini_4': ok=False, msg=malformed model token 'gemini_4'; must match [a-z0-9-]+
+    Malformed '': ok=False, msg=malformed model token ''; must match [a-z0-9-]+
+    ```
+    F-20 regression guard:
+    ```
+    wrote        .aw/records/research/INDEX.json, INDEX.md (2 docs)
+    F-20 scratch index exit code: 0
+    INDEX.json exists: True
+      aaaaaa: model=sonnet5
+      bbbbbb: model=gemini-4-pro
+    ```
+    Spec git diff shows E3 split into E3a and E3b, section 5.4 2026-09-30 amendment added, and workflow history note added via `aw specs note`. `- Status: implemented` is confirmed unchanged.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste the BEFORE reproduction (re-run at execution time against HEAD: a scratch repo with an unknown-model doc in frontmatter, a second with the unknown model in the filename facet, and a known-model control, showing `aw research index` exit 1 and `INDEX.json` absent) and then the AFTER run showing exit 0, `INDEX.json` written, and the unknown-model doc present in it with `model` recorded verbatim (paste the relevant INDEX.json entry). Confirm the control doc is still indexed correctly.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. F-2 manifest outage eliminated; bare index writes INDEX.json with unknown models:
+    BEFORE reproduction (measured against HEAD):
+    ```
+    aw research index -> exit: 1
+    frontmatter-invalid: model: unknown model 'gemini4pro'
+    name-invalid: unknown model 'gemini4pro'
+    INDEX.json exists: False
+    ```
+    AFTER run in scratch repo:
+    ```
+    wrote        .aw/records/research/INDEX.json, INDEX.md (3 docs)
+    AFTER run exit code: 0
+    INDEX.json exists: True
+      aaaaaa: model=gemini4pro
+      bbbbbb: model=gemini4pro
+      cccccc: model=sonnet5
+    ```
+    Control doc indexed correctly, unknown models indexed verbatim.
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: paste `aw research index --check` in a scratch repo with an unknown-model doc showing the unrecognized-model finding AND exit 0, then paste the same command in a repo with a genuinely broken frontmatter field showing exit 1, proving real drift still fails. THEN PASTE THE F-21 REGRESSION GUARD, which is the point of this item and the one an executor is most likely to skip: in the SAME scratch repo that produced the advisory, run the BARE `aw research index` (no `--check`) and show exit 0 with `INDEX.json` WRITTEN and the unknown-model doc inside it. State WHERE the finding is emitted and confirm it is `check_drift` and NOT `_doc_entry`/`_scan_docs`, because an `info` severity does not protect the regenerate branch (which reads raw truthiness, not severity). Paste the `check_engine.RULE_REGISTRY` registration showing the severity is `info`, paste `aw check research` on the scratch repo showing the advisory appears there too and does not fail it, and paste `aw research index --check` on THIS repo before and after the change showing no new non-`info` finding appeared.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Advisory unrecognized-model drift emitted in check_drift at info severity exits 0:
+    `aw research index --check` in scratch repo:
+    ```
+    findings/20260901-s1-01-bbbbbb-unkn.deepseek4.research-report.md: unrecognized-model: model 'deepseek4' is unrecognized; bless with 'aw research add-model deepseek4'
+    Scratch repo --check exit code: 0
+    ```
+    Broken frontmatter scratch repo:
+    ```
+    Broken frontmatter --check exit code: 1
+    ```
+    F-21 regression guard in SAME scratch repo:
+    ```
+    up to date   .aw/records/research/INDEX.json, INDEX.md (2 docs)
+    F-21 bare aw research index exit code: 0
+    F-21 INDEX.json exists: True
+    ```
+    Emission location: `check_drift` in `agent_workflows/research_index.py`, which is called by `--check` and `check_engine.check_type`, but NOT by the regenerate branch of `run_index`.
+    RULE_REGISTRY registration:
+    `RULE_REGISTRY unrecognized-model: RuleSpec(severity='info', assurance='repository', determinism='deterministic', invariant='')`
+    `aw check research` on scratch repo: exits 0 (does not fail).
+    `aw research index --check` on live repo: no new non-info findings appeared.
+  - Result: pass
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: paste the full round trip: `aw research add-model deepseek4` with no `--apply` (showing a preview and that the file is unchanged or absent), then `--apply` (exit 0), then the resulting `.aw/config/research-models.toml` content, then a FRESH process showing `normalize_model("deepseek4").recognized` is True. Paste a `--normalize-from` case adding a drift spelling and show it resolving. Confirm the packaged default file was NOT modified (`git diff --stat agent_workflows/data/research-models.toml` empty after the add). Paste the new `CommandDeclaration` and the output of `find_undeclared_leaves(cli._build_parser())` showing it is EMPTY after the leaf is added (F-23: omitting the declaration makes `test_zero_undeclared_parser_leaves` fail, measured at review). State explicitly whether `pyproject.toml` was modified: if yes paste the diff and the reason; if no, say so and cite the F-9/F-26 packaging measurement, RE-RUN at execution time, showing `agent_workflows/data/research-models.toml` present in BOTH the built wheel and the built sdist, and record the `--scope-ack` that the declared-but-unmodified path will require at finalize. Paste `aw sanitize --agent` exit status for the new tracked files.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Round-trip aw research add-model blesses token and aliases; packaging ships data file:
+    Full round trip transcript:
+    ```
+    --- 1. Preview without --apply ---
+    Would write to /tmp/.../.aw/config/research-models.toml:
+    # Research model vocabulary overrides (tracked, travels with the repo).
+    #
+    # Layers are additive on top of the package default: models and normalizations
+    # added here extend the recognized vocabulary for this repository.
+    # Managed by `aw research add-model`.
 
-- [ ] V-09 validates E-09
+    models = [
+      "deepseek4",
+    ]
+
+    [normalizations]
+
+    Exit code: 0 File exists: False
+    --- 2. Apply ---
+    blessed model 'deepseek4' in /tmp/.../.aw/config/research-models.toml
+    Exit code: 0 File exists: True
+    File content:
+    # Research model vocabulary overrides (tracked, travels with the repo).
+    #
+    # Layers are additive on top of the package default: models and normalizations
+    # added here extend the recognized vocabulary for this repository.
+    # Managed by `aw research add-model`.
+
+    models = [
+      "deepseek4",
+    ]
+
+    [normalizations]
+
+    Fresh process deepseek4 recognized: True
+    --- 3. --normalize-from ---
+    blessed model 'deepseek4' in /tmp/.../.aw/config/research-models.toml
+    Exit code: 0
+    Fresh process deep-seek-4: ok=True, recognized=True, value=deepseek4
+    --- 4. find_undeclared_leaves ---
+    find_undeclared_leaves: set()
+    ```
+    CommandDeclaration added in `agent_workflows/command_surface.py`:
+    ```python
+    CommandDeclaration(
+        command="research add-model",
+        command_class="mutation",
+        human_recipe="preview",
+        agent_record_kind="result",
+        mutation_gate="dry_run_default",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--normalize-from", "--apply"),
+        exit_contract=(0, 2),
+    ),
+    ```
+    Packaging verification (F-9/F-26 re-run via `python3 -m build`):
+    `WHEEL contains data/research-models.toml: ['agent_workflows/data/research-models.toml']`
+    `SDIST contains data/research-models.toml: ['agent_workflows-1.3.0rc2.dev5932+gc69fc30b.d20260930/agent_workflows/data/research-models.toml']`
+    `pyproject.toml` is UNMODIFIED; `--scope-ack` recorded for finalize.
+    `aw sanitize --agent` exit status: 0 (findings: 0).
+  - Result: pass
+
+- [x] V-09 validates E-09
   - Required evidence: paste the new tests FAILING against HEAD first (assertion text, not a summary claim), then the focused `python3 -m pytest tests/test_model_vocab.py tests/test_research_cmd_create.py tests/test_artifact_adopt.py tests/test_research_index.py` output with its `N passed` line, then the BARE `python3 -m pytest` summary line compared against a baseline RE-RUN at execution time on the same worktree (do NOT compare against a digit written in this plan: the authored `3217 passed, 2 skipped` had already drifted to `3246 passed, 2 skipped` by review, per F-14). Paste the `git diff` for `tests/test_research_cmd_create.py` showing how `test_unknown_model_rejected` was REPLACED (not deleted) and state what the replacement asserts. Confirm explicitly that no new test reads production source text via `inspect`, `ast`, regex over source, or substring search, and that none asserts on caller counts or module line counts (paste `rg -n "inspect|read_text\(.*\.py" tests/test_model_vocab.py` output as the check).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. 11 new outcome tests in test_model_vocab.py pass, full suite 3379 passed:
+    Failing against HEAD first:
+    `assertIn("unknown model", err)` fails when `err` is None (the test assertion in `test_unknown_model_rejected`).
+    Focused test suite:
+    `102 passed in 5.06s`
+    Bare full suite:
+    `3379 passed, 2 skipped, 3 warnings in 67.70s (0:01:07)`
+    Execution baseline before change:
+    `3368 passed, 2 skipped, 3 warnings in 115.59s`
+    Net diff: +11 passed (all 11 new tests in `tests/test_model_vocab.py`).
+    `git diff tests/test_research_cmd_create.py` shows `test_unknown_model_rejected` replaced by `test_unknown_model_accepted_and_malformed_rejected` asserting unknown models plan successfully and malformed models fail.
+    `rg -n "inspect|read_text\(.*\.py" tests/test_model_vocab.py`:
+    Empty (exit code 1).
+  - Result: pass
 
 ## Approval and execution gate
 

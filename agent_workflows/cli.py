@@ -246,6 +246,10 @@ _DESCRIPTIONS = {
         "Report archived-but-still-cited research docs (candidates that should be reference "
         "instead of archived). Read-only advisory."
     ),
+    "research add-model": (
+        "Bless a research model token in .aw/config/research-models.toml so it is recognized. "
+        "Dry-run by default; pass --apply to write."
+    ),
     "reviews": (
         "Tooling for the typed plan-review records under .aw/records/reviews. Subcommands "
         "report what a review recorded; the whole namespace is read-only and writes nothing."
@@ -3249,6 +3253,29 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_research_miscat.add_argument(
         "--dir", default=None, help="Repo root (default: current directory)."
+    )
+
+    p_research_add_model = research_sub.add_parser(
+        "add-model",
+        parents=[common],
+        help="Bless a research model token in repository configuration (dry-run by default; --apply to write).",
+    )
+    p_research_add_model.add_argument(
+        "token", help="Model token to bless (must match [a-z0-9-]+)."
+    )
+    p_research_add_model.add_argument(
+        "--normalize-from",
+        dest="normalize_from",
+        default=None,
+        help="Optional spelling variant that normalizes to this model token.",
+    )
+    p_research_add_model.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    p_research_add_model.add_argument(
+        "--apply",
+        action="store_true",
+        help="Write the updated configuration file (default is preview only).",
     )
 
     # revgate Order 04 (c621h9 E-04): the `reviews` namespace. Read-only reporting over the typed
@@ -15005,6 +15032,10 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             from agent_workflows import research_archive as ra
 
             return ra.run_check_miscategorized(args)
+        if research_cmd == "add-model":
+            from agent_workflows import model_vocab as mv
+
+            return mv.run_add_model(args)
         return _show_family_help(parser, "research", "aw research find", term, context)
     if args.command == "reviews":
         reviews_cmd = getattr(args, "reviews_command", None)

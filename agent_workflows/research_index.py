@@ -65,6 +65,7 @@ def _doc_entry(
     p: Path,
     *,
     ignored_dirs: set[str],
+    repo_root: Optional[Path] = None,
 ) -> Tuple[Optional[DocEntry], List[Drift]]:
     """Parse a single research doc at ``p`` under ``research_root``.
 
@@ -85,7 +86,7 @@ def _doc_entry(
     except ValueError:
         return None, []
 
-    parsed, name_err = R.parse_name(p.name)
+    parsed, name_err = R.parse_name(p.name, repo_root=repo_root)
     if parsed is None:
         # Non-conformant filename: not an indexable research doc; skip quietly (migration
         # handles back-fill). Only report a name-vs-frontmatter mismatch for files that DO
@@ -104,7 +105,7 @@ def _doc_entry(
     fm = R.parse_frontmatter(text)
     if fm is None:
         return None, [Drift(rel, "frontmatter-missing", "no valid frontmatter block")]
-    errs = R.validate_frontmatter(fm)
+    errs = R.validate_frontmatter(fm, repo_root=repo_root)
     if errs:
         return None, [
             Drift(rel, "frontmatter-invalid", f"{e.field}: {e.message}") for e in errs
@@ -164,6 +165,8 @@ def _doc_entry(
 
 def _scan_docs(
     research_root: Path,
+    *,
+    repo_root: Optional[Path] = None,
 ) -> Tuple[List[DocEntry], List[Drift]]:
     """Scan every research doc; return (entries, drift) where drift covers frontmatter/name classes."""
 
@@ -173,7 +176,9 @@ def _scan_docs(
         return entries, drift
     ignored_dirs = _core.get_ignored_dirs(research_root)
     for p in sorted(research_root.rglob("*.md")):
-        entry, item_drift = _doc_entry(research_root, p, ignored_dirs=ignored_dirs)
+        entry, item_drift = _doc_entry(
+            research_root, p, ignored_dirs=ignored_dirs, repo_root=repo_root
+        )
         if entry is not None:
             entries.append(entry)
         drift.extend(item_drift)
@@ -523,6 +528,7 @@ def resolvable_consumer_ids(repo_root: Path) -> set:
 STALE_STATE_RULE = "stale-state-to-promote"
 DANGLING_CONSUMED_RULE = "dangling-consumed-by"
 ADOPTED_NO_CONSUMER_RULE = "adopted-without-consumer"
+UNRECOGNIZED_MODEL_RULE = "unrecognized-model"
 
 
 def check_drift(
@@ -530,7 +536,7 @@ def check_drift(
 ) -> List[Drift]:
     """Return every drift finding across the spec-5.2 four classes."""
 
-    entries, drift = _scan_docs(research_root)
+    entries, drift = _scan_docs(research_root, repo_root=repo_root)
     # Stale generated view: regenerate in memory and byte-compare to disk.
     want_json = build_index_json(entries)
     want_md = build_index_md(entries, limit=limit)
@@ -631,6 +637,24 @@ def check_drift(
                         "outcome: adopted requires a non-empty consumed-by",
                     )
                 )
+
+    # Advisory unrecognized-model drift rule (Set modelvocab Order 01 / IPD t38a4o E-07).
+    # Emitted in check_drift ONLY (never in _doc_entry or _scan_docs), so the regenerate branch
+    # of run_index is not blocked by unrecognized models.
+    for e in entries:
+        if e.model:
+            m_res = R.normalize_model(e.model, repo_root=repo_root)
+            if m_res.ok and not m_res.recognized:
+                drift.append(
+                    _ce.enrich_drift(
+                        Drift(
+                            e.path,
+                            UNRECOGNIZED_MODEL_RULE,
+                            f"model '{e.model}' is unrecognized; bless with 'aw research add-model {m_res.value or e.model}'",
+                        ),
+                        recovery=f"aw research add-model {m_res.value or e.model}",
+                    )
+                )
     return drift
 
 
@@ -678,7 +702,7 @@ def run_index(args: argparse.Namespace) -> int:
             print(f"{d.location}: {d.rule}: {d.detail}")
         return _core.drift_exit_code(drift)
     # Regenerate.
-    entries, drift = _scan_docs(research_root)
+    entries, drift = _scan_docs(research_root, repo_root=repo_root)
     if drift:
         # Refuse to write over invalid input; report and exit nonzero.
         if not getattr(args, "quiet", False):
@@ -750,7 +774,7 @@ def run_index(args: argparse.Namespace) -> int:
 
 def run_find(args: argparse.Namespace) -> int:
     repo_root, research_root = _roots(args)
-    entries, _drift = _scan_docs(research_root)
+    entries, _drift = _scan_docs(research_root, repo_root=repo_root)
     results = query(
         entries,
         id6=getattr(args, "id", None),
@@ -794,7 +818,7 @@ def run_pending(args: argparse.Namespace) -> int:
     """
 
     _repo_root, research_root = _roots(args)
-    entries, _drift = _scan_docs(research_root)
+    entries, _drift = _scan_docs(research_root, repo_root=_repo_root)
     unrun = derive_unrun_prompts(entries)
     if getattr(args, "agent", False):
         for e in unrun:

@@ -587,6 +587,16 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.stale-index-stale": RuleSpec(
         "warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
     ),
+    # modelvocab Order 01 (t38a4o) E-07: an unrecognized research model facet/key.
+    # Registered at `info` severity so `aw research index --check` and `aw check research`
+    # report the token as advisory drift without failing the gate (F-6, F-21).
+    "unrecognized-model": RuleSpec("info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""),
+    "check.unrecognized-model": RuleSpec(
+        "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
+    "check.research-unrecognized-model": RuleSpec(
+        "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
     # durablecapture Order 01 (`rnkqrc`) E-04: an IPD records an outstanding obligation (a
     # `## Deferred / out of scope` row, or an `open`/`deferred` question) that names NO durable
     # carrier, so reaching `executed` would delete it from every attention view.
@@ -3174,9 +3184,24 @@ def check_scope_drift(
         if exec_tree is None:
             continue  # not lane-isolated (or the lane's base is unusable) -> no honest subject
         changed = _life._paths_changed_by_this_execution(exec_tree, base_head)
+        expanded_changed: List[str] = []
+        for c in changed:
+            c_norm = c.replace("\\", "/")
+            if c_norm.endswith("/") and (exec_tree / c_norm).is_dir():
+                subfiles = [
+                    str(f.relative_to(exec_tree)).replace("\\", "/")
+                    for f in (exec_tree / c_norm).rglob("*")
+                    if f.is_file()
+                ]
+                if subfiles:
+                    expanded_changed.extend(subfiles)
+                else:
+                    expanded_changed.append(c)
+            else:
+                expanded_changed.append(c)
         out_of_scope = [
             c
-            for c in changed
+            for c in expanded_changed
             # `.aw/state/` and `.aw/worktrees/` are gitignored RUNTIME scratch (receipts, journals,
             # per-lane worktrees) - never part of a declared scope; exclude defensively in case a
             # repo has not gitignored them (git status normally elides them).

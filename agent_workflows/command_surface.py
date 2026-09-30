@@ -1322,6 +1322,16 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         empty_error_renderer="renderer_boundary",
         exit_contract=(0, 1, 2),
     ),
+    CommandDeclaration(
+        command="research add-model",
+        command_class="mutation",
+        human_recipe="preview",
+        agent_record_kind="result",
+        mutation_gate="dry_run_default",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--normalize-from", "--apply"),
+        exit_contract=(0, 2),
+    ),
     # --- Reviews Family (revgate Order 04, c621h9 E-04) ---
     #
     # Read-only audit of the decisions a reviewer made on its own authority. Three declaration

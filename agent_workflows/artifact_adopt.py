@@ -39,7 +39,7 @@ import hashlib
 import re
 from datetime import date
 from pathlib import Path
-from typing import Dict, List, NamedTuple, Optional, Sequence, Set, Tuple
+from typing import Dict, List, NamedTuple, Optional, Sequence, Set, Tuple, Union
 
 from agent_workflows import artifact_core as _core
 
@@ -353,6 +353,7 @@ def suggest_metadata(
     slug: Optional[str] = None,
     set_id: Optional[str] = None,
     model: Optional[str] = None,
+    repo_root: Optional[Union[str, Path]] = None,
 ) -> Suggestion:
     """Propose type/kind/slug/set/model from the drop, keeping any caller-supplied value.
 
@@ -388,8 +389,8 @@ def suggest_metadata(
         from agent_workflows import research_contract as _R
 
         for facet in trailing:
-            res = _R.normalize_model(facet)
-            if res.ok:
+            res = _R.normalize_model(facet, repo_root=repo_root)
+            if res.recognized:
                 s_model = res.value
                 suggested.append("model")
                 break
