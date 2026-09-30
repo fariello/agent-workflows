@@ -12,7 +12,7 @@
 - Scope: Make `aw group research` (and its `aw research set-assign` spelling, one shared backend) PRESERVE each named record's existing Order when `--order` is absent, resolving it from the filename's own `NN`, while keeping an explicit `--order N` renumbering the named records sequentially from `N` (including `--order 0`). Correct the one research-specific `--order` help string that documents the old default. Give `group research` the regression coverage it has none of. EXCLUDES: the stale-frontmatter defect owned by `f7a2kc` (this plan must not start writing frontmatter), the `aw group plans` date fallback owned by `j84jg3`, `plans_refs.py` and `artifact_rename.py` (both already correct and deliberately left byte-unchanged), extracting a shared helper across the two backends, and any refusal to place a record at Order 0.
 - Scope-Paths: agent_workflows/research_refs.py, agent_workflows/cli.py, tests/test_group_verb_policy.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -23,9 +23,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: ao0v8x
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: ao0v8x verified (set 4y4xo5, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): plan-review: APPROVE WITH REVISIONS APPLIED; PR-901..PR-905 all fixed
 
@@ -42,44 +42,44 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: pin the defect before changing it
 
-- [ ] E-01 REPRODUCE THE DEFECT AS A FAILING TEST FIRST, so the fix is demonstrated rather than asserted. Add a test that seeds two conformant research records at filename Orders `03` and `07`, runs `aw group research <id6> <id6> --set <new> --apply` with NO `--order`, and asserts each record's filename `NN` slot is UNCHANGED (`03` stays `03`, `07` stays `07`). That assertion MUST FAIL at HEAD, where they become `00` and `01`.
+- [x] E-01 REPRODUCE THE DEFECT AS A FAILING TEST FIRST, so the fix is demonstrated rather than asserted. Add a test that seeds two conformant research records at filename Orders `03` and `07`, runs `aw group research <id6> <id6> --set <new> --apply` with NO `--order`, and asserts each record's filename `NN` slot is UNCHANGED (`03` stays `03`, `07` stays `07`). That assertion MUST FAIL at HEAD, where they become `00` and `01`.
   ADD THE SINGLE-RECORD CASE IN THE SAME ITEM, because it is the common operator action and it isolates the sentinel from the `+ i` arithmetic: one record at Order `03`, bare regroup, asserts `03` survives (at HEAD it becomes `00`).
   HOUSE IT IN `tests/test_group_verb_policy.py`, WHOSE `temp_git_repo` FIXTURE YOU REUSE AND WHOSE `_run_group` HELPER YOU MUST NOT (corrected at review, PR-901). The fixture is reusable as described: it is `git init -q` in `tmp_path` and nothing more. The HELPER IS NOT: measured at review, `_run_group(artifact_type, setid, repo_dir)` hardcodes the selector `"zzzzzz"`, passes NO `--apply`, and accepts NO `--order`, so it cannot express a single test this plan needs. Every existing test in that file exercises only setid-LENGTH policy and deliberately relies on `zzzzzz` matching nothing (two of them assert `"zzzzzz" in out` as proof resolution failed), so NO test in the file has ever seeded a record; `grep -n "notes.md\|write_text\|FRONTMATTER" tests/test_group_verb_policy.py` returns nothing. So WRITE A NEW in-process helper beside it that takes the selectors, an optional `--order`, and `--apply`, following the same `cli.main(...)` under `redirect_stdout`/`redirect_stderr` shape; do not widen `_run_group`'s signature, because its three callers are parameterized over every backend in `GROUP_TYPES` and changing it would put this plan's fingerprints on tests it does not own.
   SEED RECORDS WITH THE FULL REQUIRED FRONTMATTER BLOCK or the record will not resolve (`research_contract.FRONTMATTER_FIELDS`: id, created, set, order, topic, model, kind, status, outcome, summary, consumed-by). TWO SEEDING DETAILS MEASURED AT REVIEW, because getting either wrong costs a debugging round: `order` must be a QUOTED two-digit string (`order: "03"`), since `research_contract._ORDER_RE` is `\A\d{2}\Z` against a `str` and an unquoted `03` parses as an int; and the records must live under `.aw/records/research/` in the temp repo, which the `--dir <repo>` flag then resolves. A seeded pair at `03`/`07` plus a bare `cli.main(["group","research","aaaaaa","bbbbbb","--set","ns","--apply","--dir",str(repo)])` reproduces the defect in-process, which review confirmed before recommending this shape.
   DRIVE IT IN-PROCESS VIA `cli.main`, NOT AS A SUBPROCESS CLI CALL. This is a deliberate correction of a measured hazard: `e3hzyc`'s execution record reports that an editable install made `python3 -m agent_workflows` in a lane import the MAIN checkout, so a subprocess assertion can pass while the tree under test is unfixed (filed as `ccbe60`). The existing helper in this file is already in-process, so following the file's own convention avoids the hazard rather than working around it.
   - Depends on: none
   - Expected outcome: Two new tests FAILING at HEAD (one multi-record, one single-record), each showing a bare `aw group research` renumbering a named record's filename `NN` from its real Order to a zero-based position.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: port the shipped fix
 
-- [ ] E-02 MAKE AN ABSENT `--order` DISTINGUISHABLE FROM `--order 0`, then preserve. In `research_refs.plan_set_assign` change `start_order: int = 0` to `start_order: Optional[int] = None`, and in `research_refs.run_set_assign` pass the flag THROUGH instead of collapsing it: delete the `start_order=start if start is not None else 0` substitution so `getattr(args, "order", None)` reaches the planner unchanged. In the planner's per-record loop, compute the Order as `(start_order + i)` when `start_order is not None` and otherwise from the record's OWN filename `NN`, which `plan_set_assign` already has in hand as `parsed.order` from `R.parse_name(src.name)` (note it is a two-digit STRING there, while the explicit branch is an int, so format both through the existing `f"{...:02d}"` or convert deliberately; do not let a string reach `+ i`).
+- [x] E-02 MAKE AN ABSENT `--order` DISTINGUISHABLE FROM `--order 0`, then preserve. In `research_refs.plan_set_assign` change `start_order: int = 0` to `start_order: Optional[int] = None`, and in `research_refs.run_set_assign` pass the flag THROUGH instead of collapsing it: delete the `start_order=start if start is not None else 0` substitution so `getattr(args, "order", None)` reaches the planner unchanged. In the planner's per-record loop, compute the Order as `(start_order + i)` when `start_order is not None` and otherwise from the record's OWN filename `NN`, which `plan_set_assign` already has in hand as `parsed.order` from `R.parse_name(src.name)` (note it is a two-digit STRING there, while the explicit branch is an int, so format both through the existing `f"{...:02d}"` or convert deliberately; do not let a string reach `+ i`).
   RESOLVE FROM THE FILENAME ONLY, AND SAY WHY IN A COMMENT. Do NOT copy `plans_refs._preserved_order`'s front-matter-first tiers: research frontmatter `order:` is left stale by these same verbs (`f7a2kc`, still open), so reading it first would preserve a value this verb previously corrupted. The filename `NN` is grammar-guaranteed and is the tier this module's own `plan_mv` already trusts. Cite `f7a2kc` in the comment so the next reader does not "fix" the tier order back.
   RECORD THE SHAPE CHOICE EXPLICITLY. Two in-repo precedents exist (`plans_refs._preserved_order`'s tiered lookup versus `artifact_rename.run_group_generic`'s threaded `Optional[int]`); state which was taken and why in the execution record. Do NOT extract a shared helper across the two backends, and do NOT touch `plans_refs.py` or `artifact_rename.py`.
   THE THREE-EDIT SHAPE WAS BUILT AND MEASURED AT REVIEW, so it is a confirmation rather than a sketch (PR-903). The edits are exactly: `start_order: int = 0` -> `start_order: Optional[int] = None` in `plan_set_assign`; `start_order=start if start is not None else 0` -> `start_order=start` in `run_set_assign`; and the `order=` argument inside `plan_set_assign`'s `R.ResearchName(...)` construction becoming `f"{start_order + i:02d}" if start_order is not None else parsed.order`. `Optional` is ALREADY imported in that module (`from typing import Dict, List, NamedTuple, Optional, Tuple`), so no import edit is needed. THE STRING/INT HAZARD THE ITEM WARNS ABOUT RESOLVES ITSELF AT THIS SITE and needs no conversion: `parsed.order` is declared `order: str  # NN, two digits` on `research_contract.ResearchName` and `R.format_name` interpolates it directly, so passing it through unchanged is correct, while the explicit branch keeps its own `f"{...:02d}"`. Do NOT "helpfully" coerce `parsed.order` to `int` and re-format it; that adds a way to lose a leading zero for no gain. Measured with these three edits: a bare regroup of `03`/`07` yields `03`/`07`, `--order 1` yields `01`/`02`, `--order 0` yields `00`, and a BARE `python3 -m pytest` reports `3246 passed, 2 skipped` with zero failures.
   - Depends on: E-01
   - Expected outcome: `research_refs.plan_set_assign` takes `Optional[int]`; a bare regroup preserves each record's filename `NN`; an explicit `--order N` still renumbers sequentially from `N`. E-01's two tests now pass.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 VERIFY THE PREVIEW PATH CANNOT ADVERTISE A RENUMBER THE APPLY NO LONGER PERFORMS. `research_refs._apply_renames` prints `--- would rename {p.old_path} -> {p.new_path.name} ---`, i.e. from `RenamePlan.new_path`, the SAME planned name the apply branch renames to. This item exists because `e3hzyc`'s execution record reports exactly this site was missed by its own plan on the sibling backend ("`apply_renames`'s PREVIEW printed the loop index, so a dry run advertised a renumber the apply no longer performs"), so it is a KNOWN trap on the twin code path and is worth checking rather than assuming.
+- [x] E-03 VERIFY THE PREVIEW PATH CANNOT ADVERTISE A RENUMBER THE APPLY NO LONGER PERFORMS. `research_refs._apply_renames` prints `--- would rename {p.old_path} -> {p.new_path.name} ---`, i.e. from `RenamePlan.new_path`, the SAME planned name the apply branch renames to. This item exists because `e3hzyc`'s execution record reports exactly this site was missed by its own plan on the sibling backend ("`apply_renames`'s PREVIEW printed the loop index, so a dry run advertised a renumber the apply no longer performs"), so it is a KNOWN trap on the twin code path and is worth checking rather than assuming.
   REVIEW ALREADY RAN THIS CHECK AND IT IS A NEGATIVE FINDING: NO EDIT IS EXPECTED (PR-902). With E-02's change applied, a dry run over records seeded at `03`/`07` printed `-> 20260929-ns-03-aaaaaa-a.notes.md` and `-> 20260929-ns-07-bbbbbb-b.notes.md`, and the `--apply` run produced those same two names. The research preview derives wholly from the planned names, so unlike its plans-side twin it needs no correction. So the DELIVERABLE HERE IS EVIDENCE, NOT A CODE CHANGE: reproduce that comparison and record it. If you find yourself editing `_apply_renames`, stop and explain what differs from this measurement, because an edit here contradicts it.
   - Depends on: E-02
   - Expected outcome: a recorded negative finding, with the dry-run and `--apply` outputs pasted side by side showing the SAME preserved-Order names, and `research_refs.py`'s preview code unmodified. An actual edit to the preview is a deviation to justify, not the expected result.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove it, including the cases the fix must not break
 
-- [ ] E-04 PIN THE MUST-NOT-BREAK BEHAVIORS, so the sentinel change cannot silently remove a working feature. Add: (a) an EXPLICIT multi-record renumber, `--order 1` over two records seeded at `03` and `07`, asserting they become `01` and `02` (measured working at HEAD, so this is a guard and MUST PASS both before and after E-02); and (b) an EXPLICIT `--order 0`, asserting the record lands at `00`, which proves the new `None` sentinel did not make a deliberate zero unreachable. Case (b) is the specific regression a naive "preserve always" fix introduces.
+- [x] E-04 PIN THE MUST-NOT-BREAK BEHAVIORS, so the sentinel change cannot silently remove a working feature. Add: (a) an EXPLICIT multi-record renumber, `--order 1` over two records seeded at `03` and `07`, asserting they become `01` and `02` (measured working at HEAD, so this is a guard and MUST PASS both before and after E-02); and (b) an EXPLICIT `--order 0`, asserting the record lands at `00`, which proves the new `None` sentinel did not make a deliberate zero unreachable. Case (b) is the specific regression a naive "preserve always" fix introduces.
   ADD THE TIER-DISAGREEMENT CASE, which is this plan's own decision made falsifiable: seed ONE record whose filename `NN` is `00` while its frontmatter says `order: 03` (the exact state `f7a2kc` leaves, measured in the authoring probe), regroup it bare, and assert the result follows the FILENAME (`00`), not the frontmatter. This is the test that would fail if someone later reintroduces the front-matter-first tiers. Review re-measured this case and it behaves as specified under E-02's fix.
   ADD THE SECOND-SPELLING CASE, because the fix covers it but nothing proves so (F-12, added at review). Drive `cli.main(["research","set-assign","<id6>","--set","<new>","--apply","--dir",...])` on a record seeded at `03` and assert `03` survives. Measured at review, that spelling clobbers to `-00-` at HEAD exactly as `aw group research` does, and E-02 fixes both at once because both dispatch to `research_refs.run_set_assign`. The case is a GUARD, not new production work: it fails before E-02 and passes after, and it is what stops a later refactor that gives `set-assign` its own code path from silently regressing this.
   - Depends on: E-02
   - Expected outcome: Four further tests passing, one of which (the explicit multi-record renumber) also passes at HEAD and is therefore proof the fix preserved an existing feature rather than replacing it, and one of which (the second spelling) fails at HEAD and passes after.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 CORRECT THE HELP STRING THAT DOCUMENTS THE OLD DEFAULT. In `cli.py`, the `p_research_setassign` parser's `--order` argument reads `help="Starting NN (default 0)."`; rewrite it to describe the new contract in the same terms the SHARED `rename`/`group` string already uses ("Omit it to PRESERVE each artifact's existing Order; give it to renumber the named artifacts sequentially from NN"), adapted to records. Leave that shared string BYTE-UNCHANGED: `e3hzyc` already corrected it and it is out of this fence. Change no other help text.
+- [x] E-05 CORRECT THE HELP STRING THAT DOCUMENTS THE OLD DEFAULT. In `cli.py`, the `p_research_setassign` parser's `--order` argument reads `help="Starting NN (default 0)."`; rewrite it to describe the new contract in the same terms the SHARED `rename`/`group` string already uses ("Omit it to PRESERVE each artifact's existing Order; give it to renumber the named artifacts sequentially from NN"), adapted to records. Leave that shared string BYTE-UNCHANGED: `e3hzyc` already corrected it and it is out of this fence. Change no other help text.
   - Depends on: E-02
   - Expected outcome: `aw research set-assign --help` describes preservation rather than "default 0", and `aw group research --help` (the shared string) is unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -179,30 +179,169 @@ IF THE EXECUTOR FINDS a spec or README sentence asserting the "default 0" renumb
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: The pytest output for the two new bare-regroup tests run against UNFIXED source, pasted verbatim, showing them FAILING with the actual observed names (the `03`/`07` record asserted-`03`/`07` but found `00`/`01`). A pass here is a FAILURE of this validation: a test that does not fail at HEAD does not pin this defect.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Two bare-regroup tests failed against unfixed source with observed names `20260930-ns-00-aaaaaa-first-doc.notes.md` and `20260930-ns-01-bbbbbb-second-doc.notes.md`:
+    ```
+    FAILED tests/test_group_verb_policy.py::test_group_research_bare_single_preserves_order - AssertionError: Observed orders ['00'] from names ['20260930-ns-00-aaaaaa-first-doc.notes.md']; output: renamed .aw/records/research/20260901-oldset-03-aaaaaa-first-doc.notes.md -> .aw/records/research/20260930-ns-00-aaaaaa-first-doc.notes.md
+    assert ['00'] == ['03']
+    At index 0 diff: '00' != '03'
 
-- [ ] V-02 validates E-02
+    FAILED tests/test_group_verb_policy.py::test_group_research_bare_multi_preserves_order - AssertionError: Observed orders ['00', '01'] from names ['20260930-ns-00-aaaaaa-first-doc.notes.md', '20260930-ns-01-bbbbbb-second-doc.notes.md']; output: renamed .aw/records/research/20260901-oldset-03-aaaaaa-first-doc.notes.md -> .aw/records/research/20260930-ns-00-aaaaaa-first-doc.notes.md
+    renamed .aw/records/research/20260901-oldset-07-bbbbbb-second-doc.notes.md -> .aw/records/research/20260930-ns-01-bbbbbb-second-doc.notes.md
+    assert ['00', '01'] == ['03', '07']
+    At index 0 diff: '00' != '03'
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: The same two tests now PASSING, pasted; plus the `git diff` of `research_refs.py` showing `start_order: Optional[int] = None`, the removal of the `else 0` collapse, and the filename-`NN` fallback with its `f7a2kc` comment. Plus a one-line statement of WHICH precedent shape was adopted (`_preserved_order` tiers versus threaded `Optional[int]`) and why. Plus negative proof of the fence: `git diff --stat` listing neither `plans_refs.py` nor `artifact_rename.py`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Both tests passing, git diff verified, shape choice recorded, fence confirmed.
+    1. Tests now passing:
+    ```
+    tests/test_group_verb_policy.py::test_group_research_bare_single_preserves_order PASSED [ 16%]
+    tests/test_group_verb_policy.py::test_group_research_bare_multi_preserves_order PASSED [ 66%]
+    ```
+    2. `git diff agent_workflows/research_refs.py`:
+    ```diff
+    @@ -182,7 +182,7 @@ def plan_set_assign(
+         id6s: List[str],
+         set_id: str,
+         date_str: str,
+    -    start_order: int = 0,
+    +    start_order: Optional[int] = None,
+         *,
+         repo_root: Optional[Path] = None,
+     ) -> Tuple[Optional[List[RenamePlan]], Optional[str]]:
+    @@ -206,11 +206,15 @@ def plan_set_assign(
+                     None,
+                     f"file '{src.name}' is not a conformant research document: {parse_err}",
+                 )
+    +        # IPD ao0v8x: Preserve each record's existing filename Order when start_order is None.
+    +        # Resolves from the filename NN (parsed.order) rather than frontmatter order: because
+    +        # these mutating verbs leave frontmatter order: stale (defect f7a2kc), so reading
+    +        # frontmatter first would preserve a value previously corrupted by this verb.
+             new_name = R.format_name(
+                 R.ResearchName(
+                     date=date_str,
+                     set_id=set_k,
+    -                order=f"{start_order + i:02d}",
+    +                order=f"{start_order + i:02d}" if start_order is not None else parsed.order,
+                     id6=parsed.id6,
+                     slug=parsed.slug,
+                     model=parsed.model,
+    @@ -411,7 +415,7 @@ def run_set_assign(args: argparse.Namespace) -> "MutationResult":
+             ids,
+             getattr(args, "set", "") or "",
+             date_str,
+    -        start_order=start if start is not None else 0,
+    +        start_order=start,
+             repo_root=repo_root,
+         )
+         if err:
+    ```
+    3. Precedent shape adopted: Threaded `Optional[int]` with direct filename-`NN` fallback (`parsed.order`) following `artifact_rename.run_group_generic` rather than `plans_refs._preserved_order`'s tiered lookup, because research frontmatter is left stale by these verbs (`f7a2kc`) and the filename `NN` is grammar-guaranteed.
+    4. Negative proof of fence (`git diff --stat`):
+    ```
+     agent_workflows/cli.py           |   8 +-
+     agent_workflows/research_refs.py |  10 ++-
+     tests/test_group_verb_policy.py  | 161 ++++++++++++++++++++++++++++++++++++++-
+     3 files changed, 174 insertions(+), 5 deletions(-)
+    ```
+    Neither `agent_workflows/plans_refs.py` nor `agent_workflows/artifact_rename.py` was modified.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: Paste BOTH the dry-run output (no `--apply`) and the `--apply` output for the same bare regroup, showing the previewed names and the applied names are the SAME preserved-Order names. THE EXPECTED RESULT IS THE NEGATIVE FINDING, since review already measured it (PR-902): state explicitly that `research_refs._apply_renames` was NOT modified and show it byte-unchanged in `git diff`. If you instead DID edit the preview, this item requires you to explain what your measurement showed that review's did not, because an edit here contradicts a recorded measurement rather than merely exceeding it.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Negative finding confirmed; preview and apply outputs match preserved-Order names; `_apply_renames` was unmodified.
+    1. Dry-run output:
+    ```
+    === DRY-RUN OUTPUT ===
+    --- would rename /tmp/tmpmx4rmy0u/.aw/records/research/20260901-oldset-03-aaaaaa-first-doc.notes.md -> 20260930-ns-03-aaaaaa-first-doc.notes.md ---
+    --- would rename /tmp/tmpmx4rmy0u/.aw/records/research/20260901-oldset-07-bbbbbb-second-doc.notes.md -> 20260930-ns-07-bbbbbb-second-doc.notes.md ---
+    ```
+    2. Apply output:
+    ```
+    === APPLY OUTPUT ===
+    renamed .aw/records/research/20260901-oldset-03-aaaaaa-first-doc.notes.md -> .aw/records/research/20260930-ns-03-aaaaaa-first-doc.notes.md
+    renamed .aw/records/research/20260901-oldset-07-bbbbbb-second-doc.notes.md -> .aw/records/research/20260930-ns-07-bbbbbb-second-doc.notes.md
+    20260930-ns-03-aaaaaa-first-doc.notes.md: name-frontmatter-mismatch: set oldset != name ns
+    20260930-ns-07-bbbbbb-second-doc.notes.md: name-frontmatter-mismatch: set oldset != name ns
+    ```
+    3. `research_refs._apply_renames` derivation: `_apply_renames` prints `p.new_path.name`, which comes directly from `RenamePlan.new_path` computed by `plan_set_assign`. It was NOT modified; `git diff agent_workflows/research_refs.py` shows lines 308-335 byte-unchanged.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: Pytest output for the four guard tests in BOTH runs. The explicit-renumber guard must appear PASSING against unfixed source as well as after the fix (proving a preserved feature, not a new one); the `--order 0`, tier-disagreement and SECOND-SPELLING (`aw research set-assign`, F-12) cases must pass after, and the second-spelling case must be shown FAILING before, since it is the entry point no other case exercises. Paste both summary lines. Plus the bare `python3 -m pytest` summary after the change, compared against the baseline YOU measured on a clean tree before editing (not against a quoted total; see F-09), with the delta shown to be exactly the six new cases and zero failures.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Guard test outputs in both runs, failing second-spelling before and passing after, bare pytest clean baseline comparison.
+    1. Guard tests against unfixed source:
+    ```
+    tests/test_group_verb_policy.py::test_group_research_bare_single_preserves_order FAILED [ 16%]
+    tests/test_group_verb_policy.py::test_research_setassign_spelling_preserves_order FAILED [ 33%]
+    tests/test_group_verb_policy.py::test_group_research_bare_multi_preserves_order FAILED [ 50%]
+    tests/test_group_verb_policy.py::test_group_research_explicit_order_zero PASSED [ 66%]
+    tests/test_group_verb_policy.py::test_group_research_explicit_renumber PASSED [ 83%]
+    tests/test_group_verb_policy.py::test_group_research_tier_disagreement_follows_filename PASSED [100%]
+    Summary before fix: 3 failed, 3 passed, 37 deselected in 3.61s
+    ```
+    Explicit renumber passed before the fix (feature preserved); second spelling failed before the fix.
+    2. Guard tests after fix:
+    ```
+    tests/test_group_verb_policy.py::test_group_research_bare_single_preserves_order PASSED [ 16%]
+    tests/test_group_verb_policy.py::test_group_research_explicit_order_zero PASSED [ 33%]
+    tests/test_group_verb_policy.py::test_group_research_explicit_renumber PASSED [ 50%]
+    tests/test_group_verb_policy.py::test_group_research_bare_multi_preserves_order PASSED [ 66%]
+    tests/test_group_verb_policy.py::test_group_research_tier_disagreement_follows_filename PASSED [ 83%]
+    tests/test_group_verb_policy.py::test_research_setassign_spelling_preserves_order PASSED [100%]
+    Summary after fix: 6 passed, 37 deselected in 0.80s
+    Full test file summary: 43 passed in 2.86s
+    ```
+    3. Bare `python3 -m pytest` comparison:
+    - Baseline measured on clean tree before editing:
+      `3249 passed, 2 skipped, 3 warnings in 69.28s (0:01:09)`
+    - Post-change full suite run:
+      `3255 passed, 2 skipped, 3 warnings in 55.93s`
+    - Delta: exactly +6 passed tests (3255 - 3249 = 6), zero failures.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: `aw research set-assign --help` output showing the `--order` line no longer says "default 0", beside `aw group research --help` output showing the SHARED string byte-unchanged. Plus `git diff agent_workflows/cli.py` proving exactly one help string changed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Help outputs verified; git diff shows exactly one string changed.
+    1. `aw research set-assign --help` output for `--order`:
+    ```
+      --order ORDER     Starting NN. Omit it to PRESERVE each record's existing
+                        Order; give it to renumber the named records sequentially
+                        from NN.
+    ```
+    2. `aw group research --help` output for `--order` (shared string byte-unchanged):
+    ```
+      --order ORDER     Order NN (rename/group). Omit it to PRESERVE each
+                        artifact's existing Order; give it to renumber the named
+                        artifacts sequentially from NN.
+    ```
+    3. `git diff agent_workflows/cli.py`:
+    ```diff
+    diff --git a/agent_workflows/cli.py b/agent_workflows/cli.py
+    index 89833f91..5ad075d8 100644
+    --- a/agent_workflows/cli.py
+    +++ b/agent_workflows/cli.py
+    @@ -3038,7 +3038,13 @@ def _build_parser() -> argparse.ArgumentParser:
+             "--set", dest="set", required=True, help="Set id."
+         )
+         p_research_setassign.add_argument(
+    -        "--order", type=int, default=None, help="Starting NN (default 0)."
+    +        "--order",
+    +        type=int,
+    +        default=None,
+    +        help=(
+    +            "Starting NN. Omit it to PRESERVE each record's existing Order; "
+    +            "give it to renumber the named records sequentially from NN."
+    +        ),
+         )
+         p_research_setassign.add_argument(
+             "--date", default=None, help="Set date (YYYYMMDD; default today)."
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

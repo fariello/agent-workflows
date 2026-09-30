@@ -16,7 +16,7 @@ import subprocess
 
 import pytest
 
-from agent_workflows import artifact_types, cli, config
+from agent_workflows import artifact_types, cli, config, research_contract as R
 
 
 GROUP_TYPES = sorted(
@@ -125,3 +125,198 @@ def test_group_setid_warn_not_refused_at_max(artifact_type: str, temp_git_repo: 
     assert f"is {len(setid)} characters" in out
     assert f"{max_len}-character maximum" not in out
     assert "zzzzzz" in out
+
+
+def _seed_research_record(
+    repo_dir: Path,
+    date_str: str,
+    set_id: str,
+    order: str,
+    id6: str,
+    slug: str,
+    kind: str = "notes",
+    fm_order: str | None = None,
+) -> Path:
+    rdir = repo_dir / ".aw" / "records" / "research"
+    rdir.mkdir(parents=True, exist_ok=True)
+    filename = f"{date_str}-{set_id}-{order}-{id6}-{slug}.{kind}.md"
+    path = rdir / filename
+    actual_fm_order = fm_order if fm_order is not None else order
+    path.write_text(
+        f"---\n"
+        f"id: {id6}\n"
+        f"created: {date_str}\n"
+        f"set: {set_id}\n"
+        f"order: {actual_fm_order}\n"
+        f"topic: []\n"
+        f"model:\n"
+        f"kind: {kind}\n"
+        f"status: active\n"
+        f"outcome: informational\n"
+        f"summary: Test record {id6}.\n"
+        f"consumed-by: []\n"
+        f"---\n"
+        f"# Test record {id6}\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def _run_group_research(
+    selectors: list[str],
+    setid: str,
+    repo_dir: Path,
+    *,
+    order: int | None = None,
+    apply: bool = False,
+) -> tuple[int, str, str]:
+    """Run `aw group research <selectors...> --set <setid> [--order <order>] [--apply] --dir <repo_dir>` in-process."""
+    cmd = ["group", "research", *selectors, "--set", setid]
+    if order is not None:
+        cmd.extend(["--order", str(order)])
+    if apply:
+        cmd.append("--apply")
+    cmd.extend(["--dir", str(repo_dir)])
+    buf_out = io.StringIO()
+    buf_err = io.StringIO()
+    with redirect_stdout(buf_out), redirect_stderr(buf_err):
+        rc = cli.main(cmd)
+    return rc, buf_out.getvalue(), buf_err.getvalue()
+
+
+def _run_research_setassign(
+    selectors: list[str],
+    setid: str,
+    repo_dir: Path,
+    *,
+    order: int | None = None,
+    apply: bool = False,
+) -> tuple[int, str, str]:
+    """Run `aw research set-assign <selectors...> --set <setid> [--order <order>] [--apply] --dir <repo_dir>` in-process."""
+    cmd = ["research", "set-assign", *selectors, "--set", setid]
+    if order is not None:
+        cmd.extend(["--order", str(order)])
+    if apply:
+        cmd.append("--apply")
+    cmd.extend(["--dir", str(repo_dir)])
+    buf_out = io.StringIO()
+    buf_err = io.StringIO()
+    with redirect_stdout(buf_out), redirect_stderr(buf_err):
+        rc = cli.main(cmd)
+    return rc, buf_out.getvalue(), buf_err.getvalue()
+
+
+def test_group_research_bare_multi_preserves_order(temp_git_repo: Path):
+    """E-01/V-01: Bare regroup over two records at Orders 03 and 07 preserves each Order."""
+    _seed_research_record(
+        temp_git_repo, "20260901", "oldset", "03", "aaaaaa", "first-doc"
+    )
+    _seed_research_record(
+        temp_git_repo, "20260901", "oldset", "07", "bbbbbb", "second-doc"
+    )
+
+    rc, out, err = _run_group_research(
+        ["aaaaaa", "bbbbbb"], "ns", temp_git_repo, apply=True
+    )
+    assert rc == 0
+    rdir = temp_git_repo / ".aw" / "records" / "research"
+    files = sorted(rdir.glob("*.md"))
+    names = [f.name for f in files]
+    orders = [R.parse_name(n)[0].order for n in names]
+    assert orders == [
+        "03",
+        "07",
+    ], f"Observed orders {orders} from names {names}; output: {out}"
+
+
+def test_group_research_bare_single_preserves_order(temp_git_repo: Path):
+    """E-01/V-01: Bare regroup over a single record at Order 03 preserves its Order."""
+    _seed_research_record(
+        temp_git_repo, "20260901", "oldset", "03", "aaaaaa", "first-doc"
+    )
+
+    rc, out, err = _run_group_research(["aaaaaa"], "ns", temp_git_repo, apply=True)
+    assert rc == 0
+    rdir = temp_git_repo / ".aw" / "records" / "research"
+    files = sorted(rdir.glob("*.md"))
+    names = [f.name for f in files]
+    orders = [R.parse_name(n)[0].order for n in names]
+    assert orders == [
+        "03"
+    ], f"Observed orders {orders} from names {names}; output: {out}"
+
+
+def test_group_research_explicit_renumber(temp_git_repo: Path):
+    """E-04/V-04 guard (a): Explicit --order 1 sequentially renumbers from 01."""
+    _seed_research_record(
+        temp_git_repo, "20260901", "oldset", "03", "aaaaaa", "first-doc"
+    )
+    _seed_research_record(
+        temp_git_repo, "20260901", "oldset", "07", "bbbbbb", "second-doc"
+    )
+
+    rc, out, err = _run_group_research(
+        ["aaaaaa", "bbbbbb"], "ns", temp_git_repo, order=1, apply=True
+    )
+    assert rc == 0
+    rdir = temp_git_repo / ".aw" / "records" / "research"
+    files = sorted(rdir.glob("*.md"))
+    names = [f.name for f in files]
+    orders = [R.parse_name(n)[0].order for n in names]
+    assert orders == [
+        "01",
+        "02",
+    ], f"Observed orders {orders} from names {names}; output: {out}"
+
+
+def test_group_research_explicit_order_zero(temp_git_repo: Path):
+    """E-04/V-04 guard (b): Explicit --order 0 correctly targets 00."""
+    _seed_research_record(
+        temp_git_repo, "20260901", "oldset", "03", "aaaaaa", "first-doc"
+    )
+
+    rc, out, err = _run_group_research(
+        ["aaaaaa"], "ns", temp_git_repo, order=0, apply=True
+    )
+    assert rc == 0
+    rdir = temp_git_repo / ".aw" / "records" / "research"
+    files = sorted(rdir.glob("*.md"))
+    names = [f.name for f in files]
+    orders = [R.parse_name(n)[0].order for n in names]
+    assert orders == [
+        "00"
+    ], f"Observed orders {orders} from names {names}; output: {out}"
+
+
+def test_group_research_tier_disagreement_follows_filename(temp_git_repo: Path):
+    """E-04/V-04 guard (c): Tier disagreement resolves from filename (00), not frontmatter (03)."""
+    _seed_research_record(
+        temp_git_repo, "20260901", "oldset", "00", "aaaaaa", "first-doc", fm_order="03"
+    )
+
+    rc, out, err = _run_group_research(["aaaaaa"], "ns", temp_git_repo, apply=True)
+    assert rc == 0
+    rdir = temp_git_repo / ".aw" / "records" / "research"
+    files = sorted(rdir.glob("*.md"))
+    names = [f.name for f in files]
+    orders = [R.parse_name(n)[0].order for n in names]
+    assert orders == [
+        "00"
+    ], f"Observed orders {orders} from names {names}; output: {out}"
+
+
+def test_research_setassign_spelling_preserves_order(temp_git_repo: Path):
+    """E-04/V-04 guard (d): aw research set-assign spelling also preserves Order when bare."""
+    _seed_research_record(
+        temp_git_repo, "20260901", "oldset", "03", "aaaaaa", "first-doc"
+    )
+
+    rc, out, err = _run_research_setassign(["aaaaaa"], "ns", temp_git_repo, apply=True)
+    assert rc == 0
+    rdir = temp_git_repo / ".aw" / "records" / "research"
+    files = sorted(rdir.glob("*.md"))
+    names = [f.name for f in files]
+    orders = [R.parse_name(n)[0].order for n in names]
+    assert orders == [
+        "03"
+    ], f"Observed orders {orders} from names {names}; output: {out}"
