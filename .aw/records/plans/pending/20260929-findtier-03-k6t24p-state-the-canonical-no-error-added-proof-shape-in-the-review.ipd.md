@@ -113,6 +113,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Declined: no defect exists there; its demand is satisfiable because its rule is `info`, so there is nothing to carry
 - RESTORING THE DELETED `check_name_identity` COVERAGE (F-02, F-07). Owned by sibling `y43g6q`, which is already `reviewed` with disjoint `Scope-Paths`. Duplicating it here would collide in `tests/test_check_engine.py`.
   - Carrier: y43g6q
+  - Carrier-Evidence: .aw/records/plans/executed/20260928-findtier-01-y43g6q-pin-the-name-versus-metadata-set-agreement-the-trimmed-suite.ipd.md
 - ANY CHANGE TO `drift_exit_code`, to a registered severity, or to `RULE_REGISTRY`. The code is correct: an `info`-only exemption is the deliberate contract four separate registration comments defend. This is an authoring-contract defect.
   - Carrier-Declined: no defect exists there; the `info`-only exemption is the intended contract, so touching it would break a correct gate to fix an authoring problem
 - CORRECTING THE TWO `check_engine.py` COMMENTS THAT SAY `empty -> 1` (F-08). They are wrong (`drift_exit_code([])` returns 0), but fixing them is an `agent_workflows/` edit and this plan's whole fence is that `agent_workflows/` ends byte-unchanged. A comment that mis-states a measured value in a direction nobody relies on is a genuine but separate defect, and the plan protects itself from inheriting it by requiring the executor's own measurement in V-01 rather than the comment's figure.
