@@ -1,5 +1,6 @@
 - Id: zf1m48
-- Status: open
+- Status: graduated
+- Graduated-To: structpin
 - Blocks-Release: next
 - Set: structpin
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: tests/test_walkthrough_id6.py pins a literal 24-walkthrough census over the live records tree, so the next walkthrough any agent writes turns the default suite red
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: obyhrm
 - 2026-09-28 created (aw backlog): tests/test_walkthrough_id6.py pins a literal 24-walkthrough census over the live records tree, so the next walkthrough any agent writes turns the default suite red
 
 MEASURED 2026-09-28 at HEAD a314c925. `tests/test_walkthrough_id6.py::TestWalkthroughDeclaredIdMatchesSlot::test_clustered_walkthroughs_declare_matching_id` asserts `len(all_files) == 24` ("Census must find exactly 24 walkthroughs") and `len(exempt) == 11` over the LIVE `.aw/records/walkthroughs/` tree. The tree holds exactly 24 non-README walkthroughs right now, so the count is AT its pin and the next walkthrough written trips it.
