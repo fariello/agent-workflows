@@ -1,11 +1,13 @@
 - Id: s4jctz
-- Status: open
+- Status: graduated
+- Graduated-To: s4jctz
 - Set: s4jctz
 - Priority: low
 - Work-Kind: chore
 - Summary: two noqa F401 re-exports in the host runners are justified only by a deleted test file
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053053Z-3200037: sznlsf
 - 2026-09-28 note (aw backlog): Maintainer ruling: We do not test to make sure code does not change or pin imports. The deleted test will not be restored. Evaluate re-exports on whether functional callers use them, not based on dead code-pinning tests.
 - 2026-09-28 created (aw backlog): two noqa F401 re-exports in the host runners are justified only by a deleted test file
 
