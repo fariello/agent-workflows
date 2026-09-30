@@ -1,11 +1,13 @@
 - Id: csjq81
-- Status: open
+- Status: graduated
+- Graduated-To: csjq81
 - Set: csjq81
 - Priority: low
 - Work-Kind: chore
 - Summary: The dependency diagnostics line prints the dependency token twice, because dependency_status_detailed's reason strings already begin with the token the renderer parenthesizes them after
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053059Z-3200713: p22nrx
 - 2026-09-28 created (aw backlog): Filed at /plan-review of plan 5o1jye.
 
 MEASURED 2026-09-28 at HEAD 04352120 while reviewing plan `5o1jye` (from backlog `fvsyqk`).
