@@ -1,11 +1,13 @@
 - Id: s6om7k
-- Status: open
+- Status: graduated
+- Graduated-To: s6om7k
 - Set: s6om7k
 - Priority: low
 - Work-Kind: chore
 - Summary: oc_runipd carried a duplicate locked_run definition that shadowed its own wrapper
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053053Z-3200037: szkgb8
 - 2026-09-22 created (aw backlog): oc_runipd carried a duplicate locked_run definition that shadowed its own wrapper
 
 Found and FIXED while executing plan li44r9 (hostdedup Order 01). Filed for the CLASS, since the
