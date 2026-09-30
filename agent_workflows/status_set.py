@@ -536,6 +536,10 @@ def normalize_target_status(raw_status: str, record_type: str) -> str:
             return "executed"
         if norm == "pending":
             return "to-review"
+    if record_type == "research":
+        res = _research_contract.normalize_status(norm)
+        if res.value:
+            return res.value
     return norm
 
 
@@ -616,6 +620,25 @@ def validate_transition_allowed(
                 False,
                 f"Setting research status to '{target_status}' is not supported via aw set; use 'aw research promote {target_id} --to {target_status}' instead.",
             )
+        # resvocab Order 01 (4a8yws) E-02: refuse hot status when record sits in cold shard
+        if norm_status in _research_contract.HOT_STATUSES:
+            eff_root = repo_root if repo_root is not None else _repo_root_of(rec.path)
+            rec_path = rec.path if rec.path.is_absolute() else (eff_root / rec.path)
+            res_root = _research_contract.resolve_research_root(eff_root)
+            try:
+                rel = rec_path.resolve().relative_to(res_root.resolve())
+                first_seg = rel.parts[0] if rel.parts else ""
+            except ValueError:
+                first_seg = ""
+            if first_seg in (
+                _research_contract.REFERENCE_DIR,
+                _research_contract.ARCHIVE_DIR,
+            ):
+                target_id = rec.id6 or rec.path.name
+                return (
+                    False,
+                    f"Setting research status to '{target_status}' is not supported via aw set; use 'aw research promote {target_id} --to {target_status}' instead.",
+                )
         is_prompt = (
             rec.path.name.endswith(".research-prompt.md")
             or "- Kind: research-prompt" in rec.raw_text

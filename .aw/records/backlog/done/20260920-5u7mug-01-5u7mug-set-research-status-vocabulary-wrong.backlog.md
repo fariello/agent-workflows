@@ -1,5 +1,5 @@
 - Id: 5u7mug
-- Status: graduated
+- Status: done
 - Graduated-To: resvocab
 - Blocks-Release: next
 - Set: 5u7mug
@@ -8,6 +8,7 @@
 - Summary: aw set accepts done/open/parked for research and refuses the real todo/reference/archive vocabulary
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): closed by aw oc run: IPD 4a8yws executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-resvocab-01-4a8yws-finish-the-aw-set-research-vocabulary-fix-accept-the-intake.ipd.md); evidence .aw/records/plans/executed/20260928-resvocab-01-4a8yws-finish-the-aw-set-research-vocabulary-fix-accept-the-intake.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T235632Z-1358353: 4a8yws
 - 2026-09-20 created (aw backlog): aw set accepts done/open/parked for research and refuses the real todo/reference/archive vocabulary
 

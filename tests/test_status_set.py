@@ -2534,6 +2534,7 @@ class ResearchStatusSetTests(StatusSetTestBase):
             "rs0002",
             "rsset",
             status="todo",
+            disposition="",
         )
         rc = cli.main(
             ["set", "active", "rs0002", "--yes", "--dir", str(self.repo_root)]
@@ -2578,6 +2579,79 @@ class ResearchStatusSetTests(StatusSetTestBase):
             "a research-prompt carries no hot status; its pipeline position is derived",
             buf.getvalue(),
         )
+
+    def test_set_intake_alias_writes_todo_for_report(self):
+        report = self.create_research(
+            "20260924-rs0005-01-rs0005-test-report.research-report.md",
+            "rs0005",
+            "rsset",
+            status="active",
+            disposition="",
+        )
+        rc = cli.main(
+            ["set", "intake", "rs0005", "--yes", "--dir", str(self.repo_root)]
+        )
+        self.assertEqual(rc, 0)
+        content = report.read_text(encoding="utf-8")
+        self.assertIn("status: todo", content)
+        self.assertNotIn("status: intake", content)
+
+    def test_set_hot_status_on_cold_sharded_report_refuses(self):
+        # Cold-sharded in reference/
+        report_ref = self.create_research(
+            "20260924-rs0006-01-rs0006-test-report.research-report.md",
+            "rs0006",
+            "rsset",
+            status="reference",
+            disposition="reference/202609",
+        )
+        before_ref = report_ref.read_text(encoding="utf-8")
+        buf = io.StringIO()
+        with patch("sys.stdout", buf):
+            rc = cli.main(
+                ["set", "active", "rs0006", "--yes", "--dir", str(self.repo_root)]
+            )
+        self.assertEqual(rc, 1)
+        self.assertEqual(report_ref.read_text(encoding="utf-8"), before_ref)
+        self.assertIn(
+            "Setting research status to 'active' is not supported via aw set; use 'aw research promote rs0006 --to active' instead.",
+            buf.getvalue(),
+        )
+
+        # Cold-sharded in archive/
+        report_arc = self.create_research(
+            "20260924-rs0008-01-rs0008-test-report.research-report.md",
+            "rs0008",
+            "rsset",
+            status="archive",
+            disposition="archive/202609",
+        )
+        before_arc = report_arc.read_text(encoding="utf-8")
+        buf = io.StringIO()
+        with patch("sys.stdout", buf):
+            rc = cli.main(
+                ["set", "todo", "rs0008", "--yes", "--dir", str(self.repo_root)]
+            )
+        self.assertEqual(rc, 1)
+        self.assertEqual(report_arc.read_text(encoding="utf-8"), before_arc)
+        self.assertIn(
+            "Setting research status to 'todo' is not supported via aw set; use 'aw research promote rs0008 --to todo' instead.",
+            buf.getvalue(),
+        )
+
+    def test_set_hot_status_on_hot_root_report_accepted(self):
+        report = self.create_research(
+            "20260924-rs0007-01-rs0007-test-report.research-report.md",
+            "rs0007",
+            "rsset",
+            status="todo",
+            disposition="",
+        )
+        rc = cli.main(
+            ["set", "active", "rs0007", "--yes", "--dir", str(self.repo_root)]
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("status: active", report.read_text(encoding="utf-8"))
 
 
 class UntooledStatusRemediationTests(unittest.TestCase):
