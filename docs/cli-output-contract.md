@@ -88,11 +88,13 @@ an unbounded wait is not. Highest precedence first:
 | --- | --- | --- |
 | 1 | Negative Flag | `--no-interactive` (or `override=False`) disables interactive prompting immediately, beating all other rungs. Passing BOTH `--interactive` and `--no-interactive` is a usage error (exit 2), never a silent winner. |
 | 2 | Env | `AW_NONINTERACTIVE` or `CI` set to a truthy value (any value not in `("", "0", "false", "no")`) forces non-interactive (`False`). This takes precedence over `--interactive` to ensure automated CI pipelines and runner signal handlers holding locks never hang on an unattended prompt. |
-| 3 | Positive Flag | `--interactive` (or `override=True`) forces interactive mode on when not in a forced non-interactive environment, beating stream detection rungs. |
+| 3 | Positive Flag | `--interactive` (or `override=True` passed to `term.is_interactive`) forces interactive mode on when not in a forced non-interactive environment, beating stream detection rungs. |
 | 4 | Stdin | `stdin` must be interactive per `term.stdin_is_interactive()` (validates terminal and Windows console handle). |
 | 5 | Output | Target output stream (defaults to `sys.stdout`, or `sys.stderr` when specified) must also be a TTY. |
 
 Fail-safe invariant: when the process is non-interactive, commands fail closed (auto-decline or take documented safe non-interactive defaults), never hanging waiting for human input.
+
+Programmatic arguments vs. flags: the ladder above governs `term.is_interactive` and the CLI flag pair. A module-local predicate holding a direct programmatic argument (such as `git_commit_helper._is_interactive`) may honor an explicit boolean ahead of the environment rung, because a programmatic caller that already knows its channel is not an operator's ambient flag wish that CI must be allowed to veto.
 
 Worked cases, each pinned by tests in `tests/test_interactivity_resolver.py`:
 
@@ -109,6 +111,7 @@ Worked cases, each pinned by tests in `tests/test_interactivity_resolver.py`:
 | `stdin` TTY + `stdout` pipe | non-interactive (rung 5 prevents pipe hang) |
 | `is_interactive(override=True)` on non-TTY | interactive (positive override beats detection) |
 | `is_interactive(override=False)` on TTY | non-interactive (negative override beats all) |
+| `git_commit_helper._is_interactive(True)` under CI | interactive (direct programmatic argument beats environment rung) |
 
 ### 1.3 Flag Availability: uniform across every subcommand
 

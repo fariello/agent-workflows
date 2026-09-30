@@ -1742,8 +1742,8 @@ def stdin_is_interactive(stream: Optional[Any] = None) -> bool:
     a prompt?". The repository already has three sites that deliberately require more
     (ipd_lifecycle.run_finalize's ttywedge fence, runner_stop.interrupt_menu_is_safe,
     artifact_adopt.leak_gate_is_interactive), all requiring the output stream to be a TTY
-    too and honoring AW_NONINTERACTIVE/CI; use artifact_adopt.leak_gate_is_interactive
-    when a caller is about to block on input.
+    too and honoring AW_NONINTERACTIVE/CI; use :func:`is_interactive` (or
+    ``term.is_interactive``) when a caller is about to block on input.
     """
 
     target = sys.stdin if stream is None else stream

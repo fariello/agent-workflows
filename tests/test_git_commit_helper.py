@@ -15,6 +15,7 @@ the exact silent failure the feature exists to avoid.
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -204,6 +205,70 @@ def test_interactive_commit_prompts_and_responses(repo: Path, rec, monkeypatch):
     assert out_enter.status == H.STATUS_COMMITTED
     assert _head(repo) != before
     rec.assert_contract_clean()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="pty does not exist on win32")
+def test_offer_commit_pty_stdin_and_pipe_stdout_skips_without_prompt(repo: Path):
+    """E-01: child with stdin on real pty and stdout on pipe returns skipped without prompting."""
+    import pty
+
+    _write(repo, "mine.txt", "mine\n")
+    master, slave = pty.openpty()
+    env = dict(os.environ)
+    env.pop("CI", None)
+    env.pop("AW_NONINTERACTIVE", None)
+
+    code = (
+        "import sys\n"
+        "from pathlib import Path\n"
+        "from agent_workflows import git_commit_helper as H\n"
+        "out = H.offer_commit(Path(sys.argv[1]), ['mine.txt'], message='probe')\n"
+        "print('STATUS:' + out.status)\n"
+    )
+
+    proc = subprocess.Popen(
+        [sys.executable, "-c", code, str(repo)],
+        stdin=slave,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=env,
+        text=True,
+    )
+    os.close(slave)
+    slave = -1
+    try:
+        stdout, stderr = proc.communicate(timeout=10)
+    finally:
+        os.close(master)
+        if proc.poll() is None:
+            proc.kill()
+            proc.communicate()
+
+    assert proc.returncode == 0, f"child process failed: {stderr}"
+    assert "STATUS:skipped" in stdout
+    assert "Commit these path-scoped changes?" not in stdout
+
+
+def test_is_interactive_explicit_argument_beats_environment(monkeypatch):
+    """E-04 / E-05: explicit interactive argument beats CI/AW_NONINTERACTIVE environment."""
+    # With CI=1 set, explicit True survives forced-non-interactive env
+    monkeypatch.setenv("CI", "1")
+    monkeypatch.delenv("AW_NONINTERACTIVE", raising=False)
+    assert H._is_interactive(True) is True
+
+    # With AW_NONINTERACTIVE=1 set, explicit True survives as well
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.setenv("AW_NONINTERACTIVE", "1")
+    assert H._is_interactive(True) is True
+
+    # Explicit False stays False with both unset
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.delenv("AW_NONINTERACTIVE", raising=False)
+    assert H._is_interactive(False) is False
+
+    # None still respects environment (forced non-interactive)
+    monkeypatch.setenv("CI", "1")
+    assert H._is_interactive(None) is False
 
 
 # --------------------------------------------------------------------------------------

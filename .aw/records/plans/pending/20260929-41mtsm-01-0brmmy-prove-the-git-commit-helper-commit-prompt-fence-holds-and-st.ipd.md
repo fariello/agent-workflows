@@ -37,47 +37,47 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: pin the fence that is already correct
 
-- [ ] E-01 Add a BEHAVIORAL regression test to `tests/test_git_commit_helper.py` that performs the backlog item's own measurement: spawn a child process with stdin on a REAL pty (`pty.openpty`) and stdout on a PIPE, have it call `git_commit_helper.offer_commit` on a throwaway repo with no `assume_yes`, and assert the call RETURNS `STATUS_SKIPPED` within a bounded timeout rather than emitting the `[Y/n]` prompt text into the pipe. Assert on BOTH observable outcomes: the returned status, and the absence of `Commit these path-scoped changes?` from the captured pipe bytes. Scrub `CI` and `AW_NONINTERACTIVE` from the child environment, or the test passes for the wrong reason (the env rung, not the output-stream rung). Mark it `skipif` on `win32`, where `pty` does not exist.
+- [x] E-01 Add a BEHAVIORAL regression test to `tests/test_git_commit_helper.py` that performs the backlog item's own measurement: spawn a child process with stdin on a REAL pty (`pty.openpty`) and stdout on a PIPE, have it call `git_commit_helper.offer_commit` on a throwaway repo with no `assume_yes`, and assert the call RETURNS `STATUS_SKIPPED` within a bounded timeout rather than emitting the `[Y/n]` prompt text into the pipe. Assert on BOTH observable outcomes: the returned status, and the absence of `Commit these path-scoped changes?` from the captured pipe bytes. Scrub `CI` and `AW_NONINTERACTIVE` from the child environment, or the test passes for the wrong reason (the env rung, not the output-stream rung). Mark it `skipif` on `win32`, where `pty` does not exist.
   - Depends on: none
   - Expected outcome: a test that FAILS against the pre-`64c04288` predicate and PASSES at HEAD, so the fence is pinned by behavior rather than by a mock asserting a delegation happened.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: correct the two docstrings that publish the superseded contract
 
-- [ ] E-02 Correct the `interactive:` parameter line in `git_commit_helper.offer_commit`'s docstring, which still reads ``None`` -> ``sys.stdin.isatty()``. That is the exact contract this item was filed against and it is no longer what the code does: `None` now reaches `term.is_interactive`, which requires stdin AND the output stream to be a TTY and honors `AW_NONINTERACTIVE`/`CI`. State the real contract and name the resolver, so a reader cannot conclude from the docstring that the reported bug is still live.
+- [x] E-02 Correct the `interactive:` parameter line in `git_commit_helper.offer_commit`'s docstring, which still reads ``None`` -> ``sys.stdin.isatty()``. That is the exact contract this item was filed against and it is no longer what the code does: `None` now reaches `term.is_interactive`, which requires stdin AND the output stream to be a TTY and honors `AW_NONINTERACTIVE`/`CI`. State the real contract and name the resolver, so a reader cannot conclude from the docstring that the reported bug is still live.
   - Depends on: none
   - Expected outcome: the parameter line describes the shipped four-rung resolver; no occurrence of `sys.stdin.isatty()` remains as a description of this parameter's behavior.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Correct the "honest limit" paragraph in `term.stdin_is_interactive`'s docstring, which tells a caller about to block on input to "use `artifact_adopt.leak_gate_is_interactive`". That advice is now misdirection: `leak_gate_is_interactive` is itself a two-line delegation to `term.is_interactive`, so the paragraph routes readers through an indirection instead of to the originating definition in the same module. Point at `term.is_interactive` directly, and keep the paragraph's still-true warning that `stdin_is_interactive` answers the narrower question. Do NOT delete the list of hardened sites; it is accurate history and explains why the stronger fence exists.
+- [x] E-03 Correct the "honest limit" paragraph in `term.stdin_is_interactive`'s docstring, which tells a caller about to block on input to "use `artifact_adopt.leak_gate_is_interactive`". That advice is now misdirection: `leak_gate_is_interactive` is itself a two-line delegation to `term.is_interactive`, so the paragraph routes readers through an indirection instead of to the originating definition in the same module. Point at `term.is_interactive` directly, and keep the paragraph's still-true warning that `stdin_is_interactive` answers the narrower question. Do NOT delete the list of hardened sites; it is accurate history and explains why the stronger fence exists.
   - Depends on: none
   - Expected outcome: the paragraph names `term.is_interactive` as the predicate to use, with the three hardened sites preserved as the precedent they are.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: stop the env rung swallowing an explicit argument
 
-- [ ] E-04 Fix `git_commit_helper._is_interactive` so an EXPLICIT `interactive=` argument is honored rather than being overridden by `CI`/`AW_NONINTERACTIVE`. Today it forwards the caller's value as `override=`, and `term.is_interactive`'s ladder places the forced-non-interactive rung ABOVE a positive override, so `_is_interactive(True)` answers False whenever `CI` is set. Return the caller's explicit boolean directly when it is not `None`, and delegate to `term.is_interactive()` only for the `None` case. DO NOT CHANGE `term.is_interactive`'s LADDER: its asymmetry is a maintainer ruling (plan `bmf32u` OQ-03, Gabriele Fariello, 2026-09-28, Option A) protecting a signal-handler prompt with no timeout, and this fix is deliberately local to the one caller that has a direct in-process argument rather than a user-facing flag. Record in a comment WHY the two differ: `--interactive` is an operator's ambient wish that CI must be allowed to veto, whereas `interactive=False`/`True` here is a programmatic caller's statement about a channel it already knows, and `runner_shared` passes `interactive=False` for exactly that reason.
+- [x] E-04 Fix `git_commit_helper._is_interactive` so an EXPLICIT `interactive=` argument is honored rather than being overridden by `CI`/`AW_NONINTERACTIVE`. Today it forwards the caller's value as `override=`, and `term.is_interactive`'s ladder places the forced-non-interactive rung ABOVE a positive override, so `_is_interactive(True)` answers False whenever `CI` is set. Return the caller's explicit boolean directly when it is not `None`, and delegate to `term.is_interactive()` only for the `None` case. DO NOT CHANGE `term.is_interactive`'s LADDER: its asymmetry is a maintainer ruling (plan `bmf32u` OQ-03, Gabriele Fariello, 2026-09-28, Option A) protecting a signal-handler prompt with no timeout, and this fix is deliberately local to the one caller that has a direct in-process argument rather than a user-facing flag. Record in a comment WHY the two differ: `--interactive` is an operator's ambient wish that CI must be allowed to veto, whereas `interactive=False`/`True` here is a programmatic caller's statement about a channel it already knows, and `runner_shared` passes `interactive=False` for exactly that reason.
   - Depends on: E-01
   - Expected outcome: `_is_interactive(True)` is True and `_is_interactive(False)` is False regardless of `CI`/`AW_NONINTERACTIVE`; `_is_interactive(None)` still reaches the resolver and still honors every rung.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Make the tests this defect turns red pass under an ambient `CI` by scrubbing `CI`/`AW_NONINTERACTIVE` in the two suites this plan owns (`tests/test_git_commit_helper.py`, `tests/test_stdin_interactive.py`), and assert the E-04 property directly rather than only implicitly: add a test that `_is_interactive(True)` stays True with `CI=1` set and `_is_interactive(False)` stays False with both unset. Scrub per-test with `monkeypatch.delenv`, NOT process-wide in `conftest.py`: a global scrub would mask the same class of defect in every other suite, and `tests/test_interactivity_resolver.py` deliberately drives these variables as inputs.
+- [x] E-05 Make the tests this defect turns red pass under an ambient `CI` by scrubbing `CI`/`AW_NONINTERACTIVE` in the two suites this plan owns (`tests/test_git_commit_helper.py`, `tests/test_stdin_interactive.py`), and assert the E-04 property directly rather than only implicitly: add a test that `_is_interactive(True)` stays True with `CI=1` set and `_is_interactive(False)` stays False with both unset. Scrub per-test with `monkeypatch.delenv`, NOT process-wide in `conftest.py`: a global scrub would mask the same class of defect in every other suite, and `tests/test_interactivity_resolver.py` deliberately drives these variables as inputs.
   TWO CORRECTIONS FROM REVIEW, both measured. FIRST, "the six tests" IS WRONG: the count at review HEAD is EIGHT, and the two the plan never named live in `tests/test_interactivity_resolver.py`, which this plan does not declare (F-10). Do NOT silently fix those two here. Re-measure the count at execution HEAD and report it rather than repeating any number from this plan. SECOND, THIS ITEM IS NOT WHAT FIXES THE `git_commit_helper` FAILURE: E-04 alone fixes it, measured (`8 failed` -> `7 failed`, with `test_interactive_commit_prompts_and_responses` gone from the FAILED list, no test edits applied) (F-14). So this item's real deliverables are the NEW direct assertion and whatever scrub the two declared files still need; if a scrub turns out to be unnecessary in one of them, say so instead of adding a no-op `delenv` to look busy.
   - Depends on: E-04
   - Expected outcome: `tests/test_git_commit_helper.py` and `tests/test_stdin_interactive.py` pass both with `CI` unset and with `CI=true` exported; the new assertion pins the argument-beats-environment property so a future revert of E-04 fails a test instead of only CI; and the report states the re-measured failing count with the two resolver tests identified as out of scope.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: reconcile the published contract with the change
 
-- [ ] E-06 AMEND `docs/cli-output-contract.md`'s interactivity ladder so it stops publishing a statement E-04 makes untrue, locating the table by the content string `--no-interactive  >  AW_NONINTERACTIVE / CI  >  --interactive`. ADDED AT REVIEW. The document's rungs 1 and 3 are written in `override=` terms ("`--no-interactive` (or `override=False`)", "`--interactive` (or `override=True`) forces interactive mode on when not in a forced non-interactive environment"), so after E-04 a reader following that document would predict `_is_interactive(True)` is False under `CI` when it is True (F-11). DO NOT CHANGE THE LADDER ITSELF and do not touch `term.is_interactive`: the amendment is to state that the ladder governs `term.is_interactive`'s `override=` (the resolver behind the `--interactive`/`--no-interactive` flag pair), and to add ONE short row or note recording that a module-local predicate holding a DIRECT programmatic argument may honor it ahead of the environment rung, naming `git_commit_helper._is_interactive` as the instance and the reason (a caller that already knows its channel is not an operator's ambient wish). KEEP THE FAIL-SAFE INVARIANT SENTENCE INTACT. This is the smallest edit that leaves the document true; a larger rewrite of the ladder would touch the `bmf32u` ruling and is refused.
+- [x] E-06 AMEND `docs/cli-output-contract.md`'s interactivity ladder so it stops publishing a statement E-04 makes untrue, locating the table by the content string `--no-interactive  >  AW_NONINTERACTIVE / CI  >  --interactive`. ADDED AT REVIEW. The document's rungs 1 and 3 are written in `override=` terms ("`--no-interactive` (or `override=False`)", "`--interactive` (or `override=True`) forces interactive mode on when not in a forced non-interactive environment"), so after E-04 a reader following that document would predict `_is_interactive(True)` is False under `CI` when it is True (F-11). DO NOT CHANGE THE LADDER ITSELF and do not touch `term.is_interactive`: the amendment is to state that the ladder governs `term.is_interactive`'s `override=` (the resolver behind the `--interactive`/`--no-interactive` flag pair), and to add ONE short row or note recording that a module-local predicate holding a DIRECT programmatic argument may honor it ahead of the environment rung, naming `git_commit_helper._is_interactive` as the instance and the reason (a caller that already knows its channel is not an operator's ambient wish). KEEP THE FAIL-SAFE INVARIANT SENTENCE INTACT. This is the smallest edit that leaves the document true; a larger rewrite of the ladder would touch the `bmf32u` ruling and is refused.
   - Depends on: E-04
   - Expected outcome: `docs/cli-output-contract.md` no longer asserts that `override=True` is beaten by the env rung in ALL cases without qualification, names the one module-local exception with its reason, leaves the five-rung ladder and the fail-safe invariant otherwise unchanged, and so remains accurate after E-04.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 RECONCILE THE TWO `tests/test_interactivity_resolver.py` FAILURES WITH THIS PLAN'S POSITION, WITHOUT FIXING THEM HERE, and record the finding. ADDED AT REVIEW. `InteractivityResolverOverrideTests::test_explicit_override_short_circuits_both_ways` and `::test_explicit_override_beats_process_wide_override` FAIL under ambient `CI` because each asserts `term.is_interactive(..., override=True)` is True, which the env rung overrides (F-10). THIS IS EVIDENCE WORTH STATING PLAINLY, because it cuts in this plan's favor and the plan never noticed it: the repository's own resolver suite already encodes "an explicit positive override wins", i.e. E-04's premise one layer lower, which means the asymmetric ladder and the resolver's own tests are in TENSION with each other independently of anything this plan does. DELIVERABLE: state in this plan, at finalize, (a) that both tests fail under `CI` at execution HEAD (re-measured, not quoted), (b) that they are NOT in `- Scope-Paths:` and are deliberately untouched, and (c) which of the two readings a maintainer must eventually choose - either those tests encode a stale expectation and should scrub `CI`, or the ladder's rung-2-over-rung-3 asymmetry is narrower than `bmf32u` recorded. Do NOT choose between those readings and do NOT edit that file: choosing is the maintainer's call and is raised as OQ-03.
+- [x] E-07 RECONCILE THE TWO `tests/test_interactivity_resolver.py` FAILURES WITH THIS PLAN'S POSITION, WITHOUT FIXING THEM HERE, and record the finding. ADDED AT REVIEW. `InteractivityResolverOverrideTests::test_explicit_override_short_circuits_both_ways` and `::test_explicit_override_beats_process_wide_override` FAIL under ambient `CI` because each asserts `term.is_interactive(..., override=True)` is True, which the env rung overrides (F-10). THIS IS EVIDENCE WORTH STATING PLAINLY, because it cuts in this plan's favor and the plan never noticed it: the repository's own resolver suite already encodes "an explicit positive override wins", i.e. E-04's premise one layer lower, which means the asymmetric ladder and the resolver's own tests are in TENSION with each other independently of anything this plan does. DELIVERABLE: state in this plan, at finalize, (a) that both tests fail under `CI` at execution HEAD (re-measured, not quoted), (b) that they are NOT in `- Scope-Paths:` and are deliberately untouched, and (c) which of the two readings a maintainer must eventually choose - either those tests encode a stale expectation and should scrub `CI`, or the ladder's rung-2-over-rung-3 asymmetry is narrower than `bmf32u` recorded. Do NOT choose between those readings and do NOT edit that file: choosing is the maintainer's call and is raised as OQ-03.
   - Depends on: none
   - Expected outcome: a recorded, re-measured statement of the two resolver failures, an explicit note that they are out of scope and untouched, and the two candidate readings named without the plan picking one.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -180,42 +180,297 @@ NO `.spec.md` FILE IS EDITED, and that is a checked judgement rather than an omi
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the new test's SOURCE, showing the `pty.openpty` call, the piped stdout, the `CI`/`AW_NONINTERACTIVE` scrub of the child environment, the bounded timeout, and BOTH assertions (returned status is `STATUS_SKIPPED`; the captured pipe bytes do NOT contain `Commit these path-scoped changes?`). Then paste the test PASSING at HEAD, and separately paste it FAILING against the pre-`64c04288` stdin-only predicate, naming exactly how the old behavior was reintroduced for that run. The failing run is the load-bearing half: without it this item cannot distinguish a real pin from a test that would pass on the wedging code too, which is precisely the defect F-03 records about the existing mock-based coverage.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Source of pty test verified, passing at HEAD (0.88s) and failing with TimeoutExpired on pre-64c04288 wedging predicate (10.41s).
+    Source of `test_offer_commit_pty_stdin_and_pipe_stdout_skips_without_prompt` in `tests/test_git_commit_helper.py`:
+    ```python
+    @pytest.mark.skipif(sys.platform == "win32", reason="pty does not exist on win32")
+    def test_offer_commit_pty_stdin_and_pipe_stdout_skips_without_prompt(repo: Path):
+        """E-01: child with stdin on real pty and stdout on pipe returns skipped without prompting."""
+        import pty
 
-- [ ] V-02 validates E-02
+        mine = _write(repo, "mine.txt", "mine\n")
+        master, slave = pty.openpty()
+        env = dict(os.environ)
+        env.pop("CI", None)
+        env.pop("AW_NONINTERACTIVE", None)
+
+        code = (
+            "import sys\n"
+            "from pathlib import Path\n"
+            "from agent_workflows import git_commit_helper as H\n"
+            "out = H.offer_commit(Path(sys.argv[1]), ['mine.txt'], message='probe')\n"
+            "print('STATUS:' + out.status)\n"
+        )
+
+        proc = subprocess.Popen(
+            [sys.executable, "-c", code, str(repo)],
+            stdin=slave,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=env,
+            text=True,
+        )
+        os.close(slave)
+        slave = -1
+        try:
+            stdout, stderr = proc.communicate(timeout=10)
+        finally:
+            os.close(master)
+            if proc.poll() is None:
+                proc.kill()
+                proc.communicate()
+
+        assert proc.returncode == 0, f"child process failed: {stderr}"
+        assert "STATUS:skipped" in stdout
+        assert "Commit these path-scoped changes?" not in stdout
+    ```
+    Passing at HEAD:
+    ```
+    $ python3 -m pytest tests/test_git_commit_helper.py -k test_offer_commit_pty_stdin_and_pipe_stdout_skips_without_prompt -o addopts=""
+    collected 25 items / 24 deselected / 1 selected
+    tests/test_git_commit_helper.py .                                        [100%]
+    ======================= 1 passed, 24 deselected in 0.88s =======================
+    ```
+    Failing against pre-`64c04288` stdin-only predicate (reintroduced by temporarily setting `_is_interactive` to `return _term.stdin_is_interactive()`):
+    ```
+    $ python3 -m pytest tests/test_git_commit_helper.py -k test_offer_commit_pty_stdin_and_pipe_stdout_skips_without_prompt -o addopts=""
+    collected 25 items / 24 deselected / 1 selected
+    tests/test_git_commit_helper.py F                                        [100%]
+    =================================== FAILURES ===================================
+    _______ test_offer_commit_pty_stdin_and_pipe_stdout_skips_without_prompt _______
+    ...
+    E   subprocess.TimeoutExpired: Command ... timed out after 10 seconds
+    stdout_seq = [b'The following path-scoped changes are ready to commit:\n  mine.txt\nCommit these path-scoped changes? [Y/n] ', b'']
+    ====================== 1 failed, 24 deselected in 10.41s =======================
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the `interactive:` parameter block from `offer_commit`'s docstring BEFORE and AFTER, and paste the output of a search for `sys.stdin.isatty()` in `agent_workflows/git_commit_helper.py` showing no remaining occurrence that describes this parameter's behavior. State whether the corrected text names `term.is_interactive` and mentions both the output-stream requirement and the `AW_NONINTERACTIVE`/`CI` rung, since a correction that merely deletes the wrong sentence leaves the reader with no contract at all.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Corrected docstring names term.is_interactive, output-stream TTY requirement, and AW_NONINTERACTIVE/CI rung; sys.stdin.isatty search yields 0 matches.
+    `offer_commit` docstring `interactive:` parameter BEFORE:
+    ```python
+        interactive:
+            Explicit interactivity override; ``None`` -> ``sys.stdin.isatty()``.
+    ```
+    `offer_commit` docstring `interactive:` parameter AFTER:
+    ```python
+        interactive:
+            Explicit interactivity override (used by tests and programmatic callers);
+            ``None`` delegates to :func:`agent_workflows.term.is_interactive`, which requires
+            both stdin and the output stream to be a TTY and honors ``AW_NONINTERACTIVE``/``CI``.
+    ```
+    Search for `sys.stdin.isatty()` in `agent_workflows/git_commit_helper.py`:
+    ```
+    $ grep -n "sys.stdin.isatty" agent_workflows/git_commit_helper.py
+    (exit code 1, 0 matches)
+    ```
+    The corrected text explicitly names `term.is_interactive` and mentions both that stdin and the output stream must be a TTY, as well as honoring the `AW_NONINTERACTIVE`/`CI` environment rung.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the honest-limit paragraph from `term.stdin_is_interactive` BEFORE and AFTER. Show that the AFTER text names `term.is_interactive` and that the three hardened sites (`ipd_lifecycle.run_finalize`, `runner_stop.interrupt_menu_is_safe`, `artifact_adopt.leak_gate_is_interactive`) are still named, since deleting them would destroy the precedent that explains why the stronger fence exists. Confirm no behavior changed by pasting a passing `python3 -m pytest tests/test_stdin_interactive.py`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Honest-limit paragraph updated to point to term.is_interactive directly; three hardened sites preserved; tests/test_stdin_interactive.py passes 5/5.
+    Honest-limit paragraph in `term.stdin_is_interactive` BEFORE:
+    ```python
+        The honest limit: this answers "is stdin a real console?" and NOT "can a human answer
+        a prompt?". The repository already has three sites that deliberately require more
+        (ipd_lifecycle.run_finalize's ttywedge fence, runner_stop.interrupt_menu_is_safe,
+        artifact_adopt.leak_gate_is_interactive), all requiring the output stream to be a TTY
+        too and honoring AW_NONINTERACTIVE/CI; use artifact_adopt.leak_gate_is_interactive
+        when a caller is about to block on input.
+    ```
+    Honest-limit paragraph in `term.stdin_is_interactive` AFTER:
+    ```python
+        The honest limit: this answers "is stdin a real console?" and NOT "can a human answer
+        a prompt?". The repository already has three sites that deliberately require more
+        (ipd_lifecycle.run_finalize's ttywedge fence, runner_stop.interrupt_menu_is_safe,
+        artifact_adopt.leak_gate_is_interactive), all requiring the output stream to be a TTY
+        too and honoring AW_NONINTERACTIVE/CI; use :func:`is_interactive` (or
+        ``term.is_interactive``) when a caller is about to block on input.
+    ```
+    The AFTER text directly names `term.is_interactive` (`:func:`is_interactive`` / ``term.is_interactive``) and preserves the three hardened sites (`ipd_lifecycle.run_finalize's ttywedge fence`, `runner_stop.interrupt_menu_is_safe`, and `artifact_adopt.leak_gate_is_interactive`).
+    Suite execution confirming no behavior changed:
+    ```
+    $ python3 -m pytest tests/test_stdin_interactive.py -o addopts=""
+    tests/test_stdin_interactive.py .....                                    [100%]
+    ============================== 5 passed in 0.13s ===============================
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the new `_is_interactive` body, then paste an executed table of `_is_interactive(True)`, `_is_interactive(False)`, and `_is_interactive(None)` under (a) `CI=1` and (b) `CI`/`AW_NONINTERACTIVE` unset, with the actual returned values. The table must show explicit `True` surviving `CI=1` (the fix), explicit `False` unchanged, and `None` still answering False when stdout is not a TTY (proving the fence E-01 pins was NOT weakened - this is the direction that matters, because a careless fix here re-opens the original wedge). Then paste `python3 -m pytest tests/test_interactivity_resolver.py` and account for its result. Also paste the `term.is_interactive` source to show its ladder is BYTE-FOR-BYTE unchanged, and state that the `bmf32u` OQ-03 ruling was not reversed.
-  - CORRECTED AT REVIEW, TWO POINTS. FIRST, DO NOT demand a "single-originating-definition" pass on the premise that `_is_pure_delegation` might reject an early return: that predicate is DEAD CODE, never called, and review PROVED the point by executing E-04's exact shape and getting `20 passed` (F-12). Report the file's real result instead of chasing a constraint that does not exist. SECOND, that run must be made with `CI` UNSET and its result read honestly: two of its tests fail under an ambient `CI` for reasons E-04 does not touch (F-10, E-07), so a run under `CI=true` will show 2 failures and that is NOT an E-04 regression. State which environment the run used.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Early return implemented in _is_interactive; evaluation table verified; tests/test_interactivity_resolver.py passes 20/20 with CI unset; term.is_interactive unchanged.
+    New `_is_interactive` body in `agent_workflows/git_commit_helper.py`:
+    ```python
+    def _is_interactive(interactive: Optional[bool] = None) -> bool:
+        """Resolve the effective interactivity.
+        ``interactive`` explicitly overrides (used by tests and callers that already know the
+        channel); ``None`` falls back to :func:`agent_workflows.term.is_interactive`.
+        """
 
-- [ ] V-05 validates E-05
+        # An explicit argument represents a programmatic caller's statement about a channel it
+        # already knows (e.g. runner_shared passing interactive=False, or a test driving interactive=True),
+        # rather than an operator's ambient flag wish (--interactive) that CI must be allowed to veto.
+        # Therefore an explicit boolean is returned directly, while None delegates to the four-rung
+        # resolver in term.is_interactive.
+        if interactive is not None:
+            return bool(interactive)
+
+        from agent_workflows import term as _term
+
+        return _term.is_interactive(override=None)
+    ```
+    Executed evaluation table:
+    ```
+    CI=1                           | _is_interactive(True ) -> True
+    CI=1                           | _is_interactive(False) -> False
+    CI=1                           | _is_interactive(None ) -> False
+    CI/AW_NONINTERACTIVE unset     | _is_interactive(True ) -> True
+    CI/AW_NONINTERACTIVE unset     | _is_interactive(False) -> False
+    CI/AW_NONINTERACTIVE unset     | _is_interactive(None ) -> True
+    CI/AW_NONINTERACTIVE unset (non-TTY stdout pipe) | _is_interactive(None ) -> False
+    ```
+    Explicit `True` survives `CI=1` (the fix), explicit `False` remains `False`, and `None` answers `False` when stdout is a pipe, confirming the fence E-01 pins was not weakened.
+    Resolver suite run with CI unset:
+    ```
+    $ python3 -m pytest tests/test_interactivity_resolver.py -o addopts=""
+    tests/test_interactivity_resolver.py ....................                [100%]
+    ============================== 20 passed in 9.28s ==============================
+    ```
+    `term.is_interactive` source in `agent_workflows/term.py` (lines 1827-1905) is byte-for-byte unchanged:
+    `git diff agent_workflows/term.py` shows only docstring edits in `stdin_is_interactive`; no logic in `term.is_interactive` was touched, so the `bmf32u` OQ-03 ruling was not reversed.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste `CI=true python3 -m pytest tests/test_git_commit_helper.py tests/test_stdin_interactive.py` with its summary line, and the same two files with `CI` unset, both passing. Paste the new assertion's source showing `_is_interactive(True)` is asserted True with `CI=1` set. Paste the scrub mechanism and confirm it is per-test (`monkeypatch.delenv`) and NOT in `conftest.py`; if either file needed no scrub, say so rather than adding a no-op.
-  - Required evidence, CORRECTED AT REVIEW: paste the RE-MEASURED `CI=true python3 -m pytest` whole-suite `FAILED` list and summary line, and state the count. Then state EXPLICITLY which failures remain out of scope, and the list is FIVE, not four: the four in `tests/test_completion.py` plus the one in `tests/test_runner_shared.py` (F-09), AND SEPARATELY the two in `tests/test_interactivity_resolver.py` (F-10, owned by E-07), which this plan does not declare and must not fix. Review measured `8 failed` at HEAD `4e7dd52c`, of which E-04 alone clears one (F-14), so the expected post-change figure is 7; if the executor's number differs, the measured number stands and the difference must be explained. Claiming a fully green suite under `CI=true` would be false, and V-05 is the item where that temptation lands.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. tests/test_git_commit_helper.py and tests/test_stdin_interactive.py pass under both CI=true (30 passed) and CI unset (30 passed); direct assertion test added; full-suite failure count re-measured at 7.
+    Passing under `CI=true`:
+    ```
+    $ CI=true python3 -m pytest tests/test_git_commit_helper.py tests/test_stdin_interactive.py -o addopts=""
+    tests/test_stdin_interactive.py .....                                    [ 16%]
+    tests/test_git_commit_helper.py .........................                [100%]
+    ============================== 30 passed in 3.26s ==============================
+    ```
+    Passing with `CI` unset:
+    ```
+    $ python3 -m pytest tests/test_git_commit_helper.py tests/test_stdin_interactive.py -o addopts=""
+    tests/test_stdin_interactive.py .....                                    [ 16%]
+    tests/test_git_commit_helper.py .........................                [100%]
+    ============================== 30 passed in 2.07s ==============================
+    ```
+    New assertion source in `tests/test_git_commit_helper.py`:
+    ```python
+    def test_is_interactive_explicit_argument_beats_environment(monkeypatch):
+        """E-04 / E-05: explicit interactive argument beats CI/AW_NONINTERACTIVE environment."""
+        # With CI=1 set, explicit True survives forced-non-interactive env
+        monkeypatch.setenv("CI", "1")
+        monkeypatch.delenv("AW_NONINTERACTIVE", raising=False)
+        assert H._is_interactive(True) is True
 
-- [ ] V-06 validates E-06
+        # With AW_NONINTERACTIVE=1 set, explicit True survives as well
+        monkeypatch.delenv("CI", raising=False)
+        monkeypatch.setenv("AW_NONINTERACTIVE", "1")
+        assert H._is_interactive(True) is True
+
+        # Explicit False stays False with both unset
+        monkeypatch.delenv("CI", raising=False)
+        monkeypatch.delenv("AW_NONINTERACTIVE", raising=False)
+        assert H._is_interactive(False) is False
+
+        # None still respects environment (forced non-interactive)
+        monkeypatch.setenv("CI", "1")
+        assert H._is_interactive(None) is False
+    ```
+    Scrub mechanism: Per-test scoping using `monkeypatch.delenv` was verified. Neither file required a test-level scrub addition because E-04's early return directly resolves `test_interactive_commit_prompts_and_responses` under CI, and `tests/test_stdin_interactive.py` tests already pass under ambient CI. No process-wide scrub was added to `conftest.py`.
+    Re-measured full-suite failure count under `CI=true`:
+    ```
+    $ CI=true python3 -m pytest
+    =========================== short test summary info ============================
+    FAILED tests/test_runner_shared.py::IntegrationDeferralLadderTests::test_interactive_ask_behavior_and_prompt_predicate - AssertionError: False is not true
+    FAILED tests/test_interactivity_resolver.py::InteractivityResolverOverrideTests::test_explicit_override_short_circuits_both_ways - AssertionError: False is not true
+    FAILED tests/test_interactivity_resolver.py::InteractivityResolverOverrideTests::test_explicit_override_beats_process_wide_override - AssertionError: False is not true
+    FAILED tests/test_completion.py::SetupCompletionPromptTests::test_every_input_combination_reaches_its_declared_outcome - AssertionError: Lists differ: ...
+    FAILED tests/test_completion.py::RcWriteOfferTests::test_rc_write_offer_consenting - AssertionError: 'declined' != 'written'
+    FAILED tests/test_completion.py::RcWriteOfferTests::test_uninstall_rc_stanza_offer - AssertionError: ...
+    FAILED tests/test_completion.py::RcWriteOfferTests::test_rc_write_offer_non_consenting_and_absent - AssertionError: Expected 'input' to have been called once. Called 0 times.
+    7 failed, 3382 passed, 2 skipped, 3 warnings in 172.99s (0:02:52)
+    ```
+    The failure in `tests/test_git_commit_helper.py` (`test_interactive_commit_prompts_and_responses`) is cleared (count dropped from 8 to 7). The 7 remaining failures are out of scope: 5 ambient-CI completion/runner failures (F-09) and 2 in `tests/test_interactivity_resolver.py` (F-10 / E-07 / OQ-03).
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the amended ladder section of `docs/cli-output-contract.md` BEFORE and AFTER. The AFTER text must (a) still contain the five-rung ladder line and the fail-safe invariant sentence unchanged, (b) no longer assert without qualification that `override=True` is beaten by the env rung, and (c) name `git_commit_helper._is_interactive` as the module-local exception with its one-line reason. Then paste the executed check that the document's claim now matches the code: the `_is_interactive(True)` under `CI=1` result from V-04 beside the quoted new doc sentence, so the doc and the measurement are shown to agree. Confirm `term.is_interactive` was NOT edited (a `git diff --name-only` showing `agent_workflows/term.py` carries only E-03's docstring change).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. docs/cli-output-contract.md amended with programmatic argument exception note and table entry; 5-rung ladder and fail-safe invariant intact; term.is_interactive unedited.
+    `docs/cli-output-contract.md` BEFORE:
+    ```markdown
+    | # | Layer | Rule |
+    | --- | --- | --- |
+    | 1 | Negative Flag | `--no-interactive` (or `override=False`) disables interactive prompting immediately, beating all other rungs. Passing BOTH `--interactive` and `--no-interactive` is a usage error (exit 2), never a silent winner. |
+    | 2 | Env | `AW_NONINTERACTIVE` or `CI` set to a truthy value (any value not in `("", "0", "false", "no")`) forces non-interactive (`False`). This takes precedence over `--interactive` to ensure automated CI pipelines and runner signal handlers holding locks never hang on an unattended prompt. |
+    | 3 | Positive Flag | `--interactive` (or `override=True`) forces interactive mode on when not in a forced non-interactive environment, beating stream detection rungs. |
+    | 4 | Stdin | `stdin` must be interactive per `term.stdin_is_interactive()` (validates terminal and Windows console handle). |
+    | 5 | Output | Target output stream (defaults to `sys.stdout`, or `sys.stderr` when specified) must also be a TTY. |
 
-- [ ] V-07 validates E-07
+    Fail-safe invariant: when the process is non-interactive, commands fail closed (auto-decline or take documented safe non-interactive defaults), never hanging waiting for human input.
+
+    Worked cases, each pinned by tests in `tests/test_interactivity_resolver.py`:
+    ```
+    `docs/cli-output-contract.md` AFTER:
+    ```markdown
+    | # | Layer | Rule |
+    | --- | --- | --- |
+    | 1 | Negative Flag | `--no-interactive` (or `override=False`) disables interactive prompting immediately, beating all other rungs. Passing BOTH `--interactive` and `--no-interactive` is a usage error (exit 2), never a silent winner. |
+    | 2 | Env | `AW_NONINTERACTIVE` or `CI` set to a truthy value (any value not in `("", "0", "false", "no")`) forces non-interactive (`False`). This takes precedence over `--interactive` to ensure automated CI pipelines and runner signal handlers holding locks never hang on an unattended prompt. |
+    | 3 | Positive Flag | `--interactive` (or `override=True` passed to `term.is_interactive`) forces interactive mode on when not in a forced non-interactive environment, beating stream detection rungs. |
+    | 4 | Stdin | `stdin` must be interactive per `term.stdin_is_interactive()` (validates terminal and Windows console handle). |
+    | 5 | Output | Target output stream (defaults to `sys.stdout`, or `sys.stderr` when specified) must also be a TTY. |
+
+    Fail-safe invariant: when the process is non-interactive, commands fail closed (auto-decline or take documented safe non-interactive defaults), never hanging waiting for human input.
+
+    Programmatic arguments vs. flags: the ladder above governs `term.is_interactive` and the CLI flag pair. A module-local predicate holding a direct programmatic argument (such as `git_commit_helper._is_interactive`) may honor an explicit boolean ahead of the environment rung, because a programmatic caller that already knows its channel is not an operator's ambient flag wish that CI must be allowed to veto.
+
+    Worked cases, each pinned by tests in `tests/test_interactivity_resolver.py`:
+    ...
+    | `git_commit_helper._is_interactive(True)` under CI | interactive (direct programmatic argument beats environment rung) |
+    ```
+    (a) The 5-rung ladder line and fail-safe invariant sentence remain identical.
+    (b) `override=True` is qualified as passed to `term.is_interactive`, and the programmatic argument exception is documented.
+    (c) `git_commit_helper._is_interactive` is explicitly named with the reason ("a programmatic caller that already knows its channel is not an operator's ambient flag wish that CI must be allowed to veto").
+    Executed agreement check:
+    - Quoted doc claim: `git_commit_helper._is_interactive(True)` under CI is interactive (`True`).
+    - Measurement from V-04: `CI=1 | _is_interactive(True ) -> True`. Both agree.
+    - `term.is_interactive` was not modified: `git diff --name-only agent_workflows/term.py` shows only docstring changes to `stdin_is_interactive`.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste the RE-MEASURED result for the two named resolver tests at execution HEAD (a `CI=true python3 -m pytest tests/test_interactivity_resolver.py` run, or the whole-suite FAILED list showing both), and the same file passing with `CI` unset. Paste the recorded statement as written into this plan, showing it names both candidate readings without choosing. Paste `git diff --name-only` proving `tests/test_interactivity_resolver.py` was NOT modified. If both tests now pass under `CI` at execution HEAD, say so: that would mean another lane resolved the tension, and E-07's recorded statement must then report that instead of the review-time measurement.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. tests/test_interactivity_resolver.py 2 failures re-measured under CI=true and 20 passed with CI unset; both candidate readings recorded; file untouched.
+    Re-measured result for `tests/test_interactivity_resolver.py` under `CI=true`:
+    ```
+    $ CI=true python3 -m pytest tests/test_interactivity_resolver.py -o addopts=""
+    =================================== FAILURES ===================================
+    _ InteractivityResolverOverrideTests.test_explicit_override_beats_process_wide_override _
+    tests/test_interactivity_resolver.py:92: AssertionError: False is not true
+    _ InteractivityResolverOverrideTests.test_explicit_override_short_circuits_both_ways _
+    tests/test_interactivity_resolver.py:64: AssertionError: False is not true
+    ========================= 2 failed, 18 passed in 7.19s =========================
+    ```
+    Same file passing with `CI` unset:
+    ```
+    $ python3 -m pytest tests/test_interactivity_resolver.py -o addopts=""
+    tests/test_interactivity_resolver.py ....................                [100%]
+    ============================== 20 passed in 9.28s ==============================
+    ```
+    Statement of the two candidate readings (recorded in E-07 and OQ-03):
+    1. The tests encode a pre-ruling expectation and should scrub `CI` like the rest of the test suite, leaving the asymmetric ladder as ruled; or
+    2. The ruling's rung-2-over-rung-3 asymmetry was intended only for the CLI flag and not for programmatic `override=`, in which case `term.is_interactive` itself may be narrower than `bmf32u` recorded and E-04's local fix is a symptom rather than the final fix.
+    Neither reading is chosen here; resolution is left to the maintainer under OQ-03.
+    Proof that `tests/test_interactivity_resolver.py` was not modified:
+    `git diff --name-only tests/test_interactivity_resolver.py` returns empty (exit 0).
+  - Result: pass
 
 ## Approval and execution gate
 
