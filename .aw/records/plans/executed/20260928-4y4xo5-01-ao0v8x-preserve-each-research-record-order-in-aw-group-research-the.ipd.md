@@ -12,7 +12,7 @@
 - Scope: Make `aw group research` (and its `aw research set-assign` spelling, one shared backend) PRESERVE each named record's existing Order when `--order` is absent, resolving it from the filename's own `NN`, while keeping an explicit `--order N` renumbering the named records sequentially from `N` (including `--order 0`). Correct the one research-specific `--order` help string that documents the old default. Give `group research` the regression coverage it has none of. EXCLUDES: the stale-frontmatter defect owned by `f7a2kc` (this plan must not start writing frontmatter), the `aw group plans` date fallback owned by `j84jg3`, `plans_refs.py` and `artifact_rename.py` (both already correct and deliberately left byte-unchanged), extracting a shared helper across the two backends, and any refusal to place a record at Order 0.
 - Scope-Paths: agent_workflows/research_refs.py, agent_workflows/cli.py, tests/test_group_verb_policy.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -23,9 +23,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: ao0v8x
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: ao0v8x verified (set 4y4xo5, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): plan-review: APPROVE WITH REVISIONS APPLIED; PR-901..PR-905 all fixed
 
