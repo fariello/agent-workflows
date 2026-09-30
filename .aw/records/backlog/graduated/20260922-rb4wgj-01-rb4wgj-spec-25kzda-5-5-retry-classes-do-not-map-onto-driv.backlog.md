@@ -1,11 +1,13 @@
 - Id: rb4wgj
-- Status: open
+- Status: graduated
+- Graduated-To: rb4wgj
 - Set: rb4wgj
 - Priority: medium
 - Work-Kind: chore
 - Summary: spec 25kzda 5.5 enumerates retry classes in a vocabulary no driver disposition uses, so every consumer must invent the mapping and two consumers can map it differently
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: 4gx141
 - 2026-09-22 created (aw backlog): spec 25kzda 5.5 enumerates retry classes in a vocabulary no driver disposition uses, so every consumer must invent the mapping and two consumers can map it differently
 
 FOUND WHILE EXECUTING plan `xipfy1` (retrywire), whose E-01 was required to derive an allowlist from spec `25kzda` 5.5 'mapped onto the drivers' actual disposition vocabulary'.
