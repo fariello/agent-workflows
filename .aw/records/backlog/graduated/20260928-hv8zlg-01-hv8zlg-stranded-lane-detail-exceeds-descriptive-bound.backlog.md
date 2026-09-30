@@ -1,11 +1,13 @@
 - Id: hv8zlg
-- Status: open
+- Status: graduated
+- Graduated-To: hv8zlg
 - Set: hv8zlg
 - Priority: low
 - Work-Kind: chore
 - Summary: A stranded-lane drift detail can exceed the Section 8.8 descriptive-field bound and nothing checks it
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053053Z-3200037: mc6r92
 - 2026-09-28 created (aw backlog): A stranded-lane drift detail can exceed the Section 8.8 descriptive-field bound and nothing checks it
 
 FILED AS THE CARRIER for the deferred row in plan `8njbv5` (strandwt-01), which measured this while authoring an unrelated wording change and declined to fix it in scope.
