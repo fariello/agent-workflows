@@ -6,7 +6,7 @@
 - Scope: Make the fail-loud plans-index refresh inside the finalize transaction compute its verdict WITHOUT printing, so `aw ipd finalize --json|--agent` stdout carries only the `aw.agent/v1` payload, and fold the drift the nested check found into the structured refusal instead of dropping it on stdout.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, tests/test_ipd_lifecycle_cli.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: wgp0g3
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 
 - 2026-09-30 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-901 (HIGH), PR-902 (MEDIUM), PR-903 (MEDIUM), PR-904 (LOW), PR-905 (LOW), all FIXED. All thirteen authored findings were re-driven through the real CLI in throwaway repos and all thirteen reproduce, including the headline defect (`--json` success stdout begins `plans index --check: clean` and `json.loads` raises) and the candidate fix's verdict-equivalence and silence. The findings are precision defects in the TESTS and the message, not in the approach. PR-901: E-03(d)'s "payload names the offending plan path" assertion is VACUOUS, because the mismatching id6 already appears in the HEAD payload via the diagnostic's `location`; only the rule name discriminates, measured absent at HEAD. PR-902: E-02 would have rendered `info`-severity advisory findings into a message explaining a refusal they did not cause, so it now filters on `drift_exit_code`'s own predicate (new OQ-03). PR-903: V-01's three trees omit the `info` case, which is the exact class the cited `yvvf98` E-02 bug lived in, so a fourth tree is now required. PR-904: the drift location's first segment is the DISPOSITION and changes mid-transaction, so a literal `pending/` prefix must not be pinned; and the `--agent` payload is already per-line recoverable at HEAD, so that assertion had to be strengthened to "every line parses". PR-905: the gate gained a scope fence, the conditional-ownership transition, and three measured fixture prerequisites that cost review three iterations. PR-906: the plan itself tripped two `aw check` findings, both pre-existing, both now cleared, namely a backwards `to-review` -> `draft` history order (the section is newest-first) and four `## Deferred` rows with no carrier line, one of which named a real residual defect now carried by backlog `eeiytw` filed at review.

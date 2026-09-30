@@ -6,7 +6,7 @@
 - Scope: Replace the hand-maintained abort tally in `run_evidence.py` with a computed derivation gated at runtime, plus behavioral tests that pin each row's `abort` tri-state at two levels: to the row's own `action` string (catching a half-edit) AND to spec 4.2's own action cell parsed from the spec file (catching a pair that drifts from the contract together, which the module-only derivation cannot see). Restore the abort-invariant subset of the behavioral coverage deleted by the suite trim, including the spec-anchored byte comparison that subset originally carried.
 - Scope-Paths: agent_workflows/run_evidence.py, tests/test_run_finding_abort_partition.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: xjmjq4
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-X01 (HIGH, fixed), PR-X02 (HIGH, fixed), PR-X03 (MEDIUM, fixed), PR-X04 (MEDIUM, fixed), PR-X05 (LOW, fixed). Findings recorded in .aw/records/reviews/20260930-dorm45-01-xjmjq4-pin-the-run-abort-partition-to-the-spec-action-text.review.md. Re-measured every authored finding: F1's 2/4/6 counter and both quoted prose strings are verbatim correct, F3's deletion is exact (1722 lines, 85 test methods, all four named methods present at 19313eed^, no current references), F4's derivation reproduces all 12 rows with zero mismatches, and F5's docstring count is wrong by the same measurement. TWO SERIOUS FINDINGS, the same gap from two directions. PR-X01: E-01's helper reads row.action, itself a MODULE field, so E-02's gate is a self-consistency check and not the cross-check Proposed change 1 claims; measured adversarially, rewriting RUN-CROSS-TREE to action='FAIL ITEM' with abort='never' PASSES the gate while contradicting the spec cell it transcribes, and the DELETED test caught that class precisely because it parsed the SPEC FILE, so the plan was rebuilding the weaker half of its own cited precedent. New E-05 restores the spec anchor and I verified it passes on arrival (12 spec rows parsed, ZERO action-text mismatches). PR-X02: F2's claim that E-02's gate would have failed commit 544ba188, the plan's motivating drift event, is FALSE; that commit moved the action in the SAME hunk as the tri-state, so the derivation passes both before (conditional/conditional) and after (never/never) and would have been silent throughout. F2 now records both measurements and the honest division of labour (E-02 catches a half-edit, E-05 a co-moved drift). FURTHER: the spec-amendment Deferred row declared 'nothing is outstanding' while spec 4.2 promises a byte-equality guard from a deleted test, a defect owned by open backlog 089bq4 which is a bug carrying Blocks-Release next and which E-05 partly discharges, so the row now carries that carrier and the gate forbids closing it; OQ-01 carried Owner none, corrected to plan author; and V-01 now states what it does not prove. Verified E-05's spec parse is compatible with P16 under its own narrow exception (D-2).
 
 - 2026-09-29 draft (opencode/its_direct/pt3-claude-opus-5-1m-us): created.

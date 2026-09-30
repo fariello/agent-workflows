@@ -6,7 +6,7 @@
 - Scope: Give the packaged source a DETECTOR rather than a rewriter. Add a `suffixes` parameter to `artifact_refs.dead_filename_citations` (which today cannot reach a `.py` file at all), add a `--source-citations` scan verb that reports a dangling record-filename citation under `agent_workflows/` and `tools/` with its file, line and cited name, and fix the 5 measured danglers the new detector finds. EXCLUDES extending `REFERENCE_SCAN_ROOTS` to rewrite the shipped package (rejected on measured evidence, see F-6 and F-7), EXCLUDES wiring the detector as an always-on `aw check` rule (the false-positive reason recorded at `plans_index.check_drift` is unretired, see F-8 and OQ-01), and EXCLUDES the two live-source spec-path citations already owned by pending plan `2wmwf7`.
 - Scope-Paths: agent_workflows/artifact_refs.py, agent_workflows/cli.py, agent_workflows/comms.py, agent_workflows/agy_run.py, agent_workflows/oc_runipd.py, tests/test_source_citation_scan.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,8 +17,10 @@
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 68hdic
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 
 - 2026-09-29 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-701..PR-707, all FIXED. Ran the plan's OWN census (E-01) at review HEAD `b9944bfc` rather than reading its numbers, and that run produced the findings that changed the plan. F-1's dry run, F-4's runtime-path classification (`runner_shared.py`'s `default_rb` runbook selection under an `is_file()` guard), F-5's false negative (`dead_filename_citations(scan_roots=("agent_workflows",))` returns 0 for BOTH `plans` and `specs` while danglers exist), F-8's verbatim in-tree objection, F-10's two truncated near-misses and F-11's type-filter asymmetry all VERIFIED. F-3's token totals reproduced EXACTLY (61 in `agent_workflows`, 22 in `tools`). ONE BLOCKER: the detector as specified could never exit zero, because all 21 dangling tokens in `tools/` are SYNTHETIC TEST FIXTURES that must never resolve, so a mode required to exit nonzero on any finding would report dirty forever and be unusable in the script it exists for; sibling `2wmwf7` had measured the same 21 and excluded them. E-04 now excludes test files and V-04 demands a zero exit on the REAL tree. ONE HIGH: the headline count is 4, not 5, because `runner_shared.py`'s runbook citation is a FALSE POSITIVE whose file exists on disk at `tools/ipdrunner/`, flagged only because the existence set is built from `selectors.record_dirs`; new E-08/V-08 own teaching the detector not to report a resolving citation. Also REMOVED a permission that would have written a fresh false statement into shipped source (E-05 could say "no successor exists" for the `comms.py` citation on F-10's claim; the successor EXISTS at `.aw/records/research/20260714-same-box-agent-wakeup-mechanisms-00-j2000q-...`), CORRECTED an E-04 locator string that appears nowhere in the tree, corrected F-9's overlap arithmetic (one shared line, not two citations), and supplied OQ-01 with the false-positive measurement its promotion decision turns on. OQ-02 RESOLVED (no dependency edge, either order). Seven pre-existing carrier-obligation violations (`check.ipd-uncarried-obligation`) fixed with a specific reason each. Structural preflight conforming at `author` and `review-finalize`; bare suite `3246 passed, 2 skipped` at review HEAD.

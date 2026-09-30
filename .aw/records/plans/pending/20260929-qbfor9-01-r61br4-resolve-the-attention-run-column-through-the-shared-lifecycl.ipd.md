@@ -8,7 +8,7 @@
   OUT: changing WHICH runs are scanned or the liveness test that selects them (`run_viewer.driver_holder_state`, untouched); the `priority_order` collapse that picks ONE state when an id6 appears in several live runs (retained, re-keyed; see Deferred); whether the runner should build a `run_map` at all rather than handing `render_table` its queue (the structural question inside `format_slated_artifacts_table`, still deferred; only its WORDS change, see Deferred); adding any status to `lifecycle_style` or amending spec `uonrjg` (no new mapping is needed once the vocabulary is the runner's own, which is the point of the chosen option); and the artifact Status column, already converted by `f9t5hz`.
 - Scope-Paths: agent_workflows/attention.py, agent_workflows/attention_contract.py, agent_workflows/cli.py, agent_workflows/runner_shared.py, tests/test_attention.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -20,8 +20,10 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: r61br4
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 
 - 2026-09-29 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-501..PR-506, all FIXED. Every material claim re-measured at review HEAD `fb137c31` rather than read, and the plan's central premise held EXACTLY: 28 known statuses canonicalize onto 17 words through the two shipped alias tables, longest `already-landed` at 14, zero collisions at every width 7 to 14, and all 17 resolve to a non-`unknown` stage, so the no-spec-amendment property is real. F-1 through F-8 and F-10 all reproduced, including the `--run-status already-landed` matching NOTHING today and the `merging`-with-activity resolution to `integrating` (amber 220, glyph `⇄`). ONE FINDING CHANGED THE PLAN'S SHAPE: F-9 raised LOW -> BLOCKER and its deferral WITHDRAWN, because `runner_shared.format_slated_artifacts_table` passes its own hand-built `run_map` straight into the `render_table(runs_mode=True)` call E-04 converts, and `resolve(FAMILY_RUNNER_ITEM, "done")` is stage `unknown`, so deferring it would have shipped a visible regression (the runner's pre-flight table printing `?` where it prints `done`). That is now E-07/V-07 and adds `runner_shared.py` to the fence. THREE NEW FINDINGS: F-11, the `--runs` test blast radius is ten assertions and two hand-written fixtures rather than four assertions, and one named update is IMPOSSIBLE as worded because a fixture pins `done`, a value the post-change map cannot hold; F-12, a second test pins the retired words as the map's OUTPUT and invents an unwritable `merging` status to do it; F-13, a fifth dependent (an inline `ORDER_BY_KEYS` comment) that F-8 did not count. Also widened V-01's totality domain, since `integration-unmeasured` is an alias key outside `KNOWN_ITEM_STATUSES`, and corrected V-01's `[:7]` grep, which would have flagged the legitimate render-site match as incomplete work. Structural preflight conforming at `author` and `review-finalize`; bare suite `3246 passed, 2 skipped` at review HEAD.

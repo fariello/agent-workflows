@@ -9,7 +9,7 @@
 - Scope: Make `plans_refs.run_mv` and `plans_refs.plan_set_assign` resolve their selector through `selectors.resolve_for_mutation` (the same call `artifact_rename.run_rename_generic` makes), so the plans tree accepts the same selector vocabulary as every other type and every reader, AND read the target's `id6` from the RESOLVED FILE'S FRONT MATTER rather than reusing the selector string, which is the load-bearing correctness half. Add the outcome tests these verbs have none of. EXCLUDES: `aw archive plans`, which uses its own separate matcher (`plans_archive._find_targets`) and whose defects are carried separately; changing `selectors.py` (Order 01's fence); `artifact_rename.py`; and making the plans backend honor `--to-id6`, which it silently ignores today (recorded in OQ-03 as pre-existing and out of fence).
 - Scope-Paths: agent_workflows/plans_refs.py, tests/test_plans_rename_selectors.py
 - Item-Dependencies: executed:eby93o
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -20,8 +20,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 87m438
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 
 - 2026-09-29 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-201 (HIGH), PR-202 (LOW), PR-203 (LOW), PR-204 (LOW), all FIXED. Structural lint conformed at `author` and again at `review-finalize`. EVERY ONE of the plan's fourteen findings was independently re-derived and all of them hold: the `rename` and `group` refusals (both exit 2 with `no plan has Id '<filename>'` while `aw find plans` on the same filename exits 0), the F-04 corruption trap (`clustered_name` with the selector in the id6 slot yields `20260808-plans-adopter-06-20260808-0004-06-migrate-existing-plans.ipd.md-migrate-existing-plans.ipd.md`), the F-05 cross-type leak (`resolve_for_mutation(repo,'plans',<a spec path>)` returns the SPEC with `err=None`), the F-10 set equality, the F-11 setid fallback, the F-12 `--to-id6` no-op, and both argparse claims (`--yes` exits 2; `--no-interactive` works). ONE HIGH FINDING WAS ADDED, and it is the reason this review was not a rubber stamp (PR-201/F-15): the plan settled setid expansion for `group` in OQ-04 and settled it NOWHERE for `rename`, while E-03's Expected outcome promised `rename` "accepts ... setid". Because `resolve_for_mutation` returns a setid multi-match as a deliberate SUCCESS and `run_mv` renames exactly one file, the plan as written would have shipped a silent arbitrary rename: measured, `resolve_for_mutation(repo,'plans','awrenamesel')` returns 5 paths with `err=None` and `paths[0]` is the Order-00 orchestrator, so `--apply` would rename one Set member at exit 0. That is strictly worse than the loud refusal being fixed. `artifact_rename.run_rename_generic` already solved it with a refuse-unless-`--force` guard whose comment states the reasoning, and `aw rename` advertises `--force` while `plans_refs` reads it nowhere; E-03 now carries that guard, OQ-05 records the decision, E-06 gains guard (f), and V-03/V-06 plus a third mandatory evidence gate demand it be demonstrated. Also: a fifth pre-existing test reads this hint surface (F-17, `tests/test_doctor.py`), the drifted population counts are now marked as context rather than bars (F-16: 1035 not 919 plans, `3291 passed` not `3246`, `findtier` n=4 not n=3), and the spec obligation behind E-06(e) is named (approved spec `2lcqno` N3 requires the `Type mismatch` refusal be "PINNED, never retired as dead code"). No production file was modified by this review.

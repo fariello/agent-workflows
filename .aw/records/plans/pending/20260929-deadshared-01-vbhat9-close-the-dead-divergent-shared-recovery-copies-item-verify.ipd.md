@@ -6,7 +6,7 @@
 - Scope: Prove and lock, do not re-fix. (1) Fix the scanner's `is_pure_delegation` to recognize the sanctioned delegating-subclass shape (a `ClassDef` whose bases include `runner_shared.<same-name>`), which empties `--triples` truthfully rather than by suppression. (2) Add a mechanical suite guard, modelled on the sibling constant sweep that plan `gjni4c` already shipped for this same defect class, that refuses ANY def-or-class symbol co-defined in `runner_shared` and both hosts where neither host RESOLVES to the shared object and neither host's definition is a sanctioned wrapper or delegating subclass. (3) Add a behavioral regression pinning that the one surviving snapshot predicate is the canonical one, so the specific divergence the item measured cannot be reintroduced. (4) Record the verified state of each of the item's claims in this plan's findings so the backlog item can close on cited evidence. EXPLICITLY NOT IN SCOPE: changing the recovery trio's bodies, changing `StallWatchdog`'s inheritance, and closing the `getattr(driver_module, ...)` fallback (see Deferred).
 - Scope-Paths: tools/runner_fork_scan.py, tests/test_runner_shared.py, tests/test_recovone_single_definition.py, .aw/records/backlog/open/, .aw/records/plans/pending/
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: vbhat9
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-V01 (HIGH, fixed), PR-V02 (HIGH, fixed), PR-V03 (MEDIUM, fixed), PR-V04 (MEDIUM, fixed), PR-V05 (LOW, fixed), PR-V06 (LOW, fixed). Findings recorded in .aw/records/reviews/20260930-deadshared-01-vbhat9-close-the-dead-divergent-shared-recovery-copies-item-ve.review.md. Re-measured all fourteen findings; F-01 through F-06 and F-08 through F-10 reproduce exactly (trio identity pins, empty AGY_IMPORTS_FROM_OC_RUNIPD, no wip(snapshot) in any .py, the dead body at 2d04ef8b reading st.path/st.base_commit against a LaneState carrying worktree_path/base_sha, the single StallWatchdog phantom classed BOTH-DELEGATE at 1.000 in the same run, and F-06's census move to the digit: 47/9/3/6/9 symbols/384 lines). TWO SERIOUS FINDINGS. PR-V01: E-01's predicate as authored was a BARE INHERITANCE CHECK, measured returning True for a StallWatchdog subclass overriding _run, so a genuinely divergent subclass would have left --triples for sanctioned_wrappers, the suppression-not-truth outcome E-01's own prose forbids; two tightened variants produce an identical census at this HEAD, so E-01 now requires a constructor-only body and new E-07 proves the refusal. PR-V02: E-01 moves a census baseline that PENDING plan 9oj6t2 consumes as its numeric acceptance criterion (E-06 pins REAL FORKS 10 -> 8 and byte-identical 4 -> 2; F-1 names StallWatchdog), and that plan is already reviewed, go-pending-approval, Item-Dependencies none, so either may run first and its own refusal condition would fire on a stale number; new E-06 appends a dated history note rather than amending a reviewed plan (OQ-04 records the four options). TWO CORRECTIONS: F-07's rg probe ran without --hidden so the whole .aw tree was invisible (27 markdown matches with it, which is how PR-V02 was missed at authoring), and E-02's expected population of 56 is the two-host intersection where the sweep is a three-way one measuring 42. Added F-14 recording that the P16 tension over E-02 is settled by two passing in-tree precedents.
 
 - 2026-09-29 draft (opencode/its_direct/pt3-claude-opus-5-1m-us): created.

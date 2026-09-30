@@ -6,7 +6,7 @@
 - Scope: IN: make `specs.run_check`'s human branch report the examined count, matching the count wording the same function already computes for the agent/JSON branch and the `Evidence` receipt convention `aw check <type>` demonstrates; a behavioral test asserting the count is visible in human output at zero AND at nonzero; one CHANGELOG line. OUT: the `--agent` branch and `result_types.to_agent_record` (already fixed by `kifrou`, F-1); the identical missing-count gap in `backlog check`, `attention --check`, `research check-refs` and `sanitize` (filed separately, see Deferred); `_spec_files`'s retired-filter scope (the 38-vs-20 difference from `check_engine._iter_type_files` is that filter working as designed, F-6); and any change to which specs are examined, to exit codes, or to the drift rules.
 - Scope-Paths: agent_workflows/specs.py, tests/test_agent_checked_count.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 121j2r
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): reviewed by /plan-review 2026-09-29; readiness go-pending-approval; OQ-01 and OQ-02 resolved by the reviewer
 
 - 2026-09-29 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-B01..PR-B05, all FIXED, and BOTH open questions RESOLVED (each carried `- Owner: reviewer`, so answering them was this review's job, not a deferral). Every authored finding reproduced at review HEAD `376cd30b`: F-1's presence test reads as quoted and commit `0a10a7b1` exists; F-2's file passes `3 passed`; F-3 measured live (`aw specs check` prints exactly `aw specs check: all specs conform.` at exit 0 while `--agent` reports `"checked":38` on the same tree); F-6's 38/20/38 is exact; F-4's two contract sentences are verbatim; F-5's `rg human_recipe tests/` is empty; F-7 re-verified in part; F-9's two review records exist. THE ZERO CASE, which is the whole point, was measured in a throwaway empty-specs repo: human prints `all specs conform.` over ZERO specs while `--agent` reports `"checked":0`. OQ-01 RESOLVED to the MINIMAL in-place form and OQ-02 RESOLVED to file-the-sweep, both on the release-gate argument rather than on effort. Review then found: `tests/conformance_matrix.py` collects ZERO tests and no module imports it, so F-8's risk is LATENT not live and V-04 must answer "none exist" instead of reporting a run, though the flip F-8 predicts is real and was measured (`None` -> `clean`) (PR-B01); the "nothing pins the human string" claim is true of TESTS and FALSE of sibling plans, since `h8e3sm` and `xx5b7a` are both `- Status: reviewed` and each demands `all specs conform` as its own `V-*` evidence while neither declares `specs.py`, so E-01 must ADD the count and keep the sentence (PR-B02); E-04's premise that the suite has known pre-existing failures is FALSE here, measured `3246 passed, 2 skipped` with an empty FAILED set, and left standing it would license tolerating a red test (PR-B03). Also fixed: V-01 hardcoded the live spec count 38 (PR-B04), and the gate lacked shared-checkout unstaging and never-tag (PR-B05). No source file was modified by this review.

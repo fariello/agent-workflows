@@ -6,7 +6,7 @@
 - Scope: Record, ONCE, in the two plan-review rubric surfaces, the canonical two-limb no-error-added proof shape an author must demand instead (a registry severity assertion plus a behavioral gate-consequence measurement), and name the exit-0 form as the specific anti-pattern to flag. EXCLUDES any change to `artifact_core.drift_exit_code`, to `check_engine.RULE_REGISTRY`, or to any rule's registered severity: the code is correct and this is an authoring-contract defect. EXCLUDES editing executed plan `3i6rso` beyond nothing at all (its record is immutable and it already documents the refusal). EXCLUDES the suite-coverage half of this area, which sibling `y43g6q` owns. EXCLUDES adding a mechanical lint rule, for the reason the adjacent re-derivation convention states: distinguishing a satisfiable evidence demand from an unsatisfiable one requires semantic reading.
 - Scope-Paths: .aw/system/workflows/plan-review/plan-review.md, .aw/system/workflows/plan-review-long/review-rubric.md, tests/test_plan_review_feasibility_rule.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: k6t24p
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-101 through PR-106 all fixed
 
 - 2026-09-29 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-101 through PR-105, all FIXED. Reviewed at `0cfc41a9` in a lane worktree. Structural preflight conformed before and after revision. NO PRODUCTION FILE AND NEITHER RUBRIC WAS MODIFIED by this review; every measurement came from read-only probes.

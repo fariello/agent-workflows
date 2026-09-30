@@ -6,7 +6,7 @@
 - Scope: Add ONE guard test that refuses a new production-source read in this suite's test modules, carrying a documented allowlist for the narrow exception P16 already grants, and point `CONTRIBUTING.md` at P16 so an author meets the rule while authoring rather than after a sweep. The guard excludes ITS OWN FILE structurally (it must call `ast.parse`/`ast.walk` to work, so it is red against itself otherwise; demonstrated at review) and excludes fixture modules under `tests/fixtures/` and `tests/benchmark_fixtures/` (synthetic sample code, not this suite's assertions). Deliberately NOT an `aw check` rule and NOT a pre-commit hook; the rationale is recorded in Findings and the alternatives were evaluated rather than skipped. EXCLUDES restating or deleting the six existing pins, which is Order 01 (`b02ohu`) and MUST land first, because this guard is red on arrival while they exist. EXCLUDES detecting the count-shaped assertion in general, which is undecidable syntactically and is recorded as an accepted bound rather than silently ignored.
 - Scope-Paths: tests/test_no_code_structure_pins.py, CONTRIBUTING.md
 - Item-Dependencies: executed:b02ohu
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,8 +16,10 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: 76ic0k
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 /plan-review (opencode/its_direct-pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-501 (BLOCKER, fixed), PR-502, PR-503, PR-504, PR-505, PR-506, PR-507, PR-508 (all fixed). The dominant finding was demonstrated rather than reasoned: the guard as specified detects `ast.parse`/`ast.walk` and must call both, so it was RED ON ARRIVAL against its own file (2 self-violations measured) while the plan's gate forbade every remedy it left available; fixed with a structural self-exclusion. E-02's self-cleaning assertion was structurally vacuous and now requires an allowlist-independent detector. Three overstated claims were restated at the strength the evidence supports (the `TARGET_FUNCTIONS` justification was false though its conclusion was right, `check_engine` has 16 prose `tests` mentions and zero path constructions, and bound (a)'s decidable subset has three legitimate members). The discovery set was narrowed off 13 fixture modules (OQ-02). Full findings and decisions: `.aw/records/reviews/20260928-structpin-02-76ic0k-refuse-a-new-code-structure-pin-in-tests-at-author-time.review.md`.
 - 2026-09-30 reviewed (aw set): status set to reviewed
 

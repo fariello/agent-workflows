@@ -6,7 +6,7 @@
 - Scope: `agent_workflows/runner_shared.py` (the refusal at the queue-build seam plus three stale rationale comments), `agent_workflows/run_selection_policy.py` (one stale gate census), and `tests/test_typed_queue_entries.py` (behavioral coverage for the refusal and for the surviving dispatch hole). NOT in scope: widening the manifest to non-plan types, changing `resolve_plan_path`'s resolution order, or any part of spec `z7nbn1`'s unbuilt per-type dispatch.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/run_selection_policy.py, tests/test_typed_queue_entries.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 05
 - Author: opencode model=pt3-claude-opus-5-1m-us
 - Id: kqb9ok
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): /plan-review (opencode model=its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-201..PR-207 all FIXED, none deferred or open. THE PLAN'S CENTRAL JUDGEMENT IS RIGHT AND ITS HONESTY IS ITS BEST FEATURE: it re-measured its backlog item, found the primary defect already closed, and retracted the premise instead of manufacturing a fix. Both halves of F-01 confirm (lookup_manifest_artifact guards every map and raises DriverError; the queue loop precedes the run-directory statement with two gates between). F-02 confirms and is a REAL LIVE DEFECT: enforce_freeze_time_refusal PASSES a docs/-sited IPD whose file exists, resolve_selected_artifact_paths returns unresolved=('pln002',), and queue_plan_path_for then raises 'outside the plans trees', so the refusal arrives after durable state. F-03/F-04/F-05/F-06 all confirm. ONE HIGH, PR-201: E-02 as authored refused ANY unresolvable IPD entry with no action scoping, which would refuse a run that SUCCEEDS today, because action_for returns skip for executed/superseded/not-executed and a completed skip is a success that never reaches queue_plan_path_for; E-02 now adopts enforce_freeze_time_refusal's own live-action predicate, E-03 gains the negative case, and V-02 requires the negative measurement so an unscoped fix cannot pass. PR-202 records that the action is computed AFTER the resolver call, so the error must be collected and judged later. PR-203 resolved a self-contradiction (E-02/E-03 'can be dropped without affecting the rest' in the same sentence as 'E-04 depends on E-02'); the real cost is one re-worded clause, now itemized. PR-204 closes a release-gate hole: the OQ-01 drop path had nobody obliged to file F-02, so the inherited Blocks-Release gate could be silently lost, and the drop instructions used 'deferred', not a legal execution state. PR-206 re-measured the stale gate census as at least EIGHT, not five plus two, so E-05 must derive it rather than patch it. OQ-01 deliberately left open to the maintainer: F-02 is live either way, so the question is which item carries it, which is theirs. Bare suite 3246 passed, 2 skipped.
 
 - 2026-09-29 draft (opencode model=pt3-claude-opus-5-1m-us): created.

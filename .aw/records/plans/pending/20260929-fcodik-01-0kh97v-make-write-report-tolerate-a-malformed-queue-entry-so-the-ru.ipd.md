@@ -6,7 +6,7 @@
 - Scope: Make `runner_shared.write_report` render a complete report for a queue containing a non-mapping entry, by guarding all seven measured per-entry read sites across the three functions that own them: the four sites in `write_report`'s own body (counting loop, table row loop, dependency-block comprehension, and a new placeholder row), plus `runner_shared.render_transient_dependency_waits`, `runner_shared.format_verifier_evidence_section`, `runner_shared.format_generated_next_actions_section`, and `lane_containment.format_preserved_lanes`. Decide and document the REPORTING CONTRACT the backlog item leaves open: a malformed entry gets its OWN counted status bucket and its OWN table row (never a silent omission), while every OPTIONAL section skips it as `render_zero_work_notes` already does. NOT the other two exit-tail crash sites (`s438xd`, `3z91mq`), NOT `run_viewer.load_run_summary` (F-09, filed nowhere; this plan reports it rather than reaching across), NOT any well-formed entry's report bytes.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/lane_containment.py, tests/test_write_report_malformed_entry.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,8 +17,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 0kh97v
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): status set to reviewed
 
 - 2026-09-30 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-201 (HIGH, fixed), PR-202 (HIGH, fixed), PR-203, PR-204, PR-205, PR-206 (MEDIUM, fixed), PR-207 (LOW, fixed). Re-ran every authoring probe at HEAD `374aa8fa`: F-01, F-02's seven-site census, F-03, F-04, F-06's shipped-format round-trip, F-07, F-08, F-09 and F-11 all VERIFIED, and I PROTOTYPED the full fix, which rendered a complete report for the malformed state and a BYTE-IDENTICAL report for a rich well-formed state (recorded as new F-14). TWO BLOCKING EXECUTABILITY DEFECTS: E-03 told the executor to fill the `#` column "from the loop's own enumeration index" when the row loop has no `enumerate` at all, so the instruction was unfollowable and both plausible improvisations are wrong (PR-201); and F-05's "the fix adds no import" is false for `lane_containment`, which E-05 edits and which imports no `Mapping`, so following the plan literally is a `NameError` (PR-202). ALSO: F-10 said `s438xd` is `open` when it is `graduated` to plan `165lkb`, already `reviewed`, which F-10 never checked for fence overlap (PR-205, measured uncontested); `165lkb` independently adds a same-spelling token and documents the coordination on ITS side only, so E-02 now carries the reciprocal note (PR-206, new F-13, which also records that the sibling's cycle rationale is overstated since the import is lazy); E-04 cited a byte-identity docstring sentence one of its three helpers lacks (PR-204); the suite baseline was stale by 32 tests, 3246 authored versus 3278 measured, so the bar is now a lane-captured baseline (PR-203, F-12); and the gate instructed a hand move to `executed/` with no scope fence (PR-207). Added F-15: `save_state` persists `state.json` BEFORE raising, so the defect is report-loss and not state-loss. Five decisions recorded. Full record: `.aw/records/reviews/20260929-fcodik-01-0kh97v-make-write-report-tolerate-a-malformed-queue-entry-so-the-ru.review.md`.

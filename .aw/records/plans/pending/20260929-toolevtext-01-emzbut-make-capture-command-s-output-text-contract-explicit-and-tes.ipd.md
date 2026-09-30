@@ -6,7 +6,7 @@
 - Scope: Give `capture_command` a TYPED return whose output text is carried OUT OF BAND of the ledger record, converge the two consumers on one spelling, and pin the contract with tests that call the real function. IN: a `CapturedToolEvent` `dict` subclass that IS the `tool_event` mapping (so every existing `.get("exit_code")` / `["stdout_sha256"]` read is unchanged) but carries `stdout`/`stderr` as ATTRIBUTES, so `dict(...)`, `json.dumps`, `copy.deepcopy` and `RunLedgerStore.append` see only the schema fields; deleting the four injected mapping keys; repointing `runner_shared.run_suite_check` and `host_runner.run_worker_process` at the attributes; a contract test that calls the REAL `capture_command` and asserts both the presence of the text and the ABSENCE of text keys from the persisted record; and a regression test proving the append path no longer carries output. OUT: changing `build_tool_event`'s record shape or `run_ledger_schema._KIND_FIELDS`; deciding whether a BOUNDED excerpt belongs in the persisted ledger (declined with reason, see OQ-02); forwarding `TaskPacket.max_output_bytes` (a separate measured defect, carried to `fqseay`); bounding `stderr` against `max_output_bytes` (carried to `lijmwy`); and any change to redaction, to the leak sanitizer, or to what either consumer does with the text once it has it.
 - Scope-Paths: agent_workflows/run_evidence.py, agent_workflows/runner_shared.py, agent_workflows/host_runner.py, docs/evidence.md, tests/test_capture_command_contract.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,8 +17,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: emzbut
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): status set to reviewed
 
 - 2026-09-29 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-401 through PR-406, all FIXED, none deferred and none left open. Review record: `.aw/records/reviews/20260929-toolevtext-01-emzbut-make-capture-command-s-output-text-contract-explicit-and-tes.review.md`.

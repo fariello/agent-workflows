@@ -6,7 +6,7 @@
 - Scope: Correct the ONE live site and refuse the other three, with the evidence that decides each. IN: the `## Guardrails any implementation inherits from 826o13` block in backlog `59t9x5`, whose present-tense "returns 3 records while a filename glob returns 12" is guidance a future implementer is told to preserve. The resolved count is re-measured (8); the glob figure is NOT replaced by a new integer but by a property, because review measured it to be SELF-REFERENTIAL (this plan's own filename contains `wtiso`, so it counts itself: 15 at authoring, 16 at review, 17 once this review's record lands). The correction names `ecdd348f` so the change does not read as a behavior regression. ALSO IN, added at review: the SECOND bullet of the same block, stale from the same commit in three respects (no 4096-byte header bound survives, the count is 291 not nine, and the named example `25kzda` is no longer an instance). OUT, with reasons in Findings and Deferred: the executed plan `826o13` (immutable, and it ALREADY self-corrects at E-01's execution note, naming eight, the offsets, and this very item), the review record's four dated count statements across rounds 1 and 3 (accounts of commands actually run and of a decision's basis), and backlog `f8m2z2`'s graduated-history line (dated, and its body's only `wtiso` claim is the EXCLUSION property, which re-measures TRUE). No product code is touched; `selectors.py` is READ for E-03's evidence, is not in `- Scope-Paths:`, and must not be edited.
 - Scope-Paths: .aw/records/backlog/done/20260912-59t9x5-01-59t9x5-find-display-layer-double-read.backlog.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: d7jpo3
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): status set to reviewed
 
 - 2026-09-29 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 FIXED, OQ-02 left OPEN as the maintainer's call. Every finding re-measured at HEAD `3199f621`: the defect, the causal offset table, the exclusion contract and the executed plan's self-correction all reproduce exactly. THE PLAN'S OWN PRESCRIPTION CARRIED ITS OWN DEFECT CLASS: the glob figure is self-referential (this plan's filename contains `wtiso`, so it counts itself, 15 -> 16 between authoring and review), so E-02 now requires a non-rotting property and V-02 fails a bare integer swap. Also found the SECOND bullet of the same guardrail block stale from the same commit in three respects, added as new E-03/V-03. Corrected F-04's enumeration (four count statements across two rounds, not one in round 3) and F-06's mention count. Findings and three `D-*` decisions in `.aw/records/reviews/20260929-kx9md1-01-d7jpo3-...review.md`. One incident disclosed there: a review probe of `aw backlog note` wrote a line to `59t9x5` and was reverted immediately; the tree is clean.

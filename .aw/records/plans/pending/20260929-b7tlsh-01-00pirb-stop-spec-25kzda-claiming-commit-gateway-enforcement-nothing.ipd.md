@@ -6,7 +6,7 @@
 - Scope: IN: amend spec `25kzda` at the TWO sites that still assert commit-gateway enforcement in the present tense (2.1's "the commit gateway rejects `--no-verify`" clause, whose dead "5.8 row 3" cross-reference is repaired in the same rewrite, and 5.2's guarantee-2 `Enforcement or proof` cell), add ONE behavioral regression test pinning the three-way agreement between the descriptor field, the finding-code binding, and the action-requirement map so the drift this item records cannot silently recur, and VERIFY the durable carrier (`ymlyqf`, filed at review) for the two sibling guarantee rows that carry the same overclaim and are measured to have no owner. OUT, each for a stated reason: REMOVING `supports_commit_gateway` (the sibling question, answered No here from repository evidence, see OQ-01); AMENDING 5.2 guarantee rows 1 and 3 (same defect class, deliberately carried by backlog `ymlyqf` rather than swept in, see F-11); the 5.2 host-requirement bullet, the 5.2 action table, and the 5.6 packet example's `"commit_gateway"` string, all of which state what a HOST must prove and were deliberately preserved by plan `01reg8`; Section 7's worked-example sentence, already corrected by `4h7tt0` and correct as it stands; BUILDING commit-gateway enforcement; and reintroducing or rebinding any finding code.
 - Scope-Paths: .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, tests/test_host_capability_extension.py, .aw/records/backlog/open
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 00pirb
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): status set to reviewed
 
 - 2026-09-30 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-801 (HIGH, fixed), PR-802 (HIGH, fixed), PR-803, PR-804, PR-805 (MEDIUM, fixed), PR-806, PR-807 (LOW, fixed). Re-measured every claim in the Findings table at HEAD `4e7dd52c`; all verified. Two serious findings: E-04's exclusion of 5.2 guarantee rows 1 and 3 rested on an owner handoff that does not exist (no `denypush` plan mentions the guarantee table; `01reg8` E-09's DO-NOT-TOUCH list omits it), while both rows carry the identical overclaim, so E-06 now files the carrier; and E-03's instruction to keep "5.8 row 3" preserved a DEAD cross-reference (5.8 is the parity table; the hooks row is 5.2's), now retargeted and anchored on quoted text. Also resolved V-02's leg-2 falsification mechanism by demonstration rather than leaving it to the executor, recorded coverage overlap E-02 did not know about, and added the missing scope fence and tooled-finalize transition to the gate. Full findings and four recorded decisions: `.aw/records/reviews/20260929-b7tlsh-01-00pirb-stop-spec-25kzda-claiming-commit-gateway-enforcement-nothing.review.md`.

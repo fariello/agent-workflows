@@ -6,7 +6,7 @@
 - Scope: IN: rewrite Section 3.2 correction 2 so it states that `reviews` IS an accepted CLI type noun and that the behavior shipped, carrying a dated measurement and the commit that moved it; retitle and rewrite the vocabulary table's fourth column so it stops asserting a one-sided "NEW to ..." status for the four rows that are now in both; correct Section 1.2's "Drift and Inconsistency" bullet, which makes the SAME now-false claim with the same two examples in the spec's problem statement (added at review, F-9); fix the tense of Section 5.1 items 1 and 2, which still describe the vocabulary members as being "gained", touching no normative clause (added at review, F-10); ADD a point-in-time snapshot preamble to `kw5y2s` modeled on `25kzda`'s, naming all four decaying regions, because `kw5y2s` has NO such convention today and without one the corrected lines decay invisibly exactly as these did; record the amendment with `aw specs note`. OUT: Section 3.4's traversal-exclusions paragraph (RE-MEASURED at HEAD and still ACCURATE: `selectors.EXCLUDED_RECORD_DIRS` holds exactly the seven entries it lists and none of `node_modules`/`venv`/`.venv`, so there is nothing to correct); Section 3.2.1's `records` carve-out (verified accurate); every normative requirement, the Section 4.1 schema, and Sections 5-7; the spec's `- Status:` field, which this plan does NOT change (see OQ-01); and any code or test change, since no shipped behavior is wrong.
 - Scope-Paths: .aw/records/specs/approved/20260901-kw5y2s-01-kw5y2s-unified-workspace-hierarchy-spec-and-install-time-layout-emi.spec.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,8 +16,10 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: xx5b7a
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): status set to reviewed
 
 - 2026-09-29 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 FIXED, OQ-01 left OPEN as the maintainer's call (carried by `jd01a0`). Every finding re-measured independently at HEAD `b7661ebb`: `aw check reviews` exits 0, all eleven rows are in both vocabularies, Section 3.4 is still accurate, no test reads the spec by path, and all four target strings are unique. TWO DEFECTS FOUND. FIRST, E-01(e)'s `rg` pattern omitted the backticks the spec's cells carry, so it returns ZERO rather than four under both `rg` and `grep`, which against its `Expected outcome` reads as "already corrected" and would have skipped the table edit. SECOND, the same stale assertion lives in THREE further places the plan did not name: Section 1.2's problem statement (same two examples, both now false) and Section 5.1 items 1 and 2 (acquisitive tense), added as E-06/V-06 and E-07/V-07. Also strengthened F-3's second commit attribution, which is correct but unprovable by its own `-S` recipe because the enum became layout-derived. Findings and four `D-*` decisions in `.aw/records/reviews/20260929-speckwfix-01-xx5b7a-...review.md`. No spec, code, or test file was modified by this review.

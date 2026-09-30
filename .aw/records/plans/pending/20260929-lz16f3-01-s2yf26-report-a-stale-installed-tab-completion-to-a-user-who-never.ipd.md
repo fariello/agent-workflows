@@ -6,7 +6,7 @@
 - Scope: Ask the existing staleness question ONCE PER INSTALLED RELEASE VERSION from the one central place every invocation already passes through (`cli.main`), report it on STDERR through the one shared message constant, and add the read-only `aw completion status` verb that gives the notice an executable diagnostic. The hook's gates read DECISIONS PUBLISHED BY THE PARSER (the resolved output mode and the resolved command), never argv tokens: review measured that an argv-token gate fails open on every real invocation because `cli.main` receives `argv=None` from the console script, and is separately defeated by a global flag preceding the command (F-13). Gate the probe (not merely the print) behind a per-user stamp, because the probe costs ~50ms and putting that on every command would itself be a user-perceptible-inefficiency defect by this repository's own ruling. Suppress the notice for `__complete`, for the `completion` command family, for non-human output modes, for non-interactive invocations, and for a nonzero exit. EXCLUDES ever rewriting the user's completion file (maintainer ruled warn-only 2026-09-12, OQ-01 of plan `4y95tp`); EXCLUDES any change to `_completion_tip`'s three existing call sites or to its unconditional behavior there; EXCLUDES a runtime callback from the generated script (permanently excluded design constraint); EXCLUDES memoizing `cli._build_parser`; EXCLUDES removing the dead `cli._completion_configured` (see `## Deferred`).
 - Scope-Paths: agent_workflows/completion.py, agent_workflows/cli.py, tests/test_completion_stale_notice.py, README.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Work-Kind: followup
 - Priority: low
 - From-Backlog: lz16f3
@@ -16,8 +16,10 @@
 - Readiness: go-pending-approval
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: s2yf26
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 
 - 2026-09-30 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-701 (HIGH), PR-702 (MEDIUM), PR-703 (MEDIUM), PR-704 (LOW), PR-705 (LOW), all FIXED. The design was PROTOTYPED end to end rather than read, which is what found PR-701: E-04's `__complete` and `completion` gates were specified as argv-token tests, and an argv gate suppresses NOTHING on the real CLI path because the console script calls `cli.main()` with `argv=None` (measured in a subprocess: `HOOK SEES argv=None sys.argv[1:]=['completion', 'bash']`), is separately defeated by a global flag preceding the command, and cannot reach `args` because that name is local to `_dispatch`. Fixed by having E-03 publish the resolved COMMAND beside the resolved mode, which is safe because `select_output` provably runs before both the `__complete` branch and the `completion` routing. Also corrected: `cli._COMPLETION_VERBS` is a local inside `_build_parser`, not the module constant E-05 told an executor to edit; `--json`/`--agent` are per-leaf flags, so the plan's suppression vectors asserted silence for the wrong reason; and the drifting performance figures are restated as dated measurements with the ratio as the durable claim. The prototype confirms the approach works and stdout stays clean.

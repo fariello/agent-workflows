@@ -6,7 +6,7 @@
 - Scope: Deny the exit-code success token to a queue item whose own run record says its integration was refused, at the one shared projection seam both hosts already call, and amend spec `25kzda`'s exit-code table to state the rule. Reuses the SHIPPED exit `1` rather than minting a new code.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/render_stream.py, tests/test_stranded_run_exit_code.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,8 +17,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: entv1d
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 
 - 2026-09-29 reviewed (opencode model=its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-501..PR-507, all FIXED, none DEFERRED or OPEN. Reviewed at HEAD `c6c573a4` in a lane worktree; review record at `.aw/records/reviews/20260929-strandexit-01-entv1d-make-a-stranded-run-exit-nonzero-so-the-process-code-stops-c.review.md`. EVERY load-bearing claim was re-driven and reproduces: the defect (all three of `approved`/`executed`/`retired` plus a refusing signal measure `stranded=True rc=0`), the `substantially-complete` contrast (`rc=1`), the stranded-REVIEW shape (`rc=0` with `integration_was_refused=False`), the single consumer of `review_integration_was_refused`, both hosts' shared `exit_code_statuses` + `deliberate_stop_exit_code` seam, the `integration.earned` conjunct that makes the `retired` case production-reachable, the discarded `evaluate_unverifiable_admission` result, the rotted `25kzda:1057` offsets with the quoted strings intact, the three-state contract in `docs/cli-output-contract.md` Section 3 verbatim, and the F-12 fence green at `197 passed`. Bare suite `3246 passed, 2 skipped`. THE PROPOSED FIX WAS DRIVEN, not assumed: a probe implementation turns every one of the plan's cases the right colour. ONE CORRECTION CHANGES THE IMPLEMENTATION (PR-501): E-03 specified a stranded arm placed BEFORE the success arm, which measurably swallows the real disposition of every already-failing item carrying a refusing signal (`integration-blocked`, `failed`, `fail-gate`, `substantially-complete` would all project onto the stranded token instead of themselves), contradicting `exit_code_statuses`' own documented pass-through promise and mirroring the relabel hazard `render_stream.py` documents at the headline ladder. Both placements yield IDENTICAL exit codes, so the narrow siting (test INSIDE the success arm) costs nothing; E-05 gains case (i) as the guard that keeps the decision from being silently reverted, and V-03 now demands the four verbatim projections as negative evidence. TWO SMALLER MEASUREMENT CORRECTIONS: a `queued` item can carry a stale refusing signal, so the `queued` arm's precedence protects a real shape and is now pinned as case (h) (F-14); and the guard this plan cited to justify its module siting DOES NOT EXIST (deleted by the suite trim `19313eed`), while the subsidiary claim that `render_stream.py` imports zero in-package modules is false (it imports three) - the CONCLUSION survives on the genuine import cycle (F-15). Also added: a scope fence, conditional runner/executor finalize ownership, a what-is-being-approved paragraph naming the automation-visible consequence, a recorded density judgement, and typed `- Carrier:`/`- Carrier-Declined:` fields on OQ-01 and all four deferred rows (they were prose-only, which the structural matcher cannot see). No production file, test, or spec was modified by this review.
 - 2026-09-29 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.

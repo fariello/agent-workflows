@@ -6,7 +6,7 @@
 - Scope: Make that one test exercise the branch it claims, by pointing its drain dependency at a LEGAL id6 resolved against a SYNTHESIZED repository root under the `tmp_path` the test already receives, so the verdict depends on nothing in the live checkout. Repointing the token is NECESSARY AND NOT SUFFICIENT: review measured that the existing assertion set stays green under a reason-destroying `edge_satisfied` stub even after the repoint (F9), so the test must ALSO gain an assertion that the reason is a RESOLUTION reason and not one of the three fallback texts, which is what gives the restored coverage teeth. Prove it with a mutation check in both directions. Also drop the now-vestigial `Path(__file__).resolve().parents[1]` live-root reference from that one test. Does NOT touch `agent_workflows/runner_shared.py`, `agent_workflows/render_stream.py`, or `agent_workflows/run_selection_policy.py`: no production behavior is wrong here (`dependency_status_detailed` is CORRECT in every measurement below), and the two adjacent PRODUCTION defects are separately carried by `8mohre` and `csjq81`. Does NOT audit the other tests that reference the live root, and does NOT author the standing convention that governs this class, which plan `kmzude` owns.
 - Scope-Paths: tests/test_dependency_block_reporting.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: jefifu
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (opencode/its_direct-pt3-claude-opus-5-1m-us): plan-review: APPROVE WITH REVISIONS APPLIED; PR-401 (HIGH), PR-402 (MEDIUM), PR-403 (LOW), all FIXED. E-04/V-04 added after review measured that E-02 alone leaves the test green under a reason-destroying edge_satisfied stub.
 
 - 2026-09-29 /plan-review (opencode/its_direct-pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-401 (HIGH), PR-402 (MEDIUM), PR-403 (LOW), all FIXED. Findings recorded in `.aw/records/reviews/20260929-03aicr-01-jefifu-restore-the-drain-test-s-real-branch-coverage-which-an-inter.review.md`. Every one of the plan's own eight findings was independently REPRODUCED and all eight hold: the bare suite is green, `parse_dependency_token('executed:drnprereq')` is `None` against `^[a-z0-9]{6}$`, the `edge_satisfied` spy records `0`, the synthesized-root reason reproduces verbatim, and `executed:zzz999` reaches the resolver arm as F4 states. THE SUBSTANTIVE FINDING IS PR-401, found by prototyping E-02 verbatim as a real pytest module and running it under the mutation V-02 itself mandated: the repointed test STILL PASSES under a reason-destroying `edge_satisfied` stub, because `dependency_status_detailed` substitutes `f"{dep}: dependency not satisfied"` for an empty reason and the containment check compares the reason map against a line rendered FROM that map, so it is true for any string. The plan's decisive evidence therefore could not have been obtained, and an executor honoring every prohibition it wrote would have shipped a test as insensitive as the one it replaced. E-04 is added (the three negative-substring guards, measured to fail under mutation and on the pre-change token), V-02's mutation demand moved to V-04 as a four-cell matrix with an E-02-only contrast, and the Goal, `- Scope:`, F3, the proposed-changes list, the scope check and the gate were swept to match.

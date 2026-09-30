@@ -6,7 +6,7 @@
 - Scope: Two workflow bodies (`plan-review` single-file and the long-form `review-rubric`), the `verify-execution` intent audit, and the `ipd-structure-and-linting` spec's evidence section. Prose conventions only; no production Python and no lint rule.
 - Scope-Paths: .aw/system/workflows/plan-review/plan-review.md, .aw/system/workflows/plan-review-long/review-rubric.md, .aw/system/workflows/verify-execution/intent-audit.md, .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md, tests/test_v_item_evidence_durability.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
@@ -16,8 +16,10 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: vtup6x
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 
 - 2026-09-29 draft (opencode/its_direct/pt3-claude-opus-5-1m-us): created.
 - 2026-09-29 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): authored in full from backlog `nos070`; ready for `/plan-review`.

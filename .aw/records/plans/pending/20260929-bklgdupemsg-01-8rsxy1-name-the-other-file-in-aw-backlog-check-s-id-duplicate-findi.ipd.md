@@ -6,7 +6,7 @@
 - Scope: Make `agent_workflows.backlog`'s drift locations repo-relative POSIX paths (reusing the existing `specs.drift_location` precedent) so the duplicate-id message names two distinct files, and pin the behavior with tests that drive the checker.
 - Scope-Paths: agent_workflows/backlog.py, tests/test_backlog.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 8rsxy1
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 
 - 2026-09-30 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-A01 (MEDIUM, fixed), PR-A02 (LOW, fixed), PR-A03 (LOW, fixed), PR-A04 (LOW, fixed), PR-A05 (LOW, fixed). Findings recorded in `.aw/records/reviews/20260930-bklgdupemsg-01-8rsxy1-name-the-other-file-in-aw-backlog-check-s-id-duplicate-findi.review.md`. I reproduced every measurement in this plan rather than taking it on trust, including re-prototyping the fix and reverting it: the defect (location and `also in` byte-identical), the fixed output, `doctor._categorize_drift` guessing `.../done` for a duplicate living in `.../graduated`, the weak existing test's different-basename fixture, and the empty blast radius all hold exactly as written. The fix and its reuse of `specs.drift_location` are right and review changed nothing about them. FOUR corrections to what is claimed and what must be verified. FIRST, E-03 changes a THIRD surface the plan names nowhere: `check_engine.check_content` calls `validate_item` with an ABSOLUTE path, so every `backlog.*` finding in `aw check backlog` also moves from a basename to a repo-relative path (measured before/after on a fixture); an improvement, but an unrecorded user-visible output change. SECOND, `validate_item` emits TWELVE rule ids across 12 `Drift(rel, ...)` sites, not the ten F-03 claims (the three `gate-*` rules were collapsed into one entry). THIRD, the suite baselines are stale: bare `3246` -> `3291` and targeted `269` -> `272` between authoring and review, both green, so three sites instructing a comparison against those totals would read normal growth as a regression. FOURTH, backlog item `8hcy97` is ALREADY `graduated` (`- Graduated-To: bklgdupemsg`), so the gate's instruction that the runner transitions it on verification described a state change that cannot happen. Two new findings added from review measurement (F-09 the third surface, F-10 the cross-layout duplicate case working, which E-04 now pins because `_iter_items` spans both roots and the legacy segment is where F-02's rejected mechanism would have raised).

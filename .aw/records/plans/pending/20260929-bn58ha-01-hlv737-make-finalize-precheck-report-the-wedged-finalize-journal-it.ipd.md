@@ -6,7 +6,7 @@
 - Scope: IN: teach `ipd_lifecycle.finalize_precheck` to read the finalize journal and REFUSE for the ONE phase the transaction refuses on (`PHASE_UNKNOWN_OUTCOME`), carrying a stable finding id so no caller has to substring-match prose; a behavioral regression test proving precheck and `finalize` now agree on that state; a control test proving the four NON-refusing phases are unchanged; a test pinning the two receipt refusals' precedence under a wedged journal; one CHANGELOG line. OUT: changing ANY behavior of `finalize`, `_finalize_transaction`, or `_early_recovery_result`; changing what wedges a journal into `unknown-outcome` (that is `cnf7gw`/`4er1ev`'s territory, already executed); adding a REMEDY or auto-clear for a wedged journal (see the deferred section, `hf76th`); the rollup path `retire_orchestrator`, which already shares `_early_recovery_result` and needs no change; and both `runner_shared` callers (`compute_scope_reconciliation` and `record_item_spec_edits`), whose existing `exit_code != 0` / `rc != 0` branches absorb the new refusal with no edit.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, tests/test_ipd_lifecycle_cli.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: hlv737
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 
 - 2026-09-30 /plan-review (opencode/its_direct-pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-401 (HIGH, fixed), PR-402 (HIGH, fixed), PR-403 (MEDIUM, fixed), PR-404 (MEDIUM, fixed), PR-405 (MEDIUM, fixed), PR-406 (LOW, fixed), PR-407 (LOW, fixed). Findings recorded in `.aw/records/reviews/20260930-bn58ha-01-hlv737-make-finalize-precheck-report-the-wedged-finalize-journal-it.review.md`. The plan's central claim was INDEPENDENTLY RE-REPRODUCED in this review from a scratch git fixture: precheck exit 0 `precheck passed`, `finalize(apply=False)` and `finalize(apply=True)` both exit 2 naming the unknown-outcome journal. F-4, F-5, F-6 and F-11 also reproduced as written. Review found two gaps a prototype measurement closed, neither of which changes the production fix's direction. FIRST, siting the gate BEFORE the receipt read (E-02's stated site) makes it PREEMPT both receipt refusals when a journal is also wedged: measured, an already-finalized plan carrying a hand-wedged `unknown-outcome` journal went from exit 1 `receipt-consumed-already-finalized` to exit 2 with the journal finding, and a never-issued receipt went from exit 1 `receipt-never-issued` to the same, so V-03's demand to paste those two tuples with the new id ABSENT was unsatisfiable unless each fixture is stated journal-free. This is CORRECT behavior and matches `finalize`, which was measured returning exit 2 for both those same states, but it was an unmeasured consequence and it is now pinned by its own E-item. SECOND, F-7 named `compute_scope_reconciliation` as "the ONE in-tree caller" and there are TWO: `runner_shared.record_item_spec_edits` calls the precheck directly in its empty-pair arm, and it is the one caller whose OBSERVABLE output changes, measured flipping a run's recorded per-item spec-edit state from `reconciled` to `refused` for a wedged plan, which is the fix working as intended and is a durable run-record change the plan did not name. Also corrected: the bare suite is GREEN at this lane's HEAD (3344 passed, 2 skipped), so E-05's instruction to expect a known pre-existing failure would have licensed an executor to wave a real regression through.

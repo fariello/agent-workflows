@@ -6,7 +6,7 @@
 - Scope: Introduce one shared, echo-safe retry-command builder in `status_set` that reconstructs the INVOKED VERB from the parsed namespace's routing dest and appends the caller's DECLARED flags from that same namespace; route all three hint sites in `status_set` through it (the confirmation refusal, the terminal-reopen override hint, and the missing-`--actor` hint); replace the missing-`--actor` hint's `repr()` quoting with `shlex.quote`; deliberately OMIT `--dir` from the echo because echoing it crashes the `--agent` renderer; and pin all of it with behavioral tests that assert the emitted command is both runnable and equivalent to the caller's request.
 - Scope-Paths: agent_workflows/status_set.py, tests/test_status_set.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 06
 - Author: opencode model=its_direct/pt3-claude-opus-5-1m-us
 - Id: 5poaqh
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (opencode model=its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 all fixed
 
 - 2026-09-29 /plan-review (opencode model=its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. Revisions committed here; the `- Status: reviewed` transition is applied immediately after through `aw ipd set reviewed 5poaqh`, which is why this line precedes it. Reviewed at HEAD `9504c522`. `aw ipd lint --phase author` reported `conforming` before review. ALL SIXTEEN authored findings were independently re-measured and ALL SIXTEEN REPRODUCE, including F-04's anonymous terminal-reopen history line, F-05's `shlex.split`-raising `repr()` hint, F-07's `--agent` `ValueError`, F-09's five routing dests, F-13's differing `--message` defaults, and F-15's three test baselines (`3246 passed, 2 skipped`; `95 passed`; `79 passed`). SIX findings were raised and all six FIXED in place. TWO WOULD EACH HAVE SHIPPED AN UNRUNNABLE COMMAND: PR-001/F-17, that `-m` is not declared on `aw specs set` or `aw backlog set` so the prescribed `--message/-m` echo exits 2 with `unrecognized arguments: -m` on two of the four reconstructed verbs (the same failure mode the plan's own F-06 names for `--priority`, arriving by a different door); and PR-002/F-19, that the agent-record home-path validator keys on the VALUE not the flag name, so E-02's echo list including `--evidence` and `--gate-dir` would have reintroduced the exact `ValueError` OQ-01 was resolved to prevent, on a reachable `aw backlog set` path. PR-003/F-18 corrected an UNSATISFIABLE acceptance bar (V-05 demanded `bash -c` exit 0 from a hint whose deliberate `<agent/model>` placeholder is a bash redirect, so a correct implementation reaches exit 1). PR-004/F-20 records a pre-existing `--agent` crash on an absolute-path SELECTOR that this plan does not close, bounding what E-06(g) may claim. PR-005 added the missing scope fence and the conditional finalize-ownership statement to the gate. PR-006 added E-06(h) and OQ-05. No production file or test was modified by this review; every measurement was a read or an in-process probe against fixtures under a gitignored `tmp/` path, removed afterwards.

@@ -6,7 +6,7 @@
 - Scope: Correct the two comments that misdescribe the deferral passthrough (the dangling `oc_runipd.py:6120-6132` citation in `rescore_is_an_improvement`, and `reconcile_disposition`'s docstring rung list plus the `runrecon-02` comment that calls the branch a fall-through the exit-code fallback shares), state the passthrough's REAL reachable caller by symbol, and add a behavioral test pinning both the branch's surviving contract and its unreachability from `execute_item_core`'s two scoring points. KEEPS THE BRANCH: it is live via `reattempt_deferred_integrations` -> `resume --retry-incomplete`, so deleting it would be a behavior change, and this plan proves that rather than assuming it. EXCLUDES deleting or reordering any branch of `reconcile_disposition`, EXCLUDES touching `rescore_is_an_improvement`'s refusal list or `RESCORE_DISPOSITION_RANK`, and EXCLUDES the three other stale `oc_runipd.py:<line>` citations the same file carries (a separate class, filed not fixed).
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_deferral_passthrough_reachability.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: gyam7x
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 
 - 2026-09-30 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 through PR-007, all FIXED in place. Reviewed at HEAD `f2326296` in an isolated lane; typed record at `.aw/records/reviews/20260929-defpass-01-gyam7x-state-the-deferral-passthrough-s-real-reachability-and-stop.review.md`. `aw ipd lint --phase author` reported clean with one `IPD-Z602` advisory BEFORE semantic review; `--phase review-finalize` conforms with no advisory after revision.
   ALL EIGHT FINDINGS RE-DERIVED BY RUNNING CODE AND ALL EIGHT HOLD. `oc_runipd.py` is 5278 lines against a cited range ending at 6132, so F-05's citation is past EOF. The ordering: `execute_item_core` spans 30498 to 34542, the `"running"` write at 30905, first score 31694, rescore 32214, in-body refusals 32818/34075/34087, all after it. `item["status"] = decision.status` at 10213 is the sole writer anywhere in `agent_workflows/` and sits inside `record_integration_refusal`. `merge-retry` is absent from all three `TERMINAL_STATES` and `outcome_precedence_disposition` returns `None` for it. AND EVERY ASSERTION THE PLAN ONLY SPECIFIES WAS DEMONSTRATED: all three E-05 assertions run as written, the recorder driven through the harness's own `reconcile=` seam captures `['running', 'fail-verify']`, and E-06's falsification was performed in place (assertion (1) returns `fail-verify` at exit 0 and `fail-gate` at nonzero with the branch deleted; (2) and (3) unchanged), then reverted with `agent_workflows/` clean.

@@ -6,7 +6,7 @@
 - Scope: Orchestrate four children that together make the plans tree's mutating verbs accept the same selectors every reader already accepts, while making a resolved path type-safe for every mutating verb first. This plan holds ORCHESTRATION ONLY: every deliverable belongs to a child (`eby93o` the containment guard, `87m438` the plans `rename`/`group` routing, `1x4tdo` the `archive plans` matcher and its exit status, `3qxuw1` the derived rename hint), and this file contributes no code, no test, and no record of its own. EXCLUDES, in every child without exception: changing `selectors.resolve`'s read-side precedence, merging the plans rename engine into the generic one, and deciding which records tree owns a `.roadmap.md`.
 - Scope-Paths: .aw/records/plans/pending/20260929-awrenamesel-00-95jk4s-make-every-mutating-artifact-verb-accept-the-one-universal-s.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 95jk4s
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (opencode/its_direct-pt3-claude-opus-5-1m-us): plan-review: APPROVE WITH REVISIONS APPLIED; PR-501 (MEDIUM), PR-502 (MEDIUM), PR-503 (MEDIUM), PR-504 (LOW), all FIXED. All ten findings reproduced; IPD-S407 conforms with no repair loop. Cross-plan findings fixed in owning child eby93o.
 
 - 2026-09-29 /plan-review (opencode/its_direct-pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-501 (MEDIUM), PR-502 (MEDIUM), PR-503 (MEDIUM), PR-504 (LOW), all FIXED. Findings recorded in `.aw/records/reviews/20260929-awrenamesel-00-95jk4s-make-every-mutating-artifact-verb-accept-the-one-universal-s.review.md`. EVERY ONE OF THIS PLAN'S TEN FINDINGS WAS INDEPENDENTLY REPRODUCED and every one holds, including the load-bearing F-03 sequencing measurement (`resolve_for_mutation(repo,'plans',<a spec path>)` returns the SPEC with `err=None`) and the F-04 cross-type rename (a real `cli.main` run in a throwaway repo renamed the plan at exit 0). `aw ipd lint` conforms at `author` and `review-finalize`, so `IPD-S407`'s orchestrator child-row check passes with no repair loop needed, and the coverage premise holds by inspection: all four deliverables are owned by children (5+6+5+4 E-items) and this file carries only confirmation rows. THE THREE SUBSTANTIVE FINDINGS ALL WIDEN OR SCOPE THE SET RATHER THAN FAULTING ITS DESIGN: the cross-type rename is reachable through SIX type verbs rather than the one demonstrated, all through a single shared call site, so one guard still suffices but Order 01 must prove it for all six (PR-501); a confinement precedent already exists in `research_archive` that chose the OPPOSITE shape to Order 01's "refuse, never silently drop" for a legitimate reason, and neither plan cited it, so Order 01 must reconcile rather than appear to overrule a shipped sibling (PR-502); and completion criterion 2 was an unrestricted universal over "every mutating verb" that the Set does not deliver, since only three production call sites route through the guarded resolver (PR-503). Cross-plan findings were fixed in the OWNING child (`eby93o` gains F-13/F-14 and obligations on E-03, E-05, V-03, V-05) and cross-referenced here per the plan-review cross-plan rule.

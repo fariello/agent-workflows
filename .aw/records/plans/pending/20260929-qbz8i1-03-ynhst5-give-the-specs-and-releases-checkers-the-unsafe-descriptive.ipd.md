@@ -6,7 +6,7 @@
 - Scope: Judge the descriptive field each tree actually surfaces under the catalogued `attention.unsafe-field` id: `- Scope:`/`- Summary:` in `specs.validate_spec`, the effective summary in `releases.validate_release`. Register the id; repair the two committed violations rather than grandfathering.
 - Scope-Paths: agent_workflows/specs.py, agent_workflows/releases.py, agent_workflows/check_engine.py, tests/test_specs_releases_unsafe_field.py, .aw/records/specs/implemented/20260730-2152-01-agents-artifact-organization.spec.md, .aw/records/specs/approved/20260919-r07vma-01-r07vma-orchestrator-conformance-parser-and-repair-loop.spec.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: ynhst5
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-901 (HIGH, fixed), PR-902 (MEDIUM, fixed), PR-903 (MEDIUM, fixed), PR-904 (LOW, fixed), PR-905 (LOW, fixed), PR-906 (LOW, fixed). All eleven authored findings re-driven at HEAD `009ae490` and all reproduce; three new findings DRIVEN at review (F-12, F-13, F-14) and folded into the plan. PR-901 rewrote E-03: the release rule judged the `- Summary:` BULLET only, and `releases.parse_release` resolves a record's summary to the `## Summary` PROSE paragraph when no bullet exists, which is every committed record, so the authored rule had ZERO coverage of the live tree while claiming `aw check releases` stayed clean. E-03 now judges the effective summary with split strictness (full predicate on the bullet, control characters only on the prose), because the one committed record's effective summary is 457 characters and a length bound would fail a clean checkout at `error`. New OQ-04 records that decision and its three rejected alternatives. Full findings and decisions: `.aw/records/reviews/20260930-qbz8i1-03-ynhst5-give-the-specs-and-releases-checkers-the-unsafe-descriptive.review.md`.
 - 2026-09-30 reviewed (aw set): status set to reviewed
 - 2026-09-29 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored from backlog `qbz8i1`, which names this half explicitly ("Closing the specs half therefore needs a new checker rule as well as a write-path guard, which is new policy and is why dtg7dz declined to fold it in"). Measured that it needs NO new rule id, because `attention.unsafe-field` is already in the closed `RULE_IDS` catalog and already used by `specs.validate_spec` for `Gate-Summary`, so the change is widening an existing rule's field coverage rather than minting policy. Also censused the whole population and found exactly two violations, which changed the design from grandfathering to fixing them.

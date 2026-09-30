@@ -6,7 +6,7 @@
 - Scope: Apply the shared `attention_contract.is_safe_descriptive` predicate to every value `aw specs new`, `aw specs set`, `aw specs note` and `aw releases new` write into a record AND does not already validate, refusing BEFORE any file is written, through the refusal shape `specs.run_set` already uses for `--gate-summary`. Bounded descriptive fields (`--title`, `--summary`, `--version`) and the two identifier-shaped front-matter fields review found unguarded (`--blocks-release`, `--from-backlog`, E-07) get the full predicate; history-record messages (`--message`) get LINE INTEGRITY ONLY, unbounded in length, because 60 of 148 committed spec history messages already exceed the 300-character bound (F-09). THE COVERAGE CLAIM IS ENUMERATED, NOT ASSERTED: `--priority` and `--work-kind` are argparse enums that already refuse, `--graduated-to` already has a setid-shape refusal, and `--gate-summary`/`--gate-ref`/`--evidence` already call the predicate at three existing sites, so the guarded set plus the already-validated set is the complete front-matter writer set for these four verbs (F-13). DELIBERATELY NOT COVERED: `--date`, whose defect is a path traversal rather than a descriptive-field violation and which Order 02 owns; and the CHECKER half, which Order 03 owns.
 - Scope-Paths: agent_workflows/specs.py, agent_workflows/releases.py, tests/test_specs_releases_descriptive_safety.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: uz05bl
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 
 - 2026-09-30 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-801 (HIGH), PR-802 (HIGH), PR-803 (MEDIUM), PR-804 (LOW), PR-805 (LOW), all FIXED. Every one of the plan's twelve findings was re-driven against fresh fixture repos rather than read, and all twelve reproduce. Two defects were then MEASURED that the authoring pass missed. FIRST, `specs.run_set` has TWO MORE LIVE INJECTION VECTORS, `--blocks-release` and `--from-backlog`, each exiting 0 while writing a smuggled `- Status: approved` bullet plus a FUNCTIONING release gate that `aw releases show next` honors, with both checkers blind; the plan's Scope sentence claimed to cover "every value" and did not, so they are folded in as E-07 and the coverage claim is now enumerated against the already-validated flags. SECOND, E-01's prescribed `bound_length=False` construction ACCEPTS a control character past character 300 because its slice hides it, which is reachable by construction since F-09 measures real history messages up to 2594 characters; the fix is to port the sibling's whole-value conjunct verbatim, and V-01/V-06 now require that vector as evidence. Also: the `--message` vector is measured forging a `--by-human` approval record; F-09 re-derived as 60/148; and V-06's `aw check specs` expectation corrected to name the pre-existing `check.collisions-not-checked` advisory.

@@ -6,7 +6,7 @@
 - Scope: IN: (a) replacing the two rule-name-prefix counters in `cli._run_check` with a tally over the ENRICHED severity, and adding `info` as its own bucket so an advisory is neither called an error nor silently folded into warnings; (b) a new behavior test module pinning the three-way split, the `CONFORMS`-beside-zero-errors property, and the count-conservation invariant, because F-04 measured that NOTHING in `tests/` asserts on this row today. OUT: any change to a rule's registered severity (the registry is correct; this is a reporting defect); any change to `artifact_core.drift_exit_code`, which already keys on severity and is the reason the exit code is right while the display is wrong (F-05); the `aw check` diagnostics list and its per-finding rendering, whose volume is a separate reporting concern owned by backlog `ct1n04`; `agent_workflows/renderers.py` and `term.format_evidence_grid`, which need no change because they iterate the Evidence dict generically (F-06); and the compact `--agent` record, which lists evidence KEYS only and so is unaffected (F-07).
 - Scope-Paths: agent_workflows/cli.py, tests/test_check_severity_tally.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: tzjtg4
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): status set to reviewed
 
 - 2026-09-29 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-701 (BLOCKER) through PR-704, all FIXED, none deferred and none left open. Review record: `.aw/records/reviews/20260929-checkinfotally-01-tzjtg4-tally-aw-check-findings-by-registered-severity-so-an-advisor.review.md`.

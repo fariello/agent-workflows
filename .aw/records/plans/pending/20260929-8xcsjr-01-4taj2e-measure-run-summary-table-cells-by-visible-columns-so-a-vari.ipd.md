@@ -6,7 +6,7 @@
 - Scope-Paths: agent_workflows/render_stream.py, tests/test_run_summary_visible_width.py
 - Item-Dependencies: none
 - Kind: child
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 4taj2e
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): status set to reviewed
 
 - 2026-09-29 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-501 through PR-504, all FIXED, none deferred and none left open. Review record: `.aw/records/reviews/20260929-8xcsjr-01-4taj2e-measure-run-summary-table-cells-by-visible-columns-so-a-vari.review.md`.

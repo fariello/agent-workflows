@@ -6,7 +6,7 @@
 - Scope: Fix the one live doubled-verb remedy in `runner_shared.finalize_retry_remedy`, document the verb-inclusion contract on the `HostLabels.command` field, and add a behavioral guard that renders every host-command-carrying remedy for both hosts and refuses a first token that is not a real subcommand. The guard is WIDER than the one commit `19313eed` deleted, which covered only `turn_retry_remedy` and would not have caught this defect (F-06).
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_runner_shared.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,8 +17,10 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: z3si7r
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-901..PR-906 all fixed
 
 - 2026-09-30 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-901 (HIGH, fixed), PR-902 (HIGH, fixed), PR-903 (MEDIUM, fixed), PR-904 (MEDIUM, fixed), PR-905 (MEDIUM, fixed), PR-906 (LOW, fixed). Findings recorded in `.aw/records/reviews/20260930-verbdouble-01-z3si7r-fix-the-shipped-doubled-verb-remedy-and-pin-the-whole-class.review.md`. I RE-DERIVED THE DEFECT AND THE WHOLE AUDIT rather than reading the findings: rendering all seven host-command-carrying remedies for both hosts and the fallback (21 renders) produced a doubled verb at EXACTLY ONE site, `finalize_retry_remedy`'s exhausted form, on both hosts, with the `None` fallback correct, which confirms F-01, F-03 and F-04 independently; `aw oc run run resume fake-run-id` exits 2 with `Ambiguous Set selector prefix: run matches [33 sets]`; both parsers yield `['audit','integrate','report','resume','start','status','stop']` with `run` absent; baseline is `119 passed in 9.94s`; and OQ-01's release-gate citations all resolve including the `check_engine` asymmetry docstring and `✓ CONFORMS ... errors 0 warnings 0`. THE TWO HIGH FINDINGS ARE BOTH IN THE GUARD, which is where the plan itself says its value lives. FIRST, E-04 permitted the token after the host command to be "a selector-shaped token", and the defect's own token IS `run`, a bare alphanumeric word: measured at review, four of E-04's classes reject it while the selector-shaped escape ACCEPTS it, so the guard as specified would have PASSED on the exact string the plan exists to remove. The escapes are now closed to four classes with the legitimate bare-id6 case bound to the VALUE the test supplies rather than to a shape. SECOND, `assertNotIn("run run")` does not pin the class the backlog item asks for: measured, it catches `run run` but MISSES `aw oc run resume resume <run-id>` and `aw oc run start start`, and `resume resume` is the item's own second named example; E-04 now requires a generalized adjacent-duplicate-token assertion and V-04 requires three class-level negative controls. Also fixed: Step 0 and F-05 claimed the deleted guard covered this class, but the pre-deletion file calls only `turn_retry_remedy` and contains ZERO occurrences of `finalize_retry_remedy` across all 729 lines, so a verbatim restoration would have left F-01 shipping (every "restore" is now "add"); E-02 applied without E-01 would EXTEND the defect to the only correct path, now stated as one atomic edit; E-05's missed-site obligation had no durable carrier and now routes to `aw backlog new` inheriting the release gate; and the gate lacked a scope fence and carried an unconditional finalize instruction.

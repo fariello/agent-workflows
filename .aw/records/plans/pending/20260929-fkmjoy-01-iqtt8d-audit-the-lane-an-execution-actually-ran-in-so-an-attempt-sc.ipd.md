@@ -6,7 +6,7 @@
 - Scope: Make the gating rule resolve the lane an execution ACTUALLY ran in, and say so when it cannot. Add a candidate-enumerating lane resolver to `worktree_lease` that finds every lane branch belonging to one `id6` (canonical plus `_attemptN`) and selects the one whose own base is consistent with a given receipt base; consume it from `check_engine._plan_execution_tree`; and when no candidate is consistent, emit a distinct NON-GATING advisory naming the execution whose scope could not be audited, rather than silently reporting nothing. EXCLUDES re-issuing or re-freezing the receipt from the runner (rejected, see F-7), EXCLUDES diffing across a genuine fork by substituting the lane's own base for the receipt's (rejected, see F-6), and EXCLUDES reintroducing any main-checkout comparison (settled by maintainer ruling, see F-8).
 - Scope-Paths: agent_workflows/worktree_lease.py, agent_workflows/check_engine.py, tests/test_scope_drift_lane_resolution.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,8 +17,10 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: iqtt8d
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 
 - 2026-09-30 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 through PR-006, all FIXED in place. Reviewed at HEAD `8c95fa8b` in an isolated lane; typed record at `.aw/records/reviews/20260929-fkmjoy-01-iqtt8d-audit-the-lane-an-execution-actually-ran-in-so-an-attempt-sc.review.md`. `aw ipd lint --phase author` reported clean with ZERO findings before semantic review and `--phase review-finalize` conforms after, so nothing found was structural; the plan also entered with no stale `Scope-Paths` and all three deferred-row carriers already filed and resolvable.
   TEN OF ELEVEN FINDINGS RE-DERIVED BY RUNNING CODE AND HELD. F-2, the central claim, is exact: in the canonical lane `git merge-base --is-ancestor d69ed2a8 HEAD` exits 1 while in `_attempt2` it exits 0, and `_plan_execution_tree(root, "om3rzi", "d69ed2a8b17f")` returns `None` while the attempt id returns the real lane. Both `om3rzi` lanes still HOLD WORK with the bases F-1 names. The anchored pattern accepts the canonical and attempt forms and rejects the live review-sweep lane. `drift_exit_code` returns 0 for `info` and 1 for `warning`/`error`, so E-04's severity choice is verified. Three multi-lane `id6`s are live (`om3rzi`, `vxqtqm`, `19lmbe`).

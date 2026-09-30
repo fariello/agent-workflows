@@ -6,7 +6,7 @@
 - Scope: REVISED AT REVIEW, because `47ttnv` took deliverable (1)'s one-line change into its own E-08 and because that one line is measurably NOT ENOUGH (see Task group 1's review note: with the gate in place and `check=False` the test fails `'executed' != 'fail-gate'`, and the scenario dissolves rather than merely changing exit code). THREE deliverables. (1) FINISH the `test_case5a_agent_sets_done_itself` correction `47ttnv` E-08 starts: verify its `check=True` removal as found-already-done, then restore the scenario by making the fake agent ACHIEVE `done` through a setter-bypassing route, so the test pins what it claims to pin, WITHOUT weakening what it pins (it pins `BACKLOG-GRADUATE-LEGITIMACY`, i.e. that a run REFUSES to mark an item `graduated` when the agent closed it itself; it does not pin the close's exit code). (2) Close backlog `le31pr` as the duplicate, through a legitimate gate path rather than a hand edit, and record `mawwlc` as the survivor. (3) Add the regression pin that DISCRIMINATES an ACHIEVED illegitimate state (which must fail the run) from a REFUSED attempt (which must not), since post-gate the setter-bypassing route is the only one a misbehaving agent has left and the check's whole value rests on being keyed to on-disk state. The original framing of (3), a refused-close case asserting `fail-gate`, is REFUTED BY MEASUREMENT and deliberately not built: a refused close ends `executed` with no refusal, so such a test could only be made green by relaxing its assertion, and it would duplicate the corrected case5a besides. EXCLUDES the fix itself: calling `evaluate_blocking_close` on the positional path, `--evidence` plumbing, the `AGENTS.md` and `runner_shared` docstring corrections, and the paired-spelling test file are ALL `47ttnv`'s E-01 through E-07 and are not touched here; EXCLUDES the `check=True` removal itself, which `47ttnv` E-08 now owns; this plan DEPENDS on that plan being executed. EXCLUDES unifying the two dispatch paths (backlog `fcnz1r`) and the audit of already-closed items (backlog `mbjuv5`).
 - Scope-Paths: tests/test_backlog_production.py, .aw/records/backlog/graduated/20260926-posgate-01-le31pr-positional-set-skips-close-gate.backlog.md
 - Item-Dependencies: executed:47ttnv
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,8 +17,10 @@
 - Highest E allocated: 03
 - Author: aw oc run model=opencode
 - Id: 2misq5
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 /plan-review (opencode/its_direct-pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-601 (BLOCKER, fixed), PR-602, PR-603, PR-604, PR-605, PR-606 (all fixed). The BLOCKER was measured, not reasoned: removing `check=True` does NOT fix `test_case5a` (it then fails `'executed' != 'fail-gate'`), because a refused close leaves the item `open`, the run's own handoff then legitimately succeeds, and the scenario dissolves into a green test that no longer exercises `BACKLOG-GRADUATE-LEGITIMACY` at all. The remedy (agent achieves `done` by a setter-bypassing route) was demonstrated. E-02 as authored was unreachable AND a duplicate of the corrected E-01 case, so it is re-aimed at the achieved-versus-refused discrimination. Ownership of the one-line change moved to `47ttnv` E-08 since authoring, making F-03's closing sentence false; corrected. `le31pr` is `graduated`, not `open`, so the declared scope path named a nonexistent file; re-pointed. OQ-01 resolved as settled by events rather than put to the maintainer. Full findings and decisions: `.aw/records/reviews/20260929-posgate-01-2misq5-close-the-residue-plan-47ttnv-leaves.review.md`.
 - 2026-09-30 reviewed (aw set): status set to reviewed
 

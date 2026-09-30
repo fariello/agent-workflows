@@ -6,7 +6,7 @@
 - Scope: Answer the backlog's audit question with recorded evidence (so the obligation is discharged by measurement, not by assertion), and fix the one live coupling it found: make the three `tests/test_run_analytics` ruleset constructions derive from the repository root rather than from the ambient `cwd`, and add the regression that pins the location-independence as an OUTCOME. Does NOT change `leak_sanitizer`'s rules, its allowlist, or any production module; does NOT touch `tests/test_leak_sanitizer.py` or `tests/test_local_leaks.py`, which measurement shows already use `REPO_ROOT` correctly; does NOT restore the deleted SPA test file; and does NOT decide the skip-versus-synthesize convention, which is pending plan `kmzude`'s subject.
 - Scope-Paths: tests/test_run_analytics.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: yumxwz
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 
 - 2026-09-29 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 all FIXED. Structural lint conformed at `author` and again at `review-finalize`. Every load-bearing claim was RE-DERIVED at review and all of them hold: the 8-versus-4 allowlist divergence, the `[] versus ['home-path','private-repo','handle']` outcome flip, the `tests/` cwd resolving to a nonexistent allowlist, the three coupled call sites, the two precedent modules already using `REPO_ROOT`, and F5's deleted-file account (`19313eed`, the three identifiers absent from the tree). Six revisions, four of which the plan's own measurements had missed. E-01's entry-point set omitted the dispatcher `run`, which carries exactly this coupling and accounts for 11 of the 15 test-side call sites, so the sweep would have reported itself complete while missing most of them (F10). F3's "an allowlist absence can only ever ADD findings" is true only of this repository's current config, not of `build_ruleset`, which also reads `fail_patterns`/`ip_enabled` from the same path; measured on a scratch root, a wrong root SUPPRESSES a `repo-pattern-0` fail finding, which strengthens the case for E-03 (F11). E-03 cited "the module's existing repo-root anchor" but `tests/test_run_analytics.py` imports `tests.support` nowhere, so the anchor had to be added (F12). E-04's natural spelling hardcodes `hermes-agent-org/hermes`, a config line its own comment marks as transient, giving the regression a second unrelated failure mode; it now derives the token from `load_repo_allowlist` with a non-empty precondition (F13). Also confirmed the mandated mutation check actually fires (F14) and recorded the machine-local hints file as a separate, deliberately out-of-scope coupling so an executor does not chase it (F15). The gate gained the conditional transition-ownership clause it lacked. No production file was modified by this review; all probes were in-process against tempdirs.

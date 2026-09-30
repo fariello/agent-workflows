@@ -6,7 +6,7 @@
 - Scope: Re-derive the live criterion list at HEAD, demonstrate the criteria whose text or behavior changed since `4fodkt` verified, perform the `approved -> implementing` transition (an executor transition), and recommend the human `-> implemented` decision with cited evidence. Explicitly NOT setting `implemented`, which requires evidence this plan produces but a judgement it does not own.
 - Scope-Paths: .aw/records/specs/approved/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md, .aw/records/walkthroughs
 - Item-Dependencies: executed:e9ekuj
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Spec: 7ckptx
 - Work-Kind: chore
@@ -17,8 +17,10 @@
 - Highest E allocated: 06
 - Author: opencode model=its_direct/pt3-claude-opus-5-1m-us
 - Id: uuh71v
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 - 2026-09-29 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-401 (MEDIUM), PR-402 (MEDIUM), PR-403 (LOW), all FIXED. Structural lint conformed at `author` and again at `review-finalize`. THIS PLAN'S CENTRAL CORRECTION OF ITS OWN BACKLOG ITEM IS RIGHT, AND I VERIFIED IT MECHANICALLY: `TRANSITION_AUTHORITY["->implemented"]` really is `{'who': 'executor', 'by_human': False, 'human_token': False, 'evidence': True}` while the `by_human`/`human_token` gate sits on `->approved`, so the item's claim that an agent is mechanically barred is false and the plan's policy-floor reading is correct. Also confirmed: `SPEC_TRANSITIONS['approved']` contains `implementing` and NOT `implemented` (F-5, so the two-step is forced); `_SPEC_MAP` maps approved->ready, implementing->active, implemented->done (F-1); the spec's live attention record reads `native_status: approved, attention_class: ready` exactly as claimed; the criterion split is EXACTLY 36 total / 5 withdrawn (A7b, A7b-1, A7b-2, A7b-3, A7c) / 31 live (F-4); the spec defines 43 distinct `R*` ids, vindicating E-01's correction of the item's 42; both amendments appear in the spec history verbatim (2026-09-18 A15/R5.5, 2026-09-25 R5.1a); all 8 `lanectn` plans read `Status: executed`; all four adjacent backlog items carry the exact statuses claimed; `aw specs check` conforms; and the suite is green (`3312 passed, 2 skipped`). THREE FINDINGS ADDED, each from measurement rather than reading. FIRST and most consequential (PR-401/F-8): the spec ITSELF carries `- Blocks-Release: next`, resolving to the `planned` release `f33nrj` (2.0.0), and the plan never mentioned it anywhere; that one fact turns the packet's question from bookkeeping into "does 2.0.0 ship", so E-05 must now confirm it and E-06 must state it prominently. No inheritance obligation is breached (AGENTS.md keys that rule on the BACKLOG item's gate and `eozq91` carries none), which is why OQ-04 records the reasoning instead of adding a field. SECOND (PR-402/F-10): the plan's diff-computed delta of exactly two criteria is CORRECT, but a naive reading of that same diff yields ONE, because A12b's amendment lands on continuation lines while its `- A12b.` label sits on an unchanged line, so `grep '^[+-]- A'` returns A15 alone; E-02 and V-02 now require hunk-level attribution and name the trap explicitly. THIRD (PR-403/F-9): `aw check` reported a live advisory `check.plan-spec-link-missing` against this plan, fixed at review with `aw ipd set ... --from-spec 7ckptx` and verified cleared; Order 01's identical finding was deliberately left to Order 01. No production file was modified by this review.
 

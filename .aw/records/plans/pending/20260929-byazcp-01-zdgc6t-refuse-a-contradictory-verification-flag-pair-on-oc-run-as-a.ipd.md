@@ -6,7 +6,7 @@
 - Scope: Give oc the pre-run refusal agy has, via a `BooleanOptionalAction` subclass in `runner_shared` that RECORDS which spellings the operator actually typed, plus one shared predicate both hosts call. Covers oc `start` and oc `resume` (both register the six spellings and both currently resolve a pair by last-wins), closes the narrower agy same-action hole F-06 measures with the same predicate, and amends spec `25kzda` Section 2.1c plus its pinning test, both of which currently DECLARE the order-dependent behavior this plan removes. ON `resume` THE REFUSAL SITS AT THE HEAD OF THE BRANCH, not merely before the `validate` write, because F-11 measures that the intervening `apply_run_policy_flags_on_resume` would otherwise let a REFUSED invocation durably flip an unrelated frozen policy. CHANGES NO DEST TABLE: all 24 cells of the per-host mapping 2.1c declares are preserved byte-for-byte, and no spelling is added, removed, or renamed on either host.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_runner_shared.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: zdgc6t
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set; /plan-review by opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-B01 (HIGH, fixed), PR-B02 (MEDIUM, fixed), PR-B03 (MEDIUM, fixed), PR-B04 (MEDIUM, fixed), PR-B05 (LOW, fixed). Every one of F-01 through F-10 was re-driven at this HEAD and all ten reproduce. Three NEW findings recorded as F-11 (the resume seam E-04 named was downstream of a writing helper, so a REFUSED resume would have flipped options.full_auto durably), F-12 (the pre-commit backstop E-06 invoked does not read specs at all), and F-13 (the private argparse._StoreTrueAction subclass was unnecessary). OQ-02's resolution was corrected: the two agy checks are not disjoint on a real parse, so E-05 now specifies their ORDER. Suite at review: 3387 passed, 2 skipped in 58.22s.
 
 - 2026-09-29 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): authored from backlog item `byazcp`. EVERY measurement re-taken by driving the code at this working tree; none carried over from the item. The item's defect reproduces exactly (F-01) and its stated OBSTACLE is confirmed (F-04), but two of its claims are corrected: its suggested fix of lifting `verification_flag_tristate`'s check into `runner_shared` is measured UNUSABLE as stated, because that function reads a namespace and the namespace is precisely what cannot distinguish the spellings (F-05); and agy carries a NARROWER form of the same hole, on `--validate --no-validate`, which the item does not report and which this plan closes with the same predicate (F-06). The chosen mechanism was driven end-to-end against the real oc parser before being written down (F-03). OQ-01 records the one genuinely open authoring decision, with the measurement that resolved it.

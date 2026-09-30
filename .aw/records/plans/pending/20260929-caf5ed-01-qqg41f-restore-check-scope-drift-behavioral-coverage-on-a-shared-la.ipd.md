@@ -6,7 +6,7 @@
 - Scope: Restore the DELETED BEHAVIORAL COVERAGE of `check_engine.check_scope_drift` as one new test module, arranged through ONE shared fixture helper added to `tests/support.py` so the lane cannot be forgotten by the next author, and make every silent assertion carry a paired firing positive control so a rule that reported nothing could not satisfy the module. INCLUDES, as a first-class row rather than as fixture hygiene, the rule's HEADLINE CLAIM that the LANE and only the lane is measured: a change made out of scope in the MAIN checkout while the lane is clean must be SILENT, which is the one row that catches the historical wrong-tree regression and the only row that distinguishes a wrong-tree rule from a rule that reports nothing (review 2026-09-30, F-11). This is the backlog item's CANDIDATE DIRECTION (1) (a shared arranging helper) combined with its DIRECTION (3) (the positive-control convention), and it deliberately DECLINES its DIRECTION (2) (a meta-test asserting each file allocates a lane) because that is a code-structure pin `GUIDING_PRINCIPLES.md` P16 prohibits outright; the reasoning is recorded in Findings rather than left implicit. EXCLUDES restoring the three unrelated halves of the deleted files (receipt liveness, event-derived transition validity, and finalize ownership attribution), which lost their own coverage in the same commit but are separate surfaces with separate claims and belong to the general trim audit `xvp5vx`; this plan restores only what the drift advisory itself asserts. EXCLUDES any change to `check_engine.check_scope_drift` or to `worktree_lease`: the rule's behavior is the SUBJECT here and must not move while coverage is being written around it.
 - Scope-Paths: tests/support.py, tests/test_check_scope_drift.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,8 +16,10 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: qqg41f
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 
 - 2026-09-30 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-601 (HIGH), PR-602 (HIGH), PR-603 (MEDIUM), PR-604 (MEDIUM), PR-605 (MEDIUM), PR-606 (LOW), all FIXED. Every load-bearing mechanism claim was re-derived by probe rather than read. Three defects were MEASURED, not argued: the row set covered the rule's headline claim (which tree is measured) with no row and could not distinguish a wrong-tree rule from a silent one, so E-06 and E-07 were added; E-04's terminal rows cannot reach the `_receipt_is_live` clause they claimed (the retired-path filter removes the plan first) and its unreachable-base row was over-determined; and E-05's second mutation, applied literally to real source, fails no row at all, which made V-05 unsatisfiable as written. Production redundancy filed as backlog `f9nf0e`. Nothing in `agent_workflows/` was modified.

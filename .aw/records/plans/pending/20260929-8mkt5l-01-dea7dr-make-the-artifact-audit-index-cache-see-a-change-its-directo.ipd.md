@@ -6,7 +6,7 @@
 - Scope: Replace `_dir_signature`'s hand-enumerated, depth-truncated mtime walk with a recursive `os.scandir` fingerprint over the record trees carrying each directory's mtime AND its sorted entry-name set, so a same-tick addition, an addition in an untyped tree, and an addition below the old depth cap are all visible. IN: `agent_workflows/artifact_audit.py`'s `_dir_signature` and the cache commentary above `_INDEX_CACHE` that currently justifies the mtime-only design; and a new `tests/test_artifact_audit_index_cache.py` carrying an outcome test per route plus a cache-still-works test proving the fix did not simply disable memoization. OUT: `build_index`'s traversal, `find_artifact`'s two tiers, `audit_artifact`'s fresh status read, `_INDEX_CACHE_MAX`'s wholesale-clear eviction (F-09), the residual same-tick IN-PLACE `- Id:` edit route (F-06, deferred with a carrier), and any change to `selectors`.
 - Scope-Paths: agent_workflows/artifact_audit.py, tests/test_artifact_audit_index_cache.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: dea7dr
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 
 - 2026-09-30 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 through PR-007, all FIXED in place. Reviewed at HEAD `ebbb5dc5` in an isolated lane; typed record at `.aw/records/reviews/20260929-8mkt5l-01-dea7dr-make-the-artifact-audit-index-cache-see-a-change-its-directo.review.md`. `aw ipd lint --phase author` conformed BEFORE semantic review and `--phase review-finalize` conforms after revision, so nothing found was structural.
   THIRTEEN OF THE FOURTEEN FINDINGS RE-DERIVED AND HELD, by running code rather than reading prose. All three routes reproduce (route 1 `found_B=False` on three trials; routes 2 and 3 `lookup B: False` with a 50ms sleep and no pinning, plus `audit missing_entirely: True`). The tick is real (174/200 here against the plan's 191, load-dependent). F-04's load-bearing numbers held to the digit (47 covered, 4 live records under `prompt-library`). F-06, F-09, F-11 and F-05's deletion all reproduce. AND THE FIX WAS PROTOTYPED IN THIS LANE: all five routes close including both same-tick compounds, and the bare suite reports `3322 passed, 2 skipped`, identical to the baseline taken before installing it; the prototype was reverted and `agent_workflows/` left clean.

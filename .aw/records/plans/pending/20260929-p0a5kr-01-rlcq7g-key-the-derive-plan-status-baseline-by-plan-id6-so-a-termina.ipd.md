@@ -6,7 +6,7 @@
 - Scope: Re-key the baseline fixture and its only reader from path to plan `id6`, the repo's stable cross-tree handle, and replace the single frozen intersection floor with two self-diagnosing assertions (a coverage fraction of the baseline, plus a retained absolute floor on the FIXTURE's own size so the fraction cannot go vacuous). Pure re-key of already-frozen values; the `derive_plan_status` algorithm and every other test are untouched.
 - Scope-Paths: tests/fixtures/derive_plan_status_baseline.json, tests/test_history_order.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,8 +17,10 @@
 - Highest E allocated: 04
 - Author: agent aw oc run
 - Id: rlcq7g
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 
 - 2026-09-29 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-009 all FIXED. Premise re-measured at HEAD `f5c6114b` (291 commits after the plan's `afb948ce`): 777 baseline keys, 882 live terminal plans, 732 intersection, and the re-key prototyped lossless (732 -> 732, value multiset equal, 0 mismatches). PR-001 (HIGH): OQ-01's fraction-only floor is vacuous against a shrinking fixture and contradicts its own stated rationale (a 10-entry fixture with all 10 found scores 100 percent and passes), so E-03 now carries a retained `len(baseline) >= 700` non-vacuity floor beside the coverage fraction. PR-003 (HIGH): 33 of the 732 carried values are JSON `null` and E-01 never said so, so a natural falsy-filter transform would have dropped 33 entries while satisfying every stated check but the count. PR-004: id6 keying opens a duplicate/absent-id silent-coverage-loss mode that path keying could not have; E-02 now asserts against it. PR-005: E-04's shared helper could not have served both callers as specified. PR-006: F-3 understated itself; one argument-free `aw archive plans --apply` takes the intersection from 732 to 118 today (614 sweep candidates at the 14-day default). PR-008: gate gained a scope fence and the runner/executor lifecycle conditional. Two V-items demanded evidence that measurably proves nothing (V-03's "a few extra ids" passes at 3, 10 and even 38; V-02's sanctioned history note does not change any derived status) and were corrected. Findings and decisions D-1..D-5 in `.aw/records/reviews/20260929-p0a5kr-01-rlcq7g-key-the-derive-plan-status-baseline-by-plan-id6-so-a-termina.review.md`.
 - 2026-09-29 draft (agent aw oc run): created.
