@@ -1,5 +1,5 @@
 - Id: xtrwdb
-- Status: graduated
+- Status: done
 - Graduated-To: xtrwdb
 - Blocks-Release: next
 - Set: xtrwdb
@@ -8,6 +8,7 @@
 - Summary: tools/untrack-workflow-artifacts.py still untracks the RETIRED repo-root path in place and writes a root ignore rule for it
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): closed by aw oc run: IPD cf7f8z executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-xtrwdb-01-cf7f8z-retarget-the-untrack-tool-onto-the-run-scratch-migration-and.ipd.md); evidence .aw/records/plans/executed/20260928-xtrwdb-01-cf7f8z-retarget-the-untrack-tool-onto-the-run-scratch-migration-and.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: cf7f8z
 - 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-18 created (aw backlog): tools/untrack-workflow-artifacts.py still untracks the RETIRED repo-root path in place and writes a root ignore rule for it
