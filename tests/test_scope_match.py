@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import io
+import subprocess
+import tempfile
 import time
 import unittest
 from contextlib import redirect_stdout
@@ -249,3 +251,140 @@ class WorkCmdRefusalRemedyTests(unittest.TestCase):
             )
             self.assertIn("--no-plan", output)
             self.assertIn("Scope-Paths", output)
+
+    def test_surviving_refusal_named_and_staged_arms(self) -> None:
+        """IPD ygb3nk E-04: out-of-scope refusal survives for both named and staged paths.
+
+        Reaches the real engine (check_type is NOT mocked). Asserts both arms:
+          (a) out-of-scope path NAMED after `--` is refused with exit 1 and HEAD unchanged.
+          (b) out-of-scope path merely STAGED, with only in-scope paths named, is refused
+              with exit 1 and HEAD unchanged.
+        """
+        plan_text = (
+            "# IPD: Demo work plan\n\n"
+            "- Date: 2026-08-28\n"
+            "- Kind: child\n"
+            "- Concern: A real concern statement for review.\n"
+            "- Scope: A real scope statement.\n"
+            "- Scope-Paths: src/in_scope.py\n"
+            "- Item-Dependencies: none\n"
+            "- Status: approved\n"
+            "- Priority: medium\n"
+            "- Work-Kind: chore\n"
+            "- Set: demo\n"
+            "- Order: 1\n"
+            "- Highest E allocated: 01\n"
+            "- Author: tester\n"
+            "- Id: dem001\n\n"
+            "## Workflow history\n"
+            "- 2026-08-28 approved (aw set): approved\n\n"
+            "## Goal\n"
+            "A real goal statement.\n\n"
+            "## Detailed Implementation Checklist (TODO)\n\n"
+            "### Task group 1: work\n"
+            "- [ ] E-01 Do a real observable thing.\n"
+            "  - Depends on: none\n"
+            "  - Expected outcome: a real observable result.\n"
+            "  - Execution state: pending\n\n"
+            "## Validation and cross-check (verify before reporting done)\n"
+            "- [ ] V-01 validates E-01\n"
+            "  - Required evidence: a real falsifiable evidence statement.\n"
+            "  - Observed evidence:\n"
+            "  - Result: pending\n\n"
+            "## Approval and execution gate\n"
+            "- Size assessment: standard\n"
+            "- Cohesion rationale: not required\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            subprocess.run(
+                ["git", "config", "user.email", "t@e.com"], cwd=root, check=True
+            )
+            subprocess.run(["git", "config", "user.name", "T"], cwd=root, check=True)
+            plans = root / ".aw" / "records" / "plans" / "pending"
+            plans.mkdir(parents=True)
+            plan_path = plans / "20260828-demo-01-dem001-test.ipd.md"
+            plan_path.write_text(plan_text, encoding="utf-8")
+            (root / "src").mkdir()
+            (root / "src" / "in_scope.py").write_text(
+                "print('hello')\n", encoding="utf-8"
+            )
+            (root / "src" / "out_of_scope.py").write_text(
+                "print('outside')\n", encoding="utf-8"
+            )
+            (root / ".gitignore").write_text(
+                ".aw/worktrees/\n.aw/state/\n", encoding="utf-8"
+            )
+            subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=root, check=True)
+            head_initial = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], cwd=root, text=True
+            ).strip()
+
+            # (a) Arm 1: out-of-scope path NAMED after `--` is refused
+            (root / "src" / "out_of_scope.py").write_text(
+                "print('modified outside')\n", encoding="utf-8"
+            )
+            buf_a = io.StringIO()
+            with redirect_stdout(buf_a):
+                ns_a = argparse.Namespace(
+                    path_argv=[
+                        "dem001",
+                        "--dir",
+                        str(root),
+                        "-m",
+                        "commit named out-of-scope",
+                        "--",
+                        "src/out_of_scope.py",
+                    ],
+                    trailers=[],
+                )
+                rc_a = work_cmd.run_commit(ns_a)
+            out_a = buf_a.getvalue()
+            head_a = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], cwd=root, text=True
+            ).strip()
+            self.assertEqual(rc_a, 1, f"Expected rc 1, got {rc_a}. Output:\n{out_a}")
+            self.assertIn(
+                "aw commit: refusing - out-of-scope change(s) present:", out_a
+            )
+            self.assertEqual(
+                head_initial,
+                head_a,
+                "HEAD must be unchanged after named out-of-scope refusal",
+            )
+
+            # (b) Arm 2: out-of-scope path merely STAGED, with only in-scope paths named, is refused
+            subprocess.run(["git", "add", "src/out_of_scope.py"], cwd=root, check=True)
+            (root / "src" / "in_scope.py").write_text(
+                "print('modified inside')\n", encoding="utf-8"
+            )
+            buf_b = io.StringIO()
+            with redirect_stdout(buf_b):
+                ns_b = argparse.Namespace(
+                    path_argv=[
+                        "dem001",
+                        "--dir",
+                        str(root),
+                        "-m",
+                        "commit in-scope while out-of-scope staged",
+                        "--",
+                        "src/in_scope.py",
+                    ],
+                    trailers=[],
+                )
+                rc_b = work_cmd.run_commit(ns_b)
+            out_b = buf_b.getvalue()
+            head_b = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], cwd=root, text=True
+            ).strip()
+            self.assertEqual(rc_b, 1, f"Expected rc 1, got {rc_b}. Output:\n{out_b}")
+            self.assertIn(
+                "aw commit: refusing - out-of-scope change(s) present:", out_b
+            )
+            self.assertEqual(
+                head_initial,
+                head_b,
+                "HEAD must be unchanged after staged out-of-scope refusal",
+            )

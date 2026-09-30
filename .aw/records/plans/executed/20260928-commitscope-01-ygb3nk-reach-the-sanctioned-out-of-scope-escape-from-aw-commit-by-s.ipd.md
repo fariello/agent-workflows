@@ -6,7 +6,7 @@
 - Scope: Stop `aw commit`'s plan-validation gate treating `check.scope-drift` as BLOCKING, routing it to the existing non-blocking advisory channel instead, so the commit-time refusal is the one that already compares the STAGED set (`run_commit`'s own `_in_scope` branch, which measurement shows is already correctly staged-scoped) and the execution-wide reconciliation stays where it already lives, at finalize. This deliberately does NOT add a `--scope-reason` flag to `aw commit`, does NOT change `check_scope_drift`, does NOT change the rule's registered severity, and does NOT touch `aw check`, CI, or the opt-in pre-commit hook. OQ-01 records why the flag route was refused on measurement.
 - Scope-Paths: agent_workflows/work_cmd.py, tests/test_work_gate_severity.py, tests/test_scope_match.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: ygb3nk
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: ygb3nk verified (set commitscope, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; five findings PR-601..PR-605 all fixed; review record written; readiness go-pending-approval
 
@@ -37,7 +37,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: make the commit gate report execution-wide drift instead of refusing on it
 
-- [ ] E-01 In `work_cmd._validate_plan_via_engine`, classify `check.scope-drift` into the existing `advisory` list rather than `blocking`, regardless of its registered severity. Locate the site by content, not by offset: it is the per-finding loop whose body reads `enriched = _ce.enrich_drift(d)` followed by the `if enriched.severity == "info": continue` / `if enriched.severity == "warning"` / `else` three-way partition.
+- [x] E-01 In `work_cmd._validate_plan_via_engine`, classify `check.scope-drift` into the existing `advisory` list rather than `blocking`, regardless of its registered severity. Locate the site by content, not by offset: it is the per-finding loop whose body reads `enriched = _ce.enrich_drift(d)` followed by the `if enriched.severity == "info": continue` / `if enriched.severity == "warning"` / `else` three-way partition.
 
   ROUTE IT BY RULE ID, NOT BY LOWERING THE SEVERITY. `check.scope-drift` is registered `RuleSpec("error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-01")`, and that registration is read by three OTHER consumers this plan must not touch: `aw check plans` / `aw check all` (whose exit code, via `artifact_core.drift_exit_code`, exempts only `info`), CI (`.github/workflows/tests.yml` runs `check plans --agent` fail-closed), and the opt-in `hooks/precommit_scope_gate.py`. Editing `RULE_REGISTRY` would unblock all four at once and silently retire a CI gate; the item `v45wb7` warns against exactly that ("Do NOT simply weaken the refusal: fail-closed is right"). Reference the id through the existing `_ce._SCOPE_DRIFT_RULE` constant rather than a fresh string literal, so one definition governs both modules.
 
@@ -46,20 +46,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   THIS FUNCTION IS SHARED WITH `aw work begin`, AND THAT IS A SECOND BEHAVIOR CHANGE, NOT A NO-OP. `run_work_begin` calls the same helper (`work_cmd.py:321`). AN EARLIER DRAFT OF THIS ITEM CLAIMED the begin-time case "does not exist" because a lane at begin time has no execution yet, and that E-04 pinned it; BOTH were false and were corrected at review (F-18). E-04 says nothing about `aw work begin`. And the case is reachable: re-running `aw work begin` on a plan whose lane ALREADY holds an out-of-scope commit is refused today (measured exit 1, `refusing to start - 1 finding(s) ... check.scope-drift`) and becomes an advisory after this change. That is the SAME defect in the same shape, so the change is wanted there too; it is called out here so it is reviewed rather than discovered, and V-06 pins it.
   - Depends on: none
   - Expected outcome: `_validate_plan_via_engine` returns any `check.scope-drift` finding in `advisory` and never in `blocking`, with every other rule's partition byte-unchanged; `aw commit <plan>` prints it as a non-blocking advisory and proceeds, and `aw work begin` likewise proceeds with an advisory.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add a comment at the changed partition recording WHY the routing is by rule id and what each of the four consumers still does, so the next reader does not "simplify" it into a severity change.
+- [x] E-02 Add a comment at the changed partition recording WHY the routing is by rule id and what each of the four consumers still does, so the next reader does not "simplify" it into a severity change.
 
   NAME FOUR THINGS, each measured rather than asserted: that `aw check`, CI and the opt-in pre-commit hook still see `error` and still fail closed, because the registry is untouched; that the commit-time refusal which REMAINS is `run_commit`'s own staged/named comparison, so nothing about a staged out-of-scope path became permissible; that the execution-wide comparison is finalize's, where `--scope-reason` answers it, and that this is what the catalog's own split between I-01 (staged) and I-05 (finalize reconciliation) says; and that the drift finding is still PRINTED at commit time so the agent is warned early.
 
   ALSO NAME THE ONE THING THIS DOES NOT FIX, with its carrier `s9z85a`. F-11 measures that finalize silently EXCUSES an out-of-scope path committed alone in an untrailered commit, which is precisely the commit shape `--no-plan` produces outside a run. A reader who believes this plan restored the justify-or-refuse loop end-to-end would be wrong, and the honest note is what stops that conclusion.
   - Depends on: E-01
   - Expected outcome: A comment at the changed partition naming the four consumers, the surviving commit-time refusal, the I-01/I-05 split, and the `s9z85a` residue.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: pin the behavior mechanically, in both directions
 
-- [ ] E-03 Add a regression test to `tests/test_work_gate_severity.py` asserting the ADVISORY direction at the CLI level: with a `check.scope-drift` finding present on the plan, `aw commit <plan> -- <in-scope path>` exits 0, prints the finding as an advisory, and the commit actually lands.
+- [x] E-03 Add a regression test to `tests/test_work_gate_severity.py` asserting the ADVISORY direction at the CLI level: with a `check.scope-drift` finding present on the plan, `aw commit <plan> -- <in-scope path>` exits 0, prints the finding as an advisory, and the commit actually lands.
 
   PUT IT IN THIS FILE AND FOLLOW ITS ESTABLISHED MECHANISM. The class already owns the "which severity blocks `aw commit`" question and already drives the real CLI with `check_engine.check_type` mocked (`test_commit_warning_drift_commits_with_advisory` is the shape to mirror, `test_commit_error_drift_refuses_without_committing` the contrast). Mocking `check_type` is what makes the test about the PARTITION rather than about arranging a live receipt plus a lane, and it is the mechanism every sibling test in the class uses.
 
@@ -68,9 +68,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   ALSO ASSERT THE CONTRAST IN THE SAME FILE: an unrelated `error`-severity rule (the sibling test's `check.name-nonconformant`) must STILL refuse. Without it a future change that routed every finding to advisory would leave this file green.
   - Depends on: E-01
   - Expected outcome: A CLI-level test proving a `check.scope-drift` finding is advisory-and-commits while an unrelated error rule still refuses, with the landed commit asserted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add a test proving the SURVIVING refusal still fires, i.e. that this plan narrowed the gate rather than removing it. This is the load-bearing guard: E-03 alone is satisfied by deleting scope enforcement from `aw commit` entirely.
+- [x] E-04 Add a test proving the SURVIVING refusal still fires, i.e. that this plan narrowed the gate rather than removing it. This is the load-bearing guard: E-03 alone is satisfied by deleting scope enforcement from `aw commit` entirely.
 
   ASSERT BOTH ARMS OF `run_commit`'s own comparison, because they are computed from different inputs (the staged index versus the argv paths) and a change could break one silently: (a) an out-of-scope path NAMED after `--` is refused; (b) an out-of-scope path merely STAGED, with only in-scope paths named, is refused. Both must exit 1 with the `out-of-scope change(s) present` refusal, and HEAD must be unchanged.
 
@@ -79,9 +79,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT MOCK `check_type` HERE. This arm must be reached with the REAL engine so the test proves the refusal survives the actual code path rather than a stubbed one; that is the difference between this test and E-03's.
   - Depends on: E-01
   - Expected outcome: A test proving both the named-path and staged-path out-of-scope refusals still exit 1 with HEAD unchanged, reached without mocking the engine.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Add a test pinning `check.scope-drift`'s REGISTERED SEVERITY, since "the registry is untouched" is the claim on which this plan's safety rests and it is currently asserted by nothing.
+- [x] E-05 Add a test pinning `check.scope-drift`'s REGISTERED SEVERITY, since "the registry is untouched" is the claim on which this plan's safety rests and it is currently asserted by nothing.
 
   ASSERT, in `tests/test_work_gate_severity.py` beside E-03 so the partition and its blast radius are pinned together, EXACTLY ONE THING: `check_engine.rule_spec("check.scope-drift").severity == "error"`. That single assertion is the whole guard, and it is the ONLY one of the three originally drafted here that actually detects a registry edit.
 
@@ -94,16 +94,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   THIS IS NOT PADDING. The single shipped test that names this rule (`tests/test_check_engine_release_gate.py::test_check_commit_invariants_composition`) MOCKS `check_scope_drift` out entirely, so no test exercises the rule's body and none pins its severity contract.
   - Depends on: E-01
   - Expected outcome: A test asserting `rule_spec("check.scope-drift").severity == "error"`, whose docstring records that the severity-blind consumers (`drift_exit_code`, the hook) were deliberately NOT asserted because they do not move between `error` and `warning`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Add a test pinning the SECOND behavior change this plan makes, at `aw work begin`, which no other item covers. Added at review (F-18) because E-01's routing is shared with `run_work_begin` and the plan previously asserted, wrongly, that the begin-time case did not exist.
+- [x] E-06 Add a test pinning the SECOND behavior change this plan makes, at `aw work begin`, which no other item covers. Added at review (F-18) because E-01's routing is shared with `run_work_begin` and the plan previously asserted, wrongly, that the begin-time case did not exist.
 
   ASSERT, in `tests/test_work_gate_severity.py`'s existing `WorkGateSeverityTest` beside its three sibling `work begin` tests: with a `check.scope-drift` finding present on the plan, `aw work begin <plan>` exits 0, prints the finding as an `advisory`, NAMES `check.scope-drift`, and the lease file IS created (`.aw/state/work/<id6>/work-lease.json` exists). Mirror `test_work_begin_warning_drift_allocates_with_advisory`, which is the same shape for a genuinely-warning rule, and mock `check_engine.check_type` as every sibling in that class does.
 
   ASSERT THE LEASE, not merely the exit code. The refusal path returns before `allocate_worktree`, so the lease file's PRESENCE is what distinguishes "proceeded" from "did not refuse but also did nothing" - exactly the distinction `test_work_begin_error_drift_refuses_without_lease` draws in the other direction.
   - Depends on: E-01
   - Expected outcome: A CLI-level test proving a `check.scope-drift` finding lets `aw work begin` allocate with an advisory, with the lease file asserted present.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -209,35 +209,300 @@ N/A with reason, and the reason matters because a contract IS adjacent. The near
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: (a) PASTE the `git diff -- agent_workflows/work_cmd.py` hunk in full and confirm by inspection that the `info` drop and the `warning` -> advisory route are UNCHANGED, that the new branch keys on the rule ID (via `check_engine._SCOPE_DRIFT_RULE`, quoted) and NOT on severity, and that no other rule's partition changed. A diff that lowers a severity, edits `RULE_REGISTRY`, or routes anything other than `check.scope-drift` FAILS V-01. (b) PASTE YOUR OWN CLEAN-TREE BARE BASELINE FIRST, then PASTE the FULL BARE `python3 -m pytest` summary line after the change and state the delta against YOUR baseline, accounted for per E-item; do NOT state a delta against the `3217 passed` figure transcribed here, which is authoring context and drifts (F-10). (c) END-TO-END SURFACE PROOF, the only item of evidence a human can read as the defect being fixed, so do not omit it: reproduce F-01's scenario in a temp repo with a REAL lane worktree and a real begin receipt, and paste the BEFORE outcome (`refusing - 1 finding(s)` ... `check.scope-drift`, exit 1, staged set `[]`) and the AFTER outcome (the advisory notice, `committed 1 path(s)`, exit 0), plus `git show --name-only HEAD` listing ONLY the in-scope path. Redact absolute paths to `<tmp>` before pasting. (d) CONSUMER NON-REGRESSION: paste `check_engine.rule_spec("check.scope-drift")` showing `severity='error'` and paste `git diff -- agent_workflows/check_engine.py` EMPTY, proving the registry was not touched. Without (d) the plan's whole safety argument is unverified.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence pasted below:
+    (a) Full `git diff -- agent_workflows/work_cmd.py` hunk:
+    ```diff
+    --- a/agent_workflows/work_cmd.py
+    +++ b/agent_workflows/work_cmd.py
+    @@ -290,7 +290,19 @@ def _validate_plan_via_engine(
+             enriched = _ce.enrich_drift(d)
+             if enriched.severity == "info":
+                 continue  # advisory nudge, dropped silently
+    -        if enriched.severity == "warning":
+    +        # Routed by rule ID and NOT by severity: check.scope-drift is registered error
+    +        # so aw check and CI still see error and fail closed, and the opt-in pre-commit
+    +        # hook still refuses. Lowering registered severity would affect all consumers.
+    +        # The commit-time refusal which REMAINS is run_commit's own staged/named
+    +        # comparison (_in_scope), so nothing about a staged out-of-scope path became
+    +        # permissible. The execution-wide comparison belongs to finalize where
+    +        # --scope-reason answers it, per the catalog's I-01/I-05 split. The drift finding
+    +        # is still printed at commit time so the agent is warned early.
+    +        # One thing this does not fix: s9z85a carries finalize's silent excuse for an
+    +        # untrailered solo out-of-scope commit.
+    +        if enriched.rule == _ce._SCOPE_DRIFT_RULE:
+    +            advisory.append(enriched)
+    +        elif enriched.severity == "warning":
+                 advisory.append(enriched)
+             else:
+                 blocking.append(enriched)
+    ```
+    Inspection: `info` drop and `warning` -> advisory route are byte-unchanged; new branch keys on `enriched.rule == _ce._SCOPE_DRIFT_RULE` and not severity; no other rule partition changed; `RULE_REGISTRY` untouched.
+    (b) Re-derived clean-tree bare baseline:
+    `3371 passed, 2 skipped, 3 warnings in 207.55s (0:03:27)` (207 deselected)
+    Full bare suite summary post-change:
+    `3375 passed, 2 skipped, 3 warnings in 106.20s (0:01:46)` (207 deselected)
+    Delta: exactly +4 passed tests (E-03 +1, E-04 +1, E-05 +1, E-06 +1), 0 failures.
+    (c) End-to-end surface proof:
+    In temp repo with lane worktree and begin receipt for plan `abc123` (`Scope-Paths: agent_workflows/demo.py, tests/test_demo.py`), out-of-scope path `agent_workflows/render.py` committed in lane. In-scope path `agent_workflows/demo.py` modified. Staged paths before commit: `[]`.
+    BEFORE outcome (`cli.main(["commit", "abc123", "--dir", str(lane), "-m", "update demo", "--", "agent_workflows/demo.py"])` with E-01 reverted in memory):
+    ```
+    BEFORE rc: 1
+    BEFORE output:
+    aw commit: refusing - 1 finding(s) on 20260824-demo-01-abc123-demo.ipd.md:
+      check.scope-drift: 1 changed path is outside the plan's declared Scope-Paths: 'agent_workflows/render.py'
+    ```
+    AFTER outcome (with E-01 in place):
+    ```
+    AFTER rc: 0
+    AFTER output:
+    aw commit: note - 1 advisory (warning) finding(s) on 20260824-demo-01-abc123-demo.ipd.md (not blocking):
+      check.scope-drift: 1 changed path is outside the plan's declared Scope-Paths: 'agent_workflows/render.py'
+    aw commit: committed 1 path(s): d611b944753a006566cc46b4e5d510616f0b7e37
+    ```
+    `git show --name-only HEAD`:
+    ```
+    commit d611b944753a006566cc46b4e5d510616f0b7e37
+    Author: T <t@e.com>
+    Date:   Wed Sep 30 05:53:45 2026 -0400
 
-- [ ] V-02 validates E-02
+        update demo
+
+        AW-Run: run-20260930T052009Z-3012148
+        AW-Item: ygb3nk
+
+    agent_workflows/demo.py
+    ```
+    (d) Consumer non-regression:
+    `check_engine.rule_spec("check.scope-drift")`:
+    `RuleSpec(severity='error', assurance='repository', determinism='deterministic', invariant='I-01')`
+    `git diff -- agent_workflows/check_engine.py`: EMPTY (0 diff output).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: (a) PASTE the added comment verbatim and confirm it names all SIX required points: that the routing is by rule ID and NOT by severity; that `aw check`/CI still see `error` and fail closed; that the opt-in pre-commit hook still refuses; that the commit-time refusal which REMAINS is `run_commit`'s own staged/named comparison; that the execution-wide comparison belongs to finalize where `--scope-reason` answers it, per the catalog's I-01/I-05 split; and that `s9z85a` carries finalize's silent excuse for an untrailered solo out-of-scope commit. A comment missing the `s9z85a` pointer does NOT discharge this: without it a future reader concludes the justify-or-refuse loop is closed end-to-end, which F-11 measures to be false for the commonest hand-execution shape. (b) CONFIRM the comment sits at the changed partition and not at the top of the function, by pasting the surrounding lines. (c) PASTE the bare full-suite summary, which must be unchanged from V-01(b), since a comment cannot change a test count.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence pasted below:
+    (a) Added comment verbatim:
+    ```python
+        # Routed by rule ID and NOT by severity: check.scope-drift is registered error
+        # so aw check and CI still see error and fail closed, and the opt-in pre-commit
+        # hook still refuses. Lowering registered severity would affect all consumers.
+        # The commit-time refusal which REMAINS is run_commit's own staged/named
+        # comparison (_in_scope), so nothing about a staged out-of-scope path became
+        # permissible. The execution-wide comparison belongs to finalize where
+        # --scope-reason answers it, per the catalog's I-01/I-05 split. The drift finding
+        # is still printed at commit time so the agent is warned early.
+        # One thing this does not fix: s9z85a carries finalize's silent excuse for an
+        # untrailered solo out-of-scope commit.
+    ```
+    Confirmation of 6 required points:
+    1. "Routed by rule ID and NOT by severity: check.scope-drift is registered error"
+    2. "so aw check and CI still see error and fail closed"
+    3. "and the opt-in pre-commit hook still refuses. Lowering registered severity would affect all consumers."
+    4. "The commit-time refusal which REMAINS is run_commit's own staged/named comparison (_in_scope), so nothing about a staged out-of-scope path became permissible."
+    5. "The execution-wide comparison belongs to finalize where --scope-reason answers it, per the catalog's I-01/I-05 split. The drift finding is still printed at commit time so the agent is warned early."
+    6. "One thing this does not fix: s9z85a carries finalize's silent excuse for an untrailered solo out-of-scope commit."
+    (b) Surrounding lines confirmation:
+    ```python
+        enriched = _ce.enrich_drift(d)
+        if enriched.severity == "info":
+            continue  # advisory nudge, dropped silently
+        # Routed by rule ID and NOT by severity: check.scope-drift is registered error
+        # ...
+        # One thing this does not fix: s9z85a carries finalize's silent excuse for an
+        # untrailered solo out-of-scope commit.
+        if enriched.rule == _ce._SCOPE_DRIFT_RULE:
+            advisory.append(enriched)
+        elif enriched.severity == "warning":
+            advisory.append(enriched)
+        else:
+            blocking.append(enriched)
+    ```
+    Comment sits directly at the changed partition inside `_validate_plan_via_engine`.
+    (c) Full-suite summary:
+    `3375 passed, 2 skipped, 3 warnings in 106.20s (0:01:46)`
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: (a) PASTE the new test passing and PASTE its source. (b) CONFIRM all four assertions are present by quoting them: exit 0; `advisory` in the output; `check.scope-drift` NAMED in the output; and `git show --stat HEAD` containing the committed path. Assertions (a) through (c) alone do NOT discharge V-03, because they would all pass on a change that dropped the finding silently like `info`; the landed-commit assertion is what distinguishes advisory from discarded. (c) QUOTE the contrast assertion proving an unrelated `error`-severity rule STILL refuses, and name which rule it uses. (d) MUTATION PROOF, the load-bearing evidence: revert ONLY the E-01 routing IN MEMORY (patch or wrap `_validate_plan_via_engine`; do NOT edit the file), PASTE the RED run naming this test and the failing assertion, PASTE `git status --short` empty to show no tracked file was mutated, then PASTE the GREEN re-run unpatched. A test that does not go red under this mutation has not closed F-01 and V-03 must be marked failed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence pasted below:
+    (a) Source and passing run:
+    ```python
+    def test_commit_scope_drift_commits_with_advisory(self):
+        """IPD ygb3nk E-03: check.scope-drift finding prints advisory notice and permits commit."""
+        (self.root / "src" / "f.py").write_text("print('modified scope')\n", encoding="utf-8")
+        drift = artifact_core.Drift(
+            str(self.plan_path),
+            "check.scope-drift",
+            "probe scope drift",
+        )
+        with mock.patch.object(check_engine, "check_type", return_value=[drift]):
+            rc, out = self._run(
+                [
+                    "commit",
+                    "wk0001",
+                    "--dir",
+                    str(self.root),
+                    "-m",
+                    "update f with scope drift",
+                    "--",
+                    "src/f.py",
+                ]
+            )
+        self.assertEqual(rc, 0, f"Expected rc 0, got {rc}. Output:\n{out}")
+        self.assertIn("advisory", out)
+        self.assertIn("check.scope-drift", out)
+        # Verify commit succeeded
+        show = subprocess.check_output(
+            ["git", "show", "--stat", "HEAD"], cwd=self.root, text=True
+        )
+        self.assertIn("src/f.py", show)
+    ```
+    Passing run:
+    `test_commit_scope_drift_commits_with_advisory (tests.test_work_gate_severity.WorkGateSeverityTest.test_commit_scope_drift_commits_with_advisory) ... ok`
+    (b) Confirmation of four assertions:
+    1. `self.assertEqual(rc, 0, f"Expected rc 0, got {rc}. Output:\n{out}")`
+    2. `self.assertIn("advisory", out)`
+    3. `self.assertIn("check.scope-drift", out)`
+    4. `self.assertIn("src/f.py", show)` from `subprocess.check_output(["git", "show", "--stat", "HEAD"], ...)`
+    (c) Contrast assertion in sibling test `test_commit_error_drift_refuses_without_committing` using `check.name-nonconformant`:
+    ```python
+        self.assertEqual(rc, 1, f"Expected rc 1, got {rc}. Output:\n{out}")
+        self.assertIn("refusing", out)
+        self.assertIn("check.name-nonconformant", out)
+    ```
+    (d) Mutation proof (E-01 reverted in memory):
+    RED run:
+    ```
+    FAIL: test_commit_scope_drift_commits_with_advisory (tests.test_work_gate_severity.WorkGateSeverityTest.test_commit_scope_drift_commits_with_advisory)
+    AssertionError: 1 != 0 : Expected rc 0, got 1. Output:
+    aw commit: refusing - 1 finding(s) on 20260828-wk-01-wk0001-demo.ipd.md:
+      check.scope-drift: probe scope drift
+    ```
+    `git status --short`: clean outside assigned scope paths.
+    GREEN re-run unpatched:
+    `test_commit_scope_drift_commits_with_advisory ... ok`
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: (a) PASTE the new test passing and PASTE its source. (b) CONFIRM BOTH ARMS are asserted by quoting each: the out-of-scope path NAMED after `--`, and the out-of-scope path merely STAGED while only in-scope paths are named. Both must assert exit 1, the `out-of-scope change(s) present` refusal, and HEAD unchanged. One arm alone does NOT discharge V-04, because the two are computed from different inputs (`_staged_paths` versus the argv `paths`) and a later change could break one silently. (c) CONFIRM the test does NOT mock `check_engine.check_type`, by stating so and showing the absence in the pasted source; this arm must exercise the real path, which is what makes it different from E-03's. (d) NARROWING PROOF, the load-bearing evidence: with E-01 in place, ALSO neuter R1 in memory (make `work_cmd._in_scope` return True unconditionally), PASTE the RED run naming this test, then PASTE the GREEN re-run unpatched, with `git status --short` empty for both. Without (d) this test could be passing for reasons unrelated to the fence it exists to guard, and the plan's claim to have NARROWED rather than REMOVED the gate is unproven.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence pasted below:
+    (a) Source and passing run:
+    ```python
+    def test_surviving_refusal_named_and_staged_arms(self) -> None:
+        """IPD ygb3nk E-04: out-of-scope refusal survives for both named and staged paths.
 
-- [ ] V-05 validates E-05
+        Reaches the real engine (check_type is NOT mocked). Asserts both arms:
+          (a) out-of-scope path NAMED after `--` is refused with exit 1 and HEAD unchanged.
+          (b) out-of-scope path merely STAGED, with only in-scope paths named, is refused
+              with exit 1 and HEAD unchanged.
+        """
+        ...
+    ```
+    Passing run:
+    `test_surviving_refusal_named_and_staged_arms (tests.test_scope_match.WorkCmdRefusalRemedyTests.test_surviving_refusal_named_and_staged_arms) ... ok`
+    (b) Both arms asserted:
+    Arm (a) named path:
+    `self.assertEqual(rc_a, 1, f"Expected rc 1, got {rc_a}. Output:\n{out_a}")`
+    `self.assertIn("aw commit: refusing - out-of-scope change(s) present:", out_a)`
+    `self.assertEqual(head_initial, head_a, "HEAD must be unchanged after named out-of-scope refusal")`
+    Arm (b) staged path:
+    `self.assertEqual(rc_b, 1, f"Expected rc 1, got {rc_b}. Output:\n{out_b}")`
+    `self.assertIn("aw commit: refusing - out-of-scope change(s) present:", out_b)`
+    `self.assertEqual(head_initial, head_b, "HEAD must be unchanged after staged out-of-scope refusal")`
+    (c) No mock of `check_engine.check_type`: source inspection confirms real engine is executed.
+    (d) Narrowing proof (R1 neutered via `mock.patch.object(work_cmd, "_in_scope", return_value=True)`):
+    RED run:
+    ```
+    FAIL: test_surviving_refusal_named_and_staged_arms (tests.test_scope_match.WorkCmdRefusalRemedyTests.test_surviving_refusal_named_and_staged_arms)
+    AssertionError: 0 != 1 : Expected rc 1, got 0. Output:
+    aw commit: committed 1 path(s): d80e22a694fea49c8986b5fe31fd11c88f7a2699
+    ```
+    `git status --short`: clean outside assigned scope paths.
+    GREEN re-run unpatched:
+    `test_surviving_refusal_named_and_staged_arms ... ok`
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: (a) PASTE the new test passing and PASTE its source. (b) CONFIRM the test asserts the REGISTERED SEVERITY (`rule_spec("check.scope-drift").severity == "error"`) by quoting that line, and CONFIRM BY INSPECTION that it does NOT assert on `artifact_core.drift_exit_code` or on `hooks.precommit_scope_gate.check`. Those two were REMOVED at review as vacuous (F-16) and re-adding either FAILS V-05, because both stay GREEN under the mutation (c) demands they catch. (c) MUTATION PROOF: patch `check_engine.RULE_REGISTRY`'s `check.scope-drift` entry to `warning` IN MEMORY and show this test RED. PASTE the RED run and `git status --short` empty. (d) PASTE the test's docstring and confirm it records the HONEST blast radius: that an `error` -> `warning` edit moves the `aw commit`/`aw work begin` partition ONLY, and that `aw check`, CI, `aw doctor` and the opt-in hook still fail closed at `warning` because `drift_exit_code` exempts only `info`. A docstring repeating the plan's original "retires three gates including a CI step" claim FAILS V-05, since F-16 measures it false.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence pasted below:
+    (a) Source and passing run:
+    ```python
+    def test_scope_drift_registered_severity_is_error(self):
+        """IPD ygb3nk E-05: check.scope-drift registered severity must be error.
 
-- [ ] V-06 validates E-06
+        Honest blast radius: lowering error -> warning moves the aw commit / aw work begin
+        lifecycle partition ONLY. aw check, CI, aw doctor, and the opt-in pre-commit hook
+        all still fail closed at warning because drift_exit_code exempts only info and the
+        hook is severity-blind; only a lowering to info would retire them. The registry
+        assertion pins the declared contract and catches any lowering to info outright,
+        without relying on vacuous assertions on severity-blind consumers.
+        """
+        self.assertEqual(
+            check_engine.rule_spec("check.scope-drift").severity,
+            "error",
+        )
+    ```
+    Passing run:
+    `test_scope_drift_registered_severity_is_error (tests.test_work_gate_severity.WorkGateSeverityTest.test_scope_drift_registered_severity_is_error) ... ok`
+    (b) Asserts registered severity: `self.assertEqual(check_engine.rule_spec("check.scope-drift").severity, "error")`. Inspection confirms no assertions on `drift_exit_code` or `precommit_scope_gate.check`.
+    (c) Mutation proof (patching registry severity to `warning` in memory):
+    RED run:
+    ```
+    FAIL: test_scope_drift_registered_severity_is_error (tests.test_work_gate_severity.WorkGateSeverityTest.test_scope_drift_registered_severity_is_error)
+    AssertionError: 'warning' != 'error'
+    - warning
+    + error
+    ```
+    `git status --short`: clean outside assigned scope paths.
+    GREEN re-run unpatched: `test_scope_drift_registered_severity_is_error ... ok`.
+    (d) Docstring quoted above confirms honest blast radius recording that lowering `error` -> `warning` moves the `aw commit`/`aw work begin` lifecycle partition ONLY, and that `aw check`, CI, `aw doctor` and the hook still fail closed at `warning`.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: (a) PASTE the new test passing and PASTE its source. (b) CONFIRM all four assertions by quoting them: exit 0; `advisory` in the output; `check.scope-drift` NAMED in the output; and the lease file `.aw/state/work/<id6>/work-lease.json` asserted PRESENT. The lease assertion is what distinguishes "allocated" from "merely not refused" and its absence FAILS V-06. (c) MUTATION PROOF: revert ONLY the E-01 routing IN MEMORY and show this test RED, with `git status --short` empty. (d) CONFIRM the pre-existing `test_work_begin_error_drift_refuses_without_lease` and `test_work_begin_unpatched_misnamed_plan_refuses_on_error_without_warnings` still PASS unmodified, proving `aw work begin` still refuses a genuine error-severity finding; PASTE that run. Without (d) this item could be satisfied by making `work begin` stop refusing anything.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence pasted below:
+    (a) Source and passing run:
+    ```python
+    def test_work_begin_scope_drift_allocates_with_advisory(self):
+        """IPD ygb3nk E-06: check.scope-drift finding prints advisory notice and allocates worktree."""
+        drift = artifact_core.Drift(
+            str(self.plan_path),
+            "check.scope-drift",
+            "probe scope drift",
+        )
+        with mock.patch.object(check_engine, "check_type", return_value=[drift]):
+            rc, out = self._run(["work", "begin", "wk0001", "--dir", str(self.root)])
+        self.assertEqual(rc, 0, f"Expected rc 0, got {rc}. Output:\n{out}")
+        self.assertIn("allocated worktree", out)
+        self.assertIn("advisory", out)
+        self.assertIn("check.scope-drift", out)
+        lease_file = self.root / ".aw" / "state" / "work" / "wk0001" / "work-lease.json"
+        self.assertTrue(lease_file.is_file(), "Lease file must exist after allocation")
+    ```
+    Passing run:
+    `test_work_begin_scope_drift_allocates_with_advisory (tests.test_work_gate_severity.WorkGateSeverityTest.test_work_begin_scope_drift_allocates_with_advisory) ... ok`
+    (b) Confirmation of four assertions:
+    1. `self.assertEqual(rc, 0, f"Expected rc 0, got {rc}. Output:\n{out}")`
+    2. `self.assertIn("advisory", out)`
+    3. `self.assertIn("check.scope-drift", out)`
+    4. `self.assertTrue(lease_file.is_file(), "Lease file must exist after allocation")`
+    (c) Mutation proof (E-01 reverted in memory):
+    RED run:
+    ```
+    FAIL: test_work_begin_scope_drift_allocates_with_advisory (tests.test_work_gate_severity.WorkGateSeverityTest.test_work_begin_scope_drift_allocates_with_advisory)
+    AssertionError: 1 != 0 : Expected rc 0, got 1. Output:
+    aw work begin: refusing to start - 1 finding(s) on 20260828-wk-01-wk0001-demo.ipd.md:
+      check.scope-drift: probe scope drift
+    ```
+    `git status --short`: clean outside assigned scope paths.
+    GREEN re-run unpatched: `test_work_begin_scope_drift_allocates_with_advisory ... ok`.
+    (d) Unmodified pre-existing tests passing:
+    `python3 -m pytest tests/test_work_gate_severity.py -k "test_work_begin_error_drift_refuses_without_lease or test_work_begin_unpatched_misnamed_plan_refuses_on_error_without_warnings" -o addopts=""`:
+    `2 passed, 9 deselected in 1.71s`
+  - Result: pass
+
 
 ## Approval and execution gate
 
