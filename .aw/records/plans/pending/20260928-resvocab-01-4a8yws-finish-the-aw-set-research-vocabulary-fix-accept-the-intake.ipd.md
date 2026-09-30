@@ -6,7 +6,7 @@
 - Scope: `status_set.normalize_target_status` (the shared alias helper, guarded to research) and the research branch of `status_set.validate_transition_allowed`, plus its `tests/test_status_set.py` coverage, which includes repairing the one pre-existing test the new refusal necessarily breaks (F-12). Adds a normalization call and one placement-aware refusal. Does NOT touch `aw research promote`, the shard layout, the `research_contract` vocabularies, or the 35 pre-existing cold-status-at-hot-root docs (see Deferred).
 - Scope-Paths: agent_workflows/status_set.py, tests/test_status_set.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,8 +17,10 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 4a8yws
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): plan-review: revisions applied; PR-801..PR-805 fixed
 
 - 2026-09-29 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-801 (blocker), PR-802 (high), PR-803, PR-804, PR-805 (low), all FIXED. Findings recorded in `.aw/records/reviews/20260928-resvocab-01-4a8yws-...review.md`. Every measured claim F-1..F-10 reproduced exactly, including the 123/64/59 corpus split and the 35 cold-at-hot docs. Two authored items were unworkable as written. PR-801: the plan promises all four pre-existing tests pass unmodified, which is impossible, because `create_research`'s DEFAULT disposition is a cold shard and `test_set_active_writes_status_for_report` therefore asserts exactly the write E-02 must refuse (proven `AssertionError: 1 != 0`); F-11's claim that the fixture cannot shard is false, and E-03 now owns the one-argument repair. PR-802: E-01's authored change site passes validation and then writes `status: intake`, the legacy spelling it exists to eliminate, because `apply_status_change` re-normalizes independently; the change moved to the shared `normalize_target_status` (new OQ-02 records the widened blast radius). Also corrected a mis-cited symbol (`_shard_subpath` cannot classify a path) and confirmed E-02's remedy is not a dead end (`promote --to active --apply` does move a doc back to the hot root).

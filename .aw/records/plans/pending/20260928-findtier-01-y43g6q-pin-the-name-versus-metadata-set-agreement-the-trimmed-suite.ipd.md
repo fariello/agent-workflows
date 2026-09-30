@@ -6,7 +6,7 @@
 - Scope: Restore behavioral coverage for the `drift` bucket (a modern id6-clustered filename whose declared `- Set:`/`- Id:` disagrees with its name) as fixture-driven rows in `tests/test_check_engine.py`, and correct the incidental name-vs-metadata mismatch in the four fixtures where it is genuinely accidental AND the fixture's own module asserts nothing about setid resolution. Does NOT change `check_engine` behavior, does NOT touch the deliberate legacy-trap fixtures, and does NOT mass-rewrite all 36 hits.
 - Scope-Paths: tests/test_check_engine.py, tests/test_find_filters.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: y43g6q
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; five findings PR-801..PR-805 fixed, two BLOCKER (the chosen table cannot assert the drift bucket, and the surviving rule-id-only assertion survives the plan's own mutant); review record written; readiness go-pending-approval
 
 - 2026-09-29 /plan-review findings (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-801, PR-802 (both BLOCKER), PR-803, PR-804, PR-805 all FIXED. Reviewed at HEAD `bf3cf2d7`. The DIAGNOSIS was confirmed independently: with the `elif modern:` arm made unreachable in memory, a bare suite run reported `3246 passed, 2 skipped`, identical to the clean baseline, so the `drift` branch really is unguarded. The REMEDY could not have worked. `check.identity-absent-from-name` comes from `check_name_identity` on the types sweep, while `CollisionTests.COLLISIONS` matches its detail columns only against `check_collisions` output (measured 0 findings there against 1 from the types sweep), so a row in that table cannot assert the `[drift]` bucket; and because the mutant leaves the rule id intact and only flips the bucket prefix, the surviving rule-id-only assertion passes BOTH mutated and clean, making E-01 and E-02 jointly unsatisfiable and the coverage decorative. Both candidate shapes were run: detail-asserting passes clean and fails mutated, rule-id-only passes both. E-01 rewritten to a focused test driving `check_name_identity` directly per `SetidLengthTests`' precedent; E-02 given the working in-memory rebind and a kill criterion; OQ-01 re-resolved (its "style call with no correctness consequence" was falsified); F-9, F-10, F-11 added; F-7/F-8's drifted counts refreshed. No code file was modified by this review: `check_engine.py` never written, `test_find_filters.py` restored byte-for-byte after verifying F-4. Three Decisions recorded, all reversible. `aw ipd lint --phase review-finalize` conforms.

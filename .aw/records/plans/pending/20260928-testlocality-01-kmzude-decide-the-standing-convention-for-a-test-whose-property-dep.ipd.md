@@ -6,7 +6,7 @@
 - Scope: Record the decision RULE (an ordering of three options with the criteria for choosing between them) in the canonical home for test-authoring conventions, point at it from `CONTRIBUTING.md` without restating it, and apply it to the ONE genuinely location-dependent case that exists in the tree today. Does NOT add a new pytest marker (there is no test needing one, and building one now is the hypothetical-need generality P6 forbids), does NOT edit the managed `AGENTS.md` block or `engine.py`, and does NOT revisit the code-pinning half of P16.
 - Scope-Paths: GUIDING_PRINCIPLES.md, CONTRIBUTING.md, tests/test_ipd_set_plan.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: kmzude
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): plan-review: revisions applied; PR-A01..PR-A04 fixed
 
 - 2026-09-29 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-A01 (high), PR-A02 (medium), PR-A03, PR-A04 (low), all FIXED. Findings recorded in `.aw/records/reviews/20260928-testlocality-01-kmzude-...review.md`. The plan's central argument holds and was independently reproduced in full: a skip reason is printed ZERO times under the configured default (both parallel and serial), `-rs` restores it, a marker deselect IS announced, CI passes `-rfEs`, and `test_every_refusal_states_a_reason` does pass vacuously from a corpus-free CWD while its sibling skips (new F12 records all four E-01 baselines as pre-validated). F8's dead-citation catch is correct and important. THE SUBSTANTIVE FINDING IS PR-A01: E-04's "option two governs" would have LOST coverage rather than fixed the defect, because the only fitting marker (`livecorpus`) is in the default deselect set and CI passes no `-m ''`, so marking the class removes both tests from the default suite AND from CI (measured: 36 -> `34 passed`), which the plan's own second prohibition forbids by another route. E-04 is redirected at the actual root cause, the CWD-relative glob, so the rule's option ONE applies; recorded as OQ-02 because it overrides an authored choice. Also: `OQ-01` carried `- Owner: maintainer` on a question the author resolved (an attestation of another role that no mechanical check can see); the item's "no test needs this today" premise is refuted by the plan's own F3; and the gate gained the conditional runner/executor finalize ownership it lacked.

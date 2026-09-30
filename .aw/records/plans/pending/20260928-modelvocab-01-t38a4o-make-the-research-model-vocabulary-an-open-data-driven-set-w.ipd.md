@@ -6,7 +6,7 @@
 - Scope: turn `<model>` into an OPEN vocabulary: an unknown token is recorded with a loud warning instead of being rejected, the known list moves into a tracked editable data file with a shipped package default read against an EXPLICIT repo root (never one inferred from cwd), `aw research add-model` adds a token in one command, and `aw research index --check` gains an advisory drift rule so a typo stays mechanically visible without blocking the manifest write. Amends spec `20260730-2152-01` requirement E3 and section 5.4, which currently make the vocabulary an enumerated `[Must]`. Does NOT touch `<kind>` (a genuinely closed, repo-owned vocabulary), `MODEL_NORMALIZATIONS`' collapsing behavior, the reasoning-effort-in-identity rule, `<status>`, or any existing artifact's name.
 - Scope-Paths: agent_workflows/research_contract.py, agent_workflows/model_vocab.py, agent_workflows/data/research-models.toml, agent_workflows/research_cmd.py, agent_workflows/artifact_adopt.py, agent_workflows/research_index.py, agent_workflows/check_engine.py, agent_workflows/cli.py, agent_workflows/command_surface.py, agent_workflows/leak_sanitizer.py, pyproject.toml, tests/test_model_vocab.py, tests/test_research_cmd_create.py, tests/test_artifact_adopt.py, tests/test_research_index.py, .aw/records/specs/implemented/20260730-2152-01-agents-artifact-organization.spec.md, .aw/records/research/README.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,8 +17,10 @@
 - Highest E allocated: 10
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: t38a4o
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): plan-review: revisions applied; PR-701..PR-706 fixed
 
 - 2026-09-29 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-701 (blocker), PR-702, PR-703, PR-704 (high), PR-705 (medium), PR-706 (low), all FIXED. Findings recorded in `.aw/records/reviews/20260928-modelvocab-01-t38a4o-...review.md`. F-1 and F-2 reproduced verbatim; the plan's `recognized`-flag design (F-5) is upheld. Three authored items would each have shipped a defect: E-07's `info` advisory would have SILENTLY restored the F-2 index outage because severity governs only the `--check` branch (now emitted in `check_drift`, demonstrated); E-05's `[a-z0-9]+` gate left the same outage for a hyphenated unknown model (now `[a-z0-9-]+`, recorded as OQ-03); and E-02/E-03 presupposed a repo root nothing receives, where the cwd-climb shortcut validates one repo against another's vocabulary (new E-10 owns it). E-08 gained the `CommandDeclaration` whose absence fails the suite. Four measured digits corrected, and the validation items now demand re-derivation rather than comparison against a plan-written number.

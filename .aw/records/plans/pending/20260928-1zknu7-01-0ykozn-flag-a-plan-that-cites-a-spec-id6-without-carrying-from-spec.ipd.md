@@ -6,7 +6,7 @@
 - Scope: Add ONE advisory (`info`) PENDING-SCOPED `aw check` rule that flags a PENDING plan whose `- Concern:`/`- Scope:`/`- Scope-Paths:` front matter cites a resolvable spec id6 while it carries no `- From-Spec:`, and ship the `--from-spec` setter that AGENTS.md records as missing so the rule's recovery instruction is executable. Reuse the existing `_ITEM_FROM_SPEC_RE`, `_iter_spec_records`, `_iter_plan_ipds`, `ipd_schema.source_link_is_absent`, and `releases.set_priority_line`'s insertion shape; add no second spec-id scanner and no second field writer. EXCLUDES any backfill of the 81 executed and 6 superseded plans that would trip the naive whole-tree form of this rule (see `## Deferred`, and F-03: AGENTS.md forbids rewriting what an executed plan records); EXCLUDES requirement-level tracking (backlog `vy20et`, and `f1sw71` which is `done`); EXCLUDES the 19 id-less specs that are unreachable by any id6 join (backlog `sklbrt`); EXCLUDES any change to `check.from-spec-dangling`, `check.spec-criteria-uncovered`, or their severities.
 - Scope-Paths: agent_workflows/check_engine.py, agent_workflows/releases.py, agent_workflows/status_set.py, agent_workflows/cli.py, tests/test_check_engine_from_spec_missing.py, tests/test_check_engine_spec_criteria.py, AGENTS.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,8 +16,10 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 0ykozn
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): plan-review: APPROVE WITH REVISIONS APPLIED; PR-501 (BLOCKER) through PR-509 all fixed
 
 - 2026-09-28 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-501 (BLOCKER), PR-502, PR-503 (HIGH), PR-504, PR-505 (MEDIUM), PR-506..PR-509 (LOW), all FIXED. Reviewed at HEAD `100a705f`; typed record at `.aw/records/reviews/20260928-1zknu7-01-0ykozn-flag-a-plan-that-cites-a-spec-id6-without-carrying-from-spec.review.md`. The central correction is PR-501: the authored COMMIT-SCOPED detector would have been observable by nobody, because an `info` finding lives only between `git add` and `git commit` and all three consumers in that window drop it (`aw commit` by severity, `check_commit_invariants` by composition, CI by timing). Re-scoped to `pending/` on the `check_ipd_draft_ready` precedent, which preserves F-03's unactionability fix (same 5 live findings measured) while making the finding visible on every `aw check plans`; recorded as OQ-03. Also fixed three executor traps: a mirror instruction that would have copied `_FROM_BACKLOG_LINE_RE`'s measured duplication bug, a bullet parser that would have exempted 21 plans citing a spec only on a continuation line, and two contradictory validation instructions in E-02. Two latent shipped-code defects found while measuring are now carried as backlog obligations with V-06 requiring their id6s.

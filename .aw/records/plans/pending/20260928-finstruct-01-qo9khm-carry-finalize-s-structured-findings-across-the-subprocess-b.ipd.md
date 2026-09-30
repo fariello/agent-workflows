@@ -6,7 +6,7 @@
 - Scope: Request `--json` from the `aw ipd finalize` child in `runner_shared.driver_finalize`, parse the typed payload tolerantly, carry it to the classifier, and key `finalize_refusal_is_retryable`'s pre-transition arm on lint CODES with the existing prose allowlist retained as a fallback. Both hosts inherit this through the one shared definition. No new CLI flag, no change to `aw ipd finalize`'s own output, no change to which classes are retryable beyond the measured false negative this closes.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_finalize_sendback.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,8 +16,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: qo9khm
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; five findings PR-901..PR-905 fixed, one BLOCKER (the drafted code set admitted the catch-all C_CHECKPOINT, measured to flip two never-retry classes to retryable); review record written; readiness go-pending-approval
 
 - 2026-09-29 /plan-review findings (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-901 (BLOCKER), PR-902, PR-903, PR-904, PR-905 all FIXED. Reviewed at HEAD `947f72de`; every load-bearing claim re-verified independently through the REAL CLI in throwaway repos. F-02's false negative reproduces exactly (`IPD-S401`/`IPD-S402`, classifier `False`), F-04's reconstruction is byte-exact (`RECONSTRUCTION == human stdout: True`), F-03's dropped `detail` and absent `summary` reproduce, F-05's polluted success stdout reproduces (`'plans index --check: clean'`, naive `json.loads` raising), and F-11's worker-role `stdout == ''` reproduces. THE DRAFTED CODE SET WAS UNSAFE IN THE OPPOSITE DIRECTION FROM THE PLAN'S INTENT: it admitted the catch-all `ipd_lint.C_CHECKPOINT`, which `check_checkpoint` also attaches to `status ... is incompatible with checkpoint ...` (emitted unconditionally, so it can co-occur with the pre-transition summary gating Arm 1) and to `unresolved blocking question at pre-execution`; measured, both flip from terminal to RETRYABLE, widening spec `25kzda` 5.5's never-retry territory, and the shipped comment the plan sets out to correct already warned that this code is the wrong trigger. E-02 narrowed to `{C_EXEC_STATE, C_VALID_STATE, C_CROSS_STATE}` with the answerable `IPD-S404` messages kept retryable via the prose fallback; E-04's two-way pin rewritten as a three-way partition with a KNOWN-TERMINAL set, because as drafted it would have pressured the executor into exactly that unsafe change; V-02(b2)/(b3) added. Also: F-05's `per-line JSON records found: 0` does not reproduce (six lines parse, none payload-shaped), backlog `144b3x` is ALREADY `graduated` so the gate's completion step is a no-op, and the shipped comment miscounts its own three-string allowlist as four. F-17, F-18, F-19 added. No code or test file was modified by this review. Three Decisions recorded, all reversible. `aw ipd lint --phase review-finalize` conforms.

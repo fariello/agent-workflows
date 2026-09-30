@@ -6,7 +6,7 @@
 - Scope: Add a `mint_run_dir(repo, run_id=None)` helper to `runner_shared` that makes the collision-free guarantee STRUCTURAL for every caller by using `mkdir(exist_ok=False)` as the atomic test; repoint `oc_runipd._fresh_audit_run_dir` and `runner_shared.initialize_run_core` at it; widen the two analytics run-id patterns (`run_analytics_privacy._RUN_ID_RE`, `run_analytics_telemetry._SHAPED_ID_KEYS["run_id"]`) to admit the `-N` suffix so a suffixed run is analyzable rather than skipped; and add behavioral coverage for the mint, for the two validators, and for the end-to-end sweep. Out of scope: changing the id's TIMESTAMP granularity (sub-second), renaming any existing run directory, `run_ledger_schema`'s unrelated `run-<hex>` grammar, and `run_viewer`'s substring run-id matching.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/run_analytics_privacy.py, agent_workflows/run_analytics_telemetry.py, tests/test_run_id_collision.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 6mdtnu
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): plan-review: revisions applied; PR-901..PR-905 fixed
 
 - 2026-09-29 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-901 (high), PR-902 (medium), PR-903, PR-904, PR-905 (low), all FIXED. Findings recorded in `.aw/records/reviews/20260928-runidcollide-01-6mdtnu-...review.md`. This is an unusually well-measured plan: F-1, F-4, F-5, F-6, F-7, F-9 and F-10 all reproduced exactly, including the `skip`/`build-refused` decision with its verbatim refusal text and the 7-kept-versus-6-kept telemetry drop, and the PROPOSED widening was applied in memory and behaved exactly as predicted across eight shapes at both public boundaries while preserving the one refusal the shipped suite asserts (new F-15). The substantive finding is PR-901: E-01 and E-02 CONTRADICTED each other about the explicit-duplicate refusal, and E-01's literal reading ("let the `FileExistsError` surface") changes a user-visible error string, leaks an absolute path into it, and escapes the `except DriverError` handler that renders it; resolved to translate inside `mint_run_dir`, recorded as OQ-03. Also: the `exists()` -> `mkdir(exist_ok=False)` swap changes one predicate (a dangling symlink is now refused, an improvement) which V-02 must now paste; a second convention citation points at a file `19313eed` deleted, like F-3's; the gate gained the conditional runner/executor finalize ownership it lacked; and the suite baseline has already drifted from `3189` to `3246`, which vindicates the plan's own re-derive instruction.

@@ -6,7 +6,7 @@
 - Scope: Make a string `--source` work everywhere it is accepted, and add the CLI-level regression coverage whose absence let this ship. IN: coercing inside `engine.resolve_source_root` so every caller (CLI, library, future) is hardened at the boundary, widening its annotation to `Path | str | None` to match, adding `type=Path` to both `--source` argparse declarations (`install` and `setup`) so the namespace carries the declared type, and a new regression test driving `--source` as a string through the real CLI parser to a real target repo. OUT: any change to resolution ORDER or validation semantics inside `resolve_source_root`, any change to what `--source` accepts or means, the `--dry-run` early-return ordering that happens to mask this (see Deferred), and the redundant `Path(...)` coercions already at the three other call sites.
 - Scope-Paths: agent_workflows/engine.py, agent_workflows/cli.py, tests/test_install_source_option.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: rs03r2
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-901..PR-906 all FIXED; Readiness go-pending-approval
 
 - 2026-09-28 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-901..PR-906 all FIXED. Reviewed at HEAD `da816198`. THE PLAN'S DIAGNOSIS AND FIX ARE CORRECT AND WERE INDEPENDENTLY RE-MEASURED: the crash reproduces through exactly the named frame chain, `--dry-run` masks it, and with E-01's coercion staged in memory the crashing install completes and commits while the bare suite reports `3202 passed, 2 skipped` unchanged from baseline (F-13). Findings are all in the EVIDENCE the plan hands its executor. PR-901: F-10's three-flag reproducer prescription is overstated, `-y` alone reaches the crash because `--yes` auto-supplies the default preset, so the test need not couple to three unrelated policy surfaces (F-12). PR-902: both suite figures had drifted 93 tests (`3109` -> `3202`) while the plan instructed the executor to REPORT a differing count as a finding (F-14). PR-903: `test_doctor.py` passes `None` and never reaches the changed branch, so the plan's stated reason for running it is wrong (F-15). PR-904: a real `aw setup` run scans the user's filesystem and writes a user-level config, which is a stronger reason than cost to keep E-03's setup coverage at the parser level (F-16). PR-905: F-09's count of 18 is actually 13, and `engine.py` has zero such annotations rather than "already uses" them (F-17). PR-906: the gate carried no scope fence and no approval-summary paragraph; both added. No production code was modified by this review; every measurement was staged in memory or in throwaway repos, since removed.

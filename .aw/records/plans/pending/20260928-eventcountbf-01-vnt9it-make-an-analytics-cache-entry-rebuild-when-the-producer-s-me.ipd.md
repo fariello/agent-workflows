@@ -6,7 +6,7 @@
 - Scope: Fold the producer's declared metric/event vocabulary into `run_analytics_cache.source_fingerprint`, so a producer that adds or removes a metric key invalidates every entry written under the old vocabulary and the next ordinary sweep rebuilds it. Add a self-enforcing guard so the declaration cannot silently drift from what the producer actually emits, first-ever coverage for `aw runs analyze --rebuild`, and the docs amendment for the invalidation table.
 - Scope-Paths: agent_workflows/run_analytics.py, agent_workflows/run_analytics_cache.py, tests/test_run_analytics.py, tests/test_run_analytics_cli.py, docs/run-analytics.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: vnt9it
+- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; five findings PR-701..PR-705 all fixed (two HIGH on the grain-dependent vocabulary definition and the per-run fold hazard); review record written; readiness go-pending-approval
 
 - 2026-09-29 /plan-review findings (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-701, PR-702, PR-703, PR-704, PR-705 all FIXED. Reviewed at HEAD `96c97168`; every claim re-measured in this lane except F-01/F-02, which describe a machine-local tree absent from a lane (now recorded as F-16). The diagnosis and fix are PROVEN end-to-end: the stripped entry stays `hit` and does not recover across a full sweep, and with E-02's fold staged in memory the same entries go `rebuild`/`fingerprint-changed` and `event_count` returns 0/4 -> 4/4 with `readable=4 unreadable=0` throughout. F-05's schema-bump comparison reproduced (`readable=6` -> `readable=0 unreadable=6`), as did F-06 in both directions. Five findings, two of them HIGH and both about the central definition being under-determined rather than wrong: the producer vocabulary is GRAIN-DEPENDENT and the plan named the 26-key all-grain union where the envelope stores only 19 run-grain keys, which would have made E-03 unsatisfiable (PR-701); and E-02 did not mandate folding the DECLARED constants, so the natural per-run reading would have rebuilt rich runs while leaving sparse runs permanently stale, a silent failure that looks like success (PR-702). E-01, E-02, E-03 rewritten; V-01, V-02, V-03 gained the checks that catch both. Three Decisions recorded, all reversible. `aw ipd lint --phase review-finalize` conforms.
