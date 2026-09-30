@@ -6,7 +6,7 @@
 - Scope: IN: make `set_records.close_on_answer` preserve prior inline records through `backlog._reattach_history` (the function `vhbvwz` E-08 built for exactly this) and delete the `_inject_history_line` helper it replaces; fix `set_records._extract_body` dropping the pre-history prose region `rendrop` E-07 protects on the sibling path; RETIRE the orphaned `migrate_inline_history`/`_slim_inline_history` slimmer pair per `8pcdoa`'s recommendation; correct the two `record-history` help strings and the `record_history` module docstring's refuted append-only claim; amend spec `20260818-1525-02` Section 3, R3, R4 and AC2, which were deliberately left unamended by `vhbvwz` E-07 and still state the superseded premise, and re-point AC1's two citations at tests that exist; restore outcome coverage for the sidecar writers and for inline preservation, deleted wholesale by `19313eed`; one CHANGELOG entry. OUT, each with a reason recorded under "Deferred": re-tracking `.aw/records/history.jsonl` (settled AGAINST by the maintainer on 2026-09-10, and `2vev8j` E1 measures the global-file approach as a conflict magnet); the per-artifact metadata store (owned by approved spec `2vev8j` and reviewed spec `4sd62s`, carried by `ms06pi`); the 77 legacy oldest-first artifacts (`jhrao5`); `record_rename`'s deliberate failure isolation; the bare-spelling sidecar asymmetry; and the two `aw specs note` verb-parity gaps.
 - Scope-Paths: agent_workflows/set_records.py, agent_workflows/record_history.py, agent_workflows/cli.py, tests/test_history_provenance.py, tests/test_backlog.py, .aw/records/specs/implemented/20260818-1525-02-sidecar-metadata-and-history.spec.md, CHANGELOG.md, .aw/records/backlog/graduated/20260910-bklghist-01-hg2oop-backlog-set-same-status-destroys-history.backlog.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,9 +17,9 @@
 - Highest E allocated: 08
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: eikajx
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: eikajx verified (set bklghist, attempt 1). [Scope reconciliation - widened-scope .aw/records/backlog/graduated/20260910-bklghist-01-hg2oop-backlog-set-same-status-destroys-history.backlog.md: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw agy run)]
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): status set to reviewed
 
