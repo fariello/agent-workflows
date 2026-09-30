@@ -1,5 +1,6 @@
 - Id: s9z85a
-- Status: open
+- Status: graduated
+- Graduated-To: s9z85a
 - Blocks-Release: next
 - Set: s9z85a
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: finalize silently excuses an out-of-scope path committed in its own untrailered commit, so the --scope-reason demand never fires
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: 1dcl10
 - 2026-09-28 created (aw backlog): finalize silently excuses an out-of-scope path committed in its own untrailered commit, so the --scope-reason demand never fires
 
 FOUND WHILE AUTHORING the plan that graduates `ldy1al` (the commit gate's unreachable `--scope-reason` escape). Filed separately because it is a DIFFERENT defect in the OPPOSITE direction, and because `ldy1al`'s fix must not be reviewed as if it closed this.
