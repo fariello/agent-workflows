@@ -1010,6 +1010,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_install.add_argument(
         "--source",
         dest="source_root",
+        type=Path,
         default=None,
         help="Path to source .aw/system or legacy .agents/workflows (dev/override).",
     )
@@ -1098,7 +1099,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "-y", "--yes", action="store_true", help="Install without per-repo prompts."
     )
     p_setup.add_argument(
-        "--source", dest="source_root", default=None, help=argparse.SUPPRESS
+        "--source", dest="source_root", type=Path, default=None, help=argparse.SUPPRESS
     )
     p_setup.add_argument(
         "--preset",
