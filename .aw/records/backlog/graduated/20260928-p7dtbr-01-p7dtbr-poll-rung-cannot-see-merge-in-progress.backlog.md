@@ -1,11 +1,13 @@
 - Id: p7dtbr
-- Status: open
+- Status: graduated
+- Graduated-To: p7dtbr
 - Set: p7dtbr
 - Priority: low
 - Work-Kind: chore
 - Summary: The integration deferral poll rung waits only on dirty paths, so it reports a mid-merge checkout as a clear base and a deferred re-attempt refuses again immediately
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053053Z-3200037: qkwu1r
 - 2026-09-28 created (aw backlog): Carrier for plan g2z2pp's deferred poll-rung row and its OQ-03.
 
 MEASURED 2026-09-28 at HEAD 6a68f7fa while authoring plan g2z2pp (backlog csmtjp).
