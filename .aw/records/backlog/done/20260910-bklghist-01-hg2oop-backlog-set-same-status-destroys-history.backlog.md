@@ -1,5 +1,5 @@
 - Id: hg2oop
-- Status: graduated
+- Status: done
 - Graduated-To: bklghist
 - Blocks-Release: next
 - Set: bklghist
@@ -8,6 +8,7 @@
 - Summary: The durable workflow history lives in a GITIGNORED sidecar while the inline record is slimmed to one line, so reasoning recorded by aw specs note / aw backlog set does not survive a clone
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): closed by aw oc run: IPD eikajx executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-bklghist-01-eikajx-close-the-surviving-history-provenance-holes-close-on-answer.ipd.md); evidence .aw/records/plans/executed/20260928-bklghist-01-eikajx-close-the-surviving-history-provenance-holes-close-on-answer.ipd.md
 - 2026-09-30 note (aw backlog): Carried by plan eikajx: headline defect was re-measured as already fixed by vhbvwz (inline history is preserved across transitions); eikajx closes the remaining provenance residue (close_on_answer, dead slimmer, misleading help and spec passages).
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: eikajx
 - 2026-09-13 open (aw set): Gate on next per the all-bugs-block-release ruling: every bug blocks the next release
