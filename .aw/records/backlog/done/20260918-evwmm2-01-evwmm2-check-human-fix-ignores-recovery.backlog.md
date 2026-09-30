@@ -1,5 +1,5 @@
 - Id: evwmm2
-- Status: graduated
+- Status: done
 - Graduated-To: evwmm2
 - Blocks-Release: next
 - Set: evwmm2
@@ -8,6 +8,7 @@
 - Summary: aw check's human surface ignores a finding's structured recovery field and prints a generic inspect-frontmatter fix instead
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): closed by aw oc run: IPD iyilwm executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-evwmm2-01-iyilwm-prefer-a-finding-s-structured-recovery-over-the-generic-reme.ipd.md); evidence .aw/records/plans/executed/20260928-evwmm2-01-iyilwm-prefer-a-finding-s-structured-recovery-over-the-generic-reme.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T034313Z-2200079: iyilwm
 - 2026-09-18 created (aw backlog): aw check's human surface ignores a finding's structured recovery field and prints a generic inspect-frontmatter fix instead
 
