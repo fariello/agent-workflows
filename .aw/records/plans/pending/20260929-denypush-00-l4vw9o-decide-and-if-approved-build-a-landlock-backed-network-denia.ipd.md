@@ -7,6 +7,7 @@
 - Scope-Paths: .aw/records/plans/pending/20260929-denypush-00-l4vw9o-decide-and-if-approved-build-a-landlock-backed-network-denia.ipd.md
 - Item-Dependencies: none
 - Status: to-review
+- Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: low
 - From-Backlog: oq05nc
@@ -17,6 +18,8 @@
 - Id: l4vw9o
 
 ## Workflow history
+
+- 2026-09-30 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-601 (MEDIUM, fixed), PR-602 (MEDIUM, fixed), PR-603 (MEDIUM, fixed), PR-604 (LOW, fixed), PR-605 (LOW, fixed). Findings recorded in `.aw/records/reviews/20260930-denypush-00-l4vw9o-decide-and-if-approved-build-a-landlock-backed-network-denia.review.md`. I RE-MEASURED THE SET'S ENTIRE TECHNICAL PREMISE FROM THE KERNEL UP rather than reading research `uq4y6q`, and every load-bearing claim holds: this host reports Landlock ABI 4 (kernel 6.8.0), a `CONNECT_TCP` ruleset with no net rule denies every outbound connect (`EPERM(13)`), a ruleset allowing only port 443 permits `1.1.1.1:443` AND `8.8.8.8:443` while refusing `1.1.1.1:22`, which is exactly the two-sided denial plus PORT-GRANULAR, ADDRESS-BLIND result the Set's whole decision rests on. So the measurement is sound and the conclusion (kernel TCP denial is real but cannot separate a git remote from the model API on 443) is correct. The five code-level completion criteria were each verified against the tree: `ACTION_CLASSES == (ACTION_READ_ONLY,)`, `len(RUN_FINDING_CODES) == 12` with no `NO-PUSH` code, `supports_deny_push`/`CAP_DENY_PUSH` absent, `DenyPushRemovedTests` live, and spec 5.2's requirement bullet present at its landing site. The child table matches all three children's real ids, orders, and `Item-Dependencies` chain. Carriers `sv9ce4` and `wcbpqf` are both `open` and honestly worded, and `wcbpqf` is an unusually good decision carrier: it holds all three of the Set's maintainer decisions with the measured context and a close procedure. THE ONE REAL GAP: spec `25kzda` contains TWO sites asserting push denial, 5.2's requirement bullet and Section 6.1 limit 4 ("deny push-capable network/credentials"), and NO plan in the Set mentions 6.1 at all, so the Set could amend 5.2 to say denial is measured while limit 4 continues to describe the design as requiring a control nothing provides. Order 03's audit grep would surface it but nothing tells that executor it is an expected hit or who owns fixing it. Now assigned to Order 03 with a recorded judgement requirement, and the parent's byte-unchanged invariant widened to name both sites. Also fixed: V-03 demanded `aw attention` show `oq05nc` "no longer open" when the item is ALREADY `graduated` (measured) so the check was a tautology that would have passed without the Set running; V-02's `aw host capabilities opencode` evidence needed the negative half stated; and a `probe_notes` wording risk that my own measurement demonstrated, since I initially mis-set the network bit to `BIND_TCP` (`1<<0`) instead of `CONNECT_TCP` (`1<<1`) and got a silent total-denial result that looked like working enforcement, which is precisely the fail-open-looking-like-fail-closed shape child 02's two-sided probe must exclude.
 
 - 2026-09-29 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
 - 2026-09-29 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): authored review-ready while graduating backlog `oq05nc`. Carries orchestration only; every product change belongs to a child.
@@ -54,7 +57,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 |---|---|---|---|---|
 | 01 | x2dwu5 | `.aw/records/plans/pending/20260929-denypush-01-x2dwu5-record-the-measured-landlock-feasibility-and-amend-spec-25kz.ipd.md` | Re-measures the three Landlock probes on the executing host; amends spec `25kzda` 5.2 with the measured position (ABI-4 denial is real, port-granular, address-blind; the credential half is already shipped) and amends `host_sandbox_profile`'s module docstring where it currently calls network scoping out of scope. Records only: no probe, no capability, no finding code. | none |
 | 02 | pi3bk8 | `.aw/records/plans/pending/20260929-denypush-02-pi3bk8-add-a-probed-supports-deny-remote-ssh-push-capability-provin.ipd.md` | Extends `landlock_bootstrap_source` to carry network rules; adds `_probe_deny_tcp_port`, a two-sided executed probe; adds the `supports_deny_tcp_port` capability defaulting False and registered with a REAL probe; amends the docstring; extends `CONTRACT_FIELDS` and the `PRESENCE_VS_OBSERVATION` table; re-points `DenyPushRemovedTests` without weakening it. Gates no action. | `executed:x2dwu5` |
-| 03 | wzhe4n | `.aw/records/plans/pending/20260929-denypush-03-wzhe4n-file-the-carrier-for-host-granular-network-filtering-and-clo.ipd.md` | Verifies backlog `sv9ce4` (the host-granular filtering carrier) is intact, `open`, and honestly worded; points spec 5.2 at it; audits the shipped end state by RUNNING commands for four overclaim checks; runs the full validation sweep and states delivered versus undelivered scope. | `executed:pi3bk8` |
+| 03 | wzhe4n | `.aw/records/plans/pending/20260929-denypush-03-wzhe4n-file-the-carrier-for-host-granular-network-filtering-and-clo.ipd.md` | Verifies backlog `sv9ce4` (the host-granular filtering carrier) is intact, `open`, and honestly worded; points spec 5.2 at it; audits the shipped end state by RUNNING commands for four overclaim checks, INCLUDING a recorded judgement on BOTH of the spec's two push-denial sites (5.2's bullet and Section 6.1 limit 4, which no child amends); runs the full validation sweep and states delivered versus undelivered scope. | `executed:pi3bk8` |
 
 Note on the child titled "File the carrier": the carrier (backlog `sv9ce4`) was filed AT AUTHORING
 TIME rather than by that child, deliberately. A carrier that only exists if the Set executes is the
@@ -67,6 +70,9 @@ minted from the original title and is left stable.
 - Spec `25kzda` 5.2 records the MEASURED position: kernel TCP denial is real at Landlock ABI 4, it is
   port-granular and address-blind, the credential half of its bullet is already shipped in hardened
   mode, no host reports push denial, and the requirement remains fail-closed.
+- Spec `25kzda` Section 6.1 limit 4 is left UNCHANGED and that is recorded as a deliberate judgement in
+  Order 03's audit, not an omission. It is the spec's SECOND push-denial site (measured: two hits) and
+  it remains accurate, so the Set's obligation is to show it was considered rather than to edit it.
 - Exactly ONE new capability exists, `supports_deny_tcp_port`, decided by an executed two-sided probe,
   defaulting False, with a `probe_notes` entry, visible in `aw host capabilities`.
 - `supports_deny_push` and `CAP_DENY_PUSH` remain ABSENT, and `DenyPushRemovedTests` still passes with
@@ -97,11 +103,41 @@ minted from the original title and is left stable.
   "deny push-capable network routes and withhold remote credentials" BYTE-UNCHANGED (plan `01reg8`
   preserved it as this work's landing site). Order 03's V-02 re-greps it after the last amendment, so
   a drift introduced by any earlier child is caught at the end rather than assumed absent.
+- THE SPEC ASSERTS PUSH DENIAL IN **TWO** PLACES AND ONLY ONE IS AMENDED, WHICH IS DELIBERATE AND MUST
+  BE RECORDED RATHER THAN DISCOVERED (added at review). Measured: `grep -c "deny push-capable"` on
+  spec `25kzda` returns **2**. The first is 5.2's requirement bullet, which every child knows about. The
+  second is Section 6.1 limit 4, "**No-push and hook guarantees require control of execution**", whose
+  body says the design "requires the engine to own process launch, deny push-capable
+  network/credentials, own commits, and record the commit gateway". Measured at review: NO plan in this
+  Set mentions Section 6.1, limit 4, or that heading anywhere. That matters because 6.1 is the spec's
+  own "honest limits" section, so a reader who meets an amended 5.2 saying denial is MEASURED and an
+  untouched limit 4 saying the design REQUIRES a control is left to reconcile them. The resolution taken
+  is NOT to amend limit 4: it is already accurate (it says the design requires these controls and that a
+  host lacking them must fail closed, which is exactly what this Set confirms and does not change), and
+  editing an accurate honest-limits entry to mention a port probe would itself be the overclaim this Set
+  exists to avoid. What IS required is that Order 03's audit (its E-03 sub-check (d)) report the limit-4
+  hit EXPLICITLY with the judgement "requirement/limit, acceptable, not an available-guarantee claim",
+  so the second site is visibly considered rather than silently missed. Order 03's E-03 and V-03 now
+  name it, and this row exists so a reviewer of any single child can see why their child does not.
 - THE MEASUREMENT IS RE-TAKEN, NOT INHERITED. Order 01's E-01 re-runs the probes on the executing
   host rather than trusting research `uq4y6q`'s numbers, because every finding there is host-specific
   by construction. If the executing host reports ABI < 4, Order 01 records that and Order 02's real
   denial test legitimately skips; the Set must then say so explicitly instead of pasting a green line
   that hides the skip, since a skip leaves the guarantee unverified on that machine.
+- THE ONE-SIDED MEASUREMENT TRAP, DEMONSTRATED AT REVIEW ON THIS SET'S OWN SUBJECT MATTER (added at
+  review, and the reason Order 02's two-sided probe is not optional rigour). Re-deriving the Landlock
+  measurement, the reviewer set `handled_access_net` to `1 << 0` and observed every outbound connect
+  refused with `EPERM(13)`, including the port that was explicitly ALLOWED. Read one-sidedly that is a
+  working boundary. It was not: `1 << 0` is `LANDLOCK_ACCESS_NET_BIND_TCP` and `CONNECT_TCP` is
+  `1 << 1`, so the ruleset handled a right the test never exercised, the port rule matched nothing, and
+  the total denial came from handling-with-no-matching-rule. Corrected to `1 << 1`, the same script
+  yields the real result: allowed port 443 connects to TWO distinct hosts SUCCEED while port 22 is
+  refused. Two consequences for the Set. FIRST, Order 02's `_probe_deny_tcp_port` MUST require the
+  allowed connect to SUCCEED and not merely the denied one to fail, which its E-02 already specifies as
+  three distinguishable exit shapes including "allowed-connect-denied (jail too tight)"; that arm is the
+  one this trap trips, so it must not be simplified away. SECOND, no plan in the Set may state the bit
+  NUMERICALLY. Every child and the research refer to `LANDLOCK_ACCESS_NET_CONNECT_TCP` by NAME, which is
+  why none of them inherited this error, and that convention is now load-bearing rather than incidental.
 - THE CARRIER OUTLIVES THE SET. Backlog `sv9ce4` is filed before any child runs, so the unbuilt half
   is visible to `aw attention` even if this Set is never executed or is abandoned partway.
 
@@ -188,12 +224,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: `pi3bk8`'s path under `.aw/records/plans/executed/`, pasted `aw ipd lint` reporting it `executed` and conforming, and pasted `aw host capabilities opencode` output showing the new capability row with its probe note. Also paste a `python3 -c` printing `ACTION_CLASSES`, which must still be `(ACTION_READ_ONLY,)`: that is the proof the capability shipped without silently acquiring enforcement.
+  - Required evidence: `pi3bk8`'s path under `.aw/records/plans/executed/`, pasted `aw ipd lint` reporting it `executed` and conforming, and pasted `aw host capabilities opencode` output showing the new capability row with its probe note. THE PROBE NOTE IS THE EVIDENCE, NOT THE ROW: quote it and confirm it states the port-granularity limit, since the row alone is what an operator over-reads and the note is the whole mitigation OQ-01 rests on. Also paste a `python3 -c` printing `ACTION_CLASSES`, which must still be `(ACTION_READ_ONLY,)`: that is the proof the capability shipped without silently acquiring enforcement. AND state the NEGATIVE half explicitly: that the same `aw host capabilities` output contains no `deny_push` and no `REFUSED` row, because a capability that quietly acquired a gate would show up there and nowhere else in this item's evidence.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: `wzhe4n`'s path under `.aw/records/plans/executed/`, pasted `aw ipd lint` reporting it `executed` and conforming, and its V-03 audit evidence showing all four overclaim checks with a recorded judgement on each grep hit. Additionally paste `aw attention` showing backlog `sv9ce4` present and `oq05nc` no longer `open`. If the audit named an overclaim, this item FAILS until the overclaim is fixed by a corrective plan rather than annotated.
+  - Required evidence: `wzhe4n`'s path under `.aw/records/plans/executed/`, pasted `aw ipd lint` reporting it `executed` and conforming, and its V-03 audit evidence showing all four overclaim checks with a recorded judgement on each grep hit. THE GREP JUDGEMENT MUST ACCOUNT FOR BOTH SPEC SITES: `grep -c "deny push-capable"` on spec `25kzda` returns 2 (measured at review), so an audit reporting one hit has missed Section 6.1 limit 4 and does NOT satisfy this item; the expected outcome is two hits, each judged, with limit 4 judged acceptable for the reason in the Cross-IPD row above. Additionally paste `aw attention` showing backlog `sv9ce4` present as the residual carrier and `wcbpqf` present as the decision carrier. DO NOT assert that `oq05nc` is "no longer `open`" as evidence of anything: measured at review, `oq05nc` is ALREADY `graduated` (it was graduated when this Set was authored), so that assertion is true before any child runs and would pass vacuously. If the audit named an overclaim, this item FAILS until the overclaim is fixed by a corrective plan rather than annotated.
   - Observed evidence:
   - Result: pending
 
@@ -212,6 +248,18 @@ asked for and it is the one place this Set could go wrong in a way the tests can
 measurement is unambiguous, but whether a port-granular capability is worth reporting to an operator is
 a judgement about how a partial guarantee reads, and this area's history is exactly a history of names
 that promised more than they delivered.
+
+WHAT REVIEW ESTABLISHED FOR THAT DECISION, so the maintainer weighs evidence rather than a summary
+(2026-09-30). The technical premise was re-derived from the kernel, not read from research `uq4y6q`:
+this host reports Landlock ABI 4, a `CONNECT_TCP` ruleset with no net rule refuses every outbound
+connect with `EPERM(13)`, and a ruleset allowing only port 443 lets `1.1.1.1:443` AND `8.8.8.8:443`
+through while refusing `1.1.1.1:22`. So BOTH halves of the decision's factual basis are confirmed: the
+denial is real and two-sided, and it is port-granular and address-blind, which is precisely why it
+cannot separate a git remote from the model API. Nothing in the measurement favours one answer to
+OQ-01 over the other; it establishes that the capability under discussion would report something TRUE
+and PARTIAL. The decision remains a judgement about how a partial guarantee reads, which is the
+maintainer's, and it is carried durably by backlog `wcbpqf` (verified `open`) together with the other
+two decisions this Set raises, so declining Orders 02 and 03 loses nothing that is not written down.
 
 Execution contract: each child commits only the paths in its own `Scope-Paths`, through
 `aw commit <plan> -- <paths>`, never `git add -A`, and never pushes. Paste actual test output, including
