@@ -7,6 +7,7 @@
 - Summary: The published `docs/cli-output-contract.md` non-TTY retraction is correct but plan 9iiqmm and its review both recorded the OPPOSITE as measured fact, so two artifacts assert a behavior that does not exist
 
 ## Workflow history
+- 2026-09-30 note (aw backlog): Execution under plan dv7c49 departed from the item's literal FIX in two ways: first, F-12, under-scope, and OQ-04 were corrected by appended history records (in 9iiqmm and Round 2 of its review) rather than in-place rewriting, which AGENTS.md forbids on executed plans and which would overwrite measured review evidence; second, the diagnosis was incomplete because the feature never shipped on main, so the lost code and recovery shas were filed and tracked under backlog an77ub.
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T235941Z-1396311: dv7c49
 - 2026-09-20 created (aw backlog): Found while executing 9iiqmm: the plan's F-12, its under-scope, and OQ-04 all state (as MEASURED) that select_output routes to AGENT mode on any non-TTY stdout. It does not, and never did; that promise was retracted 2026-09-19 in docs/cli-output-contract.md Section 9.
 

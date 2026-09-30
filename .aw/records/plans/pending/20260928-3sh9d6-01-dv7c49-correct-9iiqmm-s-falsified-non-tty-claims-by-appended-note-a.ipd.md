@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Backlog `3sh9d6` reports that executed plan `9iiqmm` and its typed review both record, AS MEASURED FACT, that `select_output` routes to `OutputMode.AGENT` on any non-TTY stdout, so the inbox nudge "REACHES AN INTERACTIVE TERMINAL AND NOTHING ELSE, INCLUDING NO PIPE". That is false and never was true. RE-MEASURED AT AUTHORING in this lane rather than inherited from the item: `select_output`'s own docstring states "TTY-NESS OF STDOUT AFFECTS COLOR ONLY, NEVER THE MODE" and that the opposite claim "USED TO" be published and "NEITHER WAS EVER IMPLEMENTED"; `docs/cli-output-contract.md` Section 9 is headed "Automatic Non-TTY Migration Policy: RETRACTED 2026-09-19" and states "Piping or redirecting `aw` emits HUMAN-READABLE TEXT"; and a piped `python3 -m agent_workflows attention --dir <tmp>` rendered the human board (F-01, F-02, F-03). The claim was LOAD-BEARING rather than cosmetic: review finding PR-602 raised it as a HIGH, D-2 decided the plan's under-scope wording on it, and OQ-04 exists ONLY because agents were believed blind to the line, so a later reader can spend a round of work fixing an invisibility that does not exist. WHILE VERIFYING THAT, THIS PLAN FOUND A STRICTLY LARGER DEFECT THE ITEM DOES NOT MENTION AND COULD NOT HAVE SEEN: `9iiqmm`'s IMPLEMENTATION NEVER LANDED. Its two declared Scope-Paths carry ZERO occurrences of `inbox` on `main`, the feature it claims to have shipped does not run, and its code survives only in unreachable dangling git objects (F-04, F-05, F-06). So the artifact asserts both a false fact about the runtime AND a false fact about itself.
 - Scope: IN: (a) APPEND one dated `## Workflow history` note to executed plan `9iiqmm` recording BOTH corrections, the falsified non-TTY premise and the never-landed implementation, since an append is the only edit `AGENTS.md` sanctions on a plan under `.aw/records/plans/executed/`; (b) APPEND a new `## Round 2` to `9iiqmm`'s typed review record correcting PR-602 and D-2, which is the reviews tree's own documented correction vehicle ("one file holds MULTIPLE rounds ... appended in order", `.aw/records/reviews/README.md`), leaving Round 1's findings intact as the record of what that reviewer actually measured; (c) VERIFY the backlog item `an77ub` filed at authoring time, which carries the never-landed implementation and the recovered dangling commit shas so the work is recoverable, and re-open the falsely-closed `plbkp5`; (d) record on backlog `3sh9d6` that its stated FIX is superseded in part, because the item asks only for a prose correction while the measured defect is lost code. OUT: RE-IMPLEMENTING the inbox counter (that is the new item's business, needs its own review, and would silently expand a chore into a feature); any in-place rewrite of `9iiqmm`'s F-12, `## Scope check`, or OQ-04 prose, and any rewrite of Round 1 of its review (both forbidden, and the whole reason (a) and (b) are appends); any edit to `9iiqmm`'s `- Status:`, metadata fields, or its position in `executed/`; any change to `select_output`, `should_color`, or the retraction in `docs/cli-output-contract.md` (all three are correct as they stand, and the claim is what is wrong); the `renderers.py` "Agent output: --agent (automatic when piped)" hint, which is the SAME falsified auto-switch promise on a LIVE user-visible surface but is already filed as backlog `zdjhug` (F-07); and the severity-blind `findings` count that OQ-04 cites, which F-13 of the original plan measured and which remains independently TRUE (F-08).
-- Scope-Paths: .aw/records/plans/executed/20260908-awinbox-02-9iiqmm-count-waiting-aw-inbox-drops-in-aw-attention-by-listing-the.ipd.md, .aw/records/reviews/20260910-awinbox-02-9iiqmm-count-waiting-aw-inbox-drops-in-aw-attention-by-listing-the.review.md, .aw/records/backlog/graduated/20260920-3sh9d6-01-3sh9d6-stale-nontty-claims-in-awinbox-artifacts.backlog.md, .aw/records/backlog/done/20260905-awinbox-01-plbkp5-attention-inbox-waiting-count.backlog.md, .aw/records/backlog/open
+- Scope-Paths: .aw/records/plans/executed/20260908-awinbox-02-9iiqmm-count-waiting-aw-inbox-drops-in-aw-attention-by-listing-the.ipd.md, .aw/records/reviews/20260910-awinbox-02-9iiqmm-count-waiting-aw-inbox-drops-in-aw-attention-by-listing-the.review.md, .aw/records/backlog/graduated/20260920-3sh9d6-01-3sh9d6-stale-nontty-claims-in-awinbox-artifacts.backlog.md, .aw/records/backlog/done/20260905-awinbox-01-plbkp5-attention-inbox-waiting-count.backlog.md, .aw/records/backlog/graduated/20260905-awinbox-01-plbkp5-attention-inbox-waiting-count.backlog.md, .aw/records/backlog/open
 - Item-Dependencies: none
 - Status: approved
 - Readiness: go-pending-approval
@@ -39,34 +39,34 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: correct the record on the two artifacts that carry the false claim
 
-- [ ] E-01 APPEND one dated `## Workflow history` record to `9iiqmm` stating BOTH corrections. This is the ONLY edit this plan makes to that file and it MUST be an append: `AGENTS.md` forbids changing what a plan in `.aw/records/plans/executed/` RECORDS (its steps, evidence, results, or status) and expressly permits "a dated `## Workflow history` line to it that points at later work". So do NOT touch F-12's row, the `## Scope check` under-scope paragraph, OQ-04's rationale, any `V-*` evidence block, or any `- Field:` in the metadata block. WRITE IT BY HAND: there is no tooled note verb for a plan (`aw backlog note` and `aw specs note` exist; `aw ipd` exposes no `note`, F-09). PLACEMENT: insert it as the FIRST record under `## Workflow history`, because that file is newest-first (its `2026-09-20 executed` record is line 1 of the section) and `plan_readiness.extract_newest_history_entry` reads the FIRST record; appending at the bottom files it as the oldest event. Use a NOTE token, not a status token, because this transitions nothing (`ipd_lifecycle` treats a leading token outside the status vocabulary as a workflow note). THE MESSAGE MUST SAY FOUR THINGS, because a reader who has only this line must be able to act: (1) that the premise "`select_output` routes to `OutputMode.AGENT` on ANY NON-TTY STDOUT", on which F-12, the under-scope paragraph and OQ-04 all rest, was FALSE WHEN WRITTEN and was never implemented; (2) that the published promise was RETRACTED 2026-09-19 in `docs/cli-output-contract.md` Section 9, citing it by section rather than by line; (3) that the TRUE reach is the opposite of what F-12 says, namely that the line renders on the human board INCLUDING a piped or redirected invocation, and is absent only under `--agent`, `--json`/`--format json`, `--check`, and the `--id6-only`/`--paths`/`--filenames` early return, so the feature was BROADER than promised, not narrower; and (4) that OQ-04's remaining question is strictly NARROWER than recorded (whether an EXPLICIT `--agent`/`--json` consumer should get the count) while the F-13 severity-blind `findings` cost it cites is INDEPENDENT and still true, so a reader does not discard the valid half. Cite this plan by id6 `dv7c49`, not by path, so the pointer survives a rename. Do NOT assert in this record that the implementation is missing beyond one clause pointing at backlog `an77ub`: the detailed lost-work report belongs in the backlog item, and duplicating it in two places invites the two copies to diverge.
+- [x] E-01 APPEND one dated `## Workflow history` record to `9iiqmm` stating BOTH corrections. This is the ONLY edit this plan makes to that file and it MUST be an append: `AGENTS.md` forbids changing what a plan in `.aw/records/plans/executed/` RECORDS (its steps, evidence, results, or status) and expressly permits "a dated `## Workflow history` line to it that points at later work". So do NOT touch F-12's row, the `## Scope check` under-scope paragraph, OQ-04's rationale, any `V-*` evidence block, or any `- Field:` in the metadata block. WRITE IT BY HAND: there is no tooled note verb for a plan (`aw backlog note` and `aw specs note` exist; `aw ipd` exposes no `note`, F-09). PLACEMENT: insert it as the FIRST record under `## Workflow history`, because that file is newest-first (its `2026-09-20 executed` record is line 1 of the section) and `plan_readiness.extract_newest_history_entry` reads the FIRST record; appending at the bottom files it as the oldest event. Use a NOTE token, not a status token, because this transitions nothing (`ipd_lifecycle` treats a leading token outside the status vocabulary as a workflow note). THE MESSAGE MUST SAY FOUR THINGS, because a reader who has only this line must be able to act: (1) that the premise "`select_output` routes to `OutputMode.AGENT` on ANY NON-TTY STDOUT", on which F-12, the under-scope paragraph and OQ-04 all rest, was FALSE WHEN WRITTEN and was never implemented; (2) that the published promise was RETRACTED 2026-09-19 in `docs/cli-output-contract.md` Section 9, citing it by section rather than by line; (3) that the TRUE reach is the opposite of what F-12 says, namely that the line renders on the human board INCLUDING a piped or redirected invocation, and is absent only under `--agent`, `--json`/`--format json`, `--check`, and the `--id6-only`/`--paths`/`--filenames` early return, so the feature was BROADER than promised, not narrower; and (4) that OQ-04's remaining question is strictly NARROWER than recorded (whether an EXPLICIT `--agent`/`--json` consumer should get the count) while the F-13 severity-blind `findings` cost it cites is INDEPENDENT and still true, so a reader does not discard the valid half. Cite this plan by id6 `dv7c49`, not by path, so the pointer survives a rename. Do NOT assert in this record that the implementation is missing beyond one clause pointing at backlog `an77ub`: the detailed lost-work report belongs in the backlog item, and duplicating it in two places invites the two copies to diverge.
   - Depends on: none
   - Expected outcome: `9iiqmm` carries exactly one new FIRST history record naming `dv7c49` and stating the falsity, the retraction, the true reach, and the narrowed OQ-04; `git diff --numstat` on that file shows insertions only and ZERO deletions; F-12's row, the under-scope paragraph, OQ-04's text, every `V-*` block, `- Status: executed` and the file's location in `executed/` are all byte-identical to HEAD.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 APPEND a `## Round 2` section to `9iiqmm`'s typed review record correcting PR-602 and D-2, and leave Round 1 untouched. THE MECHANISM IS THE TREE'S OWN, not an invention: `.aw/records/reviews/README.md` states this tree's files hold "MULTIPLE rounds as repeated `## Round <N>` sections, appended in order", that "The LAST round in the file is the CURRENT one", and that "Only the current round's findings are live", precisely so "a High raised in round 1 and fixed in round 2" does not block forever. That is exactly this case: PR-602 is a HIGH whose premise is false. So do NOT edit PR-602's row, D-2's row, or the `- Verdict:`/`- Readiness:` fields in the front matter; those record what that reviewer measured and what the plan was approved on. MATCH THE DOCUMENTED SECTION SHAPE: a `### Findings` table with exactly the columns Round 1 uses (`ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution`) and a `### Decisions` table with `ID | Question | Chosen | Alternatives considered | Basis | Reversible`. NUMBER THE NEW IDS IN A FRESH BAND so they cannot be mistaken for Round 1's: Round 1 used `PR-601`..`PR-606` and `D-1`..`D-4`, so use `PR-6xx` continuing from `607` and `D-5` onward. Round 2 must record: a finding that PR-602's measurement was wrong and why it was believable (the published contract said what PR-602 says, and was retracted nine days after the review); a finding carrying the never-landed implementation with its evidence, marked as ROUTED to the new backlog item rather than fixed here; and a decision row recording the choice to append rather than rewrite, with the alternative considered (in-place correction, as backlog `3sh9d6` literally prescribes) and why it was rejected. State the DISCLOSURE this round inherits, since it is the same model family as both the plan and Round 1, so a reader weighs it as a near-self-review.
+- [x] E-02 APPEND a `## Round 2` section to `9iiqmm`'s typed review record correcting PR-602 and D-2, and leave Round 1 untouched. THE MECHANISM IS THE TREE'S OWN, not an invention: `.aw/records/reviews/README.md` states this tree's files hold "MULTIPLE rounds as repeated `## Round <N>` sections, appended in order", that "The LAST round in the file is the CURRENT one", and that "Only the current round's findings are live", precisely so "a High raised in round 1 and fixed in round 2" does not block forever. That is exactly this case: PR-602 is a HIGH whose premise is false. So do NOT edit PR-602's row, D-2's row, or the `- Verdict:`/`- Readiness:` fields in the front matter; those record what that reviewer measured and what the plan was approved on. MATCH THE DOCUMENTED SECTION SHAPE: a `### Findings` table with exactly the columns Round 1 uses (`ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution`) and a `### Decisions` table with `ID | Question | Chosen | Alternatives considered | Basis | Reversible`. NUMBER THE NEW IDS IN A FRESH BAND so they cannot be mistaken for Round 1's: Round 1 used `PR-601`..`PR-606` and `D-1`..`D-4`, so use `PR-6xx` continuing from `607` and `D-5` onward. Round 2 must record: a finding that PR-602's measurement was wrong and why it was believable (the published contract said what PR-602 says, and was retracted nine days after the review); a finding carrying the never-landed implementation with its evidence, marked as ROUTED to the new backlog item rather than fixed here; and a decision row recording the choice to append rather than rewrite, with the alternative considered (in-place correction, as backlog `3sh9d6` literally prescribes) and why it was rejected. State the DISCLOSURE this round inherits, since it is the same model family as both the plan and Round 1, so a reader weighs it as a near-self-review.
   - Depends on: E-01
   - Expected outcome: the review file carries a `## Round 2` after Round 1 with both tables present and correctly columned, new ids in the `PR-607+`/`D-5+` band, one row routing the lost implementation to the item E-03 files; `git diff --numstat` shows insertions only and ZERO deletions; Round 1's rows and the front-matter `- Verdict:`/`- Readiness:` are byte-identical to HEAD; `aw check reviews` reports no new finding attributable to the change.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: route the lost implementation so it is recoverable rather than merely noted
 
-- [ ] E-03 VERIFY, DO NOT RE-FILE, the backlog item carrying the never-landed implementation, and CONFIRM ITS RECOVERY SHAS STILL RESOLVE. THE ITEM ALREADY EXISTS: backlog `an77ub` (`.aw/records/backlog/open/20260928-awinbox-01-an77ub-9iiqmm-inbox-counter-never-landed.backlog.md`) was filed AT AUTHORING TIME, not left for the executor, because `check.ipd-uncarried-obligation` is an `error`-severity rule that refuses a `- Carrier:` naming a non-resolving id6, so this plan could not honestly defer work to an item that did not exist yet. DO NOT CREATE A SECOND ITEM. It is filed `- Work-Kind: bug` with `- Blocks-Release: next` and `- Priority: high`, deliberately: the user-perceptible symptom is that a feature recorded as shipped, with its backlog item closed, does not run, which is a defect rather than a chore, and per `AGENTS.md` a LIVE item whose work-kind is in the gating set MUST carry `- Blocks-Release:`. THE REASON THIS REMAINS AN E-ITEM is that its substance can DECAY between authoring and execution in a way no other item here can: the recovered code lives in UNREACHABLE git objects, which `git gc` may prune, so the five shas the item records are worthless if they no longer resolve. So the deliverable is verification: confirm `an77ub` still resolves and still carries all five measured facts and all five shas; confirm each sha still resolves in THIS repository with `git cat-file -t`; and if any no longer resolves, say so plainly in the item rather than quietly leaving a dead pointer, since a recorded sha that does not resolve misleads worse than an absent one. Do NOT set this plan's own `- Blocks-Release:`: backlog `3sh9d6` carries none and inventing one is forbidden, and the gate correctly lives on `an77ub` which owns the defect.
+- [x] E-03 VERIFY, DO NOT RE-FILE, the backlog item carrying the never-landed implementation, and CONFIRM ITS RECOVERY SHAS STILL RESOLVE. THE ITEM ALREADY EXISTS: backlog `an77ub` (`.aw/records/backlog/open/20260928-awinbox-01-an77ub-9iiqmm-inbox-counter-never-landed.backlog.md`) was filed AT AUTHORING TIME, not left for the executor, because `check.ipd-uncarried-obligation` is an `error`-severity rule that refuses a `- Carrier:` naming a non-resolving id6, so this plan could not honestly defer work to an item that did not exist yet. DO NOT CREATE A SECOND ITEM. It is filed `- Work-Kind: bug` with `- Blocks-Release: next` and `- Priority: high`, deliberately: the user-perceptible symptom is that a feature recorded as shipped, with its backlog item closed, does not run, which is a defect rather than a chore, and per `AGENTS.md` a LIVE item whose work-kind is in the gating set MUST carry `- Blocks-Release:`. THE REASON THIS REMAINS AN E-ITEM is that its substance can DECAY between authoring and execution in a way no other item here can: the recovered code lives in UNREACHABLE git objects, which `git gc` may prune, so the five shas the item records are worthless if they no longer resolve. So the deliverable is verification: confirm `an77ub` still resolves and still carries all five measured facts and all five shas; confirm each sha still resolves in THIS repository with `git cat-file -t`; and if any no longer resolves, say so plainly in the item rather than quietly leaving a dead pointer, since a recorded sha that does not resolve misleads worse than an absent one. Do NOT set this plan's own `- Blocks-Release:`: backlog `3sh9d6` carries none and inventing one is forbidden, and the gate correctly lives on `an77ub` which owns the defect.
   - Depends on: none
   - Expected outcome: `an77ub` resolves, carries all five measured facts and all five recovery shas, and its `bug`/`Blocks-Release: next` classification is confirmed against the repository's gating set; every recorded sha is re-verified to still resolve, or a non-resolving one is recorded as such in the item; no second item is created; `aw backlog check` and `aw check backlog` report no new finding attributable to it.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 RE-OPEN `plbkp5`, whose closure rests on the work that never landed, using the tooled setter rather than a hand edit. `.aw/records/backlog/done/20260905-awinbox-01-plbkp5-attention-inbox-waiting-count.backlog.md` carries `- Status: done` and is the item `9iiqmm` graduated from (`9iiqmm` carries `- From-Backlog: plbkp5`), so its closure asserts a feature that does not run. Move it with `aw backlog set` and record the reason with the status change, citing `an77ub` and this plan by `dv7c49`. CHOOSE THE TARGET STATUS FROM THE VOCABULARY'S OWN DEFINITIONS, not by preference, and state the choice in the message: `AGENTS.md` defines `graduated` as "design handed off to a plan/spec, code not yet written" and `open` as untouched work, and the truth here is that the design was handed off, executed on a lane, and lost in integration. Under OQ-01's rule the live carrier is `an77ub`, which owns the lost implementation, so `graduated` is the status the facts select; write that reasoning into the message rather than the bare label.
+- [x] E-04 RE-OPEN `plbkp5`, whose closure rests on the work that never landed, using the tooled setter rather than a hand edit. `.aw/records/backlog/done/20260905-awinbox-01-plbkp5-attention-inbox-waiting-count.backlog.md` carries `- Status: done` and is the item `9iiqmm` graduated from (`9iiqmm` carries `- From-Backlog: plbkp5`), so its closure asserts a feature that does not run. Move it with `aw backlog set` and record the reason with the status change, citing `an77ub` and this plan by `dv7c49`. CHOOSE THE TARGET STATUS FROM THE VOCABULARY'S OWN DEFINITIONS, not by preference, and state the choice in the message: `AGENTS.md` defines `graduated` as "design handed off to a plan/spec, code not yet written" and `open` as untouched work, and the truth here is that the design was handed off, executed on a lane, and lost in integration. Under OQ-01's rule the live carrier is `an77ub`, which owns the lost implementation, so `graduated` is the status the facts select; write that reasoning into the message rather than the bare label.
   THE SETTER PERMITS THIS TRANSITION, MEASURED, SO THE REFUSAL BRANCH IS NOT A LIVE CONTINGENCY (review finding PR-703). The plan as authored told the executor to STOP if `aw backlog set` refused a done-to-live move, calling it "the unusual direction". Measured at review on throwaway copies of this very item: `aw backlog set graduated plbkp5` exits `rc=0` and moves the file to `graduated/`, and `aw backlog set open plbkp5` exits `rc=0` and moves it to `open/`. `backlog.py` enforces no forward-only transition table, and the `--allow-terminal-reopen` flag documents itself as "Inert for backlog items", confirming terminal reopening is ungated on this record type. So expect SUCCESS. The stop-and-report instruction is retained ONLY as a genuine-surprise guard, not as an anticipated path: if the setter nevertheless refuses, that contradicts this measurement and is itself the finding, so report it verbatim and do NOT hand-edit the `- Status:` line or reach for `--no-verify`. Do NOT delete or rewrite the item's existing history; the closure happened and the record of it stays.
   - Depends on: E-03
   - Expected outcome: `plbkp5` is `graduated`, sits in `.aw/records/backlog/graduated/`, and carries a new history record naming both `dv7c49` and `an77ub` and stating why the closure was withdrawn; the choice of `graduated` is justified against the vocabulary and against `an77ub` being the live carrier; its prior history records are unchanged; `aw check backlog` reports no new finding attributable to the move. A refusal would contradict the review measurement and is reported verbatim with nothing hand-edited.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 RECORD ON `3sh9d6` ITSELF that its prescribed FIX is superseded in part, with `aw backlog note`, so the item's own reader is not left following instructions this plan deliberately did not follow. Two departures must be named: FIRST, the item says to "correct F-12, the under-scope paragraph, and OQ-04 in the plan (and the review record)", and this plan APPENDED to both instead, because in-place correction would overwrite a review's measured-evidence record and is forbidden on an executed plan; SECOND, the item's diagnosis is INCOMPLETE rather than wrong, because the artifacts do not merely mis-describe a shipped feature, they describe a feature that never shipped, which is backlog `an77ub`. Do NOT change the item's `- Status:` and do NOT edit its requirements or its existing `## Workflow history` records.
+- [x] E-05 RECORD ON `3sh9d6` ITSELF that its prescribed FIX is superseded in part, with `aw backlog note`, so the item's own reader is not left following instructions this plan deliberately did not follow. Two departures must be named: FIRST, the item says to "correct F-12, the under-scope paragraph, and OQ-04 in the plan (and the review record)", and this plan APPENDED to both instead, because in-place correction would overwrite a review's measured-evidence record and is forbidden on an executed plan; SECOND, the item's diagnosis is INCOMPLETE rather than wrong, because the artifacts do not merely mis-describe a shipped feature, they describe a feature that never shipped, which is backlog `an77ub`. Do NOT change the item's `- Status:` and do NOT edit its requirements or its existing `## Workflow history` records.
   THE ITEM IS ALREADY `graduated` AND ALREADY LIVES IN `graduated/`, so do not expect `open` and do not try to set it (review finding PR-702). Measured at review: `- Status: graduated`, with a history record reading "2026-09-28 set (aw backlog): graduated by run run-20260928T235941Z-1396311: dv7c49" written by THIS plan's own authoring run. The plan as authored asserted the status was still `open` and that "the runner sets `graduated` on verification"; the first half was already false when written and the second describes an event that had already happened. The correct expectation is that the status is `graduated` BEFORE this E-item runs and is `graduated` AFTER it, unchanged, because `aw backlog note` annotates without transitioning.
   - Depends on: E-03
   - Expected outcome: `3sh9d6` carries one new history record naming `dv7c49` and `an77ub` and stating both departures; its `- Status:` is still `graduated` and it is still in `.aw/records/backlog/graduated/`; its `- Summary:` and body text are byte-identical to HEAD; `git diff --numstat` on it shows insertions only.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -157,30 +157,385 @@ N/A, WITH THE REASON MEASURED RATHER THAN ASSUMED. The authoritative document on
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `git diff --numstat` for the `9iiqmm` plan file showing a NONZERO insertion count and a ZERO deletion count, which is the central proof that the edit added a record rather than rewriting one. Paste the new history record verbatim, and show it is the FIRST record under `## Workflow history` (paste the heading plus the first three records in order), since the section is newest-first. Show it carries all four required statements by quoting the clause for each: the false premise, the dated retraction, the true reach including a pipe, and the narrowed OQ-04 with the F-13 cost preserved. Prove the record is a NOTE and not a status transition: paste the leading token and confirm it is outside the plan status vocabulary. Prove the untouched parts are untouched by pasting a `git diff` of the file filtered to deletions (expected: empty) AND by pasting F-12's row, the under-scope paragraph's first sentence, and `- Status:` from the working tree and confirming each matches HEAD. Paste `python3 -m agent_workflows ipd-executed-gate` and `python3 -m agent_workflows ipd-status-untooled-gate` run with the edit STAGED, both exiting 0, plus `aw check plans`. If either gate refuses, do not commit and do not bypass: report the refusal verbatim, since it would mean the sanctioned append route does not work as `AGENTS.md` claims.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below:
 
-- [ ] V-02 validates E-02
+    Numstat showing 1 insertion, 0 deletions:
+    ```
+    $ git diff --numstat -- .aw/records/plans/executed/20260908-awinbox-02-9iiqmm-count-waiting-aw-inbox-drops-in-aw-attention-by-listing-the.ipd.md
+    1	0	.aw/records/plans/executed/20260908-awinbox-02-9iiqmm-count-waiting-aw-inbox-drops-in-aw-attention-by-listing-the.ipd.md
+    ```
+
+    Pasted new history record verbatim:
+    `- 2026-09-30 note (dv7c49): The premise in F-12, the under-scope paragraph, and OQ-04 that "select_output routes to OutputMode.AGENT on ANY NON-TTY STDOUT" was FALSE WHEN WRITTEN and was never implemented; the published promise was RETRACTED 2026-09-19 in docs/cli-output-contract.md Section 9. The TRUE reach is the opposite of F-12: the line renders on the human board INCLUDING a piped or redirected invocation, and is absent only under --agent, --json/--format json, --check, and the --id6-only/--paths/--filenames early return, so the feature reach was BROADER than promised, not narrower. OQ-04's remaining question is strictly NARROWER than recorded (whether an EXPLICIT --agent/--json consumer should get the count) while the F-13 severity-blind findings cost it cites is INDEPENDENT and still true. Additionally, the plan's implementation never landed in the tree and survives only in unreachable git objects, tracked by backlog an77ub.`
+
+    First three history records under heading (proving newest-first placement):
+    ```markdown
+    ## Workflow history
+    - 2026-09-30 note (dv7c49): The premise in F-12, the under-scope paragraph, and OQ-04 that "select_output routes to OutputMode.AGENT on ANY NON-TTY STDOUT" was FALSE WHEN WRITTEN and was never implemented; the published promise was RETRACTED 2026-09-19 in docs/cli-output-contract.md Section 9. The TRUE reach is the opposite of F-12: the line renders on the human board INCLUDING a piped or redirected invocation, and is absent only under --agent, --json/--format json, --check, and the --id6-only/--paths/--filenames early return, so the feature reach was BROADER than promised, not narrower. OQ-04's remaining question is strictly NARROWER than recorded (whether an EXPLICIT --agent/--json consumer should get the count) while the F-13 severity-blind findings cost it cites is INDEPENDENT and still true. Additionally, the plan's implementation never landed in the tree and survives only in unreachable git objects, tracked by backlog an77ub.
+    - 2026-09-20 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: 9iiqmm verified (set awinbox, attempt 1).
+    - 2026-09-13 approved (aw set): status set to approved
+    ```
+
+    Quoted clauses for the four required statements:
+    1. False premise: `The premise in F-12, the under-scope paragraph, and OQ-04 that "select_output routes to OutputMode.AGENT on ANY NON-TTY STDOUT" was FALSE WHEN WRITTEN and was never implemented;`
+    2. Dated retraction: `the published promise was RETRACTED 2026-09-19 in docs/cli-output-contract.md Section 9.`
+    3. True reach including a pipe: `The TRUE reach is the opposite of F-12: the line renders on the human board INCLUDING a piped or redirected invocation, and is absent only under --agent, --json/--format json, --check, and the --id6-only/--paths/--filenames early return, so the feature reach was BROADER than promised, not narrower.`
+    4. Narrowed OQ-04 with F-13 cost preserved: `OQ-04's remaining question is strictly NARROWER than recorded (whether an EXPLICIT --agent/--json consumer should get the count) while the F-13 severity-blind findings cost it cites is INDEPENDENT and still true.`
+
+    Token check:
+    Leading token: `note`. The plan status vocabulary contains `draft`, `to-review`, `reviewed`, `approved`, `executing`, `executed`, `blocked`, `superseded`, `abandoned`. Because `note` is outside this vocabulary, `ipd_lifecycle` parses it as a workflow note rather than a lifecycle transition.
+
+    Untouched parts check:
+    Deletion-filtered git diff:
+    ```
+    $ git diff -U0 -- .aw/records/plans/executed/20260908-awinbox-02-9iiqmm-count-waiting-aw-inbox-drops-in-aw-attention-by-listing-the.ipd.md | grep '^-' | grep -v '^---'
+    (empty, exit 1)
+    ```
+    F-12 row from working tree and HEAD (byte-identical):
+    `| F-12 | HIGH | attention.py:2795-2953; result_types.py:75-76 | **THE LINE REACHES AN INTERACTIVE TERMINAL AND NOTHING ELSE, INCLUDING NO PIPE.** The footer sits in the final human else of run, and select_output routes to OutputMode.AGENT on --agent OR ANY NON-TTY STDOUT. Measured: piping aw attention yielded the agent JSONL record, not the board. So every agent in this repo, which reads attention through a pipe, cannot see the nudge, and agents are a likely class of drop-forgetter. The plan describes the feature as visible in aw attention without stating this limit. | source read; ran it piped |`
+
+    Under-scope paragraph's first sentence from working tree and HEAD (byte-identical):
+    `- Under-scope: stated rather than left as \`none\`, and CORRECTED AT REVIEW because the authored version understated the limit.`
+
+    Status line:
+    `- Status: executed` (byte-identical to HEAD).
+
+    Pre-commit gates run with the edit staged:
+    ```
+    $ git add .aw/records/plans/executed/20260908-awinbox-02-9iiqmm-count-waiting-aw-inbox-drops-in-aw-attention-by-listing-the.ipd.md
+    $ python3 -m agent_workflows ipd-executed-gate
+    (exit 0)
+    $ python3 -m agent_workflows ipd-status-untooled-gate
+    (exit 0)
+    $ python3 -m agent_workflows check plans dv7c49
+    (0 findings attributable to dv7c49 or 9iiqmm)
+    ```
+    Both gates exited 0 cleanly.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste `git diff --numstat` for the review file showing insertions only and ZERO deletions. Paste the whole `## Round 2` section as written, and confirm by inspection that its `### Findings` header row matches Round 1's nine columns EXACTLY and its `### Decisions` header row matches Round 1's six, since a divergent column list is the likeliest defect here. Paste the new ids and confirm none collides with Round 1's `PR-601`..`PR-606` or `D-1`..`D-4`. Show that Round 1 is byte-identical to HEAD (a deletion-filtered `git diff` on the file, expected empty, plus the `- Verdict:` and `- Readiness:` lines quoted from the working tree and from HEAD). Quote the row that routes the never-landed implementation to `an77ub`, showing it cites `an77ub` by id6 and is marked ROUTED rather than fixed. Quote the decision row recording append-versus-rewrite with its rejected alternative. Confirm the near-self-review disclosure is present. Paste `aw check reviews` output.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below:
 
-- [ ] V-03 validates E-03
+    Numstat showing insertions only, zero deletions:
+    ```
+    $ git diff --numstat -- .aw/records/reviews/20260910-awinbox-02-9iiqmm-count-waiting-aw-inbox-drops-in-aw-attention-by-listing-the.review.md
+    20	0	.aw/records/reviews/20260910-awinbox-02-9iiqmm-count-waiting-aw-inbox-drops-in-aw-attention-by-listing-the.review.md
+    ```
+
+    Pasted `## Round 2` section as written:
+    ```markdown
+    ## Round 2
+
+    Reviewed 2026-09-30 under plan `dv7c49` (Set `3sh9d6`). Corrects Round 1 finding PR-602 and decision D-2, and routes the discovery that `9iiqmm`'s implementation never landed in the tree. Round 1 findings and decisions remain preserved intact as the historical record of what was measured at Round 1 review.
+
+    DISCLOSURE: authored in the same repository and by the same model family as the plan and Round 1, so treat this as a near-self-review.
+
+    ### Findings
+
+    | ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+    |----|----------|-------|------|----------|---------|------------------|----------|------------|
+    | PR-607 | HIGH | IN-SCOPE | B. security/contract; C. architecture | `agent_workflows/result_types.py` (`select_output` docstring); `docs/cli-output-contract.md` Section 9; measured piped `aw attention` run | **PR-602's central measurement was wrong and its non-TTY-routes-to-AGENT premise was false.** `select_output` has never routed non-TTY stdout to AGENT mode. The premise was believable at Round 1 review because `docs/cli-output-contract.md` published that promise at the time; the promise was officially RETRACTED 2026-09-19 in Section 9 of the contract. In reality, a piped or redirected invocation emits the human board including the footer line; the count is absent only under `--agent`, `--json`/`--format json`, `--check`, and early returns. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Corrected by workflow history note on `9iiqmm` appended under `dv7c49` E-01; Round 1 preserved; OQ-04 narrowed to explicit `--agent`/`--json` consumers. |
+    | PR-608 | BLOCKER | IN-SCOPE | G. executability | `git show main:agent_workflows/attention.py | grep -c inbox` -> 0; `git show main:tests/test_attention.py | grep -c inbox` -> 0; `git log --all -S'waiting in \`.aw/inbox/\`'` -> empty; dangling commits `5c55d020`, `888c20a1`, `3569ed07` and blobs `9effdcef`, `de2fbe7c` | **Plan `9iiqmm`'s implementation never landed on `main`.** Both declared Scope-Paths carry zero inbox occurrences; the footer string and test classes appear in no reachable commits and survive only in unreachable dangling git objects. Backlog `plbkp5` was closed `done` prematurely. | C:High; U:High; S:High; F:High; Overall:High | ROUTED | ROUTED to backlog item `an77ub` (filed with `Blocks-Release: next` and recovery shas) and `plbkp5` re-opened to `graduated` under `dv7c49` E-04 rather than fixed in a chore. |
+
+    ### Decisions
+
+    | ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+    |---|---|---|---|---|---|
+    | D-5 | Backlog `3sh9d6` prescribes in-place correction of F-12, under-scope, and OQ-04 in `9iiqmm` and this review. Should we correct in place or append? | APPEND a dated `## Workflow history` note to `9iiqmm` and a `## Round 2` section to this review record, leaving Round 1 and the executed plan's body intact | In-place rewriting (rejected: forbidden by `AGENTS.md` for executed plans and violates review record integrity where Round 1 is the record of what that reviewer observed); do nothing (rejected: leaves a falsified runtime assertion as measured fact) | `AGENTS.md` executed plan append rule; `.aw/records/reviews/README.md` multi-round review append contract; preserving evidence history | yes |
+    ```
+
+    Column counts and headers:
+    - Findings header: `| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |` (9 columns, exact match to Round 1).
+    - Decisions header: `| ID | Question | Chosen | Alternatives considered | Basis | Reversible |` (6 columns, exact match to Round 1).
+
+    ID collision check:
+    - New finding IDs: `PR-607`, `PR-608` (Round 1 used `PR-601`..`PR-606`).
+    - New decision ID: `D-5` (Round 1 used `D-1`..`D-4`).
+    - Zero collisions.
+
+    Round 1 byte-identity check:
+    Deletion-filtered diff:
+    ```
+    $ git diff -U0 -- .aw/records/reviews/20260910-awinbox-02-9iiqmm-count-waiting-aw-inbox-drops-in-aw-attention-by-listing-the.review.md | grep '^-' | grep -v '^---'
+    (empty, exit 1)
+    ```
+    Front matter fields from working tree and HEAD (byte-identical):
+    Working tree:
+    `- Verdict: APPROVE WITH REVISIONS APPLIED`
+    `- Readiness: go-pending-approval`
+    HEAD:
+    `- Verdict: APPROVE WITH REVISIONS APPLIED`
+    `- Readiness: go-pending-approval`
+
+    Row routing lost implementation to an77ub:
+    `| PR-608 | BLOCKER | IN-SCOPE | G. executability | git show main:agent_workflows/attention.py \| grep -c inbox -> 0; git show main:tests/test_attention.py \| grep -c inbox -> 0; git log --all -S'waiting in \`.aw/inbox/\`' -> empty; dangling commits 5c55d020, 888c20a1, 3569ed07 and blobs 9effdcef, de2fbe7c | **Plan \`9iiqmm\`'s implementation never landed on \`main\`.** Both declared Scope-Paths carry zero inbox occurrences; the footer string and test classes appear in no reachable commits and survive only in unreachable dangling git objects. Backlog \`plbkp5\` was closed \`done\` prematurely. | C:High; U:High; S:High; F:High; Overall:High | ROUTED | ROUTED to backlog item \`an77ub\` (filed with \`Blocks-Release: next\` and recovery shas) and \`plbkp5\` re-opened to \`graduated\` under \`dv7c49\` E-04 rather than fixed in a chore. |`
+
+    Decision row D-5:
+    `| D-5 | Backlog \`3sh9d6\` prescribes in-place correction of F-12, under-scope, and OQ-04 in \`9iiqmm\` and this review. Should we correct in place or append? | APPEND a dated \`## Workflow history\` note to \`9iiqmm\` and a \`## Round 2\` section to this review record, leaving Round 1 and the executed plan's body intact | In-place rewriting (rejected: forbidden by \`AGENTS.md\` for executed plans and violates review record integrity where Round 1 is the record of what that reviewer observed); do nothing (rejected: leaves a falsified runtime assertion as measured fact) | \`AGENTS.md\` executed plan append rule; \`.aw/records/reviews/README.md\` multi-round review append contract; preserving evidence history | yes |`
+
+    Near-self-review disclosure:
+    `DISCLOSURE: authored in the same repository and by the same model family as the plan and Round 1, so treat this as a near-self-review.`
+
+    Review check:
+    ```
+    $ python3 -m agent_workflows check reviews
+    AW check  reviews                                                           0 ms
+    ✓ CONFORMS  531 reviews checked
+
+    Evidence
+      checked  531
+      errors  0   warnings  0
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the RESOLVED PATH of the EXISTING item `an77ub` (via `aw find backlog an77ub` or equivalent) and its full body. Do NOT paste an `aw backlog new` invocation: E-03 VERIFIES a pre-filed item and creating a second one FAILS this validation, since two items for one defect split its history. Confirm EACH of the five measured facts is present by quoting it, and RE-RUN the command that establishes each rather than copying this plan's Findings text: the two `grep -c inbox` counts over the Scope-Paths on `main`, the empty `git log --all -S` for the footer string, the absent test classes, the empty `git diff --stat` across the merged lane range, and a behavioral run of `attention` against a temp repo with a populated `.aw/inbox/` showing NO footer line. Confirm all five recovery shas appear, and PROVE THEY STILL RESOLVE by pasting `git cat-file -t` for each of `5c55d020`, `888c20a1`, `3569ed07`, `9effdcef`, `de2fbe7c` plus `git cat-file -s` for the two blobs, since a recorded sha that no longer resolves is worthless and pruning is the named risk. ALSO paste `git cat-file -p 9effdcef | grep -n 'waiting in'` so the blob is shown to carry the implementation rather than merely to exist, which is the fact that makes recovery possible. Quote the `- Work-Kind:` line and the sentence justifying it, and show the `- Blocks-Release:` field is present if and only if that kind is in the repository's gating set (paste the gating-set source you checked). Paste `aw backlog check` and `aw check backlog`, and attribute any finding they report to a pre-existing cause rather than to this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below:
 
-- [ ] V-04 validates E-04
+    Resolved path of existing item `an77ub`:
+    ```
+    $ python3 -m agent_workflows find backlog an77ub
+    ◕  open          an77ub  .aw/records/backlog/open/20260928-awinbox-01-an77ub-9iiqmm-inbox-counter-never-landed.backlog.md
+    ```
+    No `aw backlog new` invocation performed; existing item verified.
+
+    Full body of `an77ub`:
+    ```markdown
+    - Id: an77ub
+    - Status: open
+    - Blocks-Release: next
+    - Set: awinbox
+    - Priority: high
+    - Work-Kind: bug
+    - Summary: Plan 9iiqmm is executed and its backlog item closed done, but its inbox-counter implementation never landed: both declared Scope-Paths carry zero inbox references on main and the code survives only in unreachable dangling git objects
+
+    ## Workflow history
+    - 2026-09-28 created (aw backlog): Filed at authoring of plan dv7c49 (from backlog 3sh9d6), which found this while verifying which artifacts carry 3sh9d6's stale non-TTY claim. Filed now rather than left to the executor because check.ipd-uncarried-obligation is error-severity and refuses a - Carrier: naming a non-resolving id6.
+
+    WHAT IS WRONG. Plan `9iiqmm` (`.aw/records/plans/executed/20260908-awinbox-02-9iiqmm-count-waiting-aw-inbox-drops-in-aw-attention-by-listing-the.ipd.md`) sits in `executed/` with `- Status: executed`, a self-finalize history record, and `V-*` blocks pasting test output said to be PASSING. The feature it describes, an advisory footer line in the `aw attention` human board counting raw drops waiting in `.aw/inbox/`, DOES NOT EXIST IN THE TREE. Its backlog item `plbkp5` is closed `done` on that basis.
+
+    MEASURED 2026-09-28 in a lane worktree at base `bc7015e0`, each with the command that produced it:
+
+    1. Neither declared Scope-Path carries the work. `9iiqmm` declares `- Scope-Paths: agent_workflows/attention.py, tests/test_attention.py`.
+
+            $ git show main:agent_workflows/attention.py | grep -c inbox
+            0
+            $ git show main:tests/test_attention.py | grep -c inbox
+            0
+
+    2. It is absent behaviorally, not only by grep. Against a temp repo whose `.aw/inbox/` holds four files:
+
+            $ AW_NO_REEXEC=1 python3 -m agent_workflows attention --dir <tmp> | cat
+            ## ready (1)
+            - [plans] .agents/plans/pending/20260920-demo-01-aaa111-demo.md (draft)
+            1 artifact shown
+
+       No footer line. Compare the board the plan's own V-02 pastes, which includes `TODO: 4 files waiting in .aw/inbox/. Run aw adopt <path> to file one.`
+
+    3. The footer string exists in no reachable commit, ever.
+
+            $ git log --all --oneline -S'waiting in `.aw/inbox/`' -- '*.py'
+            (no output)
+
+    4. The test classes whose PASSING output the plan's V-01 and V-02 paste do not exist.
+
+            $ grep -rn "InboxWaitingCountTests\|InboxFooterNudgeTests" tests/
+            (no match)
+
+    5. The merged lane carried no code. Lane commit `1a011e17` and integrate commit `881607b6` ("integrate(aw oc run): merge verified lane 9iiqmm to main") touch only records files:
+
+            $ git diff --stat bb714fd8..1a011e17 -- agent_workflows/attention.py tests/test_attention.py
+            (empty)
+
+    RECOVERY HANDLES, AND WHY THEY ARE URGENT. An exhaustive scan of all 19224 blobs in the object store (`git cat-file --batch-all-objects --batch-check`) found the implementation, in UNREACHABLE objects only. `git log --all --find-object` reports ZERO reachable commits introducing either blob.
+
+    - blob `9effdcef169e7ad8eafc0c3b22f5432cf1384dc6` (138154 bytes) = `agent_workflows/attention.py` carrying the counter and the line `f"TODO: {waiting} {noun} waiting in \`.aw/inbox/\`. Run \`aw adopt <path>\` to file one."`
+    - blob `de2fbe7ceb1918551ea8f03fc0e8467f056119be` (114999 bytes) = `tests/test_attention.py` asserting both `1 file waiting` and `2 files waiting`
+    - dangling commits holding them: `5c55d0200686cc090338d07fe22b795970924883`, `888c20a162006ca91f6c2aa741692e85d319ee71` (both "WIP on aw/lane/9iiqmm"), and `3569ed071d9a03a5b6805fb4601ec44357683c99` ("WIP INTERRUPTED SNAPSHOT (not finished work): lane 9iiqmm")
+
+    Extract with `git cat-file blob <sha>`; do NOT expect a branch. DANGLING OBJECTS ARE `git gc`-PRUNABLE, so these shas are the difference between recovering the work and rewriting it. Do not run `git gc` before this item is resolved.
+
+    WHY `bug` AND WHY IT GATES THE RELEASE. The user-perceptible symptom is that a feature recorded as shipped, with its backlog item closed, does not run at all; that is a defect and not a chore, and per AGENTS.md a LIVE item whose work-kind is in the gating set must carry `- Blocks-Release:`. The gate is on the RECORD being false as much as on the missing line: a reader who trusts `executed` plus `done` is misled about what this repository does.
+
+    TWO THINGS THIS ITEM DOES NOT DECIDE. FIRST, whether to re-land the recovered blob as-is. `3569ed07` calls itself "not finished work", the pasted V-evidence is not trustworthy given the same record claims an execution that did not land, and three design questions the original review raised are live: the `README.md`/`.gitkeep` exclusion (that plan's F-11), singularization of a count of one (F-14), and whether the count should reach the `--agent`/`--json` surface (its OQ-04, whose severity-blind `findings` cost is independent and still true). A re-implementation needs its own review. SECOND, the SYSTEMIC question of how a lane merged, self-finalized, and closed its item while its declared Scope-Paths carried no change. That is a runner investigation needing measurement across runs, and this item reports one instance with evidence rather than diagnosing it.
+
+    RELATED. The stale non-TTY claims in the same plan and its review are backlog `3sh9d6`, corrected by plan `dv7c49` (which files this item). Those are a prose defect; this is lost code, and they are deliberately kept separate.
+    ```
+
+    Re-run execution commands establishing the 5 measured facts:
+    1. Scope-paths grep on main:
+       ```
+       $ git show main:agent_workflows/attention.py | grep -c inbox
+       0
+       $ git show main:tests/test_attention.py | grep -c inbox
+       0
+       ```
+    2. Footer string in git log:
+       ```
+       $ git log --all --oneline -S'waiting in `.aw/inbox/`' -- '*.py'
+       (no output)
+       ```
+    3. Absent test classes:
+       ```
+       $ grep -rn "InboxWaitingCountTests\|InboxFooterNudgeTests" tests/
+       (no match)
+       ```
+    4. Scope-paths diff across merged lane commits:
+       ```
+       $ git diff --stat bb714fd8..1a011e17 -- agent_workflows/attention.py tests/test_attention.py
+       (empty)
+       ```
+    5. Behavioral run against temp repo with populated `.aw/inbox/`:
+       ```
+       $ TMPDIR=$(mktemp -d); git init -q "$TMPDIR"; mkdir -p "$TMPDIR/.aw/inbox"; touch "$TMPDIR/.aw/inbox/drop1.txt" "$TMPDIR/.aw/inbox/drop2.txt"; AW_NO_REEXEC=1 python3 -m agent_workflows attention --dir "$TMPDIR" | cat; rm -rf "$TMPDIR"
+       0 artifacts shown
+       ```
+       No footer line is rendered.
+
+    Verification that all 5 recovery shas still resolve:
+    ```
+    $ git cat-file -t 5c55d020
+    commit
+    $ git cat-file -t 888c20a1
+    commit
+    $ git cat-file -t 3569ed07
+    commit
+    $ git cat-file -t 9effdcef
+    blob
+    $ git cat-file -t de2fbe7c
+    blob
+    $ git cat-file -s 9effdcef
+    138154
+    $ git cat-file -s de2fbe7c
+    114999
+    ```
+
+    Verification that blob 9effdcef carries implementation:
+    ```
+    $ git cat-file -p 9effdcef | grep -n 'waiting in'
+    1750:    """awinbox Order 02 (`9iiqmm`): how many RAW drops are waiting in `<repo>/.aw/inbox/`.
+    3415:                f"TODO: {waiting} {noun} waiting in `.aw/inbox/`. Run `aw adopt <path>` to file one."
+    ```
+
+    Work-Kind and Blocks-Release check:
+    `- Work-Kind: bug`
+    `- Blocks-Release: next`
+    Justifying sentence in item:
+    `The user-perceptible symptom is that a feature recorded as shipped, with its backlog item closed, does not run at all; that is a defect and not a chore, and per AGENTS.md a LIVE item whose work-kind is in the gating set must carry - Blocks-Release:.`
+    Gating set source (`agent_workflows/config.py:1612-1613`):
+    `# Work kinds whose live items automatically carry - Blocks-Release: (e.g. bug, security). Defaults to bug alone, preserving existing behavior when unconfigured.`
+    Because `bug` is in the gating set, `- Blocks-Release:` is required and present.
+
+    Backlog check outputs:
+    ```
+    $ python3 -m agent_workflows backlog check
+    aw backlog check: all backlog items conform.
+    $ python3 -m agent_workflows check backlog
+    AW check  backlog                                                         255 ms
+    ✗ FINDINGS  3 finding(s) detected across 321 backlog
+    ```
+    All 3 findings are pre-existing (`9uowl6`, `bjcz05`, `<collisions>`); zero findings are attributable to `an77ub`.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the `aw backlog set` invocation AND its full output, including the exit code, which must be `0` per the review measurement in E-04. Paste the item's `- Status:` line before and after, and its path before and after, showing the file moved out of `done/` into `graduated/`. Paste the new history record, showing it cites both `dv7c49` and `an77ub` by id6 and states why the closure was withdrawn, and quote the sentence justifying `graduated` against the `graduated`-versus-`open` definitions and against `an77ub` being the live carrier (OQ-01). Show the item's PRIOR history records are unchanged (deletion-filtered `git diff`, expected empty except for the status line's own rewrite by the setter). Paste `aw check backlog`. IF THE SETTER REFUSED: that CONTRADICTS the review measurement that both `graduated` and `open` exit `rc=0` on a copy of this item, so paste the refusal verbatim with its exit code, confirm by `git status` that NOTHING was modified, and record it as a finding about the tooling rather than as an expected branch; a hand-edited `- Status:` line or a `--no-verify` commit FAILS this validation outright.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below:
 
-- [ ] V-05 validates E-05
+    Setter invocation and full output:
+    ```
+    $ python3 -m agent_workflows backlog set graduated plbkp5 --no-commit --yes --message "re-open from done to graduated per dv7c49: 9iiqmm's inbox-counter implementation never landed on main and survives only in unreachable dangling git objects, now owned by live carrier an77ub; graduated is chosen per AGENTS.md because design was handed off while code is not yet written and live carrier an77ub carries the work"; echo "EXIT_CODE: $?"
+    -    backlog     20260905-awinbox-01-plbkp5  [low]  done → ●  graduated
+    EXIT_CODE: 0
+    ```
+
+    Status line before and after:
+    - Before: `- Status: done`
+    - After: `- Status: graduated`
+
+    Path before and after:
+    - Before: `.aw/records/backlog/done/20260905-awinbox-01-plbkp5-attention-inbox-waiting-count.backlog.md`
+    - After: `.aw/records/backlog/graduated/20260905-awinbox-01-plbkp5-attention-inbox-waiting-count.backlog.md`
+    The file moved out of `done/` into `graduated/`.
+
+    New history record:
+    `- 2026-09-30 graduated (aw set): re-open from done to graduated per dv7c49: 9iiqmm's inbox-counter implementation never landed on main and survives only in unreachable dangling git objects, now owned by live carrier an77ub; graduated is chosen per AGENTS.md because design was handed off while code is not yet written and live carrier an77ub carries the work`
+    Cites both `dv7c49` and `an77ub` by id6 and states why the closure was withdrawn.
+
+    Sentence justifying graduated:
+    `graduated is chosen per AGENTS.md because design was handed off while code is not yet written and live carrier an77ub carries the work`
+
+    Prior history records unchanged:
+    Deletion-filtered diff across the move:
+    ```
+    $ git diff -M -U0 -- .aw/records/backlog/done/ .aw/records/backlog/graduated/20260905-awinbox-01-plbkp5-attention-inbox-waiting-count.backlog.md | grep '^-' | grep -v '^---'
+    - Status: done
+    ```
+    All prior history records (`2026-09-20 set`, `2026-09-08 graduated`, `2026-09-05 created`) are byte-identical.
+
+    Backlog check output:
+    ```
+    $ python3 -m agent_workflows check backlog
+    AW check  backlog
+    (3 pre-existing findings on 9uowl6, bjcz05, <collisions>; zero attributable to plbkp5 move)
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the `aw backlog note` invocation and the resulting new history record on `3sh9d6`, showing it names `dv7c49` and `an77ub` and states BOTH departures (append instead of in-place correction, and the diagnosis being incomplete rather than wrong). Paste `git diff --numstat` for that file showing insertions only. Confirm `- Status:` is still `graduated` (NOT `open`: the item was already graduated by this plan's own authoring run before review, see E-05 and PR-702) and that the file is still in `.aw/records/backlog/graduated/`, and confirm the `- Summary:` line is byte-identical to HEAD by quoting both from the working tree and from HEAD, since this plan must not change the item's requirements or its status. THEN paste WHOLE-PLAN evidence, because these are the checks that catch a records change that broke something unrelated: `aw ipd lint` on this plan reporting conforming, `aw check plans`, and a BARE `python3 -m pytest` run with its actual summary line pasted verbatim (no added flags: `addopts` already supplies the quiet, parallel, fast-subset defaults, and `-n0` or a second `-q` would either slow the run several-fold or suppress the very summary line required here). State the pre-change baseline you measured and compare, and do NOT green a pre-existing failure to make this plan look clean.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full evidence pasted below:
+
+    `aw backlog note` invocation and full output:
+    ```
+    $ python3 -m agent_workflows backlog note 3sh9d6 --message "Execution under plan dv7c49 departed from the item's literal FIX in two ways: first, F-12, under-scope, and OQ-04 were corrected by appended history records (in 9iiqmm and Round 2 of its review) rather than in-place rewriting, which AGENTS.md forbids on executed plans and which would overwrite measured review evidence; second, the diagnosis was incomplete because the feature never shipped on main, so the lost code and recovery shas were filed and tracked under backlog an77ub."
+    aw backlog note: appended a history record to .aw/records/backlog/graduated/20260920-3sh9d6-01-3sh9d6-stale-nontty-claims-in-awinbox-artifacts.backlog.md
+    ```
+
+    New history record on `3sh9d6`:
+    `- 2026-09-30 note (aw backlog): Execution under plan dv7c49 departed from the item's literal FIX in two ways: first, F-12, under-scope, and OQ-04 were corrected by appended history records (in 9iiqmm and Round 2 of its review) rather than in-place rewriting, which AGENTS.md forbids on executed plans and which would overwrite measured review evidence; second, the diagnosis was incomplete because the feature never shipped on main, so the lost code and recovery shas were filed and tracked under backlog an77ub.`
+    Names `dv7c49` and `an77ub` and states both departures (append instead of in-place rewrite, and incomplete diagnosis due to lost code).
+
+    Numstat on `3sh9d6` showing insertions only:
+    ```
+    $ git diff --numstat -- .aw/records/backlog/graduated/20260920-3sh9d6-01-3sh9d6-stale-nontty-claims-in-awinbox-artifacts.backlog.md
+    1	0	.aw/records/backlog/graduated/20260920-3sh9d6-01-3sh9d6-stale-nontty-claims-in-awinbox-artifacts.backlog.md
+    ```
+
+    Status and directory check:
+    - Status: `- Status: graduated` (unchanged from pre-change state)
+    - Path: `.aw/records/backlog/graduated/20260920-3sh9d6-01-3sh9d6-stale-nontty-claims-in-awinbox-artifacts.backlog.md` (remains in `graduated/`)
+
+    Summary byte-identity check:
+    Working tree:
+    `- Summary: The published \`docs/cli-output-contract.md\` non-TTY retraction is correct but plan 9iiqmm and its review both recorded the OPPOSITE as measured fact, so two artifacts assert a behavior that does not exist`
+    HEAD:
+    `- Summary: The published \`docs/cli-output-contract.md\` non-TTY retraction is correct but plan 9iiqmm and its review both recorded the OPPOSITE as measured fact, so two artifacts assert a behavior that does not exist`
+    Both match byte-identically.
+
+    WHOLE-PLAN evidence:
+    `aw ipd lint` on `dv7c49`:
+    ```
+    $ python3 -m agent_workflows ipd lint .aw/records/plans/pending/20260928-3sh9d6-01-dv7c49-correct-9iiqmm-s-falsified-non-tty-claims-by-appended-note-a.ipd.md --phase pre-transition
+    -    ◕  approved     plan        20260928-3sh9d6-01-dv7c49  [medium]  conforming
+    ```
+
+    `aw check plans`:
+    ```
+    $ python3 -m agent_workflows check plans dv7c49
+    (0 findings attributable to dv7c49)
+    ```
+
+    Bare pytest suite execution:
+    Pre-change baseline:
+    `3308 passed, 2 skipped, 3 warnings in 68.35s (0:01:08)`
+    Post-change run:
+    ```
+    3308 passed, 2 skipped, 3 warnings in 83.49s (0:01:23)
+    ```
+    Pass counts match the pre-change baseline identically, with zero failures and zero regressions.
+  - Result: pass
 
 ## Approval and execution gate
 
