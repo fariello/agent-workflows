@@ -1,5 +1,5 @@
 - Id: 4y4xo5
-- Status: graduated
+- Status: done
 - Graduated-To: 4y4xo5
 - Blocks-Release: next
 - Set: 4y4xo5
@@ -8,6 +8,7 @@
 - Summary: aw group research clobbers each record Order to 0 when --order is omitted (the e3hzyc defect in research_refs)
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): closed by aw oc run: IPD ao0v8x executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-4y4xo5-01-ao0v8x-preserve-each-research-record-order-in-aw-group-research-the.ipd.md); evidence .aw/records/plans/executed/20260928-4y4xo5-01-ao0v8x-preserve-each-research-record-order-in-aw-group-research-the.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T235632Z-1358353: ao0v8x
 - 2026-09-20 created (aw backlog): Filed while executing plan e3hzyc (F-12): the byte-identical defective line in the sibling backend, deliberately left out of that plan's fence.
 
