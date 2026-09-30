@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/ipd_schema.py, agent_workflows/releases.py, agent_workflows/check_engine.py, agent_workflows/production_checks.py, agent_workflows/runner_shared.py, tests/test_from_backlog_cardinality.py, tests/test_check_engine_release_gate.py, .aw/records/plans/superseded/20260917-hostdedup-02-nmlx47-unify-the-twelve-small-divergent-symbols-behind-hostlabels.ipd.md, .aw/records/backlog/README.md, CHANGELOG.md
 - Item-Dependencies: none
 - Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: 6os96s
