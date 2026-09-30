@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_dependency_block_reporting.py, tests/test_hostdedup_third_host.py
 - Item-Dependencies: none
 - Status: to-review
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: mjrac4
@@ -18,6 +19,7 @@
 
 ## Workflow history
 
+- 2026-09-29 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-401, PR-402 (MEDIUM), PR-403 (LOW), all FIXED. Reviewed at lane HEAD `63c7da25`. Every material claim RE-MEASURED rather than read, and the plan's argument held throughout: F-01's staleness claim reproduces (the cascade writes a bare token plus a populated reasons map and no recovery key, so the backlog item's headline is indeed two thirds closed); F-02 reproduces end to end through the real `write_report`, a drain item rendering `- Recovery:` and an otherwise-identical cascade item rendering none; F-03's two host constants differ only in `aw oc` versus `aw agy` and compare unequal; F-04's blanket fallback reintroduces `executed:aaa111 (target reviewed) (unsatisfied)` and both shipped assertions it names exist; F-06's TERMINATE path writes the two dependency keys and no recovery key; F-07's `children-unfinished` remedy is verbatim; F-08's `fail-depend` is in the requeue set with both exclusions False for all three producers; F-10's single pinning assertion and the event-key equality are both present; F-13's ten-field literal `SCRIPTED_HOST_LABELS` and the `_fields`-derived construction that needs no edit are both as described; F-15 finds no spec mentioning the section; and all five cited carriers are in their stated states, including the RETRACTED, now-`parked` `phawyy`. TWO SUBSTANTIVE CORRECTIONS. (1) MEDIUM PR-401: E-03's prose said "Five test call sites" while F-11 in the same plan says NINE and E-03's own parenthetical lists seven files. The measured figure is nine invocations across six files; E-03 now carries the per-file breakdown and F-11 states its counting rule, so an executor cannot under-count what a required parameter would break. (2) MEDIUM PR-402: E-05 instructed the executor to "run the host's `retry_incomplete` requeue path" and V-05(c) required "naming the function called", and there is NO such callable - the branch is inline in each host's `run_queue` and the only requeue function in either host or `runner_shared` is `requeue_interrupted`, a different route. As written the two clauses could be satisfied only by fabricating a function name or by the re-implementation V-05 itself forbids. E-05 now names two acceptable routes (end-to-end `resume --retry-incomplete`, or predicate-level with the limitation declared) and V-05 requires the route be stated; review also measured the expected answer, so the executor confirms rather than derives it (new F-18). LOW PR-403 re-labelled the stale suite baseline after measuring `3284 passed, 2 skipped` against the authored `3246 passed, 2 skipped`. Review added F-18 through F-21 and F-08b, recording that the three-write-site census E-02 must re-home is where the plan says and its item 1 says exactly what E-02 claims, that all three descriptor guardrails hold as assumed, that the report section gates on the canonical status plus either dependency key so the additive write needs no consumer change, and that `write_report` requires `setid` on every probe item. Structural preflight `aw ipd lint` conforming at `author` and `review-finalize`.
 - 2026-09-29 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored from backlog `mjrac4`. THE ITEM'S HEADLINE CLAIM IS STALE AND THE PLAN SAYS SO RATHER THAN RESTATING IT (F-01): plan `5o1jye` already made the cascade write a bare token plus a reasons map, so the two-shape divergence the item describes is two thirds closed at HEAD `5d06997e`. What survives is narrower and is measured in F-02/F-03. THE ITEM'S SUGGESTED FIX IS ALSO HALF WRONG AND IS REJECTED WITH A MEASUREMENT (F-04): deleting the consumer conditionals, which the item proposes, reintroduces the double parenthetical on frozen records that `5o1jye` E-03 deliberately removed. The plan therefore delivers the item's STATED GOAL (one shape, no consumer special case owed) by finishing the producer side and explicitly declining the consumer side, and it resolves the item's open migration question from repository evidence (OQ-02).
 - 2026-09-29 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
 
@@ -102,10 +104,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   (`oc_runipd.run_queue` and `agy_runipd.run_queue`, each currently calling
   `cascade_dependency_blocked(state, run_dir)`).
 
-  THE `None` DEFAULT IS LOAD-BEARING AND IS NOT TIDINESS. Five test call sites invoke this function
-  with no hint (`tests/test_dependency_block_reporting.py`, `tests/test_host_capability_wiring.py`,
-  `tests/test_terminal_status_vocabulary.py` twice, `tests/test_runner_shared.py`,
-  `tests/test_orchestrator_retirement.py`, `tests/test_oc_runipd.py`), and one of them
+  THE `None` DEFAULT IS LOAD-BEARING AND IS NOT TIDINESS. NINE test call sites invoke this function
+  with no hint (review-corrected from "Five", which contradicted F-11 in the same plan and did not even
+  match this item's own list of seven filenames - PR-401). Measured at review, the nine invocations are:
+  `tests/test_dependency_block_reporting.py` (2), `tests/test_terminal_status_vocabulary.py` (2),
+  `tests/test_runner_shared.py` (2), `tests/test_host_capability_wiring.py` (1),
+  `tests/test_orchestrator_retirement.py` (1), and `tests/test_oc_runipd.py` (1);
+  `tests/test_finalize_sendback.py` names the symbol in an object-identity pin and does NOT call it,
+  which is why it is listed in F-11 but not counted here. One of the nine
   (`test_cascade_producer_output_shape`) ASSERTS `dependent.get("dependency_block_recovery") is None`.
   With a `None` default and a truthiness guard, that assertion keeps passing unchanged, which is what
   makes this item safe to land before E-06 updates the test.
@@ -143,20 +149,35 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-05 Confirm BY MEASUREMENT, not by reading the source, that `--retry-incomplete` actually
   re-queues an item each of the three producers blocks, so the hint this plan attaches is TRUE for all
-  three and not merely uniform. Build a run state for each producer's output, run the host's
-  `retry_incomplete` requeue path over it, and record which items returned to `queued`.
+  three and not merely uniform. Build a run state for each producer's output and establish, for each,
+  whether its item returns to `queued`.
+
+  **THE REQUEUE LOGIC IS INLINE IN `run_queue` AND IS NOT A CALLABLE, SO SAY HOW YOU MEASURED IT (PR-402, F-18).**
+  Review looked for an extractable helper and there is none: the `if retry_incomplete:` block lives in
+  the body of each host's `run_queue`, and the only requeue FUNCTION in either host or in
+  `runner_shared` is `requeue_interrupted`, which is the DIFFERENT (interrupted-prerequisite) route.
+  So "run the host's `retry_incomplete` requeue path over it" is not directly executable as written,
+  and V-05's demand that you drive the real branch while not re-implementing its status set cannot both
+  be met by a unit probe. TWO ACCEPTABLE ROUTES, and you must name which you took. (1) END TO END:
+  drive a real `aw <host> run ... resume --retry-incomplete` over a prepared run directory, so the
+  shipped branch executes, and report the statuses before and after. (2) PREDICATE-LEVEL, which is
+  weaker and must be labelled as such: evaluate the two exclusions (`runner_stop.is_indeterminate(item)`
+  and `item.get("action") == "skip"`) against each producer's real item and read the status set from the
+  shipped source rather than retyping it, stating explicitly that you did NOT execute the loop. Route
+  (1) is preferred; route (2) is acceptable only with the limitation stated in the evidence.
 
   THIS ITEM EXISTS BECAUSE A UNIFORM LIE IS WORSE THAN AN HONEST GAP. The plan's whole premise is that
   the recovery action is identical across producers; if the requeue predicate excluded one of them,
   attaching the same hint would tell an operator to run a flag that will not help. The requeue branch
-  gates on `item["status"] in {...}` plus two exclusions (`runner_stop.is_indeterminate` and
-  `action == "skip"`), and all three producers write `fail-depend`, so the expected answer is that all
-  three requeue; measure it rather than asserting it.
+  gates on `item["status"] in {...}` plus the two exclusions above, and all three producers write
+  `fail-depend`, so the expected answer is that all three requeue. Review measured the two exclusions
+  returning False for all three producers' real item shapes and confirmed `fail-depend` is in the
+  shipped status set (F-18), so the expected answer is now evidenced rather than predicted; your job is
+  to confirm it at execution HEAD by whichever route you name.
   - Depends on: E-03, E-04
-  - Expected outcome: a written record, in this plan's V-05 evidence, showing for each of the three
-    producers whether its blocked item returns to `queued` under the `retry_incomplete` branch; if any
-    does NOT, E-03 or E-04 is revised to withhold the hint from that producer rather than shipping a
-    false instruction.
+  - Expected outcome: a written record, in this plan's V-05 evidence, NAMING THE ROUTE TAKEN and showing
+    for each of the three producers whether its blocked item returns to `queued`; if any does NOT, E-03
+    or E-04 is revised to withhold the hint from that producer rather than shipping a false instruction.
   - Execution state: pending
 
 ### Task group 3: pin it
@@ -243,13 +264,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-08 | **THE RECOVERY ADVICE IS GENUINELY THE SAME FOR ALL THREE PRODUCERS, which is the premise the whole plan rests on.** The `retry_incomplete` branch in each host's `run_queue` requeues on `item["status"] in {...}`, a set containing both `dependency-blocked` and `fail-depend`, minus two exclusions (`runner_stop.is_indeterminate(item)` and `action == "skip"`). All three producers write `fail-depend` (the cascade and the drain arm literally, `dispatch_orchestrator_item` via its `terminal_status: str = "fail-depend"` default). So the same flag recovers all three and a uniform hint is truthful. E-05 MEASURES this rather than resting on this read, because the premise is load-bearing. | Read of the `if retry_incomplete:` branch and its status set; read of the three write sites' status values; `canonical_terminal_status` mapping the legacy token to `fail-depend`. |
 | F-09 | **THE FIX IS PROTOTYPED AND MEASURED TO WORK, INCLUDING ITS DEFAULT-PRESERVATION PROPERTY.** A scratch reimplementation of `cascade_dependency_blocked` taking `recovery_hint=` was run three ways and its report section pasted each time: with the oc hint the section gains `- Recovery: ... aw oc runipd resume ...`; with the agy hint it gains the `aw agy runipd resume` wording; with the default `None` the section is identical to HEAD's, with no recovery line. So E-03's "byte-identical when unsupplied" claim is measured before being prescribed, and the per-host correctness of the threading is measured too. | Scratch prototype under `tmp/prmjrac4/`, run over one state per host plus a `None` case, with all three `## Dependency blocks (why)` sections pasted from the real `write_report`. |
 | F-10 | **EXACTLY ONE SHIPPED ASSERTION PINS THE DIVERGENCE THIS PLAN REMOVES, and an executor who does not know that will read a red test as their own bug.** `tests/test_dependency_block_reporting.py::test_cascade_producer_output_shape` asserts `dependent.get("dependency_block_recovery") is None`, with the docstring "cascade_dependency_blocked writes bare tokens, parallel reasons, and no recovery". It was written by `5o1jye` E-05 to pin the boundary that plan deliberately drew. Because E-03 defaults to `None` and guards on truthiness, that assertion keeps PASSING through E-03 and only changes when E-06 splits it, so the two items can land in either order without a spurious red. | Read of the test and its docstring; read of `5o1jye` E-01's prohibition ("Specifically do not add `dependency_block_recovery`") that the assertion enforces. |
-| F-11 | **NINE TEST CALL SITES INVOKE `cascade_dependency_blocked` WITH NO HINT, so a required parameter would be a wide and needless break.** They are in `tests/test_dependency_block_reporting.py`, `tests/test_host_capability_wiring.py`, `tests/test_terminal_status_vocabulary.py` (two), `tests/test_runner_shared.py` (two), `tests/test_orchestrator_retirement.py`, `tests/test_oc_runipd.py`, and `tests/test_finalize_sendback.py` (an object-identity pin, not a call). Keyword-only with a `None` default leaves every one of them untouched. | `rg -n 'cascade_dependency_blocked' agent_workflows/ tests/` and inspection of each call's arguments. |
+| F-11 | **NINE TEST CALL SITES INVOKE `cascade_dependency_blocked` WITH NO HINT, so a required parameter would be a wide and needless break.** RE-MEASURED AT REVIEW AND CONFIRMED AT NINE, with the per-file breakdown now stated so the number is checkable rather than asserted: `tests/test_dependency_block_reporting.py` 2, `tests/test_terminal_status_vocabulary.py` 2, `tests/test_runner_shared.py` 2, `tests/test_host_capability_wiring.py` 1, `tests/test_orchestrator_retirement.py` 1, `tests/test_oc_runipd.py` 1. `tests/test_finalize_sendback.py` names the symbol in an object-identity pin and does NOT invoke it, so it is affected by F-12 rather than counted here. Keyword-only with a `None` default leaves every one of them untouched. NOTE E-03's prose said "Five" and is corrected (PR-401); this row was right. | A scripted count over `git ls-files 'tests/*.py'` matching `cascade_dependency_blocked\s*\(` and excluding `def ` lines, printing every hit with its file, line number and source line, totalling 9; the `test_finalize_sendback.py` reference read and classified as a non-call. |
 | F-12 | **THE OBJECT-IDENTITY PIN BETWEEN THE TWO HOSTS' RE-EXPORTS MUST KEEP HOLDING, and E-03 preserves it for free.** `tests/test_finalize_sendback.py` asserts `oc_driver.cascade_dependency_blocked is agy_driver.cascade_dependency_blocked`; both hosts re-export the shared symbol rather than defining it. Adding a parameter to the one shared definition cannot break that; defining a per-host wrapper would. So E-03 must add the parameter to the shared function and must NOT introduce host wrappers around it. | Read of the assertion and of both hosts' re-export lines (`cascade_dependency_blocked as cascade_dependency_blocked`). |
 | F-13 | **A THIRD TEST MODULE BREAKS AT IMPORT TIME FROM E-01 ALONE, and it is not obvious from the diff.** `tests/test_hostdedup_third_host.py` builds `SCRIPTED_HOST_LABELS = runner_shared.HostLabels(...)` at MODULE level with all ten current fields by keyword; a new field without a default makes that a `TypeError` during collection, failing the module wholesale rather than one test. By contrast `tests/test_runner_shared.py::test_set_plan_approved_durable_history_pin` derives its kwargs from `HostLabels._fields` and needs no edit. E-07 handles the first and verifies the second. | Read of both constructions: one literal keyword list, one `{f: f"val_{f}" for f in runner_shared.HostLabels._fields if f != "full_auto_actor"}`. |
 | F-14 | **NO PENDING PLAN DECLARES `tests/test_dependency_block_reporting.py` AS A WRITE TARGET EXCEPT ONE, AND IT IS DISJOINT FROM THIS PLAN'S EDIT.** `jefifu` (`- Status: reviewed`, `- Scope-Paths: tests/test_dependency_block_reporting.py`) repoints `test_drain_and_cascade_mapped_reasons_rendered_once`'s dependency token at a synthesized repo root and adds negative-substring guards to THAT test. This plan edits `test_cascade_producer_output_shape` and adds new cases. Different test functions in the same file, and per AGENTS.md the runner isolates each item in its own worktree and merges through a revalidation gate, so the shared file is not a hazard; the honest statement is that the two edits touch different functions. `zhqt51` (`reviewed`) declares the same five production paths this plan touches but edits `derive_item_disposition`'s code SELECTION and `edge_satisfied`'s refusal WORDING, neither of which this plan reads or writes. | `rg -l` over `.aw/records/plans/pending/` for each of this plan's `- Scope-Paths:` entries, then read of each hit's `- Scope-Paths:` and E-items. |
 | F-15 | **THE `## Dependency blocks (why)` SECTION IS NOT SPEC-GOVERNED, so no spec amendment is owed.** `rg` for `dependency_block_recovery` and for the section heading across `.aw/records/specs/` returns nothing. The section was introduced by `revgate` `7nkcgp` E-04 as a report improvement. So this plan declares no `.spec.md` path (see Spec sync). | `rg -rn 'dependency_block_recovery\|Dependency blocks \(why\)' .aw/records/specs/` returning no matches; read of the section's in-code provenance comment naming `7nkcgp` E-04. |
 | F-16 | **NO RUN RECORD EXISTS IN THIS WORKTREE TO MIGRATE, and the per-item schema could not gate a migration anyway.** `.aw/records/runs` is absent here and `.aw/state/runs` is empty, so the pre-`5o1jye` inline-reason spelling occurs in-tree only in two hand-built test fixtures and in an orphaned AST fingerprint. Separately, `SCHEMA_VERSION` is a RUN-level key and queue items carry no version field; `run_analytics_sources` records that across a 135-run corpus `schema_version` was uniformly `1` while three different drivers had written them, so it "cannot discriminate generations". A version-dispatched migration is therefore not available, which is consistent with this plan owing none (OQ-02). | `ls .aw/records/runs` -> absent; `.aw/state/runs` empty; `rg` for the inline spelling across the tree returning only `tests/test_dependency_block_reporting.py`'s frozen-record fixture, `tests/test_run_selection_policy.py`'s inline-reason row, and `tests/fixtures/runnerlayer_rehomed_premove_fingerprints.json`; read of `run_analytics_sources`'s corpus measurement. |
-| F-17 | THE BASELINE IS FULLY GREEN, so any failure after this plan is this plan's to explain. Bare `python3 -m pytest` at authoring HEAD `5d06997e` on this lane: `3246 passed, 2 skipped, 3 warnings in 52.68s`, with 207 deselected by the configured markers. **THESE DIGITS ARE CONTEXT, NOT THE BAR**: re-derive your own baseline at execution HEAD and state every delta against YOUR number. | The bare run above; `git log --oneline -1` -> `5d06997e`. |
+| F-17 | THE BASELINE IS FULLY GREEN, so any failure after this plan is this plan's to explain. Bare `python3 -m pytest` at authoring HEAD `5d06997e` on this lane: `3246 passed, 2 skipped, 3 warnings in 52.68s`, with 207 deselected by the configured markers. **THESE DIGITS ARE CONTEXT, NOT THE BAR**: re-derive your own baseline at execution HEAD and state every delta against YOUR number. Review re-measured `3284 passed, 2 skipped` days later, which is a 38-test rise and is exactly why this row refuses to be an acceptance bar. | The bare run above; `git log --oneline -1` -> `5d06997e`; a second bare run at review HEAD reporting `3284 passed, 2 skipped, 3 warnings`. |
+| F-18 | **THERE IS NO CALLABLE `retry_incomplete` REQUEUE PATH, SO E-05's INSTRUCTION AND V-05's ANTI-REIMPLEMENTATION CLAUSE COULD NOT BOTH BE SATISFIED AS WRITTEN (PR-402, review-added).** E-05 said to "run the host's `retry_incomplete` requeue path over it" and V-05(c) required confirming the measurement "drove the REAL requeue branch (naming the function called)". Measured: the `if retry_incomplete:` block is inline in the body of each host's `run_queue`, and the only requeue FUNCTION anywhere in either host or `runner_shared` is `requeue_interrupted(run_dir, state)`, which is the DIFFERENT interrupted-prerequisite route. So there is no function to name, and an executor following V-05(c) literally would either fabricate a function name or re-implement the status set, which the same clause forbids. E-05 now names two acceptable routes (end-to-end resume, or predicate-level with the limitation declared) and V-05 requires the route be stated. SEPARATELY, THE EXPECTED ANSWER IS NOW MEASURED rather than predicted, which is what E-05 asked for: `runner_stop.is_indeterminate(item)` returns False and `action == "skip"` is False for all three producers' real item shapes, and `fail-depend` is in the shipped status set alongside its legacy `dependency-blocked` spelling, so all three requeue. | `dir()` over both hosts and `runner_shared` for any `requeue`/`retry_incomplete` callable, returning only `requeue_interrupted`; `inspect.getsource(oc_runipd.run_queue)` confirming the `if retry_incomplete:` block is inside it; the two exclusion predicates evaluated against a cascade item, a drain item and an orchestrate-action TERMINATE item, all three printing False; the shipped status set read in place with `fail-depend` present. |
+| F-19 | THE THREE-WRITE-SITE CENSUS E-02 MUST RE-HOME IS REAL, IS WHERE THE PLAN SAYS, AND ITS ITEM 1 SAYS EXACTLY WHAT E-02 CLAIMS, so the re-homing instruction is actionable rather than aspirational. Read at review above `oc_runipd.DEPENDENCY_BLOCK_RECOVERY_HINT`: the census enumerates (1) `cascade_dependency_blocked` - "PERMANENT by construction ... CORRECT AS WRITTEN; deliberately unchanged by `akzy45`", (2) the drain-time `if runnable is None:` arm, "the ONE site `akzy45` changed", and (3) `dispatch_orchestrator_item`'s `terminal_status` default, "ALREADY CORRECT". So item 1's "deliberately unchanged" IS the sentence this plan falsifies, exactly as E-02 states, and E-02's correction instruction targets the right text. ALSO VERIFIED: both hosts reach `runner_shared.OC_HOST_LABELS`/`AGY_HOST_LABELS` at module level and already pass `labels=` at many call sites, so E-02's "each drain arm already has its host's labels available" is true and needs no new plumbing. | The census read in full above the constant, with item 1 quoted; `grep` for `OC_HOST_LABELS` in `oc_runipd.py` showing module-level availability and existing `labels=` call sites; the drain write site read at `item["dependency_block_recovery"] = DEPENDENCY_BLOCK_RECOVERY_HINT` in both hosts. |
+| F-20 | THE PLAN'S CENTRAL DESCRIPTOR CLAIM AND ITS TWO GUARDRAILS ALL HOLD, VERIFIED RATHER THAN READ. `HostLabels._fields` is exactly the ten fields F-13 assumes (`id`, `command`, `review_command`, `argv_tokens`, `argv_subcommands`, `product`, `report_title`, `shell_tool`, `emits_launch_identity`, `full_auto_actor`), so an eleventh with no default is what E-07 must absorb. `tests/test_hostdedup_third_host.py` builds `SCRIPTED_HOST_LABELS` with all ten by LITERAL keyword at module scope, so F-13's import-time `TypeError` prediction is correct. `tests/test_runner_shared.py::test_set_plan_approved_durable_history_pin` builds its kwargs as `{f: f"val_{f}" for f in runner_shared.HostLabels._fields if f != "full_auto_actor"}` inside `assertRaises(TypeError)`, so it needs no edit AND it keeps pinning the no-default property, exactly as E-07's final clause says to confirm. `test_no_divergent_codefined_constants_in_runner_shared` AST-collects UPPER_CASE module-level assignments co-defined in all three modules and compares resolved values, so it is the mechanical guard E-01/E-02 must avoid tripping by NOT lifting the constant into `runner_shared`. | `HostLabels._fields` printed; both test constructions read; the guard's docstring and AST-collection body read. |
+| F-21 | THE FIX'S USER-VISIBLE EFFECT AND THE PER-HOST DIVERGENCE ARE BOTH REPRODUCED END TO END THROUGH THE REAL `write_report`, which is the measurement the whole plan turns on. Driving the shipped `write_report(run_dir, state, labels=OC_HOST_LABELS)` over two otherwise-identical items differing only in the presence of `dependency_block_recovery`: the cascade-shaped item renders `- \`executed:aaa111\`: target aaa111 is failed-safely` and NO recovery line, while the drain-shaped item renders the same plus `  - Recovery: resolve the named cause, then re-queue with \`aw oc runipd resume --repo <repo> --retry-incomplete <run-id>\`; a bare \`resume\` does NOT re-queue a dependency-blocked item`. The two hosts' constants differ only in `aw oc` versus `aw agy`, and compare unequal, which is F-03's basis for a descriptor field over a shared constant. One incidental note for the executor: `write_report` requires each queue item to carry `setid` (a bare probe without it raises `KeyError: 'setid'`), so build probe items with that key. | Both report sections pasted from the real `write_report`, with `RECOVERY LINE PRESENT: False` then `True`; both host constants printed with `equal: False`; the `KeyError` observed and the probe corrected. |
+| F-08b | THE `## Dependency blocks (why)` GATE IS ON THE CANONICAL STATUS PLUS EITHER DEPENDENCY KEY, which is what makes E-03's and E-04's additive write sufficient to light up the section with no consumer change. Read at review: the section's comprehension selects an item when `canonical_terminal_status(item.get("status")) == "fail-depend"` AND (`unsatisfied_dependencies` OR `unsatisfied_dependency_reasons`) is truthy, then renders `- Recovery: {hint}` only `if hint`. All three producers already satisfy the gate (F-01, F-02, F-06 each show the section rendering for them today), so the only thing missing is the key, and the `if hint` guard is why an unsupplied hint leaves the section byte-identical. | The section's selection comprehension and its `hint = item.get("dependency_block_recovery")` / `if hint:` lines read in place; the three producers' sections rendered in F-01, F-02 and F-06's probes. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -266,9 +292,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 4. `runner_shared.dispatch_orchestrator_item` gains the same parameter and writes the key on the
    TERMINATE path only, never on RECONSIDER (E-04; producer identified in F-06, value bounded by
    F-07, transient prohibition sourced from `TRANSIENT_DEPENDENCY_WAIT_HINT`).
-5. The uniformity premise is measured across all three producers against the real `retry_incomplete`
-   requeue branch, and the plan is revised if any producer's item does not requeue (E-05; expected
-   answer in F-08).
+5. The uniformity premise is measured across all three producers, by a DECLARED route since no requeue
+   callable exists (F-18), and the plan is revised if any producer's item does not requeue (E-05;
+   expected answer in F-08, now evidenced in F-18).
 6. `tests/test_dependency_block_reporting.py` splits the recovery-key assertion into no-hint and
    with-hint cases and adds orchestrator TERMINATE/RECONSIDER and report-rendering cases (E-06).
 7. `tests/test_hostdedup_third_host.py`'s `SCRIPTED_HOST_LABELS` gains the new field (E-07; import-
@@ -344,7 +370,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
    increased over your own re-derived baseline by exactly the cases E-06 adds. Paste the summary line.
 2. TARGETED: `python3 -m pytest tests/test_dependency_block_reporting.py tests/test_hostdedup_third_host.py tests/test_runner_shared.py tests/test_host_capability_wiring.py tests/test_terminal_status_vocabulary.py tests/test_orchestrator_retirement.py tests/test_oc_runipd.py tests/test_finalize_sendback.py tests/test_run_selection_policy.py -o addopts=""` passes. These are every module that calls a changed symbol (F-11), the descriptor constructions (F-13), the identity pin (F-12), the divergent-constant guard, and the consumer whose conditional this plan deliberately does NOT change (F-04).
 3. MEASURED, NOT ASSUMED: E-05's three-producer requeue measurement is recorded in V-05 with the
-   actual statuses observed, not with a reading of the branch.
+   actual statuses observed, NAMING THE ROUTE TAKEN. There is no callable requeue function to invoke
+   (F-18), so either drive a real `resume --retry-incomplete` end to end, or evaluate the two exclusion
+   predicates and read the status set from the shipped source, declaring that the loop was not executed.
+   Do not claim a function call that does not exist.
 4. MUTATION: each new test case in E-06 is shown to FAIL when its corresponding E-item is reverted, so
    a green case is evidence rather than decoration.
 
@@ -471,9 +500,14 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     `queued`. (b) STATE explicitly whether all three requeued. If any did not, PASTE the revised E-03
     or E-04 withholding the hint from that producer and explain in this evidence block why the hint
     would have been false for it; shipping a uniform hint that is wrong for one producer is the
-    failure this item exists to prevent. (c) CONFIRM the measurement drove the REAL requeue branch
-    (naming the function called) rather than re-implementing its status set in the probe, since a
-    re-implemented set would validate the probe instead of the code.
+    failure this item exists to prevent. (c) NAME THE ROUTE E-05 took and, if it was
+    the weaker predicate-level route, SAY SO EXPLICITLY in this evidence block. Do NOT claim to have
+    "called the requeue function": review established there is none to call, since the branch is inline
+    in each host's `run_queue` and the only requeue callable is `requeue_interrupted`, a different route
+    (F-18). If you drove it end to end, name the command and paste the before/after statuses; if you
+    evaluated the predicate instead, paste the two exclusion results per producer AND the status set as
+    READ FROM the shipped source rather than retyped, and state that the loop was not executed. A claim
+    that the real branch ran when it did not is the failure this clause now exists to prevent.
   - Observed evidence:
   - Result: pending
 
@@ -514,10 +548,37 @@ through `aw commit <plan> -- <paths>`, never `git add -A` and never pushing. Run
 
 Two order constraints an executor must respect. FIRST, E-01 and E-07 land TOGETHER or the suite cannot
 even collect: F-13 measures that adding a no-default `HostLabels` field breaks
-`tests/test_hostdedup_third_host.py` at import. SECOND, E-05 gates E-03 and E-04's shipping claim
-rather than merely following them: if a producer's item does not requeue under `--retry-incomplete`,
-the correct response is to WITHHOLD the hint from that producer and say so, not to ship a uniform
-instruction that is false for one path.
+`tests/test_hostdedup_third_host.py` at import, and F-20 confirms the ten-field literal construction
+that makes it so. SECOND, E-05 gates E-03 and E-04's shipping claim rather than merely following them:
+if a producer's item does not requeue under `--retry-incomplete`, the correct response is to WITHHOLD
+the hint from that producer and say so, not to ship a uniform instruction that is false for one path.
+
+WHAT REVIEW CHANGED (2026-09-29), so the human approves the corrected plan rather than the authored one.
+Every material claim was re-measured and the plan's argument held throughout. Reproduced: the cascade
+writing a bare token plus a populated reasons map and NO recovery key (F-01, so the item's headline is
+indeed stale); the report rendering a recovery line for a drain item and none for an otherwise-identical
+cascade item, through the real `write_report` (F-02); the two host constants differing only in `aw oc`
+versus `aw agy` and comparing unequal (F-03); the `(unsatisfied)` double parenthetical the blanket
+fallback would reintroduce, plus both shipped assertions that would turn red (F-04); the orchestrator
+TERMINATE path writing the two dependency keys and no recovery key (F-06); the `children-unfinished`
+remedy verbatim (F-07); `fail-depend` in the requeue set with both exclusions False for all three
+producers (F-08); the single shipped assertion pinning the divergence (F-10); the ten-field literal
+`SCRIPTED_HOST_LABELS` construction and the `_fields`-derived one that needs no edit (F-13); no spec
+mentioning the section (F-15); and all five cited backlog carriers in their stated states, including the
+RETRACTED and now `parked` `phawyy`. TWO CORRECTIONS. FIRST (MEDIUM, PR-401), E-03's prose said "Five
+test call sites" where F-11 in the same plan says NINE and E-03's own list names seven files; the
+measured figure is nine invocations and E-03 now carries the per-file breakdown, so an executor cannot
+under-count the blast radius of a required parameter. SECOND (MEDIUM, PR-402), E-05 told the executor to
+"run the host's `retry_incomplete` requeue path" and V-05 required naming the function called, and there
+is no such callable: the branch is inline in each host's `run_queue` and the only requeue function is
+`requeue_interrupted`, a different route, so the two instructions together could only be satisfied by
+fabricating a name or by the re-implementation the same clause forbids. E-05 now names two acceptable
+routes and V-05 requires the route be declared (new F-18). Review also added F-19 through F-21 and F-08b
+recording that the census E-02 must re-home is where the plan says and its item 1 says what E-02 claims,
+that all three descriptor guardrails hold, that the report gate is on the canonical status plus either
+dependency key (so the additive write is sufficient with no consumer change), and one practical note
+that `write_report` requires `setid` on every probe item. The stale suite baseline is re-labelled after
+measuring `3284 passed` against the authored `3246`.
 
 Before the terminal transition, `aw ipd lint --phase pre-transition` must report conforming and every
 `V-*` above must carry pasted evidence, not a recollection. Then move this plan to
