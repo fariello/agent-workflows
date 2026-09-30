@@ -1,11 +1,13 @@
 - Id: awqzuh
-- Status: open
+- Status: graduated
+- Graduated-To: histlabel
 - Set: histlabel
 - Priority: low
 - Work-Kind: chore
 - Summary: aw backlog set writes a different history label depending on spelling: done (aw set) positionally versus set (aw backlog) with --status
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053053Z-3200037: jbipfa
 - 2026-09-28 created (aw backlog): aw backlog set writes a different history label depending on spelling: done (aw set) positionally versus set (aw backlog) with --status
 
 Measured at plan review of eikajx (2026-09-28) by driving both spellings over identical fixtures in scratch repositories.
