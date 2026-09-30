@@ -192,6 +192,9 @@ instruction prose (prose is reviewed by `/assess prose`, not unit-tested).
   and scannable via the `Term` helper (bold-colored words, bracketed fixed-width severity
   labels `[ERROR]`, `[WARN ]`, `[INFO ]`); non-TTY machine output routes through universal
   machine flags (`--agent` / `--json`) for parseable stream output.
+- Tests depending on the live checkout or environment: follow the canonical decision
+  rule in `GUIDING_PRINCIPLES.md` P16 ("When tests depend on the live checkout or
+  environment").
 
 ## Adding a CLI command: the output-contract checklist
 
