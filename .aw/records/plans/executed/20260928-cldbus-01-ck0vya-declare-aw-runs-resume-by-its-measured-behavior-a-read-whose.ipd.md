@@ -6,7 +6,7 @@
 - Scope: IN: correct the `runs resume` declaration to `command_class="read"` and to an exit contract that matches measurement, replacing the unreachable 3 with the reachable 2, 5 and 7, and record in a comment WHY 3 is unreachable and 1 absent so the next reader does not restore either. Add the missing per-leaf test that pins the declaration against the verb's real handler, following the shipped per-command precedent (`tests/test_runs_repo_alias.py`, `tests/test_prompts_new.py`) rather than the deleted harness, and pin the viewer/inventory agreement that is today unasserted. OUT, each for a stated reason: `runs next`'s and `runs status`'s own contracts, which are separately wrong in the same way and belong to their own item (F-08, OQ-02); restoring the three deleted conformance test files, which re-opens the deliberate test-budget decision `19313eed` made (F-05); any change to `_run_resume`'s behavior, its exit codes, or `run_recovery.resume`, because this plan makes the DECLARATION match the code and must not move the code to match a declaration; and the unreachable-`EXIT_BLOCKED` defect itself, which is a real latent bug in `run_engine`'s ephemeral-state design and is filed rather than fixed here (OQ-01).
 - Scope-Paths: agent_workflows/command_surface.py, tests/test_run_cli_declarations.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: ck0vya
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: ck0vya verified (set cldbus, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): status set to reviewed
 
