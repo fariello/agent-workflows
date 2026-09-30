@@ -6,7 +6,7 @@
 - Scope: IN: (a) APPEND one dated `## Workflow history` note to executed plan `9iiqmm` recording BOTH corrections, the falsified non-TTY premise and the never-landed implementation, since an append is the only edit `AGENTS.md` sanctions on a plan under `.aw/records/plans/executed/`; (b) APPEND a new `## Round 2` to `9iiqmm`'s typed review record correcting PR-602 and D-2, which is the reviews tree's own documented correction vehicle ("one file holds MULTIPLE rounds ... appended in order", `.aw/records/reviews/README.md`), leaving Round 1's findings intact as the record of what that reviewer actually measured; (c) VERIFY the backlog item `an77ub` filed at authoring time, which carries the never-landed implementation and the recovered dangling commit shas so the work is recoverable, and re-open the falsely-closed `plbkp5`; (d) record on backlog `3sh9d6` that its stated FIX is superseded in part, because the item asks only for a prose correction while the measured defect is lost code. OUT: RE-IMPLEMENTING the inbox counter (that is the new item's business, needs its own review, and would silently expand a chore into a feature); any in-place rewrite of `9iiqmm`'s F-12, `## Scope check`, or OQ-04 prose, and any rewrite of Round 1 of its review (both forbidden, and the whole reason (a) and (b) are appends); any edit to `9iiqmm`'s `- Status:`, metadata fields, or its position in `executed/`; any change to `select_output`, `should_color`, or the retraction in `docs/cli-output-contract.md` (all three are correct as they stand, and the claim is what is wrong); the `renderers.py` "Agent output: --agent (automatic when piped)" hint, which is the SAME falsified auto-switch promise on a LIVE user-visible surface but is already filed as backlog `zdjhug` (F-07); and the severity-blind `findings` count that OQ-04 cites, which F-13 of the original plan measured and which remains independently TRUE (F-08).
 - Scope-Paths: .aw/records/plans/executed/20260908-awinbox-02-9iiqmm-count-waiting-aw-inbox-drops-in-aw-attention-by-listing-the.ipd.md, .aw/records/reviews/20260910-awinbox-02-9iiqmm-count-waiting-aw-inbox-drops-in-aw-attention-by-listing-the.review.md, .aw/records/backlog/graduated/20260920-3sh9d6-01-3sh9d6-stale-nontty-claims-in-awinbox-artifacts.backlog.md, .aw/records/backlog/done/20260905-awinbox-01-plbkp5-attention-inbox-waiting-count.backlog.md, .aw/records/backlog/graduated/20260905-awinbox-01-plbkp5-attention-inbox-waiting-count.backlog.md, .aw/records/backlog/open
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: dv7c49
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-30 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: dv7c49 verified (set 3sh9d6, attempt 1). [Scope reconciliation - widened-scope .aw/records/backlog/graduated/20260905-awinbox-01-plbkp5-attention-inbox-waiting-count.backlog.md: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw agy run); in-scope-unmodified .aw/records/backlog/done/20260905-awinbox-01-plbkp5-attention-inbox-waiting-count.backlog.md: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified .aw/records/backlog/open: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): plan-review: APPROVE WITH REVISIONS APPLIED; PR-701..PR-705 all fixed
 
