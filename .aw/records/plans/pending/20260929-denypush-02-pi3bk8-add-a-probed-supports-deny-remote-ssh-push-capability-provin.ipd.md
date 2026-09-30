@@ -4,22 +4,26 @@
 - Kind: child
 - Concern: Spec `25kzda` 5.2 requires a host descriptor that answers, from probe evidence, whether the host can deny push-capable network routes. No capability answers it today: `supports_deny_push` was removed by plan `01reg8` precisely because it was declared and never probed. The measured result (research `uq4y6q`) is that kernel TCP denial IS provable but is port-granular, so the honestly-probable claim is narrower than "deny push" and must be named for what it proves.
 - Scope: Add ONE new capability to `HostSandboxCapabilities`, `supports_deny_tcp_port`, decided by an EXECUTED two-sided Landlock network probe, reported through the existing `aw host capabilities` surface, and extend `landlock_bootstrap_source` to carry network rules. The capability gates NO action and reintroduces NO finding code. It must NOT be named `supports_deny_push`, because it does not prove push denial.
-- Scope-Paths: agent_workflows/host_sandbox_profile.py, tests/test_host_sandbox_profile.py, tests/test_host_capability_extension.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+- Scope-Paths: agent_workflows/host_sandbox_profile.py, tests/test_host_sandbox_profile.py, tests/test_host_capability_extension.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, CHANGELOG.md
 - Item-Dependencies: executed:x2dwu5
-- Status: to-review
+- Status: reviewed
+- From-Spec: 25kzda
+- Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: low
 - From-Backlog: oq05nc
 - Set: denypush
 - Order: 2
-- Highest E allocated: 07
+- Highest E allocated: 09
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: pi3bk8
 
 ## Workflow history
+- 2026-09-30 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-801..PR-811 all fixed
 
-- 2026-09-29 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
+- 2026-09-30 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-801 (BLOCKER, fixed), PR-802 (HIGH, fixed), PR-803 (HIGH, fixed), PR-804 (MEDIUM, fixed), PR-805 (MEDIUM, fixed), PR-806 (MEDIUM, fixed), PR-807 (MEDIUM, fixed), PR-808 (LOW, fixed), PR-809 (LOW, fixed), PR-810 (LOW, fixed), PR-811 (LOW, fixed). Findings recorded in `.aw/records/reviews/20260930-denypush-02-pi3bk8-add-a-probed-supports-deny-remote-ssh-push-capability-provin.review.md`. I BUILT THE PROBE THIS PLAN SPECIFIES rather than reading research `uq4y6q`, and the authored design CANNOT WORK. PR-801: E-02 said "the child binds a loopback listener, applies a ruleset allowing only that listener's port", but `landlock_bootstrap_source` restricts BEFORE it `execv`s, so every allowed port is fixed while the child does not exist. Measured: with only port 40001 allowed and `restrict_self` applied, the process bound `127.0.0.1:56659` fine (bind is unrestricted, only `CONNECT_TCP` is handled) and connecting to its OWN socket gave `[Errno 13] Permission denied`. The ALLOWED half therefore always fails, so the probe returns False on a fully capable host: fail-CLOSED, which is why it would have survived review, and which would have made the capability permanently unreachable while the False was pasted as "the measurement". I then DEMONSTRATED the parent-binds design works (parent listeners 46623/46745, `rc: 0`, `denied connect refused: [Errno 13] Permission denied`), so E-02 now specifies it and V-02 requires a True on an ABI >= 4 host. PR-802: E-06 targeted the `PRESENCE_VS_OBSERVATION` table, which has had NO CONSUMER since commit `80db6750` deleted `test_no_runner_safety_probe_infers_support_from_helper_presence`; an `ast` walk finds exactly one reference, its own assignment, and the table's comment still claims a `_helper_exists` that exists nowhere. A fourth row plus a green suite line would have been evidence of nothing, so E-06 now restores the consumer FIRST and E-08 adds the row. PR-803: applying E-03's edits alone leaves the suite RED (`1 failed, 73 passed`, `AssertionError: 'supports_deny_tcp_port' not found in (...)`) because `test_new_contract_fields_and_defaults` asserts every `RUNNER_SAFETY_CAPABILITIES` member is in `CONTRACT_FIELDS`; the tuple append moved into E-03, making it `74 passed`. Also fixed: the credential row repeated the exact "already built and shipped" overclaim Order 01's own review corrected as its PR-701 (`pinned_child_env` is `os.environ.copy()`, so no env-carried token is withheld), `CHANGELOG.md` was warranted but undeclared, OQ-03 named sibling plan `wzhe4n` as a carrier for product work it forbids itself (correct carrier: backlog `sv9ce4`), V-07's `grep -c REFUSED` returns 1 on the current tree (the fresh-verifier note says "was REFUSED") where the test asserts the two-space form, and V-05 asked for `probe() == probe()`, vacuous against a constant. OQ-01 RESOLVED at review (keep the short name; the direction ambiguity is real, both rights are separately accepted by this kernel, but `_capability_rows` renders the note beneath every row so direction is read at the point of use). E-06 split into E-06/E-08/E-09 after `IPD-Z602` flagged my own rewrite as multi-concern. `aw ipd lint --phase review-finalize` conforming, zero findings.
 - 2026-09-29 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): authored review-ready while graduating backlog `oq05nc`. Depends on Order 01 landing the measurement and the spec amendment first.
+- 2026-09-29 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
 
 ## Goal
 
@@ -40,16 +44,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: `landlock_bootstrap_source(...)` with no port argument emits source identical to today's; with ports it emits a ruleset handling connect-TCP. Existing callers and existing tests are unaffected.
   - Execution state: pending
 
-- [ ] E-02 Add `_probe_deny_tcp_port`, a two-sided executed probe modeled on `_probe_landlock` and holding the same standard `_denial_checker_source` sets for the filesystem: it must prove a DENIAL and not a launch. The child binds a loopback listener, applies a ruleset allowing only that listener's port, then (a) connects to the allowed port and requires success, and (b) connects to a denied port and requires the kernel to refuse with `EPERM`. Exit codes must distinguish the three failure shapes the way `_denial_checker_source` does: allowed-connect-denied (jail too tight), denied-connect-succeeded (not enforced), and success. Route the subprocess through `_run_probe` so any nonzero exit, exception, or timeout maps to False, and honor `_PROBE_TIMEOUT_SECONDS` and the `CERTIFIED_PLATFORM` gate.
+- [ ] E-02 Add `_probe_deny_tcp_port`, a two-sided executed probe modeled on `_probe_landlock` and holding the same standard `_denial_checker_source` sets for the filesystem: it must prove a DENIAL and not a launch. THE PARENT BINDS BOTH LISTENERS, NOT THE CHILD, and this is a correctness requirement rather than a style choice (see the measured refutation below). The parent binds two loopback listeners on ephemeral ports, passes only the FIRST port to the network-extended `landlock_bootstrap_source`, and the bootstrap restricts itself and `execv`s a checker that (a) connects to the allowed port and requires success, and (b) connects to the second (unallowed) port and requires the kernel to refuse with `EPERM`. The parent must keep both listening sockets OPEN for the child's lifetime, since a closed listener yields `ECONNREFUSED` and not the `EPERM` that distinguishes a kernel denial from a dead port. Exit codes must distinguish the three failure shapes the way `_denial_checker_source` does: allowed-connect-denied (jail too tight), denied-connect-succeeded (not enforced), and success. Route the subprocess through `_run_probe` so any nonzero exit, exception, or timeout maps to False, and honor `_PROBE_TIMEOUT_SECONDS` and the `CERTIFIED_PLATFORM` gate.
+  - THE "CHILD BINDS ITS OWN LISTENER" DESIGN IS IMPOSSIBLE, MEASURED AT REVIEW, and this bullet exists because that is what this item originally specified. `landlock_bootstrap_source` applies the ruleset BEFORE it `execv`s, so every allowed port must be chosen while the child does not yet exist. A child that binds afterwards gets an arbitrary ephemeral port that is NOT the allowed one, so its own listener is unreachable to it. Measured: with only port `40001` allowed and `restrict_self` applied, the process then bound `127.0.0.1:56659` successfully (bind is unaffected, since only `CONNECT_TCP` is handled) and connecting to that very socket returned `[Errno 13] Permission denied`. The ALLOWED half of the two-sided test therefore always fails and the probe would report False on a fully capable host: a fail-CLOSED wrong answer, which is safe but makes the capability permanently unreachable and the positive test unpassable. THE PARENT-BINDS DESIGN WAS DEMONSTRATED TO WORK on this host, which is the standard `/plan-review` Step 3.1 sets for a HOW resolution: with the parent holding listeners on `46623` (allowed) and `46745` (denied), the extended bootstrap plus checker exited `rc: 0` with stderr `denied connect refused: [Errno 13] Permission denied`, i.e. the allowed connect SUCCEEDED and the denied one was refused by the kernel in one run.
   - Depends on: E-01
-  - Expected outcome: A probe returning `(bool, note)` that is True only on proven two-sided denial, and False with an explanatory note on every other outcome including ABI < 4 and non-Linux.
+  - THE NOTE MUST NAME THE DIRECTION AND THE GRANULARITY, which OQ-01's resolution rests on. It states that what was proven is an OUTBOUND connect denial (`LANDLOCK_ACCESS_NET_CONNECT_TCP`, not the separate bind-TCP right, both of which this kernel accepts as handled rights: measured at review), that it is PER PORT with no address component, and that it therefore does not separate a git remote from any other destination on the same port. The note is where an operator meets the limit, because `host_cmd._capability_rows` renders it directly beneath the verdict row.
+  - Expected outcome: A probe returning `(bool, note)` that is True only on proven two-sided denial, and False with an explanatory note on every other outcome including ABI < 4 and non-Linux. On a host reporting ABI >= 4 with Landlock networking enforced, the probe must return True; a design that cannot return True on such a host has not met this item.
   - Execution state: pending
 
 ### Task group 2: the contract surface
 
-- [ ] E-03 Add the capability `supports_deny_tcp_port` to `HostSandboxCapabilities` defaulting False, add the `CAP_DENY_TCP_PORT` constant, register it in `RUNNER_SAFETY_CAPABILITIES`, wire `_RUNNER_SAFETY_PROBES[CAP_DENY_TCP_PORT] = _probe_deny_tcp_port` (a real probe, NOT the `None` sentinel that marks declared-not-probed), and export the constant in `__all__`. Set the verdict and its `probe_notes` entry in `detect_host_capabilities` alongside the existing probed capabilities. Do NOT add it to `ACTION_CAPABILITY_REQUIREMENTS` and do NOT add an action class: `ACTION_CLASSES` stays `(ACTION_READ_ONLY,)`.
+- [ ] E-03 Add the capability `supports_deny_tcp_port` to `HostSandboxCapabilities` defaulting False, add the `CAP_DENY_TCP_PORT` constant, register it in `RUNNER_SAFETY_CAPABILITIES`, wire `_RUNNER_SAFETY_PROBES[CAP_DENY_TCP_PORT] = _probe_deny_tcp_port` (a real probe, NOT the `None` sentinel that marks declared-not-probed), and export the constant in `__all__`. Set the verdict and its `probe_notes` entry in `detect_host_capabilities` alongside the existing probed capabilities. Do NOT add it to `ACTION_CAPABILITY_REQUIREMENTS` and do NOT add an action class: `ACTION_CLASSES` stays `(ACTION_READ_ONLY,)`. IN THE SAME PASS, append `"supports_deny_tcp_port"` to `tests/test_host_sandbox_profile.py`'s `CONTRACT_FIELDS` tuple, because THIS ITEM BREAKS THE SUITE WITHOUT IT: `test_new_contract_fields_and_defaults` iterates `RUNNER_SAFETY_CAPABILITIES` and asserts every member is present in `CONTRACT_FIELDS`, which it imports from the other test module. Measured at review by applying exactly this item's edits and nothing else: `1 failed, 73 passed`, with `AssertionError: 'supports_deny_tcp_port' not found in (...)`; adding the tuple entry makes it `74 passed`. E-05 still owns the rest of that file's coverage; only the one-line tuple append moves here, because a plan whose middle item leaves the suite red cannot honestly run the bare suite as its own gate.
   - Depends on: E-02
-  - Expected outcome: `aw host capabilities` reports the new row automatically (`host_cmd._capability_rows` introspects `caps.to_dict()` for bool values rather than reading a name list), with a `probe_notes` entry recording the evidence. No action is gated, so no run behavior changes.
+  - Expected outcome: `aw host capabilities` reports the new row automatically (`host_cmd._capability_rows` introspects `caps.to_dict()` for bool values rather than reading a name list), with a `probe_notes` entry recording the evidence. No action is gated, so no run behavior changes. The suite is GREEN at the end of this item, not merely at the end of the plan.
   - Execution state: pending
 
 - [ ] E-04 Amend `host_sandbox_profile`'s module docstring: add the new capability to the runner-safety bullet list describing how each is established, stating it is PROBED by attempt and two-sided; update the prose that currently counts the fields ("Two fields and a preflight close that"); and state the port-granularity limit explicitly in the bullet, so a reader of the contract cannot mistake it for push denial. Also state that the capability gates no action today, which is the same honest limit the docstring already records for the preflight.
@@ -59,14 +65,25 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: tests, including the anti-overclaim guards
 
-- [ ] E-05 Append `"supports_deny_tcp_port"` to `tests/test_host_sandbox_profile.py`'s `CONTRACT_FIELDS` tuple. That tuple, not dataclass introspection, drives `test_every_contract_field_exists_and_defaults_false` and `test_to_dict_snapshots_the_contract`, and its own comment warns that "a field absent from it carries NO default-False or snapshot guarantee while the suite stays green". Add a two-sided probe test: with the real probe, assert the reported verdict equals a forced re-run of the probe; and assert a raising probe yields False, mirroring `test_a_raising_probe_is_treated_as_unavailable`.
+- [ ] E-05 Pin the new probe's fail-closed behavior in `tests/test_host_sandbox_profile.py`. The `CONTRACT_FIELDS` append itself moved to E-03 (see that item's measured reason: without it E-03 leaves the suite red), so this item OWNS THE TESTS THAT USE the tuple entry rather than the entry. That tuple, not dataclass introspection, drives `test_every_contract_field_exists_and_defaults_false` and `test_to_dict_snapshots_the_contract`, and its own comment warns that "a field absent from it carries NO default-False or snapshot guarantee while the suite stays green", so confirm both now cover the new field. Then add: a test asserting a RAISING probe yields False with the note recording the exception; and a test that drives `_probe_deny_tcp_port` DIRECTLY and asserts the returned `(bool, note)` pair, so the probe is exercised rather than only its registration. MIRROR `test_a_raising_probe_yields_not_supported` IN `tests/test_host_capability_extension.py`, NOT the similarly named `test_a_raising_probe_is_treated_as_unavailable` in this file, which the original wording pointed at. Both symbols exist (verified at review) and they exercise DIFFERENT seams: the one named here patches `_RUNNER_SAFETY_PROBES` and asserts the note contains `"probe raised RuntimeError"`, which is the path a runner-safety capability actually takes, while the other patches `_SANDBOX_LADDER` and `_SANDBOX_PROBE_CACHE`, which the new capability never touches. Copying the sandbox-ladder shape would test a mechanism this capability is deliberately not registered in (OQ-02).
+  - DO NOT WRITE "the reported verdict equals a forced re-run of the probe", which the original wording asked for and which is VACUOUS: `probe_runner_safety_capabilities` is uncached, so it re-runs the same probe function and the assertion reduces to `probe() == probe()`. That passes for a probe returning a constant, which is the fail-open shape this area's whole test discipline exists to reject. Assert the verdict against an ARRANGED kernel outcome instead (E-06 supplies the arrangement), or assert the probe's own returned note names the evidence.
   - Depends on: E-03
-  - Expected outcome: The new field carries the same default-False and snapshot coverage every other contract field has, and the probe's fail-closed behavior is pinned.
+  - Expected outcome: The new field carries the same default-False and snapshot coverage every other contract field has, and the probe's fail-closed behavior is pinned by tests that would fail if the probe returned a constant.
   - Execution state: pending
 
-- [ ] E-06 Add a row for the new capability to `tests/test_host_capability_extension.py`'s `PRESENCE_VS_OBSERVATION` table, whose comment states the rule "ONE CLAIM, ONE ROW PER PROBE: no runner-safety capability may be decided by a HELPER EXISTING". The row must prove the capability is False when the MECHANISM IS PRESENT BUT ENFORCES NOTHING, which is the fail-open shape that matters here and is concretely available: `slirp4netns`, `bwrap` and `unshare` are all installed on hosts where no namespace can be created (research `uq4y6q`'s host table). Add a dedicated test asserting the capability is False on a host whose probe reports Landlock ABI < 4, so an older kernel cannot silently inherit a True.
+- [ ] E-06 Restore a LIVE CONSUMER for `tests/test_host_capability_extension.py`'s `PRESENCE_VS_OBSERVATION` table, which is currently dead data. THE TABLE ASSERTS NOTHING TODAY, measured at review: an `ast` walk of that file for every `Name`/`Attribute` reference to `PRESENCE_VS_OBSERVATION` returns exactly `[('name', 235)]`, its own assignment, because commit `80db6750` ("test: delete 366 tests that pinned code structure instead of behaviour") deleted `test_no_runner_safety_probe_infers_support_from_helper_presence`, the sole consumer, and left the data behind. Its comment still claims "`_helper_exists` is asserted per row" while no such symbol exists anywhere in the repository. Write the consuming test: iterate the table, and for each row assert the named helper is importable and callable (so a row cannot pass because its witness vanished), run `probe_runner_safety_capabilities` under the row's `arrange` context manager, and assert the returned verdict equals the row's expected value. This is a BEHAVIORAL test (it drives the prober and asserts returned verdicts), not a source-structure pin, so it conforms to AGENTS.md P16. Restore NO part of the deleted test that read source text, counted symbols, or scanned `sys.modules` for an import fingerprint: those are why it was deleted, and reviving them would re-create the defect that commit removed.
   - Depends on: E-03
-  - Expected outcome: A presence signal cannot produce a True verdict, pinned by test rather than by comment.
+  - Expected outcome: The three EXISTING rows regain the guarantee they were written to carry, verifiable by inverting a probe and seeing the new test fail. This item adds no row of its own, deliberately: the consumer must be proven live before a row is worth adding to it.
+  - Execution state: pending
+
+- [ ] E-08 Add the new capability's row to `PRESENCE_VS_OBSERVATION`, now that E-06 gave the table a consumer. The row's `arrange` must make the kernel mechanism PRESENT AND REACHABLE while the denial is NOT observed, which is the fail-open shape the table's own comment demands ("ONE CLAIM, ONE ROW PER PROBE: no runner-safety capability may be decided by a HELPER EXISTING"). Arrange it by building the jail with the DENIED port ALSO allowed, so the ruleset really applies and really refuses nothing, and restore in a `finally` because the patch is process-global. Do NOT arrange it by patching the probe to return False, which would test the patch rather than the mechanism.
+  - Depends on: E-06
+  - Expected outcome: A present-but-unenforcing mechanism yields False, pinned by a row a live test reads.
+  - Execution state: pending
+
+- [ ] E-09 Add a test asserting the capability is False when the reported Landlock ABI is below 4, so an older kernel cannot silently inherit a True. Drive it through the existing test seam rather than by requiring an ABI-3 machine, since none is available here and F-9 records that a real-host-only test would skip everywhere and guard nothing.
+  - Depends on: E-03
+  - Expected outcome: The ABI gate is pinned on every host, including this one, without a skip.
   - Execution state: pending
 
 - [ ] E-07 Re-point `tests/test_host_capability_extension.py`'s `DenyPushRemovedTests` rather than deleting it, and record why in its docstring. Its purpose (`01reg8` E-02) is to stop `supports_deny_push` being reintroduced, and that purpose SURVIVES this plan intact: this plan adds a differently-named capability precisely because it cannot prove push denial. Keep every assertion that `supports_deny_push`, `CAP_DENY_PUSH`, the three action classes, and the `deny_push` output string remain absent. Only the assertion that `aw host capabilities` prints no `REFUSED  ` needs review, and it should remain true since no action is gated. Update the docstring to name both plans, so a future reader sees the guard was honored rather than worked around.
@@ -97,18 +114,28 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-6 | The three removed action classes must not come back without a consumer | `ACTION_CLASSES` is `(ACTION_READ_ONLY,)`; the comment beside `ACTION_CAPABILITY_REQUIREMENTS` warns a future reader "must not 'restore parity' by re-adding the three unused constants without a consumer" | E-03 adds NO action class and NO requirement row. The capability is reported-only. |
 | F-7 | The action preflight is wired but fires for nothing | `runner_shared.execute_item_core` calls `preflight_host_capabilities`, but `RUNNER_ACTION_TO_CONTRACT_ACTION` is empty and `runner_action_contract_class` returns None for every action; the module docstring's HONEST LIMIT says "no production action requires a capability today ... so today this prevents nothing on its own" | Adding a reported capability changes no run behavior, which is the intended blast radius. A plan wanting enforcement would have to populate that mapping, which this plan deliberately does not. |
 | F-8 | A forced-verdict test seam already exists | `forced_runner_safety_verdicts` context manager plus the `_FORCED_RUNNER_SAFETY` global; `probe_runner_safety_capabilities` consults it and prefixes the note with `"FORCED VERDICT (test seam): "` | Registering in `_RUNNER_SAFETY_PROBES` gives the new capability a fake/skip seam with no new test infrastructure. |
-| F-9 | A real-binary-only test would skip everywhere | The bwrap stub's rationale in `tests/test_host_sandbox_profile.py` records that the real binary cannot create a userns on most CI machines, so a real-only test "would skip everywhere and guard nothing"; a skip "leaves the guarantee UNVERIFIED on that machine" and is never acceptance evidence | E-05/E-06 must include coverage that runs WITHOUT a working kernel jail (forced verdicts and the ABI gate), so the fail-closed behavior is pinned even where the real probe cannot run. |
+| F-9 | A real-binary-only test would skip everywhere | `tests/test_host_sandbox_profile.py`'s `BWRAP_STUB_MODES` comment records that the real binary cannot create a userns on most CI machines, so a test driving only it "would SKIP everywhere and guard nothing"; the module docstring states a skip "leaves the guarantee UNVERIFIED on that machine" and is never acceptance evidence | E-05/E-06 must include coverage that runs WITHOUT a working kernel jail (forced verdicts and the ABI gate), so the fail-closed behavior is pinned even where the real probe cannot run. The two quoted strings live in DIFFERENT places in that file and the original finding attributed both to the stub rationale; corrected at review so an executor greps the right one. |
+| F-10 | THE CHILD CANNOT BIND ITS OWN ALLOWED PORT (measured at review) | `landlock_bootstrap_source` applies the ruleset and `execv`s in that order, so every allowed port is fixed before the child exists. Measured on this host: with only port `40001` allowed and `restrict_self` applied, the process bound `127.0.0.1:56659` successfully (only `CONNECT_TCP` is handled, so `bind` is unrestricted) and connecting to its OWN socket returned `[Errno 13] Permission denied`. The parent-binds design was then demonstrated to work: parent listeners on `46623`/`46745`, extended bootstrap plus checker, `rc: 0` with `denied connect refused: [Errno 13] Permission denied` | E-02 as originally authored ("the child binds a loopback listener, applies a ruleset allowing only that listener's port") COULD NOT REACH True on any host. E-02 now specifies parent-binds and E-02's Expected outcome requires True on a capable host, so the impossibility cannot pass as a fail-closed result. |
+| F-11 | `PRESENCE_VS_OBSERVATION` IS DEAD DATA WITH NO CONSUMER (measured at review) | An `ast` walk of `tests/test_host_capability_extension.py` for every `Name`/`Attribute` reference to `PRESENCE_VS_OBSERVATION` returns exactly `[('name', 235)]`, its own assignment. Commit `80db6750` ("test: delete 366 tests that pinned code structure instead of behaviour") deleted `test_no_runner_safety_probe_infers_support_from_helper_presence`, the only consumer, and left the table behind; the table's own comment still claims "`_helper_exists` is asserted per row", and no symbol `_helper_exists` exists anywhere in the repository | E-06 as originally authored would have added a row to data nothing reads, and V-06 would have pasted a green line proving nothing. E-06 now restores a live consumer FIRST and adds the row second, and V-06's inversion check is what proves the consumer exists. The three surviving rows regain their guarantee as a side effect. |
+| F-12 | The new capability's verdict is UNCACHED and costs a subprocess per call | `probe_runner_safety_capabilities` is deliberately not memoized ("a stale memo here would be a way for one turn's verdict to outlive the state it was measured against"), unlike `_SANDBOX_PROBE_CACHE`. Measured at review: the extended bootstrap probe costs a mean `0.047s` over five runs; warm `detect_host_capabilities('opencode')` is `0.305s`, so the projected warm cost is `0.352s`, about `1.2x` | ACCEPTABLE, and recorded so it is a measured choice rather than an unexamined one. `detect_host_capabilities` is called once per `aw host capabilities` invocation and once per gated action (and `runner_action_contract_class` returns None for every action today, so the second path is currently unreachable), not per queue item. A 47ms addition to a 305ms read-only report is not user-perceptible, so this is not the `bug`-class inefficiency AGENTS.md describes. V-03 pastes the real command so the figure is re-established rather than assumed. |
 
 ## Proposed changes (ordered, validatable)
 
 1. Extend the bootstrap to carry optional network rules, defaulted off so every existing caller is
    byte-unchanged (E-01).
-2. Add the two-sided executed probe, fail-closed at every layer the existing probes are (E-02).
-3. Add the capability, register its real probe, and report it; gate nothing (E-03).
+2. Add the two-sided executed probe, PARENT-BINDING both listeners, fail-closed at every layer the
+   existing probes are (E-02). Parent-binding is a correctness requirement, not a style choice: F-10
+   measures why the child-binds shape can never report True.
+3. Add the capability, register its real probe, report it, and append the contract-field tuple entry
+   in the same pass so the suite is green at the end of the item; gate nothing (E-03).
 4. Amend the published-guarantees docstring to describe what it proves and what it does not (E-04).
-5. Extend the contract-field tuple and pin the probe's fail-closed behavior (E-05).
-6. Pin the anti-presence-inference rule for the new capability with a table row (E-06).
-7. Re-point the `deny_push` removal guard, preserving its purpose and recording why (E-07).
+5. Pin the probe's fail-closed behavior with tests that fail against a constant-returning probe (E-05).
+6. Restore a live consumer for the `PRESENCE_VS_OBSERVATION` table, which is currently dead data
+   (E-06). This precedes adding any row to it, because F-11 measures that a row added today asserts
+   nothing.
+7. Add the new capability's presence-versus-observation row (E-08).
+8. Pin the ABI < 4 gate through the test seam (E-09).
+9. Re-point the `deny_push` removal guard, preserving its purpose and recording why (E-07).
 
 ## Deferred / out of scope (with reason)
 
@@ -127,22 +154,42 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - HOST-GRANULAR filtering (network namespace plus filtering proxy), the only mechanism that would
   close the 443 gap and make a real push-denial claim possible.
   - Carrier: sv9ce4
-- WITHHOLDING remote credentials, the other half of 5.2's bullet. Already built and shipped:
-  `oc_runipd._hardened_credential_paths` makes `~/.ssh`, `~/.netrc`, `~/.git-credentials`,
-  `~/.config/gh` and peers inaccessible in hardened mode.
-  - Carrier-Declined: Already done, so nothing is owed. Order 01 records this in the spec.
+- WITHHOLDING remote credentials, the other half of 5.2's bullet. PARTLY built, bounded in three
+  ways, and NOT "already built and shipped" as this row previously claimed (corrected at review; the
+  identical overclaim was found and fixed in Order 01's own review as its PR-701, so leaving it
+  standing here would have re-asserted in this plan exactly what the sibling plan was corrected for).
+  The three bounds, each measured: (a) FILES ONLY, since `oc_runipd._hardened_credential_paths` makes
+  `~/.ssh`, `~/.netrc`, `~/.git-credentials`, `~/.config/gh` and peers inaccessible, while
+  `runner_shared.pinned_child_env` is `os.environ.copy()` and the launcher pops only four internal
+  keys, so a `GH_TOKEN`/`GITHUB_TOKEN` or a forwarded `SSH_AUTH_SOCK` reaches the worker untouched and
+  an environment token is a PUSH-CAPABLE credential; (b) OPT-IN AND LINUX-ONLY, since
+  `_apply_execution_profile` returns `argv` unchanged unless the `hardened` profile was requested, so
+  the default profile withholds nothing; (c) EXISTING PATHS ONLY, a fixed enumeration rather than a
+  boundary over all credentials.
+  - Carrier-Declined: Nothing is owed BY THIS PLAN, which adds no credential handling at all, and the
+    bounded state is recorded in the spec by Order 01's E-03 (whose wording its review pinned to state
+    all three bounds). This row exists to stop a reader of THIS plan inferring that the credential half
+    is complete, which is the fail-OPEN direction the whole Set exists to refuse.
 - Naming the capability `supports_deny_push`. Refused on measured grounds (F-3, F-4), not on caution.
   - Carrier-Declined: DELIBERATELY NOT WANTED. The name would assert what the mechanism cannot do,
     which is the overclaim plan `4h7tt0` retired and `01reg8` deleted.
 
 ## Scope check
 
-- Over-scope: none. `host_sandbox_profile.py` is changed by E-01 through E-04; both test files by
-  E-05 through E-07; the spec by the capability's appearance in 5.2's descriptor narrative, which is
-  a one-paragraph addition recording that the first probed answer now exists.
+- Over-scope: none. `host_sandbox_profile.py` is changed by E-01 through E-04; `tests/test_host_sandbox_profile.py`
+  by E-03's one-line `CONTRACT_FIELDS` append and E-05; `tests/test_host_capability_extension.py` by
+  E-06, E-07, E-08 and E-09; the spec by the capability's appearance in 5.2's descriptor narrative, which
+  is a one-paragraph addition recording that the first probed answer now exists; `CHANGELOG.md` by the
+  unreleased entry the user-visible report row warrants.
 - Under-scope: none. `host_cmd.py` is deliberately NOT in scope and needs no change, because
   `_capability_rows` introspects `to_dict()` for bools (F-7's sibling finding), so the new row appears
-  automatically; V-03 verifies that by running the real command rather than assuming it.
+  automatically; V-03 verifies that by running the real command rather than assuming it. NOTE the new
+  row also appears in the `aw host capabilities --json` payload for free, and no shipped test pins the
+  capability-row COUNT (measured at review: `test_the_json_payload_carries_the_full_contract_and_action_verdicts`
+  asserts `len(data["action_classes"]) == 1` and `len(host["actions"]) == 1`, both action counts, and
+  `test_the_capability_rows_are_derived_by_introspection` asserts membership rather than length), so
+  adding a field breaks no count assertion. This is why `host_cmd.py` and its tests need no edit; it is
+  stated because a count assertion is exactly what would have made this an under-scope miss.
 
 ## Required tests / validation
 
@@ -169,28 +216,41 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   the spec silent would leave the next reader unable to tell a probed row from a declared one.
 - `host_sandbox_profile`'s module docstring is the published-guarantees contract and is amended by
   E-04, including the field-count prose it currently carries.
-- CHANGELOG: an entry IS warranted here, since `aw host capabilities` gains a user-visible row. Add it
-  under the unreleased section when executing; it is not in `Scope-Paths` as a separate concern
-  because the capability row is the user-visible change and belongs with it. If the reviewer prefers
-  the CHANGELOG edit be declared, add the path at review time.
+- CHANGELOG: an entry IS warranted here, since `aw host capabilities` gains a user-visible row, and
+  `CHANGELOG.md` is now DECLARED in `Scope-Paths` (added at review). The previous wording said the
+  entry was warranted but left the path undeclared "as a separate concern" and offered to add it "at
+  review time"; that is a contradiction the finalize scope gate would have caught rather than
+  tolerated. `ipd_lifecycle._is_implicitly_allowed` grants only `.aw/records/plans/**`,
+  `.aw/records/plans/INDEX.md` and `.aw/records/**/index.md` (measured at review via
+  `ipd_schema.scope_paths_implicit_allowances()`), so `CHANGELOG.md` is NOT implicitly allowed and an
+  undeclared edit to it would have demanded a `--scope-reason` at finalize for work the plan already
+  knew it was going to do. Write the entry in user-facing prose with NO em or en dashes, per the
+  execution contract.
 
 ## Open questions
 
 ### OQ-01: Is `supports_deny_tcp_port` the right name, or should it be `supports_deny_outbound_tcp_port`?
 
 - Blocking: no
-- Status: open
-- Owner: maintainer
-- Carrier: wcbpqf
-- Resolution or deferral rationale: NOT BLOCKING; either name is honest and the plan works unchanged
-  with either. The requirement the name must satisfy is that it describe what the probe PROVES and
-  not what an operator wishes it meant, which is the whole lesson of `supports_deny_push`'s removal.
-  `supports_deny_tcp_port` is recommended for being shorter while still naming the granularity that
-  matters (a PORT, not a host). The argument for the longer name is that Landlock's connect-TCP right
-  governs OUTBOUND connects specifically and a separate bind-TCP right exists, so the short name is
-  mildly ambiguous about direction. Either way the `probe_notes` entry states the direction
-  explicitly, so the ambiguity is resolved at the point of use. A reviewer preferring the longer name
-  should say so at review time; it is a mechanical rename before execution.
+- Status: resolved
+- Owner: plan-review (opencode its_direct/pt3-claude-opus-5-1m-us)
+- Resolution or deferral rationale: RESOLVED AT REVIEW: keep `supports_deny_tcp_port`, the shorter
+  name, and carry the direction in the `probe_notes` entry rather than in the field name. The
+  ambiguity the question raises is REAL and was confirmed by measurement rather than from
+  documentation: at ABI 4 this kernel accepts a ruleset handling `LANDLOCK_ACCESS_NET_BIND_TCP`
+  (`1 << 0`) just as readily as one handling `LANDLOCK_ACCESS_NET_CONNECT_TCP` (`1 << 1`), both
+  returning a valid ruleset fd, so the two rights genuinely are separate and a bare "tcp_port" does
+  not say which one was proven. What decides it is that the field name is not the only place the
+  claim is published: `host_cmd._capability_rows` emits the `probe_notes` entry directly beneath
+  every row (verified by running `aw host capabilities opencode`, whose output renders each verdict
+  followed by its own `why:` line), so the direction is read at the same moment as the verdict and
+  never separately. Given that, the shorter name costs nothing a reader can be misled by, while the
+  longer one spends 8 characters on information already present at the point of use. This is a
+  REVERSIBLE decision: renaming a dataclass field before anything gates on it is a mechanical change,
+  and nothing outside this repository consumes the name. A maintainer who prefers
+  `supports_deny_outbound_tcp_port` should say so, and `wcbpqf` remains available if they want it
+  recorded as a standing decision. E-02's probe note MUST state the direction explicitly; that is now
+  a requirement of this resolution and not merely a nicety.
 
 ### OQ-02: Should this capability be registered in RUNNER_SAFETY_CAPABILITIES, or is it a sandbox-ladder capability like supports_os_sandbox?
 
@@ -207,6 +267,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   this plan needs, since a real jail is unavailable on many hosts. The ladder is also the wrong home
   on its own terms: `_SANDBOX_LADDER` rungs are ALTERNATIVE mechanisms for one filesystem-partition
   question, chosen strongest-first, whereas this is an independent question with its own answer.
+  THE COST OF NOT CACHING WAS MEASURED AT REVIEW rather than left as an unexamined consequence of the
+  FIRST argument above, since choosing the uncached group means paying a subprocess on every call: the
+  extended bootstrap probe costs a mean 0.047s over five runs, against a warm
+  `detect_host_capabilities('opencode')` of 0.305s, so the projected warm total is 0.352s (about 1.2x).
+  `detect_host_capabilities` runs once per `aw host capabilities` invocation and once per gated action
+  (and `runner_action_contract_class` returns None for every action today, so that second path is
+  currently unreachable), never per queue item, so this is not a user-perceptible regression and not the
+  `bug`-class inefficiency AGENTS.md describes. Recorded in F-12 so a later reader can dispute the
+  number rather than the judgement. NOTE ALSO that membership in `RUNNER_SAFETY_CAPABILITIES` gates
+  nothing by itself: `check_action_capabilities` reads `ACTION_CAPABILITY_REQUIREMENTS`, whose only row
+  (`read_only`) has `required=()`, so registering here cannot make any action start refusing.
 
 ### OQ-03: Should the probe allow the model API port so the capability could eventually be enabled in production, rather than proving denial on an arbitrary port?
 
@@ -218,10 +289,15 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   host and not about our port policy. Proving it with a loopback listener is strictly better evidence
   because it is hermetic, needs no external network, and gives a genuine two-sided result in CI. What
   ports a production hardened profile would allow is a POLICY decision that belongs with the work that
-  actually applies network rules to a worker, and that work is carried by `wzhe4n`, because applying a
-  policy requires solving the 443 problem first (F-3, F-4). Conflating the two would put a policy
-  choice inside a capability probe, where it would be untestable and would quietly change what the
-  capability means.
+  actually applies network rules to a worker, and that work is carried by BACKLOG `sv9ce4` ("Build
+  host-granular outbound network filtering (netns plus filtering proxy), the only mechanism that can
+  deny a git push without also denying the model API", verified `open` at review), because applying a
+  policy requires solving the 443 problem first (F-3, F-4). CORRECTED AT REVIEW: this rationale
+  previously named `wzhe4n`, which is Order 03 of this same Set, a records-and-verification plan whose
+  own Scope says "no product code" and which therefore cannot carry a network-policy deliverable. Every
+  other deferral row in this plan already names `sv9ce4`, so the one that named a sibling plan was the
+  outlier. Conflating policy with the probe would put a policy choice inside a capability probe, where
+  it would be untestable and would quietly change what the capability means.
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -234,6 +310,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [ ] V-02 validates E-02
   - Required evidence: The probe's own returned `(bool, note)` for three arrangements, pasted: the real host (whatever it reports), a forced ABI < 4 condition, and an induced probe exception. The first must show a note that states the evidence rather than a bare False. Additionally show the probe distinguishes the two failure shapes by exit code: a jail that denies the ALLOWED connect must not report True, and a jail that permits the DENIED connect must report False with a note saying it was not enforced. A single True with no failure-shape evidence FAILS this item, since that is the launch-only criterion the module docstring forbids.
+  - ON A HOST REPORTING ABI >= 4, THE REAL-HOST ARRANGEMENT MUST RETURN True, and a False there FAILS this item rather than being recorded as the measurement. This is the check that catches F-10: the child-binds design returns a perfectly fail-closed False on a fully capable host, so "the probe reported False and False is safe" is exactly the answer that would hide the defect. Paste the host's own reported ABI beside the verdict so the two can be read together. If and only if the executing host reports ABI < 4 is a False legitimate, and then say so explicitly and state that the two-sided denial is consequently UNVERIFIED on this machine.
   - Observed evidence:
   - Result: pending
 
@@ -248,17 +325,30 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: `git diff` showing `"supports_deny_tcp_port"` appended to `CONTRACT_FIELDS`, plus pasted output of `python3 -m pytest tests/test_host_sandbox_profile.py` showing `test_every_contract_field_exists_and_defaults_false` and `test_to_dict_snapshots_the_contract` passing with the new field included. Paste the new probe tests' results too; if any SKIPPED, paste the skip reason and state which guarantee is consequently unverified on this host.
+  - Required evidence: Pasted output of `python3 -m pytest tests/test_host_sandbox_profile.py` showing `test_every_contract_field_exists_and_defaults_false` and `test_to_dict_snapshots_the_contract` passing WITH the new field included (the `CONTRACT_FIELDS` diff itself is V-03's, since the append moved to E-03), plus the pasted results of the two tests this item adds: the raising-probe test and the direct `_probe_deny_tcp_port` test. If any SKIPPED, paste the skip reason and state which guarantee is consequently unverified on this host.
+  - PROVE THE PROBE TEST IS NOT VACUOUS. Show that the direct-probe test would FAIL against a probe returning a constant: temporarily replace `_probe_deny_tcp_port` with `lambda: (True, "constant")`, paste the FAILURE, then revert and paste the restored pass. A test that passes against a constant-returning probe is the fail-open shape this plan's whole test discipline exists to reject, and it is exactly what the original "verdict equals a forced re-run of the probe" wording would have produced.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-06 validates E-06
-  - Required evidence: Pasted result of the `PRESENCE_VS_OBSERVATION` test showing the new row passing, and the row's arrangement demonstrating that a PRESENT mechanism enforcing nothing yields False. To prove the test is not vacuous, temporarily invert the probe to return True unconditionally, paste the resulting FAILURE, then revert and paste the restored pass. A row that passes both before and after that inversion is not guarding anything.
+  - Required evidence: PROVE THE CONSUMER EXISTS, which is the whole deliverable. Paste an `ast`-based count of references to `PRESENCE_VS_OBSERVATION` in `tests/test_host_capability_extension.py` showing MORE THAN ONE (the assignment plus the new consumer); a count of exactly 1 means the table is still dead and this item FAILS regardless of how green the suite is. Paste the new test's result showing the three EXISTING rows passing. To prove it is not vacuous, temporarily invert one probe so a negative row's verdict flips, paste the resulting FAILURE, then revert and paste the restored pass; a test that cannot be made to fail by inverting a probe is not consuming the table.
+  - Also state that the restored test reads no production SOURCE (no `inspect`, no `ast` over `agent_workflows/`, no substring search of module text), since the deleted consumer was removed for being a structure pin and restoring that shape would re-create the defect commit `80db6750` removed.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-08 validates E-08
+  - Required evidence: Pasted result of the table-consuming test showing all FOUR rows passing, the new row included. Quote the new row's `arrange` and state, in one sentence, HOW it makes the mechanism present and reachable while nothing is refused; an arrangement that patches the probe's return value FAILS this item, because it tests the patch. To prove the row is load-bearing, temporarily make the probe return True unconditionally, paste the FAILURE naming this row, then revert and paste the restored pass.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-09 validates E-09
+  - Required evidence: Pasted result of the ABI-gate test PASSING on this host (not skipped), plus the reported Landlock ABI of the executing host so a reader can see the test exercised the below-4 branch through the seam rather than because the host happened to be old. A SKIP fails this item: F-9 records that a skip leaves the guarantee unverified, and the gate this test covers is precisely the one an older kernel would silently pass.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-07 validates E-07
   - Required evidence: `git diff` of `DenyPushRemovedTests` showing every `supports_deny_push`/`CAP_DENY_PUSH`/action-class/`deny_push`-string assertion RETAINED and only the docstring updated, plus the pasted test result showing it passes. Also paste `aw host capabilities opencode | grep -c deny_push` returning 0, which is the behavioral proof that the new capability did not smuggle the forbidden name into the report.
+  - USE `grep -c 'REFUSED  '` (TWO TRAILING SPACES) FOR THE REFUSED CHECK, NOT A BARE `REFUSED`, and state the number. Measured at review on the current tree: a bare `grep -c REFUSED` on `aw host capabilities opencode` returns **1**, because the fresh-verifier probe note contains the sentence "a reused-identity run was REFUSED"; the two-space form returns **0**, and it is the two-space form `DenyPushRemovedTests` actually asserts (`self.assertNotIn("REFUSED  ", out)`). An executor who greps the bare word will see a hit, conclude the test's premise broke, and either "fix" a passing guard or report a false regression.
   - Observed evidence:
   - Result: pending
 
@@ -274,7 +364,43 @@ claiming push denial, because that overclaim is the exact defect plan `4h7tt0` r
 `01reg8` deleted, and the cheapest way to recreate it is to build a working probe and then describe it
 generously.
 
+TWO THINGS A REVIEWER SHOULD PUSH HARDEST ON, both found by measurement at this review and both of a
+kind the suite cannot catch. FIRST, THE PROBE MUST BE ABLE TO SAY YES. A probe that can only ever
+report False is fail-closed and therefore looks safe, which is exactly why it survives review: the
+originally authored child-binds design could not reach True on ANY host (F-10), and its False would
+have been pasted as "the measurement". So the acceptance bar in E-02 and V-02 is a True on a capable
+host, not merely a defensible False. SECOND, A TEST MUST BE ABLE TO SAY NO. The table this plan
+originally proposed extending has had no consumer since commit `80db6750` (F-11), so a fourth row plus
+a green suite line would have been evidence of nothing. Both defects share one shape: an artifact that
+cannot produce the answer that would reveal a problem. V-02, V-05, V-06 and V-08 each now demand a
+deliberately induced FAILURE for that reason.
+
 Execution contract: commit only the paths named in `Scope-Paths`, through `aw commit <plan> -- <paths>`,
-never `git add -A`, and never push. Paste actual test output, including skips, rather than claiming
-success. On completion, verify `aw ipd lint --phase pre-transition` conforms and every `V-*` carries
-concrete observed evidence before moving this plan to `.aw/records/plans/executed/`.
+never `git add -A`, and never push. This is a SHARED CHECKOUT: verify the staged set with
+`git diff --cached --name-only` before committing, unstage anything that is not yours with
+`git restore --staged <path>`, and re-verify after any failed raw commit attempt. Run the suite BARE as
+`python3 -m pytest` and PASTE ITS ACTUAL SUMMARY LINE; a summary you did not produce is not evidence,
+and the same hard-MUST governs every pasted probe output and every induced-failure paste the `V-*` items
+demand. Paste skips explicitly rather than letting a green line hide one.
+
+SCOPE FENCE, DECLARED SO THE RUNNER CAN RECONCILE IT AFTERWARDS (not an instruction to stop). The five
+`- Scope-Paths:` entries are the whole surface. THREE NEGATIVE CONSTRAINTS CARRY REAL WEIGHT. FIRST, do
+NOT add an action class or an `ACTION_CAPABILITY_REQUIREMENTS` row: `ACTION_CLASSES` must remain
+`(ACTION_READ_ONLY,)`, F-6 records the in-code warning against "restoring parity" without a consumer,
+and V-03 fails otherwise. SECOND, do NOT reintroduce the `deny_push` NAME in any form, nor weaken any
+assertion in `DenyPushRemovedTests`: E-07 re-points that guard and V-07 proves every assertion survived.
+THIRD, do NOT add or remove a `run_evidence.RUN_FINDING_CODES` entry: `validate_finding_table` hard-fails
+on a count other than 12, and the gate for a `RUN-NO-PUSH`-shaped code is deliberately unmet (see the
+Deferred section). An out-of-scope edit that turns out to be necessary is to be MADE and then JUSTIFIED
+to `aw ipd finalize` with a `--scope-reason` per path, and a declared-but-unmodified path needs a
+`--scope-ack`; neither is a reason to stop. `CHANGELOG.md` is declared, so write the entry rather than
+acking it.
+
+LIFECYCLE TRANSITION. Do not claim done or move this plan to `.aw/records/plans/executed/` until
+`aw ipd lint --phase pre-transition` conforms and every `V-*` carries concrete observed evidence.
+Reaching `executed/` is UNCONDITIONALLY OWED, but its OWNER is CONDITIONAL: under `aw oc run` /
+`aw agy run` the RUNNER owns the terminal transition and finalize, so do NOT invoke `aw ipd finalize`
+yourself in a runner-driven execution; a HAND execution invokes it
+(`aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply`). Never hand-edit
+`- Status:` and never hand-roll a `git mv` into `executed/`, which would skip the pre-transition
+checkpoint. Backlog `oq05nc` is already `graduated`; this plan must NOT set it `done`.
