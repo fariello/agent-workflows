@@ -6,7 +6,7 @@
 - Scope: TWO fail-closed `isinstance` guards in `agent_workflows/run_selection_policy.py` (one in `derive_item_disposition`, one in `render_queue_dispositions`' own per-entry read), a new open disposition code with its label and remedy, and new tests pinning all four public surfaces plus the fourth consumer in `render_stream`. NOT the two upstream exit-tail crashes (`fcodik`, `s438xd`), NOT any well-formed entry's disposition, NOT the `unsatisfied_dependencies` shape divergence (`mjrac4`).
 - Scope-Paths: agent_workflows/run_selection_policy.py, tests/test_run_selection_policy.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -19,6 +19,7 @@
 - Id: cup9r7
 
 ## Workflow history
+- 2026-09-30 reviewed (aw set): status set to reviewed
 
 - 2026-09-29 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-401..PR-406, all FIXED. Every material claim re-measured at review HEAD `d0eddf30` rather than read. F-01..F-04, F-08..F-13 reproduced exactly, including the two-guard premise F-03 turns on and the F-04 incidental fix. THREE CORRECTIONS. (1) A new HIGH finding F-14: E-01's natural implementation, putting the new code's gloss in `SKIP_REASON_LABELS`, SILENTLY REOPENS the spec-closed reason vocabulary, because `skip_reason_text` tests membership against that mapping and not against `SKIP_REASONS`; staged in memory it makes `skip_reason_text(<new code>)` return instead of raise while the suite stays at `53 passed`, so no test holds the prohibition and V-01 now checks it by probe. (2) F-05's exit tail is incomplete: the shared sequence is EIGHT statements, not six, and one it omitted (`report_run_spec_edits`) DEGRADES on this input with `SPEC CHANGES: could not be computed` and is covered by NO live item, now recorded as F-15 with an executor obligation to report it for filing. (3) F-06's carrier statuses were stale: all four siblings are `graduated` with pending plans, not `open` and planless; the row's conclusion survives on the file-overlap fact, which was re-verified (no sibling declares either of this plan's paths). Also measured that the REJECTED `DISPOSITIONS_NEEDING_NO_REMEDY` alternative makes `queue_performed_no_work` answer `False`, so V-02 now demands `True` specifically. Structural preflight conforming at `author` and `review-finalize`; bare suite `3246 passed, 2 skipped` at review HEAD.
 - 2026-09-29 draft (opencode): created.
