@@ -1,0 +1,66 @@
+# Research model vocabulary (tracked, package default).
+#
+# It is read by a minimal TOML reader (3.9-safe, no tomllib), so keep entries to flat
+# string arrays and flat key = "value" pairs.
+#
+# Target repo layer lives at .aw/config/research-models.toml. Layers are additive.
+#
+# ``<model>`` authorship facet. ``reconciliation`` denotes a synthesis with no single author.
+#
+# THE TOKEN IDENTIFIES A MODEL *PLUS ITS REASONING EFFORT*, because effort materially changes the
+# output and a comparison set exists precisely to hold two such outputs side by side. The original
+# vocabulary encoded effort for the gpt56 family ONLY (`gpt56medium`/`gpt56high`) and offered no
+# equivalent for Sonnet or Gemini, so a genuine `sonnet5` high-effort report could not be named. The
+# effort suffix is therefore GENERALIZED here rather than kept as a gpt56 special case.
+#
+# A NEW MODEL IS NOT A SPELLING VARIANT. `gemini38flash` is a DIFFERENT model from `gemini36flash`,
+# so it is added as its own token and deliberately NOT normalized onto the 3.6 spelling; the closest
+# -match hint the validator prints ("did you mean gemini31pro?") is string proximity, not a claim
+# about model identity, and collapsing them would file a report under a model that did not write it.
+
+models = [
+  "gpt56",
+  "gpt56medium",
+  "gpt56high",
+  # `sol` is the product label OpenAI ships the gpt56 reasoning tier under; kept in the token
+  # because the maintainer's own provenance labels carry it and dropping it would make two
+  # distinguishable configurations collide on one name.
+  "gpt56solhigh",
+  "gemini31pro",
+  "gemini31prohigh",
+  # Google's "Deep Think" variant of Gemini 3.1 Pro: a DISTINCT reasoning configuration,
+  # not a spelling of `gemini31prohigh`. Added 2026-09-20 for research report `i5gj61`,
+  # whose true author could not be recorded at all before this token existed.
+  "gemini31prodeepthink",
+  "gemini36flash",
+  "gemini38flash",
+  "gemini38flashhigh",
+  "sonnet5",
+  "sonnet5high",
+  "reconciliation",
+]
+
+# Spelling/position drift observed in the corpus (`gpt-56` vs `gpt56`; product labels).
+[normalizations]
+gpt-56 = "gpt56"
+gpt-56-medium = "gpt56medium"
+gpt56-medium = "gpt56medium"
+gpt-56-high = "gpt56high"
+gpt56-high = "gpt56high"
+gpt-56-sol-high = "gpt56solhigh"
+gpt56-sol-high = "gpt56solhigh"
+gpt56sol-high = "gpt56solhigh"
+gemini-31-pro = "gemini31pro"
+gemini-31-pro-high = "gemini31prohigh"
+gemini-31-pro-deep-think = "gemini31prodeepthink"
+gemini31pro-deep-think = "gemini31prodeepthink"
+gemini31prodeepthink-high = "gemini31prodeepthink"
+gemini31pro-high = "gemini31prohigh"
+gemini-36-flash = "gemini36flash"
+gemini-38-flash = "gemini38flash"
+gemini-38-flash-high = "gemini38flashhigh"
+gemini38flash-high = "gemini38flashhigh"
+sonnet-5 = "sonnet5"
+sonnet-5-high = "sonnet5high"
+sonnet5-high = "sonnet5high"
+chatgpt = "gpt56"  # a product label mapped to a model version; also record provenance

@@ -6,9 +6,9 @@ specification ``.agents/docs/specs/20260730-2152-01-agents-artifact-organization
 generator (Order 03), the archival tool (Order 05), the migration (Order 06), and the scaffold
 (Order 07) all import from THIS module so the contract cannot fork or drift.
 
-Scope (Order 01): definitions + pure validation/parse/format helpers ONLY. This module has no side
-effects: it does not read the filesystem, call a model, use the network, or write anything. It is
-stdlib-only (zero runtime dependencies, D46) and Python 3.9 compatible.
+Scope (Order 01): definitions + validation/parse/format helpers. The model vocabulary
+is loaded through model_vocab (data-driven with package default); other helpers remain pure.
+It is stdlib-only (zero runtime dependencies, D46) and Python 3.9 compatible.
 
 It resolves the spec's open questions with the reviewed leans:
 
@@ -24,10 +24,11 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Dict, FrozenSet, List, NamedTuple, Optional, Tuple
+from typing import Dict, FrozenSet, List, NamedTuple, Optional, Tuple, Union
 
 from agent_workflows import artifact_core as _core
 from agent_workflows import artifact_naming as _naming
+from agent_workflows import model_vocab as _mv
 
 # --------------------------------------------------------------------------------------
 # Identity: the stable, greppable ``<id6>`` (spec 4.1 / OQ5).
@@ -97,64 +98,17 @@ def iter_id6_citations(text: str) -> List[str]:
 # equivalent for Sonnet or Gemini, so a genuine `sonnet5` high-effort report could not be named. The
 # effort suffix is therefore GENERALIZED here rather than kept as a gpt56 special case.
 #
-# EXTENSION MECHANISM (same contract as KINDS below): append the token HERE with a one-line
-# justification in review, add any spelling drift to MODEL_NORMALIZATIONS, and amend section 5.4 of
-# the naming spec `20260730-2152-01-agents-artifact-organization` in the SAME change, since E3 makes
-# this an enumerated `[Must]` vocabulary and the two must not drift apart.
+# EXTENSION MECHANISM: the model vocabulary is open and data-driven (spec 5.4, plan t38a4o).
+# The package default is defined in agent_workflows/data/research-models.toml; repository overrides
+# live at .aw/config/research-models.toml (managed via `aw research add-model <token>`).
 #
 # A NEW MODEL IS NOT A SPELLING VARIANT. `gemini38flash` is a DIFFERENT model from `gemini36flash`,
 # so it is added as its own token and deliberately NOT normalized onto the 3.6 spelling; the closest
 # -match hint the validator prints ("did you mean gemini31pro?") is string proximity, not a claim
 # about model identity, and collapsing them would file a report under a model that did not write it.
-MODELS: FrozenSet[str] = frozenset(
-    (
-        "gpt56",
-        "gpt56medium",
-        "gpt56high",
-        # `sol` is the product label OpenAI ships the gpt56 reasoning tier under; kept in the token
-        # because the maintainer's own provenance labels carry it and dropping it would make two
-        # distinguishable configurations collide on one name.
-        "gpt56solhigh",
-        "gemini31pro",
-        "gemini31prohigh",
-        # Google's "Deep Think" variant of Gemini 3.1 Pro: a DISTINCT reasoning configuration,
-        # not a spelling of `gemini31prohigh`. Added 2026-09-20 for research report `i5gj61`,
-        # whose true author could not be recorded at all before this token existed.
-        "gemini31prodeepthink",
-        "gemini36flash",
-        "gemini38flash",
-        "gemini38flashhigh",
-        "sonnet5",
-        "sonnet5high",
-        "reconciliation",
-    )
-)
-
-# Spelling/position drift observed in the corpus (``gpt-56`` vs ``gpt56``; product labels).
-MODEL_NORMALIZATIONS: Dict[str, str] = {
-    "gpt-56": "gpt56",
-    "gpt-56-medium": "gpt56medium",
-    "gpt56-medium": "gpt56medium",
-    "gpt-56-high": "gpt56high",
-    "gpt56-high": "gpt56high",
-    "gpt-56-sol-high": "gpt56solhigh",
-    "gpt56-sol-high": "gpt56solhigh",
-    "gpt56sol-high": "gpt56solhigh",
-    "gemini-31-pro": "gemini31pro",
-    "gemini-31-pro-high": "gemini31prohigh",
-    "gemini-31-pro-deep-think": "gemini31prodeepthink",
-    "gemini31pro-deep-think": "gemini31prodeepthink",
-    "gemini31prodeepthink-high": "gemini31prodeepthink",
-    "gemini31pro-high": "gemini31prohigh",
-    "gemini-36-flash": "gemini36flash",
-    "gemini-38-flash": "gemini38flash",
-    "gemini-38-flash-high": "gemini38flashhigh",
-    "gemini38flash-high": "gemini38flashhigh",
-    "sonnet-5": "sonnet5",
-    "sonnet-5-high": "sonnet5high",
-    "sonnet5-high": "sonnet5high",
-    "chatgpt": "gpt56",  # a product label mapped to a model version; also record provenance
-}
+_DEFAULT_MODELS, _DEFAULT_MODEL_NORMALIZATIONS = _mv.load(None)
+MODELS: FrozenSet[str] = _DEFAULT_MODELS
+MODEL_NORMALIZATIONS: Dict[str, str] = _DEFAULT_MODEL_NORMALIZATIONS
 
 # ``<kind>`` is MANDATORY and drawn from this corpus-derived closed-ish set. New kinds are added
 # HERE (the extension mechanism): append to KINDS with a one-line justification in review.
@@ -250,18 +204,50 @@ class VocabResult(NamedTuple):
     value: Optional[str]  # the normalized canonical value when ok
     suggestion: Optional[str]  # a closest-match hint when not ok
     message: str
+    recognized: bool = True
 
 
-def normalize_model(token: str) -> VocabResult:
-    """Validate/normalize a ``<model>`` token against MODELS (+ MODEL_NORMALIZATIONS)."""
+_MODEL_SYNTAX_RE = re.compile(r"^[a-z0-9-]+$")
 
+
+def normalize_model(
+    token: str,
+    *,
+    repo_root: Optional[Union[str, Path]] = None,
+) -> VocabResult:
+    """Validate/normalize a ``<model>`` token against models (+ normalizations).
+
+    Tokens are validated against an open, data-driven vocabulary loaded via
+    :mod:`agent_workflows.model_vocab`. Canonical known tokens return
+    ``ok=True, recognized=True``. Well-formed unrecognized tokens matching
+    ``[a-z0-9-]+`` return ``ok=True, recognized=False`` with a teaching message.
+    Malformed tokens (empty, whitespace, dot, underscore, uppercase after strip)
+    are rejected with ``ok=False, recognized=False``.
+    """
     raw = token.strip().lower()
-    canon = MODEL_NORMALIZATIONS.get(raw, raw)
-    if canon in MODELS:
-        return VocabResult(True, canon, None, "ok")
-    sugg = _closest(raw, MODELS)
-    hint = f"; did you mean '{sugg}'?" if sugg else ""
-    return VocabResult(False, None, sugg, f"unknown model '{token}'{hint}")
+    if not raw or not _MODEL_SYNTAX_RE.match(raw):
+        return VocabResult(
+            False,
+            None,
+            None,
+            f"malformed model token '{token}'; must match [a-z0-9-]+",
+            recognized=False,
+        )
+
+    models, normalizations = _mv.load(repo_root)
+    canon = normalizations.get(raw, raw)
+    if canon in models:
+        return VocabResult(True, canon, None, "ok", recognized=True)
+
+    sugg = _closest(canon, models)
+    hint = f" (spelling check: did you mean '{sugg}'?)" if sugg else ""
+    return VocabResult(
+        True,
+        canon,
+        sugg,
+        f"unknown model '{canon}'; bless with 'aw research add-model {canon}'{hint}",
+        recognized=False,
+    )
 
 
 def normalize_kind(token: str) -> VocabResult:
@@ -342,7 +328,11 @@ def format_name(name: ResearchName) -> str:
     )
 
 
-def parse_name(filename: str) -> Tuple[Optional[ResearchName], Optional[NameError_]]:
+def parse_name(
+    filename: str,
+    *,
+    repo_root: Optional[Union[str, Path]] = None,
+) -> Tuple[Optional[ResearchName], Optional[NameError_]]:
     """Parse a research filename into a ResearchName, or return a structured error.
 
     Grammar: ``YYYYMMDD-<set-id>-<NN>-<id6>-<slug>[.<model>].<kind>.md``. Returns
@@ -378,7 +368,7 @@ def parse_name(filename: str) -> Tuple[Optional[ResearchName], Optional[NameErro
     if not kind_res.ok:
         return None, NameError_(kind_res.message)
     if model is not None:
-        model_res = normalize_model(model)
+        model_res = normalize_model(model, repo_root=repo_root)
         if not model_res.ok:
             return None, NameError_(model_res.message)
         model = model_res.value
@@ -467,7 +457,11 @@ class FrontmatterError(NamedTuple):
     message: str
 
 
-def validate_frontmatter(data: Dict[str, object]) -> List[FrontmatterError]:
+def validate_frontmatter(
+    data: Dict[str, object],
+    *,
+    repo_root: Optional[Union[str, Path]] = None,
+) -> List[FrontmatterError]:
     """Validate a research frontmatter mapping against the schema; return structured errors.
 
     ``data`` is the already-parsed mapping (the caller owns YAML/text parsing so this module stays
@@ -509,7 +503,7 @@ def validate_frontmatter(data: Dict[str, object]) -> List[FrontmatterError]:
     if "model" in data:
         val = data["model"]
         if val not in (None, "") and isinstance(val, str):
-            res = normalize_model(val)
+            res = normalize_model(val, repo_root=repo_root)
             if not res.ok:
                 errors.append(FrontmatterError("model", res.message))
     # kind

@@ -28,8 +28,7 @@ YYYYMMDD-<set-id>-<NN>-<id6>-<slug>[.<model>].<kind>.md
   file is renamed, re-slugged, regrouped, or moved to a shard. Cite research by its `<id6>`
   (word-boundary greppable as `\b<id6>\b`), resolved via the manifest.
 - `<slug>`: a short descriptive kebab.
-- `[.<model>]`: an OPTIONAL authorship facet (also recorded in frontmatter); present only when
-  disambiguation matters.
+- `[.<model>]`: an OPTIONAL authorship facet (also recorded in frontmatter); drawn from an open, data-driven vocabulary (packaged defaults + `.aw/config/research-models.toml`). An unrecognized model is recorded with an advisory warning; bless one via `aw research add-model <token>`.
 - `<kind>`: MANDATORY, drawn from the enumerated vocabulary.
 
 Do NOT hand-name or hand-maintain research files or the index. Use the `aw research` and

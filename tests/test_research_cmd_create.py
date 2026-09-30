@@ -169,15 +169,29 @@ class ComparisonTests(unittest.TestCase):
         self.assertEqual(parsed[4].kind, "reconciliation-report")
         self.assertEqual(parsed[4].model, "reconciliation")
 
-    def test_unknown_model_rejected(self):
+    def test_unknown_model_accepted_and_malformed_rejected(self):
+        # Unknown well-formed model is accepted and recorded verbatim
         files, err = C.plan_new_comparison(
             research_root=self.research,
             set_id="s",
             slug="x",
             models=["llama99"],
         )
-        self.assertIsNone(files)
-        self.assertIn("unknown model", err)
+        self.assertIsNone(err)
+        self.assertIsNotNone(files)
+        self.assertEqual(len(files), 3)
+        parsed = [R.parse_name(f.path.name)[0] for f in files]
+        self.assertEqual(parsed[1].model, "llama99")
+
+        # Malformed model syntax (e.g. whitespace or dot) is still refused
+        files_bad, err_bad = C.plan_new_comparison(
+            research_root=self.research,
+            set_id="s",
+            slug="x",
+            models=["llama 99"],
+        )
+        self.assertIsNone(files_bad)
+        self.assertIn("malformed", err_bad)
 
     def test_comparison_scaffold_prompt_has_no_status_and_reports_are_todo(self):
         files, err = C.plan_new_comparison(

@@ -200,7 +200,13 @@ def _parse_simple_toml_lists(text: str) -> dict[str, list[str]]:
         n = len(text)
         while i < n:
             ch = text[i]
-            if ch in "\"'":
+            if ch == "#":
+                nl = text.find("\n", i)
+                if nl == -1:
+                    break
+                i = nl + 1
+                continue
+            elif ch in "\"'":
                 quote = ch
                 j = i + 1
                 while j < n and text[j] != quote:
@@ -217,6 +223,52 @@ def _parse_simple_toml_lists(text: str) -> dict[str, list[str]]:
                 i += 1
         result[key] = values
     return result
+
+
+def _parse_simple_toml_pairs(
+    text: str, *, section: str | None = None
+) -> dict[str, str]:
+    """Read flat ``key = "value"`` or ``key = 'value'`` pairs (3.9-safe, no tomllib).
+
+    When ``section`` is provided (e.g. ``section="normalizations"``), only entries
+    within ``[section]`` (up to the next section header or EOF) are read. This handles
+    section-blindness by scoping key extraction to the requested table.
+    """
+    if section is not None:
+        lines = text.splitlines()
+        in_section = False
+        target_lines = []
+        sec_header = f"[{section}]"
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith("[") and stripped.endswith("]"):
+                in_section = stripped == sec_header
+                continue
+            if in_section:
+                target_lines.append(line)
+        text = "\n".join(target_lines)
+
+    result: dict[str, str] = {}
+    for line in text.splitlines():
+        line = line.strip()
+        if (
+            not line
+            or line.startswith("#")
+            or (line.startswith("[") and line.endswith("]"))
+        ):
+            continue
+        m = re.match(
+            r"""^(?:([A-Za-z0-9_.-]+)|"([^"]+)"|'([^']+)')\s*=\s*(?:"([^"]*)"|'([^']*)')\s*(?:#.*)?$""",
+            line,
+        )
+        if m:
+            key = m.group(1) or m.group(2) or m.group(3)
+            val = m.group(4) if m.group(4) is not None else m.group(5)
+            result[key] = val
+    return result
+
+
+_parse_simple_toml_strings = _parse_simple_toml_pairs
 
 
 def _parse_simple_toml_bools(text: str) -> dict[str, bool]:
