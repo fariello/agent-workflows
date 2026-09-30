@@ -1,5 +1,5 @@
 - Id: ldy1al
-- Status: graduated
+- Status: done
 - Graduated-To: commitscope
 - Blocks-Release: next
 - Set: ldy1al
@@ -8,6 +8,7 @@
 - Summary: aw commit <plan> is unusable for the rest of an execution once one out-of-scope path is legitimately committed
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): closed by aw oc run: IPD ygb3nk executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-commitscope-01-ygb3nk-reach-the-sanctioned-out-of-scope-escape-from-aw-commit-by-s.ipd.md); evidence .aw/records/plans/executed/20260928-commitscope-01-ygb3nk-reach-the-sanctioned-out-of-scope-escape-from-aw-commit-by-s.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260929T021205Z-3914774: ygb3nk
 - 2026-09-22 created (aw backlog): aw commit <plan> is unusable for the rest of an execution once one out-of-scope path is legitimately committed
 
