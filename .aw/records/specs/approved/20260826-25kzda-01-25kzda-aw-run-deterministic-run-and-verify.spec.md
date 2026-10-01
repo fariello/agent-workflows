@@ -60,11 +60,13 @@ decision so it fails closed (`host_sandbox_profile` module docstring). Creating 
 module because this paragraph once called the descriptor net-new is the exact defect that destroyed
 `a54m79`. ALSO PARTIALLY SHIPPED: the hash-chained run ledger's `AW-Run:`/`AW-Item:` commit trailers
 (the ledger AND the writer are built - `git_commit_helper.run_item_trailers` formats them.
-Re-measured 2026-09-26: SEVERAL DRIVER-SIDE commit sites pass them (the runner's backlog-close commit,
-wired by plan `wao266`, and its review-output commit, added by plan `8apjpp`); the AGENT's own code
-commits are generally UNTRAILERED (backlog `j2srcc`); and NOTHING READS A TRAILER BACK (backlog
-`am1g38`), so no commit's ownership is yet decided by its trailer and Section 4.2's `RUN-COMMIT-*`
-rows stay unbound). STILL NET-NEW and to be built: the prompt `Run contract` block, and `aw hooks
+Re-measured: SEVERAL DRIVER-SIDE commit sites pass them (the runner's backlog-close commit,
+wired by plan `wao266`, and its review-output commit, added by plan `8apjpp`), and the AGENT's own code
+commits are trailered too (plan `a6xbso` closed backlog `j2srcc`); a trailer reader ships (plan `199u11`
+closed backlog `am1g38`, read via `ipd_lifecycle._trailer_owned_committed_paths` / `_commit_run_ownership`)
+and trailer-decided committed path ownership is live in `finalize_precheck`; Section 4.2's `RUN-COMMIT-*`
+rows stay unbound because no predicate proves a commit's tree diff equals the item-owned delta, not
+because trailers lack writers or readers). STILL NET-NEW and to be built: the prompt `Run contract` block, and `aw hooks
 install` (no such verb today; the top-level `hooks` noun does not resolve). This overlaps the
 agentadhere policy-engine/atomic-command phases, the bklggrad `From-Backlog` work, and the runner rename.
 Constraints honored: pre-release (no backward-compatibility shims or legacy aliases) and
@@ -1606,6 +1608,7 @@ This example demonstrates the revised guarantees: `all` is safely bounded; depen
 
 ## Workflow history
 
+- 2026-10-01 note (aw specs): AMENDED 2026-10-01 (plan 2lxcwt, backlog oye21y): corrected the infrastructure paragraph's stale trailer claims; agent commits are trailered (a6xbso closed j2srcc), reader ships (199u11 closed am1g38), trailer-decided committed path ownership is live in finalize_precheck; 4.2 rows stay unbound on contents-proof grounds
 - 2026-10-01 note (aw specs): AMENDED (plan kcc71f, backlog aced01): Section 5.1's HONEST LIMIT paragraph amended to name the direction the pre-work suite baseline prohibition forbids: nothing may refuse or downgrade an outcome on the strength of the baseline (using the baseline to disbelieve an agent remains forbidden), while a comparison that can only ever make an outcome more permissive is permitted. Reconciles the 2026-09-23 note (plan n9na1c), which recorded the HONEST LIMIT paragraph as unchanged deliberately and verbatim: what that note protected - the maintainer's 2026-09-08/2026-09-20 ruling that no programmatic gate may refuse an outcome on the strength of a pre-work baseline - is preserved verbatim, while the paragraph's undirected wording ("nothing refuses on it") is clarified so it does not contradict shipped, reviewed, and correct permissive comparisons (such as _relative_revalidation_verdict, verified in runner_shared and pinned in tests/test_suite_baseline_direction.py). Conjunctive release conditions, closed answer vocabulary, releasing answers, and attribution requirements are completely untouched.
 
 - 2026-10-01 note (aw specs): AMENDED (plan entv1d, backlog qzxt1m): Run exit codes table exit 1 row amended to name the stranded class explicitly (unintegrated work whose integration was refused) and record its derivation from exit 0's requirement that every actionable item is verified, adhering to docs/cli-output-contract.md Section 3's three-state exit classification; row 4 conflict note left intact.

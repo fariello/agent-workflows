@@ -2100,11 +2100,13 @@ class ChangedPathSources(NamedTuple):
     shared checkout may commit under one git identity, so this split does NOT let finalize tell a
     co-worker's commit from its own.
 
-    WHAT SCOPEATTR `h9cn0y` DID ABOUT THAT BOUND, since Order 01 left it open (backlog `a8eufb`): it
-    does not lift it, and no honest reading of git can. Instead it uses the one thing a commit DOES
-    record, the COMMIT BOUNDARY, to decide whether a committed path belongs to this execution's work
-    (see :func:`_execution_cohesive_committed_paths`). That is a heuristic with a stated cost, not the
-    proof a commit trailer would give, so `a8eufb` remains the real fix.
+    WHAT SCOPEATTR `h9cn0y` DID ABOUT THAT BOUND, since Order 01 left it open (historically
+    tracked in backlog `a8eufb`): it does not lift it, and no honest reading of git can. Instead it
+    uses the one thing a commit DOES record, the COMMIT BOUNDARY, to decide whether a committed path
+    belongs to this execution's work (see :func:`_execution_cohesive_committed_paths`). That is a
+    heuristic with a stated cost, not the proof a commit trailer gives: the trailer fix has landed
+    (`199u11`, read via :func:`_trailer_owned_committed_paths`) and is consulted ahead of cohesion,
+    while cohesion remains the fallback for untrailered and foreign commits.
     """
 
     committed: Tuple[str, ...]

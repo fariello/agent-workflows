@@ -1299,11 +1299,12 @@ BINDING_STATES: Tuple[str, ...] = (BOUND, UNBOUND_BY_DEPENDENCY, UNBOUND_UNBUILT
 #     F3 said nobody had built ships as `worktree_lease.LeaseTable.claim` (`m2wwns`), and
 #     `dirty_within` decides the pre-existing-dirty-path half.
 #   * `RUN-COMMIT-CONTENTS` / `RUN-COMMIT-GATEWAY` stay UNBOUND, but WAITING ON SOMETHING ELSE.
-#     `runtrail-01` (`m73aet`) executed and the `AW-Run:`/`AW-Item:` trailers exist - but only as
-#     WRITERS. Nothing reads a trailer back, and `m73aet`'s own executed receipt states
-#     "`RUN-COMMIT-GATEWAY` remains wholly unbuilt" and "nothing in the tree PASSES trailers yet".
-#     Writing a trailer is not proving a commit's tree diff equals the item-owned delta, so binding
-#     these two now would be exactly the fail-open error described above.
+#     `runtrail-01` (`m73aet`) executed and trailers exist as writers, and `199u11` shipped a reader
+#     (`ipd_lifecycle._trailer_owned_committed_paths` / `_commit_run_ownership`). Historically,
+#     `m73aet`'s executed receipt recorded at the time that "`RUN-COMMIT-GATEWAY` remains wholly
+#     unbuilt" and "nothing in the tree PASSES trailers yet", but both halves have since been
+#     overtaken. Writing a trailer is not proving a commit's tree diff equals the item-owned delta, so
+#     binding these two now would be exactly the fail-open error described above.
 #
 # Net as of 2026-09-05: 10 BOUND, 2 UNBOUND-BY-DEPENDENCY, 1 UNBOUND-UNBUILT (F3 recorded 9 / 2 / 2).
 #
@@ -1312,8 +1313,9 @@ BINDING_STATES: Tuple[str, ...] = (BOUND, UNBOUND_BY_DEPENDENCY, UNBOUND_UNBUILT
 # UNBOUND-UNBUILT ANY MORE, and that is a RETIREMENT rather than an implementation: the one code in
 # that state named host push-denial enforcement nobody built, so 4.2 stopped promising it instead of
 # binding it to something that does not enforce it. The two remaining unbound codes still WAIT on
-# machinery (a commit-gateway receipt and a trailer READER), so an empty unbuilt set must NOT be read
-# as "everything is now decided by a predicate".
+# machinery (a commit-gateway receipt and a tree-diff contents proof, since `199u11` shipped the
+# `ipd_lifecycle` trailer reader), so an empty unbuilt set must NOT be read as "everything is now
+# decided by a predicate".
 
 RUN_FINDING_CODES: Tuple[RunFindingCode, ...] = (
     RunFindingCode(
@@ -1542,10 +1544,11 @@ RUN_FINDING_CODES: Tuple[RunFindingCode, ...] = (
         binding=UNBOUND_BY_DEPENDENCY,
         predicates=(),
         waiting_on=(
-            "a trailer READ-BACK predicate. `runtrail-01` (`m73aet`) executed and "
-            "`git_commit_helper.run_item_trailers` WRITES `AW-Run:`/`AW-Item:`, but nothing reads "
-            "a trailer back or proves a commit's tree diff equals the item-owned delta; "
-            "`m73aet`'s own executed receipt records that nothing in the tree passes trailers yet"
+            "a commit tree-diff CONTENTS proof predicate. `git_commit_helper.run_item_trailers` "
+            "writes `AW-Run:`/`AW-Item:` and `199u11` shipped the reader "
+            "`ipd_lifecycle._trailer_owned_committed_paths` / `_commit_run_ownership` for "
+            "run ownership, but no predicate proves a commit's tree diff equals the "
+            "item-owned delta"
         ),
     ),
     RunFindingCode(
