@@ -6,7 +6,7 @@
 - Scope: Repoint the two DANGLING full-path spec citations that live in editable PACKAGE source (`agy_run.py`'s `--spec` example, and `check_engine.py`'s I-07 provenance comment) at the real status-subdirectory paths, fix the same dangling citation in the wheel-packaged install template `.aw/system/workflows/templates/agents-docs-research-README.md` (added at review, F-16), and add the regression test that keeps a `.aw/records/specs/<file>.spec.md` citation in `agent_workflows/` from silently dangling again. EXCLUDES editing the executed plan `u06zo2` (immutable record; a `## Workflow history` pointer is the only permitted touch and even that is deferred here), EXCLUDES fixing `agy_run.resolve_spec`'s non-recursive glob (a separate live BUG this plan FILES rather than fixes), EXCLUDES the danglers in terminal records and in `tests/` fixtures, and EXCLUDES the three other live-editable instances in `ipd-lifecycle.md`, `TODO.md` and `DECISIONS.md`, which are RECORDED (E-08) rather than fixed.
 - Scope-Paths: agent_workflows/agy_run.py, agent_workflows/check_engine.py, tests/test_spec_path_citations.py, .aw/system/workflows/templates/agents-docs-research-README.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 2wmwf7
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 2wmwf7 verified (set ajomj3, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20260930-8jl0rx-01-8jl0rx-agy-run-resolve-spec-non-recursive-glob.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 
