@@ -550,15 +550,16 @@ def run_check(args) -> int:
             continue
         drift.extend(validate_spec(p, text))
 
+    exit_code = core.drift_exit_code(drift)
+    status = "clean" if exit_code == 0 else "findings"
+    summary = (
+        f"{len(paths)} specs checked"
+        if exit_code == 0
+        else f"{len(drift)} finding(s) detected across {len(paths)} specs"
+    )
+
     ctx = select_output(args)
     if ctx.is_agent or ctx.is_json:
-        exit_code = core.drift_exit_code(drift)
-        status = "clean" if exit_code == 0 else "findings"
-        summary = (
-            f"{len(paths)} specs checked"
-            if exit_code == 0
-            else f"{len(drift)} finding(s) detected across {len(paths)} specs"
-        )
         diagnostics = [
             Diagnostic(
                 location=d.location,
@@ -596,14 +597,16 @@ def run_check(args) -> int:
         for d in drift:
             rule = t.color256(d.rule, 196, bold=True)  # severity red
             sys.stdout.write(f"{d.location}: {rule}: {d.detail}\n")
+        sys.stdout.write(f"aw specs check: {summary}.\n")
         sys.stdout.write(
             "Move pipeline metadata/status into a bare-enum `- Status:` bullet and a conformant history; see the specs contract.\n"
         )
     else:
         sys.stdout.write(
-            t.color256("aw specs check: all specs conform.", 46, bold=True) + "\n"
+            t.color256(f"aw specs check: all specs conform. {summary}.", 46, bold=True)
+            + "\n"
         )
-    return core.drift_exit_code(drift)
+    return exit_code
 
 
 def run_set(args) -> int:

@@ -6,7 +6,7 @@
 - Scope: IN: make `specs.run_check`'s human branch report the examined count, matching the count wording the same function already computes for the agent/JSON branch and the `Evidence` receipt convention `aw check <type>` demonstrates; a behavioral test asserting the count is visible in human output at zero AND at nonzero; one CHANGELOG line. OUT: the `--agent` branch and `result_types.to_agent_record` (already fixed by `kifrou`, F-1); the identical missing-count gap in `backlog check`, `attention --check`, `research check-refs` and `sanitize` (filed separately, see Deferred); `_spec_files`'s retired-filter scope (the 38-vs-20 difference from `check_engine._iter_type_files` is that filter working as designed, F-6); and any change to which specs are examined, to exit codes, or to the drift rules.
 - Scope-Paths: agent_workflows/specs.py, tests/test_agent_checked_count.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 121j2r
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 121j2r verified (set uwerb5, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20260930-2wae2x-01-2wae2x-backlog-status-set-tz-parity.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run); out-of-scope .aw/records/backlog/open/20260930-rolswj-01-rolswj-human-check-examined-counts.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): reviewed by /plan-review 2026-09-29; readiness go-pending-approval; OQ-01 and OQ-02 resolved by the reviewer
 
@@ -42,29 +42,29 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: put the count on the human surface
 
-- [ ] E-01 In `specs.run_check`, make the human branch report the examined count on BOTH paths (drift and no-drift). The count is already computed as `len(paths)` and already worded in the `summary` expression above the agent branch (`f"{len(paths)} specs checked"` / `f"{len(drift)} finding(s) detected across {len(paths)} specs"`); reuse that SAME wording rather than inventing a second phrasing, so the human and machine surfaces cannot drift apart in wording or in value. Hoist the `summary` computation so both branches read one expression, rather than duplicating the f-strings into the human branch. Keep the existing per-drift `{location}: {rule}: {detail}` lines, the existing remediation sentence, and the existing exit code (`core.drift_exit_code(drift)`) exactly as they are: this item is about a missing fact, not about restyling the output.
+- [x] E-01 In `specs.run_check`, make the human branch report the examined count on BOTH paths (drift and no-drift). The count is already computed as `len(paths)` and already worded in the `summary` expression above the agent branch (`f"{len(paths)} specs checked"` / `f"{len(drift)} finding(s) detected across {len(paths)} specs"`); reuse that SAME wording rather than inventing a second phrasing, so the human and machine surfaces cannot drift apart in wording or in value. Hoist the `summary` computation so both branches read one expression, rather than duplicating the f-strings into the human branch. Keep the existing per-drift `{location}: {rule}: {detail}` lines, the existing remediation sentence, and the existing exit code (`core.drift_exit_code(drift)`) exactly as they are: this item is about a missing fact, not about restyling the output.
   THE SHAPE IS NOW DECIDED, NOT OPEN: OQ-01 is RESOLVED to the MINIMAL IN-PLACE FORM by the reviewer, so implement that. STATE in Findings that you followed it; you no longer choose. If you judge the full `HumanRenderer` adoption necessary, that is a SCOPE CHANGE to raise rather than absorb, because it enlarges both the approved diff and V-01's required evidence.
   AND KEEP THE EXISTING CLEAN SENTENCE, ADDING THE COUNT RATHER THAN REPLACING IT (F-11). Two sibling plans, `h8e3sm` and `xx5b7a`, are `- Status: reviewed` and each demands as its own `V-*` evidence that `aw specs check` print `all specs conform`; neither declares `specs.py` in its `- Scope-Paths:`, so neither would see this change coming. Appending the count (for example `aw specs check: all specs conform. 38 specs checked.`) keeps the substring both plans assert while delivering the fact this plan exists for. Replacing the sentence wholesale would hand two reviewed plans a false alarm for no benefit. This costs nothing and is not a styling preference: it is cross-plan compatibility a reviewer measured.
   - Depends on: none
   - Expected outcome: `aw specs check` in a zero-spec repository prints a line containing `0` and the word `checked`, and in this repository prints the same count `--agent` reports for the same tree (38 at authoring). The drift path also carries the count. Exit codes are unchanged at 0 and 1, and no existing drift line or remediation sentence is removed.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Verify and record in Findings that the human count and the `--agent` `checked` value are computed from the SAME expression and cannot disagree. Run all three surfaces (`aw specs check`, `--agent`, `--json`) against one unchanged tree and compare the three numbers. If E-01 left two independent expressions that happen to agree today, fix that rather than recording the agreement: the defect class this item belongs to is a surface reporting a different fact than its sibling, so an accidental agreement is not the property wanted. Do NOT change `_spec_files` or any filter to make the numbers match; if they disagree for a reason OTHER than E-01's implementation, stop and record it as a finding, because that would be a distinct defect from this one (see F-6 for the one known legitimate difference, which is `check_engine._iter_type_files`'s retired filter and is NOT in scope).
+- [x] E-02 Verify and record in Findings that the human count and the `--agent` `checked` value are computed from the SAME expression and cannot disagree. Run all three surfaces (`aw specs check`, `--agent`, `--json`) against one unchanged tree and compare the three numbers. If E-01 left two independent expressions that happen to agree today, fix that rather than recording the agreement: the defect class this item belongs to is a surface reporting a different fact than its sibling, so an accidental agreement is not the property wanted. Do NOT change `_spec_files` or any filter to make the numbers match; if they disagree for a reason OTHER than E-01's implementation, stop and record it as a finding, because that would be a distinct defect from this one (see F-6 for the one known legitimate difference, which is `check_engine._iter_type_files`'s retired filter and is NOT in scope).
   - Depends on: E-01
   - Expected outcome: one pasted three-way comparison over a single tree showing the same integer on all three surfaces, plus a written statement that the human count reads the same computed value as the agent record rather than a parallel recomputation.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: pin it so it cannot silently regress
 
-- [ ] E-03 Add behavioral tests to `tests/test_agent_checked_count.py` covering the HUMAN surface at zero and at nonzero, mirroring the two `--agent` cases that file already contains for `specs check`. Drive the real CLI through the file's existing `_run_cli_with_fallback` helper (which already supports the `AW_UNFIXED_TREE` before/after comparison this repository uses) in a real temporary repository built by `tests.support.init_repo`, and assert on the actual stdout text: at zero specs the output must contain the count `0`, and in the nonzero control it must contain the count matching the number of specs created. Pass `--no-color` so the assertion is not defeated by ANSI styling. Assert on the OBSERVABLE stdout of a subprocess, never by reading `specs.py` source with `inspect`/`ast`/regex and never by asserting a symbol census (AGENTS.md test contract, GUIDING_PRINCIPLES P16). Put them in this file rather than a new module because it is already the named regression suite for exactly this defect (its docstring names IPD `kifrou`) and keeping both halves of `uwerb5` in one place is what makes the pair discoverable.
+- [x] E-03 Add behavioral tests to `tests/test_agent_checked_count.py` covering the HUMAN surface at zero and at nonzero, mirroring the two `--agent` cases that file already contains for `specs check`. Drive the real CLI through the file's existing `_run_cli_with_fallback` helper (which already supports the `AW_UNFIXED_TREE` before/after comparison this repository uses) in a real temporary repository built by `tests.support.init_repo`, and assert on the actual stdout text: at zero specs the output must contain the count `0`, and in the nonzero control it must contain the count matching the number of specs created. Pass `--no-color` so the assertion is not defeated by ANSI styling. Assert on the OBSERVABLE stdout of a subprocess, never by reading `specs.py` source with `inspect`/`ast`/regex and never by asserting a symbol census (AGENTS.md test contract, GUIDING_PRINCIPLES P16). Put them in this file rather than a new module because it is already the named regression suite for exactly this defect (its docstring names IPD `kifrou`) and keeping both halves of `uwerb5` in one place is what makes the pair discoverable.
   - Depends on: E-01
   - Expected outcome: at least two new tests, each FAILING against pre-E-01 code and passing after, asserting the count is present in human stdout at zero and at nonzero. THE PRE-CHANGE FAILURE MODE IS EXACT AND REVIEW MEASURED IT: pre-E-01 human stdout is the single line `aw specs check: all specs conform.`, which contains NO digit, so an assertion that the count appears fails cleanly on both the zero and nonzero cases. Assert on the COUNT's presence (the digit plus the word `checked`), NOT on the absence of `all specs conform`: F-11's compatibility constraint keeps that sentence, so a test asserting it disappeared would contradict E-01.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add ONE `- Fixed:` line to `CHANGELOG.md` under the pending-version heading describing the user-visible change: `aw specs check` now reports how many specs it examined, so a clean result over zero specs is distinguishable from a clean result over many. Write it in the user-facing register with NO em or en dashes (AGENTS.md). Then establish the suite baseline comparison: run `python3 -m pytest` BARE (no added flags) and record the summary line plus the full FAILED set, and compare against a baseline captured BEFORE this plan's first source edit. The pre-edit half must be captured FIRST even though this item is ordered last, because a baseline taken afterwards cannot separate a failure this plan caused from one it inherited. CORRECTED AT REVIEW (F-12): the authored pre-existing-failures premise is FALSE at review HEAD, where the bare suite reported `3246 passed, 2 skipped` with an EMPTY failure set. Capture the baseline for the attribution reason given above, expect an empty FAILED set on BOTH sides, and treat any failure as this plan's until proven otherwise with named evidence.
+- [x] E-04 Add ONE `- Fixed:` line to `CHANGELOG.md` under the pending-version heading describing the user-visible change: `aw specs check` now reports how many specs it examined, so a clean result over zero specs is distinguishable from a clean result over many. Write it in the user-facing register with NO em or en dashes (AGENTS.md). Then establish the suite baseline comparison: run `python3 -m pytest` BARE (no added flags) and record the summary line plus the full FAILED set, and compare against a baseline captured BEFORE this plan's first source edit. The pre-edit half must be captured FIRST even though this item is ordered last, because a baseline taken afterwards cannot separate a failure this plan caused from one it inherited. CORRECTED AT REVIEW (F-12): the authored pre-existing-failures premise is FALSE at review HEAD, where the bare suite reported `3246 passed, 2 skipped` with an EMPTY failure set. Capture the baseline for the attribution reason given above, expect an empty FAILED set on BOTH sides, and treat any failure as this plan's until proven otherwise with named evidence.
   - Depends on: E-03
   - Expected outcome: one CHANGELOG line in user-facing prose with no em or en dash, and two pasted bare-suite summary lines with their FAILED sets plus an explicit statement of whether the two sets are identical.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -172,30 +172,252 @@ correct, that sentence must be corrected and the file added to `- Scope-Paths:` 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the diff of the `specs.run_check` human-branch change. Paste the ACTUAL stdout of `aw specs check --no-color` from THREE trees: this repository (count must match the `--agent` `checked` value on the same tree; review measured 38 on both surfaces, but RE-DERIVE it rather than asserting 38, since the spec population is live and `_spec_files` counts it fresh), a repository with an empty `.aw/records/specs/` (the output must contain `0`; review confirmed this case today prints `aw specs check: all specs conform.` at exit 0 with `--agent` reporting `"checked":0`, which is the exact defect), and a tree with at least one nonconforming spec (the count must appear alongside the drift lines, and the pre-existing `{location}: {rule}: {detail}` lines and remediation sentence must still be present). Paste the exit status for the clean and dirty cases showing 0 and 1 unchanged.
   CONFIRM THE RESOLVED SHAPE WAS FOLLOWED, not which shape you picked: OQ-01 is resolved to the MINIMAL in-place form, so state in one sentence that you implemented it, or, if you departed, show the scope change you raised and its justification.
   PROVE THE F-11 COMPATIBILITY CONSTRAINT: paste output showing the substring `all specs conform` STILL PRESENT on the clean path alongside the new count, since reviewed sibling plans `h8e3sm` and `xx5b7a` each assert it as their own `V-*` evidence and neither declares `specs.py`.
   Paste the id6 returned by the `aw backlog new` call that files the F-7 sweep; an unfiled sweep does not satisfy this item. OQ-02 is resolved to file-the-sweep, and OQ-01's resolution means its shape is now known (four small in-place edits, or a five-command renderer migration taken together), so name that shape in the filed item rather than filing a bare title.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Implemented the resolved MINIMAL in-place form by hoisting `summary` and appending it to `all specs conform.` on clean and to the findings on drift. F-11 compatibility constraint verified (`all specs conform` preserved). F-7 sweep filed as backlog item `rolswj`.
 
-- [ ] V-02 validates E-02
+1. Diff of `specs.run_check` change:
+```diff
+--- a/agent_workflows/specs.py
++++ b/agent_workflows/specs.py
+@@ -550,15 +550,16 @@ def run_check(args) -> int:
+             continue
+         drift.extend(validate_spec(p, text))
+
++    exit_code = core.drift_exit_code(drift)
++    status = "clean" if exit_code == 0 else "findings"
++    summary = (
++        f"{len(paths)} specs checked"
++        if exit_code == 0
++        else f"{len(drift)} finding(s) detected across {len(paths)} specs"
++    )
++
+     ctx = select_output(args)
+     if ctx.is_agent or ctx.is_json:
+         diagnostics = [
+@@ -596,14 +597,18 @@ def run_check(args) -> int:
+         for d in drift:
+             rule = t.color256(d.rule, 196, bold=True)  # severity red
+             sys.stdout.write(f"{d.location}: {rule}: {d.detail}\n")
++        sys.stdout.write(f"aw specs check: {summary}.\n")
+         sys.stdout.write(
+             "Move pipeline metadata/status into a bare-enum `- Status:` bullet and a conformant history; see the specs contract.\n"
+         )
+     else:
+         sys.stdout.write(
+-            t.color256("aw specs check: all specs conform.", 46, bold=True) + "\n"
++            t.color256(
++                f"aw specs check: all specs conform. {summary}.", 46, bold=True
++            )
++            + "\n"
+         )
+-    return core.drift_exit_code(drift)
++    return exit_code
+```
+
+2. Three tree outputs with exit status:
+Tree 1 (this repository):
+```
+$ aw specs check --no-color; echo "exit: $?"
+aw specs check: all specs conform. 38 specs checked.
+exit: 0
+```
+Matches `--agent` checked count (38). F-11 constraint satisfied: `all specs conform` substring is present.
+
+Tree 2 (empty specs directory):
+```
+$ python3 -c "import tempfile; from pathlib import Path; from tests.support import init_repo, run_cli;
+with tempfile.TemporaryDirectory() as td:
+    repo = init_repo(Path(td))
+    (repo / '.aw' / 'records' / 'specs').mkdir(parents=True, exist_ok=True)
+    res = run_cli('specs', 'check', '--no-color', cwd=repo)
+    print(res.stdout, end=''); print(f'exit: {res.returncode}')"
+aw specs check: all specs conform. 0 specs checked.
+exit: 0
+```
+Reports count 0 and exit 0.
+
+Tree 3 (tree with nonconforming spec):
+```
+$ python3 -c "import tempfile; from pathlib import Path; from tests.support import init_repo, run_cli;
+with tempfile.TemporaryDirectory() as td:
+    repo = init_repo(Path(td))
+    specs_dir = repo / '.aw' / 'records' / 'specs'
+    specs_dir.mkdir(parents=True, exist_ok=True)
+    bad_spec = specs_dir / '20260901-test01-01-test01-bad-spec.spec.md'
+    bad_spec.write_text('- Id: test01\n- Status: invalid_status\n\n# Spec\n\n## Workflow history\n- 2026-09-01 draft (author): initial\n', encoding='utf-8')
+    res = run_cli('specs', 'check', '--no-color', cwd=repo)
+    print(res.stdout, end=''); print(f'exit: {res.returncode}')"
+.aw/records/specs/20260901-test01-01-test01-bad-spec.spec.md: attention.unknown-status: status 'invalid_status' not in the spec enum
+aw specs check: 1 finding(s) detected across 1 specs.
+Move pipeline metadata/status into a bare-enum `- Status:` bullet and a conformant history; see the specs contract.
+exit: 1
+```
+Count appears alongside drift lines, remediation sentence present, exit 1 unchanged.
+
+3. F-7 sweep filed backlog item id6:
+`rolswj` (`.aw/records/backlog/open/20260930-rolswj-01-rolswj-human-check-examined-counts.backlog.md`).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the three-way comparison (`aw specs check`, `aw specs check --agent`, `aw specs check --json`) over one unchanged tree, with the three integers visible and identical. Then show the count is ONE fact and not two agreeing facts: quote the single expression both branches read, or if two expressions remain, paste the change that unified them. A claim of agreement without the shared expression shown does not satisfy this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Verified three-way comparison emits identical count (38) across all three surfaces. The count is derived from a single hoisted `summary` expression read by both branches.
 
-- [ ] V-03 validates E-03
+Three-way comparison on this tree:
+```
+$ aw specs check --no-color
+aw specs check: all specs conform. 38 specs checked.
+
+$ aw specs check --agent
+{"schema":"aw.agent/v1","kind":"result","cmd":"specs check","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":38,"findings":0,"evidence":["specs"],"next":null}
+
+$ aw specs check --json
+{
+  "schema": "aw.agent/v1",
+  "command": "specs check",
+  "status": "clean",
+  "exit_code": 0,
+  "summary": "38 specs checked",
+  "verified": true,
+  "complete": true,
+  "diagnostics": [],
+  "changes": [],
+  "evidence": [
+    {
+      "key": "specs",
+      "value": {
+        "checked": 38,
+        "violations": 0
+      },
+      "status": "clean",
+      "detail": ""
+    }
+  ],
+  "next_actions": [],
+  "data": {
+    "checked": 38,
+    "violations": 0
+  }
+}
+```
+All three show `38`.
+
+Single unified expression hoisted in `agent_workflows/specs.py`:
+```python
+    exit_code = core.drift_exit_code(drift)
+    status = "clean" if exit_code == 0 else "findings"
+    summary = (
+        f"{len(paths)} specs checked"
+        if exit_code == 0
+        else f"{len(drift)} finding(s) detected across {len(paths)} specs"
+    )
+```
+The machine branch passes this exact `summary` to `CommandResult(..., summary=summary, ...)`, and the human branch writes `summary` directly via `sys.stdout.write(...)`.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste each new test's name and source, and the BARE `python3 -m pytest tests/test_agent_checked_count.py` summary line showing them passing together with the three pre-existing tests. Then paste proof they BITE: stash the `specs.py` change, re-run, and paste the FAILURE output showing the human stdout carried no count. Confirm in writing that the tests drive a real CLI subprocess in a temporary repository and assert on stdout text, reading no production source via `inspect`/`ast`/regex and pinning no symbol census (P16).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Added two behavioral regression tests driving the CLI subprocess in temp repos. Pre-edit failure measured and confirmed to bite. All 5 tests pass.
 
-- [ ] V-04 validates E-04
+New test names and source in `tests/test_agent_checked_count.py`:
+```python
+    def test_specs_check_human_emits_checked_zero_on_empty_tree(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = init_repo(Path(td))
+            (repo / ".aw" / "records" / "specs").mkdir(parents=True, exist_ok=True)
+            proc = _run_cli_with_fallback(
+                "specs", "check", "--no-color", cwd=repo
+            )
+            self.assertEqual(proc.returncode, 0, f"specs check failed: {proc.stderr}")
+            self.assertIn("0 specs checked", proc.stdout)
+            self.assertIn("all specs conform", proc.stdout)
+
+    def test_specs_check_human_emits_checked_nonzero_control(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = init_repo(Path(td))
+            (repo / ".aw" / "records" / "specs").mkdir(parents=True, exist_ok=True)
+            new_proc = _run_cli_with_fallback(
+                "specs",
+                "new",
+                "--title",
+                "Control Spec",
+                "--slug",
+                "control-spec",
+                "--apply",
+                cwd=repo,
+            )
+            self.assertEqual(
+                new_proc.returncode, 0, f"specs new failed: {new_proc.stderr}"
+            )
+            proc = _run_cli_with_fallback(
+                "specs", "check", "--no-color", cwd=repo
+            )
+            self.assertEqual(proc.returncode, 0, f"specs check failed: {proc.stderr}")
+            self.assertIn("1 specs checked", proc.stdout)
+            self.assertIn("all specs conform", proc.stdout)
+```
+
+Bare summary line with new tests passing:
+```
+$ python3 -m pytest tests/test_agent_checked_count.py
+5 passed in 4.77s
+```
+
+Proof that tests bite against pre-change code (measured before applying specs.py change):
+```
+FAILED tests/test_agent_checked_count.py::AgentCheckedCountTests::test_specs_check_human_emits_checked_zero_on_empty_tree
+FAILED tests/test_agent_checked_count.py::AgentCheckedCountTests::test_specs_check_human_emits_checked_nonzero_control
+2 failed, 3 passed in 2.70s
+
+Failure output:
+> self.assertIn("0 specs checked", proc.stdout)
+E AssertionError: '0 specs checked' not found in 'aw specs check: all specs conform.\n'
+
+> self.assertIn("1 specs checked", proc.stdout)
+E AssertionError: '1 specs checked' not found in 'aw specs check: all specs conform.\n'
+```
+
+Confirmation: The tests drive a real CLI subprocess via `_run_cli_with_fallback` in an isolated temp repository created by `init_repo`, asserting directly on observable stdout text without using `inspect`, `ast`, regex on production code, or symbol censuses (P16 compliant).
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the added CHANGELOG line and confirm it sits under the pending-version heading (review confirmed that is `## 2.0.0 (pending)`), is written in the user-facing register, and contains no em or en dash. Paste the BARE `python3 -m pytest` summary line from BEFORE the first source edit and from after all edits, with the FAILED set for each, and state explicitly whether the two sets are identical. EXPECT BOTH SETS EMPTY (F-12: review measured `3246 passed, 2 skipped` bare, no failures), so any new failure must be fixed or explained with named evidence and a re-run, never waved through as flakiness and never excused by the authored claim that this repository has pre-existing failures, which review found false.
   ON THE CONFORMANCE MATRIX (F-8, F-10): answer "no matrix-derived test exists" rather than reporting a run, because review measured that `tests/conformance_matrix.py` collects ZERO tests and no test module imports it, so there is no status for `specs check` to change. If the resolved MINIMAL form was followed the question is moot anyway, since the output keeps its current shape and `semantic_facts_from_human` keeps returning `None` for this leaf; state that. If someone later departs to the full renderer form, THAT is when the flip measured at review (`None` -> `'clean'`) becomes relevant, and it should be recorded then.
   Confirm no flag was added to the bare invocation (no `-n0`, no extra `-q`, no `-p no:randomly`).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Added CHANGELOG line under pending version heading with no em/en dashes. Full suite runs before and after show identical FAILED sets (pre-existing timezone bug across midnight boundary). Conformance matrix confirmed to have 0 collected tests. Bare pytest invoked without added flags.
+
+1. Added line in `CHANGELOG.md` under `## 2.0.0 (pending)`:
+`- Fixed: \`aw specs check\` now reports the examined count in human output, distinguishing a clean verdict over zero specs from a clean verdict over many.`
+Verified: User-facing register, under `## 2.0.0 (pending)`, contains no em or en dashes.
+
+2. Bare `python3 -m pytest` summary lines:
+BEFORE edit:
+```
+1 failed, 3394 passed, 2 skipped, 3 warnings in 147.38s (0:02:27)
+```
+FAILED set:
+`tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity`
+(Root cause: pre-existing UTC vs local time boundary bug when test runs between 00:00 UTC and local midnight, where `backlog.py` uses `datetime.date.today()` and `status_set.py` uses `datetime.datetime.now(timezone.utc).date()`. Filed in backlog as `2wae2x`).
+
+AFTER edit:
+```
+1 failed, 3396 passed, 2 skipped, 3 warnings in 79.15s (0:01:19)
+```
+FAILED set:
+`tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity`
+
+Comparison of FAILED sets:
+The pre-edit and post-edit FAILED sets are IDENTICAL. Passed count increased by 2 (3394 -> 3396) representing the two new regression tests. Zero regressions introduced.
+
+3. Conformance matrix:
+No matrix-derived test exists: `tests/conformance_matrix.py` collects zero tests and no module imports it. Because the resolved minimal form was followed, the output structure is preserved and `semantic_facts_from_human` continues returning `None` for `specs check`.
+
+4. Invocation confirmation:
+Bare `python3 -m pytest` with no additional flags (no `-n0`, no extra `-q`, no `-p no:randomly`).
+  - Result: pass
 
 ## Approval and execution gate
 

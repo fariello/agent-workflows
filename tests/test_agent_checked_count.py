@@ -100,6 +100,37 @@ class AgentCheckedCountTests(unittest.TestCase):
             self.assertIn("checked", rec)
             self.assertEqual(rec["checked"], 1)
 
+    def test_specs_check_human_emits_checked_zero_on_empty_tree(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = init_repo(Path(td))
+            (repo / ".aw" / "records" / "specs").mkdir(parents=True, exist_ok=True)
+            proc = _run_cli_with_fallback("specs", "check", "--no-color", cwd=repo)
+            self.assertEqual(proc.returncode, 0, f"specs check failed: {proc.stderr}")
+            self.assertIn("0 specs checked", proc.stdout)
+            self.assertIn("all specs conform", proc.stdout)
+
+    def test_specs_check_human_emits_checked_nonzero_control(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = init_repo(Path(td))
+            (repo / ".aw" / "records" / "specs").mkdir(parents=True, exist_ok=True)
+            new_proc = _run_cli_with_fallback(
+                "specs",
+                "new",
+                "--title",
+                "Control Spec",
+                "--slug",
+                "control-spec",
+                "--apply",
+                cwd=repo,
+            )
+            self.assertEqual(
+                new_proc.returncode, 0, f"specs new failed: {new_proc.stderr}"
+            )
+            proc = _run_cli_with_fallback("specs", "check", "--no-color", cwd=repo)
+            self.assertEqual(proc.returncode, 0, f"specs check failed: {proc.stderr}")
+            self.assertIn("1 specs checked", proc.stdout)
+            self.assertIn("all specs conform", proc.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()
