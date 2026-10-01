@@ -178,6 +178,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
   - Carrier-Declined: Nothing is owed because no defect was measured, only a naming preference. Filing an item would assert an intended rename that nobody has requested and whose blast radius is unmeasured.
 - `runner_shared`'s BASELINE BANNER DIRECTION DEFECT. A real defect in the same neighbourhood (the banner's prohibition is stated without direction and is false as written against shipped code), but a different subject with its own measurement and its own spec amendment.
   - Carrier: kcc71f
+  - Carrier-Evidence: .aw/records/plans/executed/20260929-aced01-01-kcc71f-name-the-direction-the-pre-work-suite-baseline-prohibition-f.ipd.md
 - A DETERMINISTIC RULE FLAGGING NEW ANTI-MALICE JUSTIFICATIONS. Attractive under GUIDING_PRINCIPLES P11 and refused on this plan's own measurement: F-5 shows the vocabulary is densest in the COMPLIANT sites, so a pattern rule would fire overwhelmingly on correct code, and the JUSTIFICATION-versus-DISCLAIMER distinction is the judgement E-01 makes by reading.
   - Carrier-Declined: Nothing is owed because this is a rejected design rather than latent work. Filing it would imply the repository intends to build a rule whose false-positive behavior its own measurement predicts.
 

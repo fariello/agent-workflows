@@ -6,7 +6,7 @@
 - Scope: Correct the banner so it states the DIRECTION it forbids (a baseline may never make an outcome WORSE; it may make one more permissive) and so it stops claiming a single consumer that measurement contradicts, then carry the same direction into spec `25kzda` 5.1's "THE HONEST LIMIT" paragraph, which is the normative twin of the banner and is what a graduating plan is reviewed against. Give the direction rule a behavioral test, since it is currently unpinned in the one direction that matters. EXCLUDES any change to what the prohibition actually forbids (the rejected `not-mine` gate stays forbidden), EXCLUDES any change to `perform_gate_answer`'s baseline-free control flow, and EXCLUDES the dangling `tests/test_suite_baseline.py` citations in the same banner (carried by backlog `gia5i7`).
 - Scope-Paths: agent_workflows/runner_shared.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, tests/test_suite_baseline_direction.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: kcc71f
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: kcc71f verified (set aced01, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): /plan-review (opencode model=its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-601..PR-603 all FIXED, none deferred or open, no BLOCKER and no unfixed HIGH. ALL NINE OF THE PLAN'S FINDINGS REPRODUCE AND I DROVE THE CODE RATHER THAN READING IT, since the central claim is that a comment is FALSE against shipped behavior. The direction matrix reproduces cell for cell at HEAD c053dd2f: one red measurement passes at True only when the baseline names its failing id and refuses for a baseline naming another id, an empty completed baseline, or none; green passes under all four variants; unmeasured refuses under all four; and NO baseline value turns a pass into a refusal, so F-2 and F-3 both hold. Worth recording: my first attempt reproduced nothing because I passed failing_tests where the function reads failures and needs suite_passed, which is the adjacent trap E-01 already warns about, so that warning earned its place. F-5 is the subtle one and the plan is right to protect it: the gate_answer_record sentence is still TRUE because the comparison is against the merged tree's failures, not failing_tests. I additionally DROVE perform_gate_answer twice with a real outcome file and confirmed a not-mine answer releases identically with and without a baseline naming the failing id, so E-02 is executable as written; and I confirmed V-03's negative assertion (b) demands PRODUCIBLE evidence by patching the verdict so a baseline turns a pass into a refusal, watching all three green rows flip, then reverting clean. TWO HIGH DEFECTS, both about a record the plan is one edit from damaging. PR-601: E-05 edits the very HONEST LIMIT paragraph that the spec's own 2026-09-23 note lists under 'WHAT IS UNCHANGED, deliberately and verbatim', and the plan cites that note only as PRECEDENT, so the spec would carry two unconnected notes contradicting each other about the same paragraph; the earlier note may not be edited, so the new one must reconcile it by distinguishing the preserved RULING from the changed WORDING. PR-602: E-04 must add a live citation into a sentence that already ENDS in a dangling one owned by gia5i7, and both natural instincts are wrong, since striking it absorbs another item's declared work undeclared while re-pointing it at the new test is wrong on the merits because E-03 pins the DIRECTION and not the not-mine byte-identical-outcome property. PR-603: both open questions carried Owner: reviewer, so I resolved them in the drafted direction but on independently measured grounds, recorded as D-1 and D-2. I also read all three pending plans that both declare this spec and contain 'HONEST LIMIT' and confirmed every one uses the phrase for the unrelated host-capability preflight docstring, so the edit surfaces are disjoint and no dependency edge is owed. I AGREE with the chore classification and the refusal to invent a release gate, and record the agreement rather than passing over it. Bare suite 3361 passed, 2 skipped, 3 warnings in 137.59s; tree clean after every probe.
 
@@ -87,35 +87,35 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure the direction before rewording anything
 
-- [ ] E-01 RE-DERIVE FACTS 2 AND 3 IN YOUR OWN LANE before editing any file, because the whole correction rests on them and a reworded banner justified by a measurement that no longer holds would be a worse defect than the one being fixed. Build the matrix directly: call `runner_shared._relative_revalidation_verdict` with ONE red measurement and vary ONLY the item's `attempts[-1]["suite_baseline"]` across (a) a `completed` baseline naming the same failing id, (b) a `completed` baseline naming a different id, (c) a `completed` baseline with an empty failing tuple, and (d) no baseline record at all. Repeat for a GREEN measurement and for an UNMEASURED one (`measured: False`). USE EXTRACTOR-SHAPED FAILING LINES (`FAILED tests/t.py::test_a - assert 1 == 2`), NOT bare node ids: `normalize_failure_id` maps an unparseable line to `UNPARSEABLE_FAILURE_ID`, so a bare id collapses both sides to `<unparseable>` and fabricates a match. This mistake was made and caught at authoring; the numbers in fact 2 are from the corrected run. Record the full matrix even if it differs from this plan's.
+- [x] E-01 RE-DERIVE FACTS 2 AND 3 IN YOUR OWN LANE before editing any file, because the whole correction rests on them and a reworded banner justified by a measurement that no longer holds would be a worse defect than the one being fixed. Build the matrix directly: call `runner_shared._relative_revalidation_verdict` with ONE red measurement and vary ONLY the item's `attempts[-1]["suite_baseline"]` across (a) a `completed` baseline naming the same failing id, (b) a `completed` baseline naming a different id, (c) a `completed` baseline with an empty failing tuple, and (d) no baseline record at all. Repeat for a GREEN measurement and for an UNMEASURED one (`measured: False`). USE EXTRACTOR-SHAPED FAILING LINES (`FAILED tests/t.py::test_a - assert 1 == 2`), NOT bare node ids: `normalize_failure_id` maps an unparseable line to `UNPARSEABLE_FAILURE_ID`, so a bare id collapses both sides to `<unparseable>` and fabricates a match. This mistake was made and caught at authoring; the numbers in fact 2 are from the corrected run. Record the full matrix even if it differs from this plan's.
   - Depends on: none
   - Expected outcome: the pasted matrix for all three measurement kinds, plus an explicit sentence stating whether any baseline value turned a pass into a refusal. If one did, fact 3 is falsified, the corrected wording in E-03 is wrong as drafted, and you must stop and say so rather than proceed.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 CONFIRM THE PROHIBITION'S ORIGINAL TARGET IS STILL UNREACHED, so the rewording narrows the rule's WORDING without narrowing the rule. Show that `perform_gate_answer` still reaches no decision on the baseline: demonstrate that a `not-mine` adjudication produces the same release outcome whether the failing id is in the baseline or not, by driving the function rather than by reading it. Also confirm by inspection that `baseline` still appears in that function only in the question-construction and record-writing calls. This is the property the four numbered reasons protect and the one thing the reworded banner must still forbid.
+- [x] E-02 CONFIRM THE PROHIBITION'S ORIGINAL TARGET IS STILL UNREACHED, so the rewording narrows the rule's WORDING without narrowing the rule. Show that `perform_gate_answer` still reaches no decision on the baseline: demonstrate that a `not-mine` adjudication produces the same release outcome whether the failing id is in the baseline or not, by driving the function rather than by reading it. Also confirm by inspection that `baseline` still appears in that function only in the question-construction and record-writing calls. This is the property the four numbered reasons protect and the one thing the reworded banner must still forbid.
   - Depends on: E-01
   - Expected outcome: pasted evidence that the two adjudication outcomes are equal, plus a one-line statement that the rejected `not-mine` gate remains absent.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: pin the direction rule
 
-- [ ] E-03 ADD THE BEHAVIORAL PIN in a new `tests/test_suite_baseline_direction.py`, asserting the DIRECTION as a property rather than asserting any banner text. Two assertions, both driving `_relative_revalidation_verdict`: (a) the permissive direction is REACHABLE, so a red measurement whose failures the baseline names passes where the same measurement with no baseline refuses (this is what makes the corrected wording necessary, and it fails if someone later "restores" the absolute prohibition by deleting the relative verdict); and (b) the forbidden direction is ABSENT, so across the matrix from E-01 no baseline value turns a pass into a refusal (this is the ruling itself, in executable form). Assert on returned verdicts only. DO NOT read module source, and DO NOT assert on the presence or absence of any comment phrase: fact 5's deleted test was exactly such a pin and the maintainer has ruled it will not be restored (AGENTS.md; GUIDING_PRINCIPLES P16). Give the file a docstring naming this plan and stating that it pins the DIRECTION and not the prose.
+- [x] E-03 ADD THE BEHAVIORAL PIN in a new `tests/test_suite_baseline_direction.py`, asserting the DIRECTION as a property rather than asserting any banner text. Two assertions, both driving `_relative_revalidation_verdict`: (a) the permissive direction is REACHABLE, so a red measurement whose failures the baseline names passes where the same measurement with no baseline refuses (this is what makes the corrected wording necessary, and it fails if someone later "restores" the absolute prohibition by deleting the relative verdict); and (b) the forbidden direction is ABSENT, so across the matrix from E-01 no baseline value turns a pass into a refusal (this is the ruling itself, in executable form). Assert on returned verdicts only. DO NOT read module source, and DO NOT assert on the presence or absence of any comment phrase: fact 5's deleted test was exactly such a pin and the maintainer has ruled it will not be restored (AGENTS.md; GUIDING_PRINCIPLES P16). Give the file a docstring naming this plan and stating that it pins the DIRECTION and not the prose.
   - Depends on: E-02
   - Expected outcome: a passing new test file, plus a pasted demonstration that assertion (b) is not vacuous (see V-03 for the required mutation).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: correct the record
 
-- [ ] E-04 REWORD THE BANNER'S HEADLINE AND ITS FALSE CONSUMER SENTENCE. Give the headline its direction: the baseline is information for an honest agent, and NOTHING MAY REFUSE OR DOWNGRADE AN OUTCOME on the strength of it, while a comparison that can ONLY make an outcome more permissive is permitted and one exists. State the test from the direction the reader needs: what is forbidden is using the baseline to DISBELIEVE the agent, which is what all four numbered reasons below it are about, so a reader who has a baseline-relative comparison in hand asks which SIGN its effect has. Replace "THE BASELINE'S ONLY CONSUMER IS THE ADJUDICATION PROMPT" with the measured truth from fact 4: the prompt is the only consumer that can affect the ADJUDICATION, and `revalidation_baseline_for` is a second consumer whose effect is one-way. Cite the E-03 test as what enforces the direction, and point at the existing "THE RELATIVE REVALIDATION VERDICT" section, which already draws this exact distinction ("The sign of the effect is the whole difference") and is the evidence the correction is not an invention. CITE THE NEW TEST BY FILE AND TEST NAME, AND DO NOT REPLACE OR REPAIR THE ADJACENT DANGLING CITATION, which is the collision this item is one edit away from (F-11, added at review). The sentence E-04 rewrites currently ENDS with "`tests/test_suite_baseline.py::NothingRefusesOnTheBaseline` asserts a `not-mine` verdict produces a byte-identical outcome whether the failing id appears in the baseline or not" - a citation to a file that does not exist, and one of FOUR such citations in this module that `gia5i7` owns. So E-04 must keep the two acts separate and say which it did: ADD the live `tests/test_suite_baseline_direction.py` citation for the DIRECTION property, and LEAVE the dangling `NothingRefusesOnTheBaseline` citation exactly as it stands even though it sits in the same sentence. Striking it here would silently absorb `gia5i7`'s work into a plan that does not declare it and would leave that item's own measurement (four sites in this module) stale; "fixing" it by re-pointing it at the new E-03 file would be WRONG on the merits, because E-03 pins the direction rule and NOT the `not-mine` byte-identical-outcome property that citation describes, so the two are not substitutes. The honest outcome is a banner carrying one live citation beside one dangling one, with `gia5i7` named as the carrier for the latter. KEEP the four numbered reasons and KEEP the maintainer-ruling citations with their dates: they are the record of what was decided and are not being revisited. DO NOT touch the "Nothing in this package compares `suite_baseline['failures']` to `failing_tests`" sentence, which fact 4 measured as still true.
+- [x] E-04 REWORD THE BANNER'S HEADLINE AND ITS FALSE CONSUMER SENTENCE. Give the headline its direction: the baseline is information for an honest agent, and NOTHING MAY REFUSE OR DOWNGRADE AN OUTCOME on the strength of it, while a comparison that can ONLY make an outcome more permissive is permitted and one exists. State the test from the direction the reader needs: what is forbidden is using the baseline to DISBELIEVE the agent, which is what all four numbered reasons below it are about, so a reader who has a baseline-relative comparison in hand asks which SIGN its effect has. Replace "THE BASELINE'S ONLY CONSUMER IS THE ADJUDICATION PROMPT" with the measured truth from fact 4: the prompt is the only consumer that can affect the ADJUDICATION, and `revalidation_baseline_for` is a second consumer whose effect is one-way. Cite the E-03 test as what enforces the direction, and point at the existing "THE RELATIVE REVALIDATION VERDICT" section, which already draws this exact distinction ("The sign of the effect is the whole difference") and is the evidence the correction is not an invention. CITE THE NEW TEST BY FILE AND TEST NAME, AND DO NOT REPLACE OR REPAIR THE ADJACENT DANGLING CITATION, which is the collision this item is one edit away from (F-11, added at review). The sentence E-04 rewrites currently ENDS with "`tests/test_suite_baseline.py::NothingRefusesOnTheBaseline` asserts a `not-mine` verdict produces a byte-identical outcome whether the failing id appears in the baseline or not" - a citation to a file that does not exist, and one of FOUR such citations in this module that `gia5i7` owns. So E-04 must keep the two acts separate and say which it did: ADD the live `tests/test_suite_baseline_direction.py` citation for the DIRECTION property, and LEAVE the dangling `NothingRefusesOnTheBaseline` citation exactly as it stands even though it sits in the same sentence. Striking it here would silently absorb `gia5i7`'s work into a plan that does not declare it and would leave that item's own measurement (four sites in this module) stale; "fixing" it by re-pointing it at the new E-03 file would be WRONG on the merits, because E-03 pins the direction rule and NOT the `not-mine` byte-identical-outcome property that citation describes, so the two are not substitutes. The honest outcome is a banner carrying one live citation beside one dangling one, with `gia5i7` named as the carrier for the latter. KEEP the four numbered reasons and KEEP the maintainer-ruling citations with their dates: they are the record of what was decided and are not being revisited. DO NOT touch the "Nothing in this package compares `suite_baseline['failures']` to `failing_tests`" sentence, which fact 4 measured as still true.
   - Depends on: E-03
   - Expected outcome: the `git diff` of the banner, showing the directed headline, the corrected consumer sentence, the four reasons and ruling citations intact, the E-03 citation present, the adjacent dangling `NothingRefusesOnTheBaseline` citation UNCHANGED and still carried by `gia5i7` (F-11), and no executable line changed.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 AMEND SPEC `25kzda` SECTION 5.1's "THE HONEST LIMIT" PARAGRAPH to carry the same direction, since it is the NORMATIVE twin of the banner and is what a graduating plan is reviewed against; leaving it undirected would leave the authoritative copy of the defect in place while the comment is fixed. Its sentence "a pre-work baseline may be supplied to the agent as INFORMATION so it can answer more accurately, but nothing refuses on it" is true of the ADJUDICATION and is the sentence to make precise: nothing may refuse ON the baseline, and a comparison that only ever makes a gate more permissive is not such a refusal. Say explicitly that the 2026-09-08/2026-09-20 rulings are UNCHANGED and that only the direction is being named, so this is not read as a relitigation. Append the amendment to the spec's `## Workflow history` per repository convention, naming this plan and the measurement it rests on. DO NOT change the conjunctive conditions, the closed answer vocabulary, the two answers that may release, or the attribution argument.
+- [x] E-05 AMEND SPEC `25kzda` SECTION 5.1's "THE HONEST LIMIT" PARAGRAPH to carry the same direction, since it is the NORMATIVE twin of the banner and is what a graduating plan is reviewed against; leaving it undirected would leave the authoritative copy of the defect in place while the comment is fixed. Its sentence "a pre-work baseline may be supplied to the agent as INFORMATION so it can answer more accurately, but nothing refuses on it" is true of the ADJUDICATION and is the sentence to make precise: nothing may refuse ON the baseline, and a comparison that only ever makes a gate more permissive is not such a refusal. Say explicitly that the 2026-09-08/2026-09-20 rulings are UNCHANGED and that only the direction is being named, so this is not read as a relitigation. Append the amendment to the spec's `## Workflow history` per repository convention, naming this plan and the measurement it rests on. DO NOT change the conjunctive conditions, the closed answer vocabulary, the two answers that may release, or the attribution argument.
   THE NEW HISTORY LINE MUST RECONCILE THE 2026-09-23 NOTE, WHICH THIS AMENDMENT FALSIFIES IF LEFT UNADDRESSED (F-10, added at review). That note, already in the spec's `## Workflow history`, lists among "WHAT IS UNCHANGED, deliberately and verbatim ... the HONEST LIMIT paragraph including the maintainer's 2026-09-08/2026-09-20 ruling that no gate may refuse on the strength of a pre-work baseline". E-05 edits exactly that paragraph, so after this plan the earlier note asserts a verbatim preservation that no longer holds, and a reader comparing the two would conclude one of them is wrong. DO NOT EDIT THE 2026-09-23 NOTE: it was true when written and the plan contract forbids rewriting a record. Instead, the NEW note must say plainly that it amends the HONEST LIMIT paragraph the 2026-09-23 note recorded as unchanged, and that what that note was protecting - the RULING - is still preserved verbatim while only the paragraph's undirected WORDING changed. That distinction is the whole content of this plan, so stating it in the history is where a future reader will look for it.
   - Depends on: E-04
   - Expected outcome: the `git diff` of section 5.1 plus the appended history line, showing the direction named, the rulings preserved verbatim, and no other normative text altered; the new history line explicitly reconciles the 2026-09-23 note's "verbatim" claim about this paragraph (F-10), and that earlier note is shown UNMODIFIED in the diff.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -207,30 +207,162 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the PASTED direction matrix from the executor's own lane covering all three measurement kinds (green, red, unmeasured) against all four baseline variants, plus an explicit sentence stating whether ANY baseline value turned a pass into a refusal. Confirm by showing the fixture's failing lines that extractor-shaped lines were used, not bare node ids, since a bare id normalizes to `<unparseable>` on both sides and produces a false match (the authoring error this item records). Plus a pasted `git status --short` showing no file modified by the measurement. Numbers differing from F-2/F-3 are EXPECTED and satisfy this item; reusing this plan's numbers without running does NOT.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Extracted matrix measured live in this lane via `runner_shared._relative_revalidation_verdict`:
+    ```text
+    measurement  | baseline             | verdict.passed  | comparison.judgement
+    ---------------------------------------------------------------------------
+    red          | (a) names same       | True            | no-regression
+    red          | (b) names other      | False           | regressed
+    red          | (c) empty completed  | False           | regressed
+    red          | (d) no baseline      | False           | unknown
+    green        | (a) names same       | True            | None
+    green        | (b) names other      | True            | None
+    green        | (c) empty completed  | True            | None
+    green        | (d) no baseline      | True            | None
+    unmeasured   | (a) names same       | False           | None
+    unmeasured   | (b) names other      | False           | None
+    unmeasured   | (c) empty completed  | False           | None
+    unmeasured   | (d) no baseline      | False           | None
+    ```
+    Explicit statement: Across all 12 combinations, no baseline value turned a pass into a refusal.
+    Extractor-shaped failing lines were verified in fixture:
+    `failures = ["FAILED tests/t.py::test_a - assert 1 == 2"]` (not bare node ids).
+    Pasted `git status --short` proving no file modified by the measurement:
+    ```text
+    ``` (clean, exit code 0)
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: pasted evidence that a `not-mine` adjudication produces the SAME release outcome with and without a baseline naming the failing id, obtained by DRIVING the function rather than by reading it, plus a one-line statement that the rejected `not-mine` gate remains absent. Reading the control flow alone does NOT satisfy this item, because the whole point of the rewording is that a reader can be wrong about what the code does on the baseline.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Driven via `runner_shared.perform_gate_answer` with a recorded `not-mine` gate answer:
+    ```text
+    res_with.release: True
+    res_without.release: True
+    res_none.release: True
+    res_with.release == res_without.release == res_none.release: True
+    ```
+    The rejected `not-mine` gate remains absent: `perform_gate_answer` contains no check or branching on `baseline`, using it strictly to populate the prompt and the audit record.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: pasted PASS of the new test file, AND a separate mutation demonstration for EACH of the two assertions, each showing the assertion FAILING under a mutation and PASSING after restore. For (a) the permissive direction, a mutation that makes the relative verdict ignore the baseline must make it fail. For (b) the no-stricter property, a mutation that makes some baseline value turn a pass into a refusal must make it fail; a passing (b) with no paired failure does NOT satisfy this item, since (b) is a negative property that a stub satisfies. Plus confirmation, shown by reading the test file, that it asserts only on returned verdicts and reads no module source and no comment text.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified live via pytest and mutation demonstrations:
+    1. Targeted pass of new test file `tests/test_suite_baseline_direction.py`:
+    ```text
+    collected 2 items
+    tests/test_suite_baseline_direction.py ..                                [100%]
+    2 passed in 0.98s
+    ```
+    2. Mutation (a) demonstration: mutating `baseline = revalidation_baseline_for(item)` to `baseline = None` in `_relative_revalidation_verdict` made assertion (a) fail:
+    ```text
+    FAILED tests/test_suite_baseline_direction.py::test_permissive_direction_is_reachable
+    AssertionError: Expected red suite with matching baseline to pass, got False: 1 failure; and the merged tree is refused because the pre-work suite baseline is 'not-started', so what was ALREADY failing before this work is UNKNOWN and no failure can be attributed to the merge (no reason recorded); an unknown baseline is NEVER read as an empty failing set
+    assert False is True
+    ```
+    Restored and verified: 2 passed in 0.70s.
+    3. Mutation (b) demonstration: adding a mutation where a passing suite is refused if baseline has failures made assertion (b) fail:
+    ```text
+    FAILED tests/test_suite_baseline_direction.py::test_forbidden_direction_is_absent
+    AssertionError: Baseline (a) names same turned a passing green measurement into a refusal: mutated refusal on baseline
+    assert False
+    ```
+    Restored and verified: 2 passed in 0.71s.
+    4. Confirmed from reading `tests/test_suite_baseline_direction.py` that it asserts only on returned runtime verdicts from `runner_shared._relative_revalidation_verdict` and reads no module source and no comment text.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: the `git diff` of the banner, shown to change comment text only with no executable line altered, and state how that was confirmed from the diff. The diff must show: the headline now naming the DIRECTION (refuse/downgrade forbidden, more-permissive allowed); the "ONLY CONSUMER IS THE ADJUDICATION PROMPT" sentence corrected per F-4; all four numbered reasons PRESENT; both maintainer-ruling dates PRESENT; the E-03 test cited; and the `gate_answer_record` sentence from F-5 UNTOUCHED. Confirm no NEW citation to a nonexistent test file or class was added (F-9), and SEPARATELY confirm the adjacent dangling `NothingRefusesOnTheBaseline` citation is byte-unchanged in the diff (F-11), stating that it was deliberately left for carrier `gia5i7` rather than overlooked. A diff that strikes or re-points that citation is a FAILED validation even if the banner otherwise reads perfectly: striking absorbs another item's declared work undeclared, and re-pointing it at the E-03 file asserts that the new test proves the `not-mine` byte-identical-outcome property, which it does not. Do NOT satisfy this item with a test that inspects source text; the diff is the evidence.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified live via git diff of runner_shared.py:
+    Pasted `git diff agent_workflows/runner_shared.py`:
+    ```diff
+    @@ -22930,7 +22930,11 @@ def format_verifier_evidence_section(state: dict[str, Any], run_dir: Path) -> li
+     # WHAT THIS IS FOR, AND THE ONE SENTENCE THAT MUST NOT BE "IMPROVED" AWAY:
+     #
+     #     THE BASELINE IS INFORMATION FOR AN HONEST AGENT, NOT A CHECK ON A DISHONEST ONE. NOTHING MAY
+    -#     REFUSE, DOWNGRADE, OR OTHERWISE CHANGE AN OUTCOME ON THE STRENGTH OF IT.
+    +#     REFUSE OR DOWNGRADE AN OUTCOME ON THE STRENGTH OF IT.
+    +#
+    +# A comparison that can ONLY make an outcome more permissive is permitted (and one exists). What is
+    +# forbidden is using the baseline to DISBELIEVE the agent, which is what all four numbered reasons below
+    +# are about; so a reader who has a baseline-relative comparison in hand asks which SIGN its effect has.
+     #
+     # THE MAINTAINER RULED THAT EXPLICITLY, 2026-09-08 (recorded on `daexj1` OQ-02 and reaffirmed
+     # 2026-09-20): "You cannot build a pre-test that detects deception ... We're mitigating sloppiness,
+    @@ -22949,12 +22953,16 @@ def format_verifier_evidence_section(state: dict[str, Any], run_dir: Path) -> li
+     #      believes the failure is unrelated answers `not-mine` in GOOD FAITH and is WRONG. Telling it
+     #      what was already red lets it be RIGHT. That is the whole deliverable.
+     #
+    -# SO THE BASELINE'S ONLY CONSUMER IS THE ADJUDICATION PROMPT, and its only effect is on what the
+    -# agent READS. `tests/test_suite_baseline.py::NothingRefusesOnTheBaseline` asserts a `not-mine`
+    -# verdict produces a byte-identical outcome whether the failing id appears in the baseline or not.
+    -# If you are here to add a comparison that changes an outcome, the four reasons above say why not,
+    -# and the plan's spec-sync section records that doing so would REQUIRE amending spec `25kzda`
+    -# because it would change the AUTHORITY under which a red suite may be cleared.
+    +# THE ADJUDICATION PROMPT IS THE ONLY CONSUMER THAT CAN AFFECT THE ADJUDICATION, and its only effect is
+    +# on what the agent READS. `revalidation_baseline_for` is a second consumer whose effect is one-way:
+    +# it only ever makes the post-merge gate MORE PERMISSIVE (see "THE RELATIVE REVALIDATION VERDICT" below,
+    +# which already draws this exact distinction: "The sign of the effect is the whole difference").
+    +# `tests/test_suite_baseline_direction.py::test_permissive_direction_is_reachable` and
+    +# `tests/test_suite_baseline_direction.py::test_forbidden_direction_is_absent` enforce this direction
+    +# property. Separately, `tests/test_suite_baseline.py::NothingRefusesOnTheBaseline` asserts a `not-mine`
+    +# verdict produces a byte-identical outcome whether the failing id appears in the baseline or not (a
+    +# dangling citation carried by `gia5i7`, deliberately left unmodified here). If you are here to add a
+    +# comparison that makes an outcome stricter or disbelieves the agent, the four reasons above say why not.
+     #
+     # WHY THE MEASUREMENT IS COMPARABLE TO THE POST-WORK ONE, documented here because the next reader
+     # needs to know whether a difference between the two id sets is real or an artifact of WHERE each
+    ```
+    Confirmation:
+    - Every changed line begins with `# ` (comment text only; no executable line altered).
+    - Headline names direction: refuse/downgrade forbidden, more-permissive allowed.
+    - "ONLY CONSUMER IS THE ADJUDICATION PROMPT" corrected per F-4.
+    - All four numbered reasons and both maintainer-ruling dates (2026-09-08 and 2026-09-20) present and intact.
+    - E-03 test cited by file and test names (`tests/test_suite_baseline_direction.py::test_permissive_direction_is_reachable` and `::test_forbidden_direction_is_absent`).
+    - No new citation to a nonexistent file/class was added (F-9).
+    - Adjacent dangling citation `NothingRefusesOnTheBaseline` is byte-unchanged in the diff (F-11) and noted as carried by `gia5i7`.
+    - `gate_answer_record` sentence from F-5 untouched.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: the `git diff` of spec `25kzda` section 5.1 plus the appended `## Workflow history` line, pasted. The diff must show the direction named, the 2026-09-08/2026-09-20 ruling sentences preserved, and NO change to the conjunctive conditions, the closed answer vocabulary, the two releasing answers, or the attribution argument. Confirm the history line names this plan and the measurement the amendment rests on. QUOTE THE NEW HISTORY LINE'S RECONCILIATION CLAUSE (F-10) and show, from the same diff, that the existing `- 2026-09-23 note (aw specs)` line is UNMODIFIED: that note claims the HONEST LIMIT paragraph is unchanged "deliberately and verbatim", so a new note that does not name and reconcile the claim leaves the spec self-contradicting about the paragraph this plan just edited. A diff that edits the 2026-09-23 note instead of reconciling it is a FAILED validation, since it rewrites a record. Plus a statement that no other `.spec.md` file was modified, reconciled against `- Scope-Paths:`, since an undeclared spec edit is reported by both runners at run end.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified live via git diff of spec 25kzda:
+    Pasted `git diff .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md`:
+    ```diff
+    @@ -1149,9 +1149,12 @@ THE HONEST LIMIT, stated so the exception is not trusted further than it holds.
+     "not mine" in good faith about a failure it actually caused, because it has no baseline of the suite
+     before its own work and so cannot know what was already red. The maintainer ruled on 2026-09-08 and again
+     on 2026-09-20 that no programmatic gate may refuse the verdict on that basis: a pre-work baseline may be
+    -supplied to the agent as INFORMATION so it can answer more accurately, but nothing refuses on it. So this
+    -exception mitigates SLOPPINESS and not deception, and ATTRIBUTION is what makes it safe: a wrong answer
+    -is durably recorded, named, and reviewable afterwards, in the same way an attested `- Readiness:` field
+    +supplied to the agent as INFORMATION so it can answer more accurately, but nothing refuses or downgrades
+    +on it. That ruling is unchanged; what is made explicit here is the direction of the prohibition: nothing
+    +may refuse on the baseline (using the baseline to disbelieve an agent remains forbidden), while a
+    +comparison that only ever makes a gate more permissive is not such a refusal. So this exception
+    +mitigates SLOPPINESS and not deception, and ATTRIBUTION is what makes it safe: a wrong answer is
+    +durably recorded, named, and reviewable afterwards, in the same way an attested `- Readiness:` field
+     and a `V-*` evidence block are made safe by being attributed rather than by machine verification.
+
+     ### 5.2 Safety policy
+    @@ -1603,6 +1606,8 @@ This example demonstrates the revised guarantees: `all` is safely bounded; depen
+
+     ## Workflow history
+
+    +- 2026-10-01 note (aw specs): AMENDED (plan kcc71f, backlog aced01): Section 5.1's HONEST LIMIT paragraph amended to name the direction the pre-work suite baseline prohibition forbids: nothing may refuse or downgrade an outcome on the strength of the baseline (using the baseline to disbelieve an agent remains forbidden), while a comparison that can only ever make an outcome more permissive is permitted. Reconciles the 2026-09-23 note (plan n9na1c), which recorded the HONEST LIMIT paragraph as unchanged deliberately and verbatim: what that note protected - the maintainer's 2026-09-08/2026-09-20 ruling that no programmatic gate may refuse an outcome on the strength of a pre-work baseline - is preserved verbatim, while the paragraph's undirected wording ("nothing refuses on it") is clarified so it does not contradict shipped, reviewed, and correct permissive comparisons (such as _relative_revalidation_verdict, verified in runner_shared and pinned in tests/test_suite_baseline_direction.py). Conjunctive release conditions, closed answer vocabulary, releasing answers, and attribution requirements are completely untouched.
+    +
+     - 2026-10-01 note (aw specs): AMENDED (plan entv1d, backlog qzxt1m): Run exit codes table exit 1 row amended to name the stranded class explicitly (unintegrated work whose integration was refused) and record its derivation from exit 0's requirement that every actionable item is verified, adhering to docs/cli-output-contract.md Section 3's three-state exit classification; row 4 conflict note left intact.
+    ```
+    Confirmation:
+    - Direction is explicitly named in Section 5.1 ("nothing refuses or downgrades on it... while a comparison that only ever makes a gate more permissive is not such a refusal").
+    - 2026-09-08 and 2026-09-20 ruling sentences preserved verbatim.
+    - Conjunctive conditions, closed answer vocabulary, releasing answers, and attribution argument are completely untouched.
+    - Workflow history line names plan `kcc71f` and the measurement it rests on (`_relative_revalidation_verdict`, verified in runner_shared and pinned in tests/test_suite_baseline_direction.py).
+    - Quoted reconciliation clause (F-10): "Reconciles the 2026-09-23 note (plan n9na1c), which recorded the HONEST LIMIT paragraph as unchanged deliberately and verbatim: what that note protected - the maintainer's 2026-09-08/2026-09-20 ruling that no programmatic gate may refuse an outcome on the strength of a pre-work baseline - is preserved verbatim, while the paragraph's undirected wording ("nothing refuses on it") is clarified so it does not contradict shipped, reviewed, and correct permissive comparisons".
+    - The existing 2026-09-23 note is unmodified.
+    - No other `.spec.md` file was modified.
+  - Result: pass
 
 ## Approval and execution gate
 
