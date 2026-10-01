@@ -145,8 +145,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - THE AGENT-SURFACE CONFORMANCE SWEEP is owned by plan `f36de0` (Set `agentemitswp`, `- Status: approved`), whose E-02 registers this family as a `known_broken` exemption citing backlog `dtq6jr` and instructs its executor to delete that entry when this lands. Building a sweep here would duplicate an approved plan and absorb its validation. The two plans are deliberately disjoint: `f36de0` computes a universe of `read`/`check`/`bare` leaves and asserts a general shape, while this plan asserts the SPECIFIC payload of one family at three exit codes. E-07 reports the reconciliation rather than performing it.
   - Carrier: f36de0
+  - Carrier-Evidence: .aw/records/plans/executed/20260929-agentemitswp-01-f36de0-pin-every-declared-machine-surface-with-an-executed-conforma.ipd.md
 - `config exclude {add,list,rm}` is untouched. It is a different handler (`cli._run_config_exclude`), it is measurably unaffected (`config exclude list --agent` -> rc 0), and it reaches the renderer by a different route (`term.empty_result`). It has its own separate `command_surface` declarations. Including it would widen the blast radius with no defect to justify it.
-  - Carrier: f36de0
+  - Carrier: w78faq
 - THE MUTATION-LEAF SWEEP GAP, meaning that no `mutation`-class leaf is driven by any conformance sweep, which covers four of this family's own seven verbs on a GENERAL basis even after this plan pins them specifically.
   - Carrier: w78faq
 - THE UNSANITIZED-ECHO DEFECT IN `attention`/`runs`/`partition`, the same class as F-09. This plan must not introduce a fourth instance (E-04), but it does not fix the three that exist.
