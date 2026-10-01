@@ -4,9 +4,9 @@
 - Kind: child
 - Concern: THE DOCUMENTED BACKSTOP FOR A RELEASE-GATE BYPASS IS UNREACHABLE ONCE THE COMMIT LANDS, SO THE ONE SURFACE `AGENTS.md` CALLS "THE PORTABLE AUTHORITY" SEES NOTHING. `check_engine.check_release_gate_consistency`'s Rule 1 examines ONLY the paths `_staged_backlog_done_items` returns, which is `git diff --cached --name-status` over the backlog trees. `AGENTS.md` says of the opt-in hook that "the portable authority is the `aw check release-gates` rule family (`aw check` / `aw check all`) and CI, never the local hook alone", and CI runs `python -m agent_workflows check release-gates --agent` as a named fail-closed step in `tests.yml` on a FRESH `actions/checkout`, where the index is by definition empty. MEASURED at HEAD `7028ab5e`, driven end to end in a scratch repo: with a gated `done` item STAGED, `check_release_gate_consistency` returned `['check.blocking-item-closed-without-gate']`; after `git commit`, the staged set was empty and the SAME function returned `[]` while `evaluate_blocking_close` on the same file still returned `legitimate=False, severity='error'`. So the rule is not merely narrow, it is structurally blind on the exact surface that is supposed to be authoritative, and a bypass is invisible from the moment it is committed. On the live tree the gap is dozens of real items: at authoring, of 224 gated `done` items, 49 failed the shared predicate (46 with no same-gate carrier at all, 3 whose carriers are not executed) while `aw check release-gates` reported ZERO findings. Re-measured one day later at review: 242 gated, 53 failing, still zero findings. The COUNTS DRIFT DAILY and are context only; the invariant is that a substantial gated-and-illegitimate population exists and the authoritative surface cannot see any of it (F-02).
 - Scope: IN: (1) a second AT-REST arm in `check_engine.check_release_gate_consistency` Rule 1 that walks every `done` backlog item on disk, judges it with the unmodified shared predicate, and reports `check.blocking-item-closed-without-gate`; (2) per-item grandfathering through the existing `config.resolve_cutover_date` mechanism under a new `release_gate_at_rest` feature key registered in `KNOWN_FEATURE_CUTOVERS`, so an item closed before this repository's boundary is never retroactively flagged; (3) keying the boundary on the item's CLOSE date (its newest `## Workflow history` record, via the shared `attention_contract.last_history_at`), not its filename date; (4) the shared carrier index rather than a per-item carrier scan, so the widened rule is O(corpus) and not O(items x corpus); (5) leaving `check_commit_invariants` commit-scoped so the opt-in local hook cannot refuse a commit over an unrelated item; (6) outcome tests; (7) the `AGENTS.md` and backlog README prose that currently assert the commit-scoped grandfathering rationale; (8) a CHANGELOG line. OUT: any mutation of a historical item (this plan reports, it never backfills); the 49-item audit itself (owned by backlog `mbjuv5`); the `HANDOFF` any-carrier-versus-all-carrier change and the positional-spelling bypass (both ALREADY SHIPPED: plans `2o5wka` and `47ttnv` have executed, verified at review); and the `SATISFIED` at-rest readability, which is child 01 and is this plan's dependency.
-- Scope-Paths: agent_workflows/check_engine.py, agent_workflows/config.py, agent_workflows/hooks/backlog_blocking_close_gate.py, AGENTS.md, .aw/records/backlog/README.md, tests/test_check_engine_release_gate.py, CHANGELOG.md
+- Scope-Paths: agent_workflows/check_engine.py, agent_workflows/config.py, agent_workflows/hooks/backlog_blocking_close_gate.py, AGENTS.md, .aw/records/backlog/README.md, tests/test_check_engine_release_gate.py, CHANGELOG.md, .aw/config/project.json
 - Item-Dependencies: executed:f7igdu
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 08
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: b24o3q
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: b24o3q verified (set gateatrest, attempt 1). [Scope reconciliation - widened-scope .aw/config/project.json: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw agy run); in-scope-unmodified .aw/records/backlog/README.md: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified agent_workflows/hooks/backlog_blocking_close_gate.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review verdict REVIEWED - OPEN QUESTIONS; PR-001..PR-008. Re-measured every finding: F-01 reproduces end to end (staged reports the rule, committed returns [] while the predicate still says legitimate=False), F-05 and F-08 verify exactly (the hook calls the function directly at line 51; _backlog_done_dirs has one def site and no caller), and F-03's conclusion strengthens (27 of 242 now judged by a close-date key against 0 by filename, and all 53 illegitimate items still grandfathered). Fixed one BLOCKER: the plan could land as a no-op, because resolve_cutover_date returns None in this repo and the already-registered setid_length feature is live proof (registered, still None, no installs.jsonl), so E-01 and V-01 now make a None resolution a FAILURE and V-08 must report the judged-item count. Fixed one HIGH: E-05's suggested at_rest=True default inverts the safe direction and would silently widen the aggregator, the opt-in hook and the scope gate, which is the F-05 defect the item exists to prevent; the default is now False, and the measured fact that the aggregator composes bare callables as fn(repo_root) with no argument site is recorded so the executor does not unroll that loop. Declared the hook path. Also de-barred every drifted count (242/189/53 today against 224/175/49 at authoring, and the 53 coincidence that would read as 2o5wka having landed) and added OQ-04 for the boundary-date policy question, which this non-interactive run could not ask. Also cleared the two `check.ipd-carrier-finished-unverified` findings `aw check` was already raising against this plan: `2o5wka` and `47ttnv` have BOTH executed and their backlog items are `done`, so the strict all-carrier predicate and the gated positional spelling are already live at HEAD; five stale 'pending plan' references swept and E-07's co-edit question answered from the record.
 - 2026-09-30 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): Graduated from backlog `nyzuyx`, which asks whether the rule should widen. ANSWER: YES, and the reason is not that the rule is narrow but that its narrowness makes it structurally unreachable on the surface `AGENTS.md` names as authoritative (CI checks out fresh, so the index is empty). Measured at HEAD `7028ab5e`: 49 of 224 gated `done` items fail the shared predicate while `aw check release-gates` reports zero findings. The `nyzuyx` item's own stated worry (corpus-wide blast radius) is REAL and is answered by the existing per-item cutover mechanism plus a CLOSE-date key, measured to judge 9 items and flag 0 at a 2026-09-30 boundary. Ordered AFTER child 01 (`f7igdu`) because an at-rest arm that cannot see the `SATISFIED` route would report a legitimate evidence-satisfied close as an error.
@@ -34,36 +34,36 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the boundary
 
-- [ ] E-01 REGISTER THE CUTOVER FEATURE in `agent_workflows/config.py`'s `KNOWN_FEATURE_CUTOVERS` as `"release_gate_at_rest": "<the execution date, ISO>"`. The module's own block comment states the failure mode if this is skipped: "WHAT GOES WRONG IF YOU DO NOT REGISTER A FEATURE: `resolve_cutover_date` falls through to its tier-3 `None` ... the rule would ship as decoration." The value is the FEATURE INTRODUCTION date, never the enforcement boundary; `config.sync_cutovers_on_install` stamps the per-repo boundary from it, exactly as it does for the five features already registered (`spec_id6`, `dependency_schema`, `carrier_obligations`, `setid_length`, `prompt_id6`, `walkthrough_id6`). Do not invent a second mechanism and do not hardcode a calendar date in `check_engine`.
+- [x] E-01 REGISTER THE CUTOVER FEATURE in `agent_workflows/config.py`'s `KNOWN_FEATURE_CUTOVERS` as `"release_gate_at_rest": "<the execution date, ISO>"`. The module's own block comment states the failure mode if this is skipped: "WHAT GOES WRONG IF YOU DO NOT REGISTER A FEATURE: `resolve_cutover_date` falls through to its tier-3 `None` ... the rule would ship as decoration." The value is the FEATURE INTRODUCTION date, never the enforcement boundary; `config.sync_cutovers_on_install` stamps the per-repo boundary from it, exactly as it does for the five features already registered (`spec_id6`, `dependency_schema`, `carrier_obligations`, `setid_length`, `prompt_id6`, `walkthrough_id6`). Do not invent a second mechanism and do not hardcode a calendar date in `check_engine`.
   - Depends on: none
   - Expected outcome: `config.resolve_cutover_date(repo, "release_gate_at_rest")` resolves in this repository after the next install/update stamp, and returns `None` (fail-open, everything grandfathered) in a repository that has never stamped it.
-  - Execution state: pending
+  - Execution state: performed
 
   REGISTRATION ALONE DOES NOT PRODUCE A BOUNDARY HERE, AND THE PROOF IS A SIBLING FEATURE THAT IS ALREADY REGISTERED AND STILL RESOLVES TO `None`. MEASURED at review in THIS repository: `.aw/config/project.json`'s `cutovers` block holds five keys (`spec_id6`, `dependency_schema`, `carrier_obligations`, `prompt_id6`, `walkthrough_id6`) and does NOT hold `setid_length`, even though `setid_length` IS registered in `KNOWN_FEATURE_CUTOVERS`; `config.resolve_cutover_date(repo, "setid_length")` therefore returns `None`. Tier 2 cannot rescue it either: `.aw/state/history/installs.jsonl` DOES NOT EXIST in this checkout, so `_find_install_history_cutover` returns `None` for every feature. CONSEQUENCE, stated plainly because it is the difference between this plan working and this plan being decoration: if `release_gate_at_rest` is registered and nothing stamps it into `project.json`, `resolve_cutover_date` returns `None`, E-03's arm skips EVERY item by design, and the whole plan lands as a no-op that passes all its own tests. That is precisely the outcome the config block comment warns about and that this E-item quotes against itself.
   SO E-01 IS NOT DONE WHEN THE REGISTRATION IS WRITTEN. It is done when `resolve_cutover_date(repo, "release_gate_at_rest")` returns a DATE in this repository, and the executor must achieve that and show it. Do NOT declare E-01 complete on a `None` resolution with the words "fail-open as designed": fail-open is the correct behavior for a FOREIGN repo and is a silent self-defeat for THIS one.
   THE MECHANISM DOES WORK, VERIFIED AT REVIEW, so this is achievable and the remaining question is only about the VALUE. Running `config.sync_cutovers_on_install` against a COPY of this repo's `project.json` added the missing `setid_length` key and stamped it with the supplied install date, leaving the five pre-existing boundaries untouched (the function's docstring promises exactly that: "Preserves existing dates so a subsequent install/update never alters previously established cutover boundaries"). So `setid_length` is absent here ONLY because no install or update has run since it was registered, not because the mechanism is broken, and the same single stamp will write `release_gate_at_rest`. Note what the stamp actually writes: NOT the `KNOWN_FEATURE_CUTOVERS` introduction date but the INSTALL DATE (`cutovers[feature] = now_iso` on the no-legacy, no-history path), which in this repo is whenever the executor runs it. That is the designed behavior and it is also a policy consequence, because the boundary decides which historical closes become enforceable; OQ-04 records it for the maintainer rather than this plan choosing it silently. The executor's obligation is therefore: register, run the stamp, paste the resulting `cutovers` block and the non-`None` resolution, and SAY WHAT DATE LANDED. If the stamp does not run as part of this plan's own execution, stop at OQ-04 rather than hand-writing a date into `project.json`.
 
-- [ ] E-02 ADD THE CLOSE-DATE HELPER that the boundary is keyed on, in `check_engine.py`, reusing the shared readers rather than writing a third history parser: bound the section with `attention._history_section_lines` and take the date with `attention_contract.last_history_at`, which `attention_contract`'s own docstring establishes as "the ONE RULE for which of these `## Workflow history` lines is the newest". Return a compact `YYYYMMDD` string for comparison against the resolved cutover, or `None` when the item has no parseable record. THE KEY IS THE CLOSE DATE, NOT THE FILENAME DATE, and this is the load-bearing choice of the plan: at authoring, 208 of 224 gated `done` items were closed LATER than their filename date, and a filename-date boundary at 2026-09-30 would leave 9 items that were CLOSED after the boundary judged as pre-cutover. Re-measured at review one day later the hole had grown to 27 of 242 (F-03), which demonstrates the "would keep widening" claim rather than predicting it; re-derive rather than relying on either figure. Filename date is the right key for `setid_length` (a naming rule about the name) and the wrong key here (a rule about an ACT). Treat a missing date as PRE-cutover, matching `config.SetidPolicy.applies_to_artifact_date`'s documented reasoning ("a missing date is its own defect owned by another rule, never a second consequence invented here").
+- [x] E-02 ADD THE CLOSE-DATE HELPER that the boundary is keyed on, in `check_engine.py`, reusing the shared readers rather than writing a third history parser: bound the section with `attention._history_section_lines` and take the date with `attention_contract.last_history_at`, which `attention_contract`'s own docstring establishes as "the ONE RULE for which of these `## Workflow history` lines is the newest". Return a compact `YYYYMMDD` string for comparison against the resolved cutover, or `None` when the item has no parseable record. THE KEY IS THE CLOSE DATE, NOT THE FILENAME DATE, and this is the load-bearing choice of the plan: at authoring, 208 of 224 gated `done` items were closed LATER than their filename date, and a filename-date boundary at 2026-09-30 would leave 9 items that were CLOSED after the boundary judged as pre-cutover. Re-measured at review one day later the hole had grown to 27 of 242 (F-03), which demonstrates the "would keep widening" claim rather than predicting it; re-derive rather than relying on either figure. Filename date is the right key for `setid_length` (a naming rule about the name) and the wrong key here (a rule about an ACT). Treat a missing date as PRE-cutover, matching `config.SetidPolicy.applies_to_artifact_date`'s documented reasoning ("a missing date is its own defect owned by another rule, never a second consequence invented here").
   - Depends on: E-01
   - Expected outcome: a helper that returns `20260930` for an item whose newest history record is `- 2026-09-30 done (aw set): ...`, and `None` for an item with no history section; no new regex for either the section bound or the record grammar.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the arm
 
-- [ ] E-03 ADD THE AT-REST ARM to `check_engine.check_release_gate_consistency`, BESIDE Rule 1's staged arm and not replacing it. Walk `backlog._iter_items(repo_root)` (the shipped enumerator, which already covers both layouts and all five status dirs), keep the items whose parsed status is `done` and which carry `- Blocks-Release:`, skip any whose E-02 close date is before the resolved cutover (and skip ALL of them when the cutover resolves to `None`, which is fail-open by design), judge each with the UNMODIFIED `evaluate_blocking_close(repo_root, path, "done", item_text=text)`, and emit `check.blocking-item-closed-without-gate` for a verdict that is `not legitimate and severity == "error"`. DEDUPLICATE against the staged arm by location, so an item that is both staged and on disk yields ONE finding rather than two. Reuse the SAME rule id and the same `enrich_drift` shape; do NOT register a second rule, because it is the same invariant (I-07) observed at a different time, and a second id would double-count one defect and would silently fall through `_DEFAULT_RULESPEC`.
+- [x] E-03 ADD THE AT-REST ARM to `check_engine.check_release_gate_consistency`, BESIDE Rule 1's staged arm and not replacing it. Walk `backlog._iter_items(repo_root)` (the shipped enumerator, which already covers both layouts and all five status dirs), keep the items whose parsed status is `done` and which carry `- Blocks-Release:`, skip any whose E-02 close date is before the resolved cutover (and skip ALL of them when the cutover resolves to `None`, which is fail-open by design), judge each with the UNMODIFIED `evaluate_blocking_close(repo_root, path, "done", item_text=text)`, and emit `check.blocking-item-closed-without-gate` for a verdict that is `not legitimate and severity == "error"`. DEDUPLICATE against the staged arm by location, so an item that is both staged and on disk yields ONE finding rather than two. Reuse the SAME rule id and the same `enrich_drift` shape; do NOT register a second rule, because it is the same invariant (I-07) observed at a different time, and a second id would double-count one defect and would silently fall through `_DEFAULT_RULESPEC`.
   - Depends on: E-02
   - Expected outcome: on a fixture repo with a committed (unstaged) gated `done` item dated after the cutover, `check_release_gate_consistency` reports exactly one `check.blocking-item-closed-without-gate`; with the item dated before the cutover, zero; with no cutover stamped, zero.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 MAKE THE ARM O(CORPUS), NOT O(ITEMS x CORPUS), by injecting the shared carrier index rather than letting each `evaluate_blocking_close` call re-walk both trees. `find_from_backlog_artifacts`'s docstring states the contract and the measurement ("673 per-item calls took 155 s against 259 ms for one shared index walk"), and `tests/test_carrier_scan_single_item_contract.py` MECHANICALLY REFUSES a call whose argument is a loop-derived variable, so a naive loop would not even land. MEASURED HERE, which is why this is its own item: the unmodified predicate called once per gated `done` item took 84.0 s on this corpus, while `_from_backlog_carrier_index` builds the identical mapping in 0.29 s and the same loop over the injected index takes 0.011 s, a total of 0.30 s, roughly 280x. Implement by giving `evaluate_blocking_close` an OPTIONAL keyword carrier-index parameter (default `None`, preserving every existing caller's behavior byte for byte) that the `HANDOFF` arm consults instead of calling the scanner; the four existing callers pass nothing and are unchanged. Do NOT add a process-lifetime cache: `find_from_backlog_artifacts`'s docstring records why ("A CACHED INDEX IS NOT THE FIX ... a process-lifetime cache here causes stale path lookups and falsely refuses valid closes").
+- [x] E-04 MAKE THE ARM O(CORPUS), NOT O(ITEMS x CORPUS), by injecting the shared carrier index rather than letting each `evaluate_blocking_close` call re-walk both trees. `find_from_backlog_artifacts`'s docstring states the contract and the measurement ("673 per-item calls took 155 s against 259 ms for one shared index walk"), and `tests/test_carrier_scan_single_item_contract.py` MECHANICALLY REFUSES a call whose argument is a loop-derived variable, so a naive loop would not even land. MEASURED HERE, which is why this is its own item: the unmodified predicate called once per gated `done` item took 84.0 s on this corpus, while `_from_backlog_carrier_index` builds the identical mapping in 0.29 s and the same loop over the injected index takes 0.011 s, a total of 0.30 s, roughly 280x. Implement by giving `evaluate_blocking_close` an OPTIONAL keyword carrier-index parameter (default `None`, preserving every existing caller's behavior byte for byte) that the `HANDOFF` arm consults instead of calling the scanner; the four existing callers pass nothing and are unchanged. Do NOT add a process-lifetime cache: `find_from_backlog_artifacts`'s docstring records why ("A CACHED INDEX IS NOT THE FIX ... a process-lifetime cache here causes stale path lookups and falsely refuses valid closes").
   - Depends on: E-03
   - Expected outcome: the widened rule's wall time on the live tree is within a small multiple of the pre-change `check_release_gate_consistency` cost (measured baseline 0.34 s, and `aw check release-gates` 1.08 s), not the 84 s a per-item scan would cost; the single-item contract test still passes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 PIN THE COMMIT-SCOPED BOUNDARY THAT MUST NOT MOVE. `check_engine.check_commit_invariants` composes `check_release_gate_consistency`, and its own comment states why it must stay commit-scoped: "Whole-tree release-gate rules are DELIBERATELY *NOT* added inside `check_commit_invariants`: that function is composed by the opt-in pre-commit aggregator and must remain commit-scoped so a local hook cannot refuse a commit over an unrelated artifact in a shared checkout." `AGENTS.md` states the same shared-checkout constraint independently. Since E-03 widens the function the aggregator composes, that guarantee would silently break. Add the at-rest arm behind an explicit keyword parameter and have `check_commit_invariants` call it with the at-rest arm DISABLED, then add a test that a committed (unstaged) pre-existing violation produces a finding from `check_release_gates` and NO finding from `check_commit_invariants`. The opt-in hook `hooks.backlog_blocking_close_gate` calls `check_release_gate_consistency` DIRECTLY, not through the aggregator, so it must be given the same disabled call; state that explicitly rather than leaving it to inference, because otherwise this widening turns a local pre-commit hook into a gate that refuses every commit in a repository carrying one historical violation.
+- [x] E-05 PIN THE COMMIT-SCOPED BOUNDARY THAT MUST NOT MOVE. `check_engine.check_commit_invariants` composes `check_release_gate_consistency`, and its own comment states why it must stay commit-scoped: "Whole-tree release-gate rules are DELIBERATELY *NOT* added inside `check_commit_invariants`: that function is composed by the opt-in pre-commit aggregator and must remain commit-scoped so a local hook cannot refuse a commit over an unrelated artifact in a shared checkout." `AGENTS.md` states the same shared-checkout constraint independently. Since E-03 widens the function the aggregator composes, that guarantee would silently break. Add the at-rest arm behind an explicit keyword parameter and have `check_commit_invariants` call it with the at-rest arm DISABLED, then add a test that a committed (unstaged) pre-existing violation produces a finding from `check_release_gates` and NO finding from `check_commit_invariants`. The opt-in hook `hooks.backlog_blocking_close_gate` calls `check_release_gate_consistency` DIRECTLY, not through the aggregator, so it must be given the same disabled call; state that explicitly rather than leaving it to inference, because otherwise this widening turns a local pre-commit hook into a gate that refuses every commit in a repository carrying one historical violation.
   - Depends on: E-04
   - Expected outcome: a committed unstaged violation is reported by `check_release_gates` and is NOT reported by `check_commit_invariants` or by `hooks.backlog_blocking_close_gate.check`; a STAGED violation is still reported by all three.
-  - Execution state: pending
+  - Execution state: performed
 
   THE DEFAULT MUST BE `at_rest=False`, NOT `True`, AND THIS ITEM'S PARENTHETICAL HAD IT BACKWARDS. The drafted text suggested "for example `at_rest=True` by default". Measured consequence of that default across the four call sites: `check_release_gates` would be right, while `check_commit_invariants`, `hooks.backlog_blocking_close_gate.check` and `hooks.precommit_scope_gate` (which inherits the aggregator) would ALL silently acquire the widened behavior, which is exactly the F-05 defect this item exists to prevent. A `True` default makes the dangerous behavior automatic and relies on remembering to disable it at three sites; a `False` default makes the SAFE behavior automatic and requires one deliberate opt-in at the single site that wants it (`check_release_gates`). Fail-closed-by-default is also the house posture everywhere else in this family. So: default `False`, and `check_release_gates` passes `at_rest=True` explicitly.
 
@@ -73,20 +73,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: proof, prose, record
 
-- [ ] E-06 WRITE THE BEHAVIORAL TESTS in `tests/test_check_engine_release_gate.py`, in the fixture-driven style the file already uses (`test_rule_blocking_item_closed_without_gate_reachable` and its two siblings build a temp repo, `git add`, and assert on the returned rule ids). Six cases, the first written FIRST and demonstrated FAILING: (a) a COMMITTED, unstaged gated `done` item with no carrier, dated after the stamped cutover, yields `check.blocking-item-closed-without-gate` from `check_engine.check_release_gates` (this is F-01 turned into a regression, and it is red at HEAD); (b) the same item dated BEFORE the cutover yields nothing; (c) the same item in a repo with NO stamped cutover yields nothing (fail-open); (d) the same item whose gate is handed off to an EXECUTED same-gate carrier yields nothing; (e) the E-05 boundary: that same committed item yields nothing from `check_commit_invariants` while still yielding a finding from `check_release_gates`; (f) an item both STAGED and on disk yields exactly ONE finding, not two. Every case asserts on returned rule ids and counts, never on source text (`AGENTS.md`; GUIDING_PRINCIPLES P16).
+- [x] E-06 WRITE THE BEHAVIORAL TESTS in `tests/test_check_engine_release_gate.py`, in the fixture-driven style the file already uses (`test_rule_blocking_item_closed_without_gate_reachable` and its two siblings build a temp repo, `git add`, and assert on the returned rule ids). Six cases, the first written FIRST and demonstrated FAILING: (a) a COMMITTED, unstaged gated `done` item with no carrier, dated after the stamped cutover, yields `check.blocking-item-closed-without-gate` from `check_engine.check_release_gates` (this is F-01 turned into a regression, and it is red at HEAD); (b) the same item dated BEFORE the cutover yields nothing; (c) the same item in a repo with NO stamped cutover yields nothing (fail-open); (d) the same item whose gate is handed off to an EXECUTED same-gate carrier yields nothing; (e) the E-05 boundary: that same committed item yields nothing from `check_commit_invariants` while still yielding a finding from `check_release_gates`; (f) an item both STAGED and on disk yields exactly ONE finding, not two. Every case asserts on returned rule ids and counts, never on source text (`AGENTS.md`; GUIDING_PRINCIPLES P16).
   - Depends on: E-05
   - Expected outcome: six new passing cases, with (a) shown failing before E-03 lands.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 CORRECT THE PROSE THAT NOW ASSERTS THE OLD SCOPE, in the two places that state it as a property rather than as an implementation detail. (1) `AGENTS.md`'s "Release gates" section says the opt-in hook "catches the hand-edit bypass (staging a done+blocking item directly ...)" and that "the portable authority is the `aw check release-gates` rule family ... and CI": that second clause was ASPIRATIONAL and is what this plan makes true, so say what the rule now examines (every `done` item on disk, grandfathered per item against the stamped cutover) and keep the honest limit about the local hook. (2) `.aw/records/backlog/README.md` points at `AGENTS.md` for the policy and needs at most a pointer, not a restatement; check before editing and leave it alone if it already only points. CRITICAL PLACEMENT CONSTRAINT: the `AGENTS.md` "Release gates" section is BELOW `<!-- /aw:block -->` and so is repo-local, editable text, while everything ABOVE that marker is installed from `agent_workflows/engine.py` and must NOT be hand-edited; paste the line numbers proving the edit is below the marker. ALSO check for a co-edit collision before writing: `2o5wka` and `47ttnv` both declare `AGENTS.md` in their scope and both touch this same paragraph, so state which of them has landed and edit only the sentence this plan owns. ANSWERED AT REVIEW, SO THE EXECUTOR INHERITS A FACT RATHER THAN A SEARCH: BOTH HAVE EXECUTED (both are in `.aw/records/plans/executed/` at `- Status: executed`, and both list `AGENTS.md` in their `- Scope-Paths:`), so whatever each wrote is ALREADY in the paragraph at HEAD and this plan must edit around it rather than reverting it. The placement constraint also re-verified: `<!-- /aw:block -->` is at AGENTS.md line 125 and the target paragraph is at lines 239 to 245, the last `aw:` marker in the file is that closing one, and the section is therefore unambiguously repo-local editable text. The specific sentence this plan owns is the one reading "the portable authority is the `aw check release-gates` rule family (`aw check` / `aw check all`) and CI, never the local hook alone", which is the clause the Concern identifies as ASPIRATIONAL and which this plan makes true; the adjacent "catches the hand-edit bypass (staging a done+blocking item directly ...)" sentence describes the HOOK's commit-scoped reach and remains accurate under E-05, so leave it. Re-confirm line numbers at execution, since they move.
+- [x] E-07 CORRECT THE PROSE THAT NOW ASSERTS THE OLD SCOPE, in the two places that state it as a property rather than as an implementation detail. (1) `AGENTS.md`'s "Release gates" section says the opt-in hook "catches the hand-edit bypass (staging a done+blocking item directly ...)" and that "the portable authority is the `aw check release-gates` rule family ... and CI": that second clause was ASPIRATIONAL and is what this plan makes true, so say what the rule now examines (every `done` item on disk, grandfathered per item against the stamped cutover) and keep the honest limit about the local hook. (2) `.aw/records/backlog/README.md` points at `AGENTS.md` for the policy and needs at most a pointer, not a restatement; check before editing and leave it alone if it already only points. CRITICAL PLACEMENT CONSTRAINT: the `AGENTS.md` "Release gates" section is BELOW `<!-- /aw:block -->` and so is repo-local, editable text, while everything ABOVE that marker is installed from `agent_workflows/engine.py` and must NOT be hand-edited; paste the line numbers proving the edit is below the marker. ALSO check for a co-edit collision before writing: `2o5wka` and `47ttnv` both declare `AGENTS.md` in their scope and both touch this same paragraph, so state which of them has landed and edit only the sentence this plan owns. ANSWERED AT REVIEW, SO THE EXECUTOR INHERITS A FACT RATHER THAN A SEARCH: BOTH HAVE EXECUTED (both are in `.aw/records/plans/executed/` at `- Status: executed`, and both list `AGENTS.md` in their `- Scope-Paths:`), so whatever each wrote is ALREADY in the paragraph at HEAD and this plan must edit around it rather than reverting it. The placement constraint also re-verified: `<!-- /aw:block -->` is at AGENTS.md line 125 and the target paragraph is at lines 239 to 245, the last `aw:` marker in the file is that closing one, and the section is therefore unambiguously repo-local editable text. The specific sentence this plan owns is the one reading "the portable authority is the `aw check release-gates` rule family (`aw check` / `aw check all`) and CI, never the local hook alone", which is the clause the Concern identifies as ASPIRATIONAL and which this plan makes true; the adjacent "catches the hand-edit bypass (staging a done+blocking item directly ...)" sentence describes the HOOK's commit-scoped reach and remains accurate under E-05, so leave it. Re-confirm line numbers at execution, since they move.
   - Depends on: E-06
   - Expected outcome: the `AGENTS.md` release-gates paragraph describes the rule's actual scope and its grandfathering; no line above `<!-- /aw:block -->` is touched; no other plan's co-edit is reverted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 RECORD THE CHANGE AND RE-MEASURE THE CORPUS. One `CHANGELOG.md` line under the pending 2.0.0 entry saying the release-gate check now sees a release-blocking item closed without a preserved gate even when the close was already committed, with items closed before the repository's cutover left as history. No em or en dashes. Then re-run the corpus census on the changed tree and report, as part of this item's own output: how many gated `done` items exist, how many fail the predicate, how many are judged by the stamped cutover, and how many findings `aw check release-gates` actually emits. If that last number is NOT zero, STOP and report rather than shipping: a nonzero count would red `main`, and the remedy is a maintainer decision about the boundary, not a quiet adjustment.
+- [x] E-08 RECORD THE CHANGE AND RE-MEASURE THE CORPUS. One `CHANGELOG.md` line under the pending 2.0.0 entry saying the release-gate check now sees a release-blocking item closed without a preserved gate even when the close was already committed, with items closed before the repository's cutover left as history. No em or en dashes. Then re-run the corpus census on the changed tree and report, as part of this item's own output: how many gated `done` items exist, how many fail the predicate, how many are judged by the stamped cutover, and how many findings `aw check release-gates` actually emits. If that last number is NOT zero, STOP and report rather than shipping: a nonzero count would red `main`, and the remedy is a maintainer decision about the boundary, not a quiet adjustment.
   - Depends on: E-07
   - Expected outcome: one CHANGELOG line, plus a pasted post-change census showing `aw check release-gates` still reporting zero findings on the live tree.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -190,47 +190,190 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the added `KNOWN_FEATURE_CUTOVERS` entry with its value, and paste `config.resolve_cutover_date(<this repo>, "release_gate_at_rest")` BEFORE and AFTER whatever stamps it, showing the tier it resolved through. ALSO paste the same call against a temp repo that has never stamped it, returning `None`, proving the fail-open tier is reachable.
     A `None` RESOLUTION IN THIS REPOSITORY FAILS THIS ITEM. It is not a passing "fail-open as designed" result, because with `None` the E-03 arm skips every item and the entire plan is a no-op that still passes its fixture tests. Review measured the trap: this repo's `cutovers` block holds five keys and NOT `setid_length`, which is registered in `KNOWN_FEATURE_CUTOVERS` yet still resolves `None`, and `.aw/state/history/installs.jsonl` does not exist so tier 2 resolves `None` for everything. So paste the `cutovers` block BEFORE and AFTER, name the exact mechanism that wrote the key, and paste a positive date from `resolve_cutover_date`. If no mechanism writes it, do NOT hand-write it and do NOT pass this item: STOP and report under OQ-04, because choosing a boundary by hand decides which historical items become enforceable and that is the maintainer's call. ALSO paste, as the end-to-end proof that the boundary is live rather than merely present, one at-rest finding produced on a fixture item dated after the resolved boundary using the REAL resolved value (not a monkeypatched one).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Registered in KNOWN_FEATURE_CUTOVERS, resolved '20261001' via project.json cutovers block stamped by sync_cutovers_on_install, fail-open verified, and positive at-rest finding on fixture.
+    1. Added `KNOWN_FEATURE_CUTOVERS` entry in `agent_workflows/config.py`:
+       `"release_gate_at_rest": "2026-10-01",`
+    2. `config.resolve_cutover_date` resolution BEFORE and AFTER stamp:
+       - BEFORE: `config.resolve_cutover_date(".", "release_gate_at_rest")` returned `None` (Tier 3 fail-open).
+       - AFTER: `config.resolve_cutover_date(".", "release_gate_at_rest")` returns `'20261001'` (Tier 1 via `.aw/config/project.json` `cutovers.release_gate_at_rest`).
+       - Temp repo without stamp: `config.resolve_cutover_date(td, "release_gate_at_rest")` returns `None` (Tier 3 fail-open).
+    3. `cutovers` block BEFORE and AFTER:
+       - BEFORE:
+         ```json
+         {
+           "spec_id6": "2026-08-29",
+           "dependency_schema": "2026-09-01",
+           "carrier_obligations": "2026-09-19",
+           "prompt_id6": "2026-09-21",
+           "walkthrough_id6": "2026-09-27"
+         }
+         ```
+       - Stamping mechanism: `config.sync_cutovers_on_install(".", install_timestamp="2026-10-01")`.
+       - AFTER:
+         ```json
+         {
+           "spec_id6": "2026-08-29",
+           "dependency_schema": "2026-09-01",
+           "carrier_obligations": "2026-09-19",
+           "prompt_id6": "2026-09-21",
+           "walkthrough_id6": "2026-09-27",
+           "setid_length": "2026-10-01",
+           "release_gate_at_rest": "2026-10-01"
+         }
+         ```
+    4. Positive date from `resolve_cutover_date`: `'20261001'`.
+    5. At-rest finding on fixture item dated after resolved boundary (`2026-10-01`) using real resolved cutover value:
+       `[f.rule for f in check_engine.check_release_gate_consistency(td, at_rest=True)]` produced `['check.blocking-item-closed-without-gate']`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the helper's return for three fixture items: one whose newest history record is dated, one with several records out of order (proving `last_history_at` and not a fresh parser decides which is newest), and one with no history section (returning `None`). Then paste the RE-MEASURED corpus census that F-03 rests on, at execution HEAD: the count of gated `done` items, how many were closed later than their filename date, and how many each key judges at the stamped boundary. Confirm no new regex for the history section bound or the record grammar was added, by naming the two shared functions called.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Helper tested on dated, out-of-order, and missing history fixtures; live census measured (287 gated done, 271 closed-later, 0 missing dates, 46 judged at boundary, 53 illegitimate all grandfathered); shared functions called with no new regex.
+    1. Helper return for fixture items:
+       - Fixture 1 (dated history record `- 2026-10-01 done (aw set): completed work`): `_item_close_date(t1)` returns `'20261001'`.
+       - Fixture 2 (out of order records `- 2026-10-05 reviewed (aw): ...` followed by `- 2026-10-01 done (aw set): ...`): `_item_close_date(t2)` returns `'20261005'`.
+       - Fixture 3 (no history section): `_item_close_date(t3)` returns `None`.
+    2. Shared functions used (no new regex added):
+       - `attention._history_section_lines`
+       - `attention_contract.last_history_at`
+    3. Live corpus census at execution HEAD:
+       - Total gated `done` items: 287
+       - Items closed later than filename date: 271
+       - Items with no parseable close date: 0
+       - Boundary comparison at 2026-10-01:
+         - Close-date key judges: 46 items
+         - Filename-date key judges: 0 items
+       - Illegitimate population (predicate failing): 53 items
+         - Newest close date: 2026-09-26
+         - Newest filename date: 2026-09-25
+         - Items on or after 2026-10-01 boundary: exactly 0 (all 53 grandfathered).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste, for a fixture repo, the returned rule-id lists for four states: committed-unstaged violation dated after the cutover (exactly one finding); the same dated before (zero); the same with no cutover stamped (zero); and the same item ALSO staged (exactly ONE finding, proving deduplication and not two). For the last, paste the count, not just the presence. State which rule id was emitted and confirm no new rule id was registered, by pasting `check_engine.RELEASE_GATE_RULES` unchanged.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Four states tested on fixture repo (after cutover: 1 finding, before cutover: 0, no cutover: 0, staged+unstaged: 1 finding deduplicated); rule id check.blocking-item-closed-without-gate emitted; RELEASE_GATE_RULES unchanged.
+    1. Four states on fixture repo:
+       - State 1 (committed-unstaged, item date 2026-10-01 >= cutover 2026-10-01): `['check.blocking-item-closed-without-gate']` (count: 1).
+       - State 2 (committed-unstaged, item date 2026-09-30 < cutover 2026-10-01): `[]` (count: 0).
+       - State 3 (committed-unstaged, no cutover stamped): `[]` (count: 0).
+       - State 4 (committed-unstaged + staged edit, item date 2026-10-01): `['check.blocking-item-closed-without-gate']` (count: 1, deduplicated).
+    2. Rule id emitted: `check.blocking-item-closed-without-gate`.
+    3. `check_engine.RELEASE_GATE_RULES` unchanged:
+       `('check.live-bug-ungated', 'check.blocking-item-closed-without-gate', 'check.from-backlog-gate-mismatch', 'check.blocks-release-dangling', 'check.release-sentinel-absent', 'check.release-sentinel-ambiguous', 'check.from-backlog-dangling', 'check.from-backlog-malformed')`
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste wall-clock timings from the live tree for `check_engine.check_release_gate_consistency` and `aw check release-gates`, BEFORE the change and AFTER, on the same machine in the same session. TAKE YOUR OWN BEFORE NUMBERS; do NOT compare against the recorded 0.34 s / 1.08 s, which are already stale (review re-measured the same call at 0.449 s on a grown corpus one day later). The bar is a RATIO against your own baseline: the after number must be the same order of magnitude as your own before number, and must not approach the per-item-scan cost. Re-derive that naive cost too rather than quoting the recorded 84.0 s (review measured 63.1 s for 242 calls, so the recorded figure does not even reproduce), so the comparison is a demonstrated delta in one session rather than an assertion against a stale constant. Paste `python3 -m pytest tests/test_carrier_scan_single_item_contract.py -o addopts=""` passing, proving the loop-derived-argument guard is satisfied. Confirm by pasting the call sites that the four pre-existing `evaluate_blocking_close` callers pass no carrier index and are unchanged.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Timings before vs after measured on live tree (0.89s -> 1.60s for consistency check, 2.95s -> 4.32s for release-gates CLI; ~76x faster than naive 121.9s scan); single-item contract test passed; all 4 pre-existing callers unchanged.
+    1. Timings measured in this session:
+       - Baseline before:
+         `check_release_gate_consistency(repo_root)`: 0.8901s (findings: 0)
+         `aw check release-gates`: 2.9461s (findings: 0)
+       - After at-rest arm with lazy shared index:
+         `check_release_gate_consistency(repo_root, at_rest=True)`: 1.6018s (findings: 0)
+         `aw check release-gates`: 4.3155s (findings: 0)
+       - Naive per-item scan extrapolated cost: 287 items * 0.425s = ~121.9s.
+       - Demonstrated ratio: 1.6018s vs ~121.9s (shared index is ~76x faster, same order of magnitude as pre-change baseline 0.8901s).
+    2. Single-item contract test passing:
+       `python3 -m pytest tests/test_carrier_scan_single_item_contract.py -o addopts=""`
+       Output: `9 passed in 0.70s`
+    3. Call sites of `evaluate_blocking_close`:
+       - `agent_workflows/backlog.py:1713`: `verdict = _ce.evaluate_blocking_close(repo_root, file_path, target_status, cited_evidence=evidence_path, item_text=text)`
+       - `agent_workflows/status_set.py:2275`: `verdict = _ce.evaluate_blocking_close(repo_root, item_path, status, cited_evidence=evidence_path, item_text=text)`
+       - `agent_workflows/set_records.py:390`: `verdict = _check_engine.evaluate_blocking_close(repo, artifact_path, target_status, item_text=text)`
+       - `agent_workflows/check_engine.py:5124` (Rule 1 staged arm): `verdict = evaluate_blocking_close(repo_root, rel_path, "done", item_text=staged_text)`
+       - `agent_workflows/check_engine.py:5176` (Rule 1 at-rest arm): `verdict = evaluate_blocking_close(repo_root, rel_path, "done", item_text=text, carrier_index=carrier_index)`
+       All 4 pre-existing call sites pass no carrier index and are byte-for-byte unchanged.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste, for ONE fixture repo carrying a committed unstaged violation, all three results side by side: `check_release_gates` (finding present), `check_commit_invariants` (finding ABSENT), and `hooks.backlog_blocking_close_gate.check` (exit 0, no message). Then paste the STAGED variant of the same fixture showing all three reporting it. A pasted pass that omits the hook FAILS this item: the hook calls the widened function directly, so it is the surface most likely to regress into refusing unrelated commits. ALSO paste the DEFAULT-VALUE PROOF, since the whole safety argument rests on it: `inspect.signature(check_engine.check_release_gate_consistency).parameters["at_rest"].default` must be `False`, and the one explicit `at_rest=True` call site must be shown to be `check_release_gates` and nothing else (paste the grep). A `True` default fails this item even if all three fixture results happen to look right, because it would mean the three unwidened callers are safe only by omission rather than by construction. FINALLY state whether `agent_workflows/hooks/backlog_blocking_close_gate.py` was modified at all; the expected answer under the corrected default is NO, in which case pass a `--scope-ack` for that declared path and say so.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Committed unstaged fixture produces finding in check_release_gates, none in check_commit_invariants, exit 0 in hook; staged fixture produces findings in all three; at_rest default is False and check_release_gates is only caller with at_rest=True; hook unmodified with scope-ack.
+    1. Default value proof:
+       `inspect.signature(check_engine.check_release_gate_consistency).parameters["at_rest"].default`: `False`
+    2. Grep for `at_rest=True` across `agent_workflows/`:
+       `agent_workflows/check_engine.py:5403:        drift.extend(check_release_gate_consistency(repo_root, at_rest=True))`
+       (Confirmed: `check_release_gates` is the single explicit `at_rest=True` call site).
+    3. Fixture results side-by-side:
+       - Committed (Unstaged):
+         - `check_release_gates`: `['check.blocking-item-closed-without-gate']` (finding present)
+         - `check_commit_invariants`: `[]` (finding ABSENT)
+         - `hooks.backlog_blocking_close_gate.check`: exit 0, message `[]`
+       - Staged:
+         - `check_release_gates`: `['check.blocking-item-closed-without-gate']` (finding present)
+         - `check_commit_invariants`: `['check.blocking-item-closed-without-gate']` (finding present)
+         - `hooks.backlog_blocking_close_gate.check`: exit 1, message `['.aw/records/backlog/done/20261001-test01-01-item.md: a done backlog item staged in this commit still carries Blocks-Release with no handoff (From-Backlog plan), resolvable evidence, or de-gate; close it via `aw backlog set done` (which enforces the gate) rather than by hand']`
+    4. Hook modification status:
+       `agent_workflows/hooks/backlog_blocking_close_gate.py` was NOT modified. Passing `--scope-ack agent_workflows/hooks/backlog_blocking_close_gate.py`.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste case (a) FAILING at HEAD before E-03 is applied, with its assertion error, then passing after. Paste `python3 -m pytest tests/test_check_engine_release_gate.py -o addopts=""` with per-test counts, and the bare `python3 -m pytest` summary line. Confirm each new case asserts on rule ids, counts, or exit codes and reads no production source text.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Case (a) demonstrated failing at HEAD before E-03 and passes after; all 6 behavioral tests pass; full bare pytest suite 4343 passed; tests pin outcomes and exit codes without code structure pinning.
+    1. Case (a) FAILING at HEAD before E-03 applied:
+       ```
+       FAILED tests/test_check_engine_release_gate.py::test_rule_blocking_item_closed_without_gate_committed_at_rest_detected - AssertionError: 'check.blocking-item-closed-without-gate' not found in []
+       assert 'check.blocking-item-closed-without-gate' in []
+       ```
+    2. Case (a) passing after E-03 applied: PASSED.
+    3. `python3 -m pytest tests/test_check_engine_release_gate.py -o addopts=""`:
+       `40 passed in 6.43s`
+    4. Bare `python3 -m pytest` summary line:
+       `4343 passed, 2 skipped, 3 warnings in 280.15s`
+    5. Test design confirms: all 6 cases assert on returned rule ids, findings counts, and exit codes; none inspect or pin production source text.
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: paste the rewritten `AGENTS.md` paragraph verbatim, and paste the line number of `<!-- /aw:block -->` together with the line numbers of the edited lines, proving the edit is below the marker. Paste `git diff --stat` showing `agent_workflows/engine.py` ABSENT, and paste the grep that justified excluding it. State whether `2o5wka` or `47ttnv` has landed its own edit to this paragraph and confirm neither was reverted or rewritten; a diff that undoes another plan's sentence FAILS this item. For the backlog README, state explicitly whether it was changed and why. Confirm no em or en dashes in the user-facing prose.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. AGENTS.md paragraph rewritten below line 125 marker at lines 245-246; engine.py absent from diff; co-edits by 2o5wka and 47ttnv preserved intact; backlog README inspected and unmodified with scope-ack; no em or en dashes in user-facing prose.
+    1. Rewritten `AGENTS.md` paragraph verbatim:
+       ```markdown
+       An OPT-IN local pre-commit hook (`backlog-blocking-close-gate`) catches the hand-edit bypass (staging a
+       done+blocking item directly instead of using `aw backlog set done`). It is NOT installed by default; wire
+       it with `engine.create_backlog_close_gate_hook(repo, install=True)` (idempotent, no-clobber). It delegates
+       to the same `evaluate_blocking_close` predicate and gates the `done` case only. Honest limits: git hooks
+       are local, not cloned by default, and skippable with `--no-verify`; the portable authority is the
+       `aw check release-gates` rule family (`aw check` / `aw check all`) and CI, never the local hook alone.
+       The check rule examines every `done` backlog item on disk, grandfathered per item against the repository's
+       stamped cutover date. In CI, `aw check release-gates` runs as a named fail-closed step in `tests.yml`.
+       ```
+    2. Line numbers proving edit is below `<!-- /aw:block -->`:
+       - `<!-- /aw:block -->` line: 125
+       - Edited lines: 245-246 (in section lines 239-246).
+    3. `git diff --stat agent_workflows/engine.py`: ABSENT (empty diff).
+       - Grep in `engine.py`: matched only comments inside hook script generation (lines 5600, 5616, 5702), confirming no AGENTS.md template text.
+    4. Co-edits check:
+       - Plans `2o5wka` and `47ttnv` have executed. Their additions to lines 235-242 are fully preserved intact without regression.
+    5. Backlog README status:
+       - `.aw/records/backlog/README.md` was inspected. It points to `AGENTS.md` for release gate policy and does not describe check consistency scopes. It was left unmodified; `--scope-ack .aw/records/backlog/README.md` will be passed.
+    6. No em or en dashes present in user-facing prose.
+  - Result: pass
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: paste the CHANGELOG line, then the post-change census on the live tree: gated `done` count, predicate-failing count, cutover-judged count, and the FULL `aw check release-gates --agent` output. That last must report zero findings; if it does not, this item FAILS and the plan stops for a maintainer decision rather than adjusting the boundary. ALSO paste `aw check all --agent` before and after with its finding count, proving the widening added no finding elsewhere, and `aw sanitize --agent` clean over the changed paths. Finally paste `git diff --cached --name-only`, which must be a subset of the SEVEN declared scope paths (review added `agent_workflows/hooks/backlog_blocking_close_gate.py`, which is expected to be declared-but-unmodified and so needs a `--scope-ack` rather than appearing in the diff).
     ONE MORE THING THIS ITEM MUST REPORT, because it is the difference between the plan working and the plan being decoration: paste the RESOLVED cutover value in effect at the moment the census was taken, and state how many gated `done` items the arm actually JUDGED (as opposed to skipped as pre-cutover). A census reporting "zero findings" with ZERO items judged is a no-op wearing a pass, and it must be reported as a failure of E-01 rather than a success of E-08. The honest success shape is: a positive resolved boundary, a nonzero judged count, and zero findings.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. CHANGELOG entry added without dashes; post-change live census shows 287 gated done, 46 judged on or after stamped 20261001 cutover, 0 findings from aw check release-gates; aw check all finding count invariant at 73; aw sanitize clean; git diff cached scoped.
+    1. CHANGELOG line under 2.0.0 (pending):
+       `- Fixed: the release-gate check now sees a release-blocking item closed without a preserved gate even when the close was already committed, with items closed before the repository's cutover left as history.`
+    2. Live corpus census post-change:
+       - Gated `done` count: 287 items
+       - Predicate-failing count: 53 items (all grandfathered; newest close date 2026-09-26)
+       - Cutover resolved value: `20261001`
+       - Items judged on or after boundary: 46 items judged (nonzero!)
+       - Full `aw check release-gates --agent` output:
+         `{"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"release-gates","findings":0,"evidence":["inventory","rules"],"next":"aw releases list"}`
+         Findings: exactly 0.
+    3. `aw check all --agent` finding count before and after:
+       - Baseline before: 73 findings
+       - After change: 73 findings (0 delta)
+    4. `aw sanitize --agent` output:
+       `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+    5. Staged paths set:
+       Subset of declared scope paths (`config.py`, `check_engine.py`, `project.json`, `test_check_engine_release_gate.py`, `AGENTS.md`, `CHANGELOG.md`, plan file). Unmodified scope paths (`agent_workflows/hooks/backlog_blocking_close_gate.py` and `.aw/records/backlog/README.md`) acknowledged via `--scope-ack`.
+  - Result: pass
 
 ## Approval and execution gate
 
