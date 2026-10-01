@@ -4226,6 +4226,12 @@ def _build_parser() -> argparse.ArgumentParser:
                 action="store_true",
                 help="Apply the setid length rules to PRE-cutover artifacts too (no grandfathering).",
             )
+            _p.add_argument(
+                "--source-citations",
+                dest="source_citations",
+                action="store_true",
+                help="Scan packaged source (agent_workflows/ and tools/, non-test .py only) for dangling record citations. Read-only report; does not rewrite or fix because source citations may be runtime paths.",
+            )
             _p.formatter_class = _AlphaHelpFormatter
             _p.epilog = (
                 "AVAILABLE TYPES\n"
@@ -4243,6 +4249,7 @@ def _build_parser() -> argparse.ArgumentParser:
                 "\n"
                 "RESERVED SUB-CHECKS & OPTIONS\n"
                 "  names         Check filename grammar and clustering conformity only\n"
+                "  --source-citations Scan packaged source for dangling citations (read-only; exit 0 clean, 1 findings)\n"
                 "  -a, --all     Include retired, archived, and terminal artifacts (executed/superseded/parked/done/shipped)\n"
                 "  --agent       Emit machine-readable JSONL (aw.agent/v1)\n"
                 "  --json        Emit full structured JSON representation\n"
@@ -12636,6 +12643,80 @@ def _run_check(
     raw_type = getattr(args, "type", None) or "all"
     repo_root = Path(getattr(args, "dir", None) or os.getcwd())
     include_retired = bool(getattr(args, "all", False))
+
+    if getattr(args, "source_citations", False):
+        from agent_workflows import agent_schema as _schema
+        from agent_workflows import artifact_refs as refs
+        from agent_workflows.result_types import OutputMode
+
+        danglers, skipped_tests, scanned_count = refs.check_source_citations(repo_root)
+        exit_code = 0 if len(danglers) == 0 else 1
+        status = "clean" if exit_code == 0 else "findings"
+        summary = (
+            f"0 dangling source citations detected across {scanned_count} files ({skipped_tests} test files skipped)"
+            if exit_code == 0
+            else f"{len(danglers)} dangling citation(s) detected across {scanned_count} files ({skipped_tests} test files skipped)"
+        )
+
+        lines: list[str] = []
+        for d in danglers:
+            try:
+                rel = d.file.relative_to(repo_root).as_posix()
+            except ValueError:
+                rel = d.file.as_posix()
+            lines.append(f"{rel}:{d.line}: {d.id6}")
+
+        human_rendered = "\n".join(lines) + ("\n" if lines else "")
+        if ctx.mode == OutputMode.HUMAN:
+            print(
+                f"Skipped {skipped_tests} test file(s) under scanned roots.",
+                file=ctx.stderr,
+            )
+
+        diagnostics = [
+            Diagnostic(
+                location=f"{_schema.normalize_repo_path(d.file, repo_root)}:{d.line}",
+                rule="check.dangling-source-citation",
+                detail=f"Dangling record citation '{d.id6}' in packaged source",
+                severity="error",
+            )
+            for d in danglers
+        ]
+
+        evidence = [
+            Evidence(
+                key="inventory",
+                value={
+                    "scanned_files": scanned_count,
+                    "skipped_test_files": skipped_tests,
+                },
+                status="verified",
+            ),
+            Evidence(
+                key="rules",
+                value={"errors": len(danglers), "warnings": 0},
+                status="clean" if exit_code == 0 else "findings",
+            ),
+        ]
+
+        result = CommandResult(
+            command="check",
+            status=status,
+            exit_code=exit_code,
+            summary=summary,
+            diagnostics=diagnostics,
+            evidence=evidence,
+            data={
+                "target": "source-citations",
+                "repo_root": repo_root,
+                "human_rendered": human_rendered,
+                "skipped_test_files": skipped_tests,
+                "scanned_files": scanned_count,
+            },
+            verified=True,
+            complete=True,
+        )
+        return get_renderer(ctx).emit(result, ctx)
 
     if raw_type in ("release-gates", "release-gate", "release_gates", "release_gate"):
         norm = "release-gates"
