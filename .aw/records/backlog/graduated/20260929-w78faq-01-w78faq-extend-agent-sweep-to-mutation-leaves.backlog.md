@@ -1,11 +1,13 @@
 - Id: w78faq
-- Status: open
+- Status: graduated
+- Graduated-To: w78faq
 - Set: w78faq
 - Priority: medium
 - Work-Kind: followup
 - Summary: The agent-surface conformance sweep covers no mutation-class leaf, so 79 declared machine surfaces stay unexecuted and a dropped emit there still passes CI
 
 ## Workflow history
+- 2026-10-01 graduated (aw backlog): graduated by run run-20260930T053059Z-3200713: vfv2db
 - 2026-09-29 created (aw backlog): Deferred by plan f36de0 (graduating kjr5ol) as the named durable carrier for its mutation-class gap.
 
 DEFERRED BY IPD `f36de0` (Set `agentemitswp`), which graduates backlog `kjr5ol` and is the plan that builds the sweep this item extends.
