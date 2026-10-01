@@ -167,8 +167,10 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
   - Carrier-Declined: Nothing is owed once E-02 lands, and this is the rare deferral that this plan's own work makes MOOT rather than merely postpones. F-02 measured that `cli.main` already prints the gateway's refusal verbatim (`aw commit: error: refusing directory argument(s): sub; ...`), so once the refusal is reachable under `--no-commit` a CLI-level guard would duplicate a message the CLI already relays. A carrier would schedule work whose entire value E-02 delivers.
 - `commit_lock.coordinator_worktree`. A sibling of `commit_isolated` with its own copy semantics; pending plan `c8ioct` (Set `abandonedref`, from backlog `hf76th`) is already editing it and explicitly names `commit_isolated` as out of ITS scope. Keeping the two disjoint avoids a collision in the same file.
   - Carrier: c8ioct
+  - Carrier-Evidence: .aw/records/plans/executed/20260929-abandonedref-01-c8ioct-keep-an-abandoned-coordinator-commit-reachable-under-a-retai.ipd.md
 - CREATING `tests/test_commit_lock.py`. Cited by name in `tests/test_git_commit_helper.py` but absent, and proposed by `c8ioct`. E-03's test goes in `tests/test_commit_isolated_directory.py` instead so the two plans do not both create the same file.
   - Carrier: c8ioct
+  - Carrier-Evidence: .aw/records/plans/executed/20260929-abandonedref-01-c8ioct-keep-an-abandoned-coordinator-commit-reachable-under-a-retai.ipd.md
 
 ## Scope check
 

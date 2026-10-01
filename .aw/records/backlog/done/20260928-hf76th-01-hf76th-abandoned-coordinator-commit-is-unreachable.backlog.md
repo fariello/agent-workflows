@@ -1,5 +1,5 @@
 - Id: hf76th
-- Status: graduated
+- Status: done
 - Graduated-To: abandonedref
 - Blocks-Release: next
 - Set: hf76th
@@ -8,6 +8,7 @@
 - Summary: the transaction discards its lifecycle commit by deleting the coordinator branch on every failure arm, so the released evidence bytes survive only as a dangling object gc will prune and no tooled verb can name it
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): closed by aw oc run: IPD c8ioct executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-abandonedref-01-c8ioct-keep-an-abandoned-coordinator-commit-reachable-under-a-retai.ipd.md); evidence .aw/records/plans/executed/20260929-abandonedref-01-c8ioct-keep-an-abandoned-coordinator-commit-reachable-under-a-retai.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260929T021205Z-3914774: c8ioct
 - 2026-09-28 created (aw backlog): Filed while authoring cnf7gw's graduation plan; measured, see body.
 

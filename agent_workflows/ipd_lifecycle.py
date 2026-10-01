@@ -3271,15 +3271,14 @@ def land_worktree_commit(
                 "bytes are intact; that refusal is CORRECT and must not be forced. Those bytes belong "
                 "to another party and under repository rules this agent may not commit or stash them. "
                 "Re-running the same command once the contention clears is sufficient (re-run the "
-                "command once contention clears). The work is preserved in coordinator commit "
-                f"{landed[:12]}. git said: {combined}"
+                f"command once contention clears). Coordinator commit: {landed[:12]}. git said: {combined}"
             ),
             paths,
         )
 
     detail = (
         f"the shared branch could not be fast-forwarded onto {landed[:12]}: it has DIVERGED, so a peer "
-        f"commit landed since this transaction's snapshot. The work is preserved as commit "
+        f"commit landed since this transaction's snapshot. Coordinator commit: "
         f"{landed[:12]} (cherry-pick or retry); the branch was NOT moved. git said: {combined}"
     )
     if expected_base:
@@ -4906,12 +4905,36 @@ def _finalize_transaction(
             # lifecycle commit is NOT reachable from the branch and nothing is committed as far as the
             # branch is concerned: rolling back is correct and loses nothing, because the coordinator
             # worktree's commit was deliberately abandoned with its branch.
-            rc, err = 1, landing.detail
+            ref_name = _clock.abandoned_ref_name(landed)
+            rc_v, _, _ = _git(repo_root, ["rev-parse", "--verify", ref_name])
+            if rc_v == 0:
+                recovery_text = (
+                    f"Abandoned coordinator commit {landed[:12]} retained at {ref_name} "
+                    f"(inspect: git show {ref_name} ; apply: git cherry-pick {ref_name})."
+                )
+                evidence["abandoned_commit"] = landed
+                evidence["retained_ref"] = ref_name
+                evidence["recovery_commands"] = {
+                    "show": f"git show {ref_name}",
+                    "cherry_pick": f"git cherry-pick {ref_name}",
+                }
+            else:
+                recovery_text = (
+                    f"Coordinator commit {landed[:12]} was NOT retained under a ref; "
+                    "git fsck is the only recovery route."
+                )
+                evidence["abandoned_commit"] = landed
+                evidence["retained_ref"] = None
+                evidence["recovery_route"] = "fsck-only"
+
+            rc, err = 1, f"{landing.detail} {recovery_text}"
             evidence["reconciliation"] = {
                 "status": landing.status,
                 "returncode": landing.returncode,
                 "paths": list(landing.paths),
                 "detail": landing.detail,
+                "retained_ref": ref_name if rc_v == 0 else None,
+                "recovery_text": recovery_text,
             }
             if landing.status == RECONCILED_REFUSED:
                 journal["shared_tree_untouched"] = True
@@ -4944,7 +4967,7 @@ def _finalize_transaction(
             EXIT_CANNOT_RUN,
             None,
             f"unknown-outcome: HEAD moved to {cur_head[:12]} but not via this finalize's lifecycle "
-            f"commit; journal retained at {finalize_journal_path(repo_root, plan_id)}.",
+            f"commit ({err.strip()}); journal retained at {finalize_journal_path(repo_root, plan_id)}.",
             evidence,
         )
 
