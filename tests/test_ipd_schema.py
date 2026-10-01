@@ -1878,6 +1878,38 @@ class ExecutionAndValidationStateTests(unittest.TestCase):
             "ILLEGAL row stating the new result's checkbox and evidence rules.",
         )
 
+    def test_unknown_value_messages_name_accepted_vocabularies(self):
+        """The unknown-value messages must name every member of the closed vocabulary (plan uh9jsk).
+
+        Asserts content, not merely truthiness (which the `bogus` table rows cover),
+        so dropping the enumeration or missing a newly added vocabulary member fails here.
+        """
+        val_err = S.validation_row_error("bogus", False, False)
+        self.assertIsNotNone(val_err)
+        self.assertTrue(
+            val_err.startswith("unknown validation result 'bogus'"),
+            f"expected prefix missing: {val_err!r}",
+        )
+        for member in S.VALIDATION_RESULTS:
+            self.assertIn(
+                member,
+                val_err,
+                f"validation_row_error('bogus', ...) missing vocabulary member {member!r} from message: {val_err!r}",
+            )
+
+        exec_err = S.execution_row_error("bogus", False, False)
+        self.assertIsNotNone(exec_err)
+        self.assertTrue(
+            exec_err.startswith("unknown execution state 'bogus'"),
+            f"expected prefix missing: {exec_err!r}",
+        )
+        for member in S.EXEC_STATES:
+            self.assertIn(
+                member,
+                exec_err,
+                f"execution_row_error('bogus', ...) missing vocabulary member {member!r} from message: {exec_err!r}",
+            )
+
 
 class CheckpointTests(unittest.TestCase):
     """Which readiness STATUS each lint checkpoint accepts: the full checkpoint x status matrix.

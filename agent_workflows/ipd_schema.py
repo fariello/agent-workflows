@@ -1176,7 +1176,11 @@ _EXEC_NOTE_REQUIRED: FrozenSet[str] = frozenset(("blocked", "failed"))
 
 def execution_row_error(state: str, checked: bool, has_note: bool) -> Optional[str]:
     if state not in EXEC_STATES:
-        return "unknown execution state '{0}'".format(state)
+        return (
+            f"unknown execution state '{state}' (expected one of "
+            + ", ".join(sorted(EXEC_STATES))
+            + ")"
+        )
     if _EXEC_CHECKBOX[state] != checked:
         return "execution checkbox does not agree with state '{0}'".format(state)
     if state in _EXEC_NOTE_REQUIRED and not has_note:
@@ -1197,7 +1201,11 @@ def validation_row_error(
     result: str, checked: bool, observed_nonempty: bool
 ) -> Optional[str]:
     if result not in VALIDATION_RESULTS:
-        return "unknown validation result '{0}'".format(result)
+        return (
+            f"unknown validation result '{result}' (expected one of "
+            + ", ".join(sorted(VALIDATION_RESULTS))
+            + ")"
+        )
     want_checked, want_obs = _VALIDATION_RULES[result]
     if want_checked != checked:
         return "validation checkbox does not agree with result '{0}'".format(result)

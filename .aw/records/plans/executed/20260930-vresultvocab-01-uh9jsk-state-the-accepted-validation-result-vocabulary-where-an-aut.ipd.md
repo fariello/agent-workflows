@@ -6,7 +6,7 @@
 - Scope: IN: (a) name the accepted vocabulary INSIDE the two row-state messages that currently reject a value without naming its alternatives (`ipd_schema.validation_row_error` and its execution twin `ipd_schema.execution_row_error`), rendered from the frozensets so the message cannot drift from the check; (b) state both vocabularies in the two scaffold section intros (`ipd_authoring._EXEC_INTRO`, `ipd_authoring._VALID_INTRO`) so an author meets them beside the rows they annotate, and REGENERATE the two byte-pinned templates from `build_skeleton`; (c) add behavioral tests for both. OUT: the enums themselves, which are unchanged (no new accepted value, no alias, so `verified` still fails); the checkpoint code `IPD-S404`, whose wording is a pinned retry trigger (F-5); `ipd_lint` itself, which needs no edit because it interpolates the schema's message; and the 1039-plan corpus, which is not rewritten (F-7).
 - Scope-Paths: agent_workflows/ipd_schema.py, agent_workflows/ipd_authoring.py, .aw/system/workflows/assess/templates/ipd.md, .aw/system/workflows/assess/templates/orchestrator-ipd.md, tests/test_ipd_schema.py, tests/test_ipd_authoring.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: uh9jsk
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: uh9jsk verified (set vresultvocab, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review verdict REVIEWED - OPEN QUESTIONS; PR-001..PR-008. Re-measured every one of F-1..F-8 and all hold (the IPD-S402 reproduction, the ipd_lint->ipd_schema layering, the bogus-row coverage gap, the closed-vocabulary cost, the in-vocabulary corpus property, the placeholder-tuple hazard, both precedent commits, and the manifest hash disagreement to both prefixes). Fixed one BLOCKER: E-04's negative assertion was unsatisfiable, since 'verified' is already a substring of the scaffold's 'TODO: how the executed plan is verified.' placeholder at HEAD, so the assertion is red on arrival and no correct implementation can green it; the negative is now scoped to the two intro lines and expressed token-wise against the frozenset. Fixed two HIGH: V-02's add-a-member red proof fails the coverage test first and needs three edits, not one (measured both stages); and the scope fence said 'stop and report' over a scope question, contrary to the 2026-09-01 ruling, now replaced with make-and-justify plus one genuine prerequisite stop. Added F-9: rewording IPD-S402/IPD-S401 is safe because finalize_refusal_is_retryable matches their CODES before prose, while IPD-S404 has no code fallback and a REWORDED (not appended) form measurably returns False, which sharpens F-5's deferral from caution into evidence. Withdrew OQ-01's 'silence is taken as accepting' clause, which let an unanswered question close itself; this run was non-interactive (worker role, no TTY) so OQ-01 stays open and non-blocking.
 - 2026-09-30 to-review (opencode/its_direct-pt3-claude-opus-5-1m-us): Authored from backlog `mc57em`. The item offers three shapes and calls the first "the cheapest fix and probably sufficient": enumerate the vocabulary in the `IPD-S402` message; or write it into the scaffolded V-item; or accept `verified` as an alias. THE THIRD IS REJECTED ON EVIDENCE, not preference: `VALIDATION_RESULTS` is a CLOSED vocabulary whose closure is asserted by a two-sided coverage test (`tests/test_ipd_schema.py::ExecutionAndValidationStateTests::test_the_state_tables_cover_their_closed_vocabularies`), adding a member obliges a `_VALIDATION_RULES` entry plus legal and illegal rows, and an alias would make two spellings mean one thing in a corpus of 3891 live `- Result: pass` rows for no gain (F-6). THE FIRST TWO ARE BOTH TAKEN rather than one, because they answer different moments: the message helps an author who has already guessed wrong, while the scaffold intro reaches one who has not guessed yet. Doing only the message leaves the first guess uninformed; doing only the scaffold leaves every plan authored before this change (and every hand-written row) with the same bare rejection.
@@ -36,29 +36,29 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: name the accepted values in the message that rejects one
 
-- [ ] E-01 In `agent_workflows/ipd_schema.py`, change the unknown-value branch of `validation_row_error` and of `execution_row_error` so each message names the ACCEPTED vocabulary in addition to the rejected value, rendering the list from `VALIDATION_RESULTS` / `EXEC_STATES` respectively (sorted, for a deterministic string) rather than from a hand-written literal. Follow the shape already shipped for the same problem in `validate_metadata`'s `Readiness` branch, which reads `"unrecognized readiness value (expected one of " + ", ".join(sorted(READINESS_VALUES)) + ")"`; match that phrasing so the three sibling enum rejections read alike. Keep the message a single line and keep the existing prefix (`unknown validation result '<value>'` / `unknown execution state '<value>'`) as the LEADING text, because that prefix is what a reader greps for and what existing prose cites. Change no other branch of either predicate, and change neither frozenset.
+- [x] E-01 In `agent_workflows/ipd_schema.py`, change the unknown-value branch of `validation_row_error` and of `execution_row_error` so each message names the ACCEPTED vocabulary in addition to the rejected value, rendering the list from `VALIDATION_RESULTS` / `EXEC_STATES` respectively (sorted, for a deterministic string) rather than from a hand-written literal. Follow the shape already shipped for the same problem in `validate_metadata`'s `Readiness` branch, which reads `"unrecognized readiness value (expected one of " + ", ".join(sorted(READINESS_VALUES)) + ")"`; match that phrasing so the three sibling enum rejections read alike. Keep the message a single line and keep the existing prefix (`unknown validation result '<value>'` / `unknown execution state '<value>'`) as the LEADING text, because that prefix is what a reader greps for and what existing prose cites. Change no other branch of either predicate, and change neither frozenset.
   - Depends on: none
   - Expected outcome: `validation_row_error("verified", False, False)` returns a string that contains `unknown validation result 'verified'` AND each of `pending`, `pass`, `blocked`, `failed`; `execution_row_error("done", False, False)` likewise contains `unknown execution state 'done'` and all four of `pending`, `performed`, `blocked`, `failed`; every other return value of both predicates (including `None` for a legal row) is byte-identical to HEAD.
-  - Execution state: pending
+  - Execution state: performed
 
   REWORDING THESE TWO MESSAGES IS SAFE AT THE FINALIZE SEND-BACK, AND IT IS SAFE STRUCTURALLY RATHER THAN BY LUCK, so do not apply F-5's caution here by analogy. `finalize_refusal_is_retryable` matches each finding line's leading CODE TOKEN before falling back to prose, and both codes these two predicates feed (`IPD-S402` via `ipd_lint.C_VALID_STATE`, `IPD-S401` via `C_EXEC_STATE`) ARE members of `retryable_finalize_finding_codes()`. Measured at review: the reworded `IPD-S402` line still yields `finalize_refusal_is_retryable(...) == True` (F-9). `IPD-S404` is the one that has no code-keyed fallback, which is why it and only it is deferred.
 
-- [ ] E-02 Add table rows to `tests/test_ipd_schema.py::ExecutionAndValidationStateTests` asserting the CONTENT of the two unknown-value messages, not merely that an error came back. The existing `("validation", ("bogus", False, False), True, ...)` and `("exec", ("bogus", False, False), True, ...)` rows only assert truthiness, so they pass against a message naming nothing; the new assertion must fail if a member of either frozenset is missing from its message. Derive the expected members from `S.VALIDATION_RESULTS` / `S.EXEC_STATES` inside the test rather than from a literal list, so adding a member to either vocabulary without reaching its message fails here. Keep the existing rows: this ADDS a content assertion to the class and removes nothing.
+- [x] E-02 Add table rows to `tests/test_ipd_schema.py::ExecutionAndValidationStateTests` asserting the CONTENT of the two unknown-value messages, not merely that an error came back. The existing `("validation", ("bogus", False, False), True, ...)` and `("exec", ("bogus", False, False), True, ...)` rows only assert truthiness, so they pass against a message naming nothing; the new assertion must fail if a member of either frozenset is missing from its message. Derive the expected members from `S.VALIDATION_RESULTS` / `S.EXEC_STATES` inside the test rather than from a literal list, so adding a member to either vocabulary without reaching its message fails here. Keep the existing rows: this ADDS a content assertion to the class and removes nothing.
   - Depends on: E-01
   - Expected outcome: a test in `tests/test_ipd_schema.py` fails when the enumeration is dropped from either message and fails when a vocabulary member is added without reaching the message; both `bogus` rows still assert their truthiness as before.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: state both vocabularies in the scaffold an author starts from
 
-- [ ] E-03 In `agent_workflows/ipd_authoring.py`, extend `_EXEC_INTRO` and `_VALID_INTRO` with one sentence each naming its vocabulary and the value the terminal gate demands, rendered from `S.EXEC_STATES` / `S.VALIDATION_RESULTS` (sorted) rather than hand-spelled, so the intro cannot drift from the enum. Then REGENERATE both byte-pinned templates, `.aw/system/workflows/assess/templates/ipd.md` and `.aw/system/workflows/assess/templates/orchestrator-ipd.md`, from `build_skeleton` rather than hand-editing them, because `tests/test_ipd_templates.py::TemplateParityTests` byte-compares each file against the generator output for the fixed placeholder arguments it uses (`title` `<short title of the change>` / `<short title of the coordinated change>`, `author` `<agent/model>`, `when` `<YYYY-MM-DD>`, `set_name` `<set-id>`, `plan_id` `tmp1d6`, order 1 / 0). Do NOT add either new sentence to `_AUTHORING_PLACEHOLDERS`: that tuple means "this text is a stub an author must replace", and a sentence that is meant to SURVIVE authoring would make every finished plan read as an unresolved draft to `authoring_placeholders_resolved` and to the `check.ipd-draft-ready-to-review` nudge that consumes it.
+- [x] E-03 In `agent_workflows/ipd_authoring.py`, extend `_EXEC_INTRO` and `_VALID_INTRO` with one sentence each naming its vocabulary and the value the terminal gate demands, rendered from `S.EXEC_STATES` / `S.VALIDATION_RESULTS` (sorted) rather than hand-spelled, so the intro cannot drift from the enum. Then REGENERATE both byte-pinned templates, `.aw/system/workflows/assess/templates/ipd.md` and `.aw/system/workflows/assess/templates/orchestrator-ipd.md`, from `build_skeleton` rather than hand-editing them, because `tests/test_ipd_templates.py::TemplateParityTests` byte-compares each file against the generator output for the fixed placeholder arguments it uses (`title` `<short title of the change>` / `<short title of the coordinated change>`, `author` `<agent/model>`, `when` `<YYYY-MM-DD>`, `set_name` `<set-id>`, `plan_id` `tmp1d6`, order 1 / 0). Do NOT add either new sentence to `_AUTHORING_PLACEHOLDERS`: that tuple means "this text is a stub an author must replace", and a sentence that is meant to SURVIVE authoring would make every finished plan read as an unresolved draft to `authoring_placeholders_resolved` and to the `check.ipd-draft-ready-to-review` nudge that consumes it.
   - Depends on: none
   - Expected outcome: a freshly scaffolded child AND orchestrator plan each state both vocabularies in prose; both templates are byte-identical to `build_skeleton` output so `TemplateParityTests` passes; a fresh scaffold still lints `conforming` at the `author` checkpoint; `authoring_placeholders_resolved` on a fully authored plan is unaffected by the new sentences.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add a test to `tests/test_ipd_authoring.py` asserting that a scaffolded plan of BOTH kinds states each vocabulary member, deriving the expected members from the frozensets so a vocabulary change that misses the scaffold fails. Assert it on the OUTPUT OF `build_skeleton` (the generator), not on the template files, because `tests/test_ipd_templates.py` already owns the file-versus-generator byte parity and duplicating it here would pin the same fact twice while testing the scaffold's real behavior neither time. Include the negative direction, but SCOPE IT TO THE TWO INTRO LINES rather than to the whole document: assert that neither `_EXEC_INTRO` nor `_VALID_INTRO` (read from the module, or located in the scaffold by its heading) advertises a value outside its own frozenset, so a future edit cannot satisfy the positive assertion by pasting an illustrative list that includes a rejected value. Express the negative GENERALLY, as "no token in the intro's rendered value list is outside the frozenset", rather than by naming one word.
+- [x] E-04 Add a test to `tests/test_ipd_authoring.py` asserting that a scaffolded plan of BOTH kinds states each vocabulary member, deriving the expected members from the frozensets so a vocabulary change that misses the scaffold fails. Assert it on the OUTPUT OF `build_skeleton` (the generator), not on the template files, because `tests/test_ipd_templates.py` already owns the file-versus-generator byte parity and duplicating it here would pin the same fact twice while testing the scaffold's real behavior neither time. Include the negative direction, but SCOPE IT TO THE TWO INTRO LINES rather than to the whole document: assert that neither `_EXEC_INTRO` nor `_VALID_INTRO` (read from the module, or located in the scaffold by its heading) advertises a value outside its own frozenset, so a future edit cannot satisfy the positive assertion by pasting an illustrative list that includes a rejected value. Express the negative GENERALLY, as "no token in the intro's rendered value list is outside the frozenset", rather than by naming one word.
   - Depends on: E-03
   - Expected outcome: a test in `tests/test_ipd_authoring.py` fails if either intro stops naming its full vocabulary, fails for either kind independently, and fails if either intro advertises a value the frozenset does not contain.
-  - Execution state: pending
+  - Execution state: performed
 
   DO NOT WRITE `assertNotIn("verified", whole_scaffold)`: IT IS UNSATISFIABLE AND WAS MEASURED SO. The authoring text as this plan was first drafted asked for exactly that assertion, naming `verified` as "the value backlog `mc57em` measured an author reaching for". But the scaffold ALREADY contains the substring `verified` at HEAD, before any change this plan makes: the `## Required tests / validation` placeholder is the literal `TODO: how the executed plan is verified.`, and `verified` is a substring of `verified.`. Measured at review: `"verified" in build_skeleton(kind="child", ...)` returns **True** at HEAD with no E-03 edit applied, and the same for `kind="orchestrator"`. An executor writing the document-wide assertion therefore produces a test that is RED on arrival and that NO correct implementation of E-03 can turn green, which would either block the plan or (worse) invite the executor to "fix" it by deleting an unrelated placeholder. Scoping the negative to the intro lines keeps the guard the plan actually wants (an intro must not advertise a rejected value) and makes it satisfiable. A token-level check against the frozenset is also strictly stronger than pinning one word, since it catches any out-of-vocabulary value rather than only the one the backlog happened to name.
 
@@ -141,25 +141,323 @@ WHAT REVIEW DID ADD IS THE MISSING HALF OF THE EVIDENCE, so the maintainer can n
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste a Python invocation importing `agent_workflows.ipd_schema` that prints `validation_row_error("verified", False, False)` and `execution_row_error("done", False, False)`, showing each output contains its original prefix AND every member of its own vocabulary. Paste `git diff` over both predicates proving (a) the enumeration is rendered from `VALIDATION_RESULTS` / `EXEC_STATES` and not hand-spelled, and (b) no other branch, no `_VALIDATION_RULES` / `_EXEC_CHECKBOX` entry, and neither frozenset changed. Additionally print `validation_row_error("pending", False, False)` and `execution_row_error("pending", False, False)` and show both are still `None`, so a legal row gained no message.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified Python invocation shows both error messages contain expected prefixes and full vocabularies, legal rows return None, and git diff proves derivation from frozensets.
+    Python invocation:
+    ```python
+    >>> import agent_workflows.ipd_schema as S
+    >>> print("v_err:", S.validation_row_error("verified", False, False))
+    v_err: unknown validation result 'verified' (expected one of blocked, failed, pass, pending)
+    >>> print("e_err:", S.execution_row_error("done", False, False))
+    e_err: unknown execution state 'done' (expected one of blocked, failed, pending, performed)
+    >>> print("legal_v:", S.validation_row_error("pending", False, False))
+    legal_v: None
+    >>> print("legal_e:", S.execution_row_error("pending", False, False))
+    legal_e: None
+    ```
+    git diff over both predicates in `agent_workflows/ipd_schema.py`:
+    ```diff
+    @@ -1176,7 +1176,11 @@ _EXEC_NOTE_REQUIRED: FrozenSet[str] = frozenset(("blocked", "failed"))
 
-- [ ] V-02 validates E-02
+     def execution_row_error(state: str, checked: bool, has_note: bool) -> Optional[str]:
+         if state not in EXEC_STATES:
+    -        return "unknown execution state '{0}'".format(state)
+    +        return (
+    +            f"unknown execution state '{state}' (expected one of "
+    +            + ", ".join(sorted(EXEC_STATES))
+    +            + ")"
+    +        )
+         if _EXEC_CHECKBOX[state] != checked:
+             return "execution checkbox does not agree with state '{0}'".format(state)
+         if state in _EXEC_NOTE_REQUIRED and not has_note:
+    @@ -1197,7 +1201,11 @@ def validation_row_error(
+         result: str, checked: bool, observed_nonempty: bool
+     ) -> Optional[str]:
+         if result not in VALIDATION_RESULTS:
+    -        return "unknown validation result '{0}'".format(result)
+    +        return (
+    +            f"unknown validation result '{result}' (expected one of "
+    +            + ", ".join(sorted(VALIDATION_RESULTS))
+    +            + ")"
+    +        )
+         want_checked, want_obs = _VALIDATION_RULES[result]
+         if want_checked != checked:
+             return "validation checkbox does not agree with result '{0}'".format(result)
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the new assertion's source. Paste its RED-then-GREEN proof: revert E-01's message change (or stub the enumeration out), run the test, paste the ACTUAL failure output and exit code; restore, re-run, paste the passing output and exit code. Then paste a SECOND red proof of the other direction that matters: temporarily add a member to `VALIDATION_RESULTS` and show the NEW CONTENT ASSERTION (not some other test) fails because the message does not name it, then revert. THAT PROBE NEEDS THREE EDITS, NOT ONE, and the reason is measured: adding a member requires (a) the frozenset member, (b) its `_VALIDATION_RULES` entry, AND (c) a LEGAL and an ILLEGAL `STATES` row in `tests/test_ipd_schema.py`, because `test_the_state_tables_cover_their_closed_vocabularies` fails FIRST otherwise and proves nothing about the message. Measured at review: with only (a) and (b), `pytest tests/test_ipd_schema.py -o addopts="" -x` exits 1 on `test_the_state_tables_cover_their_closed_vocabularies` with `Items in the second set but not the first: 'zzprobe'`; with (c) added the suite returns `26 passed` and the coverage test is silent, which is the state in which a missing enumeration is the only remaining cause of failure. Paste the output of BOTH stages so the proof is attributable to the new assertion. Paste the per-test count for `tests/test_ipd_schema.py` run with `-o addopts=""` and confirm the two pre-existing `bogus` rows are still present and passing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified test assertion source, two-sided red-then-green proof with stubbed message and 3-edit probe with coverage test silent and new assertion failing, and 27 tests passing.
+    New assertion source in `tests/test_ipd_schema.py`:
+    ```python
+        def test_unknown_value_messages_name_accepted_vocabularies(self):
+            """The unknown-value messages must name every member of the closed vocabulary (plan uh9jsk).
 
-- [ ] V-03 validates E-03
+            Asserts content, not merely truthiness (which the `bogus` table rows cover),
+            so dropping the enumeration or missing a newly added vocabulary member fails here.
+            """
+            val_err = S.validation_row_error("bogus", False, False)
+            self.assertIsNotNone(val_err)
+            self.assertTrue(
+                val_err.startswith("unknown validation result 'bogus'"),
+                f"expected prefix missing: {val_err!r}",
+            )
+            for member in S.VALIDATION_RESULTS:
+                self.assertIn(
+                    member,
+                    val_err,
+                    f"validation_row_error('bogus', ...) missing vocabulary member {member!r} from message: {val_err!r}",
+                )
+
+            exec_err = S.execution_row_error("bogus", False, False)
+            self.assertIsNotNone(exec_err)
+            self.assertTrue(
+                exec_err.startswith("unknown execution state 'bogus'"),
+                f"expected prefix missing: {exec_err!r}",
+            )
+            for member in S.EXEC_STATES:
+                self.assertIn(
+                    member,
+                    exec_err,
+                    f"execution_row_error('bogus', ...) missing vocabulary member {member!r} from message: {exec_err!r}",
+                )
+    ```
+    RED-then-GREEN proof (stubbing out enumeration in `validation_row_error` to return `"unknown validation result '{0}'".format(result)`):
+    RED output (exit 1):
+    ```
+    FAILED tests/test_ipd_schema.py::ExecutionAndValidationStateTests::test_unknown_value_messages_name_accepted_vocabularies
+    E   AssertionError: 'failed' not found in "unknown validation result 'bogus'" : validation_row_error('bogus', ...) missing vocabulary member 'failed' from message: "unknown validation result 'bogus'"
+    tests/test_ipd_schema.py:1894: AssertionError
+    1 failed, 26 deselected in 0.35s
+    ```
+    GREEN output upon restore (exit 0):
+    ```
+    tests/test_ipd_schema.py .                                               [100%]
+    1 passed, 26 deselected in 0.19s
+    ```
+    SECOND red proof (temporarily adding `'zzprobe'` to `VALIDATION_RESULTS` with `validation_row_error` returning the static list without `'zzprobe'`):
+    Stage 1 with only (a) and (b) (exit 1):
+    ```
+    FAILED tests/test_ipd_schema.py::ExecutionAndValidationStateTests::test_the_state_tables_cover_their_closed_vocabularies
+    E   AssertionError: Items in the second set but not the first:
+    E   'zzprobe' : the validation rows and VALIDATION_RESULTS have diverged; results with no row: ['zzprobe']. FIX: add a LEGAL and an ILLEGAL row stating the new result's checkbox and evidence rules.
+    tests/test_ipd_schema.py:1873: AssertionError
+    1 failed, 26 deselected in 0.30s
+    ```
+    Stage 2 with (c) legal and illegal rows added to `STATES` (exit 1):
+    ```
+    tests/test_ipd_schema.py ....F......................                     [100%]
+    FAILED tests/test_ipd_schema.py::ExecutionAndValidationStateTests::test_unknown_value_messages_name_accepted_vocabularies
+    E   AssertionError: 'zzprobe' not found in "unknown validation result 'bogus' (expected one of blocked, failed, pass, pending)" : validation_row_error('bogus', ...) missing vocabulary member 'zzprobe' from message: "unknown validation result 'bogus' (expected one of blocked, failed, pass, pending)"
+    tests/test_ipd_schema.py:1906: AssertionError
+    1 failed, 26 passed in 2.69s
+    ```
+    (Demonstrating coverage test passes and 26 other tests pass, while the new content assertion catches the missing member).
+    Reverted to clean state. Per-test count for `tests/test_ipd_schema.py` with `-o addopts=""`:
+    ```
+    tests/test_ipd_schema.py ...........................                     [100%]
+    27 passed in 1.52s
+    ```
+    Pre-existing `bogus` rows in `STATES` are intact and passing.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the regenerated `## Detailed Implementation Checklist (TODO)` and `## Validation and cross-check ...` intro lines from BOTH template files. Paste passing output for `tests/test_ipd_templates.py` run with `-o addopts=""` (this is the byte-parity proof that the templates were regenerated rather than hand-edited). Paste a Python invocation that scaffolds a child and an orchestrator through `build_skeleton` and lints each with `ipd_lint.lint_text(..., checkpoint="author", directory="pending")`, showing disposition `conforming` and no diagnostics for both. Paste `rg -n "_AUTHORING_PLACEHOLDERS" -A 20 agent_workflows/ipd_authoring.py` showing neither new sentence was added to the tuple, plus the value of `authoring_placeholders_resolved` on a scaffold (must still be False) and on that same text with every placeholder replaced (must be True).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified regenerated template intro lines, test_ipd_templates byte parity passes (10 passed), scaffold lint conforming for both kinds, and _AUTHORING_PLACEHOLDERS unpolluted.
+    Regenerated intro lines from `.aw/system/workflows/assess/templates/ipd.md`:
+    ```markdown
+    ## Detailed Implementation Checklist (TODO)
 
-- [ ] V-04 validates E-04
+    Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
+
+    ## Validation and cross-check (verify before reporting done)
+
+    Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
+    ```
+    Regenerated intro lines from `.aw/system/workflows/assess/templates/orchestrator-ipd.md`:
+    ```markdown
+    ## Detailed Implementation Checklist (TODO)
+
+    Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
+
+    ## Validation and cross-check (verify before reporting the Set complete)
+
+    Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
+    ```
+    `python3 -m pytest tests/test_ipd_templates.py -o addopts=""` (exit 0):
+    ```
+    tests/test_ipd_templates.py ..........                                   [100%]
+    10 passed in 0.28s
+    ```
+    Scaffold & lint Python check:
+    ```python
+    Child disposition: conforming diagnostics: []
+    Orch disposition: conforming diagnostics: []
+    Both scaffolds lint conforming with 0 diagnostics.
+    ```
+    `rg -n "_AUTHORING_PLACEHOLDERS" -A 20 agent_workflows/ipd_authoring.py`:
+    ```
+    126:_AUTHORING_PLACEHOLDERS = (
+    127-    "- Concern: TODO.",
+    128-    "- Scope: TODO.",
+    129-    "- Scope-Paths: TODO",
+    130-    "- Item-Dependencies: unresolved",
+    131-    "- Work-Kind: unresolved",
+    132-    "- Priority: unresolved",
+    133-    _SECTION_BODY[
+    134-        S.H_GOAL
+    135-    ],  # "TODO: one or two sentences on what this plan achieves and why."
+    136-    "- [ ] E-01 TODO one observable action.",
+    137-    "  - Expected outcome: TODO observable result.",
+    138-    "  - Required evidence: TODO falsifiable evidence.",
+    139-    "### OQ-01: TODO a question",
+    140-    "TODO: approval + execution gate prose",
+    141-    UNASSIGNED_MARKER,  # any remaining unassigned `E-NEW` leaf means still authoring
+    142-)
+    ```
+    `authoring_placeholders_resolved` check:
+    - On scaffold: `False`
+    - With placeholders replaced: `True`
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the new test's source. Paste its RED-then-GREEN proof against E-03's change: revert one intro sentence, run the test, paste the actual failure output and exit code, restore and paste the pass. Paste a SECOND red proof that the negative direction bites: temporarily insert `verified` INTO ONE INTRO'S RENDERED VALUE LIST (not elsewhere in the document, per E-04's scoping note), show the test fails, revert, show it passes. ALSO paste the proof that the negative assertion is SATISFIABLE in its correct state, by showing the test GREEN against an unmodified scaffold: this is the specific trap E-04 records, since the document-wide form of this assertion is red at HEAD because the `## Required tests / validation` placeholder already reads `TODO: how the executed plan is verified.`. Paste the per-test count for `tests/test_ipd_authoring.py` with `-o addopts=""`. Finally paste the END-TO-END defect demonstration: scaffold a plan, set its V-item `- Result: verified`, lint at `author`, and show the emitted `IPD-S402` diagnostic now names the accepted values; then paste the full bare `python3 -m pytest` summary line as regression evidence.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified test source in test_ipd_authoring.py, red-then-green proof against E-03, negative red proof on out-of-vocab token, satisfiability on unmodified scaffold, 25 tests pass, e2e demo names accepted values, and full suite passes.
+    New test source in `tests/test_ipd_authoring.py`:
+    ```python
+    class ScaffoldVocabularyIntroTests(unittest.TestCase):
+        """Scaffolded plans must state both closed vocabularies in their section intros (plan uh9jsk)."""
+
+        def test_scaffold_intros_state_closed_vocabularies_and_no_unaccepted_values(self):
+            expected_exec = set(S.EXEC_STATES)
+            expected_valid = set(S.VALIDATION_RESULTS)
+
+            for kind in ("child", "orchestrator"):
+                text = A.build_skeleton(
+                    kind=kind,
+                    title=f"Vocabulary Intro Test {kind}",
+                    author="tester",
+                    when="2026-10-01",
+                    set_name="vocabprobe",
+                    order=1 if kind == "child" else 0,
+                    plan_id="vcb123",
+                )
+                lines = text.splitlines()
+                exec_intro = None
+                valid_intro = None
+                for i, line in enumerate(lines):
+                    if line.startswith("## ") and line[3:].strip() == S.H_EXECUTION:
+                        for candidate in lines[i + 1 : i + 5]:
+                            if candidate.startswith("Execution-state rule:"):
+                                exec_intro = candidate
+                                break
+                    elif line.startswith("## ") and line[3:].strip() in (
+                        S.H_VALIDATION_CHILD,
+                        S.H_VALIDATION_ORCH,
+                    ):
+                        for candidate in lines[i + 1 : i + 5]:
+                            if candidate.startswith("Validation-state rule:"):
+                                valid_intro = candidate
+                                break
+
+                self.assertIsNotNone(
+                    exec_intro, f"missing execution intro in {kind} scaffold"
+                )
+                self.assertIsNotNone(
+                    valid_intro, f"missing validation intro in {kind} scaffold"
+                )
+
+                for state in expected_exec:
+                    self.assertIn(
+                        state,
+                        exec_intro,
+                        f"execution intro in {kind} missing member {state!r}",
+                    )
+                for result in expected_valid:
+                    self.assertIn(
+                        result,
+                        valid_intro,
+                        f"validation intro in {kind} missing member {result!r}",
+                    )
+
+                self.assertIn("'performed'", exec_intro)
+                self.assertIn("'pass'", valid_intro)
+
+                m_exec = re.search(r"Accepted execution states:\s*([^;]+);", exec_intro)
+                self.assertIsNotNone(
+                    m_exec, f"could not locate execution states list in {kind} intro"
+                )
+                exec_tokens = {t.strip() for t in m_exec.group(1).split(",") if t.strip()}
+                unrecognized_exec = exec_tokens - expected_exec
+                self.assertEqual(
+                    unrecognized_exec,
+                    set(),
+                    f"execution intro in {kind} advertises out-of-vocabulary value: {unrecognized_exec}",
+                )
+                self.assertEqual(
+                    exec_tokens,
+                    expected_exec,
+                    f"execution intro in {kind} does not match EXEC_STATES",
+                )
+
+                m_valid = re.search(r"Accepted validation results:\s*([^;]+);", valid_intro)
+                self.assertIsNotNone(
+                    m_valid, f"could not locate validation results list in {kind} intro"
+                )
+                valid_tokens = {
+                    t.strip() for t in m_valid.group(1).split(",") if t.strip()
+                }
+                unrecognized_valid = valid_tokens - expected_valid
+                self.assertEqual(
+                    unrecognized_valid,
+                    set(),
+                    f"validation intro in {kind} advertises out-of-vocabulary value: {unrecognized_valid}",
+                )
+                self.assertEqual(
+                    valid_tokens,
+                    expected_valid,
+                    f"validation intro in {kind} does not match VALIDATION_RESULTS",
+                )
+    ```
+    RED-then-GREEN proof against E-03 (reverting vocabulary sentence in `_VALID_INTRO`):
+    RED output (exit 1):
+    ```
+    FAILED tests/test_ipd_authoring.py::ScaffoldVocabularyIntroTests::test_scaffold_intros_state_closed_vocabularies_and_no_unaccepted_values
+    E   AssertionError: 'failed' not found in 'Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.' : validation intro in child missing member 'failed'
+    tests/test_ipd_authoring.py:610: AssertionError
+    1 failed, 24 deselected in 0.23s
+    ```
+    GREEN output upon restore (exit 0):
+    ```
+    tests/test_ipd_authoring.py .                                            [100%]
+    1 passed, 24 deselected in 0.26s
+    ```
+    SECOND red proof (negative direction: inserting `'verified'` into `_VALID_INTRO`'s rendered value list):
+    RED output (exit 1):
+    ```
+    FAILED tests/test_ipd_authoring.py::ScaffoldVocabularyIntroTests::test_scaffold_intros_state_closed_vocabularies_and_no_unaccepted_values
+    E   AssertionError: Items in the first set but not the second:
+    E   'verified' : validation intro in child advertises out-of-vocabulary value: {'verified'}
+    tests/test_ipd_authoring.py:647: AssertionError
+    1 failed, 24 deselected in 0.33s
+    ```
+    Reverted to clean state.
+    Satisfiability proof: test runs GREEN on unmodified scaffold:
+    ```
+    tests/test_ipd_authoring.py .........................                    [100%]
+    25 passed in 1.48s
+    ```
+    Per-test count for `tests/test_ipd_authoring.py` with `-o addopts=""`:
+    `25 passed in 1.48s`
+    END-TO-END defect demonstration:
+    ```
+    IPD-S402 line 82: V-01: unknown validation result 'verified' (expected one of blocked, failed, pass, pending)
+    ```
+    Full bare `python3 -m pytest` summary line:
+    `4170 passed, 2 skipped, 3 warnings in 105.17s (0:01:45)`
+  - Result: pass
 
 ## Approval and execution gate
 
