@@ -1,5 +1,6 @@
 - Id: bjcz05
-- Status: open
+- Status: graduated
+- Graduated-To: bjcz05
 - Blocks-Release: next
 - Set: bjcz05
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: backlog.run_set appends the history sidecar event BEFORE its close-legitimacy gate and BEFORE the dry-run decision, so a refused or previewed transition leaves a phantom event
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053053Z-3200037: ulepef
 - 2026-09-29 created (aw backlog): backlog.run_set appends the history sidecar event BEFORE its close-legitimacy gate and BEFORE the dry-run decision, so a refused or previewed transition leaves a phantom event
 
 Filed while authoring plan 47ttnv (backlog mawwlc), which deferred this row and needs a durable carrier for it.
