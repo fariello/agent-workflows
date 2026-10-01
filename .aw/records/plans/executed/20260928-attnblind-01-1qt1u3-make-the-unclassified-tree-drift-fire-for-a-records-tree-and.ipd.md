@@ -6,7 +6,7 @@
 - Scope: Rekey the per-file unclassified drift off the `.agents/` prefix and onto a DERIVED exemption set (the non-tree `SCAN_ROOTS` file entries, plus the existing README/non-artifact filter), and add a separate shallow records-root TREE DISCOVERY drift that names a `.aw/records/<type>/` directory matching no inventoried `TreePolicy`, so a tree that is unreachable by the file walk is still reported. One new rule id for the tree-level finding; no change to `TREE_POLICY`, to any status map, to `SCAN_ROOTS`, or to what any existing rule means.
 - Scope-Paths: agent_workflows/attention.py, agent_workflows/attention_contract.py, tests/test_attention_blind_spot.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode
 - Id: 1qt1u3
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 1qt1u3 verified (set attnblind, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): status set to reviewed
 
