@@ -21,6 +21,8 @@ from unittest import mock
 
 from agent_workflows import attention as att
 from agent_workflows import attention_contract as A
+from agent_workflows import agent_schema
+from agent_workflows import backlog as backlog_mod
 from agent_workflows.artifact_core import Drift as core_Drift
 
 # This repository's own root, for the few cases that legitimately measure the REAL corpus (the E-08
@@ -3176,6 +3178,229 @@ class SelectorNoMatchIsReportedTests(unittest.TestCase):
             rc_bare, _, err_bare = _attsel_run(root, selectors=[])
             self.assertEqual(rc_bare, 0)
             self.assertEqual(err_bare, "")
+
+    def test_surface_agent_no_match(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            rc, out, err = _attsel_run(root, selectors=["zzzzzz"], agent=True)
+            self.assertEqual(rc, att.EXIT_UNRESOLVED_SELECTOR)
+            self.assertEqual(err, "")
+            payload = json.loads(out)
+            agent_schema.assert_valid_agent_record(payload)
+            self.assertEqual(payload["outcome"], "cannot-run")
+            self.assertEqual(payload["unresolved_selectors"], ["zzzzzz"])
+
+    def test_surface_json_no_match(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            rc, out, err = _attsel_run(root, selectors=["zzzzzz"], json=True)
+            self.assertEqual(rc, att.EXIT_UNRESOLVED_SELECTOR)
+            self.assertEqual(err, "")
+            payload = json.loads(out)
+            agent_schema.assert_valid_agent_record(payload)
+            self.assertEqual(payload["outcome"], "cannot-run")
+            self.assertEqual(payload["unresolved_selectors"], ["zzzzzz"])
+
+    def test_surface_check_no_match(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            rc, out, err = _attsel_run(root, selectors=["zzzzzz"], check=True)
+            self.assertEqual(rc, att.EXIT_UNRESOLVED_SELECTOR)
+            self.assertEqual(out, "")
+            self.assertIn("zzzzzz", err)
+            self.assertNotIn("aw attention --check: the view is valid.", err)
+            self.assertNotIn("aw attention --check: the view is valid.", out)
+            # Refusal is separate from drift: no drift or contract violations appended
+            self.assertNotIn("drift", err.lower())
+
+    def test_surface_check_agent_no_match(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            rc, out, err = _attsel_run(
+                root, selectors=["zzzzzz"], check=True, agent=True
+            )
+            self.assertEqual(rc, att.EXIT_UNRESOLVED_SELECTOR)
+            self.assertEqual(err, "")
+            payload = json.loads(out)
+            agent_schema.assert_valid_agent_record(payload)
+            self.assertEqual(payload["outcome"], "cannot-run")
+            self.assertIs(payload["verified"], False)
+            self.assertIs(payload["complete"], False)
+            self.assertEqual(payload["unresolved_selectors"], ["zzzzzz"])
+            self.assertNotIn("the view is valid.", out)
+            self.assertNotIn("diagnostics", payload)
+
+    def test_surface_id_list_mode_no_match(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            rc, out, err = _attsel_run(root, selectors=["zzzzzz"], id6_only=True)
+            self.assertEqual(rc, att.EXIT_UNRESOLVED_SELECTOR)
+            self.assertEqual(out, "")
+            self.assertIn("zzzzzz", err)
+
+    def test_surface_paths_list_mode_no_match(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            rc, out, err = _attsel_run(root, selectors=["zzzzzz"], paths=True)
+            self.assertEqual(rc, att.EXIT_UNRESOLVED_SELECTOR)
+            self.assertEqual(out, "")
+            self.assertIn("zzzzzz", err)
+
+    def test_surface_filenames_list_mode_no_match(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            rc, out, err = _attsel_run(root, selectors=["zzzzzz"], filenames=True)
+            self.assertEqual(rc, att.EXIT_UNRESOLVED_SELECTOR)
+            self.assertEqual(out, "")
+            self.assertIn("zzzzzz", err)
+
+    def test_surface_mixed_matched_and_unmatched(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            rc, out, err = _attsel_run(root, selectors=["abc123", "zzzzzz"], agent=True)
+            self.assertEqual(rc, att.EXIT_UNRESOLVED_SELECTOR)
+            payload = json.loads(out)
+            agent_schema.assert_valid_agent_record(payload)
+            self.assertEqual(payload["outcome"], "cannot-run")
+            self.assertEqual(payload["matched_selectors"], ["abc123"])
+            self.assertEqual(payload["unresolved_selectors"], ["zzzzzz"])
+
+    def test_downstream_filter_emptied_match_exits_clean(self):
+        # F-09 control: matched token filtered to empty by --status exits 0 with clean empty message
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            rc, out, err = _attsel_run(root, selectors=["abc123"], status=["done"])
+            self.assertEqual(rc, 0)
+            self.assertIn("0 artifacts shown", out)
+            self.assertEqual(err, "")
+
+
+class SelectorVocabularyExemptionTests(unittest.TestCase):
+    """Pin the derived vocabulary exemption over all six derivation sources, type aliases,
+    drift-free exit 0, refusable predicate, and case-insensitivity (IPD o6ksmw E-03)."""
+
+    def test_vocabulary_derives_from_all_six_sources(self):
+        # Snapshot the contract sources before deriving vocabulary so that an in-memory patch bites
+        tracked_trees = tuple(A.TRACKED_TREES)
+        attention_classes = tuple(A.ATTENTION_CLASSES)
+        class_maps = {t: dict(m) for t, m in A.CLASS_MAPS.items()}
+        priorities = tuple(backlog_mod.PRIORITIES)
+        run_status_aliases = dict(att._RUN_STATUS_ALIASES)
+        try:
+            from agent_workflows import run_viewer
+
+            abandoned_token = str(run_viewer.ABANDONED).lower().rstrip("?")
+        except Exception as exc:
+            self.fail(f"run_viewer.ABANDONED required for vocabulary derivation: {exc}")
+
+        vocab = att.selector_vocabulary()
+
+        # (1) A.TRACKED_TREES (coverage assertion: fully redundant with TYPE_ALIASES)
+        for tree in tracked_trees:
+            self.assertIn(
+                str(tree).lower(),
+                vocab,
+                f"TRACKED_TREES token {tree} missing from vocabulary",
+            )
+
+        # (2) A.ATTENTION_CLASSES (bite test: ready is unique to it)
+        for cls in attention_classes:
+            self.assertIn(
+                str(cls).lower(),
+                vocab,
+                f"ATTENTION_CLASSES token {cls} missing from vocabulary",
+            )
+
+        # (3) A.CLASS_MAPS native statuses across all trees (bite test: 22 tokens unique)
+        for _tree, class_map in class_maps.items():
+            for st in class_map.keys():
+                self.assertIn(
+                    str(st).lower(),
+                    vocab,
+                    f"CLASS_MAPS token {st} missing from vocabulary",
+                )
+
+        # (4) backlog.PRIORITIES (bite test: 3 tokens unique)
+        for p in priorities:
+            self.assertIn(
+                str(p).lower(),
+                vocab,
+                f"PRIORITIES token {p} missing from vocabulary",
+            )
+
+        # (5) att._RUN_STATUS_ALIASES keys and values (bite test: 18 tokens unique)
+        for k, v in run_status_aliases.items():
+            self.assertIn(
+                str(k).lower(),
+                vocab,
+                f"_RUN_STATUS_ALIASES key {k} missing from vocabulary",
+            )
+            self.assertIn(
+                str(v).lower(),
+                vocab,
+                f"_RUN_STATUS_ALIASES value {v} missing from vocabulary",
+            )
+
+        # (6) run_viewer.ABANDONED (bite test: 1 token unique)
+        self.assertIn(
+            abandoned_token,
+            vocab,
+            f"run_viewer.ABANDONED token {abandoned_token} missing from vocabulary",
+        )
+
+    def test_vocabulary_includes_type_aliases(self):
+        # Type aliases, including type names accepted by CLI but not scanned (e.g. roadmaps, walkthroughs)
+        type_aliases = dict(att.TYPE_ALIASES)
+        vocab = att.selector_vocabulary()
+        for k, v in type_aliases.items():
+            self.assertIn(
+                str(k).lower(),
+                vocab,
+                f"TYPE_ALIASES key {k} missing from vocabulary",
+            )
+            self.assertIn(
+                str(v).lower(),
+                vocab,
+                f"TYPE_ALIASES value {v} missing from vocabulary",
+            )
+
+    def test_unmatched_vocabulary_token_exits_clean_in_drift_free_repo(self):
+        # A vocabulary token matching nothing in a drift-free repo exits 0
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            # Human surface
+            rc, out, err = _attsel_run(root, selectors=["reusable"])
+            self.assertEqual(rc, 0)
+            self.assertIn("0 artifacts shown", out)
+            self.assertEqual(err, "")
+
+            # Machine surface
+            rc_m, out_m, err_m = _attsel_run(root, selectors=["reusable"], agent=True)
+            self.assertEqual(rc_m, 0)
+            payload = json.loads(out_m)
+            self.assertEqual(payload["outcome"], "clean")
+            self.assertNotIn("unresolved_selectors", payload)
+
+    def test_selector_match_facts_refusable(self):
+        vocab = att.selector_vocabulary()
+        smf = att.SelectorMatchFacts(
+            matched=(),
+            unmatched=("reusable", "zzzzzz"),
+            invalid=(),
+            vocabulary=tuple(vocab),
+        )
+        self.assertNotIn("reusable", smf.refusable)
+        self.assertIn("zzzzzz", smf.refusable)
+
+    def test_case_insensitivity_via_call_path(self):
+        # Case-insensitivity: set holds lowercase only, but uppercase selector is exempt when driven
+        vocab = att.selector_vocabulary()
+        self.assertNotIn("REUSABLE", vocab)
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            rc, out, err = _attsel_run(root, selectors=["REUSABLE"])
+            self.assertEqual(rc, 0)
+            self.assertEqual(err, "")
 
 
 class AttentionMatchingArtifactsCountTests(unittest.TestCase):
