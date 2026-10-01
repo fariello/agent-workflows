@@ -125,6 +125,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier: 87m438
 - THE CROSS-TYPE PATH GUARD this plan depends on.
   - Carrier: eby93o
+  - Carrier-Evidence: .aw/records/plans/executed/20260929-awrenamesel-01-eby93o-confine-a-path-selector-to-the-requested-type-tree-so-a-muta.ipd.md
 - THE `roadmaps` ADDRESSABILITY DEFECT and the broken hint that works around it.
   - Carrier: 3qxuw1
   - Carrier-Evidence: .aw/records/plans/executed/20260929-awrenamesel-04-3qxuw1-derive-the-rename-hint-type-from-where-the-record-lives-so-t.ipd.md

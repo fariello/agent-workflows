@@ -1102,6 +1102,52 @@ def _declares_typed_subject(path: Path, id6: str) -> bool:
     return any(m.group(1) == id6 for m in _TYPED_SUBJECT_RE.finditer(region))
 
 
+# ----------------------------------------------------------------------------------------------
+# MUTATING SELECTOR CONFINEMENT (IPD eby93o E-03)
+#
+# A type-scoped mutating verb (e.g. `aw rename specs <path>`) must not act on a file outside
+# that type's records tree. Resolution precedence puts direct PATH first regardless of type,
+# so `resolve` legitimately returns any existing file for readers (`aw find`, checkers, runners).
+# `resolve_for_mutation` enforces tree containment on the returned paths before mutation.
+#
+# RECONCILIATION WITH SIBLING (F-14): `research_archive._resolve_research_for_mutation` confines
+# to one tree by DENYING `MATCH_PATH` and DROPPING out-of-root paths, refusing only when all paths
+# are dropped. Both behaviors are correct because they answer different questions: that helper
+# filters a possibly-MULTI-member result (it accepts a setid multi-match, where dropping non-members
+# is right), while this guard fires on an explicitly named foreign PATH, where the operator asked
+# for one specific file with the wrong verb and refusing loudly naming the type and path is correct.
+# Do NOT adopt deny-MATCH_PATH here: that would break legitimate same-type path selectors (E-04).
+#
+# FAIL-CLOSED ON EMPTY (OQ-02, F-15): When `record_dirs` returns [] for the requested type, the
+# predicate MUST fail closed (refuse). `record_dirs` is queried for the REQUESTED type, so in a
+# cross-type call the empty list belongs to the attacking type while the victim's tree is full;
+# skipping on empty would admit the exact cross-type mutation this guard exists to prevent.
+# ----------------------------------------------------------------------------------------------
+
+
+def is_path_in_record_dirs(repo_root: Path, record_type: str, path: Path) -> bool:
+    """Return True iff ``path`` lies inside any directory for ``record_type`` under ``repo_root``.
+
+    Fails closed: returns False if ``record_dirs(repo_root, record_type)`` is empty.
+    Reads no file content (purely path-based containment).
+    """
+    dirs = record_dirs(repo_root, record_type)
+    if not dirs:
+        return False
+    try:
+        rp = path.resolve()
+    except OSError:
+        return False
+    for d in dirs:
+        try:
+            rd = d.resolve()
+            if rp.is_relative_to(rd):
+                return True
+        except (ValueError, OSError):
+            continue
+    return False
+
+
 def resolve_for_mutation(
     repo_root: Path,
     record_type: str,
@@ -1132,6 +1178,22 @@ def resolve_for_mutation(
         )
     if not res.paths:
         return [], f"no {record_type} artifact matched {selector!r}"
+
+    # Containment guard (IPD eby93o E-03): refuse any path outside the requested type's records tree.
+    dirs = record_dirs(repo_root, record_type)
+    for p in res.paths:
+        if not dirs:
+            return (
+                [],
+                f"{record_type} verb cannot act on {p}: it is not inside the {record_type} records tree "
+                f"(no {record_type} records tree found)",
+            )
+        if not is_path_in_record_dirs(repo_root, record_type, p):
+            return (
+                [],
+                f"{record_type} verb cannot act on {p}: it is not inside the {record_type} records tree",
+            )
+
     if len(res.paths) == 1:
         return list(res.paths), None
 
