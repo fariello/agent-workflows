@@ -361,7 +361,7 @@ class BashCompletionDrivenTests(unittest.TestCase):
         (
             "aw completion <TAB>",
             ["aw", "completion", ""],
-            ["bash", "fish", "install", "uninstall", "zsh"],
+            ["bash", "fish", "install", "status", "uninstall", "zsh"],
             "the MAINTAINER'S REPORTED COMMAND. It works only because E-08 gave the positional real "
             "argparse `choices`: the vocabulary previously existed solely as a `metavar` display "
             "string, so no amount of generator work could have surfaced it",
@@ -725,7 +725,7 @@ class CompletionCliTests(unittest.TestCase):
         )
         self.assertEqual(
             sorted(target_action.choices or []),
-            sorted([*completion.SUPPORTED_SHELLS, "install", "uninstall"]),
+            sorted([*completion.SUPPORTED_SHELLS, "install", "status", "uninstall"]),
         )
         for shell in completion.SUPPORTED_SHELLS:
             self.assertIn(shell, target_action.choices or [])
@@ -2320,9 +2320,9 @@ class StaleCompletionWarningTests(_DropInFixture):
     THE GAP THIS CLOSES. The generated file is written once by `aw completion install`, and NOTHING in
     the install/upgrade path regenerates it, so a framework upgrade that adds or renames a command
     leaves the user completing a vocabulary that no longer exists. Worse, it was UNREPORTABLE:
-    `_completion_configured` composes `is_completion_installed`, a PRESENCE check, so a stale file took
-    the same silent branch as a current one and the user had no way to find out. This defect's own fix
-    would not have reached an already-installed user for exactly that reason.
+    `is_completion_installed` was a PRESENCE check, so a stale file took the same silent branch as
+    a current one and the user had no way to find out before three-state classification was added.
+    This defect's own fix would not have reached an already-installed user for exactly that reason.
 
     WARN, NEVER REWRITE (maintainer ruling 2026-09-12, OQ-01). The user's completion file is theirs
     once written and a user-scoped write requires consent, so the file-untouched assertion below is

@@ -69,12 +69,17 @@ files to guess it is not.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shlex
 import subprocess
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+
+from agent_workflows import config as _config
+from agent_workflows import versioning as _versioning
 
 # The three console-script entrypoints (pyproject.toml [project.scripts]). Completion binds all three.
 ENTRYPOINTS = ("aw", "agentwf", "agent-workflows")
@@ -1126,6 +1131,9 @@ def installed_completion_state(shell: str, target_dir: Optional[Path] = None) ->
     ``absent`` covers both "no file" and "a FOREIGN file" (one without our sentinel), because in both
     cases OUR completion is not installed and the right message is the existing enable-tip, not a
     staleness warning about a file we did not write. READ-ONLY: this never writes or repairs anything.
+
+    Called by ``cli._completion_tip`` during install/setup and centrally by
+    ``cli._maybe_notify_stale_completion`` on interactive CLI completion checks.
     """
     try:
         primary = resolve_completion_dir(shell, target_dir) / completion_filename(shell)
@@ -1147,6 +1155,127 @@ def installed_completion_state(shell: str, target_dir: Optional[Path] = None) ->
     ):  # pragma: no cover - a generator failure is not evidence of staleness
         return "current"
     return "current" if body == expected else "stale"
+
+
+# --------------------------------------------------------------------------------------
+# Notice throttle stamp and version key (s2yf26 E-01, E-02)
+# --------------------------------------------------------------------------------------
+
+NOTICE_STAMP_FILENAME = "completion-notice.json"
+
+
+def notice_stamp_path() -> Path:
+    """Return the path to the per-user completion notice throttle stamp.
+
+    Deliberately BESIDE ``config.json``, never inside it (following the two existing
+    sidecar precedents: ``runner_profiles.store_path``, whose own docstring records the
+    reason as '``config.py`` has a fixed allowlist plus a pending restructuring', and
+    ``leak_sanitizer.USER_HINTS_FILENAME``). Resolves through ``config.config_dir()``
+    and honors ``XDG_CONFIG_HOME``.
+
+    This stamp is a THROTTLE answering 'have I already spoken for this version', and
+    NEVER a staleness detector (F-04). Detection remains a pure byte comparison in
+    ``installed_completion_state``; the stamp avoids running that ~50ms probe on every
+    interactive command.
+    """
+    return _config.config_dir() / NOTICE_STAMP_FILENAME
+
+
+def read_notice_stamp() -> Optional[Dict[str, Any]]:
+    """Read the per-user completion notice stamp, or None if absent or invalid.
+
+    Fails soft in both directions: returns None for an absent file, an unreadable file,
+    malformed JSON, an unexpected schema version (!= 1), or a non-string
+    ``last_notified_version``. Treating a corrupt stamp as absent costs one extra probe
+    and self-heals on the next write, whereas raising would break commands on a damaged
+    cache.
+    """
+    path = notice_stamp_path()
+    try:
+        text = path.read_text(encoding="utf-8")
+        data = json.loads(text)
+        if not isinstance(data, dict):
+            return None
+        if data.get("schema") != 1:
+            return None
+        version = data.get("last_notified_version")
+        if not isinstance(version, str):
+            return None
+        return data
+    except (OSError, ValueError, TypeError):
+        return None
+
+
+def write_notice_stamp(version_key: str) -> bool:
+    """Persist the notice stamp atomically, swallowing all OSErrors.
+
+    Writes ``{"schema": 1, "last_notified_version": version_key}`` atomically via a
+    tempfile in the same directory plus ``os.replace``, mirroring ``config.save``, so a
+    concurrent reader never observes a half-written file. Creates the parent directory
+    as needed.
+
+    Swallows every ``OSError`` and returns a boolean indicating whether persistence
+    succeeded: a read-only filesystem or full disk must never turn a working invocation
+    into a failure.
+    """
+    path = notice_stamp_path()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = (
+            json.dumps({"schema": 1, "last_notified_version": version_key}, indent=2)
+            + "\n"
+        )
+        fd, tmp_name = tempfile.mkstemp(
+            dir=str(path.parent), prefix=".completion-notice.", suffix=".tmp"
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                fh.write(payload)
+            os.replace(tmp_name, str(path))
+            return True
+        except BaseException:
+            try:
+                os.unlink(tmp_name)
+            except OSError:
+                pass
+            raise
+    except OSError:
+        return False
+
+
+def notice_version_key(version: Optional[str] = None) -> str:
+    """Return the release-plus-rc version key used to throttle completion notices.
+
+    Keys on the PEP 440 release plus any rc identifier (e.g. '1.3.0rc2' or '1.2.0'),
+    derived by passing ``agent_workflows.__version__`` (or an explicit ``version``) to
+    ``versioning.parse_our_version`` and rendering ``f"{major}.{minor}.{patch}"`` with
+    ``rc{n}`` appended when ``Parsed.rc`` is not None.
+
+    Two measured reasons for keying on release-plus-rc rather than raw version:
+      1. Checkout churn: in a source checkout, ``__version__`` contains a ``.devN+g<sha>``
+         local segment that changes on every commit; keying on the stable release-plus-rc
+         avoids re-firing the notice continuously for developers.
+      2. Hygiene: the ``+g<sha>`` segment is a machine-identifying string that the leak
+         sanitizer keeps out of shared output, so it should not be persisted in cache keys.
+
+    Falls back to the raw version string (e.g. 'unknown') if parsing returns None, and
+    never raises.
+    """
+    try:
+        if version is None:
+            import agent_workflows
+
+            version = getattr(agent_workflows, "__version__", "unknown")
+        parsed = _versioning.parse_our_version(str(version))
+        if parsed is None:
+            return str(version)
+        major, minor, patch = parsed.release
+        base = f"{major}.{minor}.{patch}"
+        if parsed.rc is not None:
+            return f"{base}rc{parsed.rc}"
+        return base
+    except Exception:
+        return str(version) if version is not None else "unknown"
 
 
 # ======================================================================================
