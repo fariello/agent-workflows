@@ -1,5 +1,5 @@
 - Id: bn58ha
-- Status: graduated
+- Status: done
 - Graduated-To: bn58ha
 - Blocks-Release: next
 - Set: bn58ha
@@ -8,6 +8,7 @@
 - Summary: finalize_precheck reports 'precheck passed' for a plan whose finalize is wedged by an unknown-outcome journal, so the preview surface contradicts what --apply will do
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD hlv737 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-bn58ha-01-hlv737-make-finalize-precheck-report-the-wedged-finalize-journal-it.ipd.md); evidence .aw/records/plans/executed/20260929-bn58ha-01-hlv737-make-finalize-precheck-report-the-wedged-finalize-journal-it.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260929T021205Z-3914774: hlv737
 - 2026-09-28 created (aw backlog): Filed while authoring cnf7gw's graduation plan; measured, see body.
 
