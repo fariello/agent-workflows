@@ -1,5 +1,5 @@
 - Id: baskrx
-- Status: graduated
+- Status: done
 - Graduated-To: baskrx
 - Set: baskrx
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Two runner symbols became byte-identical after hostdedup Order 01 was reviewed and are unlifted
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): closed by aw oc run: IPD 9oj6t2 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-baskrx-01-9oj6t2-lift-the-two-remaining-liftable-host-integrate-shells-into-r.ipd.md); evidence .aw/records/plans/executed/20260929-baskrx-01-9oj6t2-lift-the-two-remaining-liftable-host-integrate-shells-into-r.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: 9oj6t2
 - 2026-09-22 created (aw backlog): Two runner symbols became byte-identical after hostdedup Order 01 was reviewed and are unlifted
 
