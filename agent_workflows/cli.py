@@ -3764,7 +3764,10 @@ def _build_parser() -> argparse.ArgumentParser:
         parents=[common],
         help="Unset (remove) a configuration variable (e.g. 'defaults.migrate_layout', 'color_depth').",
         description=(
-            "Remove a configuration variable, restoring its default or absent state."
+            "Remove a configuration variable, restoring its default or absent state. "
+            "Unsetting an absent or default variable is a no-op exiting 0, while an "
+            "unrecognized variable name is refused with exit 2 naming valid keys. "
+            "Changes are written to the configuration file reported by `config show`."
         ),
     )
     p_config_unset.add_argument(
@@ -5421,6 +5424,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "list",
         parents=[common_upgrade],
         help="List candidate source repos and their versions.",
+        description=(
+            "Discover candidate source repositories across search roots, showing their "
+            "framework version, layout, and git status. Optionally computes directory "
+            "sizes with --size, or filters to already-installed repositories with --installed-only."
+        ),
     )
     p_upg_list.add_argument(
         "--installed-only",
@@ -5435,6 +5443,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "new",
         parents=[common_upgrade],
         help="Create a sandbox copy and run the upgrade.",
+        description=(
+            "Create a disposable sandbox copy of a source repository and run an upgrade rehearsal. "
+            "Never mutates the source repository; neutralizes git remotes in the sandbox copy "
+            "and redirects configuration calls away from the real environment to ensure isolation."
+        ),
     )
     p_upg_new.add_argument(
         "repo", help="Source repo name (under search roots) or a path."
@@ -5493,6 +5506,10 @@ def _build_parser() -> argparse.ArgumentParser:
         "sandboxes",
         parents=[common_upgrade],
         help="List existing sandboxes.",
+        description=(
+            "List existing upgrade rehearsal sandboxes found under candidate search roots "
+            "or directories specified with --root, displaying source paths and creation times."
+        ),
     )
     p_upg_boxes.add_argument(
         "--root", action="append", help="Extra root to search (repeatable)."
@@ -5502,6 +5519,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "probe",
         parents=[common_upgrade],
         help="Re-probe a sandbox's state (read-only).",
+        description=(
+            "Inspect and display the recorded state of an upgrade rehearsal sandbox (read-only), "
+            "including baseline and installed versions, layout, manifest, and git changes. "
+            "Refuses any path lacking the harness marker (.aw-sandbox.json) with exit 2."
+        ),
     )
     p_upg_probe.add_argument("sandbox")
 
@@ -5509,6 +5531,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "env",
         parents=[common_upgrade],
         help="Print shell exports to explore a sandbox safely.",
+        description=(
+            "Print shell environment export statements and a cd command to explore a sandbox "
+            "interactively under the same isolation used during rehearsal. Refuses any path "
+            "lacking the harness marker (.aw-sandbox.json) with exit 2."
+        ),
     )
     p_upg_env.add_argument("sandbox")
 
@@ -5516,6 +5543,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "clean",
         parents=[common_upgrade],
         help="Remove sandboxes (marker-gated).",
+        description=(
+            "Remove upgrade rehearsal sandbox directories. Previews removals by default and deletes "
+            "nothing until `-y` is passed. Refuses any path lacking the harness marker (.aw-sandbox.json) "
+            "even when `-y` is supplied, preventing accidental deletion of non-sandbox directories."
+        ),
     )
     p_upg_clean.add_argument("paths", nargs="*", help="Sandbox paths to remove.")
     p_upg_clean.add_argument(
