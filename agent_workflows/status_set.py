@@ -1987,6 +1987,113 @@ def run_set_command(
             )
             return 1
 
+    # gatebypass 47ttnv E-01/E-02/E-03: release-gate close-legitimacy check for backlog records.
+    # Calls the single shared predicate `check_engine.evaluate_blocking_close` on the positional
+    # dispatch path so both spellings of `aw backlog set` enforce the close-legitimacy rule.
+    # Placed in the pre-flight loop region:
+    #   (a) BEFORE `is_dry_run`, so a dry run on an illegitimate close refuses rather than previewing;
+    #   (b) BEFORE `apply_status_change`, so a refusal writes nothing and moves nothing;
+    #   (c) preserving the all-or-nothing batch contract ("Refusing before making changes").
+    # The predicate is evaluated against `repo_root`: the positional path has no `--gate-dir` concept
+    # (honored only by `backlog.run_set` for runner split-tree lane closes).
+    from agent_workflows import check_engine as _ce
+    from agent_workflows import releases as _releases
+
+    for rec in matched_records:
+        if rec.record_type != "backlog":
+            continue
+
+        norm_target = normalize_target_status(target_status, rec.record_type)
+
+        # Compute gate-relevant post-mutation item text for the predicate (E-02).
+        # Ensures same-call de-gating (`--blocks-release -`) and same-call gate defaulting
+        # are judged against the state the item will actually carry.
+        item_text = rec.raw_text
+        if getattr(args, "priority", None) is not None:
+            item_text = _releases.set_priority_line(
+                item_text, getattr(args, "priority", None)
+            )
+        if getattr(args, "work_kind", None) is not None:
+            item_text = _releases.set_work_kind_line(
+                item_text, getattr(args, "work_kind", None)
+            )
+
+        br_arg = getattr(args, "blocks_release", None)
+        if br_arg is not None:
+            item_text = _releases.set_blocks_release_line(item_text, br_arg)
+        else:
+            _current_text = item_text
+            _effective_kind = (
+                getattr(args, "work_kind", None)
+                or _backlog_mod.parse_item(_current_text).kind
+            )
+            _existing_m = re.search(
+                r"(?m)^- Blocks-Release:[ \t]*(\S+)[ \t]*$", _current_text
+            )
+            _existing_br = _existing_m.group(1) if _existing_m else None
+            _parsed_item = _backlog_mod.parse_item(_current_text)
+            _is_exempt = bool(
+                _parsed_item.release_exempt_kind
+                and _parsed_item.release_exempt_ref
+                and _parsed_item.release_exempt_kind != "-"
+                and _parsed_item.release_exempt_ref != "-"
+            )
+            _gate_default, _ = _backlog_mod.decide_gate_default(
+                repo_root,
+                kind=_effective_kind,
+                status=norm_target,
+                explicit_blocks_release=None,
+                existing_blocks_release=_existing_br,
+                is_exempt=_is_exempt,
+            )
+            if _gate_default is not None:
+                item_text = _releases.set_blocks_release_line(
+                    _current_text, _gate_default
+                )
+
+        ev_arg = getattr(args, "evidence", None)
+        prior_prio = _backlog_mod.parse_item(rec.raw_text).priority
+
+        verdict = _ce.evaluate_blocking_close(
+            repo_root,
+            rec.path,
+            norm_target,
+            evidence=ev_arg,
+            item_text=item_text,
+            prior_priority=prior_prio,
+        )
+
+        prefix = (
+            "aw backlog set"
+            if (scoped_type_canonical == "backlog" or scoped_type == "backlog")
+            else "aw set"
+        )
+        if not verdict.legitimate and verdict.severity == "error":
+            if ctx.is_agent or ctx.is_json:
+                res = CommandResult(
+                    command="set",
+                    status="findings",
+                    exit_code=1,
+                    summary=f"refused: {verdict.reason}",
+                    diagnostics=[
+                        Diagnostic(
+                            location=str(rec.path),
+                            rule=verdict.rule
+                            or "check.blocking-item-closed-without-gate",
+                            detail=verdict.reason,
+                            severity="error",
+                        )
+                    ],
+                )
+                return get_renderer(ctx).emit(res, ctx)
+            sys.stderr.write(f"{prefix}: refused: {verdict.reason}.\n")
+            for fix in verdict.fixes:
+                sys.stderr.write(f"  - {fix}\n")
+            return 1
+
+        if verdict.severity == "warn":
+            sys.stderr.write(f"{prefix}: warning: {verdict.reason}.\n")
+
     # ipdgates Order wezhxg: a request to move a PLAN to `executed` (or its `done` alias) MUST NOT
     # use the raw ungated move - it transparently DELEGATES into the gated `aw ipd finalize`
     # transaction (begin receipt + scope reconciliation + three gates + attributed history +

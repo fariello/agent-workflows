@@ -224,15 +224,16 @@ and a link pointing at nothing is a broken handoff claim either way. Set the fie
 with `aw ipd set ... --from-spec <spec-id6>`, or let the advisory `check.plan-spec-link-missing`
 rule nudge when a pending plan cites a spec without carrying the link.
 
-Close-legitimacy rule for a release-blocking backlog item: `aw backlog set done` on an item carrying
-`- Blocks-Release: <R>` FAILS CLOSED unless the gate is provably preserved or released via one of three
+Close-legitimacy rule for a release-blocking backlog item: both spellings of `aw backlog set`
+(positional `aw backlog set done <item>` and flag `aw backlog set <item> --status done`) on an item carrying
+`- Blocks-Release: <R>` FAIL CLOSED unless the gate is provably preserved or released via one of three
 fixes: (1) HANDOFF, EVERY same-gate carrier (From-Backlog plan or spec) carrying `- From-Backlog: <this id6>` and
 the same `- Blocks-Release: <R>` must be executed or implemented (set with `aw ipd set ... --from-backlog <id6>`);
 a multi-carrier item stays `graduated` until the last carrier executes; (2) SATISFIED, a resolvable in-tree artifact citation
 `aw backlog set done <item> --evidence <path>`; (3) DE-GATED, clear the gate first (or in the same call)
 with `aw backlog set done <item> --blocks-release -`. Parking a blocker or demoting its priority is
-allowed but WARNs. One shared predicate (`check_engine.evaluate_blocking_close`) backs the setter, the
-`aw check` consistency rules (`check.blocking-item-closed-without-gate`, `check.from-backlog-gate-mismatch`,
+allowed but WARNs. One shared predicate (`check_engine.evaluate_blocking_close`) backs both setter
+spellings, the `aw check` consistency rules (`check.blocking-item-closed-without-gate`, `check.from-backlog-gate-mismatch`,
 and the advisory `check.orphaned-live-blocker`), and the opt-in pre-commit hook, so they cannot diverge.
 
 An OPT-IN local pre-commit hook (`backlog-blocking-close-gate`) catches the hand-edit bypass (staging a

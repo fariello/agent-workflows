@@ -34939,14 +34939,12 @@ def close_backlog_item(
     ``repo`` is the tree the setter operates on: it is where the item file MOVES and, inseparably,
     the ``repo_root`` the release-gate predicate evaluates against (see the warning below).
 
-    THE `--status` SPELLING IS DELIBERATE AND LOAD-BEARING (zhr6mc D1). `aw backlog set <status>
-    <selector>` (positional) dispatches to `status_set.run_set_command`, which does NOT run the
-    shared release-gate close predicate and cannot even accept `--evidence`; `aw backlog set
-    <selector> --status done` dispatches to `backlog.run_set`, which DOES call
-    `check_engine.evaluate_blocking_close` and REFUSES an illegitimate blocking close. Verified live:
-    a `graduated` item carrying `Blocks-Release: next` closed with NO evidence via the positional
-    form (exit 0) and was REFUSED via this one. The runner must be gated, so it uses this form; do
-    not "simplify" it back to the positional spelling.
+    THE `--status` SPELLING IS RETAINED FOR RUNNER INTEGRATION (zhr6mc D1, superseded in fact by
+    47ttnv). Both spellings (`aw backlog set <selector> --status done` and `aw backlog set done
+    <selector>`) now run the shared release-gate close predicate and honor evidence. The `--status`
+    spelling is retained because it is what the pinned argv and `tests/test_runner_shared.py` already
+    express and because only it honors `--gate-dir`, which the following paragraph depends on for
+    the split-tree decision.
 
     `--dir` IS NOT MERELY "WHERE THE FILE MOVES" (dirtygates-03 `9iq461` F-10/F-11). Because the
     gated route runs `check_engine.evaluate_blocking_close`, this ONE argument also chooses the tree
