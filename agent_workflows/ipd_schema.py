@@ -16,6 +16,7 @@ existing single source of truth, D52/D65) so the two can never diverge.
 
 from __future__ import annotations
 
+import datetime
 import re
 from typing import Dict, FrozenSet, List, NamedTuple, Optional, Sequence, Tuple
 
@@ -145,6 +146,9 @@ META_QUARANTINE_TRIO: Tuple[str, ...] = (
 )
 META_WATERMARK = "Highest E allocated"
 META_APPROVAL = "Approval"
+# The reserved template placeholder for the Date metadata field.
+TEMPLATE_DATE_PLACEHOLDER = "<YYYY-MM-DD>"
+_DATE_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})$")
 # Scope-Paths (Order oorry1): a machine-readable allowlist of the repo-relative paths a plan may
 # change, so a later finalize transaction (Order v7e88a) can compare declared vs actually-changed
 # paths. Recognized-but-OPTIONAL: it is NOT in META_REQUIRED (adding it there would fail every
@@ -476,6 +480,31 @@ def validate_metadata(
     plan_id = fields.get("Id")
     if plan_id is not None and not _core.is_valid_id6(plan_id.strip()):
         errors.append(MetaError("Id", "Id must be a 6-char base36-lowercase token"))
+
+    # Date: required field whose value must be an ISO calendar date (YYYY-MM-DD),
+    # exempting the literal <YYYY-MM-DD> template placeholder. Sited here beside
+    # the Kind/Status/Readiness/Id checks because the grammar is owned by this module
+    # and the check is pure (no repo, no cutover, no date.today()).
+    date_val = fields.get("Date")
+    if date_val is not None:
+        clean_date = date_val.strip()
+        if clean_date != TEMPLATE_DATE_PLACEHOLDER:
+            m = _DATE_RE.match(clean_date)
+            valid_date = False
+            if m:
+                y, month, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
+                try:
+                    datetime.date(y, month, d)
+                    valid_date = True
+                except ValueError:
+                    valid_date = False
+            if not valid_date:
+                errors.append(
+                    MetaError(
+                        "Date",
+                        "Date must be an ISO calendar date (YYYY-MM-DD)",
+                    )
+                )
 
     # Set/Order pairing + Order rules.
     has_set = "Set" in fields

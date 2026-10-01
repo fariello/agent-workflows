@@ -3677,5 +3677,26 @@ class AllRootRegressionTests(unittest.TestCase):
             self.assertIn("error=0", out)
 
 
+class DateMetadataLintTests(unittest.TestCase):
+    """End-to-end lint assertions for the - Date: metadata field (Set 5h8u3z, fqcax0 E-02)."""
+
+    def test_malformed_date_yields_error_with_ipd_m104_beside_conforming_control(self):
+        good_text = _conforming_child()
+        malformed_text = good_text.replace(
+            "- Date: 2026-08-03", "- Date: 2026-07-23 (fleshed later)"
+        )
+
+        res_good = L.lint_text(good_text, checkpoint="author", directory="pending")
+        self.assertEqual(res_good.disposition, S.DISPOSITION_CONFORMING)
+        self.assertEqual(res_good.diagnostics, [])
+
+        res_malformed = L.lint_text(
+            malformed_text, checkpoint="author", directory="pending"
+        )
+        self.assertEqual(res_malformed.disposition, S.DISPOSITION_ERROR)
+        codes = [d.code for d in res_malformed.diagnostics]
+        self.assertIn("IPD-M104", codes)
+
+
 if __name__ == "__main__":
     unittest.main()

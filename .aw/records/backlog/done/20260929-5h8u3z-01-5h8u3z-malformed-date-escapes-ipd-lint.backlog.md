@@ -1,5 +1,5 @@
 - Id: 5h8u3z
-- Status: graduated
+- Status: done
 - Graduated-To: 5h8u3z
 - Blocks-Release: next
 - Set: 5h8u3z
@@ -8,6 +8,7 @@
 - Summary: A malformed - Date: in a plan escapes aw ipd lint entirely, because IPD-M101 fires only on an absent field, so the value that reaches the date fabricator is never flagged
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw agy run: IPD fqcax0 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-5h8u3z-01-fqcax0-flag-a-present-but-unparseable-date-instead-of-letting-it-re.ipd.md); evidence .aw/records/plans/executed/20260930-5h8u3z-01-fqcax0-flag-a-present-but-unparseable-date-instead-of-letting-it-re.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: fqcax0
 - 2026-09-29 created (aw backlog): Filed while authoring plan 949enf (graduating j84jg3): the lint-side half of the same defect, measured and filed because the executed k9awrq explicitly excluded rule changes and so cannot own it.
 

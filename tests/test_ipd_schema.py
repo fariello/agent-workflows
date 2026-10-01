@@ -596,6 +596,52 @@ class MetadataValidationTests(unittest.TestCase):
             "the likelier real mistake since a hand-copied id6 keeps its case",
         ),
         (
+            "a Date carrying trailing prose (the production casualty)",
+            _meta(Date="2026-07-23 (fleshed 2026-07-26 from research)"),
+            "pending",
+            [("Date", "Date must be an ISO calendar date (YYYY-MM-DD)")],
+            "THE PRODUCTION CASUALTY: a malformed Date line that escapes lint silently reaches "
+            "five consumers, two of which substitute the fabricated '20260101'",
+        ),
+        (
+            "a hand-typed Date with unpadded month (2026-7-23)",
+            _meta(Date="2026-7-23"),
+            "pending",
+            [("Date", "Date must be an ISO calendar date (YYYY-MM-DD)")],
+            "unpadded components fail the anchored ISO regex and would reach the cutover gates as non-matching",
+        ),
+        (
+            "a compact Date without hyphens (20260723)",
+            _meta(Date="20260723"),
+            "pending",
+            [("Date", "Date must be an ISO calendar date (YYYY-MM-DD)")],
+            "the compact form is accepted by plans_refs/plans_archive but rejected by check_engine "
+            "and cutover gates; refusing it in lint keeps all consumers unified on ISO",
+        ),
+        (
+            "a non-date Date value (TBD)",
+            _meta(Date="TBD"),
+            "pending",
+            [("Date", "Date must be an ISO calendar date (YYYY-MM-DD)")],
+            "a prose placeholder is not a date and must not reach consumers",
+        ),
+        (
+            "an impossible calendar Date (2026-13-45)",
+            _meta(Date="2026-13-45"),
+            "pending",
+            [("Date", "Date must be an ISO calendar date (YYYY-MM-DD)")],
+            "passes shape regex but fails calendar construction; without calendar check it propagates "
+            "to shard 202613 and age 0.0 days",
+        ),
+        (
+            "the literal template placeholder <YYYY-MM-DD>",
+            _meta(Date="<YYYY-MM-DD>"),
+            "pending",
+            [],
+            "THE TEMPLATE PLACEHOLDER EXEMPTION: both byte-pinned templates carry this exact string, "
+            "and tests/test_ipd_templates.py asserts they are conforming at author",
+        ),
+        (
             "an orchestrator declaring Order 1",
             _meta(Kind="orchestrator"),
             "pending",

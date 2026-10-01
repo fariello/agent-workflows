@@ -161,6 +161,7 @@ Conditional fields:
 
 Field rules:
 
+- `Date`: an ISO calendar date (`YYYY-MM-DD`, a real calendar date). The literal `<YYYY-MM-DD>` template placeholder is reserved and exempt because both byte-pinned templates carry it and are asserted conforming at authoring time. A present-but-unparseable `Date` value is an `IPD-M104` metadata error, while an absent field remains `IPD-M101`.
 - `Kind`: one of `child` or `orchestrator`. Missing or unknown kind is an error for new IPDs.
 - `Status`: one of the recognized readiness values (Section 9.1); it is the single source of truth for readiness. Directories carry disposition; `Status` carries readiness.
 - `Set`: a lowercase-kebab identifier shared by the ordered Set.
@@ -818,3 +819,4 @@ After the IPD-system Set lands:
 - 2026-08-26 note (aw specs): Section 11: begin baseline dirty-check is Scope-Paths-scoped (path-overlap, ipdgates-03 OQ-01), not whole-tree; disjoint dirt allowed to preserve concurrent multi-agent workflow (beginscope vaq9qf E-03)
 - 2026-09-21 note (aw specs): Section 10.2 added (citeanchor mzc019 E-01): an IPD code citation MUST carry a durable anchor (symbol path, or a quoted content string, with a line number only appended and never alone), because a bare file:line expires between authoring and execution and then silently misdirects an executor to unrelated valid code. States the rationale, the (a)/(b)/(c) preference order, the line-as-subject exception, and that enforcement is advisory-only (IPD-C801) and date-gated. Section 10 list item 18 appended to point at it; no existing item renumbered.
 - 2026-09-28 note (aw specs): Section 11 amended (qurgra E-01..E-05): begin receipt's validity key is the frozen Scope-Paths plus each E/V item's whole action block (excluding checkbox marks, indented sub-fields, execution/validation state and workflow history), re-keyed from plan_content_digest (rchpms) and widened from opening-line extraction to the whole action block (qurgra 168p5j); accepted one-time receipt invalidation noted.
+- 2026-10-01 note (aw specs): Section 4.4 amended (Set 5h8u3z fqcax0 E-05): add Date field rule stating accepted ISO calendar date format (YYYY-MM-DD), <YYYY-MM-DD> template placeholder exemption, and IPD-M104 (present but unparseable) vs IPD-M101 (missing) diagnostic split.
