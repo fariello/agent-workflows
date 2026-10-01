@@ -162,8 +162,8 @@ markers = [
 #     root conftest.py auto-installs it as a last resort if it is somehow missing.
 #     `--dist=worksteal` lets idle workers steal queued tests so one straggler cannot
 #     stall the whole run.
-#  2) `-m "not slow"` so the DEFAULT run is the FAST subset (pure-logic unit tests, ~24s).
-#     The ~9 subprocess-heavy files are marked `slow` and excluded here; CI runs the
+#  2) `-m "not slow and not livecorpus"` so the DEFAULT run is the FAST subset (pure-logic unit tests, ~24s).
+#     The ~9 subprocess-heavy files are marked `slow` and live records tests are marked `livecorpus` and excluded here; CI runs the
 #     fast suite plus an advisory slow step; run the FULL suite for release-review
 #     with `make test-all` (which passes `-m ""`).
 # To force serial when debugging a test-isolation issue: `make test-serial`

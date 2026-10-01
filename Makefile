@@ -19,14 +19,14 @@ install-dev:
 # pytest and pytest-xdist are TEST-ONLY dependencies (the `test` extra in pyproject.toml):
 # not imported at runtime and not shipped in the wheel.
 # FAST default run for routine use (e.g. after every IPD): inherits pyproject addopts
-# (`-n auto --dist=worksteal -m 'not slow'`), so it parallelizes AND skips the heavy
-# subprocess/install/conformance tests marked `slow`. ~24s vs ~2m41s for the full suite.
+# (`-n auto --dist=worksteal -m 'not slow and not livecorpus'`), so it parallelizes AND skips the heavy
+# subprocess/install/conformance tests marked `slow` and live records tests marked `livecorpus`. ~24s vs ~2m41s for the full suite.
 test:
 	python3 -m pytest tests/
 
 # FULL suite including the `slow` subprocess/integration tests (CI runs the fast
 # suite plus an advisory slow step). Use for release-review or before shipping.
-# `-m ""` clears the default `not slow` filter; still parallel.
+# `-m ""` clears the default `not slow and not livecorpus` filter (including `slow` and `livecorpus`); still parallel.
 test-all:
 	python3 -m pytest tests/ -m ''
 

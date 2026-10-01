@@ -55,7 +55,7 @@ from agent_workflows import reporting_contract
 from agent_workflows.term import Term
 
 # Heavy subprocess/install suite; excluded from the fast default run (see pyproject addopts
-# `-m "not slow"`). Run with `make test-all`.
+# `-m "not slow and not livecorpus"`, deselecting `slow` and `livecorpus`). Run with `make test-all`.
 pytestmark = pytest.mark.slow
 
 

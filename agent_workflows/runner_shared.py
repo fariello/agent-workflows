@@ -35893,9 +35893,10 @@ SUITE_CHECK_TIMEOUT_SECONDS: float = 900.0
 
 
 #: The repository's own test command, run BARE. `pyproject.toml` `addopts` already supplies
-#: `-q -n auto --dist=worksteal -m 'not slow'`, so adding `-n0` (4-6x slower), a second `-q`
-#: (suppresses the summary line this check parses) or `-p no:randomly` is forbidden by the repo
-#: contract and would also change what the gate measures.
+#: `-q -n auto --dist=worksteal -m 'not slow and not livecorpus'` (deselecting `slow` and
+#: `livecorpus`), so adding `-n0` (4-6x slower), a second `-q` (suppresses the summary line this
+#: check parses) or `-p no:randomly` is forbidden by the repo contract and would also change
+#: what the gate measures.
 SUITE_CHECK_ARGV: tuple[str, ...] = (sys.executable or "python3", "-m", "pytest")
 
 
