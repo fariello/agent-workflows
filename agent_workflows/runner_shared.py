@@ -36213,15 +36213,14 @@ def run_suite_check(
     into exit 127 instead of raising, so this is an honest reading of a nonzero exit rather than new
     machinery. Neither code is special-cased into a pass.
 
-    THE OUTPUT READ HERE ONLY STARTED WORKING AT gatewire-01 (`h5pyqa`), and the repair is in
-    `run_evidence.capture_command` rather than here. This function read
-    `tool_event["stdout_excerpt"]`, and `build_tool_event` NEVER WROTE THAT KEY: a `tool_event` is a
-    LEDGER record carrying `stdout_sha256`/`stdout_len` and deliberately not the text. Measured
-    2026-09-20 by calling `capture_command` directly - `sorted(tool_event)` contained no
-    `stdout_excerpt` - so this read yielded `""`, `summary` was ALWAYS empty, and every refusal reason
-    said `no summary line parsed`. The existing tests could not see it because every one of them mocks
-    `capture_command` and fabricates the key production never produced. `capture_command` now returns
-    the text on the mapping it hands back, so this read means what it always claimed to.
+    THE OUTPUT READ HERE ONLY STARTED WORKING AT gatewire-01 (`h5pyqa`), and the contract was
+    formalized at toolevtext-01 (`emzbut`). Historically this function read an excerpt key off the
+    returned mapping, and `build_tool_event` never wrote that key: a `tool_event` is a ledger record
+    carrying `stdout_sha256`/`stdout_len` and deliberately not the text. Measured 2026-09-20 by calling
+    `capture_command` directly, that read yielded `""`, `summary` was ALWAYS empty, and every refusal
+    reason said `no summary line parsed`. `capture_command` returns a `CapturedToolEvent` carrying
+    `stdout` and `stderr` as typed out-of-band attributes, so this function reads those attributes
+    directly while the ledger record remains clean.
     """
     from agent_workflows import run_evidence
 
@@ -36237,8 +36236,8 @@ def run_suite_check(
             max_output_bytes=512_000,
         )
         exit_code = int(tool_event.get("exit_code", 127))
-        stdout = str(tool_event.get("stdout_excerpt") or "")
-        stderr = str(tool_event.get("stderr_excerpt") or "")
+        stdout = str(tool_event.stdout or "")
+        stderr = str(tool_event.stderr or "")
     except Exception as exc:  # noqa: BLE001  # pragma: no cover
         # DELIBERATE blind catch, and not redundant: `capture_command` guards its own subprocess call
         # (timeout -> 124, other -> 127) but the lines BEFORE it are unguarded -- `Path(cwd).resolve()`

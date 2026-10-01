@@ -432,6 +432,51 @@ def build_artifact_ref(
     return rec
 
 
+class CapturedToolEvent(Dict[str, Any]):
+    """A tool_event mapping that carries captured output text out of band as attributes.
+
+    This class subclasses dict so that existing consumers subscripting or calling .get()
+    continue to access schema fields byte-identically, while json.dumps, dict(...),
+    copy.deepcopy(dict(...)) (what RunLedgerStore.append actually does), and mapping iteration
+    see ONLY the schema fields. Attributes are not mapping entries, so unbounded command
+    output is structurally prevented from leaking into the durable ledger.
+
+    Attributes:
+        stdout: Decoded stdout text (utf-8, errors="replace").
+        stderr: Decoded stderr text (utf-8, errors="replace").
+
+    Decode policy and byte/character asymmetry:
+        The text in stdout and stderr is DECODED text (utf-8 with errors="replace"), whereas
+        stdout_len, stderr_len, stdout_sha256, and stderr_sha256 in the mapping are computed
+        over the RAW BYTES. Therefore, len(event.stdout) and event["stdout_len"] may differ
+        for any multi-byte UTF-8 sequence or invalid byte sequence (e.g. 'é' produces
+        stdout_len 2 from raw bytes against 1 decoded character).
+
+    Normalization hazard (F-14):
+        Normalizing this object via dict(result), or any copy that goes through it, drops
+        the .stdout and .stderr attributes silently with no error. Specifically,
+        verify_roles.build_verifier_packet and verify_roles.verifier_packet_from_dict normalize
+        their evidence manifest with tuple(dict(e) for e in ...), and
+        verify_roles.procedure_test_falsifiability then reads str(ev.get("stdout", "")) off those
+        copies. Neither consumer routes through this today, but any future author wiring
+        worker output into the verifier manifest must be aware that dict(...) normalization
+        drops the attributes.
+    """
+
+    __slots__ = ("stdout", "stderr")
+
+    def __init__(
+        self,
+        *args: Any,
+        stdout: str = "",
+        stderr: str = "",
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self.stdout = stdout
+        self.stderr = stderr
+
+
 def capture_command(
     run_id: str,
     argv: Sequence[str],
@@ -444,7 +489,7 @@ def capture_command(
     parent: str = "",
     timeout: float = 60.0,
     max_output_bytes: Optional[int] = None,
-) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+) -> Tuple[CapturedToolEvent, Dict[str, Any]]:
     """Execute a command, capture provenance (start/end, exit, stdout/stderr SHA-256, HEAD, dirty digest,
     worktree, env allowlist), and return (tool_event, evidence_envelope)."""
     norm_cwd = str(Path(cwd).resolve())
@@ -498,29 +543,19 @@ def capture_command(
         actor=actor,
         parent=parent,
     )
-    # gatewire-01 (`h5pyqa`): RETURN THE OUTPUT TEXT to the caller, which repairs a measured defect in
-    # every consumer of this function.
+    # toolevtext-01 (`emzbut`): RETURN THE OUTPUT TEXT OUT OF BAND via CapturedToolEvent.
     #
-    # THE DEFECT, measured 2026-09-20 by calling this function directly: `oc_runipd.run_suite_check`
-    # read `tool_event["stdout_excerpt"]` and `host_runner.run_raw_worker` reads
-    # `tool_event["stdout"]`, and `build_tool_event` writes NEITHER - a `tool_event` is a LEDGER record
-    # carrying `stdout_sha256`/`stdout_len` and deliberately not the text. So both reads silently
-    # yielded `""`, and the integration gate's `summary` has always been empty (its refusal reason read
-    # `no summary line parsed` on every failure). The existing tests could not see it because each one
-    # mocks this function and fabricates the very key production never produces.
+    # Historically (under gatewire-01 / `h5pyqa`), output text was attached directly to the
+    # returned mapping using four keys ('stdout', 'stderr', 'stdout_excerpt', 'stderr_excerpt').
+    # While build_tool_event remained untouched, the returned mapping IS a schema-valid tool_event.
+    # Consequently, any caller appending the returned mapping directly (such as RunLedgerStore.append)
+    # persisted unbounded command output into the durable hash-chained ledger twice over (F-01).
     #
-    # WHY IT IS ADDED TO THE RETURNED MAPPING AND NOT TO THE LEDGER RECORD SHAPE. `build_tool_event` is
-    # the ledger's own constructor and its records are persisted and schema-checked
-    # (`run_ledger_schema._KIND_FIELDS["tool_event"]`); writing unbounded command output into a durable
-    # ledger is a far larger decision than repairing these reads, and this plan does not own it. These
-    # keys are therefore attached HERE, on the in-memory value this function hands back, so a caller can
-    # read the output it just asked for while the record's own shape is untouched. `build_tool_event`
-    # remains byte-for-byte what it was for every other caller.
-    #
-    # BOTH SPELLINGS ARE SUPPLIED, and that is a deliberate acceptance of an existing inconsistency
-    # rather than a new one: two consumers already read two different key names, and inventing a third
-    # correct name would leave both of them broken. Widening is the fix that reaches every existing
-    # reader without touching either call site.
+    # Under toolevtext-01, the output text is returned as typed instance attributes (.stdout, .stderr)
+    # on CapturedToolEvent, a dict subclass declaring __slots__ = ("stdout", "stderr").
+    # The four injected mapping keys are removed, converging consumers on one spelling and
+    # structurally preventing unbounded output text from leaking into the persisted ledger, while
+    # preserving all existing subscript and .get() reads on schema fields.
     stdout_text = (
         stdout_raw.decode("utf-8", "replace")
         if isinstance(stdout_raw, bytes)
@@ -531,10 +566,11 @@ def capture_command(
         if isinstance(stderr_raw, bytes)
         else str(stderr_raw)
     )
-    tool_event["stdout"] = stdout_text
-    tool_event["stderr"] = stderr_text
-    tool_event["stdout_excerpt"] = stdout_text
-    tool_event["stderr_excerpt"] = stderr_text
+    captured_event = CapturedToolEvent(
+        tool_event,
+        stdout=stdout_text,
+        stderr=stderr_text,
+    )
 
     bound_ids = list(binds) if binds else []
     envelope = build_evidence_envelope(
@@ -546,11 +582,11 @@ def capture_command(
         dirty_digest=dirty_digest,
         actor=actor,
         parent=parent,
-        stdout_sha256=tool_event["stdout_sha256"],
+        stdout_sha256=captured_event["stdout_sha256"],
         timestamp=end_time,
     )
 
-    return tool_event, envelope
+    return captured_event, envelope
 
 
 # ---- E-02: Evidence Validators -------------------------------------------------------------------
