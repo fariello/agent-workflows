@@ -115,6 +115,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier: 7fzqop
 - THE AUTHORING AND SUBSTITUTION CONVENTIONS THEMSELVES. Owned by sibling plan `vtup6x` (`nos070-01`). This plan supplies the mechanism that plan's rule needs; it states no rule about how a V-item must be worded.
   - Carrier: vtup6x
+  - Carrier-Evidence: .aw/records/plans/executed/20260929-nos070-01-vtup6x-make-v-item-test-evidence-survive-test-reorganization-demand.ipd.md
 
 ## Scope check
 
