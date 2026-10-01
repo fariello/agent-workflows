@@ -6,7 +6,7 @@
 - Scope: Close CLASS C and RECORD classes A and B, which is the decision backlog `3kr193` asks for. FOUR changes. (1) `lane_containment.prepare_lane_submission_dir` additionally creates the DRIVER-SIDE outcome parent on the non-isolated branch, so the directory named in a non-isolated prompt exists; it keeps its existing lane-side behavior unchanged for an isolated turn. (2) `runner_shared.build_verifier_prompt` creates the parent of the `verify_outcome` path it promises, which is the second agent-written path and the one the standalone audit verb depends on. (3) A docstring sentence on `runner_shared.recorded_outcome_path` recording that it is deliberately PURE and that absence is a meaningful answer, so a later reader does not "complete the symmetry" by adding a mkdir to a reader. (4) A test module pinning all three classes BY OUTCOME. EXPLICITLY DOES NOT: add a mkdir to any Class A reader; change `initialize_run_core`'s mkdir loop (see OQ-01, which this plan RESOLVES as "keep it"); alter any filename or path shape; remove `handle_audit_command`'s three-directory loop; or touch `sessions/` or `prompts/`, which are `z3ifg8`'s subject.
 - Scope-Paths: agent_workflows/lane_containment.py, agent_workflows/runner_shared.py, tests/test_run_dir_outcomes_parent_is_guaranteed.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode model=its_direct/pt3-claude-opus-5-1m-us
 - Id: 2kyw59
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 2kyw59 verified (set 3kr193, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (opencode model=its_direct/pt3-claude-opus-5-1m-us): plan-review complete: PR-001..PR-005 all fixed, none deferred or open
 
