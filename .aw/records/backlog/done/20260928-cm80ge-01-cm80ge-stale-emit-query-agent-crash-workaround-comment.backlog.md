@@ -1,5 +1,5 @@
 - Id: cm80ge
-- Status: graduated
+- Status: done
 - Graduated-To: cm80ge
 - Set: cm80ge
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: run_analytics_cli._emit_query_agent's crash-workaround comment goes stale once the --fields projection defect is fixed
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): closed by aw oc run: IPD mcdvx0 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-cm80ge-01-mcdvx0-refresh-the-stale-crash-workaround-comment-in-run-analytics.ipd.md); evidence .aw/records/plans/executed/20260930-cm80ge-01-mcdvx0-refresh-the-stale-crash-workaround-comment-in-run-analytics.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: mcdvx0
 - 2026-09-28 created (aw backlog): Filed while authoring plan gygujf (from backlog 3f4ayi): that plan removes the crash this comment describes as unfixed, but deliberately leaves run_analytics_cli.py out of scope.
 
