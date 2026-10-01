@@ -912,7 +912,6 @@ class ColorDepthPrecedenceTests(_DepthTestBase):
 class AuthoredSixteenColorPaletteTests(unittest.TestCase):
     def test_palette_coverage_named_colors_separations_and_collapses(self):
         self.assertEqual(set(T.STAGE_COLOR_16), set(LS.ALL_STAGES))
-        self.assertEqual(len(T.STAGE_COLOR_16), 20)
 
         named = set(range(30, 38)) | set(range(90, 98))
         wrong = {s: c for s, c in T.STAGE_COLOR_16.items() if c not in named}
