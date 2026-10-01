@@ -10,7 +10,7 @@
 - Scope: Declare spec `25kzda` `### 5.5 Retry policy` the single normative home of the `0..10` correction-budget bound and its three-tier precedence; demote the restatements in §1.4, §2.1 and §4.1 to explicit pointers at §5.5 while leaving §2.1's usage-synopsis token intact; retarget every bound-naming citation in `run_recovery.py` (nine sites, including the operator-visible `InvalidRetryBudgetError` message), `runner_shared.py` (four sites) and `config.py` (one site) from `2.1` to `5.5`; add one consistency test that derives the bound's enclosing section FROM the spec file and asserts the runtime message names it, so this drift is caught mechanically rather than by review; record the amendment with `aw specs note`; and correct the record of review finding PR-305 by appending to the review record and to `si24ia`'s workflow history. EXCLUDES: changing the bound's VALUE, the default of 2, the precedence order, the retryable/never-retryable class lists, or any runtime behavior beyond the text of one error message; touching the FLAG-SURFACE citations of §2.1 in `runner_shared.py` and `oc_runipd.py`/`agy_runipd.py`/`cli.py`/`command_surface.py`, which name §2.1 for the command grammar and are CORRECT; editing `si24ia`'s findings table, Concern, or E/V items in place (it is `executed`); repairing the sibling citation-rot items `sbh1o1`, `ajomj3` or the class-vocabulary gap `rb4wgj`, each of which owns its own fix; minting requirement ids in any spec; and building any general spec-citation checker.
 - Scope-Paths: .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, agent_workflows/run_recovery.py, agent_workflows/runner_shared.py, agent_workflows/config.py, tests/test_retry_budget_citation.py, .aw/records/reviews/20260910-specreq-01-si24ia-decide-whether-spec-requirements-get-machine-readable-tracki.review.md, .aw/records/plans/executed/20260908-specreq-01-si24ia-decide-whether-spec-requirements-get-machine-readable-tracki.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -21,9 +21,9 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: cpi6p3
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: cpi6p3 verified (set 88manw, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 through PR-011, all FIXED in place. Reviewed at HEAD `09f68a5b` in an isolated lane; typed record at `.aw/records/reviews/20260929-88manw-01-cpi6p3-make-spec-25kzda-section-5-5-the-canonical-home-of-the-0-10.review.md`. `aw ipd lint --phase author` conformed BEFORE semantic review and `--phase review-finalize` conforms after revision, so nothing found was structural.
   THE PLAN'S CENTRAL CLAIM RE-DERIVED CORRECT AT REVIEW HEAD. Mapping each bound-bearing line to its enclosing `###` heading reproduces the plan exactly: `:173` -> §1.4, `:192` and `:219` -> `### 2.1 Command grammar`, `:774` -> §4.1, `:1306` -> `### 5.5 Retry policy`. So §2.1 DOES state the bound, `si24ia`'s citation was right, PR-305 was wrong, and §1.1 (`Normative roles`) states no bound. The operator-visible half reproduces live too: `runner_shared.resolve_retry_budget(99)` raises `--retry-budget: invalid retry budget 99: must be an int in the inclusive range 0..10 (spec 25kzda 2.1)`.
