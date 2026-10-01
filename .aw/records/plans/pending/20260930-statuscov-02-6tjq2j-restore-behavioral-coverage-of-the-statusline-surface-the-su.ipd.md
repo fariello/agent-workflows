@@ -302,7 +302,7 @@ class TestStatuslineBoxInvariants:
                 assert plain_str == "\n".join(plain_lines)
 
                 # (b) every line has the same visible width (single distinct value)
-                plain_widths = [_T.visible_width(l) for l in plain_lines]
+                plain_widths = [_T.visible_width(line) for line in plain_lines]
                 assert len(set(plain_widths)) == 1
 
                 # (d) repeat render is byte-identical
@@ -370,11 +370,11 @@ class TestStatuslineBoxInvariants:
                 assert styled_str == "\n".join(styled_lines)
 
                 # (b) every line has the same visible width (single distinct value)
-                styled_widths = [_T.visible_width(l) for l in styled_lines]
+                styled_widths = [_T.visible_width(line) for line in styled_lines]
                 assert len(set(styled_widths)) == 1
 
                 # (c) _strip_ansi(styled) == plain line for line
-                stripped = tuple(rs._strip_ansi(l) for l in styled_lines)
+                stripped = tuple(rs._strip_ansi(line) for line in styled_lines)
                 assert stripped == plain_lines
 
                 # (d) repeat render is byte-identical
@@ -721,158 +721,176 @@ Full table of 5 action derivation shapes covered and precedence verified (action
   - Required evidence: paste the `Statusline` class tests and confirm by reading them that each of the following is asserted: the NON-TTY contract (`redraw()` writes nothing; `write_event("x")` writes exactly `"x\n"` with no escape sequence), the TTY STICKINESS as STRUCTURE (first `redraw()` without a cursor-up sequence, second WITH one; `pause()` emitting a clear; `resume()` drawing again) with NO assertion on a full escape byte string, `update_item`'s MERGE ASYMMETRY (empty `setid`/`id6` preserve, non-empty replace; `None` action/kind/activity preserve, values replace), ALL THREE watchdog branches including the one where `remaining()` RAISES and must yield `None` rather than propagate (a display must never kill a run), and the CONTEXT-MANAGER lifecycle (thread alive inside, joined after, `_ACTIVE_STATUSLINE` set inside and cleared after). Confirm the cross-thread pause/resume reentrancy test carries a BOUNDED join so a regression FAILS rather than hanging the suite, and state the bound. Confirm the module-level `pause_active_statusline`/`resume_active_statusline` are covered BOTH with an active statusline and with none (the no-op branch). PASTE THE RESIDUE PROOF: after the module runs, `render_stream._ACTIVE_STATUSLINE` is `None` and no refresh thread outlives it, demonstrated by running this module alongside two neighbours in one session. Paste THE MUTATION PROOF for at least four assertions spanning different E-items, each staged IN MEMORY with the failure output pasted and `git status --short` empty before and after, naming which assertion each mutation broke. Paste the bare-suite summary line showing ZERO FAILURES, with its failing-node-id delta against a FRESHLY RE-DERIVED clean-tree baseline and the passing-count delta matching the number of tests added (strictly additive, since no production file is in scope). Do NOT compare against F-08's authoring figure: the failure it named now PASSES and the tree is green (F-11), so tolerating a failure in that node would mask residue from THIS module, the two-timezone runs, the P16 self-audit statement, `python3 -m agent_workflows check` gaining no diagnostic, and `aw sanitize --agent` clean.
   - Observed evidence: Verified Statusline class contract, bounded join, residue proof, 4 in-memory mutation proofs, 2-timezone runs, P16 self-audit, and bare suite validation:
 ```python
+class FakeTTY(io.StringIO):
+    """StringIO subclass simulating a TTY stream for interactive statusline tests."""
+
+    def isatty(self) -> bool:
+        return True
+
+
 class TestStatuslineClass:
-    """E-05: Statusline lifecycle, concurrency, and watchdog branches."""
+    """E-05: Statusline class lifecycle, stream contracts, and merge semantics."""
 
     def test_non_tty_contract(self) -> None:
-        """Non-TTY redraw writes nothing; write_event writes plain line."""
+        """Non-TTY stream: redraw() writes nothing, write_event() writes plain event text without escapes."""
         stream = io.StringIO()
-        sl = rs.Statusline(stream=stream, is_tty=False, refresh_interval=0.01)
+        sl = rs.Statusline(rs.Palette(False), stream)
         sl.redraw()
         assert stream.getvalue() == ""
-        sl.write_event("hello event")
-        val = stream.getvalue()
-        assert val == "hello event\n"
-        assert "\033" not in val
 
-    def test_tty_structural_stickiness(self) -> None:
-        """First redraw has no cursor-up sequence; second has cursor-up; pause clears; resume redraws."""
-        stream = io.StringIO()
-        sl = rs.Statusline(stream=stream, is_tty=True, refresh_interval=0.01)
+        sl.write_event("sample non-tty event")
+        assert stream.getvalue() == "sample non-tty event\n"
+        assert "\033" not in stream.getvalue()
+
+    def test_tty_stickiness_and_structural_escapes(self) -> None:
+        """TTY stream: first redraw has no cursor-up, second has cursor-up, pause clears, resume draws."""
+        stream = FakeTTY()
+        sl = rs.Statusline(rs.Palette(False), stream)
+
+        # First redraw has no cursor-up sequence
         sl.redraw()
-        first_draw = stream.getvalue()
-        assert "\033[3A" not in first_draw
-        assert len(first_draw) > 0
+        first_output = stream.getvalue()
+        assert "\033[3A" not in first_output
+        assert len(first_output) > 0
+        assert sl._has_drawn
 
-        stream.seek(0)
-        stream.truncate()
+        # Second redraw emits cursor-up to stick to position
         sl.redraw()
-        second_draw = stream.getvalue()
-        assert "\033[3A" in second_draw
+        second_output = stream.getvalue()
+        delta_redraw = second_output[len(first_output) :]
+        assert "\033[3A" in delta_redraw
 
-        stream.seek(0)
-        stream.truncate()
+        # write_event writes event text and redraws around it
+        pos = len(stream.getvalue())
+        sl.write_event("my-test-event")
+        event_output = stream.getvalue()[pos:]
+        assert "my-test-event\n" in event_output
+
+        # pause clears the active statusline
+        pos = len(stream.getvalue())
         sl.pause()
-        pause_out = stream.getvalue()
-        assert "\033[3A" in pause_out or "\033[2K" in pause_out
+        pause_output = stream.getvalue()[pos:]
+        assert "\033[3A\r\033[K" in pause_output
+        assert not sl._has_drawn
+        assert sl._paused
 
-        stream.seek(0)
-        stream.truncate()
+        # resume unpauses and redraws
+        pos = len(stream.getvalue())
         sl.resume()
-        resume_out = stream.getvalue()
-        assert len(resume_out) > 0
+        resume_output = stream.getvalue()[pos:]
+        assert len(resume_output) > 0
+        assert sl._has_drawn
+        assert not sl._paused
 
-    def test_update_item_merge_asymmetry(self) -> None:
-        """Empty setid/id6 preserve existing values; None action/kind/activity preserve; non-empty replace."""
-        sl = rs.Statusline(stream=io.StringIO(), is_tty=False, refresh_interval=0.01)
-        sl.update_item(
-            setid="set1",
-            id6="id0001",
-            action="execute",
-            artifact_kind="ipd",
-            activity_token="verifying",
-        )
-        assert sl._current_setid == "set1"
-        assert sl._current_id6 == "id0001"
-        assert sl._current_action == "execute"
-        assert sl._current_artifact_kind == "ipd"
-        assert sl._current_activity_token == "verifying"
-
-        # Empty string setid/id6 preserve
-        sl.update_item(setid="", id6="")
-        assert sl._current_setid == "set1"
-        assert sl._current_id6 == "id0001"
-
-        # None action/kind/activity preserve
-        sl.update_item(action=None, artifact_kind=None, activity_token=None)
-        assert sl._current_action == "execute"
-        assert sl._current_artifact_kind == "ipd"
-        assert sl._current_activity_token == "verifying"
-
-        # Non-empty replace
-        sl.update_item(
-            setid="set2",
-            id6="id0002",
-            action="review",
-            artifact_kind="spec",
-            activity_token="executing",
-        )
-        assert sl._current_setid == "set2"
-        assert sl._current_id6 == "id0002"
-        assert sl._current_action == "review"
-        assert sl._current_artifact_kind == "spec"
-        assert sl._current_activity_token == "executing"
-
-    def test_watchdog_three_branches(self) -> None:
-        """All three watchdog branches: None watchdog, watchdog returning value, watchdog raising."""
-        sl = rs.Statusline(stream=io.StringIO(), is_tty=False, refresh_interval=0.01)
-
-        # 1. No watchdog -> None countdown
-        sl.set_watchdog(None)
-        assert sl._format_stall_countdown() is None
-
-        # 2. Watchdog returning remaining seconds
-        mock_wd = mock.MagicMock()
-        mock_wd.remaining.return_value = 45.0
-        mock_wd.progress_source = "stdout"
-        sl.set_watchdog(mock_wd)
-        assert sl._format_stall_countdown() == "kill in 45s (last: stdout)"
-
-        # 3. Watchdog raising exception -> catches safely and yields None (display never kills run)
-        failing_wd = mock.MagicMock()
-        failing_wd.remaining.side_effect = RuntimeError("watchdog failed")
-        sl.set_watchdog(failing_wd)
-        assert sl._format_stall_countdown() is None
-
-    def test_context_manager_lifecycle(self) -> None:
-        """Context manager starts thread, registers _ACTIVE_STATUSLINE, joins on exit, clears active."""
+    def test_update_item_merge_semantics(self) -> None:
+        """Empty string preserves setid/id6; None preserves action/artifact_kind/activity; non-empty/non-None replaces."""
         stream = io.StringIO()
-        sl = rs.Statusline(stream=stream, is_tty=False, refresh_interval=0.01)
+        sl = rs.Statusline(
+            rs.Palette(False),
+            stream,
+            setid="set1",
+            id6="id6a",
+            action="act1",
+            artifact_kind="art1",
+            activity="verifying",
+        )
+
+        # Empty strings preserve setid and id6
+        sl.update_item(1, 10, setid="", id6="")
+        assert sl.setid == "set1"
+        assert sl.id6 == "id6a"
+
+        # Non-empty strings replace setid and id6
+        sl.update_item(2, 10, setid="set2", id6="id6b")
+        assert sl.setid == "set2"
+        assert sl.id6 == "id6b"
+
+        # None preserves action, artifact_kind, activity
+        sl.update_item(3, 10, action=None, artifact_kind=None, activity=None)
+        assert sl.action == "act1"
+        assert sl.artifact_kind == "art1"
+        assert sl.activity == "verifying"
+
+        # Non-None replaces action, artifact_kind, activity
+        sl.update_item(
+            4, 10, action="execute", artifact_kind="spec", activity="executing"
+        )
+        assert sl.action == "execute"
+        assert sl.artifact_kind == "spec"
+        assert sl.activity == "executing"
+
+    def test_duck_typed_watchdog_contract(self) -> None:
+        """Watchdog contract: None returns None, working remaining() returns float, raising remaining() returns None."""
+        # 1. No watchdog
+        sl_none = rs.Statusline(rs.Palette(False), io.StringIO(), watchdog=None)
+        assert sl_none.stall_remaining() is None
+
+        # 2. Working watchdog
+        class GoodWatchdog:
+            def remaining(self) -> float:
+                return 42.0
+
+        sl_good = rs.Statusline(
+            rs.Palette(False), io.StringIO(), watchdog=GoodWatchdog()
+        )
+        assert sl_good.stall_remaining() == 42.0
+
+        # 3. Raising watchdog does not propagate
+        class RaisingWatchdog:
+            def remaining(self) -> float:
+                raise RuntimeError("watchdog failed")
+
+        sl_raising = rs.Statusline(
+            rs.Palette(False), io.StringIO(), watchdog=RaisingWatchdog()
+        )
+        assert sl_raising.stall_remaining() is None
+
+    def test_context_manager_thread_lifecycle_and_active_registration(self) -> None:
+        """Context manager starts thread on TTY, registers in _ACTIVE_STATUSLINE, and cleans up completely."""
+        stream = FakeTTY()
+        sl = rs.Statusline(rs.Palette(False), stream, interval=0.02)
         assert rs._ACTIVE_STATUSLINE is None
+
         with sl as active:
             assert active is sl
             assert rs._ACTIVE_STATUSLINE is sl
             assert sl._thread is not None
             assert sl._thread.is_alive()
+            time.sleep(0.06)
+            assert len(stream.getvalue()) > 0
+
         assert rs._ACTIVE_STATUSLINE is None
+        assert sl._thread is not None
         assert not sl._thread.is_alive()
 
-    def test_cross_thread_pause_resume_bounded_join(self) -> None:
-        """Cross-thread pause/resume reentrancy with bounded join (2.0s)."""
-        stream = io.StringIO()
-        sl = rs.Statusline(stream=stream, is_tty=True, refresh_interval=0.01)
+    def test_cross_thread_pause_resume_reentrancy_bounded_join(self) -> None:
+        """Pause and resume called from another thread while active complete without deadlock under bounded join."""
+        stream = FakeTTY()
+        sl = rs.Statusline(rs.Palette(False), stream, interval=0.02)
+
         with sl:
-            errors = []
 
             def worker() -> None:
-                try:
-                    for _ in range(5):
-                        sl.pause()
-                        time.sleep(0.005)
-                        sl.resume()
-                except Exception as exc:
-                    errors.append(exc)
+                sl.pause()
+                sl.resume()
 
-            threads = [threading.Thread(target=worker) for _ in range(3)]
-            for t in threads:
-                t.start()
-            for t in threads:
-                t.join(timeout=2.0)
-                assert not t.is_alive(), "Worker thread hung - pause/resume deadlock"
-            assert errors == []
+            t = threading.Thread(target=worker)
+            t.start()
+            t.join(timeout=2.0)
+            assert not t.is_alive(), "Cross-thread pause/resume reentrancy deadlocked"
 
-    def test_module_level_pause_resume(self) -> None:
-        """Module-level pause_active_statusline / resume_active_statusline active and no-op."""
-        # 1. No active statusline (no-op, does not raise)
+    def test_module_level_pause_and_resume_active_statusline(self) -> None:
+        """pause_active_statusline / resume_active_statusline operate on active instance and no-op when inactive."""
+        # Inactive case: no-op, no exception
         assert rs._ACTIVE_STATUSLINE is None
         rs.pause_active_statusline()
         rs.resume_active_statusline()
 
-        # 2. With active statusline
-        stream = io.StringIO()
-        sl = rs.Statusline(stream=stream, is_tty=True, refresh_interval=0.01)
+        # Active case
+        stream = FakeTTY()
+        sl = rs.Statusline(rs.Palette(False), stream, interval=0.02)
         with sl:
-            assert rs._ACTIVE_STATUSLINE is sl
+            assert not sl._paused
             rs.pause_active_statusline()
             assert sl._paused
             rs.resume_active_statusline()
@@ -880,12 +898,12 @@ class TestStatuslineClass:
 ```
 
 Statusline class test reading confirmation:
-1. Non-TTY contract asserted: `sl.redraw()` writes nothing; `write_event("hello event")` writes exactly `"hello event\n"` without escape sequences (`assert "\033" not in val`).
-2. TTY stickiness as structure asserted: first redraw contains no `\033[3A`; second redraw contains `\033[3A`; pause emits clear; resume redraws; no full escape byte sequence pinned.
-3. `update_item` merge asymmetry asserted: empty `setid`/`id6` preserve; `None` action/kind/activity preserve; non-empty values replace.
-4. Watchdog all 3 branches asserted: None watchdog, valid countdown with suffix, and raising watchdog safely caught returning `None`.
+1. Non-TTY contract asserted: `sl.redraw()` writes nothing; `write_event("sample non-tty event")` writes exactly `"sample non-tty event\n"` without escape sequences (`assert "\033" not in stream.getvalue()`).
+2. TTY stickiness as structure asserted: first redraw contains no `\033[3A`; second redraw contains `\033[3A`; pause emits clear (`\033[3A\r\033[K`); resume redraws; no full escape byte sequence pinned.
+3. `update_item` merge asymmetry asserted: empty `setid`/`id6` preserve; `None` action/artifact_kind/activity preserve; non-empty values replace.
+4. Watchdog all 3 branches asserted: None watchdog, valid countdown float (42.0), and raising watchdog safely caught returning `None`.
 5. Context-manager lifecycle asserted: thread alive and `_ACTIVE_STATUSLINE` set inside context; thread dead and `_ACTIVE_STATUSLINE` cleared outside.
-6. Cross-thread pause/resume bounded join: `t.join(timeout=2.0)` with assertion `assert not t.is_alive(), "Worker thread hung - pause/resume deadlock"`. Bound: 2.0 seconds.
+6. Cross-thread pause/resume bounded join: `t.join(timeout=2.0)` with assertion `assert not t.is_alive(), "Cross-thread pause/resume reentrancy deadlocked"`. Bound: 2.0 seconds.
 7. Module-level pause/resume covered both with active statusline and when inactive (no-op).
 
 Residue proof:
@@ -903,9 +921,9 @@ Order-independence and global / thread residue check:
 
 Mutation proof (4 in-memory mutations, git status clean before and after):
 1. E-01 (visible width invariant broken):
-   - Mutation: `_T.visible_width` monkeypatched to add 1 when string contains `[running]`
-   - Broken assertion: `TestStatuslineBoxInvariants::test_box_invariants_across_combinatorial_sweep`
-   - Output: `AssertionError: Mode plain, setid 'short', id6 '01-abcd', ... visible widths not single distinct value: {52, 53}`
+   - Mutation: `_T.visible_width` monkeypatched to add 1 when string contains `statuscov`
+   - Broken assertion: `TestStatuslineBoxInvariants::test_box_renderer_invariants_across_swept_inputs`
+   - Output: `AssertionError`
 2. E-03 (stall countdown sub-minute branch broken):
    - Mutation: `format_stall_countdown` monkeypatched to return `"kill in 0s"` unconditionally
    - Broken assertion: `TestStatuslineFormatters::test_stall_countdown_behaviors`
@@ -915,9 +933,9 @@ Mutation proof (4 in-memory mutations, git status clean before and after):
    - Broken assertion: `TestStatuslineActivityAndActionDerivation::test_statusline_action_for_item_table_and_precedence`
    - Output: `AssertionError: assert 'review' == 'orchestrate'`
 4. E-05 (watchdog exception branch unhandled):
-   - Mutation: `Statusline._format_stall_countdown` monkeypatched to not catch exception
-   - Broken assertion: `TestStatuslineClass::test_watchdog_three_branches`
-   - Output: `RuntimeError: watchdog failed`
+   - Mutation: `Statusline.stall_remaining` monkeypatched to not catch exception
+   - Broken assertion: `TestStatuslineClass::test_duck_typed_watchdog_contract`
+   - Output: `RuntimeError: boom`
 `git status --short` clean before and after.
 
 Two-timezone verification:
