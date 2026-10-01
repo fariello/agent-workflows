@@ -583,6 +583,147 @@ class TestPreQueueSeams(unittest.TestCase):
                 oc_runipd.initialize_run(args)
             self.assertIn("[RUN-MIXED-TYPES]", str(ctx.exception))
 
+    def test_manifest_absent_queue_id_refuses_ahead_of_durable_state_on_both_hosts(
+        self,
+    ):
+        """E-01: expanded selection containing manifest-absent id6 refuses with DriverError naming id6; no run dir."""
+        for host_label, mod in _HOSTS:
+            with self.subTest(host=host_label):
+                with tempfile.TemporaryDirectory() as td:
+                    repo = _make_test_repo(Path(td))
+                    _write_plan(
+                        repo, id6="pln001", setid="s1", order=1, status="approved"
+                    )
+
+                    real_expand = mod.expand_selectors
+
+                    def fake_expand(manifest, selectors, **kwargs):
+                        res = real_expand(manifest, selectors, **kwargs)
+                        return list(res) + ["gho001"]
+
+                    cmd = [
+                        "start",
+                        "pln001",
+                        "--repo",
+                        str(repo),
+                        "--prepare-only",
+                        "--unattended",
+                    ]
+                    args = mod.build_parser().parse_args(cmd)
+                    with patch.object(mod, "expand_selectors", side_effect=fake_expand):
+                        with self.assertRaises(runner_shared.DriverError) as ctx:
+                            mod.initialize_run(args)
+                    self.assertIn("gho001", str(ctx.exception))
+                    runs_root = runner_shared.state_root(repo)
+                    created_runs = (
+                        list(runs_root.iterdir()) if runs_root.exists() else []
+                    )
+                    self.assertEqual(created_runs, [])
+
+    def test_manifest_file_outside_plans_trees_refuses_on_both_hosts(self):
+        """E-03: IPD manifest file outside plans trees refuses ahead of durable state; skip action passes."""
+        for host_label, mod in _HOSTS:
+            with self.subTest(host=host_label):
+                with tempfile.TemporaryDirectory() as td:
+                    repo = _make_test_repo(Path(td))
+                    p = _write_plan(
+                        repo, id6="pln002", setid="s2", order=1, status="approved"
+                    )
+                    docs_dir = repo / "docs"
+                    docs_dir.mkdir(parents=True, exist_ok=True)
+                    outside_path = docs_dir / p.name
+                    p.rename(outside_path)
+                    rel_path = str(outside_path.relative_to(repo))
+
+                    manifest = {
+                        "schema_version": runner_shared.SCHEMA_VERSION,
+                        "plans": {
+                            "pln002": {
+                                "file": rel_path,
+                                "set": "s2",
+                                "order": 1,
+                                "status": "approved",
+                                "dependencies": [],
+                            }
+                        },
+                        "sets": {"s2": {"order": ["pln002"]}},
+                    }
+                    mf_path = repo / "manifest.json"
+                    mf_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+                    cmd = [
+                        "start",
+                        "pln002",
+                        "--repo",
+                        str(repo),
+                        "--manifest",
+                        str(mf_path),
+                        "--prepare-only",
+                        "--unattended",
+                    ]
+                    args = mod.build_parser().parse_args(cmd)
+                    with self.assertRaises(runner_shared.DriverError) as ctx:
+                        mod.initialize_run(args)
+                    msg = str(ctx.exception)
+                    self.assertIn("pln002", msg)
+                    self.assertIn(rel_path, msg)
+                    self.assertIn("outside the plans trees", msg)
+                    self.assertIn(
+                        "No work started, and nothing durable was created", msg
+                    )
+                    runs_root = runner_shared.state_root(repo)
+                    created_runs = (
+                        list(runs_root.iterdir()) if runs_root.exists() else []
+                    )
+                    self.assertEqual(created_runs, [])
+
+                # Negative case: same misfiled path with status 'executed' (action 'skip') must NOT refuse
+                with tempfile.TemporaryDirectory() as td_neg:
+                    repo_neg = _make_test_repo(Path(td_neg))
+                    p_neg = _write_plan(
+                        repo_neg, id6="pln002", setid="s2", order=1, status="executed"
+                    )
+                    docs_dir_neg = repo_neg / "docs"
+                    docs_dir_neg.mkdir(parents=True, exist_ok=True)
+                    outside_path_neg = docs_dir_neg / p_neg.name
+                    p_neg.rename(outside_path_neg)
+                    rel_path_neg = str(outside_path_neg.relative_to(repo_neg))
+
+                    manifest_neg = {
+                        "schema_version": runner_shared.SCHEMA_VERSION,
+                        "plans": {
+                            "pln002": {
+                                "file": rel_path_neg,
+                                "set": "s2",
+                                "order": 1,
+                                "status": "executed",
+                                "dependencies": [],
+                            }
+                        },
+                        "sets": {"s2": {"order": ["pln002"]}},
+                    }
+                    mf_path_neg = repo_neg / "manifest.json"
+                    mf_path_neg.write_text(json.dumps(manifest_neg), encoding="utf-8")
+
+                    cmd_neg = [
+                        "start",
+                        "pln002",
+                        "--repo",
+                        str(repo_neg),
+                        "--manifest",
+                        str(mf_path_neg),
+                        "--prepare-only",
+                        "--unattended",
+                    ]
+                    args_neg = mod.build_parser().parse_args(cmd_neg)
+                    run_dir = mod.initialize_run(args_neg)
+                    runs_root_neg = runner_shared.state_root(repo_neg)
+                    created_runs_neg = (
+                        list(runs_root_neg.iterdir()) if runs_root_neg.exists() else []
+                    )
+                    self.assertEqual(len(created_runs_neg), 1)
+                    self.assertEqual(created_runs_neg[0], Path(run_dir))
+
 
 class TestQueueShapeSeams(unittest.TestCase):
     """E-12: Queue-shape seam cases (F-11, F-12) plus item-local refusal (E-09)."""

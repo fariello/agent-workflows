@@ -13626,12 +13626,12 @@ def match_spec_selector(
 
     IT REPORTS, IT DOES NOT ENQUEUE, and the distinction is this function's honest limit. A run QUEUE
     ENTRY is plan-shaped - `build_dynamic_manifest` compiles `discover_plans` alone and
-    `initialize_run_core`'s queue loop reads `manifest["plans"][id6]` with a BARE SUBSCRIPT - so
-    returning a spec id6 into the expanded selection would raise `KeyError` there rather than run it.
-    Per-type DISPATCH is owned by spec `z7nbn1` (universal artifact dispatch) 4.1/4.3, which names
-    this exact plans-only queue as "the single structural blocker" and `ACTION_PLAN` as having no
-    consumer. So the caller's obligation is to REFUSE with a message naming the spec, which is what
-    :func:`describe_spec_selector_refusal` composes.
+    `lookup_manifest_artifact` gates manifest access - so returning a spec id6 into the expanded
+    selection would be refused rather than run it. Per-type DISPATCH is owned by spec `z7nbn1`
+    (universal artifact dispatch) 4.1/4.3, which names this exact plans-only queue as "the single
+    structural blocker" and `ACTION_PLAN` as having no consumer. So the caller's obligation is to
+    REFUSE with a message naming the spec, which is what :func:`describe_spec_selector_refusal`
+    composes.
 
     ``manifest_plans`` supplies the shadowed-plan evidence and may be omitted; None yields an empty
     tuple rather than raising, matching the fail-safe posture of the rest of selector expansion.
@@ -15381,7 +15381,7 @@ def closure_target_admission(
         # approved spec, and `--with-dependencies`'s own `--help` says so, because a narrowing visible
         # only in a plan record leaves the shipped command lying.
         #
-        # WHY REFUSING IS NEVERTHELESS RIGHT HERE, and why the two permissive options were not taken:
+        # WHY REFUSING IS NEVERTHELESS RIGHT HERE, and why the permissive option was not taken:
         #
         #   * THE QUEUE IS BUILT FROM MANIFEST DATA AND THE MANIFEST IS PLANS-ONLY. `discover_plans`
         #     walks `.aw/records/plans` and `.agents/plans` and nothing else, so a non-plan target has
@@ -15389,11 +15389,6 @@ def closure_target_admission(
         #     that every downstream consumer (dispatch, ordering, reporting, resume) would have to
         #     learn, and extending discovery makes a live mixed selection reachable for the first
         #     time, which is a real behavioral change deserving its own review.
-        #   * ADMITTING ONE WITHOUT ALSO GUARDING THE QUEUE BUILDER IS UNSAFE. `initialize_run_core`'s
-        #     per-item first statement is an unguarded `manifest["plans"][id6]`, and it runs AFTER the
-        #     run directory is created, so a non-plan id6 that got that far would raise a bare
-        #     `KeyError` with durable state already written - a traceback instead of a message, and
-        #     the loss of the no-durable-state property the flag refusal was careful to have.
         #   * REFUSING NEEDS NEITHER CHANGE, is loud, names the type, and precedes the run directory,
         #     so the spec's wider intent stays available to a plan that can review the discovery
         #     change on its own merits.
@@ -16593,11 +16588,12 @@ def enforce_mixed_type_gate(
         `spec` or `backlog` edge, because the manifest is plans-only and has no queue entry to build
         for one. So every id the closure can add is an IPD, and an expansion introduces no new type.
       * EVEN IF IT ADMITTED ONE, THIS FUNCTION WOULD NOT SEE IT. The gate is handed
-        `selected_plan_paths`, not `queue_ids`, and that list is built by a loop that resolves
-        `manifest["plans"][id6]` inside `except (DriverError, KeyError): continue`. A manifest-absent
-        target is therefore DROPPED BEFORE `classify_paths` ever types it, so the very type the spec
-        wants gated would be invisible here. A future plan that admits non-plan targets must fix THAT
-        LOOP as well, or it will have built an expansion this gate silently cannot gate.
+        `selected_plan_paths`, not `queue_ids`, and that list is built by `resolve_selected_artifact_paths`,
+        which places any unresolvable id into `TypedSelection.unresolved` instead of `plan_paths`. While
+        E-02 now refuses an unresolvable IPD entry at the queue-build seam rather than silently dropping
+        it into durable state, `TypedSelection.unresolved` has no general reader. So a future plan that
+        admits non-plan targets must update `resolve_selected_artifact_paths` and its consumers as well,
+        or it will have built an expansion this gate silently cannot gate.
 
     So after the closure shipped the position is unchanged and must be reported unchanged: the wiring
     is proven correct; a live mixed selection being gated is NOT proven.
@@ -28234,6 +28230,7 @@ def initialize_run_core(
     set_sessions: dict[str, str] = {}
     queue: list[dict[str, Any]] = []
     full_auto = getattr(args, "full_auto", False)
+    unresolvable_ipds: list[tuple[str, str, str]] = []
     for position, id6 in enumerate(queue_ids, start=1):
         atype, item_info = lookup_manifest_artifact(manifest, repo, id6)
         if atype == "ipd":
@@ -28245,14 +28242,22 @@ def initialize_run_core(
             status = plan.get("status")
             p_path = None
             rec = None
+            resolve_err: Exception | None = None
             try:
                 p_path = resolve_plan_path(repo, plan.get("file", ""), id6)
-                rec = parse_plan_file(p_path, repo)
-                if rec and not status:
-                    status = rec.status
-            except Exception:
-                if not status:
-                    status = "approved"
+            except Exception as exc:
+                resolve_err = exc
+
+            if p_path is not None:
+                try:
+                    rec = parse_plan_file(p_path, repo)
+                    if rec and not status:
+                        status = rec.status
+                except Exception:
+                    pass
+
+            if not status:
+                status = "approved"
 
             if status == "reviewed" and full_auto and p_path:
                 try:
@@ -28268,6 +28273,11 @@ def initialize_run_core(
             if norm_st == "draft":
                 complete = plan_authoring_complete(repo, str(plan.get("file", "")))
             action = action_for(kind, status or "approved", authoring_complete=complete)
+            if (
+                action in ("review", "execute", "orchestrate")
+                and resolve_err is not None
+            ):
+                unresolvable_ipds.append((id6, plan.get("file", ""), str(resolve_err)))
             queue.append(
                 {
                     "position": position,
@@ -28357,6 +28367,18 @@ def initialize_run_core(
     )
 
     enforce_orchestrator_shape_gate({"queue": queue}, repo=repo)
+
+    # kqb9ok E-02: refuse at the queue-build seam ahead of durable state any IPD
+    # queue entry whose configured file cannot be resolved by resolve_plan_path.
+    if unresolvable_ipds:
+        details = "; ".join(
+            f"IPD {item_id} (configured {item_cfg!r}): {item_err}"
+            for item_id, item_cfg, item_err in unresolvable_ipds
+        )
+        raise DriverError(
+            f"Cannot resolve plan path for queue entry: {details}. "
+            "No work started, and nothing durable was created"
+        )
 
     run_id, run_dir = mint_run_dir(repo, getattr(args, "run_id", None))
     for name in ("sessions", "outcomes", "prompts"):

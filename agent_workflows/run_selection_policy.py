@@ -1372,18 +1372,22 @@ SKIP_HOST_CAPABILITY_UNAVAILABLE = "host_capability_unavailable"
 #:
 #: The two deliberate ABSENCES from the backlog item's list of six, each with the measurement:
 #:
-#:   * "GATE REFUSED" IS NOT ONE REASON AND MOSTLY IS NOT PER-ARTIFACT AT ALL. Measured at HEAD
-#:     `7562ca6c` by reading `runner_shared.initialize_run_core`: of the five gates it runs before the
-#:     run directory exists, FOUR refuse the WHOLE RUN by raising `DriverError` (the mixed-type gate,
-#:     the requested-action legality check, the dependency preflight, and `refuse_unimplemented_run_flags`),
-#:     so no artifact of that run ever reaches a per-artifact line and a reason value for them could
-#:     never render. They are excluded for that reason. The FIFTH, the draft-admission gate, genuinely
-#:     excludes PER ARTIFACT (`enforce_draft_admission_gate` returns a filtered `queue_ids` and
-#:     contains no `raise`) - but it runs at offset 70 of `initialize_run_core` while the run directory
-#:     is not created until offset 134, so an excluded draft never enters the queue, has no queue entry
-#:     and no disposition. Its exclusion is ALREADY reported, verbatim from spec 2.5a, by
-#:     `render_drafts_exclusion` above, which is the renderer this module already owns and which this
-#:     one therefore does NOT duplicate.
+#:   * "GATE REFUSED" IS NOT ONE REASON AND MOSTLY IS NOT PER-ARTIFACT AT ALL. Measured at execution
+#:     HEAD by reading `runner_shared.initialize_run_core`: of the gates it runs before the run
+#:     directory is created by `mint_run_dir`, twelve refuse the WHOLE RUN by raising `DriverError`
+#:     or a subclass (`refuse_unimplemented_run_flags`, `refuse_unsweepable_run_types`,
+#:     `refuse_type_scoping_outside_the_review_sweep`, `expand_dependency_closure`,
+#:     `enforce_dependency_preflight_fn`, `enforce_requested_action`, `enforce_mixed_type_gate`,
+#:     `refuse_unrunnable_selected_types`, `enforce_no_active_runner_conflict`,
+#:     `enforce_freeze_time_refusal`, `enforce_orchestrator_shape_gate`, and the queue-build
+#:     unresolvable-IPD check `unresolvable_ipds`), so no artifact of that run ever reaches a
+#:     per-artifact line and a reason value for them could never render. They are excluded for that
+#:     reason. The thirteenth, the draft-admission gate (`enforce_draft_admission_gate`), genuinely
+#:     excludes PER ARTIFACT (it returns a filtered `queue_ids` and contains no `raise`) - but it
+#:     runs ahead of queue building and ahead of `mint_run_dir`, so an excluded draft never enters
+#:     the queue, has no queue entry and no disposition. Its exclusion is ALREADY reported, verbatim
+#:     from spec 2.5a, by `render_drafts_exclusion` above, which is the renderer this module already
+#:     owns and which this one therefore does NOT duplicate.
 #:   * `host_capability_unavailable` IS per-artifact by construction
 #:     (`host_sandbox_profile.preflight_host_capabilities` returns `aborts_run=False`,
 #:     `cascade_dependents=True`) and IS spec-named, so it is KEPT in the vocabulary above.

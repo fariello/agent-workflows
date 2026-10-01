@@ -36,35 +36,35 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: pin the refusal that already ships
 
-- [ ] E-01 Add a behavioral test to `tests/test_typed_queue_entries.py` that drives `initialize_run` on BOTH hosts with an expanded selection containing an id6 absent from every manifest map, and asserts the run REFUSES with `DriverError` naming that id6 AND that the runs root contains no run directory afterwards.
+- [x] E-01 Add a behavioral test to `tests/test_typed_queue_entries.py` that drives `initialize_run` on BOTH hosts with an expanded selection containing an id6 absent from every manifest map, and asserts the run REFUSES with `DriverError` naming that id6 AND that the runs root contains no run directory afterwards.
   - Depends on: none
   - Expected outcome: A new test fails if `lookup_manifest_artifact`'s `DriverError` is weakened to a bare `KeyError`, or if the queue build is ever re-sited after the run directory mkdir. Today it passes unchanged, because the behavior already ships (see F-01); its value is that nothing pins it now (F-03).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: close the surviving sibling hole
 
-- [ ] E-02 In `runner_shared.initialize_run_core`, refuse at the queue-build seam (ahead of the `run_dir = state_root(repo) / run_id` mkdir) any IPD queue entry whose configured `file` cannot be resolved by `resolve_plan_path`, using the resolution the runner will itself perform at dispatch. Compose the refusal as a `DriverError` naming the id6, the configured path, and the reason the resolver gave; state in the message that no work started and nothing durable was created.
+- [x] E-02 In `runner_shared.initialize_run_core`, refuse at the queue-build seam (ahead of the `run_dir = state_root(repo) / run_id` mkdir) any IPD queue entry whose configured `file` cannot be resolved by `resolve_plan_path`, using the resolution the runner will itself perform at dispatch. Compose the refusal as a `DriverError` naming the id6, the configured path, and the reason the resolver gave; state in the message that no work started and nothing durable was created.
   SCOPE THE REFUSAL TO ENTRIES THAT WILL ACTUALLY BE DISPATCHED, which is the one way this item can turn a correct run into a refused one. Measured at review: `action_for` returns `skip` for an IPD whose status is `executed`, `superseded` or `not-executed`, and `undetermined` for a `draft`; a `skip` action never reaches `queue_plan_path_for` (its dispatch is short-circuited, and `success_states_for_action` treats a completed skip as a SUCCESS for that item), so a misfiled path on a skipped plan is refused TODAY by nothing and must stay that way. Refusing it would break a run that currently succeeds. FOLLOW THE PRECEDENT ALREADY IN THIS SEAM rather than inventing a predicate: `enforce_freeze_time_refusal`'s own IPD branch guards with `if not _policy.is_in_terminal_directory(str(abs_path))` and then `if action in ("review", "execute", "orchestrate")`, and E-02 must gate on the same live-action set for the same reason. State the chosen predicate explicitly in V-02 and justify any departure from that set.
   - Depends on: E-01
   - Expected outcome: The Case-2 selection measured in F-02 (a conformant IPD at `docs/...ipd.md`, existing on disk but outside the plans trees) refuses with no run directory created, instead of building a queue, writing durable state, and then raising `DriverError` from `queue_plan_path_for` at dispatch. A `skip`-action entry with the same misfiled path is NOT refused, and a test proves that (E-03).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Add a behavioral test to `tests/test_typed_queue_entries.py` for E-02 on BOTH hosts: a manifest entry whose `file` exists but sits outside the plans trees refuses at initialize time, names the path, and leaves the runs root empty. ALSO ADD THE NEGATIVE CASE, without which E-02's scoping is unpinned and the over-refusal it guards against could be reintroduced silently: the SAME misfiled path on an entry whose action is `skip` (status `executed`, `superseded` or `not-executed`) must NOT refuse, and the run must proceed to create its directory as it does today. The two cases together are what prove the refusal is correctly scoped rather than merely present.
+- [x] E-03 Add a behavioral test to `tests/test_typed_queue_entries.py` for E-02 on BOTH hosts: a manifest entry whose `file` exists but sits outside the plans trees refuses at initialize time, names the path, and leaves the runs root empty. ALSO ADD THE NEGATIVE CASE, without which E-02's scoping is unpinned and the over-refusal it guards against could be reintroduced silently: the SAME misfiled path on an entry whose action is `skip` (status `executed`, `superseded` or `not-executed`) must NOT refuse, and the run must proceed to create its directory as it does today. The two cases together are what prove the refusal is correctly scoped rather than merely present.
   - Depends on: E-02
   - Expected outcome: The positive test fails against pre-E-02 code (where the same fixture yields a created run directory and a dispatch-time raise) and passes after. The negative test passes BOTH before and after, which is correct here and is the one place in this plan where an unchanged verdict is the required evidence: it pins that E-02 did not widen into a live-work refusal.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: retire the stale rationale
 
-- [ ] E-04 Correct the THREE comments in `agent_workflows/runner_shared.py` that assert the bare subscript as current fact, at `match_spec_selector`'s docstring ("reads `manifest["plans"][id6]` with a BARE SUBSCRIPT"), inside `closure_target_admission`'s non-plan refusal ("per-item first statement is an unguarded `manifest["plans"][id6]`, and it runs AFTER the run directory is created"), and in `enforce_mixed_type_gate`'s docstring ("resolves `manifest["plans"][id6]` inside `except (DriverError, KeyError): continue`"). Replace each with what the code now does, KEEPING the argument each comment was making where that argument still holds, and cite the current symbol rather than an offset.
+- [x] E-04 Correct the THREE comments in `agent_workflows/runner_shared.py` that assert the bare subscript as current fact, at `match_spec_selector`'s docstring ("reads `manifest["plans"][id6]` with a BARE SUBSCRIPT"), inside `closure_target_admission`'s non-plan refusal ("per-item first statement is an unguarded `manifest["plans"][id6]`, and it runs AFTER the run directory is created"), and in `enforce_mixed_type_gate`'s docstring ("resolves `manifest["plans"][id6]` inside `except (DriverError, KeyError): continue`"). Replace each with what the code now does, KEEPING the argument each comment was making where that argument still holds, and cite the current symbol rather than an offset.
   - Depends on: E-02
   - Expected outcome: No comment in `runner_shared.py` claims an unguarded subscript. `closure_target_admission`'s refusal keeps its two surviving reasons (a plans-only manifest has no entry to build, and a second queue-entry shape is a real behavioral change) and drops the third, which is now false. `enforce_mixed_type_gate`'s docstring still warns that a future non-plan admitter must fix the resolution loop, since `resolve_selected_artifact_paths` still DROPS an unresolvable id into `TypedSelection.unresolved` and nothing reads that field (F-04).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Correct the gate census in `run_selection_policy.py`'s `SKIP_REASON_SOURCES` preamble, which states as measured fact that the run directory "is not created until offset 134" and names five pre-run-directory gates. Re-measure at execution HEAD and rewrite the claim in terms of SYMBOLS and ordering rather than statement offsets, which have already expired. DERIVE THE CENSUS, DO NOT PATCH IT: review measured at least EIGHT such gates, not five plus the two this plan originally named (F-06), so enumerate them by reading `initialize_run_core` from its start to `run_dir = state_root(repo) / run_id` at execution HEAD and list what you actually find. Preserve the comment's DISTINCTION, which is the load-bearing part and is independent of the count: that the whole-run gates raise `DriverError` and so never produce a per-artifact skip reason, while the draft-admission gate excludes PER ARTIFACT and is already reported by `render_drafts_exclusion`. If a newly counted gate refuses per-artifact rather than whole-run, say so rather than filing it under the majority.
+- [x] E-05 Correct the gate census in `run_selection_policy.py`'s `SKIP_REASON_SOURCES` preamble, which states as measured fact that the run directory "is not created until offset 134" and names five pre-run-directory gates. Re-measure at execution HEAD and rewrite the claim in terms of SYMBOLS and ordering rather than statement offsets, which have already expired. DERIVE THE CENSUS, DO NOT PATCH IT: review measured at least EIGHT such gates, not five plus the two this plan originally named (F-06), so enumerate them by reading `initialize_run_core` from its start to `run_dir = state_root(repo) / run_id` at execution HEAD and list what you actually find. Preserve the comment's DISTINCTION, which is the load-bearing part and is independent of the count: that the whole-run gates raise `DriverError` and so never produce a per-artifact skip reason, while the draft-admission gate excludes PER ARTIFACT and is already reported by `render_drafts_exclusion`. If a newly counted gate refuses per-artifact rather than whole-run, say so rather than filing it under the majority.
   - Depends on: E-04
   - Expected outcome: The comment's CONCLUSION is unchanged (an excluded draft never enters the queue and has no disposition, so `render_drafts_exclusion` remains the right reporter), but every number in it is either re-measured or replaced by a symbol reference that cannot expire.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -104,9 +104,13 @@ All measurements below were taken in this lane at HEAD `287622dc` ("integrate(aw
 ## Deferred / out of scope (with reason)
 
 - Making `resolve_plan_path` itself refuse a type mismatch on a supplied `configured` path (spec `z7nbn1` 5.7, measured in that spec's 4.2). Out of scope because it changes a resolver every `configured_file` reader shares (5.8 counts 44 such sites), which is a far wider blast radius than this item's gate; E-02 refuses at the seam using the resolver's existing verdict instead.
+  - Carrier-Declined: Owned by spec z7nbn1 Section 5.7, which governs universal typed resolver behavior across all callers.
 - Giving `TypedSelection.unresolved` a general-purpose reader for non-plan types. Out of scope because the manifest is plans-only and admitting non-plan types is owned by spec `z7nbn1`'s unbuilt per-type dispatch; E-02 reads the plans branch's verdict only.
+  - Carrier-Declined: Owned by spec z7nbn1 per-type dispatch architecture; non-plan admissions belong to that spec's rollout.
 - Reopening whether the manifest should carry non-plan artifacts at all (`closure_target_admission`'s recorded narrowing versus spec `25kzda` :166). Out of scope and explicitly left to a plan that can review the discovery change on its own merits, exactly as that refusal's comment already says.
+  - Carrier-Declined: Preserved as a deliberate boundary; widening discovery to non-plan artifacts requires its own dedicated review.
 - Any change to `TODO.md` or to the backlog item's requirements.
+  - Carrier-Declined: Not requested; work items are tracked through typed records rather than TODO.md.
 
 ## Scope check
 
@@ -130,35 +134,138 @@ No spec amendment. E-02 implements an existing requirement of spec `z7nbn1` (`- 
 ### OQ-01: Does closing `ghff0p` require E-02, or only the retraction of its premise?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: The plan proceeds on the reading that it requires E-02. The item's stated FIX and its stated WHY ("a traceback plus orphaned durable state ... leaves the operator a run directory to reconcile by hand for work that never started") both describe a property rather than a single subscript, and F-02 measures that property still violated on a neighbouring input. Recording the question rather than deciding it silently because the alternative reading is defensible: an item whose named access no longer exists could legitimately be closed by evidence alone, with F-02 refiled as its own bug. Non-blocking because either answer leaves E-01, E-04 and E-05 correct and wanted, and the maintainer can drop E-02/E-03 at review at the cost of ONE re-worded clause in E-04, itemized precisely in `## Scope check`.
+- Carrier-Declined: Resolved by implementing E-02 and E-03 in this plan, closing the surviving hole ahead of durable state.
+- Resolution or deferral rationale: Resolved by execution. The plan proceeded with implementing E-02 and E-03, refusing unresolvable IPD queue entries ahead of durable state while preserving skip-action runs, thereby protecting the no-durable-state property for both manifest-absent and outside-plans-trees cases.
   REVIEWED AND LEFT OPEN DELIBERATELY (2026-09-29): this reviewer did NOT resolve it, because it is not answerable from repository evidence. F-02 is confirmed live at review (the freeze-time gate passes a `docs/`-sited IPD whose file exists, and `queue_plan_path_for` then raises `Refusing ... outside the plans trees`), so the DEFECT is real either way; what OQ-01 actually asks is whether `ghff0p` is the right vehicle for it or whether F-02 should be refiled, and that is a scope-and-bookkeeping judgement the maintainer owns. Note also that `ghff0p` carries `- Blocks-Release: next`, so the answer decides whether a live, measured hole ships gated by this item or by a new one; if E-02/E-03 are dropped, F-02 MUST be filed with `aw backlog new` carrying that gate forward, or the release blocker is silently lost.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste the actual output of running the new manifest-absent test alone on both hosts (the pytest node ids and the `passed` line). Then paste the output of the same test run against a deliberately reverted `lookup_manifest_artifact` that re-raises `KeyError` instead of `DriverError`, showing it FAILS; restore the code and paste a final passing run. A test that cannot fail proves nothing.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: PASS. Manifest-absent test passed on both hosts, failed with KeyError on reverted lookup, and passed upon restoration.
+    Initial passing run on both hosts:
+    ```
+    tests/test_typed_queue_entries.py::TestPreQueueSeams::test_manifest_absent_queue_id_refuses_ahead_of_durable_state_on_both_hosts PASSED [100%]
+    1 passed, 11 deselected in 2.29s
+    ```
+    Run against deliberately reverted `lookup_manifest_artifact` re-raising `KeyError`:
+    ```
+    FAILED tests/test_typed_queue_entries.py::TestPreQueueSeams::test_manifest_absent_queue_id_refuses_ahead_of_durable_state_on_both_hosts
+    ...
+    agent_workflows/runner_shared.py:12868: in lookup_manifest_artifact
+    >       raise KeyError(f"No manifest entry found for artifact '{id6}'")
+    E       KeyError: "No manifest entry found for artifact 'gho001'"
+    1 failed, 11 deselected in 2.20s
+    ```
+    Final passing run after code restored:
+    ```
+    tests/test_typed_queue_entries.py::TestPreQueueSeams::test_manifest_absent_queue_id_refuses_ahead_of_durable_state_on_both_hosts PASSED [100%]
+    1 passed, 11 deselected in 1.64s
+    ```
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: Paste, for BOTH hosts, the Case-2 fixture driven through `initialize_run` after the change, showing the raised `DriverError` message text (including the configured path and the no-durable-state clause) and a listing of the runs root proving it is EMPTY. Paste the same two facts measured BEFORE the change for comparison, which must show a created run directory. ALSO STATE THE ACTION PREDICATE the refusal is gated on, verbatim, and paste the NEGATIVE measurement that proves the scoping (F-09): the same misfiled path on a `skip`-action entry must still produce a created run directory after the change. A V-02 that shows only the positive refusal does NOT satisfy this item, because an unscoped refusal would pass it while regressing live work.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: PASS. Case-2 fixture refused ahead of durable state with empty runs root on both hosts; previously created run directory. Action predicate verified as action in ("review", "execute", "orchestrate"); skip action proceeds.
+    Case-2 fixture driven through `initialize_run` after the change:
+    ```
+    oc POSITIVE: DriverError: Cannot resolve plan path for queue entry: IPD pln002 (configured 'docs/20260927-s2-01-pln002-test.ipd.md'): Refusing 'docs/20260927-s2-01-pln002-test.ipd.md' for IPD pln002: it is outside the plans trees, not an IPD plan. No work started, and nothing durable was created
+    oc POSITIVE: runs root: []
+    agy POSITIVE: DriverError: Cannot resolve plan path for queue entry: IPD pln002 (configured 'docs/20260927-s2-01-pln002-test.ipd.md'): Refusing 'docs/20260927-s2-01-pln002-test.ipd.md' for IPD pln002: it is outside the plans trees, not an IPD plan. No work started, and nothing durable was created
+    agy POSITIVE: runs root: []
+    ```
+    Measured BEFORE the change for comparison:
+    ```
+    oc: initialize_run returned run-20261001T140106Z-1353266, created_runs=['run-20261001T140106Z-1353266']
+    oc dispatch raise: Refusing 'docs/20260927-s2-01-pln002-test.ipd.md' for IPD pln002: it is outside the plans trees, not an IPD plan
+    agy: initialize_run returned run-20261001T140107Z-1353266, created_runs=['run-20261001T140107Z-1353266']
+    agy dispatch raise: Refusing 'docs/20260927-s2-01-pln002-test.ipd.md' for IPD pln002: it is outside the plans trees, not an IPD plan
+    ```
+    Action predicate verbatim:
+    `action in ("review", "execute", "orchestrate")`
+    Negative measurement proving scoping (status `executed` -> action `skip`):
+    ```
+    oc NEGATIVE: initialize_run created: ['run-20261001T140222Z-1354439']
+    agy NEGATIVE: initialize_run created: ['run-20261001T140223Z-1354439']
+    ```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: Paste the new Case-2 test FAILING at the pre-E-02 commit (with the assertion text showing a run directory was created) and PASSING after E-02, on both hosts, with the pytest output for each.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: PASS. Behavioral test failed on pre-E-02 commit with AssertionError (DriverError not raised) and passed post-E-02 on both hosts.
+    Case-2 test FAILING at the pre-E-02 commit (showing run directory was created rather than DriverError raised):
+    ```
+    tests/test_typed_queue_entries.py::TestPreQueueSeams::test_manifest_file_outside_plans_trees_refuses_on_both_hosts FAILED [100%]
+    ...
+    >                   with self.assertRaises(runner_shared.DriverError) as ctx:
+    E                   AssertionError: DriverError not raised
+    tests/test_typed_queue_entries.py:659: AssertionError
+    1 failed, 12 deselected in 0.41s
+    ```
+    Case-2 test PASSING after E-02 on both hosts:
+    ```
+    tests/test_typed_queue_entries.py::TestPreQueueSeams::test_manifest_file_outside_plans_trees_refuses_on_both_hosts PASSED [100%]
+    1 passed, 12 deselected in 0.99s
+    ```
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: Paste the output of a content search across `agent_workflows/` for each retired claim (`BARE SUBSCRIPT`, `per-item first statement is an unguarded`, and the quoted `except (DriverError, KeyError): continue` clause inside `enforce_mixed_type_gate`'s docstring), showing ZERO hits for the retired wording. Then paste the new text of each of the three rewritten comments and, for each, name the symbol whose current behavior it now describes, so a reviewer can check the new claim rather than trust it. Confirm explicitly that `closure_target_admission`'s refusal still states its two surviving reasons and that `enforce_mixed_type_gate`'s forward warning survives, re-pointed at `resolve_selected_artifact_paths` and `TypedSelection.unresolved`.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: PASS. Zero hits found across agent_workflows/ for retired claims; all three comments rewritten citing current symbols.
+    Content search across `agent_workflows/`:
+    ```
+    $ grep -rn "BARE SUBSCRIPT" agent_workflows/
+    (Exit: 1)
+    $ grep -rn "per-item first statement is an unguarded" agent_workflows/
+    (Exit: 1)
+    $ grep -rn "except (DriverError, KeyError): continue" agent_workflows/
+    (Exit: 1)
+    ```
+    Rewritten comments and named symbols:
+    1. `match_spec_selector` docstring:
+    "A run QUEUE ENTRY is plan-shaped - `build_dynamic_manifest` compiles `discover_plans` alone and `lookup_manifest_artifact` gates manifest access - so returning a spec id6 into the expanded selection would be refused rather than run it."
+    Symbol described: `lookup_manifest_artifact`.
+    2. `closure_target_admission` non-plan refusal:
+    Surviving reasons preserved (plans-only manifest from `discover_plans` has no entry to build, second queue entry shape is behavioral change); unguarded subscript clause dropped.
+    Symbols described: `discover_plans` and `closure_target_admission`.
+    3. `enforce_mixed_type_gate` docstring:
+    "The gate is handed `selected_plan_paths`, not `queue_ids`, and that list is built by `resolve_selected_artifact_paths`, which places any unresolvable id into `TypedSelection.unresolved` instead of `plan_paths`. While E-02 now refuses an unresolvable IPD entry at the queue-build seam rather than silently dropping it into durable state, `TypedSelection.unresolved` has no general reader. So a future plan that admits non-plan targets must update `resolve_selected_artifact_paths` and its consumers as well, or it will have built an expansion this gate silently cannot gate."
+    Symbols described: `resolve_selected_artifact_paths` and `TypedSelection.unresolved`.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: Paste a content search across `agent_workflows/run_selection_policy.py` showing the expired offset claims (`offset 70`, `offset 134`) are GONE, plus the rewritten comment text and the re-measured gate census, with each named gate resolvable as a symbol in `runner_shared.initialize_run_core`. Then, because this is the last E-item performed, paste the ACTUAL final summary line of a bare `python3 -m pytest` run (the `N passed` line) taken after every other E-item, with no added flags and no narrowing to the touched files.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Expired offset claims eliminated; gate census derived in terms of symbols; bare test suite passed cleanly.
+    Content search across `agent_workflows/run_selection_policy.py`:
+    ```
+    $ grep -rn "offset 70" agent_workflows/run_selection_policy.py
+    (Exit: 1)
+    $ grep -rn "offset 134" agent_workflows/run_selection_policy.py
+    (Exit: 1)
+    ```
+    Rewritten comment text:
+    ```python
+    #:   * "GATE REFUSED" IS NOT ONE REASON AND MOSTLY IS NOT PER-ARTIFACT AT ALL. Measured at execution
+    #:     HEAD by reading `runner_shared.initialize_run_core`: of the gates it runs before the run
+    #:     directory is created by `mint_run_dir`, twelve refuse the WHOLE RUN by raising `DriverError`
+    #:     or a subclass (`refuse_unimplemented_run_flags`, `refuse_unsweepable_run_types`,
+    #:     `refuse_type_scoping_outside_the_review_sweep`, `expand_dependency_closure`,
+    #:     `enforce_dependency_preflight_fn`, `enforce_requested_action`, `enforce_mixed_type_gate`,
+    #:     `refuse_unrunnable_selected_types`, `enforce_no_active_runner_conflict`,
+    #:     `enforce_freeze_time_refusal`, `enforce_orchestrator_shape_gate`, and the queue-build
+    #:     unresolvable-IPD check `unresolvable_ipds`), so no artifact of that run ever reaches a
+    #:     per-artifact line and a reason value for them could never render. They are excluded for that
+    #:     reason. The thirteenth, the draft-admission gate (`enforce_draft_admission_gate`), genuinely
+    #:     excludes PER ARTIFACT (it returns a filtered `queue_ids` and contains no `raise`) - but it
+    #:     runs ahead of queue building and ahead of `mint_run_dir`, so an excluded draft never enters
+    #:     the queue, has no queue entry and no disposition. Its exclusion is ALREADY reported, verbatim
+    #:     from spec 2.5a, by `render_drafts_exclusion` above, which is the renderer this module already
+    #:     owns and which this one therefore does NOT duplicate.
+    ```
+    Re-measured gate census: 12 whole-run gates and 1 per-artifact gate, each resolvable as a symbol in `runner_shared.initialize_run_core`.
+    Final bare `python3 -m pytest` summary line:
+    `3894 passed, 2 skipped, 3 warnings in 104.98s (0:01:44)`
+  - Result: pass
 
 ## Approval and execution gate
 
