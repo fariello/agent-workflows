@@ -6,7 +6,7 @@
 - Scope: IN: teach `ipd_lifecycle.finalize_precheck` to read the finalize journal and REFUSE for the ONE phase the transaction refuses on (`PHASE_UNKNOWN_OUTCOME`), carrying a stable finding id so no caller has to substring-match prose; a behavioral regression test proving precheck and `finalize` now agree on that state; a control test proving the four NON-refusing phases are unchanged; a test pinning the two receipt refusals' precedence under a wedged journal; one CHANGELOG line. OUT: changing ANY behavior of `finalize`, `_finalize_transaction`, or `_early_recovery_result`; changing what wedges a journal into `unknown-outcome` (that is `cnf7gw`/`4er1ev`'s territory, already executed); adding a REMEDY or auto-clear for a wedged journal (see the deferred section, `hf76th`); the rollup path `retire_orchestrator`, which already shares `_early_recovery_result` and needs no change; and both `runner_shared` callers (`compute_scope_reconciliation` and `record_item_spec_edits`), whose existing `exit_code != 0` / `rc != 0` branches absorb the new refusal with no edit.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, tests/test_ipd_lifecycle_cli.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: hlv737
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: hlv737 verified (set bn58ha, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 
