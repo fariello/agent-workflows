@@ -1,11 +1,13 @@
 - Id: 0szu1p
-- Status: open
+- Status: graduated
+- Graduated-To: rulingcarrier
 - Set: 0szu1p
 - Priority: medium
 - Work-Kind: feature
 - Summary: Decide whether a maintainer ruling about named artifacts should get its own typed enforceable record, since today a ruling's only homes are unparsed DECISIONS.md prose or another plan's prose
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): graduated by run run-20260930T053059Z-3200713: jge900
 - 2026-09-29 created (aw backlog): Filed at authoring time by plan nllamb (Set iguvci) as the durable carrier for its OQ-01. Filed rather than deferred to the executor because check.ipd-uncarried-obligation is error-severity for a plan dated after the 2026-09-19 cutover and refuses a Carrier naming a non-resolving id6.
 
 WHAT IS UNDECIDED. A maintainer ruling that names specific artifacts (for example the 2026-09-12 ruling that 13 named plans carry specific Priority/Work-Kind values) has no enforceable home. Measured: there is no `decision` artifact type in `artifact_types.TYPE_BACKENDS` and no `.aw/records/decisions/` tree, and `DECISIONS.md` is a repo-root append-only prose log whose only programmatic use is as a text corpus for id6 reference scanning (`artifact_core.SCAN_ROOTS`). Nothing parses its entries, no status is read from it, and it is invisible to `aw attention` for the same structural reason deprecated `TODO.md` is.
