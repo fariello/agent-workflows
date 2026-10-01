@@ -11,7 +11,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from agent_workflows import check_engine, cli
+from agent_workflows import agent_schema, check_engine, cli
 from tests import support
 
 
@@ -2859,6 +2859,284 @@ Test goal.
         drift_after = check_engine.check_status_untooled(self.repo_root)
         self.assertEqual(drift_after, [])
         self.assertEqual(self._newest_history_token(dest_path), "not-executed")
+
+
+class TestDryRunMachineDisposition(StatusSetTestBase):
+    """E-03: Machine dry-run disposition tests asserting on observable payloads."""
+
+    def test_dry_run_noop_plan_emits_noop_and_unchanged_detail(self):
+        """A no-op dry run on a plan emits kind='noop', (unchanged) detail, and summary count 0."""
+        self.create_plan(
+            "20261001-noop01-01-np0001-plan.ipd.md",
+            "np0001",
+            "noop01",
+            status="reviewed",
+        )
+        res = support.run_cli(
+            "ipd",
+            "set",
+            "reviewed",
+            "np0001",
+            "--dry-run",
+            "--json",
+            cwd=self.repo_root,
+        )
+        self.assertEqual(res.returncode, 0)
+        payload = json.loads(res.stdout)
+        self.assertEqual(payload["summary"], "would update status on 0 artifact(s)")
+        self.assertEqual(len(payload["changes"]), 1)
+        change = payload["changes"][0]
+        self.assertEqual(change["kind"], "noop")
+        self.assertEqual(change["detail"], "status: reviewed (unchanged)")
+        self.assertFalse(change["applied"])
+
+        self.assertEqual(len(payload["data"]["items"]), 1)
+        item = payload["data"]["items"][0]
+        self.assertFalse(item["changed"])
+        self.assertTrue(item["dry_run"])
+
+    def test_dry_run_transition_plan_emits_update(self):
+        """A real transition dry run on a plan emits kind='update' and summary count 1."""
+        self.create_plan(
+            "20261001-upd01-01-up0001-plan.ipd.md",
+            "up0001",
+            "upd01",
+            status="draft",
+        )
+        res = support.run_cli(
+            "ipd",
+            "set",
+            "reviewed",
+            "up0001",
+            "--dry-run",
+            "--json",
+            cwd=self.repo_root,
+        )
+        self.assertEqual(res.returncode, 0)
+        payload = json.loads(res.stdout)
+        self.assertEqual(payload["summary"], "would update status on 1 artifact(s)")
+        self.assertEqual(len(payload["changes"]), 1)
+        change = payload["changes"][0]
+        self.assertEqual(change["kind"], "update")
+        self.assertEqual(change["detail"], "status: draft -> reviewed")
+        self.assertFalse(change["applied"])
+
+        self.assertEqual(len(payload["data"]["items"]), 1)
+        item = payload["data"]["items"][0]
+        self.assertTrue(item["changed"])
+        self.assertTrue(item["dry_run"])
+
+    def test_dry_run_mixed_selection_counts_and_dispositions(self):
+        """Mixed selection reports accurate would-update count and per-artifact kinds."""
+        self.create_plan(
+            "20261001-mix01-01-mx0001-plan.ipd.md",
+            "mx0001",
+            "mix01",
+            status="reviewed",
+        )
+        self.create_plan(
+            "20261001-mix01-02-mx0002-plan.ipd.md",
+            "mx0002",
+            "mix01",
+            status="reviewed",
+        )
+        self.create_plan(
+            "20261001-mix01-03-mx0003-plan.ipd.md",
+            "mx0003",
+            "mix01",
+            status="draft",
+        )
+        res = support.run_cli(
+            "ipd",
+            "set",
+            "reviewed",
+            "mix01",
+            "--dry-run",
+            "--json",
+            cwd=self.repo_root,
+        )
+        self.assertEqual(res.returncode, 0)
+        payload = json.loads(res.stdout)
+        self.assertEqual(payload["summary"], "would update status on 1 artifact(s)")
+        self.assertEqual(len(payload["changes"]), 3)
+
+        by_name = {Path(c["path"]).name: c for c in payload["changes"]}
+        item_by_name = {Path(it["path"]).name: it for it in payload["data"]["items"]}
+
+        for name, c in by_name.items():
+            self.assertFalse(c["applied"])
+            it = item_by_name[name]
+            self.assertTrue(it["dry_run"])
+            if "mx0003" in name:
+                self.assertEqual(c["kind"], "update")
+                self.assertEqual(c["detail"], "status: draft -> reviewed")
+                self.assertTrue(it["changed"])
+            else:
+                self.assertEqual(c["kind"], "noop")
+                self.assertEqual(c["detail"], "status: reviewed (unchanged)")
+                self.assertFalse(it["changed"])
+
+    def test_cross_path_agreement_property_mixed_selection(self):
+        """For the same fixture and selector, dry-run dispositions match apply path."""
+        self.create_plan(
+            "20261001-crossp-01-cp0001-plan.ipd.md",
+            "cp0001",
+            "crossp",
+            status="reviewed",
+        )
+        self.create_plan(
+            "20261001-crossp-02-cp0002-plan.ipd.md",
+            "cp0002",
+            "crossp",
+            status="draft",
+        )
+        res_dry = support.run_cli(
+            "ipd",
+            "set",
+            "reviewed",
+            "crossp",
+            "--dry-run",
+            "--json",
+            cwd=self.repo_root,
+        )
+        self.assertEqual(res_dry.returncode, 0)
+        dry_payload = json.loads(res_dry.stdout)
+
+        res_app = support.run_cli(
+            "ipd",
+            "set",
+            "reviewed",
+            "crossp",
+            "--json",
+            "--yes",
+            cwd=self.repo_root,
+        )
+        self.assertEqual(res_app.returncode, 0)
+        app_payload = json.loads(res_app.stdout)
+
+        # Summary counts must agree
+        self.assertEqual(dry_payload["summary"], "would update status on 1 artifact(s)")
+        self.assertEqual(app_payload["summary"], "updated status on 1 artifact(s)")
+
+        dry_items = {it["path"]: it for it in dry_payload["data"]["items"]}
+        app_items = {it["path"]: it for it in app_payload["data"]["items"]}
+        self.assertEqual(set(dry_items.keys()), set(app_items.keys()))
+        for path, dry_it in dry_items.items():
+            app_it = app_items[path]
+            self.assertEqual(dry_it["changed"], app_it["changed"])
+
+        dry_changes = {c["path"]: c for c in dry_payload["changes"]}
+        app_artifact_changes = {
+            c["path"]: c
+            for c in app_payload["changes"]
+            if not c["path"].endswith(".json")
+            and not c["path"].endswith(".md")
+            or "crossp" in c["path"]
+        }
+        for path, dry_c in dry_changes.items():
+            app_c = app_artifact_changes[path]
+            self.assertEqual(dry_c["kind"], app_c["kind"])
+            self.assertEqual(dry_c["detail"], app_c["detail"])
+
+    def test_dry_run_backlog_item_typed_and_untyped_spellings(self):
+        """Cover backlog item across typed and untyped set spellings for noop and transition."""
+        self.create_backlog(
+            "20261001-bk0001-item.bkl.md",
+            "bk0001",
+            "bklset",
+            status="open",
+        )
+
+        # 1. Typed noop
+        res_t_noop = support.run_cli(
+            "backlog",
+            "set",
+            "open",
+            "bk0001",
+            "--dry-run",
+            "--json",
+            cwd=self.repo_root,
+        )
+        self.assertEqual(res_t_noop.returncode, 0)
+        p_t_noop = json.loads(res_t_noop.stdout)
+        self.assertEqual(p_t_noop["summary"], "would update status on 0 artifact(s)")
+        self.assertEqual(p_t_noop["changes"][0]["kind"], "noop")
+        self.assertEqual(p_t_noop["changes"][0]["detail"], "status: open (unchanged)")
+        self.assertFalse(p_t_noop["changes"][0]["applied"])
+        self.assertFalse(p_t_noop["data"]["items"][0]["changed"])
+
+        # 2. Untyped noop
+        res_u_noop = support.run_cli(
+            "set",
+            "open",
+            "bk0001",
+            "--dry-run",
+            "--json",
+            cwd=self.repo_root,
+        )
+        self.assertEqual(res_u_noop.returncode, 0)
+        p_u_noop = json.loads(res_u_noop.stdout)
+        self.assertEqual(p_u_noop["summary"], "would update status on 0 artifact(s)")
+        self.assertEqual(p_u_noop["changes"][0]["kind"], "noop")
+        self.assertEqual(p_u_noop["changes"][0]["detail"], "status: open (unchanged)")
+        self.assertFalse(p_u_noop["changes"][0]["applied"])
+        self.assertFalse(p_u_noop["data"]["items"][0]["changed"])
+
+        # 3. Typed transition (open -> parked)
+        res_t_upd = support.run_cli(
+            "backlog",
+            "set",
+            "parked",
+            "bk0001",
+            "--dry-run",
+            "--json",
+            cwd=self.repo_root,
+        )
+        self.assertEqual(res_t_upd.returncode, 0)
+        p_t_upd = json.loads(res_t_upd.stdout)
+        self.assertEqual(p_t_upd["summary"], "would update status on 1 artifact(s)")
+        self.assertEqual(p_t_upd["changes"][0]["kind"], "update")
+        self.assertEqual(p_t_upd["changes"][0]["detail"], "status: open -> parked")
+        self.assertFalse(p_t_upd["changes"][0]["applied"])
+        self.assertTrue(p_t_upd["data"]["items"][0]["changed"])
+
+        # 4. Untyped transition (open -> parked)
+        res_u_upd = support.run_cli(
+            "set",
+            "parked",
+            "bk0001",
+            "--dry-run",
+            "--json",
+            cwd=self.repo_root,
+        )
+        self.assertEqual(res_u_upd.returncode, 0)
+        p_u_upd = json.loads(res_u_upd.stdout)
+        self.assertEqual(p_u_upd["summary"], "would update status on 1 artifact(s)")
+        self.assertEqual(p_u_upd["changes"][0]["kind"], "update")
+        self.assertEqual(p_u_upd["changes"][0]["detail"], "status: open -> parked")
+        self.assertFalse(p_u_upd["changes"][0]["applied"])
+        self.assertTrue(p_u_upd["data"]["items"][0]["changed"])
+
+    def test_dry_run_agent_schema_conformance(self):
+        """Dry-run payload with --agent conforms to aw.agent/v1 schema."""
+        self.create_plan(
+            "20261001-ag0001-01-ag0001-plan.ipd.md",
+            "ag0001",
+            "agset",
+            status="reviewed",
+        )
+        res = support.run_cli(
+            "ipd",
+            "set",
+            "reviewed",
+            "ag0001",
+            "--dry-run",
+            "--agent",
+            cwd=self.repo_root,
+        )
+        self.assertEqual(res.returncode, 0)
+        payload = json.loads(res.stdout.strip())
+        agent_schema.assert_valid_agent_record(payload)
 
 
 if __name__ == "__main__":

@@ -2265,21 +2265,33 @@ def run_set_command(
         return get_renderer(ctx).emit(res, ctx)
 
     if is_dry_run:
+
+        def _dry_run_disposition(r: ArtifactRecord) -> tuple[str, bool]:
+            nstat = normalize_target_status(target_status, r.record_type)
+            curr = (r.status or "").strip().lower()
+            return nstat, curr != nstat.strip().lower()
+
+        dry_results = [(r, *_dry_run_disposition(r)) for r in matched_records]
+
         if ctx.is_agent or ctx.is_json:
             changes = [
                 Change(
                     path=str(r.path),
-                    kind="update",
+                    kind="update" if changed else "noop",
                     applied=False,
-                    detail=f"status: {r.status or '-'} -> {normalize_target_status(target_status, r.record_type)}",
+                    detail=(
+                        f"status: {r.status or '-'} -> {nstat}"
+                        if changed
+                        else f"status: {nstat} (unchanged)"
+                    ),
                 )
-                for r in matched_records
+                for r, nstat, changed in dry_results
             ]
             res = CommandResult(
                 command="set",
                 status="clean",
                 exit_code=0,
-                summary=f"would update status on {len(matched_records)} artifact(s)",
+                summary=f"would update status on {len([r for r, _, changed in dry_results if changed])} artifact(s)",
                 changes=changes,
                 data={
                     "items": [
@@ -2287,12 +2299,11 @@ def run_set_command(
                             "path": str(r.path),
                             "type": r.record_type,
                             "old_status": r.status,
-                            "new_status": normalize_target_status(
-                                target_status, r.record_type
-                            ),
+                            "new_status": nstat,
+                            "changed": changed,
                             "dry_run": True,
                         }
-                        for r in matched_records
+                        for r, nstat, changed in dry_results
                     ]
                 },
                 verified=True,
@@ -2300,10 +2311,7 @@ def run_set_command(
             )
             return get_renderer(ctx).emit(res, ctx)
 
-        for r in matched_records:
-            nstat = normalize_target_status(target_status, r.record_type)
-            curr = (r.status or "").strip().lower()
-            changed = curr != nstat.strip().lower()
+        for r, nstat, changed in dry_results:
             term.line(
                 _format_status_transition_line(
                     r, r.path, nstat, term, args, dry_run=True, changed=changed
