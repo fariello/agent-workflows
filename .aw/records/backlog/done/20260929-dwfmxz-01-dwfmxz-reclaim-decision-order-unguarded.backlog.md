@@ -1,5 +1,5 @@
 - Id: dwfmxz
-- Status: graduated
+- Status: done
 - Graduated-To: dwfmxz
 - Set: dwfmxz
 - Priority: medium
@@ -7,5 +7,6 @@
 - Summary: The interrupt-path merged-lane reclaim decision order has no test guard after the 19313eed suite trim deleted tests/test_worktree_lease_merged_reclaim.py
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw agy run: IPD 2rtp96 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-dwfmxz-01-2rtp96-guard-the-interrupt-path-merged-lane-reclaim-decision-order.ipd.md); evidence .aw/records/plans/executed/20260930-dwfmxz-01-2rtp96-guard-the-interrupt-path-merged-lane-reclaim-decision-order.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: 2rtp96
 - 2026-09-29 created (aw backlog): Filed at authoring of plan hyuos6 (backlog 0kdwm3) as the durable carrier for its deferred decision-order guard. MEASURED at HEAD 9733d47a: commit 19313eed (2026-09-24) deleted tests/test_worktree_lease_merged_reclaim.py (797 lines), whose TheInterruptBehaviorTests drove the real runner_shared.reclaim_lanes_on_interrupt across eleven cases, and TheNoDirectForceTeardownTests pinned the decision ORDER. The only surviving test referencing reclaim_lanes_on_interrupt is tests/test_oc_runipd.py::test_discard_lane_reclaim, which drives the operator-DISCARD branch and not the merged-lane branch. So plan 65cuw0's E-03 deliverable - consulting merged-ness BEFORE the holds_work bail-out, which its own review round 2 measured as the load-bearing half and the place a false green is easiest to ship - is unguarded. Plan hyuos6 restores the R5.5 CLASSIFICATION guard at the gate level (tests/test_lane_retention_amended_r55.py) and deliberately does NOT cover the decision order, because that needs a two-host driver fixture with a populated run state, which is a materially larger surface. Restoring the deleted file wholesale is FORBIDDEN by the 2026-09-26 no-code-pinning ruling (its AST class is exactly the excluded kind), so the work is to write an OUTCOME-level driver test: drive reclaim_lanes_on_interrupt on both hosts with a real merged lane and assert lane['action'] is 'reclaimed' rather than 'preserved'. Filed chore rather than bug: no shipped behavior is wrong and no user waits; the cost is an unguarded regression path.

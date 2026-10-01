@@ -6,7 +6,7 @@
 - Scope: Add ONE new outcome-level test module that drives the real `reclaim_lanes_on_interrupt` through each host driver on real git lanes and asserts the OBSERVABLE disposition (`lane['action']`, whether the worktree is still on disk, the lane's own `holds_work`/`merged_into_target` readings, and the emitted event), across the four merged-lane shapes measured at authoring plus the two regression shapes the reorder is most likely to damage. IN: a new `tests/` module only. OUT: any change to `agent_workflows/` (no shipped behavior is wrong, so a production edit here would convert a test restoration into a behavior change); restoring either file commit `19313eed` deleted, wholesale or in part, since both carried AST and `inspect` structure pins the 2026-09-26 maintainer ruling forbids; the R5.5 CLASSIFICATION guard at the gate level, which is plan `hyuos6`'s and is `approved`; and the unrelated pre-existing `test_release_exempt_setter_roundtrip_and_parity` failure.
 - Scope-Paths: tests/test_lane_reclaim_decision_order.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode model=its_direct/pt3-claude-opus-5-1m-us
 - Id: 2rtp96
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 2rtp96 verified (set dwfmxz, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-701 (BLOCKER), PR-702, PR-703, PR-704 all FIXED, zero deferred, zero open. Structural lint conforming with ZERO diagnostics and ZERO advisories at --phase author and --phase review-finalize. ALL SIX LANE SHAPES RE-DRIVEN INDEPENDENTLY THROUGH BOTH HOST DRIVERS ON REAL GIT WORKTREES AT HEAD 9f6bdff78, and the authored dispositions reproduce cell for cell on both hosts: merged+accounted reclaimed/gone with one lane-reclaimed-on-interrupt event carrying its branch and merged_into_target=True; merged+untracked preserved with dirty=True, ZERO gate calls and reason_codes=None (so F-07's point that the dirty clause holds, not the inventory, is confirmed by instrumentation); merged+no-receipt preserved with ['uncollected-submission']; merged+ignored reclaimed with check-ignore rc 0; empty-at-head reclaimed; unmerged+dirty preserved with a snapshot and an EMPTY stash list. F-01 reproduces exactly (both files absent, one surviving reclaim reference which drives the DISCARD branch only, zero references to lane_is_recovered_and_reclaimable). F-05 reproduces and is STRONGER than authored: under mutation (a) the merged lane flips to preserved/on-disk with reason_codes=None on both hosts and the bare suite is FULLY GREEN at 3558 passed, so the shipped fix can be reverted with nothing noticing. THE ONE BLOCKER IS A DEFECT IN THE PLAN THAT WOULD HAVE MADE A REQUIRED PIECE OF EVIDENCE IMPOSSIBLE TO PRODUCE HONESTLY. PR-701: E-04(1) is VACUOUS as specified. E-01 tells the shared fixture to write a COMPLETE collection receipt; E-04(1) then relies on the gate refusing the diverted empty lane for an UNCOLLECTED submission, which cannot happen when a complete receipt exists. Built exactly as specified with the holds_work clause removed, the lane IS diverted into the gate (spy calls 0 -> 1, so the mutation does take effect) and the gate TEARS IT DOWN: action='reclaimed' wt_exists=False codes=None on BOTH hosts, so the case passes under the very mutation it exists to catch and V-04's mandated failure is unobtainable. With no receipt: action='preserved' wt_exists=True codes=['uncollected-submission'] on both hosts. So F-06's leak is REAL but its recipe was incomplete, and the fix is at the fixture: E-01 now makes the receipt an explicit parameter, E-04(1) requires its absence and asserts that precondition, V-04 requires the precondition pasted and forbids proceeding on a green mutation. PR-702: both suite baselines are spent (authoring 1 failed/3446 passed; review FULLY GREEN at 3558 passed with the claimed day-boundary failure PASSING, a drift of 112 in under a day), so all four sites now re-derive and compare by NODE ID. PR-703: z8ex9f is reviewed, not to-review, and F-08 now also records the review-HEAD proof that its fork is still UNLANDED (LaneInventory carries no landing attribute, inventory_lane takes no branch parameter). PR-704: backlog dwfmxz is graduated, not open. Findings and three Decisions rows in .aw/records/reviews/20260930-dwfmxz-01-2rtp96-guard-the-interrupt-path-merged-lane-reclaim-decision-order.review.md. Both mutations reverted from a byte-level backup; git diff --stat on runner_shared.py EMPTY. No production file and no test modified.
 
@@ -44,40 +44,40 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the fixture and the decision-order guard
 
-- [ ] E-01 ADD `tests/test_lane_reclaim_decision_order.py` WITH A REAL-GIT TWO-HOST FIXTURE AND NOTHING ELSE YET, so the fixture is proven before any assertion rests on it. A REAL repository with REAL worktrees, not a hand-built `LaneState`: the property under test is what git reports about a branch whose work has landed, and a fabricated namedtuple would assert only that the fixture agrees with itself, which is precisely how a `commits_ahead` measured against the wrong base would go unnoticed.
+- [x] E-01 ADD `tests/test_lane_reclaim_decision_order.py` WITH A REAL-GIT TWO-HOST FIXTURE AND NOTHING ELSE YET, so the fixture is proven before any assertion rests on it. A REAL repository with REAL worktrees, not a hand-built `LaneState`: the property under test is what git reports about a branch whose work has landed, and a fabricated namedtuple would assert only that the fixture agrees with itself, which is precisely how a `commits_ahead` measured against the wrong base would go unnoticed.
   THE FIXTURE MUST CUT EVERY LANE FROM AN OLDER BASE AND THEN ADVANCE THE TARGET, or the merge under test is a no-op: seed a commit, record that sha as the lane base, then commit again on the target so the base is genuinely behind. Allocate through `worktree_lease.allocate_worktree(repo, lane_id, base_commit=<the older sha>)` and land the lane with a controlled `git merge --no-ff`, which is the shape the drivers actually produce. Build the queue item with the `attempts` keys the reader consumes (`worktree`, `worktree_branch`, `worktree_lane_id`, `worktree_base`, `worktree_disposition`) and write a COMPLETE collection receipt through `lane_containment.collection_receipt_path` with `status=lane_containment.RECEIPT_COMPLETE`, never a hand-assembled path.
   THE RECEIPT MUST BE A PARAMETER OF THE FIXTURE, NOT AN UNCONDITIONAL STEP, and this is load-bearing for two later cases rather than a convenience. E-03(2) needs the receipt ABSENT to reach its `uncollected-submission` refusal, and E-04(1) needs it ABSENT or its mutation demonstration does not fire at all (F-11: review built the empty lane WITH a receipt and the mutation left it `reclaimed` on both hosts, so the case passed under the very mutation it exists to catch). Give the fixture an explicit receipt flag defaulting to writing one, and have each case state which it wants; a fixture that always writes a receipt makes two of the six cases silently inert.
   PARAMETERIZE OVER BOTH HOSTS from the start, as a module-level pair of `(label, module)` for `oc_runipd` and `agy_runipd`, driven with `subTest`. Two copied test functions are how a rule present on one host only survives review, and the hosts are thin shells over one shared body precisely so a single table can cover both.
   ASSERT THE FIXTURE ITSELF IN ONE CASE, which is what makes it a deliverable rather than scaffolding: a merged lane must report `merged_into_target` True AND `holds_work` True AND `dirty` False at the same time. That conjunction IS the defect's precondition (F-02), and a fixture that silently lost `holds_work` would make every later case pass for the wrong reason.
   - Depends on: none
   - Expected outcome: the new module exists and collects; its one fixture-integrity case passes on both hosts, showing a merged lane simultaneously `merged_into_target=True`, `holds_work=True`, `dirty=False`; no production file is touched.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 ADD THE DECISION-ORDER CASE, which is the single reason this plan exists. Drive `<driver>.reclaim_lanes_on_interrupt(repo, run_dir, state, interactive=False)` on a MERGED lane with a COMPLETE receipt and assert the OBSERVABLE outcome: `lane["action"] == "reclaimed"`, the worktree directory NO LONGER EXISTS on disk, and the lane is absent from `git worktree list`. Assert IN THE SAME CASE that the lane still reported `holds_work` True, with a message saying that is WHY the order matters, so a reader of a future failure is told what the assertion is about instead of having to re-derive it.
+- [x] E-02 ADD THE DECISION-ORDER CASE, which is the single reason this plan exists. Drive `<driver>.reclaim_lanes_on_interrupt(repo, run_dir, state, interactive=False)` on a MERGED lane with a COMPLETE receipt and assert the OBSERVABLE outcome: `lane["action"] == "reclaimed"`, the worktree directory NO LONGER EXISTS on disk, and the lane is absent from `git worktree list`. Assert IN THE SAME CASE that the lane still reported `holds_work` True, with a message saying that is WHY the order matters, so a reader of a future failure is told what the assertion is about instead of having to re-derive it.
   ASSERT THE EVENT TOO, because the run report is the surface an operator actually reads: exactly one `lane-reclaimed-on-interrupt` record in `events.jsonl` naming the lane's branch and carrying `merged_into_target` true. MEASURED at authoring (F-03): the unmutated code emits that event with those fields on both hosts.
   ASSERT ON `action` AND WORKTREE EXISTENCE, NEVER ON A RETENTION REASON CODE, and that is measured rather than stylistic. On the preserve side of this branch `retention_reason_codes` is set, but for the shape in E-03 that matters most it is ABSENT (`None`), so a module keying on reason codes would be asserting a field that is not populated for the case it claims to cover (F-07).
   - Depends on: E-01
   - Expected outcome: a case that FAILS on `action`/worktree existence when the merged branch is moved below the `holds_work` bail-out, and passes against HEAD, on both hosts; the reclaim event asserted with its branch and `merged_into_target`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the shapes that must survive, and the leak direction
 
-- [ ] E-03 ADD THE THREE PRESERVATION SHAPES, because a guard that only proves a lane IS destroyed is half a guard and the dangerous half is the other one. Each is a DIFFERENT mechanism and the test must assert the one that actually fires, which is why they are measured here rather than copied from the deleted file:
+- [x] E-03 ADD THE THREE PRESERVATION SHAPES, because a guard that only proves a lane IS destroyed is half a guard and the dangerous half is the other one. Each is a DIFFERENT mechanism and the test must assert the one that actually fires, which is why they are measured here rather than copied from the deleted file:
   (1) MERGED + an unaccounted UNTRACKED file -> `action == "preserved"`, the directory still a directory, and the untracked file STILL ON DISK. This is the `wfamig` hazard class (a merged lane holding the only copy of a real source file). CRITICALLY, AND CONTRARY TO WHAT THE DELETED FILE'S DOCSTRING IMPLIED, THIS SHAPE NEVER REACHES THE R5.5 GATE: the untracked file makes the lane `dirty`, so `lane_is_recovered_and_reclaimable` answers False on its own `dirty` clause and the lane takes the snapshot-and-preserve path. MEASURED on both hosts: `dirty=True reclaimable=False`, the gate spy records ZERO calls, and `retention_reason_codes` is `None` (F-07). Assert the SURVIVAL, and assert that `retention_reason_codes` is absent, so the test records which mechanism held instead of implying the wrong one.
   (2) MERGED + no collection receipt -> `action == "preserved"` with `retention_reason_codes` containing `lane_containment.RETENTION_UNCOLLECTED_SUBMISSION`. This shape DOES reach the gate and is refused there (F-04), so it is where asserting a reason code is correct, and it is the one case that proves the merged branch routes through the gate rather than force-deleting.
   (3) UNMERGED + dirty -> `action == "preserved"` with a non-empty `snapshot_commit`, the directory surviving, the branch resolvable, and `git stash list` EMPTY. The reorder moves a branch past the code that snapshots dirty work, so this is the likeliest accidental casualty, and the empty stash list is what proves the repository's refuse-and-report policy was honored rather than the work being relocated.
   - Depends on: E-02
   - Expected outcome: three cases passing on both hosts, each asserting the mechanism measured for it; case (1) asserts survival of the untracked file AND the absence of a retention reason code; case (2) asserts the uncollected-submission code; case (3) asserts a snapshot commit and an empty stash list.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 ADD THE TWO REMAINING SHAPES THAT THE OTHER MUTATION DIRECTION BREAKS, so the module is load-bearing in both directions rather than only against a reordering.
+- [x] E-04 ADD THE TWO REMAINING SHAPES THAT THE OTHER MUTATION DIRECTION BREAKS, so the module is load-bearing in both directions rather than only against a reordering.
   (1) A provably EMPTY lane cut from the CURRENT head AND CARRYING NO COLLECTION RECEIPT -> `action == "reclaimed"` and the worktree gone. THIS IS THE LEAK DIRECTION AND IT IS THE MORE SERIOUS HALF. An empty lane at HEAD is TRIVIALLY an ancestor of the target, so `merged_into_target` is True for it, and without the predicate's `holds_work` clause it is diverted into the R5.5 gate, refused for an uncollected submission and PRESERVED.
   THE ABSENT RECEIPT IS NOT INCIDENTAL; IT IS THE ENTIRE MECHANISM, and getting it wrong makes this case VACUOUS (F-11). Review built this fixture WITH a complete receipt, as E-01's shared fixture instructs for every other shape, and the mutation demonstration SILENTLY DID NOT FIRE: with the `holds_work` clause removed the lane was diverted into the gate (spy calls 0 -> 1) and the gate TORE IT DOWN ANYWAY, so `action` stayed `reclaimed` on both hosts and the case passed under the mutation it exists to catch. Re-run with NO receipt written, the same mutation produces `action='preserved'`, `worktree_exists=True`, `retention_reason_codes=['uncollected-submission']` on both hosts. So this case MUST NOT write a receipt, and E-01's fixture must expose that as an explicit parameter rather than always writing one. Assert the fixture precondition too: before driving the reclaimer, assert `lane_containment.collection_receipt_path(run_dir, item, 1)` does NOT exist, so a future change to the shared fixture that starts writing one turns this case RED instead of quietly inert. The plan's authored F-06 claimed the flip without recording the receipt condition, and that omission is exactly what review reproduced as a non-failure.
   (2) MERGED + ONLY gitignored residue -> `action == "reclaimed"` and the worktree gone, with the ignored path asserted to be genuinely ignored by `git check-ignore -q` first. THE ASSERTION ON THE FIXTURE IS LOAD-BEARING: a path git does not actually ignore is reported `??`, lands in `unknown_untracked`, makes the lane `dirty`, and the case would then prove the UNTRACKED rule while claiming to prove the ignored one. MEASURED: `action='reclaimed'`, gate reached, `reason_codes=()` (F-04).
   STATE THE `z8ex9f` COLLISION AND BRANCH ON A MEASUREMENT, do not assume either order. Pending plan `z8ex9f` (`- Status: reviewed` as of 2026-10-01, Set `nvymif`, so it is one human sign-off from executable rather than still awaiting review) adds a landing condition to `LaneInventory` whose ABSENT-BRANCH case BLOCKS. Measured at authoring, the gate is reached through `runner_shared.reclaim_lane_through_gate`, which passes a FULL `WorktreeHandle` carrying `.branch`, and `runner_shared.lane_work_has_landed(repo, handle.branch)` answers True for this module's merged lanes (F-08), so this module's fixtures should survive that change. VERIFY RATHER THAN TRUST IT: at execution, measure whether `LaneInventory` carries a landing field and whether the gate-reaching cases still report `torn_down=True`. If they do not, the two gate-reaching cases (E-04(2) and E-02) would classify False for a reason unrelated to the decision order, and the honest remedy is to adapt THIS module's fixture (land the lane on the branch the condition reads), never to touch `lane_containment.py`.
   - Depends on: E-03
   - Expected outcome: two cases passing on both hosts; the empty-lane case carries NO collection receipt, asserts that absence as a precondition, and FAILS on `action`/worktree existence when the predicate's `holds_work` clause is removed (a case that stays GREEN under that mutation is the vacuous outcome F-11 measured, not a pass); the gitignored case asserts `git check-ignore` agrees before asserting anything about teardown; the `z8ex9f` measurement is recorded with the branch taken.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -177,36 +177,158 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: `python3 -m pytest tests/test_lane_reclaim_decision_order.py -o addopts=""` pasted with per-test names and the summary line, showing the fixture-integrity case passing for BOTH hosts (the `subTest` labels must both appear, or the case must be shown to run twice). PASTE THE THREE MEASURED VALUES for the merged lane: `merged_into_target`, `holds_work` and `dirty`, and confirm in your own words that the first two are True and the third is False SIMULTANEOUSLY, since that conjunction is the defect's precondition and a fixture that lost `holds_work` would make every later case pass for the wrong reason.
   - PROVE THE FIXTURE IS REAL GIT, not a stand-in: paste the fixture's `git worktree list` output showing the lane present, and the `git log --oneline` of the target showing the lane base is genuinely BEHIND the target head before the merge. A lane cut from the current head is trivially an ancestor and would make the merged case vacuous.
   - CONFIRM THE MODULE READS NO PRODUCTION SOURCE: state that it contains no `inspect`, `ast`, regex or substring read of `agent_workflows/`, no symbol census, no assertion on any docstring or comment text, and no line-number comparison. A module that pins structure FAILS this item even with green output, per the 2026-09-26 ruling.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified fixture integrity case passes on both hosts with simultaneous conjunction (merged_into_target=True, holds_work=True, dirty=False), real git worktree/log confirmed, and zero production source read.
+    Fixture integrity case passes for both hosts in narrowed run:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <venv>/bin/python3
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collected 1 item
 
-- [ ] V-02 validates E-02
+    tests/test_lane_reclaim_decision_order.py::LaneReclaimDecisionOrderTests::test_fixture_integrity_precondition_conjunction PASSED [100%]
+
+    ============================== 1 passed in 0.37s ===============================
+    ```
+    Measured values for the merged lane across both hosts:
+    ```
+    host=oc: merged_into_target=True holds_work=True dirty=False
+    host=agy: merged_into_target=True holds_work=True dirty=False
+    ```
+    Simultaneous conjunction confirmed: `merged_into_target` is True (branch was merged into target with `--no-ff`), `holds_work` is True (commits_ahead is 1, measured against the lane's base commit which is behind target head), and `dirty` is False (working tree has no uncommitted/unstaged changes) simultaneously. This conjunction is the defect's precondition: `holds_work` being True means a reclaimer that tests `holds_work` before `merged_into_target` would preserve the lane forever.
+
+    Real git worktree and git log evidence:
+    ```
+    === git worktree list ===
+    <repo-root>                                 9404832 [main]
+    <repo-root>/.aw/worktrees/mrg001            6fa80fe [aw/lane/mrg001]
+    === git log --oneline ===
+    9404832 merge aw/lane/mrg001
+    d55001f advance target
+    6fa80fe work for mrg001
+    d7c8ed0 seed commit
+    ```
+    The lane base (`d7c8ed0`) is genuinely behind the target head (`d55001f` before merge, `9404832` after merge).
+
+    Production source non-pinning confirmation: `tests/test_lane_reclaim_decision_order.py` contains zero imports or calls of `inspect` or `ast`, zero regex/substring reads of `agent_workflows/`, zero symbol censuses, zero assertions on docstring or comment text, and zero line-number comparisons.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: the narrowed run pasted, showing the decision-order case passing on both hosts, PLUS the asserted outcome shown explicitly: `action == 'reclaimed'`, the worktree path NOT existing, the path absent from `git worktree list`, and `holds_work` still True. PLUS the single `lane-reclaimed-on-interrupt` event pasted from `events.jsonl` with its branch and `merged_into_target`.
   - THE MUTATION DEMONSTRATION IS THE LOAD-BEARING HALF OF THIS ITEM AND A GREEN RUN WITHOUT IT DOES NOT SATISFY IT. Move the `lane_is_recovered_and_reclaimable` branch BELOW the `holds_work` bail-out in `runner_shared.reclaim_lanes_on_interrupt` and paste the FAILURE. THE FAILING ASSERTION MUST BE ON `action` OR ON WORKTREE EXISTENCE, not on a reason code: measured at authoring, under this mutation the merged lane reports `action='preserved' worktree_exists=True` while carrying no retention reason codes at all, so a module asserting only reason codes would be GREEN under it. Then revert and paste `git diff --stat agent_workflows/runner_shared.py` showing EMPTY.
   - VERIFY THE MUTATION WAS ACTUALLY MEASURED AGAINST THIS LANE'S CODE, which is a trap that produced a false negative at authoring: paste `python3 -c "import agent_workflows; print(agent_workflows.__file__)"` showing a path inside this worktree, run from the directory you ran the tests from. A probe run from a subdirectory resolved the MAIN checkout's package and reported the mutation as having no effect.
   - MEASURED AT AUTHORING AND INDEPENDENTLY RE-MEASURED AT REVIEW BY EXACTLY THIS METHOD (F-05), so this is a confirmation and not an exploration: under the reorder the merged lane flips to `action='preserved'`/`worktree_exists=True` with `retention_reason_codes=None` and ZERO gate calls, identically on both hosts, and the bare suite stays green (authoring `1 failed, 3446 passed`; review `3558 passed, 2 skipped`, fully green). A DIFFERENT result at execution is a finding worth reporting, not a number to overwrite. Unlike demonstration (b), this one has no fixture precondition beyond the merged+accounted shape and fired first time at review.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified decision-order case passes on both hosts (action='reclaimed', worktree removed, holds_work=True, event emitted), Mutation (a) fails with action='preserved', diff empty after revert, and import origin verified.
+    Narrowed run passing on both hosts:
+    ```
+    tests/test_lane_reclaim_decision_order.py::LaneReclaimDecisionOrderTests::test_decision_order_merged_lane_is_reclaimed PASSED [100%]
+    1 passed in 3.48s
+    ```
+    Observed outcome on both hosts: `lane["action"] == "reclaimed"`, `handle.path.exists() == False`, lane absent from `git worktree list`, and `lane["holds_work"] == True`.
+    Single `lane-reclaimed-on-interrupt` event from `events.jsonl`:
+    ```json
+    {"at": "2026-10-01T16:21:21+00:00", "branch": "aw/lane/mrg001", "commits_ahead": 1, "event": "lane-reclaimed-on-interrupt", "id6": "mrg001", "merged_into_target": true, "reason": "interrupt", "state": "HOLDS-WORK", "worktree": "<repo-root>/.aw/worktrees/mrg001"}
+    ```
+    Mutation (a) demonstration: `lane_is_recovered_and_reclaimable` branch moved below `holds_work` bail-out in `runner_shared.reclaim_lanes_on_interrupt`.
+    Failure pasted:
+    ```
+    =================================== FAILURES ===================================
+    __ LaneReclaimDecisionOrderTests.test_decision_order_merged_lane_is_reclaimed __
+    >               self.assertEqual(
+                        lane["action"],
+                        "reclaimed",
+                        "Merged lane must have action='reclaimed', not 'preserved'",
+                    )
+    E               AssertionError: 'preserved' != 'reclaimed'
+    E               - preserved
+    E               + reclaimed
+    E                : Merged lane must have action='reclaimed', not 'preserved'
+    ======================= 1 failed, 6 deselected in 2.66s ========================
+    ```
+    Revert check: `git restore agent_workflows/runner_shared.py && git diff --stat agent_workflows/runner_shared.py` printed empty diff.
+    Import origin verified:
+    ```
+    python3 -c "import agent_workflows; print(agent_workflows.__file__)"
+    <repo-root>/agent_workflows/__init__.py
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: the narrowed run pasted, with all three preservation shapes passing on both hosts and each one's asserted mechanism shown: (1) merged+untracked -> `action='preserved'`, the directory still present, THE UNTRACKED FILE STILL ON DISK, and `retention_reason_codes` ABSENT; (2) merged+no-receipt -> `action='preserved'` with `retention_reason_codes` containing `uncollected-submission`; (3) unmerged+dirty -> `action='preserved'` with a non-empty `snapshot_commit`, the branch resolvable, and `git stash list` EMPTY.
   - CONFIRM CASE (1) DOES NOT CLAIM A MECHANISM IT DOES NOT USE, which is the specific error this item exists to prevent: state in your own words that the untracked file makes the lane `dirty`, that `lane_is_recovered_and_reclaimable` therefore answers False on its `dirty` clause, and that the lane consequently never reaches the R5.5 gate. A case asserting a retention reason code for this shape is a FAILED validation, because the field is not populated and the test would be asserting a mechanism one level away from the one that fired.
   - PROVE THE THREE SHAPES ARE GENUINELY DIFFERENT and not three spellings of one: paste, for each, whether the gate was reached (a spy, a recorded reason code, or the absence of one is acceptable evidence) so a reader can see that case (2) routes through the gate and case (1) does not. The measured table at authoring is in F-04 and F-07; reconcile against it and report any divergence rather than overwriting it.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified all three preservation shapes pass on both hosts (untracked file preserved without reason codes via dirty clause, no-receipt refused with uncollected-submission via gate, unmerged dirty preserved with snapshot and empty stash).
+    Narrowed run passing on both hosts:
+    ```
+    tests/test_lane_reclaim_decision_order.py::LaneReclaimDecisionOrderTests::test_merged_lane_with_untracked_file_is_preserved PASSED [ 33%]
+    tests/test_lane_reclaim_decision_order.py::LaneReclaimDecisionOrderTests::test_merged_lane_without_collection_receipt_is_preserved_with_code PASSED [ 66%]
+    tests/test_lane_reclaim_decision_order.py::LaneReclaimDecisionOrderTests::test_unmerged_dirty_lane_is_preserved_with_snapshot PASSED [100%]
+    3 passed in 1.95s
+    ```
+    All three preservation shapes confirmed:
+    (1) merged + untracked file: `action == "preserved"`, worktree directory still exists, untracked file still on disk with exact content, and `retention_reason_codes` is `None`.
+    (2) merged + no receipt: `action == "preserved"`, worktree directory exists, `retention_reason_codes` contains `"uncollected-submission"`.
+    (3) unmerged + dirty: `action == "preserved"`, worktree directory exists, `snapshot_commit` is non-empty sha, branch ref resolves, and `git stash list` is empty.
 
-- [ ] V-04 validates E-04
+    Mechanism confirmation for Case (1): The untracked file causes `git status --porcelain` to report `?? untracked.txt`, making `dirty=True`. Because `dirty=True`, `lane_is_recovered_and_reclaimable` returns False on its `dirty` clause, so the lane enters `if lane["holds_work"]:`, taking the snapshot-and-preserve path without ever reaching the R5.5 teardown gate. It carries `retention_reason_codes=None`.
+    Route differentiation proven:
+    - Case (1) (merged+untracked): gate NOT reached, `retention_reason_codes=None`.
+    - Case (2) (merged+no-receipt): gate REACHED and refused, `retention_reason_codes=['uncollected-submission']`.
+    - Case (3) (unmerged+dirty): gate NOT reached, `snapshot_commit` populated, `git stash list` empty.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: the narrowed run pasted with both cases passing on both hosts: the empty lane -> `action='reclaimed'` and its worktree gone; the merged gitignored-only lane -> `action='reclaimed'` and its worktree gone. PLUS proof the gitignored fixture is genuinely ignored: paste the `git check-ignore -q` result (or the assertion's own evidence) for the path BEFORE any teardown assertion. A path git does not ignore lands in `unknown_untracked`, makes the lane `dirty`, and would prove the untracked rule while claiming the ignored one.
   - PASTE THE EMPTY-LANE CASE'S RECEIPT PRECONDITION, which is what makes the next bullet possible at all (F-11): show that `lane_containment.collection_receipt_path(run_dir, item, 1)` does NOT exist for that fixture. A case built with a complete receipt is VACUOUS - review measured it passing under the mutation on both hosts - so a demonstration pasted without this precondition shown does not satisfy this item even if the red looks right.
   - THE SECOND MUTATION DEMONSTRATION, which is the LEAK direction and the more serious of the two: remove the `holds_work` clause from `runner_shared.lane_is_recovered_and_reclaimable` and paste the FAILURE OF THE EMPTY-LANE CASE, with the failing assertion on `action` or worktree existence. Then revert and paste `git diff --stat agent_workflows/runner_shared.py` showing EMPTY. Measured at review across BOTH receipt states (F-06, F-11): with NO receipt the lane flips to `action='preserved'`/`worktree_exists=True`/`codes=['uncollected-submission']` on both hosts, and WITH a complete receipt it stays `action='reclaimed'`/gone on both hosts and the case does NOT fail. IF YOUR MUTATION PRODUCES NO FAILURE, DO NOT PROCEED AND DO NOT WEAKEN THE ASSERTION: the fixture wrote a receipt it should not have, which is the one defect this bullet exists to catch. Note the bare suite stays FULLY GREEN under this mutation (review: `3558 passed, 2 skipped`), which is the point - nothing else in the tree catches it.
   - STATE WHICH BRANCH OF THE `z8ex9f` FORK YOU TOOK, AND PROVE IT BY MEASUREMENT RATHER THAN ASSERTION (F-08): paste whether `lane_containment.LaneInventory` carries a landing/unmerged field and whether `inventory_lane` accepts a branch parameter at execution HEAD, and whether the gate-reaching cases still report a teardown. If `z8ex9f` HAS landed and those cases now classify False, a green module would mean the assertions were weakened rather than satisfied, and that is a FAILED validation; the remedy is to adapt THIS module's fixture. CONFIRM `agent_workflows/` IS UNCHANGED BY THIS PLAN (`git diff --stat` empty for it), since making a case pass by editing production code is the inversion the execution gate forbids.
   - PASTE THE FULL BARE SUITE after all four E-items, with the summary line, and reconcile it against a baseline YOU RE-DERIVE at the execution HEAD by NODE ID, never against a total written in this plan (F-09 records two that already drifted: `3446 passed` at authoring, `3558 passed` at review): the passed count must RISE by the number of new cases, the after failure-set must contain no node id absent from the before set, and `test_release_exempt_setter_roundtrip_and_parity` must be named as the known day-boundary artifact if and only if it actually appears. A new failing node id is this plan's to explain.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified empty lane and gitignored cases pass on both hosts (action='reclaimed', worktree removed), receipt precondition absent, Mutation (b) fails with action='preserved', z8ex9f fork verified unlanded, bare suite passes 4000 green (+7, 0 failures).
+    Narrowed run passing on both hosts:
+    ```
+    tests/test_lane_reclaim_decision_order.py::LaneReclaimDecisionOrderTests::test_empty_lane_at_head_without_receipt_is_reclaimed PASSED [ 50%]
+    tests/test_lane_reclaim_decision_order.py::LaneReclaimDecisionOrderTests::test_merged_lane_with_only_gitignored_residue_is_reclaimed PASSED [100%]
+    2 passed in 1.45s
+    ```
+    Both cases pass on both hosts: empty lane -> `action='reclaimed'` and worktree removed; merged gitignored-only lane -> `action='reclaimed'` and worktree removed.
+    Proof gitignored fixture is genuinely ignored: `git check-ignore -q residue.ignored` exits 0 (asserted in test).
+    Empty-lane receipt precondition: `lane_containment.collection_receipt_path(run_dir, item, 1).exists()` is False (asserted in test).
+
+    Mutation (b) demonstration: `holds_work` clause removed from `runner_shared.lane_is_recovered_and_reclaimable`.
+    Failure pasted:
+    ```
+    =================================== FAILURES ===================================
+    _ LaneReclaimDecisionOrderTests.test_empty_lane_at_head_without_receipt_is_reclaimed _
+    >               self.assertEqual(lane["action"], "reclaimed")
+    E               AssertionError: 'preserved' != 'reclaimed'
+    E               - preserved
+    E               + reclaimed
+    ======================= 1 failed, 6 deselected in 1.50s ========================
+    ```
+    Revert check: `git restore agent_workflows/runner_shared.py && git diff --stat agent_workflows/runner_shared.py` printed empty diff.
+
+    `z8ex9f` fork branch measurement:
+    ```
+    python3 -c "from agent_workflows import lane_containment; import inspect; print('LaneInventory fields:', [f for f in dir(lane_containment.LaneInventory) if not f.startswith('_')]); print('inventory_lane sig:', inspect.signature(lane_containment.inventory_lane))"
+    LaneInventory fields: ['as_dict', 'classified', 'count', 'dirty_tracked', 'discardable', 'failure', 'index', 'lane_root', 'readable', 'reason', 'reason_codes', 'submission_detail', 'uncollected_submission', 'unknown', 'unknown_ignored', 'unknown_untracked']
+    inventory_lane sig: (*, lane_root: 'Path | str', run_dir: 'Path | None' = None, item: 'dict[str, Any] | None' = None, attempt: 'int | None' = None, git_runner: 'Callable[[Path, list[str]], tuple[int, str, str]] | None' = None) -> 'LaneInventory'
+    ```
+    `LaneInventory` carries no landing or unmerged field; `inventory_lane` accepts no branch parameter. The unlanded branch was verified, and gate-reaching cases report `action='reclaimed'` with teardown.
+    `agent_workflows/` is completely unchanged (`git diff --stat agent_workflows/` is empty).
+
+    Full bare suite:
+    Baseline before (HEAD 910086f65): `3993 passed, 2 skipped, 3 warnings in 174.85s (0:02:54)`
+    After:
+    ```
+    4000 passed, 2 skipped, 3 warnings in 79.72s (0:01:19)
+    ```
+    Reconciliation by node ID: Passed count rose from 3993 to 4000 (exactly +7 tests from the 7 test methods in `tests/test_lane_reclaim_decision_order.py`). Zero failed tests before, zero failed tests after. Zero new failing node IDs. Pre-existing day-boundary test was passing before and passed after.
+  - Result: pass
 
 ## Approval and execution gate
 
