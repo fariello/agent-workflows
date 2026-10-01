@@ -6,7 +6,7 @@
 - Scope: IN: register all five ids in `RULE_REGISTRY` with per-rule recorded severity, assurance and determinism plus a comment stating the exit-code consequence; stamp the three research/plans rules at their emitters with `enrich_drift` so the registry actually reaches the gate (measured necessary, see F-03); an enum-and-coverage behavior test. OUT, each with a stated reason: the other 60 unregistered rule ids measured in F-08 (a 65-id sweep is a different, larger decision and most of those rules are not live on this tree); any change to `artifact_core.drift_exit_code`; any change to an ALREADY-registered severity; `attention.lane_drift_severity`'s own logic; and the `cli._run_check` tally (pending plan `tzjtg4`).
 - Scope-Paths: agent_workflows/check_engine.py, agent_workflows/research_index.py, agent_workflows/plans_index.py, tests/test_drift_rule_registration.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: qgpanb
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: qgpanb verified (set sevreg, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (aw set): /plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-001 through PR-005 all FIXED; findings in .aw/records/reviews/20260930-sevreg-01-qgpanb-register-the-five-unregistered-live-drift-rules-with-recorde.review.md
 
