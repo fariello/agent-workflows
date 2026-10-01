@@ -8,12 +8,17 @@ Covers:
 
 from __future__ import annotations
 
+import argparse
+import hashlib
+import json
+import tempfile
 import unittest
 from pathlib import Path
 
 import pytest
 
-from agent_workflows import plan_readiness
+from agent_workflows import plan_readiness, readiness_recheck
+from agent_workflows import review_findings as RF
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -313,3 +318,249 @@ class TestLivePendingCorpus(unittest.TestCase):
             f"Found {len(failures)} pending plan(s) with verdict-class refusals:\n"
             + "\n".join(failures),
         )
+
+
+class TestTerminalDispositionRefusal(unittest.TestCase):
+    """E-03: Pin terminal disposition refusal and stale escalation amendment behavior."""
+
+    def test_case_1_terminal_dispositions_refused(self) -> None:
+        """Case (1): a no-go plan under each terminal disposition is refused naming disposition."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "repo"
+            root.mkdir()
+            for disp in ("executed", "superseded", "not-executed"):
+                disp_dir = root / ".aw" / "records" / "plans" / disp
+                disp_dir.mkdir(parents=True, exist_ok=True)
+                p = disp_dir / f"20260901-test-01-{disp[:6]}-test.ipd.md"
+                p.write_text(
+                    f"# IPD: Test {disp}\n\n"
+                    f"- Id: {disp[:6]}\n"
+                    f"- Status: {disp}\n"
+                    f"- Readiness: no-go\n\n"
+                    f"## Workflow history\n"
+                    f"- 2026-09-01 /plan-review: APPROVE; PR-001\n",
+                    encoding="utf-8",
+                )
+                res = plan_readiness.recheck_conditions(root, p)
+                self.assertFalse(res.may_write, f"{disp} plan must not be writable")
+                refusal_match = any(
+                    f"terminal disposition `{disp}`" in r for r in res.refusals
+                )
+                self.assertTrue(
+                    refusal_match,
+                    f"Refusal for {disp} must name disposition and state history; got {res.refusals}",
+                )
+
+                # Drive through run_recheck_readiness with apply=True and assert bytes unchanged
+                h_before = hashlib.sha256(p.read_bytes()).hexdigest()
+                args = argparse.Namespace(
+                    dir=str(root),
+                    apply=True,
+                    stale_findings=False,
+                    selectors=[str(p)],
+                    actor="test-actor",
+                    agent=False,
+                    json=False,
+                )
+                rc = readiness_recheck.run_recheck_readiness(args)
+                self.assertEqual(rc, 0)
+                h_after = hashlib.sha256(p.read_bytes()).hexdigest()
+                self.assertEqual(
+                    h_before, h_after, f"Terminal plan {disp} must not be modified"
+                )
+
+    def test_case_2_pending_plan_updated(self) -> None:
+        """Case (2): a no-go plan under pending/ is still updated."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "repo"
+            pend_dir = root / ".aw" / "records" / "plans" / "pending"
+            pend_dir.mkdir(parents=True, exist_ok=True)
+            p = pend_dir / "20260901-test-01-pnd001-test.ipd.md"
+            p.write_text(
+                "# IPD: Pending Test\n\n"
+                "- Id: pnd001\n"
+                "- Status: to-review\n"
+                "- Readiness: no-go\n\n"
+                "## Workflow history\n"
+                "- 2026-09-01 /plan-review: APPROVE; PR-001\n",
+                encoding="utf-8",
+            )
+            res = plan_readiness.recheck_conditions(root, p)
+            self.assertTrue(res.may_write, "Pending plan should be writable")
+            self.assertEqual(res.refusals, ())
+
+            args = argparse.Namespace(
+                dir=str(root),
+                apply=True,
+                stale_findings=False,
+                selectors=[str(p)],
+                actor="test-actor",
+                agent=False,
+                json=False,
+            )
+            rc = readiness_recheck.run_recheck_readiness(args)
+            self.assertEqual(rc, 0)
+            text = p.read_text(encoding="utf-8")
+            self.assertIn("- Readiness: go-pending-approval", text)
+            self.assertIn("readiness re-check", text)
+
+    def test_case_3_terminal_plan_stale_escalation_review_amended_plan_unchanged(
+        self,
+    ) -> None:
+        """Case (3): a terminal plan carrying stale escalation has review amended while plan bytes unchanged."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "repo"
+            plans_dir = root / ".aw" / "records" / "plans" / "superseded"
+            rev_dir = root / ".aw" / "records" / "reviews"
+            plans_dir.mkdir(parents=True, exist_ok=True)
+            rev_dir.mkdir(parents=True, exist_ok=True)
+
+            p = plans_dir / "20260901-test-01-stale1-test.ipd.md"
+            p.write_text(
+                "# IPD: Stale Test\n\n"
+                "- Id: stale1\n"
+                "- Status: superseded\n"
+                "- Readiness: no-go\n\n"
+                "## Open questions\n"
+                "### OQ-01: Question\n"
+                "- Blocking: no\n"
+                "- Status: resolved\n"
+                "- Finding: PR-001\n\n"
+                "## Workflow history\n"
+                "- 2026-09-01 /plan-review: APPROVE; PR-001\n",
+                encoding="utf-8",
+            )
+            r_file = rev_dir / "20260901-test-01-stale1-test.review.md"
+            RF.write_review(
+                r_file,
+                subject_id="stale1",
+                subject_type="ipd",
+                reviewed_at="2026-09-01",
+                reviewer="test-reviewer",
+                verdict="APPROVE",
+                rounds=[
+                    RF.Round(
+                        number=1,
+                        findings=(
+                            RF.Finding(
+                                id="PR-001",
+                                severity="blocker",
+                                scope="plan",
+                                area="clarity",
+                                evidence="text",
+                                finding="Finding text",
+                                remediation_risk="low",
+                                decision="open",
+                                resolution="escalated as OQ-01",
+                            ),
+                        ),
+                        decisions=(),
+                    ),
+                ],
+            )
+            h_before = hashlib.sha256(p.read_bytes()).hexdigest()
+            args = argparse.Namespace(
+                dir=str(root),
+                apply=True,
+                stale_findings=True,
+                selectors=[str(p)],
+                actor="test-actor",
+                agent=False,
+                json=False,
+            )
+            rc = readiness_recheck.run_recheck_readiness(args)
+            self.assertEqual(rc, 0)
+            h_after = hashlib.sha256(p.read_bytes()).hexdigest()
+            self.assertEqual(
+                h_before, h_after, "Plan file bytes must remain byte-identical"
+            )
+            rev_text = r_file.read_text(encoding="utf-8")
+            self.assertIn("Round 2", rev_text)
+            self.assertIn("fixed", rev_text)
+
+    def test_case_4_terminal_sharded_plan_recognized_as_terminal(self) -> None:
+        """Case (4): a terminal plan sharded into <disposition>/YYYYMM/ is recognized as terminal.
+
+        Note: zero plans in .aw/records/plans/ currently sit under a YYYYMM shard directory in
+        the live repo, so this sharded structure is constructed under tmp_path.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "repo"
+            shard_dir = root / ".aw" / "records" / "plans" / "executed" / "202609"
+            shard_dir.mkdir(parents=True, exist_ok=True)
+            p = shard_dir / "20260901-test-01-shrd01-test.ipd.md"
+            p.write_text(
+                "# IPD: Shard Test\n\n"
+                "- Id: shrd01\n"
+                "- Status: executed\n"
+                "- Readiness: no-go\n\n"
+                "## Workflow history\n"
+                "- 2026-09-01 /plan-review: APPROVE; PR-001\n",
+                encoding="utf-8",
+            )
+            res = plan_readiness.recheck_conditions(root, p)
+            self.assertFalse(
+                res.may_write, "Sharded terminal plan must not be writable"
+            )
+            self.assertTrue(
+                any("terminal disposition `executed`" in r for r in res.refusals),
+                f"Expected executed disposition refusal, got {res.refusals}",
+            )
+
+    def test_case_5_out_of_tree_plan_not_refused_for_disposition(self) -> None:
+        """Case (5): a plan at a path under no plans directory is NOT refused for disposition."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "repo"
+            root.mkdir()
+            p = root / "outside_plan.ipd.md"
+            p.write_text(
+                "# IPD: Out of Tree\n\n"
+                "- Id: oot001\n"
+                "- Status: to-review\n"
+                "- Readiness: no-go\n\n"
+                "## Workflow history\n"
+                "- 2026-09-01 /plan-review: APPROVE; PR-001\n",
+                encoding="utf-8",
+            )
+            res = plan_readiness.recheck_conditions(root, p)
+            self.assertTrue(
+                res.may_write,
+                "Out-of-tree plan should be writable when conditions clear",
+            )
+            self.assertFalse(
+                any("terminal disposition" in r for r in res.refusals),
+                "Out-of-tree plan must not receive a disposition refusal",
+            )
+
+    def test_case_6_companion_backed_repo_terminal_plan_refused(self) -> None:
+        """Case (6): in a companion-backed scratch repo, plan under resolved root is still refused."""
+        with tempfile.TemporaryDirectory() as td:
+            comp_root = Path(td) / "comp_repo"
+            comp_root.mkdir()
+            cfg_dir = comp_root / ".aw" / "config"
+            cfg_dir.mkdir(parents=True)
+            (cfg_dir / "project.json").write_text(
+                json.dumps({"records_backend": "companion"}), encoding="utf-8"
+            )
+            comp_plans = (
+                Path(td) / f"{comp_root.name}.aw" / "records" / "plans" / "not-executed"
+            )
+            comp_plans.mkdir(parents=True)
+            p = comp_plans / "20260901-test-01-cmp001-test.ipd.md"
+            p.write_text(
+                "# IPD: Companion Test\n\n"
+                "- Id: cmp001\n"
+                "- Status: not-executed\n"
+                "- Readiness: no-go\n\n"
+                "## Workflow history\n"
+                "- 2026-09-01 /plan-review: APPROVE; PR-001\n",
+                encoding="utf-8",
+            )
+            res = plan_readiness.recheck_conditions(comp_root, p)
+            self.assertFalse(
+                res.may_write, "Companion terminal plan must not be writable"
+            )
+            self.assertTrue(
+                any("terminal disposition `not-executed`" in r for r in res.refusals),
+                f"Expected not-executed disposition refusal, got {res.refusals}",
+            )
