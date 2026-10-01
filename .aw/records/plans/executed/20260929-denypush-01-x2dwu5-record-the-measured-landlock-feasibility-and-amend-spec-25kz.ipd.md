@@ -6,7 +6,7 @@
 - Scope: Amend spec `25kzda` 5.2's push-denial requirement to carry the measured Landlock result (ABI 4 network denial is real, but port-granular and therefore cannot separate a git remote from the model API on TCP 443), and amend `host_sandbox_profile`'s module docstring where it currently declares network scoping out of scope. Records only: this plan adds NO probe, NO capability field, and NO finding code.
 - Scope-Paths: .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, agent_workflows/host_sandbox_profile.py, .aw/records/research/20260929-denypush-00-uq4y6q-landlock-network-push-denial-feasibility.findings.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: x2dwu5
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: x2dwu5 verified (set denypush, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-701..PR-707 all fixed
 
