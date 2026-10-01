@@ -6,7 +6,7 @@
 - Scope: Make the machine dry-run branch of `status_set.run_set_command` report each matched artifact's real disposition, reusing the `noop` kind, the `(unchanged)` detail wording, and the changed/unchanged predicate the APPLY path in the same function already uses. IN: the `if is_dry_run:` machine branch's `Change` construction and its `summary` count; the same branch's `data["items"]` rows if they carry the same claim. OUT: the human dry-run line, which is already correct; the apply path, which is already correct; WHICH artifacts a selector matches; the zero-match and ambiguity refusals; `aw runs` (Order 01 of this Set); and `aw find` (owned by pending plan `zyj8io`).
 - Scope-Paths: agent_workflows/status_set.py, tests/test_status_set.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: 4x9min
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 4x9min verified (set dispreach, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 
 - 2026-09-30 reviewed (opencode/its_direct-pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-401..PR-406, all FIXED. THE PLAN'S CENTRAL CLAIM REPRODUCES ON LIVE DATA AND I RAN THE REAL COMMANDS RATHER THAN READING THE CODE. On one artifact, same selector, only the flag differing: `aw set approved 95jk4s --json --dry-run` reports `would update status on 1 artifact(s)` / `update` / `status: approved -> approved`, while `--json --yes` reports `updated status on 0 artifact(s)` / `noop` / `status: approved (unchanged)` with the tree left byte-identical. F-04 verifies (the human form prints `unchanged` on both paths), F-05 verifies on a backlog item and on the untyped `aw set`, F-06 verifies (the apply predicate is post-write and structurally unavailable in a dry run), F-08 verifies (`noop` in the test file is only a fixture name and a local), F-11 verifies (no spec mentions `noop`; the agent schema validates the record envelope, not `Change.kind`), and OQ-02's cycle argument verifies (`run_selection_policy` imports `status_set`). THE MOST USEFUL FINDING (PR-401) IS THAT E-02 DID NOT NEED TO INVENT A KEY NAME: the APPLY path's `items` rows ALREADY carry `changed`, so the dry-run branch is missing a key its own sibling publishes, and the two row shapes then differ only by `dry_run`. PR-402 added the `applied=False` guard, because the apply path's parallel line is `applied=changed` and a mechanical "match the apply path" reading would make a preview claim work that never happened. PR-403 corrected the F-10 baseline, which had drifted from the authored `3246 passed` to `3401 passed` within a day and sits beside a midnight-boundary flake in `tests/test_backlog.py` (re-run in isolation, the diff is literally `2026-09-30` against `2026-10-01`), so the plan now demands a self-derived baseline compared by failing NODE IDS. PR-404 re-proved F-03 on the current tree after its fixture Set drifted from 3-reviewed/2-to-review to uniformly `approved`, which yields a STRONGER case (5 claimed versus 0 actual). PR-405 recorded a measured edge case where the prescribed predicate and the human renderer disagree for a statusless artifact targeted at `draft`, unreachable today across all 1915 tracked artifacts. PR-406 refreshed F-09's contention counts (8 and 4, from the authored 10 and 5, membership changed both ways). All three open questions were already resolved from in-tree evidence and I verified each rather than accepting it. Two decisions recorded in the typed review record, both `Reversible: yes`. Structural preflight `conforming` at `author` and at `review-finalize`.
