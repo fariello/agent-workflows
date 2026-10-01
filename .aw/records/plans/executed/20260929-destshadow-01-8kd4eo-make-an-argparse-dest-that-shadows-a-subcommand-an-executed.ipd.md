@@ -6,7 +6,7 @@
 - Scope: Add a durable executed-reachability guard that turns this silent class into a failing test, and nothing else. IN: one new test module `tests/test_cli_dest_shadowing.py` that builds every parser in the package, synthesizes a MINIMAL VALID argv for all 171 canonical leaves across the seven builders (151 of them `cli`'s), parses it, and asserts every subparsers dest on the traversed chain still holds the token the operator typed; a recorded mutation demonstrating the guard is RED for the exact defect the item describes. OUT: any change to `agent_workflows/cli.py` or to any shipped flag, dest, or default (the tree measures CLEAN under this guard today, so there is nothing to fix in production code); the SEPARATE and independently-measured `runs` family-flag loss, which is a live defect of the same MECHANISM but a different SHAPE and is owned by plan `zwv1sa` (Order 02) in this Set; and any author-time lint over the parser's static shape, which review measured VIABLE and which is declined as a design trade rather than on feasibility (see Deferred and F-15).
 - Scope-Paths: tests/test_cli_dest_shadowing.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 8kd4eo
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 8kd4eo verified (set destshadow, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-501..PR-508 all FIXED. Two of three load-bearing measurements did not reproduce: F-07's 1160 measured a BROADER rule than the item's (the item's own rule fires 0 clean, 1 mutated), and F-08's 'no narrowing covers both shapes' is falsified (narrowing (iii) reports integration-lock on the mutated tree). Deliverable kept, rationale replaced with F-15. F-17 fixes a synthesizer gap that would have failed the plan's own coverage assertion at execution (oc_runipd/agy_runipd 6/7). F-18 resolves an E-03 self-contradiction. IPD-Z602 cleared by rewriting E-04.
 
@@ -38,14 +38,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: prove the defect and the tree's current state
 
-- [ ] E-01 RE-MEASURE THE FACTS THIS PLAN RESTS ON BEFORE WRITING ANY TEST, because most are counts over a tree that grows continuously and one is a claim about a defect that is already fixed in production. Record raw output for each with the command that produced it. (a) THE DEFECT REPRODUCES: rebuild `cli._build_parser()`, re-point `integration-lock`'s `locked_command` action's `dest` to `command` in the built object only, and invoke `cli._dispatch(["integration-lock", "--status", "--dir", "."])` through the scoped `patch.object` route of E-03 (F-18: `_dispatch` builds its own parser, so there is no other route); review measured `rc=2`, 215 lines of stdout whose first line is `usage: agent-workflows [-h] ...`, and EMPTY stderr. (b) THE CLEAN TREE HAS NO REACHABILITY FAILURE: the walk E-02 builds reports 0 findings over all 151 canonical leaves of `cli` and 0 over each of the other six builders. (c) BOTH STATIC RULES, MEASURED SEPARATELY AND NOT CONFLATED (this is the correction F-07 records, so re-derive BOTH or the plan's rationale cannot be checked): the ITEM'S rule, whose ancestor set is the SUBPARSERS dests only, measured 0 occurrences on the clean tree and exactly `[('integration-lock', 'command')]` on the mutated one; the BROADER any-dest-repeat rule measured 1160 occurrences over 23 dests, of which `help`, `no_color`, `color`, `no_interactive`, `interactive`, `agent` and `json` contribute 161 each. (d) THE BASELINE SUITE IS GREEN: bare `python3 -m pytest` (review: `3312 passed, 2 skipped, 3 warnings in 62.71s`, with the standard `207 tests were deselected` notice). IF ANY COUNT HAS MOVED, use the new measurement and say so; the plan's argument depends on the ORDERS OF MAGNITUDE (zero versus four figures), not on the exact digits.
+- [x] E-01 RE-MEASURE THE FACTS THIS PLAN RESTS ON BEFORE WRITING ANY TEST, because most are counts over a tree that grows continuously and one is a claim about a defect that is already fixed in production. Record raw output for each with the command that produced it. (a) THE DEFECT REPRODUCES: rebuild `cli._build_parser()`, re-point `integration-lock`'s `locked_command` action's `dest` to `command` in the built object only, and invoke `cli._dispatch(["integration-lock", "--status", "--dir", "."])` through the scoped `patch.object` route of E-03 (F-18: `_dispatch` builds its own parser, so there is no other route); review measured `rc=2`, 215 lines of stdout whose first line is `usage: agent-workflows [-h] ...`, and EMPTY stderr. (b) THE CLEAN TREE HAS NO REACHABILITY FAILURE: the walk E-02 builds reports 0 findings over all 151 canonical leaves of `cli` and 0 over each of the other six builders. (c) BOTH STATIC RULES, MEASURED SEPARATELY AND NOT CONFLATED (this is the correction F-07 records, so re-derive BOTH or the plan's rationale cannot be checked): the ITEM'S rule, whose ancestor set is the SUBPARSERS dests only, measured 0 occurrences on the clean tree and exactly `[('integration-lock', 'command')]` on the mutated one; the BROADER any-dest-repeat rule measured 1160 occurrences over 23 dests, of which `help`, `no_color`, `color`, `no_interactive`, `interactive`, `agent` and `json` contribute 161 each. (d) THE BASELINE SUITE IS GREEN: bare `python3 -m pytest` (review: `3312 passed, 2 skipped, 3 warnings in 62.71s`, with the standard `207 tests were deselected` notice). IF ANY COUNT HAS MOVED, use the new measurement and say so; the plan's argument depends on the ORDERS OF MAGNITUDE (zero versus four figures), not on the exact digits.
   - Depends on: none
   - Expected outcome: five raw measurements recorded (a, b, both halves of c, and d), each with its command, and an explicit statement of whether each matches the figure above. No file is changed by this item.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the guard
 
-- [ ] E-02 WRITE `tests/test_cli_dest_shadowing.py` CARRYING THE EXECUTED REACHABILITY WALK, which is this plan's whole deliverable. For each of the seven parser builders in the package (`cli._build_parser`, `oc_runipd.build_parser`, `agy_runipd.build_parser`, `layout_inventory.build_parser`, `oc_models.build_parser`, `upgrade_rehearsal.build_parser`, `pwatch.build_parser` - the same seven set `76fgt1` enumerated and guarded), enumerate canonical leaves with `command_surface.discover_parser_leaves`, SYNTHESIZE a minimal valid argv for each leaf, parse it, and assert that for every subparsers action traversed on the way to that leaf, the parsed namespace still holds the TOKEN THE ARGV CONTAINED at that position. Use `subTest` per leaf so a failure names the leaf, the dest, the value found and the value expected.
+- [x] E-02 WRITE `tests/test_cli_dest_shadowing.py` CARRYING THE EXECUTED REACHABILITY WALK, which is this plan's whole deliverable. For each of the seven parser builders in the package (`cli._build_parser`, `oc_runipd.build_parser`, `agy_runipd.build_parser`, `layout_inventory.build_parser`, `oc_models.build_parser`, `upgrade_rehearsal.build_parser`, `pwatch.build_parser` - the same seven set `76fgt1` enumerated and guarded), enumerate canonical leaves with `command_surface.discover_parser_leaves`, SYNTHESIZE a minimal valid argv for each leaf, parse it, and assert that for every subparsers action traversed on the way to that leaf, the parsed namespace still holds the TOKEN THE ARGV CONTAINED at that position. Use `subTest` per leaf so a failure names the leaf, the dest, the value found and the value expected.
 
   THE ARGV SYNTHESIZER IS THE ONLY HARD PART AND IT MUST BE TYPE-AWARE, because a naive one does not reach the leaves and a test that cannot parse proves nothing. The progression was measured on `cli._build_parser()` and re-derived at review: filling only the leaf tokens reaches 86 of 151 leaves; adding required positionals reaches 136; adding required OPTIONS reaches 146; honoring `choices` reaches 150; honoring `type` reaches 151 of 151. So the synthesizer must, for each action on the leaf parser: skip subparsers actions; for a positional, supply one value for `nargs` of `None` or `"+"`, `n` values for an integer `nargs`, and NOTHING for `"?"`, `"*"` or `argparse.REMAINDER`; for an option, supply it ONLY when `required` is true, with a value unless `action.nargs == 0`; and derive each value as the FIRST member of `action.choices` when choices are declared, else a literal appropriate to `action.type` (`"1"` for `int`, `"1.0"` for `float`), else a placeholder string. DERIVE THE VALUE FROM THE ACTION, never from a per-leaf table of hand-written argv: a table would rot at the next flag change and would silently stop covering the leaf it names.
 
@@ -58,9 +58,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   SUPPRESS OUTPUT AND NEVER LET A PARSE ERROR ESCAPE AS A TEST ERROR. A usage error raises `SystemExit` and writes to stderr, so wrap each parse in `redirect_stdout`/`redirect_stderr` and catch `SystemExit`, recording it as an uncovered leaf rather than letting it abort the walk; a single unparsable leaf must not hide the other 150.
   - Depends on: E-01
   - Expected outcome: a passing test module that parses a synthesized argv for every canonical leaf of all seven builders, asserts total leaf coverage and a lower-bound count, and reports zero shadowed dests on the clean tree.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 ADD THE MUTATION CASE IN THE SAME MODULE, which is the only evidence that the walk is a guard rather than decoration. Build a FRESH parser inside the test, re-point `integration-lock`'s `locked_command` action's `dest` to `command` on that object only, run the same walk, and assert it reports EXACTLY ONE finding naming `integration-lock` and the `command` dest. Authoring measured this returns `[('integration-lock', "command=[] expected 'integration-lock'")]` against `[]` on the clean tree, so the mutation is both sufficient and specific.
+- [x] E-03 ADD THE MUTATION CASE IN THE SAME MODULE, which is the only evidence that the walk is a guard rather than decoration. Build a FRESH parser inside the test, re-point `integration-lock`'s `locked_command` action's `dest` to `command` on that object only, run the same walk, and assert it reports EXACTLY ONE finding naming `integration-lock` and the `command` dest. Authoring measured this returns `[('integration-lock', "command=[] expected 'integration-lock'")]` against `[]` on the clean tree, so the mutation is both sufficient and specific.
 
   FOR THE WALK ITSELF, MUTATE A LOCALLY BUILT PARSER AND NEVER A SHARED ONE. `_build_parser` returns a new tree per call, so a local mutation is naturally contained; an UNSCOPED module-level rebind would leak into any other test that builds a parser in the same worker, and the suite runs under `-n auto --dist=worksteal` with randomized order, so a leak would surface as an unrelated flake in a different file. The walk half of this item needs no patch at all: build, mutate the local object, walk it.
 
@@ -69,14 +69,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   THE SYMPTOM ASSERTION REQUIRES A SCOPED PATCH, WHICH IS PERMITTED HERE AND IS THE ONLY ROUTE (F-18). `cli._dispatch`'s first statement is `parser = _build_parser()` and its signature takes only `argv`, so no injected parser can reach it; there is no non-patching route, and dropping the assertion is not the answer because F-01's misleading symptom is the item's central complaint. USE `unittest.mock.patch.object(cli, "_build_parser", ...)` AS A CONTEXT MANAGER whose replacement calls the real builder and applies the mutation. That is what the prohibition above is actually aimed at preventing the absence of: `patch.object` restores the original on block exit INCLUDING on exception, so nothing escapes the `with` and the worker is left clean. Do NOT rebind `cli._build_parser = ...` by assignment, and do NOT patch at class or module setup scope. Then PROVE the containment rather than asserting it: immediately after the block, build a fresh parser, walk it, and assert the finding list is empty. Review measured exactly this: `patched rc: 2 top-level usage: True lines: 215`, then `post-patch clean walk findings: []`.
   - Depends on: E-02
   - Expected outcome: a passing test that is RED if the walk stops detecting a re-shadowed `integration-lock`, plus a pinned assertion that a shadowed leaf exits 2 with top-level usage.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove the addition is clean against the whole suite
 
-- [ ] E-04 PROVE THE NEW MODULE PERTURBS NOTHING ELSE IN THE SUITE, which is the single concern of this item and the one way this plan could plausibly break code it does not touch (the module builds seven parser trees and parses 171 argv vectors per run, so an import-time side effect, a global a parse mutates, or an interaction with the randomized order under `-n auto --dist=worksteal` would surface here and nowhere else). Run `python3 -m pytest` BARE (no `-n0`, no extra `-q`, no `-p no:randomly`), paste the summary line, and reconcile it against E-01(d)'s baseline BY NODE ID rather than by total: the pass count must rise by exactly the number of tests added and no previously passing node id may fail. Re-run the new module alone twice in the same session as part of the same reconciliation, since a residue the E-03 patch left behind would show as a second-run difference. IF ANY UNRELATED TEST FAILS, do not retry until it passes and do not mark this item: report the node id with its output, since an order-dependent interaction is a real finding about this guard and not noise.
+- [x] E-04 PROVE THE NEW MODULE PERTURBS NOTHING ELSE IN THE SUITE, which is the single concern of this item and the one way this plan could plausibly break code it does not touch (the module builds seven parser trees and parses 171 argv vectors per run, so an import-time side effect, a global a parse mutates, or an interaction with the randomized order under `-n auto --dist=worksteal` would surface here and nowhere else). Run `python3 -m pytest` BARE (no `-n0`, no extra `-q`, no `-p no:randomly`), paste the summary line, and reconcile it against E-01(d)'s baseline BY NODE ID rather than by total: the pass count must rise by exactly the number of tests added and no previously passing node id may fail. Re-run the new module alone twice in the same session as part of the same reconciliation, since a residue the E-03 patch left behind would show as a second-run difference. IF ANY UNRELATED TEST FAILS, do not retry until it passes and do not mark this item: report the node id with its output, since an order-dependent interaction is a real finding about this guard and not noise.
   - Depends on: E-03
   - Expected outcome: a bare-suite summary line matching the E-01(d) baseline plus exactly the added tests, with no unrelated failure, and the new module green on both runs in one session.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -181,25 +181,269 @@ The one documentation-shaped obligation is discharged INSIDE the deliverable: E-
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: All FIVE E-01 measurements pasted VERBATIM with the command that produced each: (a) the re-shadowed `integration-lock` dispatch showing its return code, the first line of its stdout, and that stderr is empty; (b) the clean-tree walk's per-builder finding list and OK/BAD counts; (c1) the ITEM'S static rule (ancestor set = subparsers dests only) run on BOTH the clean and the mutated tree, showing its total on each; (c2) the BROADER any-dest-repeat rule's total occurrence count and its per-dest `Counter`; (d) the bare `python3 -m pytest` summary line. Plus one explicit sentence per measurement stating whether it matches the figure in E-01 (rc 2 / 215 lines / empty stderr; `OK 151 BAD 0`; 0 clean and 1 mutated; 1160 over 23 dests; `3312 passed, 2 skipped`). KEEP c1 AND c2 SEPARATE AND LABEL WHICH IS WHICH: conflating them is the exact error review corrected in F-07, and a single number reported without its rule is not evidence for either. A divergence is ACCEPTABLE and must be reported, not silently absorbed; the suite total in particular moved 3246 -> 3312 between authoring and review.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Five measurements recorded: (a) rc 2, top-level usage, empty stderr; (b) 152/152 leaves 0 findings across all 7 builders; (c1) item rule 0 clean, 1 mutated; (c2) broad rule 1167 over 23 dests; (d) baseline suite 1 failed, 3498 passed.
+    (a) Re-shadowed integration-lock dispatch:
+    Command:
+    ```sh
+    python3 -c "
+    import io
+    from contextlib import redirect_stdout, redirect_stderr
+    from unittest.mock import patch
+    import agent_workflows.cli as cli
 
-- [ ] V-02 validates E-02
+    real_builder = cli._build_parser
+    def make_mutated_parser():
+        p = real_builder()
+        for a in p._actions:
+            if isinstance(a, cli.argparse._SubParsersAction):
+                sp = a.choices.get('integration-lock')
+                if sp:
+                    for act in sp._actions:
+                        if act.dest == 'locked_command':
+                            act.dest = 'command'
+        return p
+
+    out = io.StringIO()
+    err = io.StringIO()
+    with patch.object(cli, '_build_parser', side_effect=make_mutated_parser):
+        with redirect_stdout(out), redirect_stderr(err):
+            try:
+                rc = cli._dispatch(['integration-lock', '--status', '--dir', '.'])
+            except SystemExit as e:
+                rc = e.code
+
+    stdout_lines = out.getvalue().splitlines()
+    stderr_lines = err.getvalue().splitlines()
+    print(f'rc: {rc}')
+    print(f'stdout lines: {len(stdout_lines)}')
+    print(f'stdout first line: {repr(stdout_lines[0]) if stdout_lines else None}')
+    print(f'stderr lines: {len(stderr_lines)}')
+    "
+    ```
+    Output:
+    ```
+    rc: 2
+    stdout lines: 218
+    stdout first line: 'usage: agent-workflows [-h] [--no-color | --color] [--no-interactive |'
+    stderr lines: 0
+    ```
+    Comparison: Matches expected rc 2, top-level usage, and empty stderr; stdout lines count moved from 215 to 218 due to newly added CLI subcommands.
+
+    (b) Clean-tree reachability walk per-builder counts:
+    Command:
+    ```sh
+    python3 -c "
+    from tests.test_cli_dest_shadowing import BUILDERS, run_reachability_walk
+    for name, builder in BUILDERS.items():
+        p = builder()
+        canonical, parsed_ok, failures, findings = run_reachability_walk(p)
+        print(f'{name}: canonical={canonical} parsed_ok={parsed_ok} failures={len(failures)} findings={len(findings)}')
+    "
+    ```
+    Output:
+    ```
+    cli: canonical=152 parsed_ok=152 failures=0 findings=0
+    oc_runipd: canonical=7 parsed_ok=7 failures=0 findings=0
+    agy_runipd: canonical=7 parsed_ok=7 failures=0 findings=0
+    layout_inventory: canonical=0 parsed_ok=0 failures=0 findings=0
+    oc_models: canonical=0 parsed_ok=0 failures=0 findings=0
+    upgrade_rehearsal: canonical=6 parsed_ok=6 failures=0 findings=0
+    pwatch: canonical=0 parsed_ok=0 failures=0 findings=0
+    ```
+    Comparison: Matches expected 0 findings across all 7 builders; canonical leaf count for cli moved from 151 to 152 due to tree growth.
+
+    (c1) Item's static rule (ancestor set = subparsers dests only):
+    Command:
+    ```sh
+    python3 -c "
+    import argparse
+    from agent_workflows import cli
+
+    def check_c1(parser, mutate=False):
+        if mutate:
+            for a in parser._actions:
+                if isinstance(a, argparse._SubParsersAction):
+                    sp = a.choices.get('integration-lock')
+                    if sp:
+                        for act in sp._actions:
+                            if act.dest == 'locked_command':
+                                act.dest = 'command'
+        occurrences = []
+        def walk(p, ancestor_subparsers_dests, path):
+            subparsers_actions = [a for a in p._actions if isinstance(a, argparse._SubParsersAction)]
+            new_sub_dests = ancestor_subparsers_dests | {sa.dest for sa in subparsers_actions if sa.dest}
+            for a in p._actions:
+                if not isinstance(a, argparse._SubParsersAction):
+                    if a.dest in ancestor_subparsers_dests:
+                        occurrences.append((path, a.dest))
+            seen_subparsers = []
+            for sa in subparsers_actions:
+                for name, subp in sa.choices.items():
+                    if any(subp is prior for _, prior in seen_subparsers):
+                        continue
+                    seen_subparsers.append((name, subp))
+                    walk(subp, new_sub_dests, f'{path} {name}'.strip())
+        walk(parser, set(), '')
+        return occurrences
+
+    print('c1 clean:', len(check_c1(cli._build_parser(), False)), check_c1(cli._build_parser(), False))
+    print('c1 mutated:', len(check_c1(cli._build_parser(), True)), check_c1(cli._build_parser(), True))
+    "
+    ```
+    Output:
+    ```
+    c1 clean: 0 []
+    c1 mutated: 1 [('integration-lock', 'command')]
+    ```
+    Comparison: Matches expected exactly 0 on clean tree and exactly 1 ([('integration-lock', 'command')]) on mutated tree.
+
+    (c2) Broader any-dest-repeat static rule:
+    Command:
+    ```sh
+    python3 -c "
+    import argparse
+    from collections import Counter
+    from agent_workflows import cli
+
+    def check_c2(parser):
+        occurrences = []
+        def walk(p, ancestor_dests, path):
+            for a in p._actions:
+                if not isinstance(a, argparse._SubParsersAction):
+                    if a.dest in ancestor_dests:
+                        occurrences.append((path, a.dest))
+            current_dests = ancestor_dests | {a.dest for a in p._actions if a.dest}
+            seen_subparsers = []
+            for a in p._actions:
+                if isinstance(a, argparse._SubParsersAction):
+                    for name, subp in a.choices.items():
+                        if any(subp is prior for _, prior in seen_subparsers):
+                            continue
+                        seen_subparsers.append((name, subp))
+                        walk(subp, current_dests, f'{path} {name}'.strip())
+        walk(parser, set(), '')
+        return occurrences
+
+    c2_clean = check_c2(cli._build_parser())
+    print('c2 total occurrences:', len(c2_clean))
+    counts = Counter(dest for _, dest in c2_clean)
+    print('c2 distinct dests:', len(counts))
+    print('c2 per-dest Counter:', counts.most_common(10))
+    "
+    ```
+    Output:
+    ```
+    c2 total occurrences: 1167
+    c2 distinct dests: 23
+    c2 per-dest Counter: [('help', 162), ('no_color', 162), ('color', 162), ('no_interactive', 162), ('interactive', 162), ('agent', 162), ('json', 162), ('dir', 16), ('targets', 3), ('last', 1)]
+    ```
+    Comparison: Matches expected 23 dests; total occurrences moved from 1160 to 1167 (+7) because the 7 shared flags each gained 1 occurrence (161 -> 162) due to the addition of 1 new canonical leaf.
+
+    (d) Baseline test suite summary:
+    Command:
+    ```sh
+    python3 -m pytest
+    ```
+    Output:
+    ```
+    FAILED tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity
+    1 failed, 3498 passed, 2 skipped, 3 warnings in 129.26s (0:02:09)
+    ```
+    Comparison: Baseline established; 1 pre-existing failure in tests/test_backlog.py due to known local vs UTC history date divergence (tracked in open backlog items fnb8pl and tl8qmc); pass count moved from 3312 to 3498 between review and execution.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: `python3 -m pytest -o addopts="" tests/test_cli_dest_shadowing.py -v` pasted in full, showing every test name and `N passed`. PLUS the walk's own coverage numbers pasted from a direct run as a PER-BUILDER table: for each of the seven, the canonical leaf count and the count of leaves for which an argv was successfully parsed, shown as EQUAL. An aggregate total does NOT satisfy this: review measured the authored synthesizer at `oc_runipd 6/7` and `agy_runipd 6/7` (F-17), a gap an aggregate would have buried, so the two runner builders must each be shown at 7/7 and `upgrade_rehearsal` at 6/6. The three flat builders are expected at `0/0` and that is a PASS, not a gap. PLUS evidence the test reads no production source as text: paste the result of searching the new file for `getsource`, `ast.parse`, `read_text` and `open(` and show each returns nothing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. tests/test_cli_dest_shadowing.py passed 3/3; total leaf coverage 152/152 for cli, 7/7 oc_runipd, 7/7 agy_runipd, 6/6 upgrade_rehearsal, 0/0 flat builders; zero source text reading matches.
+    Pytest verbose execution:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_cli_dest_shadowing.py -v
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <venv>/bin/python3
+    cachedir: .pytest_cache
+    Using --randomly-seed=3640984251
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 3 items
 
-- [ ] V-03 validates E-03
+    tests/test_cli_dest_shadowing.py::TestCliDestShadowing::test_shadowed_dest_symptom_dispatch_and_containment PASSED [ 33%]
+    tests/test_cli_dest_shadowing.py::TestCliDestShadowing::test_clean_tree_reachability_and_total_coverage PASSED [ 66%]
+    tests/test_cli_dest_shadowing.py::TestCliDestShadowing::test_mutation_sensitivity_detects_shadowed_dest PASSED [100%]
+
+    ============================== 3 passed in 0.47s ===============================
+    ```
+
+    Per-builder reachability and coverage table:
+    | Builder | Canonical Leaves | Parsed OK | Failures | Findings |
+    |---|---|---|---|---|
+    | cli | 152 | 152 | 0 | 0 |
+    | oc_runipd | 7 | 7 | 0 | 0 |
+    | agy_runipd | 7 | 7 | 0 | 0 |
+    | layout_inventory | 0 | 0 | 0 | 0 |
+    | oc_models | 0 | 0 | 0 | 0 |
+    | upgrade_rehearsal | 6 | 6 | 0 | 0 |
+    | pwatch | 0 | 0 | 0 | 0 |
+
+    Verification of no source text reading (P16):
+    ```
+    getsource: 0 matches
+    ast\.parse: 0 matches
+    read_text: 0 matches
+    open\(: 0 matches
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: The paired walk output pasted side by side: the clean tree's finding list (expected `[]`) and the mutated tree's finding list (expected exactly one entry naming `integration-lock` and the `command` dest, with the value found and the value expected; review measured `[('integration-lock', "command=[] expected 'integration-lock'")]`). PLUS the mutated-parser dispatch assertion's evidence: the return code (2) and proof that top-level usage was printed. PLUS a demonstration that the scoped patch did not leak: AFTER the `patch.object` block exits, a freshly built parser walked again reports `[]`, pasted (review measured `post-patch clean walk findings: []`). PLUS confirmation that the patch is a CONTEXT MANAGER and not an assignment, since F-18 permits only the scoped form. If the mutation's finding list has MORE than one entry, STOP and report it: the extra entries are either a real second instance or a synthesizer bug, and both need naming before this plan is claimed done.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Clean walk findings []; mutated walk findings [('integration-lock', "command=[] expected 'integration-lock'")]; dispatch rc 2 top-level usage; post-patch clean walk findings [].
+    Paired walk output:
+    - Clean walk findings: `[]`
+    - Mutated walk findings: `[('integration-lock', "command=[] expected 'integration-lock'")]`
 
-- [ ] V-04 validates E-04
+    Mutated dispatch assertion:
+    ```
+    dispatch rc: 2
+    top-level usage printed: True
+    dispatch stdout lines: 218
+    dispatch first line: usage: agent-workflows [-h] [--no-color | --color] [--no-interactive |
+    dispatch stderr: ''
+    ```
+
+    Post-patch containment proof:
+    - Post-patch clean walk findings: `[]`
+    - Confirmed scoped context manager: implemented as `with patch.object(cli, "_build_parser", side_effect=make_mutated):` and not assignment.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Bare `python3 -m pytest` summary line pasted from the lane AFTER all edits, compared to the baseline re-derived in E-01(d) by NODE ID and not merely by total. The new module's tests must appear as passes and the pass count must rise by exactly the number of tests added. Any pre-existing failure must be shown present in the baseline too. PLUS `aw ipd lint --phase pre-transition` on this plan reporting conforming, and `aw sanitize --agent` clean, both pasted.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Bare pytest suite passed 3501 (+3 from 3498 baseline, identical pre-existing backlog failure); 2 runs passed; sanitize clean.
+    Post-edit bare `python3 -m pytest` summary:
+    ```
+    FAILED tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity
+    1 failed, 3501 passed, 2 skipped, 3 warnings in 62.88s (0:01:02)
+    ```
+    Reconciliation by node ID:
+    - Baseline: 3498 passed, 1 failed (`tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity`)
+    - Post-edit: 3501 passed, 1 failed (identical node ID)
+    - Pass count difference: exactly +3 passed, corresponding to the 3 newly added node IDs:
+      * `tests/test_cli_dest_shadowing.py::TestCliDestShadowing::test_clean_tree_reachability_and_total_coverage`
+      * `tests/test_cli_dest_shadowing.py::TestCliDestShadowing::test_mutation_sensitivity_detects_shadowed_dest`
+      * `tests/test_cli_dest_shadowing.py::TestCliDestShadowing::test_shadowed_dest_symptom_dispatch_and_containment`
+
+    Two consecutive runs of the new module in the same session:
+    ```
+    Run 1: 3 passed in 0.47s
+    Run 2: 3 passed in 0.44s
+    ```
+
+    Sanitize check:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
