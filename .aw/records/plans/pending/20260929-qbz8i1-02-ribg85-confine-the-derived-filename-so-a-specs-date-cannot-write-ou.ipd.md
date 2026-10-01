@@ -36,14 +36,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: validate the value, then confine the destination
 
-- [ ] E-01 Add a `--date` FORMAT guard to `specs.run_new`, placed immediately after the existing `--title is required` refusal and BEFORE `core.mint_id6`, so a refusal consumes no id6 and touches no filesystem. Refuse with exit 2 and a message naming the flag, the required format, and the received value.
+- [x] E-01 Add a `--date` FORMAT guard to `specs.run_new`, placed immediately after the existing `--title is required` refusal and BEFORE `core.mint_id6`, so a refusal consumes no id6 and touches no filesystem. Refuse with exit 2 and a message naming the flag, the required format, and the received value.
   PORT THE SIBLING VERB'S GUARD RATHER THAN INVENTING ONE. `prompts.run_new` already validates the identical flag with `re.match(r"\A\d{4}-\d{2}-\d{2}\Z", date_iso)` and refuses `aw prompts new: --date must be YYYY-MM-DD (got {date_iso!r})` at exit 2. Use that regex and that message shape with the verb name changed, so the two verbs refuse identically and a user meets one vocabulary. Exit 2 is also `run_new`'s own convention for a bad flag (`--title is required` returns 2).
   THE REGEX IS A FORMAT CHECK, NOT A CALENDAR CHECK, and that limit must be stated in the code comment rather than discovered later: it accepts `9999-99-99`, which F-04 measured as silently stamping a fabricated date. OQ-01 resolves whether to add calendar validation and records why not; do not add `datetime.date.fromisoformat` without reading it, because the sibling verb deliberately does not and divergence between the two is worse than the shared limit.
   - Depends on: none
   - Expected outcome: `aw specs new --date ../../../../ESCAPED --title T --slug x --summary s --apply` exits 2 with the format refusal and writes nothing, where before it exited 0 and created a file outside the records tree. `--date notadate` and `--date 2026-9-9` also exit 2. `--date 2026-09-29` still succeeds unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add a DESTINATION-CONTAINMENT assertion IMMEDIATELY AFTER `record_placement.resolve_creation_path` returns `dest` and BEFORE the `--apply` dry-run branch, refusing when the RESOLVED `dest` does not lie inside the RESOLVED records directory for the specs type. Refuse with exit 2 and a message naming the computed destination and the tree it escaped.
+- [x] E-02 Add a DESTINATION-CONTAINMENT assertion IMMEDIATELY AFTER `record_placement.resolve_creation_path` returns `dest` and BEFORE the `--apply` dry-run branch, refusing when the RESOLVED `dest` does not lie inside the RESOLVED records directory for the specs type. Refuse with exit 2 and a message naming the computed destination and the tree it escaped.
 
   THE SITE MATTERS AND THE PLAN'S ORIGINAL SITE WAS WRONG, which review measured. "Before `dest.parent.mkdir(...)`" places the guard INSIDE the apply branch, and `run_new` returns from the DRY-RUN branch first (`if not getattr(args, "apply", False):` precedes `dest.parent.mkdir`). Measured at HEAD (F-11): a traversing dry run exits 0 and PRINTS the escaping path, and `--agent` emits it as a `changes` entry with `"kind":"create"` and `"outcome":"clean"`. A dry run is the one tool an operator has for checking a command before running it, so a preview that reports an out-of-tree write as clean is the same defect one step earlier, and a guard sited in the apply branch cannot see it. Site the assertion before the branch so BOTH arms refuse.
   THIS IS DEFENCE IN DEPTH AND IS NOT REDUNDANT WITH E-01, which is the reason it is a separate item rather than a line in the first. E-01 guards the one input measured to traverse today; E-02 guards the PROPERTY that matters, namely that this verb only ever writes inside its own tree, and it holds for any future input that reaches the name builder. Both are cheap and the second is what makes a regression in the first non-exploitable.
@@ -51,11 +51,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DERIVE THE BOUNDARY FROM THE SAME RESOLVER THAT BUILT THE PATH, `record_placement.resolve_type_dir("specs", repo_root=repo_root)`, rather than hard-coding `.aw/records/specs`. That function deliberately falls back to a legacy `.agents/` tree when present, so a hard-coded modern path would make this guard refuse every legitimate write in a legacy-layout repository.
   - Depends on: E-01
   - Expected outcome: with E-01's guard temporarily bypassed in a scratch session, a traversing derived name is refused by E-02 alone at exit 2 and writes nothing; the SAME bypassed call WITHOUT `--apply` also exits 2 rather than printing `would write <escaping path>` or emitting a clean `--agent` envelope naming it; and with both guards in place every conforming `aw specs new` still writes to the same path it wrote before, and previews the same path, in BOTH a `.aw/records/` and a legacy `.agents/` layout fixture.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: pin the escape, the fabrication, and the non-regressions
 
-- [ ] E-03 Add `tests/test_specs_date_containment.py` pinning the ESCAPE as the primary property. The fixture MUST be nested several directories deep inside the temp dir (for example `<tmp>/a/b/repo`) so the traversal lands somewhere WRITABLE, and the test must assert that no file exists anywhere under the temp base outside the repo's records tree, not merely that the command failed.
+- [x] E-03 Add `tests/test_specs_date_containment.py` pinning the ESCAPE as the primary property. The fixture MUST be nested several directories deep inside the temp dir (for example `<tmp>/a/b/repo`) so the traversal lands somewhere WRITABLE, and the test must assert that no file exists anywhere under the temp base outside the repo's records tree, not merely that the command failed.
 
   MATCH THE TRAVERSAL DEPTH TO THE FIXTURE DEPTH, AND NEVER EXCEED IT. THIS IS A SAFETY REQUIREMENT, NOT A STYLE NOTE, AND REVIEW LEARNED IT THE HARD WAY: running this plan's own reproduction with more `../` segments than the fixture is deep wrote a real `.spec.md` into a real directory OUTSIDE the intended scratch area, which then could not be cleaned up from the sandbox that created it (F-12). The command under test CREATES INTERMEDIATE DIRECTORIES (F-02), so an over-deep traversal does not fail, it succeeds somewhere you did not intend. So: compute the number of `../` from the fixture's own depth (for a fixture at `<tmp>/a/b/repo` whose records dir is `repo/.aw/records/specs/draft`, four segments reach the repo root and seven reach `<tmp>`), assert BEFORE each destructive probe that the resolved target is inside the temp base, and SKIP the probe if it is not. A test that escapes its own tmpdir is a test that can damage the checkout it runs in, which matters doubly here because `AGENTS.md` states this checkout is SHARED.
 
@@ -63,15 +63,15 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   Cover: a traversal that lands at the repo root, a deeper one that leaves the repository but STAYS INSIDE the temp base (per the depth rule above), an absolute-path `--date`, a traversing DRY RUN with no `--apply` (E-02's second arm, F-11), and the conforming converse. Drive at least one case through `cli.main` rather than the runner function alone, following `test_new_requires_title` in `tests/test_spec_id6_filenames.py`.
   - Depends on: E-02
   - Expected outcome: a new module whose escape cases FAIL against pre-E-01 code with the escaped file PRESENT on disk INSIDE the temp base, and PASS after with the temp base containing no file outside the records tree; and whose every destructive probe is bounded by an asserted in-tmpdir target so the module cannot damage the checkout it runs in.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 In the same module, pin the FABRICATED-DATE case and the non-regressions. Fabrication: `--date 9999-99-99` must now be REFUSED, and the test must document in its name and a comment that this half of the defect is about record IDENTITY rather than path safety, because a fabricated filename date has already caused real damage in this repository (F-04 cites the committed instance). Also assert `--date notadate` is refused, and that its pre-fix artifact was invisible to `aw specs check` while visible to `aw check specs` as `check.name-nonconformant`, which is the asymmetry F-05 measured.
+- [x] E-04 In the same module, pin the FABRICATED-DATE case and the non-regressions. Fabrication: `--date 9999-99-99` must now be REFUSED, and the test must document in its name and a comment that this half of the defect is about record IDENTITY rather than path safety, because a fabricated filename date has already caused real damage in this repository (F-04 cites the committed instance). Also assert `--date notadate` is refused, and that its pre-fix artifact was invisible to `aw specs check` while visible to `aw check specs` as `check.name-nonconformant`, which is the asymmetry F-05 measured.
   Non-regressions: (a) a conforming `--date 2026-09-29` writes the SAME path and bytes as before the change, compared against a HEAD-generated reference; (b) omitting `--date` still defaults to today through `specs._today`; (c) the existing `--title is required` refusal keeps its exit code and message; (d) `specs.run_set` and `specs.run_note`, which also read `--date` and write it into a history record but do NOT derive a filename from it, are UNCHANGED by this plan, asserted by driving each with a malformed date and observing the pre-existing behavior, which documents the deliberate under-scope rather than leaving a reader to wonder; (e) a conforming DRY RUN (no `--apply`) still previews the same path and still exits 0, since E-02 now sites a guard on that arm and the preview must stay unchanged for every non-escaping input.
 
   DRIVE `run_set`/`run_note` AT THE FUNCTION, NOT THROUGH THE CLI, for group (d). Review measured that the CLI spelling refuses earlier for an unrelated argparse reason, so a CLI-only attempt records nothing about the date path and would look like a guard that is not there. At the function, `run_note` with a traversing date returns 0, appends `- ../../../ESCAPED note (aw specs): m`, and creates no file anywhere (F-15). That is the behavior to pin.
   - Depends on: E-03
   - Expected outcome: the fabrication cases are refused, the five non-regression groups pass, and (d) records the surviving `run_set`/`run_note` behavior explicitly, driven at the function, so the scope boundary is evidence rather than assertion.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -166,25 +166,344 @@ N/A with reason. This plan adds input validation to one verb; it changes no rule
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the actual terminal output of these runs against a temp fixture NESTED at least three directories deep (see V-03 for why). (a) `aw specs new --date ../../../../ESCAPED --title T --slug x --summary s --apply` showing exit 2, the refusal naming the flag and the required format, and proof that no `.spec.md` exists anywhere under the temp base. (b) `--date notadate` and `--date 2026-9-9` each exiting 2. (c) `--date 9999-99-99` exiting 2, which is the OQ-01 calendar half and is NOT covered by the ported regex alone, so a run where this one still exits 0 has not implemented E-01 as resolved. (d) `--date 2026-09-29 --apply` still succeeding at exit 0 with the expected filename. (e) the guard's source, showing both the regex and the calendar check, and the code comment stating the format-versus-calendar distinction E-01 requires. (f) the PRE-FIX counterpart of (a): exit 0 and the escaped file's actual path on disk.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified traversal, malformed dates, and fabricated date 9999-99-99 exit 2 with refusal message; conforming date exits 0.
+    (a) Traversal probe against fixture nested under `nest1/nest2/nest3/repo`:
+    ```
+    $ python3 -m agent_workflows.cli specs new --dir <repo> --date ../../../../ESCAPED --title T --slug x --summary s --apply
+    aw specs new: --date must be YYYY-MM-DD (got '../../../../ESCAPED')
+    [exit 2]
+    Files under temp base matching *.spec.md: []
+    ```
 
-- [ ] V-02 validates E-02
+    (b) Malformed date format probes:
+    ```
+    $ python3 -m agent_workflows.cli specs new --dir <repo> --date notadate --title T --slug x --summary s --apply
+    aw specs new: --date must be YYYY-MM-DD (got 'notadate')
+    [exit 2]
+
+    $ python3 -m agent_workflows.cli specs new --dir <repo> --date 2026-9-9 --title T --slug x --summary s --apply
+    aw specs new: --date must be YYYY-MM-DD (got '2026-9-9')
+    [exit 2]
+    ```
+
+    (c) Fabricated date (calendar validity) probe per OQ-01:
+    ```
+    $ python3 -m agent_workflows.cli specs new --dir <repo> --date 9999-99-99 --title T --slug x --summary s --apply
+    aw specs new: --date must be YYYY-MM-DD (got '9999-99-99')
+    [exit 2]
+    ```
+
+    (d) Conforming date probe:
+    ```
+    $ python3 -m agent_workflows.cli specs new --dir <repo> --date 2026-09-29 --title T --slug x --summary s --apply
+    aw specs new: wrote /tmp/aw_v01_evidence__l7ehp1o/nest1/nest2/nest3/repo/.aw/records/specs/draft/20260929-e12js0-01-e12js0-x.spec.md
+    [exit 0]
+    Written in draft/: ['20260929-e12js0-01-e12js0-x.spec.md']
+    ```
+
+    (e) Guard source in `specs.run_new` (`agent_workflows/specs.py`):
+    ```python
+    # E-01 (IPD ribg85): Validate --date format and calendar validity before minting an id6.
+    # Ported from prompts.run_new: the regex check validates the YYYY-MM-DD lexical format.
+    # The regex is a format check, not a calendar check (it accepts e.g. 9999-99-99).
+    # Per OQ-01, validate format first, then calendar validity via datetime.date.fromisoformat,
+    # refusing both with exit 2 and the same message shape.
+    date_iso = (getattr(args, "date", None) or "").strip() or _today()
+    if not re.match(r"\A\d{4}-\d{2}-\d{2}\Z", date_iso):
+        sys.stderr.write(
+            f"aw specs new: --date must be YYYY-MM-DD (got {date_iso!r})\n"
+        )
+        return 2
+    try:
+        _dt.date.fromisoformat(date_iso)
+    except ValueError:
+        sys.stderr.write(
+            f"aw specs new: --date must be YYYY-MM-DD (got {date_iso!r})\n"
+        )
+        return 2
+    ```
+
+    (f) Pre-fix counterpart of (a) measured at HEAD before editing `specs.py`:
+    ```
+    $ python3 -m agent_workflows.cli specs new --dir <repo> --date ../../../../ESCAPED --title T --slug x --summary s --apply
+    aw specs new: wrote /tmp/aw_prefix_v01_ipl0dxbh/nest1/nest2/nest3/repo/.aw/records/specs/draft/../../../../ESCAPED-zlz7kd-01-zlz7kd-x.spec.md
+    [exit 0]
+    Found escaped file on disk: nest1/nest2/nest3/repo/ESCAPED-zlz7kd-01-zlz7kd-x.spec.md
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste evidence that the containment assertion refuses INDEPENDENTLY of E-01, since defence in depth is the whole point and a guard that is only ever reached after another guard has already refused is untested. Concretely: in a scratch Python session, call `specs.run_new` with the format guard monkeypatched or bypassed (state exactly how) and a traversing date, and show exit 2 with the containment message naming the computed destination and the tree it escaped, plus proof no file and no directory were created outside the tree. PASTE THE SAME BYPASSED CALL WITHOUT `--apply`, showing exit 2 rather than `--- would write <escaping path> ---`, AND its `--agent` form showing a refusal rather than the `"outcome":"clean"` envelope with a `create` change that F-11 measured at HEAD; a run where the dry arm still previews the escape has sited the guard in the apply branch and has NOT implemented E-02. Then paste the assertion's source showing it uses `Path.relative_to` with `ValueError` as the escape signal and NOT a `..` substring test, that it derives its boundary from `record_placement.resolve_type_dir` rather than a hard-coded path, and that it sits ABOVE the `if not getattr(args, "apply", False):` line (quote enough surrounding source to show the order). Finally paste a conforming `aw specs new --apply` succeeding in BOTH a `.aw/records/` layout fixture and a legacy `.agents/specs/` layout fixture, proving the boundary derivation did not break the legacy path, plus a conforming DRY RUN in each previewing the same path it previewed before.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified containment assertion refuses exit 2 independently of E-01 on apply and dry-run (plain and --agent); legacy layout verified.
+    (1) Containment assertion refuses independently with E-01 bypassed (`re.match` monkeypatched to allow `../` and `specs._dt` patched with dummy date returning valid date):
+    With `--apply`:
+    ```
+    exit: 2
+    stdout:
+    stderr: aw specs new: destination /tmp/aw_v02_evidence_os8yrqcg/nest1/nest2/nest3/repo/.aw/records/specs/draft/../../../../ESCAPED-g6shh5-01-g6shh5-x.spec.md escapes records tree /tmp/aw_v02_evidence_os8yrqcg/nest1/nest2/nest3/repo/.aw/records/specs
+    Files outside specs records tree: []
+    ```
 
-- [ ] V-03 validates E-03
+    (2) Bypassed call without `--apply` (dry run):
+    ```
+    exit: 2
+    stdout:
+    stderr: aw specs new: destination /tmp/aw_v02_evidence_os8yrqcg/nest1/nest2/nest3/repo/.aw/records/specs/draft/../../../../ESCAPED-3dqj09-01-3dqj09-x.spec.md escapes records tree /tmp/aw_v02_evidence_os8yrqcg/nest1/nest2/nest3/repo/.aw/records/specs
+    ```
+
+    (3) Bypassed call with `--agent` (dry run):
+    ```
+    exit: 2
+    stdout:
+    stderr: aw specs new: destination /tmp/aw_v02_evidence_os8yrqcg/nest1/nest2/nest3/repo/.aw/records/specs/draft/../../../../ESCAPED-wd183z-01-wd183z-x.spec.md escapes records tree /tmp/aw_v02_evidence_os8yrqcg/nest1/nest2/nest3/repo/.aw/records/specs
+    ```
+
+    (4) Assertion source code in `agent_workflows/specs.py`:
+    ```python
+    dest = _placement.resolve_creation_path(
+        "specs", "draft", filename, repo_root=repo_root
+    )
+
+    # E-02 (IPD ribg85): Destination-containment assertion (defense-in-depth).
+    # Derive boundary from record_placement.resolve_type_dir to support both modern and legacy layouts.
+    # Uses Path.relative_to with ValueError as the escape signal (same idiom as
+    # check_engine.resolve_evidence_artifact). Placed before the dry-run branch so both
+    # preview and --apply refuse.
+    specs_dir = _placement.resolve_type_dir("specs", repo_root=repo_root)
+    try:
+        resolved_dest = dest.resolve()
+        resolved_specs_dir = specs_dir.resolve()
+        resolved_dest.relative_to(resolved_specs_dir)
+        if resolved_dest == resolved_specs_dir:
+            raise ValueError("destination matches records root rather than a record inside it")
+    except ValueError:
+        sys.stderr.write(
+            f"aw specs new: destination {dest} escapes records tree {specs_dir}\n"
+        )
+        return 2
+
+    rendered = _render_new_spec(
+        title=title, id6=id6, date_iso=date_iso, summary=summary
+    )
+
+    if not getattr(args, "apply", False):
+    ```
+
+    (5) Conforming `aw specs new --apply` and dry run in modern `.aw/records/` and legacy `.agents/docs/specs/`:
+    ```
+    modern apply exit: 0, stdout: aw specs new: wrote /tmp/aw_v02_evidence_os8yrqcg/nest1/nest2/nest3/repo/.aw/records/specs/draft/20260929-v620a4-01-v620a4-modern.spec.md
+    modern dry exit: 0, preview line: --- would write /tmp/aw_v02_evidence_os8yrqcg/nest1/nest2/nest3/repo/.aw/records/specs/draft/20260929-g3x0aw-01-g3x0aw-modern-dry.spec.md ---
+    legacy apply exit: 0, stdout: aw specs new: wrote /tmp/aw_v02_evidence_os8yrqcg/legacy_repo/.agents/docs/specs/draft/20260929-y1bmqu-01-y1bmqu-legacy.spec.md
+    legacy dry exit: 0, preview line: --- would write /tmp/aw_v02_evidence_os8yrqcg/legacy_repo/.agents/docs/specs/draft/20260929-tv2ba6-01-tv2ba6-legacy-dry.spec.md ---
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the full `python3 -m pytest tests/test_specs_date_containment.py` output including the `N passed` line. Then paste the PRE-FIX run showing the escape cases FAILING, and for at least one case show the ESCAPED FILE'S PATH as the test reported it, proving the failure was "a file was written outside the tree" and not merely a nonzero exit code. STATE THE FIXTURE'S DEPTH EXPLICITLY, STATE THE TRAVERSAL DEPTH BESIDE IT, and paste the comment in the test that explains both. A pre-fix run showing exit 2 with `[Errno 13] Permission denied` is EVIDENCE THE TEST IS WRONG, not evidence the code is right (F-03); and a pre-fix run whose escaped file lands OUTSIDE the test's own temp base is evidence the test is DANGEROUS and must be bounded before it is committed (F-12, where exactly that happened to review and the file could not be cleaned up afterwards). Confirm the test asserts on the absence of files under the whole temp base rather than just on the exit code, AND paste the in-test assertion that bounds each destructive probe's resolved target to inside the temp base.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified tests/test_specs_date_containment.py 15 passed, pre-fix run failed with escaped file path reported.
+    (1) Full test suite run of `tests/test_specs_date_containment.py`:
+    ```
+    $ python3 -m pytest tests/test_specs_date_containment.py
+    bringing up nodes...
+    ...............                                                          [100%]
+    15 passed in 2.58s
+    ```
 
-- [ ] V-04 validates E-04
+    (2) Pre-fix run showing escape cases failing with escaped file path reported:
+    ```
+    FAILED tests/test_specs_date_containment.py::TestSpecsDateContainment::test_escape_to_repo_root_refused - AssertionError: Lists differ: [PosixPath('/tmp/aw_test_containment_vktfeidw/nest1/nest2/nest3/repo/ESCAPED-rjbmii-01-rjbmii-x.spec.md')] != []
+    First extra element 0:
+    PosixPath('/tmp/aw_test_containment_vktfeidw/nest1/nest2/nest3/repo/ESCAPED-rjbmii-01-rjbmii-x.spec.md')
+    - [PosixPath('/tmp/aw_test_containment_vktfeidw/nest1/nest2/nest3/repo/ESCAPED-rjbmii-01-rjbmii-x.spec.md')]
+    + [] : Escaped spec files found outside specs records tree: [PosixPath('/tmp/aw_test_containment_vktfeidw/nest1/nest2/nest3/repo/ESCAPED-rjbmii-01-rjbmii-x.spec.md')]
+
+    FAILED tests/test_specs_date_containment.py::TestSpecsDateContainment::test_escape_leaving_repo_inside_tmp_refused - AssertionError: Lists differ: [PosixPath('/tmp/aw_test_containment_5q__va2w/nest1/nest2/OUTSIDE/sub-iqi320-01-iqi320-x.spec.md')] != []
+    Escaped spec files found outside specs records tree: [PosixPath('/tmp/aw_test_containment_5q__va2w/nest1/nest2/OUTSIDE/sub-iqi320-01-iqi320-x.spec.md')]
+    ```
+
+    (3) Fixture depth and traversal depth:
+    - Fixture base: `self.tmp_base = <tmp_base>`
+    - Repo root: `self.repo_dir = <tmp_base>/nest1/nest2/nest3/repo` (depth: 4 levels below tmp_base)
+    - Records directory: `<repo>/.aw/records/specs/draft` (depth: 4 levels below repo root, 8 levels below tmp_base)
+    - Traversal depth:
+      - 4 `../` segments (`../../../../ESCAPED`) reaches `repo/` root (escapes records tree, stays inside repo).
+      - 6 `../` segments (`../../../../../../OUTSIDE/sub`) reaches `nest2/OUTSIDE/sub` (leaves repo, stays inside tmp_base).
+      - Bounded target limit: probes must not exceed 7 segments so resolved target remains strictly within `self.tmp_base`.
+
+    (4) Test fixture comment explaining nesting requirement:
+    ```python
+    """Base fixture for date containment tests with bounded nesting depth.
+
+    SAFETY REQUIREMENT (IPD ribg85 E-03, F-03, F-12):
+    The fixture is nested several directories deep inside self.tmp_base:
+        <tmp_base>/nest1/nest2/nest3/repo
+    whose records directory is:
+        repo/.aw/records/specs/draft
+
+    From draft/:
+      - 4 `../` segments reach `repo/` (repo root)
+      - 5 `../` reach `nest3/`
+      - 6 `../` reach `nest2/`
+      - 7 `../` reach `nest1/`
+      - 8 `../` reach `tmp_base/`
+
+    Any traversal probe MUST NOT exceed 7 segments so that the resolved target
+    STRICTLY STAYS INSIDE self.tmp_base. In-test safety assertions verify that the
+    resolved target is inside self.tmp_base before executing any probe.
+
+    THE NESTING IS NOT INCIDENTAL:
+    Against a shallow fixture directly under /tmp, an over-deep traversal can either
+    land on / and fail with [Errno 13] Permission denied (a false green / pre-fix pass
+    for the wrong reason, F-03), or succeed in creating directories and writing outside
+    the scratch area (collateral damage, F-12). Nesting ensures that traversals land
+    in writable locations inside the sandbox temp base.
+    """
+    ```
+
+    (5) In-test assertion bounding destructive probe's target:
+    ```python
+    def _assert_target_bounded(self, date_arg: str) -> Path:
+        """Assert that date_arg's computed destination remains inside self.tmp_base."""
+        date_compact = date_arg.replace("-", "")
+        candidate = (self.draft_dir / f"{date_compact}-test.spec.md").resolve()
+        self.assertTrue(
+            candidate.is_relative_to(self.tmp_base),
+            f"SAFETY VIOLATION: traversal target {candidate} escapes temp base {self.tmp_base}"
+        )
+        return candidate
+    ```
+
+    (6) In-test assertion on absence of files under whole temp base:
+    ```python
+    def _assert_no_escaped_files(self):
+        """Assert no .spec.md exists outside the specs records tree under self.tmp_base."""
+        all_specs = list(self.tmp_base.rglob("*.spec.md"))
+        escaped = [
+            p for p in all_specs
+            if not p.resolve().is_relative_to(self.specs_dir.resolve())
+        ]
+        self.assertEqual(
+            escaped,
+            [],
+            f"Escaped spec files found outside specs records tree: {escaped}"
+        )
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the test output for the fabrication and non-regression groups, naming each test. Fabrication: show `--date 9999-99-99` and `--date notadate` refused, and paste the pre-fix artifacts' evidence for the F-05 asymmetry, namely `aw specs check --agent` and `aw check specs --agent` outputs on a `notadate` fixture showing the first reporting 1 finding and the second reporting `check.name-nonconformant`. Non-regressions: (a) a byte-level comparison of a conforming `--date 2026-09-29` record against a HEAD-generated reference, showing identical path and identical bytes; (b) the no-`--date` default still producing today's date; (c) the `--title is required` refusal unchanged, quoting the HEAD message compared against; (d) `specs.run_set` and `specs.run_note` driven AT THE FUNCTION (not through the CLI, which refuses earlier for an unrelated argparse reason: F-15) with a malformed date, with their observed behavior pasted verbatim including the resulting history line and a glob proving no file was created, so the deliberate under-scope is documented by evidence; (e) a conforming dry run still previewing the same path at exit 0. Then paste the bare full-suite run with its `N passed` line, compared against a run taken BEFORE your first edit rather than against F-16's recorded `3387 passed`, and the repository-tree `aw specs check --agent` / `aw check specs --agent` outputs (F-10), re-deriving the `checked` count and noting the standing `check.collisions-not-checked` advisory as expected.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified fabrication and non-regression tests pass, full suite 4014 passed, specs check clean.
+    (1) Test output for fabrication and non-regression groups:
+    - `TestFabricatedDatesAndNonRegressions::test_fabricated_date_9999_refused_record_identity`: PASSED
+    - `TestFabricatedDatesAndNonRegressions::test_fabricated_date_notadate_refused`: PASSED
+    - `TestFabricatedDatesAndNonRegressions::test_f05_checker_asymmetry_pre_fix_artifact`: PASSED
+    - `TestFabricatedDatesAndNonRegressions::test_non_regression_conforming_bytes`: PASSED
+    - `TestFabricatedDatesAndNonRegressions::test_non_regression_omitted_date_defaults_today`: PASSED
+    - `TestFabricatedDatesAndNonRegressions::test_non_regression_title_required_unchanged`: PASSED
+    - `TestFabricatedDatesAndNonRegressions::test_non_regression_run_set_and_run_note_date_behavior`: PASSED
+    - `TestFabricatedDatesAndNonRegressions::test_non_regression_conforming_dry_run_previews`: PASSED
+
+    (2) Fabrication refusal:
+    `--date 9999-99-99` exits 2 with `aw specs new: --date must be YYYY-MM-DD (got '9999-99-99')`
+    `--date notadate` exits 2 with `aw specs new: --date must be YYYY-MM-DD (got 'notadate')`
+
+    (3) Pre-fix evidence for F-05 checker asymmetry on `notadate` artifact:
+    ```
+    specs check --agent:
+    {"schema":"aw.agent/v1","kind":"result","cmd":"specs check","outcome":"findings","exit":1,"verified":true,"complete":true,"checked":1,"findings":1,"evidence":["specs"],"diagnostics":[{"location":".aw/records/specs/draft/notadate-u6o1sr-01-u6o1sr-x.spec.md","rule":"attention.history-missing"}],"next":null}
+
+    check specs --agent:
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"findings","exit":1,"verified":true,"complete":true,"target":"specs","findings":3,"evidence":["inventory","rules"],"diagnostics":[{"location":".aw/records/specs/draft/notadate-u6o1sr-01-u6o1sr-x.spec.md","rule":"check.name-nonconformant"},{"location":".aw/records/specs/draft/notadate-u6o1sr-01-u6o1sr-x.spec.md","rule":"attention.history-missing"},{"location":"<collisions>","rule":"check.collisions-not-checked"}],"next":"inspect .aw/records/specs/draft/notadate-u6o1sr-01-u6o1sr-x.spec.md frontmatter and schema conformity."}
+    ```
+
+    (4) Non-regressions:
+    (a) Byte comparison for conforming `--date 2026-09-29`:
+    Generated file `20260929-8rt43x-01-8rt43x-conforming-spec.spec.md`:
+    ```markdown
+    # Spec: Conforming Spec Title
+
+    - Date: 2026-09-29
+    - Status: draft
+    - Id: 8rt43x
+    - Author: aw specs new
+    - Scope: Conforming summary text.
+
+    ## Workflow history
+
+    - 2026-09-29 created (aw specs): Conforming summary text.
+    ```
+    Identical byte-for-byte to HEAD-generated reference.
+
+    (b) Omitting `--date` produces today's date in filename and front-matter (`test_non_regression_omitted_date_defaults_today` PASSED).
+
+    (c) `--title is required` refusal unchanged:
+    ```
+    $ python3 -m agent_workflows.cli specs new --slug x
+    aw specs new: --title is required
+    [exit 2]
+    ```
+    Identical to HEAD message and exit code.
+
+    (d) `specs.run_set` and `specs.run_note` driven at the function:
+    ```
+    RUN_NOTE RC: 0
+    CONTENT AFTER NOTE:
+    # Spec: Test
+
+    - Date: 2026-09-29
+    - Status: draft
+    - Id: test01
+    - Author: me
+    - Scope: test
+
+    ## Workflow history
+
+    - ../../../ESCAPED note (aw specs): test note message
+    - 2026-09-29 created (aw specs): initial
+
+    RUN_SET RC: 0
+    CONTENT AFTER SET:
+    # Spec: Test
+
+    - Date: 2026-09-29
+    - Status: to-review
+    - Id: test01
+    - Author: me
+    - Scope: test
+
+    ## Workflow history
+
+    - ../../../ESCAPED_SET to-review (aw specs): status change message
+    - ../../../ESCAPED note (aw specs): test note message
+    - 2026-09-29 created (aw specs): initial
+
+    ESCAPED FILES FOUND: []
+    ```
+    Provably no files created outside records tree; malformed date preserved in history lines as designed.
+
+    (e) Conforming dry run previews same path and exits 0:
+    ```
+    --- would write <repo>/.aw/records/specs/draft/20260929-g3x0aw-01-g3x0aw-modern-dry.spec.md ---
+    [exit 0]
+    ```
+
+    (5) Bare full-suite run:
+    Pre-edit baseline: `3999 passed, 2 skipped, 3 warnings in 278.09s (0:04:38)`, 230 deselected.
+    Post-edit run: `4014 passed, 2 skipped, 3 warnings in 90.79s (0:01:30)`, 230 deselected.
+    Net change: +15 passed (all 15 new tests in `tests/test_specs_date_containment.py`), 0 failures.
+
+    (6) Repository-tree check commands:
+    ```
+    $ python3 -m agent_workflows.cli specs check --agent
+    {"schema":"aw.agent/v1","kind":"result","cmd":"specs check","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":39,"findings":0,"evidence":["specs"],"next":null}
+
+    $ python3 -m agent_workflows.cli check specs --agent
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"specs","findings":1,"evidence":["inventory","rules"],"diagnostics":[{"location":"<collisions>","rule":"check.collisions-not-checked"}],"next":"aw specs check"}
+    ```
+    Checked count is 39 (re-derived), findings clean on `specs check`, 1 standing `check.collisions-not-checked` advisory on `check specs` (conforms).
+  - Result: pass
 
 ## Approval and execution gate
 

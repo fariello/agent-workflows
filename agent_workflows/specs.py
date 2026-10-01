@@ -15,6 +15,7 @@ verification.
 
 from __future__ import annotations
 
+import datetime as _dt
 import re
 import sys
 from pathlib import Path
@@ -1199,10 +1200,28 @@ def run_new(args) -> int:
         return 2
     slug = core.kebab(slug_arg or title)[:60] or "spec"
 
+    # E-01 (IPD ribg85): Validate --date format and calendar validity before minting an id6.
+    # Ported from prompts.run_new: the regex check validates the YYYY-MM-DD lexical format.
+    # The regex is a format check, not a calendar check (it accepts e.g. 9999-99-99).
+    # Per OQ-01, validate format first, then calendar validity via datetime.date.fromisoformat,
+    # refusing both with exit 2 and the same message shape.
+    date_iso = (getattr(args, "date", None) or "").strip() or _today()
+    if not re.match(r"\A\d{4}-\d{2}-\d{2}\Z", date_iso):
+        sys.stderr.write(
+            f"aw specs new: --date must be YYYY-MM-DD (got {date_iso!r})\n"
+        )
+        return 2
+    try:
+        _dt.date.fromisoformat(date_iso)
+    except ValueError:
+        sys.stderr.write(
+            f"aw specs new: --date must be YYYY-MM-DD (got {date_iso!r})\n"
+        )
+        return 2
+
     # IPD sk7ggr E-01: repository-wide mint (see artifact_core.mint_id6), unioned with the spec
     # tree's own ids rather than replacing them.
     id6 = core.mint_id6(repo_root, _existing_spec_ids(repo_root))
-    date_iso = getattr(args, "date", None) or _today()
     date_compact = date_iso.replace("-", "")
 
     filename = _naming.build_clustered_name(
@@ -1218,6 +1237,27 @@ def run_new(args) -> int:
     dest = _placement.resolve_creation_path(
         "specs", "draft", filename, repo_root=repo_root
     )
+
+    # E-02 (IPD ribg85): Destination-containment assertion (defense-in-depth).
+    # Derive boundary from record_placement.resolve_type_dir to support both modern and legacy layouts.
+    # Uses Path.relative_to with ValueError as the escape signal (same idiom as
+    # check_engine.resolve_evidence_artifact). Placed before the dry-run branch so both
+    # preview and --apply refuse.
+    specs_dir = _placement.resolve_type_dir("specs", repo_root=repo_root)
+    try:
+        resolved_dest = dest.resolve()
+        resolved_specs_dir = specs_dir.resolve()
+        resolved_dest.relative_to(resolved_specs_dir)
+        if resolved_dest == resolved_specs_dir:
+            raise ValueError(
+                "destination matches records root rather than a record inside it"
+            )
+    except ValueError:
+        sys.stderr.write(
+            f"aw specs new: destination {dest} escapes records tree {specs_dir}\n"
+        )
+        return 2
+
     rendered = _render_new_spec(
         title=title, id6=id6, date_iso=date_iso, summary=summary
     )
