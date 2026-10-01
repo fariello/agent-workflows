@@ -6,7 +6,7 @@
 - Scope: Produce the SPEC ONLY: the requirement-ID addressing convention for new specs, the retrofit/grandfathering policy, the parser's required behavior as a contract (not its implementation), and `SPEC-PLAN-TRACE`'s severity and failure mode. Re-measure the corpus at execution HEAD rather than trusting this plan's numbers, register the cutover date so the boundary is stamped rather than hardcoded, and answer OQ-01 (the mandatory-requirement marker) with the maintainer. NO parser, NO check code, NO `production_checks.py` edit, and NO edit to any spec's approved requirements: Order 02 builds against this spec once approved.
 - Scope-Paths: .aw/records/specs, .aw/records/plans/pending/20260930-reqids-01-jjh4aj-specify-the-spec-requirement-id-addressing-convention-and-th.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Spec: 25kzda
 - Work-Kind: feature
@@ -17,9 +17,9 @@
 - Highest E allocated: 09
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: jjh4aj
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: jjh4aj verified (set reqids, attempt 1).
 - 2026-10-01 executed (IPD jjh4aj): Spec 89xjll authored review-ready at to-review; z7nbn1 4.4's deferral of TRACE to backlog vy20et is addressed by spec 89xjll but NOT discharged until Order 02 (rtvdak) executes; Order 02 dependencies updated with state:spec:approved:89xjll edge.
 - 2026-10-01 approved (aw set): status set to approved
 
