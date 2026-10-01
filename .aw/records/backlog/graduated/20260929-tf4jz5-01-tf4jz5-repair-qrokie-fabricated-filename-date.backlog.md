@@ -1,11 +1,13 @@
 - Id: tf4jz5
-- Status: open
+- Status: graduated
+- Graduated-To: tf4jz5
 - Set: tf4jz5
 - Priority: low
 - Work-Kind: chore
 - Summary: The executed plan 20260101-instsafe-07-qrokie carries a fabricated filename date; its real 20260723 survives only in git and the wrong date propagated into DECISIONS.md and a spec
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): graduated by run run-20260930T053024Z-3198670: j7dsci
 - 2026-09-29 created (aw backlog): Filed while authoring plan 949enf (graduating j84jg3): the already-materialized casualty of that defect, deferred to the maintainer as 949enf OQ-03.
 
 MEASURED WHILE AUTHORING PLAN 949enf. This is the ALREADY-MATERIALIZED casualty of the date-fabrication defect 949enf fixes; the code fix prevents the NEXT occurrence and deliberately repairs nothing retroactively.
