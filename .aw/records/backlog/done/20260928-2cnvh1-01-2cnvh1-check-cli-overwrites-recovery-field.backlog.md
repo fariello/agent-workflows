@@ -1,5 +1,5 @@
 - Id: 2cnvh1
-- Status: graduated
+- Status: done
 - Graduated-To: 2cnvh1
 - Blocks-Release: next
 - Set: 2cnvh1
@@ -8,6 +8,7 @@
 - Summary: aw check's CLI overwrites every finding's structured recovery with doctor's human fix string, so a rule that populates no recovery gets a fabricated one in the machine record
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD wef7yo executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-2cnvh1-01-wef7yo-stop-the-check-cli-overwriting-a-finding-s-structured-recove.ipd.md); evidence .aw/records/plans/executed/20260929-2cnvh1-01-wef7yo-stop-the-check-cli-overwriting-a-finding-s-structured-recove.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260929T021205Z-3914774: wef7yo
 - 2026-09-28 created (aw backlog): filed as the declared carrier for the residue IPD iyilwm (backlog evwmm2) deliberately leaves out of scope
 
