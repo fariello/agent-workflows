@@ -1,0 +1,310 @@
+# IPD: Probe host-granular egress filtering by attempt, two-sided and hermetic
+
+- Date: 2026-10-01
+- Kind: child
+- Concern: Spec `25kzda` 5.2 requires the host descriptor to answer, from probe evidence, whether the host can deny push-capable network routes. Nothing answers it. `supports_deny_push` was removed by plan `01reg8` precisely because it was declared and never probed, and the Landlock route measured in research `uq4y6q` cannot answer it at all because its rules are port-only. The prerequisite for any honest answer is a capability decided by an EXECUTED attempt at the only mechanism that can express a destination partition.
+- Scope: Add ONE capability, `supports_egress_filtering`, decided by an executed two-sided hermetic probe that creates a network namespace, proves egress is denied by default, and proves a parent-held control channel remains reachable. The probe needs no external network. The capability gates NO action, adds NO finding code, and is NOT named for push denial.
+- Scope-Paths: agent_workflows/host_sandbox_profile.py, tests/test_host_sandbox_profile.py, tests/test_host_capability_extension.py
+- Item-Dependencies: none
+- Status: to-review
+- From-Backlog: sv9ce4
+- From-Spec: 25kzda
+- Work-Kind: feature
+- Priority: low
+- Set: netnsfilter
+- Order: 1
+- Highest E allocated: 05
+- Author: opencode its_direct/pt3-claude-opus-5-1m-us
+- Id: nxh5s4
+
+## Workflow history
+
+- 2026-10-01 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): authored review-ready while graduating backlog `sv9ce4`. The probe shape specified here was BUILT AND RUN during authoring (research `akmzyq` Finding 7), five timed runs, rather than designed on paper, because the sibling Set's measured lesson was that a plausible probe design can be impossible.
+- 2026-10-01 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
+
+## Goal
+
+Give spec `25kzda` 5.2's network requirement its first probed answer that is capable of being a real
+boundary: a capability that is True only when THIS host actually created a network namespace in which
+egress was denied while a parent-held control channel stayed reachable, and False with an explanatory
+note on every other host.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+### Task group 1: the probe
+
+- [ ] E-01 Add `_probe_egress_filtering` to `agent_workflows/host_sandbox_profile.py`, a two-sided executed probe modeled on `_probe_landlock` and held to the same standard the module docstring states as "EVERY RUNG MUST PROVE A DENIAL, NOT A LAUNCH". THE PARENT OWNS BOTH ENDPOINTS. The parent binds a loopback TCP listener (standing in for a denied remote) and an AF_UNIX socket (standing in for the allowed control channel), then launches a child via `unshare -Urn --map-root-user` that must (a) FAIL to reach the TCP listener and (b) SUCCEED in reaching the AF_UNIX socket. Distinguish the outcomes by exit code exactly as `_denial_checker_source` does: success, jail-too-tight (the allowed side failed), and not-enforced (the denied side was reached). Route the subprocess through `_run_probe` so any nonzero exit, exception or timeout maps to False, and honor `_PROBE_TIMEOUT_SECONDS` and the `CERTIFIED_PLATFORM` gate.
+  - WHY BOTH SIDES AND WHY AF_UNIX IS THE ALLOWED SIDE. A one-sided probe asserting only "egress was denied" would return True for a namespace so isolated that no control channel can reach the parent, which is useless as a boundary because the confined agent could not reach the model API either. Measured during authoring (research `akmzyq` Finding 2): an AF_UNIX socket DOES cross the namespace boundary (`unix socket across netns: PARENT-PROXY-REACHED`) while direct egress from the same child was refused (`OSError [Errno 101] Network is unreachable`) in ONE run. That pair is exactly the two-sided property, and it is why the allowed side needs no veth, no NAT, no bridge and no `slirp4netns`.
+  - Depends on: none
+  - Expected outcome: A probe returning `(bool, note)`, True only on proven two-sided behavior, False with an explanatory note on every other outcome including a host that cannot create a namespace and any non-Linux platform. On a host where `unshare -Urn --map-root-user true` succeeds, the probe MUST return True; a design that cannot return True on such a host has not met this item.
+  - Execution state: pending
+
+- [ ] E-02 Make the probe HERMETIC and give its note the evidence. It must require no external network and no DNS, so it is runnable in CI and on an offline host: both endpoints are parent-held and loopback or AF_UNIX only. The note must state what was attempted and what the kernel did, naming the namespace mechanism used and the observed refusal, so a reader of `aw host capabilities` sees evidence rather than a bare verdict. The note must ALSO state the two limits this probe does not cover: that it proves a namespace can be created and partitioned, NOT that any particular destination policy is enforced (that is child 02's), and that it proves nothing about whether a confined process could remove the boundary (child 03's).
+  - Depends on: E-01
+  - Expected outcome: A probe whose note is usable as evidence and which cannot be read as claiming a complete push boundary. Measured during authoring, the probe shape costs a mean well under 0.1s (five runs: 0.079s, 0.090s, 0.040s, 0.040s, 0.036s), so hermetic does not mean slow; re-derive the figure on the executing host rather than copying it.
+  - Execution state: pending
+
+### Task group 2: the contract surface
+
+- [ ] E-03 Add `supports_egress_filtering` to `HostSandboxCapabilities` defaulting False, add the `CAP_EGRESS_FILTERING` constant, register it in `RUNNER_SAFETY_CAPABILITIES`, wire `_RUNNER_SAFETY_PROBES[CAP_EGRESS_FILTERING] = _probe_egress_filtering` (a real probe, NOT the `None` sentinel that marks declared-not-probed), export the constant in `__all__`, and set the verdict with its `probe_notes` entry in `detect_host_capabilities`. Do NOT add it to `ACTION_CAPABILITY_REQUIREMENTS` and do NOT add an action class: `ACTION_CLASSES` stays `(ACTION_READ_ONLY,)`. IN THE SAME PASS append `"supports_egress_filtering"` to `tests/test_host_sandbox_profile.py`'s `CONTRACT_FIELDS` tuple, because omitting it leaves the suite RED at the end of this item: `test_new_contract_fields_and_defaults` iterates `RUNNER_SAFETY_CAPABILITIES` and asserts every member appears in `CONTRACT_FIELDS`, which it imports from the other test module.
+  - Depends on: E-02
+  - Expected outcome: `aw host capabilities` reports the new row with its note automatically, because `host_cmd._capability_rows` introspects `caps.to_dict()` for bool values rather than reading a name list. No action is gated, so no run behavior changes. The suite is GREEN at the end of this item, not merely at the end of the plan.
+  - Execution state: pending
+
+### Task group 3: tests that can say no
+
+- [ ] E-04 Pin the probe's fail-closed behavior in `tests/test_host_sandbox_profile.py`: a test driving `_probe_egress_filtering` DIRECTLY and asserting the returned `(bool, note)` pair so the probe is exercised rather than only its registration; a test asserting a RAISING probe yields False with the note recording the exception, mirroring `test_a_raising_probe_yields_not_supported` in `tests/test_host_capability_extension.py` (which patches `_RUNNER_SAFETY_PROBES`, the path a runner-safety capability actually takes) and NOT `test_a_raising_probe_is_treated_as_unavailable` in this file (which patches `_SANDBOX_LADDER`, a mechanism this capability is deliberately not registered in); and a test asserting the probe reports False rather than raising when the namespace cannot be created.
+  - DO NOT ASSERT "the verdict equals a re-run of the probe", which is VACUOUS: `probe_runner_safety_capabilities` is uncached, so such an assertion reduces to `probe() == probe()` and passes for a probe returning a constant, which is the fail-open shape this area's test discipline exists to reject. Assert against an ARRANGED outcome or against the note naming its evidence.
+  - Depends on: E-03
+  - Expected outcome: The new field carries the same default-False and snapshot coverage every other contract field has, and the probe's fail-closed behavior is pinned by tests that would FAIL against a constant-returning probe.
+  - Execution state: pending
+
+- [ ] E-05 Add the capability's row to `tests/test_host_capability_extension.py`'s `PRESENCE_VS_OBSERVATION` table, whose own comment demands "ONE CLAIM, ONE ROW PER PROBE: no runner-safety capability may be decided by a HELPER EXISTING". The row's `arrange` must make the mechanism PRESENT AND REACHABLE while the partition is NOT observed, which is the fail-open shape the table exists to catch: arrange it so the namespace is created but the denied side is reachable, and restore in a `finally` because the patch is process-global. Do NOT arrange it by patching the probe to return False, which tests the patch rather than the mechanism.
+  - VERIFY THE TABLE HAS A LIVE CONSUMER BEFORE ADDING A ROW, and if it does not, this item's first job is to write one. Measured during authoring: an `ast` walk of that file for references to `PRESENCE_VS_OBSERVATION` returned exactly one hit, its own assignment, because commit `80db6750` deleted its only consumer. The sibling Set's plan `pi3bk8` E-06 is scheduled to restore that consumer; if `pi3bk8` has not executed when this plan runs, a row added here asserts NOTHING. So check first, and write the consumer if absent. Restore no part of the deleted test that read production source text or counted symbols, which is why it was deleted (AGENTS.md P16).
+  - Depends on: E-03
+  - Expected outcome: A present-but-unpartitioned mechanism yields False, pinned by a row that a live test actually reads, provable by inverting the probe and seeing the test fail.
+  - Execution state: pending
+
+## Project conventions discovered (Step 0)
+
+- A capability may be set True ONLY by code that executed a probe for it: `HostSandboxCapabilities`'
+  docstring states "Every capability defaults to False: an UNPROBED host claims NOTHING
+  (fail-closed)."
+- Presence inference is FORBIDDEN IN WRITING, in `host_sandbox_profile`'s module docstring (the
+  `supports_commit_gateway` bullet: "Inferring support from the presence of the driver-side
+  `git_commit_helper.offer_commit` helper is FORBIDDEN") and again in the `_DECLARED_UNENFORCED`
+  rationale. This bites directly here: `unshare`, `bwrap` and `slirp4netns` were ALL installed on the
+  host of research `uq4y6q` and namespace creation still failed, so a presence check would report
+  True on a host that cannot enforce anything.
+- A probe passes only by proving a DENIAL, never a launch: the module docstring states "EVERY RUNG
+  MUST PROVE A DENIAL, NOT A LAUNCH", because a misconfigured permissive jail "starts perfectly
+  cleanly and enforces nothing". `_denial_checker_source` encodes it with distinct exit codes.
+- Probe failures are swallowed to False at three layers: `_run_probe` maps any `OSError` or
+  `SubprocessError` including `TimeoutExpired` to nonzero, `_probe_linux_sandbox` catches any
+  exception, and a non-Linux platform short-circuits. A new probe joins that discipline, never raises.
+- Runner-safety verdicts are deliberately NOT cached, unlike the sandbox ladder, because
+  "a stale memo here would be a way for one turn's verdict to outlive the state it was measured
+  against". Membership in `_RUNNER_SAFETY_PROBES` also grants the `forced_runner_safety_verdicts`
+  test seam for free.
+- `aw host capabilities` needs no change to show a new field: `host_cmd._capability_rows` introspects
+  `caps.to_dict()` for bool values so "a field added to the contract cannot silently vanish from the
+  report", and it renders each verdict's `probe_notes` entry directly beneath it as a `why:` line.
+- A test must exercise behavior, never pin code structure (AGENTS.md P16): no `inspect`, `ast` or
+  regex reads of production source.
+- Cite code by SYMBOL or quoted content string, never by a bare line number (`IPD-C801`).
+
+## Findings
+
+| # | Finding | Evidence | Consequence for this plan |
+|---|---|---|---|
+| F-1 | A namespace denies ALL egress by default, so denial is the default and each allowance is explicit | Research `akmzyq` Finding 1: an in-namespace connect returned `OSError [Errno 101] Network is unreachable`; `bwrap --unshare-net` reached the same state | The probe's denied side needs no rule to be installed, which is why it is hermetic and cheap. This is the opposite posture from the Landlock port rules, where everything unnamed stays reachable. |
+| F-2 | AF_UNIX crosses the namespace boundary, so the allowed side needs no networking | Research `akmzyq` Finding 2: `unix socket across netns: PARENT-PROXY-REACHED` with `parent received: b'HELLO-FROM-NETNS'`, in the same run where direct egress was refused | Decides the probe's design: both endpoints are parent-held, no veth, no NAT, no `slirp4netns`. It also decides what the capability MEANS, namely that a control channel can survive the partition. |
+| F-3 | The probe shape was BUILT AND RUN, not designed on paper | Research `akmzyq` Finding 7: three consecutive runs reported `denied_side: refused ... allowed_side: BROKER-REACHED` with `probe rc: 0`, and the three failure shapes are distinguished by exit code | E-01's design is demonstrated rather than proposed. The sibling Set's plan `pi3bk8` F-10 records the alternative outcome: a plausible probe design that could NEVER return True, discovered only by building it. |
+| F-4 | Namespace availability VARIES BY HOST, so the probe must be the authority | Research `akmzyq` Finding 0: `unshare -Urn --map-root-user true` returns rc 0 here, while research `uq4y6q` recorded the same command failing with `write failed /proc/self/uid_map: Operation not permitted` on its host | The capability is genuinely per-host, which is the whole reason it must be probed. Neither measurement is wrong; the older host was itself inside a namespace denying nested mapping. |
+| F-5 | The cost is small but NOT zero, and the group chosen is uncached | Five timed authoring runs: 0.079s, 0.090s, 0.040s, 0.040s, 0.036s, against a warm `detect_host_capabilities('opencode')` measured at 0.052s on the same host | Registering in `RUNNER_SAFETY_CAPABILITIES` means paying a subprocess per call, roughly doubling that call. Acceptable because `detect_host_capabilities` runs once per `aw host capabilities` invocation and once per gated action (and no action is gated today), never per queue item. Recorded as a measured choice; OQ-02 holds the reasoning. |
+| F-6 | A live negative test pins `supports_deny_push`'s absence | `tests/test_host_capability_extension.py` class `DenyPushRemovedTests` asserts the field, `CAP_DENY_PUSH`, the action classes and the `deny_push` output string are all absent | This plan's capability has a DIFFERENT name for a substantive reason, not to evade the guard: it proves a namespace partition, not push denial. The guard must still pass untouched after this plan. |
+| F-7 | `PRESENCE_VS_OBSERVATION` may still be DEAD DATA when this plan runs | Measured during authoring: an `ast` walk for references returns exactly one, its own assignment; commit `80db6750` deleted the only consumer. Sibling plan `pi3bk8` E-06 is scheduled to restore it but is a different Set with its own schedule | E-05 must CHECK for a live consumer and write one if absent, rather than adding a row and pasting a green line that proves nothing. This is why E-05 carries the check as its first job. |
+| F-8 | The action preflight is wired but fires for nothing today | `runner_shared.execute_item_core` calls `preflight_host_capabilities`, but `RUNNER_ACTION_TO_CONTRACT_ACTION` is empty and `runner_action_contract_class` returns None for every action; the module docstring's HONEST LIMIT says "today this prevents nothing on its own" | Adding a reported capability changes no run behavior, which is the intended blast radius. The note must say so, because a reader who assumes a new capability means new enforcement would be wrong. |
+
+## Proposed changes (ordered, validatable)
+
+1. Add the two-sided executed probe, parent-holding both endpoints, fail-closed at every layer the
+   existing probes are (E-01). The design is demonstrated by F-3 rather than proposed.
+2. Make it hermetic and give its note the evidence plus its two stated non-coverages (E-02).
+3. Add the capability, register its real probe, report it, append the contract-field tuple entry in
+   the same pass so the suite is green at the end of the item, and gate nothing (E-03).
+4. Pin the fail-closed behavior with tests that fail against a constant-returning probe (E-04).
+5. Add the presence-versus-observation row, after confirming the table has a live consumer (E-05).
+
+## Deferred / out of scope (with reason)
+
+- THE DESTINATION POLICY and the filtering broker. This plan proves a namespace can be created and
+  partitioned; it enforces no allow list and makes no destination decision.
+  - Carrier: rozdkp
+- CONFINING a real worker, and the `CAP_NET_ADMIN` drop that makes the boundary non-evadable. This
+  plan's probe deliberately proves nothing about whether a confined process could remove the
+  boundary, and E-02 requires the note to SAY that.
+  - Carrier: 2j4pd0
+- GATING any action on the capability, which would require populating
+  `RUNNER_ACTION_TO_CONTRACT_ACTION` and re-adding an action class this repository deliberately
+  removed. Excluded because a namespace partition with no policy is not a safety property any action
+  should depend on yet.
+  - Carrier: wcbpqf
+- NAMING the capability `supports_deny_push`. Refused on measured grounds, not caution: this probe
+  proves a namespace partition, and even the complete Set filters by destination against a declared
+  allow list rather than denying push universally.
+  - Carrier-Declined: DELIBERATELY NOT WANTED. The name would assert what the mechanism cannot do,
+    which is the overclaim plan `4h7tt0` retired and plan `01reg8` deleted, and `DenyPushRemovedTests`
+    pins its absence.
+- REINTRODUCING a finding code. `run_evidence.validate_finding_table` hard-fails a count other than
+  12 with `RC-COUNT`, and whether this probe satisfies backlog `oq05nc`'s gate is a maintainer call.
+  - Carrier: wcbpqf
+
+## Scope check
+
+- Over-scope: none. `host_sandbox_profile.py` is changed by E-01 through E-03;
+  `tests/test_host_sandbox_profile.py` by E-03's one-line `CONTRACT_FIELDS` append and E-04;
+  `tests/test_host_capability_extension.py` by E-05.
+- Under-scope: none, and TWO OMISSIONS ARE DELIBERATE AND VERIFIED. `host_cmd.py` is NOT in scope and
+  needs no change, because `_capability_rows` introspects `to_dict()` for bools, so the new row and
+  its note appear automatically and the `--json` payload carries it for free; V-03 proves that by
+  running the real command rather than assuming it. No spec path is declared either, because child 04
+  owns the spec amendment; declaring it here would make the runner announce a spec edit this plan
+  never makes. No CHANGELOG entry is claimed here for the same reason: the user-visible surface is one
+  new capability row, and child 04 records it once for the whole Set rather than four times.
+
+## Required tests / validation
+
+- Run the suite BARE as `python3 -m pytest` and paste the actual summary line. This plan changes a
+  shipped dataclass and two test files, so the suite is the primary gate.
+- `aw host capabilities opencode` run and its ACTUAL output pasted, showing the new row and its note.
+- The new tests must pass ON THIS HOST and a SKIP is not acceptance evidence
+  (`tests/test_host_sandbox_profile.py`'s stated policy is that a skip "leaves the guarantee
+  UNVERIFIED on that machine"). If the host cannot create a namespace, the direct-probe test
+  legitimately observes False and the fail-closed tests MUST still run and pass; say so explicitly
+  rather than pasting a green line that hides a skip.
+- `aw ipd lint` conforming. `aw check` reporting no new finding naming this plan's artifacts, judged
+  as a delta rather than by exit code, since it exits nonzero today on pre-existing findings.
+- `aw sanitize --agent` exits zero. Probe notes and pasted namespace output can carry host paths.
+
+## Spec / documentation sync
+
+- NO SPEC EDIT IN THIS PLAN, deliberately, and no spec path is declared in `Scope-Paths`. The spec
+  amendment recording that 5.2's network requirement now has a probed answer belongs with the
+  measured limits of the COMPLETE boundary, which do not exist until child 03 runs, and child 04 owns
+  it. Amending 5.2 here would describe a contract this plan cannot yet deliver, which is the specific
+  failure the whole `denypush` lineage exists to refuse.
+- `host_sandbox_profile`'s module docstring is the published-guarantees contract and names each
+  runner-safety capability with how it is established. It is amended by child 04 in the same pass as
+  the spec, so the two cannot drift. This plan's capability note carries the honest statement in the
+  meantime, which is what an operator actually reads at the point of use.
+- No CHANGELOG entry here: child 04 records the Set's one user-visible change once.
+
+## Open questions
+
+### OQ-01: Should the probe use `unshare` directly, or go through `bwrap --unshare-net`?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: RESOLVED FROM MEASUREMENT: use `unshare -Urn --map-root-user`,
+  and treat `bwrap` as a fallback a later plan may add rather than a second rung now. Both reach the
+  denied state (research `akmzyq` Finding 1 measured `bwrap --unshare-net` also returning
+  `Network is unreachable`), so the choice is not about whether isolation works. It is decided by
+  what the LATER children need: child 02's broker requires the parent to install policy inside the
+  namespace and child 03 requires dropping `CAP_NET_ADMIN` before handing off, which means the Set
+  needs direct control of the namespace lifecycle rather than a helper's fixed launch sequence.
+  `unshare` is also already present in this module's vocabulary, and adding a `bwrap` rung later is
+  purely additive because the probe returns `(bool, note)` and the note names the mechanism used.
+
+### OQ-02: Should this capability be registered in RUNNER_SAFETY_CAPABILITIES or in the sandbox ladder?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: RESOLVED FROM REPOSITORY EVIDENCE: `RUNNER_SAFETY_CAPABILITIES`.
+  The ladder is the wrong home on its own terms, since `_SANDBOX_LADDER` rungs are ALTERNATIVE
+  mechanisms for one filesystem-partition question, chosen strongest-first, whereas this is an
+  independent question with its own answer. Membership also grants the `forced_runner_safety_verdicts`
+  seam that E-04 and E-05 need, and the group's verdicts are deliberately uncached, which is correct
+  for a network verdict that can change with host configuration between turns. THE COST OF NOT
+  CACHING IS MEASURED rather than assumed (F-5): the probe runs well under 0.1s against a warm
+  `detect_host_capabilities` of 0.052s, and that call happens once per `aw host capabilities`
+  invocation and once per gated action, never per queue item. Note also that membership gates nothing
+  by itself: `check_action_capabilities` reads `ACTION_CAPABILITY_REQUIREMENTS`, whose only row
+  (`read_only`) has `required=()`, so registering here cannot make any action start refusing.
+
+### OQ-03: Is `supports_egress_filtering` the right name for what this one probe proves?
+
+- Blocking: no
+- Status: open
+- Owner: maintainer
+- Carrier: wcbpqf
+- Resolution or deferral rationale: OPEN, and non-blocking because the field is renameable before
+  anything consumes it. The tension is real and worth a maintainer's eye. This probe alone proves a
+  NAMESPACE PARTITION (egress denied, control channel reachable); the FILTERING in the name is
+  delivered by child 02's policy, so for the window between the two children the field names more
+  than it proves. The alternative, naming it `supports_network_namespace` now and renaming later,
+  trades an honest-today name for a rename that touches the spec and the docstring after they are
+  amended. This plan takes the first option and mitigates it in the only place an operator actually
+  reads: E-02 requires the `probe_notes` entry to state that the partition is proven and the
+  destination policy is NOT, rendered directly beneath the verdict by `host_cmd._capability_rows`.
+  A maintainer preferring the narrower name should say so while it is still a mechanical change;
+  backlog `wcbpqf` already carries this area's naming decisions, including the sibling Set's
+  `supports_deny_tcp_port` question, so the two can be settled together.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [ ] V-01 validates E-01
+  - Required evidence: The probe's own returned `(bool, note)` pasted for THREE arrangements: the real host as-is; an induced probe exception; and an arrangement where the denied side is reachable (which must report False with a note saying it was not enforced). Plus pasted proof the probe distinguishes jail-too-tight from not-enforced by exit code, since a single True with no failure-shape evidence is the launch-only criterion the module docstring forbids.
+  - ON A HOST WHERE `unshare -Urn --map-root-user true` SUCCEEDS, THE REAL-HOST ARRANGEMENT MUST RETURN True, and a False there FAILS this item rather than being recorded as the measurement. Paste that `unshare` command's own exit status beside the verdict so the two are read together. This is the check that catches the failure mode sibling plan `pi3bk8` F-10 measured: a probe design that is perfectly fail-closed and can never say yes looks safe and would pass review, while making the capability permanently unreachable. If and only if namespace creation fails on this host is a False legitimate, and then say so explicitly and state that the two-sided behavior is consequently UNVERIFIED here.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-02 validates E-02
+  - Required evidence: The probe's note quoted verbatim, with a one-sentence judgement that it names the mechanism used and the observed kernel behavior rather than restating the verdict. The note MUST contain its two stated non-coverages (no destination policy is enforced; nothing is proven about a confined process removing the boundary); a note missing either FAILS this item, because an unqualified note in the operator-facing report is the overclaim this Set exists to avoid. Plus pasted evidence the probe ran with NO external network, for example its output under an environment with no DNS resolution, or the probe source showing both endpoints are parent-held loopback or AF_UNIX.
+  - Re-derive the probe's cost on this host and paste the timing rather than copying F-5's figures, which are authoring-host numbers.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-03 validates E-03
+  - Required evidence: Actual pasted output of `aw host capabilities opencode` showing the new row AND its `why:` note line, plus `python3 -c` output printing `CAP_EGRESS_FILTERING in hsp.__all__`, `hsp.RUNNER_SAFETY_CAPABILITIES`, `hsp._RUNNER_SAFETY_PROBES[hsp.CAP_EGRESS_FILTERING] is not None` (proving it is PROBED and not the declared-not-probed `None` sentinel), and `hsp.ACTION_CLASSES` still equal to `(hsp.ACTION_READ_ONLY,)`. The last is what proves no action was gated.
+  - PASTE THE BARE SUITE SUMMARY FOR THIS ITEM SPECIFICALLY, since E-03 is the item that breaks the suite if the `CONTRACT_FIELDS` append is missed. A green summary line is the evidence the append landed.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-04 validates E-04
+  - Required evidence: Pasted results of the three tests this item adds (direct probe, raising probe, namespace-unavailable), plus `test_every_contract_field_exists_and_defaults_false` and `test_to_dict_snapshots_the_contract` passing WITH the new field included. If any SKIPPED, paste the skip reason and state which guarantee is consequently unverified on this host.
+  - PROVE THE PROBE TEST IS NOT VACUOUS. Temporarily replace `_probe_egress_filtering` with `lambda: (True, "constant")`, paste the resulting FAILURE, then revert and paste the restored pass. A test that passes against a constant-returning probe is the fail-open shape this plan's test discipline exists to reject.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-05 validates E-05
+  - Required evidence: FIRST, paste the `ast`-based count of references to `PRESENCE_VS_OBSERVATION` in `tests/test_host_capability_extension.py` and state whether a live consumer existed. A count of 1 means the table was dead and this item must have WRITTEN the consumer; say which happened. Then paste the table-consuming test's result with the new row included, quote the row's `arrange`, and state in one sentence HOW it makes the mechanism present and reachable while nothing is partitioned.
+  - PROVE THE ROW IS LOAD-BEARING. Temporarily make the probe return True unconditionally, paste the FAILURE naming this row, then revert and paste the restored pass. An arrangement that patches the probe's return value FAILS this item because it tests the patch rather than the mechanism. Also state that the test reads no production source (no `inspect`, no `ast` over `agent_workflows/`, no substring search of module text), since the deleted consumer was removed for being a structure pin.
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+This plan delivers the smallest thing that is honestly true: a capability reporting that THIS host can
+create a network namespace in which egress is denied while a control channel survives. That is the
+prerequisite for every later claim in this Set and it is deliberately not described as more.
+
+TWO THINGS A REVIEWER SHOULD PUSH HARDEST ON, both of a kind the suite cannot catch. FIRST, THE PROBE
+MUST BE ABLE TO SAY YES. A probe that can only ever report False is fail-closed and therefore looks
+safe, which is exactly why it survives review; the sibling Set measured precisely this (plan `pi3bk8`
+F-10, a child-binds design that could never return True on any host) and its False would have been
+pasted as the measurement. So V-01's bar is a True on a capable host, not a defensible False. SECOND,
+A TEST MUST BE ABLE TO SAY NO. The `PRESENCE_VS_OBSERVATION` table may still have no consumer when
+this plan runs (F-7), in which case a row added to it asserts nothing and a green line proves nothing,
+so V-05 requires the reference count first and a deliberately induced failure second.
+
+A THIRD THING, SMALLER BUT EASY TO WAVE THROUGH: the capability's NOTE is the operator-facing artifact
+here, not the field name, because `host_cmd._capability_rows` renders it directly beneath the verdict.
+V-02 fails a note that omits either non-coverage. OQ-03 records the naming tension honestly rather
+than resolving it by assertion.
+
+Execution contract: commit only the paths named in `Scope-Paths`, through `aw commit <plan> -- <paths>`,
+never `git add -A`, and never push. This is a SHARED CHECKOUT: verify the staged set with
+`git diff --cached --name-only` before committing, unstage anything that is not yours with
+`git restore --staged <path>`, and re-verify after any failed raw commit attempt. Run the suite BARE
+as `python3 -m pytest` and PASTE ITS ACTUAL SUMMARY LINE; a summary you did not produce is not
+evidence, and the same hard-MUST governs every pasted probe verdict, timing figure, and exit status
+these `V-*` items demand. Paste skips explicitly rather than letting a green line hide one.
+
+LIFECYCLE TRANSITION. Do not claim done or move this plan to `.aw/records/plans/executed/` until
+`aw ipd lint --phase pre-transition` conforms and every `V-*` carries concrete observed evidence.
+Reaching `executed/` is UNCONDITIONALLY OWED, but its OWNER is CONDITIONAL: under `aw oc run` /
+`aw agy run` the RUNNER owns the terminal transition and finalize, so do NOT invoke `aw ipd finalize`
+yourself in a runner-driven execution; a HAND execution invokes it
+(`aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply`). Never hand-edit
+`- Status:` and never hand-roll a `git mv` into `executed/`. This plan must NOT set backlog `sv9ce4`
+to `done`; the runner sets `graduated`.
