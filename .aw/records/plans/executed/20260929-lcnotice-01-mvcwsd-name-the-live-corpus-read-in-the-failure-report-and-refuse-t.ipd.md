@@ -6,7 +6,7 @@
 - Scope: Ship the DIAGNOSTIC half of the item and REFUSE its enforcement half, with the measurements that decide each. IN: (1) a permanent, always-on pytest plugin that, when a test has ALREADY FAILED, appends a section to that test's report naming the live `.aw/records/` paths it read, so the next lane to meet a corpus trap reads the cause instead of re-deriving it; (2) self-tests proving the detector fires, does not fire on an unguarded path, and survives xdist; (3) the honest bounds recorded in the plugin's own docstring. OUT, with reasons in Findings and Deferred: marking any of the corpus-reading tests `livecorpus` (that DELETES default coverage and needs a per-test judgement no sweep can make), any allowlist (nothing is enforced, so there is nothing to exempt), and the two literal-census defects already carried by `zf1m48` and by the `testlocality` Set. This plan changes NO existing test and NO production module.
 - Scope-Paths: tests/livecorpus_notice.py, tests/test_livecorpus_notice.py, conftest.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: mvcwsd
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: mvcwsd verified (set lcnotice, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (opencode model=its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-501..PR-506 all fixed; OQ-02 left open to maintainer
 
