@@ -19230,6 +19230,7 @@ def enforce_freeze_time_refusal(
     repo: Path,
     full_auto: bool = False,
     host: str = "oc",
+    color: bool | None = None,
 ) -> None:
     """Freeze-time whole-run refusal gate (spec `z7nbn1` 1.3, 1.4, 1.7; plan `jdn790`).
 
@@ -19238,6 +19239,11 @@ def enforce_freeze_time_refusal(
     1. Undetermined action (spec 5.1, 1.7)
     2. Non-conformant artifact structure (spec 5.2, 1.3)
     3. Provably unsatisfiable dependency (spec 5.3, 1.4)
+
+    When color is enabled (defaulting to stderr capability), id6 references to
+    the queued artifact are styled in bold yellow (\\033[1;33m...\\033[0m) and target
+    dependency id6 references are styled in bold cyan (\\033[1;36m...\\033[0m). When
+    color is disabled, plain text is returned.
 
     Collects EVERY finding across all queued items and raises a single DriverError.
     """
@@ -19248,11 +19254,15 @@ def enforce_freeze_time_refusal(
     from agent_workflows import run_selection_policy as _policy
     from agent_workflows.selectors import read_front_matter_status as _read_status
 
+    enabled_color = should_color(sys.stderr) if color is None else bool(color)
+    pal = Palette(enabled_color)
+
     findings: list[str] = []
     queue_by_id = {str(entry.get("id6")): entry for entry in queue if entry.get("id6")}
 
     for entry in queue:
         id6 = str(entry.get("id6") or "")
+        styled_id6 = pal(id6, "bold", "yellow")
         atype = str(entry.get("artifact_type") or "")
         status = str(entry.get("initial_status") or entry.get("status") or "")
         action = str(entry.get("action") or "")
@@ -19278,16 +19288,16 @@ def enforce_freeze_time_refusal(
         # -------------------------------------------------------------------------
         if action == "undetermined":
             if atype == "ipd":
-                setter = f"aw ipd set <status> {id6}"
+                setter = f"aw ipd set <status> {styled_id6}"
             elif atype == "spec":
-                setter = f"aw specs set <status> {id6}"
+                setter = f"aw specs set <status> {styled_id6}"
             elif atype == "backlog":
-                setter = f"aw backlog set <status> {id6}"
+                setter = f"aw backlog set <status> {styled_id6}"
             else:
-                setter = f"aw set <status> {id6}"
+                setter = f"aw set <status> {styled_id6}"
             findings.append(
-                f"[RUN-UNDETERMINED-ACTION] {atype} {id6} ({rel_path}) has status {status}, "
-                f"for which no action is defined. Set a defined status with {setter}, then: aw {host} run {id6}"
+                f"[RUN-UNDETERMINED-ACTION] {atype} {styled_id6} ({rel_path}) has status {status}, "
+                f"for which no action is defined. Set a defined status with {setter}, then: aw {host} run {styled_id6}"
             )
 
         # -------------------------------------------------------------------------
@@ -19295,15 +19305,15 @@ def enforce_freeze_time_refusal(
         # -------------------------------------------------------------------------
         if abs_path is None or not abs_path.is_file():
             findings.append(
-                f"[RUN-STRUCTURE-PREFLIGHT] {atype} {id6} ({rel_path}) in status {status} "
+                f"[RUN-STRUCTURE-PREFLIGHT] {atype} {styled_id6} ({rel_path}) in status {status} "
                 f"violates RUN-NOT-FOUND: artifact file '{rel_path}' does not exist on disk. "
-                f"Repair it, run aw check all {id6}, then: aw {host} run {id6}"
+                f"Repair it, run aw check all {styled_id6}, then: aw {host} run {styled_id6}"
             )
         elif atype not in ("ipd", "spec", "backlog"):
             findings.append(
-                f"[RUN-STRUCTURE-PREFLIGHT] {atype} {id6} ({rel_path}) in status {status} "
+                f"[RUN-STRUCTURE-PREFLIGHT] {atype} {styled_id6} ({rel_path}) in status {status} "
                 f"violates RUN-TYPE-UNKNOWN: unrecognized artifact type '{atype}'. "
-                f"Repair it, run aw check all {id6}, then: aw {host} run {id6}"
+                f"Repair it, run aw check all {styled_id6}, then: aw {host} run {styled_id6}"
             )
         elif atype == "ipd":
             if not _policy.is_in_terminal_directory(str(abs_path)):
@@ -19328,18 +19338,18 @@ def enforce_freeze_time_refusal(
                             if lint_res.diagnostics:
                                 for d in lint_res.diagnostics:
                                     findings.append(
-                                        f"[RUN-STRUCTURE-PREFLIGHT] ipd {id6} ({rel_path}) in status {status} "
-                                        f"violates {d.code}: {d.message}. Repair it, run aw check plans {id6}, then: aw {host} run {id6}"
+                                        f"[RUN-STRUCTURE-PREFLIGHT] ipd {styled_id6} ({rel_path}) in status {status} "
+                                        f"violates {d.code}: {d.message}. Repair it, run aw check plans {styled_id6}, then: aw {host} run {styled_id6}"
                                     )
                             else:
                                 findings.append(
-                                    f"[RUN-STRUCTURE-PREFLIGHT] ipd {id6} ({rel_path}) in status {status} "
-                                    f"violates IPD-ERROR: structural checker error. Repair it, run aw check plans {id6}, then: aw {host} run {id6}"
+                                    f"[RUN-STRUCTURE-PREFLIGHT] ipd {styled_id6} ({rel_path}) in status {status} "
+                                    f"violates IPD-ERROR: structural checker error. Repair it, run aw check plans {styled_id6}, then: aw {host} run {styled_id6}"
                                 )
                     except Exception as exc:
                         findings.append(
-                            f"[RUN-STRUCTURE-PREFLIGHT] ipd {id6} ({rel_path}) in status {status} "
-                            f"violates IPD-READ-ERROR: {exc}. Repair it, run aw check plans {id6}, then: aw {host} run {id6}"
+                            f"[RUN-STRUCTURE-PREFLIGHT] ipd {styled_id6} ({rel_path}) in status {status} "
+                            f"violates IPD-READ-ERROR: {exc}. Repair it, run aw check plans {styled_id6}, then: aw {host} run {styled_id6}"
                         )
         elif atype == "spec":
             try:
@@ -19355,13 +19365,13 @@ def enforce_freeze_time_refusal(
                 for d in drifts:
                     if getattr(d, "severity", "") != "info":
                         findings.append(
-                            f"[RUN-STRUCTURE-PREFLIGHT] spec {id6} ({rel_path}) in status {status} "
-                            f"violates {d.rule}: {d.detail}. Repair it, run aw check specs {id6}, then: aw {host} run {id6}"
+                            f"[RUN-STRUCTURE-PREFLIGHT] spec {styled_id6} ({rel_path}) in status {status} "
+                            f"violates {d.rule}: {d.detail}. Repair it, run aw check specs {styled_id6}, then: aw {host} run {styled_id6}"
                         )
             except Exception as exc:
                 findings.append(
-                    f"[RUN-STRUCTURE-PREFLIGHT] spec {id6} ({rel_path}) in status {status} "
-                    f"violates SPEC-READ-ERROR: {exc}. Repair it, run aw check specs {id6}, then: aw {host} run {id6}"
+                    f"[RUN-STRUCTURE-PREFLIGHT] spec {styled_id6} ({rel_path}) in status {status} "
+                    f"violates SPEC-READ-ERROR: {exc}. Repair it, run aw check specs {styled_id6}, then: aw {host} run {styled_id6}"
                 )
         elif atype == "backlog":
             try:
@@ -19377,13 +19387,13 @@ def enforce_freeze_time_refusal(
                 for d in drifts:
                     if getattr(d, "severity", "") != "info":
                         findings.append(
-                            f"[RUN-STRUCTURE-PREFLIGHT] backlog {id6} ({rel_path}) in status {status} "
-                            f"violates {d.rule}: {d.detail}. Repair it, run aw check backlog {id6}, then: aw {host} run {id6}"
+                            f"[RUN-STRUCTURE-PREFLIGHT] backlog {styled_id6} ({rel_path}) in status {status} "
+                            f"violates {d.rule}: {d.detail}. Repair it, run aw check backlog {styled_id6}, then: aw {host} run {styled_id6}"
                         )
             except Exception as exc:
                 findings.append(
-                    f"[RUN-STRUCTURE-PREFLIGHT] backlog {id6} ({rel_path}) in status {status} "
-                    f"violates BACKLOG-READ-ERROR: {exc}. Repair it, run aw check backlog {id6}, then: aw {host} run {id6}"
+                    f"[RUN-STRUCTURE-PREFLIGHT] backlog {styled_id6} ({rel_path}) in status {status} "
+                    f"violates BACKLOG-READ-ERROR: {exc}. Repair it, run aw check backlog {styled_id6}, then: aw {host} run {styled_id6}"
                 )
 
         # -------------------------------------------------------------------------
@@ -19485,10 +19495,18 @@ def enforce_freeze_time_refusal(
 
                 if not could_be_met:
                     edge_tok = getattr(edge, "canonical", lambda: str(dep))()
-                    recovery = f"Add it to the selection or run with --with-dependencies, then: aw {host} run {id6}"
+                    styled_target_id6 = (
+                        pal(target_id6, "bold", "cyan") if target_id6 else target_id6
+                    )
+                    styled_edge_tok = (
+                        edge_tok.replace(target_id6, styled_target_id6)
+                        if target_id6
+                        else edge_tok
+                    )
+                    recovery = f"Add it to the selection or run with --with-dependencies, then: aw {host} run {styled_id6}"
                     findings.append(
-                        f"[RUN-DEPENDENCY-UNSATISFIABLE] {id6} requires {edge_tok}; {target_id6} is {target_status} and {why} "
-                        f"[{atype} {id6} at {rel_path}, status: {status}]. {recovery}"
+                        f"[RUN-DEPENDENCY-UNSATISFIABLE] {styled_id6} requires {styled_edge_tok}; {styled_target_id6} is {target_status} and {why} "
+                        f"[{atype} {styled_id6} at {rel_path}, status: {status}]. {recovery}"
                     )
 
     if findings:
@@ -28366,6 +28384,7 @@ def initialize_run_core(
         repo=repo,
         full_auto=full_auto,
         host=host,
+        color=getattr(args, "color", None),
     )
 
     enforce_orchestrator_shape_gate({"queue": queue}, repo=repo)
