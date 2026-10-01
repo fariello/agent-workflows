@@ -236,11 +236,28 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     # .aw/records/ no longer exists at its declared path. Pure predicate reports three classifications:
     # moved-terminal (artifact moved to a retired status/path), moved (artifact moved to a non-retired
     # path), and vanished (artifact cannot be found). Registered `error` because a stale target makes
-    # the plan unexecutable as written. Invariant is `""`: no catalog invariant in spec pqsx96 covers
-    # scope-target freshness, and inventing one is out of scope. THE RULE REPORTS ALL THREE
-    # CLASSIFICATIONS, including plain `moved`, and its detail must name the classification: the check's
-    # job is "this declared path is wrong, fix it", which is true of all three, while the runner refuses
-    # only moved-terminal and vanished (F-8). Do not harmonize the check down to the runner's subset.
+    # the plan unexecutable as written for moved-terminal and vanished, and because the registered
+    # tier is the fail-closed default if an unclassified finding ever escapes the evaluator.
+    # Evaluator check_scope_path_target_stale stamps `info` for plain `moved` (IPD guti33, backlog
+    # 9xap30), so the severity split matches the runner's action split (moved-terminal and vanished
+    # stop the work and stay `error`, while plain `moved` does not stop the work and is `info`),
+    # while the reporting split deliberately does not.
+    #
+    # WHY `info` AND NOT `warning`: `artifact_core.drift_exit_code` exempts ONLY `info` (measured:
+    # ['error'] -> 1, ['warning'] -> 1, ['info'] -> 0, [''] -> 1, [] -> 0), so `warning` fails the gate
+    # identically to `error` and would still exit 1 on runnable plans. The exact in-tree precedent is
+    # `check.stale-index-missing` directly above in this registry ("MISSING -> `info`, the ONLY non-failing
+    # severity. `artifact_core.drift_exit_code` fails the gate for anything that is not `info`, so `warning`
+    # here would still exit 1 on every fresh clone and every fresh worktree").
+    #
+    # Invariant is `""`: no catalog invariant in spec pqsx96 covers scope-target freshness, and
+    # inventing one is out of scope.
+    #
+    # THE RULE REPORTS ALL THREE CLASSIFICATIONS, including plain `moved`, and its detail must name
+    # the classification: the check's job is "this declared path is wrong, fix it", which is true of
+    # all three, while the runner refuses only moved-terminal and vanished (F-8). Do not harmonize the
+    # check down to the runner's subset. A plain `moved` finding is still REPORTED and still worth
+    # fixing, it just does not set an exit code.
     "check.scope-path-target-stale": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
     ),
@@ -6230,6 +6247,12 @@ SCOPE_STALE_MOVED_TERMINAL = "moved-terminal"
 SCOPE_STALE_MOVED = "moved"
 SCOPE_STALE_VANISHED = "vanished"
 
+SCOPE_STALE_SEVERITY: Dict[str, str] = {
+    SCOPE_STALE_MOVED: "info",
+    SCOPE_STALE_MOVED_TERMINAL: "error",
+    SCOPE_STALE_VANISHED: "error",
+}
+
 _RECORDS_ARTIFACT_FACETS = (
     ".ipd.md",
     ".spec.md",
@@ -6364,6 +6387,9 @@ def check_scope_path_target_stale(repo_root: Path) -> List[_core.Drift]:
                         str(path),
                         _SCOPE_PATH_TARGET_STALE_RULE,
                         detail,
+                        severity=SCOPE_STALE_SEVERITY.get(
+                            stale.classification, "error"
+                        ),
                     ),
                     observed=observed,
                     required="Scope-Paths entries under .aw/records/ must exist at their declared path",
