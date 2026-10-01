@@ -22283,18 +22283,22 @@ INTEGRATION_REFUSED_NO_SIGNAL = "no-trust-signal"
 # disposition rather than being silently treated as machine truth". This stops a rejection being
 # DISCARDED; it grants the verifier nothing new.
 
-#: The three verdicts `build_verifier_prompt` asks the model for, verbatim from the prompt's schema
-#: line (`"verdict": "VERIFIED|CORRECTION_REQUIRED|BLOCKED"`). Named so the prompt and its consumer
-#: can be compared by a test instead of by eye.
+#: The three historically-advertised verdict tokens whose order `render_advertised_verdicts`
+#: pins first. The prompt schema line advertises these plus any additional recognized tokens
+#: derived from `_VERDICT_TABLE`; see `ADVERTISED_VERDICTS` and `render_advertised_verdicts` for
+#: the authority on what the prompt currently advertises.
 VERDICT_VERIFIED: str = "VERIFIED"
 VERDICT_CORRECTION_REQUIRED: str = "CORRECTION_REQUIRED"
 VERDICT_BLOCKED: str = "BLOCKED"
 
-#: `NOT CONFORMING`, the one LINTER-vocabulary token that is mapped. It appears nowhere in this
-#: repository except the gate that used to test for it, so nothing is known to emit it; it is mapped
-#: anyway because the cost of an entry is nil, because the pre-existing gate DID honor it (so mapping
-#: it preserves behavior rather than changing it), and because a rejection is the safe reading of a
-#: token containing the word "NOT".
+#: `NOT CONFORMING`, the one LINTER-vocabulary token that is mapped. Two tracked prompts
+#: (`tools/awphysical/agy-self-audit-prompt.md` and `tools/awphysical/agy-spec-audit-prompt.md`)
+#: instruct a model to report exactly this token; they drive `agy_run`'s prose-report path
+#: (`agy_run.build_turn2_prompt`, whose result is printed by `agy_run.main` and parsed by nothing),
+#: so no verdict from them reaches this table TODAY, and that is why the entry is kept as cheap
+#: insurance rather than as a live wiring. It is mapped because the cost of an entry is nil, because
+#: the pre-existing gate DID honor it (so mapping it preserves behavior rather than changing it),
+#: and because a rejection is the safe reading of a token containing the word "NOT".
 VERDICT_NOT_CONFORMING: str = "NOT CONFORMING"
 
 #: `CONFORMING` IS DELIBERATELY *NOT* A PASS, and this is OQ-02 resolved AGAINST the plan's suggested
@@ -22317,7 +22321,9 @@ VERDICT_NOT_CONFORMING: str = "NOT CONFORMING"
 #:
 #: IF A REAL VERIFIER IS EVER OBSERVED WRITING IT, the fix is a PROMPT/schema change (advertise the
 #: accepted tokens) plus an entry here, not a silent widening now on the strength of a plausible story
-#: about a model echoing `aw ipd lint`'s vocabulary. Nothing in the corpus has ever written it.
+#: about a model echoing the two audit prompts' vocabulary (`tools/awphysical/agy-self-audit-prompt.md`
+#: and `tools/awphysical/agy-spec-audit-prompt.md`). Nothing in the corpus has ever written it to
+#: an outcome file parsed by this runner.
 VERDICT_CONFORMING: str = "CONFORMING"
 
 #: What the runner records in `verify_disp` / `item["verification_status"]`. `verified` is the ONLY
@@ -22387,11 +22393,38 @@ _VERDICT_TABLE: dict[str, VerdictMapping] = {
 }
 
 
+#: Historically-advertised tokens, pinned first to ensure the rendered schema is an extension
+#: of the prior string rather than an arbitrary reordering.
+_HISTORICAL_ADVERTISED_ORDER: tuple[str, ...] = (
+    VERDICT_VERIFIED,
+    VERDICT_CORRECTION_REQUIRED,
+    VERDICT_BLOCKED,
+)
+
+#: The ADVERTISED verdict set, derived from recognized entries of `_VERDICT_TABLE`.
+#: Preserves the historical prefix order and appends any additional recognized tokens.
+ADVERTISED_VERDICTS: tuple[str, ...] = tuple(
+    token
+    for token in _HISTORICAL_ADVERTISED_ORDER
+    if token in _VERDICT_TABLE and _VERDICT_TABLE[token].recognized
+) + tuple(
+    token
+    for token, mapping in _VERDICT_TABLE.items()
+    if mapping.recognized and token not in _HISTORICAL_ADVERTISED_ORDER
+)
+
+
+def render_advertised_verdicts() -> str:
+    """Render the advertised verdict tokens in prompt schema shape (`A|B|C`)."""
+    return "|".join(ADVERTISED_VERDICTS)
+
+
 def map_verdict(raw: Any) -> VerdictMapping:
     """Map a raw verifier verdict onto what the runner records. FAIL-CLOSED for anything unknown.
 
     Consumed by BOTH hosts through `execute_item_core`; neither driver carries a verdict test of its
-    own, and `tests/test_runner_refork_guard.py` fails if one grows back.
+    own (formerly checked by `tests/test_runner_refork_guard.py`, deleted in `19313eed`; no live guard
+    currently enforces this).
 
     The `state` values are checked against `run_state`'s own tokens on every call rather than being
     trusted as literals, so a rename in that module surfaces here instead of leaving this file
@@ -27547,7 +27580,7 @@ and documentation satisfy every requirement before this plan can be considered e
    {{
      "schema_version": 1,
      "id6": "{item["id6"]}",
-     "verdict": "VERIFIED|CORRECTION_REQUIRED|BLOCKED",
+     "verdict": "{render_advertised_verdicts()}",
      "summary": "...",
      "evidence": [],
      "tests_run": [],
@@ -27640,7 +27673,7 @@ report honestly, including when the honest answer is that you cannot tell.
    {{
      "schema_version": 1,
      "id6": "{item["id6"]}",
-     "verdict": "VERIFIED|CORRECTION_REQUIRED|BLOCKED",
+     "verdict": "{render_advertised_verdicts()}",
      "summary": "...",
      "evidence": [],
      "tests_run": [],
