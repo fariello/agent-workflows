@@ -1,11 +1,13 @@
 - Id: 7fzqop
-- Status: open
+- Status: graduated
+- Graduated-To: 7fzqop
 - Set: 7fzqop
 - Priority: low
 - Work-Kind: followup
 - Summary: Document the table-driven (tabulated) test convention: row shape, the why column, and when to tabulate
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): graduated by run run-20260930T053059Z-3200713: prj0vm
 - 2026-09-29 created (aw backlog): Document the table-driven (tabulated) test convention: row shape, the why column, and when to tabulate
 
 Split out of nos070 while authoring plans vtup6x and t5txjk.
