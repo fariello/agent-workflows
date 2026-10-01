@@ -7,7 +7,7 @@
   OUT: creating a `decisions/` records tree, a `decision` artifact type, a `.decision.md` facet, a `TreePolicy`, a `CLASS_MAPS` fragment or any lifecycle for rulings (option (a) is REFUSED, with the reason recorded in E-05 and argued in Findings F-07); mandating that a ruling be written onto governed artifacts' fields (option (b) is already the shipped convention for Priority/Work-Kind and needs no plan here, see F-08); filing a backlog item per decided artifact (option (c) is REFUSED as the general mechanism, see F-09); resolving the OTHER gate kinds whose refs also do not resolve (`artifact` and `todo`), which is a strictly larger contract question deferred to backlog `2rnswc`; RETROFITTING any gate onto the 15 plans the 2026-09-12 ruling named, which are terminal and unwritable and whose loss plan `nllamb` E-05 already records; changing `promote_question_to_backlog` (it is currently called from nowhere in the package, measured, so changing it would be unverifiable churn); and anything in plan `nllamb`'s scope, which this plan does not supersede.
 - Scope-Paths: agent_workflows/attention_contract.py, agent_workflows/check_engine.py, tests/test_decision_ref_resolution.py, tests/test_attention_contract.py, .aw/records/backlog/README.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: medium
@@ -19,6 +19,7 @@
 - Id: jge900
 
 ## Workflow history
+- 2026-10-01 reviewed (aw set): status set to reviewed
 
 - 2026-10-01 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH, fixed), PR-002 (HIGH, fixed), PR-003 (MEDIUM, fixed), PR-004 (MEDIUM, fixed), PR-005 (MEDIUM, fixed), PR-006 (LOW, fixed), PR-007 (LOW, fixed). Reviewed in an isolated lane at HEAD `b640a3c9d`; structural preflight conforming before and after. Every load-bearing finding re-derived independently: F-01, F-02, F-03, F-04, F-05, F-06, F-10, F-11 and F-12 reproduce. Two new defects found and fixed in place: `DECISIONS.md` is NOT installed into a managed target repo (driven on a scratch install), so the new rule would have false-positived every `decision` gate wherever `check_engine` ships, and the pinned heading count of 156 is a live append-only artifact count (measured 153 -> 156 over three weeks). Three stale measurements corrected (bare-extractor counts, the gated item's id6, and two `deferred` specs' gate kind and ref).
 - 2026-10-01 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): authored from backlog `0szu1p`. Answers the item's model question with a fourth option measured from code (repair the shipped `Gate-Kind: decision` mechanism) rather than choosing among its (a)/(b)/(c). Two defects driven and recorded (F-01, F-02); filed backlog `2rnswc` as the durable carrier for the general gate-resolution question this plan deliberately leaves out.
