@@ -1,11 +1,13 @@
 - Id: 1sn4h0
-- Status: open
+- Status: graduated
+- Graduated-To: 8mkt5l
 - Set: 8mkt5l
 - Priority: medium
 - Work-Kind: chore
 - Summary: The suite trim deleted four artifact_audit verdict tests and no surviving test reaches the index cache stale path
 
 ## Workflow history
+- 2026-10-01 graduated (aw backlog): graduated by run run-20261001T221821Z-1985969: auqoig
 - 2026-09-30 created (aw backlog): The suite trim deleted four artifact_audit verdict tests and no surviving test reaches the index cache stale path
 
 MEASURED 2026-09-30 at review of IPD dea7dr (F-05), with the deletion re-verified independently by the reviewer in this lane.
