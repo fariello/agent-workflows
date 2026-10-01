@@ -163,6 +163,7 @@ def run_worker_process(
             list(packet.argv), packet.cwd, packet.timeout_seconds
         )
     else:
+        # Note: packet.max_output_bytes is deliberately not forwarded here (defect F-08 carried to fqseay).
         tool_event, _envelope = _ev.capture_command(
             packet.run_id,
             list(packet.argv),
@@ -170,8 +171,8 @@ def run_worker_process(
             timeout=packet.timeout_seconds,
         )
         exit_code = int(tool_event.get("exit_code", _SPAWN_FAIL_EXIT))
-        stdout = tool_event.get("stdout", "") or ""
-        stderr = tool_event.get("stderr", "") or ""
+        stdout = str(tool_event.stdout or "")
+        stderr = str(tool_event.stderr or "")
     duration_ms = (time.monotonic() - start) * 1000.0
     if exit_code == _TIMEOUT_EXIT:
         timed_out = True
