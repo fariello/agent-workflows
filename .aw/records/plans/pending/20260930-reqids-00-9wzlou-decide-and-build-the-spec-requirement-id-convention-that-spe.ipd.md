@@ -6,7 +6,7 @@
 - Scope: Coordinate two children: Order 01 authors the convention, retrofit policy and TRACE contract as a spec and hands it to human review; Order 02 builds the parser, the `spec_plan_trace` verifier, its production wiring and its tests, gated on that spec being approved. This orchestrator performs no product change of its own and writes no spec, no parser and no test.
 - Scope-Paths: .aw/records/plans/pending/20260930-reqids-00-9wzlou-decide-and-build-the-spec-requirement-id-convention-that-spe.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Spec: 25kzda
 - Work-Kind: feature
@@ -17,8 +17,10 @@
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 9wzlou
+- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): plan-review complete; 5 findings all fixed; the human approval gate is now runner-enforced via a state:spec:approved edge written by Order 01 E-09
 
 - 2026-10-01 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-101 (HIGH, fixed), PR-102 (MEDIUM, fixed), PR-103 (MEDIUM, fixed), PR-104 (LOW, fixed), PR-105 (LOW, fixed). Reviewed at HEAD `b66eb5f9`; plan byte-identical to the lane input, so no pre-review snapshot. `aw ipd lint --phase author --agent` reported `clean`, and because this plan's own first `- Kind:` bullet reads `orchestrator` the `IPD-S407` child-row check applied and reported NO violation, so no repair loop ran. THE ORCHESTRATOR COVERAGE QUESTION, which is the one that matters most for a parent, PASSES: every one of the eight completion criteria maps to a named child item (the spec to `jjh4aj` E-03..E-09, the parser/verifier/wiring/cutover/tests to `rtvdak` E-03..E-08), so the parent carries orchestration only and the runner may legitimately retire it without an agent turn. THE DOMINANT FINDING IS THAT THE PLAN ARGUED AWAY A GUARD THE REPOSITORY ALREADY SHIPS: it claimed the dependency grammar offers edges only "over plans" so no edge "CANNOT express 'and a human approved it'", and concluded the human gate is undetectable by any runner. Measured, `25kzda` 2.7's grammar admits `state:spec:approved:<id6>`, `parse_dependency_token` returns a valid `state`/`spec`/`approved` edge, `edge_satisfied` refuses the dependent with "needs exactly 'approved'", and `aw ipd dependencies set rtvdak executed:jjh4aj state:spec:approved:<id6> --dry-run` validates. So the Set's one human gate was being left to an agent's self-discipline when the runner could hold it; Order 01 E-09 now writes that edge and the parent's V-02 verifies it. Three further corrections: the five-plan `25kzda` co-editor list was partly false and stale (`00pirb` has executed; `mt54wr` and `6uhtko` never declared that path, including at the cited HEAD; 13 pending plans declare it now), replaced by a re-derivation rule; the gate lacked the paste-actual-output honesty rule, a path-scoped commit instruction and conditional finalize ownership, all added; and the survey reconciliation is now recorded as STRONGER than authored, because `vkub9o`'s decisive objection was filed as backlog `1zknu7`, is `done`, and its recommendation #2 shipped as `check.plan-spec-link-missing` firing on 34 plans. Full findings and decisions: `.aw/records/reviews/20260930-reqids-00-9wzlou-decide-and-build-the-spec-requirement-id-convention-that-spe.review.md`.

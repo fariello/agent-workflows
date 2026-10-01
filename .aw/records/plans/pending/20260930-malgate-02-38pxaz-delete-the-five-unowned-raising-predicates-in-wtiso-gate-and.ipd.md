@@ -6,7 +6,7 @@
 - Scope: Delete the five unowned raising predicates, the `_unimplemented` helper that exists only to serve them, and the four stable error codes no surviving surface names, then re-home the one constant `lane_containment` actually imports so the import does not dangle. Strike the three citations to the two deleted test files in the same change, since an edit that preserved them would carry forward a false claim. Amend spec `7ckptx`, which names this module as "the designated home for shared containment predicates" and whose R6.2 requires an unimplemented predicate keep raising, so the contract matches the tree. EXCLUDES the driver attestation token and `lane_worktree_active` (owned by backlog `dvonrn`), EXCLUDES every comment reworded by Order 03, and EXCLUDES the dangling citations elsewhere in the tree (owned by `ikxtkj` and `gia5i7`).
 - Scope-Paths: agent_workflows/wtiso_gate.py, agent_workflows/lane_containment.py, .aw/records/specs/approved/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md, tests/test_lane_missing_input_token.py
 - Item-Dependencies: executed:bec7ee
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 38pxaz
+- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-301..PR-310. EVERY MEASUREMENT IN THIS PLAN WAS RE-DRIVEN RATHER THAN READ AND ALL TEN FINDINGS HOLD: an AST walk of every `.py` outside the module finds exactly ONE import of `wtiso_gate` in the whole tree (`AW_MISSING_INPUT` into `lane_containment`, line 62) against a 443-line module; calling all nine predicates confirms exactly the five named ones raise `NotImplementedError` naming a retired owner; both cited test files are absent and `git show --stat 19313eed` lists them at 731 and 704 deleted lines; the spec's three sites, R6.1's text and the 2026-09-28 maintainer ruling all quote verbatim; and `MISSING_INPUT_TOKEN_FORM` renders `AW_MISSING_INPUT:<repo-relative-path>:<why it is required>` from the single constant exactly as F-9 claims. THE PLAN IS SOUND AND ITS CENTRAL JUDGEMENT IS RIGHT. Four corrections matter. FIRST, THE CITATION COUNT IS SIX, NOT THREE, and the distribution is what makes it material: two sit in the MODULE DOCSTRING and one in `check_scope`'s docstring, both of which survive E-03 under the keep-the-file branch, so 'most will disappear with the deleted docstrings' is false for half of them. SECOND, E-03 SAYS 'four stable error codes' AND THEN LISTS FIVE, and separately leaves `AW_GATE_SCOPE` and `AW_PERMISSION_DEADLINE` with no disposition at all though both are measurably unreferenced outside the module; E-03 now covers all eight codes by rule. THIRD, A16 HAS A THIRD CLAUSE THE PLAN NEVER ADDRESSES ('each implemented shared predicate has unit tests'), which the delete-the-file branch falsifies for the four implemented bodies, so the amendment was incomplete in a way `aw specs check` would not catch. FOURTH, the plan amended a spec without `- From-Spec:`, which `aw check` reported as `check.plan-spec-link-missing`; the field is now set and the finding is cleared. BOTH OPEN QUESTIONS CARRIED `Owner: reviewer` AND ARE NOW RESOLVED: OQ-01 to DELETE the file (nothing imports it after E-02, and P6 plus the measured zero-caller state decide it), OQ-02 to the NO-SUBJECT framing with R6.3 explicitly preserved. Baseline re-measured: `3512 passed, 2 skipped, 3 warnings in 135.66s`, 208 deselected.
 - 2026-09-30 same-status (aw set): status unchanged (to-review)
 
