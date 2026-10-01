@@ -1,5 +1,5 @@
 - Id: cn5np0
-- Status: graduated
+- Status: done
 - Graduated-To: exitcontract
 - Set: cn5np0
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Nothing validates a command's declared exit_contract against the exit code it actually returns
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw agy run: IPD 1mnit8 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-exitcontract-01-1mnit8-make-exit-contract-load-bearing-a-tree-wide-usage-error-floo.ipd.md); evidence .aw/records/plans/executed/20260930-exitcontract-01-1mnit8-make-exit-contract-load-bearing-a-tree-wide-usage-error-floo.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: 1mnit8
 - 2026-09-29 created (aw backlog): Nothing validates a command's declared exit_contract against the exit code it actually returns
 

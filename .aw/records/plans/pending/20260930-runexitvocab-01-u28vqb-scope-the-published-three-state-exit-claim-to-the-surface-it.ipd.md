@@ -148,6 +148,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Evidence: .aw/records/plans/executed/20260930-runsexits-01-69rdv6-declare-runs-next-and-runs-status-by-their-measured-exit-cod.ipd.md
 - **The argparse usage-error floor on four run-family verbs, and the tree-wide `exit_contract` validation gate.** The great majority of declarations are validated against nothing, a genuine enforcement gap; pending plan `1mnit8` (now `- Status: reviewed`) declares both as its purpose and explicitly fences itself out of this reconciliation (F-11). The authored "155 of 163" is dropped as a live count rather than refreshed: `1mnit8`'s own review measured `exit_contract` read in six test files and the validated population is exactly what that plan changes, so a number here would be stale on arrival.
   - Carrier: 1mnit8
+  - Carrier-Evidence: .aw/records/plans/executed/20260930-exitcontract-01-1mnit8-make-exit-contract-load-bearing-a-tree-wide-usage-error-floo.ipd.md
 - **The latent unreachable-`EXIT_BLOCKED` defect on `runs resume`.** A real design defect in `run_engine`'s ephemeral-state handling, already filed.
   - Carrier: tzqvjn
 - **`ipd execute-set`, `run start`, `run record`, `run cancel` and `run finalize` declarations.** Not measured by this plan. Declaring them on a guess would repeat the exact defect E-02 fixes, so they are left as they are rather than changed on inference.
