@@ -6,7 +6,7 @@
 - Scope: IN: (a) APPEND one dated `## Workflow history` note to executed plan `65cuw0` recording that its E-04/V-03 gitignored-refusal wording predates the 2026-09-18 R5.5 amendment and that the shipped behavior follows the amended spec, since an append is the only edit `AGENTS.md` sanctions on a plan under `.aw/records/plans/executed/`; (b) APPEND a `## Round 4` to `65cuw0`'s typed review record, because Round 2's D-4 is what MOVED the ignored-file case into V-03 and is therefore where the stale requirement was authored, and the reviews tree's own documented correction vehicle is an appended round; (c) RESTORE the deleted behavioral guard as a new `tests/test_lane_retention_amended_r55.py` that pins the amended R5.5 classification by OUTCOME, measured to FAIL under mutation in both directions. OUT: any in-place rewrite of `65cuw0`'s E-04, V-03, its Required or Observed evidence, its `- Status:`, or its position in `executed/` (forbidden, and the whole reason (a) and (b) are appends); any rewrite of Rounds 1 through 3 of its review; any EDIT to spec `7ckptx` R5.5 or A15 (the shipped behavior already complies, so there is nothing to amend, and narrowing R5.5 is the alternative this plan explicitly refuses); any change to `lane_containment.py`, `worktree_lease.py`, or either driver (no production behavior is wrong); the `uncollected-submission`-refuses-every-interrupted-lane defect, which is a DIFFERENT R2.5 question already owned by backlog `nvymif` (F-08); and the general audit of what else `19313eed` left unguarded, already owned by backlog `xvp5vx` (F-09).
 - Scope-Paths: .aw/records/plans/executed/20260917-laneorph-01-65cuw0-fix-lane-reclaim-so-a-merged-lane-is-reclaimable-and-torn-do.ipd.md, .aw/records/reviews/20260917-laneorph-01-65cuw0-fix-lane-reclaim-so-a-merged-lane-is-reclaimable-and-torn-do.review.md, tests/test_lane_retention_amended_r55.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode model=its_direct/pt3-claude-opus-5-1m-us
 - Id: hyuos6
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: hyuos6 verified (set 0kdwm3, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): /plan-review (opencode model=its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-501..PR-504 all FIXED, none deferred or open, no BLOCKER and no unfixed HIGH. I REPRODUCED BOTH BLOCKERS RATHER THAN TRUSTING THEM, because they justify the plan's substantive half, and both hold at review HEAD 84cdeb94: re-unioning unknown_ignored into LaneInventory.unknown (a full revert of the 5w8g8j fix) leaves the bare suite at 3353 passed 2 skipped, and dropping unknown_untracked (the data-loss direction) does too, each reverted to an empty diff. F-07's cause, F-01's unsatisfiable requirement, F-11's chronology to the minute including both ancestry tests, F-12's two pre-commit gates exiting 0 on a staged probe append, and F-13's five history consumers with only extract_newest_history_entry changing, all reproduce exactly. TWO HIGH DEFECTS, neither visible from the plan's prose alone. PR-501: backlog nvymif GRADUATED after authoring to pending plan z8ex9f, which declares lane_containment.py and whose E-03 adds a landing condition treating an ABSENT branch as BLOCKING; this plan's fixture threads no branch, so once z8ex9f lands the clean and ignored cases INVERT and the two refusal cases pass for the wrong reason, with neither plan naming the other. E-03 is now adaptive rather than carrying an Item-Dependencies edge the grammar cannot express as a preference. PR-502: the mutation evidence V-03 demanded was satisfiable by a module detecting NEITHER mutation, because reason_codes is INVARIANT across both mutations in exactly the cases each is meant to break (measured: the ignored case flips torn_down True to False with reason_codes () both times, the untracked case flips False to True with ('unknown-untracked-file',) both times), so only torn_down and worktree existence move; that is the vacuous guard the plan's own gate names as most likely to go wrong. PR-503 records the receipt fixture's required item shape, since an order-keyed item raises KeyError position rather than failing a test. PR-504 adds the review baseline beside the authored one. I ALSO CONFIRMED the specfin7ck overlap is genuinely benign (uuh71v touches only the spec and walkthroughs), that all three structure-pinning tests really were in the deleted files so the no-restore exclusion is grounded, that dwfmxz is a live open carrier, and F-10's absent note verb. I AGREE with the plan's declining a Blocks-Release gate for F-06 and record the agreement rather than passing over it, since the behavior is correct and only its guard is missing. Bare suite 3353 passed, 2 skipped, 3 warnings in 108.82s; tree clean after every probe.
 
@@ -39,34 +39,34 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: correct the record on the two artifacts that carry the stale requirement
 
-- [ ] E-01 APPEND one dated `## Workflow history` record to `65cuw0` stating the supersession. This is the ONLY edit this plan makes to that file and it MUST be an append: `AGENTS.md` forbids changing what a plan in `.aw/records/plans/executed/` RECORDS (its steps, evidence, results, or status) and expressly permits "a dated `## Workflow history` line to it that points at later work". So do NOT touch E-04's text, V-03's `Required evidence` or `Observed evidence`, the `## Approval and execution gate` paragraph, or any `- Field:` in the metadata block. WRITE IT BY HAND: there is no tooled note verb for a plan (`aw backlog note` and `aw specs note` exist; `aw ipd` exposes no `note`, F-10). PLACEMENT: insert it as the FIRST record under `## Workflow history`, because that section is newest-first (its `2026-09-22 executed` record is the first line of the section) and `plan_readiness.extract_newest_history_entry` reads the FIRST record; appending at the bottom files it as the oldest event. Use a NOTE token, not a status token, because this transitions nothing.
+- [x] E-01 APPEND one dated `## Workflow history` record to `65cuw0` stating the supersession. This is the ONLY edit this plan makes to that file and it MUST be an append: `AGENTS.md` forbids changing what a plan in `.aw/records/plans/executed/` RECORDS (its steps, evidence, results, or status) and expressly permits "a dated `## Workflow history` line to it that points at later work". So do NOT touch E-04's text, V-03's `Required evidence` or `Observed evidence`, the `## Approval and execution gate` paragraph, or any `- Field:` in the metadata block. WRITE IT BY HAND: there is no tooled note verb for a plan (`aw backlog note` and `aw specs note` exist; `aw ipd` exposes no `note`, F-10). PLACEMENT: insert it as the FIRST record under `## Workflow history`, because that section is newest-first (its `2026-09-22 executed` record is the first line of the section) and `plan_readiness.extract_newest_history_entry` reads the FIRST record; appending at the bottom files it as the oldest event. Use a NOTE token, not a status token, because this transitions nothing.
   THE MESSAGE MUST SAY FIVE THINGS, because a reader who has only this line must be able to act. (1) That E-04's final sentence and V-03's `Required evidence` both demand an interrupted merged lane holding only a gitignored file be PRESERVED with reason code `unknown-ignored-file`, and that this demand is UNSATISFIABLE against the spec the plan was approved under. (2) WHY: spec `7ckptx` R5.5 was amended 2026-09-18 to make gitignored content disposable upon lane destruction, and `lane_containment.RETENTION_UNKNOWN_IGNORED` is documented as never emitted by `reason_codes` now, so honoring the wording would have forked R5.5 in the direction R6.1 forbids. (3) THE CHRONOLOGY, which is the part no existing artifact states and which explains how it shipped: the wording was authored by REVIEW ROUND 2 (commit `59d1d833`, 2026-09-17 21:49) and the amendment landed 2h45m later (commit `e94a7c4e`, 2026-09-18 00:34), ELEVEN MINUTES before round 3 approved the plan (commit `9ecb9f3f`, 2026-09-18 00:45) without sweeping V-03 for it - so this is a REVISION-SWEEP miss, the exact failure the `plan-review` revise step was later amended to prevent, and not an executor deviation. (4) That the executor's handling is recorded as decision `08-65cuw0-D3` and that V-03's `Observed evidence` block is the authoritative account of it. (5) That the HAZARD the requirement existed for is NOT the ignored case: name the untracked case as the one that genuinely refuses, so a reader does not conclude retention was weakened. Cite this plan by id6 `hyuos6`, not by path, so the pointer survives a rename. Do NOT assert in this record that the test guard is missing beyond one clause pointing at E-03's new file, because the detailed account belongs in the test module's own docstring and duplicating it invites the two copies to diverge.
   - Depends on: none
   - Expected outcome: `65cuw0` carries exactly one new FIRST history record naming `hyuos6` and stating all five things; `git diff --numstat` on that file shows insertions only and ZERO deletions; E-04's text, V-03's two evidence blocks, the gate paragraph, `- Status: executed` and the file's location in `executed/` are all byte-identical to HEAD.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 APPEND a `## Round 4` section to `65cuw0`'s typed review record, and leave Rounds 1 through 3 untouched. THE MECHANISM IS THE TREE'S OWN, not an invention: `.aw/records/reviews/README.md` states this tree's files hold "MULTIPLE rounds as repeated `## Round <N>` sections, appended in order", that "The LAST round in the file is the CURRENT one", and that "Only the current round's findings are live", precisely so a finding raised in one round and resolved later does not block forever. THE REVIEW RECORD IS THE RIGHT PLACE, and this is not merely symmetry with E-01: Round 2's DECISION D-4 is what MOVED the ignored-file case into the behavior layer ("Should E-04 keep the merged+IGNORED-file case at the `LaneState` layer? NO. Moved to the behavior layer (E-03/V-03)"), so the review record is where the stale requirement was AUTHORED, and a correction recorded only on the plan would leave the decision that produced it reading as sound.
+- [x] E-02 APPEND a `## Round 4` section to `65cuw0`'s typed review record, and leave Rounds 1 through 3 untouched. THE MECHANISM IS THE TREE'S OWN, not an invention: `.aw/records/reviews/README.md` states this tree's files hold "MULTIPLE rounds as repeated `## Round <N>` sections, appended in order", that "The LAST round in the file is the CURRENT one", and that "Only the current round's findings are live", precisely so a finding raised in one round and resolved later does not block forever. THE REVIEW RECORD IS THE RIGHT PLACE, and this is not merely symmetry with E-01: Round 2's DECISION D-4 is what MOVED the ignored-file case into the behavior layer ("Should E-04 keep the merged+IGNORED-file case at the `LaneState` layer? NO. Moved to the behavior layer (E-03/V-03)"), so the review record is where the stale requirement was AUTHORED, and a correction recorded only on the plan would leave the decision that produced it reading as sound.
   MATCH THE DOCUMENTED SECTION SHAPE: a `### Findings` table with exactly the columns the existing rounds use (`ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution`) and a `### Decisions` table with `ID | Question | Chosen | Alternatives considered | Basis | Reversible`. NUMBER THE NEW IDS IN A FRESH BAND so they cannot be mistaken for an earlier round's: Round 2 used `PR-101`..`PR-107` and `D-1`..`D-5`, so use `PR-201+` and `D-6+`. Round 4 must record: a finding that D-4's relocation of the ignored-file case was correct in its LAYER reasoning and was superseded in its SUBSTANCE 2h45m later, with the three commit shas and the eleven-minute gap; a finding carrying the DELETED TEST GUARD with its mutation measurements, marked FIXED by this plan's E-03 rather than routed away; and a decision row recording the choice to append rather than rewrite, with the alternative considered (amending R5.5, which is the other branch the backlog item offers) and why it was rejected. Do NOT edit the front-matter `- Verdict:` field: the plan WAS approved with revisions applied, and that record stands. STATE THE DISCLOSURE this round inherits, since it is the same model family as the plan and as Rounds 1 through 3, so a reader weighs it as a near-self-review.
   - Depends on: E-01
   - Expected outcome: the review file carries a `## Round 4` after Round 3 with both tables present and correctly columned, new ids in the `PR-201+`/`D-6+` band; `git diff --numstat` shows insertions only and ZERO deletions; every row of Rounds 1 through 3 and the front-matter `- Subject-Id:`/`- Subject-Type:`/`- Verdict:` are byte-identical to HEAD; `aw check reviews` reports no new finding attributable to the change.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: restore the guard the amended behavior lost
 
-- [ ] E-03 ADD `tests/test_lane_retention_amended_r55.py` PINNING THE AMENDED R5.5 CLASSIFICATION BY OUTCOME, and prove it load-bearing by mutation in BOTH directions. This is the substantive half of this plan. The property has no guard at all today: `19313eed` deleted both files that held it, and nothing in the surviving suite imports `inventory_lane` or `teardown_lane_if_classified` (F-05, F-06, F-07).
+- [x] E-03 ADD `tests/test_lane_retention_amended_r55.py` PINNING THE AMENDED R5.5 CLASSIFICATION BY OUTCOME, and prove it load-bearing by mutation in BOTH directions. This is the substantive half of this plan. The property has no guard at all today: `19313eed` deleted both files that held it, and nothing in the surviving suite imports `inventory_lane` or `teardown_lane_if_classified` (F-05, F-06, F-07).
   TEST BY OUTCOME, NEVER BY CODE STRUCTURE, per the maintainer's 2026-09-26 ruling and GUIDING_PRINCIPLES P16. Build REAL git lanes in a temp repo, merge them, and drive the REAL `lane_containment.teardown_lane_if_classified` with a REAL run directory and a REAL COMPLETE collection receipt, then assert on `torn_down`, `reason_codes`, and whether the worktree directory still exists on disk. Do NOT restore either deleted file wholesale: both carried structure-pinning tests (`test_the_status_args_carry_all_three_flags`, `test_each_retention_symbol_has_exactly_one_definition_in_the_shared_home`, the whole `TheNoDirectForceTeardownTests` AST class), and the ruling forbids re-introducing those.
   FOUR CASES, WHICH ARE THE FOUR THE SHIPPED RULE DISTINGUISHES and which the authoring probe already measured green (F-03): a merged lane whose only unexplained content is GITIGNORED is TORN DOWN with `reason_codes == ()` and its worktree gone; a merged lane with an unexplained UNTRACKED file is PRESERVED with `('unknown-untracked-file',)` and its file still on disk; a merged lane with a DIRTY TRACKED file is PRESERVED with `('dirty-tracked-file',)`; and a fully accounted CLEAN lane is TORN DOWN. ALSO assert that the ignored paths are still ENUMERATED in the inventory's diagnostics even though they no longer refuse, because "disposable" must not mean "invisible" and that is the half a careless simplification would drop.
   SUPPLY A COMPLETE RECEIPT IN EVERY CASE, and say in the module docstring why: with `run_dir`/`item` absent, `submission_retention` reports `uncollected=True` unconditionally, so every lane is unclassified for an unrelated reason and all four cases would pass vacuously on the same code path. Measured at authoring: with no receipt the gitignored lane reports `classified=False reason_codes=('uncollected-submission',)`; with one it reports `classified=True reason_codes=()` (F-04). That is a live trap, not a hypothetical: it is the same masking that backlog `nvymif` is about. NOTE THE RECEIPT'S ITEM SHAPE, measured at review because the wrong shape raises rather than failing: `collection_receipt_path` calls `item_slug`, which reads `int(item['position'])`, so a fixture item must carry `position` (an `order` key raises `KeyError: 'position'`).
   RE-MEASURE BEFORE WRITING, BECAUSE A PENDING PLAN WILL CHANGE THESE FOUR ANSWERS (F-14, added at review). `nvymif` graduated 2026-09-30 to pending plan `z8ex9f`, whose `- Scope-Paths:` includes `agent_workflows/lane_containment.py`, whose E-02 narrows `submission_retention` so a provably-empty lane is no longer `uncollected`, and whose E-03 adds a NEW blocking condition to `LaneInventory` for work that has not landed on the integration target - treating an ABSENT branch as BLOCKING. This module's handle exposes only `.path`, so under `z8ex9f` every case here would classify `False` on that new condition and two of the four asserted outcomes would INVERT. FIRST, at execution, check whether `z8ex9f` has landed (is `LaneInventory` carrying a landing/unmerged reason code, and does `inventory_lane` accept a branch parameter?). IF IT HAS NOT, write the four cases as specified here. IF IT HAS, the lanes in this module must be MERGED (they already are, which is what makes this survivable) and the fixture must thread the lane's branch so the landing condition is satisfied rather than defaulted-to-blocking; assert the same four OUTCOMES either way, and paste which branch you took. DO NOT change `lane_containment.py` to make this module pass: that is out of scope and is the inversion the gate warns about.
   - Depends on: none
   - Expected outcome: a new test module whose four cases pass against unmodified code, and which FAILS in both mutation directions: re-unioning `unknown_ignored` into `LaneInventory.unknown` (the ignored case flips to preserved) and removing `unknown_untracked` from it (the untracked case flips to torn down). ASSERT ON `torn_down` AND WORKTREE EXISTENCE, NOT ON `reason_codes` ALONE, for a reason measured at review: under BOTH mutations `reason_codes` is UNCHANGED in the mutated case (the ignored case stays `()` when it flips to preserved, and the untracked case still reports `('unknown-untracked-file',)` when it flips to torn down), so a module asserting only reason codes would go GREEN under both mutations and satisfy nothing. The state that actually moves is `torn_down`/`classified` and whether the worktree is gone. A pasted mutation failure whose assertion is on a reason code is not acceptable evidence. No test in the module reads production source text, AST, or line counts.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 STATE THE HONEST LIMIT OF THE NEW GUARD IN ITS OWN DOCSTRING, so the next reader does not over-trust it. Record three things in the module docstring: (1) that it guards the R5.5 CLASSIFICATION only, and specifically NOT the interrupt-path DECISION ORDER that `65cuw0`'s E-03 delivered, whose only surviving coverage is `tests/test_oc_runipd.py::VerifierGateAndRunnerBugTests::test_discard_lane_reclaim` on the operator-discard branch, so the merged-lane reclaim branch is unguarded and is owned by backlog `dwfmxz` rather than fixed here; (2) that it drives the gate DIRECTLY rather than through `reclaim_lanes_on_interrupt`, which is a deliberate scope choice and means a regression that stops the interrupt path REACHING the gate would not fail this module; (3) that the `uncollected-submission` refusal it works around is itself a live question owned by backlog `nvymif`, so a future change there will need this module's receipt fixture revisited - and, measured at review, that ownership has MOVED: `nvymif` is `- Status: graduated` as of 2026-09-30 to pending plan `z8ex9f`, so the docstring must cite the PLAN as the live carrier and name the concrete hazard rather than a vague future change (F-14). Say that `z8ex9f` declares `agent_workflows/lane_containment.py` in scope, that its E-02 narrows `submission_retention` and its E-03 adds a landing condition whose absent-branch case BLOCKS, and that this module therefore depends on lanes that are MERGED and on a branch being threaded once that lands. A reader who breaks this module after `z8ex9f` must find the reason here rather than re-deriving it. THIS IS A SEPARATE E-ITEM RATHER THAN A CLAUSE OF E-03 because it is the difference between a guard and a false sense of one, and because an executor under time pressure writes the tests and skips the caveat.
+- [x] E-04 STATE THE HONEST LIMIT OF THE NEW GUARD IN ITS OWN DOCSTRING, so the next reader does not over-trust it. Record three things in the module docstring: (1) that it guards the R5.5 CLASSIFICATION only, and specifically NOT the interrupt-path DECISION ORDER that `65cuw0`'s E-03 delivered, whose only surviving coverage is `tests/test_oc_runipd.py::VerifierGateAndRunnerBugTests::test_discard_lane_reclaim` on the operator-discard branch, so the merged-lane reclaim branch is unguarded and is owned by backlog `dwfmxz` rather than fixed here; (2) that it drives the gate DIRECTLY rather than through `reclaim_lanes_on_interrupt`, which is a deliberate scope choice and means a regression that stops the interrupt path REACHING the gate would not fail this module; (3) that the `uncollected-submission` refusal it works around is itself a live question owned by backlog `nvymif`, so a future change there will need this module's receipt fixture revisited - and, measured at review, that ownership has MOVED: `nvymif` is `- Status: graduated` as of 2026-09-30 to pending plan `z8ex9f`, so the docstring must cite the PLAN as the live carrier and name the concrete hazard rather than a vague future change (F-14). Say that `z8ex9f` declares `agent_workflows/lane_containment.py` in scope, that its E-02 narrows `submission_retention` and its E-03 adds a landing condition whose absent-branch case BLOCKS, and that this module therefore depends on lanes that are MERGED and on a branch being threaded once that lands. A reader who breaks this module after `z8ex9f` must find the reason here rather than re-deriving it. THIS IS A SEPARATE E-ITEM RATHER THAN A CLAUSE OF E-03 because it is the difference between a guard and a false sense of one, and because an executor under time pressure writes the tests and skips the caveat.
   BOTH CITED ITEMS ALREADY EXIST AND MUST NOT BE RE-FILED: `dwfmxz` was filed AT AUTHORING (not left for the executor) because `check.ipd-uncarried-obligation` is an `error`-severity rule that requires a bare resolvable id6, so this plan could not honestly defer work to an item that did not exist yet; `nvymif` predates this plan. VERIFY both resolve rather than trusting the citation, AND VERIFY THEIR CURRENT STATUS rather than the status this plan recorded, since a citation can go stale in its status without going dangling; report what you find (measured at review: `dwfmxz` `open`, `nvymif` `graduated`). If either has since been closed or renamed, say so in the docstring rather than leaving a dead pointer, since a recorded id6 that does not resolve misleads worse than an absent one.
   - Depends on: E-03
   - Expected outcome: the module docstring names all three limits explicitly, including the surviving-coverage citation for the decision order and both backlog ids (`dwfmxz`, `nvymif`), each verified to resolve; no new backlog item is created.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -174,37 +174,305 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: THE FULL `git diff` of the `65cuw0` file, pasted, plus `git diff --numstat` for it. The diff MUST show insertions only and ZERO deletions (numstat's second column must be `0`), must not contain E-04's text or either of V-03's evidence blocks, and must not contain any `- Field:` metadata line. Then paste the new record itself and confirm IN YOUR OWN WORDS that it states all FIVE required things: the unsatisfiable demand (naming both E-04 and V-03); WHY (the 2026-09-18 R5.5 amendment plus the never-emitted reason code); the THREE-COMMIT CHRONOLOGY with the 2h45m and eleven-minute gaps; that decision `08-65cuw0-D3` and V-03's `Observed evidence` are the authoritative account of the handling; and that the real refusal case is the UNTRACKED one, so retention is not weakened. A record missing any of the five is a FAILED validation.
   - PROVE THE PLACEMENT IS FIRST AND SAFE, not merely correct by convention. Paste the first three lines under `## Workflow history` to show the new record is FIRST, and the plan's `- Status:` line plus `git status --short` for that path to show the status and the directory are unchanged. Then paste, BEFORE and AFTER, all five history consumers: `plan_readiness.is_plan_review_approved`, `plan_readiness.extract_newest_history_entry`, `plan_readiness.newest_verdict`, `plan_readiness.history_has_review_record`, and `ipd_lifecycle._plan_status_events` (report its event COUNT and its first event). ONLY `extract_newest_history_entry` MAY CHANGE. Any of the other four changing is a FAILED validation regardless of the diff, because a history note would then have altered a signal some other consumer reads, which is the whole risk of inserting at position one.
   - MIND THE TWO SIGNATURES, because they differ and passing the wrong one raises rather than answering: `is_plan_review_approved` takes a **`Path`** (its body calls `plan_path.read_text(...)`, so a string raises `AttributeError`), while the other readers take the **text**. Drive the before/after pair on two TEMP-FILE COPIES rather than on the real file, so a probe that raises midway cannot leave the tracked file mutated.
   - MEASURED AT AUTHORING BY EXACTLY THIS METHOD, so this is a confirmation and not an exploration (F-13): `is_plan_review_approved` True both times; `newest_verdict` unchanged at `('positive', <the 2026-09-18 round-3 record>)`; `history_has_review_record` True both times; `_plan_status_events` 7 events with first event `('2026-09-17', 'draft', 'opencode/its_direct-pt3-claude-opus-5-1m-us')` both times. A DIFFERENT result at execution time is a finding worth reporting, not a number to overwrite.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. 65cuw0 workflow history note verified by git diff, numstat 1 0, five statements confirmed, placement first, and all five history consumers identical.
+    1. Full `git diff` of `.aw/records/plans/executed/20260917-laneorph-01-65cuw0-fix-lane-reclaim-so-a-merged-lane-is-reclaimable-and-torn-do.ipd.md`:
+    ```diff
+    diff --git a/.aw/records/plans/executed/20260917-laneorph-01-65cuw0-fix-lane-reclaim-so-a-merged-lane-is-reclaimable-and-torn-do.ipd.md b/.aw/records/plans/executed/20260917-laneorph-01-65cuw0-fix-lane-reclaim-so-a-merged-lane-is-reclaimable-and-torn-do.ipd.md
+    index bce85ee71..c49cf5d7f 100644
+    --- a/.aw/records/plans/executed/20260917-laneorph-01-65cuw0-fix-lane-reclaim-so-a-merged-lane-is-reclaimable-and-torn-do.ipd.md
+    +++ b/.aw/records/plans/executed/20260917-laneorph-01-65cuw0-fix-lane-reclaim-so-a-merged-lane-is-reclaimable-and-torn-do.ipd.md
+    @@ -17,6 +17,7 @@
+     - Id: 65cuw0
 
-- [ ] V-02 validates E-02
+     ## Workflow history
+    +- 2026-10-01 note (hyuos6): E-04's final sentence and V-03's `Required evidence` both demand an interrupted merged lane holding only a gitignored file be PRESERVED with reason code `unknown-ignored-file`, and this demand is UNSATISFIABLE against the spec the plan was approved under. Spec `7ckptx` R5.5 was amended 2026-09-18 to make gitignored content disposable upon lane destruction, and `lane_containment.RETENTION_UNKNOWN_IGNORED` is documented as never emitted by `reason_codes` now, so honoring the wording would have forked R5.5 in the direction R6.1 forbids. The wording was authored by review round 2 (commit `59d1d833`, 2026-09-17 21:49) and the amendment landed 2h45m later (commit `e94a7c4e`, 2026-09-18 00:34), eleven minutes before round 3 approved the plan (commit `9ecb9f3f`, 2026-09-18 00:45) without sweeping V-03 for it - a revision-sweep miss rather than an executor deviation. The executor's handling is recorded as decision `08-65cuw0-D3` and V-03's `Observed evidence` block is the authoritative account of it. The retention hazard the requirement existed for is the UNTRACKED case, which genuinely refuses (`unknown-untracked-file`), so retention is not weakened; the amended classification guard is restored by hyuos6 in `tests/test_lane_retention_amended_r55.py`.
+     - 2026-09-22 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: 65cuw0 verified (set laneorph, attempt 1).
+     - 2026-09-19 approved (aw set): status set to approved
+     - 2026-09-18 reviewed (aw set): status set to reviewed
+    ```
+    `git diff --numstat`:
+    `1	0	.aw/records/plans/executed/20260917-laneorph-01-65cuw0-fix-lane-reclaim-so-a-merged-lane-is-reclaimable-and-torn-do.ipd.md` (insertions only, 0 deletions). No `- Field:` lines, E-04 text, or V-03 evidence blocks touched.
+
+    2. Five required statements confirmed in own words:
+       - Unsatisfiable demand: names E-04's final sentence and V-03's `Required evidence` for gitignored preservation with `unknown-ignored-file`.
+       - Why: Spec `7ckptx` R5.5 amendment on 2026-09-18 made gitignored files disposable on lane destruction and `RETENTION_UNKNOWN_IGNORED` is never emitted; literal compliance would fork R5.5 against R6.1.
+       - Chronology: Authored by review round 2 (`59d1d833`, 2026-09-17 21:49), R5.5 amended 2h45m later (`e94a7c4e`, 2026-09-18 00:34), 11 minutes before round 3 approved (`9ecb9f3f`, 2026-09-18 00:45) without sweeping V-03.
+       - Handling authority: Recorded as decision `08-65cuw0-D3`, V-03's `Observed evidence` is authoritative.
+       - Real hazard: The untracked case genuinely refuses (`unknown-untracked-file`); cites `hyuos6` and restored guard `tests/test_lane_retention_amended_r55.py`.
+
+    3. First 3 lines under `## Workflow history`:
+    ```text
+    ## Workflow history
+    - 2026-10-01 note (hyuos6): E-04's final sentence and V-03's `Required evidence` both demand an interrupted merged lane holding only a gitignored file be PRESERVED with reason code `unknown-ignored-file`, and this demand is UNSATISFIABLE against the spec the plan was approved under. Spec `7ckptx` R5.5 was amended 2026-09-18 to make gitignored content disposable upon lane destruction, and `lane_containment.RETENTION_UNKNOWN_IGNORED` is documented as never emitted by `reason_codes` now, so honoring the wording would have forked R5.5 in the direction R6.1 forbids. The wording was authored by review round 2 (commit `59d1d833`, 2026-09-17 21:49) and the amendment landed 2h45m later (commit `e94a7c4e`, 2026-09-18 00:34), eleven minutes before round 3 approved the plan (commit `9ecb9f3f`, 2026-09-18 00:45) without sweeping V-03 for it - a revision-sweep miss rather than an executor deviation. The executor's handling is recorded as decision `08-65cuw0-D3` and V-03's `Observed evidence` block is the authoritative account of it. The retention hazard the requirement existed for is the UNTRACKED case, which genuinely refuses (`unknown-untracked-file`), so retention is not weakened; the amended classification guard is restored by hyuos6 in `tests/test_lane_retention_amended_r55.py`.
+    - 2026-09-22 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: 65cuw0 verified (set laneorph, attempt 1).
+    - 2026-09-19 approved (aw set): status set to approved
+    ```
+    Plan metadata: `- Status: executed` unchanged, path remains `.aw/records/plans/executed/...`.
+
+    4. Five history consumers Before and After:
+    ```text
+    === BEFORE ===
+    is_plan_review_approved: True
+    extract_newest_history_entry: - 2026-09-22 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: 65cuw0 verified (set laneorph, attempt 1).
+    newest_verdict: ('positive', '- 2026-09-18 reviewed (aw set): plan-review round 3 complete: APPROVE WITH REVISIONS APPLIED. Maintainer resolved OQ-03, OQ-04, and OQ-05. PR-101 and PR-103 marked FIXED. Proceed with decision-order change in reclaim_lanes_on_interrupt so merged lanes are checked before holds_work bails out. Deleting the branch of a provably-merged lane on interrupt is safe and standard Git hygiene since all commits are in main. Readiness go-pending-approval.')
+    history_has_review_record: True
+    _plan_status_events count: 7 first event: ('2026-09-17', 'draft', 'opencode/its_direct-pt3-claude-opus-5-1m-us')
+    === AFTER ===
+    is_plan_review_approved: True
+    extract_newest_history_entry: - 2026-10-01 note (hyuos6): E-04's final sentence and V-03's `Required evidence` both demand an interrupted merged lane holding only a gitignored file be PRESERVED with reason code `unknown-ignored-file`, and this demand is UNSATISFIABLE against the spec the plan was approved under. Spec `7ckptx` R5.5 was amended 2026-09-18 to make gitignored content disposable upon lane destruction, and `lane_containment.RETENTION_UNKNOWN_IGNORED` is documented as never emitted by `reason_codes` now, so honoring the wording would have forked R5.5 in the direction R6.1 forbids. The wording was authored by review round 2 (commit `59d1d833`, 2026-09-17 21:49) and the amendment landed 2h45m later (commit `e94a7c4e`, 2026-09-18 00:34), eleven minutes before round 3 approved the plan (commit `9ecb9f3f`, 2026-09-18 00:45) without sweeping V-03 for it - a revision-sweep miss rather than an executor deviation. The executor's handling is recorded as decision `08-65cuw0-D3` and V-03's `Observed evidence` block is the authoritative account of it. The retention hazard the requirement existed for is the UNTRACKED case, which genuinely refuses (`unknown-untracked-file`), so retention is not weakened; the amended classification guard is restored by hyuos6 in `tests/test_lane_retention_amended_r55.py`.
+    newest_verdict: ('positive', '- 2026-09-18 reviewed (aw set): plan-review round 3 complete: APPROVE WITH REVISIONS APPLIED. Maintainer resolved OQ-03, OQ-04, and OQ-05. PR-101 and PR-103 marked FIXED. Proceed with decision-order change in reclaim_lanes_on_interrupt so merged lanes are checked before holds_work bails out. Deleting the branch of a provably-merged lane on interrupt is safe and standard Git hygiene since all commits are in main. Readiness go-pending-approval.')
+    history_has_review_record: True
+    _plan_status_events count: 7 first event: ('2026-09-17', 'draft', 'opencode/its_direct-pt3-claude-opus-5-1m-us')
+    ```
+    Only `extract_newest_history_entry` changed; all other signals identical.
+    Gates: `python3 -m agent_workflows ipd-executed-gate` and `python3 -m agent_workflows ipd-status-untooled-gate` exit 0.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: the `git diff` of the review record, pasted, plus `git diff --numstat` showing insertions only and ZERO deletions. Confirm in your own words that `## Round 4` sits AFTER Round 3, that its `### Findings` table carries exactly the nine columns the existing rounds use and its `### Decisions` table exactly six, and that every new id is in the `PR-201+`/`D-6+` band with no reuse of `PR-101`..`PR-107` or `D-1`..`D-5`. Quote the three required rows: the D-4 supersession finding (which MUST state that D-4's LAYER reasoning was correct and only its SUBSTANCE went stale, per OQ-03), the deleted-guard finding marked FIXED by E-03, and the append-not-amend decision row naming the R5.5-amendment alternative and why it was rejected.
   - PROVE THE EARLIER ROUNDS AND THE FRONT MATTER ARE UNTOUCHED: paste `git diff` context showing no line inside Rounds 1 through 3 changed, and paste the front-matter block showing `- Subject-Id: 65cuw0`, `- Subject-Type: ipd` and `- Verdict: APPROVE WITH REVISIONS APPLIED` byte-identical to HEAD. A changed `- Verdict:` is a FAILED validation even if every table is perfect: the plan WAS approved with revisions applied, and rewriting that field would forge a different review outcome.
   - THEN PROVE THE TOOLING STILL PARSES IT: paste `aw check reviews` output and confirm no finding is attributable to this change, and paste `review_findings` reading this file back showing Round 4's rows parsed with their severities. A malformed table that no consumer can read would make the correction invisible to exactly the tooling this tree exists to serve.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Review record Round 4 verified by git diff, numstat 19 0, PR-201/PR-202/D-6 tables, rounds 1-3 untouched, and aw check reviews passes.
+    1. Full `git diff` of `.aw/records/reviews/20260917-laneorph-01-65cuw0-fix-lane-reclaim-so-a-merged-lane-is-reclaimable-and-torn-do.review.md`:
+    ```diff
+    diff --git a/.aw/records/reviews/20260917-laneorph-01-65cuw0-fix-lane-reclaim-so-a-merged-lane-is-reclaimable-and-torn-do.review.md b/.aw/records/reviews/20260917-laneorph-01-65cuw0-fix-lane-reclaim-so-a-merged-lane-is-reclaimable-and-torn-do.review.md
+    index 10eb0a536..293297a7a 100644
+    --- a/.aw/records/reviews/20260917-laneorph-01-65cuw0-fix-lane-reclaim-so-a-merged-lane-is-reclaimable-and-torn-do.review.md
+    +++ b/.aw/records/reviews/20260917-laneorph-01-65cuw0-fix-lane-reclaim-so-a-merged-lane-is-reclaimable-and-torn-do.review.md
+    @@ -193,4 +193,23 @@
+     - **PR-103 / OQ-05 RESOLVED**: Option (c) chosen. Deleting the branch of a provably-merged lane on interrupt is safe and standard Git hygiene since all commits are already in `main`.
+     - **Verdict**: `APPROVE WITH REVISIONS APPLIED`.
+     - **Readiness**: Promoted to `go-pending-approval`.
+    +
+    +## Round 4
+    +
+    +Reviewed on 2026-10-01 for plan `hyuos6` (reconciling `65cuw0`'s V-03 gitignored-refusal wording with amended spec `7ckptx` R5.5 and restoring the deleted test guard).
+    +
+    +**Disclosure**: This round was prepared by an AI assistant in the same model family as the author and reviewers of Rounds 1 through 3, so a reader should evaluate it with the awareness of a near-self-review.
+    +
+    +### Findings
+    +
+    +| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+    +|----|----------|-------|------|----------|---------|------------------|----------|------------|
+    +| PR-201 | HIGH | IN-SCOPE | A. correctness; F. honest documentation | Commit `59d1d833` (2026-09-17 21:49), commit `e94a7c4e` (2026-09-18 00:34), commit `9ecb9f3f` (2026-09-18 00:45) | **D-4's SUBSTANCE WAS SUPERSEDED 2h45m AFTER AUTHORING.** Round 2's D-4 correctly relocated the ignored-file case to the behavior layer (E-03/V-03) because the reading layer does not consult the inventory, but its SUBSTANCE went stale 2h45m later when commit `e94a7c4e` amended `7ckptx` R5.5 to make gitignored content disposable upon lane destruction, eleven minutes before round 3 approved the plan in `9ecb9f3f` without sweeping V-03. D-4's LAYER reasoning was correct and remains correct; only the requirement's substance went stale. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | RESOLVED by plan `hyuos6` E-01: appended note to `65cuw0` workflow history recording the supersession, the three-commit chronology, and that the untracked case is the true retention hazard. |
+    +| PR-202 | HIGH | IN-SCOPE | E. testing | Commit `19313eed` (2026-09-24) deleted `tests/test_lane_retention.py` and `tests/test_worktree_lease_merged_reclaim.py`; bare suite remained green under mutation in both directions (`LaneInventory.unknown` re-unioning `unknown_ignored` and dropping `unknown_untracked` both passed bare suite). | **THE AMENDED R5.5 RETENTION CLASSIFICATION LOST ITS TEST GUARDS.** Commit `19313eed` deleted both guarding test files, leaving the amended R5.5 teardown classification and the data-loss protection unguarded and green under mutation in both directions. | C:Low; U:Low; S:Low; F:Medium; Overall:Low | FIXED | FIXED by plan `hyuos6` E-03: restored outcome-level guard in `tests/test_lane_retention_amended_r55.py` proving both mutations fail. |
+    +
+    +### Decisions
+    +
+    +| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+    +|----|----------|--------|-------------------------|-------|------------|
+    +| D-6 | How should the stale V-03 requirement and deleted guard be reconciled? | Append dated corrections to `65cuw0` and this review record, and restore the outcome guard in a new test module; refuse amending R5.5. | (a) Amend spec `7ckptx` R5.5 to restore the pre-amendment refusal on the interrupt path: rejected because the amendment's record proves blanket refusal caused 100% teardown failures on clean test runs, and R6.1 forbids an interrupt-path-only fork. (b) Rewrite `65cuw0`'s V-03 in place: rejected because `AGENTS.md` strictly forbids rewriting executed plan records. | Spec `7ckptx` R5.5 and R6.1; `AGENTS.md` executed plan append rule; plan `hyuos6` OQ-01. | yes |
+    ```
+    `git diff --numstat`:
+    `19	0	.aw/records/reviews/20260917-laneorph-01-65cuw0-fix-lane-reclaim-so-a-merged-lane-is-reclaimable-and-torn-do.review.md` (insertions only, 0 deletions).
 
-- [ ] V-03 validates E-03
+    2. Structural confirmation:
+       - `## Round 4` sits strictly after `## Round 3`.
+       - Findings table carries 9 columns: `ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution`.
+       - Decisions table carries 6 columns: `ID | Question | Chosen | Alternatives considered | Basis | Reversible`.
+       - IDs use fresh band: `PR-201`, `PR-202`, `D-6` (no reuse of PR-101..107 or D-1..5).
+       - Quoted rows: PR-201 states D-4 layer reasoning was correct and only substance went stale 2h45m later; PR-202 records deleted test guard marked FIXED by E-03; D-6 records append-not-amend choice and rejects R5.5 amendment alternative.
+
+    3. Front matter and earlier rounds untouched:
+    ```text
+    # Review findings: plan 65cuw0
+
+    - Subject-Id: 65cuw0
+    - Subject-Type: ipd
+    - Reviewed-At: 2026-09-18
+    - Reviewer: opencode/its_direct-pt3-claude-opus-5-1m-us
+    - Verdict: APPROVE WITH REVISIONS APPLIED
+    ```
+    Context shows zero modifications to rounds 1-3 or front-matter.
+
+    4. Tooling parsing verification:
+       - `aw check reviews` output:
+         `✓ CONFORMS  671 reviews checked, errors 0, warnings 0`
+       - `review_findings.parse_review_file`:
+         Round 4 parsed as current round (number 4).
+         Findings:
+         `PR-201: severity=high, scope=IN-SCOPE, area=A. correctness; F. honest documentation, decision=fixed`
+         `PR-202: severity=high, scope=IN-SCOPE, area=E. testing, decision=fixed`
+         Decisions:
+         `D-6: How should the stale V-03 requirement and deleted guard be reconciled?`
+         `unresolved_findings: ()` (both marked fixed).
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: `python3 -m pytest tests/test_lane_retention_amended_r55.py -o addopts=""` with the per-test names and the summary line pasted, PLUS the four asserted outcomes shown explicitly: gitignored-only -> `torn_down=True`, `reason_codes=()`, worktree gone; untracked -> `torn_down=False`, `reason_codes=('unknown-untracked-file',)`, file still on disk; dirty tracked -> `torn_down=False`, `reason_codes=('dirty-tracked-file',)`; clean -> `torn_down=True`. Plus the assertion that `unknown_ignored` is still ENUMERATED in the ignored case, since "disposable" must not have become "invisible".
   - STATE WHICH BRANCH OF E-03's `z8ex9f` FORK YOU TOOK (F-14), and prove it by measurement rather than assertion: paste whether `LaneInventory` carries a landing/unmerged reason code and whether `inventory_lane` accepts a branch parameter at execution HEAD, then say whether the fixture threads a branch. If `z8ex9f` HAS landed and this module was written without threading one, every case classifies `False` on the new blocking condition and two of the four asserted outcomes INVERT, so a green module in that state means the assertions were weakened rather than satisfied; that is a FAILED validation. Confirm also that `agent_workflows/lane_containment.py` is UNCHANGED by this plan (`git diff --stat` empty for it), since making the module pass by editing the gate is the inversion the execution gate forbids.
   - PLUS TWO MUTATION DEMONSTRATIONS, because one is not enough to prove the module is load-bearing in the direction that matters, and a test that passes under either mutation is NOT acceptable evidence for this item: (a) re-union `unknown_ignored` into `LaneInventory.unknown` and paste the FAILURE of the gitignored case; (b) remove `unknown_untracked` from it and paste the FAILURE of the untracked case. THE FAILING ASSERTION MUST BE ON `torn_down` OR WORKTREE EXISTENCE, NOT ON `reason_codes`, and this is measured rather than stylistic: at review, under mutation (a) the ignored case flips to `torn_down=False` while its `reason_codes` stays `()`, and under mutation (b) the untracked case flips to `torn_down=True` while its `reason_codes` stays `('unknown-untracked-file',)`. So a module asserting only reason codes is GREEN under both mutations. A pasted failure whose assertion is a reason code does not satisfy this item. Demonstration (b) is the data-loss direction and is the one this item most exists for. After EACH, revert and paste `git diff --stat agent_workflows/lane_containment.py` showing EMPTY, so it is provable that no production change was left behind.
   - BOTH MUTATIONS WERE MEASURED AT AUTHORING TO LEAVE THE CURRENT SUITE FULLY GREEN (`3246 passed, 2 skipped` in each case, F-05 and F-06), which is the baseline this item overturns: the same mutations must now fail this module while the REST of the suite still reports no new failure. INDEPENDENTLY REPRODUCED AT REVIEW at HEAD `84cdeb94`, so this is a confirmed defect and not an authoring artifact: mutation (a) `3353 passed, 2 skipped, 3 warnings in 74.05s` and mutation (b) `3353 passed, 2 skipped, 3 warnings in 78.66s`, both identical to the unmutated baseline, each reverted to an empty `git diff --stat`. Paste the bare suite summary after E-03 as well, and confirm the count ROSE by the number of new cases; an unchanged count means the module did not collect.
   - ALSO CONFIRM THE MODULE TESTS OUTCOMES, NOT STRUCTURE: state that it contains no `inspect`, `ast`, regex or substring read of production source, no symbol census, and no assertion on any docstring or comment text, per the 2026-09-26 ruling. A module that pins structure FAILS this item even with green output.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Verified by 4 passing outcome tests, z8ex9f fork measurement, mutation (a) and (b) failures on torn_down, clean reverts, and bare suite 3813 pass.
+    1. Narrowed test run with per-test names:
+    ```text
+    $ python3 -m pytest tests/test_lane_retention_amended_r55.py -o addopts="" -v
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    Using --randomly-seed=3423372247
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 4 items
 
-- [ ] V-04 validates E-04
+    tests/test_lane_retention_amended_r55.py::test_merged_lane_holding_dirty_tracked_file_is_preserved PASSED [ 25%]
+    tests/test_lane_retention_amended_r55.py::test_merged_lane_clean_is_torn_down PASSED [ 50%]
+    tests/test_lane_retention_amended_r55.py::test_merged_lane_holding_untracked_file_is_preserved PASSED [ 75%]
+    tests/test_lane_retention_amended_r55.py::test_merged_lane_holding_only_gitignored_file_is_torn_down PASSED [100%]
+
+    ============================== 4 passed in 0.67s ===============================
+    ```
+
+    2. Four asserted outcomes verified:
+       - gitignored-only (`test_merged_lane_holding_only_gitignored_file_is_torn_down`):
+         `decision.torn_down is True`, `decision.inventory.reason_codes == ()`, `not lane_path.exists()`, and `decision.inventory.unknown_ignored == ("build/precious.txt",)` enumerated.
+       - untracked (`test_merged_lane_holding_untracked_file_is_preserved`):
+         `decision.torn_down is False`, `decision.inventory.reason_codes == ("unknown-untracked-file",)`, `lane_path.exists()`, `untracked_file.exists()`.
+       - dirty tracked (`test_merged_lane_holding_dirty_tracked_file_is_preserved`):
+         `decision.torn_down is False`, `decision.inventory.reason_codes == ("dirty-tracked-file",)`, `lane_path.exists()`.
+       - clean (`test_merged_lane_clean_is_torn_down`):
+         `decision.torn_down is True`, `decision.inventory.reason_codes == ()`, `not lane_path.exists()`.
+
+    3. Fork measurement regarding `z8ex9f`:
+       Measured at HEAD:
+       ```text
+       inventory_lane sig: (*, lane_root: 'Path | str', run_dir: 'Path | None' = None, item: 'dict[str, Any] | None' = None, attempt: 'int | None' = None, git_runner: 'Callable[[Path, list[str]], tuple[int, str, str]] | None' = None) -> 'LaneInventory'
+       LaneInventory fields: ['as_dict', 'classified', 'count', 'dirty_tracked', 'discardable', 'failure', 'index', 'lane_root', 'readable', 'reason', 'reason_codes', 'submission_detail', 'uncollected_submission', 'unknown', 'unknown_ignored', 'unknown_untracked']
+       ```
+       `z8ex9f` has NOT landed: `inventory_lane` does not accept a `branch` parameter and `LaneInventory` does not carry a landing/unmerged reason code. The non-landed branch was taken; lanes are nevertheless merged into main so that threading a branch once `z8ex9f` lands satisfies its landing check. `agent_workflows/lane_containment.py` diff stat is empty (`git diff --stat` output empty).
+
+    4. Two mutation demonstrations:
+       (a) Re-union `unknown_ignored` into `LaneInventory.unknown` (`self.dirty_tracked + self.unknown_untracked + self.unknown_ignored`):
+       ```text
+       =================================== FAILURES ===================================
+       __________ test_merged_lane_holding_only_gitignored_file_is_torn_down __________
+       >       assert decision.torn_down is True
+       E       AssertionError: assert False is True
+       E        +  where False = LaneTeardownDecision(torn_down=False, ...).torn_down
+       tests/test_lane_retention_amended_r55.py:123: AssertionError
+       ========================= 1 failed, 3 passed in 0.79s ==========================
+       ```
+       Assertion failed on `decision.torn_down` (NOT reason_codes).
+       Reverted cleanly; `git diff --stat agent_workflows/lane_containment.py` empty.
+
+       (b) Remove `unknown_untracked` from `LaneInventory.unknown` (`return tuple(sorted(self.dirty_tracked))`):
+       ```text
+       =================================== FAILURES ===================================
+       _____________ test_merged_lane_holding_untracked_file_is_preserved _____________
+       >       assert decision.torn_down is False
+       E       AssertionError: assert True is False
+       E        +  where True = LaneTeardownDecision(torn_down=True, ...).torn_down
+       tests/test_lane_retention_amended_r55.py:148: AssertionError
+       ========================= 1 failed, 3 passed in 0.84s ==========================
+       ```
+       Assertion failed on `decision.torn_down` (NOT reason_codes).
+       Reverted cleanly; `git diff --stat agent_workflows/lane_containment.py` empty.
+
+    5. Bare suite count comparison:
+       Baseline before E-03: `3809 passed, 2 skipped, 3 warnings in 78.42s (0:01:18)`.
+       Bare suite after E-03: `3813 passed, 2 skipped, 3 warnings in 150.21s (0:02:30)`.
+       Count rose by exactly 4 (3809 -> 3813) with 0 failures.
+
+    6. Outcomes, not structure confirmed:
+       `tests/test_lane_retention_amended_r55.py` drives real git worktrees and calls `lane_containment.teardown_lane_if_classified` directly. It contains no `inspect`, `ast`, regex, source-text parsing, symbol censuses, or assertions on comments/docstrings.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: the new module's docstring pasted in full, with confirmation in your own words that it names all THREE limits: (1) that it guards the R5.5 CLASSIFICATION and NOT the interrupt-path decision order, citing `tests/test_oc_runipd.py::VerifierGateAndRunnerBugTests::test_discard_lane_reclaim` as the only surviving reclaim coverage and naming it as the operator-DISCARD branch rather than the merged branch; (2) that it drives `teardown_lane_if_classified` directly rather than through `reclaim_lanes_on_interrupt`, and what that means a regression could hide; (3) that the `uncollected-submission` workaround depends on a live question owned by backlog `nvymif`.
   - PROVE EVERY CITED ID6 AND NODE ID RESOLVES, since a docstring that points at nothing is worse than one that points at less: paste the resolved paths of BOTH `dwfmxz` and `nvymif` (via `aw find backlog <id6>`), with `dwfmxz` shown `- Status: open` so it is a live carrier rather than a closed one, and paste `python3 -m pytest tests/test_oc_runipd.py -o addopts="" --collect-only -q | grep discard_lane_reclaim` showing the cited node id exists. A dangling citation is a FAILED validation. PASTE `nvymif`'s ACTUAL STATUS AND ITS CARRIER, and do NOT require it to be `open`: measured at review it is `graduated` with `- Graduated-To: nvymif` pointing at pending plan `z8ex9f`, so the evidence must show that status and show `z8ex9f` resolving, and the docstring must cite the plan as the live carrier (F-14). A docstring still calling `nvymif` an open question is a FAILED validation, because it would send a reader to a closed item instead of to the plan that will change the behavior this module asserts.
   CITE THE FULL NODE ID INCLUDING ITS CLASS, and re-derive it rather than copying: measured at authoring it is `tests/test_oc_runipd.py::VerifierGateAndRunnerBugTests::test_discard_lane_reclaim`, and the class name is NOT guessable from the test name (this plan's first draft guessed `LaneReclaimTests` and was wrong). A bare `file::function` id for a test that lives in a class does not resolve, so a docstring carrying one is a dangling citation and FAILS this item.
   - CONFIRM NO SECOND ITEM WAS FILED: paste `aw find backlog` output (or a directory listing) showing exactly ONE open item for the decision-order gap. `dwfmxz` was filed at authoring, so an `aw backlog new` invocation appearing in this item's evidence is a FAILED validation: it would split the defect's history across two items. Also confirm `dwfmxz` is still `- Work-Kind: chore` with no `- Blocks-Release:`, or, if the executor measured a user-perceptible impact that makes it a `bug`, that the gate was set through `aw backlog set` and the measurement is stated.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Verified by full docstring inspection, 3 limits confirmed, dwfmxz/nvymif/test node id resolution proofs, and no second backlog item filed.
+    1. Full module docstring from `tests/test_lane_retention_amended_r55.py`:
+    ```python
+    """Behavioral outcome tests for the amended spec 7ckptx R5.5 lane retention gate.
+
+    This module restores the outcome-level guard on the amended spec 7ckptx R5.5 classification,
+    which was left unguarded when commit 19313eed deleted tests/test_lane_retention.py and
+    tests/test_worktree_lease_merged_reclaim.py. It verifies by outcome that an interrupted or
+    merged lane holding only gitignored files is torn down as disposable while untracked and dirty
+    tracked content are preserved.
+
+    Honest limits of this guard (plan hyuos6 E-04):
+    1. CLASSIFICATION ONLY, NOT DECISION ORDER: This module guards the R5.5 classification logic
+       inside `lane_containment.teardown_lane_if_classified` only, and specifically does NOT guard
+       the interrupt-path decision order delivered by plan 65cuw0 E-03 (consulting merged-ness
+       before bailing out on holds_work). The only surviving coverage referencing
+       `reclaim_lanes_on_interrupt` is the operator-discard test at
+       `tests/test_oc_runipd.py::VerifierGateAndRunnerBugTests::test_discard_lane_reclaim`,
+       which exercises the discard branch rather than merged-lane reclaim. The merged-lane reclaim
+       decision-order guard was owned by backlog item `dwfmxz` (chore, filed at authoring), which
+       has since graduated to pending plan `2rtp96` (`.aw/records/plans/pending/20260930-dwfmxz-01-2rtp96-guard-the-interrupt-path-merged-lane-reclaim-decision-order.ipd.md`).
+    2. DRIVES GATE DIRECTLY: Tests here drive `lane_containment.teardown_lane_if_classified`
+       directly rather than through runner_shared / driver `reclaim_lanes_on_interrupt`. A regression
+       that breaks how the runner reaches or invokes the gate would not fail this module.
+    3. COMPLETE RECEIPT WORKAROUND AND PENDING PLAN z8ex9f: An absent collection receipt causes
+       `submission_retention` to report `uncollected=True`, which would mask retention checks under
+       `('uncollected-submission',)`. This module supplies a complete collection receipt in each case
+       to test classification in isolation. The question of whether an absent receipt should block an
+       interrupted lane that provably wrote nothing was owned by backlog item `nvymif`, which
+       graduated on 2026-09-30 to pending plan `z8ex9f` (`.aw/records/plans/pending/20260930-nvymif-01-z8ex9f-distinguish-a-lane-that-provably-submitted-nothing-from-one.ipd.md`).
+       Plan z8ex9f declares `agent_workflows/lane_containment.py` in scope, narrows
+       `submission_retention`, and adds a landing condition whose absent-branch case blocks.
+       At the time plan hyuos6 executes, z8ex9f has not landed (`inventory_lane` does not accept a
+       branch parameter). The lanes here are nevertheless fully merged into main so that threading a
+       branch will satisfy the landing check once z8ex9f lands.
+    """
+    ```
+
+    2. Three limits confirmed in own words:
+       - Limit 1 (Classification only, not decision order): The module guards the R5.5 classification predicate in `lane_containment.teardown_lane_if_classified`, but does not guard the interrupt-path decision order in `runner_shared.reclaim_lanes_on_interrupt` (which checks merged-ness before `holds_work` bails out). The only surviving reclaim coverage is `tests/test_oc_runipd.py::VerifierGateAndRunnerBugTests::test_discard_lane_reclaim`, which drives the operator-discard branch rather than merged-lane reclaim. The carrier for this gap is `dwfmxz` (now graduated to pending plan `2rtp96`).
+       - Limit 2 (Drives gate directly): The tests invoke `lane_containment.teardown_lane_if_classified` directly rather than through runner/driver callers (`reclaim_lanes_on_interrupt`). Regressions in runner-level gate integration or dispatch would not be surfaced by this module.
+       - Limit 3 (Complete receipt workaround & pending plan z8ex9f): An absent collection receipt causes `submission_retention` to flag `uncollected=True` (`uncollected-submission`), masking classification. This module works around that by injecting a complete collection receipt in each test case. This receipt-checking behavior was owned by backlog item `nvymif`, which graduated on 2026-09-30 to pending plan `z8ex9f` (`z8ex9f` narrows `submission_retention` and adds a landing condition).
+
+    3. Citations resolution proof:
+       - `aw find backlog dwfmxz`:
+         ```text
+         ●  graduated     dwfmxz  .aw/records/backlog/graduated/20260929-dwfmxz-01-dwfmxz-reclaim-decision-order-unguarded.backlog.md
+         ```
+         (Note: `dwfmxz` was open at plan authoring and graduated on 2026-09-30 to pending plan `2rtp96` via run `run-20260930T053024Z-3198670`).
+       - `aw find plans 2rtp96`:
+         ```text
+         ◕  pending       2rtp96  dwfmxz          .aw/records/plans/pending/20260930-dwfmxz-01-2rtp96-guard-the-interrupt-path-merged-lane-reclaim-decision-order.ipd.md
+         ```
+       - `aw find backlog nvymif`:
+         ```text
+         ●  graduated     nvymif  .aw/records/backlog/graduated/20260922-nvymif-01-nvymif-r55-gate-refuses-every-interrupted-lane.backlog.md
+         ```
+         Status is `graduated`, graduated on 2026-09-30 to pending plan `z8ex9f`.
+       - `aw find plans z8ex9f`:
+         ```text
+         ◕  pending       z8ex9f  nvymif          .aw/records/plans/pending/20260930-nvymif-01-z8ex9f-distinguish-a-lane-that-provably-submitted-nothing-from-one.ipd.md
+         ```
+       - Pytest collection for discard_lane_reclaim:
+         ```text
+         $ python3 -m pytest tests/test_oc_runipd.py -o addopts="" --collect-only -q | grep discard_lane_reclaim
+         tests/test_oc_runipd.py::VerifierGateAndRunnerBugTests::test_discard_lane_reclaim
+         ```
+         Node id resolves to class `VerifierGateAndRunnerBugTests` and method `test_discard_lane_reclaim`.
+
+    4. Confirmation no second item filed:
+       - No `aw backlog new` was invoked during execution.
+       - A search across `.aw/records/backlog/` for the reclaim decision-order gap shows only `dwfmxz`:
+         `.aw/records/backlog/graduated/20260929-dwfmxz-01-dwfmxz-reclaim-decision-order-unguarded.backlog.md`.
+       - `dwfmxz` metadata confirmed:
+         ```yaml
+         - Id: dwfmxz
+         - Status: graduated
+         - Graduated-To: dwfmxz
+         - Set: dwfmxz
+         - Priority: medium
+         - Work-Kind: chore
+         ```
+         `- Work-Kind:` is `chore`; `- Blocks-Release:` is absent.
+  - Result: pass
 
 ## Approval and execution gate
 

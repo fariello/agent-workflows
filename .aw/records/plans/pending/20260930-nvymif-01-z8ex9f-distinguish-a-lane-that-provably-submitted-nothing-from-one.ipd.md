@@ -142,6 +142,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Declined: No future work is owed; the ruling stands and this plan complies with it.
 - THE STALE `unknown-ignored-file` WORDING IN `65cuw0`'s E-04/V-03, and the general audit of what else `19313eed` left unguarded. Both are adjacent to F-12 and both are already owned elsewhere; this plan adds a guard for the rules IT changes and does not attempt either sweep.
   - Carrier: hyuos6
+  - Carrier-Evidence: .aw/records/plans/executed/20260929-0kdwm3-01-hyuos6-reconcile-65cuw0-s-v-03-gitignored-refusal-wording-with-the.ipd.md
 
 ## Scope check
 

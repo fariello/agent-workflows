@@ -193,3 +193,22 @@ Reviewed on 2026-09-18 after maintainer intervention resolving OQ-03, OQ-04, and
 - **PR-103 / OQ-05 RESOLVED**: Option (c) chosen. Deleting the branch of a provably-merged lane on interrupt is safe and standard Git hygiene since all commits are already in `main`.
 - **Verdict**: `APPROVE WITH REVISIONS APPLIED`.
 - **Readiness**: Promoted to `go-pending-approval`.
+
+## Round 4
+
+Reviewed on 2026-10-01 for plan `hyuos6` (reconciling `65cuw0`'s V-03 gitignored-refusal wording with amended spec `7ckptx` R5.5 and restoring the deleted test guard).
+
+**Disclosure**: This round was prepared by an AI assistant in the same model family as the author and reviewers of Rounds 1 through 3, so a reader should evaluate it with the awareness of a near-self-review.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-201 | HIGH | IN-SCOPE | A. correctness; F. honest documentation | Commit `59d1d833` (2026-09-17 21:49), commit `e94a7c4e` (2026-09-18 00:34), commit `9ecb9f3f` (2026-09-18 00:45) | **D-4's SUBSTANCE WAS SUPERSEDED 2h45m AFTER AUTHORING.** Round 2's D-4 correctly relocated the ignored-file case to the behavior layer (E-03/V-03) because the reading layer does not consult the inventory, but its SUBSTANCE went stale 2h45m later when commit `e94a7c4e` amended `7ckptx` R5.5 to make gitignored content disposable upon lane destruction, eleven minutes before round 3 approved the plan in `9ecb9f3f` without sweeping V-03. D-4's LAYER reasoning was correct and remains correct; only the requirement's substance went stale. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | RESOLVED by plan `hyuos6` E-01: appended note to `65cuw0` workflow history recording the supersession, the three-commit chronology, and that the untracked case is the true retention hazard. |
+| PR-202 | HIGH | IN-SCOPE | E. testing | Commit `19313eed` (2026-09-24) deleted `tests/test_lane_retention.py` and `tests/test_worktree_lease_merged_reclaim.py`; bare suite remained green under mutation in both directions (`LaneInventory.unknown` re-unioning `unknown_ignored` and dropping `unknown_untracked` both passed bare suite). | **THE AMENDED R5.5 RETENTION CLASSIFICATION LOST ITS TEST GUARDS.** Commit `19313eed` deleted both guarding test files, leaving the amended R5.5 teardown classification and the data-loss protection unguarded and green under mutation in both directions. | C:Low; U:Low; S:Low; F:Medium; Overall:Low | FIXED | FIXED by plan `hyuos6` E-03: restored outcome-level guard in `tests/test_lane_retention_amended_r55.py` proving both mutations fail. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-6 | How should the stale V-03 requirement and deleted guard be reconciled? | Append dated corrections to `65cuw0` and this review record, and restore the outcome guard in a new test module; refuse amending R5.5. | (a) Amend spec `7ckptx` R5.5 to restore the pre-amendment refusal on the interrupt path: rejected because the amendment's record proves blanket refusal caused 100% teardown failures on clean test runs, and R6.1 forbids an interrupt-path-only fork. (b) Rewrite `65cuw0`'s V-03 in place: rejected because `AGENTS.md` strictly forbids rewriting executed plan records. | Spec `7ckptx` R5.5 and R6.1; `AGENTS.md` executed plan append rule; plan `hyuos6` OQ-01. | yes |
