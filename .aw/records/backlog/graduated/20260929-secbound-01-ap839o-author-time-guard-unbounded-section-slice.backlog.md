@@ -1,11 +1,13 @@
 - Id: ap839o
-- Status: open
+- Status: graduated
+- Graduated-To: secbound
 - Set: secbound
 - Priority: low
 - Work-Kind: chore
 - Summary: No author-time guard refuses a new marker-located unbounded section slice in tests, so the bounded extractor can be bypassed silently
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): graduated by run run-20260930T053059Z-3200713: jj5ju1
 - 2026-09-29 created (aw backlog): Deferred residue of Set secbound (plans 78rxzc, tr8ugt), which graduated backlog 1pgrii. Order 01 adds support.section/final_section/section_lines to tests/support.py and Order 02 converts the 12 measured sites, but NOTHING refuses a NEW unbounded marker-located slice, so the class can return exactly as 1pgrii's own history records it returning after skn8uk bounded the originating guard. Deferred rather than built for two stated reasons: the detector needs a design neither plan did (x[start:] is indistinguishable from a legitimate tail slice without knowing start came from a marker search, and an authoring AST census found the shape reachable but not trivially so), and it is the same shape as structpin Order 02 (76ic0k), whose AST guard over tests/ should land first so the two do not collide. Filed chore rather than bug: it is a missing preventative, not a user-perceptible defect.
 
 ## Why this is filed separately
