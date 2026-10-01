@@ -37,12 +37,12 @@ from pathlib import Path
 from typing import Any, Dict, FrozenSet, List, NamedTuple, Optional, Tuple, Union
 
 from . import __version__, config, discovery, engine, versioning
+from . import lifecycle_style as _LS
 from . import run_dispatch as _run_dispatch
+from . import term as _term_mod
 from .project_schema import DeliveryMode, Preset, RecordsBackend
 from .result_types import ConflictingFlagsError, OutputMode, select_output
 from .term import Term
-from . import term as _term_mod
-from . import lifecycle_style as _LS
 
 # --------------------------------------------------------------------------------------
 # Process-wide presentation & command publication (s2yf26 E-03, E-04)
@@ -811,7 +811,7 @@ class _ViewerOrLeafSubParsersAction(argparse._SubParsersAction):
             collected = list(values)
         if collected and collected[0] in self._name_parser_map:
             # A real leaf: let argparse parse the remainder with the leaf's own parser.
-            setattr(namespace, "targets", [])
+            namespace.targets = []
             return super().__call__(parser, namespace, collected, option_string)
         # The bare viewer: no leaf was named, so re-parse the positionals with the viewer parser.
         setattr(namespace, self.dest, None)
@@ -935,8 +935,8 @@ class _RunStatusAction(argparse.Action):
             items = list(items)
         items.append(values)
         setattr(namespace, self.dest, items)
-        setattr(namespace, "arcive_state", items)
-        setattr(namespace, "active_state", items)
+        namespace.arcive_state = items
+        namespace.active_state = items
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -1681,6 +1681,13 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Move a PLAN backwards out of a terminal disposition (executed/superseded/"
         "not-executed), recording the override in its history. Prefer a corrective IPD; use this "
         "only when a plan reached a terminal state in error.",
+    )
+    p_ipd_set.add_argument(
+        "--allow-unresolvable-release-sentinel",
+        dest="allow_unresolvable_release_sentinel",
+        default=None,
+        metavar="WHY",
+        help="Attested override permitting a release status transition that leaves zero planned releases, recording the non-empty justification in the record's history.",
     )
     p_ipd_set.add_argument(
         "--actor",
@@ -4355,6 +4362,13 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Move a PLAN backwards out of a terminal disposition (executed/superseded/"
         "not-executed), recording the override in its history. Prefer a corrective IPD; use this "
         "only when a plan reached a terminal state in error.",
+    )
+    p_set.add_argument(
+        "--allow-unresolvable-release-sentinel",
+        dest="allow_unresolvable_release_sentinel",
+        default=None,
+        metavar="WHY",
+        help="Attested override permitting a release status transition that leaves zero planned releases, recording the non-empty justification in the record's history.",
     )
     p_set.add_argument(
         "--actor",
@@ -8082,7 +8096,11 @@ def _configure_runner_profiles(args: argparse.Namespace, term: Term) -> None:
 
     from agent_workflows import (
         oc_models,
+    )
+    from agent_workflows import (
         runner_profile_wizard as wiz,
+    )
+    from agent_workflows import (
         runner_profiles as rp,
     )
 
@@ -9430,7 +9448,7 @@ def _run_config_get(args: argparse.Namespace, term: Term) -> int:
     elif isinstance(val, (list, dict)):
         print(json.dumps(val))
     elif val is None:
-        print("")
+        print()
     else:
         print(str(val))
     return 0
@@ -11670,8 +11688,8 @@ def _find_prompt_setid(p: Path, text: str, artifact_type: str) -> Optional[str]:
     """
     if artifact_type != "prompts":
         return None
-    from agent_workflows.prompts_index import _parse_metadata_comment
     from agent_workflows.check_engine import _filename_setid
+    from agent_workflows.prompts_index import _parse_metadata_comment
 
     meta = _parse_metadata_comment(text)
     if meta.get("Set"):
@@ -13750,7 +13768,8 @@ def _oc_profile_add(args) -> int:
     nothing: it does not fall back to a guess, and it does not block on a prompt no one can answer.
     """
 
-    from agent_workflows import runner_profile_wizard as wiz, runner_profiles as rp
+    from agent_workflows import runner_profile_wizard as wiz
+    from agent_workflows import runner_profiles as rp
 
     runner = getattr(args, "profile_runner", "oc")
     host_display = _RUNNER_DISPLAY.get(runner, runner)
@@ -13839,7 +13858,7 @@ def _oc_profile_add(args) -> int:
         return rc
     for line in wiz.preview_lines(name, profile):
         print(line)
-    print("")
+    print()
     if runner == "oc":
         print(f"Saved. Use it with: aw oc run as {name}")
         if set_default:
@@ -13858,7 +13877,8 @@ def _oc_profile_add(args) -> int:
 def _oc_profile_list(args) -> int:
     """`aw {oc|agy} profile list`: every profile for runner, plus which one is default. Empty is CLEAN."""
 
-    from agent_workflows import runner_profile_wizard as wiz, runner_profiles as rp
+    from agent_workflows import runner_profile_wizard as wiz
+    from agent_workflows import runner_profiles as rp
 
     runner = getattr(args, "profile_runner", "oc")
     host_display = _RUNNER_DISPLAY.get(runner, runner)
@@ -13922,7 +13942,8 @@ def _oc_profile_list(args) -> int:
 def _oc_profile_show(args) -> int:
     """`aw {oc|agy} profile show NAME`: one profile and the launch configuration it expands to."""
 
-    from agent_workflows import runner_profile_wizard as wiz, runner_profiles as rp
+    from agent_workflows import runner_profile_wizard as wiz
+    from agent_workflows import runner_profiles as rp
 
     runner = getattr(args, "profile_runner", "oc")
     host_display = _RUNNER_DISPLAY.get(runner, runner)
@@ -13951,7 +13972,7 @@ def _oc_profile_show(args) -> int:
     for line in wiz.preview_lines(name, profile):
         print(line)
     if entry["is_default"]:
-        print("")
+        print()
         print(f"{name!r} is the default {host_display} profile.")
     return 0
 
@@ -14696,8 +14717,8 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         args_ns = parser.parse_args(["runs", *_rest])
         # Whatever followed `--` is a TARGET, never a leaf name.
         existing = [t for t in (getattr(args_ns, "targets", None) or []) if t]
-        setattr(args_ns, "targets", existing + _forced)
-        setattr(args_ns, "runs_command", None)
+        args_ns.targets = existing + _forced
+        args_ns.runs_command = None
         from agent_workflows import run_viewer
 
         return run_viewer.run_viewer_cli(args_ns)

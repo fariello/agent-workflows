@@ -48,6 +48,7 @@ On a `NO-GO`, no rungs are offered.
   tagged checkout stamp the correct number. Tag-then-rebake is wrong: it leaves the tag carrying the
   previous release's version. (The wheel version is computed by the resolver and is unaffected either
   way; this rule is specifically about the baked file the installer distributes.)
+- **Ship-and-succeed release records.** Exactly one release record must be planned at a time so that the `next` sentinel resolves. When shipping a release, mark the outgoing release record shipped and create its successor record in the same change: `aw set shipped <id6>` plus `aw releases new --version <successor-version> --summary ... --apply`. Shipping without creating a successor leaves zero planned releases, which causes all sentinel-gated records to dangle. Tooling refuses shipping the last planned release without creating the successor or supplying an explicit attested override.
 - Never create or push a tag, a GitHub Release, or a registry upload outside release-review
   Section 9 after an explicit human GO. No ad-hoc `git tag`; no `git push --follow-tags` of
   release tags.

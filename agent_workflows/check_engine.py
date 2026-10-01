@@ -22,8 +22,9 @@ from __future__ import annotations
 import importlib.util
 import os
 import re as _re
+from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Dict, Iterable, List, NamedTuple, Optional, Sequence, Set, Tuple
+from typing import Dict, List, NamedTuple, Optional, Set, Tuple
 
 from agent_workflows import artifact_core as _core
 from agent_workflows import artifact_naming as _naming
@@ -199,6 +200,12 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
     ),
     "check.blocks-release-dangling": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
+    ),
+    "check.release-sentinel-absent": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
+    ),
+    "check.release-sentinel-ambiguous": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
     ),
     "check.from-backlog-dangling": RuleSpec(
@@ -1609,14 +1616,14 @@ def _metadata_region(text: str) -> str:
     return _sel.metadata_region(text)
 
 
-def _read_declared_id(text: str) -> "str | None":
+def _read_declared_id(text: str) -> str | None:
     """The record's DECLARED `- Id:` id6, read only from its metadata region, or None."""
 
     m = _ID_LINE_RE.search(_metadata_region(text))
     return m.group(1) if m else None
 
 
-def _identity_slot_token(filename: str) -> "str | None":
+def _identity_slot_token(filename: str) -> str | None:
     """Return the raw ``<id6>`` token in a filename's identity slot, or None.
 
     Uses the naming authority's clustered parse (single source, IPD o6b8l3). Excludes the legacy
@@ -1818,7 +1825,7 @@ class PlacementLocation(NamedTuple):
 
 
 def _extract_lifecycle_bucket(
-    path: "Path | str",
+    path: Path | str,
 ) -> Tuple[Optional[str], Optional[str]]:
     """Return (record_type, bucket) if path sits under a lifecycle directory of a supported type.
 
@@ -2591,7 +2598,7 @@ def _identity_declared_values(text: str):
 
 
 def _identity_name_is_modern(
-    filename: str, declared_ids: set, own_id: "str | None"
+    filename: str, declared_ids: set, own_id: str | None
 ) -> bool:
     """True iff ``filename`` carries a REAL id6 in its clustered identity slot.
 
@@ -2887,14 +2894,14 @@ def _git_capture(repo_root: Path, args: List[str]):
     return proc.returncode, proc.stdout, proc.stderr
 
 
-def _blob_text(repo_root: Path, ref: str, path: str) -> "str | None":
+def _blob_text(repo_root: Path, ref: str, path: str) -> str | None:
     """Content of ``path`` at ``ref`` (HEAD or the staged index ``:0:``), or None if absent."""
     spec = f":0:{path}" if ref == ":0:" else f"{ref}:{path}"
     rc, out, _err = _git_capture(repo_root, ["show", spec])
     return out if rc == 0 else None
 
 
-def _metadata_status(text: "str | None") -> "str | None":
+def _metadata_status(text: str | None) -> str | None:
     """The first ``- Status:`` value in the metadata region (lowercased), or None."""
     if not text:
         return None
@@ -2902,7 +2909,7 @@ def _metadata_status(text: "str | None") -> "str | None":
     return m.group(1).strip().lower() if m else None
 
 
-def _status_meta(text: "str | None") -> "str | None":
+def _status_meta(text: str | None) -> str | None:
     """The metadata ``- Status: <value>`` value (lowercased), or None."""
     return _metadata_status(text)
 
@@ -2913,7 +2920,7 @@ def _is_plan_ipd_path(path: str) -> bool:
     return p.startswith(_PLANS_PREFIX) and p.endswith(".ipd.md")
 
 
-def _has_matching_history_line(text: "str | None", status: str) -> bool:
+def _has_matching_history_line(text: str | None, status: str) -> bool:
     """True iff the plan's ``## Workflow history`` carries a tool-authored transition line for
     ``status`` (predicate A, per OQ-01): a ``- <date> <status> (<actor>): ...`` line whose status
     token equals ``status``. Reuses ipd_lint's history parser + ``_HISTORY_LINE_RE`` (no 2nd parser).
@@ -3528,13 +3535,13 @@ def load_emitted_layout(repo_root: Path) -> Tuple[Optional[Dict], str]:
     try:
         raw = target.read_text(encoding="utf-8")
     except OSError as exc:
-        return None, "unreadable: {0}".format(exc)
+        return None, f"unreadable: {exc}"
     try:
         doc = json.loads(raw)
     except ValueError as exc:
-        return None, "invalid JSON: {0}".format(exc)
+        return None, f"invalid JSON: {exc}"
     if not isinstance(doc, dict):
-        return None, "not a JSON object (got {0})".format(type(doc).__name__)
+        return None, f"not a JSON object (got {type(doc).__name__})"
     return doc, ""
 
 
@@ -3568,9 +3575,7 @@ def check_system_layout(repo_root: Path) -> List[_core.Drift]:
 
     json_rel = _engine.AW_LAYOUT_JSON_PATH
     schema_rel = _engine.AW_LAYOUT_SCHEMA_PATH
-    recovery = "run 'aw install {0}' to regenerate the emitted layout document".format(
-        root
-    )
+    recovery = f"run 'aw install {root}' to regenerate the emitted layout document"
 
     doc, err = load_emitted_layout(root)
     if doc is None and err == "absent":
@@ -3579,9 +3584,9 @@ def check_system_layout(repo_root: Path) -> List[_core.Drift]:
                 _core.Drift(
                     json_rel,
                     "check.system-layout-missing",
-                    "installed workspace (version {0}) has no emitted layout document; "
+                    f"installed workspace (version {installed_version}) has no emitted layout document; "
                     "non-Python consumers cannot read the hierarchy until an install "
-                    "regenerates it".format(installed_version),
+                    "regenerates it",
                 ),
                 observed="absent",
                 required="present (emitted by 'aw install')",
@@ -3594,7 +3599,7 @@ def check_system_layout(repo_root: Path) -> List[_core.Drift]:
                 _core.Drift(
                     json_rel,
                     "check.system-layout-drift",
-                    "emitted layout document is unusable ({0})".format(err),
+                    f"emitted layout document is unusable ({err})",
                 ),
                 observed=err,
                 required="a readable JSON object",
@@ -3649,10 +3654,8 @@ def check_system_layout(repo_root: Path) -> List[_core.Drift]:
                 _core.Drift(
                     json_rel,
                     "check.system-layout-drift",
-                    "emitted layout document is stale: framework_version {0!r} does not "
-                    "match the installed {1} ({2!r})".format(
-                        emitted_version, _engine.VERSION_FILE, installed_version
-                    ),
+                    f"emitted layout document is stale: framework_version {emitted_version!r} does not "
+                    f"match the installed {_engine.VERSION_FILE} ({installed_version!r})",
                 ),
                 observed=str(emitted_version),
                 required=installed_version,
@@ -5275,6 +5278,8 @@ RELEASE_GATE_RULES = (
     "check.blocking-item-closed-without-gate",
     "check.from-backlog-gate-mismatch",
     "check.blocks-release-dangling",
+    "check.release-sentinel-absent",
+    "check.release-sentinel-ambiguous",
     "check.from-backlog-dangling",
     "check.from-backlog-malformed",
 )
@@ -5288,6 +5293,8 @@ def check_release_gates(repo_root: Path) -> List[_core.Drift]:
 
     Composed rules:
       * check.blocks-release-dangling (releases.check_blocks_release)
+      * check.release-sentinel-absent (releases.check_blocks_release)
+      * check.release-sentinel-ambiguous (releases.check_blocks_release)
       * check.from-backlog-dangling (releases.check_from_backlog)
       * check.from-backlog-malformed (releases.check_from_backlog)
       * check.blocking-item-closed-without-gate (check_release_gate_consistency)
@@ -5463,7 +5470,7 @@ def build_dependency_index(repo_root: Path) -> _DepIndex:
 
 
 def _resolve_edge(
-    edge: "_S.ItemDependency", index: _DepIndex
+    edge: _S.ItemDependency, index: _DepIndex
 ) -> Tuple[str, Optional[str]]:
     """Resolve one edge against the index. Returns (verdict, detail):
     verdict in {"ok","dangling","ambiguous"}. An `executed:`/state:ipd:.../exists:ipd: edge must
@@ -5697,12 +5704,8 @@ def evaluate_ipd_dependencies(
                                 ps,
                                 _REVIEW_DEP_BLOCKED_RULE,
                                 (
-                                    "dependency `{0}` resolves but does not satisfy the edge: "
-                                    "{1} (recorded in {2})".format(
-                                        e.canonical(),
-                                        blk.describe(),
-                                        Path(blk.review_path).name,
-                                    )
+                                    f"dependency `{e.canonical()}` resolves but does not satisfy the edge: "
+                                    f"{blk.describe()} (recorded in {Path(blk.review_path).name})"
                                 ),
                             )
                         )
@@ -6870,8 +6873,8 @@ def evaluate_review_finding_escalation(
     """
     drift: List[_core.Drift] = []
     try:
-        from agent_workflows import review_findings as _rf
         from agent_workflows import config as _cfg
+        from agent_workflows import review_findings as _rf
     except Exception:
         return drift
 
@@ -6913,11 +6916,11 @@ def evaluate_review_finding_escalation(
                         str(review_path),
                         _REVIEW_UNESCALATED_RULE,
                         (
-                            "review artifact for plan {0} is malformed ({1}), so its findings "
-                            "cannot be checked for escalation".format(plan_id6, codes)
+                            f"review artifact for plan {plan_id6} is malformed ({codes}), so its findings "
+                            "cannot be checked for escalation"
                         ),
                     ),
-                    observed="unparseable review artifact: {0}".format(codes),
+                    observed=f"unparseable review artifact: {codes}",
                     required=(
                         "a review artifact whose findings table parses, so gating findings are "
                         "machine-checkable"
@@ -6944,26 +6947,20 @@ def evaluate_review_finding_escalation(
                         str(plan_path),
                         _REVIEW_UNESCALATED_RULE,
                         (
-                            "review finding {0} is {1}/{2} (at or above the `{3}` gate threshold) "
-                            "but no `Blocking: yes` open question names it".format(
-                                finding.id, finding.severity, finding.decision, thr
-                            )
+                            f"review finding {finding.id} is {finding.severity}/{finding.decision} (at or above the `{thr}` gate threshold) "
+                            "but no `Blocking: yes` open question names it"
                         ),
                     ),
                     observed=(
-                        "{0}: severity {1}, decision {2}, not escalated".format(
-                            finding.id, finding.severity, finding.decision
-                        )
+                        f"{finding.id}: severity {finding.severity}, decision {finding.decision}, not escalated"
                     ),
                     required=(
-                        "an open question with `- Blocking: yes` and `- Finding: {0}`".format(
-                            finding.id
-                        )
+                        f"an open question with `- Blocking: yes` and `- Finding: {finding.id}`"
                     ),
                     recovery=(
-                        "either fix {0} and mark it `FIXED` in {1}, or add an `### OQ-NN:` entry "
+                        f"either fix {finding.id} and mark it `FIXED` in {review_path.name}, or add an `### OQ-NN:` entry "
                         "to the plan's `## Open questions` carrying `- Blocking: yes` and "
-                        "`- Finding: {0}`".format(finding.id, review_path.name)
+                        f"`- Finding: {finding.id}`"
                     ),
                 )
             )
@@ -7122,13 +7119,11 @@ def evaluate_review_decision_escalation(
                         str(review_path),
                         _REVIEW_DECISION_RULE,
                         (
-                            "review artifact for plan {0} is malformed ({1}), so its recorded "
-                            "decisions cannot be checked for escalation".format(
-                                plan_id6, codes
-                            )
+                            f"review artifact for plan {plan_id6} is malformed ({codes}), so its recorded "
+                            "decisions cannot be checked for escalation"
                         ),
                     ),
-                    observed="unparseable review artifact: {0}".format(codes),
+                    observed=f"unparseable review artifact: {codes}",
                     required=(
                         "a review artifact whose Decisions section parses, so an irreversible "
                         "self-made decision is machine-checkable"
@@ -7157,10 +7152,8 @@ def evaluate_review_decision_escalation(
                             str(review_path),
                             _REVIEW_DECISION_RULE,
                             (
-                                "recorded decision {0} has no `Reversible` judgement ({1!r}), so "
-                                "whether it needs escalation cannot be determined".format(
-                                    dec.id, dec.reversible
-                                )
+                                f"recorded decision {dec.id} has no `Reversible` judgement ({dec.reversible!r}), so "
+                                "whether it needs escalation cannot be determined"
                             ),
                         ),
                         observed="{0}: Reversible is {1}".format(
@@ -7171,10 +7164,8 @@ def evaluate_review_decision_escalation(
                         ),
                         required="`Reversible: yes` or `Reversible: no` on every decision row",
                         recovery=(
-                            "judge {0} on the COST OF BEING WRONG (can a later maintainer undo it?) "
-                            "and set `Reversible` accordingly in {1}".format(
-                                dec.id, review_path.name
-                            )
+                            f"judge {dec.id} on the COST OF BEING WRONG (can a later maintainer undo it?) "
+                            f"and set `Reversible` accordingly in {review_path.name}"
                         ),
                     )
                 )
@@ -7185,9 +7176,9 @@ def evaluate_review_decision_escalation(
                         str(plan_path),
                         _REVIEW_DECISION_RULE,
                         (
-                            "decision {0} was self-resolved and marked irreversible, but it was "
+                            f"decision {dec.id} was self-resolved and marked irreversible, but it was "
                             "never surfaced: no `Blocking: yes` open question and no note that the "
-                            "maintainer was told".format(dec.id)
+                            "maintainer was told"
                         ),
                     ),
                     observed="{0}: Reversible no, not escalated ({1})".format(
@@ -7199,10 +7190,8 @@ def evaluate_review_decision_escalation(
                     ),
                     recovery=(
                         "either add an `### OQ-NN:` entry carrying `- Blocking: yes` to the plan's "
-                        "`## Open questions`, or tell the maintainer and record that on {0}'s row "
-                        "in {1} (e.g. `Basis: ...; maintainer told <date>`)".format(
-                            dec.id, review_path.name
-                        )
+                        f"`## Open questions`, or tell the maintainer and record that on {dec.id}'s row "
+                        f"in {review_path.name} (e.g. `Basis: ...; maintainer told <date>`)"
                     ),
                 )
             )
@@ -7398,7 +7387,7 @@ def _plan_date_compact(text: str) -> Optional[str]:
     m = _CARRIER_DATE_RE.search(text)
     if m is None:
         return None
-    return "{0}{1}{2}".format(m.group(1), m.group(2), m.group(3))
+    return f"{m.group(1)}{m.group(2)}{m.group(3)}"
 
 
 def carrier_severity_for_plan(plan_text: str, repo_root: Optional[Path] = None) -> str:
@@ -7464,9 +7453,7 @@ def _deferred_section_obligations(plan_text: str) -> List[CarrierObligation]:
         if raw.startswith("- "):
             _flush()
             index += 1
-            current = CarrierObligation(
-                "deferred", "deferred row {0}".format(index), lineno, {}
-            )
+            current = CarrierObligation("deferred", f"deferred row {index}", lineno, {})
             continue
         msf = _S.DEFERRED_SUBFIELD_RE.match(raw)
         if msf and current is not None:
@@ -7553,7 +7540,7 @@ def _resolve_carrier(
     if not owners:
         return (
             "dangling",
-            "carrier {0} resolves to no backlog item or plan".format(id6),
+            f"carrier {id6} resolves to no backlog item or plan",
             [],
         )
     live = [
@@ -7585,14 +7572,12 @@ def _resolve_carrier(
     )
     if all_finished:
         detail = (
-            "carrier {0} finished ({1}); an agent must confirm it did this work "
+            f"carrier {id6} finished ({statuses}); an agent must confirm it did this work "
             "and record Carrier-Evidence, or re-point the row"
-        ).format(id6, statuses)
+        )
         return "finished", detail, finished_relpaths
 
-    detail = (
-        "carrier {0} resolves only to an abandoned artifact ({1}); nothing revisits it"
-    ).format(id6, statuses)
+    detail = f"carrier {id6} resolves only to an abandoned artifact ({statuses}); nothing revisits it"
     return "terminal", detail, finished_relpaths
 
 
@@ -7724,17 +7709,14 @@ def evaluate_carrier_obligation(
         from agent_workflows import attention as _attention
 
         ev_norm = evidence.replace("\\", "/")
-        if ev_norm.startswith("./"):
-            ev_norm = ev_norm[2:]
+        ev_norm = ev_norm.removeprefix("./")
         policy = _attention._classify_tree(ev_norm)
         if policy is not None and policy.name == "walkthroughs":
             return CloseVerdict(
                 False,
                 "error",
-                "{0}: `Carrier-Evidence: {1}` cites a walkthrough; walkthroughs carry no "
-                "lifecycle status (`tracked=False`), so an obligation parked there is never revisited".format(
-                    obligation.locator, evidence
-                ),
+                f"{obligation.locator}: `Carrier-Evidence: {evidence}` cites a walkthrough; walkthroughs carry no "
+                "lifecycle status (`tracked=False`), so an obligation parked there is never revisited",
                 fixes,
                 None,
                 rule=_CARRIER_RULE,
@@ -7747,16 +7729,14 @@ def evaluate_carrier_obligation(
             return CloseVerdict(
                 True,
                 "ok",
-                "satisfied by resolvable evidence {0!r}".format(evidence),
+                f"satisfied by resolvable evidence {evidence!r}",
                 (),
                 "SATISFIED",
             )
         return CloseVerdict(
             False,
             "error",
-            "{0}: `Carrier-Evidence: {1}` does not resolve to an in-tree artifact".format(
-                obligation.locator, evidence
-            ),
+            f"{obligation.locator}: `Carrier-Evidence: {evidence}` does not resolve to an in-tree artifact",
             fixes,
             None,
             rule=_CARRIER_RULE,
@@ -7789,7 +7769,7 @@ def evaluate_carrier_obligation(
                 return CloseVerdict(
                     True,
                     "ok",
-                    "handed off to carrier {0}".format(id6),
+                    f"handed off to carrier {id6}",
                     (),
                     "HANDOFF",
                 )
@@ -7811,7 +7791,7 @@ def evaluate_carrier_obligation(
                     first_path,
                     ""
                     if more_count == 0
-                    else " (and {0} more finished owner(s))".format(more_count),
+                    else f" (and {more_count} more finished owner(s))",
                 )
                 reason = (
                     "{0}: {1}\n"
@@ -7819,9 +7799,7 @@ def evaluate_carrier_obligation(
                     "{2}\n"
                     "do NOT use `Carrier-Declined` here: the work shipped, so declining it would record it as needing no carrier"
                 ).format(obligation.locator, "; ".join(problems), evidence_line)
-                remedy_fix = "cite evidence it was discharged by finished work: add `- Carrier-Evidence: {0}`".format(
-                    first_path
-                )
+                remedy_fix = f"cite evidence it was discharged by finished work: add `- Carrier-Evidence: {first_path}`"
                 return CloseVerdict(
                     False,
                     "info",
@@ -7845,7 +7823,7 @@ def evaluate_carrier_obligation(
                 first_path,
                 ""
                 if more_count == 0
-                else " (and {0} more finished owner(s))".format(more_count),
+                else f" (and {more_count} more finished owner(s))",
             )
             reason = (
                 "{0}: {1}\n"
@@ -7853,9 +7831,7 @@ def evaluate_carrier_obligation(
                 "{2}\n"
                 "do NOT use `Carrier-Declined` here: the work shipped, so declining it would record it as needing no carrier"
             ).format(obligation.locator, "; ".join(problems), evidence_line)
-            remedy_fix = "cite evidence it was discharged by finished work: add `- Carrier-Evidence: {0}`".format(
-                first_path
-            )
+            remedy_fix = f"cite evidence it was discharged by finished work: add `- Carrier-Evidence: {first_path}`"
             return CloseVerdict(
                 False,
                 "error",
@@ -7877,10 +7853,8 @@ def evaluate_carrier_obligation(
         False,
         "error",
         (
-            "{0} records an outstanding obligation with NO durable carrier; once this plan reaches "
-            "`executed` it classes `done` in `aw attention` and this vanishes with no record".format(
-                obligation.locator
-            )
+            f"{obligation.locator} records an outstanding obligation with NO durable carrier; once this plan reaches "
+            "`executed` it classes `done` in `aw attention` and this vanishes with no record"
         ),
         fixes,
         None,
@@ -7958,14 +7932,12 @@ def evaluate_durable_carrier(
                 "; ".join(v.reason for _ob, v in shown),
                 ""
                 if len(rule_failures) == len(shown)
-                else " (and {0} more)".format(len(rule_failures) - len(shown)),
+                else f" (and {len(rule_failures) - len(shown)} more)",
             )
             drift.append(
                 enrich_drift(
                     _core.Drift(str(plan_path), rule, detail, severity="info"),
-                    observed="{0} row(s)/question(s) name a finished carrier whose work has not been verified".format(
-                        len(rule_failures)
-                    ),
+                    observed=f"{len(rule_failures)} row(s)/question(s) name a finished carrier whose work has not been verified",
                     required=(
                         "when a carrier finishes, an agent must confirm it did this work and record "
                         "`- Carrier-Evidence:`, or re-point the row"
@@ -7980,13 +7952,13 @@ def evaluate_durable_carrier(
                 "; ".join(v.reason for _ob, v in shown),
                 ""
                 if len(rule_failures) == len(shown)
-                else " (and {0} more)".format(len(rule_failures) - len(shown)),
+                else f" (and {len(rule_failures) - len(shown)} more)",
             )
             drift.append(
                 enrich_drift(
                     _core.Drift(str(plan_path), rule, detail, severity=severity),
-                    observed="{0} row(s)/question(s) with no `Carrier`, `Carrier-Evidence`, or "
-                    "`Carrier-Declined` field".format(len(rule_failures)),
+                    observed=f"{len(rule_failures)} row(s)/question(s) with no `Carrier`, `Carrier-Evidence`, or "
+                    "`Carrier-Declined` field",
                     required=(
                         "every outstanding obligation an IPD records must name a durable carrier: an OPEN "
                         "backlog item or a NON-TERMINAL plan (`- Carrier:`), resolvable evidence "
@@ -8124,24 +8096,20 @@ def evaluate_ipd_lint_diagnostics(
     detail = "{0} lint diagnostic(s) at the `{1}` checkpoint: {2}{3}".format(
         len(diags),
         checkpoint,
-        "; ".join("{0} {1}".format(d.code, d.message) for d in shown),
-        ""
-        if len(diags) == len(shown)
-        else " (and {0} more)".format(len(diags) - len(shown)),
+        "; ".join(f"{d.code} {d.message}" for d in shown),
+        "" if len(diags) == len(shown) else f" (and {len(diags) - len(shown)} more)",
     )
     codes = ", ".join(sorted({d.code for d in diags}))
     drift.append(
         enrich_drift(
             _core.Drift(str(plan_path), _IPD_LINT_RULE, detail),
-            observed="`aw ipd lint --phase {0}` reports {1} diagnostic(s) ({2})".format(
-                checkpoint, len(diags), codes
-            ),
+            observed=f"`aw ipd lint --phase {checkpoint}` reports {len(diags)} diagnostic(s) ({codes})",
             required=(
                 "a plan must satisfy the `IPD-*` structural/state contract that "
                 "`aw ipd lint` enforces, so a defect the per-file verb refuses cannot sit "
                 "committed unnoticed"
             ),
-            recovery="aw ipd lint {0} --phase {1}".format(plan_path, checkpoint),
+            recovery=f"aw ipd lint {plan_path} --phase {checkpoint}",
         )
     )
     return drift
@@ -8231,10 +8199,10 @@ def check_ipd_lint_reach(
         detail = "{0} lint diagnostic(s) at the `{1}` checkpoint: {2}{3}".format(
             len(diags),
             "author",
-            "; ".join("{0} {1}".format(d.code, d.message) for d in shown),
+            "; ".join(f"{d.code} {d.message}" for d in shown),
             ""
             if len(diags) == len(shown)
-            else " (and {0} more)".format(len(diags) - len(shown)),
+            else f" (and {len(diags) - len(shown)} more)",
         )
         codes = ", ".join(sorted({d.code for d in diags}))
         drift.append(

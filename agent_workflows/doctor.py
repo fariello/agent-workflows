@@ -14,8 +14,13 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from agent_workflows import artifact_core as core
 from agent_workflows import attention as attention_mod
-from agent_workflows import check_engine, engine, leak_sanitizer, versioning
-from agent_workflows import project_context
+from agent_workflows import (
+    check_engine,
+    engine,
+    leak_sanitizer,
+    project_context,
+    versioning,
+)
 from agent_workflows import term as T
 from agent_workflows.renderers import get_renderer
 from agent_workflows.result_types import (
@@ -1061,6 +1066,33 @@ def build_remediation(d: core.Drift, repo_root: Path) -> Remediation:
             summary_fix="aw index",
             detailed_fix=f"run '{cmd}' to regenerate the manifest index.",
             command=cmd,
+            file_path=loc,
+        )
+
+    if "release-sentinel-absent" in rule:
+        title = "Release sentinel 'next' does not resolve (no planned release)"
+        cmd = "aw releases new --version <X.Y.Z> --summary ... --apply"
+        return Remediation(
+            title=title,
+            summary_fix=f"create planned release record via '{cmd}'.",
+            detailed_fix=(
+                f"create a new planned release record in {loc} with '{cmd}' "
+                "so that the 'next' sentinel resolves to an active release."
+            ),
+            command=cmd,
+            file_path=loc,
+        )
+
+    if "release-sentinel-ambiguous" in rule:
+        title = "Release sentinel 'next' is ambiguous (multiple planned releases)"
+        return Remediation(
+            title=title,
+            summary_fix="ensure exactly one release record carries '- Status: planned'.",
+            detailed_fix=(
+                f"{detail}. Inspect the competing records in {loc} and ensure "
+                "exactly one release record carries '- Status: planned'."
+            ),
+            command=None,
             file_path=loc,
         )
 
