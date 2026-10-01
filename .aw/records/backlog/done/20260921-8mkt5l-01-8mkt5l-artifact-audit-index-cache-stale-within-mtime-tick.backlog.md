@@ -1,5 +1,5 @@
 - Id: 8mkt5l
-- Status: graduated
+- Status: done
 - Graduated-To: 8mkt5l
 - Blocks-Release: next
 - Set: 8mkt5l
@@ -8,6 +8,7 @@
 - Summary: artifact_audit's index cache can return a STALE index, because its invalidation signature is directory mtime and two writes inside one mtime tick are invisible to it
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): closed by aw oc run: IPD dea7dr executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-8mkt5l-01-dea7dr-make-the-artifact-audit-index-cache-see-a-change-its-directo.ipd.md); evidence .aw/records/plans/executed/20260929-8mkt5l-01-dea7dr-make-the-artifact-audit-index-cache-see-a-change-its-directo.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: dea7dr
 - 2026-09-21 created (aw backlog): artifact_audit's index cache can return a STALE index, because its invalidation signature is directory mtime and two writes inside one mtime tick are invisible to it
 

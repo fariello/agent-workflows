@@ -71,6 +71,7 @@ TRACKED-ONLY: see :func:`audit_tracked_artifact`.
 
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -1028,45 +1029,78 @@ class ArtifactIndex:
 # sweeps the whole records tree to find what no type owns), so a per-step walk made
 # `tests/test_run_viewer.py` go from 2.4s to 35s. With this cache it is 2.5s.
 #
-# THE CACHE IS KEYED ON THE RESOLVED ROOT PLUS THE TYPE VOCABULARY AND IS INVALIDATED BY MTIME of
-# every record directory in scope, so a test (or a finalize) that MOVES an artifact and re-audits
-# sees the move. Directory mtime changes when an entry is added, removed or renamed within it, which
-# is exactly the class of change that relocates an artifact; an in-place EDIT of a file's `- Status:`
-# does not change its directory's mtime, which is why only the PATH facts are cached here and the
-# status is always read fresh in `audit_artifact`.
+# THE CACHE IS KEYED ON THE RESOLVED ROOT PLUS THE TYPE VOCABULARY AND IS INVALIDATED BY A RECURSIVE
+# FINGERPRINT of every record directory under `.aw/records` and `.agents`, carrying each directory's
+# path, `st_mtime_ns`, and sorted entry-name tuple.
+#
+# The previous design relied on directory mtime alone under `<base>/<type>` up to 3 levels deep,
+# which failed in two measured ways:
+# 1) Directory mtime has finite granularity (~1ms tick), so successive additions in the same tick
+#    leave `st_mtime_ns` identical (measured in 179-191 of 200 trials) and are invisible.
+# 2) The walk was depth-capped and type-named, covering only 47 of 56 directories under `.aw/records`,
+#    leaving 9 directories uncovered, including untyped trees (e.g. `.aw/records/prompt-library/`
+#    holding 4 live records) and directories nested 4+ levels deep completely un-stat'd.
+# Adding sorted entry names and recursing to the bottom closes both failure modes.
+#
+# ONLY PATH FACTS ARE CACHED HERE: a record's `- Status:` is always read fresh in `audit_artifact`,
+# so an in-place status edit needs no cache invalidation.
+#
+# RESIDUAL LIMIT 1 (carrier `ieg7q6`): An in-place edit to a file's `- Id:` line changes no filename
+# and no directory mtime, so a name-set signature cannot see it; a cached `by_declared_id` can still
+# resolve a stale id6. Tracked under backlog carrier `ieg7q6`.
+#
+# RESIDUAL LIMIT 2 / OVER-INVALIDATION (carrier `an1a33`): The recursive walk fingerprints 56
+# directories while `build_index` enumerates records from only 33, leaving 23 watched-but-not-enumerated
+# directories holding 682 files (574 at review), of which `.aw/records/reviews/` alone holds 653 files
+# (543 at review) and is indexed by no `record_types` member. Operations like `/plan-review` that write
+# review records therefore discard the cached index unnecessarily. This trade is accepted because a
+# cache rebuild is slow, never wrong, whereas the staleness routes closed by the recursive walk are
+# wrong answers; pruning the walk would reintroduce type-vocabulary coupling. Tracked under backlog
+# carrier `an1a33`.
 _INDEX_CACHE: dict = {}
 _INDEX_CACHE_MAX = 8
 
 
 def _dir_signature(repo_root: Path, record_types: Sequence[str]) -> tuple:
-    """A cheap invalidation signature: the mtime of every record directory in scope.
+    """A cheap invalidation signature: the mtime and entry-name fingerprint of record directories.
 
-    Walks the LITERAL layout (``.aw/records/<type>`` plus legacy ``.agents/<type>``) rather than
-    calling ``selectors.record_dirs`` per type. That is deliberate and measured: ``record_dirs``
-    consults the project/registry backend on every call (~1.6ms each, ~16ms per signature across the
-    vocabulary), which would cost more than the traversal this cache exists to avoid. The signature
-    only has to CHANGE when an artifact moves, so covering the literal trees is sufficient; a
-    registry-redirected tree simply re-indexes on its own directory mtimes via the same scan below.
+    Walks the filesystem directly via a recursive ``os.scandir`` starting at ``.aw/records`` and
+    legacy ``.agents`` rather than calling ``selectors.record_dirs`` per type. That is deliberate
+    and measured: ``record_dirs`` consults the project/registry backend on every call (~1.6ms each,
+    ~16ms per signature across the vocabulary), which would cost more than the traversal this cache
+    exists to avoid.
+
+    The ``record_types`` parameter is kept for compatibility with the cache key and call sites,
+    but the walk is vocabulary-independent by design: starting from the base trees and recursing
+    to the bottom ensures untyped trees (such as ``prompt-library``) and deep hierarchies are covered.
+    This walk deliberately widens beyond what ``build_index`` enumerates (watching un-indexed trees
+    such as ``.aw/records/reviews/``); this trade is accepted because a spurious rebuild is slow but
+    never wrong, whereas a pruned walk would reintroduce type-vocabulary coupling and risk staleness.
     """
     sig: List[tuple] = []
     for base in (repo_root / ".aw" / "records", repo_root / ".agents"):
-        for rt in record_types:
-            d = base / rt
+        if not base.is_dir():
+            continue
+        stack = [base]
+        while stack:
+            cur = stack.pop()
             try:
-                sig.append((str(d), d.stat().st_mtime_ns))
+                mtime_ns = cur.stat().st_mtime_ns
             except OSError:
                 continue
-            # Disposition subdirectories (and their monthly shards) are where an artifact MOVES to,
-            # so their mtimes matter as much as the tree root's.
+            entry_names: List[str] = []
             try:
-                for child in d.iterdir():
-                    if child.is_dir():
-                        sig.append((str(child), child.stat().st_mtime_ns))
-                        for grand in child.iterdir():
-                            if grand.is_dir():
-                                sig.append((str(grand), grand.stat().st_mtime_ns))
+                with os.scandir(cur) as it:
+                    for entry in it:
+                        entry_names.append(entry.name)
+                        try:
+                            if entry.is_dir(follow_symlinks=False):
+                                stack.append(Path(entry.path))
+                        except OSError:
+                            continue
             except OSError:
                 continue
+            sig.append((str(cur), mtime_ns, tuple(sorted(entry_names))))
     return tuple(sorted(sig))
 
 
