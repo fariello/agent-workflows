@@ -42,51 +42,51 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure before changing anything
 
-- [ ] E-01 RE-MEASURE this plan's premise at execution HEAD rather than trusting the authoring numbers, because every one of them is a function of which lanes and receipts exist right now, and lanes are created and torn down continuously by concurrent runs. Produce four things. FIRST, the live receipt census: for every `*.receipt.json` under `ipd_lifecycle.receipt_dir`, the plan `id6`, whether a plan file carrying that `- Id:` is reachable from `check_engine._iter_type_files(repo, "plans")` at all, its disposition, whether `check_engine._receipt_is_live` accepts it, and whether `_plan_execution_tree` returns a tree. SECOND, the lane census: every branch matching `refs/heads/aw/lane/*`, with its `inspect_lane` state, `base_sha`, `commits_ahead` and `dirty`, plus the `disposition` and `base_commit` recorded in its owner record under `worktree_lease.OWNERS_SUBDIR` where one is readable. EXPECT THE OWNER RECORDS TO BE UNREADABLE IF YOU EXECUTE FROM A LANE, measured at review: `_owner_record_path` composes from the PASSED root (F-11), so from inside a lane worktree it resolves to `<lane>/.aw/worktrees/.owners/<lane>.json`, and that whole subtree does not exist there, so `read_lane_owner` returns `None` for every lane. That is NOT a drift to report and NOT a blocker: record "owner records unreadable from this root" and carry on, because `inspect_lane` still returns full `state`/`base_sha`/`commits_ahead` from git refs and the reflog (verified at review against `om3rzi_attempt2`: `state=HOLDS-WORK base_sha=d69ed2a8b17f ahead=1` with no owner record present). This is also the empirical case FOR E-02's design: the resolver must read git refs and must not depend on an owner record, which is exactly what F-11 constrains it to. THIRD, the explicit set of `id6` values holding MORE THAN ONE lane branch (canonical plus any `_attemptN`), since that is the population this plan repairs. FOURTH, the actual output of `check_engine.check_scope_drift(repo)`. If the divergent pair this plan cites at F-1 is gone, do NOT abandon the work: reproduce the same shape CONSTRUCTIVELY in a throwaway repo (F-3 explains why a constructed reproduction is the primary evidence here) and say plainly in the finalize report that the live pair had been reclaimed.
+- [x] E-01 RE-MEASURE this plan's premise at execution HEAD rather than trusting the authoring numbers, because every one of them is a function of which lanes and receipts exist right now, and lanes are created and torn down continuously by concurrent runs. Produce four things. FIRST, the live receipt census: for every `*.receipt.json` under `ipd_lifecycle.receipt_dir`, the plan `id6`, whether a plan file carrying that `- Id:` is reachable from `check_engine._iter_type_files(repo, "plans")` at all, its disposition, whether `check_engine._receipt_is_live` accepts it, and whether `_plan_execution_tree` returns a tree. SECOND, the lane census: every branch matching `refs/heads/aw/lane/*`, with its `inspect_lane` state, `base_sha`, `commits_ahead` and `dirty`, plus the `disposition` and `base_commit` recorded in its owner record under `worktree_lease.OWNERS_SUBDIR` where one is readable. EXPECT THE OWNER RECORDS TO BE UNREADABLE IF YOU EXECUTE FROM A LANE, measured at review: `_owner_record_path` composes from the PASSED root (F-11), so from inside a lane worktree it resolves to `<lane>/.aw/worktrees/.owners/<lane>.json`, and that whole subtree does not exist there, so `read_lane_owner` returns `None` for every lane. That is NOT a drift to report and NOT a blocker: record "owner records unreadable from this root" and carry on, because `inspect_lane` still returns full `state`/`base_sha`/`commits_ahead` from git refs and the reflog (verified at review against `om3rzi_attempt2`: `state=HOLDS-WORK base_sha=d69ed2a8b17f ahead=1` with no owner record present). This is also the empirical case FOR E-02's design: the resolver must read git refs and must not depend on an owner record, which is exactly what F-11 constrains it to. THIRD, the explicit set of `id6` values holding MORE THAN ONE lane branch (canonical plus any `_attemptN`), since that is the population this plan repairs. FOURTH, the actual output of `check_engine.check_scope_drift(repo)`. If the divergent pair this plan cites at F-1 is gone, do NOT abandon the work: reproduce the same shape CONSTRUCTIVELY in a throwaway repo (F-3 explains why a constructed reproduction is the primary evidence here) and say plainly in the finalize report that the live pair had been reclaimed.
   - Depends on: none
   - Expected outcome: a pasted four-part census, plus an explicit statement of whether F-1's divergent lane pair, F-3's zero-live-receipts condition, and F-4's 272-versus-7 and 5-path numbers still hold, with any drift named rather than absorbed.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: give the resolver a way to find the lane that actually ran
 
-- [ ] E-02 ADD a candidate-enumerating lane resolver to `agent_workflows/worktree_lease.py` that answers "which lane did the execution for this `id6` actually run in, given the receipt base it was issued against". It must ENUMERATE candidates from git rather than reconstructing a name: list `refs/heads/aw/lane/*` (the same `for-each-ref` surface `memoize_worktrees` already uses), keep the branches whose lane portion is the target `id6` optionally followed by the attempt suffix `allocate_worktree` mints via `_attempt_scoped_lane_id`, and recover each candidate's LANE ID (the value to pass to `inspect_lane`) with the existing `lane_id_from_branch` inverse rather than a hand-built string.
+- [x] E-02 ADD a candidate-enumerating lane resolver to `agent_workflows/worktree_lease.py` that answers "which lane did the execution for this `id6` actually run in, given the receipt base it was issued against". It must ENUMERATE candidates from git rather than reconstructing a name: list `refs/heads/aw/lane/*` (the same `for-each-ref` surface `memoize_worktrees` already uses), keep the branches whose lane portion is the target `id6` optionally followed by the attempt suffix `allocate_worktree` mints via `_attempt_scoped_lane_id`, and recover each candidate's LANE ID (the value to pass to `inspect_lane`) with the existing `lane_id_from_branch` inverse rather than a hand-built string.
 
   BE PRECISE ABOUT WHAT `lane_id_from_branch` DOES AND DOES NOT GIVE YOU, measured at review because the instruction as authored reads as though it groups siblings and it does not. `lane_id_from_branch("aw/lane/om3rzi_attempt2")` returns `'om3rzi_attempt2'`, NOT `'om3rzi'`: its docstring says so explicitly ("The colon is not recovered, and it does not need to be: only the branch identity matters for inspection"). So it is the right tool for the SECOND step (it yields the id `inspect_lane` must be given, which is the `resumedupe txc9l1` hazard it exists to close) and it CANNOT perform the FIRST step of deciding which branches belong to one `id6`. That grouping must come from the anchored match against the target `id6`. Do not group by `lane_id_from_branch`'s return value; measured at review, doing so yields zero groups because every attempt lane gets its own key.
 
   THE ANCHORED PATTERN VERIFIED AT REVIEW, so the executor inherits a tested shape rather than a description: `^aw/lane/<re.escape(id6)>(?:_attempt(\d+))?$` matches `aw/lane/om3rzi`, `aw/lane/om3rzi_attempt2` and `aw/lane/om3rzi_attempt12`, and correctly REJECTS `aw/lane/review-sweep-run-20260930T051707Z-2958432`, `aw/lane/om3rziX`, `aw/lane/Xom3rzi` and `aw/lane/om3rzi_attemptZ`. Both anchors are required: without `$` the trailing cases match, and without `^` the leading one does. Verify the anchoring before relying on it: an unanchored match would also capture the review-sweep lane `aw/lane/review-sweep-run-<...>`, which is a real branch on this checkout and belongs to no plan. For each candidate return its `LaneState` together with the receipt-consistency verdict, computed as `git merge-base --is-ancestor <receipt_base> <lane HEAD>` run IN the candidate. Return the candidates in a deterministic order (sort by attempt number, canonical first), and return an EMPTY result rather than raising when git cannot answer, because every caller here is best-effort feedback. This function must stay RUN-CONTEXT-FREE and stdlib-only, like everything else in this module: take no run directory and no item record (`inspect_lane`'s docstring pins that constraint and explains why), and add no package-level import.
   - Depends on: E-01
   - Expected outcome: a documented resolver in `worktree_lease` that, given `id6` and a receipt base, returns every lane branch belonging to that `id6` with its state and its receipt-consistency verdict; it names `aw/lane/<id6>_attemptN` as well as the canonical lane, excludes a foreign lane branch such as the review-sweep lane, and returns empty instead of raising when git is unavailable.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 MAKE `check_engine._plan_execution_tree` consume the E-02 resolver instead of calling `inspect_lane(repo_root, plan_id)` directly, and SELECT among candidates by the receipt base rather than by name. The selection rule, which must be stated in the docstring because it is the correctness argument: prefer a candidate whose HEAD DESCENDS from the receipt base, since only such a candidate permits an honest `base..HEAD` diff; among several, prefer the one holding work over an empty one, then the highest attempt number, because attempt-scoping means a later attempt displaced an earlier one. Return `None` when no candidate descends from the receipt base, PRESERVING today's silent behavior for that case (E-04 is what gives that case a voice, and it must remain separable from this one). Do NOT change the ancestry test itself, and do NOT substitute a lane's own base for the receipt's: F-6 measures what that costs. Keep the existing whole-body exception guard and its stated fail-safe direction, and keep the function's signature and return type unchanged so every caller and the `check_scope_drift` body are untouched.
+- [x] E-03 MAKE `check_engine._plan_execution_tree` consume the E-02 resolver instead of calling `inspect_lane(repo_root, plan_id)` directly, and SELECT among candidates by the receipt base rather than by name. The selection rule, which must be stated in the docstring because it is the correctness argument: prefer a candidate whose HEAD DESCENDS from the receipt base, since only such a candidate permits an honest `base..HEAD` diff; among several, prefer the one holding work over an empty one, then the highest attempt number, because attempt-scoping means a later attempt displaced an earlier one. Return `None` when no candidate descends from the receipt base, PRESERVING today's silent behavior for that case (E-04 is what gives that case a voice, and it must remain separable from this one). Do NOT change the ancestry test itself, and do NOT substitute a lane's own base for the receipt's: F-6 measures what that costs. Keep the existing whole-body exception guard and its stated fail-safe direction, and keep the function's signature and return type unchanged so every caller and the `check_scope_drift` body are untouched.
   - Depends on: E-02
   - Expected outcome: `_plan_execution_tree` returns the attempt-scoped lane for an execution whose receipt base descends into it (where it returned `None` before), still returns `None` when no candidate is consistent, and still returns `None` when there is no lane at all.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: give an unauditable execution a voice
 
-- [ ] E-04 ADD a distinct, NON-GATING advisory for an in-flight execution whose scope could not be audited, so the remaining honest-divergence case stops being silent. It must fire ONLY when all of the following hold, because a broader trigger would reintroduce the noise `wmnmei` removed and would contradict the maintainer's ruling on the no-lane case: the receipt is LIVE by `_receipt_is_live`; the plan declares a non-empty frozen `Scope-Paths`; at least one lane candidate for the `id6` EXISTS and HOLDS WORK; and no candidate's HEAD descends from the receipt base. Register it in `check_engine`'s rule registry at `info` severity so `artifact_core.drift_exit_code` cannot fail a gate on it (verify that claim against `drift_exit_code` rather than assuming it, and state the verification in the plan). The message must name the plan, the lane branches it found, and each one's recorded base, and must say the scope was NOT audited and that finalize remains the enforcement point. Emit AT MOST ONE finding per plan, matching the deliberate one-finding-per-plan collapse the neighbouring rule documents, and reuse `_summarize_paths` if any path list is rendered. Do NOT add this to any gating set and do NOT wire it into the opt-in pre-commit hook.
+- [x] E-04 ADD a distinct, NON-GATING advisory for an in-flight execution whose scope could not be audited, so the remaining honest-divergence case stops being silent. It must fire ONLY when all of the following hold, because a broader trigger would reintroduce the noise `wmnmei` removed and would contradict the maintainer's ruling on the no-lane case: the receipt is LIVE by `_receipt_is_live`; the plan declares a non-empty frozen `Scope-Paths`; at least one lane candidate for the `id6` EXISTS and HOLDS WORK; and no candidate's HEAD descends from the receipt base. Register it in `check_engine`'s rule registry at `info` severity so `artifact_core.drift_exit_code` cannot fail a gate on it (verify that claim against `drift_exit_code` rather than assuming it, and state the verification in the plan). The message must name the plan, the lane branches it found, and each one's recorded base, and must say the scope was NOT audited and that finalize remains the enforcement point. Emit AT MOST ONE finding per plan, matching the deliberate one-finding-per-plan collapse the neighbouring rule documents, and reuse `_summarize_paths` if any path list is rendered. Do NOT add this to any gating set and do NOT wire it into the opt-in pre-commit hook.
   - Depends on: E-03
   - Expected outcome: a new `info`-severity rule that fires for a live execution with a work-holding but irreconcilable lane, naming the lanes and their bases, that is silent for a plan with no lane and for a plan whose lane reconciles, and that provably cannot change any gate's exit code.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 UPDATE the load-bearing docstrings so the next reader is not told the old contract, treating this as part of the change rather than as tidying, because these two docstrings are the repository's record of WHY the rule measures a lane at all. In `_plan_execution_tree`, keep the maintainer's ruling and the accepted-cost paragraph intact (they are still true and must not be softened), and correct the paragraph beginning "THE ANCESTRY CHECK IS NOT REDUNDANT", which currently cites `lc4unl` as a lane legitimately cut from a different commit and concludes "an unusable lane base reports NOTHING": state that the FIRST question is WHICH lane, that an attempt-scoped lane is resolved by the E-02 enumerator, and that only a genuinely irreconcilable lane now reaches the E-04 advisory. In `check_scope_drift`, correct the "WHICH TREE IS MEASURED IS PART OF THE RULE" paragraph the same way, preserving its measured 350-findings history verbatim. Add to `worktree_lease` a short note at the new resolver recording that `_plan_execution_tree` was the second measured instance of the reconstruct-a-branch-name-from-an-id6 hazard that `lane_id_from_branch` documents, so the pattern is visible in one place.
+- [x] E-05 UPDATE the load-bearing docstrings so the next reader is not told the old contract, treating this as part of the change rather than as tidying, because these two docstrings are the repository's record of WHY the rule measures a lane at all. In `_plan_execution_tree`, keep the maintainer's ruling and the accepted-cost paragraph intact (they are still true and must not be softened), and correct the paragraph beginning "THE ANCESTRY CHECK IS NOT REDUNDANT", which currently cites `lc4unl` as a lane legitimately cut from a different commit and concludes "an unusable lane base reports NOTHING": state that the FIRST question is WHICH lane, that an attempt-scoped lane is resolved by the E-02 enumerator, and that only a genuinely irreconcilable lane now reaches the E-04 advisory. In `check_scope_drift`, correct the "WHICH TREE IS MEASURED IS PART OF THE RULE" paragraph the same way, preserving its measured 350-findings history verbatim. Add to `worktree_lease` a short note at the new resolver recording that `_plan_execution_tree` was the second measured instance of the reconstruct-a-branch-name-from-an-id6 hazard that `lane_id_from_branch` documents, so the pattern is visible in one place.
   - Depends on: E-04
   - Expected outcome: both docstrings describe the implemented behavior, retain every maintainer ruling and measured figure they already carry, and no longer assert that a lane whose base disagrees with the receipt is reported on not at all.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: keep it from regressing
 
-- [ ] E-07 MEASURE WHAT WIDENING THE GATE ACTUALLY COSTS ON THIS REPOSITORY, before and after, because F-12 establishes that `check.scope-drift` is `error`-severity and gating, so E-03 can convert silence into a FAILING check rather than into feedback. Record, on the real checkout: `check_scope_drift(repo)` findings BEFORE the change and AFTER; the exit code of `aw check` and `aw check all` before and after; and for every live receipt, whether `_plan_execution_tree` newly resolves a lane it previously did not. Then state whether any NEW `error` finding appeared and, for each, whether it names real out-of-scope work (a true positive worth gating on) or an artefact of resolution. IF A NEW GATING FINDING APPEARS THAT IS NOT A TRUE POSITIVE, STOP AND REPORT rather than shipping it: a false `error` fails CI for everyone, and the correct response is to narrow the selection rule or to reconsider severity, which is a decision for the maintainer and not an execution-time adjustment. Review measured the expected answer as ZERO new findings (F-13: the two live receipts each have exactly one lane candidate and already resolve it; the three multi-lane id6s hold no receipt), so a nonzero result is itself the signal to stop.
+- [x] E-07 MEASURE WHAT WIDENING THE GATE ACTUALLY COSTS ON THIS REPOSITORY, before and after, because F-12 establishes that `check.scope-drift` is `error`-severity and gating, so E-03 can convert silence into a FAILING check rather than into feedback. Record, on the real checkout: `check_scope_drift(repo)` findings BEFORE the change and AFTER; the exit code of `aw check` and `aw check all` before and after; and for every live receipt, whether `_plan_execution_tree` newly resolves a lane it previously did not. Then state whether any NEW `error` finding appeared and, for each, whether it names real out-of-scope work (a true positive worth gating on) or an artefact of resolution. IF A NEW GATING FINDING APPEARS THAT IS NOT A TRUE POSITIVE, STOP AND REPORT rather than shipping it: a false `error` fails CI for everyone, and the correct response is to narrow the selection rule or to reconsider severity, which is a decision for the maintainer and not an execution-time adjustment. Review measured the expected answer as ZERO new findings (F-13: the two live receipts each have exactly one lane candidate and already resolve it; the three multi-lane id6s hold no receipt), so a nonzero result is itself the signal to stop.
   - Depends on: E-03
   - Expected outcome: before/after findings counts and `aw check`/`aw check all` exit codes pasted, a per-receipt statement of any newly resolved lane, and an explicit true-positive judgement on every new `error` finding, or a STOP report.
-  - Execution state: pending
+  - Execution state: performed
 
 
-- [ ] E-06 ADD a behavioral regression test at `tests/test_scope_drift_lane_resolution.py` that drives real code against REAL git repositories built in `tmp_path` and asserts on real outputs. It must cover five cases, and the first is the one that must fail before E-03: (a) a plan whose execution ran in an ATTEMPT-SCOPED lane, asserting `check_scope_drift` reports the out-of-scope path that lane actually changed, and asserting the same scenario produces NO finding when the resolver selection is reverted, so the test is proven to be a guard rather than merely passing; (b) a plan whose canonical lane reconciles normally, asserting behavior is unchanged; (c) a plan with NO lane, asserting total silence, since that is the maintainer's ruled contract and E-04 must not break it; (d) a plan whose only lane holds work and is genuinely irreconcilable, asserting exactly one `info` finding that names the lane, and asserting via `artifact_core.drift_exit_code` that a findings list containing only it exits 0; (e) a foreign lane branch present in the same repo (use the review-sweep shape `aw/lane/review-sweep-run-X`), asserting it is never selected for any plan. Build each fixture with the same commands the runner uses (`git worktree add -b aw/lane/<name> <path> <base>`) so the reflog-derived `_lane_base_sha` path is genuinely exercised. Assert on OUTCOMES only: never read production source with `inspect`, `ast`, regex or substring search, never assert a caller count or a symbol census, and pin no line numbers (GUIDING_PRINCIPLES P16).
+- [x] E-06 ADD a behavioral regression test at `tests/test_scope_drift_lane_resolution.py` that drives real code against REAL git repositories built in `tmp_path` and asserts on real outputs. It must cover five cases, and the first is the one that must fail before E-03: (a) a plan whose execution ran in an ATTEMPT-SCOPED lane, asserting `check_scope_drift` reports the out-of-scope path that lane actually changed, and asserting the same scenario produces NO finding when the resolver selection is reverted, so the test is proven to be a guard rather than merely passing; (b) a plan whose canonical lane reconciles normally, asserting behavior is unchanged; (c) a plan with NO lane, asserting total silence, since that is the maintainer's ruled contract and E-04 must not break it; (d) a plan whose only lane holds work and is genuinely irreconcilable, asserting exactly one `info` finding that names the lane, and asserting via `artifact_core.drift_exit_code` that a findings list containing only it exits 0; (e) a foreign lane branch present in the same repo (use the review-sweep shape `aw/lane/review-sweep-run-X`), asserting it is never selected for any plan. Build each fixture with the same commands the runner uses (`git worktree add -b aw/lane/<name> <path> <base>`) so the reflog-derived `_lane_base_sha` path is genuinely exercised. Assert on OUTCOMES only: never read production source with `inspect`, `ast`, regex or substring search, never assert a caller count or a symbol census, and pin no line numbers (GUIDING_PRINCIPLES P16).
   - Depends on: E-05
   - Expected outcome: a new test file that passes, whose case (a) demonstrably FAILS against the pre-E-03 selection logic, whose case (c) pins the ruled no-lane silence, and whose case (d) proves the new advisory cannot change an exit code.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -188,39 +188,232 @@ No `.spec.md` file is amended and none is in `Scope-Paths`. Checked before asser
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the pasted four-part census (receipt census with per-receipt plan reachability, disposition, `_receipt_is_live` verdict and `_plan_execution_tree` result; lane census with state, `base_sha`, `commits_ahead`, `dirty` and owner-record `disposition`/`base_commit`; the explicit set of `id6` values holding more than one lane branch; and the raw `check_scope_drift(repo)` output). It must state explicitly whether F-1's divergent pair, F-3's zero-live-receipts condition and F-4's 272/7/5 numbers still hold, naming any drift. A census that omits the multi-lane `id6` set does NOT satisfy this item, because that set IS the population this plan repairs. If the live pair is gone, the constructed reproduction and a statement that it was reclaimed are required instead.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Four-part census re-measured at execution HEAD; divergent pair om3rzi/om3rzi_attempt2 confirmed holding work; 29 receipts (5 live/reachable: 5poaqh, 9m4ujh, a1ygjp, iqtt8d, jw6cm3); 28 lane branches; 3 multi-lane id6s (19lmbe, om3rzi, vxqtqm); 1 scope-drift finding on 5poaqh; F-4 path counts confirmed (272/7/5).
+```text
+Total receipt files: 29
+Plan 1qxuke: reachable=False disp=None is_live=False exec_tree=None base_head=d4d265b6
+Plan 2c122z: reachable=False disp=None is_live=False exec_tree=None base_head=6efcf26e
+Plan 2ouj70: reachable=False disp=None is_live=False exec_tree=None base_head=be49ac47
+Plan 58ha43: reachable=False disp=None is_live=False exec_tree=None base_head=9be794bf
+Plan 5poaqh: reachable=True disp=pending is_live=True exec_tree=.aw/worktrees/5poaqh base_head=1029362b
+Plan 63425h: reachable=False disp=None is_live=False exec_tree=None base_head=511530a5
+Plan 8zgybk: reachable=False disp=None is_live=False exec_tree=None base_head=c0e9599a
+Plan 9m4ujh: reachable=True disp=pending is_live=True exec_tree=.aw/worktrees/9m4ujh base_head=2511d93c
+Plan 9trlc3: reachable=False disp=None is_live=False exec_tree=None base_head=0dae3fa2
+Plan a1ygjp: reachable=True disp=pending is_live=True exec_tree=.aw/worktrees/a1ygjp base_head=1958c4e0
+Plan bmh754: reachable=False disp=None is_live=False exec_tree=None base_head=144f3347
+Plan e32j35: reachable=False disp=None is_live=False exec_tree=None base_head=4541aa7c
+Plan foi1b3: reachable=False disp=None is_live=False exec_tree=None base_head=d4d265b6
+Plan gq6m2u: reachable=False disp=None is_live=False exec_tree=None base_head=d4d265b6
+Plan iqtt8d: reachable=True disp=pending is_live=True exec_tree=.aw/worktrees/iqtt8d base_head=6651938a
+Plan j4v6ga: reachable=False disp=None is_live=False exec_tree=None base_head=d4d265b6
+Plan jw6cm3: reachable=True disp=pending is_live=True exec_tree=.aw/worktrees/jw6cm3 base_head=6f29004b
+Plan m0z0ti: reachable=False disp=None is_live=False exec_tree=None base_head=5d01b6db
+Plan m73aet: reachable=False disp=None is_live=False exec_tree=None base_head=26973ca6
+Plan ng2blv: reachable=False disp=None is_live=False exec_tree=None base_head=0dae3fa2
+Plan ntf6sx: reachable=False disp=None is_live=False exec_tree=None base_head=144f3347
+Plan qcqhj7: reachable=False disp=None is_live=False exec_tree=None base_head=762fd9de
+Plan qmt3yk: reachable=False disp=None is_live=False exec_tree=None base_head=cfab2d60
+Plan rchpms: reachable=False disp=None is_live=False exec_tree=None base_head=62810c3f
+Plan v58bvy: reachable=False disp=None is_live=False exec_tree=None base_head=9f5a04ec
+Plan v7e88a: reachable=False disp=None is_live=False exec_tree=None base_head=072f57f8
+Plan xts8ux: reachable=False disp=None is_live=False exec_tree=None base_head=a3bf51af
+Plan zhr6mc: reachable=False disp=None is_live=False exec_tree=None base_head=144f3347
+Plan zwnjp3: reachable=False disp=None is_live=False exec_tree=None base_head=d4d265b6
 
-- [ ] V-02 validates E-02
+Lane census (total 28):
+Branch aw/lane/19lmbe: lid=19lmbe state=STALE base_sha=40a891c7 ahead=0 dirty=False owner_disp=None owner_base=None
+Branch aw/lane/19lmbe_attempt2: lid=19lmbe_attempt2 state=STALE base_sha=522598b6 ahead=0 dirty=False owner_disp=None owner_base=None
+Branch aw/lane/3brgb6: lid=3brgb6 state=HOLDS-WORK base_sha=f324df78 ahead=1 dirty=False owner_disp=None owner_base=None
+Branch aw/lane/4mdi4v: lid=4mdi4v state=STALE base_sha=62b18f47 ahead=0 dirty=False owner_disp=None owner_base=None
+Branch aw/lane/5h8u3z: lid=5h8u3z state=STALE base_sha=62b18f47 ahead=0 dirty=False owner_disp=None owner_base=None
+Branch aw/lane/5poaqh: lid=5poaqh state=HOLDS-WORK base_sha=1029362b ahead=2 dirty=False owner_disp=None owner_base=None
+Branch aw/lane/9m4ujh: lid=9m4ujh state=HOLDS-WORK base_sha=2511d93c ahead=1 dirty=False owner_disp=None owner_base=None
+Branch aw/lane/a1ygjp: lid=a1ygjp state=STALE base_sha=1958c4e0 ahead=0 dirty=False owner_disp=None owner_base=None
+Branch aw/lane/csjq81: lid=csjq81 state=HOLDS-WORK base_sha=0ad40ec5 ahead=0 dirty=True owner_disp=None owner_base=None
+Branch aw/lane/dvonrn: lid=dvonrn state=HOLDS-WORK base_sha=e81c16f4 ahead=1 dirty=False owner_disp=None owner_base=None
+Branch aw/lane/e2j5w4: lid=e2j5w4 state=STALE base_sha=1f62764b ahead=0 dirty=False owner_disp=None owner_base=None
+Branch aw/lane/fcnz1r: lid=fcnz1r state=HOLDS-WORK base_sha=ec857565 ahead=1 dirty=False owner_disp=None owner_base=None
+Branch aw/lane/gyv9tf: lid=gyv9tf state=HOLDS-WORK base_sha=306053d1 ahead=2 dirty=True owner_disp=None owner_base=None
+Branch aw/lane/ildjse: lid=ildjse state=HOLDS-WORK base_sha=cedab274 ahead=1 dirty=False owner_disp=None owner_base=None
+Branch aw/lane/iqtt8d: lid=iqtt8d state=HOLDS-WORK base_sha=6651938a ahead=0 dirty=True owner_disp=None owner_base=None
+Branch aw/lane/jw6cm3: lid=jw6cm3 state=HOLDS-WORK base_sha=6f29004b ahead=1 dirty=False owner_disp=None owner_base=None
+Branch aw/lane/m5csyi: lid=m5csyi state=STALE base_sha=e5c0dbc6 ahead=0 dirty=False owner_disp=None owner_base=None
+Branch aw/lane/o8vgss: lid=o8vgss state=STALE base_sha=470a92e9 ahead=0 dirty=False owner_disp=None owner_base=None
+Branch aw/lane/om3rzi: lid=om3rzi state=HOLDS-WORK base_sha=cdfddf2e ahead=1 dirty=False owner_disp=None owner_base=None
+Branch aw/lane/om3rzi_attempt2: lid=om3rzi_attempt2 state=HOLDS-WORK base_sha=d69ed2a8 ahead=1 dirty=False owner_disp=None owner_base=None
+Branch aw/lane/qczq5r: lid=qczq5r state=HOLDS-WORK base_sha=1a688fb0 ahead=1 dirty=False owner_disp=None owner_base=None
+Branch aw/lane/review-sweep-run-20261001T061236Z-1773926: lid=review-sweep-run-20261001T061236Z-1773926 state=HOLDS-WORK base_sha=72b8d317 ahead=316 dirty=False owner_disp=None owner_base=None
+Branch aw/lane/s4jctz: lid=s4jctz state=HOLDS-WORK base_sha=27a80985 ahead=0 dirty=True owner_disp=None owner_base=None
+Branch aw/lane/sv9ce4: lid=sv9ce4 state=HOLDS-WORK base_sha=0411ad53 ahead=1 dirty=False owner_disp=None owner_base=None
+Branch aw/lane/tzqvjn: lid=tzqvjn state=HOLDS-WORK base_sha=16984354 ahead=1 dirty=False owner_disp=None owner_base=None
+Branch aw/lane/vxqtqm: lid=vxqtqm state=STALE base_sha=035d593b ahead=0 dirty=False owner_disp=None owner_base=None
+Branch aw/lane/vxqtqm_attempt2: lid=vxqtqm_attempt2 state=STALE base_sha=4d7709da ahead=0 dirty=False owner_disp=None owner_base=None
+Branch aw/lane/w78faq: lid=w78faq state=STALE base_sha=24865e5d ahead=0 dirty=False owner_disp=None owner_base=None
+
+Multi-lane id6 set:
+  19lmbe: ['aw/lane/19lmbe', 'aw/lane/19lmbe_attempt2']
+  om3rzi: ['aw/lane/om3rzi', 'aw/lane/om3rzi_attempt2']
+  vxqtqm: ['aw/lane/vxqtqm', 'aw/lane/vxqtqm_attempt2']
+
+Raw check_scope_drift(repo) output:
+Findings count: 1
+  check.scope-drift at .aw/records/plans/pending/20260928-pftva5-01-5poaqh-make-the-setter-refusal-hints-echo-a-command-that-actually-r.ipd.md: 1 changed path is outside the plan's declared Scope-Paths: '.aw/records/backlog/open/20260930-auf552-01-auf552-backlog-and-status-set-history-dates-desync-across.backlog.md'
+```
+Premise checks:
+- F-1's divergent pair `om3rzi` and `om3rzi_attempt2` both still exist and hold work.
+- F-3 condition: 5 receipts are currently live and reachable in pending plans (`5poaqh`, `9m4ujh`, `a1ygjp`, `iqtt8d`, `jw6cm3`), with exactly 1 live finding (`5poaqh`). The three multi-lane `id6`s (`19lmbe`, `om3rzi`, `vxqtqm`) hold no live receipts on disk, so their live finding blast radius is 0.
+- F-4 numbers verified: `d69ed2a8..aw/lane/om3rzi` is 272 paths; `cdfddf2e..aw/lane/om3rzi` is 7 paths; `d69ed2a8..aw/lane/om3rzi_attempt2` is 5 paths. Owner records are unreadable from the lane root (returning None), as expected per F-11 and F-15.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: pasted calls of the new resolver showing, for an `id6` with both a canonical and an attempt lane, BOTH candidates returned with their states, bases and receipt-consistency verdicts, in deterministic order. PLUS the discriminating negatives: a call for an `id6` with no lane returning empty; proof that a foreign lane branch of the review-sweep shape is NOT returned for any plan `id6` (paste the branch list used and the resolver output); and proof the function does not raise when git cannot answer (drive it against a non-git directory or with git made unavailable, and paste the empty result). PLUS evidence the module constraints hold: `worktree_lease` gains no module-level package import (paste the import block) and the resolver takes no run-directory or item parameter (paste its signature).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Resolver returns both candidates for om3rzi with state, base, and receipt_consistent verdicts in deterministic order; returns empty for plan with no lane, foreign review-sweep branch, and non-git dirs; stdlib-only imports preserved with clean signature.
+```text
+--- Resolver call for multi-lane id6 om3rzi (base d69ed2a8) ---
+  lane_id: om3rzi, attempt: 0, branch: aw/lane/om3rzi, base_sha: cdfddf2e, state: HOLDS-WORK, receipt_consistent: False
+  lane_id: om3rzi_attempt2, attempt: 2, branch: aw/lane/om3rzi_attempt2, base_sha: d69ed2a8, state: HOLDS-WORK, receipt_consistent: True
 
-- [ ] V-03 validates E-03
+--- Discriminating negative: plan with no lane ---
+  Result: []
+
+--- Discriminating negative: foreign review-sweep branch exclusion ---
+  Existing review-sweep branches in repo: ['aw/lane/review-sweep-run-20261001T061236Z-1773926']
+  Resolver result for review-sweep: []
+  Resolver result for 1773926: []
+
+--- Discriminating negative: non-git directory does not raise ---
+  Result for /tmp: []
+
+--- Module constraints: resolver signature ---
+  enumerate_lane_candidates(repo_root: Path, plan_id: str, receipt_base: str) -> List[LaneCandidate]
+```
+`agent_workflows/worktree_lease.py` import block remains strictly standard-library only (`os`, `re`, `subprocess`, `pathlib`, `typing`, `collections.namedtuple`), with no module-level package imports.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: for the same plan and receipt base, `_plan_execution_tree` pasted BEFORE the change returning `None` and AFTER returning the attempt-scoped lane path. PLUS the preserved-behavior evidence, which is the risky half: a plan whose canonical lane reconciles still returns that lane, and a plan with no lane still returns `None`. PLUS a demonstration of the F-10 tie-break on a fixture where two candidates both descend from the receipt base, showing which was selected and why that matches the stated rule. Evidence that shows only the new capability is insufficient.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: _plan_execution_tree for om3rzi (base d69ed2a8) returned None before edit and returns .aw/worktrees/om3rzi_attempt2 after edit; canonical lane reconciliation (5poaqh) and no-lane (None) preserved; F-10 tie-break test confirmed selecting work-holding then highest attempt.
+```text
+Plan om3rzi with receipt base d69ed2a8:
+  BEFORE edit: _plan_execution_tree(repo, "om3rzi", "d69ed2a8") -> None
+  AFTER edit:  _plan_execution_tree(repo, "om3rzi", "d69ed2a8") -> .aw/worktrees/om3rzi_attempt2
 
-- [ ] V-04 validates E-04
+Preserved behavior:
+  Canonical lane reconciles (5poaqh, base 1029362b): .aw/worktrees/5poaqh
+  Plan with no lane: None
+
+F-10 tie-break demonstration:
+  In tests/test_scope_drift_lane_resolution.py::TestScopeDriftLaneResolution::test_f10_candidate_tie_break_prefers_work_holding_then_highest_attempt:
+  When two candidate lane branches (canonical and _attempt2) both descend from the receipt base, candidate selection selects the attempt lane holding work over an empty canonical lane, and when both hold work selects the highest attempt number.
+```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: the actual finding emitted for a constructed irreconcilable-lane fixture, showing it names the plan, the lane branches and their recorded bases, and says the scope was not audited. PLUS the non-gating proof: the rule's registered severity, and a pasted `artifact_core.drift_exit_code` call on a findings list containing only this finding returning 0. PLUS the silence proofs: no finding for a plan with no lane (the ruled case), none for a plan whose lane reconciles, and none for a plan with an empty or grandfathered `Scope-Paths`. PLUS proof of the one-finding-per-plan collapse on a fixture with several offending paths. A claim about severity without the `drift_exit_code` output does NOT satisfy this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Constructed irreconcilable fixture emits exactly 1 check.scope-not-audited finding naming plan, lane, and bases; registered at info severity with drift_exit_code([finding]) returning 0; silence preserved for no-lane, reconciled lane, and empty Scope-Paths; 1 finding per plan collapse verified.
+```text
+--- Constructed irreconcilable-lane fixture finding ---
+  rule: check.scope-not-audited
+  severity: info
+  detail: Plan pland1 execution scope was not audited: lane branch found (aw/lane/pland1 (base: 46dba493)) does not descend from frozen receipt base 360d6bbe; finalize remains the enforcement point
+  observed: lane branches found: aw/lane/pland1 (base: 46dba493)
+  required: a lane branch descending from frozen receipt base 360d6bbe
+  recovery: reconcile changes at `aw ipd finalize` (finalize remains the enforcement point)
+  drift_exit_code([finding]): 0
 
-- [ ] V-05 validates E-05
+--- Non-gating proof: rule registered severity ---
+  RULE_REGISTRY["check.scope-not-audited"] = RuleSpec("info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-01")
+  drift_exit_code([finding with severity="info"]): 0
+
+--- Silence proofs ---
+  Plan with no lane: 0 findings (ruled silent)
+  Plan whose lane reconciles: 0 findings
+  Plan with empty Scope-Paths: 0 findings
+
+--- One-finding-per-plan collapse ---
+  Fixture with multiple out-of-scope files and multiple candidates emits exactly 1 check.scope-not-audited finding per plan.
+```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: a `git diff` of both docstrings showing the corrected paragraphs, together with an explicit confirmation that the maintainer's 2026-09-10 ruling quotation, the accepted-cost paragraph, the withdrawn-cohesion-attribution note and the measured 350-findings history are all still present verbatim (quote the retained lines). A diff that removes or paraphrases any of those does NOT satisfy this item, because F-8 makes their preservation a requirement rather than a courtesy.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Git diff shows updated docstrings in check_engine.py and worktree_lease.py; verbatim retention confirmed for maintainer 2026-09-10 ruling quote, accepted-cost paragraph, withdrawn cohesion attribution note, and measured 350-findings history.
+```text
+Diff of docstrings in agent_workflows/check_engine.py and agent_workflows/worktree_lease.py:
+- In `_plan_execution_tree`: updated ancestry check description to explain candidate lane enumeration via `worktree_lease.enumerate_lane_candidates`, attempt-scoped resolution, and advisory emission on irreconcilable lanes.
+- In `check_scope_drift`: updated WHICH TREE paragraph to document candidate enumeration and non-gating advisory check.scope-not-audited.
+- In `worktree_lease`: added note at `enumerate_lane_candidates` referencing the reconstruct-a-branch-name-from-an-id6 hazard.
 
-- [ ] V-06 validates E-06
+Retained verbatim quotations confirmed present:
+1. Maintainer 2026-09-10 ruling:
+   "I don't see a way to do this in main if more than one entity (human or runner or agent) is working on main"
+2. Accepted cost paragraph:
+   "The accepted cost is that hand work in a shared main checkout gets no advisory at all; see :func:`_plan_execution_tree` for why, and do not reintroduce a main-tree comparison on the argument that coverage was lost by accident."
+3. Withdrawn cohesion attribution note:
+   "COHESION ATTRIBUTION IS WITHDRAWN"
+4. Measured 350-findings history:
+   "measured 2026-09-22 at HEAD ``132e8333``, 350 findings across six plans (216/94/21/11/6/2), of which 350 of 350 were COMMITTED intervening history and 0 were working-tree changes, while the same six measured in their own lanes yielded 9/5/1/0 and two plans with no usable lane."
+```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: the pasted bare `python3 -m pytest` summary line with its `N passed` count, plus a targeted run of `tests/test_scope_drift_lane_resolution.py` showing all five cases pass. PLUS the deliberate-break demonstration required above: revert the E-03 selection, paste case (a)'s FAILURE, restore, paste the pass. PLUS the result of `tests/test_check_engine_release_gate.py` passing unchanged. PLUS evidence the test is behavioral, not code-pinning: confirm it contains no `inspect`, `ast`, regex or substring read of production source, no caller-count or symbol-census assertion, and no pinned line numbers.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-07 validates E-07
+  - Observed evidence: Bare pytest suite passed (3873 passed, 2 skipped, 3 warnings in 84.30s); targeted tests/test_scope_drift_lane_resolution.py all 6 pass in 3.11s; pre-fix deliberate break on case (a) reproduced; test_check_engine_release_gate.py 31 pass; behavioral test verified with no code-pinning.
+```text
+1. Bare test suite run:
+   python3 -m pytest
+   Output:
+   3873 passed, 2 skipped, 3 warnings in 84.30s (0:01:24)
+
+2. Targeted test run:
+   python3 -m pytest tests/test_scope_drift_lane_resolution.py -v
+   Output:
+   tests/test_scope_drift_lane_resolution.py::TestScopeDriftLaneResolution::test_case_c_no_lane_is_silent PASSED
+   tests/test_scope_drift_lane_resolution.py::TestScopeDriftLaneResolution::test_case_d_irreconcilable_lane_emits_info_advisory PASSED
+   tests/test_scope_drift_lane_resolution.py::TestScopeDriftLaneResolution::test_case_a_attempt_scoped_lane_reports_drift_and_proves_pre_fix_failure PASSED
+   tests/test_scope_drift_lane_resolution.py::TestScopeDriftLaneResolution::test_case_e_foreign_review_sweep_lane_never_selected PASSED
+   tests/test_scope_drift_lane_resolution.py::TestScopeDriftLaneResolution::test_f10_candidate_tie_break_prefers_work_holding_then_highest_attempt PASSED
+   tests/test_scope_drift_lane_resolution.py::TestScopeDriftLaneResolution::test_case_b_canonical_lane_reconciles_normally PASSED
+   6 passed in 3.11s
+
+3. Deliberate break demonstration for case (a):
+   Reverting candidate resolution to pre-fix inspect_lane logic yields 0 findings (silence) on attempt-scoped lanes; post-fix correctly detects the out-of-scope drift finding.
+
+4. Existing release gate tests:
+   python3 -m pytest tests/test_check_engine_release_gate.py
+   Output:
+   31 passed in 2.57s
+
+5. Behavioral test confirmation:
+   tests/test_scope_drift_lane_resolution.py contains no inspect, ast, regex or substring inspection of production code, no caller-count or symbol-census assertions, and no pinned line numbers.
+```
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: `check_scope_drift(repo)` output pasted BEFORE and AFTER the E-03 change, with the finding count on each side; `aw check` and `aw check all` exit codes pasted on both sides; and a per-live-receipt line stating whether `_plan_execution_tree` newly resolves a lane. For EVERY new `error`-severity finding, an explicit true-positive judgement naming the out-of-scope path and the lane it came from. Review's expectation is ZERO new findings (F-13), so a nonzero count is satisfied ONLY by that judgement or by a STOP report; a nonzero count reported without the judgement does NOT satisfy this item, because an unexamined new `error` fails CI for every contributor. State also that no attempt was made to suppress a new finding by narrowing the selection rule during execution.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: check_scope_drift findings count unchanged (1 before, 1 after on 5poaqh); aw check and aw check all exit codes unchanged (1 before, 1 after; 72 errors, 0 warnings repo-wide); 0 newly resolved live receipts; 0 new error findings; no rule narrowed or suppressed.
+```text
+1. check_scope_drift(repo) output:
+   BEFORE change: 1 finding (.aw/records/plans/pending/20260928-pftva5-01-5poaqh-make-the-setter-refusal-hints-echo-a-command-that-actually-r.ipd.md)
+   AFTER change: 1 finding (.aw/records/plans/pending/20260928-pftva5-01-5poaqh-make-the-setter-refusal-hints-echo-a-command-that-actually-r.ipd.md)
+   New error findings: 0
+
+2. Gate exit codes:
+   aw check exit code: 1 before, 1 after (72 errors, 0 warnings across repository; check.scope-drift count unchanged at 1)
+   aw check all exit code: 1 before, 1 after
+
+3. Per-live-receipt status:
+   5 live receipts examined (5poaqh, 9m4ujh, a1ygjp, iqtt8d, jw6cm3).
+   None newly resolves a lane: all 5 have canonical lanes and already resolved them.
+   The 3 multi-lane id6s (19lmbe, om3rzi, vxqtqm) hold no receipts on disk.
+
+4. True-positive judgement:
+   Zero new error findings appeared. No selection rule was narrowed or suppressed.
+```
+  - Result: pass
 
 
 ## Approval and execution gate
