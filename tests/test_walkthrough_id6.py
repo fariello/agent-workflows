@@ -101,24 +101,17 @@ class TestWalkthroughOutcome(_RepoTestCase):
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-LEGACY_WALKTHROUGHS = {
-    "20260712-1023-01-installer-shim-detection-ctrlc-and-diff-walkthrough.walkthrough.md",
-    "20260712-1033-01-assess-bugs-and-tests-walkthrough.walkthrough.md",
-    "20260712-1038-01-fix-installer-shim-tests-left-red-walkthrough.walkthrough.md",
-    "20260712-1041-01-agents-docs-research-and-walkthroughs-convention-walkthrough.walkthrough.md",
-    "20260712-1049-01-scope-review-gemini-bugs-tests-execution-walkthrough.walkthrough.md",
-    "20260712-1100-01-1028-falsely-marked-executed-tests-still-red-walkthrough.walkthrough.md",
-    "20260712-1200-01-ux-and-data-modeling-principles-import-walkthrough.walkthrough.md",
-    "20260712-1230-01-mirror-workflow-pointer-into-native-agent-files-walkthrough.walkthrough.md",
-    "20260810-2052-01-awphysical-01-rejected-greenwashed-execution-corrective-review.walkthrough.md",
-    "20260812-0300-01-awphysical-overnight-autonomous-execution-01-to-10-walkthrough.walkthrough.md",
-    "20260812-1200-01-order11-self-migration-decision-record-walkthrough.walkthrough.md",
-}
+# Deliberately independent of check_engine so the test can disagree with
+# the normalizer: collapsing this onto _identity_slot_token would make
+# the anti-vacuity floor vacuous again (IPD aisk5z E-07).
+_LEGACY_NAME_PREFIX_RE = re.compile(r"^\d{8}-\d{4}-\d{2}-")
 
 # Grandfathered bullet-less walkthrough (commit 9a1c4206: "have none and keep their id6 in the filename only")
-BULLETLESS_GRANDFATHERED = {
-    "20260823-35xfvu-01-35xfvu-highpbacklog0822-execution-decisions.walkthrough.md",
-}
+BULLETLESS_GRANDFATHERED = frozenset(
+    {
+        "20260823-35xfvu-01-35xfvu-highpbacklog0822-execution-decisions.walkthrough.md",
+    }
+)
 
 
 class TestWalkthroughDeclaredIdMatchesSlot(unittest.TestCase):
@@ -135,20 +128,24 @@ class TestWalkthroughDeclaredIdMatchesSlot(unittest.TestCase):
             for p in wdir.glob("*.md")
             if p.is_file() and p.name not in {"README.md", ".gitkeep"}
         )
-        self.assertEqual(len(all_files), 24, "Census must find exactly 24 walkthroughs")
+        self.assertTrue(all_files, f"{wdir} must not be empty")
 
-        exempt = [p for p in all_files if p.name in LEGACY_WALKTHROUGHS]
-        self.assertEqual(
-            len(exempt), 11, "Must find exactly 11 grandfathered legacy walkthroughs"
+        expected = sum(
+            1
+            for p in all_files
+            if not _LEGACY_NAME_PREFIX_RE.match(p.name)
+            and p.name not in BULLETLESS_GRANDFATHERED
         )
 
         missing_or_mismatched = []
+        examined = 0
         for p in all_files:
-            if p.name in LEGACY_WALKTHROUGHS or p.name in BULLETLESS_GRANDFATHERED:
+            if p.name in BULLETLESS_GRANDFATHERED:
                 continue
             token = ce._identity_slot_token(p.name)
             if not token:
                 continue
+            examined += 1
             (id_val, in_reg), _ = ce._identity_declared_values(
                 p.read_text(encoding="utf-8")
             )
@@ -157,6 +154,11 @@ class TestWalkthroughDeclaredIdMatchesSlot(unittest.TestCase):
                     f"{p.name}: slot id6={token!r}, declared in metadata region={id_val!r}"
                 )
 
+        self.assertEqual(
+            examined,
+            expected,
+            f"Examined count ({examined}) must match independently computed expectation ({expected})",
+        )
         self.assertEqual(
             missing_or_mismatched,
             [],
