@@ -50,9 +50,11 @@ aw list-repos           # see each repo's installed version and currency
 aw next                 # on-demand board of what to work on next across records
 aw next -o depth        # order it so a prerequisite comes before what depends on it
 aw ipd board            # board of your plan/IPD readiness Status, grouped by lifecycle
-aw ipd set approved <id> # transition plan status (or aw set approved <id>)
+aw ipd set approved <id> # transition plan status and offer commit (or aw set approved <id>)
 aw check plans names    # check plan/IPD filenames match convention
 ```
+
+Status setters write changes and offer a commit when interactive; see `.aw/records/plans/README.md` for the shared confirmation and commit contract.
 
 Re-run `aw install <dir>` any time to UPDATE an installed repo to the current version; it is
 idempotent and no-clobber (your own edits are never overwritten), so it doubles as the updater.

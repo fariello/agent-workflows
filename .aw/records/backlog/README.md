@@ -90,7 +90,8 @@ It is named `Close-Evidence` rather than `Gate-Evidence` because `Gate-*` is the
   create a conformant item (dry-run by default; owns the clustering filename + metadata).
 - `aw backlog set <status> <id6|setid|fname>...` (or `aw backlog set <path> --status <status>`)
   transition status (moves the file between the disposition dirs), append a history record; moving to
-  `blocked` requires a typed gate.
+  `blocked` requires a typed gate. Confirmation and commit semantics are shared across every setter and
+  documented in `.aw/records/plans/README.md`; read them there rather than here, so the policy has one home.
 - `aw backlog note <id6|fname|path> --message "..."` append a history record WITHOUT changing the
   item's status and without moving its file. Use this whenever the intent is to record a reason, a
   decision, or a finding on an item. Reach for `set` only when the status actually changes: a
