@@ -6,7 +6,7 @@
 - Scope: Add ONE bounded-section extractor to `tests/support.py`, the suite's established shared-helper home, plus its own outcome tests. Three entry points, each with a REFUSAL rather than a silent fallback: `section(text, start, end)` for a bounded section, `final_section(text, start, next_marker=...)` for a section that genuinely runs to end of input and must PROVE it is still terminal, and `section_lines(...)` for the line-oriented callers. Markers are LINE-ANCHORED by default, which fixes a second defect measured on the live corpus: 33 of 1806 tracked records contain the string `## Workflow history` in body prose BEFORE the real heading, so an unanchored `.find` lands on the wrong one. EXCLUDES converting any existing call site, which is Order 02 (`tr8ugt`) and depends on this: keeping them apart means the helper is reviewable on its own semantics and the conversions are reviewable as behavior-preserving diffs. EXCLUDES any production module under `agent_workflows/`; this plan adds a test helper and changes no shipped behavior. EXCLUDES a guard that refuses a NEW unbounded slice at author time, which is a real residue and is recorded in Deferred with its reasoning rather than silently dropped.
 - Scope-Paths: tests/support.py, tests/test_support_section.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: 78rxzc
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 78rxzc verified (set secbound, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 
