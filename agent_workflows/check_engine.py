@@ -131,6 +131,7 @@ class RuleSpec(NamedTuple):
 
 # The versioned rule registry: stable rule id -> RuleSpec. Assurance classes trace to the Phase-0
 # invariant catalog (spec pqsx96). Rules not listed here fall back to a conservative default.
+# See docs/cli-output-contract.md section 3 for the published contract governing what each severity tier does to an exit code.
 RULE_REGISTRY: Dict[str, RuleSpec] = {
     # Naming grammar (catalog I-09).
     "check.name-nonconformant": RuleSpec(

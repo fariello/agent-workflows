@@ -171,6 +171,38 @@ The CLI enforces a uniform three-state exit classification across all verbs:
 
 A condition is classified by its nature and not by its audience, so every audience surface of one condition returns the same code. In particular, "no AW project found at the working directory or any ancestor" is classified as cannot-run and returns exit 2 on the human, `--agent`, and `--json` surfaces alike. The reason stems from the machine envelope contract: `aw.agent/v1` admits only 0, 1, or 2, and the exit parity rule in Section 4 requires the embedded `exit` field to equal the process exit code, confining any condition reachable on a machine surface to the three states. Allowing the human surface to differ would produce one condition answering with two different codes. Readers can inspect `artifact_types.EXIT_CANNOT_RUN` for the shared constant and `command_surface.CommandDeclaration.exit_contract` for each command's normative declaration. Note that commands in the run-execution family (`aw run` and `aw runs`) carry a separate, wider exit vocabulary documented alongside those verbs, and reconciling that separate vocabulary with the three-state classification is outside the scope of this section.
 
+### 3.1 Severity Tier Contract and Gate Semantics
+
+The `Diagnostic` type defines three severity levels: `error`, `warning`, and `info` (Section 2). While this vocabulary suggests a three-level scale of seriousness, its effect on process exit codes is strictly two-level.
+
+#### The Exit-Code Contract (Findings Gates)
+
+For `--check` invocations, CI checks, and finding reports, `info` is the ONLY severity tier that does not contribute to exit 1. The authority governing this mapping is `artifact_core.drift_exit_code`, together with rule declarations in `check_engine.RULE_REGISTRY`:
+
+- `info`: Evaluates to clean (`0`). A lone `info` finding or an empty finding list returns exit code `0`.
+- `warning`: Evaluates to failing (`1`). A `warning` finding fails the exit-code gate exactly as an `error` does.
+- `error`: Evaluates to failing (`1`).
+- Absent, empty, or unrecognized severity: Evaluates to failing (`1`). The check engine fails closed. If a diagnostic carries an empty severity string `""`, an unknown label such as `"advisory"` or `"warn"`, or wrong casing like `"INFO"`, `artifact_core.drift_exit_code` treats it as failing.
+- Unregistered rules: Stamped with severity `error` by `check_engine._DEFAULT_RULESPEC`. Forgetting to register a rule in `check_engine.RULE_REGISTRY` yields the strictest behavior rather than the laxest.
+
+#### The Second Contract: Per-Gate Lifecycle Behavior
+
+The exit-code rule above is not uniform across all repository gates. Two distinct lifecycle gates apply narrower contracts, and they must be understood individually rather than merged:
+
+1. **Commit and work-begin gates (`aw commit` and `aw work begin`)**:
+   Enforced in `work_cmd._validate_plan_via_engine`. Here, `error` findings refuse the operation, `warning` findings print as non-blocking advisories, and `info` findings are dropped silently.
+
+   *Rule-ID override*: At this gate, severity is not the only decision input. `work_cmd._validate_plan_via_engine` routes `check_engine._SCOPE_DRIFT_RULE` (`check.scope-drift`) to the advisory list by rule ID even though it is registered as `error`. This override is intentional: lowering the registered severity of `check.scope-drift` would weaken `aw check`, CI, and pre-commit hooks, while the commit gate handles path validation through its own staged-path check and defers execution-wide scope reconciliation to `aw ipd finalize`.
+
+2. **Durable-carrier merge gate (`aw ipd lint`)**:
+   At `aw ipd lint`'s durable-carrier merge, only `info` is advisory. A `warning` blocks the gate, adhering to the exit-code contract rather than the commit-gate contract.
+
+#### Summary for Rule Authors
+
+In summary, `info` is advisory everywhere, whereas `warning` is advisory at exactly two gates (`aw commit` and `aw work begin`) and failing everywhere else (including `aw check`, CI, and `aw ipd lint`).
+
+Practical consequence: to author a rule that reports diagnostics without ever failing any gate or check, register the rule with severity `info`.
+
 ---
 
 ## 4. The `aw.agent/v1` JSONL Protocol and Closed Record Kinds
