@@ -8,7 +8,7 @@
 - Scope: Replace the static `roadmaps -> research` entry's effect with a DERIVATION: pick the rename type noun by asking which type actually resolves the record at its real path, so the emitted command is runnable for a roadmap in either tree. THE HELPER EMITS THREE SHAPES FROM THAT ONE LOOKUP, one of them `aw group ... --set <setid> --rename` rather than `aw rename`, and the wrong noun reaches all three, so the single derivation must be shown to fix the `aw group` shape too (F-14, review): measured, `aw group research <id6> --set ... --rename` exits 2 for a `roadmaps/`-tree record while the derived `aw group roadmaps ...` exits 0. Keep the map for every type whose noun is unambiguous, keep the existing id6-over-filename selector preference, and add the outcome tests this branch has none of. EXCLUDES: changing where roadmaps are FILED or which tree owns them (a records-taxonomy decision, not a hint defect); changing `selectors.py` type scoping; adding `rename` routes for `comms`/`reviews`, which have none; and the `plans`/`archive` selector defects carried by the siblings.
 - Scope-Paths: agent_workflows/check_engine.py, tests/test_identity_rename_hint.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -19,9 +19,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 3qxuw1
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 3qxuw1 verified (set awrenamesel, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20260930-jvw1kg-01-jvw1kg-backlog-run-set-uses-local-date-while-status-set-u.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (opencode/its_direct-pt3-claude-opus-5-1m-us): plan-review: APPROVE WITH REVISIONS APPLIED; PR-701 (HIGH), PR-702 (MEDIUM), PR-703 (LOW), all FIXED. The helper's aw group branch carries the identical defect and was uncovered by the tests; E-01's research-tree mirror was unbuildable as described.
 
