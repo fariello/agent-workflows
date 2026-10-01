@@ -6,7 +6,7 @@
 - Scope: Re-point `runner_shared.dirty_tree_overlap` at the one porcelain parser, add the behavioral test that the existing re-export test structurally cannot catch, and correct A12b's stale coverage sentence. Explicitly NOT the spec status transition, which is Order 02's subject.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_runner_shared.py, .aw/records/specs/approved/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode model=its_direct/pt3-claude-opus-5-1m-us
 - Id: e9ekuj
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: e9ekuj verified (set specfin7ck, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): /plan-review (opencode model=its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 all FIXED, none deferred or open. HIGH PR-001: the conditional-abandon path told the executor to record E-02/E-03 and V-02/V-03 'not-needed', which is not a legal state in either closed vocabulary (probed: IPD-S401/IPD-S402, author disposition conforming -> error), so a fork already closed would have stranded the plan; rewritten onto E-02 'blocked' with a required Execution note, V-02 'blocked', and E-03 STILL PERFORMED because the test gap F-3 measures is independent of who closed the fork, with the honest IPD-S404 consequence stated (a blocked E-item cannot be finalized, so stop and report for retirement or re-scope). PR-003: F-6's arithmetic was backwards; the spec DEFINES 42 requirement ids and MENTIONS 43, the extra being R3.3b which is never defined at HEAD and survives only in WITHDRAWN A7c, so the backlog item's 42 was right and this plan's 43 was the error, and Order 02 must re-derive rather than adopt either figure. F-1, F-3 and F-4 all reproduce at HEAD 17387e25, and two things the plan asserted are now demonstrated: the forked decode and parse_porcelain_paths agree on all 12 probed porcelain inputs (so E-02 is a pure conformance change), and E-03's spy over parse_porcelain_entries records 0 calls at HEAD but 1 through the projection (so the new test genuinely discriminates). Bare suite 3246 passed, 2 skipped.
 
