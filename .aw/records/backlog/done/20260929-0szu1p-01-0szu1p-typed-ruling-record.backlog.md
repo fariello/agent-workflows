@@ -1,5 +1,5 @@
 - Id: 0szu1p
-- Status: graduated
+- Status: done
 - Graduated-To: rulingcarrier
 - Set: 0szu1p
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Decide whether a maintainer ruling about named artifacts should get its own typed enforceable record, since today a ruling's only homes are unparsed DECISIONS.md prose or another plan's prose
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw agy run: IPD jge900 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261001-rulingcarrier-01-jge900-make-a-maintainer-ruling-s-existing-typed-reference-actually.ipd.md); evidence .aw/records/plans/executed/20261001-rulingcarrier-01-jge900-make-a-maintainer-ruling-s-existing-typed-reference-actually.ipd.md
 - 2026-10-01 set (aw backlog): graduated by run run-20260930T053059Z-3200713: jge900
 - 2026-09-29 created (aw backlog): Filed at authoring time by plan nllamb (Set iguvci) as the durable carrier for its OQ-01. Filed rather than deferred to the executor because check.ipd-uncarried-obligation is error-severity for a plan dated after the 2026-09-19 cutover and refuses a Carrier naming a non-resolving id6.
 
