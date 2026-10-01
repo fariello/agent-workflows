@@ -1,11 +1,13 @@
 - Id: 3kr193
-- Status: open
+- Status: graduated
+- Graduated-To: 3kr193
 - Set: 3kr193
 - Priority: low
 - Work-Kind: chore
 - Summary: Decide whether run-directory outcomes/ should be guaranteed by its writers, as sessions/ and prompts/ now are
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): graduated by run run-20260930T053059Z-3200713: 2kyw59
 - 2026-09-29 created (aw backlog): Decide whether run-directory outcomes/ should be guaranteed by its writers, as sessions/ and prompts/ now are
 
 Follow-on from plan z3ifg8 (backlog hblsqo), which made the two session-log and prompt writers create their own parent directory instead of obliging every caller to precreate it. That plan deliberately scoped outcomes/ OUT, and this item carries the open question.
