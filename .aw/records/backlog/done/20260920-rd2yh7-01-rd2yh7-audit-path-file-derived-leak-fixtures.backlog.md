@@ -1,5 +1,5 @@
 - Id: rd2yh7
-- Status: graduated
+- Status: done
 - Graduated-To: rd2yh7
 - Set: rd2yh7
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Audit tests that derive leak-detector fixture input from Path(__file__) so no other test asserts a property of its own checkout location
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD yumxwz executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-rd2yh7-01-yumxwz-pin-the-leak-detector-fixture-inputs-as-location-independent.ipd.md); evidence .aw/records/plans/executed/20260929-rd2yh7-01-yumxwz-pin-the-leak-detector-fixture-inputs-as-location-independent.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: yumxwz
 - 2026-09-20 created (aw backlog): Deferred from plan zx9dkq (its second Deferred/out-of-scope row); filed so the obligation survives that plan reaching executed.
 
