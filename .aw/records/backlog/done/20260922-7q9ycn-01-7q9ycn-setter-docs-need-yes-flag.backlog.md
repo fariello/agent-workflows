@@ -1,5 +1,5 @@
 - Id: 7q9ycn
-- Status: graduated
+- Status: done
 - Graduated-To: 7q9ycn
 - Set: 7q9ycn
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: Update the four documented setter examples that now refuse without --yes
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD xt7n53 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-7q9ycn-01-xt7n53-document-the-setter-confirmation-and-commit-semantics-accura.ipd.md); evidence .aw/records/plans/executed/20260929-7q9ycn-01-xt7n53-document-the-setter-confirmation-and-commit-semantics-accura.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: xt7n53
 - 2026-09-22 created (aw backlog): Update the four documented setter examples that now refuse without --yes
 

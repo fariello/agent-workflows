@@ -74,6 +74,8 @@ To transition a plan's status and move it between disposition directories, use `
 - `aw ipd set <status> <id6|setid|fname>...` (e.g. `aw ipd set approved pl0001`, `aw ipd set to-review my-set`)
 - `aw set approved <id6|setid|fname>...` (untyped, transitions plans, specs, prompts, backlog, or entire sets)
 
+Status transitions share confirmation and commit semantics across all setter spellings: (1) a flagless call writes the status and relocates the file, then offers to commit exactly that path on a TTY, which is a no-op when non-interactive; (2) `--yes` on a human-mode call writes and commits without asking, while the same flag alongside `--agent` or `--json` confirms only and commits nothing; (3) `--no-commit` writes and commits nothing; (4) `--dry-run` previews and writes nothing; (5) an `--agent` or `--json` caller refuses at exit 2 with `confirmation required (--yes needed to execute mutation)` and changes nothing until passed `--yes` or `--dry-run`. An earlier validation gate can preempt all of the above, so a refused transition exits 1 naming the gate rather than exiting 2 for confirmation, and no `--yes` satisfies it.
+
 ## Durable carrier vocabulary for obligations
 
 Every outstanding obligation in an IPD (an item in `## Deferred / out of scope (with reason)` or an open or deferred question under `## Open questions`) must name a durable carrier before the plan reaches terminal execution. Once a plan reaches `executed`, it classes `done` in `aw attention`, so uncarried items would vanish from operational attention with no record.
