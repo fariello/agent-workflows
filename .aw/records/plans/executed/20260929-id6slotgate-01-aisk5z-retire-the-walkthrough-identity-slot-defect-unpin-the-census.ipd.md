@@ -6,7 +6,7 @@
 - Scope: Close `mw0s1y` honestly and leave the invariant defended. IN: (a) rewrite the census guard's preamble to assert the D140 PROPERTY over whatever walkthroughs exist (every clustered name declares a `- Id:` equal to its slot id6) instead of pinning a population count and a name list, keeping the two real exemptions (no-identity-slot legacy names, and the one deliberately bullet-less `35xfvu` file) as DERIVED predicates rather than as a frozen census; (b) prove the rewritten guard still fails on the original defect shape by mutation, so unpinning the count does not silently unpin the rule; (c) correct the three stale records that still assert the violation is live, namely backlog `mw0s1y`, backlog `e2j5w4`, and DECISIONS D140's `sk7ggr` paragraph, whose parenthetical still says the identity-slot pass deliberately honors the liveness filter "to avoid mass-flagging the legitimate shared-setid and walkthrough-slot conventions" after `t0jyb2` removed exactly that behavior. OUT: renaming any walkthrough (the renames already happened and re-renaming would rewrite cited history); minting an `- Id:` for the grandfathered `35xfvu` file; renaming the 11 legacy walkthroughs; any change to `check_engine._check_identity_slots` or to the `walkthrough_id6` cutover, both of which measure correct.
 - Scope-Paths: tests/test_walkthrough_id6.py, DECISIONS.md, .aw/records/backlog/graduated/20260921-id6slotgate-01-mw0s1y-walkthrough-identity-slot-reuse.backlog.md, .aw/records/backlog/graduated/20260921-id6slotgate-01-e2j5w4-check-identity-slot-liveness-filter.backlog.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 09
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: aisk5z
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: aisk5z verified (set id6slotgate, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 
 - 2026-09-30 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 through PR-010, all FIXED in place. Reviewed at HEAD `9bf03bd9` in an isolated lane; typed record at `.aw/records/reviews/20260929-id6slotgate-01-aisk5z-retire-the-walkthrough-identity-slot-defect-unpin-the-census.review.md`. `aw ipd lint --phase author` conformed BEFORE semantic review and `--phase review-finalize` conforms after revision, so nothing found was structural.
