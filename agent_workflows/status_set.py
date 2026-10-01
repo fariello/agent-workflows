@@ -309,10 +309,23 @@ def match_selector(
     (from ``all_records`` when known, else read on demand) so the caller's record-based flow is
     unchanged.
 
-    ``scoped_type`` NARROWS EVERY SELECTOR KIND EXCEPT THE DIRECT PATH (setidfix `w2y5ac` E-01/E-02).
-    For id6/setid/status/stem/substring it restricts ``record_types`` to the one canonical type, so a
-    scoped call cannot surface a foreign type. For a direct PATH it CANNOT: ``selectors.resolve``'s
-    first precedence rule matches an existing file regardless of the type requested, and the record's
+    TYPE SAFETY IS DELIVERED BY TWO INDEPENDENT, NON-REDUNDANT NARROWING SITES (IPD `jw6cm3`).
+    Neither site is redundant and removing either is a cross-type defect. They cover disjoint
+    selector kinds:
+
+      1. The FAST-PATH candidate filter (``cands = [r for r in all_records if not target_type or r.record_type == target_type]``)
+         is the ONLY type guard for the ``id6`` and ``setid`` kinds, which return early and never
+         reach the resolver. Removing it permits foreign-type records through (e.g. a plans-scoped
+         backlog id6 returns a backlog record, degrading refusal messages from "No plans artifact
+         matched" to caller-level wrong-type errors).
+
+      2. The RESOLVER narrowing (``if scoped_type: record_types = (canonical,)``) is the ONLY type
+         guard for the ``status``, ``stem``, and ``substring`` kinds, which the fast path cannot
+         see. Removing it allows cross-type resolution for status tokens, foreign stems, and
+         shared substrings.
+
+    DIRECT PATH EXEMPTION: Neither site guards a direct PATH. ``selectors.resolve``'s first
+    precedence rule matches an existing file regardless of the type requested, and the record's
     type is then read off the real path, so ``match_selector(<a plan path>, scoped_type="specs")``
     legitimately returns a ``plans`` record. Callers that must not act across types therefore need
     their own post-resolution type check; ``run_set_command``'s ``Type mismatch`` refusal is that
@@ -331,6 +344,18 @@ def match_selector(
         target_type = (
             canonical_type(scoped_type) or scoped_type if scoped_type else None
         )
+        # FAST-PATH TYPE GUARD (IPD `jw6cm3` E-05): guards the `id6` and `setid` kinds.
+        # These return early and never reach the resolver below, making this filter their ONLY
+        # type guard. Removing it leaks foreign types: a plans-scoped backlog id6 returns a
+        # backlog record (measured: degrading refusal diagnostics from "No plans artifact matched"
+        # to a wrong-type error), and a plans-scoped setid returns foreign-type records.
+        # An id6 test alone fails under both mutations and cannot isolate this site; companion
+        # setid is what isolates it.
+        # NOTE: This guard is INVISIBLE when callers pass a pre-narrowed record list
+        # (`inventory_all_artifacts(..., scoped_type=...)`), but production callers such as
+        # `run_dependencies_set_command` pass an unnarrowed inventory, making this guard
+        # reachable and load-bearing in production. Tests must pass an unnarrowed list to exercise it.
+        # Correctness is the reason to keep this filter; DO NOT DELETE IT AS DEAD CODE OR REDUNDANT.
         cands = [
             r for r in all_records if not target_type or r.record_type == target_type
         ]
@@ -344,6 +369,11 @@ def match_selector(
 
     from agent_workflows import selectors as _sel
 
+    # RESOLVER TYPE GUARD (IPD `jw6cm3` E-05): guards the `status`, `stem`, and `substring` kinds.
+    # The fast path above only inspects `id6` and `set_id`, so it cannot guard these three kinds;
+    # restricting `record_types` to `(canonical,)` here is their ONLY type guard. Removing it
+    # leaks foreign types when resolving status tokens, filename stems, or substring matches.
+    # DO NOT DELETE OR DISABLE THIS BRANCH.
     if scoped_type:
         canonical = canonical_type(scoped_type) or scoped_type
         record_types = (canonical,)

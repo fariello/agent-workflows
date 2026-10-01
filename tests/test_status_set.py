@@ -2046,6 +2046,231 @@ class SharedSetidCrossTypeResolutionTests(StatusSetTestBase):
         self.assertIn("- Status: to-review", plan2.read_text(encoding="utf-8"))
 
 
+class MatchSelectorNarrowingGuardsTests(StatusSetTestBase):
+    """IPD `jw6cm3`: Pin the two independent type-narrowing sites in `status_set.match_selector`.
+
+    The fast-path filter guards `id6` and `setid` (which return early and never reach the resolver).
+    The resolver narrowing guards `status`, `stem`, and `substring` (which the fast path cannot see).
+    Neither site is redundant.
+    """
+
+    SETID = "shartop"
+    SHARED_SUBSTRING = "sharedneedle"
+
+    def _build_multi_type_corpus(self):
+        """Build a corpus spanning plans, backlog, and research sharing tokens across selector kinds."""
+        plan = self.create_plan(
+            f"20260929-{self.SETID}-01-sh0001-{self.SHARED_SUBSTRING}-plan.ipd.md",
+            "sh0001",
+            self.SETID,
+            status="open",
+        )
+        item = self.create_backlog(
+            f"20260929-{self.SETID}-01-sh0002-{self.SHARED_SUBSTRING}-item.backlog.md",
+            "sh0002",
+            self.SETID,
+            status="open",
+        )
+        report = self.create_research(
+            f"20260929-{self.SETID}-01-sh0003-report.research-report.md",
+            "sh0003",
+            self.SETID,
+            status="active",
+        )
+        return plan, item, report
+
+    def _research_in_corpus(self):
+        from agent_workflows import status_set
+
+        return [
+            r
+            for r in status_set.inventory_all_artifacts(
+                self.repo_root, scoped_type="research"
+            )
+            if r.record_type == "research"
+        ]
+
+    # ---------------------------------------------------------------------------------- E-02
+
+    def test_scoped_status_resolution_narrows_to_scoped_type(self):
+        """E-02: Scoped STATUS resolution narrows to the requested type.
+
+        Pins the resolver-narrowing site for the `status` selector kind.
+        Passes the full, unnarrowed inventory so `scoped_type` is the sole narrowing authority.
+        Asserts on returned record types, and confirms foreign-type members exist in the corpus.
+        """
+        from agent_workflows import status_set
+
+        self._build_multi_type_corpus()
+        root = self.repo_root
+        all_records = status_set.inventory_all_artifacts(root, scoped_type=None)
+
+        self.assertTrue(
+            any(r.record_type == "backlog" for r in all_records),
+            "foreign-type backlog item missing from inventory fixture",
+        )
+        self.assertTrue(
+            any(r.record_type == "research" for r in self._research_in_corpus()),
+            "foreign-type research doc missing from inventory fixture",
+        )
+
+        unscoped = status_set.match_selector(
+            "open",
+            all_records,
+            root,
+            scoped_type=None,
+        )
+        self.assertEqual(
+            sorted({r.record_type for r in unscoped}),
+            ["backlog", "plans"],
+            "unscoped status resolution must span both backlog and plans",
+        )
+
+        scoped = status_set.match_selector(
+            "open",
+            all_records,
+            root,
+            scoped_type="plans",
+        )
+        self.assertEqual(
+            sorted({r.record_type for r in scoped}),
+            ["plans"],
+            f"scoped STATUS resolution failed to narrow to plans: {[(r.record_type, r.id6) for r in scoped]}",
+        )
+
+    # ---------------------------------------------------------------------------------- E-03
+
+    def test_scoped_stem_resolution_refuses_foreign_type(self):
+        """E-03: Scoped STEM resolution refuses foreign-type artifact stem.
+
+        Pins the resolver-narrowing site for the exact filename `stem` selector kind.
+        Passes the full, unnarrowed inventory and keys assertion on type.
+        """
+        from agent_workflows import status_set
+
+        _, item, _ = self._build_multi_type_corpus()
+        root = self.repo_root
+        all_records = status_set.inventory_all_artifacts(root, scoped_type=None)
+
+        # Exact filename stem of the foreign backlog item (without .md)
+        foreign_stem = item.name[:-3] if item.name.endswith(".md") else item.name
+
+        unscoped = status_set.match_selector(
+            foreign_stem,
+            all_records,
+            root,
+            scoped_type=None,
+        )
+        self.assertEqual(
+            sorted({r.record_type for r in unscoped}),
+            ["backlog"],
+            f"unscoped stem resolution must find the backlog item: {[(r.record_type, r.id6) for r in unscoped]}",
+        )
+
+        scoped = status_set.match_selector(
+            foreign_stem,
+            all_records,
+            root,
+            scoped_type="plans",
+        )
+        self.assertEqual(
+            sorted({r.record_type for r in scoped}),
+            [],
+            f"scoped STEM resolution must return no records for foreign stem: {[(r.record_type, r.id6) for r in scoped]}",
+        )
+
+    def test_scoped_substring_resolution_narrows_to_scoped_type(self):
+        """E-03: Scoped SUBSTRING resolution narrows to the requested type.
+
+        Pins the resolver-narrowing site for the filename `substring` selector kind.
+        Passes the full, unnarrowed inventory and keys assertion on type.
+        """
+        from agent_workflows import status_set
+
+        self._build_multi_type_corpus()
+        root = self.repo_root
+        all_records = status_set.inventory_all_artifacts(root, scoped_type=None)
+
+        unscoped = status_set.match_selector(
+            self.SHARED_SUBSTRING,
+            all_records,
+            root,
+            scoped_type=None,
+        )
+        self.assertEqual(
+            sorted({r.record_type for r in unscoped}),
+            ["backlog", "plans"],
+            f"unscoped substring resolution must span backlog and plans: {[(r.record_type, r.id6) for r in unscoped]}",
+        )
+
+        scoped = status_set.match_selector(
+            self.SHARED_SUBSTRING,
+            all_records,
+            root,
+            scoped_type="plans",
+        )
+        self.assertEqual(
+            sorted({r.record_type for r in scoped}),
+            ["plans"],
+            f"scoped SUBSTRING resolution failed to narrow to plans: {[(r.record_type, r.id6) for r in scoped]}",
+        )
+
+    # ---------------------------------------------------------------------------------- E-04
+
+    def test_scoped_foreign_type_id6_returns_no_match(self):
+        """E-04: Foreign-type ID6 returns empty under scoped resolution.
+
+        An id6 test alone cannot isolate the fast-path site because a foreign-type id6 fails
+        under BOTH killFAST and killRESOLVER (the fast path's early return stops the resolver
+        being consulted; removing either allows the foreign record through).
+
+        The companion setid test `test_scoped_setid_companion_isolates_fast_path` isolates
+        killFAST (it fails killFAST while surviving killRESOLVER).
+        """
+        from agent_workflows import status_set
+
+        self._build_multi_type_corpus()
+        root = self.repo_root
+        all_records = status_set.inventory_all_artifacts(root, scoped_type=None)
+
+        # "sh0002" is a backlog item in the unnarrowed inventory
+        scoped_id6 = status_set.match_selector(
+            "sh0002",
+            all_records,
+            root,
+            scoped_type="plans",
+        )
+        self.assertEqual(
+            sorted({r.record_type for r in scoped_id6}),
+            [],
+            f"scoped ID6 resolution for foreign type must return empty: {[(r.record_type, r.id6) for r in scoped_id6]}",
+        )
+
+    def test_scoped_setid_companion_isolates_fast_path(self):
+        """E-04: Companion SETID assertion isolates the fast-path site.
+
+        Over the same unnarrowed inventory, a shared setid ("shartop") fails killFAST
+        and PASSES killRESOLVER, distinguishing the fast-path filter from the resolver branch.
+        """
+        from agent_workflows import status_set
+
+        self._build_multi_type_corpus()
+        root = self.repo_root
+        all_records = status_set.inventory_all_artifacts(root, scoped_type=None)
+
+        scoped_setid = status_set.match_selector(
+            self.SETID,
+            all_records,
+            root,
+            scoped_type="plans",
+        )
+        self.assertEqual(
+            sorted({r.record_type for r in scoped_setid}),
+            ["plans"],
+            f"scoped SETID resolution must return only plans: {[(r.record_type, r.id6) for r in scoped_setid]}",
+        )
+
+
 class FlaglessConfirmationRefusalTests(StatusSetTestBase):
     """Interactive human callers apply status changes directly; confirmation refusal (--yes) is for machine/agent callers.
 

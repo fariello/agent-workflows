@@ -126,10 +126,16 @@ superseded document across a reversal:
   its type MUST NOT fail on cross-type multiplicity.
   ALREADY SATISFIED FOR A SETID as of commit `91077905` (Section 1 finding 3), so the work N3 authorizes
   is a REGRESSION PIN, not a build. It is worth pinning precisely because nothing currently tests it.
-  ONE DOCUMENTED HOLE THAT N3 MUST NOT BE READ AS CLOSING: scoped resolution is type-safe for every
-  selector kind EXCEPT a direct PATH, because `selectors.resolve`'s path precedence matches an existing
-  file regardless of the type requested. The `Type mismatch` refusal is the ONLY guard on that case, and
-  plan `w2y5ac`'s review measured that deleting it lets `aw specs set approved <a plan path> --by-human`
+  TYPE SCOPING IS DELIVERED BY TWO INDEPENDENT SITES (IPD `jw6cm3`): `status_set.match_selector` delivers
+  type scoping through two separate mechanisms covering disjoint selector kinds. The fast-path filter
+  (`cands = [r for r in all_records if not target_type or r.record_type == target_type]`) guards the
+  `id6` and `setid` kinds (which return early and never reach the resolver). The resolver narrowing
+  (`if scoped_type: record_types = (canonical,)`) guards the `status`, `stem`, and `substring` kinds.
+  Removing either site is a cross-type defect.
+  THE DIRECT-PATH EXEMPTION IS A THIRD FACT RATHER THAN THE ONLY CAVEAT: scoped resolution is type-safe
+  for every selector kind EXCEPT a direct PATH, because `selectors.resolve`'s path precedence matches an
+  existing file regardless of the type requested. The `Type mismatch` refusal is the ONLY guard on that
+  case, and plan `w2y5ac`'s review measured that deleting it lets `aw specs set approved <a plan path> --by-human`
   rewrite a PLAN and append a forged human attestation to it, with the suite still green. That refusal
   must be PINNED, never retired as dead code.
 - **N4 (honest ambiguity, never a generic failure).** Where a type genuinely cannot be inferred and the
@@ -235,8 +241,13 @@ report the denominator alongside it, so a zero is corroborated rather than assum
    printed side by side and equal. See Section 6, which the review corrected from a two-way to a
    three-way split.
 5. `aw ipd set approved <a setid shared with other types>` acts on the plan Set only. Already true
-   (Section 1 finding 3), so the evidence is a REGRESSION TEST that fails when `match_selector`'s type
-   narrowing is reverted, not a demonstration that the command works.
+   (Section 1 finding 3), so the evidence is REGRESSION TESTS pinning both independent narrowing sites
+   (the fast-path candidate filter and the resolver `record_types` branch) that fail when either site
+   is reverted, not a demonstration that the command works. A singular regression test was measured
+   satisfiable by `test_scoped_setid_resolution_returns_only_the_scoped_type` while leaving three
+   selector kinds (`status`, `stem`, `substring`) completely untested across the entire test suite
+   (disabling the resolver branch yielded 3246 passed at authoring, 3346 passed at review, and
+   3863 passed at execution with zero failures). Both sites must be pinned independently.
 6. The direct-PATH cross-type write remains REFUSED. Evidence: `aw specs set approved <a plan path>
    --by-human` exits nonzero and writes nothing, and a test pins it (nothing does today).
 7. Where a type cannot be inferred and the setid spans types, the untyped setter reports the candidates
@@ -316,6 +327,8 @@ requires is only that the two surfaces AGREE and that the choice be stated.
   unchanged, so nothing here turns on the exact figure.)
 
 ## Workflow history
+
+- 2026-10-01 note (aw specs): IPD jw6cm3 E-06: Document two independent narrowing sites in N3 and correct criterion 5 to require regression tests for both sites
 - 2026-09-13 approved (aw set, --by-human): status set to approved
 - 2026-09-13 reviewed (aw set): spec-review round 1 (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-001..SR-009, all nine FIXED, none deferred, none open. Re-measured every count at HEAD 9697856e and four of six acceptance criteria were falsified by drift while the ARGUMENT strengthened (cross-type sharing grew 117 -> 130 topics), so Section 5 was rewritten in SHAPE terms with a re-derive-and-report-the-denominator rule. THE FINDING THAT CHANGES AN IMPLEMENTER'S EXPECTATION: the 5 within-type descriptive conflicts N5 exists to preserve were RENAMED AWAY on 2026-09-11 (4f1ca199), so that branch now returns ZERO on every population and is LATENT BY DESIGN, pinned by a fixture. The motivating failure also no longer reproduces: the typed path was fixed in 91077905 BEFORE this spec was authored, so N3 needs PINNING not building and the live defect is the UNTYPED path. Added the keying fix N5 requires (seen_sets is setid-keyed, so deleting the cross-type branch turns a noisy miss silent), the three-way doctor/check population split, and the direct-PATH forged-attestation hole N3 must not be read as closing. DISCLOSED: verifying the quoted failure with a bare 'aw ipd set approved agentadhere' reverted 7 executed plans out of executed/; reverted path-scoped, verified byte-identical, nothing committed, and the warning is now in the spec.
 
