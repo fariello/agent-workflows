@@ -6,7 +6,7 @@
 - Scope: Correct the record for `run_suite_check`'s primary-checkout contract and give the contract a test. Rewrite the docstring paragraph to re-justify the contract on the reason that STILL HOLDS (a green PRIMARY tree is what integration endangers, which is already the docstring's own "HONEST LIMIT" sentence and is independent of `dh0uno`), DELETING the stale counts and the "permanently red" conclusion without installing a replacement count, since the item's own eight-day-old figure is already stale by 53 tests (F-3) and a fresh number would re-create this very item. Correct the same stale claim at the three other sites that restate it: the `rerun_suite` comment ("a lane-run suite is permanently red") and the two "`run_suite_check` is defined in `oc_runipd`" statements, which have been wrong since `cnwy8g` re-homed the function into `runner_shared`. Add a behavioral test asserting the suite check receives the PRIMARY checkout and not the lane worktree. EXCLUDES changing which directory `run_suite_check` runs in (the contract is correct and is deliberately preserved), EXCLUDES any change to `dh0uno`'s control-root fix, and EXCLUDES the dangling `NoRunnerImportTests` citations found beside this work (carried by backlog `gia5i7`).
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_oc_runipd.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: cvs2b7
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: cvs2b7 verified (set nbu56f, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-801..PR-806 all FIXED, OQ-01 and OQ-02 both ANSWERED (each named Owner: reviewer). All nine of the plan's facts reproduced: F-2 verbatim (38 passed in a confirmed linked worktree), F-4 re-confirmed by performing the mutation (3344 passed, nothing fails), F-5 character for character, F-7's resolver asymmetry exactly. Three findings change execution: F-11, the spy MUST patch the driver module because runner_shared rebinds run_suite_check off the host at call time and patching the shared module observes ZERO calls (measured, a silently vacuous test); F-10, there are TWO call sites passing repo and E-03 pins only one; F-12, the pin was fully prototyped at review including the mutation triple. Also corrected F-9's citation count (8 not 9) and recorded both baselines (3246 -> 3344).
 
@@ -119,21 +119,21 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure before editing anything
 
-- [ ] E-01 RE-DERIVE FACTS 2 AND 4 IN YOUR OWN LANE before editing any file, and RECORD THE RESULT EVEN IF IT DIFFERS from this plan's numbers, which fact 3 predicts it will. Run bare `python3 -m pytest` for the baseline and `tests/test_run_viewer.py` for the file the stale claim names. Then apply the fact-4 mutation to the integration-gate call site (the `suite_result = run_suite_check(repo, ...)` assignment in `runner_shared.execute_item`'s integration-gate block) and run the suite bare again, to confirm the contract is STILL unpinned at your HEAD. If the mutated suite FAILS, that changes this plan: a pin already exists, E-03 must be re-scoped to extend it rather than create one, and you must say so instead of adding a duplicate. RESTORE THE FILE and prove it byte-identical with a clean `git status --short` before proceeding; a mutation left in the tree would be committed. Copying the file aside first and restoring from that copy is the safe way to do this on a shared checkout, and is what review did.
+- [x] E-01 RE-DERIVE FACTS 2 AND 4 IN YOUR OWN LANE before editing any file, and RECORD THE RESULT EVEN IF IT DIFFERS from this plan's numbers, which fact 3 predicts it will. Run bare `python3 -m pytest` for the baseline and `tests/test_run_viewer.py` for the file the stale claim names. Then apply the fact-4 mutation to the integration-gate call site (the `suite_result = run_suite_check(repo, ...)` assignment in `runner_shared.execute_item`'s integration-gate block) and run the suite bare again, to confirm the contract is STILL unpinned at your HEAD. If the mutated suite FAILS, that changes this plan: a pin already exists, E-03 must be re-scoped to extend it rather than create one, and you must say so instead of adding a duplicate. RESTORE THE FILE and prove it byte-identical with a clean `git status --short` before proceeding; a mutation left in the tree would be committed. Copying the file aside first and restoring from that copy is the safe way to do this on a shared checkout, and is what review did.
 
   THERE ARE TWO CALL SITES, NOT ONE, AND THIS CORRECTS THIS PLAN'S OWN WORDING (F-10). `grep -n "run_suite_check(" agent_workflows/*.py` returns the integration-gate assignment AND the gate-answer construction's `rerun_suite=lambda: run_suite_check(repo, ...)`, both in `runner_shared.py` and both passing `repo`. The second is the very lambda whose comment E-05(a) rewrites. Mutating the assignment alone is the right measurement for E-03's pin (that is the path the fixture reaches), but RECORD BOTH SITES so the plan's `- Scope:` and the phrase "sole call site" are not left asserting a surface that does not exist, and so the executor knows the `rerun_suite` path remains unpinned after this plan.
   - Depends on: none
   - Expected outcome: three pasted summary lines (baseline bare, `test_run_viewer.py`, mutated bare), an explicit statement of whether the contract is still unpinned, and a pasted clean `git status --short` proving the mutation was reverted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 CONFIRM THE CAUSE IS STILL CLOSED rather than inferring it from a green suite, because a green suite is consistent with both "the bug is fixed" and "the tests that would show it were deleted". Call `ipd_lifecycle.checkout_control_root` from inside your lane and show it returns the MAIN checkout's `.aw`, and show `runner_shared.state_root` for the same lane. Read `checkout_control_root`'s docstring and confirm it still documents the `--git-common-dir` collapse as the `dh0uno` fix. NOTE AND RECORD THE ASYMMETRY you will find: the CONTROL root collapses onto the main checkout while `state_root` resolves records relative to the target, so these two answer different questions; do not report the second as a defect, and do not "fix" it, because `run_viewer`'s live-tree dependency is separately owned and guarded (`swps4w`, backlog `rcmbnb`).
+- [x] E-02 CONFIRM THE CAUSE IS STILL CLOSED rather than inferring it from a green suite, because a green suite is consistent with both "the bug is fixed" and "the tests that would show it were deleted". Call `ipd_lifecycle.checkout_control_root` from inside your lane and show it returns the MAIN checkout's `.aw`, and show `runner_shared.state_root` for the same lane. Read `checkout_control_root`'s docstring and confirm it still documents the `--git-common-dir` collapse as the `dh0uno` fix. NOTE AND RECORD THE ASYMMETRY you will find: the CONTROL root collapses onto the main checkout while `state_root` resolves records relative to the target, so these two answer different questions; do not report the second as a defect, and do not "fix" it, because `run_viewer`'s live-tree dependency is separately owned and guarded (`swps4w`, backlog `rcmbnb`).
   - Depends on: E-01
   - Expected outcome: pasted values for both resolvers as called from the lane, plus a one-line statement of which one `dh0uno` fixed and why the other's behavior is correct and out of scope.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: pin the contract
 
-- [ ] E-03 ADD THE BEHAVIORAL PIN that the contract has never had, in `tests/test_oc_runipd.py` beside the existing `WorktreeIsolationTests` (that class already builds an isolated-worktree execute turn, so the fixture cost is near zero and the new test sits with the isolation properties it belongs to). Drive `oc_runipd.execute_item` with `options["no_audit"] = True` so `validate` is false and the integration-gate suite check is reached, spy on `run_suite_check`, and assert THE FIRST recorded cwd equals the primary repo root. ASSERT ON THE FIRST CALL ONLY, never on all of them: fact 5 measured a SECOND call from the merge-and-revalidate gate's own revalidation checkout, which is a different mechanism, is unaffected by the mutation, and would make an "every call" assertion fail for the wrong reason. Give the test a docstring stating WHAT it defends (a green PRIMARY tree is what integration endangers) and WHAT IT DOES NOT (it does not re-assert the retracted `dh0uno` divergence), and naming this plan, so the next reader does not restore the stale justification from the test. THE DOCSTRING MUST ALSO STATE THE PIN'S TWO REACH LIMITS, resolved at review (OQ-02, F-10): it exercises the shared `runner_shared` call site THROUGH THE OC HOST, so an agy-side regression is not caught even though both hosts reach the same single definition; and it pins the INTEGRATION-GATE call site only, leaving the gate-answer `rerun_suite` lambda unpinned. Stating both is what stops a later reader believing the contract is fully guarded.
+- [x] E-03 ADD THE BEHAVIORAL PIN that the contract has never had, in `tests/test_oc_runipd.py` beside the existing `WorktreeIsolationTests` (that class already builds an isolated-worktree execute turn, so the fixture cost is near zero and the new test sits with the isolation properties it belongs to). Drive `oc_runipd.execute_item` with `options["no_audit"] = True` so `validate` is false and the integration-gate suite check is reached, spy on `run_suite_check`, and assert THE FIRST recorded cwd equals the primary repo root. ASSERT ON THE FIRST CALL ONLY, never on all of them: fact 5 measured a SECOND call from the merge-and-revalidate gate's own revalidation checkout, which is a different mechanism, is unaffected by the mutation, and would make an "every call" assertion fail for the wrong reason. Give the test a docstring stating WHAT it defends (a green PRIMARY tree is what integration endangers) and WHAT IT DOES NOT (it does not re-assert the retracted `dh0uno` divergence), and naming this plan, so the next reader does not restore the stale justification from the test. THE DOCSTRING MUST ALSO STATE THE PIN'S TWO REACH LIMITS, resolved at review (OQ-02, F-10): it exercises the shared `runner_shared` call site THROUGH THE OC HOST, so an agy-side regression is not caught even though both hosts reach the same single definition; and it pins the INTEGRATION-GATE call site only, leaving the gate-answer `rerun_suite` lambda unpinned. Stating both is what stops a later reader believing the contract is fully guarded.
 
   PATCH THE DRIVER MODULE, NOT `runner_shared`, AND THIS IS THE ONE INSTRUCTION MOST LIKELY TO COST AN EXECUTION TURN (F-11). `runner_shared` rebinds the function from the host at call time (`run_suite_check = getattr(driver_module, "run_suite_check", run_suite_check)`), so `mock.patch.object(runner_shared, "run_suite_check", spy)` IS NOT REACHED. Review measured that exact attempt recording `SUITE_CHECK_CWDS: []` with `n calls: 0`, which is a silently vacuous test. Patch `oc_runipd.run_suite_check` (the `driver` module the test already imports). Review's working prototype patched BOTH, which is also acceptable and is belt-and-braces; patching only `runner_shared` is what fails.
 
@@ -142,19 +142,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   THE `no_audit = True` PATH DRIVES A SECOND EXECUTE TURN, AND THE EXISTING FIXTURE'S FAKE AGENT FAILS ON IT. Measured: the fake commits `src/demo.txt` on turn one, and the second turn's `git commit -qm "demo: create src/demo.txt"` exits 1 with nothing to commit, raising `CalledProcessError` before any assertion runs. So the test must make the fake tolerant of a repeat turn (commit only when there is something to commit, or catch and return a success tuple). This is a fixture accommodation, not a production defect, and it must not be "fixed" by changing `execute_item`.
   - Depends on: E-02
   - Expected outcome: a passing test, plus the pasted FAILURE of that same test under the fact-4 mutation and a pasted PASS after restoring, proving it is not vacuous.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: correct the record at the code sites
 
-- [ ] E-04 REWRITE THE `run_suite_check` DOCSTRING'S JUSTIFICATION PARAGRAPH. Delete the two stale counts and the "permanently red" conclusion. Re-justify the contract on the reason that survives independently, which the docstring ALREADY STATES one paragraph later as its "HONEST LIMIT": a green PRIMARY tree is what integration endangers, so the primary checkout is the venue whose greenness the gate is about. Say that the `dh0uno` divergence WAS the original reason, that it is `done` and its acceptance claim retracted, and that the contract survives its removal on the independent ground, so a reader who re-measures and finds no divergence learns they have confirmed this note rather than refuted it. CITE THE TEST FROM E-03 BY NAME as what now enforces the contract. DO NOT WRITE A FRESH TEST COUNT into the docstring (fact 3): cite the property and the carrier, since a number installed today is stale within days and re-creates this item. Keep `Callers MUST pass the primary repo, never work_dir`, which is the operative instruction and is unchanged.
+- [x] E-04 REWRITE THE `run_suite_check` DOCSTRING'S JUSTIFICATION PARAGRAPH. Delete the two stale counts and the "permanently red" conclusion. Re-justify the contract on the reason that survives independently, which the docstring ALREADY STATES one paragraph later as its "HONEST LIMIT": a green PRIMARY tree is what integration endangers, so the primary checkout is the venue whose greenness the gate is about. Say that the `dh0uno` divergence WAS the original reason, that it is `done` and its acceptance claim retracted, and that the contract survives its removal on the independent ground, so a reader who re-measures and finds no divergence learns they have confirmed this note rather than refuted it. CITE THE TEST FROM E-03 BY NAME as what now enforces the contract. DO NOT WRITE A FRESH TEST COUNT into the docstring (fact 3): cite the property and the carrier, since a number installed today is stale within days and re-creates this item. Keep `Callers MUST pass the primary repo, never work_dir`, which is the operative instruction and is unchanged.
   - Depends on: E-03
   - Expected outcome: the `git diff` of the docstring, showing the counts and the "permanently red" sentence gone, the independent justification present, the E-03 test cited, no new count introduced, and no executable line changed.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 CORRECT THE THREE RESTATEMENTS elsewhere in `runner_shared.py`, which E-04 would otherwise leave as the surviving copies of the claim it just removed. (a) The `rerun_suite` comment in the gate-answer construction, whose "a lane-run suite is permanently red for reasons unrelated to the plan" is the same retracted claim and whose parenthetical points at the docstring E-04 rewrote; restate it on the independent ground (a `fixed` claim is re-verified in the same venue the first check used, which is the primary checkout). (b) and (c) The two comments asserting "`run_suite_check` is defined in `oc_runipd`, and the shared module may not import it": name `runner_shared` as the definition site per fact 6, and preserve the still-true point each comment is making, namely that the call is INJECTED as a parameter. Do not delete the injection rationale and do not change the injection itself; a wrong premise for a correct design is corrected in place, not removed.
+- [x] E-05 CORRECT THE THREE RESTATEMENTS elsewhere in `runner_shared.py`, which E-04 would otherwise leave as the surviving copies of the claim it just removed. (a) The `rerun_suite` comment in the gate-answer construction, whose "a lane-run suite is permanently red for reasons unrelated to the plan" is the same retracted claim and whose parenthetical points at the docstring E-04 rewrote; restate it on the independent ground (a `fixed` claim is re-verified in the same venue the first check used, which is the primary checkout). (b) and (c) The two comments asserting "`run_suite_check` is defined in `oc_runipd`, and the shared module may not import it": name `runner_shared` as the definition site per fact 6, and preserve the still-true point each comment is making, namely that the call is INJECTED as a parameter. Do not delete the injection rationale and do not change the injection itself; a wrong premise for a correct design is corrected in place, not removed.
   - Depends on: E-04
   - Expected outcome: the `git diff` for all three sites, each showing the corrected premise, with the injection design and the AST-guard reasoning preserved and no executable line changed.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -249,30 +249,160 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: three PASTED summary lines from the executor's own lane, labelled: bare-suite baseline, `tests/test_run_viewer.py`, and bare suite UNDER the fact-4 mutation. Plus an explicit sentence stating whether the primary-checkout contract is still unpinned at that HEAD, and if the mutated suite FAILED, naming the failing test and stating how E-03 was re-scoped. Plus a pasted `git status --short` showing `agent_workflows/runner_shared.py` unmodified after restoration. Numbers differing from this plan's are EXPECTED and satisfy this item; silently reusing this plan's numbers does NOT.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence recorded below.
+    Bare-suite baseline:
+    `3560 passed, 2 skipped, 3 warnings in 101.17s (0:01:41)`
 
-- [ ] V-02 validates E-02
+    tests/test_run_viewer.py:
+    `38 passed in 5.43s`
+
+    Bare suite UNDER fact-4 mutation:
+    `3560 passed, 2 skipped, 3 warnings in 84.10s (0:01:24)`
+
+    Statement: The primary-checkout contract was still unpinned at HEAD 1d699b3c3da3001f7ae3529c1883b5fd90bc4201, as the mutated suite ran fully green with zero failures, leaving the contract unpinned before E-03.
+    Reverted mutation git status --short output: empty (file restored byte-identical from backup).
+    Two call sites in agent_workflows/runner_shared.py verified:
+    1. Line 32898: suite_result = run_suite_check(repo, str(state.get("run_id") or ""))
+    2. Line 33080: rerun_suite=lambda: run_suite_check(repo, str(state.get("run_id") or ""))
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: pasted return values of `ipd_lifecycle.checkout_control_root` and `runner_shared.state_root` as called from inside the lane, showing the first resolving to the MAIN checkout's `.aw`. Plus a quoted sentence from `checkout_control_root`'s docstring naming the `--git-common-dir` collapse as the `dh0uno` fix. Plus one line stating which resolver `dh0uno` fixed and why the other's target-relative behavior is correct and out of scope. A green suite alone does NOT satisfy this item, because a green suite is equally consistent with the relevant tests having been deleted.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence recorded below.
+    Pasted resolver outputs from inside the lane:
+    cwd: <repo>/.aw/worktrees/cvs2b7
+    checkout_control_root: <repo>/.aw
+    state_root: <repo>/.aw/worktrees/cvs2b7/.aw/records/runs
 
-- [ ] V-03 validates E-03
+    Quoted sentence from checkout_control_root docstring:
+    "INSIDE a Git checkout -> the MAIN worktree's .aw, derived from git rev-parse --git-common-dir (every linked worktree of a checkout shares one common dir). That collapse IS the fix."
+
+    dh0uno fixed checkout_control_root (collapsing control state onto the main checkout's .aw), while state_root resolves records relative to the target checkout/worktree, which is correct and out of scope because records are scoped to their worktree and run_viewer live-tree dependency is separately guarded by swps4w (backlog rcmbnb).
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: pasted PASS of the new test, AND pasted FAILURE of that same test under the fact-4 mutation, AND pasted PASS after restoring. The failure output must show the assertion comparing the primary repo root against the lane worktree path, which is what proves the test observes the contract and not something incidental. Plus confirmation, shown by reading the test, that it asserts on the FIRST recorded cwd only and not on every call (F-5), and that its docstring states both what it defends and that it does not re-assert the retracted divergence. A pass with no paired failure does not satisfy this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence recorded below.
+    Pasted PASS of the new test:
+    ```
+    $ python3 -m pytest tests/test_oc_runipd.py -k test_integration_gate_suite_check_runs_in_primary_checkout -o addopts=""
+    tests/test_oc_runipd.py .                                                [100%]
+    1 passed, 180 deselected in 1.86s
+    ```
 
-- [ ] V-04 validates E-04
+    Pasted FAILURE of the new test under fact-4 mutation:
+    ```
+    $ python3 -m pytest tests/test_oc_runipd.py -k test_integration_gate_suite_check_runs_in_primary_checkout -o addopts=""
+    FAILED tests/test_oc_runipd.py::WorktreeIsolationTests::test_integration_gate_suite_check_runs_in_primary_checkout
+    >           self.assertEqual(
+                    suite_check_cwds[0],
+                    str(repo),
+                    "the integration-gate suite check must receive the primary checkout and not the lane worktree",
+                )
+    E           AssertionError: '/tmp/tmptysachil/repo/.aw/worktrees/wir001' != '/tmp/tmptysachil/repo'
+    E           - /tmp/tmptysachil/repo/.aw/worktrees/wir001
+    E           + /tmp/tmptysachil/repo
+    E            : the integration-gate suite check must receive the primary checkout and not the lane worktree
+    ```
+
+    Pasted PASS after restoring:
+    ```
+    $ python3 -m pytest tests/test_oc_runipd.py -k test_integration_gate_suite_check_runs_in_primary_checkout -o addopts=""
+    tests/test_oc_runipd.py .                                                [100%]
+    1 passed, 180 deselected in 2.34s
+    ```
+
+    Confirmation by reading test: asserts on suite_check_cwds[0] only (F-5), includes spy vacuity assertion self.assertTrue(suite_check_cwds), and docstring explicitly states what it defends, that it does not re-assert the retracted dh0uno divergence, names cvs2b7, and states reach limits (OC host only, integration-gate call site only).
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: the `git diff` of the docstring, shown to contain ONLY docstring text changes with no executable line altered, and state how that was confirmed from the diff. The diff must show: both stale counts REMOVED; the "permanently red" conclusion REMOVED; an independent justification present that does not depend on `dh0uno`; the E-03 test cited by name; and `Callers MUST pass the primary repo, never work_dir` still present. Confirm NO new test count was introduced anywhere in the paragraph (F-3). Do NOT satisfy this item with a test that inspects source text; the diff is the evidence.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence recorded below.
+    Pasted git diff of run_suite_check docstring in agent_workflows/runner_shared.py:
+    ```diff
+    @@ -36025,13 +36026,14 @@ def run_suite_check(
 
-- [ ] V-05 validates E-05
+         novalnomerge-01 (evgi9n) E-01/E-02.
+
+    -    WHY THE PRIMARY CHECKOUT AND NOT THE LANE (PR-001, found at review as a BLOCKER): a linked
+    -    worktree resolves `.aw/state` relative to cwd (backlog `dh0uno`), so a lane sees a DIFFERENT state
+    -    tree. MEASURED: `tests/test_run_viewer.py` gives `36 passed` in the primary checkout and
+    -    `15 failed, 20 passed` in a lane, every failure being the `run_viewer`/state-resolution family. A
+    -    lane-run suite is therefore permanently red for reasons unrelated to the executing plan, which
+    -    would leave the integration gate closed forever -- the same symptom this change removes, with a new
+    -    cause. Callers MUST pass the primary repo, never `work_dir`.
+    +    WHY THE PRIMARY CHECKOUT AND NOT THE LANE: a green PRIMARY tree is what integration endangers,
+    +    so the primary checkout is the venue whose greenness the gate is about (independent of lane
+    +    state). Historically, a linked worktree divergence was cited as the original blocker (backlog
+    +    `dh0uno`, where `.aw/state` resolved relative to cwd); `dh0uno` is `- Status: done` (fixed in
+    +    `6771e590`) and its acceptance claim was retracted. A linked worktree is no longer known-noisy,
+    +    and the primary-checkout contract survives on the independent integration-safety ground. The
+    +    contract is pinned by `WorktreeIsolationTests.test_integration_gate_suite_check_runs_in_primary_checkout`
+    +    in `tests/test_oc_runipd.py` (plan `cvs2b7`). Callers MUST pass the primary repo, never `work_dir`.
+    ```
+    Confirmation: git diff shows only docstring lines modified (within def run_suite_check docstring) with zero executable lines changed. Both stale counts (36 passed, 15 failed, 20 passed) are removed; "permanently red" conclusion is removed; independent justification is present; E-03 test is cited by name; "Callers MUST pass the primary repo, never `work_dir`." is preserved; and NO new test count was introduced anywhere in the paragraph.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: the `git diff` for all three sites from F-6, pasted, each showing the corrected premise: the `rerun_suite` comment no longer claiming a lane suite is permanently red, and both comments naming `runner_shared` rather than `oc_runipd` as the definition site. Confirm for each that the still-true point was PRESERVED (the injection design, and the reason it is a parameter) rather than deleted, and that no executable line changed. Confirm no NEW citation to a nonexistent test class was added (F-9).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence recorded below.
+    Pasted git diff for all three sites from F-6:
+    ```diff
+    @@ -11072,11 +11072,12 @@ def ask_operator_about_integration(
+     #      would be a way to land an UNVALIDATED lane on main while pasting a green gate result as proof
+     #      of verification. So `reintegrate_lane` supplies a REAL validation runner, whose body runs the
+     #      repository suite in the PRIMARY checkout, and refuses on a non-passing result.
+    -#   3. THE SUITE CHECK IS INJECTED, NEVER IMPORTED. `run_suite_check` is defined in `oc_runipd`, and
+    -#      `tests/test_runner_shared.py::NoRunnerImportTests` AST-walks THIS module and fails on any
+    -#      import naming `runipd`, at module level or lazily inside a function. Copying its body would
+    -#      fork its fail-closed reading of exit 124/127. So it is a PARAMETER, exactly as `run_checked`
+    -#      and `host_label` already are on `integrate_lane_branch` (see this module's docstring).
+    +#   3. THE SUITE CHECK IS INJECTED, NEVER IMPORTED. `run_suite_check` is defined in `runner_shared`
+    +#      (re-homed from `oc_runipd`), and `tests/test_runner_shared.py::NoRunnerImportTests` AST-walks
+    +#      THIS module and fails on any import naming `runipd`, at module level or lazily inside a function.
+    +#      Copying its body would fork its fail-closed reading of exit 124/127. So it is a PARAMETER,
+    +#      exactly as `run_checked` and `host_label` already are on `integrate_lane_branch` (see this
+    +#      module's docstring).
+     #
+     # AND THE INTEGRATION BASE IS THE LANE'S OWN DECLARED BASE, exactly as the in-run path passes it.
+     # `orchestrate_isolation.stale_base_check` compares the FIRST lane outcome's own `base_commit` to the
+    @@ -24800,13 +24801,13 @@ def make_integration_validation_runner(
+         readings are both right for their own question; the code says which question it is asking.
+
+         ``suite_check`` IS INJECTED AND DEFAULTS None, which is what keeps this change adoptable and is the
+    -    same discipline `reintegrate_lane` already documents. `run_suite_check` is defined in `oc_runipd`, and
+    -    `tests/test_runner_shared.py::NoRunnerImportTests` AST-walks this module and fails on ANY import
+    -    naming `runipd`, at module level or lazily inside a function, so this module cannot reach it and
+    -    copying its body would fork its fail-closed reading of exit 124/127. Each host passes its own. The
+    -    None DEFAULT means every EXISTING caller (including the tests that patch this factory) keeps its
+    -    previous three-positional-argument call shape and gets the honest refusal described below rather than
+    -    a silent pass; it is NOT a way to opt out of revalidation.
+    +    same discipline `reintegrate_lane` already documents. `run_suite_check` is defined in `runner_shared`
+    +    (re-homed from `oc_runipd`), and `tests/test_runner_shared.py::NoRunnerImportTests` AST-walks this
+    +    module and fails on ANY import naming `runipd`, at module level or lazily inside a function. Copying
+    +    its body would fork its fail-closed reading of exit 124/127. Each host passes its own. The None
+    +    DEFAULT means every EXISTING caller (including the tests that patch this factory) keeps its previous
+    +    three-positional-argument call shape and gets the honest refusal described below rather than a silent
+    +    pass; it is NOT a way to opt out of revalidation.
+
+         ONE RUN PER DISTINCT MERGE RESULT (E-04), cached on `state` under :data:`REVALIDATION_CACHE_KEY` and
+         keyed on the merged TREE ID. Two lanes that merge to the same tree are one measurement; a second
+    @@ -33075,8 +33076,8 @@ def execute_item_core(
+                             else None
+                         ),
+                         # A `fixed` claim is verified by RE-RUNNING the real suite in the PRIMARY checkout,
+    -                    # exactly as the first run was (`run_suite_check`'s docstring: a lane-run suite is
+    -                    # permanently red for reasons unrelated to the plan).
+    +                    # exactly as the first run was (`run_suite_check`'s docstring: a green primary tree
+    +                    # is what integration endangers, so re-verification uses the primary checkout).
+                         rerun_suite=lambda: run_suite_check(
+                             repo, str(state.get("run_id") or "")
+                         ),
+    ```
+    Confirmation: The rerun_suite comment no longer claims a lane suite is permanently red. Both other comments name runner_shared (re-homed from oc_runipd) as definition site. The parameter injection and AST-isolation rationale are preserved, no executable line changed, and no new citation to a nonexistent test class was added.
+  - Result: pass
 
 ## Approval and execution gate
 
