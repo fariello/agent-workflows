@@ -36,9 +36,30 @@ passing example: `u23gbn` V-02, which reported the demand for `PHASE_COMMITTED_I
 unsatisfiable under the plan's ordering, pasted the ancestry result showing the commit is not
 reachable from the branch (`is the abandoned commit an ancestor of HEAD: False`, beside
 `classification: refused-would-overwrite`, `git rc: 1`, and `HEAD unmoved: True`), and evidenced the
-real post-commit incomplete case from E-07. Even when the requirement is rated `done` under this bar,
-an unsatisfiable demand is a plan defect: the auditor must still report the contradiction as a
-finding (requiring the corrective IPD route rather than an in-place edit to an executed plan).
+real post-commit incomplete case from E-07.
+
+The **tabulation substitution** is a named instance of this three-part bar. When an approved plan's
+demand named a test function or asserted a collected count that has since been tabulated into a
+table-driven suite, the evidence satisfies the bar by meeting three concrete obligations:
+(a) show the named function is gone and name the commit that removed it;
+(b) name the successor row by its case string and the table constant and class that hold it; and
+(c) paste that row's individual verdict rather than the enclosing function's.
+The row-verdict obligation is stated in terms of soundness, not of a specific command: the pasted
+per-row verdict MUST be produced by a mechanism whose failure is observable for that row, and the
+auditor MUST reject a per-row PASS that co-occurs with an enclosing failure (the observable signature
+of an unsound driver that appends failures after a loop rather than failing in context). Until child
+plan `t5txjk` (`nos070-02`) ships a sound driver, an honest executor may instead paste the enclosing
+table's verdict plus the row's inputs and expected value and state that is what was done.
+Calibrated passing example for the tabulation case: `i4c0c3` V-03/V-04, which records this exact
+substitution discipline (proving the functions were removed by commit `75b90271`, naming successor
+rows across `PreCommitExecutedGateTests.SITUATIONS` and `MergeAwareInTreeEvidenceTests.MERGE_DECISIONS`,
+and verifying row counts). Note: `i4c0c3` is cited for its substitution discipline; its per-row
+`[PASS]` verdict lines are explicitly NOT a model to copy because its driver shape cannot report a
+per-row failure in that table's idiom (`t5txjk` owns shipping a sound driver).
+
+Even when the requirement is rated `done` under this bar, an unsatisfiable demand is a plan defect:
+the auditor must still report the contradiction as a finding (requiring the corrective IPD route
+rather than an in-place edit to an executed plan).
 
 ## Dimension 2: Implicit Intent & Spirit Audit
 
