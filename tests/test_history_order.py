@@ -13,10 +13,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import tempfile
+from typing import NamedTuple
 import unittest
 
 from agent_workflows import check_engine as ce
 from agent_workflows import ipd_lifecycle as il
+from agent_workflows import selectors
 
 
 def _repo_root() -> Path:
@@ -71,6 +73,66 @@ def _fixture_plan_text(id6: str, history_text: str, status: str = "approved") ->
     )
 
 
+class DerivationComparisonResult(NamedTuple):
+    live_by_id: dict[str, tuple[str, str | None]]
+    found_ids: set[str]
+    mismatches: list[str]
+    duplicate_ids: dict[str, list[str]]
+    missing_id_paths: list[str]
+
+
+def _compare_plan_derivations(
+    root: Path, baseline: dict[str, str | None]
+) -> DerivationComparisonResult:
+    """Compare live terminal plan derivations against an id6-keyed baseline mapping.
+
+    Takes a repository root and an id6-keyed baseline, reads each live terminal
+    plan once to extract both its declared id6 and its derived status, and
+    returns the comparison data without making assertions.
+    """
+    live_by_id: dict[str, tuple[str, str | None]] = {}
+    seen_ids: dict[str, list[str]] = {}
+    missing_id_paths: list[str] = []
+
+    for bucket in ("executed", "superseded", "not-executed"):
+        bucket_dir = root / ".aw" / "records" / "plans" / bucket
+        if not bucket_dir.is_dir():
+            continue
+        for p in sorted(bucket_dir.glob("**/*.ipd.md")):
+            rel_path = p.relative_to(root).as_posix()
+            text = p.read_text(encoding="utf-8")
+            id6 = selectors.read_front_matter_id(text)
+            derived = il.derive_plan_status(text)
+            if not id6:
+                missing_id_paths.append(rel_path)
+                continue
+            if id6 in seen_ids:
+                seen_ids[id6].append(rel_path)
+            else:
+                seen_ids[id6] = [rel_path]
+                live_by_id[id6] = (rel_path, derived)
+
+    duplicate_ids = {k: v for k, v in seen_ids.items() if len(v) > 1}
+    found_ids = set(baseline.keys()) & set(live_by_id.keys())
+
+    mismatches: list[str] = []
+    for id6 in sorted(found_ids):
+        rel_path, derived = live_by_id[id6]
+        expected = baseline[id6]
+        if derived != expected:
+            mismatches.append(
+                f"{id6} ({rel_path}): expected {expected!r}, got {derived!r}"
+            )
+
+    return DerivationComparisonResult(
+        live_by_id=live_by_id,
+        found_ids=found_ids,
+        mismatches=mismatches,
+        duplicate_ids=duplicate_ids,
+        missing_id_paths=missing_id_paths,
+    )
+
+
 class DerivationIsUnchangedTests(unittest.TestCase):
     """Anti-regression guard for derive_plan_status across the whole tree."""
 
@@ -84,50 +146,131 @@ class DerivationIsUnchangedTests(unittest.TestCase):
         with open(baseline_file, "r", encoding="utf-8") as f:
             baseline = json.load(f)
 
-        # TERMINAL DIRECTORIES ONLY. This guards the derive_plan_status ALGORITHM, so it must compare
-        # against plans whose content is frozen. A `pending/` plan legitimately changes status
-        # (reviewed -> approved) with no code change at all, which made this test fail on every
-        # routine approval (measured 2026-09-25: five pending plans approved after the baseline was
-        # captured). Terminal plans are frozen by contract (no commits to an executed plan).
-        plan_paths = [
-            p.relative_to(root).as_posix()
-            for bucket in ("executed", "superseded", "not-executed")
-            for p in sorted(root.glob(f".aw/records/plans/{bucket}/**/*.ipd.md"))
-        ]
-        # TERMINAL PLANS ONLY (backlog `shw0eh`). A pending plan's derived status is SUPPOSED to change
-        # as it moves draft -> reviewed -> approved, so comparing it to a frozen capture fails on every
-        # legitimate transition (measured 2026-09-25: four pending plans approved after the capture
-        # reddened this guard on main). A terminal plan's history is frozen, so a mismatch there can
-        # only mean the DERIVATION changed, which is the regression this guard exists to catch.
-        _TERMINAL_DIRS = ("/executed/", "/superseded/", "/not-executed/")
-        intersection = sorted(
-            p
-            for p in set(plan_paths) & set(baseline.keys())
-            if any(d in p for d in _TERMINAL_DIRS)
-        )
-
-        print(f"Compared {len(intersection)} paths")
+        # The size floor is deliberately absolute and is NOT the rotting kind:
+        # it bounds the fixture itself, a frozen authored artifact whose entry
+        # count changes only when someone edits it, ensuring the coverage
+        # fraction cannot become vacuous if the fixture is truncated or emptied.
         self.assertGreaterEqual(
-            len(intersection),
+            len(baseline),
             700,
-            f"Compared {len(intersection)} paths; expected at least 700 paths in common",
+            f"Baseline fixture shrank to {len(baseline)} entries; expected at least 700. "
+            "The fixture itself shrank and must be re-keyed from the committed file rather than re-captured.",
         )
 
-        mismatches = []
-        for rel_path in intersection:
-            abs_path = root / rel_path
-            text = abs_path.read_text(encoding="utf-8")
-            derived = il.derive_plan_status(text)
-            expected = baseline[rel_path]
-            if derived != expected:
-                mismatches.append(f"{rel_path}: expected {expected!r}, got {derived!r}")
+        result = _compare_plan_derivations(root, baseline)
 
         self.assertEqual(
-            mismatches,
-            [],
-            f"derive_plan_status changed on {len(mismatches)} plans:\n"
-            + "\n".join(mismatches[:20]),
+            result.duplicate_ids,
+            {},
+            f"Duplicate declared id6 found in live terminal plans: {result.duplicate_ids}",
         )
+        self.assertEqual(
+            result.missing_id_paths,
+            [],
+            f"Live terminal plans missing declared - Id:: {result.missing_id_paths}",
+        )
+
+        print(f"Compared {len(result.found_ids)} plans")
+        coverage_threshold = 0.95 * len(baseline)
+        missing_count = len(baseline) - len(result.found_ids)
+        self.assertGreaterEqual(
+            len(result.found_ids),
+            coverage_threshold,
+            f"Coverage below threshold: found {len(result.found_ids)} of {len(baseline)} "
+            f"baseline entries ({missing_count} missing, required >= {coverage_threshold:.1f}). "
+            "Baseline ids are missing from the live terminal tree (a plan was deleted, moved "
+            "out of a terminal directory, or had its - Id: changed), NOT that derive_plan_status "
+            "regressed. A legitimate mass change requires re-keying the fixture.",
+        )
+
+        self.assertEqual(
+            result.mismatches,
+            [],
+            f"derive_plan_status changed on {len(result.mismatches)} plans:\n"
+            + "\n".join(result.mismatches[:20]),
+        )
+
+    def test_derivation_comparison_invariant_to_rename_and_sharding(self):
+        """Prove id6-keyed comparison is invariant to file renaming and archive sharding."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmproot = Path(tmpdir)
+            plans_dir = tmproot / ".aw" / "records" / "plans"
+            exec_dir = plans_dir / "executed"
+            super_dir = plans_dir / "superseded"
+            notexec_dir = plans_dir / "not-executed"
+            for d in (exec_dir, super_dir, notexec_dir):
+                d.mkdir(parents=True, exist_ok=True)
+
+            plan1_file = exec_dir / "20260901-demo-01-plan01-first-plan.ipd.md"
+            plan1_history = (
+                "- 2026-09-03 executed (agent): done\n"
+                "- 2026-09-02 approved (agent): ok\n"
+                "- 2026-09-01 draft (agent): ok"
+            )
+            plan1_file.write_text(
+                _fixture_plan_text("plan01", plan1_history, status="executed"),
+                encoding="utf-8",
+            )
+
+            plan2_file = super_dir / "20260901-demo-02-plan02-second-plan.ipd.md"
+            plan2_history = (
+                "- 2026-09-02 approved (agent): ok\n" "- 2026-09-01 draft (agent): ok"
+            )
+            plan2_file.write_text(
+                _fixture_plan_text("plan02", plan2_history, status="approved"),
+                encoding="utf-8",
+            )
+
+            plan3_file = notexec_dir / "20260901-demo-03-plan03-third-plan.ipd.md"
+            plan3_history = "- 2026-09-01 draft (agent): ok"
+            plan3_file.write_text(
+                _fixture_plan_text("plan03", plan3_history, status="draft"),
+                encoding="utf-8",
+            )
+
+            baseline = {
+                "plan01": "executed",
+                "plan02": "approved",
+                "plan03": "draft",
+            }
+
+            # 1. Verify baseline matches before moves
+            res0 = _compare_plan_derivations(tmproot, baseline)
+            self.assertEqual(res0.found_ids, {"plan01", "plan02", "plan03"})
+            self.assertEqual(res0.mismatches, [])
+
+            # 2. Physically rename every plan file and move one into a YYYYMM/ shard
+            shard_dir = exec_dir / "202609"
+            shard_dir.mkdir(parents=True, exist_ok=True)
+            new_plan1_file = shard_dir / "20260901-renamed-01-plan01-sharded.ipd.md"
+            plan1_file.rename(new_plan1_file)
+
+            new_plan2_file = super_dir / "20260901-renamed-02-plan02-renamed.ipd.md"
+            plan2_file.rename(new_plan2_file)
+
+            new_plan3_file = notexec_dir / "20260901-renamed-03-plan03-renamed.ipd.md"
+            plan3_file.rename(new_plan3_file)
+
+            # Assert comparison still finds every entry and reports zero mismatches
+            res_after_moves = _compare_plan_derivations(tmproot, baseline)
+            self.assertEqual(res_after_moves.found_ids, {"plan01", "plan02", "plan03"})
+            self.assertEqual(res_after_moves.mismatches, [])
+            self.assertEqual(res_after_moves.duplicate_ids, {})
+            self.assertEqual(res_after_moves.missing_id_paths, [])
+
+            # 3. Discriminating negative: mutate plan history so derived status genuinely changes
+            mutated_history = "- 2026-09-04 draft (agent): reopened\n" + plan1_history
+            new_plan1_file.write_text(
+                _fixture_plan_text("plan01", mutated_history, status="draft"),
+                encoding="utf-8",
+            )
+
+            res_negative = _compare_plan_derivations(tmproot, baseline)
+            self.assertEqual(len(res_negative.mismatches), 1)
+            self.assertIn("plan01", res_negative.mismatches[0])
+            self.assertIn(
+                "expected 'executed', got 'draft'", res_negative.mismatches[0]
+            )
 
 
 class HistoryOrderFixtureTests(unittest.TestCase):
