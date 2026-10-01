@@ -1,5 +1,6 @@
 - Id: hernns
-- Status: open
+- Status: graduated
+- Graduated-To: hernns
 - Blocks-Release: next
 - Set: hernns
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: aw ipd finalize WITHOUT --apply completes a committed-incomplete transaction, consuming the begin receipt from a surface documented as a preview
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): graduated by run run-20260930T053053Z-3200037: y8cgvm
 - 2026-09-29 created (aw backlog): Filed while authoring bn58ha's graduation plan; measured, see body.
 
 MEASURED 2026-09-29 at HEAD d02e4e64, in a scratch git fixture reproduced twice plus once through the real CLI.
