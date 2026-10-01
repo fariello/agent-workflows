@@ -6,7 +6,7 @@
 - Scope: Ask the existing staleness question ONCE PER INSTALLED RELEASE VERSION from the one central place every invocation already passes through (`cli.main`), report it on STDERR through the one shared message constant, and add the read-only `aw completion status` verb that gives the notice an executable diagnostic. The hook's gates read DECISIONS PUBLISHED BY THE PARSER (the resolved output mode and the resolved command), never argv tokens: review measured that an argv-token gate fails open on every real invocation because `cli.main` receives `argv=None` from the console script, and is separately defeated by a global flag preceding the command (F-13). Gate the probe (not merely the print) behind a per-user stamp, because the probe costs ~50ms and putting that on every command would itself be a user-perceptible-inefficiency defect by this repository's own ruling. Suppress the notice for `__complete`, for the `completion` command family, for non-human output modes, for non-interactive invocations, and for a nonzero exit. EXCLUDES ever rewriting the user's completion file (maintainer ruled warn-only 2026-09-12, OQ-01 of plan `4y95tp`); EXCLUDES any change to `_completion_tip`'s three existing call sites or to its unconditional behavior there; EXCLUDES a runtime callback from the generated script (permanently excluded design constraint); EXCLUDES memoizing `cli._build_parser`; EXCLUDES removing the dead `cli._completion_configured` (see `## Deferred`).
 - Scope-Paths: agent_workflows/completion.py, agent_workflows/cli.py, tests/test_completion_stale_notice.py, README.md, tests/test_completion.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Work-Kind: followup
 - Priority: low
 - From-Backlog: lz16f3
@@ -16,9 +16,9 @@
 - Readiness: go-pending-approval
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: s2yf26
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: s2yf26 verified (set lz16f3, attempt 1). [Scope reconciliation - widened-scope tests/test_completion.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw agy run)]
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 
