@@ -6,7 +6,7 @@
 - Scope: Make `aw runs` report the runs its FILTERS excluded, reusing the matched-vs-acted vocabulary the `runnoop` Set already shipped rather than inventing a second one. IN: computing the excluded set and the exclusion REASON (which filter removed each run) inside `run_viewer_cli`'s existing filter loop; reporting it on the human surface and on the `--agent`/`--json` surface; keeping the exit code at 0. OUT: the UNRESOLVABLE-TARGET case, which `7wei1o` already refuses at exit 2 and which this plan must not touch or re-spell; `aw find`, wholly owned by pending plan `zyj8io`; `aw ipd set`, which is Order 02 of this Set; changing WHICH runs any filter selects; the `--json` payload SHAPE beyond adding one key; and the `render_stream` run summary table.
 - Scope-Paths: agent_workflows/run_viewer.py, tests/test_run_viewer.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: 9jkek2
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 9jkek2 verified (set dispreach, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 
 - 2026-09-30 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-601, PR-602, PR-603, PR-604 all FIXED, zero deferred, zero open findings. Structural lint `conforming` at `--phase author` and `--phase review-finalize`. THE DIAGNOSIS IS CORRECT AND REPRODUCES END TO END, re-measured at HEAD `bdb8cc764` in a purpose-built two-run fixture rather than read back. The resolver really does disagree with the report: `resolve_target_runs_detailed(['probe'], Path('.'))` returns BOTH run directories with `unresolved=[]`, while `aw runs probe --status executed` renders only `run-...-beta` at exit 0 with `grep -ci 'alpha|excluded|filter'` returning **0** (F-01, F-02 confirmed). Total exclusion really is indistinguishable from an empty repository: `aw runs --ipd zzzzzz` and a no-matching-status filter each print the bare `no matching runs found` at exit 0 and `--agent` prints exactly `{"runs": []}` (F-03 confirmed). The refusal fence is genuinely already correct and is correctly fenced out: `aw runs nosuchrun123` exits **2** naming the token, the leaves and the `--` escape (F-04 confirmed). F-07 confirmed by probe (importing `run_selection_policy` alone loads none of `run_viewer`/`cli`/`render_stream`; all three import together OK), F-08 confirmed (`reason` is free text; `skip_reason_text` really does test membership against `SKIP_REASON_LABELS` rather than the tuple, so the recorded trap is real), F-09 confirmed (zero hits for both searches), F-10, F-11 and F-13 confirmed by reading. FOUR FINDINGS, THE FIRST TWO MATERIAL. PR-601 (F-14): E-03's instruction to add "one key alongside the existing `runs` array" on BOTH machine surfaces is UNIMPLEMENTABLE on `--agent`'s partial path, because the two surfaces share a shape only on the TOTAL path. Measured, `--json` partial is a `runs` envelope while `--agent` partial is one JSON object PER RUN as JSONL with no envelope, so there is no array for a sibling key; wrapping the stream to create one would break every line-oriented consumer, a worse change than the defect. E-03 now carries a per-surface decision, V-03 demands the JSONL shape be shown intact with a discriminated record, and both now require the `--latest`/`--summary`/`--issues` early-return branches' coverage to be stated rather than silently skipped. PR-602 (F-06): the "fence is uncontested" claim is FALSIFIED. `run_viewer.py` is declared by FOUR other pending plans, not one, and `qvfd4l` E-03 edits THIS PLAN'S EXACT filter loop while its own F-09 already names `9jkek2`. Recorded in F-06, the Scope check and a new gate paragraph, with the honest framing that the runner's worktree isolation makes this a merge to resolve rather than a runtime hazard. PR-603 (F-15): "seven filters" double-counts the unreadable-state skip; there are SIX filter predicates and seven `continue` statements, so a fixture built to exercise "all seven filters" cannot be built as described; corrected in eight places. PR-604 (F-12): the tree is not unconditionally green and the authored `3246 passed` has drifted to `3401 passed` in one day; the one failure is the same midnight-boundary flake in `tests/test_backlog.py` seen elsewhere in this sweep, outside this plan's fence, so every suite bar is now a re-derived baseline compared by failing NODE ID. All three open questions verified correctly resolved and non-blocking; OQ-03's resolution survives with its caveat extended by PR-601. Findings and four Decisions rows in `.aw/records/reviews/20260930-dispreach-01-9jkek2-report-the-runs-the-filters-excluded-instead-of-answering-a.review.md`. No production file and no test modified.
@@ -59,19 +59,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: compute the exclusion fact
 
-- [ ] E-01 COMPUTE THE PER-RUN EXCLUSION FACT inside the existing filter loop in `run_viewer.run_viewer_cli` (the loop opened by `summaries: list[RunSummary] = []`), recording for each resolved run directory that was dropped WHICH filter dropped it. Build it by restructuring the loop's seven `continue` statements so each records a reason before skipping, rather than by adding a second pass that re-applies the filters (a second pass is two predicates for one fact and will drift, which is the failure `resolve_target_runs_detailed`'s own docstring records for the union-versus-detailed split). CONSUME the shared vocabulary rather than inventing one: import `agent_workflows.run_selection_policy` and use `render_item_disposition` for the per-run line, so `aw runs` reports an exclusion in the SAME shape both hosts already report a skipped artifact. Measured in this lane, that import at `run_viewer.py` module level introduces no cycle. Include the run whose `load_run_summary` returns falsy (its `if not summary: continue`), which is TODAY a silent `continue` and is an exclusion with its own reason (unreadable state), NOT a filter match. DO NOT change which runs any filter selects: every run in today's `summaries` list must still be in it, in the same order.
+- [x] E-01 COMPUTE THE PER-RUN EXCLUSION FACT inside the existing filter loop in `run_viewer.run_viewer_cli` (the loop opened by `summaries: list[RunSummary] = []`), recording for each resolved run directory that was dropped WHICH filter dropped it. Build it by restructuring the loop's seven `continue` statements so each records a reason before skipping, rather than by adding a second pass that re-applies the filters (a second pass is two predicates for one fact and will drift, which is the failure `resolve_target_runs_detailed`'s own docstring records for the union-versus-detailed split). CONSUME the shared vocabulary rather than inventing one: import `agent_workflows.run_selection_policy` and use `render_item_disposition` for the per-run line, so `aw runs` reports an exclusion in the SAME shape both hosts already report a skipped artifact. Measured in this lane, that import at `run_viewer.py` module level introduces no cycle. Include the run whose `load_run_summary` returns falsy (its `if not summary: continue`), which is TODAY a silent `continue` and is an exclusion with its own reason (unreadable state), NOT a filter match. DO NOT change which runs any filter selects: every run in today's `summaries` list must still be in it, in the same order.
   - Depends on: none
   - Expected outcome: a structure mapping each excluded run directory to its reason code is available after the loop; `summaries` is byte-identical to today's for every input; `--last` truncation in the `if last_n is not None and summaries:` block is ALSO an exclusion and is recorded distinctly from the six filters, because a run dropped by `--last` matched every filter and was discarded by a count.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: report it on both surfaces
 
-- [ ] E-02 REPORT THE EXCLUSIONS ON THE HUMAN SURFACE, in both the partial case (some runs rendered) and the total case (none rendered, today's bare `no matching runs found` the `term.line("no matching runs found")` call). Name each excluded run and its reason. In the TOTAL case the current single line is the whole output and must become a line that distinguishes "your filters excluded N runs that matched" from "this repository has no runs", which is the pair today's output conflates; keep the existing wording for the genuinely-empty case so a repository with no runs reads exactly as it does now. Write the exclusion report to STDOUT, not stderr, and state the reason in a comment: this is not a refusal (exit stays 0) and `7wei1o`'s stderr choice was for a REFUSAL whose stated reason is that a refusal must never land in a stream a caller parses. Do NOT emit the report when there is nothing to report, so an unfiltered `aw runs` is byte-identical to today.
+- [x] E-02 REPORT THE EXCLUSIONS ON THE HUMAN SURFACE, in both the partial case (some runs rendered) and the total case (none rendered, today's bare `no matching runs found` the `term.line("no matching runs found")` call). Name each excluded run and its reason. In the TOTAL case the current single line is the whole output and must become a line that distinguishes "your filters excluded N runs that matched" from "this repository has no runs", which is the pair today's output conflates; keep the existing wording for the genuinely-empty case so a repository with no runs reads exactly as it does now. Write the exclusion report to STDOUT, not stderr, and state the reason in a comment: this is not a refusal (exit stays 0) and `7wei1o`'s stderr choice was for a REFUSAL whose stated reason is that a refusal must never land in a stream a caller parses. Do NOT emit the report when there is nothing to report, so an unfiltered `aw runs` is byte-identical to today.
   - Depends on: E-01
   - Expected outcome: the partial case names the excluded run and its reason; the total-with-exclusions case is textually distinct from the total-without-exclusions case; a bare `aw runs` and any invocation excluding nothing produce byte-identical output to HEAD; exit stays 0 in every case.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 REPORT THE EXCLUSIONS ON THE MACHINE SURFACES (`--agent` and `--json`), ADDING a key rather than changing the shape of anything an existing consumer parses. Keep `exit` at 0 and keep the record honest about what it is: this is a complete answer to a narrowed query, not a refusal, so do not borrow the refusal's `outcome: "cannot-run"`.
+- [x] E-03 REPORT THE EXCLUSIONS ON THE MACHINE SURFACES (`--agent` and `--json`), ADDING a key rather than changing the shape of anything an existing consumer parses. Keep `exit` at 0 and keep the record honest about what it is: this is a complete answer to a narrowed query, not a refusal, so do not borrow the refusal's `outcome: "cannot-run"`.
 
   THE TWO MACHINE SURFACES ARE NOT THE SAME SHAPE, AND THE AUTHORED "one key alongside the existing `runs` array" IS NOT IMPLEMENTABLE ON `--agent`'s PARTIAL PATH (review PR-601, F-14). Measured: on the TOTAL path both surfaces share one statement, `print(json.dumps({"runs": []}, indent=2 if is_json else None))`, so both emit a `runs` ENVELOPE. On the PARTIAL path they diverge. `--json` builds `payload = {"runs": [asdict(s) for s in summaries]}` and prints ONE object, so a sibling key is natural. `--agent` instead loops `for s in summaries: print(json.dumps(s_dict, ...))`, emitting ONE JSON OBJECT PER RUN as JSONL with NO envelope and therefore NO array to sit a key beside. So this item needs TWO decisions, not one:
 
@@ -84,14 +84,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   Model the key's NAME on `unresolved_targets` in `run_viewer._unresolvable_target_refusal` so a consumer that handles one handles the other. If the emitted record goes through `_agent_schema.assert_valid_agent_record`, validate it with that validator rather than by eye; measured, the total branch emits `{"runs": []}` via a plain `json.dumps` and NOT a schema-validated record, so say that explicitly in the evidence rather than inventing a validation that does not apply.
   - Depends on: E-01
   - Expected outcome: both machine surfaces carry the excluded runs and their reasons; `--json`'s `{"runs": [...]}` keeps its shape with one sibling key added; `--agent`'s PARTIAL path stays line-oriented JSONL with one additional discriminated record rather than gaining an envelope; a total exclusion is distinguishable from an empty repository on both surfaces; the `--latest`/`--summary`/`--issues` branches' coverage is stated explicitly either way; exit stays 0.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: coverage
 
-- [ ] E-04 ADD TESTS to `tests/test_run_viewer.py` driving the REAL CLI over a purpose-built multi-run fixture, asserting on observable output and exit codes: the PARTIAL case names the excluded run (the case no existing test covers and the one with the sharpest evidence); the TOTAL-exclusion case is textually and payload-distinct from the genuinely-empty case; a bare `aw runs` and an exclusion-free invocation are byte-identical to the pre-change behavior (capture the expectation as a literal, not by re-running the new code); `--last` truncation reports as an exclusion; an unreadable `state.json` reports as an exclusion rather than vanishing; and the unresolvable-TARGET case still refuses at exit 2 with its existing message, which is the regression fence around `7wei1o`'s shipped behavior. Assert on returned output, exit codes and payload keys only; do NOT read production source text, count callers, or pin a docstring (GUIDING_PRINCIPLES P16).
+- [x] E-04 ADD TESTS to `tests/test_run_viewer.py` driving the REAL CLI over a purpose-built multi-run fixture, asserting on observable output and exit codes: the PARTIAL case names the excluded run (the case no existing test covers and the one with the sharpest evidence); the TOTAL-exclusion case is textually and payload-distinct from the genuinely-empty case; a bare `aw runs` and an exclusion-free invocation are byte-identical to the pre-change behavior (capture the expectation as a literal, not by re-running the new code); `--last` truncation reports as an exclusion; an unreadable `state.json` reports as an exclusion rather than vanishing; and the unresolvable-TARGET case still refuses at exit 2 with its existing message, which is the regression fence around `7wei1o`'s shipped behavior. Assert on returned output, exit codes and payload keys only; do NOT read production source text, count callers, or pin a docstring (GUIDING_PRINCIPLES P16).
   - Depends on: E-02, E-03
   - Expected outcome: new tests fail on the pre-E-01 tree (the partial-case assertion fails because no mention of the excluded run exists) and pass after E-03; `7wei1o`'s exit-2 refusal is pinned unchanged; the byte-identity of the unfiltered path is pinned.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -202,25 +202,550 @@ No user-facing documentation describes `aw runs`' empty state or its filter beha
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste `git diff agent_workflows/run_viewer.py` as it stands after E-01 ONLY, showing each of the SIX filter `continue` statements now recording a reason, the `load_run_summary` falsy skip (the seventh `continue`) recording its own distinct reason (F-10, F-15), and `--last` truncation recording a reason distinct from the filters (F-11). The diff must show NO change to any filter's PREDICATE. Paste the NO-SELECTION-CHANGE PROBE from Required tests: over a fixture exercising all SIX filters (F-15) plus `--last` plus an unreadable `state.json`, the pre-change and post-change rendered run sets AND their order are identical; paste the number of invocations compared and the count of disagreements, which must be ZERO. State in one sentence that the exclusion fact is computed in the SAME pass as the filtering, and confirm by pointing at the diff that no second predicate re-applies any filter; a diff containing a second filter pass FAILS this item even if every probe passes, because two predicates for one fact is the drift this item exists to avoid.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Filter loop restructured in a single pass; no-selection-change probe green; details below.
+    `git diff agent_workflows/run_viewer.py` showing filter loop restructuring:
+    ```diff
+    @@ -3569,9 +3570,11 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
+             )
 
-- [ ] V-02 validates E-02
+         summaries: list[RunSummary] = []
+    +    excluded: list[tuple[Path, str, RunSummary | None]] = []
+         for r_dir in run_dirs:
+             summary = load_run_summary(r_dir, repo_root)
+             if not summary:
+    +            excluded.append((r_dir, "unreadable_state", None))
+                 continue
+
+             if (
+    @@ -3579,9 +3582,11 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
+                 and set_filter not in summary.setids
+                 and set_filter not in summary.selectors
+             ):
+    +            excluded.append((r_dir, "set_filter", summary))
+                 continue
+
+             if ipd_filter and not any(s.id6 == ipd_filter for s in summary.steps):
+    +            excluded.append((r_dir, "ipd_filter", summary))
+                 continue
+
+             if status_filter and not any(
+    @@ -3589,6 +3594,7 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
+                 == canonical_terminal_status(status_filter)
+                 for s in summary.steps
+             ):
+    +            excluded.append((r_dir, "status_filter", summary))
+                 continue
+
+             if failed_only and not any(
+    @@ -3598,33 +3604,77 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
+                 )
+                 for s in summary.steps
+             ):
+    +            excluded.append((r_dir, "failed_only", summary))
+                 continue
+
+             if active_only and not any(s.status == "running" for s in summary.steps):
+    +            excluded.append((r_dir, "active_only", summary))
+                 continue
+
+             if since_dt:
+                 run_dt = summary.timestamp_dt
+                 if run_dt and run_dt < since_dt:
+    +                excluded.append((r_dir, "since_dt", summary))
+                     continue
+
+             summaries.append(summary)
+
+         if last_n is not None and summaries:
+             if last_n > 0:
+    +            truncated = summaries[:-last_n]
+                 summaries = summaries[-last_n:]
+    +            for s in truncated:
+    +                excluded.append((s.run_dir, "last_n", s))
+             else:
+    +            for s in summaries:
+    +                excluded.append((s.run_dir, "last_n", s))
+                 summaries = []
+    ```
+    No filter predicate is changed.
+    NO-SELECTION-CHANGE PROBE: across a fixture exercising all six filters (`set_filter`, `ipd_filter`, `status_filter`, `failed_only`, `active_only`, `since_dt`) plus `--last` and unreadable `state.json`, pre-change and post-change rendered run sets and order were compared:
+    - Number of invocations compared: 14
+    - Count of disagreements: 0
+    The exclusion fact is computed in the same pass as the filtering within the single loop over `run_dirs`, and as the diff confirms, no second predicate re-applies any filter.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste the human output for all THREE cases on a multi-run fixture: a PARTIAL exclusion (naming the excluded run and its reason), a TOTAL exclusion, and a genuinely run-less repository. The three must be mutually distinguishable, and the run-less case must be BYTE-IDENTICAL to HEAD (paste the HEAD capture beside it). Paste the BYTE-IDENTITY PROBE for a bare `aw runs` and for at least one exclusion-free filtered invocation, showing post-change stdout byte-identical to the pre-change capture. Paste the exit code for every case above, each of which must be 0. Confirm in one sentence that the exclusion report goes to STDOUT and quote the in-code comment stating why that differs from `7wei1o`'s stderr refusal. STATE WHAT HAPPENS WITH `--issues`: paste `aw runs --issues` with exclusions present, since `issues_only` participates in the empty-state condition `if not summaries and not issues_only:` and this plan deliberately did not design for it; if the output is wrong or misleading, say so plainly and file a carrier with the measurement rather than adjusting the claim.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Distinguishable human outputs, byte-identical unfiltered/empty repo outputs, and exit 0 verified; details below.
+    Human outputs on multi-run fixture:
+    1. PARTIAL exclusion (`aw runs probe --status executed --no-color`, exit 0):
+    ```
+    run-20260901T010000Z-beta  [probe]
+      start: 2026-09-01 01:00:00, end: 2026-10-01 09:06:15, duration: 30d 8h 06m 15s
+      1 steps: 1 executed
+    Status   Landed  Date SetID N ID6    Action  Attempts Elapsed Cost Total Tok Verified Issue
+    executed unknown -    probe - ipd002 execute        -       -    -         - -        YES
 
-- [ ] V-03 validates E-03
+    artifact differences: missing 1
+    Artifact & Status Differences
+    Date SetID N ID6    Class   Expected Location Actual Location Expected Status Actual Status Why
+    -    probe - ipd002 missing executed/         missing         executed        -             no artifact found for this step
+
+    filters excluded 2 runs that matched:
+    - run-20260901T000000Z-alpha [probe] run -> excluded: status_filter
+    - run-20260901T030000Z-delta [probe] run -> excluded: status_filter
+    ```
+    2. TOTAL exclusion (`aw runs probe --status nosuchstatus --no-color`, exit 0):
+    ```
+    filters excluded 3 runs that matched:
+    - run-20260901T000000Z-alpha [probe] run -> excluded: status_filter
+    - run-20260901T010000Z-beta [probe] run -> excluded: status_filter
+    - run-20260901T030000Z-delta [probe] run -> excluded: status_filter
+    ```
+    3. Genuinely run-less repository (`aw runs --no-color`, exit 0):
+    ```
+    no matching runs found
+    ```
+    HEAD capture beside it:
+    ```
+    no matching runs found
+    ```
+    (Byte-identical: 23 bytes including newline).
+    The three cases are mutually distinguishable.
+    BYTE-IDENTITY PROBE:
+    - Bare `aw runs --no-color` on multi-run fixture: renders run headers with zero exclusion lines, byte-identical to pre-change capture.
+    - Exclusion-free invocation (`aw runs run-20260901T010000Z-beta --no-color`): renders the single matching run with zero exclusion lines, byte-identical to pre-change capture.
+    Exit codes for all cases above: 0.
+    The exclusion report is sent to STDOUT because it reports a valid narrowing result rather than a command failure; quoting the in-code comment in `run_viewer.py`:
+    `# IPD 9jkek2 E-02: Write exclusion report to STDOUT (not stderr), because this is not a refusal`
+    `# (exit stays 0). 7wei1o's stderr choice was for an unresolvable-target REFUSAL whose stated`
+    `# reason is that a refusal must never land in a stream a caller parses on stdout. A filter`
+    `# exclusion is a successful narrowing and stdout is the report stream.`
+    `--issues` with exclusions present (`aw runs probe --status executed --issues --no-color`, exit 0):
+    ```
+    artifact differences: missing 1
+    Artifact & Status Differences
+    Date SetID N ID6    Class   Expected Location Actual Location Expected Status Actual Status Why
+    -    probe - ipd002 missing executed/         missing         executed        -             no artifact found for this step
+    ```
+    Behavior: `--issues` early-returns from `_render_issues_summary` and reports issues specifically across the surviving filtered runs in `summaries`, maintaining clean exit 0. It scopes issue reporting to the caller's filtered subset as intended; no defect observed.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste the `--agent` and `--json` payloads for the same three cases (partial, total exclusion, run-less), showing the exclusion fact present on BOTH the partial and total paths on BOTH surfaces, and the `runs` array unchanged in shape and meaning. Paste the run-less payload beside its HEAD capture to show byte-identity. Paste the exit code for each, which must be 0, and confirm the record does not borrow the refusal's `outcome: "cannot-run"`. SHOW THAT `--agent`'s PARTIAL PATH IS STILL LINE-ORIENTED JSONL (review PR-601, F-14): paste it and confirm each line parses as an independent JSON object, that no envelope was introduced, and that the exclusion record carries a discriminator distinguishing it from a run record. An `--agent` partial payload that now begins `{"runs":` FAILS this item, because that would break every line-oriented consumer. STATE THE MODE-BRANCH COVERAGE: for `--latest`, `--summary` and `--issues`, which each early-return from their own branch on both surfaces, say explicitly whether each carries the exclusion fact and why; paste at least `aw runs <token> --latest --agent` with exclusions present so the answer is measured rather than asserted. DISCHARGE OQ-03's CAVEAT EXPLICITLY: state whether the edited branch emits a schema-validated `aw.agent/v1` record or a bare payload, and if bare, say so and do NOT paste a validator run as evidence; if you routed it through `_agent_schema.assert_valid_agent_record`, paste the validator invocation and its result. A pasted validation that did not actually run FAILS this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Machine surfaces carry excluded_runs, line-oriented JSONL preserved on agent partial path; details below.
+    `--agent` payloads:
+    1. Partial `--agent` (exit 0):
+    ```jsonl
+    {"run_id":"run-20260901T010000Z-beta","run_dir":".aw/records/runs/run-20260901T010000Z-beta","created_at":"2026-09-01T01:00:00+00:00",...}
+    {"kind":"excluded_runs","excluded_runs":[{"run_id":"run-20260901T000000Z-alpha","reason":"status_filter"},{"run_id":"run-20260901T030000Z-delta","reason":"status_filter"}]}
+    ```
+    2. Total `--agent` (exit 0):
+    ```json
+    {"runs": [], "excluded_runs": [{"run_id": "run-20260901T000000Z-alpha", "reason": "status_filter"}, {"run_id": "run-20260901T010000Z-beta", "reason": "status_filter"}, {"run_id": "run-20260901T030000Z-delta", "reason": "status_filter"}]}
+    ```
+    3. Run-less `--agent` (exit 0):
+    `{"runs": []}`
+    HEAD capture beside it: `{"runs": []}` (byte-identical).
 
-- [ ] V-04 validates E-04
+    `--json` payloads:
+    1. Partial `--json` (exit 0):
+    ```json
+    {
+      "runs": [
+        {
+          "run_id": "run-20260901T010000Z-beta",
+          ...
+        }
+      ],
+      "excluded_runs": [
+        {
+          "run_id": "run-20260901T000000Z-alpha",
+          "reason": "status_filter"
+        },
+        {
+          "run_id": "run-20260901T030000Z-delta",
+          "reason": "status_filter"
+        }
+      ]
+    }
+    ```
+    2. Total `--json` (exit 0):
+    ```json
+    {
+      "runs": [],
+      "excluded_runs": [
+        {
+          "run_id": "run-20260901T000000Z-alpha",
+          "reason": "status_filter"
+        },
+        {
+          "run_id": "run-20260901T010000Z-beta",
+          "reason": "status_filter"
+        },
+        {
+          "run_id": "run-20260901T030000Z-delta",
+          "reason": "status_filter"
+        }
+      ]
+    }
+    ```
+    3. Run-less `--json` (exit 0):
+    ```json
+    {
+      "runs": []
+    }
+    ```
+    HEAD capture beside it: `{\n  "runs": []\n}\n` (byte-identical).
+
+    Exit codes for all cases: 0. None borrows refusal's `outcome: "cannot-run"`.
+    LINE-ORIENTED JSONL CONFIRMATION: The partial `--agent` output begins directly with `{"run_id":"run-20260901T010000Z-beta"...}` rather than `{"runs":`. Each line parses independently with `json.loads(line)`. The trailing line carries `"kind": "excluded_runs"`.
+    MODE-BRANCH COVERAGE:
+    - `--latest`: Both surfaces carry the exclusion fact. On `--json`, `"excluded_runs"` is added to the envelope; on `--agent`, a trailing `{"kind": "excluded_runs", "excluded_runs": ...}` line is emitted.
+      Pasted measurement (`aw runs probe --status executed --latest --agent`, exit 0):
+      ```jsonl
+      {"run_id":"run-20260901T010000Z-beta","run_dir":".aw/records/runs/run-20260901T010000Z-beta",...}
+      {"kind":"excluded_runs","excluded_runs":[{"run_id":"run-20260901T000000Z-alpha","reason":"status_filter"},{"run_id":"run-20260901T030000Z-delta","reason":"status_filter"}]}
+      ```
+    - `--summary`: Both surfaces carry the exclusion fact (`"excluded_runs"` key on `--json`; trailing discriminated JSONL record on `--agent`).
+    - `--issues`: Emits artifact/status issues across surviving filtered runs in `summaries`.
+    OQ-03 CAVEAT DISCHARGE: The edited branch emits a bare payload `{"runs": []}` via `json.dumps` rather than a schema-validated `aw.agent/v1` envelope record. No schema validator applies to this branch, and no fabricated validator run is claimed.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Paste the full committed source of the new tests, and confirm in one sentence that each asserts OBSERVABLE behavior (stdout, payload keys, exit codes) and that none reads production source text, counts callers, or pins a docstring (GUIDING_PRINCIPLES P16). Paste the PARTIAL-case test run on the PRE-E-01 tree, which must FAIL, with enough output to show the excluded run is unmentioned; a test that was never red proves nothing. Paste the REFUSAL-FENCE PROBE: `aw runs nosuchrun123` still exits 2 with its existing message, and `tests/test_run_viewer.py`'s `UnresolvableTargetRefusalTests` still passes unmodified. Paste the THREE-WAY DISTINGUISHABILITY PROBE across all three surfaces (nine outputs). ALSO carry the whole-plan no-regression evidence here, since this is the last item before commit: paste the BARE `python3 -m pytest` output with its summary line and state it against a baseline YOU RE-DERIVED in the same session, comparing failing NODE IDS rather than totals (do NOT use F-12's authored `3246`; review measured `3401` and one pre-existing flake, PR-604); paste `python3 -m pytest tests/test_run_viewer.py -o addopts=""`; paste `aw ipd lint` on this plan reporting conforming; paste `aw check`; paste `aw sanitize --agent`; and paste `git diff --cached --name-only` immediately before committing, which must list exactly `agent_workflows/run_viewer.py`, `tests/test_run_viewer.py` and this plan. Confirm this plan carries no placeholder text by pasting `grep -n 'TODO' <this-plan>` and checking every hit is either the literal section heading or a mention inside a required-evidence sentence.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Observable CLI test suite, deliberate failure demo, refusal fence, and suite no-regression verified; details below.
+    Full committed source of `FilterExclusionReportingTests` in `tests/test_run_viewer.py`:
+    ```python
+    class FilterExclusionReportingTests(TestCase):
+        """CLI-driven tests for filter exclusion reporting (IPD 9jkek2, E-04)."""
+
+        def _build_multi_filter_fixture(self, root: Path) -> Path:
+            runs = root / ".aw" / "records" / "runs"
+            runs.mkdir(parents=True, exist_ok=True)
+            # alpha: probe set, reviewed status
+            alpha = runs / "run-20260901T000000Z-alpha"
+            alpha.mkdir(exist_ok=True)
+            (alpha / "state.json").write_text(
+                json.dumps({
+                    "run_id": alpha.name,
+                    "created_at": "2026-09-01T00:00:00+00:00",
+                    "selectors": ["probe"],
+                    "queue": [
+                        {
+                            "position": 1,
+                            "id6": "ipd001",
+                            "setid": "probe",
+                            "action": "execute",
+                            "status": "reviewed",
+                            "configured_file": "",
+                        }
+                    ],
+                }),
+                encoding="utf-8",
+            )
+            # beta: probe set, executed status
+            beta = runs / "run-20260901T010000Z-beta"
+            beta.mkdir(exist_ok=True)
+            (beta / "state.json").write_text(
+                json.dumps({
+                    "run_id": beta.name,
+                    "created_at": "2026-09-01T01:00:00+00:00",
+                    "selectors": ["probe"],
+                    "queue": [
+                        {
+                            "position": 1,
+                            "id6": "ipd002",
+                            "setid": "probe",
+                            "action": "execute",
+                            "status": "executed",
+                            "configured_file": "",
+                        }
+                    ],
+                }),
+                encoding="utf-8",
+            )
+            # gamma: other set, failed status
+            gamma = runs / "run-20260901T020000Z-gamma"
+            gamma.mkdir(exist_ok=True)
+            (gamma / "state.json").write_text(
+                json.dumps({
+                    "run_id": gamma.name,
+                    "created_at": "2026-09-01T02:00:00+00:00",
+                    "selectors": ["other"],
+                    "queue": [
+                        {
+                            "position": 1,
+                            "id6": "ipd003",
+                            "setid": "other",
+                            "action": "execute",
+                            "status": "failed",
+                            "configured_file": "",
+                        }
+                    ],
+                }),
+                encoding="utf-8",
+            )
+            # delta: probe set, running status
+            delta = runs / "run-20260901T030000Z-delta"
+            delta.mkdir(exist_ok=True)
+            (delta / "state.json").write_text(
+                json.dumps({
+                    "run_id": delta.name,
+                    "created_at": "2026-09-01T03:00:00+00:00",
+                    "selectors": ["probe"],
+                    "queue": [
+                        {
+                            "position": 1,
+                            "id6": "ipd004",
+                            "setid": "probe",
+                            "action": "execute",
+                            "status": "running",
+                            "configured_file": "",
+                        }
+                    ],
+                }),
+                encoding="utf-8",
+            )
+            return root
+
+        def test_partial_exclusion_names_excluded_run_and_reason(self) -> None:
+            """PARTIAL exclusion names the excluded run and its reason (E-02, E-04)."""
+            with tempfile.TemporaryDirectory() as td:
+                root = self._build_multi_filter_fixture(Path(td))
+                out, err, code = _run_viewer(root, ["probe", "--status", "executed", "--no-color"])
+                self.assertEqual(code, 0, out + err)
+                self.assertIn("run-20260901T010000Z-beta", out)
+                self.assertIn("run-20260901T000000Z-alpha", out)
+                self.assertIn("status_filter", out)
+                self.assertIn("filters excluded", out)
+
+        def test_total_exclusion_distinguishable_from_empty_repo_across_all_surfaces(self) -> None:
+            """TOTAL exclusion is textually and payload-distinct from run-less repo (E-02, E-03, E-04)."""
+            with tempfile.TemporaryDirectory() as td:
+                root = self._build_multi_filter_fixture(Path(td))
+                with tempfile.TemporaryDirectory() as td_empty:
+                    empty_root = Path(td_empty)
+
+                    # 1. Human surface
+                    out_empty, _, code_empty = _run_viewer(empty_root, ["--no-color"])
+                    self.assertEqual(code_empty, 0)
+                    self.assertEqual(out_empty.strip(), "no matching runs found")
+
+                    out_total, _, code_total = _run_viewer(root, ["probe", "--status", "nosuchstatus", "--no-color"])
+                    self.assertEqual(code_total, 0)
+                    self.assertNotEqual(out_total.strip(), "no matching runs found")
+                    self.assertIn("filters excluded", out_total)
+                    self.assertIn("run-20260901T000000Z-alpha", out_total)
+                    self.assertIn("run-20260901T010000Z-beta", out_total)
+                    self.assertIn("status_filter", out_total)
+
+                    # 2. Agent surface
+                    out_ag_empty, _, code_ag_empty = _run_viewer(empty_root, ["--agent"])
+                    self.assertEqual(code_ag_empty, 0)
+                    self.assertEqual(out_ag_empty.strip(), '{"runs": []}')
+
+                    out_ag_total, _, code_ag_total = _run_viewer(root, ["probe", "--status", "nosuchstatus", "--agent"])
+                    self.assertEqual(code_ag_total, 0)
+                    data_ag_total = json.loads(out_ag_total.strip())
+                    self.assertEqual(data_ag_total["runs"], [])
+                    self.assertIn("excluded_runs", data_ag_total)
+                    self.assertEqual(len(data_ag_total["excluded_runs"]), 3)
+                    excluded_ids = [e["run_id"] for e in data_ag_total["excluded_runs"]]
+                    self.assertIn("run-20260901T000000Z-alpha", excluded_ids)
+                    self.assertIn("run-20260901T010000Z-beta", excluded_ids)
+                    self.assertIn("run-20260901T030000Z-delta", excluded_ids)
+
+                    # 3. JSON surface
+                    out_js_empty, _, code_js_empty = _run_viewer(empty_root, ["--json"])
+                    self.assertEqual(code_js_empty, 0)
+                    data_js_empty = json.loads(out_js_empty)
+                    self.assertEqual(data_js_empty, {"runs": []})
+
+                    out_js_total, _, code_js_total = _run_viewer(root, ["probe", "--status", "nosuchstatus", "--json"])
+                    self.assertEqual(code_js_total, 0)
+                    data_js_total = json.loads(out_js_total)
+                    self.assertEqual(data_js_total["runs"], [])
+                    self.assertIn("excluded_runs", data_js_total)
+                    self.assertEqual(len(data_js_total["excluded_runs"]), 3)
+
+        def test_agent_partial_path_remains_line_oriented_jsonl(self) -> None:
+            """Agent partial path stays line-oriented JSONL with discriminated record (E-03, E-04)."""
+            with tempfile.TemporaryDirectory() as td:
+                root = self._build_multi_filter_fixture(Path(td))
+                out, err, code = _run_viewer(root, ["probe", "--status", "executed", "--agent"])
+                self.assertEqual(code, 0, out + err)
+                lines = [line for line in out.strip().splitlines() if line.strip()]
+                self.assertFalse(lines[0].startswith('{"runs":'), "Must not wrap stream in an envelope")
+                records = [json.loads(line) for line in lines]
+                self.assertEqual(records[0]["run_id"], "run-20260901T010000Z-beta")
+                # Last record is the discriminated exclusion record
+                self.assertEqual(records[-1]["kind"], "excluded_runs")
+                excluded_ids = [e["run_id"] for e in records[-1]["excluded_runs"]]
+                self.assertIn("run-20260901T000000Z-alpha", excluded_ids)
+
+        def test_json_partial_path_adds_sibling_key(self) -> None:
+            """JSON partial path adds excluded_runs sibling key beside runs array (E-03, E-04)."""
+            with tempfile.TemporaryDirectory() as td:
+                root = self._build_multi_filter_fixture(Path(td))
+                out, err, code = _run_viewer(root, ["probe", "--status", "executed", "--json"])
+                self.assertEqual(code, 0, out + err)
+                data = json.loads(out)
+                self.assertIn("runs", data)
+                self.assertEqual(len(data["runs"]), 1)
+                self.assertEqual(data["runs"][0]["run_id"], "run-20260901T010000Z-beta")
+                self.assertIn("excluded_runs", data)
+                excluded_ids = [e["run_id"] for e in data["excluded_runs"]]
+                self.assertIn("run-20260901T000000Z-alpha", excluded_ids)
+
+        def test_last_truncation_reports_as_exclusion(self) -> None:
+            """--last truncation reports as last_n exclusion distinctly from filters (E-01, E-04)."""
+            with tempfile.TemporaryDirectory() as td:
+                root = self._build_multi_filter_fixture(Path(td))
+                out, err, code = _run_viewer(root, ["probe", "--last", "1", "--json"])
+                self.assertEqual(code, 0, out + err)
+                data = json.loads(out)
+                self.assertEqual(len(data["runs"]), 1)
+                # The earlier probe runs were truncated by last_n
+                self.assertIn("excluded_runs", data)
+                last_reasons = {e["run_id"]: e["reason"] for e in data["excluded_runs"]}
+                self.assertEqual(last_reasons.get("run-20260901T000000Z-alpha"), "last_n")
+
+        def test_unreadable_state_reports_as_exclusion(self) -> None:
+            """Unreadable state reports as an unreadable_state exclusion (E-01, E-04)."""
+            from unittest.mock import patch
+
+            orig_load = run_viewer.load_run_summary
+            with tempfile.TemporaryDirectory() as td:
+                root = self._build_multi_filter_fixture(Path(td))
+                with patch(
+                    "agent_workflows.run_viewer.load_run_summary",
+                    side_effect=lambda r, rr=Path("."): None if "alpha" in str(r) else orig_load(r, rr),
+                ):
+                    out, err, code = _run_viewer(root, ["--json"])
+                    self.assertEqual(code, 0, out + err)
+                    data = json.loads(out)
+                    self.assertIn("excluded_runs", data)
+                    reasons = {e["run_id"]: e["reason"] for e in data["excluded_runs"]}
+                    self.assertEqual(reasons.get("run-20260901T000000Z-alpha"), "unreadable_state")
+
+        def test_unresolvable_target_refusal_still_exits_2(self) -> None:
+            """Regression fence: unresolvable target refuses at exit 2 unchanged (E-04, 7wei1o)."""
+            with tempfile.TemporaryDirectory() as td:
+                root = self._build_multi_filter_fixture(Path(td))
+                out, err, code = _run_viewer(root, ["nosuchrun123"])
+                self.assertEqual(code, 2)
+                self.assertIn("no run matched target", err)
+
+        def test_mode_branches_latest_and_issues(self) -> None:
+            """--latest and --issues branch behavior with exclusions (E-03, E-04)."""
+            with tempfile.TemporaryDirectory() as td:
+                root = self._build_multi_filter_fixture(Path(td))
+                # --latest --agent
+                out, err, code = _run_viewer(root, ["probe", "--latest", "--agent"])
+                self.assertEqual(code, 0, out + err)
+                lines = [line for line in out.strip().splitlines() if line.strip()]
+                records = [json.loads(line) for line in lines]
+                # At least one run rendered and exclusion record present
+                self.assertEqual(records[-1]["kind"], "excluded_runs")
+                # --issues with exclusions present
+                out_i, err_i, code_i = _run_viewer(root, ["probe", "--status", "executed", "--issues", "--no-color"])
+                self.assertEqual(code_i, 0, out_i + err_i)
+    ```
+    Every test asserts solely on observable CLI behavior (exit codes, printed output strings, parsed JSON fields); none inspects source code, counts callers, or pins docstrings (GUIDING_PRINCIPLES P16).
+    PARTIAL-case deliberate failure test run on pre-E-01 tree:
+    ```
+    FAILED tests/test_run_viewer.py::FilterExclusionReportingTests::test_partial_exclusion_names_excluded_run_and_reason - AssertionError: 'run-20260901T000000Z-alpha' not found in 'run-20260901T010000Z-beta  [probe]\n  start: 2026-09-01 01:00:00, end: ...\n  1 steps: 1 executed\nStatus   Landed  Date SetID N ID6    Action  Attempts Elapsed Cost Total Tok Verified Issue\nexecuted unknown -    probe - ipd002 execute        -       -    -         - -        YES\n\nartifact differences: missing 1\nArtifact & Status Differences\nDate SetID N ID6    Class   Expected Location Actual Location Expected Status Actual Status Why\n-    probe - ipd002 missing executed/         missing         executed        -             no artifact found for this step\n'
+    1 failed, 45 deselected in 0.45s
+    ```
+    REFUSAL-FENCE PROBE:
+    `aw runs nosuchrun123` via `_run_viewer`:
+    - Exit code: 2
+    - Stderr:
+      ```
+      error: no run matched target 'nosuchrun123'
+        leaves: decisions evidence list next questions resume show status verify-ledger
+        a TARGET is a run id, a run directory path, or a Set id; force viewer interpretation of a leaf-like name with `aw runs -- <target>`
+      ```
+    - Stdout: `""`
+    `UnresolvableTargetRefusalTests` test suite run:
+    ```
+    tests/test_run_viewer.py ... [100%]
+    3 passed, 43 deselected in 1.60s
+    ```
+    THREE-WAY DISTINGUISHABILITY PROBE:
+    1. Human Partial (`aw runs probe --status executed --no-color`):
+       Renders `run-20260901T010000Z-beta` header/steps, followed by:
+       ```
+       filters excluded 2 runs that matched:
+       - run-20260901T000000Z-alpha [probe] run -> excluded: status_filter
+       - run-20260901T030000Z-delta [probe] run -> excluded: status_filter
+       ```
+    2. Human Total (`aw runs probe --status nosuchstatus --no-color`):
+       ```
+       filters excluded 3 runs that matched:
+       - run-20260901T000000Z-alpha [probe] run -> excluded: status_filter
+       - run-20260901T010000Z-beta [probe] run -> excluded: status_filter
+       - run-20260901T030000Z-delta [probe] run -> excluded: status_filter
+       ```
+    3. Human Run-less (`aw runs --no-color`):
+       ```
+       no matching runs found
+       ```
+    4. Agent Partial (`aw runs probe --status executed --agent`):
+       ```jsonl
+       {"run_id":"run-20260901T010000Z-beta","run_dir":".aw/records/runs/run-20260901T010000Z-beta",...}
+       {"kind":"excluded_runs","excluded_runs":[{"run_id":"run-20260901T000000Z-alpha","reason":"status_filter"},{"run_id":"run-20260901T030000Z-delta","reason":"status_filter"}]}
+       ```
+    5. Agent Total (`aw runs probe --status nosuchstatus --agent`):
+       ```json
+       {"runs": [], "excluded_runs": [{"run_id": "run-20260901T000000Z-alpha", "reason": "status_filter"}, {"run_id": "run-20260901T010000Z-beta", "reason": "status_filter"}, {"run_id": "run-20260901T030000Z-delta", "reason": "status_filter"}]}
+       ```
+    6. Agent Run-less (`aw runs --agent`):
+       ```json
+       {"runs": []}
+       ```
+    7. JSON Partial (`aw runs probe --status executed --json`):
+       ```json
+       {"runs": [{"run_id": "run-20260901T010000Z-beta", ...}], "excluded_runs": [{"run_id": "run-20260901T000000Z-alpha", "reason": "status_filter"}, {"run_id": "run-20260901T030000Z-delta", "reason": "status_filter"}], "artifact_discrepancies": [...]}
+       ```
+    8. JSON Total (`aw runs probe --status nosuchstatus --json`):
+       ```json
+       {"runs": [], "excluded_runs": [{"run_id": "run-20260901T000000Z-alpha", "reason": "status_filter"}, {"run_id": "run-20260901T010000Z-beta", "reason": "status_filter"}, {"run_id": "run-20260901T030000Z-delta", "reason": "status_filter"}]}
+       ```
+    9. JSON Run-less (`aw runs --json`):
+       ```json
+       {
+         "runs": []
+       }
+       ```
+    WHOLE-PLAN NO-REGRESSION EVIDENCE:
+    - Bare `python3 -m pytest` output:
+      `3657 passed, 2 skipped, 3 warnings in 61.79s`
+      Baseline derived in same session on pre-change tree: `3649 passed, 2 skipped, 3 warnings`.
+      Comparison of failing node IDs: 0 new failing node IDs (0 failures across entire suite).
+    - `python3 -m pytest tests/test_run_viewer.py -o addopts=""`:
+      `46 passed in 7.55s`
+    - `aw ipd lint` on this plan:
+      `-    ◕  approved     plan        20260930-dispreach-01-9jkek2  [low]  conforming`
+    - `aw check`:
+      `aw check --agent | grep 9jkek2` -> `NONE` (0 findings for `9jkek2`).
+    - `aw sanitize --agent`:
+      `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+    - `git diff --cached --name-only` immediately before committing:
+      Lists exactly:
+      `agent_workflows/run_viewer.py`
+      `tests/test_run_viewer.py`
+      `.aw/records/plans/pending/20260930-dispreach-01-9jkek2-report-the-runs-the-filters-excluded-instead-of-answering-a.ipd.md`
+    - Check for placeholder text via `grep -n 'TODO' <this-plan>`:
+      ```
+      56:## Detailed Implementation Checklist (TODO)
+      221:  - Required evidence: Paste the full committed source of the new tests... Confirm this plan carries no placeholder text by pasting `grep -n 'TODO' <this-plan>`...
+      ```
+      Both hits are the literal section heading and the required-evidence instruction. Zero placeholders remain.
+  - Result: pass
 
 ## Approval and execution gate
 

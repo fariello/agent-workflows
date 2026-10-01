@@ -2732,3 +2732,271 @@ class TestReportTableFallbackNormalization(TestCase):
                     [],
                     f"Cross-reader divergence for {host_labels.id}: {diffs}",
                 )
+
+
+class FilterExclusionReportingTests(TestCase):
+    """Tests for aw runs reporting of filter-excluded runs (9jkek2 E-04)."""
+
+    @staticmethod
+    def _build_multi_filter_fixture(root: Path) -> Path:
+        runs = root / ".aw" / "records" / "runs"
+        runs.mkdir(parents=True, exist_ok=True)
+        # alpha: probe set, reviewed status
+        alpha = runs / "run-20260901T000000Z-alpha"
+        alpha.mkdir(exist_ok=True)
+        (alpha / "state.json").write_text(
+            json.dumps(
+                {
+                    "run_id": alpha.name,
+                    "created_at": "2026-09-01T00:00:00+00:00",
+                    "selectors": ["probe"],
+                    "queue": [
+                        {
+                            "position": 1,
+                            "id6": "ipd001",
+                            "setid": "probe",
+                            "action": "execute",
+                            "status": "reviewed",
+                            "configured_file": "",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        # beta: probe set, executed status
+        beta = runs / "run-20260901T010000Z-beta"
+        beta.mkdir(exist_ok=True)
+        (beta / "state.json").write_text(
+            json.dumps(
+                {
+                    "run_id": beta.name,
+                    "created_at": "2026-09-01T01:00:00+00:00",
+                    "selectors": ["probe"],
+                    "queue": [
+                        {
+                            "position": 1,
+                            "id6": "ipd002",
+                            "setid": "probe",
+                            "action": "execute",
+                            "status": "executed",
+                            "configured_file": "",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        # gamma: other set, failed status
+        gamma = runs / "run-20260901T020000Z-gamma"
+        gamma.mkdir(exist_ok=True)
+        (gamma / "state.json").write_text(
+            json.dumps(
+                {
+                    "run_id": gamma.name,
+                    "created_at": "2026-09-01T02:00:00+00:00",
+                    "selectors": ["other"],
+                    "queue": [
+                        {
+                            "position": 1,
+                            "id6": "ipd003",
+                            "setid": "other",
+                            "action": "execute",
+                            "status": "failed",
+                            "configured_file": "",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        # delta: probe set, running status
+        delta = runs / "run-20260901T030000Z-delta"
+        delta.mkdir(exist_ok=True)
+        (delta / "state.json").write_text(
+            json.dumps(
+                {
+                    "run_id": delta.name,
+                    "created_at": "2026-09-01T03:00:00+00:00",
+                    "selectors": ["probe"],
+                    "queue": [
+                        {
+                            "position": 1,
+                            "id6": "ipd004",
+                            "setid": "probe",
+                            "action": "execute",
+                            "status": "running",
+                            "configured_file": "",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        return root
+
+    def test_partial_exclusion_names_excluded_run_and_reason(self) -> None:
+        """PARTIAL exclusion names the excluded run and its reason (E-02, E-04)."""
+        with tempfile.TemporaryDirectory() as td:
+            root = self._build_multi_filter_fixture(Path(td))
+            out, err, code = _run_viewer(
+                root, ["probe", "--status", "executed", "--no-color"]
+            )
+            self.assertEqual(code, 0, out + err)
+            self.assertIn("run-20260901T010000Z-beta", out)
+            self.assertIn("run-20260901T000000Z-alpha", out)
+            self.assertIn("status_filter", out)
+            self.assertIn("filters excluded", out)
+
+    def test_total_exclusion_distinguishable_from_empty_repo_across_all_surfaces(
+        self,
+    ) -> None:
+        """TOTAL exclusion is textually and payload-distinct from run-less repo (E-02, E-03, E-04)."""
+        with tempfile.TemporaryDirectory() as td:
+            root = self._build_multi_filter_fixture(Path(td))
+            with tempfile.TemporaryDirectory() as td_empty:
+                empty_root = Path(td_empty)
+
+                # 1. Human surface
+                out_empty, _, code_empty = _run_viewer(empty_root, ["--no-color"])
+                self.assertEqual(code_empty, 0)
+                self.assertEqual(out_empty.strip(), "no matching runs found")
+
+                out_total, _, code_total = _run_viewer(
+                    root, ["probe", "--status", "nosuchstatus", "--no-color"]
+                )
+                self.assertEqual(code_total, 0)
+                self.assertNotEqual(out_total.strip(), "no matching runs found")
+                self.assertIn("filters excluded", out_total)
+                self.assertIn("run-20260901T000000Z-alpha", out_total)
+                self.assertIn("run-20260901T010000Z-beta", out_total)
+                self.assertIn("status_filter", out_total)
+
+                # 2. Agent surface
+                out_ag_empty, _, code_ag_empty = _run_viewer(empty_root, ["--agent"])
+                self.assertEqual(code_ag_empty, 0)
+                self.assertEqual(out_ag_empty.strip(), '{"runs": []}')
+
+                out_ag_total, _, code_ag_total = _run_viewer(
+                    root, ["probe", "--status", "nosuchstatus", "--agent"]
+                )
+                self.assertEqual(code_ag_total, 0)
+                data_ag_total = json.loads(out_ag_total.strip())
+                self.assertEqual(data_ag_total["runs"], [])
+                self.assertIn("excluded_runs", data_ag_total)
+                self.assertEqual(len(data_ag_total["excluded_runs"]), 3)
+                excluded_ids = [e["run_id"] for e in data_ag_total["excluded_runs"]]
+                self.assertIn("run-20260901T000000Z-alpha", excluded_ids)
+                self.assertIn("run-20260901T010000Z-beta", excluded_ids)
+                self.assertIn("run-20260901T030000Z-delta", excluded_ids)
+
+                # 3. JSON surface
+                out_js_empty, _, code_js_empty = _run_viewer(empty_root, ["--json"])
+                self.assertEqual(code_js_empty, 0)
+                data_js_empty = json.loads(out_js_empty)
+                self.assertEqual(data_js_empty, {"runs": []})
+
+                out_js_total, _, code_js_total = _run_viewer(
+                    root, ["probe", "--status", "nosuchstatus", "--json"]
+                )
+                self.assertEqual(code_js_total, 0)
+                data_js_total = json.loads(out_js_total)
+                self.assertEqual(data_js_total["runs"], [])
+                self.assertIn("excluded_runs", data_js_total)
+                self.assertEqual(len(data_js_total["excluded_runs"]), 3)
+
+    def test_agent_partial_path_remains_line_oriented_jsonl(self) -> None:
+        """Agent partial path stays line-oriented JSONL with discriminated record (E-03, E-04)."""
+        with tempfile.TemporaryDirectory() as td:
+            root = self._build_multi_filter_fixture(Path(td))
+            out, err, code = _run_viewer(
+                root, ["probe", "--status", "executed", "--agent"]
+            )
+            self.assertEqual(code, 0, out + err)
+            lines = [line for line in out.strip().splitlines() if line.strip()]
+            self.assertFalse(
+                lines[0].startswith('{"runs":'), "Must not wrap stream in an envelope"
+            )
+            records = [json.loads(line) for line in lines]
+            self.assertEqual(records[0]["run_id"], "run-20260901T010000Z-beta")
+            # Last record is the discriminated exclusion record
+            self.assertEqual(records[-1]["kind"], "excluded_runs")
+            excluded_ids = [e["run_id"] for e in records[-1]["excluded_runs"]]
+            self.assertIn("run-20260901T000000Z-alpha", excluded_ids)
+
+    def test_json_partial_path_adds_sibling_key(self) -> None:
+        """JSON partial path adds excluded_runs sibling key beside runs array (E-03, E-04)."""
+        with tempfile.TemporaryDirectory() as td:
+            root = self._build_multi_filter_fixture(Path(td))
+            out, err, code = _run_viewer(
+                root, ["probe", "--status", "executed", "--json"]
+            )
+            self.assertEqual(code, 0, out + err)
+            data = json.loads(out)
+            self.assertIn("runs", data)
+            self.assertEqual(len(data["runs"]), 1)
+            self.assertEqual(data["runs"][0]["run_id"], "run-20260901T010000Z-beta")
+            self.assertIn("excluded_runs", data)
+            excluded_ids = [e["run_id"] for e in data["excluded_runs"]]
+            self.assertIn("run-20260901T000000Z-alpha", excluded_ids)
+
+    def test_last_truncation_reports_as_exclusion(self) -> None:
+        """--last truncation reports as last_n exclusion distinctly from filters (E-01, E-04)."""
+        with tempfile.TemporaryDirectory() as td:
+            root = self._build_multi_filter_fixture(Path(td))
+            out, err, code = _run_viewer(root, ["probe", "--last", "1", "--json"])
+            self.assertEqual(code, 0, out + err)
+            data = json.loads(out)
+            self.assertEqual(len(data["runs"]), 1)
+            # The earlier probe runs were truncated by last_n
+            self.assertIn("excluded_runs", data)
+            last_reasons = {e["run_id"]: e["reason"] for e in data["excluded_runs"]}
+            self.assertEqual(last_reasons.get("run-20260901T000000Z-alpha"), "last_n")
+
+    def test_unreadable_state_reports_as_exclusion(self) -> None:
+        """Unreadable state reports as an unreadable_state exclusion (E-01, E-04)."""
+        from unittest.mock import patch
+
+        orig_load = run_viewer.load_run_summary
+        with tempfile.TemporaryDirectory() as td:
+            root = self._build_multi_filter_fixture(Path(td))
+            with patch(
+                "agent_workflows.run_viewer.load_run_summary",
+                side_effect=lambda r, rr=Path("."): None
+                if "alpha" in str(r)
+                else orig_load(r, rr),
+            ):
+                out, err, code = _run_viewer(root, ["--json"])
+                self.assertEqual(code, 0, out + err)
+                data = json.loads(out)
+                self.assertIn("excluded_runs", data)
+                reasons = {e["run_id"]: e["reason"] for e in data["excluded_runs"]}
+                self.assertEqual(
+                    reasons.get("run-20260901T000000Z-alpha"), "unreadable_state"
+                )
+
+    def test_unresolvable_target_refusal_still_exits_2(self) -> None:
+        """Regression fence: unresolvable target refuses at exit 2 unchanged (E-04, 7wei1o)."""
+        with tempfile.TemporaryDirectory() as td:
+            root = self._build_multi_filter_fixture(Path(td))
+            out, err, code = _run_viewer(root, ["nosuchrun123"])
+            self.assertEqual(code, 2)
+            self.assertIn("no run matched target", err)
+            self.assertEqual(out, "")
+
+    def test_mode_branches_latest_and_issues(self) -> None:
+        """--latest and --issues branch behavior with exclusions (E-03, E-04)."""
+        with tempfile.TemporaryDirectory() as td:
+            root = self._build_multi_filter_fixture(Path(td))
+            # --latest --agent
+            out, err, code = _run_viewer(root, ["probe", "--latest", "--agent"])
+            self.assertEqual(code, 0, out + err)
+            lines = [line for line in out.strip().splitlines() if line.strip()]
+            records = [json.loads(line) for line in lines]
+            # At least one run rendered and exclusion record present
+            self.assertEqual(records[-1]["kind"], "excluded_runs")
+            # --issues with exclusions present
+            out_i, err_i, code_i = _run_viewer(
+                root, ["probe", "--status", "executed", "--issues", "--no-color"]
+            )
+            self.assertEqual(code_i, 0, out_i + err_i)
