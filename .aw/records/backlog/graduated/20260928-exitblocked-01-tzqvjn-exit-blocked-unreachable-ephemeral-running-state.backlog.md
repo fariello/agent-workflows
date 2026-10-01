@@ -1,5 +1,6 @@
 - Id: tzqvjn
-- Status: open
+- Status: graduated
+- Graduated-To: exitblocked
 - Blocks-Release: next
 - Set: exitblocked
 - Priority: low
@@ -7,6 +8,7 @@
 - Summary: run_cli EXIT_BLOCKED is unreachable from any separate process: a step's running state is never durable
 
 ## Workflow history
+- 2026-10-01 graduated (aw backlog): graduated by run run-20261001T221834Z-1991716: hrdmfy
 - 2026-09-28 created (aw backlog): run_cli EXIT_BLOCKED is unreachable from any separate process: a step's running state is never durable
 
 Measured at plan review of ck0vya (2026-09-28), independently of that plan's own authoring measurement.
