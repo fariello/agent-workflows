@@ -4163,7 +4163,8 @@ def _build_parser() -> argparse.ArgumentParser:
             default=None,
             help=(
                 "Order NN (rename/group). Omit it to PRESERVE each artifact's existing Order; "
-                "give it to renumber the named artifacts sequentially from NN."
+                "give it to renumber the named artifacts sequentially from NN "
+                "(for plans, Order 0 is refused for a Kind: child; an orchestrator at 0 is permitted)."
             ),
         )
         _p.add_argument(
@@ -4203,6 +4204,15 @@ def _build_parser() -> argparse.ArgumentParser:
         if _verb in ("rename", "group"):
             # selfcommit jgcm68 E-01: offer to commit the rename/group's own path-scoped changes.
             _add_commit_flags(_p)
+            _p.add_argument(
+                "--allow-invalid-order",
+                action="store_true",
+                default=False,
+                help=(
+                    "rename/group: allow assigning Order 0 to a Kind: child plan, overriding "
+                    "the schema rule; result will fail aw ipd lint with IPD-M104."
+                ),
+            )
         if _verb == "check":
             _p.add_argument(
                 "-a",

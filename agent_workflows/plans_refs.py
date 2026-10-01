@@ -246,6 +246,27 @@ def _preserved_date(name: str, text: str) -> str:
     return _plan_date(text)
 
 
+def _validate_plan_order(text: str, order: int) -> Optional[str]:
+    """Validate that the resolved Order is permitted for the plan's Kind.
+
+    Consults `ipd_schema.validate_metadata` with the plan's Kind and resolved Order.
+    Refuses only when Kind is present and equal to 'child' and the resolved Order is
+    forbidden by schema rules (e.g. Order 0). Silent when Kind is absent or not 'child'
+    (orchestrator-at-nonzero is deferred to backlog oev4h7).
+    """
+    from agent_workflows import ipd_schema
+    from agent_workflows.runner_shared import _read_kind
+
+    kind = _read_kind(text)
+    if kind != ipd_schema.KIND_CHILD:
+        return None
+    fields = {"Kind": kind, "Set": "set", "Order": str(order)}
+    for err in ipd_schema.validate_metadata(fields):
+        if err.field == "Order":
+            return err.message
+    return None
+
+
 def plan_set_assign(
     plans_dir: Path,
     id6s: List[str],
@@ -253,6 +274,7 @@ def plan_set_assign(
     *,
     start_order: Optional[int] = None,
     rename: bool = False,
+    allow_invalid_order: bool = False,
 ) -> Tuple[Optional[List[RenamePlan]], Optional[str]]:
     """Plan a Set (re)assignment for the given plans; with ``rename`` also plan clustering renames.
 
@@ -266,6 +288,10 @@ def plan_set_assign(
       own filename contradicts.
     * an INTEGER (including 0) renumbers the named plans SEQUENTIALLY from it (``start_order + i``),
       which is the legitimate way an operator assembles a Set out of scattered plans.
+    * resolved Order validity (qhcojn): if a plan's resolved Order is 0 and its own front matter
+      declares ``Kind: child``, the mutation is refused (returns ``None, err``, exit 2) by
+      consulting ``ipd_schema.validate_metadata`` unless ``allow_invalid_order=True``. An
+      orchestrator at Order 0 is permitted. Mirrors ``run_mv``.
     """
 
     set_k = _core.kebab(set_id)
@@ -282,6 +308,15 @@ def plan_set_assign(
             if start_order is not None
             else _preserved_order(src.name, text)
         )
+        order_err = _validate_plan_order(text, order)
+        if order_err:
+            if allow_invalid_order:
+                print(f"note: plan '{id6}' ({src.name}): overridden rule: {order_err}")
+            else:
+                return (
+                    None,
+                    f"plan '{id6}' ({src.name}): {order_err} (pass --allow-invalid-order to override)",
+                )
         if rename:
             new_name = clustered_name(
                 date=_preserved_date(src.name, text),
@@ -520,6 +555,7 @@ def run_set_assign(args: argparse.Namespace) -> "MutationResult":
         getattr(args, "set", "") or "",
         start_order=getattr(args, "order", None),
         rename=getattr(args, "rename", False),
+        allow_invalid_order=bool(getattr(args, "allow_invalid_order", False)),
     )
     if err:
         print(f"error: {err}")
@@ -557,6 +593,19 @@ def run_mv(args: argparse.Namespace) -> "MutationResult":
         else:
             parsed = _CLUSTERED_RE.match(src.name)
             order = int(parsed.group("nn")) if parsed else 0
+    # Validity refusal (qhcojn): refuse resolved Order 0 when Kind: child unless --allow-invalid-order
+    # is passed, consulting ipd_schema.validate_metadata. An orchestrator at Order 0 is permitted.
+    # Mirrors plan_set_assign.
+    allow_invalid_order = bool(getattr(args, "allow_invalid_order", False))
+    order_err = _validate_plan_order(text, order)
+    if order_err:
+        if allow_invalid_order:
+            print(f"note: plan '{id6}' ({src.name}): overridden rule: {order_err}")
+        else:
+            print(
+                f"error: plan '{id6}' ({src.name}): {order_err} (pass --allow-invalid-order to override)"
+            )
+            return MutationResult(2)
     # Preserve the plan's existing date (vf03z3: a bare rename must NOT recompute the date;
     # 949enf: consult clustered name, then legacy name, then front-matter fallback via _preserved_date).
     new_date = _preserved_date(src.name, text)
