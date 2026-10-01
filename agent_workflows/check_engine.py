@@ -800,6 +800,34 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "attention.lane-superseded": RuleSpec(
         "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
     ),
+    # IPD ynhst5 E-04: bounded, single-line, control-char-free descriptive fields across specs,
+    # releases, and gates (spec attention-registry-and-cross-tree-status Section 8.8, F10).
+    #
+    # Severity `error` is chosen because violations of Section 8.8 are stable named `--check` failures
+    # (F10); `info` would make the rule advisory and non-failing (artifact_core.drift_exit_code exempts
+    # ONLY `info`), and `warning` would fail the gate identically while stating a weaker contract.
+    # E-01 having already cleaned the two committed spec violations first means `error` costs nothing
+    # on a clean checkout, which is the condition that makes a grandfather tier unnecessary here and
+    # distinguishes this case from `check.ipd-uncarried-obligation`, which needed one because 106 plans
+    # were non-conforming.
+    #
+    # REGISTRATION IS NOT BOOKKEEPING: an unregistered rule falls through to `_DEFAULT_RULESPEC`, which
+    # is already `RuleSpec("error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "")`, so the observable
+    # severity and exit code are identical today. What registration buys is that the severity becomes
+    # DECLARED rather than inherited, so a future change to the default cannot silently reclassify this
+    # rule. The in-repo precedent for making exactly this reasoning explicit is the
+    # `check.stale-index-missing` / `check.stale-index-stale` pair, whose comment records that an
+    # unregistered rule "silently did" fall through to the default.
+    #
+    # Invariant is `""`: the Phase-0 catalog in spec pqsx96 has no invariant covering output-safety or
+    # descriptive field integrity, and inventing one would be a false trace. Precedent: the
+    # `stale-index` entries with their own empty invariants.
+    #
+    # Deterministic: pure string length and regex control-character predicates against declared fields;
+    # no inference, hence DET_DETERMINISTIC. Assurance is ASSURANCE_REPOSITORY.
+    "attention.unsafe-field": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
     # sevreg Order 01 (qgpanb) E-03: dangling citation rule in research and plans indices.
     #
     # Registered `info`, because the corpus analysis (F-04) measured that 19 of its 23 distinct
