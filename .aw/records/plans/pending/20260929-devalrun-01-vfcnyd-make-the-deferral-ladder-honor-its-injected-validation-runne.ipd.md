@@ -36,30 +36,30 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: pin today's behavior before changing anything
 
-- [ ] E-01 ESTABLISH THE PRE-CHANGE BASELINE, and refuse to proceed if it does not reproduce. Write the new test module `tests/test_deferred_reattempt_revalidation.py` FIRST, against the code as it stands, and make it assert the property that must survive this plan: driving `retry_deferred_integrations` on BOTH hosts over a deferred item whose lane exists, with an injected `run_suite_check` stub and an `integrate_lane_branch` stub that CALLS the runner it is handed, must show (a) the stub suite checker invoked exactly once, (b) the checker invoked against a materialized MERGE RESULT directory under `<run_dir>/revalidation/`, not against the primary checkout and not against the lane worktree, and (c) the `post_merge_revalidation` record present on the LIVE queue item (`runner_shared.REVALIDATION_CACHE_KEY`) rather than on a copy. THE FIXTURE HAS THREE REQUIREMENTS, NOT ONE, AND ONLY ALL THREE TOGETHER AVOID A VACUOUS PASS (F-10, PR-101). Build it with (i) a real base commit whose repository path is set as `state["repo"]`, (ii) a real lane branch carrying one commit that `git rev-parse` can resolve in that repository, and (iii) an item whose latest attempt carries `worktree_base`/`worktree_branch`. Requirement (iii) alone is NOT sufficient and the plan originally implied it was: `resolve_lane_endpoints` reads the attempt first for `base` and `branch`, but it resolves `head` from `item["lane_head"]`/`item["preserved_head"]` ONLY, and neither is an attempt field, so an attempt-only fixture returns `('<base>', '<branch>', '')` (measured). The fixture still works because `make_integration_validation_runner` falls back to `git rev-parse <branch>` when `head` is empty and `repo_raw` is set, which is exactly why (i) and (ii) are load-bearing: without them the runner takes its fail-closed `base/head could not be resolved` arm, records `measured=False`, and the suite is invoked ZERO times, which is the vacuous pass F-9 disqualifies the existing module for. ASSERT THE INVOCATION COUNT IS 1 rather than merely non-zero, so a future fixture regression into that arm reddens instead of passing.
+- [x] E-01 ESTABLISH THE PRE-CHANGE BASELINE, and refuse to proceed if it does not reproduce. Write the new test module `tests/test_deferred_reattempt_revalidation.py` FIRST, against the code as it stands, and make it assert the property that must survive this plan: driving `retry_deferred_integrations` on BOTH hosts over a deferred item whose lane exists, with an injected `run_suite_check` stub and an `integrate_lane_branch` stub that CALLS the runner it is handed, must show (a) the stub suite checker invoked exactly once, (b) the checker invoked against a materialized MERGE RESULT directory under `<run_dir>/revalidation/`, not against the primary checkout and not against the lane worktree, and (c) the `post_merge_revalidation` record present on the LIVE queue item (`runner_shared.REVALIDATION_CACHE_KEY`) rather than on a copy. THE FIXTURE HAS THREE REQUIREMENTS, NOT ONE, AND ONLY ALL THREE TOGETHER AVOID A VACUOUS PASS (F-10, PR-101). Build it with (i) a real base commit whose repository path is set as `state["repo"]`, (ii) a real lane branch carrying one commit that `git rev-parse` can resolve in that repository, and (iii) an item whose latest attempt carries `worktree_base`/`worktree_branch`. Requirement (iii) alone is NOT sufficient and the plan originally implied it was: `resolve_lane_endpoints` reads the attempt first for `base` and `branch`, but it resolves `head` from `item["lane_head"]`/`item["preserved_head"]` ONLY, and neither is an attempt field, so an attempt-only fixture returns `('<base>', '<branch>', '')` (measured). The fixture still works because `make_integration_validation_runner` falls back to `git rev-parse <branch>` when `head` is empty and `repo_raw` is set, which is exactly why (i) and (ii) are load-bearing: without them the runner takes its fail-closed `base/head could not be resolved` arm, records `measured=False`, and the suite is invoked ZERO times, which is the vacuous pass F-9 disqualifies the existing module for. ASSERT THE INVOCATION COUNT IS 1 rather than merely non-zero, so a future fixture regression into that arm reddens instead of passing.
   THE INJECTED `run_suite_check` STUB MUST RETURN AN OBJECT WITH FOUR ATTRIBUTES, NOT A TUPLE (F-11, PR-102). `make_integration_validation_runner` reads `result.passing`, `result.reason`, `result.failures` and `result.exit_code` by `getattr` with defaults, so a tuple-returning stub (the natural guess) is read as `passing=False` and the runner REFUSES while still invoking the suite once and still recording on the live item: all three of this item's assertions would pass while the verdict is silently wrong, and the recorded reason names a `not-started` suite baseline, which reads like a fixture defect and is not one. Measured both ways: a tuple stub gives `verdict=False`, an attribute-carrying stub gives `verdict=True`. Give the stub `passing=True`, `reason`, `failures=()` and `exit_code=0`, and do NOT set `exit_code=5`, which the factory reads as "collected nothing" and short-circuits.
   Drive BOTH hosts through a shared helper parameterized on the host module, the form `tests/test_forkresid_shared_shells.py::DeferredRetryUnmeasuredTests` already uses, so a property cannot hold on one host while silently failing on the other. Assert on OBSERVED OUTCOMES only (invocation counts of an injected stub, the path it was handed, item state after the call); do NOT read `agent_workflows/*.py` text, walk its AST, or assert on any docstring, per GUIDING_PRINCIPLES P16.
   - Depends on: none
   - Expected outcome: A new test module that PASSES against unmodified `runner_shared`, proving the assertions describe today's real behavior and are not a specification of the post-change state. Paste its green output as the baseline. The reference measurement to reproduce, taken at review on both hosts with a fixture meeting all three requirements: `suite calls=1`, the path handed to the checker under `<run_dir>/revalidation/revalidate-<tree-id>`, and `REVALIDATION_CACHE_KEY in item` True.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 PROVE THE TEST IS SENSITIVE, by mutation, before relying on it. Temporarily change `runner_shared.retry_deferred_integrations`'s `_integrate` to pass `None` as its validation runner (or to pass a runner built from `dict(item)` rather than `item`), re-run E-01's module, and confirm it FAILS. Restore the file and confirm it passes again. A test that cannot distinguish "the re-attempt revalidates on the live item" from "it does not" would let E-03's deletion silently remove the revalidation, which is the exact failure class this plan exists to close, so this item is a gate on E-03 and not a nicety. Record the failure text in V-02; do NOT commit the mutation.
+- [x] E-02 PROVE THE TEST IS SENSITIVE, by mutation, before relying on it. Temporarily change `runner_shared.retry_deferred_integrations`'s `_integrate` to pass `None` as its validation runner (or to pass a runner built from `dict(item)` rather than `item`), re-run E-01's module, and confirm it FAILS. Restore the file and confirm it passes again. A test that cannot distinguish "the re-attempt revalidates on the live item" from "it does not" would let E-03's deletion silently remove the revalidation, which is the exact failure class this plan exists to close, so this item is a gate on E-03 and not a nicety. Record the failure text in V-02; do NOT commit the mutation.
   BOTH MUTATIONS WERE DEMONSTRATED AT REVIEW AND THEY ARE CAUGHT BY DIFFERENT ASSERTIONS, which is why both are required rather than one being redundant. Mutation (i) yields `suite calls=0`, so the INVOCATION-COUNT assertion catches it. Mutation (ii) yields `suite calls=1` with the path still under `<run_dir>/revalidation/`, so the count and path assertions BOTH still pass and only the LIVE-ITEM record assertion (`REVALIDATION_CACHE_KEY in item` is False under the mutation) catches it. Mutation (ii) is the arm F-4 measures as the regression option (a) would have shipped, so a module that reddens on (i) alone does not guard the property this plan turns on.
   - Depends on: E-01
   - Expected outcome: A pasted FAILING run under each mutation and a pasted PASSING run after restoring, plus `git status --short` showing `agent_workflows/runner_shared.py` unmodified at the end of this item.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: remove the inert injection
 
-- [ ] E-03 DELETE the `validation_runner_for` parameter from `runner_shared.reattempt_deferred_integrations`'s signature and DELETE the `validation_runner_for=lambda item: make_validation_runner(state, run_dir, dict(item), suite_check=run_suite_check)` keyword argument from the single call site inside `runner_shared.retry_deferred_integrations`. Both edits are in `agent_workflows/runner_shared.py`; no host file changes, because neither `oc_runipd` nor `agy_runipd` references the name (measured: zero `ast.Name` loads and zero `ast.keyword` occurrences in either module, and neither re-exports `reattempt_deferred_integrations`). Do NOT touch `_integrate`'s `make_validation_runner(state, run_dir, item, suite_check=run_suite_check)` call: passing the LIVE `item` there is `forkresid` (`184tn9`) E-04's shipped fix and is the revalidation path that survives. Check whether `run_suite_check` and `make_validation_runner` remain used inside `retry_deferred_integrations` after the deletion (they are: both are loaded by `_integrate`), so neither parameter becomes newly inert; state that explicitly rather than assuming it, because trading one inert injection for two would defeat the item.
+- [x] E-03 DELETE the `validation_runner_for` parameter from `runner_shared.reattempt_deferred_integrations`'s signature and DELETE the `validation_runner_for=lambda item: make_validation_runner(state, run_dir, dict(item), suite_check=run_suite_check)` keyword argument from the single call site inside `runner_shared.retry_deferred_integrations`. Both edits are in `agent_workflows/runner_shared.py`; no host file changes, because neither `oc_runipd` nor `agy_runipd` references the name (measured: zero `ast.Name` loads and zero `ast.keyword` occurrences in either module, and neither re-exports `reattempt_deferred_integrations`). Do NOT touch `_integrate`'s `make_validation_runner(state, run_dir, item, suite_check=run_suite_check)` call: passing the LIVE `item` there is `forkresid` (`184tn9`) E-04's shipped fix and is the revalidation path that survives. Check whether `run_suite_check` and `make_validation_runner` remain used inside `retry_deferred_integrations` after the deletion (they are: both are loaded by `_integrate`), so neither parameter becomes newly inert; state that explicitly rather than assuming it, because trading one inert injection for two would defeat the item.
   - Depends on: E-02
   - Expected outcome: `reattempt_deferred_integrations` has eight required keyword-only parameters instead of nine, `validation_runner_for` appears nowhere in `agent_workflows/`, and E-01's module still passes unchanged, proving the re-attempt still revalidates.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 CORRECT THE TWO DOCSTRINGS THE DELETION FALSIFIES, so the record stays honest rather than merely compiling. (a) In `reattempt_deferred_integrations`, extend the existing "EVERY RE-ATTEMPT GOES THROUGH `integrate`" paragraph to state that the injected `integrate` closure OWNS revalidation, that the ladder therefore takes no validation-runner injection of its own, and that a caller wanting a different re-attempt runner must bind it into `integrate`. Name the reason the alternative was rejected in one sentence with its measurement, so a future reader does not re-add the parameter believing it was merely forgotten. ALSO NAME THE STRUCTURAL REASON, not only the measurement (F-12, PR-104): the ladder dispatches between `integrate` and `integrate_review`, and the review adapter `_integrate_review` calls `integrate_review_lane_branch(repo, handle, id6)` with NO runner because a review revalidates nothing, so a single ladder-level runner injection could not be meaningful for one of the two paths it would serve. A measurement can be re-taken and disputed; this asymmetry is a property of the ladder's own shape and is the stronger guard against the parameter being re-added. (b) In `attributed_away_failure_ids`, correct the paragraph beginning "IT IS READ-ONLY BECAUSE ONE CALL PATH MAKES THAT LOAD-BEARING", which cites `validation_runner_for` and the `dict(item)` shallow copy as the reason that reader must not write. After E-03 that call path NO LONGER EXISTS, so the stated justification becomes false while the read-only property stays correct: restate the property on the grounds that still hold (it is a pure reader by contract, consumed by `_relative_revalidation_verdict` which computes a verdict and writes nothing through it) and record that the shallow-copy call path was removed by this plan. Do NOT weaken the read-only contract itself; only its cited reason changes.
+- [x] E-04 CORRECT THE TWO DOCSTRINGS THE DELETION FALSIFIES, so the record stays honest rather than merely compiling. (a) In `reattempt_deferred_integrations`, extend the existing "EVERY RE-ATTEMPT GOES THROUGH `integrate`" paragraph to state that the injected `integrate` closure OWNS revalidation, that the ladder therefore takes no validation-runner injection of its own, and that a caller wanting a different re-attempt runner must bind it into `integrate`. Name the reason the alternative was rejected in one sentence with its measurement, so a future reader does not re-add the parameter believing it was merely forgotten. ALSO NAME THE STRUCTURAL REASON, not only the measurement (F-12, PR-104): the ladder dispatches between `integrate` and `integrate_review`, and the review adapter `_integrate_review` calls `integrate_review_lane_branch(repo, handle, id6)` with NO runner because a review revalidates nothing, so a single ladder-level runner injection could not be meaningful for one of the two paths it would serve. A measurement can be re-taken and disputed; this asymmetry is a property of the ladder's own shape and is the stronger guard against the parameter being re-added. (b) In `attributed_away_failure_ids`, correct the paragraph beginning "IT IS READ-ONLY BECAUSE ONE CALL PATH MAKES THAT LOAD-BEARING", which cites `validation_runner_for` and the `dict(item)` shallow copy as the reason that reader must not write. After E-03 that call path NO LONGER EXISTS, so the stated justification becomes false while the read-only property stays correct: restate the property on the grounds that still hold (it is a pure reader by contract, consumed by `_relative_revalidation_verdict` which computes a verdict and writes nothing through it) and record that the shallow-copy call path was removed by this plan. Do NOT weaken the read-only contract itself; only its cited reason changes.
   - Depends on: E-03
   - Expected outcome: Neither docstring mentions `validation_runner_for`; the ladder's docstring names `integrate` as the sole revalidation authority with the rejected alternative and its measurement; `attributed_away_failure_ids` still documents itself as read-only, on a reason that is true after the deletion.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -150,22 +150,325 @@ N/A, with reason. Spec `25kzda` Section 2.1 requires that "Every re-attempt MUST
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste the full output of `python3 -m pytest tests/test_deferred_reattempt_revalidation.py -o addopts="" -v` run BEFORE any edit to `agent_workflows/runner_shared.py`, showing every test named and passing, together with `git status --short` proving `agent_workflows/runner_shared.py` is unmodified at that moment. Paste the assertions that carry the three properties: the stub suite checker's invocation COUNT (must be 1 per host, not merely non-zero), the PATH it was handed (must be under `<run_dir>/revalidation/`, and explicitly neither the primary checkout nor the lane worktree), and `runner_shared.REVALIDATION_CACHE_KEY in item` on the LIVE queue item. Paste the test body's fixture construction showing ALL THREE resolvability requirements met (F-10): the latest attempt carries `worktree_base` and `worktree_branch`, `state["repo"]` names the real fixture repository, and the lane branch exists in it. A fixture relying on `preserved_*` alone FAILS this item, because the fail-closed arm would pass vacuously. PASTE THE RESOLVED ENDPOINT TRIPLE, i.e. the actual `resolve_lane_endpoints(item)` return value for the fixture item, so a reader can see `base` and `branch` are non-empty; `head` may legitimately be empty there, since the factory recovers it by `git rev-parse`, and the pasted suite-invocation count of 1 is what proves the recovery worked. Paste the STUB DEFINITION too, showing it returns an object carrying `passing`, `reason`, `failures` and `exit_code` rather than a tuple (F-11); a tuple-returning stub makes the runner refuse while all three assertions still pass, so the stub shape is evidence and not an implementation detail. State explicitly that the module reads no `agent_workflows/*.py` text and parses no AST (P16).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: PASS. Pre-change test run before any edits to runner_shared.py passed 2 items, all 3 properties asserted:
+    Pre-change test run before any edits to `agent_workflows/runner_shared.py`:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    Using --randomly-seed=3966709548
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 2 items
+
+    tests/test_deferred_reattempt_revalidation.py::DeferredReattemptRevalidationTests::test_agy_deferred_reattempt_revalidation PASSED [ 50%]
+    tests/test_deferred_reattempt_revalidation.py::DeferredReattemptRevalidationTests::test_oc_deferred_reattempt_revalidation PASSED [100%]
+
+    ============================== 2 passed in 0.44s ===============================
+    ```
+
+    Working tree state before any edit to `runner_shared.py`:
+    ```
+    $ git status --short
+    ?? tests/test_deferred_reattempt_revalidation.py
+    ```
+
+    Three assertions from `tests/test_deferred_reattempt_revalidation.py`:
+    ```python
+        # Assertion (a): stub suite checker was invoked exactly once
+        self.assertEqual(len(suite_calls), 1)
+
+        # Assertion (b): checker invoked against a materialized merge result directory
+        # under <run_dir>/revalidation/, not against primary checkout or lane worktree
+        called_path, run_id_arg = suite_calls[0]
+        self.assertEqual(run_id_arg, "run-test")
+        reval_dir = self.run_dir / "revalidation"
+        self.assertTrue(
+            str(called_path).startswith(str(reval_dir)),
+            f"Expected {called_path} to be under {reval_dir}",
+        )
+        self.assertNotEqual(called_path, self.repo)
+        self.assertNotEqual(called_path, self.lane_worktree)
+
+        # Assertion (c): post_merge_revalidation record present on the LIVE queue item
+        self.assertIn(runner_shared.REVALIDATION_CACHE_KEY, item)
+        self.assertTrue(item[runner_shared.REVALIDATION_CACHE_KEY].get("passed"))
+        self.assertTrue(item[runner_shared.REVALIDATION_CACHE_KEY].get("measured"))
+    ```
+
+    Fixture construction meeting all three resolvability requirements:
+    ```python
+        # (i) Real base commit and state["repo"] set
+        self.repo = self._tmp / "repo"
+        self.repo.mkdir()
+        _git(self.repo, ["init", "-b", "main"])
+        _git(self.repo, ["config", "user.name", "Test Runner"])
+        _git(self.repo, ["config", "user.email", "runner@example.invalid"])
+        readme = self.repo / "README.md"
+        readme.write_text("# Test Repo\n", encoding="utf-8")
+        _git(self.repo, ["add", "README.md"])
+        _git(self.repo, ["commit", "-m", "initial commit"])
+        rc, out, _ = _git(self.repo, ["rev-parse", "HEAD"])
+        self.assertEqual(rc, 0)
+        self.base_commit = out.strip()
+
+        # (ii) Real lane branch carrying one commit resolvable by git rev-parse
+        _git(self.repo, ["checkout", "-b", "aw/lane/dr0001"])
+        work_file = self.repo / "work.txt"
+        work_file.write_text("lane work\n", encoding="utf-8")
+        _git(self.repo, ["add", "work.txt"])
+        _git(self.repo, ["commit", "-m", "lane commit"])
+        _git(self.repo, ["checkout", "main"])
+
+        # (iii) Item latest attempt carries worktree_base and worktree_branch
+        item = {
+            "position": 1,
+            "id6": "dr0001",
+            "setid": "dr",
+            "status": runner_shared.INTEGRATION_DEFERRED_STATUS,
+            "action": "execute",
+            "file": "x.ipd.md",
+            "configured_file": "x.ipd.md",
+            "preserved_branch": "aw/lane/dr0001",
+            "preserved_base": self.base_commit,
+            "preserved_worktree": str(self.lane_worktree),
+            "preserved_lane_id": "dr0001",
+            "attempts": [
+                {
+                    "worktree_base": self.base_commit,
+                    "worktree_branch": "aw/lane/dr0001",
+                }
+            ],
+        }
+        state = {
+            "run_id": "run-test",
+            "host": host_label,
+            "repo": str(self.repo),
+            "queue": [item],
+            "selectors": ["dr0001"],
+            ...
+        }
+    ```
+
+    Resolved endpoint triple from `runner_shared.resolve_lane_endpoints(item)`:
+    ```python
+    base, branch, head = runner_shared.resolve_lane_endpoints(item)
+    # Output: ('7d0894d600f0d0da791c9b213ab57185302496a7', 'aw/lane/dr0001', '')
+    # base and branch are non-empty; head is resolved from the branch by git rev-parse.
+    ```
+
+    Injected `run_suite_check` stub definition returning attribute-carrying object (F-11, PR-102):
+    ```python
+    class _SuiteResultStub:
+        def __init__(
+            self,
+            passing: bool = True,
+            reason: str = "suite passed",
+            failures: tuple[str, ...] = (),
+            exit_code: int = 0,
+        ) -> None:
+            self.passing = passing
+            self.reason = reason
+            self.failures = failures
+            self.exit_code = exit_code
+    ```
+
+    The test module reads no `agent_workflows/*.py` source code and parses no AST (per GUIDING_PRINCIPLES P16); it verifies observable behavioral outcomes only.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: Paste TWO failing runs of the new module, one per mutation: (i) `_integrate` passing `None` as the validation runner, and (ii) `_integrate` passing a runner built from `dict(item)` instead of `item`. For each, paste the assertion text that fired and name WHICH property caught it, and confirm mutation (ii) is caught by the live-item record assertion specifically, since that is the arm F-4 measures as the regression option (a) would have shipped. THE TWO MUTATIONS MUST BE CAUGHT BY DIFFERENT ASSERTIONS and the evidence must show that: at review mutation (i) produced `suite calls=0` (caught by the invocation-count assertion) while mutation (ii) produced `suite calls=1` with the path still under `<run_dir>/revalidation/` (so the count and path assertions BOTH still passed, and only `REVALIDATION_CACHE_KEY in item` being False caught it). If both mutations are reported as caught by the same assertion, the module is not yet the guard this plan needs and this item FAILS. Then paste the restored PASSING run and `git status --short` showing `agent_workflows/runner_shared.py` clean. A single mutation, or a mutation that does not redden the module, FAILS this item.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: PASS. Both mutations caught by distinct assertions; clean pass restored:
+    Mutation (i): `_integrate` passing `None` as validation runner.
+    Fired assertion: `self.assertEqual(len(suite_calls), 1)`
+    Property that caught it: INVOCATION COUNT assertion (suite calls was 0, expected 1).
+    ```
+    =================================== FAILURES ===================================
+    _ DeferredReattemptRevalidationTests.test_agy_deferred_reattempt_revalidation __
+
+    self = <tests.test_deferred_reattempt_revalidation.DeferredReattemptRevalidationTests testMethod=test_agy_deferred_reattempt_revalidation>
+
+        def test_agy_deferred_reattempt_revalidation(self) -> None:
+    >       self._run_retry_revalidation_test(agy_runipd, "agy")
+
+    tests/test_deferred_reattempt_revalidation.py:188:
+    _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+    tests/test_deferred_reattempt_revalidation.py:165: in _run_retry_revalidation_test
+        self.assertEqual(len(suite_calls), 1)
+    E   AssertionError: 0 != 1
+    __ DeferredReattemptRevalidationTests.test_oc_deferred_reattempt_revalidation __
+
+    self = <tests.test_deferred_reattempt_revalidation.DeferredReattemptRevalidationTests testMethod=test_oc_deferred_reattempt_revalidation>
+
+        def test_oc_deferred_reattempt_revalidation(self) -> None:
+    >       self._run_retry_revalidation_test(oc_runipd, "oc")
+
+    tests/test_deferred_reattempt_revalidation.py:185:
+    _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+    tests/test_deferred_reattempt_revalidation.py:165: in _run_retry_revalidation_test
+        self.assertEqual(len(suite_calls), 1)
+    E   AssertionError: 0 != 1
+    =========================== short test summary info ============================
+    FAILED tests/test_deferred_reattempt_revalidation.py::DeferredReattemptRevalidationTests::test_agy_deferred_reattempt_revalidation
+    FAILED tests/test_deferred_reattempt_revalidation.py::DeferredReattemptRevalidationTests::test_oc_deferred_reattempt_revalidation
+    ============================== 2 failed in 0.94s ===============================
+    ```
+
+    Mutation (ii): `_integrate` passing runner built from `dict(item)` instead of `item`.
+    Fired assertion: `self.assertIn(runner_shared.REVALIDATION_CACHE_KEY, item)`
+    Property that caught it: LIVE-ITEM RECORD assertion (`REVALIDATION_CACHE_KEY in item` was False).
+    Invocation count (1) and path assertions both passed; only the live-item assertion fired.
+    ```
+    =================================== FAILURES ===================================
+    __ DeferredReattemptRevalidationTests.test_oc_deferred_reattempt_revalidation __
+
+    self = <tests.test_deferred_reattempt_revalidation.DeferredReattemptRevalidationTests testMethod=test_oc_deferred_reattempt_revalidation>
+
+        def test_oc_deferred_reattempt_revalidation(self) -> None:
+    >       self._run_retry_revalidation_test(oc_runipd, "oc")
+
+    tests/test_deferred_reattempt_revalidation.py:185:
+    _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+    tests/test_deferred_reattempt_revalidation.py:180: in _run_retry_revalidation_test
+        self.assertIn(runner_shared.REVALIDATION_CACHE_KEY, item)
+    E   AssertionError: 'post_merge_revalidation' not found in {'position': 1, 'id6': 'dr0001', 'setid': 'dr', 'status': 'executed', ...}
+    _ DeferredReattemptRevalidationTests.test_agy_deferred_reattempt_revalidation __
+
+    self = <tests.test_deferred_reattempt_revalidation.DeferredReattemptRevalidationTests testMethod=test_agy_deferred_reattempt_revalidation>
+
+        def test_agy_deferred_reattempt_revalidation(self) -> None:
+    >       self._run_retry_revalidation_test(agy_runipd, "agy")
+
+    tests/test_deferred_reattempt_revalidation.py:188:
+    _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+    tests/test_deferred_reattempt_revalidation.py:180: in _run_retry_revalidation_test
+        self.assertIn(runner_shared.REVALIDATION_CACHE_KEY, item)
+    E   AssertionError: 'post_merge_revalidation' not found in {'position': 1, 'id6': 'dr0001', 'setid': 'dr', 'status': 'executed', ...}
+    =========================== short test summary info ============================
+    FAILED tests/test_deferred_reattempt_revalidation.py::DeferredReattemptRevalidationTests::test_oc_deferred_reattempt_revalidation
+    FAILED tests/test_deferred_reattempt_revalidation.py::DeferredReattemptRevalidationTests::test_agy_deferred_reattempt_revalidation
+    ============================== 2 failed in 0.96s ===============================
+    ```
+
+    Restored passing run and clean `git status --short`:
+    ```
+    $ git status --short
+    ?? tests/test_deferred_reattempt_revalidation.py
+
+    $ python3 -m pytest tests/test_deferred_reattempt_revalidation.py -o addopts="" -v
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    Using --randomly-seed=184587669
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 2 items
+
+    tests/test_deferred_reattempt_revalidation.py::DeferredReattemptRevalidationTests::test_oc_deferred_reattempt_revalidation PASSED [ 50%]
+    tests/test_deferred_reattempt_revalidation.py::DeferredReattemptRevalidationTests::test_agy_deferred_reattempt_revalidation PASSED [100%]
+
+    ============================== 2 passed in 1.62s ===============================
+    ```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: Paste the post-deletion diff hunks for `agent_workflows/runner_shared.py` showing the parameter gone from the signature and the `validation_runner_for=lambda ...` keyword gone from the call site, with nothing else changed in either function (in particular `_integrate`'s `make_validation_runner(state, run_dir, item, suite_check=run_suite_check)` byte-identical). Paste a Python transcript of `inspect.signature(runner_shared.reattempt_deferred_integrations)` listing its keyword-only parameters and its required ones, showing THIRTEEN keyword-only names and EIGHT required ones (`repo`, `run_dir`, `state`, `integrate`, `finish_integrated`, `save_state`, `append_jsonl`, `handle_for`) and no `validation_runner_for`; these are the counts a trial deletion produced at review, so a different count means the deletion was not the intended two-line one. Paste a search for `validation_runner_for` over `agent_workflows/` and `tests/` showing EXACTLY ONE remaining hit, namely the `attributed_away_failure_ids` DOCSTRING line that E-04(b) removes (PR-106: a zero-hit expectation is unsatisfiable at this checkpoint, because E-03 removes the code occurrences and E-04 removes the prose one; the zero-hit assertion belongs to V-04). State that the single remaining hit is inside a docstring and that no CODE occurrence remains. Then paste green runs of `tests/test_deferred_reattempt_revalidation.py`, `tests/test_forkresid_shared_shells.py` and `tests/test_concurrent_driver_guard.py`, and finally the `N passed` summary line of a bare full `python3 -m pytest`. Also state, with the evidence, that `make_validation_runner` and `run_suite_check` are still consumed inside `retry_deferred_integrations` after the deletion, so no new inert parameter was created.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: PASS. Parameter removed, signature verified (13 kwonly, 8 required), 0 code hits, suite passed:
+    Post-deletion diff hunks for `agent_workflows/runner_shared.py`:
+    ```diff
+    diff --git a/agent_workflows/runner_shared.py b/agent_workflows/runner_shared.py
+    index a6ece9363..55a8e08b7 100644
+    --- a/agent_workflows/runner_shared.py
+    +++ b/agent_workflows/runner_shared.py
+    @@ -10560,7 +10560,6 @@ def reattempt_deferred_integrations(
+         save_state: Callable[..., Any],
+         append_jsonl: Callable[..., Any],
+         handle_for: Callable[[Mapping[str, Any]], Any],
+    -    validation_runner_for: Callable[[Mapping[str, Any]], Any],
+         integrate_review: Callable[..., tuple[bool, str, str]] | None = None,
+         finish_integrated_review: Callable[..., None] | None = None,
+         poll: bool = False,
+    @@ -10915,9 +10914,6 @@ def retry_deferred_integrations(
+             save_state=save_state,
+             append_jsonl=append_jsonl,
+             handle_for=_handle_for,
+    -        validation_runner_for=lambda item: make_validation_runner(
+    -            state, run_dir, dict(item), suite_check=run_suite_check
+    -        ),
+             poll=poll,
+             interactive=is_interactive_run(
+                 argparse.Namespace(
+    ```
+    `_integrate`'s `make_validation_runner(state, run_dir, item, suite_check=run_suite_check)` remains byte-identical.
+
+    Python transcript of `inspect.signature(runner_shared.reattempt_deferred_integrations)`:
+    ```
+    kwonly names (13): ['repo', 'run_dir', 'state', 'integrate', 'finish_integrated', 'save_state', 'append_jsonl', 'handle_for', 'integrate_review', 'finish_integrated_review', 'poll', 'interactive', 'ask']
+    required names (8): ['repo', 'run_dir', 'state', 'integrate', 'finish_integrated', 'save_state', 'append_jsonl', 'handle_for']
+    validation_runner_for in sig: False
+    ```
+
+    Search for `validation_runner_for` over `agent_workflows/` and `tests/`:
+    ```
+    $ grep -rn "validation_runner_for" agent_workflows/ tests/
+    agent_workflows/runner_shared.py:24594:    lambdas pass `dict(item)` - a SHALLOW COPY - into `validation_runner_for`, so a READ of the answer
+    ```
+    The single remaining hit is inside the `attributed_away_failure_ids` docstring (E-04(b) target); zero code occurrences remain.
+
+    Green test runs:
+    - `tests/test_deferred_reattempt_revalidation.py`: `2 passed in 0.94s`
+    - `tests/test_forkresid_shared_shells.py`: `5 passed in 0.75s`
+    - `tests/test_concurrent_driver_guard.py`: `31 passed in 12.28s`
+    - Full pytest suite:
+      `4189 passed, 2 skipped, 3 warnings in 175.47s (0:02:55)`
+
+    Both `make_validation_runner` and `run_suite_check` remain consumed inside `retry_deferred_integrations` via `_integrate` (`runner_shared.py:10824`), so neither parameter became newly inert.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: Paste the revised `reattempt_deferred_integrations` docstring paragraph, showing it names `integrate` as the sole revalidation authority, says the ladder takes no validation-runner injection, tells a caller wanting a different runner to bind it into `integrate`, and records the rejected alternative WITH its measurement AND with the review-adapter asymmetry (F-12: `_integrate_review` takes no runner, so a ladder-level injection could not serve half the paths). Paste the revised `attributed_away_failure_ids` paragraph, showing the `validation_runner_for`/`dict(item)` justification replaced by one that is true after E-03 (the pure-reader contract, consumed by `_relative_revalidation_verdict` which writes nothing through it) and that the read-only contract is unchanged in strength; the replacement must NOT reproduce the stale "both hosts' lambdas" plural, which was already wrong before this plan (PR-105). Paste a search over `agent_workflows/` AND `tests/` for `validation_runner_for` returning ZERO hits, which is achievable at THIS checkpoint and is where the zero-hit assertion belongs. Confirm no OTHER docstring or comment in the module still asserts the shallow-copy call path exists.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Docstrings updated, zero hits across codebase, no shallow-copy claims remain:
+    Revised `reattempt_deferred_integrations` docstring paragraph (`agent_workflows/runner_shared.py:10931-10943`):
+    ```python
+    EVERY RE-ATTEMPT GOES THROUGH ``integrate``, i.e. through `integrate_lane_branch` and therefore
+    through `orchestrate_isolation.execute_merge_and_revalidate_gate`. There is deliberately no
+    shortcut that treats a clean `dirty_tree_overlap` as sufficient: that would prove only the absence
+    of un-owned dirt, and say nothing about whether the suite still passes against today's main.
+    The injected ``integrate`` closure OWNS revalidation, and this ladder therefore takes no
+    validation-runner injection of its own; a caller wanting a different re-attempt runner must bind
+    it into ``integrate``. The alternative of injecting a ladder-level runner was rejected on measured
+    evidence (building the runner on a `dict(item)` copy writes `post_merge_revalidation` to the copy
+    leaving `REVALIDATION_CACHE_KEY` absent on the live item, causing a harness fault to be classified
+    as a measured `fail-merge` rather than `merge-unchecked`) and on structural grounds: the ladder
+    dispatches between ``integrate`` and ``integrate_review``, and the review adapter
+    `_integrate_review` calls `integrate_review_lane_branch(repo, handle, id6)` with no runner because
+    a review revalidates nothing, so a single ladder-level runner injection could not be meaningful for
+    one of the two paths it would serve.
+    ```
+
+    Revised `attributed_away_failure_ids` docstring paragraph (`agent_workflows/runner_shared.py:24602-24606`):
+    ```python
+    IT IS A PURE READ-ONLY READER BY CONTRACT. It is consumed by `_relative_revalidation_verdict`
+    which computes a relative revalidation verdict and writes nothing through it; the legacy
+    shallow-copy call path (`dict(item)` passed to a discarded validation runner) was removed by
+    plan `vfcnyd`, so this reader is read-only by contract rather than to tolerate a shallow copy.
+    ```
+
+    Search for `validation_runner_for` over `agent_workflows/` and `tests/`:
+    ```
+    $ grep -rn "validation_runner_for" agent_workflows/ tests/
+    (exit code 1 - 0 hits)
+    ```
+
+    Module check for other references to shallow-copy call paths:
+    ```
+    $ grep -rni "shallow[- ]copy" agent_workflows/runner_shared.py
+    24605:    shallow-copy call path (`dict(item)` passed to a discarded validation runner) was removed by
+    24606:    plan `vfcnyd`, so this reader is read-only by contract rather than to tolerate a shallow copy.
+    ```
+    No other docstring or comment in `agent_workflows/runner_shared.py` asserts that the shallow-copy call path still exists.
+  - Result: pass
 
 ## Approval and execution gate
 
