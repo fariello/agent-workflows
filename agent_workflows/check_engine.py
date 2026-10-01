@@ -543,6 +543,12 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.scope-drift": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-01"
     ),
+    # Declared-file-scope unauditable advisory (fkmjoy, IPD iqtt8d E-04). An in-flight execution
+    # whose isolated lane holds work but does not descend from the receipt base. Advisory only (`info`),
+    # so `artifact_core.drift_exit_code` exempts it and cannot fail a gate.
+    "check.scope-not-audited": RuleSpec(
+        "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-01"
+    ),
     # Pre-push authorization feedback (agentadhere Phase 4, IPD diundn E-02; catalog I-02). This is
     # an AUTHORITY invariant: a LOCAL pre-push hook can only give feedback, NEVER enforce it (the
     # authoritative boundary is a protected branch / required CI / brokered credential). The
@@ -2912,6 +2918,7 @@ def check_ipd_draft_ready(
 
 _LIFECYCLE_INVALID_RULE = "check.lifecycle-transition-invalid"
 _SCOPE_DRIFT_RULE = "check.scope-drift"
+_SCOPE_NOT_AUDITED_RULE = "check.scope-not-audited"
 
 
 def check_lifecycle_transitions(
@@ -3113,7 +3120,8 @@ def _plan_execution_tree(
 
     Returns the plan's ISOLATED LANE WORKTREE when one exists and the frozen base is an ancestor of
     that lane's HEAD, and ``None`` otherwise. ``None`` means "no tree this advisory may speak about",
-    and :func:`check_scope_drift` then reports NOTHING for the plan.
+    and :func:`check_scope_drift` then reports NOTHING for the plan (or emits an advisory via
+    ``check.scope-not-audited`` if an irreconcilable work-holding lane exists).
 
     WHY A TREE AND NOT A BASELINE (rcptstale ``wmnmei`` OQ-01, maintainer ruling 2026-09-10). The
     advisory's subject is a lane-isolated execution's OWN tree. Asked which of five candidate
@@ -3135,11 +3143,15 @@ def _plan_execution_tree(
     favor of the plain silent form.
 
     THE ANCESTRY CHECK IS NOT REDUNDANT with :func:`_receipt_is_live`, which asks about THIS tree's
-    HEAD. A lane can be cut from a DIFFERENT commit than the receipt froze (``allocate_worktree``
-    attempt-scopes a STALE or HOLDS-WORK lane rather than adopting it, so lane and receipt legitimately
-    disagree), and measured 2026-09-22 one of six contributors (``lc4unl``) was exactly that shape. A
-    ``base..HEAD`` diff across such a fork would attribute main's own intervening commits to the plan,
-    which is the very defect this function exists to remove, so an unusable lane base reports NOTHING.
+    HEAD. The first question is WHICH lane: an execution may have been attempt-scoped into
+    ``aw/lane/<id6>_attemptN`` by ``allocate_worktree``, leaving the canonical lane behind. The
+    candidate-enumerating resolver (:func:`worktree_lease.enumerate_lane_candidates`, fkmjoy `iqtt8d`
+    E-02) enumerates all lane branches for ``plan_id`` and selects by receipt base descent. Among
+    candidates whose HEAD descends from ``base_head``, preference is given to a candidate holding
+    work over an empty one, then to the highest attempt number (because attempt-scoping means a
+    later attempt displaced an earlier one). When no candidate descends from ``base_head``, this
+    function returns ``None``; only a genuinely irreconcilable execution whose lane holds work now
+    reaches the ``check.scope-not-audited`` advisory (E-04).
 
     Single-tree checkouts and temp-repo fixtures are unaffected in the case that matters: a plan with
     no lane is silent, which is the rule's new contract rather than a fallback.
@@ -3147,15 +3159,23 @@ def _plan_execution_tree(
     from agent_workflows import worktree_lease as _lease
 
     try:
-        state = _lease.inspect_lane(Path(repo_root), plan_id)
-        lane = state.worktree_path
-        if lane is None or not lane.is_dir():
-            return None
-        rc, _out, _err = _git_capture(
-            lane, ["merge-base", "--is-ancestor", base_head, "HEAD"]
+        candidates = _lease.enumerate_lane_candidates(
+            Path(repo_root), plan_id, base_head
         )
-        if rc != 0:
-            return None  # lane cut from a different base: the diff would not be this execution's
+        consistent = [
+            c
+            for c in candidates
+            if c.receipt_consistent
+            and c.state.worktree_path
+            and c.state.worktree_path.is_dir()
+        ]
+        if not consistent:
+            return None
+        selected = max(
+            consistent,
+            key=lambda c: (1 if c.state.holds_work else 0, c.attempt),
+        )
+        return selected.state.worktree_path
     except Exception:
         # Lane resolution is best-effort DISCOVERY, not an authority boundary, and the whole body is
         # guarded for the same reason `_receipt_is_live` fails safe: a rule that cannot establish its
@@ -3164,7 +3184,6 @@ def _plan_execution_tree(
         # run must reach the same silent answer by either route. See `_receipt_is_live` for the cost
         # this direction accepts.
         return None
-    return lane
 
 
 def check_scope_drift(
@@ -3192,14 +3211,16 @@ def check_scope_drift(
 
     WHICH TREE IS MEASURED IS PART OF THE RULE (rcptstale ``wmnmei``, backlog ``v880xk``, maintainer
     ruling 2026-09-10). The comparison runs against the plan's ISOLATED LANE WORKTREE, resolved by
-    :func:`_plan_execution_tree`, and a plan with no usable lane is reported on NOT AT ALL. Before
-    this, the rule diffed the frozen base against whichever tree the command happened to run in, which
-    in a shared checkout is every co-worker's commits: measured 2026-09-22 at HEAD ``132e8333``, 350
-    findings across six plans (216/94/21/11/6/2), of which 350 of 350 were COMMITTED intervening
-    history and 0 were working-tree changes, while the same six measured in their own lanes yielded
-    9/5/1/0 and two plans with no usable lane. The accepted cost is that hand work in a shared main
-    checkout gets no advisory at all; see :func:`_plan_execution_tree` for why, and do not
-    reintroduce a main-tree comparison on the argument that coverage was lost by accident.
+    :func:`_plan_execution_tree`, and a plan with no usable lane is reported on NOT AT ALL (or receives
+    a ``check.scope-not-audited`` advisory if it holds work in an irreconcilable lane). An
+    attempt-scoped lane is resolved by candidate enumeration, avoiding silent false-negative
+    abstentions. Before this, the rule diffed the frozen base against whichever tree the command
+    happened to run in, which in a shared checkout is every co-worker's commits: measured 2026-09-22 at
+    HEAD ``132e8333``, 350 findings across six plans (216/94/21/11/6/2), of which 350 of 350 were
+    COMMITTED intervening history and 0 were working-tree changes, while the same six measured in their
+    own lanes yielded 9/5/1/0 and two plans with no usable lane. The accepted cost is that hand work in
+    a shared main checkout gets no advisory at all; see :func:`_plan_execution_tree` for why, and do
+    not reintroduce a main-tree comparison on the argument that coverage was lost by accident.
 
     ONE FINDING PER PLAN, NOT ONE PER PATH. The finding carries the COUNT and the offending paths in
     its detail (bounded, with an explicit "and N more" tail) rather than multiplying into one Drift per
@@ -3214,6 +3235,7 @@ def check_scope_drift(
     opt-in pre-commit gate prints that field verbatim as its teaching message.
     """
     from agent_workflows import ipd_lifecycle as _life
+    from agent_workflows import worktree_lease as _lease
 
     drift: List[_core.Drift] = []
     for p in _iter_type_files(repo_root, "plans", include_untracked=include_untracked):
@@ -3245,6 +3267,43 @@ def check_scope_drift(
         # WHICH TREE: the plan's isolated lane, or nothing at all. See `_plan_execution_tree`.
         exec_tree = _plan_execution_tree(repo_root, plan_id, base_head)
         if exec_tree is None:
+            # Declared-file-scope unauditable advisory (fkmjoy, IPD iqtt8d E-04).
+            # Fires ONLY when:
+            # (1) receipt is live (checked above)
+            # (2) Scope-Paths is non-empty (checked above)
+            # (3) at least one lane candidate exists and holds work
+            # (4) no candidate's HEAD descends from the receipt base
+            candidates = _lease.enumerate_lane_candidates(
+                Path(repo_root), plan_id, base_head
+            )
+            holds_work_candidates = [
+                c for c in candidates if c.state.exists and c.state.holds_work
+            ]
+            has_descendant = any(c.receipt_consistent for c in candidates)
+            if holds_work_candidates and not has_descendant:
+                lane_descs = [
+                    f"{c.branch} (base: {c.base_sha[:8] if c.base_sha else 'unknown'})"
+                    for c in candidates
+                ]
+                lanes_str = ", ".join(lane_descs)
+                branch_label = (
+                    "lane branch" if len(candidates) == 1 else "lane branches"
+                )
+                verb = "does not descend" if len(candidates) == 1 else "do not descend"
+                drift.append(
+                    enrich_drift(
+                        _core.Drift(
+                            str(p),
+                            _SCOPE_NOT_AUDITED_RULE,
+                            f"Plan {plan_id} execution scope was not audited: {branch_label}"
+                            f" found ({lanes_str}) {verb} from frozen receipt base {base_head[:8]}; "
+                            "finalize remains the enforcement point",
+                        ),
+                        observed=f"lane branches found: {lanes_str}",
+                        required=f"a lane branch descending from frozen receipt base {base_head[:8]}",
+                        recovery="reconcile changes at `aw ipd finalize` (finalize remains the enforcement point)",
+                    )
+                )
             continue  # not lane-isolated (or the lane's base is unusable) -> no honest subject
         changed = _life._paths_changed_by_this_execution(exec_tree, base_head)
         expanded_changed: List[str] = []

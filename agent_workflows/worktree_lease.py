@@ -26,6 +26,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 import json
 import os
+import re
 import socket
 import subprocess
 import time
@@ -529,6 +530,127 @@ def inspect_lane(
         owner_live=owner_live,
         merged_into_target=merged_into_target,
     )
+
+
+class LaneCandidate(NamedTuple):
+    """A candidate lane branch for a plan execution (fkmjoy `iqtt8d` E-02)."""
+
+    lane_id: str
+    state: LaneState
+    receipt_consistent: bool
+    attempt: int  # 0 for canonical (unscoped), N for attemptN
+
+    @property
+    def branch(self) -> str:
+        return self.state.branch
+
+    @property
+    def base_sha(self) -> Optional[str]:
+        return self.state.base_sha
+
+
+def enumerate_lane_candidates(
+    repo_root: Path,
+    plan_id: str,
+    receipt_base: str,
+) -> List[LaneCandidate]:
+    """Enumerate and classify all candidate lane branches for ``plan_id`` (fkmjoy `iqtt8d` E-02).
+
+    Answers which lane an execution for ``plan_id`` actually ran in, given the receipt base it was
+    issued against. Discovers candidate branches from git refs rather than reconstructing a single
+    name, grouping canonical and attempt-scoped branches by an anchored regex, and recovering each
+    candidate's inspection lane id with :func:`lane_id_from_branch`.
+
+    SECOND INSTANCE OF RECONSTRUCT-A-BRANCH-NAME HAZARD (fkmjoy `iqtt8d` E-05):
+    ``check_engine._plan_execution_tree`` was the second measured instance of the
+    reconstruct-a-branch-name-from-an-id6 hazard that :func:`lane_id_from_branch` documents. Reconstructing
+    ``aw/lane/<id6>`` missed attempt-scoped executions (e.g. ``aw/lane/<id6>_attempt2``), silently
+    measuring the wrong abandoned tree.
+
+    ANCHORED PATTERN: ``^aw/lane/<re.escape(id6)>(?:_attempt(\\d+))?$`` matches the canonical lane and
+    any attempt-scoped suffix minted by ``_attempt_scoped_lane_id``, while strictly rejecting foreign
+    branches (e.g. ``aw/lane/review-sweep-run-...``) and near-misses.
+
+    RECEIPT CONSISTENCY: for each candidate, tests whether the lane HEAD descends from ``receipt_base``
+    via ``git merge-base --is-ancestor <receipt_base> <lane HEAD>``.
+
+    DETERMINISTIC ORDER: candidates are sorted by attempt number with canonical (attempt 0) first.
+
+    FAIL-SAFE: returns an empty list rather than raising if git cannot answer or if repo_root is
+    invalid. Takes no run-directory or item record (stays run-context-free and stdlib-only).
+    """
+    if not plan_id or not receipt_base:
+        return []
+
+    try:
+        repo_path = Path(repo_root)
+        pattern = re.compile(rf"^aw/lane/{re.escape(plan_id)}(?:_attempt(\d+))?$")
+
+        # Discover branch candidates matching refs/heads/aw/lane/*
+        if _BRANCH_CACHE is not None:
+            prefix = "refs/heads/"
+            all_branches = [
+                ref[len(prefix) :]
+                for ref in _BRANCH_CACHE
+                if ref.startswith("refs/heads/aw/lane/")
+            ]
+        else:
+            rc, out, _err = _git(
+                repo_path,
+                ["for-each-ref", "--format=%(refname:short)", "refs/heads/aw/lane/*"],
+            )
+            if rc != 0:
+                return []
+            all_branches = [line.strip() for line in out.splitlines() if line.strip()]
+
+        candidates: List[LaneCandidate] = []
+        for branch in all_branches:
+            m = pattern.match(branch)
+            if not m:
+                continue
+            attempt_str = m.group(1)
+            attempt = int(attempt_str) if attempt_str is not None else 0
+
+            lane_id = lane_id_from_branch(branch)
+            if not lane_id:
+                continue
+
+            state = inspect_lane(repo_path, lane_id, base_commit=receipt_base)
+            if not state.exists and not state.branch_exists:
+                continue
+
+            # Run ancestry check in candidate worktree if dir exists, otherwise in repo_path
+            receipt_consistent = False
+            if state.worktree_path and state.worktree_path.is_dir():
+                rc, _out, _err = _git(
+                    state.worktree_path,
+                    ["merge-base", "--is-ancestor", receipt_base, "HEAD"],
+                )
+                receipt_consistent = rc == 0
+            elif state.head or state.branch:
+                target_ref = state.head or state.branch
+                rc, _out, _err = _git(
+                    repo_path,
+                    ["merge-base", "--is-ancestor", receipt_base, target_ref],
+                )
+                receipt_consistent = rc == 0
+
+            candidates.append(
+                LaneCandidate(
+                    lane_id=lane_id,
+                    state=state,
+                    receipt_consistent=receipt_consistent,
+                    attempt=attempt,
+                )
+            )
+
+        candidates.sort(key=lambda c: c.attempt)
+        return candidates
+    except Exception:
+        return []
+
+
+resolve_lane_candidates = enumerate_lane_candidates
 
 
 # ---- lane ownership / liveness (laneorphan-01 `zwnjp3` E-08) -------------------------------------
