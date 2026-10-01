@@ -1,5 +1,5 @@
 - Id: p0a5kr
-- Status: graduated
+- Status: done
 - Graduated-To: p0a5kr
 - Blocks-Release: next
 - Set: p0a5kr
@@ -8,6 +8,7 @@
 - Summary: aw rename of a terminal plan silently erodes test_history_order's 700-path floor because the frozen baseline keys paths and is never rewritten
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD rlcq7g executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-p0a5kr-01-rlcq7g-key-the-derive-plan-status-baseline-by-plan-id6-so-a-termina.ipd.md); evidence .aw/records/plans/executed/20260929-p0a5kr-01-rlcq7g-key-the-derive-plan-status-baseline-by-plan-id6-so-a-termina.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260929T021205Z-3914774: rlcq7g
 - 2026-09-26 created (aw backlog): aw rename of a terminal plan silently erodes test_history_order's 700-path floor because the frozen baseline keys paths and is never rewritten
 
