@@ -117,11 +117,12 @@ aw backlog set graduated <item> --graduated-to <setid> --message "graduated into
 ```
 
 The two halves point in opposite directions and both are worth having. The plan carries
-`- From-Backlog: <id6>` naming the ONE item it came from, and the item carries `- Graduated-To:`
-naming the whole plan Set it became, so either end answers "what is the other end of this handoff?"
-without scanning the corpus. The asymmetry is deliberate: a child plan has exactly one source, while a
-source generates a whole Set (an orchestrator plus its children), which a single plan id6 could not
-name.
+`- From-Backlog: <id6>` naming the ONE item it came from; a value naming more than one source
+is refused by `check.from-backlog-malformed` rather than silently ignored, and `-` clears the
+field. The item carries `- Graduated-To:` naming the whole plan Set it became, so either end answers
+"what is the other end of this handoff?" without scanning the corpus. The asymmetry is deliberate:
+a child plan has exactly one source, while a source generates a whole Set (an orchestrator plus its children),
+which a single plan id6 could not name.
 
 The field is OPTIONAL and MULTI-VALUED. Several setids are separated by commas, because a source may
 graduate more than once over its life; `-` clears the field. `aw check all` reports an entry naming no

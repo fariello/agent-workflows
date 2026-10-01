@@ -8,6 +8,7 @@ Verifies:
    - `check.blocking-item-closed-without-gate`
    - `check.blocks-release-dangling`
    - `check.from-backlog-dangling`
+   - `check.from-backlog-malformed`
 2. Polarity: fires on synthetic violations, clean on synthetic valid fixtures.
 3. Handoff exemption: a live bug whose From-Backlog carrier holds the gate is NOT flagged.
 4. Parity: rule set reachable from `check_release_gates` equals the full sweep's gate family rules.
@@ -507,13 +508,14 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
             self.assertNotIn("check.blocking-item-closed-without-gate", rules)
 
     def test_whole_family_rules_constant(self) -> None:
-        """RELEASE_GATE_RULES lists all 5 release-gate family rules."""
+        """RELEASE_GATE_RULES lists all 6 release-gate family rules."""
         expected = {
             "check.live-bug-ungated",
             "check.blocking-item-closed-without-gate",
             "check.from-backlog-gate-mismatch",
             "check.blocks-release-dangling",
             "check.from-backlog-dangling",
+            "check.from-backlog-malformed",
         }
         self.assertEqual(set(check_engine.RELEASE_GATE_RULES), expected)
 

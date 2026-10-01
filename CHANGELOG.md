@@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
 
 Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
 
+- Added: `check.from-backlog-malformed` release gate rule, enforcing single-valued `- From-Backlog:` metadata in plans and specs, reporting multi-token values separately from dangling references while preserving `-` clearing semantics.
 - Added: ratified and published the `aw attention` fail-closed no-match exit contract in `docs/cli-output-contract.md`, distinguishing standing questions from named-artifact assertions, and pinned all nine surfaces plus derived vocabulary exemption sources in `tests/test_attention.py` (D157).
 - Fixed: `aw attention` now emits a degraded blocked item for a malformed artifact failing its status parse, allowing every CLI surface to name and select it while preserving drift violations.
 - Fixed: `aw specs check` now reports the examined count in human output, distinguishing a clean verdict over zero specs from a clean verdict over many.

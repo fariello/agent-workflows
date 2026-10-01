@@ -182,13 +182,15 @@ ITEM_DEPENDENCIES_NONE = "none"
 # IPD-M103 "unknown field" lint error; value validation (does the target resolve to a release
 # record) lives in the `aw check` surface (child 03), not the schema layer.
 META_BLOCKS_RELEASE = "Blocks-Release"
-# From-Backlog (Order ku93tn): an optional, single-valued link field naming the backlog item id6
-# this plan graduated from, so the backlog->plan graduation relationship is machine-readable (the
-# bklggrad close-legitimacy predicate in child 02 consumes it to confirm a blocking backlog item's
-# release gate was handed off to a plan). Recognized but OPTIONAL (NOT in META_REQUIRED), mirroring
-# META_SCOPE_PATHS/META_BLOCKS_RELEASE: recognition here only stops the IPD-M103 "unknown field"
-# lint error; value validation (does the target resolve to a backlog item id6) lives in the
-# `aw check` surface (check.from-backlog-dangling), not the schema layer.
+# From-Backlog (Order ku93tn; ratified single-valued in fact by plan okp2o4, Set fbcardinal): an
+# optional, single-valued link field naming the backlog item id6 this plan graduated from, so the
+# backlog->plan graduation relationship is machine-readable (the bklggrad close-legitimacy predicate
+# in child 02 consumes it to confirm a blocking backlog item's release gate was handed off to a plan).
+# The field is single-valued IN FACT as of plan okp2o4; `Graduated-To` remains the one multi-valued
+# link field. Recognized but OPTIONAL (NOT in META_REQUIRED), mirroring META_SCOPE_PATHS/
+# META_BLOCKS_RELEASE: recognition here only stops the IPD-M103 "unknown field" lint error; value
+# validation (does the target resolve to a backlog item id6, is the token malformed) lives in the
+# `aw check` surface (check.from-backlog-dangling / check.from-backlog-malformed), not the schema layer.
 META_FROM_BACKLOG = "From-Backlog"
 # Graduation-source link absent sentinels (plan 3cs7qg): these literal values mean "no source item"
 # and every reader of a graduation-source link (`From-Backlog` AND `From-Spec`) treats them as if
@@ -204,6 +206,61 @@ def source_link_is_absent(value: Optional[str]) -> bool:
     if not cleaned:
         return True
     return cleaned.lower() in SOURCE_LINK_ABSENT_SENTINELS
+
+
+SOURCE_LINK_ABSENT = "absent"
+SOURCE_LINK_USABLE = "usable"
+SOURCE_LINK_MALFORMED = "malformed"
+
+
+class SourceLinkClassification(NamedTuple):
+    """Three-way classification verdict for a graduation-source link value (`From-Backlog` or `From-Spec`).
+
+    `verdict` is one of `SOURCE_LINK_ABSENT` ("absent"), `SOURCE_LINK_USABLE` ("usable"), or
+    `SOURCE_LINK_MALFORMED` ("malformed"). `id6` is populated with the cleaned 6-char id6 string
+    only when `verdict == SOURCE_LINK_USABLE`, else None.
+    """
+
+    verdict: str
+    id6: Optional[str] = None
+
+    @property
+    def is_absent(self) -> bool:
+        return self.verdict == SOURCE_LINK_ABSENT
+
+    @property
+    def is_usable(self) -> bool:
+        return self.verdict == SOURCE_LINK_USABLE
+
+    @property
+    def is_malformed(self) -> bool:
+        return self.verdict == SOURCE_LINK_MALFORMED
+
+
+def classify_source_link(value: Optional[str]) -> SourceLinkClassification:
+    """Classify a graduation-source link value (`From-Backlog` or `From-Spec`).
+
+    Returns a three-way verdict:
+      - absent: None, empty string, or an absent sentinel (`-`, `none`, `unresolved`),
+        delegated to the existing `source_link_is_absent`.
+      - usable: exactly one valid id6 token, judged by the existing `artifact_core.is_valid_id6`.
+      - malformed: anything else, including any comma-bearing or multi-token value.
+
+    The field is single-valued IN FACT as of plan okp2o4 (Set fbcardinal). `Graduated-To` remains
+    the one multi-valued link field in the IPD contract. Built strictly on `source_link_is_absent`
+    and `artifact_core.is_valid_id6`; introduces no new regex and no fifth id6 validator
+    (GUIDING_PRINCIPLES P8).
+    """
+    if source_link_is_absent(value):
+        return SourceLinkClassification(SOURCE_LINK_ABSENT, None)
+    assert value is not None
+    cleaned = value.strip().strip("\"'").strip()
+    if _core.is_valid_id6(cleaned):
+        return SourceLinkClassification(SOURCE_LINK_USABLE, cleaned)
+    return SourceLinkClassification(SOURCE_LINK_MALFORMED, None)
+
+
+classify_source_link_value = classify_source_link
 
 
 # From-Spec (detrun Order bmh754, spec 25kzda; the surviving residue of an otherwise-shipped Set): the

@@ -478,14 +478,17 @@ def set_work_kind_line(text: str, value: Optional[str]) -> str:
     return text
 
 
-_FROM_BACKLOG_LINE_RE = re.compile(r"(?m)^- From-Backlog:[ \t]*\S+[ \t]*$\n?")
+_FROM_BACKLOG_LINE_RE = re.compile(r"(?m)^- From-Backlog:[ \t]*[^\n]*$\n?")
 
 
 def set_from_backlog_line(text: str, value: Optional[str]) -> str:
     """Return `text` with the `- From-Backlog:` metadata line set to `value`, or removed when
     `value` is '-' or None. Idempotent: replaces an existing line or inserts one after `- Status:`
     (falling back to after `- Id:`, or the top of the bullet block). Mirrors
-    `set_blocks_release_line` exactly (bklggrad Order ku93tn)."""
+    `set_blocks_release_line` and `set_from_spec_line`. Unlike the previous `\\S+` form (which
+    could not strip what a previous call had written if it was multi-token or malformed, F-6),
+    `_FROM_BACKLOG_LINE_RE` uses `[^\n]*` to match `_FROM_SPEC_LINE_RE` and `_GRADUATED_TO_LINE_RE`
+    so any prior line is stripped cleanly and idempotency holds on any text (fbcardinal okp2o4)."""
     # Always strip any existing line first.
     text = _FROM_BACKLOG_LINE_RE.sub("", text)
     if value in (None, "-"):
@@ -563,7 +566,7 @@ def set_item_dependencies_line(text: str, value: Optional[str]) -> str:
 
 
 _ITEM_BLOCKS_RELEASE_RE = re.compile(r"(?m)^- Blocks-Release:\s*(\S+)\s*$")
-_ITEM_FROM_BACKLOG_RE = re.compile(r"(?m)^- From-Backlog:\s*(\S+)\s*$")
+_ITEM_FROM_BACKLOG_RE = re.compile(r"(?m)^-[ \t]*From-Backlog:[ \t]*([^\n]*?)[ \t]*$")
 
 # ======================================================================================
 # setidhard Order bwgyum (spec 4w7d6s G3/G5, carried forward by spec 2lcqno Section 2): the
@@ -729,12 +732,22 @@ def check_blocks_release(repo_root: Path) -> List[_core.Drift]:
     return drift
 
 
+FROM_BACKLOG_DANGLING_RULE = "check.from-backlog-dangling"
+FROM_BACKLOG_MALFORMED_RULE = "check.from-backlog-malformed"
+
+
 def check_from_backlog(repo_root: Path) -> List[_core.Drift]:
     """Scan plans (and, symmetrically, specs/backlog) for a `From-Backlog` value and flag any that
-    does not resolve to an existing backlog item id6 (bklggrad Order ku93tn; folds into the awcheck
-    cross-tree sweep the same way `check_blocks_release` does). The graduation link's primary home is
+    is malformed (`check.from-backlog-malformed`, fbcardinal okp2o4) or does not resolve to an
+    existing backlog item id6 (`check.from-backlog-dangling`, bklggrad ku93tn). Folds into the awcheck
+    cross-tree sweep the same way `check_blocks_release` does. The graduation link's primary home is
     the plan; the scan tolerates it anywhere for symmetry. `rglob` recurses the disposition subdirs
     (pending/executed/...).
+
+    SHAPE AND RESOLUTION ARE SEPARATE FINDINGS: a malformed value (such as a multi-valued or
+    comma-bearing string) is flagged by `check.from-backlog-malformed` on shape alone without
+    consulting the backlog corpus, keeping it corpus-independent. Only a well-formed single id6 is
+    checked for resolution against `existing_backlog_ids`.
 
     ITS FORWARD MIRROR IS `check_graduated_to` BELOW (setidhard Order bwgyum), which validates the
     OTHER direction of the same graduation: this function asks "does the source this artifact claims to
@@ -775,18 +788,26 @@ def check_from_backlog(repo_root: Path) -> List[_core.Drift]:
                 except OSError:
                     continue
                 m = _ITEM_FROM_BACKLOG_RE.search(text)
-                if (
-                    m
-                    and not _schema.source_link_is_absent(m.group(1))
-                    and m.group(1) not in known
-                ):
+                if not m:
+                    continue
+                cls = _schema.classify_source_link(m.group(1))
+                if cls.verdict == _schema.SOURCE_LINK_MALFORMED:
                     drift.append(
                         _core.Drift(
                             str(p),
-                            "check.from-backlog-dangling",
-                            f"From-Backlog {m.group(1)!r} does not resolve to a backlog item",
+                            FROM_BACKLOG_MALFORMED_RULE,
+                            f"From-Backlog {m.group(1)!r} is not a valid backlog item id6",
                         )
                     )
+                elif cls.verdict == _schema.SOURCE_LINK_USABLE:
+                    if cls.id6 not in known:
+                        drift.append(
+                            _core.Drift(
+                                str(p),
+                                FROM_BACKLOG_DANGLING_RULE,
+                                f"From-Backlog {cls.id6!r} does not resolve to a backlog item",
+                            )
+                        )
     return drift
 
 

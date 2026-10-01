@@ -203,6 +203,12 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.from-backlog-dangling": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
     ),
+    # fbcardinal Order 01 (okp2o4): From-Backlog value is not a usable single id6 nor an absent sentinel.
+    # Same severity (`error`), same assurance class, and the SAME invariant I-07 as its dangling sibling,
+    # because a malformed value the gate cannot read breaks the same gate-preservation invariant.
+    "check.from-backlog-malformed": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
+    ),
     # detrun Order bmh754 (spec 25kzda): the SPEC-side twin of `check.from-backlog-dangling` above - a
     # plan/spec whose `From-Spec:` id6 resolves to no spec. Same severity (`error`), same assurance
     # class, and the SAME invariant I-07 as its backlog twin, because a spec is an equally valid
@@ -299,8 +305,9 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     #
     # NAMED `-repeated`, NOT `-duplicate`, AND THE NAME IS LOAD-BEARING. The sibling `graduate` Set's
     # read-only pre-graduation view ships a structural PROHIBITION asserting that no rule id containing
-    # `graduation` or `duplicate` is ever registered (`tests/test_graduation_view.py`
-    # `NoUniquenessRuleTests`), because its own OQ-01 ruled that a source carrying several artifacts is
+    # `graduation` or `duplicate` is ever registered
+    # (`tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_rule_id_contains_neither_graduation_nor_duplicate`),
+    # because its own OQ-01 ruled that a source carrying several artifacts is
     # LEGITIMATE decomposition and a rule counting them would flag correct work on every run. That
     # prohibition is about artifact CLUSTERING per source and is correct; its keyword match is simply
     # broader than its subject, and this rule is about a repeated token WITHIN ONE FIELD, which is
@@ -3952,19 +3959,19 @@ _ITEM_PRIORITY_RE = _re.compile(r"(?m)^- Priority:[ \t]*(\S+)[ \t]*$")
 _ITEM_WORK_KIND_RE = _re.compile(r"(?m)^- Work-Kind:[ \t]*(\S+)[ \t]*$")
 _META_BLOCKS_RELEASE_RE = _re.compile(r"(?m)^- Blocks-Release:[ \t]*(\S+)[ \t]*$")
 _META_CLOSE_EVIDENCE_RE = _re.compile(r"(?m)^- Close-Evidence:[ \t]*(\S+)[ \t]*$")
-_META_FROM_BACKLOG_RE = _re.compile(r"(?m)^- From-Backlog:[ \t]*(\S+)[ \t]*$")
+_META_FROM_BACKLOG_RE = _re.compile(r"(?m)^- From-Backlog:[ \t]*([^\n]*?)[ \t]*$")
 _PLAN_STATUS_RE = _re.compile(r"(?m)^- Status:[ \t]*(\S+)[ \t]*$")
 
 
 def _from_backlog_value(text: str) -> Optional[str]:
-    """Return the captured `- From-Backlog:` value, or None if absent or an absent sentinel (plan 3cs7qg)."""
+    """Return the captured `- From-Backlog:` value, or None if absent, sentinel, or malformed (plan okp2o4)."""
     m = _META_FROM_BACKLOG_RE.search(text)
     if not m:
         return None
-    val = m.group(1)
-    if _S.source_link_is_absent(val):
-        return None
-    return val
+    cls = _S.classify_source_link(m.group(1))
+    if cls.verdict == _S.SOURCE_LINK_USABLE:
+        return cls.id6
+    return None
 
 
 _PRIORITY_RANK = {"low": 0, "medium": 1, "high": 2}
@@ -4196,11 +4203,13 @@ def build_graduation_reverse_index(
         ("spec", _iter_spec_records),
     ):
         for path, text in iterator(repo_root):
-            sources: List[Tuple[str, str]] = [
-                ("backlog", m.group(1))
-                for m in _META_FROM_BACKLOG_RE.finditer(text)
-                if not _S.source_link_is_absent(m.group(1))
-            ] + [
+            backlog_sources: List[Tuple[str, str]] = []
+            for m in _META_FROM_BACKLOG_RE.finditer(text):
+                cls = _S.classify_source_link(m.group(1))
+                if cls.verdict == _S.SOURCE_LINK_USABLE and cls.id6:
+                    backlog_sources.append(("backlog", cls.id6))
+
+            sources: List[Tuple[str, str]] = backlog_sources + [
                 ("spec", m.group(1))
                 for m in _ITEM_FROM_SPEC_RE.finditer(text)
                 if not _S.source_link_is_absent(m.group(1))
@@ -5041,6 +5050,7 @@ RELEASE_GATE_RULES = (
     "check.from-backlog-gate-mismatch",
     "check.blocks-release-dangling",
     "check.from-backlog-dangling",
+    "check.from-backlog-malformed",
 )
 
 
@@ -5053,6 +5063,7 @@ def check_release_gates(repo_root: Path) -> List[_core.Drift]:
     Composed rules:
       * check.blocks-release-dangling (releases.check_blocks_release)
       * check.from-backlog-dangling (releases.check_from_backlog)
+      * check.from-backlog-malformed (releases.check_from_backlog)
       * check.blocking-item-closed-without-gate (check_release_gate_consistency)
       * check.from-backlog-gate-mismatch (check_release_gate_consistency)
       * check.live-bug-ungated (check_live_bug_gate)

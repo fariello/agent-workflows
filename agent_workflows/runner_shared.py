@@ -12558,13 +12558,14 @@ def _read_item_dependencies(text: str) -> tuple[list[str], str | None]:
 
 
 def _read_from_backlog(text: str) -> str | None:
-    """The plan's `- From-Backlog:` id6, or None when the field is absent/empty.
+    """The plan's `- From-Backlog:` id6, or None when the field is absent/empty/malformed (okp2o4).
 
     THE FIELD NAME IS THE SCHEMA'S, NOT A LOCAL REGEX (zhr6mc E-01). `ipd_schema.META_FROM_BACKLOG`
     is the single authority the checkers already use, so the runner and `aw check` cannot come to
     disagree about what the field is called. The metadata block is read by `ipd_lint.parse`, the same
     structural fence-aware reader the lint and lifecycle surfaces use -- identical in form to how
-    `_read_item_dependencies` reads its own field, and for the identical reason.
+    `_read_item_dependencies` reads its own field, and for the identical reason. The value is classified
+    by `ipd_schema.classify_source_link`, so malformed inputs yield None rather than a junk token.
     """
     from agent_workflows import ipd_lint as _lint
     from agent_workflows import ipd_schema as _schema
@@ -12574,10 +12575,10 @@ def _read_from_backlog(text: str) -> str | None:
     except Exception:
         return None
     raw = (fields.get(_schema.META_FROM_BACKLOG) or "").strip()
-    if _schema.source_link_is_absent(raw):
-        return None
-    token = raw.split()[0].strip("\"'").strip()
-    return token if ID6_RE.fullmatch(token) else None
+    cls = _schema.classify_source_link(raw)
+    if cls.verdict == _schema.SOURCE_LINK_USABLE:
+        return cls.id6
+    return None
 
 
 class PlanRecord(NamedTuple):
