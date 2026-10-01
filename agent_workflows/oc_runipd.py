@@ -1292,6 +1292,7 @@ def process_backlog_close(
         run_checked=run_checked,
         close_backlog_item=close_backlog_item,
         commit_backlog_close=commit_backlog_close,
+        host_label=runner_shared.OC_HOST_LABELS.command,
     )
 
 
