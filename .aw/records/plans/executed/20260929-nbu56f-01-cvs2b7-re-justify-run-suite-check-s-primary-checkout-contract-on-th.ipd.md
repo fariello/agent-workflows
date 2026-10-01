@@ -6,7 +6,7 @@
 - Scope: Correct the record for `run_suite_check`'s primary-checkout contract and give the contract a test. Rewrite the docstring paragraph to re-justify the contract on the reason that STILL HOLDS (a green PRIMARY tree is what integration endangers, which is already the docstring's own "HONEST LIMIT" sentence and is independent of `dh0uno`), DELETING the stale counts and the "permanently red" conclusion without installing a replacement count, since the item's own eight-day-old figure is already stale by 53 tests (F-3) and a fresh number would re-create this very item. Correct the same stale claim at the three other sites that restate it: the `rerun_suite` comment ("a lane-run suite is permanently red") and the two "`run_suite_check` is defined in `oc_runipd`" statements, which have been wrong since `cnwy8g` re-homed the function into `runner_shared`. Add a behavioral test asserting the suite check receives the PRIMARY checkout and not the lane worktree. EXCLUDES changing which directory `run_suite_check` runs in (the contract is correct and is deliberately preserved), EXCLUDES any change to `dh0uno`'s control-root fix, and EXCLUDES the dangling `NoRunnerImportTests` citations found beside this work (carried by backlog `gia5i7`).
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_oc_runipd.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: cvs2b7
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: cvs2b7 verified (set nbu56f, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-801..PR-806 all FIXED, OQ-01 and OQ-02 both ANSWERED (each named Owner: reviewer). All nine of the plan's facts reproduced: F-2 verbatim (38 passed in a confirmed linked worktree), F-4 re-confirmed by performing the mutation (3344 passed, nothing fails), F-5 character for character, F-7's resolver asymmetry exactly. Three findings change execution: F-11, the spy MUST patch the driver module because runner_shared rebinds run_suite_check off the host at call time and patching the shared module observes ZERO calls (measured, a silently vacuous test); F-10, there are TWO call sites passing repo and E-03 pins only one; F-12, the pin was fully prototyped at review including the mutation triple. Also corrected F-9's citation count (8 not 9) and recorded both baselines (3246 -> 3344).
 
