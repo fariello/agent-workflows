@@ -120,6 +120,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier: xvp5vx
 - THE ABORT-PARTITION DIMENSION, including the `action` cell's spec anchor. Owned by approved plan `xjmjq4` E-05 (F-08). E-01 adapts to whether it has landed rather than racing it.
   - Carrier: xjmjq4
+  - Carrier-Evidence: .aw/records/plans/executed/20260929-dorm45-01-xjmjq4-pin-the-run-abort-partition-to-the-spec-action-text-instead.ipd.md
 - RESTORING COVERAGE FOR THE TWO PROPERTIES BEHIND THE OTHER DANGLING CITATIONS (the Antigravity permission-posture default and the bidirectional flag-surface binding). E-04 and E-05 make the CLAIMS honest; they do not re-guard the properties. Both are real coverage gaps, both were measured as currently unguarded (F-04), and both are instances of exactly what `xvp5vx` exists to triage. Restoring either means reasoning about a spec (`7ckptx` R4.1c) and a flag table this plan does not otherwise touch, which would be an unreviewable scope expansion in a file three other pending plans already contend for (F-09).
   - Carrier: xvp5vx
 - THE 1,926 DANGLING TEST CITATIONS IN THE PLANS TREE. Not corrected and deliberately excluded from E-06's rule scope: an executed plan is a historical record whose citations were true when written, and `AGENTS.md` forbids changing what an executed plan RECORDS. Correcting them would rewrite history to no benefit.
