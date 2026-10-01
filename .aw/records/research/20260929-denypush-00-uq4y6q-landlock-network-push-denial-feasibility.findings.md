@@ -7,9 +7,9 @@ topic: [sandbox, security, landlock, push-denial]
 model: 
 kind: findings
 status: todo
-outcome: none-yet
+outcome: adopted
 summary: Measured feasibility of OS-level push denial via Landlock ABI4 network rules: two-sided denial proven, but rules are port-only with no address field
-consumed-by: []
+consumed-by: [x2dwu5]
 priority: low
 ---
 

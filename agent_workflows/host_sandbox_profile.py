@@ -33,7 +33,12 @@ worker (x03wgn Section 1: "A same-user process with arbitrary shell access canno
 cryptographically or filesystem-enforced from prompts, hooks, environment variables, or
 Python role checks alone."). This module is the OPT-IN complement for when "the driver is
 the only writer" must be literal. Hardened mode is NOT the default (Phase 6.4). Network
-scoping and container isolation are out of scope here.
+denial is measured and cannot separate a git remote from the model API on one port, so
+none is applied (network scoping is now measured rather than out of scope, and
+`handled_access_net` is already the second member of the ruleset attr
+`landlock_bootstrap_source` packs passing literal 0 today, so the reason no network rule
+is added is this port-granularity limit, not absence of a mechanism); container isolation
+remains out of scope here.
 
 PLATFORM AND PROBE THE GUARANTEE WAS VERIFIED ON. Linux ONLY. The mechanism is a ladder,
 and every rung is decided by an EXECUTED probe, never by inspection:
