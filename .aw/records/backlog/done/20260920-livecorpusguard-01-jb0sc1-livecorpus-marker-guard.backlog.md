@@ -1,5 +1,5 @@
 - Id: jb0sc1
-- Status: graduated
+- Status: done
 - Graduated-To: lcnotice
 - Set: livecorpusguard
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Six live-corpus tests carry no livecorpus marker, so a third party's artifact can still red a lane's suite
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD mvcwsd executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-lcnotice-01-mvcwsd-name-the-live-corpus-read-in-the-failure-report-and-refuse-t.ipd.md); evidence .aw/records/plans/executed/20260929-lcnotice-01-mvcwsd-name-the-live-corpus-read-in-the-failure-report-and-refuse-t.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: mvcwsd
 - 2026-09-20 created (aw backlog): Carried forward from plan h3bjue E-04: the livecorpus marker added in 7b9f3ae2 supplies the discriminator a class-wide guard previously lacked; six unmarked live-corpus call sites measured 2026-09-20.
 
