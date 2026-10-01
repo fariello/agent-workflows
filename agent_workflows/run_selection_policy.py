@@ -1617,6 +1617,18 @@ class ItemDisposition(NamedTuple):
 #: acted-on artifacts fall outside the partition.
 DISPOSITION_ACTED_ON = "acted_on"
 
+#: The count key for a queue entry that is not a mapping (malformed or unreadable).
+#: Deliberately NOT added to SKIP_REASONS (which mirrors spec 25kzda's closed reason vocabulary, F-13)
+#: and deliberately NOT added to SKIP_REASON_LABELS (which skip_reason_text tests membership against,
+#: so adding it there would silently reopen the closed vocabulary, F-14). The human gloss is carried
+#: inside ItemDisposition.reason instead; render_disposition_summary's SKIP_REASON_LABELS.get(code, "")
+#: therefore renders this code with no trailing gloss, and the remedy guides the operator.
+DISPOSITION_MALFORMED_ENTRY = "malformed_entry"
+
+#: The human gloss for an unreadable queue entry, carried inside ItemDisposition.reason for the
+#: per-artifact line rather than in SKIP_REASON_LABELS (F-14).
+DISPOSITION_MALFORMED_ENTRY_GLOSS = "malformed queue entry (not a mapping)"
+
 
 def derive_item_disposition(
     entry: Mapping[str, object],
@@ -1628,6 +1640,9 @@ def derive_item_disposition(
     so the per-artifact line's behavior is byte-identical and the counts cannot key on a different
     judgement than the line displays. Precedence, and why (unchanged from `m85gxh`):
 
+      0. An entry that is not a mapping (malformed or unreadable) fails closed immediately to
+         :data:`DISPOSITION_MALFORMED_ENTRY` (never counted as acted on, since an unreadable entry
+         cannot be shown to have run).
       1. A recorded `Refusal` (`orchprobe` `r2i1b1`) wins, because a producer that explicitly said why
          it refused THIS item is more specific than anything inferable from its status. Its own
          ``code`` becomes the count key and its own ``remedy`` travels with it.
@@ -1640,6 +1655,15 @@ def derive_item_disposition(
       6. Otherwise the artifact was acted on (or is still in flight) and carries
          :data:`DISPOSITION_ACTED_ON`, whose line text is :data:`ACTED_REASON_LABEL`.
     """
+
+    if not isinstance(entry, Mapping):
+        return ItemDisposition(
+            DISPOSITION_MALFORMED_ENTRY,
+            "{0} ({1})".format(
+                DISPOSITION_MALFORMED_ENTRY,
+                DISPOSITION_MALFORMED_ENTRY_GLOSS,
+            ),
+        )
 
     get = entry.get
     status = str(get("status") or "").strip()
@@ -1752,6 +1776,17 @@ def render_queue_dispositions(
 
     lines: List[str] = []
     for entry in entries:
+        if not isinstance(entry, Mapping):
+            decided = derive_item_disposition(entry, refusal_reader)
+            lines.append(
+                render_item_disposition(
+                    "?",
+                    "",
+                    "",
+                    decided.reason,
+                )
+            )
+            continue
         get = entry.get
         decided = derive_item_disposition(entry, refusal_reader)
         lines.append(
@@ -1854,6 +1889,10 @@ DISPOSITION_REMEDIES: Mapping[str, str] = {
     SKIP_HOST_CAPABILITY_UNAVAILABLE: (
         "inspect the refused capability with `aw host capabilities`, then run the item on a host that "
         "satisfies it"
+    ),
+    DISPOSITION_MALFORMED_ENTRY: (
+        "inspect the run record with `aw runs show <target>` to diagnose the corrupt or "
+        "non-mapping entry; preserve the run directory as durable evidence rather than deleting it"
     ),
 }
 

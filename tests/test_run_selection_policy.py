@@ -1979,3 +1979,79 @@ def test_acted_on_bucket_and_ordering():
     ]
     codes = [code for code, _n, _r in pol.summarize_dispositions(queue2)]
     assert codes == [pol.SKIP_NEEDS_HUMAN_APPROVAL, pol.DISPOSITION_ACTED_ON]
+
+
+# --------------------------------------------------------------------------------------------------
+# cup9r7 (3z91mq): guard disposition renderers against a malformed queue entry
+# --------------------------------------------------------------------------------------------------
+
+
+def test_malformed_queue_entry_derives_fail_closed_disposition():
+    """`derive_item_disposition` returns DISPOSITION_MALFORMED_ENTRY and never claims acted on."""
+    disp = pol.derive_item_disposition("not-a-mapping")
+    expected_code = getattr(pol, "DISPOSITION_MALFORMED_ENTRY", "malformed_entry")
+    assert disp.code == expected_code
+    assert disp.code != pol.DISPOSITION_ACTED_ON
+    assert expected_code in str(disp.reason)
+    assert "not a mapping" in str(disp.reason)
+
+
+def test_malformed_queue_entry_render_queue_dispositions():
+    """`render_queue_dispositions` renders an explicit unreadable row rather than crashing or skipping."""
+    queue = ["not-a-mapping"]
+    lines = pol.render_queue_dispositions(queue)
+    expected_code = getattr(pol, "DISPOSITION_MALFORMED_ENTRY", "malformed_entry")
+    assert len(lines) == 2
+    assert lines[0] == pol.DISPOSITION_HEADER
+    assert f"- ? ? -> ?: {expected_code} (" in lines[1]
+    assert "not a mapping" in lines[1]
+
+
+def test_malformed_queue_entry_disposition_summary_and_count_partition():
+    """Summary counts partition mixed queues and all-malformed queue yields NO WORK WAS PERFORMED."""
+    # All-malformed queue
+    lines = pol.render_disposition_summary(["not-a-mapping"])
+    text = "\n".join(lines)
+    assert pol.SUMMARY_HEADER in text
+    assert "NO WORK WAS PERFORMED" in text
+    assert "matched 1 artifact(s) and acted on NONE" in text
+    assert "total: 1 matched, 0 acted on, 1 not acted on" in text
+    expected_code = getattr(pol, "DISPOSITION_MALFORMED_ENTRY", "malformed_entry")
+    assert f"{expected_code} (1)" in text
+
+    # Mixed queue
+    queue = [
+        _queue_entry(position=1, id6="aaa111", status="executed", attempts=[{"n": 1}]),
+        "not-a-mapping",
+        _queue_entry(position=2, id6="bbb222", needs_input=True),
+    ]
+    rows = pol.summarize_dispositions(queue)
+    assert sum(count for _code, count, _remedy in rows) == len(queue)
+    summary_lines = pol.render_disposition_summary(queue)
+    summary_text = "\n".join(summary_lines)
+    assert "total: 3 matched, 1 acted on, 2 not acted on" in summary_text
+
+    queue_lines = pol.render_queue_dispositions(queue)
+    assert len(queue_lines) - 1 == len(queue)
+
+
+def test_malformed_entry_closed_vocabulary_and_consumer_invariants():
+    """The new code is outside SKIP_REASONS and SKIP_REASON_LABELS (F-14), and fourth consumer answers True."""
+    from agent_workflows import render_stream
+
+    code = getattr(pol, "DISPOSITION_MALFORMED_ENTRY", "malformed_entry")
+    assert code not in pol.SKIP_REASONS
+    assert code not in pol.SKIP_REASON_LABELS
+    assert code not in pol.DISPOSITIONS_NEEDING_NO_REMEDY
+
+    # remedy_for_disposition returns a real remedy (not unknown, not None)
+    remedy = pol.remedy_for_disposition(code)
+    assert remedy is not None
+    assert remedy != pol.REMEDY_UNKNOWN_TEXT
+
+    # skip_reason_text raises ValueError (F-14)
+    with pytest.raises(ValueError):
+        pol.skip_reason_text(code)
+
+    # Fourth consumer: queue_performed_no_work returns True
+    assert render_stream.queue_performed_no_work(["not-a-mapping"]) is True
