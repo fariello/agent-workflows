@@ -6,7 +6,7 @@
 - Scope: IN: (a) define the message ONCE in `runner_shared` as `FULL_AUTO_APPROVAL_MESSAGE`, in the reference-carrying shape the eight other host-invariant co-defined constants already use; (b) turn both hosts' literals into one-line references to it, leaving each host's `set_plan_approved` signature, its default, and the argv it builds byte-identical; (c) extend the shipped `gjni4c` E-01 sweep so a co-defined constant whose two HOST values DISAGREE also fails, which is the direction that sweep structurally cannot currently see and the property this plan must not silently give up. OUT, each with a reason recorded in "Deferred / out of scope": adding a `HostLabels` field (the fix direction the backlog item guesses at, REFUTED by measurement in F-04/F-05 because the value is host-INVARIANT and the descriptor is explicitly a carrier of host-VARYING strings); the ten other host-invariant literal-duplicated constants F-09 measures (a separate sweep, carried); and any change to the message's VALUE, the actor, or `set_plan_approved`'s signature.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_runner_shared.py
 - Item-Dependencies: executed:b02ohu
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 90z361
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 90z361 verified (set xi5jt0, attempt 2).
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): plan-review complete; 7 findings all fixed; E-03 mechanism rewritten onto vars() and ordered behind approved sibling b02ohu
 
