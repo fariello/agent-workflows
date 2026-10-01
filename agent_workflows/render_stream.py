@@ -2552,6 +2552,22 @@ def review_integration_was_refused(item: dict[str, Any]) -> bool:
     return item.get("review_integrated") is False
 
 
+def work_did_not_land(item: dict[str, Any] | Mapping[str, Any]) -> bool:
+    """Did this item's own record say its work failed to land? (entv1d E-02)
+
+    ONE EXPORTED QUESTION FOR BOTH STRANDED SHAPES. Composes :func:`integration_was_refused`
+    (the EXECUTE path, keyed on `integration_signal`) and :func:`review_integration_was_refused`
+    (the REVIEW path, keyed on `review_integrated`).
+
+    This is the one question the exit code and the headline must both ask so the two cannot drift:
+    an item whose work did not land in the project repository is stranded regardless of whether
+    its turn was an execute or a review action.
+    """
+    if isinstance(item, Mapping) and not isinstance(item, dict):
+        item = dict(item)
+    return bool(integration_was_refused(item) or review_integration_was_refused(item))
+
+
 def review_integration_refusal_detail(item: dict[str, Any]) -> str | None:
     """Why a review's integration was refused, path-redacted, or None.
 
