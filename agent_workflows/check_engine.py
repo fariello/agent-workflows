@@ -3878,6 +3878,7 @@ _ITEM_PRIORITY_RE = _re.compile(r"(?m)^- Priority:[ \t]*(\S+)[ \t]*$")
 # `- Gate-Kind:` field nor an IPD's REQUIRED structural `- Kind:` (both are distinct vocabularies).
 _ITEM_WORK_KIND_RE = _re.compile(r"(?m)^- Work-Kind:[ \t]*(\S+)[ \t]*$")
 _META_BLOCKS_RELEASE_RE = _re.compile(r"(?m)^- Blocks-Release:[ \t]*(\S+)[ \t]*$")
+_META_CLOSE_EVIDENCE_RE = _re.compile(r"(?m)^- Close-Evidence:[ \t]*(\S+)[ \t]*$")
 _META_FROM_BACKLOG_RE = _re.compile(r"(?m)^- From-Backlog:[ \t]*(\S+)[ \t]*$")
 _PLAN_STATUS_RE = _re.compile(r"(?m)^- Status:[ \t]*(\S+)[ \t]*$")
 
@@ -4513,6 +4514,8 @@ def evaluate_blocking_close(
     item_id6 = mid.group(1) if mid else None
     mbr = _META_BLOCKS_RELEASE_RE.search(text)
     blocks_release = mbr.group(1) if mbr else None
+    mce = _META_CLOSE_EVIDENCE_RE.search(text)
+    item_close_evidence = mce.group(1) if mce else None
 
     if target_status == "done":
         # DE-GATED: the post-mutation item carries no Blocks-Release -> nothing to preserve.
@@ -4542,12 +4545,15 @@ def evaluate_blocking_close(
                     (),
                     "HANDOFF",
                 )
-        # SATISFIED: a resolvable evidence artifact citation.
-        if evidence and resolve_evidence_artifact(repo_root, evidence):
+        # SATISFIED: a resolvable evidence artifact citation (explicit argument wins, item bullet fallback).
+        effective_evidence = evidence if evidence is not None else item_close_evidence
+        if effective_evidence and resolve_evidence_artifact(
+            repo_root, effective_evidence
+        ):
             return CloseVerdict(
                 True,
                 "ok",
-                f"gate {blocks_release!r} satisfied by resolvable evidence {evidence!r}",
+                f"gate {blocks_release!r} satisfied by resolvable evidence {effective_evidence!r}",
                 (),
                 "SATISFIED",
             )

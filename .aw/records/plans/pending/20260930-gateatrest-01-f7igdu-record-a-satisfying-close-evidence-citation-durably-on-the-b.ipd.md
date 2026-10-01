@@ -35,40 +35,40 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the field and its contract
 
-- [ ] E-01 DEFINE THE FIELD IN THE RECORD CONTRACT, in `.aw/records/backlog/README.md`'s metadata block, as `- Close-Evidence: <in-tree artifact path>   # optional; written by the setter on an evidence-satisfied done close`. State three properties in the prose beneath it, because each one is a decision a later reader would otherwise re-litigate: it is WRITTEN BY THE TOOL and never by hand (it is an attestation that a specific citation was resolved and accepted, so a hand-written value forges the acceptance, the same rule `AGENTS.md` states for `- Readiness:`); it is RETAINED on the item forever, since the close it records is permanent; and it is NOT a gate field, so it is never cleared by a status transition. Name the field `Close-Evidence` rather than `Gate-Evidence`: `Gate-*` is the blocked-gate family (`Gate-Kind`, `Gate-Ref`, and the `Gate-Summary` `backlog._render_item` deliberately DROPS on a non-`blocked` item), and a name in that family would be a magnet for exactly that drop rule.
+- [x] E-01 DEFINE THE FIELD IN THE RECORD CONTRACT, in `.aw/records/backlog/README.md`'s metadata block, as `- Close-Evidence: <in-tree artifact path>   # optional; written by the setter on an evidence-satisfied done close`. State three properties in the prose beneath it, because each one is a decision a later reader would otherwise re-litigate: it is WRITTEN BY THE TOOL and never by hand (it is an attestation that a specific citation was resolved and accepted, so a hand-written value forges the acceptance, the same rule `AGENTS.md` states for `- Readiness:`); it is RETAINED on the item forever, since the close it records is permanent; and it is NOT a gate field, so it is never cleared by a status transition. Name the field `Close-Evidence` rather than `Gate-Evidence`: `Gate-*` is the blocked-gate family (`Gate-Kind`, `Gate-Ref`, and the `Gate-Summary` `backlog._render_item` deliberately DROPS on a non-`blocked` item), and a name in that family would be a magnet for exactly that drop rule.
   - Depends on: none
   - Expected outcome: the backlog README documents one new optional bullet with its writer, its permanence, and the reason for its name.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 PARSE AND VALIDATE THE FIELD in `agent_workflows/backlog.py`: add `close_evidence` to `BacklogItem.__slots__` and its `__init__`, add the reading regex to the `parse_item` field table beside `release_exempt_kind`/`release_exempt_ref`, and add a `validate_item` rule `backlog.close-evidence-unsafe` for a value that fails `attention_contract.is_safe_descriptive` (the same judgement `Summary` already gets through `backlog.summary-unsafe`). DO NOT validate that the path RESOLVES here: a citation can legitimately point at an artifact that was later archived or renamed, and `validate_item` is a shape checker with no repo root. VERIFIED that the field survives a round trip TODAY, before any parser change, so this item is about making it TYPED rather than making it PERSIST: driven at authoring, an item carrying `- Close-Evidence: README.md` taken through `aw backlog set <id6> --status open` kept the bullet byte-identically (plan `2yqt0a`'s source-order-preserving `_render_item` is what preserves it, since the key is not in `_TEMPLATE_OWNED_KEYS`), and `validate_item` returned `[]` for it. That measurement is why this item is cheap AND why it is not a no-op: an UNTYPED bullet is preserved but unreadable by any consumer, and `validate_item` silently accepts a malformed one.
+- [x] E-02 PARSE AND VALIDATE THE FIELD in `agent_workflows/backlog.py`: add `close_evidence` to `BacklogItem.__slots__` and its `__init__`, add the reading regex to the `parse_item` field table beside `release_exempt_kind`/`release_exempt_ref`, and add a `validate_item` rule `backlog.close-evidence-unsafe` for a value that fails `attention_contract.is_safe_descriptive` (the same judgement `Summary` already gets through `backlog.summary-unsafe`). DO NOT validate that the path RESOLVES here: a citation can legitimately point at an artifact that was later archived or renamed, and `validate_item` is a shape checker with no repo root. VERIFIED that the field survives a round trip TODAY, before any parser change, so this item is about making it TYPED rather than making it PERSIST: driven at authoring, an item carrying `- Close-Evidence: README.md` taken through `aw backlog set <id6> --status open` kept the bullet byte-identically (plan `2yqt0a`'s source-order-preserving `_render_item` is what preserves it, since the key is not in `_TEMPLATE_OWNED_KEYS`), and `validate_item` returned `[]` for it. That measurement is why this item is cheap AND why it is not a no-op: an UNTYPED bullet is preserved but unreadable by any consumer, and `validate_item` silently accepts a malformed one.
   - Depends on: E-01
   - Expected outcome: `backlog.parse_item` exposes `item.close_evidence`; `validate_item` reports `backlog.close-evidence-unsafe` on a control-character or over-long value and nothing on a well-formed path; the whole live tree still conforms.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the writer
 
-- [ ] E-03 WRITE THE CITATION AT THE ONE SITE THAT ALREADY OWNS THE DECISION. In `backlog.run_set`, the close-legitimacy call is already made and its verdict already inspected (`verdict = _ce.evaluate_blocking_close(gate_root, src, new_status, evidence=getattr(args, "evidence", None), item_text=rendered, prior_priority=...)`, followed by the `not verdict.legitimate and verdict.severity == "error"` refusal). Add: when the verdict is legitimate AND `verdict.path == "SATISFIED"`, set the `- Close-Evidence:` line on `rendered` to the citation that was accepted, via a new `releases.set_close_evidence_line`-shaped helper following the exact idempotent replace-or-insert-after-`- Status:` pattern `backlog.set_release_exempt_kind_line` already uses. KEY ON `verdict.path`, NOT ON THE ARGUMENT BEING PRESENT: the predicate returns `SATISFIED` only when the citation actually resolved, and it returns `HANDOFF` first when a carrier exists, so keying on `args.evidence` would record a citation the predicate never consulted and would stamp an attestation on a close that was authorized by something else. Write NOTHING on any other path, so `HANDOFF` and `DE-GATED` closes are byte-identical to today.
+- [x] E-03 WRITE THE CITATION AT THE ONE SITE THAT ALREADY OWNS THE DECISION. In `backlog.run_set`, the close-legitimacy call is already made and its verdict already inspected (`verdict = _ce.evaluate_blocking_close(gate_root, src, new_status, evidence=getattr(args, "evidence", None), item_text=rendered, prior_priority=...)`, followed by the `not verdict.legitimate and verdict.severity == "error"` refusal). Add: when the verdict is legitimate AND `verdict.path == "SATISFIED"`, set the `- Close-Evidence:` line on `rendered` to the citation that was accepted, via a new `releases.set_close_evidence_line`-shaped helper following the exact idempotent replace-or-insert-after-`- Status:` pattern `backlog.set_release_exempt_kind_line` already uses. KEY ON `verdict.path`, NOT ON THE ARGUMENT BEING PRESENT: the predicate returns `SATISFIED` only when the citation actually resolved, and it returns `HANDOFF` first when a carrier exists, so keying on `args.evidence` would record a citation the predicate never consulted and would stamp an attestation on a close that was authorized by something else. Write NOTHING on any other path, so `HANDOFF` and `DE-GATED` closes are byte-identical to today.
   - Depends on: E-02
   - Expected outcome: `aw backlog set <item> --status done --evidence <resolvable path>` on a gated item writes `- Close-Evidence: <path>` into the closed item; the same command on an item that ALSO has an executed same-gate carrier writes nothing (the verdict is `HANDOFF`); a `--blocks-release -` close writes nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 READ THE FIELD AS AN AT-REST INPUT in `check_engine.evaluate_blocking_close`'s `done` branch. Today the `SATISFIED` arm is `if evidence and resolve_evidence_artifact(repo_root, evidence)`. Change the citation it considers to `evidence` when the caller passed one, ELSE the item's own `- Close-Evidence:` value parsed from the same `text` the function already holds. Preserve two properties exactly: an explicitly-passed `evidence` argument WINS (so the setter's own in-flight call is unchanged, and a caller can still test a citation the item does not carry), and the citation must still RESOLVE through the unmodified `resolve_evidence_artifact`, so a stale or forged path is refused rather than trusted. ORDER IS UNCHANGED: `DE-GATED`, then `HANDOFF`, then `SATISFIED`, then the two refusals. Do not reorder to try the cheap field first; `HANDOFF` winning over `SATISFIED` is what E-03's `verdict.path` key depends on.
+- [x] E-04 READ THE FIELD AS AN AT-REST INPUT in `check_engine.evaluate_blocking_close`'s `done` branch. Today the `SATISFIED` arm is `if evidence and resolve_evidence_artifact(repo_root, evidence)`. Change the citation it considers to `evidence` when the caller passed one, ELSE the item's own `- Close-Evidence:` value parsed from the same `text` the function already holds. Preserve two properties exactly: an explicitly-passed `evidence` argument WINS (so the setter's own in-flight call is unchanged, and a caller can still test a citation the item does not carry), and the citation must still RESOLVE through the unmodified `resolve_evidence_artifact`, so a stale or forged path is refused rather than trusted. ORDER IS UNCHANGED: `DE-GATED`, then `HANDOFF`, then `SATISFIED`, then the two refusals. Do not reorder to try the cheap field first; `HANDOFF` winning over `SATISFIED` is what E-03's `verdict.path` key depends on.
   - THIS ITEM CHANGES FOUR SURFACES, NOT ONE, AND THE PLAN'S SCOPE CHECK UNDER-COUNTED THEM (F-06, added at review). The predicate is single-sourced, which is the convention this plan correctly cites, and the consequence is that a new INPUT reaches EVERY caller that does not pass `evidence=`. Three of the four do not pass it: the `aw check` rule `check.blocking-item-closed-without-gate` (through `check_release_gate_consistency`), the opt-in `hooks.backlog_blocking_close_gate` (which is the INTENDED beneficiary), and `set_records.close_on_answer` (which the Scope check dismisses as unable to produce a `SATISFIED` verdict). That dismissal is true about WRITING and false about READING once this item lands: `close_on_answer` calls the predicate with `item_text=rendered` and no `evidence=`, so an item already carrying the bullet gains a legitimacy route there too. MEASURED: zero live backlog items carry the bullet today (the field does not exist), so NOTHING in the tree changes verdict on landing and the exposure is FORWARD only. ENUMERATE ALL FOUR IN THE EXECUTION NOTE and state for each whether the new route is intended: it IS for the hook and the `aw check` rule (that is the plan's purpose), it is a no-op for the setter (which passes `evidence=` and whose explicit argument wins), and for `close_on_answer` it is an ACCEPTED CONSEQUENCE of single-sourcing rather than a separate feature, legitimate for the same reason the hook's is (the citation still resolves through the unmodified resolver). Do NOT add a caller-specific opt-out, which would fork the predicate this convention exists to keep single.
   - Depends on: E-03
   - Expected outcome: the predicate asked about a written, evidence-satisfied `done` item with NO `evidence=` argument returns `legitimate=True, path='SATISFIED'`; asked about the same item with its citation deleted it returns `legitimate=False, severity='error'`; asked about a citation that does not resolve it refuses; and all four callers are enumerated with the new route's intendedness stated for each.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: proof and record
 
-- [ ] E-05 EXTEND `tests/test_backlog_handoff_close.py` WITH THE AT-REST CASES, in the behavioral style that file already uses (drive the CLI or the predicate against a fixture repo; assert outcomes, never source text). REUSE THE TWO CASES YOUR NEW ONES SIT BESIDE rather than building a fixture from scratch: `test_case_6_satisfied_evidence_allowed` already drives a resolvable-evidence close and `test_case_7_degated_allowed` already drives a `--blocks-release -` close, so case (a) extends the first with an at-rest re-ask and case (d) extends both with a bullet-absence assertion. (The plan said the file holds ten cases; it holds twenty across two classes, corrected at review.) Four cases, each of which fails before E-03/E-04 and passes after: (a) the REGRESSION THAT MOTIVATES THE SET, written FIRST and demonstrated FAILING: close a gated item through `aw backlog set --status done --evidence <resolvable path>`, then ask `evaluate_blocking_close` about the WRITTEN item with no `evidence=` argument and assert `legitimate=True, path='SATISFIED'`; (b) the same item with its `- Close-Evidence:` bullet removed is refused, proving the pass in (a) comes from the field and not from some unrelated leniency; (c) an item carrying a `- Close-Evidence:` path that does NOT exist in the tree is refused, proving the resolver still gates; (d) a `HANDOFF` close and a `DE-GATED` close each leave NO `- Close-Evidence:` bullet, proving E-03 records an attestation rather than echoing argv. Case (a) is a MUTATION-SENSITIVE test by construction: reverting E-04 alone turns it red.
+- [x] E-05 EXTEND `tests/test_backlog_handoff_close.py` WITH THE AT-REST CASES, in the behavioral style that file already uses (drive the CLI or the predicate against a fixture repo; assert outcomes, never source text). REUSE THE TWO CASES YOUR NEW ONES SIT BESIDE rather than building a fixture from scratch: `test_case_6_satisfied_evidence_allowed` already drives a resolvable-evidence close and `test_case_7_degated_allowed` already drives a `--blocks-release -` close, so case (a) extends the first with an at-rest re-ask and case (d) extends both with a bullet-absence assertion. (The plan said the file holds ten cases; it holds twenty across two classes, corrected at review.) Four cases, each of which fails before E-03/E-04 and passes after: (a) the REGRESSION THAT MOTIVATES THE SET, written FIRST and demonstrated FAILING: close a gated item through `aw backlog set --status done --evidence <resolvable path>`, then ask `evaluate_blocking_close` about the WRITTEN item with no `evidence=` argument and assert `legitimate=True, path='SATISFIED'`; (b) the same item with its `- Close-Evidence:` bullet removed is refused, proving the pass in (a) comes from the field and not from some unrelated leniency; (c) an item carrying a `- Close-Evidence:` path that does NOT exist in the tree is refused, proving the resolver still gates; (d) a `HANDOFF` close and a `DE-GATED` close each leave NO `- Close-Evidence:` bullet, proving E-03 records an attestation rather than echoing argv. Case (a) is a MUTATION-SENSITIVE test by construction: reverting E-04 alone turns it red.
   - Depends on: E-04
   - Expected outcome: four new passing cases in the existing file, with (a) shown failing at HEAD before the fix and passing after.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 RECORD THE CHANGE for a reader who did not follow the Set: one `CHANGELOG.md` line under the pending 2.0.0 entry saying a backlog item closed on cited evidence now records that citation, so the release-gate check can tell a legitimate evidence-satisfied close from a hand close. No em or en dashes (user-facing prose).
+- [x] E-06 RECORD THE CHANGE for a reader who did not follow the Set: one `CHANGELOG.md` line under the pending 2.0.0 entry saying a backlog item closed on cited evidence now records that citation, so the release-gate check can tell a legitimate evidence-satisfied close from a hand close. No em or en dashes (user-facing prose).
   - Depends on: E-05
   - Expected outcome: one CHANGELOG line; `aw sanitize --agent` clean on the changed files.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -112,7 +112,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - THE `HANDOFF` ANY-CARRIER VERSUS ALL-CARRIER DISAGREEMENT. ALREADY RESOLVED; THIS ROW IS RETAINED AS A CORRECTION RATHER THAN A DEFERRAL (F-07, added at review). The plan described `2o5wka` as a PENDING plan and warned that "4 of the 175 `HANDOFF`-legitimate historical closes have at least one UNEXECUTED same-gate carrier and would become findings if that plan lands". Measured at review: `2o5wka` is `- Status: executed` and lives in `.aw/records/plans/executed/`, backlog `lsbd32` is `done`, and `evaluate_blocking_close`'s own docstring and code now require that EVERY same-gate carrier be executed ("tightened by anycarrier Order 1 (2o5wka, backlog lsbd32) to require all same-gate carriers executed"). The warned-about population is therefore ZERO BY CONSTRUCTION, not by luck: a `HANDOFF` verdict can no longer coexist with an unexecuted carrier, and a census confirms 0 such items. So child 02 inherits no surprise from this direction, and the 4-item figure must not be carried forward into it.
   - Carrier-Declined: nothing is owed; the work is DONE, not deferred. Re-filing it would assert outstanding work against an executed plan and a closed backlog item.
 - THE POSITIONAL-SPELLING BYPASS. `aw backlog set done <id6>` routes through `status_set.apply_status_change`, which never consults the predicate. Owned by pending plan `47ttnv` (backlog `mawwlc`). This plan's writer therefore covers the `--status` spelling only, which is the only spelling that reaches a verdict to key on.
-  - Carrier: mawwlc
+  - Carrier-Evidence: .aw/records/backlog/done/20260926-gatebypass-01-mawwlc-positional-done-skips-release-gate.backlog.md
 - A `validate_item` RULE THAT THE CITATION RESOLVES. `validate_item(path, text)` has no repo root and a citation may legitimately point at an artifact archived after the close. The resolution check stays where it belongs, in the predicate.
   - Carrier-Declined: No obligation exists to carry. This is a placement decision, not a missing check: the resolution IS performed, by `evaluate_blocking_close` through `resolve_evidence_artifact`, which is the only caller that holds a repo root. Filing a carrier would assert that a check is absent when it is present one layer up.
 
@@ -151,35 +151,246 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the added README block verbatim, showing the bullet, the "written by the tool, never by hand" property, the retention property, and the naming rationale. Paste the `git diff` for the README proving no other line changed. ALSO paste the re-measured verdict-path census that F-03 reports (`HANDOFF` / `SATISFIED` / illegitimate counts over every gated `done` item at execution HEAD), because those numbers WILL have moved and the README's claim that the field is forward-looking depends on the `SATISFIED` count still being zero at execution time; if it is NOT zero, say so and report which items already carry a citation. The figures have ALREADY drifted twice: authoring measured 224 gated items (`HANDOFF` 175 / illegitimate 49 / `SATISFIED` 0) and review re-measured 236 (`HANDOFF` 183 / illegitimate 53 / `SATISFIED` 0), so cite neither as the bar and re-derive your own; only the ZERO is load-bearing. Confirm no em or en dashes were introduced (this is user-facing prose).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified.
+    Added metadata bullet in `.aw/records/backlog/README.md`:
+    ```markdown
+    - Close-Evidence: <in-tree artifact path>   # optional; written by the setter on an evidence-satisfied done close
+    ```
+    Added prose block in `.aw/records/backlog/README.md`:
+    ```markdown
+    The `- Close-Evidence:` field records the in-tree artifact path cited to satisfy a release gate on a `done` close. Three properties define its contract:
+    1. Written by the tool, never by hand: it is an attestation that a specific citation was resolved and accepted by the close predicate, so a hand-written value forges the acceptance (the same rule `AGENTS.md` states for `- Readiness:`).
+    2. Retained on the item forever, since the close it records is permanent.
+    3. Not a gate field, so it is never cleared by a status transition.
+    It is named `Close-Evidence` rather than `Gate-Evidence` because `Gate-*` is the blocked-gate family (`Gate-Kind`, `Gate-Ref`, and `Gate-Summary`, which `_render_item` deliberately drops on a non-`blocked` item), and a name in that family would be a magnet for that drop rule.
+    ```
+    git diff .aw/records/backlog/README.md:
+    ```diff
+    diff --git a/.aw/records/backlog/README.md b/.aw/records/backlog/README.md
+    index 2d2ac7197..cbe5afc1f 100644
+    --- a/.aw/records/backlog/README.md
+    +++ b/.aw/records/backlog/README.md
+    @@ -57,6 +57,7 @@ attention `Gate-Kind`/`Gate-Ref` bullets), then a prose body:
+     - Graduated-To: <setid>[, <setid>...]                        # optional, multi-valued
+     - Release-Exempt-Kind: <artifact|decision|todo|issue|date|external>  # optional exemption pair
+     - Release-Exempt-Ref: <ref>                                          # optional exemption pair
+    +- Close-Evidence: <in-tree artifact path>   # optional; written by the setter on an evidence-satisfied done close
 
-- [ ] V-02 validates E-02
+     ## Workflow history
+     - YYYY-MM-DD <event> (<actor>): <one line>
+    @@ -77,6 +78,12 @@ ship known bugs. The rule, what counts as a bug (including when a slow-but-corre
+     limits are stated in `AGENTS.md` under "Every live bug gates the next release"; read it there rather than
+     here, so the policy has one home.
+
+    +The `- Close-Evidence:` field records the in-tree artifact path cited to satisfy a release gate on a `done` close. Three properties define its contract:
+    +1. Written by the tool, never by hand: it is an attestation that a specific citation was resolved and accepted by the close predicate, so a hand-written value forges the acceptance (the same rule `AGENTS.md` states for `- Readiness:`).
+    +2. Retained on the item forever, since the close it records is permanent.
+    +3. Not a gate field, so it is never cleared by a status transition.
+    +It is named `Close-Evidence` rather than `Gate-Evidence` because `Gate-*` is the blocked-gate family (`Gate-Kind`, `Gate-Ref`, and `Gate-Summary`, which `_render_item` deliberately drops on a non-`blocked` item), and a name in that family would be a magnet for that drop rule.
+    +
+     ## Verbs
+
+     - `aw backlog new --summary ... [--status --priority --work-kind --set --slug --gate-kind --gate-ref --body] [--apply]`
+    ```
+    Re-measured census over all gated done items at execution HEAD (37a378846d):
+    Total done items: 471
+    Total gated done items: 258
+    Verdict-path census: HANDOFF 205 / SATISFIED 0 / illegitimate 53
+    The load-bearing SATISFIED count remains exactly 0. Zero items carry a citation today.
+    No em or en dashes were introduced (verified by unicodedata check).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste a driven demonstration, not a source excerpt: for a fixture item carrying `- Close-Evidence: README.md`, paste `backlog.parse_item(text).close_evidence`; for a fixture carrying a control-character or over-length value, paste the `validate_item` drift list showing exactly one `backlog.close-evidence-unsafe`; for the well-formed one, paste the EMPTY drift list. Then paste `aw check backlog --agent` on the LIVE tree showing the same outcome and finding count as the pre-change baseline (paste both), proving a new validation rule did not light up existing records.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified.
+    Driven demonstration:
+    ```python
+    parse_item good_text close_evidence: 'README.md'
+    validate_item good_text drift: []
+    validate_item bad_text (control char) drift: [('backlog.close-evidence-unsafe', 'close evidence not a single bounded control-char-free line')]
+    validate_item bad_long_text drift: [('backlog.close-evidence-unsafe', 'close evidence not a single bounded control-char-free line')]
+    ```
+    Live tree check pre-change baseline:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"findings","exit":1,"verified":true,"complete":true,"target":"backlog","findings":3,"evidence":["inventory","rules"],"diagnostics":[{"location":".aw/records/backlog/graduated/20260928-9uowl6-01-9uowl6-allow-options-anywhere-among-positional-arguments-.backlog.md","rule":"check.name-nonconformant"},{"location":".aw/records/backlog/graduated/20260929-bjcz05-01-bjcz05-backlog-sidecar-event-written-before-gate-and-dry-.backlog.md","rule":"check.name-nonconformant"},{"location":"<collisions>","rule":"check.collisions-not-checked"}],"next":"aw check all"}
+    ```
+    Live tree check post-change:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"findings","exit":1,"verified":true,"complete":true,"target":"backlog","findings":3,"evidence":["inventory","rules"],"diagnostics":[{"location":".aw/records/backlog/graduated/20260928-9uowl6-01-9uowl6-allow-options-anywhere-among-positional-arguments-.backlog.md","rule":"check.name-nonconformant"},{"location":".aw/records/backlog/graduated/20260929-bjcz05-01-bjcz05-backlog-sidecar-event-written-before-gate-and-dry-.backlog.md","rule":"check.name-nonconformant"},{"location":"<collisions>","rule":"check.collisions-not-checked"}],"next":"aw check all"}
+    ```
+    The finding count is identical (3 findings, unchanged), proving no existing record was affected.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste three driven closes and the resulting item bullets for each. (a) gated item, no carrier, `--evidence <resolvable path>`: exit 0 and the item carries `- Close-Evidence: <that path>`. (b) gated item WITH an executed same-gate carrier, same `--evidence` argument: exit 0 and the item carries NO `- Close-Evidence:` bullet, because the verdict path was `HANDOFF`; this is the case that proves the write keys on `verdict.path` and not on argv. (c) `--blocks-release -` close: exit 0 and no bullet. For each, paste the exact command and its output, and state which verdict path the predicate returned.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified.
+    Case (a) gated item, no carrier, `--evidence <resolvable path>`:
+    Predicate verdict: path='SATISFIED', legitimate=True
+    Command: `aw backlog set item0a --status done --evidence .aw/records/releases/20260901-rel001-01-rel001-v1.release.md`
+    Exit code: 0
+    Output: `aw backlog set: 20261001-testset-01-item0a-test.backlog.md -> done`
+    Resulting written bullets:
+    ```markdown
+    - Id: item0a
+    - Status: done
+    - Close-Evidence: .aw/records/releases/20260901-rel001-01-rel001-v1.release.md
+    - Blocks-Release: next
+    - Set: testset
+    - Priority: high
+    - Work-Kind: bug
+    - Summary: Case a
+    ```
 
-- [ ] V-04 validates E-04
+    Case (b) gated item WITH an executed same-gate carrier, same `--evidence` argument:
+    Predicate verdict: path='HANDOFF', legitimate=True
+    Command: `aw backlog set item0b --status done --evidence .aw/records/releases/20260901-rel001-01-rel001-v1.release.md`
+    Exit code: 0
+    Output: `aw backlog set: 20261001-testset-01-item0b-test.backlog.md -> done`
+    Resulting written bullets:
+    ```markdown
+    - Id: item0b
+    - Status: done
+    - Blocks-Release: next
+    - Set: testset
+    - Priority: high
+    - Work-Kind: bug
+    - Summary: Case b
+    ```
+    (No `- Close-Evidence:` bullet was written, proving the write keys on verdict.path and not on argv.)
+
+    Case (c) `--blocks-release -` close:
+    Predicate verdict: path='DE-GATED', legitimate=True
+    Command: `aw backlog set item0c --status done --blocks-release -`
+    Exit code: 0
+    Output: `aw backlog set: 20261001-testset-01-item0c-test.backlog.md -> done`
+    Resulting written bullets:
+    ```markdown
+    - Id: item0c
+    - Status: done
+    - Set: testset
+    - Priority: high
+    - Work-Kind: bug
+    - Summary: Case c
+    ```
+    (No `- Close-Evidence:` bullet written.)
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the predicate's verdict tuple (legitimate, severity, path, and the reason string) for four at-rest asks with NO `evidence=` argument: the written item from V-03(a) returning `path='SATISFIED'`; the same item with the bullet deleted returning `legitimate=False, severity='error'`; the same item whose citation points at a path that does not exist returning `legitimate=False`; and one ask WITH an explicit `evidence=` argument naming a DIFFERENT resolvable path, proving the argument still wins (state which citation the reason names). ALSO paste the unchanged `HANDOFF`-first ordering demonstration: an item that satisfies BOTH routes returns `HANDOFF`. ALSO paste THE FOUR-CALLER ENUMERATION E-04 requires (F-06), naming each caller of `evaluate_blocking_close`, whether it passes `evidence=`, and whether the new at-rest route is intended there: the setter (passes it; explicit argument wins; no change), the `aw check` rule and the opt-in hook (do not pass it; the route IS the purpose), and `set_records.close_on_answer` (does not pass it; the route is an accepted consequence of single-sourcing). PLUS a pasted scan showing how many LIVE backlog items carry a `- Close-Evidence:` bullet at execution time; review measured 0, and a nonzero count means some live item's verdict may change on landing and must be reported.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified.
+    Four at-rest asks and explicit override:
+    1. At-rest ask on written item carrying Close-Evidence (no evidence= argument):
+       legitimate=True, severity='ok', path='SATISFIED'
+       reason="gate 'next' satisfied by resolvable evidence '.aw/records/releases/20260901-rel001-01-rel001-v1.release.md'"
+    2. Same item with Close-Evidence bullet deleted (no evidence= argument):
+       legitimate=False, severity='error', path=None
+       reason="backlog item carries Blocks-Release 'next'; closing it `done` would silently drop that release gate"
+    3. Same item with nonexistent citation (no evidence= argument):
+       legitimate=False, severity='error', path=None
+       reason="backlog item carries Blocks-Release 'next'; closing it `done` would silently drop that release gate"
+    4. Explicit evidence= argument naming a DIFFERENT resolvable path:
+       legitimate=True, severity='ok', path='SATISFIED'
+       reason="gate 'next' satisfied by resolvable evidence '.aw/records/releases/20260902-rel002-01-rel002-v2.release.md'"
+       (The reason names the explicitly-passed citation, proving the argument wins.)
 
-- [ ] V-05 validates E-05
+    Unchanged HANDOFF-first ordering (item satisfies BOTH routes):
+       legitimate=True, severity='ok', path='HANDOFF'
+       reason="gate 'next' handed off to a From-Backlog plan or spec"
+
+    Four-caller enumeration for evaluate_blocking_close:
+    1. `backlog.run_set`: passes `evidence=getattr(args, "evidence", None)`; explicit argument wins; in-flight behavior unchanged.
+    2. `check_engine.check_release_gate_consistency` (rule `check.blocking-item-closed-without-gate`): does not pass `evidence=`; new at-rest route IS intended (primary purpose).
+    3. `hooks.backlog_blocking_close_gate`: does not pass `evidence=`; new at-rest route IS intended (primary purpose).
+    4. `set_records.close_on_answer`: does not pass `evidence=`; new route is an accepted consequence of single-sourcing.
+
+    Live backlog scan for `- Close-Evidence:`:
+    Live backlog items carrying - Close-Evidence: 0
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the FAILING run of case (a) at HEAD before E-03/E-04 are applied, including the assertion error, then the passing run after. Paste `python3 -m pytest tests/test_backlog_handoff_close.py tests/test_backlog.py -o addopts=""` output with its per-test counts, and the bare `python3 -m pytest` summary line (the `N passed` line, which the configured `-q` already produces; do not add flags). A pasted pass without the pre-fix failure for case (a) FAILS this item, because a test written only after the fix cannot distinguish "the field is read" from "the fixture happened to pass".
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified.
+    Failing run of case (a) at HEAD before E-03/E-04 applied:
+    ```
+    =================================== FAILURES ===================================
+    _ BacklogHandoffCloseBehaviorTests.test_case_6a_satisfied_evidence_at_rest_reconstructable _
 
-- [ ] V-06 validates E-06
+    self = <tests.test_backlog_handoff_close.BacklogHandoffCloseBehaviorTests testMethod=test_case_6a_satisfied_evidence_at_rest_reconstructable>
+
+        def test_case_6a_satisfied_evidence_at_rest_reconstructable(self) -> None:
+    ...
+            # Ask evaluate_blocking_close about the WRITTEN item with NO evidence= argument
+            verdict = check_engine.evaluate_blocking_close(self.repo, done_path, "done")
+    >       self.assertTrue(verdict.legitimate)
+    E       AssertionError: False is not true
+
+    tests/test_backlog_handoff_close.py:747: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_6a_satisfied_evidence_at_rest_reconstructable
+    ======================= 1 failed, 20 deselected in 1.31s =======================
+    ```
+
+    Passing run of case (a) after E-03/E-04 applied:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=545684466
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 24 items / 23 deselected / 1 selected
+
+    tests/test_backlog_handoff_close.py .                                    [100%]
+
+    ======================= 1 passed, 23 deselected in 0.35s =======================
+    ```
+
+    Per-test counts run:
+    `python3 -m pytest tests/test_backlog_handoff_close.py tests/test_backlog.py -o addopts=""`
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=942235684
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 70 items
+
+    tests/test_backlog.py ..............................................     [ 65%]
+    tests/test_backlog_handoff_close.py ........................             [100%]
+
+    ============================== 70 passed in 3.67s ==============================
+    ```
+
+    Bare `python3 -m pytest` summary line:
+    ```
+    3684 passed, 2 skipped, 3 warnings in 75.74s (0:01:15)
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the added CHANGELOG line and confirm by inspection that it contains no em or en dash. Paste `aw sanitize --agent` output over the changed paths (exit 0, no findings). Paste `git diff --cached --name-only` for the commit, which must list exactly the five declared scope paths or a subset, and nothing else.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified.
+    Added CHANGELOG line:
+    `- Fixed: a backlog item closed on cited evidence now records that citation, so the release-gate check can tell a legitimate evidence-satisfied close from a hand close.`
+    Confirmed no em or en dashes present.
+
+    aw sanitize --agent output:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+
+    git diff --cached --name-only for commit:
+    ```
+    .aw/records/backlog/README.md
+    CHANGELOG.md
+    agent_workflows/backlog.py
+    agent_workflows/check_engine.py
+    tests/test_backlog_handoff_close.py
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -696,6 +696,231 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
         done_path = self.repo / ".aw" / "records" / "backlog" / "done" / item_path.name
         self.assertTrue(done_path.exists())
 
+    def test_case_6a_satisfied_evidence_at_rest_reconstructable(self) -> None:
+        """(6a) Motivates set: gated done item closed with --evidence reconstructs SATISFIED at rest."""
+        item_path = _write_backlog_item(
+            self.repo, "item01", status="graduated", blocks_release="next"
+        )
+        _write_plan(
+            self.repo,
+            "plan01",
+            bucket="pending",
+            status="approved",
+            from_backlog="item01",
+            blocks_release="next",
+        )
+        ev_file = (
+            self.repo
+            / ".aw"
+            / "records"
+            / "releases"
+            / "20260901-rel001-01-rel001-v1.release.md"
+        )
+        rel_ev = ev_file.relative_to(self.repo).as_posix()
+
+        stderr_buf = io.StringIO()
+        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
+            io.StringIO()
+        ):
+            rc = cli.main(
+                [
+                    "backlog",
+                    "set",
+                    "item01",
+                    "--status",
+                    "done",
+                    "--evidence",
+                    rel_ev,
+                    "--dir",
+                    str(self.repo),
+                    "--message",
+                    "close on evidence",
+                ]
+            )
+
+        self.assertEqual(rc, 0)
+        done_path = self.repo / ".aw" / "records" / "backlog" / "done" / item_path.name
+        self.assertTrue(done_path.exists())
+
+        # Ask evaluate_blocking_close about the WRITTEN item with NO evidence= argument
+        verdict = check_engine.evaluate_blocking_close(self.repo, done_path, "done")
+        self.assertTrue(verdict.legitimate)
+        self.assertEqual(verdict.path, "SATISFIED")
+
+    def test_case_6b_satisfied_evidence_bullet_removed_refused(self) -> None:
+        """(6b) Same item with Close-Evidence bullet removed is refused (fail-closed)."""
+        item_path = _write_backlog_item(
+            self.repo, "item01", status="graduated", blocks_release="next"
+        )
+        _write_plan(
+            self.repo,
+            "plan01",
+            bucket="pending",
+            status="approved",
+            from_backlog="item01",
+            blocks_release="next",
+        )
+        ev_file = (
+            self.repo
+            / ".aw"
+            / "records"
+            / "releases"
+            / "20260901-rel001-01-rel001-v1.release.md"
+        )
+        rel_ev = ev_file.relative_to(self.repo).as_posix()
+
+        stderr_buf = io.StringIO()
+        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
+            io.StringIO()
+        ):
+            rc = cli.main(
+                [
+                    "backlog",
+                    "set",
+                    "item01",
+                    "--status",
+                    "done",
+                    "--evidence",
+                    rel_ev,
+                    "--dir",
+                    str(self.repo),
+                    "--message",
+                    "close on evidence",
+                ]
+            )
+        self.assertEqual(rc, 0)
+        done_path = self.repo / ".aw" / "records" / "backlog" / "done" / item_path.name
+        self.assertTrue(done_path.exists())
+
+        # Remove the - Close-Evidence: bullet if present, or ensure it is absent
+        content = done_path.read_text(encoding="utf-8")
+        lines = [
+            line
+            for line in content.splitlines(keepends=True)
+            if not line.startswith("- Close-Evidence:")
+        ]
+        done_path.write_text("".join(lines), encoding="utf-8")
+
+        verdict = check_engine.evaluate_blocking_close(self.repo, done_path, "done")
+        self.assertFalse(verdict.legitimate)
+        self.assertEqual(verdict.severity, "error")
+
+    def test_case_6c_satisfied_evidence_nonexistent_path_refused(self) -> None:
+        """(6c) Item carrying Close-Evidence pointing to nonexistent artifact is refused."""
+        item_path = _write_backlog_item(
+            self.repo, "item01", status="graduated", blocks_release="next"
+        )
+        _write_plan(
+            self.repo,
+            "plan01",
+            bucket="pending",
+            status="approved",
+            from_backlog="item01",
+            blocks_release="next",
+        )
+        done_path = self.repo / ".aw" / "records" / "backlog" / "done" / item_path.name
+        content = (
+            "- Id: item01\n"
+            "- Status: done\n"
+            "- Blocks-Release: next\n"
+            "- Close-Evidence: .aw/records/plans/nonexistent.ipd.md\n"
+            "- Set: testset\n"
+            "- Priority: high\n"
+            "- Work-Kind: bug\n"
+            "- Summary: Test item item01\n\n"
+            "## Summary\nTest item.\n"
+        )
+        done_path.write_text(content, encoding="utf-8")
+        item_path.unlink()
+
+        verdict = check_engine.evaluate_blocking_close(self.repo, done_path, "done")
+        self.assertFalse(verdict.legitimate)
+        self.assertEqual(verdict.severity, "error")
+
+    def test_case_6d_handoff_and_degated_closes_leave_no_close_evidence(self) -> None:
+        """(6d) HANDOFF close (even if --evidence passed) and DE-GATED close leave NO Close-Evidence bullet."""
+        # 1. HANDOFF close with executed plan and --evidence passed
+        item_path = _write_backlog_item(
+            self.repo, "item01", status="graduated", blocks_release="next"
+        )
+        _write_plan(
+            self.repo,
+            "plan01",
+            bucket="executed",
+            status="executed",
+            from_backlog="item01",
+            blocks_release="next",
+        )
+        ev_file = (
+            self.repo
+            / ".aw"
+            / "records"
+            / "releases"
+            / "20260901-rel001-01-rel001-v1.release.md"
+        )
+        rel_ev = ev_file.relative_to(self.repo).as_posix()
+
+        stderr_buf = io.StringIO()
+        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
+            io.StringIO()
+        ):
+            rc = cli.main(
+                [
+                    "backlog",
+                    "set",
+                    "item01",
+                    "--status",
+                    "done",
+                    "--evidence",
+                    rel_ev,
+                    "--dir",
+                    str(self.repo),
+                    "--message",
+                    "close handoff",
+                ]
+            )
+        self.assertEqual(rc, 0)
+        done_path = self.repo / ".aw" / "records" / "backlog" / "done" / item_path.name
+        self.assertTrue(done_path.exists())
+        self.assertNotIn("- Close-Evidence:", done_path.read_text(encoding="utf-8"))
+
+        # 2. DE-GATED close with --blocks-release -
+        item_path2 = _write_backlog_item(
+            self.repo, "item02", status="graduated", blocks_release="next"
+        )
+        _write_plan(
+            self.repo,
+            "plan02",
+            bucket="pending",
+            status="approved",
+            from_backlog="item02",
+            blocks_release="next",
+        )
+        with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(
+            io.StringIO()
+        ):
+            rc2 = cli.main(
+                [
+                    "backlog",
+                    "set",
+                    "item02",
+                    "--status",
+                    "done",
+                    "--blocks-release",
+                    "-",
+                    "--dir",
+                    str(self.repo),
+                    "--message",
+                    "close degated",
+                ]
+            )
+        self.assertEqual(rc2, 0)
+        done_path2 = (
+            self.repo / ".aw" / "records" / "backlog" / "done" / item_path2.name
+        )
+        self.assertTrue(done_path2.exists())
+        self.assertNotIn("- Close-Evidence:", done_path2.read_text(encoding="utf-8"))
+
     def test_case_7_degated_allowed(self) -> None:
         """(7) DE-GATED unchanged: pending plan only, --blocks-release - in the same call -> allowed (rc 0)."""
         item_path = _write_backlog_item(

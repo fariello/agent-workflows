@@ -120,6 +120,7 @@ _RELEASE_EXEMPT_KIND_RE = re.compile(
 _RELEASE_EXEMPT_REF_RE = re.compile(
     r"^- Release-Exempt-Ref:[ \t]*(?P<value>.+?)[ \t]*$"
 )
+_CLOSE_EVIDENCE_RE = re.compile(r"^- Close-Evidence:[ \t]*(?P<value>.+?)[ \t]*$")
 _TOP_KEY_RE = re.compile(r"^- ([A-Za-z0-9_-]+):(?:\s*(.*))?$")
 _TEMPLATE_OWNED_KEYS = frozenset(
     (
@@ -308,6 +309,7 @@ class BacklogItem:
 
     __slots__ = (
         "blocks_release",
+        "close_evidence",
         "gate_kind",
         "gate_ref",
         "id",
@@ -332,6 +334,7 @@ class BacklogItem:
         self.blocks_release: Optional[str] = None
         self.release_exempt_kind: Optional[str] = None
         self.release_exempt_ref: Optional[str] = None
+        self.close_evidence: Optional[str] = None
 
 
 def parse_item(text: str) -> BacklogItem:
@@ -359,6 +362,7 @@ def parse_item(text: str) -> BacklogItem:
             ("blocks_release", _BLOCKS_RELEASE_RE),
             ("release_exempt_kind", _RELEASE_EXEMPT_KIND_RE),
             ("release_exempt_ref", _RELEASE_EXEMPT_REF_RE),
+            ("close_evidence", _CLOSE_EVIDENCE_RE),
         ):
             m = rx.match(line)
             if m and getattr(item, attr) is None:
@@ -535,6 +539,18 @@ def validate_item(path: Path, text: str) -> List[core.Drift]:
                     f"item carries both a valid release exemption and - Blocks-Release: {item.blocks_release}",
                 )
             )
+
+    # gateatrest f7igdu E-02: validate close_evidence shape fail-closed
+    if item.close_evidence is not None and not A.is_safe_descriptive(
+        item.close_evidence
+    ):
+        drift.append(
+            core.Drift(
+                rel,
+                "backlog.close-evidence-unsafe",
+                "close evidence not a single bounded control-char-free line",
+            )
+        )
 
     return drift
 
@@ -960,6 +976,25 @@ def set_release_exempt_ref_line(text: str, value: Optional[str]) -> str:
     if value in (None, "-"):
         return text
     new_line = f"- Release-Exempt-Ref: {value}\n"
+    for anchor in (r"(?m)^- Status:[^\n]*\n", r"(?m)^- Id:[^\n]*\n"):
+        m = re.search(anchor, text)
+        if m:
+            i = m.end()
+            return text[:i] + new_line + text[i:]
+    return text
+
+
+_CLOSE_EVIDENCE_LINE_RE = re.compile(r"(?m)^- Close-Evidence:[ \t]*[^\n]*$\n?")
+
+
+def set_close_evidence_line(text: str, value: Optional[str]) -> str:
+    """Return `text` with the `- Close-Evidence:` metadata line set to `value`, or removed when
+    `value` is '-' or None. Idempotent: replaces an existing line or inserts one after `- Status:`
+    (falling back to after `- Id:`, or leaving unchanged)."""
+    text = _CLOSE_EVIDENCE_LINE_RE.sub("", text)
+    if value in (None, "-"):
+        return text
+    new_line = f"- Close-Evidence: {value}\n"
     for anchor in (r"(?m)^- Status:[^\n]*\n", r"(?m)^- Id:[^\n]*\n"):
         m = re.search(anchor, text)
         if m:
@@ -1626,6 +1661,15 @@ def run_set(args) -> int:
         return 1
     if verdict.severity == "warn":
         sys.stderr.write(f"aw backlog set: warning: {verdict.reason}.\n")
+
+    # gateatrest f7igdu E-03: write the cited evidence durably on an evidence-satisfied close.
+    # Keyed on verdict.path == "SATISFIED", never on args.evidence presence alone.
+    if verdict.legitimate and verdict.path == "SATISFIED":
+        accepted_evidence = (
+            getattr(args, "evidence", None) or parse_item(rendered).close_evidence
+        )
+        if accepted_evidence:
+            rendered = set_close_evidence_line(rendered, accepted_evidence)
 
     dest_dir = _resolve_backlog_root(repo_root) / _rp.target_subdir(
         "backlog", new_status
