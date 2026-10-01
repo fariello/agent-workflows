@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import ast
 from contextlib import contextmanager
 import json
 from pathlib import Path
@@ -32,34 +31,6 @@ def bound_contract_action(
     finally:
         table.clear()
         table.update(saved)
-
-
-def test_runner_shared_references_preflight_host_capabilities() -> None:
-    """Case 1 (E-02): runner_shared must reference preflight_host_capabilities.
-
-    Inverse of E-01 baseline (where rg -c exits 1 with zero call sites).
-    AST inspection proves the dispatch point directly references the preflight.
-    """
-    rs_path = Path(runner_shared.__file__)
-    tree = ast.parse(rs_path.read_text(encoding="utf-8"))
-    referenced_names = (
-        {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
-        | {
-            node.name
-            for node in ast.walk(tree)
-            if isinstance(node, (ast.FunctionDef, ast.alias))
-        }
-        | {
-            alias.name
-            for node in ast.walk(tree)
-            if isinstance(node, ast.ImportFrom)
-            for alias in node.names
-        }
-        | {node.attr for node in ast.walk(tree) if isinstance(node, ast.Attribute)}
-    )
-    assert (
-        "preflight_host_capabilities" in referenced_names
-    ), "runner_shared does not reference preflight_host_capabilities; gate is unreachable"
 
 
 def test_execute_item_core_refuses_when_host_capability_unavailable_and_starts_no_session(

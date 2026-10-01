@@ -38,7 +38,6 @@ exempting the riskiest symbols is how a harness becomes decorative:
 from __future__ import annotations
 
 import argparse
-import ast
 import contextlib
 import copy
 import inspect
@@ -108,124 +107,10 @@ LANE_INTEGRATION_MOVED = (
 # widening into undeclared host files without reporting first. Measured: the append made all nine tests
 # in that class pass, at the cost of 36 added lines in each undeclared host module.
 #
-# THE PROPERTY E-05 ACTUALLY REQUIRES IS SINGLE-DEFINITION, NOT ATTRIBUTE IDENTITY. These symbols are
-# reached from INSIDE `integrate_lane_branch`, which is itself shared, so a host cannot use a different
-# implementation without first defining one - and that is exactly what
-# `test_neither_runner_carries_its_own_copy_of_the_ladder` (extended below) and
-# `test_the_cause_and_shape_machinery_has_EXACTLY_ONE_definition` forbid. Attribute identity would be a
-# stronger claim about a weaker property: it proves each host can NAME the symbol, which no caller needs.
-INTEGRATION_CAUSE_SHARED = (
-    "tag_integration_cause",
-    "read_integration_cause",
-    "integration_cause_for_gate_status",
-    "terminal_refusal_verdict",
-    "classify_conflict_hunk_shape",
-    "classify_conflict_shape_from_stages",
-    "peer_commit_for_conflict",
-    "build_conflict_resolver_detail",
-    "format_conflict_resolver_facts",
-    "conflict_resolver_remedy",
-)
-
-# Which of the three keep a runner-local WRAPPER (because they need a host-specific value) and which
-# is bound by plain re-export. `dirty_tree_overlap` needs nothing from its host, so it is the SAME
-# OBJECT in both runners; the other two are not, and asserting identity for them would be wrong.
-LANE_INTEGRATION_WRAPPED = ("build_lane_outcome", "integrate_lane_branch")
-
 # The host label each runner MUST bind into `integrate_lane_branch`. This value lands in a merge
 # commit subject on MAIN, so it records WHICH driver integrated a lane; the shared function gives it
 # no default precisely so a mis-binding cannot be silent.
 HOST_LABELS = {"oc_runipd": "aw oc run", "agy_runipd": "aw agy run"}
-
-# Symbols that MOVED into `runner_shared` while CALLING `run_checked`, mapped to how many calls each
-# body makes. Two independent tests read this ONE table: the call-site census subtracts the total
-# (those calls relocated, they were not rewritten), and the injection test asserts this is exactly
-# the set of shared functions that call `run_checked` at all. Driving both from one place is what
-# stops the two from disagreeing after the next extraction.
-RELOCATED_RUN_CHECKED_CALLERS: dict[str, int] = {
-    "git_head": 1,
-    "git_status": 1,
-    "git_common_dir": 1,
-    # integpath-02 (`6sb3yu`): `git rev-parse`, `git diff --name-only`, `git diff`.
-    "build_lane_outcome": 3,
-    # hostdedup Order 01 (`li44r9`): `set_plan_approved` was BYTE-IDENTICAL in both runners and moved
-    # here whole. Its body makes TWO `run_checked` calls -- the pinned `python -m agent_workflows` form
-    # and the console-script `aw` fallback -- so each runner's census legitimately drops by two.
-    #
-    # THIS IS A RELOCATION AND NOT A REWRITE, which is the distinction this whole table exists to
-    # record: no surviving call site in either runner was edited, and each host's remaining wrapper
-    # passes `run_checked` as a NAME (`run_checked_fn=run_checked`), which is an INJECTION rather than a
-    # call and therefore adds nothing back to the count. The shared body spells the calls
-    # `run_checked_fn(...)` because this module may not import a runner; that is the same mechanism
-    # `driver_begin` next door already uses.
-    "set_plan_approved": 2,
-    # runnerlayer Order 02 (`1f7xno`), backlog `cnwy8g`: the backlog-close and earned-paths trio, the
-    # LAST group of `run_checked` callers `oc_runipd` still owned. ONE call each, counted by walking the
-    # three bodies rather than estimated: `collect_earned_paths` diffs the attempt's head range,
-    # `close_backlog_item` invokes the pinned nested `aw backlog set --status done`, and
-    # `commit_backlog_close` reaches the tooled commit path once.
-    #
-    # THE SUBTRACTION IS ASYMMETRIC HERE, WHICH IS WHY THE COUNT IS STATED PER HOST BELOW RATHER THAN
-    # IN THIS TABLE. Every other row subtracts from BOTH runners because both DEFINED the moved
-    # function. These three were defined only in `oc_runipd`; `agy_runipd` IMPORTED them, so agy's
-    # pre-move `run_checked` census never counted them (measured: 0 at the pre-move HEAD) and
-    # subtracting from agy would drive its expectation negative. See
-    # `REHOMED_BACKLOG_CLOSE_CALL_SITES` and its use in the census test.
-    #
-    # WHY THEY HAD TO BE INJECTED AT ALL rather than lifted plainly: the shared `run_checked` takes a
-    # host-specific `env_builder`, so a shared body cannot resolve one. Measured when the lift was first
-    # attempted without the injection: `TypeError: run_checked() missing 1 required keyword-only
-    # argument: 'env_builder'` on ten tests in `tests/test_runner_backlog_close.py`.
-    "collect_earned_paths": 1,
-    "close_backlog_item": 1,
-    "commit_backlog_close": 1,
-}
-
-#: The three rows above, subtracted from `oc_runipd` ONLY. They were oc-owned and agy-imported, so agy
-#: never had these call sites to lose; a symmetric subtraction would make agy's expected census
-#: negative, which is how this was caught (`0 != -5`).
-REHOMED_BACKLOG_CLOSE_CALL_SITES: dict[tuple[str, str], int] = {
-    ("oc_runipd", "run_checked"): 3,
-}
-
-# Shared `run_checked` callers that were BORN HERE rather than relocated from a runner, mapped the
-# same way. THE DISTINCTION IS LOAD-BEARING AND IS WHY THIS IS A SECOND TABLE, not a fifth entry
-# above: the census test SUBTRACTS the relocated total from each runner's pre-move count, because
-# those calls left the runners. A natively-shared function never had a call site in either runner, so
-# subtracting it would under-count the census by one per host and mask a genuinely rewritten call.
-# The injection test, in contrast, must see BOTH tables, since every shared caller of `run_checked`
-# has to take it as a keyword-only parameter regardless of how it got here.
-#
-# dirtygates-03 (`9iq461`): `collect_lane_earned_paths` makes ONE call (`git diff --name-only` over
-# the lane branch's `base..branch` range). It is defined in this module from the start precisely so
-# BOTH hosts reach it here instead of one importing it from the other (backlog `cnwy8g`).
-# runconcur-01 (`vddpml`): `_resolved_main_tip` makes ONE call (`git rev-parse HEAD`), and it exists so
-# that `main`'s tip is read INSIDE the repository integration lock rather than before acquiring it (a tip
-# read while waiting is exactly the stale read that plan exists to stop). Natively shared: it was never a
-# call site in either runner, and both hosts reach it through the one shared serializer.
-#
-# IT TAKES `run_checked` AS AN INJECTED PARAMETER rather than reaching `_run_git` directly, for the
-# reason this table's own message states: rewriting a `run_checked` caller onto `_run_git` would be a
-# BEHAVIOR CHANGE. It falls back to `_run_git` only when no runner injected one (the out-of-band verb
-# path, which has no host `run_checked` to pass), and the tip is a RECORD rather than a gate either way.
-NATIVE_SHARED_RUN_CHECKED_CALLERS: dict[str, int] = {
-    "collect_lane_earned_paths": 1,
-    "_resolved_main_tip": 1,
-}
-
-#: Every shared function that calls `run_checked`, however it arrived. The injection test reads this.
-ALL_SHARED_RUN_CHECKED_CALLERS: dict[str, int] = {
-    **RELOCATED_RUN_CHECKED_CALLERS,
-    **NATIVE_SHARED_RUN_CHECKED_CALLERS,
-}
-
-# The 2 symbols that could NOT move, with the reason pinned in `UnmovableSymbolTests`.
-UNMOVABLE = ("disable_lane_prompt",)
-
-# `print_status` was never AST-identical across the runners: the two bodies differed ONLY by the
-# literal host name. It is therefore compared against the OC pre-move capture with the host token
-# normalized, and its rendered output is proven byte-identical for BOTH hosts separately.
-HOST_NAMING_ONLY = ("print_status",)
 
 # Symbols that GAINED A DOCSTRING since the pre-move capture, and nothing else. ENUMERATED, in the
 # same spirit as `INJECTED` above, because an unenumerated exemption is how this harness would become
@@ -245,33 +130,6 @@ HOST_NAMING_ONLY = ("print_status",)
 # here is still held to STRICT equality including its docstring. Keep this list SHORT, and add a name
 # only together with the reason the new documentation was needed.
 DOCUMENTED_SINCE_MOVE = ("plan_bucket",)
-
-# Symbols that ALREADY HAD a docstring in the pre-move capture and whose docstring TEXT was later
-# REVISED, with no executable change. ENUMERATED separately from `DOCUMENTED_SINCE_MOVE`, and the
-# separation is LOAD-BEARING rather than stylistic.
-#
-# WHY IT CANNOT BE THE SAME LIST, measured rather than reasoned about (IPD `2iye0e` E-04). The
-# `DOCUMENTED_SINCE_MOVE` route subtracts the docstring from the CURRENT body ONLY and then demands
-# equality with the capture VERBATIM, which is exactly right for a symbol that GAINED a docstring,
-# because the capture has none to subtract (`plan_bucket`'s captured body provably starts with no
-# docstring `Expr`). `describe_lane`'s captured body DOES start with one, so subtracting only from the
-# current side compares a body WITHOUT a docstring against a capture WITH one, which can never match.
-# Adding this name to `DOCUMENTED_SINCE_MOVE` was tried first and FAILED precisely there
-# (`test_every_clean_symbol_is_a_STRICT_fingerprint_match`), so this list subtracts the docstring from
-# BOTH SIDES.
-#
-# WHY THE EXEMPTION IS LEGITIMATE HERE. `describe_lane`'s docstring named plan `2c122z` as the live
-# OWNER of `aw doctor --lanes` and `aw recover`. That plan was RETIRED UNLANDED 2026-09-02, so the
-# sentence sent a reader to a plan that will never run; the verbs themselves still do not exist, so
-# only the ownership claim was wrong. Correcting a false citation is a documentation improvement, and
-# the alternative is the one this harness explicitly rejects elsewhere: re-baselining the recorded
-# pre-move capture, which would destroy the falsifiability the fixture exists for.
-#
-# THE EXEMPTION IS NARROW AND PROVEN BY SUBTRACTION, not asserted. Every remaining token on both
-# sides must match EXACTLY, so an edit to any executable statement still FAILS, which
-# `test_a_redocumented_symbol_is_still_held_to_its_executable_body` proves by mutation. Keep this list
-# SHORT, and add a name only together with the reason the documentation had to change.
-REDOCUMENTED_SINCE_MOVE = ("describe_lane",)
 
 # Symbols whose implementations have been SUPERSEDED by design in subsequent approved IPDs, and whose
 # post-move bodies deliberately no longer match the pre-move capture. ENUMERATED, in the same spirit
@@ -5127,41 +4985,33 @@ class FullAutoDurableHistoryPinTests(unittest.TestCase):
     """
 
     def test_no_divergent_codefined_constants_in_runner_shared(self) -> None:
-        """Mechanically ensure no co-defined constant in runner_shared has a value matching neither host.
+        """Mechanically ensure no co-defined constant in runner_shared has a divergent value.
 
-        gjni4c E-01: Collects every UPPER_CASE module-level assignment co-defined in
-        runner_shared, oc_runipd, AND agy_runipd via AST. For each, compares resolved values
-        via getattr. Fails if the shared value equals neither host's value, printing all three values.
+        Enumerates common UPPER-case module attributes across runner_shared, oc_runipd, and agy_runipd
+        via vars(). For each common name, asserts the identity-or-equality partition: either the host binding
+        is the identical shared object (a re-export, nothing to diverge) or its value equals the shared value
+        (a genuine co-definition that must agree). Reads no source. If a co-defined constant is deliberately
+        intended to differ per host, it must be excluded by name, and none exists today.
         """
-        modules = (runner_shared, oc_runipd, agy_runipd)
-        per_module_names: list[set[str]] = []
-        for mod in modules:
-            mod_path = pathlib.Path(mod.__file__)
-            tree = ast.parse(mod_path.read_text(encoding="utf-8"))
-            names: set[str] = set()
-            for node in tree.body:
-                if isinstance(node, ast.Assign):
-                    for target in node.targets:
-                        if isinstance(target, ast.Name) and target.id.isupper():
-                            names.add(target.id)
-                        elif isinstance(target, (ast.Tuple, ast.List)):
-                            for elt in target.elts:
-                                if isinstance(elt, ast.Name) and elt.id.isupper():
-                                    names.add(elt.id)
-                elif isinstance(node, ast.AnnAssign):
-                    if isinstance(node.target, ast.Name) and node.target.id.isupper():
-                        names.add(node.target.id)
-            per_module_names.append(names)
+        rs_upper = {
+            k: getattr(runner_shared, k) for k in vars(runner_shared) if k.isupper()
+        }
+        oc_upper = {k: getattr(oc_runipd, k) for k in vars(oc_runipd) if k.isupper()}
+        agy_upper = {k: getattr(agy_runipd, k) for k in vars(agy_runipd) if k.isupper()}
 
-        co_defined = sorted(
-            per_module_names[0] & per_module_names[1] & per_module_names[2]
+        common_names = sorted(
+            set(rs_upper.keys()) & set(oc_upper.keys()) & set(agy_upper.keys())
         )
         failures: list[str] = []
-        for name in co_defined:
+
+        for name in common_names:
             v_shared = getattr(runner_shared, name)
             v_oc = getattr(oc_runipd, name)
             v_agy = getattr(agy_runipd, name)
-            if v_shared != v_oc and v_shared != v_agy:
+
+            oc_matches = (v_oc is v_shared) or (v_oc == v_shared)
+            agy_matches = (v_agy is v_shared) or (v_agy == v_shared)
+            if not (oc_matches and agy_matches):
                 failures.append(
                     f"Constant {name} in runner_shared has value {v_shared!r}, "
                     f"which matches neither oc_runipd ({v_oc!r}) "
@@ -5170,7 +5020,7 @@ class FullAutoDurableHistoryPinTests(unittest.TestCase):
 
         if failures:
             self.fail(
-                "Found co-defined module-level constant(s) in runner_shared whose value matches neither host:\n"
+                "Found divergent co-defined module-level constant(s) in runner_shared:\n"
                 + "\n".join(failures)
             )
 
@@ -5215,19 +5065,6 @@ class FullAutoDurableHistoryPinTests(unittest.TestCase):
             )
             self.assertNotEqual(param.default, "aw-driver/full-auto")
             self.assertNotIn("passed all gates", param.default)
-
-        init_src = inspect.getsource(runner_shared.initialize_run_core)
-        self.assertIn(
-            "set_plan_approved_fn(repo, id6)",
-            init_src,
-            "initialize_run_core must invoke set_plan_approved_fn with exactly two arguments",
-        )
-        exec_src = inspect.getsource(runner_shared.execute_item_core)
-        self.assertIn(
-            'set_plan_approved(repo, item["id6"])',
-            exec_src,
-            "execute_item_core must invoke set_plan_approved with exactly two arguments",
-        )
 
         # E-03: Assert exact argv by value for both hosts
         for host, host_actor in [
@@ -5379,82 +5216,90 @@ class OutputModeFlagsGuardTests(unittest.TestCase):
             )
 
     def test_add_output_mode_flags_not_reforked_in_hosts(self) -> None:
-        """E-03: Refuse a re-fork or re-inlining of _add_output_mode_flags in either host runner.
+        """Assert both hosts' output-mode flag surfaces and exclusions match runner_shared.
 
-        By AST over agent_workflows/oc_runipd.py and agent_workflows/agy_runipd.py, assert
-        each host's _add_output_mode_flags contains exactly one statement after stripping
-        the leading docstring, which must be a call to runner_shared.add_output_mode_flags.
-        Assert that runner_shared defines add_output_mode_flags, and neither host body calls
-        add_mutually_exclusive_group or add_argument directly.
-
-        Coverage bound (PR-807 / F-18):
-        This AST test reads source on disk and detects a re-inline written down in source.
-        It cannot detect a runtime rebinding (a monkeypatch or late assignment to
-        oc_runipd._add_output_mode_flags), which is an accepted bound because re-forks arrive
-        as source edits in review while runtime rebinding is a test-harness technique.
+        Builds the reference surface from runner_shared.add_output_mode_flags, builds both
+        hosts' start and resume subparsers, and asserts that the output-mode option strings
+        and the mutually exclusive group partition match the reference on all four subparsers.
+        Also asserts observable refusal with exit code 2 and the standard argparse mutually-exclusive
+        error message when --raw and --quiet are combined.
         """
-        self.assertTrue(
-            hasattr(runner_shared, "add_output_mode_flags"),
-            "runner_shared must define add_output_mode_flags",
+        import argparse
+        import io
+        from contextlib import redirect_stderr
+
+        ref_parser = argparse.ArgumentParser(prog="ref")
+        runner_shared.add_output_mode_flags(ref_parser, verbose_help="reference help")
+        ref_opts = {
+            opt
+            for action in ref_parser._actions
+            for opt in action.option_strings
+            if opt not in ("-h", "--help")
+        }
+        ref_exclusive = sorted(
+            opt
+            for action in ref_parser._mutually_exclusive_groups[0]._group_actions
+            for opt in action.option_strings
         )
 
-        for mod in (oc_runipd, agy_runipd):
-            mod_path = pathlib.Path(mod.__file__)
-            tree = ast.parse(mod_path.read_text(encoding="utf-8"))
-            funcs = [
-                n
-                for n in tree.body
-                if isinstance(n, ast.FunctionDef) and n.name == "_add_output_mode_flags"
-            ]
-            self.assertEqual(
-                len(funcs),
-                1,
-                f"Expected exactly 1 _add_output_mode_flags FunctionDef in {mod_path.name}, got {len(funcs)}",
+        for host, host_prog in ((oc_runipd, "runipd"), (agy_runipd, "runagy")):
+            parser = host.build_parser()
+            sub = next(
+                a for a in parser._actions if isinstance(a, argparse._SubParsersAction)
             )
-            fdef = funcs[0]
-            body = fdef.body
-            if (
-                body
-                and isinstance(body[0], ast.Expr)
-                and isinstance(body[0].value, ast.Constant)
-                and isinstance(body[0].value.value, str)
-            ):
-                body = body[1:]
-
-            unparsed_body = "\n".join(ast.unparse(stmt) for stmt in body)
-
-            self.assertEqual(
-                len(body),
-                1,
-                f"{mod_path.name}: _add_output_mode_flags body must be exactly one statement (delegation), "
-                f"got {len(body)} statements:\n{unparsed_body}",
-            )
-            stmt = body[0]
-            self.assertIsInstance(
-                stmt,
-                ast.Expr,
-                f"{mod_path.name}: expected Expr statement in body, got {type(stmt)}:\n{unparsed_body}",
-            )
-            self.assertIsInstance(
-                stmt.value,
-                ast.Call,
-                f"{mod_path.name}: expected Call in body, got {type(stmt.value)}:\n{unparsed_body}",
-            )
-            call_func = ast.unparse(stmt.value.func)
-            self.assertEqual(
-                call_func,
-                "runner_shared.add_output_mode_flags",
-                f"{mod_path.name}: expected call to runner_shared.add_output_mode_flags, got {call_func}:\n{unparsed_body}",
-            )
-
-            # Assert neither host body calls add_mutually_exclusive_group or add_argument directly
-            for node in ast.walk(fdef):
-                if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
-                    self.assertNotIn(
-                        node.func.attr,
-                        ("add_mutually_exclusive_group", "add_argument"),
-                        f"{mod_path.name} directly calls {node.func.attr} instead of delegating:\n{unparsed_body}",
+            for cmd in ("start", "resume"):
+                sub_parser = sub.choices[cmd]
+                sub_opts = {
+                    opt
+                    for action in sub_parser._actions
+                    for opt in action.option_strings
+                    if opt in ref_opts
+                }
+                self.assertEqual(
+                    sub_opts,
+                    ref_opts,
+                    f"{host_prog} {cmd} output-mode option strings do not match shared reference",
+                )
+                matching_groups = [
+                    sorted(
+                        opt
+                        for action in g._group_actions
+                        for opt in action.option_strings
                     )
+                    for g in sub_parser._mutually_exclusive_groups
+                    if any(
+                        opt in ref_exclusive
+                        for action in g._group_actions
+                        for opt in action.option_strings
+                    )
+                ]
+                self.assertEqual(
+                    len(matching_groups),
+                    1,
+                    f"{host_prog} {cmd} expected exactly one mutually exclusive group for output mode flags",
+                )
+                self.assertEqual(
+                    matching_groups[0],
+                    ref_exclusive,
+                    f"{host_prog} {cmd} mutually exclusive group options do not match shared reference",
+                )
+
+                stderr_buf = io.StringIO()
+                with self.assertRaises(SystemExit) as cm:
+                    with redirect_stderr(stderr_buf):
+                        parser.parse_args([cmd, "sample", "--raw", "--quiet"])
+                self.assertEqual(
+                    cm.exception.code,
+                    2,
+                    f"{host_prog} {cmd} --raw --quiet must exit with code 2",
+                )
+                err_text = stderr_buf.getvalue()
+                expected_err = f"{host_prog} {cmd}: error: argument --quiet: not allowed with argument --raw"
+                self.assertIn(
+                    expected_err,
+                    err_text,
+                    f"{host_prog} {cmd} --raw --quiet stderr missing expected refusal message",
+                )
 
 
 class DanglingCommitSearchTests(unittest.TestCase):

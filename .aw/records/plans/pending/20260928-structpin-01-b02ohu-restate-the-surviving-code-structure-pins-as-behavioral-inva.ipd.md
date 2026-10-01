@@ -39,47 +39,47 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the three pins whose behavioral replacement is already present or proven
 
-- [ ] E-01 DELETE A4 OUTRIGHT, `test_runner_shared_references_preflight_host_capabilities` in `tests/test_host_capability_wiring.py`, BECAUSE ITS BEHAVIORAL SIBLING IN THE SAME FILE IS STRICTLY STRONGER AND ALREADY PASSES. The pin `ast.parse`s `runner_shared.__file__`, unions every `ast.Name.id`, `FunctionDef.name`, `alias.name` and `Attribute.attr` in the module, and asserts the STRING `"preflight_host_capabilities"` appears somewhere in that set; its own docstring calls itself the "Inverse of E-01 baseline (where rg -c exits 1 with zero call sites)", i.e. it is a call-site census by construction. It therefore passes when the name appears in a dead branch, an unreachable import, or a comment-adjacent alias, which is precisely the "false signal about incorrect ones" half of the backlog item's general defect. The next test in the same file, `test_execute_item_core_refuses_when_host_capability_unavailable_and_starts_no_session`, DRIVES `runner_shared.execute_item_core` with `hsp.forced_runner_safety_verdicts({hsp.CAP_COMMIT_GATEWAY: (False, ...)})` and asserts the item ends `fail-gate`, the refusal is recorded, the `host-capability-unavailable` event is written, and `spawn_executor`/`spawn_verifier` are never called; that proves the gate is REACHED and REFUSES, which is what the deleted test was a proxy for. Do NOT replace it with anything: a second test asserting the same reachability would be the duplication P8 forbids. Delete the now-unused `ast` and `Path`-for-source imports ONLY if nothing else in the file uses them; check rather than assume.
+- [x] E-01 DELETE A4 OUTRIGHT, `test_runner_shared_references_preflight_host_capabilities` in `tests/test_host_capability_wiring.py`, BECAUSE ITS BEHAVIORAL SIBLING IN THE SAME FILE IS STRICTLY STRONGER AND ALREADY PASSES. The pin `ast.parse`s `runner_shared.__file__`, unions every `ast.Name.id`, `FunctionDef.name`, `alias.name` and `Attribute.attr` in the module, and asserts the STRING `"preflight_host_capabilities"` appears somewhere in that set; its own docstring calls itself the "Inverse of E-01 baseline (where rg -c exits 1 with zero call sites)", i.e. it is a call-site census by construction. It therefore passes when the name appears in a dead branch, an unreachable import, or a comment-adjacent alias, which is precisely the "false signal about incorrect ones" half of the backlog item's general defect. The next test in the same file, `test_execute_item_core_refuses_when_host_capability_unavailable_and_starts_no_session`, DRIVES `runner_shared.execute_item_core` with `hsp.forced_runner_safety_verdicts({hsp.CAP_COMMIT_GATEWAY: (False, ...)})` and asserts the item ends `fail-gate`, the refusal is recorded, the `host-capability-unavailable` event is written, and `spawn_executor`/`spawn_verifier` are never called; that proves the gate is REACHED and REFUSES, which is what the deleted test was a proxy for. Do NOT replace it with anything: a second test asserting the same reachability would be the duplication P8 forbids. Delete the now-unused `ast` and `Path`-for-source imports ONLY if nothing else in the file uses them; check rather than assume.
   - Depends on: none
   - Expected outcome: `test_runner_shared_references_preflight_host_capabilities` absent from `tests/test_host_capability_wiring.py`; the file's remaining tests pass; a pasted `python3 -m pytest tests/test_host_capability_wiring.py` showing the surviving count (authoring baseline: the file's tests are part of the 28 that pass in `tests/test_host_capability_wiring.py tests/test_interactivity_resolver.py tests/test_walkthrough_id6.py` together, so re-derive the per-file number at execution rather than trusting that aggregate).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 REMOVE THE TWO `inspect.getsource` + `assertIn` LINES OF A2 IN `tests/test_runner_shared.py::test_set_plan_approved_durable_history_pin`, KEEPING EVERY OTHER ASSERTION IN THAT TEST. The two lines read the source of `runner_shared.initialize_run_core` and `runner_shared.execute_item_core` and assert the literal spellings `"set_plan_approved_fn(repo, id6)"` and `'set_plan_approved(repo, item["id6"])'` appear in them, with the stated intent that the call passes "exactly two arguments". Both are satisfiable by a COMMENT containing that text and both break on a rename or a reformat that splits the call across lines, so neither proves what it claims. The SAME test already proves the real property behaviorally, immediately below: it patches `host.run_checked` with a capturing fake, calls `host.set_plan_approved(pathlib.Path("/tmp/repo"), "pln001")` for both hosts, and asserts on the captured argv (`--actor` value, `-m` value). Keep the `inspect.signature` assertions in the same test untouched: `signature(...).parameters["message"].default` interrogates a CALLABLE, not source text, and a required-versus-defaulted parameter is a caller-visible API contract, which is the BEHAVIORAL row in Findings and not a pin.
+- [x] E-02 REMOVE THE TWO `inspect.getsource` + `assertIn` LINES OF A2 IN `tests/test_runner_shared.py::test_set_plan_approved_durable_history_pin`, KEEPING EVERY OTHER ASSERTION IN THAT TEST. The two lines read the source of `runner_shared.initialize_run_core` and `runner_shared.execute_item_core` and assert the literal spellings `"set_plan_approved_fn(repo, id6)"` and `'set_plan_approved(repo, item["id6"])'` appear in them, with the stated intent that the call passes "exactly two arguments". Both are satisfiable by a COMMENT containing that text and both break on a rename or a reformat that splits the call across lines, so neither proves what it claims. The SAME test already proves the real property behaviorally, immediately below: it patches `host.run_checked` with a capturing fake, calls `host.set_plan_approved(pathlib.Path("/tmp/repo"), "pln001")` for both hosts, and asserts on the captured argv (`--actor` value, `-m` value). Keep the `inspect.signature` assertions in the same test untouched: `signature(...).parameters["message"].default` interrogates a CALLABLE, not source text, and a required-versus-defaulted parameter is a caller-visible API contract, which is the BEHAVIORAL row in Findings and not a pin.
   - Depends on: none
   - Expected outcome: no `inspect.getsource` call remains anywhere in `tests/test_runner_shared.py` (verified by search, pasted); `test_set_plan_approved_durable_history_pin` still asserts the argv and the signature defaults, and passes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 REPLACE A5 AND A6 IN `tests/test_interactivity_resolver.py` WITH A MONKEYPATCH REACHABILITY PROOF, WHICH IS MEASURED TO WORK FOR ALL FIVE DELEGATIONS. `SingleOriginatingDefinitionTests` holds two pins: `test_exactly_one_originating_is_interactive_in_package` walks every `*.py` in the package with `ast.parse` and asserts exactly one top-level `def is_interactive` lives in `term.py` (an architectural placement pin, P16's fourth prohibition verbatim), and `test_sanctioned_delegations_are_closed_and_reach_term_resolver` `ast.parse`s five named modules and asserts each named function's body CONTAINS a `Call` to `is_interactive`/`is_forced_noninteractive` (a spelling pin over a hardcoded `SANCTIONED_DELEGATIONS` list of five `(file, func)` pairs, which goes stale the moment a delegation is rehomed). Replace BOTH with one test that proves the property they actually want, that every delegation's answer is DECIDED BY the one resolver: for each of the five, patch `term.is_interactive` to return `True` then `False` and assert the delegation's own return value FOLLOWS it. Measured at HEAD, all five flip: `artifact_adopt.leak_gate_is_interactive(environ={})`, `git_commit_helper._is_interactive()`, `runner_stop.interrupt_menu_is_safe()`, `runner_shared.is_interactive_run()` each returned `True` under the `True` patch and `False` under the `False` patch, and `engine.is_interactive_session(SimpleNamespace(yes=False))` did likewise. This is strictly stronger than the pins: a delegation that merely MENTIONS the resolver but returns a hardcoded value passes the old test and fails this one. ALSO PIN `engine.is_interactive_session`'S SHORT CIRCUIT, measured to return `False` for `SimpleNamespace(yes=True)` even while the resolver is patched `True`, because that branch is real behavior the pins never covered and deleting them must not lose it. Keep `SANCTIONED_DELEGATIONS` as the loop's data (it is now a list of things to EXERCISE, not a census to match), and delete `_is_pure_delegation`, which exists only to serve the AST route.
+- [x] E-03 REPLACE A5 AND A6 IN `tests/test_interactivity_resolver.py` WITH A MONKEYPATCH REACHABILITY PROOF, WHICH IS MEASURED TO WORK FOR ALL FIVE DELEGATIONS. `SingleOriginatingDefinitionTests` holds two pins: `test_exactly_one_originating_is_interactive_in_package` walks every `*.py` in the package with `ast.parse` and asserts exactly one top-level `def is_interactive` lives in `term.py` (an architectural placement pin, P16's fourth prohibition verbatim), and `test_sanctioned_delegations_are_closed_and_reach_term_resolver` `ast.parse`s five named modules and asserts each named function's body CONTAINS a `Call` to `is_interactive`/`is_forced_noninteractive` (a spelling pin over a hardcoded `SANCTIONED_DELEGATIONS` list of five `(file, func)` pairs, which goes stale the moment a delegation is rehomed). Replace BOTH with one test that proves the property they actually want, that every delegation's answer is DECIDED BY the one resolver: for each of the five, patch `term.is_interactive` to return `True` then `False` and assert the delegation's own return value FOLLOWS it. Measured at HEAD, all five flip: `artifact_adopt.leak_gate_is_interactive(environ={})`, `git_commit_helper._is_interactive()`, `runner_stop.interrupt_menu_is_safe()`, `runner_shared.is_interactive_run()` each returned `True` under the `True` patch and `False` under the `False` patch, and `engine.is_interactive_session(SimpleNamespace(yes=False))` did likewise. This is strictly stronger than the pins: a delegation that merely MENTIONS the resolver but returns a hardcoded value passes the old test and fails this one. ALSO PIN `engine.is_interactive_session`'S SHORT CIRCUIT, measured to return `False` for `SimpleNamespace(yes=True)` even while the resolver is patched `True`, because that branch is real behavior the pins never covered and deleting them must not lose it. Keep `SANCTIONED_DELEGATIONS` as the loop's data (it is now a list of things to EXERCISE, not a census to match), and delete `_is_pure_delegation`, which exists only to serve the AST route.
   - Depends on: none
   - Expected outcome: no `ast.parse`/`ast.walk` call remains in `tests/test_interactivity_resolver.py` (verified by search, pasted); the replacement test drives all five delegations under both patch values plus the `yes=True` short circuit, and passes; `_is_pure_delegation` deleted.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the two pins needing a designed replacement, and the one the obvious fix would break
 
-- [ ] E-04 REPLACE A1, `test_add_output_mode_flags_not_reforked_in_hosts` in `tests/test_runner_shared.py`, WITH AN OPTION-SURFACE AND REFUSAL COMPARISON ACROSS BOTH HOSTS. The pin is the purest structural assertion in the suite: it `ast.parse`s `oc_runipd.py` and `agy_runipd.py`, asserts each `_add_output_mode_flags` has exactly ONE `FunctionDef` and exactly ONE body statement after stripping the docstring, `ast.unparse`s that statement and string-compares it to `"runner_shared.add_output_mode_flags"`, then walks for `add_argument`/`add_mutually_exclusive_group`. Its own docstring already concedes the coverage bound ("It cannot detect a runtime rebinding"). The invariant is that BOTH HOSTS' OUTPUT-MODE FLAGS COME FROM ONE REGISTRAR AND THEREFORE CANNOT DIVERGE, which is observable on the built parsers. Measured at HEAD: `runner_shared.add_output_mode_flags` applied to a bare `ArgumentParser` yields option strings `--quiet, --raw, --verbose, -v` (plus argparse's own `-h/--help`) and exactly one mutually exclusive group `['--quiet', '--raw']`; each host's `start` subparser independently yields `['--quiet','--raw','--verbose','-v']` and the SAME single exclusive group; and `parse_args(["--raw","--quiet"])` refuses on BOTH hosts with exit code 2, stderr `runipd start: error: argument --quiet: not allowed with argument --raw` and `runagy start: error: ...` respectively.
+- [x] E-04 REPLACE A1, `test_add_output_mode_flags_not_reforked_in_hosts` in `tests/test_runner_shared.py`, WITH AN OPTION-SURFACE AND REFUSAL COMPARISON ACROSS BOTH HOSTS. The pin is the purest structural assertion in the suite: it `ast.parse`s `oc_runipd.py` and `agy_runipd.py`, asserts each `_add_output_mode_flags` has exactly ONE `FunctionDef` and exactly ONE body statement after stripping the docstring, `ast.unparse`s that statement and string-compares it to `"runner_shared.add_output_mode_flags"`, then walks for `add_argument`/`add_mutually_exclusive_group`. Its own docstring already concedes the coverage bound ("It cannot detect a runtime rebinding"). The invariant is that BOTH HOSTS' OUTPUT-MODE FLAGS COME FROM ONE REGISTRAR AND THEREFORE CANNOT DIVERGE, which is observable on the built parsers. Measured at HEAD: `runner_shared.add_output_mode_flags` applied to a bare `ArgumentParser` yields option strings `--quiet, --raw, --verbose, -v` (plus argparse's own `-h/--help`) and exactly one mutually exclusive group `['--quiet', '--raw']`; each host's `start` subparser independently yields `['--quiet','--raw','--verbose','-v']` and the SAME single exclusive group; and `parse_args(["--raw","--quiet"])` refuses on BOTH hosts with exit code 2, stderr `runipd start: error: argument --quiet: not allowed with argument --raw` and `runagy start: error: ...` respectively.
   THE REFERENCE-SURFACE CALL NEEDS A REQUIRED KEYWORD, and the authoring note above omits it: `add_output_mode_flags(sub_parser, *, verbosity_default=0, verbose_help: str, raw_help=...)` declares `verbose_help` with NO default, so `add_output_mode_flags(parser)` raises `TypeError: missing 1 required keyword-only argument: 'verbose_help'` (reproduced at review). Build the reference as `add_output_mode_flags(parser, verbose_help="<any string>")`; the help text is irrelevant to the option set and the exclusive group, which are what this test asserts, and the per-host help VALUES are already owned by the retained `test_output_mode_help_text_pinned_by_value_per_host`. Re-confirmed at review with the keyword supplied: the reference yields exactly `['--help','--quiet','--raw','--verbose','-h','-v']` with one exclusive group `['--quiet','--raw']`, and BOTH hosts' `start` AND `resume` subparsers each yield output-mode options `['--quiet','--raw','--verbose','-v']` with the same single group, so all four subparser surfaces agree with the reference. Assert THAT: build the reference surface from the shared registrar, build both hosts' `start` and `resume` subparsers, and assert the option set and the exclusive-group partition agree with the reference and with each other, plus the observable `--raw --quiet` refusal per host. A re-fork that reproduces the surface exactly is then INDISTINGUISHABLE and permitted, which is correct and is the point: the contract is the surface, not the number of `def`s. Keep the class's other two tests (`test_output_mode_help_text_pinned_by_value_per_host`, `test_verbosity_default_asymmetry_on_both_hosts`) untouched; they build real parsers and are the LEGITIMATE operator-visible flag surface.
   - Depends on: none
   - Expected outcome: no `ast.parse`/`ast.unparse`/`ast.walk` call remains in `tests/test_runner_shared.py` (verified by search, pasted, and this is the last of them given E-02 and E-06); the replacement asserts the option set, the exclusive-group partition and the per-host refusal for `start` and `resume`; shown RED against a deliberate local divergence (add a stray flag to one host's subparser, observe failure, revert) so it is proven non-vacuous.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 REWRITE A3, `test_no_divergent_codefined_constants_in_runner_shared`, AS AN IDENTITY-PARTITIONED VALUE CHECK, AND DO NOT USE `vars()` AS THE ENUMERATOR, BECAUSE MEASUREMENT REFUTES THAT SUBSTITUTION. The pin `ast.parse`s all three modules to collect module-level UPPER_CASE assignments, then compares RESOLVED values via `getattr`. The value comparison is already behavioral; only the ENUMERATION is structural. The obvious fix is `vars(mod)` filtered by `isupper()`, and IT DOES NOT PRESERVE THE TEST'S CLAIM: measured at HEAD, `vars()` finds 39 UPPER names common to all three modules, but 38 of them are the IDENTICAL OBJECT as `runner_shared`'s (`getattr(oc, k) is getattr(rs, k)`), i.e. they are re-exports or `from . import` bindings for which divergence is impossible by construction, and only ONE name is genuinely co-defined: `DEFAULT_STALL_TIMEOUT`, assigned independently in all three modules (`runner_shared.py`, `oc_runipd.py`, `agy_runipd.py`) and equal to `900.0` in each. So a `vars()` rewrite would silently widen the test from 1 real subject to 39 mostly-vacuous ones. Rewrite it to use the IDENTITY PARTITION as the mechanism: enumerate with `vars()`, then for each common UPPER name assert EITHER the host binding IS the shared object (a re-export, nothing to diverge) OR its value EQUALS the shared value (a genuine co-definition that must agree). That is one assertion covering both cases, it reads no source, it needs no hardcoded list, and it extends itself when a constant is added or a re-export becomes a co-definition. State the residual bound in the test's docstring honestly: a co-defined constant deliberately intended to differ per host would now have to be excluded by name, and none exists today.
+- [x] E-05 REWRITE A3, `test_no_divergent_codefined_constants_in_runner_shared`, AS AN IDENTITY-PARTITIONED VALUE CHECK, AND DO NOT USE `vars()` AS THE ENUMERATOR, BECAUSE MEASUREMENT REFUTES THAT SUBSTITUTION. The pin `ast.parse`s all three modules to collect module-level UPPER_CASE assignments, then compares RESOLVED values via `getattr`. The value comparison is already behavioral; only the ENUMERATION is structural. The obvious fix is `vars(mod)` filtered by `isupper()`, and IT DOES NOT PRESERVE THE TEST'S CLAIM: measured at HEAD, `vars()` finds 39 UPPER names common to all three modules, but 38 of them are the IDENTICAL OBJECT as `runner_shared`'s (`getattr(oc, k) is getattr(rs, k)`), i.e. they are re-exports or `from . import` bindings for which divergence is impossible by construction, and only ONE name is genuinely co-defined: `DEFAULT_STALL_TIMEOUT`, assigned independently in all three modules (`runner_shared.py`, `oc_runipd.py`, `agy_runipd.py`) and equal to `900.0` in each. So a `vars()` rewrite would silently widen the test from 1 real subject to 39 mostly-vacuous ones. Rewrite it to use the IDENTITY PARTITION as the mechanism: enumerate with `vars()`, then for each common UPPER name assert EITHER the host binding IS the shared object (a re-export, nothing to diverge) OR its value EQUALS the shared value (a genuine co-definition that must agree). That is one assertion covering both cases, it reads no source, it needs no hardcoded list, and it extends itself when a constant is added or a re-export becomes a co-definition. State the residual bound in the test's docstring honestly: a co-defined constant deliberately intended to differ per host would now have to be excluded by name, and none exists today.
   - Depends on: none
   - Expected outcome: the rewritten test reads no source, asserts the identity-or-equality partition over the common UPPER names, and passes; the pasted measurement showing 39 common names of which 38 are identity re-exports and 1 (`DEFAULT_STALL_TIMEOUT`) is genuinely co-defined; shown RED by locally setting one host's `DEFAULT_STALL_TIMEOUT` to a different value, then reverted.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: the dead residue no test reads
 
-- [ ] E-06 DELETE THE THREE DEAD CENSUS RESIDUES D1..D3, WHICH ARE UNREACHABLE DATA RATHER THAN TESTS. (a) `tests/test_spec_review_attestation.py::OneSharedPredicateTests` is a `unittest.TestCase` with ZERO test methods: verified by AST that its body is exactly `[Expr, Assign, Assign]` (a docstring plus `DEFINITIONS` and `CALL_SITES`), and each table name has exactly one reference in the repository, its own definition. Its docstring even records the history, "Two source-census tests became one table". Delete the class; the predicate-sharing property it describes is covered by `check.spec-review-unattested` and the setter tests in the same file, so nothing is lost. Confirm that coverage before deleting rather than asserting it. (b) In `tests/test_runner_shared.py`, delete the orphaned census tables whose reader was removed: `ALL_SHARED_RUN_CHECKED_CALLERS`, `HOST_NAMING_ONLY`, `REDOCUMENTED_SINCE_MOVE`, `INTEGRATION_CAUSE_SHARED` and `LANE_INTEGRATION_WRAPPED` each have exactly ONE repository reference (their own definition), and `RELOCATED_RUN_CHECKED_CALLERS`, `NATIVE_SHARED_RUN_CHECKED_CALLERS`, `REHOMED_BACKLOG_CLOSE_CALL_SITES` and `UNMOVABLE` have exactly TWO, each referenced only by another dead table, so the set is closed and removable together. They carry per-symbol call counts as data (`"build_lane_outcome": 3`, `("oc_runipd","run_checked"): 3`), which is the census shape the backlog item names. The file header already records that the harness reading them "was deleted in `19313eed`". Re-measure the reference counts at execution before deleting; do not trust these numbers. (c) In `tests/test_lifecycle_style.py`, delete `MODULE_PATH = REPO / "agent_workflows" / "lifecycle_style.py"`, a production-source path constant with no reader (one reference, its own definition), left behind by a deleted source pin. Also drop any import left unused by these three deletions, checking rather than assuming.
+- [x] E-06 DELETE THE THREE DEAD CENSUS RESIDUES D1..D3, WHICH ARE UNREACHABLE DATA RATHER THAN TESTS. (a) `tests/test_spec_review_attestation.py::OneSharedPredicateTests` is a `unittest.TestCase` with ZERO test methods: verified by AST that its body is exactly `[Expr, Assign, Assign]` (a docstring plus `DEFINITIONS` and `CALL_SITES`), and each table name has exactly one reference in the repository, its own definition. Its docstring even records the history, "Two source-census tests became one table". Delete the class; the predicate-sharing property it describes is covered by `check.spec-review-unattested` and the setter tests in the same file, so nothing is lost. Confirm that coverage before deleting rather than asserting it. (b) In `tests/test_runner_shared.py`, delete the orphaned census tables whose reader was removed: `ALL_SHARED_RUN_CHECKED_CALLERS`, `HOST_NAMING_ONLY`, `REDOCUMENTED_SINCE_MOVE`, `INTEGRATION_CAUSE_SHARED` and `LANE_INTEGRATION_WRAPPED` each have exactly ONE repository reference (their own definition), and `RELOCATED_RUN_CHECKED_CALLERS`, `NATIVE_SHARED_RUN_CHECKED_CALLERS`, `REHOMED_BACKLOG_CLOSE_CALL_SITES` and `UNMOVABLE` have exactly TWO, each referenced only by another dead table, so the set is closed and removable together. They carry per-symbol call counts as data (`"build_lane_outcome": 3`, `("oc_runipd","run_checked"): 3`), which is the census shape the backlog item names. The file header already records that the harness reading them "was deleted in `19313eed`". Re-measure the reference counts at execution before deleting; do not trust these numbers. (c) In `tests/test_lifecycle_style.py`, delete `MODULE_PATH = REPO / "agent_workflows" / "lifecycle_style.py"`, a production-source path constant with no reader (one reference, its own definition), left behind by a deleted source pin. Also drop any import left unused by these three deletions, checking rather than assuming.
   - Depends on: none
   - Expected outcome: all three residues gone; a pasted re-measurement of each name's reference count taken BEFORE deletion (to catch a reader added since authoring); `python3 -m pytest tests/test_spec_review_attestation.py tests/test_runner_shared.py tests/test_lifecycle_style.py` green with no collection error.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: prove the sweep is complete
 
-- [ ] E-07 RUN THE WHOLE-SUITE SCAN AGAIN AND RECONCILE THE TEST-COUNT DELTA, because "the six I knew about are gone" is not the same claim as "none remain", and this plan's value rests on the stronger one. Re-run the scan that produced the Findings table (over every `tests/**/*.py`, for calls to `inspect.getsource`/`getsourcelines`/`getsourcefile` and `ast.parse`/`ast.walk`/`ast.unparse`) and confirm exactly ONE file remains, `tests/test_carrier_scan_single_item_contract.py`. The scan must match the ATTRIBUTE FORM of these calls; a search for the bare names would also match the sanctioned exception's own target strings. Note the scan's own bound honestly: it matches `inspect.getsource(...)` and `ast.parse(...)` as attribute calls, so an aliased import (`from ast import parse`) would evade it; measured at authoring, NO test file uses an aliased or from-import form of either module, so the attribute form is sufficient today, and E-07 must re-confirm that rather than assume it. Then reconcile the bare-suite test count against the execution baseline, attributing every removed test to the E-item that removed it. Report any surviving file this plan did not predict rather than adjusting the scan to exclude it.
+- [x] E-07 RUN THE WHOLE-SUITE SCAN AGAIN AND RECONCILE THE TEST-COUNT DELTA, because "the six I knew about are gone" is not the same claim as "none remain", and this plan's value rests on the stronger one. Re-run the scan that produced the Findings table (over every `tests/**/*.py`, for calls to `inspect.getsource`/`getsourcelines`/`getsourcefile` and `ast.parse`/`ast.walk`/`ast.unparse`) and confirm exactly ONE file remains, `tests/test_carrier_scan_single_item_contract.py`. The scan must match the ATTRIBUTE FORM of these calls; a search for the bare names would also match the sanctioned exception's own target strings. Note the scan's own bound honestly: it matches `inspect.getsource(...)` and `ast.parse(...)` as attribute calls, so an aliased import (`from ast import parse`) would evade it; measured at authoring, NO test file uses an aliased or from-import form of either module, so the attribute form is sufficient today, and E-07 must re-confirm that rather than assume it. Then reconcile the bare-suite test count against the execution baseline, attributing every removed test to the E-item that removed it. Report any surviving file this plan did not predict rather than adjusting the scan to exclude it.
   - Depends on: E-01, E-02, E-03, E-04, E-05, E-06
   - Expected outcome: pasted scan output listing exactly one file; pasted `rg` (or equivalent) output showing no aliased/from-import of `ast` or `inspect` in `tests/`; pasted bare `python3 -m pytest` green; a written reconciliation mapping the count delta to E-items.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -211,40 +211,230 @@ N/A. P16 in `GUIDING_PRINCIPLES.md` already states the policy this plan applies,
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: a search over `tests/test_host_capability_wiring.py` showing zero matches for `test_runner_shared_references_preflight_host_capabilities` and zero for `ast.parse`, pasted; plus a pasted `python3 -m pytest tests/test_host_capability_wiring.py` showing all remaining tests pass, including `test_execute_item_core_refuses_when_host_capability_unavailable_and_starts_no_session` by name (confirm it is not silently skipped by its `pytest.skip` guard on `RUNNER_ACTION_TO_CONTRACT_ACTION`, which would mean the retained coverage is vacuous; if it DOES skip, say so and stop, because then E-01's premise fails).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Search over tests/test_host_capability_wiring.py shows zero matches for removed pin and ast.parse, and remaining 3 tests pass including test_execute_item_core_refuses_when_host_capability_unavailable_and_starts_no_session by name.
+    Search showing zero matches in `tests/test_host_capability_wiring.py`:
+    ```
+    $ rg 'test_runner_shared_references_preflight_host_capabilities|ast\.parse' tests/test_host_capability_wiring.py
+    (exit code 1, 0 matches)
+    ```
+    Test run showing remaining 3 tests pass, with `test_execute_item_core_refuses_when_host_capability_unavailable_and_starts_no_session` passed by name:
+    ```
+    $ python3 -m pytest tests/test_host_capability_wiring.py -o addopts="" -v
+    ============================= test session starts ==============================
+    collected 3 items
 
-- [ ] V-02 validates E-02
+    tests/test_host_capability_wiring.py::test_execute_item_core_refuses_when_host_capability_unavailable_and_starts_no_session PASSED [ 33%]
+    tests/test_host_capability_wiring.py::test_dependent_of_capability_refused_item_cascades_to_fail_depend PASSED [ 66%]
+    tests/test_host_capability_wiring.py::test_refused_item_derived_disposition_is_host_capability_unavailable PASSED [100%]
+
+    ============================== 3 passed in 0.56s ===============================
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: a search over `tests/test_runner_shared.py` for `inspect.getsource` returning zero matches, pasted; plus a pasted run of `test_set_plan_approved_durable_history_pin` showing it passes, and a quoted excerpt of the retained argv assertions proving the behavioral half survived the edit.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. AST search confirms zero inspect.getsource calls in tests/test_runner_shared.py, test passes, and retained argv assertions confirmed.
+    AST search confirming zero `inspect.getsource` calls across `tests/test_runner_shared.py`:
+    ```
+    $ python3 -c "import ast; tree = ast.parse(open('tests/test_runner_shared.py').read()); calls = [n for n in ast.walk(tree) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == 'getsource']; print(calls)"
+    []
+    ```
+    Passing test run:
+    ```
+    $ python3 -m pytest tests/test_runner_shared.py -k test_set_plan_approved_durable_history_pin -o addopts="" -v
+    tests/test_runner_shared.py::FullAutoDurableHistoryPinTests::test_set_plan_approved_durable_history_pin PASSED [100%]
+    ====================== 1 passed, 125 deselected in 0.31s =======================
+    ```
+    Retained argv assertions excerpt:
+    ```python
+        # E-03: Assert exact argv by value for both hosts
+        for host, host_actor in [
+            (oc_runipd, "aw oc run --full-auto"),
+            (agy_runipd, "aw agy run --full-auto"),
+        ]:
+            captured: list[list[str]] = []
 
-- [ ] V-03 validates E-03
+            def fake_run_checked(argv, cwd=None, env=None):
+                captured.append(list(argv))
+                return ""
+
+            with mock.patch.object(host, "run_checked", fake_run_checked):
+                host.set_plan_approved(pathlib.Path("/tmp/repo"), "pln001")
+
+            self.assertEqual(len(captured), 1)
+            argv = captured[0]
+
+            self.assertIn("--actor", argv)
+            actor_idx = argv.index("--actor")
+            self.assertEqual(
+                argv[actor_idx + 1],
+                host_actor,
+                f"{host.__name__} did not send expected --actor value",
+            )
+
+            self.assertIn("-m", argv)
+            m_idx = argv.index("-m")
+            self.assertEqual(
+                argv[m_idx + 1],
+                expected_msg,
+                f"{host.__name__} did not send expected -m value",
+            )
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: a search over `tests/test_interactivity_resolver.py` for `ast.` returning zero matches and for `_is_pure_delegation` returning zero, pasted; plus a pasted run of the file showing the replacement passes. The replacement must be shown NON-VACUOUS: temporarily make ONE delegation ignore the resolver (return a hardcoded `True`), paste the resulting failure naming that delegation, revert, paste the pass. Also paste the `yes=True` short-circuit assertion result for `engine.is_interactive_session`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Zero matches for ast. and _is_pure_delegation, reachability proof passes 19 tests, RED failure demonstrated, and yes=True short-circuit passes.
+    Search for `ast.` and `_is_pure_delegation` returning zero matches:
+    ```
+    $ rg 'ast\.|_is_pure_delegation' tests/test_interactivity_resolver.py
+    (exit code 1, 0 matches)
+    ```
+    Pasted run showing replacement passes (19 passed):
+    ```
+    $ python3 -m pytest tests/test_interactivity_resolver.py -o addopts="" -v
+    tests/test_interactivity_resolver.py::SingleOriginatingDefinitionTests::test_sanctioned_delegations_reach_term_resolver PASSED [  5%]
+    ...
+    ============================== 19 passed in 0.25s ==============================
+    ```
+    RED failure naming the delegation (`git_commit_helper._is_interactive` forced to `True`):
+    ```
+    FAILED tests/test_interactivity_resolver.py::SingleOriginatingDefinitionTests::test_sanctioned_delegations_reach_term_resolver
+    AssertionError: True is not false : Sanctioned delegation _is_interactive in git_commit_helper.py did not follow term.is_interactive=False
+    ```
+    Reverted and confirmed GREEN.
+    Short-circuit assertion result for `engine.is_interactive_session(types.SimpleNamespace(yes=True))`:
+    ```python
+        # Pin engine.is_interactive_session short-circuit: yes=True returns False even when resolver is True
+        with mock.patch.object(term, "is_interactive", return_value=True):
+            self.assertFalse(
+                engine.is_interactive_session(types.SimpleNamespace(yes=True)),
+                "engine.is_interactive_session must short-circuit to False when yes=True",
+            )
+    ```
+    Passed as part of `test_sanctioned_delegations_reach_term_resolver`.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: a search over `tests/test_runner_shared.py` for `ast.parse`, `ast.unparse` and `ast.walk` returning zero matches, pasted. The replacement shown RED then GREEN: add a stray flag (or drop the mutual exclusion) on ONE host's `start` subparser, paste the failure showing it names the diverging host and the differing option or group, revert, paste the pass. Also paste the observed `--raw --quiet` refusal for both hosts including the exit code and the stderr line, confirming the refusal is asserted by observation rather than assumed (authoring baseline to reproduce: exit 2, `runipd start: error: argument --quiet: not allowed with argument --raw` and the `runagy start:` equivalent).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Zero ast.parse/unparse/walk in tests/test_runner_shared.py, RED demonstration names diverging host/flag on stray addition, and observable --raw --quiet refusal confirmed with exit 2 on both hosts for start and resume.
+    Search over `tests/test_runner_shared.py` for `ast.parse`, `ast.unparse`, `ast.walk`:
+    ```
+    $ rg 'ast\.(parse|unparse|walk)' tests/test_runner_shared.py
+    15:     `19313eed`). Formerly held the PRE-MOVE `ast.dump(ast.parse(ast.unparse(node)))` of all 34
+    (0 calls in code, only docstring comment at line 15)
+    ```
+    RED demonstration (stray flag added on `runipd start`):
+    ```
+    FAILED tests/test_runner_shared.py::OutputModeFlagsGuardTests::test_add_output_mode_flags_not_reforked_in_hosts
+    AssertionError: Items in the first set but not the second:
+    '--stray' : runipd start output-mode option strings do not match shared reference
+    ```
+    Reverted and confirmed GREEN:
+    ```
+    $ python3 -m pytest tests/test_runner_shared.py -k test_add_output_mode_flags_not_reforked_in_hosts -o addopts="" -v
+    tests/test_runner_shared.py::OutputModeFlagsGuardTests::test_add_output_mode_flags_not_reforked_in_hosts PASSED [100%]
+    ====================== 1 passed, 125 deselected in 0.34s =======================
+    ```
+    Observed `--raw --quiet` refusal for both hosts with exit code 2 and stderr line:
+    `runipd start: error: argument --quiet: not allowed with argument --raw` (exit 2)
+    `runipd resume: error: argument --quiet: not allowed with argument --raw` (exit 2)
+    `runagy start: error: argument --quiet: not allowed with argument --raw` (exit 2)
+    `runagy resume: error: argument --quiet: not allowed with argument --raw` (exit 2)
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: the pasted re-measurement at execution HEAD of the common UPPER-name partition (authoring baseline to reproduce or refute: 39 common names, 38 identity re-exports, 1 genuine co-definition `DEFAULT_STALL_TIMEOUT` equal to `900.0` in all three modules). If that partition has CHANGED, report the new numbers and confirm the rewritten test still covers the genuine co-definitions. Then RED-then-GREEN: set one host's `DEFAULT_STALL_TIMEOUT` to a different value, paste the failure showing it names the constant and prints all three values, revert, paste the pass. The test must be confirmed to read no source (search for `ast.` and `getsource` in the test body, pasted).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Re-measurement confirms 43 common UPPER names (42 identity re-exports, 1 genuine co-definition DEFAULT_STALL_TIMEOUT at 900.0), RED demonstration prints all three values on mismatch, and test body confirmed reading no source.
+    Re-measurement at execution HEAD (git commit `9cf35d478080f7220476e756b86b8f97b9ab0e3f`):
+    Total common UPPER names: 43 (39 at authoring + 4 new re-exports: `ACTION_IMPLEMENTED`, `CARRIER_KIND_IPD`, `CARRIER_KIND_OTHER`, `NEEDS_INPUT_KEY`).
+    Identity re-exports: 42 (all 42 identical objects between runner_shared and hosts).
+    Genuinely co-defined: 1 (`DEFAULT_STALL_TIMEOUT` equal to 900.0 in `runner_shared`, `oc_runipd`, and `agy_runipd`).
+    RED demonstration (temporarily setting `oc_runipd.DEFAULT_STALL_TIMEOUT = 123.0`):
+    ```
+    FAILED tests/test_runner_shared.py::FullAutoDurableHistoryPinTests::test_no_divergent_codefined_constants_in_runner_shared
+    AssertionError: Found divergent co-defined module-level constant(s) in runner_shared:
+    Constant DEFAULT_STALL_TIMEOUT in runner_shared has value 900.0, which matches neither oc_runipd (123.0) nor agy_runipd (900.0).
+    ```
+    Reverted and confirmed GREEN:
+    ```
+    $ python3 -m pytest tests/test_runner_shared.py -k test_no_divergent_codefined_constants_in_runner_shared -o addopts="" -v
+    tests/test_runner_shared.py::FullAutoDurableHistoryPinTests::test_no_divergent_codefined_constants_in_runner_shared PASSED [100%]
+    ====================== 1 passed, 125 deselected in 0.90s =======================
+    ```
+    Confirmation test reads no source:
+    Search for `ast.` and `getsource` in `FullAutoDurableHistoryPinTests.test_no_divergent_codefined_constants_in_runner_shared` returned 0 matches.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: for each of D1, D2 and D3, the reference count re-measured BEFORE deletion and pasted (authoring baselines: `DEFINITIONS` 1, `CALL_SITES` 1; the nine `tests/test_runner_shared.py` tables at 1 or 2; `MODULE_PATH` 1). If any count is HIGHER than its baseline, a reader was added since authoring: do not delete that name, report it instead. Plus an AST-derived confirmation that `OneSharedPredicateTests` holds zero test methods, pasted, taken before deletion. Plus a pasted `python3 -m pytest tests/test_spec_review_attestation.py tests/test_runner_shared.py tests/test_lifecycle_style.py` showing green with no collection error.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Pre-deletion reference counts all at baseline (1 or 2), OneSharedPredicateTests AST confirmed 0 test methods, and pytest runs 169 passed with no collection error across all three files.
+    Pre-deletion reference counts:
+    D1: `OneSharedPredicateTests`: 1, `DEFINITIONS`: 1, `CALL_SITES`: 1 (all in `tests/test_spec_review_attestation.py`)
+    D2: `ALL_SHARED_RUN_CHECKED_CALLERS`: 1, `HOST_NAMING_ONLY`: 1, `REDOCUMENTED_SINCE_MOVE`: 1, `INTEGRATION_CAUSE_SHARED`: 1, `LANE_INTEGRATION_WRAPPED`: 1, `RELOCATED_RUN_CHECKED_CALLERS`: 2, `NATIVE_SHARED_RUN_CHECKED_CALLERS`: 2, `REHOMED_BACKLOG_CLOSE_CALL_SITES`: 2, `UNMOVABLE`: 2.
+    D3: `MODULE_PATH`: 1 (in `tests/test_lifecycle_style.py`).
+    None higher than baseline.
+    AST confirmation of `OneSharedPredicateTests` body before deletion:
+    Body node types: `['Expr', 'Assign', 'Assign']`
+    Test methods count: 0
+    Pytest run on all three touched files:
+    ```
+    $ python3 -m pytest tests/test_spec_review_attestation.py tests/test_runner_shared.py tests/test_lifecycle_style.py -v
+    ============================= 169 passed in 13.30s =============================
+    ```
+    Green with no collection error.
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: a pasted bare `python3 -m pytest` at the end of execution, green, with the test count stated and the delta from the re-derived execution baseline RECONCILED item by item (which E-item removed or merged which tests). A count that fell by an unexplained amount is a FAILURE of this item, not a pass. Plus the final whole-suite scan output, pasted, showing exactly ONE remaining file, `tests/test_carrier_scan_single_item_contract.py` (the sanctioned exception). Any other surviving file must be named and explained rather than ignored.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full bare pytest suite runs 3525 passed, 2 skipped, 3 warnings; count delta exactly reconciled (-2 tests from E-01 and E-03); and whole-suite scan confirms exactly one file remaining (sanctioned exception tests/test_carrier_scan_single_item_contract.py).
+    Final bare test suite run:
+    ```
+    $ python3 -m pytest
+    =============================== warnings summary ===============================
+    tests/test_concurrent_driver_guard.py::RealTwoProcessContentionTests::test_the_lock_is_reacquirable_after_the_holder_exits
+      .../lib/python3.14/multiprocessing/popen_fork.py:76: DeprecationWarning: This process (pid=953262) is multi-threaded, use of fork() may lead to deadlocks in the child.
+        self.pid = os.fork()
+
+    tests/test_concurrent_driver_guard.py::RealTwoProcessContentionTests::test_a_KILLED_holder_does_not_strand_the_lock
+    tests/test_concurrent_driver_guard.py::RealTwoProcessContentionTests::test_a_second_holder_is_genuinely_EXCLUDED_and_the_holder_is_NAMED
+      .../lib/python3.14/multiprocessing/popen_fork.py:76: DeprecationWarning: This process (pid=953307) is multi-threaded, use of fork() may lead to deadlocks in the child.
+        self.pid = os.fork()
+
+    -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+    NOTE: 208 tests were deselected by -m/-k and did not run (the default run skips 'slow' and 'livecorpus'); run everything with: make test-all
+    3525 passed, 2 skipped, 3 warnings in 87.84s (0:01:27)
+    ```
+    Test count delta reconciliation:
+    Baseline at execution HEAD `9cf35d478080f7220476e756b86b8f97b9ab0e3f`: 3527 passed, 2 skipped, 3 warnings.
+    Final at lane completion: 3525 passed, 2 skipped, 3 warnings.
+    Delta: -2 tests.
+    Reconciliation:
+    - E-01: deleted `test_runner_shared_references_preflight_host_capabilities` in `tests/test_host_capability_wiring.py` (-1)
+    - E-02: removed 2 `inspect.getsource` lines from `test_set_plan_approved_durable_history_pin` in `tests/test_runner_shared.py` (0)
+    - E-03: replaced 2 AST tests (`test_exactly_one_originating_is_interactive_in_package` and `test_sanctioned_delegations_are_closed_and_reach_term_resolver`) with 1 reachability test (`test_sanctioned_delegations_reach_term_resolver`) in `tests/test_interactivity_resolver.py` (-1)
+    - E-04: replaced 1 AST test with 1 parser-surface/refusal test in `tests/test_runner_shared.py` (0)
+    - E-05: rewrote 1 AST test to identity-partition test in `tests/test_runner_shared.py` (0)
+    - E-06: deleted methodless class `OneSharedPredicateTests`, 9 dead census tables, and 1 unused path constant (0)
+    Net delta: -2 tests.
+
+    Final whole-suite AST/inspect scan output:
+    ```
+    tests/test_carrier_scan_single_item_contract.py: 7 hits -> ['ast.parse', 'ast.walk']
+      line    52  ast.walk
+      line    60  ast.walk
+      line   130  ast.walk
+      line   164  ast.parse
+      line    70  ast.walk
+      line    74  ast.walk
+      line   181  ast.parse
+    TOTAL files: 1
+    ```
+    Exactly one file remains: `tests/test_carrier_scan_single_item_contract.py` (the sanctioned exception).
+    Import check for `from (ast|inspect) import`: 0 hits across all `tests/`.
+  - Result: pass
 
 ## Approval and execution gate
 

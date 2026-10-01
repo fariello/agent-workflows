@@ -751,55 +751,6 @@ class AttestationPredicateTests(unittest.TestCase):
             )
 
 
-class OneSharedPredicateTests(unittest.TestCase):
-    """R-12: one predicate and one refusal wording, several call sites; never a second copy.
-
-    Two source-census tests became one table. The failure guarded against is a SECOND definition
-    appearing (by copy-paste during a refactor), at which point two surfaces can disagree about
-    whether a spec is attested while both tests-of-one-site stay green.
-    """
-
-    #: (symbol, modules searched, expected definition count, why exactly that many)
-    DEFINITIONS = (
-        (
-            "review_attestation_missing",
-            (rf, specs, status_set, check_engine, policy, rs),
-            1,
-            "the ATTESTATION JUDGEMENT itself. Two definitions means one surface can accept what "
-            "another refuses, and the forgeable surface wins",
-        ),
-        (
-            "_review_attestation_refusal",
-            (specs, status_set),
-            1,
-            "the refusal WORDING shared by both setter spellings. Two wordings is how the two "
-            "surfaces come to tell an agent different remedies for the same refusal",
-        ),
-    )
-
-    #: (module, symbol it must reference, why that call site matters)
-    CALL_SITES = (
-        (
-            specs,
-            "review_attestation_missing",
-            "`aw specs set --status reviewed` reaches the predicate through the shared message helper",
-        ),
-        (
-            check_engine,
-            "review_attestation_missing",
-            "`aw check` consults the predicate directly, which is what catches a hand-edited spec "
-            "that reached `reviewed` without any setter",
-        ),
-        (
-            status_set,
-            "_review_attestation_refusal",
-            "the positional `aw specs set reviewed <selector>` spelling routes through status_set, "
-            "so it must consume the SHARED message (and therefore the shared predicate); a gate in "
-            "one spelling is bypassed by choosing the other",
-        ),
-    )
-
-
 class SetterAttestationTests(unittest.TestCase):
     """Both CLI spellings enforce the same transition rules, row for row.
 
