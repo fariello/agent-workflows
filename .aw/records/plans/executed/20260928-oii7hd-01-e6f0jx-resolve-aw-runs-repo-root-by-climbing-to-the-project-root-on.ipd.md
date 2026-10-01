@@ -6,7 +6,7 @@
 - Scope: Route the three cwd-relative root resolutions on the `aw runs` surface (`run_viewer.run_viewer_cli`, `run_cli.resolve_ledger_path`, `run_cli._classify_absent_target`, plus `run_analytics_cli._repo_root`) through `project_context.resolve_verb_repo_root`, so every `aw runs` leaf behaves like every other repo-scoped verb; pin the behavior with subdirectory regression tests; and correct the stale F-15(c) claim in executed plan `d91i3e` with a `## Workflow history` pointer rather than an in-place rewrite.
 - Scope-Paths: agent_workflows/run_viewer.py, agent_workflows/run_cli.py, agent_workflows/run_analytics_cli.py, tests/test_runs_subdir_root.py, .aw/records/plans/executed/20260908-runrecon-01-d91i3e-point-a-driver-run-at-the-verb-that-can-help-it-instead-of-f.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 07
 - Author: opencode model=its_direct/pt3-claude-opus-5-1m-us
 - Id: e6f0jx
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: e6f0jx verified (set oii7hd, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): /plan-review (opencode model=its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-101..PR-104 all FIXED, none deferred or open. THIS IS AN UNUSUALLY WELL-EVIDENCED PLAN and every material finding reproduces: F-01 (root renders at exit 0, sub/ refuses at exit 2), F-03 (all four resolution sites present as described), F-05 (the sub/ analyze invocation CREATED a machine-local project tree holding a full analytics bundle that did not exist before it, while the root invocation published inside the fixture and exited 1), F-07 (signpost count 1 at root, 0 from sub/), F-08 (d91i3e's findings table and its own V-02 transcript do contradict each other, and the transcript is the correct half), F-10/F-15 (canonical run_dir absolute and flagged by validate_agent_record, legacy relative and unflagged), F-11/F-12/F-14. TWO HIGH FINDINGS, both gaps rather than errors. PR-102: run_dir is stringified at TWO sites and BOTH leak today, so E-01's 'normalize run_dir' could be satisfied on one branch leaving the other emitting the home path; E-01 and V-01 now name both surfaces and refuse an --agent-only paste. PR-101: E-05 had no legacy-root case while V-01 demanded legacy-root evidence, and a legacy fixture built the obvious way is NOT a project root (_is_project_marker needs a durable records/system/config child), so the climb leaves the fixture for the real checkout - measured, find_project_root returned THIS checkout; new case (h) plus a resolved-root-equals-fixture assertion close it. PR-103 stops the executor reading validate_agent_record's three pre-existing schema findings as damage this plan caused. PR-104 added the conditional finalize ownership. OQ-03 and OQ-04 deliberately left open to the maintainer, both non-blocking. Bare suite 3246 passed, 2 skipped; named baselines 65 passed; aw check release-gates conforms.
 
