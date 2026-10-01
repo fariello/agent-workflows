@@ -1,5 +1,5 @@
 - Id: r30nnz
-- Status: graduated
+- Status: done
 - Graduated-To: r30nnz
 - Set: r30nnz
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Decide whether aw group/rename should refuse to place a Kind: child at Order 0 (consult IPD-M104 at the write site)
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD qhcojn executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-r30nnz-01-qhcojn-refuse-a-kind-child-at-order-0-in-aw-group-and-aw-rename-by.ipd.md); evidence .aw/records/plans/executed/20260929-r30nnz-01-qhcojn-refuse-a-kind-child-at-order-0-in-aw-group-and-aw-rename-by.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: qhcojn
 - 2026-09-20 created (aw backlog): Filed while executing plan e3hzyc (E-03/OQ-03): the recorded decision was to NOT build the refusal inside that bug fix, and to carry the question here.
 

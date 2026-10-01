@@ -10,7 +10,7 @@
 - Scope: Make `aw group plans` and `aw rename plans` REFUSE (exit 2, nothing written) when a named plan's own front matter says `- Kind: child` AND its RESOLVED Order is 0, naming the plan, the rule, and the override in the message; add a `--allow-invalid-order` escape hatch so a deliberate act is still possible; declare that flag in `command_surface.py` so the declared surface cannot drift from the parser; and pin the permitted cases (orchestrator at 0, `Kind`-less plan at 0, multi-plan `--order 0` with an orchestrator first, bare regroup with no `--order`) with tests. The refusal consults `ipd_schema`'s existing rule rather than re-spelling the comparison. EXCLUDES: changing the rule itself or its message text in `ipd_schema`/`ipd_lint`; changing `IPD-M104`'s severity in `aw check` (a separate policy question, deferred); `research_refs.run_set_assign` and `artifact_rename.run_group_generic` (other trees, other grammars, no `Kind` field); the `aw group research` Order-preservation defect (`ao0v8x` owns it); the `aw group plans` date fallback (`949enf` owns it); sweeping or repairing any existing plan; and the orchestrator-at-nonzero mirror case, which is measured here and deferred with a filing obligation.
 - Scope-Paths: agent_workflows/plans_refs.py, agent_workflows/cli.py, agent_workflows/command_surface.py, tests/test_group_verb_policy.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -20,9 +20,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: qhcojn
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: qhcojn verified (set r30nnz, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): reviewed by /plan-review 2026-09-29; readiness go-pending-approval
 
@@ -40,18 +40,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: pin the gap and the cases that must keep working
 
-- [ ] E-01 REPRODUCE THE GAP AS FAILING TESTS FIRST, AND PIN THE PERMITTED CASES IN THE SAME PASS, so the refusal in E-02 cannot pass by refusing too much. Write them in `tests/test_group_verb_policy.py`, which already drives `aw group` for every backend in a temp git repo.
+- [x] E-01 REPRODUCE THE GAP AS FAILING TESTS FIRST, AND PIN THE PERMITTED CASES IN THE SAME PASS, so the refusal in E-02 cannot pass by refusing too much. Write them in `tests/test_group_verb_policy.py`, which already drives `aw group` for every backend in a temp git repo.
   DO NOT REUSE THAT FILE'S `_run_group` HELPER. Measured: it hardcodes the selector `zzzzzz`, passes no `--apply`, accepts no `--order`, and no test in the file has ever seeded a plan. It cannot express any test this plan needs. Write a new helper that seeds a plan file and drives the real CLI, and follow `ao0v8x`'s recorded lesson (its PR-901) rather than rediscovering it.
   PIN `PYTHONPATH` IF YOU SHELL OUT. `ccbe60` records that the editable install names an absolute path to the MAIN checkout, so a `-m agent_workflows` subprocess from a lane imports the MAIN tree: a test can PASS while the tree under test is unfixed. The existing helper avoids this by calling `cli.main` in-process with `redirect_stdout`; prefer that, and if you must subprocess, pin `PYTHONPATH` to the tree under test.
   THE TWO MUST-FAIL CASES: `aw group plans <child> --set X --order 0 --rename --apply` and `aw rename plans <child> --order 0 --apply`, each on a seeded `- Kind: child` plan. Both exit 0 at HEAD and write `- Order: 0`; both must exit 2 and write nothing after E-02/E-03.
   THE FOUR MUST-NOT-BREAK CASES, each measured working at HEAD and each a way a careless refusal breaks the common case: an ORCHESTRATOR regrouped with `--order 0`; a plan carrying NO `- Kind:` line regrouped with `--order 0` (102 plans in this tree are in that state and the schema emits no `IPD-M104` for them; the 102 re-measured identical at review, while the total moved 950 -> 1033 in a day, so do not pin the ratio); a MULTI-PLAN `--order 0` naming the orchestrator FIRST, which correctly yields `-00-`/`-01-`/`-02-`; and a BARE regroup with no `--order` at all, which `e3hzyc` made preserve each plan's own Order.
   - Depends on: none
   - Expected outcome: two tests failing at HEAD (one per verb) and four passing guard tests, all six in one file, with the failing-first output captured before E-02 is written.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: consult the rule at the write site
 
-- [ ] E-02 REFUSE IN `aw group plans` WHEN A NAMED PLAN IS A `Kind: child` AND ITS RESOLVED ORDER IS 0, evaluated PER PLAN and not on the flag. The resolution happens in `plans_refs.plan_set_assign`, where `order` is computed as `(start_order + i) if start_order is not None else _preserved_order(src.name, text)` ABOVE the `if rename:` split, so ONE check placed there covers BOTH the clustering branch and the metadata-only branch that `e3hzyc`'s F-11 showed is the worse of the two.
+- [x] E-02 REFUSE IN `aw group plans` WHEN A NAMED PLAN IS A `Kind: child` AND ITS RESOLVED ORDER IS 0, evaluated PER PLAN and not on the flag. The resolution happens in `plans_refs.plan_set_assign`, where `order` is computed as `(start_order + i) if start_order is not None else _preserved_order(src.name, text)` ABOVE the `if rename:` split, so ONE check placed there covers BOTH the clustering branch and the metadata-only branch that `e3hzyc`'s F-11 showed is the worse of the two.
   PER PLAN IS THE WHOLE POINT. A refusal keyed on `start_order == 0` would break the measured-legitimate `aw group plans <orch> <child> <child> --set X --order 0 --rename --apply`, which correctly assigns `-00-` to the orchestrator and `-01-`/`-02-` to the children. Only the plan whose OWN resolved order is 0 while its OWN front matter says `Kind: child` may be refused.
   READ `- Kind:` FROM THE PLAN'S OWN TEXT AND REQUIRE IT TO BE PRESENT AND EQUAL TO `child`. `plan_set_assign` already holds `text = src.read_text(...)`, so no extra read is needed. A missing field must NOT refuse: `ipd_schema.validate_metadata` does `kind = fields.get("Kind")` with no default and emits no `IPD-M104` for a `Kind`-less plan, and 102 plans here carry no such line. Use a shared reader rather than a new regex: `runner_shared._read_kind` exists for exactly this ("the RELIABLE signal for 'is this an orchestrator' - NOT the Order number") and returns None when absent.
   DO NOT RE-SPELL THE COMPARISON; CALL `ipd_schema.validate_metadata` WITH A MINIMAL FIELD MAP carrying the plan's own `Kind` and the RESOLVED Order, and look for an `Order` `MetaError`. OQ-02 resolves this by measurement rather than leaving it open, and the measured behavior is exactly what this item needs: `Kind: child` at `Order: 0` yields `[('Order', 'child Order must be an integer >= 1')]`, `Kind: orchestrator` at `0` yields `[]`, and a map with NO `Kind` key at `0` yields `[]`, which is the silence F-05 requires. FILTER ON `e.field == "Order"`: `validate_metadata` also reports unrelated missing required fields, so an executor testing the truthiness of the whole list would refuse every plan.
@@ -61,17 +61,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   NAME THE PLAN, THE RULE, AND THE OVERRIDE IN THE MESSAGE, which is the backlog item's own third acceptance criterion ("name the plan and the rule in the refusal message so an operator can pass a deliberate override or fix the Order"). An operator with three plans named cannot act on "a child may not be at Order 0" alone.
   - Depends on: E-01
   - Expected outcome: `aw group plans` exits 2 and writes nothing when a named `Kind: child` resolves to Order 0, on both branches and in preview; the orchestrator, `Kind`-less, multi-plan and bare cases still succeed; the rule is consulted, not re-spelled.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 REFUSE IN `aw rename plans` FOR THE SAME REASON, which the backlog item's body omits even though its title says "aw group/rename". Measured at HEAD: `aw rename plans ccc333 --order 0 --apply` renamed a `Kind: child` from `-02-` to `-00-` and wrote `- Order: 0`, exit 0.
+- [x] E-03 REFUSE IN `aw rename plans` FOR THE SAME REASON, which the backlog item's body omits even though its title says "aw group/rename". Measured at HEAD: `aw rename plans ccc333 --order 0 --apply` renamed a `Kind: child` from `-02-` to `-00-` and wrote `- Order: 0`, exit 0.
   `run_mv` IS A SEPARATE WRITE SITE AND E-02'S CHECK CANNOT REACH IT. It resolves its own order (explicit `--order`, else front-matter `- Order:`, else the filename's `NN`, else 0) and builds its own `RenamePlan` without going through `plan_set_assign`. It already reads the plan's text and holds the resolved `order`, so the check has everything it needs locally.
   CALL THE SAME PREDICATE E-02 CALLS. Two verbs refusing the same state with two comparisons is the drift this plan exists to remove; the point of consulting `ipd_schema` is that there is ONE rule.
   `run_mv` WAS DELIBERATELY LEFT BYTE-UNCHANGED BY `e3hzyc` AND THAT IS NOT A REASON TO SKIP IT HERE. That plan excluded it because it was ALREADY CORRECT for Order PRESERVATION (`vf03z3`). Order VALIDITY is a different property and `run_mv` has never had it. Do not touch its preservation tiers or its date handling.
   - Depends on: E-02
   - Expected outcome: `aw rename plans <child> --order 0` exits 2 and writes nothing; its Order-preservation and date behavior are unchanged; both verbs refuse through one predicate.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 PROVIDE `--allow-invalid-order` AND DECLARE IT, so a deliberate act remains possible and the declared flag surface cannot drift from the parser. The backlog item's message criterion presumes an override exists ("so an operator can pass a deliberate override or fix the Order"), and a refusal with no escape hatch on a REPAIR verb is the failure mode the item's second reason warns about.
+- [x] E-04 PROVIDE `--allow-invalid-order` AND DECLARE IT, so a deliberate act remains possible and the declared flag surface cannot drift from the parser. The backlog item's message criterion presumes an override exists ("so an operator can pass a deliberate override or fix the Order"), and a refusal with no escape hatch on a REPAIR verb is the failure mode the item's second reason warns about.
   THIS IS THE ONE PLACE THIS PLAN GOES BEYOND ITS ITEM'S ACCEPTANCE CRITERIA, STATED PLAINLY RATHER THAN BURIED (F-14, checked at review against the item text). The item lists exactly THREE criteria (refuse only on `Kind: child` with resolved Order 0; permit an orchestrator at 0 unconditionally with a test; name the plan and the rule in the message) and a new FLAG is not among them: the item's phrase "pass a deliberate override" PRESUMES an override rather than commissioning one. The plan's own OQ-01 refuses the orchestrator mirror on scope-fidelity grounds, so adding an undemanded flag while refusing an undemanded rule needs its reason said out loud. THE REASON, which review judged sufficient: a refusal with NO escape hatch on a verb the item itself identifies as a REPAIR path can make a repair impossible, which is the item's own second reason for hesitating, and a new public flag is far cheaper to add now than after an operator is stuck. If a reviewer or the maintainer disagrees, the right cut is to drop E-04 entirely and let the message say "fix the Order", NOT to keep the flag undeclared: an accepted-but-undeclared flag is the drift `command_surface` exists to prevent. Raise it on this item, not on E-02 or E-03, which the item does commission.
   DECLARE IT IN `command_surface.py`, NOT ONLY IN THE PARSER. The `rename` and `group` `CommandDeclaration` entries each carry a `legacy_flags` tuple, and `tests/test_command_surface_declarations.py` asserts zero undeclared parser leaves while `tests/test_prompts_new.py` and `tests/test_backlog_handoff_close.py` both pin `set(decl.legacy_flags) - accepted == set()` for their own verbs. Add the flag to BOTH declarations and assert the same subset property for `rename` and `group`, so this plan leaves the verbs pinned rather than merely working.
   ONE FLAG ON THE SHARED PARSER, AND IT LANDS ON SIX VERBS, NOT TWO. The `--order` flag these verbs share is registered once in a loop over the noun-verb parsers with the help text "Order NN (rename/group). Omit it to PRESERVE each artifact's existing Order; give it to renumber the named artifacts sequentially from NN." Register the override the same way and word its help to name the rule it overrides. BUT KNOW WHAT THAT LOOP COVERS BEFORE YOU WRITE IN IT (F-13, measured at review): the loop iterates SIX verbs (`check`, `find`, `search`, `index`, `rename`, `group`), so a flag added there is ACCEPTED by all six. Verified: `--order` already parses on `aw check plans --order 3` and on `find`/`search`/`index` too, where it means nothing. That is the shipped state and this plan does not have to fix it, but it has two consequences you must handle rather than discover. FIRST, do NOT add `--allow-invalid-order` to the `check`/`find`/`search`/`index` DECLARATIONS to make some symmetry argument: the subset assertion runs DECLARED minus ACCEPTED (verified at review: `set(decl.legacy_flags) - accepted == set()` passes today for both `rename` and `group`), so declaring it only on the two verbs that ACT on it is both correct and sufficient, and an over-declaration on a read verb would assert a flag that verb honors when it does not. SECOND, if registering inside the shared loop reads as too blunt, gate the `add_argument` on `_verb in ("rename", "group")` inside that same loop, which is a pattern the loop ALREADY uses (`if _verb != "search"` guards `--status`); prefer that, and say which you chose.
@@ -79,11 +79,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   THE OVERRIDE MUST STILL WRITE A VALID-BY-SOME-OTHER-ROUTE FILE OR SAY SO LOUDLY. With the flag passed, the write proceeds and the result WILL fail `aw ipd lint` with `IPD-M104`; print a note saying which plan and which rule was overridden, so the operator is not surprised by a later lint failure.
   - Depends on: E-03
   - Expected outcome: `--allow-invalid-order` permits the refused write with a note naming the plan and rule; it is declared in `command_surface.py` for both verbs; the declared-versus-accepted subset assertion passes for both.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove it, including what must not move
 
-- [ ] E-05 PROVE NOTHING ELSE MOVED, because `plans_refs` backs several verbs and is imported by two sibling backends.
+- [x] E-05 PROVE NOTHING ELSE MOVED, because `plans_refs` backs several verbs and is imported by two sibling backends.
   RUN THE SUITE BARE (`python3 -m pytest`) BEFORE AND AFTER AND JUDGE ON THE DELTA, never on an absolute count. Do NOT add flags: `pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow'`; `-n0` makes this suite several times slower, a second `-q` suppresses the very summary line this plan requires you to paste, and `-p no:randomly` disables the order randomization that surfaces order-dependence. Paste both summary lines. Criterion: AFTER minus BEFORE is EMPTY. Do not fix a pre-existing failure, and if one appears, state whether it is environmental with the evidence.
   PROVE THE SIBLING BACKENDS ARE BYTE-UNCHANGED: `git diff --stat` over `agent_workflows/research_refs.py` and `agent_workflows/artifact_rename.py`, both empty. Both import `MutationResult` FROM `plans_refs`, so a changed return shape would break them silently; neither has a `- Kind:` field in its records, so neither is in scope. Do NOT extract a cross-backend helper.
   PROVE `plan_set_assign`'s PRESERVATION BEHAVIOR SURVIVES, which is `e3hzyc`'s guarantee and the reason the accidental path is already closed: a bare regroup with no `--order` must still write each plan's own Order on both branches. Note that `e3hzyc`'s own regression tests are GONE - `tests/test_awnaming_grammar_and_producers.py` was deleted wholesale in commit `19313eed` ("test: trim test suite from 9,136 to under 2,000 tests"), so `PlansGroupPreservesOrderTests` and `PlansMvPreservesOrderAndDateTests` no longer exist and `grep -rn '_preserved_order' tests/` is empty. E-01's bare-regroup guard case is therefore the ONLY pin on that behavior; do not treat it as redundant.
@@ -91,7 +91,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   `aw sanitize --agent` CLEAN, and measure exit codes UNPIPED (`cmd >/dev/null 2>&1; echo $?`).
   - Depends on: E-04
   - Expected outcome: empty bare-suite delta with both summary lines pasted; both sibling backends byte-unchanged; preservation behavior still pinned; no real plan mutated; sanitizer clean.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -219,33 +219,173 @@ THE `--order` HELP TEXT IS SHARED and currently reads "Order NN (rename/group). 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the two must-fail tests shown FAILING against HEAD source with the pytest output pasted (node ids and the failure lines), and the four guard tests shown PASSING at HEAD, proving each permitted case works BEFORE the refusal exists. State how the tests reached the code (in-process `cli.main`, or a subprocess with `PYTHONPATH` pinned to the tree under test) and why that route cannot be satisfied by the main checkout's module (`ccbe60`). Name the new helper and state that `_run_group` was not reused, with the reason.
   A SEEDED PROBE PLAN NEEDS `- Item-Dependencies:` IF ANY ASSERTION READS `aw check` (F-15, measured at review). A minimal seeded plan without that line makes `aw check plans` emit `check.ipd-missing-dependency-statement` at severity ERROR and exit 1, which has nothing to do with the Order rule and will read as a failure of this plan's own work. Review hit exactly this and had to add the line to isolate F-07's verdict. Either include `- Item-Dependencies: none` in every seeded fixture, or assert only on `aw group`/`aw rename`/`aw ipd lint` and never on `aw check`'s exit code; say which you did.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Executed failing-first tests at HEAD showing failure, and guard tests passing:
+    Executed `python3 -m pytest -o addopts="" -v tests/test_group_verb_policy.py -k "order_zero or bare_regroup"` at HEAD before implementing the write-site refusals:
+    ```
+    tests/test_group_verb_policy.py::test_group_plans_orchestrator_at_order_zero_permitted PASSED [ 14%]
+    tests/test_group_verb_policy.py::test_rename_plans_refuses_child_at_order_zero FAILED [ 28%]
+    tests/test_group_verb_policy.py::test_group_plans_kindless_plan_at_order_zero_permitted PASSED [ 42%]
+    tests/test_group_verb_policy.py::test_group_plans_bare_regroup_preserves_each_plan_order PASSED [ 57%]
+    tests/test_group_verb_policy.py::test_group_research_explicit_order_zero PASSED [ 71%]
+    tests/test_group_verb_policy.py::test_group_plans_refuses_child_at_order_zero FAILED [ 85%]
+    tests/test_group_verb_policy.py::test_group_plans_multi_plan_order_zero_with_orchestrator_first PASSED [100%]
 
-- [ ] V-02 validates E-02
+    FAILED tests/test_group_verb_policy.py::test_rename_plans_refuses_child_at_order_zero
+    >       assert rc == 2, f"Expected rc 2, got {rc}. Output:\n{out}\n{err}"
+    E       AssertionError: Expected rc 2, got 0. Output:
+    E         renamed .aw/records/plans/pending/20260920-probeset-02-chd002-probe-child-two.ipd.md -> .aw/records/plans/pending/20260920-oldset-00-chd002-probe-child-two.ipd.md
+    E         wrote        .aw/records/plans/INDEX.json, INDEX.md (1 plans)
+    E       assert 0 == 2
+
+    FAILED tests/test_group_verb_policy.py::test_group_plans_refuses_child_at_order_zero
+    >       assert rc == 2, f"Expected rc 2, got {rc}. Output:\n{out}\n{err}"
+    E       AssertionError: Expected rc 2, got 0. Output:
+    E         renamed .aw/records/plans/pending/20260920-probeset-01-chd001-probe-child-one.ipd.md -> .aw/records/plans/pending/20260920-newset-00-chd001-probe-child-one.ipd.md
+    E         wrote        .aw/records/plans/INDEX.json, INDEX.md (1 plans)
+    E       assert 0 == 2
+    ```
+    The tests drove `cli.main` in-process with captured stdout/stderr inside disposable git repositories created via `temp_git_repo`, ensuring imports resolve to the local worktree lane without editable install drift to the main checkout (`ccbe60`).
+    `_run_group` was NOT reused because it hardcodes selector `zzzzzz`, accepts no `--order`, passes no `--apply`, and seeds no plans. Instead, `_seed_plan_record` was extended with `kind` and `item_dependencies`, and `_run_group_plans` and `_run_rename_plans` were used. Seeded probe plans included `- Item-Dependencies: none` per F-15.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: pasted output of `aw group plans <child> --set X --order 0 --rename --apply` and of the metadata-only form without `--rename`, each exiting 2 with the exit code measured UNPIPED, plus proof NOTHING was written (the plan file's content byte-identical, its filename unchanged, no INDEX rewrite). The refusal message pasted in full, showing it names the plan, the rule, and the override. Proof the check is PER PLAN and not on the flag: the multi-plan `--order 0` call with the orchestrator first still exits 0 and yields `-00-`/`-01-`/`-02-`. Proof PREVIEW refuses: the same call without `--apply` exits 2 and prints no `would rename` line. Proof the `Kind`-less case is untouched: a plan with no `- Kind:` line at `--order 0` still succeeds. THE PREDICATE IS THE SCHEMA'S, NOT A NEW ONE: the call site quoted, showing `ipd_schema.validate_metadata` invoked with a field map carrying the plan's own `Kind` and the RESOLVED Order, and the result FILTERED on `e.field == "Order"` rather than tested for truthiness (an unfiltered test refuses every plan, because the validator also reports unrelated missing required fields); plus confirmation by grep that no new `order < 1` or `order == 0` comparison was hand-written in `plans_refs.py`. If the executor instead extracted a predicate into `ipd_schema.py`, that is the scope change OQ-02 names: state it and show the `--scope-reason` recorded at finalize. Confirmation the refusal returns `MutationResult(2)` like the verb's existing refusals.
-  -   Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified write-site refusals, exit code 2 unpiped, nothing written, and predicate reuse in throwaway repository:
+    Measurement in throwaway repository:
+    1. Clustering rename refusal:
+    Command: `aw group plans chd001 --set newset --order 0 --rename --apply`
+    Exit code: 2 (unpiped)
+    Output: `error: plan 'chd001' (20260920-oldset-01-chd001-child-one.ipd.md): child Order must be an integer >= 1 (pass --allow-invalid-order to override)`
+    Proof nothing written: `file exists at old path: True`, `file byte identical: True`, no destination file written.
+    2. Metadata-only refusal:
+    Command: `aw group plans ddd444 --set metaset --order 0 --apply`
+    Exit code: 2 (unpiped)
+    Output: `error: plan 'ddd444' (20260920-oldset-03-ddd444-child-meta.ipd.md): child Order must be an integer >= 1 (pass --allow-invalid-order to override)`
+    Proof nothing written: `file byte identical: True`.
+    3. Dry-run preview refusal:
+    Command: `aw group plans chd003 --set prevset --order 0 --rename`
+    Exit code: 2 (unpiped)
+    Output: `error: plan 'chd003' (20260920-oldset-01-chd003-child-prev.ipd.md): child Order must be an integer >= 1 (pass --allow-invalid-order to override)`
+    `would rename in stdout: False`.
+    4. Per-plan evaluation (multi-plan with orchestrator first):
+    Command: `aw group plans ggg777 eee555 fff666 --set asmset --order 0 --rename --apply`
+    Exit code: 0
+    Files produced: `20260920-asmset-00-ggg777-orch.ipd.md` (- Order: 0), `20260920-asmset-01-eee555-child-one.ipd.md` (- Order: 1), `20260920-asmset-02-fff666-child-two.ipd.md` (- Order: 2).
+    5. Kind-less plan:
+    Command: `aw group plans knd001 --set kndset --order 0 --rename --apply`
+    Exit code: 0, file renamed to `20260920-kndset-00-knd001-kindless.ipd.md`.
+    6. Predicate call site in `agent_workflows/plans_refs.py`:
+    ```python
+    def _validate_plan_order(text: str, order: int) -> Optional[str]:
+        from agent_workflows import ipd_schema
+        from agent_workflows.runner_shared import _read_kind
 
-- [ ] V-03 validates E-03
+        kind = _read_kind(text)
+        if kind != ipd_schema.KIND_CHILD:
+            return None
+        fields = {"Kind": kind, "Set": "set", "Order": str(order)}
+        for err in ipd_schema.validate_metadata(fields):
+            if err.field == "Order":
+                return err.message
+        return None
+    ```
+    Confirmation by grep: `grep -n "order < 1\|order == 0" agent_workflows/plans_refs.py` returned 0 matches.
+    Confirmation of return shape: `run_set_assign` returns `MutationResult(2)` on error.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: pasted output of `aw rename plans <child> --order 0 --apply` exiting 2 with nothing written, exit code measured unpiped, and the message pasted. Proof it refuses through the SAME predicate as E-02 (quote both call sites). Proof `run_mv`'s other behavior is unchanged: a bare rename with no `--order` still preserves the plan's Order (`vf03z3`), and the date handling is untouched - show the `run_mv` diff and confirm it adds only the refusal.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified aw rename plans refusal on child at order 0, unpiped rc 2, nothing written, and predicate reuse:
+    Command: `aw rename plans --id chd002 --order 0 --apply`
+    Exit code: 2 (unpiped)
+    Output: `error: plan 'chd002' (20260920-oldset-02-chd002-rename.ipd.md): child Order must be an integer >= 1 (pass --allow-invalid-order to override)`
+    Proof nothing written: `file byte identical: True`.
+    Same predicate call sites:
+    In `plan_set_assign`:
+    ```python
+    order_err = _validate_plan_order(text, order)
+    if order_err:
+        if allow_invalid_order:
+            print(f"note: plan '{id6}' ({src.name}): overridden rule: {order_err}")
+        else:
+            return None, f"plan '{id6}' ({src.name}): {order_err} (pass --allow-invalid-order to override)"
+    ```
+    In `run_mv`:
+    ```python
+    allow_invalid_order = bool(getattr(args, "allow_invalid_order", False))
+    order_err = _validate_plan_order(text, order)
+    if order_err:
+        if allow_invalid_order:
+            print(f"note: plan '{id6}' ({src.name}): overridden rule: {order_err}")
+        else:
+            print(f"error: plan '{id6}' ({src.name}): {order_err} (pass --allow-invalid-order to override)")
+            return MutationResult(2)
+    ```
+    Diff of `run_mv` in `agent_workflows/plans_refs.py` shows only the refusal and `--allow-invalid-order` handling added; date resolution (`_preserved_date`), order preservation tiers (`om` then `_CLUSTERED_RE`), and `apply_renames` remain byte-identical.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: pasted output of the refused call WITH `--allow-invalid-order`, showing it succeeds, printing the note that names the plan and the overridden rule; then `aw ipd lint` on the result asserting the presence of `IPD-M104` specifically (not a clean exit, which a probe file can never produce - review confirmed a probe plan emits `IPD-H202` structural codes beside the `M104`, so an exit-0 assertion is unsatisfiable). Pasted test output for the declared-versus-accepted subset assertion on BOTH the `rename` and `group` declarations, plus `tests/test_command_surface_declarations.py` passing with zero undeclared leaves. The new `--order` help text and the new flag's help text quoted, showing the kind-conditionality and the `IPD-M104` warning.
   STATE WHERE YOU REGISTERED THE FLAG AND WHICH VERBS NOW ACCEPT IT (F-13). Paste the per-verb parse result for all SIX verbs in the shared loop (`check`, `find`, `search`, `index`, `rename`, `group`), and say whether you gated the registration on `_verb in ("rename", "group")` or registered it loop-wide; either is defensible, an UNSTATED choice is not. Confirm the flag is declared on the `rename` and `group` declarations and NOT on the four read verbs, and paste `set(decl.legacy_flags) - accepted` as `set()` for both. Also confirm, rather than edit, that both declarations already carry `exit_contract=(0, 2)` so the refusal needed no contract change.
   IF E-04 WAS DROPPED (F-14's fallback), say so here and show that the refusal message says "fix the Order" instead of naming a flag, and that no undeclared flag was left in the parser. A dropped E-04 is a legitimate outcome of review or maintainer input; a half-done one is not.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified --allow-invalid-order override produces IPD-M104 lint error, flag registration, and help text:
+    1. Override call with `--allow-invalid-order`:
+    Command: `aw group plans chd005 --set overrideset --order 0 --rename --apply --allow-invalid-order`
+    Exit code: 0
+    Output:
+    ```
+    note: plan 'chd005' (20260920-oldset-01-chd005-override.ipd.md): overridden rule: child Order must be an integer >= 1
+    renamed .aw/records/plans/pending/20260920-oldset-01-chd005-override.ipd.md -> .aw/records/plans/pending/20260920-overrideset-00-chd005-override.ipd.md
+    wrote        .aw/records/plans/INDEX.json, INDEX.md (9 plans)
+    ```
+    Lint on result confirms `IPD-M104`:
+    `IPD-M104: Order: child Order must be an integer >= 1`
+    2. Flag registration and per-verb acceptance (F-13):
+    The flag was gated in `agent_workflows/cli.py` on `if _verb in ("rename", "group"):` within the shared noun-verb parser loop.
+    Per-verb parse check across all six verbs:
+    ```
+      check: False
+      find: False
+      search: False
+      index: False
+      rename: True
+      group: True
+    ```
+    Declared-versus-accepted subset assertions:
+    ```
+    decl.legacy_flags - accepted for rename: set()
+    decl.legacy_flags - accepted for group: set()
+    ```
+    `tests/test_command_surface_declarations.py`: `1 passed in 6.83s` (zero undeclared leaves).
+    Both declarations confirm `exit_contract=(0, 2)`.
+    3. Help texts quoted:
+    `--order`: `"Order NN (rename/group). Omit it to PRESERVE each artifact's existing Order; give it to renumber the named artifacts sequentially from NN (for plans, Order 0 is refused for a Kind: child; an orchestrator at 0 is permitted)."`
+    `--allow-invalid-order`: `"rename/group: allow assigning Order 0 to a Kind: child plan, overriding the schema rule; result will fail aw ipd lint with IPD-M104."`
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: the BARE `python3 -m pytest` summary line from BEFORE and from AFTER, both pasted verbatim, with the delta stated and shown EMPTY (and the flags used stated as none). `git diff --stat` over `agent_workflows/research_refs.py` and `agent_workflows/artifact_rename.py`, both pasted and empty. Pasted evidence that a bare regroup with no `--order` still preserves each plan's own Order on BOTH branches, since `e3hzyc`'s own regression file no longer exists (F-12). `git status --porcelain .aw/records/plans/` pasted, showing no rename beyond this plan's own file and no committed INDEX churn. The backlog id of the filed orchestrator-mirror item (F-11) with its measurement. `aw sanitize --agent` output, clean.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Bare pytest ran before and after (+12 passed, 0 failures, empty delta); sibling backends byte-unchanged; clean leak scan:
+    1. Bare pytest runs:
+    BEFORE: `3967 passed, 2 skipped, 3 warnings in 186.36s (0:03:06)`
+    AFTER:  `3979 passed, 2 skipped, 3 warnings in 229.98s (0:03:49)`
+    Delta: +12 passed (the 12 new test cases in `tests/test_group_verb_policy.py`), 0 failures; delta is empty.
+    2. Sibling backends check:
+    `git diff --stat agent_workflows/research_refs.py agent_workflows/artifact_rename.py`: (empty, 0 lines changed).
+    3. Order preservation verification:
+    `tests/test_group_verb_policy.py::test_group_plans_bare_regroup_preserves_each_plan_order` passed, verifying both clustering rename and metadata-only branches preserve plan orders without clobbering to 0.
+    4. Records plans status:
+    `git status --porcelain .aw/records/plans/`:
+    ` M .aw/records/plans/pending/20260929-r30nnz-01-qhcojn-refuse-a-kind-child-at-order-0-in-aw-group-and-aw-rename-by.ipd.md`
+    (no real plans renamed, no INDEX churn committed).
+    5. Filed orchestrator-mirror item:
+    `oev4h7` filed at `.aw/records/backlog/graduated/20260929-oev4h7-01-oev4h7-orchestrator-nonzero-order-unguarded.backlog.md`.
+    6. Leak sanitizer:
+    `aw sanitize --agent` exit 0, `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`.
+  - Result: pass
 
 ## Approval and execution gate
 
