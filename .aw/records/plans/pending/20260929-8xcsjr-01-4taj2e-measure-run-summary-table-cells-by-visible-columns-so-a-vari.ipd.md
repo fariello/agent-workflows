@@ -46,7 +46,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: fix the measurement
 
-- [ ] E-01 CONVERT EVERY PADDING MEASUREMENT IN `render_stream.render_run_summary_table` TO `_T.visible_width`, all thirteen of them, in one pass. `render_stream` already binds `from agent_workflows import term as _T` at module scope and already calls `_T.visible_width` in `format_activity_cell`, so this adds no import and introduces no new helper. LOCATE THE SITES BY CONTENT, NOT BY THE LINE NUMBERS IN THIS PLAN, which expire.
+- [x] E-01 CONVERT EVERY PADDING MEASUREMENT IN `render_stream.render_run_summary_table` TO `_T.visible_width`, all thirteen of them, in one pass. `render_stream` already binds `from agent_workflows import term as _T` at module scope and already calls `_T.visible_width` in `format_activity_cell`, so this adds no import and introduces no new helper. LOCATE THE SITES BY CONTENT, NOT BY THE LINE NUMBERS IN THIS PLAN, which expire.
   THE LOCATOR GREP THIS PLAN ORIGINALLY PRESCRIBED IS BLIND TO `max_banner_w`, THE ONE SITE IT CALLS MOST IMPORTANT (corrected at review, PR-501). `grep -n "len(_strip_ansi\|len(tot_\|len(h)\|len(tot_str)"` does NOT match `max_banner_w = max((len(t) for t in banner_plain), default=0) + 4`, because that line's measurement is spelled `len(t)`. Verified at review: the grep returns exactly 14 lines and `max_banner_w` is not among them, so an executor who trusts it as "the durable locator" converts 13 sites, sees zero residual matches, and ships the banner path unconverted. USE THIS LOCATOR INSTEAD, which does cover it:
   `grep -n "len(" agent_workflows/render_stream.py` narrowed to the function, or equivalently read the function and convert every `len()` applied to TEXT. Inside this function there are 19 `len(` lines; 14 measure text and must convert (the 13 the plan enumerates, plus `max_banner_w`'s `len(t)`), and the remaining 5 are NOT text measurements and MUST NOT be converted: `len(_rank)` and the `len(queue)` comment sit outside the function, and inside it `touched = len(getattr(tracker, "modified_files", ()) or ())` counts FILES while `base_table_width = sum(col_widths) + (len(col_widths) - 1) * 3 + 4` counts COLUMNS. Converting either of those last two would be a defect: `visible_width` takes a string.
   THE THIRTEEN, GROUPED BY WHAT THEY DECIDE. (a) COLUMN WIDTHS, three: the `col_widths = [len(h) for h in headers]` seed, the `col_widths[idx] = max(col_widths[idx], len(_strip_ansi(str(cell))))` loop the item names, and the totals pass `col_widths[idx_c] = max(col_widths[idx_c], len(tot_str))`. (b) TABLE WIDTH, one: `max_banner_w = max((len(t) for t in banner_plain), default=0) + 4`, which widens the `Set` column and therefore sets `total_table_width` for the entire box. (c) BANNER PADS, three: `pad_title`, `pad_1`, `pad_2`. (d) CELL PADS, six: the header `pad = w - len(h)`, the row `raw_len = len(_strip_ansi(str(cell)))`, the totals label `pad_tot_lbl`, and the three totals-metric pads (`w_dur - len(tot_dur_str)`, `w_cost - len(tot_cost_str)`, `width - len(tot_str)`).
@@ -56,11 +56,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT CONVERT THE OTHER FUNCTIONS IN THIS MODULE. `format_statusline_lines` measures with `len()` in a dozen places and `format_event_prefix` pads with `str.ljust`; both are separate surfaces, both carry their own byte-pinned tests (`test_format_statusline_user_example_box_layout` pins the live 4-line box byte-for-byte), and neither is what backlog `8xcsjr` filed. They are recorded in Deferred with the reason.
   - Depends on: none
   - Expected outcome: no `len()`-based measurement OF TEXT remains anywhere in `render_run_summary_table`, INCLUDING `max_banner_w`'s `len(t)`, while the two non-text counts (`touched` over files and `len(col_widths)` over columns) are deliberately unchanged; a summary table whose `Set` cell contains `⚠︎` and one whose banner contains an NFD accent both render every box line at the SAME visible width; and a table with no zero-width code point anywhere renders BYTE-IDENTICALLY to before, styled and unstyled. Do NOT state this outcome as "no `len(` remains", which is false by design for the two counts above.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: close the coverage hole
 
-- [ ] E-02 ADD `tests/test_run_summary_visible_width.py` ASSERTING THE BOX IS RECTANGULAR IN VISIBLE COLUMNS. Assert the PROPERTY, not the fix's shape: collect every rendered line that begins with a box-drawing character (`╭`, `│`, `├`, `╰`, and their ASCII `+`/`|` counterparts when `use_unicode=False`), measure each with `term.visible_width`, and assert the resulting set has exactly ONE member. That single assertion catches all thirteen sites at once and cannot be satisfied by a cosmetic edit.
+- [x] E-02 ADD `tests/test_run_summary_visible_width.py` ASSERTING THE BOX IS RECTANGULAR IN VISIBLE COLUMNS. Assert the PROPERTY, not the fix's shape: collect every rendered line that begins with a box-drawing character (`╭`, `│`, `├`, `╰`, and their ASCII `+`/`|` counterparts when `use_unicode=False`), measure each with `term.visible_width`, and assert the resulting set has exactly ONE member. That single assertion catches all thirteen sites at once and cannot be satisfied by a cosmetic edit.
   KNOW WHAT THE PROPERTY CANNOT CATCH, so this item's own evidence is not oversold (F-12, added at review). The one-distinct-width assertion is necessary but NOT sufficient for completeness: measured at review, converting everything EXCEPT `max_banner_w` also yields a rectangular box on the banner fixture, just one column wider than needed. So a green E-02 does not by itself prove all fourteen sites converted; V-01's per-line accounting is what proves that. Do NOT add a test that pins the absolute width to close this gap - that would be a byte-pin on fixture contents and would break on any unrelated column change. Record the limit instead.
   COVER THE TWO REACHABLE ENTRY PATHS SEPARATELY, because they fail through DIFFERENT sites and a test of one proves nothing about the other. (a) A CELL case: an item whose `setid` contains `⚠︎` (U+26A0 U+FE0E), which fails through the `col_widths` loop and the row-cell pad. (b) A BANNER case: an `exit_reason` long enough to widen the table (longer than the natural table width, so the `max_banner_w` branch is taken) containing a zero-width code point, which fails through `max_banner_w` and the banner pads. Use the NFD form `cafe\u0301` for the banner case rather than a lifecycle glyph, because F-03 measures that path as reachable TODAY with no glyph involved.
   RUN EACH CASE BOTH STYLED AND UNSTYLED (`Palette(True)` and `Palette(False)`). The styled path is where a naive `len()` fix would regress, since ANSI escape bytes are invisible columns too, and it is the path an operator on a TTY actually sees.
@@ -70,14 +70,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   A SIMPLER ALTERNATIVE IS AVAILABLE AND PREFERRED IF IT SUFFICES: because the test calls `render_run_summary_table` directly rather than through a driver, the mutation can be staged by `mock.patch.object(render_stream, "render_run_summary_table", patched_fn)` or by importing the patched callable locally, with no module re-exec and no `sys.modules` manipulation at all. Use the re-exec route only if a test genuinely needs the whole module patched.
   - Depends on: E-01
   - Expected outcome: a test module that FAILS on the pre-fix tree for both the cell case and the banner case, in both styled and unstyled modes, and passes after E-01, plus a byte-identity assertion for the all-ASCII case.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 RECORD THE MEASUREMENT RULE IN THE FUNCTION so the next editor does not reintroduce the defect. Add a short comment block at the top of `render_run_summary_table` stating the rule (every pad in this function is computed with `_T.visible_width`, never `len()`, because `len()` counts a zero-width code point as a column), naming the two categories of reachable input (a lifecycle glyph in a cell, free text in the banner from `exit_reason`), and pointing at `tests/test_run_summary_visible_width.py` as the guard.
+- [x] E-03 RECORD THE MEASUREMENT RULE IN THE FUNCTION so the next editor does not reintroduce the defect. Add a short comment block at the top of `render_run_summary_table` stating the rule (every pad in this function is computed with `_T.visible_width`, never `len()`, because `len()` counts a zero-width code point as a column), naming the two categories of reachable input (a lifecycle glyph in a cell, free text in the banner from `exit_reason`), and pointing at `tests/test_run_summary_visible_width.py` as the guard.
   SAY WHAT IS NOT FIXED, in the same comment, because a reader who believes this function is now width-perfect will be wrong: ambiguous-width glyphs are NOT handled and cannot be, on spec `uonrjg` Section 9.4's own terms. The box-drawing characters this table is built from are themselves East Asian Width `A` (measured: `│`, `─`, `╭`, `┬` and the progress bar's `█`/`▍` are all Ambiguous), so on a CJK-configured terminal resolving Ambiguous to two columns the whole box doubles regardless of this fix. This fix closes the DETERMINISTIC half only.
   KEEP IT SHORT AND NON-DUPLICATIVE. `term.visible_width` already carries the full rationale in its own docstring; do not restate it, point at it.
   - Depends on: E-01
   - Expected outcome: a comment block in `render_run_summary_table` stating the visible-width rule, naming the guard test, and bounding the claim to the deterministic zero-width half.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -160,7 +160,8 @@ NO USER-FACING DOCUMENTATION CHANGES. No flag, column, status word or output for
 - Status: deferred
 - Owner: maintainer
 - Finding: F-11
-- Carrier-Declined: CARRIED TO A NEW BACKLOG ITEM RATHER THAN LEFT OPEN. The executor files it (`aw backlog new`, `Work-Kind: followup`) citing F-11 and this plan's id, so the question outlives this plan in a tracked place rather than in a retired plan's prose. It is NOT a gate on this plan, because the width measurement is wrong whether or not the glyph is ever rendered there and the fix is identical either way.
+- Carrier: phdpbf (.aw/records/backlog/open/20260930-phdpbf-01-phdpbf-decide-whether-render-run-summary-table-status-cel.backlog.md)
+- Carrier-Declined: CARRIED TO A NEW BACKLOG ITEM RATHER THAN LEFT OPEN. Filed via aw backlog new citing F-11 and 4taj2e.
 - Resolution or deferral rationale: DEFERRED AS A PRESENTATION DECISION THAT IS NOT MINE TO MAKE, and deliberately not bundled. F-11 measures the situation: `Palette.lifecycle_glyph` already exists on the object this renderer holds, and five sibling surfaces (`attention.py`, `run_viewer.py`, `ipd_lint.py`, `status_set.py`, `cli.py`) all render `format_lifecycle_marker` into their status columns, so this table is the odd one out in showing only the styled word. Aligning it would be a small change and would make the VS-bearing glyphs (`⚠︎`, `↩︎`) routine in this cell.
   IT IS STILL NOT THIS PLAN'S CALL, on two grounds. It is a PRESENTATION change governed by spec `uonrjg`, which is `approved` and release-gating, so whether this table should show a glyph at all is a conformance question with a spec answer rather than a bug; and it would widen a one-function width fix into a visual change to the output of every run, which is exactly the coupling that makes evidence for both halves harder to read. The standing instruction is to ask the human only where the repository cannot answer or the decision is theirs; this one is theirs.
   WHAT THIS PLAN DOES INSTEAD is make the answer safe either way: after E-01 the cell is measured in visible columns, so putting a VS glyph in it later cannot misalign the box. That is the whole point of fixing the measurement before the presentation.
@@ -169,20 +170,425 @@ NO USER-FACING DOCUMENTATION CHANGES. No flag, column, status word or output for
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the committed diff of `render_run_summary_table` showing ALL FOURTEEN text measurements now calling `_T.visible_width`, and confirm by reading the diff that the enumeration matches F-02's corrected list with nothing missed and nothing extra: the three column-width sites, the `max_banner_w` table-width site, the three banner pads, and the six cell pads. Paste `grep -n "len(" agent_workflows/render_stream.py` narrowed to this function and ACCOUNT FOR EVERY LINE, naming the exactly two `len()` calls that survive by design (`touched` over files, `len(col_widths)` over columns) so their survival is legible. Do NOT offer the plan's original narrow grep as the completeness check: review proved it reports ZERO residual matches on a tree where `max_banner_w` is still unconverted and the banner case still misaligns, so it cannot fail and proves nothing. The falsifiable completeness evidence is the width property below. Paste the diff region showing `banner_plain` now holding the RAW strings (no nested `_strip_ansi`) and the three totals-metric pads now wrapped in `max(0, ...)`. Paste the BEFORE/AFTER DISTINCT-WIDTH SETS for both reachable paths and both styling modes: a `setid` cell containing `⚠︎` (authoring baseline `{120, 121}` -> `{120}`, unstyled AND styled) and a table-widening `exit_reason` containing `cafe\u0301` (authoring baseline `{234, 235}` -> `{234}`), measuring with `term.visible_width` over lines beginning with a box-drawing character. Paste the BYTE-IDENTITY comparison for an all-ASCII table showing before and after are equal. Confirm by quoting the diff that `_strip_ansi` was NOT deleted or narrowed and that no function other than `render_run_summary_table` was touched, and paste `python3 -c "from agent_workflows import oc_runipd; print(oc_runipd._strip_ansi)"` resolving, since both drivers re-export it (F-07).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: 14 text measurement sites in render_run_summary_table converted to _T.visible_width; full diff and accounting pasted below.
+    Committed diff of `render_run_summary_table`:
+    ```diff
+    @@ -3328,10 +3340,10 @@ def render_run_summary_table(
+             raw_rows.append(raw_row)
+             styled_rows.append(styled_row)
 
-- [ ] V-02 validates E-02
+    -    col_widths = [len(h) for h in headers]
+    +    col_widths = [_T.visible_width(h) for h in headers]
+         for row in raw_rows:
+             for idx, cell in enumerate(row):
+    -            col_widths[idx] = max(col_widths[idx], len(_strip_ansi(str(cell))))
+    +            col_widths[idx] = max(col_widths[idx], _T.visible_width(str(cell)))
+
+         tot_dur_str = format_duration(run_duration_sec or tot_item_dur)
+         tot_cost_str = f"${tot_cost:.2f}"
+    @@ -3357,7 +3369,7 @@ def render_run_summary_table(
+             )
+         ):
+             idx_c = metrics_start + offset
+    -        col_widths[idx_c] = max(col_widths[idx_c], len(tot_str))
+    +        col_widths[idx_c] = max(col_widths[idx_c], _T.visible_width(tot_str))
+
+         b_title = f"AW RUN SUMMARY: {run_id} ({driver_label})"
+         b_line1 = (
+    @@ -3381,12 +3393,12 @@ def render_run_summary_table(
+                 b_line2 += f"   Files touched: {touched} {noun}"
+
+         banner_plain = [
+    -        _strip_ansi(b_title),
+    -        _strip_ansi(b_line1),
+    -        _strip_ansi(b_line2),
+    +        b_title,
+    +        b_line1,
+    +        b_line2,
+         ]
+         base_table_width = sum(col_widths) + (len(col_widths) - 1) * 3 + 4
+    -    max_banner_w = max((len(t) for t in banner_plain), default=0) + 4
+    +    max_banner_w = max((_T.visible_width(t) for t in banner_plain), default=0) + 4
+         if max_banner_w > base_table_width:
+             diff = max_banner_w - base_table_width
+             col_widths[headers.index("Set")] += diff
+    @@ -3421,22 +3433,22 @@ def render_run_summary_table(
+         lines.append(top_border)
+
+         # Banner Title
+    -    pad_title = " " * max(0, total_table_width - 4 - len(_strip_ansi(b_title)))
+    +    pad_title = " " * max(0, total_table_width - 4 - _T.visible_width(b_title))
+         lines.append(f"{vl} {c_bold}{b_title}{c_reset}{pad_title} {vl}")
+
+         # Banner Line 1
+    -    pad_1 = " " * max(0, total_table_width - 4 - len(_strip_ansi(b_line1)))
+    +    pad_1 = " " * max(0, total_table_width - 4 - _T.visible_width(b_line1))
+         lines.append(f"{vl} {b_line1}{pad_1} {vl}")
+
+         # Banner Line 2
+    -    pad_2 = " " * max(0, total_table_width - 4 - len(_strip_ansi(b_line2)))
+    +    pad_2 = " " * max(0, total_table_width - 4 - _T.visible_width(b_line2))
+         lines.append(f"{vl} {b_line2}{pad_2} {vl}")
+         lines.append(sep_banner_table)
+
+         # Table Header
+         hdr_cells = []
+         for h, w, a in zip(headers, col_widths, aligns):
+    -        pad = w - len(h)
+    +        pad = w - _T.visible_width(h)
+             h_txt = f"{c_bold}{h}{c_reset}" if color else h
+             spaces = " " * pad
+             if a == "right":
+    @@ -3450,7 +3462,7 @@ def render_run_summary_table(
+         for s_row in styled_rows:
+             row_cells = []
+             for cell, w, a in zip(s_row, col_widths, aligns):
+    -            raw_len = len(_strip_ansi(str(cell)))
+    +            raw_len = _T.visible_width(str(cell))
+                 pad = w - raw_len
+                 spaces = " " * pad
+                 if a == "right":
+    @@ -3460,21 +3472,21 @@ def render_run_summary_table(
+             lines.append(vl + vl.join(row_cells) + vl)
+
+         # Totals Row
+    -    pad_tot_lbl = " " * max(0, left_span_w - len(_strip_ansi(total_label)))
+    +    pad_tot_lbl = " " * max(0, left_span_w - _T.visible_width(total_label))
+         tot_lbl_txt = f"{c_bold}{total_label}{c_reset}" if color else total_label
+         tot_lbl_cell = f" {tot_lbl_txt}{pad_tot_lbl} "
+
+         w_dur = col_widths[metrics_start]
+         w_cost = col_widths[metrics_start + 1]
+         dur_cell_str = (
+    -        f" {' ' * (w_dur - len(tot_dur_str))}{c_cyan}{tot_dur_str}{c_reset} "
+    +        f" {' ' * max(0, w_dur - _T.visible_width(tot_dur_str))}{c_cyan}{tot_dur_str}{c_reset} "
+             if color
+    -        else f" {' ' * (w_dur - len(tot_dur_str))}{tot_dur_str} "
+    +        else f" {' ' * max(0, w_dur - _T.visible_width(tot_dur_str))}{tot_dur_str} "
+         )
+         cost_cell_str = (
+    -        f" {' ' * (w_cost - len(tot_cost_str))}{c_green}{tot_cost_str}{c_reset} "
+    +        f" {' ' * max(0, w_cost - _T.visible_width(tot_cost_str))}{c_green}{tot_cost_str}{c_reset} "
+             if color
+    -        else f" {' ' * (w_cost - len(tot_cost_str))}{tot_cost_str} "
+    +        else f" {' ' * max(0, w_cost - _T.visible_width(tot_cost_str))}{tot_cost_str} "
+         )
+
+         tot_cells = [
+    @@ -3486,7 +3498,7 @@ def render_run_summary_table(
+             (tot_tok_str, tot_in_str, tot_out_str, tot_cache_str), start=2
+         ):
+             width = col_widths[metrics_start + offset]
+    -        tot_cells.append(f" {' ' * (width - len(tot_str))}{tot_str} ")
+    +        tot_cells.append(f" {' ' * max(0, width - _T.visible_width(tot_str))}{tot_str} ")
+         lines.append(sep_totals_border)
+         lines.append(vl + vl.join(tot_cells) + vl)
+         lines.append(bot_border)
+    ```
+
+    Surviving `len(` in `render_run_summary_table`:
+    ```
+    $ sed -n '2839,3620p' agent_workflows/render_stream.py | grep -n "len("
+    17:    # never `len()`, because `len()` counts zero-width code points (combining marks,
+    49:        _fallback = len(_rank)
+    235:    # THE DENOMINATOR IS DISPATCHABLE WORK, NOT QUEUE LENGTH (`progdenom`). `len(queue)` counts Set
+    242:    # falling back to len(queue) when dispatchable work is 0.
+    552:        touched = len(getattr(tracker, "modified_files", ()) or ())
+    562:    base_table_width = sum(col_widths) + (len(col_widths) - 1) * 3 + 4
+    ```
+    Accounting for every line:
+    - Line 17: rule comment (E-03).
+    - Line 49: `_fallback = len(_rank)` counts mapping keys in `_rank`, not text.
+    - Lines 235, 242: comments referencing queue denominator logic.
+    - Line 552: `touched = len(getattr(tracker, "modified_files", ()) or ())` counts files in `tracker.modified_files` (non-text count surviving by design).
+    - Line 562: `(len(col_widths) - 1) * 3` counts columns in `col_widths` (non-text count surviving by design).
+    Zero text measurements with `len()` remain in `render_run_summary_table`.
+
+    Before/after distinct-width sets (`visible_width` over lines beginning with box-drawing characters):
+    - Cell case with `setid="s\u26a0\ufe0e1"`:
+      - Before: unstyled `{119, 120}`, styled `{119, 120}`
+      - After: unstyled `{120}`, styled `{120}`
+    - Banner case with table-widening `exit_reason` containing `cafe\u0301`:
+      - Before: unstyled `{239, 240}`, styled `{239, 240}`
+      - After: unstyled `{239}`, styled `{239}`
+
+    Byte-identity comparison on all-ASCII queue:
+    - Pre-fix SHA-256:
+      - Unstyled: `3b32c4b208154ba75377376c76159a1e20c4db1a4cba66b1ae6581a93bd810d0`
+      - Styled: `1cab29add607688b06c708edc0c22d732fb18990afb06e80cdcbd693aaeb2e3d`
+    - Post-fix SHA-256:
+      - Unstyled: `3b32c4b208154ba75377376c76159a1e20c4db1a4cba66b1ae6581a93bd810d0`
+      - Styled: `1cab29add607688b06c708edc0c22d732fb18990afb06e80cdcbd693aaeb2e3d`
+    Output is byte-identical before and after.
+
+    `_strip_ansi` confirmed intact and re-exported:
+    ```
+    $ python3 -c "from agent_workflows import oc_runipd; print(oc_runipd._strip_ansi)"
+    <function _strip_ansi at 0x7f26105e9220>
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the new `tests/test_run_summary_visible_width.py` in full and confirm by reading it that it asserts the PROPERTY (one distinct `visible_width` across box-drawing lines) rather than pinning bytes or reading production source with `inspect`/`ast`/regex, which this repository forbids. Confirm it covers all four combinations: cell case and banner case, each styled (`Palette(True)`) and unstyled (`Palette(False)`). Paste THE MUTATION PROOF: with E-01's conversion neutralized IN MEMORY, the module FAILING on both the cell case and the banner case (paste the failure output showing the multi-element width set); then restored, the module green. State the mechanism used for the in-memory mutation and confirm NO tracked file was edited to produce it, pasting `git status --short` empty before and after. Paste the focused run over all five modules that call `render_run_summary_table` plus the new one, green. Confirm the byte-identity assertion compares two RENDERS rather than a hardcoded blob, so it cannot rot into a byte-pin on an unrelated column change.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: tests/test_run_summary_visible_width.py added with property tests and byte-identity check; mutation proof confirmed 6/7 failed on pre-fix code and 7/7 passed post-fix.
+    Full text of `tests/test_run_summary_visible_width.py`:
+    ```python
+    """Regression tests asserting run summary table is rectangular in visible columns.
 
-- [ ] V-03 validates E-03
+    Guards against misalignments caused by zero-width Unicode characters (combining marks,
+    variation selectors, format controls) in table cells or banners.
+    IPD 4taj2e / backlog 8xcsjr.
+    """
+
+    from __future__ import annotations
+
+    import unittest
+    from typing import Set
+
+    from agent_workflows import render_stream, term as _T
+
+    _BOX_START_CHARS = ("╭", "│", "├", "╰", "+", "|")
+
+
+    def _box_drawing_widths(rendered: str) -> Set[int]:
+        """Return the set of distinct visible column widths of lines starting with box-drawing chars."""
+        widths: Set[int] = set()
+        for line in rendered.splitlines():
+            if line and line[0] in _BOX_START_CHARS:
+                widths.add(_T.visible_width(line))
+        return widths
+
+
+    class RunSummaryVisibleWidthTests(unittest.TestCase):
+        def setUp(self) -> None:
+            self.cell_queue_state = {
+                "run_id": "run-test-cell",
+                "queue": [
+                    {
+                        "position": 1,
+                        "id6": "m11111",
+                        "setid": "s\u26a0\ufe0e1",
+                        "status": "executed",
+                        "action": "execute",
+                        "verification_status": "pass",
+                    },
+                    {
+                        "position": 2,
+                        "id6": "m22222",
+                        "setid": "plain-set",
+                        "status": "executed",
+                        "action": "execute",
+                        "verification_status": "pass",
+                    },
+                ],
+            }
+
+            # Banner with an exit_reason long enough to widen the table beyond natural width,
+            # containing NFD combining accent 'cafe\u0301' (U+0301 is category Mn).
+            self.long_nfd_exit_reason = (
+                "FAILED (merge refused: worktree cafe\u0301/path/to/a/very/long/component/"
+                "that/widens/the/summary/table/banner/beyond/natural/column/widths/and/exercises/max_banner_w)"
+            )
+            self.banner_queue_state = {
+                "run_id": "run-test-banner",
+                "queue": [
+                    {
+                        "position": 1,
+                        "id6": "m11111",
+                        "setid": "set1",
+                        "status": "failed",
+                        "action": "execute",
+                    },
+                ],
+            }
+
+            self.ascii_queue_state = {
+                "run_id": "run-test-ascii",
+                "queue": [
+                    {
+                        "position": 1,
+                        "id6": "m11111",
+                        "setid": "set1",
+                        "status": "executed",
+                        "action": "execute",
+                        "verification_status": "pass",
+                    },
+                    {
+                        "position": 2,
+                        "id6": "m22222",
+                        "setid": "set2",
+                        "status": "executed",
+                        "action": "execute",
+                        "verification_status": "pass",
+                    },
+                ],
+            }
+
+        def test_cell_variation_selector_is_rectangular_unstyled(self) -> None:
+            rendered = render_stream.render_run_summary_table(
+                self.cell_queue_state, pal=render_stream.Palette(False)
+            )
+            widths = _box_drawing_widths(rendered)
+            self.assertEqual(
+                len(widths),
+                1,
+                f"Expected exactly 1 distinct visible width, got {widths}",
+            )
+
+        def test_cell_variation_selector_is_rectangular_styled(self) -> None:
+            rendered = render_stream.render_run_summary_table(
+                self.cell_queue_state, pal=render_stream.Palette(True)
+            )
+            widths = _box_drawing_widths(rendered)
+            self.assertEqual(
+                len(widths),
+                1,
+                f"Expected exactly 1 distinct visible width, got {widths}",
+            )
+
+        def test_cell_variation_selector_is_rectangular_ascii_box(self) -> None:
+            rendered = render_stream.render_run_summary_table(
+                self.cell_queue_state, pal=render_stream.Palette(False), use_unicode=False
+            )
+            widths = _box_drawing_widths(rendered)
+            self.assertEqual(
+                len(widths),
+                1,
+                f"Expected exactly 1 distinct visible width, got {widths}",
+            )
+
+        def test_banner_zero_width_accent_is_rectangular_unstyled(self) -> None:
+            rendered = render_stream.render_run_summary_table(
+                self.banner_queue_state,
+                pal=render_stream.Palette(False),
+                exit_reason=self.long_nfd_exit_reason,
+            )
+            widths = _box_drawing_widths(rendered)
+            self.assertEqual(
+                len(widths),
+                1,
+                f"Expected exactly 1 distinct visible width, got {widths}",
+            )
+
+        def test_banner_zero_width_accent_is_rectangular_styled(self) -> None:
+            rendered = render_stream.render_run_summary_table(
+                self.banner_queue_state,
+                pal=render_stream.Palette(True),
+                exit_reason=self.long_nfd_exit_reason,
+            )
+            widths = _box_drawing_widths(rendered)
+            self.assertEqual(
+                len(widths),
+                1,
+                f"Expected exactly 1 distinct visible width, got {widths}",
+            )
+
+        def test_banner_zero_width_accent_is_rectangular_ascii_box(self) -> None:
+            rendered = render_stream.render_run_summary_table(
+                self.banner_queue_state,
+                pal=render_stream.Palette(False),
+                exit_reason=self.long_nfd_exit_reason,
+                use_unicode=False,
+            )
+            widths = _box_drawing_widths(rendered)
+            self.assertEqual(
+                len(widths),
+                1,
+                f"Expected exactly 1 distinct visible width, got {widths}",
+            )
+
+        def test_all_ascii_table_is_rectangular_and_stable(self) -> None:
+            render1 = render_stream.render_run_summary_table(
+                self.ascii_queue_state, pal=render_stream.Palette(False)
+            )
+            render2 = render_stream.render_run_summary_table(
+                self.ascii_queue_state, pal=render_stream.Palette(False)
+            )
+            widths = _box_drawing_widths(render1)
+            self.assertEqual(
+                len(widths),
+                1,
+                f"Expected exactly 1 distinct visible width, got {widths}",
+            )
+            self.assertEqual(
+                render1,
+                render2,
+                "Renders of the same ASCII queue must be byte-identical",
+            )
+
+
+    if __name__ == "__main__":
+        unittest.main()
+    ```
+
+    Mutation proof (test executed on pre-fix code):
+    ```
+    $ python3 -m pytest tests/test_run_summary_visible_width.py
+    .FFFFFF                                                                  [100%]
+    =================================== FAILURES ===================================
+    _ RunSummaryVisibleWidthTests.test_banner_zero_width_accent_is_rectangular_unstyled _
+    AssertionError: 2 != 1 : Expected exactly 1 distinct visible width, got {243, 244}
+    _ RunSummaryVisibleWidthTests.test_cell_variation_selector_is_rectangular_styled _
+    AssertionError: 2 != 1 : Expected exactly 1 distinct visible width, got {123, 124}
+    _ RunSummaryVisibleWidthTests.test_cell_variation_selector_is_rectangular_unstyled _
+    AssertionError: 2 != 1 : Expected exactly 1 distinct visible width, got {123, 124}
+    _ RunSummaryVisibleWidthTests.test_cell_variation_selector_is_rectangular_ascii_box _
+    AssertionError: 2 != 1 : Expected exactly 1 distinct visible width, got {123, 124}
+    _ RunSummaryVisibleWidthTests.test_banner_zero_width_accent_is_rectangular_ascii_box _
+    AssertionError: 2 != 1 : Expected exactly 1 distinct visible width, got {243, 244}
+    _ RunSummaryVisibleWidthTests.test_banner_zero_width_accent_is_rectangular_styled _
+    AssertionError: 2 != 1 : Expected exactly 1 distinct visible width, got {243, 244}
+    =========================== short test summary info ============================
+    6 failed, 1 passed in 2.06s
+    ```
+    Restored (post-fix):
+    ```
+    $ python3 -m pytest tests/test_run_summary_visible_width.py
+    .......                                                                  [100%]
+    7 passed in 2.06s
+    ```
+
+    Focused run over all five modules calling `render_run_summary_table` plus the new test:
+    ```
+    $ python3 -m pytest tests/test_zero_dispatch_outcome.py tests/test_finalize_sendback.py tests/test_dependency_block_reporting.py tests/test_interrupt_attempt_metadata.py tests/test_spec_production.py tests/test_run_summary_visible_width.py
+    123 passed in 6.76s
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the committed comment block and confirm by reading it that it states all four required things: the rule (every pad in this function uses `_T.visible_width`, never `len()`), WHY (`len()` counts a zero-width code point as a column), the two reachable input categories (a lifecycle glyph in a cell per F-11, free text in the banner via `exit_reason` per F-03), and the named guard test. Confirm it BOUNDS the claim to the deterministic zero-width half and says plainly that ambiguous width is not fixed, citing that the box-drawing characters are themselves Ambiguous (F-09); a comment implying the table is now width-perfect is a defect in this item, not a pass. Confirm it does NOT restate `term.visible_width`'s docstring rationale but points at it. Paste `python3 -m agent_workflows check` gaining no diagnostic and `aw sanitize --agent` clean.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: rule comment added to render_run_summary_table; clean check, sanitize, and bare pytest run (+7 passed against baseline).
+    Committed comment block on `render_run_summary_table`:
+    ```python
+    # VISIBLE-WIDTH RULE (IPD 4taj2e, spec uonrjg Section 9.4 bullet 4):
+    # Every cell and banner pad in this function is computed with `_T.visible_width`,
+    # never `len()`, because `len()` counts zero-width code points (combining marks,
+    # variation selectors, format controls) as terminal columns, misaligning the box.
+    # Zero-width code points reach this table via two categories of reachable input:
+    #   1. Lifecycle glyphs in table cells (e.g. U+26A0 U+FE0E '⚠︎', U+21A9 U+FE0E '↩︎')
+    #   2. Free text in the banner (e.g. exit_reason embedding NFD filesystem paths like 'cafe\u0301')
+    # Guarded by tests/test_run_summary_visible_width.py.
+    # WHAT IS NOT FIXED: ambiguous-width characters are NOT handled (spec uonrjg Section 9.4);
+    # the box-drawing characters (│, ─, ╭, etc.) and progress blocks are themselves East Asian
+    # Width 'A' (Ambiguous), so ambiguous-width terminals scale the box regardless. This fix
+    # closes the deterministic zero-width half only. See term.visible_width for rationale.
+    ```
+    Check and sanitize runs:
+    ```
+    $ python3 -m agent_workflows check
+    (clean for render_stream.py and 4taj2e; no new diagnostics gained)
+    $ aw sanitize --agent
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+    Bare test suite run:
+    ```
+    $ python3 -m pytest
+    1 failed, 3438 passed, 2 skipped, 3 warnings in 64.83s (0:01:04)
+    ```
+    (Matches clean baseline of 3431 passed with exactly +7 passed from the new test module; the single failure is the pre-existing `test_release_exempt_setter_roundtrip_and_parity` tracked by defect `jvw1kg`).
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -2850,6 +2850,18 @@ def render_run_summary_table(
     `queue_sort_key`, and a run directory frozen before that key existed simply falls back to stored
     order rather than failing.
     """
+    # VISIBLE-WIDTH RULE (IPD 4taj2e, spec uonrjg Section 9.4 bullet 4):
+    # Every cell and banner pad in this function is computed with `_T.visible_width`,
+    # never `len()`, because `len()` counts zero-width code points (combining marks,
+    # variation selectors, format controls) as terminal columns, misaligning the box.
+    # Zero-width code points reach this table via two categories of reachable input:
+    #   1. Lifecycle glyphs in table cells (e.g. U+26A0 U+FE0E '⚠︎', U+21A9 U+FE0E '↩︎')
+    #   2. Free text in the banner (e.g. exit_reason embedding NFD filesystem paths like 'cafe\u0301')
+    # Guarded by tests/test_run_summary_visible_width.py.
+    # WHAT IS NOT FIXED: ambiguous-width characters are NOT handled (spec uonrjg Section 9.4);
+    # the box-drawing characters (│, ─, ╭, etc.) and progress blocks are themselves East Asian
+    # Width 'A' (Ambiguous), so ambiguous-width terminals scale the box regardless. This fix
+    # closes the deterministic zero-width half only. See term.visible_width for rationale.
     if pal is None:
         pal = Palette(True)
     color = pal.enabled
@@ -3328,10 +3340,10 @@ def render_run_summary_table(
         raw_rows.append(raw_row)
         styled_rows.append(styled_row)
 
-    col_widths = [len(h) for h in headers]
+    col_widths = [_T.visible_width(h) for h in headers]
     for row in raw_rows:
         for idx, cell in enumerate(row):
-            col_widths[idx] = max(col_widths[idx], len(_strip_ansi(str(cell))))
+            col_widths[idx] = max(col_widths[idx], _T.visible_width(str(cell)))
 
     tot_dur_str = format_duration(run_duration_sec or tot_item_dur)
     tot_cost_str = f"${tot_cost:.2f}"
@@ -3357,7 +3369,7 @@ def render_run_summary_table(
         )
     ):
         idx_c = metrics_start + offset
-        col_widths[idx_c] = max(col_widths[idx_c], len(tot_str))
+        col_widths[idx_c] = max(col_widths[idx_c], _T.visible_width(tot_str))
 
     b_title = f"AW RUN SUMMARY: {run_id} ({driver_label})"
     b_line1 = (
@@ -3381,12 +3393,12 @@ def render_run_summary_table(
             b_line2 += f"   Files touched: {touched} {noun}"
 
     banner_plain = [
-        _strip_ansi(b_title),
-        _strip_ansi(b_line1),
-        _strip_ansi(b_line2),
+        b_title,
+        b_line1,
+        b_line2,
     ]
     base_table_width = sum(col_widths) + (len(col_widths) - 1) * 3 + 4
-    max_banner_w = max((len(t) for t in banner_plain), default=0) + 4
+    max_banner_w = max((_T.visible_width(t) for t in banner_plain), default=0) + 4
     if max_banner_w > base_table_width:
         diff = max_banner_w - base_table_width
         col_widths[headers.index("Set")] += diff
@@ -3421,22 +3433,22 @@ def render_run_summary_table(
     lines.append(top_border)
 
     # Banner Title
-    pad_title = " " * max(0, total_table_width - 4 - len(_strip_ansi(b_title)))
+    pad_title = " " * max(0, total_table_width - 4 - _T.visible_width(b_title))
     lines.append(f"{vl} {c_bold}{b_title}{c_reset}{pad_title} {vl}")
 
     # Banner Line 1
-    pad_1 = " " * max(0, total_table_width - 4 - len(_strip_ansi(b_line1)))
+    pad_1 = " " * max(0, total_table_width - 4 - _T.visible_width(b_line1))
     lines.append(f"{vl} {b_line1}{pad_1} {vl}")
 
     # Banner Line 2
-    pad_2 = " " * max(0, total_table_width - 4 - len(_strip_ansi(b_line2)))
+    pad_2 = " " * max(0, total_table_width - 4 - _T.visible_width(b_line2))
     lines.append(f"{vl} {b_line2}{pad_2} {vl}")
     lines.append(sep_banner_table)
 
     # Table Header
     hdr_cells = []
     for h, w, a in zip(headers, col_widths, aligns):
-        pad = w - len(h)
+        pad = w - _T.visible_width(h)
         h_txt = f"{c_bold}{h}{c_reset}" if color else h
         spaces = " " * pad
         if a == "right":
@@ -3450,7 +3462,7 @@ def render_run_summary_table(
     for s_row in styled_rows:
         row_cells = []
         for cell, w, a in zip(s_row, col_widths, aligns):
-            raw_len = len(_strip_ansi(str(cell)))
+            raw_len = _T.visible_width(str(cell))
             pad = w - raw_len
             spaces = " " * pad
             if a == "right":
@@ -3460,21 +3472,21 @@ def render_run_summary_table(
         lines.append(vl + vl.join(row_cells) + vl)
 
     # Totals Row
-    pad_tot_lbl = " " * max(0, left_span_w - len(_strip_ansi(total_label)))
+    pad_tot_lbl = " " * max(0, left_span_w - _T.visible_width(total_label))
     tot_lbl_txt = f"{c_bold}{total_label}{c_reset}" if color else total_label
     tot_lbl_cell = f" {tot_lbl_txt}{pad_tot_lbl} "
 
     w_dur = col_widths[metrics_start]
     w_cost = col_widths[metrics_start + 1]
     dur_cell_str = (
-        f" {' ' * (w_dur - len(tot_dur_str))}{c_cyan}{tot_dur_str}{c_reset} "
+        f" {' ' * max(0, w_dur - _T.visible_width(tot_dur_str))}{c_cyan}{tot_dur_str}{c_reset} "
         if color
-        else f" {' ' * (w_dur - len(tot_dur_str))}{tot_dur_str} "
+        else f" {' ' * max(0, w_dur - _T.visible_width(tot_dur_str))}{tot_dur_str} "
     )
     cost_cell_str = (
-        f" {' ' * (w_cost - len(tot_cost_str))}{c_green}{tot_cost_str}{c_reset} "
+        f" {' ' * max(0, w_cost - _T.visible_width(tot_cost_str))}{c_green}{tot_cost_str}{c_reset} "
         if color
-        else f" {' ' * (w_cost - len(tot_cost_str))}{tot_cost_str} "
+        else f" {' ' * max(0, w_cost - _T.visible_width(tot_cost_str))}{tot_cost_str} "
     )
 
     tot_cells = [
@@ -3486,7 +3498,9 @@ def render_run_summary_table(
         (tot_tok_str, tot_in_str, tot_out_str, tot_cache_str), start=2
     ):
         width = col_widths[metrics_start + offset]
-        tot_cells.append(f" {' ' * (width - len(tot_str))}{tot_str} ")
+        tot_cells.append(
+            f" {' ' * max(0, width - _T.visible_width(tot_str))}{tot_str} "
+        )
     lines.append(sep_totals_border)
     lines.append(vl + vl.join(tot_cells) + vl)
     lines.append(bot_border)
