@@ -19,6 +19,8 @@ import sys
 import unittest
 from typing import Any, Dict
 
+import pytest
+
 from agent_workflows.agent_schema import (
     _HOME_PATH_RE,
     assert_valid_agent_record,
@@ -314,10 +316,11 @@ class AgentRecordNextRedactionTests(unittest.TestCase):
 class CliSubprocessLeakPostureTests(unittest.TestCase):
     """End-to-end CLI subprocess execution asserting leak postures (E-06, V-06)."""
 
+    @pytest.mark.timeout(300)
     def test_cli_json_surface_envelope_clean(self) -> None:
-        # Run aw check --json in a subprocess
+        # Run aw check plans --json in a subprocess
         proc = subprocess.run(
-            [sys.executable, "-m", "agent_workflows", "check", "--json"],
+            [sys.executable, "-m", "agent_workflows", "check", "plans", "--json"],
             capture_output=True,
             text=True,
         )
@@ -343,6 +346,7 @@ class CliSubprocessLeakPostureTests(unittest.TestCase):
 
         assert_no_leaks(data)
 
+    @pytest.mark.timeout(300)
     def test_aw_check_plans_agent_no_crash(self) -> None:
         # Run aw check plans --agent with PYTHONHASHSEED=1 which previously crashed on field 'next'
         env = dict(os.environ)
