@@ -1,5 +1,5 @@
 - Id: 8xcsjr
-- Status: graduated
+- Status: done
 - Graduated-To: 8xcsjr
 - Blocks-Release: next
 - Set: 8xcsjr
@@ -8,6 +8,7 @@
 - Summary: render_run_summary_table pads table cells with len(_strip_ansi(...)), which counts a variation selector as a column
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): closed by aw oc run: IPD 4taj2e executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-8xcsjr-01-4taj2e-measure-run-summary-table-cells-by-visible-columns-so-a-vari.ipd.md); evidence .aw/records/plans/executed/20260929-8xcsjr-01-4taj2e-measure-run-summary-table-cells-by-visible-columns-so-a-vari.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: 4taj2e
 - 2026-09-20 created (aw backlog): Found executing plan qdd5jq (lifeglyph 07).
 
