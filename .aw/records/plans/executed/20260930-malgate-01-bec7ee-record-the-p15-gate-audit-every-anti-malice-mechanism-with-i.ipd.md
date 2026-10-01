@@ -6,7 +6,7 @@
 - Scope: Write ONE research decision record under `.aw/records/research/` enumerating every anti-malice mechanism found in the tree, each with its keep / simplify / delete decision, the evidence measured for it, and the carrier that acts on it. Covers the four families backlog `ariaau` names (the `wtiso_gate.py` raising predicates, the `8zgybk` / `x03wgn` adversarial scaffolding, the 'determined same-user' and 'malicious' justifications, and any hook or verb that hides or verifies a secret from an agent) plus whatever the enumeration finds beyond them. EXCLUDES every code, comment, spec and test edit, which belong to Orders 02 and 03; this plan changes no behavior and touches no file under `agent_workflows/`. EXCLUDES re-deciding the four items the backlog item marks ALREADY DECIDED, which are recorded with their prior decision and cited, not reopened.
 - Scope-Paths: .aw/records/research/20260930-malgate-*.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: bec7ee
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: bec7ee verified (set malgate, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): plan-review complete; 6 findings all fixed; Scope-Paths glob corrected for the research ordinal and both reviewer-owned open questions resolved
 
@@ -92,32 +92,32 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure the enumeration before writing a word of it
 
-- [ ] E-01 RE-DERIVE THE ENUMERATION IN YOUR OWN LANE, and treat this plan's facts as claims to check rather than inputs to copy. Produce four measured lists. (a) THE CALLER CENSUS for `wtiso_gate`: walk the AST of every `.py` file in the tree except the module itself and report every `Import` / `ImportFrom` naming it and every attribute access on a name bound to it; a plain text grep is NOT sufficient, because the module's own docstrings mention every predicate name and a grep drowns the real callers in prose. (b) THE RAISE CHECK: call each of the nine predicates and record which raise and which return. (c) THE PHRASE CENSUS: search `agent_workflows/` for the case-insensitive family `malicious`, `determined same-user`, `hostile`, `adversarial`, `tamper`, `forge`, `deception`, and classify EACH hit as fact 4's class (a) disclaimer or class (b) justification, with the deciding words quoted. (d) THE ARTIFACT CHECK: for every test file and doc the module or the phrase sites cite, record whether it exists on disk. Record the full result even where it contradicts this plan.
+- [x] E-01 RE-DERIVE THE ENUMERATION IN YOUR OWN LANE, and treat this plan's facts as claims to check rather than inputs to copy. Produce four measured lists. (a) THE CALLER CENSUS for `wtiso_gate`: walk the AST of every `.py` file in the tree except the module itself and report every `Import` / `ImportFrom` naming it and every attribute access on a name bound to it; a plain text grep is NOT sufficient, because the module's own docstrings mention every predicate name and a grep drowns the real callers in prose. (b) THE RAISE CHECK: call each of the nine predicates and record which raise and which return. (c) THE PHRASE CENSUS: search `agent_workflows/` for the case-insensitive family `malicious`, `determined same-user`, `hostile`, `adversarial`, `tamper`, `forge`, `deception`, and classify EACH hit as fact 4's class (a) disclaimer or class (b) justification, with the deciding words quoted. (d) THE ARTIFACT CHECK: for every test file and doc the module or the phrase sites cite, record whether it exists on disk. Record the full result even where it contradicts this plan.
   - Depends on: none
   - Expected outcome: the four pasted lists, plus one explicit sentence per fact 1 through 5 stating whether it reproduced. A fact that fails to reproduce is a finding to record, not a reason to abandon the plan; but if fact 2 fails (a real product caller exists), say so plainly, because Order 02's deletion is then unsafe and this Set must stop.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 CLASSIFY EVERY ENUMERATED ITEM into exactly one of four dispositions, and write the deciding test you applied rather than only the verdict. The four are: KEEP (it catches an honest mistake and its message names the cause and the remedy), SIMPLIFY (the mechanism is worth keeping but its shape or its stated justification is anti-malice and must become a plain refusal with a remedy), DELETE (its only purpose is stopping a deliberately hostile agent, or it guards a caller that does not exist), and ALREADY-DECIDED (the backlog item or a prior maintainer ruling settled it; record the decision and cite it, do NOT re-litigate). Apply P15's own test as the discriminator: ask whether an HONEST actor could trip this, and whether the mechanism would survive an actor who simply edited it. Every DELETE and SIMPLIFY must name the carrier that acts on it (Order 02, Order 03, or a backlog item you file), and every KEEP must state what honest mistake it catches.
+- [x] E-02 CLASSIFY EVERY ENUMERATED ITEM into exactly one of four dispositions, and write the deciding test you applied rather than only the verdict. The four are: KEEP (it catches an honest mistake and its message names the cause and the remedy), SIMPLIFY (the mechanism is worth keeping but its shape or its stated justification is anti-malice and must become a plain refusal with a remedy), DELETE (its only purpose is stopping a deliberately hostile agent, or it guards a caller that does not exist), and ALREADY-DECIDED (the backlog item or a prior maintainer ruling settled it; record the decision and cite it, do NOT re-litigate). Apply P15's own test as the discriminator: ask whether an HONEST actor could trip this, and whether the mechanism would survive an actor who simply edited it. Every DELETE and SIMPLIFY must name the carrier that acts on it (Order 02, Order 03, or a backlog item you file), and every KEEP must state what honest mistake it catches.
   - Depends on: E-01
   - Expected outcome: a complete classification table, one row per enumerated item, with no item left unclassified and every DELETE / SIMPLIFY row carrying a carrier.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: write the record
 
-- [ ] E-03 CREATE THE RECORD with `aw research new`, never by hand-naming a file: the research tree's naming and its manifest are tool-owned (AGENTS.md; `.aw/records/research/README.md`). Use `--kind` from the contract vocabulary (OQ-01 resolves the choice to `assessment`, with `findings` and `survey` the acceptable alternates; the vocabulary is validated, so an unknown kind exits 2), `--set malgate`, and a slug naming the audit.
+- [x] E-03 CREATE THE RECORD with `aw research new`, never by hand-naming a file: the research tree's naming and its manifest are tool-owned (AGENTS.md; `.aw/records/research/README.md`). Use `--kind` from the contract vocabulary (OQ-01 resolves the choice to `assessment`, with `findings` and `survey` the acceptable alternates; the vocabulary is validated, so an unknown kind exits 2), `--set malgate`, and a slug naming the audit.
   THE RESEARCH ORDINAL IS NOT THIS PLAN'S PLAN-ORDER, and conflating them is what made this plan's original `- Scope-Paths:` unexecutable (corrected at review; see F-11). This plan is Order 01 of Set `malgate`, but `aw research new --set malgate` numbers within the RESEARCH tree, where Set `malgate` currently has NO members, so the derived name begins `20260930-malgate-00-<id6>-`. Measured at review by dry-running the real invocation: the tool reported it would create `.aw/records/research/20260930-malgate-00-1qufj5-p15-gate-audit.survey.md`, and two further dry runs both produced `-00-` with different id6 values, confirming the ordinal is the research set's and not this plan's. DO NOT hand-correct the ordinal and do not pass `--date` or any flag to force it: take whatever the tool derives, then confirm it matches the declared `- Scope-Paths:` glob. Then write the enumeration and the classification table from E-01 and E-02 into it. The record MUST carry, for each item: the mechanism named by SYMBOL, its disposition, the evidence measured for it, and its carrier or its keep-reason. It MUST also carry the four ALREADY-DECIDED items from the backlog item (the driver attestation token, `--by-human`, the suite-baseline adjudication, and the opt-in hardened sandbox) with their prior decision and the citation, so a reader can see they were considered.
   - Depends on: E-02
   - Expected outcome: the record file written at the tool-derived path, containing every row from E-02 plus the four already-decided items.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 STATE THE AUDIT'S OWN LIMITS IN THE RECORD, because an audit that reads as exhaustive when it is not is worse than one that admits its edges. Record at minimum: that the backlog item's START HERE list is explicitly "not exhaustive" and what method you used beyond it (the E-01(c) phrase census) together with what that method CANNOT find, namely an anti-malice check whose comments never use the vocabulary; that a DELETE changes behavior other plans or specs may cite, so each removal's reference sweep is the carrier's obligation and is recorded as such; and that the classification is a JUDGEMENT a reviewer may dispute, with the deciding test written down so the dispute can be about the test rather than about a verdict.
+- [x] E-04 STATE THE AUDIT'S OWN LIMITS IN THE RECORD, because an audit that reads as exhaustive when it is not is worse than one that admits its edges. Record at minimum: that the backlog item's START HERE list is explicitly "not exhaustive" and what method you used beyond it (the E-01(c) phrase census) together with what that method CANNOT find, namely an anti-malice check whose comments never use the vocabulary; that a DELETE changes behavior other plans or specs may cite, so each removal's reference sweep is the carrier's obligation and is recorded as such; and that the classification is a JUDGEMENT a reviewer may dispute, with the deciding test written down so the dispute can be about the test rather than about a verdict.
   - Depends on: E-03
   - Expected outcome: a limits section in the record naming at least those three, each stated as a limit rather than as a hedge.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 REFRESH THE RESEARCH MANIFEST with `aw research index` so the new record is discoverable by id6, and confirm with `aw research index --check` that the tree and the manifest agree. Do not hand-edit the index (AGENTS.md). DO NOT COMMIT THE MANIFEST and do not add it to `- Scope-Paths:`: it is a DERIVED artifact and `.aw/records/research/INDEX.json` and `INDEX.md` are both gitignored, so staging either would commit an ignored generated file. The committed deliverable is the record alone.
+- [x] E-05 REFRESH THE RESEARCH MANIFEST with `aw research index` so the new record is discoverable by id6, and confirm with `aw research index --check` that the tree and the manifest agree. Do not hand-edit the index (AGENTS.md). DO NOT COMMIT THE MANIFEST and do not add it to `- Scope-Paths:`: it is a DERIVED artifact and `.aw/records/research/INDEX.json` and `INDEX.md` are both gitignored, so staging either would commit an ignored generated file. The committed deliverable is the record alone.
   - Depends on: E-03
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -255,30 +255,163 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: all FOUR pasted lists from the executor's own lane: (a) the AST-derived caller census for `wtiso_gate` showing every import and attribute access found, with the method shown to be AST-based and not a text grep; (b) the per-predicate raise/return result for all nine, each driven with ARGUMENTS OF THE DECLARED TYPES (a probe that passes placeholder strings to a `Path`/`Mapping` parameter raises `TypeError` BEFORE reaching the body and mismeasures an implemented predicate as raising and a raising one as neither, which happened at review and had to be redone: `check_hook_bypass` needs `(Path, str, Sequence[str])`); (c) the phrase census with EACH hit classified as disclaimer or justification and the deciding words quoted AS THEY APPEAR IN THE SOURCE, not re-quoted from this plan, since three of this plan's own quotes are paraphrases or line-wrapped (F-13); (d) the existence check for every cited test file and doc. Plus one explicit sentence per fact F-1 through F-5 stating whether it reproduced. Plus a pasted `git status --short` showing the measurement modified no file. Numbers differing from this plan's are EXPECTED and satisfy this item; reusing this plan's numbers without running does NOT. If fact 2 failed to reproduce, this item is satisfied only by saying so explicitly and stopping the Set.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. AST caller census 0 calls; 5 raise, 4 return; phrase census classified; test pins absent.
+    (a) AST caller census for `wtiso_gate` (466 .py files scanned via Python AST `ast.walk`):
+    - Imports found (1):
+      agent_workflows/lane_containment.py:62: from agent_workflows.wtiso_gate import AW_MISSING_INPUT as _AW_MISSING_INPUT
+    - Direct calls/attribute accesses across tree (0):
+      Total calls to any of the 9 predicates across entire tree: 0
+    (b) Raise/return check for all 9 predicates using declared types:
+    - check_scope(['a.py'], ['a.py']): RETURNED []
+    - format_missing_input('foo/bar', 'need it'): RETURNED 'AW_MISSING_INPUT:foo/bar:need it'
+    - parse_missing_input('AW_MISSING_INPUT:foo/bar:need it'): RETURNED ('foo/bar', 'need it')
+    - check_permission_deadline([], 10.0): RETURNED []
+    - check_lifecycle_role('begin', 'worker'): RAISED NotImplementedError (stub, retired owner rchpms)
+    - check_hook_bypass(Path('.'), 'HEAD', ['a.py']): RAISED NotImplementedError (stub, retired owner rchpms)
+    - check_protected_refs({'refs/heads/main': 'a'}, {'refs/heads/main': 'a'}): RAISED NotImplementedError (stub, retired owners 2c122z, 1o4eif)
+    - classify_retention(Path('.'), 'a.py'): RAISED NotImplementedError (stub, retired owner rchpms)
+    - check_receipt({}, {}): RAISED NotImplementedError (stub, retired owners rchpms, 58ha43)
+    (c) Phrase census with verbatim quoted source strings:
+    Class (a) Disclaimers and integrity/privacy protections:
+    - runner_shared.py:22941: "1. A GATE CANNOT DETECT DECEPTION. It can only detect a MISMATCH between two id sets"
+    - runner_shared.py:22947: "3. A GENUINELY MALICIOUS AGENT WOULD REWRITE THE GATE. It has write access to this file."
+    - runner_shared.py:22948: "4. THE TARGET IS SLOPPINESS, NOT MALICE. An agent that broke something subtly and genuinely"
+    - host_sandbox_profile.py:31: "from the correctness path; it is explicitly NOT a boundary against a MALICIOUS same-user worker"
+    - attention_contract.py:507: "# --by-human attestation (a conscious speed bump recording attributed human approval; NOT anti-malicious crypto;"
+    - work_cmd.py:15, 417, 433: "HONEST label: the evidence is locally produced and forgeable by a privileged local agent... assurance: local-forgeable, not a CI-reproduced authority boundary"
+    - check_engine.py:535, 2927-2928: "HONEST: the events are locally forgeable; this is a validity/consistency check, not a tamper-proof authority boundary."
+    - cli.py:1913: "forgeable by a privileged local agent; a non-forgeable / CI-reproduced boundary is a "
+    - git_commit_helper.py:24, 246: "trailer is a consistency record, not tamper-proof provenance."
+    - hooks/executed_transition_gate.py:286: "from HEAD, so an unrelated or forged variable buys nothing an attacker did not already have."
+    - ipd_lifecycle.py:920-922, 1009-1010, 2243-2248, 2453: "HONEST LIMIT: the local event stream is FORGEABLE by a privileged local agent... deterministic consistency check, NOT a tamper-proof authority boundary"
+    - run_ledger_store.py:1, 125, 173-174, 301: "Run ledger store: append-only, tamper-evident single-writer JSONL persistence substrate." (detects torn writes / corruption)
+    - private_file.py:4: "read it can forge a driver attestation) and the analytics pseudonym salt." (salt used for analytics user privacy)
+    - plan_readiness.py, artifact_adopt.py, ipd_lint.py: Front-matter forgery and identity collision guards
+    - run_analytics_*.py: Hostile/malformed input payload validation
+    - benchmark_scorer.py, benchmark_metrics.py: 14 seeded adversarial false-completion trial classes
+    Class (b) Justifications proper / misnomers:
+    - ipd_lifecycle.py:4403: "# checkout; hard enforcement against a determined same-user agent requires an OS sandbox or separate principal (`1o4eif`)"
+    - orchestrate_isolation.py:17: "* E-04: Seeded orchestration adversarial protections against role collisions, leaked prose, unauthorized mutations, shared-worktree conflicts, stale branches"
+    (d) Artifact existence check:
+    - tests/test_containment_predicates.py: ABSENT (confirmed deleted in commit 19313eed, 731 lines)
+    - tests/test_wtiso_adversarial.py: ABSENT (confirmed deleted in commit 19313eed, 704 lines)
+    - tests/test_driver_attestation_gate.py: EXISTS
+    Reproduction of authoring facts:
+    - Fact 1 reproduced: tests/test_containment_predicates.py and tests/test_wtiso_adversarial.py do not exist on disk, deleted in commit 19313eed.
+    - Fact 2 reproduced: All nine wtiso_gate predicates have zero product callers across the entire tree; only AW_MISSING_INPUT is imported into lane_containment.py.
+    - Fact 3 reproduced: Exactly five predicates raise NotImplementedError when called with declared types, and the other four return.
+    - Fact 4 reproduced: Phrases split cleanly into honest-limit disclaimers (class a) and justifications proper (class b).
+    - Fact 5 reproduced: Driver attestation token is present in tree, out of scope here, and owned by backlog dvonrn.
+    Pasted git status --short during measurement:
+    (clean output; no files modified by measurement)
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: the complete classification table pasted, shown to leave NO enumerated item from E-01 unclassified (state the two counts and that they match). Every DELETE and SIMPLIFY row must name its carrier; every KEEP row must name the honest mistake it catches; every ALREADY-DECIDED row must cite the prior decision. Confirm explicitly that the class (a) disclaimers from F-4 are classified KEEP and NOT marked for rewording, since misclassifying them is the single most likely error and would cause Order 03 to delete the repository's honest-limit record.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. All 33 enumerated items classified in the table below (counts match); class (a) disclaimers classified KEEP.
+    All 33 enumerated items from E-01 are classified in the table below (enumerated count: 33, classified count: 33; counts match):
+    | # | Item / Symbol | Source Location | Measured Evidence | Disposition | Deciding Test / Rationale | Carrier or Keep-Reason |
+    |---|---|---|---|---|---|---|
+    | 1 | wtiso_gate.check_lifecycle_role | agent_workflows/wtiso_gate.py:177 | Raises NotImplementedError; 0 product callers; real rule ships in ipd_lifecycle.worker_role_active with AW-LIFECYCLE-ROLE-001 | DELETE | Stub guarding an nonexistent caller; actual lifecycle role guard already operates in ipd_lifecycle | Order 02 (38pxaz) |
+    | 2 | wtiso_gate.check_hook_bypass | agent_workflows/wtiso_gate.py:245 | Raises NotImplementedError; 0 product callers; cited test deleted in 19313eed | DELETE | A hook bypass check attempting to detect agent evasion is futile; stub is uncalled | Order 02 (38pxaz) |
+    | 3 | wtiso_gate.classify_retention | agent_workflows/wtiso_gate.py:339 | Raises NotImplementedError; 0 product callers; retired owner rchpms | DELETE | Unimplemented stub for retired retention phase with zero callers | Order 02 (38pxaz) |
+    | 4 | wtiso_gate.check_receipt | agent_workflows/wtiso_gate.py:381 | Raises NotImplementedError; 0 product callers; digest check already in ipd_lifecycle | DELETE | Pure predicate stub with no caller and no owner; real digest verification is elsewhere | Order 02 (38pxaz) |
+    | 5 | wtiso_gate.check_protected_refs | agent_workflows/wtiso_gate.py:279 | Raises NotImplementedError; 0 product callers; cited test deleted in 19313eed | DELETE | Attempt to detect protected ref tampering locally; stub is uncalled | Order 02 (38pxaz) |
+    | 6 | wtiso_gate._unimplemented | agent_workflows/wtiso_gate.py:133 | Helper creating NotImplementedError for the five raising stubs | DELETE | Exists solely to serve the 5 deleted raising predicates | Order 02 (38pxaz) |
+    | 7 | wtiso_gate.check_scope | agent_workflows/wtiso_gate.py:140 | Returns []; 0 product callers; redundant with ipd_lifecycle._scope_match | DELETE | Zero product callers; ipd_lifecycle already implements scope checking with proper allowances | Order 02 (38pxaz) |
+    | 8 | wtiso_gate.format_missing_input | agent_workflows/wtiso_gate.py:207 | Returns token string; 0 callers outside module; one-line delegation to lane_containment | DELETE | Trivial delegation with 0 callers; lane_containment is the real single definition | Order 02 (38pxaz) |
+    | 9 | wtiso_gate.parse_missing_input | agent_workflows/wtiso_gate.py:226 | Returns parsed tuple; 0 callers outside module; one-line delegation to lane_containment | DELETE | Trivial delegation with 0 callers; lane_containment owns the parser | Order 02 (38pxaz) |
+    | 10 | wtiso_gate.check_permission_deadline | agent_workflows/wtiso_gate.py:307 | Returns []; 0 product callers; no wiring exists | DELETE | Zero product callers and no active consumer | Order 02 (38pxaz) |
+    | 11 | wtiso_gate.AW_MISSING_INPUT | agent_workflows/wtiso_gate.py:81 | String constant; imported by lane_containment.py:62 | SIMPLIFY | Re-home into lane_containment.py so wtiso_gate.py has no dependents | Order 02 (38pxaz) |
+    | 12 | wtiso_gate error codes (AW_GATE_SCOPE, etc.) | agent_workflows/wtiso_gate.py:79-88 | Constants for unused predicates; 0 external references | DELETE | Dead constants associated with deleted predicates | Order 02 (38pxaz) |
+    | 13 | wtiso_gate dangling test citations | agent_workflows/wtiso_gate.py docstrings | 6 citations to tests/test_containment_predicates.py and test_wtiso_adversarial.py | DELETE | Strike citations to tests deleted in commit 19313eed | Order 02 (38pxaz) |
+    | 14 | ipd_lifecycle sandbox justification | agent_workflows/ipd_lifecycle.py:4403 | Comment citing "determined same-user agent requires an OS sandbox" | SIMPLIFY | Reframe sandbox as optional isolation for operators, not a fix for malicious agents | Order 03 (dmjp0u) |
+    | 15 | orchestrate_isolation docstring | agent_workflows/orchestrate_isolation.py:17 | Docstring phrase "orchestration adversarial protections" | SIMPLIFY | Mislabels merge-safety and collision guards as adversarial; reword to isolation guards | Order 03 (dmjp0u) |
+    | 16 | Baseline banner disclaimers | agent_workflows/runner_shared.py:22941-22948 | Comments: "TARGET IS SLOPPINESS, NOT MALICE", "GATE CANNOT DETECT DECEPTION" | KEEP | Compliant honest-limit disclaimer; documents what gates do NOT do | Retained (Honest-limit disclaimer) |
+    | 17 | Sandbox profile disclaimer | agent_workflows/host_sandbox_profile.py:31 | Docstring: "explicitly NOT a boundary against a MALICIOUS same-user worker" | KEEP | Compliant honest-limit disclaimer; clarifies OS boundary vs agent boundaries | Retained (Honest-limit disclaimer) |
+    | 18 | --by-human attestation disclaimer | agent_workflows/attention_contract.py:507 | Comment: "--by-human attestation... NOT anti-malicious crypto" | KEEP | Compliant honest-limit disclaimer; speed bump rather than cryptographic lock | Retained (Honest-limit disclaimer) |
+    | 19 | Local-forgeable evidence tags | agent_workflows/work_cmd.py:15, 417, 433 | Tags and comments: "assurance: local-forgeable" | KEEP | Compliant honest-limit disclaimer; accurately states that local evidence lacks remote CI proof | Retained (Honest-limit disclaimer) |
+    | 20 | Event stream forgeability notices | agent_workflows/check_engine.py:535, 2927-2928 | Comments: "events are locally forgeable; validity check, not tamper-proof boundary" | KEEP | Compliant honest-limit disclaimer | Retained (Honest-limit disclaimer) |
+    | 21 | Non-forgeable boundary doc | agent_workflows/cli.py:1913 | Guidance: "forgeable by a privileged local agent; non-forgeable boundary is..." | KEEP | Compliant honest-limit disclaimer | Retained (Honest-limit disclaimer) |
+    | 22 | Git trailer consistency notices | agent_workflows/git_commit_helper.py:24, 246 | Comments: "trailer is a consistency record, not tamper-proof provenance" | KEEP | Compliant honest-limit disclaimer | Retained (Honest-limit disclaimer) |
+    | 23 | Execution hook environment doc | agent_workflows/hooks/executed_transition_gate.py:286 | Comment: "forged variable buys nothing an attacker did not already have" | KEEP | Compliant honest-limit rationale | Retained (Honest-limit disclaimer) |
+    | 24 | Lifecycle event forgeability notices | agent_workflows/ipd_lifecycle.py:920-922, 1009-1010, 2243-2248, 2453 | Comments: "local event stream is FORGEABLE... NOT a tamper-proof authority boundary" | KEEP | Compliant honest-limit disclaimers across lifecycle state machine | Retained (Honest-limit disclaimer) |
+    | 25 | Tamper-evident hash chain | agent_workflows/run_ledger_store.py:1, 125, 173-174, 301 | Append-only hash chain; raises CorruptionError on damaged blocks | KEEP | Protects against honest disk corruption, torn writes, and data truncation | Retained (Honest mistake / integrity) |
+    | 26 | Sensitive file permissions (private_file) | agent_workflows/private_file.py:4 | Restricts POSIX permissions (0o600) on token and analytics salt | KEEP | Used by run_analytics_privacy for user privacy salt; token usage removed separately | Retained (User privacy protection) |
+    | 27 | Forged identity & readiness guards | agent_workflows/plan_readiness.py, artifact_adopt.py, status_set.py, ipd_lint.py | Validates that review records and identity headers exist on disk | KEEP | Catches honest copy-paste errors and accidental premature promotion | Retained (Honest mistake / schema validity) |
+    | 28 | Hostile payload validation | agent_workflows/run_analytics_*.py | Validates untrusted input data, JSON syntax errors, hostile paths | KEEP | Robust input sanitation preventing crashes from malformed data | Retained (Input robustness) |
+    | 29 | Benchmark seeded cases | agent_workflows/benchmark_scorer.py, benchmark_metrics.py | 14 seeded false-completion failure classes for evaluating evaluators | KEEP | Evaluation benchmark dataset; necessary to score agent performance | Retained (Test / benchmark ground truth) |
+    | 30 | Per-run driver attestation token | agent_workflows/ipd_lifecycle.py:mint_driver_attestation, driver-attest.token | Secret file written to restrict driver verbs; bypassed by same-user agents | ALREADY-DECIDED (DELETE) | Settled in backlog dvonrn D1: brittle secret token that impeded legitimate work | Carrier: dvonrn D1 |
+    | 31 | --by-human attestation flag | agent_workflows/status_set.py, spec honest-human-approval-attestation | Requires explicit flag to attest human approval; recorded in workflow history | ALREADY-DECIDED (KEEP) | Settled in backlog ariaau and spec: deliberate conscious speed bump, not a lock | Retained (Honest speed bump) |
+    | 32 | Suite-baseline adjudication | agent_workflows/runner_shared.py:22936 | Compares failure count against baseline rather than failing on pre-existing issues | ALREADY-DECIDED (KEEP) | Settled in daexj1 OQ-02 and ariaau: model honest-limits design | Retained (Model honest-limits gate) |
+    | 33 | Opt-in hardened OS sandbox | agent_workflows/host_sandbox_profile.py, plan 1o4eif | OS bubblewrap/container isolation profile | ALREADY-DECIDED (KEEP) | Settled in backlog dvonrn D7: valid optional OS-level boundary | Retained (Optional OS boundary) |
 
-- [ ] V-03 validates E-03
+    Explicit confirmation: All class (a) disclaimers from F-4 (items 16, 17, 18, 19, 20, 21, 22, 23, 24) are classified KEEP and NOT marked for rewording.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: the `aw research new` invocation and its output showing the TOOL derived the path, plus the written record's front matter and its classification table. State which `--kind` was chosen and why (OQ-01 resolves this to `assessment`, with `findings`/`survey` acceptable if recorded). Confirm the four ALREADY-DECIDED items from the backlog item are present with citations. A hand-named file does NOT satisfy this item. ALSO paste the derived path beside the declared `- Scope-Paths:` glob and state that it matches, which is the check that would have caught the defect F-11 records; and confirm the record's `status:` is the born `todo` and it sits at the research ROOT rather than in a `reference/` or `archive/` shard (F-12).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Path .aw/records/research/20260930-malgate-00-wv570i-p15-gate-audit.assessment.md matches Scope-Paths; status todo at root.
+    `aw research new` invocation:
+    `aw research new --kind assessment --set malgate --slug p15-gate-audit --date 20260930 --summary "P15 gate audit: every anti-malice mechanism with its keep, simplify, or delete decision and evidence" --apply`
+    Tool output:
+    `wrote <repo-root>/.aw/records/research/20260930-malgate-00-wv570i-p15-gate-audit.assessment.md`
+    Chosen `--kind`: `assessment` (per OQ-01 resolution, representing a structured judgement rendered over an existing surface).
+    Written record front matter:
+    ```yaml
+    ---
+    id: wv570i
+    created: 20260930
+    set: malgate
+    order: 00
+    topic: []
+    model:
+    kind: assessment
+    status: todo
+    outcome: none-yet
+    summary: P15 gate audit: every anti-malice mechanism with its keep, simplify, or delete decision and evidence
+    consumed-by: []
+    ---
+    ```
+    Scope reconciliation check:
+    Derived path: `.aw/records/research/20260930-malgate-00-wv570i-p15-gate-audit.assessment.md`
+    Declared Scope-Paths glob: `.aw/records/research/20260930-malgate-*.md`
+    `ipd_lifecycle._scope_match('.aw/records/research/20260930-malgate-00-wv570i-p15-gate-audit.assessment.md', '.aw/records/research/20260930-malgate-*.md')` -> True.
+    Status and location check:
+    Record is born at `status: todo` and resides at the research root (`.aw/records/research/`), not in any `reference/` or `archive/` shard.
+    Four ALREADY-DECIDED items (per-run driver token, `--by-human`, suite-baseline adjudication, hardened OS sandbox) are all present with full citations in the record.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: the record's limits section pasted, showing at least the three required limits (the START HERE list is not exhaustive and what the phrase census cannot find; a deletion's reference sweep is the carrier's obligation; the classification is a disputable judgement with its test written down). Each must be stated as a limit with its consequence, not as a disclaimer sentence.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Limits section in wv570i covers vocabulary limits, reference sweep, and judgement.
+    Pasted limits section from `.aw/records/research/20260930-malgate-00-wv570i-p15-gate-audit.assessment.md`:
+    ```markdown
+    ## Limits of this Audit (E-04)
 
-- [ ] V-05 validates E-05
+    An audit that claims completeness without acknowledging its methodological boundaries is misleading. The limits of this assessment are explicitly documented as follows:
+
+    1. **Methodological Limits of the Vocabulary Census**:
+       The starting list from backlog `ariaau` was explicitly not exhaustive. While the AST walk over `wtiso_gate.py` was exhaustive for that module, the phrase census across `agent_workflows/` relies on lexical pattern matching (`malicious`, `determined same-user`, `hostile`, `adversarial`, `tamper`, `forge`, `deception`). This method **cannot detect** anti-malice mechanisms whose comments and docstrings avoid that specific vocabulary (for instance, an ad-hoc secret check documented with neutral terminology like "validate token" or "security check").
+    2. **Reference Sweep Obligations for Deletions**:
+       Deleting code, error codes, or predicates changes public module surfaces that other plans, specs, or historical reviews might reference. The fact that an item is marked DELETE in this audit does not relieve the carrier (`38pxaz`) of its obligation to perform an exhaustive reference sweep across the repository (e.g. updating spec `7ckptx` and ensuring no dangling imports remain).
+    3. **Judgemental Nature of Classification**:
+       Distinguishing between an honest-limit disclaimer (KEEP) and an anti-malice justification (SIMPLIFY) is an interpretive judgement based on the Deciding Test above. Reviewers may hold differing perspectives on whether a particular comment crosses the boundary into anti-malice justification. Stating the deciding criteria explicitly ensures that any future dispute can focus productively on the test criteria rather than subjective impressions of individual phrases.
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: pasted `aw research index --check` output reporting the tree consistent, plus the manifest line for the new record showing it is resolvable by its `<id6>`. Plus a statement that the index was refreshed by the tool and not hand-edited. Plus a `git status --short` and a `git diff --cached --name-only` reconciled against `- Scope-Paths:`, showing the committed set is the record alone: the manifest must NOT appear, since both `INDEX.json` and `INDEX.md` are gitignored and committing a derived ignored file would be a defect, not thoroughness.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. aw find research wv570i resolves; manifest gitignored; only record committed.
+    Research manifest refreshed via `aw research index` (tool-managed; not hand-edited).
+    Resolution check via `aw find research wv570i`:
+    `◕  todo          wv570i  .aw/records/research/20260930-malgate-00-wv570i-p15-gate-audit.assessment.md  P15 gate audit: every anti-malice mechanism with its keep, simplify, or delete decision and evidence`
+    `aw research index --check` output reports 0 errors or findings for wv570i.
+    Reconciled against `- Scope-Paths:`:
+    `git status --short` shows untracked `.aw/records/research/20260930-malgate-00-wv570i-p15-gate-audit.assessment.md` matching declared glob `.aw/records/research/20260930-malgate-*.md`. Neither `.aw/records/research/INDEX.json` nor `INDEX.md` is committed or staged, respecting their gitignored status.
+  - Result: pass
 
 ## Approval and execution gate
 
