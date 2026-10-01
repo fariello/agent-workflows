@@ -1331,6 +1331,30 @@ It must never retry these classes regardless of budget:
 
 An out-of-scope mutation therefore fails and contains the item on the first occurrence even if ten retries remain. A human gate and dependency-not-met outcome are state gates, not retryable failures. Each permitted correction has a new attempt number and idempotency key and invalidates stale evidence from earlier attempts.
 
+The runner provides two distinct classification surfaces that key on different evidence by design:
+- `turn_failure_is_retryable`: classifies a finished turn by its runner disposition.
+- `finalize_retry_decision`: classifies a refused finalize by the gate's findings carried across the subprocess boundary. It keys primarily on shipped lint finding codes (`finalize_refusal_is_retryable`, `retryable_finalize_finding_codes`), retaining a prose fallback for findings without a lint code and for answerable checkpoint messages excluded from the code set.
+
+The normative mapping between the retry classes above and the runner's disposition vocabulary is declared in the following table:
+
+| Spec Class | Disposition(s) | Classification Surface | Retryable | Notes |
+| :--- | :--- | :--- | :--- | :--- |
+| host spawn failure | `failed-safely` | `turn_failure_is_retryable` | Yes | Host failed to spawn or crashed under driver supervision. Guarded against deliberate operator stop. Canonical token `failed` has no live producer and is classified non-retryable in code. |
+| host nonzero exit that did not create an ambiguous side effect | `failed-safely` | `turn_failure_is_retryable` | Yes | Nonzero exit cleanly captured and contained in lane worktree. |
+| missing expected artifact or failed deterministic check for which a bounded correction is safe | None (turn); findings (finalize) | `finalize_retry_decision` | Yes (at finalize) | Handled at finalize gate by finding codes; no distinct retryable turn disposition. |
+| missing or stale validation evidence | None (turn); findings (finalize) | `finalize_retry_decision` | Yes (at finalize) | Handled at finalize gate (`IPD-S401`, `IPD-S402`, `IPD-S403`); turn disposition `substantially-complete` is not retryable at turn level to avoid double-spend. |
+| verifier transport failure | (none) | (none) | No consumer | No disposition; not consumed in tree. |
+| out-of-scope mutation | `fail-gate` | `turn_failure_is_retryable` / finalize gate | No | First on never-retry list; gate refusal. |
+| overlapping ownership or lease conflict | `fail-gate`, `integration-blocked` | `turn_failure_is_retryable` / integration ladder | No | Concurrent mutation or conflict; not retryable as host failure. |
+| corrupt ledger | `fail-gate`, `interrupted` | `turn_failure_is_retryable` / recovery | No | Ledger inconsistency requires operator attention. |
+| unknown commit or transaction outcome | `unknown_outcome` | `turn_failure_is_retryable` | No | Forced stop or uncertain persistence cut at unknown point. |
+| unauthorized status change | `fail-gate` | `turn_failure_is_retryable` / finalize gate | No | State machine violation; human review needed. |
+| human approval gate | `blocked`, `fail-gate` | `turn_failure_is_retryable` / gate | No | State gate; repetition cannot satisfy human judgment. |
+| hook bypass attempt | `fail-gate` | `turn_failure_is_retryable` / gate | No | Security/policy refusal; never retryable. |
+| push attempt | `fail-gate` | `turn_failure_is_retryable` / gate | No | Protocol violation; worker cannot push. |
+| changed frozen requirements, EXCEPT an additive scope widening as defined below | `fail-gate` | `turn_failure_is_retryable` / finalize gate | No | Frozen requirement violation (except Section 5.5a accept). |
+| any non-idempotent external action whose outcome is unknown | `unknown_outcome` | `turn_failure_is_retryable` | No | Non-idempotent side effect at unknown state. |
+
 #### 5.5a Additive scope widening is a finalize-time accept, not a retry
 
 A CHANGED FROZEN REQUIREMENT remains never-retryable. One difference class is carved out of it, because the previous rule punished the honest act and rewarded concealment.
@@ -1606,6 +1630,7 @@ This example demonstrates the revised guarantees: `all` is safely bounded; depen
 
 ## Workflow history
 
+- 2026-10-01 note (aw specs): AMENDED (plan 4gx141, backlog rb4wgj): Section 5.5 amended with an explicit class-to-disposition table declared across all 15 retry classes, and describes the two classification surfaces (turn_failure_is_retryable by disposition; finalize_retry_decision by gate findings). What deliberately did not change: the 0..10 bound, default of 2, precedence ladder, membership of either class list, and every never-retryable verdict. Composes with plan cpi6p3 (already landed, which declared Section 5.5 normative for the bound paragraph and excluded class lists by name). Notes that plan qo9khm is already executed, so the finalize surface's code-keyed mechanism is described as shipped rather than pending. Records that class 'verifier transport failure' has no consumer in tree and maps to no disposition.
 - 2026-10-01 note (aw specs): AMENDED (plan kcc71f, backlog aced01): Section 5.1's HONEST LIMIT paragraph amended to name the direction the pre-work suite baseline prohibition forbids: nothing may refuse or downgrade an outcome on the strength of the baseline (using the baseline to disbelieve an agent remains forbidden), while a comparison that can only ever make an outcome more permissive is permitted. Reconciles the 2026-09-23 note (plan n9na1c), which recorded the HONEST LIMIT paragraph as unchanged deliberately and verbatim: what that note protected - the maintainer's 2026-09-08/2026-09-20 ruling that no programmatic gate may refuse an outcome on the strength of a pre-work baseline - is preserved verbatim, while the paragraph's undirected wording ("nothing refuses on it") is clarified so it does not contradict shipped, reviewed, and correct permissive comparisons (such as _relative_revalidation_verdict, verified in runner_shared and pinned in tests/test_suite_baseline_direction.py). Conjunctive release conditions, closed answer vocabulary, releasing answers, and attribution requirements are completely untouched.
 
 - 2026-10-01 note (aw specs): AMENDED (plan entv1d, backlog qzxt1m): Run exit codes table exit 1 row amended to name the stranded class explicitly (unintegrated work whose integration was refused) and record its derivation from exit 0's requirement that every actionable item is verified, adhering to docs/cli-output-contract.md Section 3's three-state exit classification; row 4 conflict note left intact.

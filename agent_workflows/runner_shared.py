@@ -8127,40 +8127,12 @@ def finalize_retry_remedy(
 #      called "the dangerous half" to drop, because a correction that inherits the failed attempt's
 #      green verification would be blessed by the very evidence that was wrong.
 
-#: The driver dispositions a turn failure may be retried from: spec `25kzda` 5.5's "host spawn
-#: failure" and "host nonzero exit that did not create an ambiguous side effect".
-#:
-#: AN ALLOWLIST, NEVER A DENYLIST, and the reason is a measured conflation rather than style.
-#: `failed-safely` is written BOTH for a genuine driver error AND, per the comment at
-#: `reconcile_disposition`'s deliberate-stop branch, for cases the classifier could not otherwise tell
-#: from a DELIBERATE OPERATOR STOP. Retrying an operator's stop would spend paid model turns fighting
-#: the operator. A denylist of never-retryable classes would retry every class nobody remembered to
-#: list, which is the opposite of spec 5.5's construction ("may spend budget ONLY on failures
-#: classified as retryable").
-#:
-#: WHY EACH MEMBER IS IN, AND WHY EVERY OTHER DISPOSITION IS OUT, is the table in
-#: :data:`TURN_RETRY_CLASSIFICATION` below; it is data rather than prose so a test can assert on it.
-#:
-#: WHY `partial` IS **NOT** HERE, decided during execution and recorded because the obvious reading of
-#: spec 5.5 would include it. `partial` means the turn RAN and fell short, which is a different fact
-#: from the host failing, and re-dispatching every such item is ALREADY OWNED by approved sibling plan
-#: `dy9ymn` ("Retry a turn that provably attempted nothing instead of blocking its Set with a terminal
-#: partial"), whose scope says in terms: "EXCLUDES retrying any item that produced ANY evidence of
-#: work". A blanket `partial` retry is therefore strictly broader than the predicate that plan exists
-#: to build, and it MEASURABLY breaks five shipped tests that pin `partial` as terminal
-#: (`tests/test_defect_report.py::RescoreAfterAReaskTests` x4, whose whole subject is an item that
-#: answered honestly that it is still partial, and `tests/test_oc_runipd.py::test_verifier_gate`,
-#: where a verifier DOWNGRADE writes `partial`). Retrying a turn whose VERIFIER rejected it would also
-#: spend correction budget on a class `1bfppy` is separately wiring. So this layer takes the
-#: unambiguous host-failure class only, and the narrow "attempted nothing" verdict stays `dy9ymn`'s.
-TURN_RETRYABLE_DISPOSITIONS: frozenset[str] = frozenset({"failed-safely"})
-
 #: Every disposition a driver can persist, with its retryable verdict and the REASON. One row per
 #: value, so "is this retryable?" is answered from a table a reader can audit rather than from a
-#: conditional. `tests/test_retry_consumption.py` (trimmed in `19313eed`; coverage now asserted in
-#: `tests/test_silent_turn_observability.py` and `tests/test_runner_shared.py`) asserted this table covers both drivers'
-#: `TERMINAL_STATES` and `runner_shutdown.KNOWN_ITEM_STATUSES`, so a status added elsewhere without a
-#: verdict here FAILS A TEST instead of silently defaulting to retryable.
+#: conditional. `tests/test_retry_class_mapping.py` asserts this table covers both drivers'
+#: `TERMINAL_STATES` and `runner_shutdown.KNOWN_ITEM_STATUSES` (one-directionally: the vocabularies
+#: are covered by the table, which also classifies unlisted statuses), so a status added elsewhere
+#: without a verdict here FAILS A TEST instead of silently defaulting to retryable.
 TURN_RETRY_CLASSIFICATION: tuple[tuple[str, bool, str], ...] = (
     # --- retryable: spec 5.5's host-failure classes -----------------------------------------------
     (
@@ -8171,10 +8143,27 @@ TURN_RETRY_CLASSIFICATION: tuple[tuple[str, bool, str], ...] = (
         "STOP also lands here in some shapes, so `turn_failure_is_retryable` additionally requires "
         "that no `stopped` record is present",
     ),
+    # --- never retryable: spec 5.5's never-retry list, its state gates, and other owners ----------
     (
         "failed",
-        True,
-        "spec 5.5 'host spawn failure' / 'host nonzero exit': generic undiagnosed turn failure, retryable",
+        False,
+        # Option (b) deliberately recorded per IPD 4gx141 E-02:
+        # Reachability measurements: no queue-item producer writes bare "failed" (layout_migration.py
+        # matches assign tx_data["status"], not queue items); token enumeration for item["status"]
+        # finds no bare "failed"; reconcile_disposition returns no bare "failed". F-16 measurement:
+        # "failed" is in TERMINAL_STATES_CANONICAL and NOT in TERMINAL_STATUS_ALIASES, so it is a canonical
+        # token with no live producer (an aspirational row, not a legacy spelling). Setting False
+        # preserves exact shipped behavior, eliminates the self-contradicting reason string in
+        # turn_failure_is_retryable, and aligns with the allowlist.
+        "spec 5.5 'host spawn failure' / 'host nonzero exit': generic undiagnosed turn failure. "
+        "Not retryable: canonical token with no live queue-item producer (row was aspirational); "
+        "flipping to False preserves shipped behavior and eliminates reason contradiction (IPD 4gx141)",
+    ),
+    (
+        "already-landed",
+        False,
+        "not a failure: the item's lane work was found already on HEAD at dispatch (mergeskip gate "
+        "`8k0z40`); retrying would re-dispatch a paid turn for work that is already landed",
     ),
     # --- never retryable: spec 5.5's never-retry list, its state gates, and other owners ----------
     (
@@ -8306,6 +8295,39 @@ TURN_RETRY_CLASSIFICATION: tuple[tuple[str, bool, str], ...] = (
     ),
     ("queued", False, "not a finished turn; it has not run yet"),
     ("running", False, "not a finished turn; it is still in flight"),
+)
+
+#: The driver dispositions a turn failure may be retried from: spec `25kzda` 5.5's "host spawn
+#: failure" and "host nonzero exit that did not create an ambiguous side effect".
+#:
+#: DERIVED directly from :data:`TURN_RETRY_CLASSIFICATION` above (IPD 4gx141) so the two sources of
+#: truth cannot diverge. Change the table row rather than editing this set.
+#:
+#: AN ALLOWLIST, NEVER A DENYLIST, and the reason is a measured conflation rather than style.
+#: `failed-safely` is written BOTH for a genuine driver error AND, per the comment at
+#: `reconcile_disposition`'s deliberate-stop branch, for cases the classifier could not otherwise tell
+#: from a DELIBERATE OPERATOR STOP. Retrying an operator's stop would spend paid model turns fighting
+#: the operator. A denylist of never-retryable classes would retry every class nobody remembered to
+#: list, which is the opposite of spec 5.5's construction ("may spend budget ONLY on failures
+#: classified as retryable").
+#:
+#: WHY EACH MEMBER IS IN, AND WHY EVERY OTHER DISPOSITION IS OUT, is the table in
+#: :data:`TURN_RETRY_CLASSIFICATION` above; it is data rather than prose so a test can assert on it.
+#:
+#: WHY `partial` IS **NOT** HERE, decided during execution and recorded because the obvious reading of
+#: spec 5.5 would include it. `partial` means the turn RAN and fell short, which is a different fact
+#: from the host failing, and re-dispatching every such item is ALREADY OWNED by approved sibling plan
+#: `dy9ymn` ("Retry a turn that provably attempted nothing instead of blocking its Set with a terminal
+#: partial"), whose scope says in terms: "EXCLUDES retrying any item that produced ANY evidence of
+#: work". A blanket `partial` retry is therefore strictly broader than the predicate that plan exists
+#: to build, and it MEASURABLY breaks five shipped tests that pin `partial` as terminal
+#: (`tests/test_defect_report.py::RescoreAfterAReaskTests` x4, whose whole subject is an item that
+#: answered honestly that it is still partial, and `tests/test_oc_runipd.py::test_verifier_gate`,
+#: where a verifier DOWNGRADE writes `partial`). Retrying a turn whose VERIFIER rejected it would also
+#: spend correction budget on a class `1bfppy` is separately wiring. So this layer takes the
+#: unambiguous host-failure class only, and the narrow "attempted nothing" verdict stays `dy9ymn`'s.
+TURN_RETRYABLE_DISPOSITIONS: frozenset[str] = frozenset(
+    name for name, retryable, _ in TURN_RETRY_CLASSIFICATION if retryable
 )
 
 #: The per-item key counting turn corrections spent. SEPARATE from
