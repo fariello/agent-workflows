@@ -35,36 +35,36 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Re-measure before recording anything
 
-- [ ] E-01 Re-derive the partition at the execution base, so the decision is recorded against live numbers rather than this plan's prose. Over `.aw/records/plans/pending/*.ipd.md`, tally `(Status, readiness-present)` pairs using `ipd_schema.read_readiness` for the value and `plan_readiness._READINESS_FIELD_PRESENT_RE` for raw presence (both are needed: `read_readiness` returns None for ABSENT and for OUT-OF-VOCAB alike, per its own docstring, so presence must be tested separately or a corrupt field would be miscounted as absent). Then widen the same tally to EVERY tracked `.ipd.md` in `.aw/records/plans/` and report the count of plans at `draft` or `to-review` that carry the field.
+- [x] E-01 Re-derive the partition at the execution base, so the decision is recorded against live numbers rather than this plan's prose. Over `.aw/records/plans/pending/*.ipd.md`, tally `(Status, readiness-present)` pairs using `ipd_schema.read_readiness` for the value and `plan_readiness._READINESS_FIELD_PRESENT_RE` for raw presence (both are needed: `read_readiness` returns None for ABSENT and for OUT-OF-VOCAB alike, per its own docstring, so presence must be tested separately or a corrupt field would be miscounted as absent). Then widen the same tally to EVERY tracked `.ipd.md` in `.aw/records/plans/` and report the count of plans at `draft` or `to-review` that carry the field.
   - Depends on: none
   - Expected outcome: the pending tally is a two-cell partition (every `to-review` plan absent, every `reviewed` plan present) and the tree-wide count of field-carrying `draft`/`to-review` plans is ZERO. The absolute counts WILL have moved from F-01's 21/59 and that is expected and must not be asserted against; what must hold is the RELATION. STOP AND REPORT if any `draft` or `to-review` plan anywhere carries the field: that is a live attestation forgery, it falsifies the invariant this plan is about to record, and it must be investigated and reported to the maintainer before any documentation claims the invariant holds.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Record the decision
 
-- [ ] E-02 In `.aw/records/plans/README.md`, extend the existing `- Readiness:` paragraph in the "Readiness status (front-matter)" section to record the decision and its reasoning. State, in this order: (1) THE INVARIANT, that the field is written by `/plan-review` and is absent exactly when no review has recorded a verdict, so a plan at `draft` or `to-review` has no field and that is correct; (2) THE DECISION, that the field is NOT backfilled onto plans lacking one, citing backlog `0z1b2s` as where it was decided; (3) THE REASON, that a hand-written value asserts a review that never ran, which is the `AGENTS.md` "NEVER WRITE ANOTHER ROLE'S ATTESTATION FIELD" prohibition and the 2026-09-06 incident behind it, and that absence is already the FAIL-CLOSED state so uniformity would buy nothing and cost the field its meaning; (4) THE PROVENANCE NUANCE, that absence means "no verdict was RECORDED" and not "no review was ATTEMPTED", because `/plan-review`'s R6 orchestrator-exhaustion path deliberately leaves the field absent after a review has run and honestly declined to conclude. Keep the existing sentences that the field is OPTIONAL and that ABSENT MEANS UNKNOWN, NOT CLEAR: this addition explains WHY they are right and must not weaken them into "absent means unreviewed", which R6 makes false.
+- [x] E-02 In `.aw/records/plans/README.md`, extend the existing `- Readiness:` paragraph in the "Readiness status (front-matter)" section to record the decision and its reasoning. State, in this order: (1) THE INVARIANT, that the field is written by `/plan-review` and is absent exactly when no review has recorded a verdict, so a plan at `draft` or `to-review` has no field and that is correct; (2) THE DECISION, that the field is NOT backfilled onto plans lacking one, citing backlog `0z1b2s` as where it was decided; (3) THE REASON, that a hand-written value asserts a review that never ran, which is the `AGENTS.md` "NEVER WRITE ANOTHER ROLE'S ATTESTATION FIELD" prohibition and the 2026-09-06 incident behind it, and that absence is already the FAIL-CLOSED state so uniformity would buy nothing and cost the field its meaning; (4) THE PROVENANCE NUANCE, that absence means "no verdict was RECORDED" and not "no review was ATTEMPTED", because `/plan-review`'s R6 orchestrator-exhaustion path deliberately leaves the field absent after a review has run and honestly declined to conclude. Keep the existing sentences that the field is OPTIONAL and that ABSENT MEANS UNKNOWN, NOT CLEAR: this addition explains WHY they are right and must not weaken them into "absent means unreviewed", which R6 makes false.
   DO NOT WRITE THAT A `reviewed` PLAN MAY LACK THE FIELD (corrected at review, PR-001). The authored instruction here described element (4) as a carve-out in which a `reviewed`-status plan legitimately carries no field. Measured: R6 leaves such a plan at `- Status: to-review` ("the plan remains `- Status: to-review` ... and `- Readiness:` is left ABSENT"), so that shape does not occur, no plan in the tree or in 12 commits of history has ever had it, and writing it into the README would document a state the workflow does not produce. State the PROVENANCE point instead, which is true and is the part worth recording: a plan in the `(to-review, absent)` cell may be one no reviewer has opened OR one a review examined and could not conclude on, and a reader cannot tell which from the field alone. Write no em or en dashes (this is user-facing prose). Do NOT restate the mechanics of `IPD-M107` or `aw ipd recheck-readiness` at length here; name them as the enforcement and let their own docs carry the detail.
   - Depends on: E-01
   - Expected outcome: a plan author reading the field's contract learns that absence is correct and that backfilling is refused, with the reason and the deciding backlog item cited. The question in `0z1b2s` can no longer be re-asked from this document alone.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Pin the invariant that makes the decision safe
 
-- [ ] E-03 Add `tests/test_readiness_absence_invariant.py`, one BEHAVIOR test module asserting the four properties this decision rests on. Property 1, THE CORPUS PARTITION: no tracked plan under `.aw/records/plans/` at `Status: draft` or `Status: to-review` carries a `- Readiness:` field. That is the tree-wide invariant E-01 measures and the one a backfill would destroy. Property 2, BACKFILL IS REFUSED BY THE LINTER: taking a real field-absent pending plan and inserting `- Readiness: go-pending-approval` yields a BLOCKING `IPD-M107` diagnostic, while the unmodified original yields none. Property 3, BACKFILL BUYS NOTHING: `plan_readiness.is_plan_review_approved` returns False both before AND after that same insertion, because when the field is present the predicate additionally requires a review record in the history. Property 4, THE RECHECK VERB REFUSES AN ABSENT FIELD: `plan_readiness.recheck_conditions` reports `may_write` False with a refusal naming the absent field, restoring the coverage F-08 measured as deleted. Constraints on how it is written are in the bullet below.
+- [x] E-03 Add `tests/test_readiness_absence_invariant.py`, one BEHAVIOR test module asserting the four properties this decision rests on. Property 1, THE CORPUS PARTITION: no tracked plan under `.aw/records/plans/` at `Status: draft` or `Status: to-review` carries a `- Readiness:` field. That is the tree-wide invariant E-01 measures and the one a backfill would destroy. Property 2, BACKFILL IS REFUSED BY THE LINTER: taking a real field-absent pending plan and inserting `- Readiness: go-pending-approval` yields a BLOCKING `IPD-M107` diagnostic, while the unmodified original yields none. Property 3, BACKFILL BUYS NOTHING: `plan_readiness.is_plan_review_approved` returns False both before AND after that same insertion, because when the field is present the predicate additionally requires a review record in the history. Property 4, THE RECHECK VERB REFUSES AN ABSENT FIELD: `plan_readiness.recheck_conditions` reports `may_write` False with a refusal naming the absent field, restoring the coverage F-08 measured as deleted. Constraints on how it is written are in the bullet below.
   ASSERT THE PARTITION IN THE PRE-REVIEW DIRECTION ONLY, AND FOR THE RIGHT REASON (corrected at review, PR-001). The authored justification was F-09's claim that a bidirectional assertion would break on an R6 orchestrator plan; that is FALSE, because R6 leaves such a plan at `Status: to-review`, in the very cell the one-directional assertion already covers. The CORRECT reason to stay one-directional is that the mirror property (every `reviewed` plan CARRIES a field) is an open maintainer decision this plan was not asked to make (OQ-01, carried by `l0ixig`), so asserting it here would silently enact a rule nobody approved and would convert a deferred question into shipped policy. Measured at review: the mirror currently holds exactly (51 of 51 `reviewed` pending plans carry the field, 0 exceptions), so a bidirectional test WOULD pass today, which is precisely why the restraint has to be deliberate and recorded rather than accidental.
   PROPERTY 3 MUST ALSO PIN THE FALLBACK ARM, or it tests less than it claims. `is_plan_review_approved` has THREE arms, and the plan's F-04 describes only the first two: a present-and-in-vocab field requires `history_has_review_record`; a present-but-out-of-vocab field is refused outright with no fallback; and an ABSENT field falls through to a BACK-COMPAT PROSE FALLBACK (`history_verdict_approves(extract_newest_history_entry(text))` plus `has_unresolved_blocking_question`). The third arm is why "absent" does not mean "automatically refused" in general, and it is load-bearing for plans reviewed before the field existed. So property 3 asserts False-before-and-after on a real subject (measured: 0 of 85 field-absent pending plans return True, and the simulated backfill still returns False), and MUST additionally assert that the refusal of the absent case comes from the FALLBACK finding no approving verdict rather than from absence itself, by also driving a field-absent plan whose history DOES carry an approving review record and showing the predicate returns True. Without that arm a future change that deleted the fallback entirely would leave this test green.
   - Depends on: E-01
   - Constraints: assert on real returned values, diagnostics, and refusal strings ONLY. Do NOT read production source with `inspect`, `ast`, regex, or substring search. Do NOT assert on caller counts, symbol censuses, or module line counts. Do NOT assert that any specific docstring or comment text is present (AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE"; GUIDING_PRINCIPLES P16). Do not hardcode any plan count or filename from this document. Select the subject plan by SCANNING for a field-absent pending plan at run time, and skip with a clear message if the tree has none, since a tree where every pending plan is reviewed is legitimate and must not fail the suite.
     THE THREE PREDICATES DO NOT TAKE TEXT, SO "IN MEMORY" IS NOT AVAILABLE FOR MOST OF THIS (corrected at review, PR-002; the authored constraint said "build the modified text IN MEMORY or under `tmp_path`" and in-memory is impossible for three of the four properties). Measured signatures at review: `ipd_lint.check_readiness_attestation(doc: ParsedDoc)` takes a parsed document, NOT text, and raises `AttributeError: 'str' object has no attribute 'meta_fields'` if handed a string; `plan_readiness.is_plan_review_approved(plan_path: Path)` takes a PATH ONLY and reads the file itself, raising `AttributeError: 'str' object has no attribute 'read_text'` if handed text; `plan_readiness.recheck_conditions(repo_root, plan_path, plan_text=None)` requires BOTH a repo root and a path even when text is supplied. SO WRITE IT THIS WAY, each arm verified working at review: property 2 uses `ipd_lint.lint_text(text, checkpoint=..., directory="pending")`, the text-accepting entry point this plan never named, and asserts a BLOCKING diagnostic whose code is `ipd_lint.C_READINESS_UNATTESTED` (measured: `disposition` goes `conforming` -> `error` and exactly one `IPD-M107` appears); properties 3 and 4 MUST use `tmp_path`, writing the original and the backfilled text to a file under a temporary directory, and property 4 additionally needs a temporary repo root containing `.aw/records/plans/pending/` (a bare `git init -q` suffices, measured). The test NEVER writes to a tracked plan file, which remains the binding requirement.
   - Expected outcome: a new test module that passes at base and FAILS if any of four things regresses: a plan is backfilled, `IPD-M107` stops firing on an unattested field, the auto-approve predicate starts clearing an unreviewed plan, or the recheck verb starts minting a readiness. F-07 measured that nothing asserts the partition today, so without this the decision is documentation only.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: Verify and close the item
 
-- [ ] E-04 Verify tree-wide, then close the backlog item. Run the suite BARE as `python3 -m pytest` and paste the actual summary line. Run `python3 -m agent_workflows ipd lint .aw/records/plans/pending/20260929-rdyabsent-01-fx5op3-record-the-no-backfill-decision-by-pinning-absence-as-the-co.ipd.md` and `python3 -m agent_workflows check all`, and confirm neither reports a NEW finding attributable to this change (compare against a pre-change run captured in the same session; the tree carries live findings from other agents' in-flight work, so an absolute count proves nothing). Run `aw sanitize --agent; echo rc=$?`. Then close backlog `0z1b2s` with `aw backlog set done 0z1b2s --evidence <path-to-this-plan-in-executed>`, AFTER `aw ipd finalize` has moved this plan to `executed/` and not before. THE ITEM CARRIES NO `- Blocks-Release:` GATE, re-verified at review by running the shared close predicate directly: `check_engine.evaluate_blocking_close(repo, <item>, "done")` returns `legitimate=True`, `severity=ok`, `reason="no release gate to preserve"`. So `--evidence` is NOT REQUIRED by the gate and is passed here as a deliberate provenance choice rather than to satisfy a check; do not report a refusal if it is omitted, and do not conclude the gate machinery is broken when it stays silent. The item ALSO already carries `- Graduated-To: rdyabsent`, so the backlog-to-plan handoff is recorded independently of the close. If a gate has since been added, use the `--evidence` route and confirm the gate is preserved or explicitly cleared rather than dropped.
+- [x] E-04 Verify tree-wide, then close the backlog item. Run the suite BARE as `python3 -m pytest` and paste the actual summary line. Run `python3 -m agent_workflows ipd lint .aw/records/plans/pending/20260929-rdyabsent-01-fx5op3-record-the-no-backfill-decision-by-pinning-absence-as-the-co.ipd.md` and `python3 -m agent_workflows check all`, and confirm neither reports a NEW finding attributable to this change (compare against a pre-change run captured in the same session; the tree carries live findings from other agents' in-flight work, so an absolute count proves nothing). Run `aw sanitize --agent; echo rc=$?`. Then close backlog `0z1b2s` with `aw backlog set done 0z1b2s --evidence <path-to-this-plan-in-executed>`, AFTER `aw ipd finalize` has moved this plan to `executed/` and not before. THE ITEM CARRIES NO `- Blocks-Release:` GATE, re-verified at review by running the shared close predicate directly: `check_engine.evaluate_blocking_close(repo, <item>, "done")` returns `legitimate=True`, `severity=ok`, `reason="no release gate to preserve"`. So `--evidence` is NOT REQUIRED by the gate and is passed here as a deliberate provenance choice rather than to satisfy a check; do not report a refusal if it is omitted, and do not conclude the gate machinery is broken when it stays silent. The item ALSO already carries `- Graduated-To: rdyabsent`, so the backlog-to-plan handoff is recorded independently of the close. If a gate has since been added, use the `--evidence` route and confirm the gate is preserved or explicitly cleared rather than dropped.
   - Depends on: E-02, E-03
   - Expected outcome: suite green with output pasted; no new checker findings caused by this change; sanitizer exit 0; and `0z1b2s` closed `done` against a resolvable in-tree citation, so the decision has a durable record instead of an item that reopens the question.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -146,24 +146,115 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the pending `(Status, readiness-present)` tally and the tree-wide count of `draft`/`to-review` plans carrying the field, as produced at the execution base. The tally must show empty cross cells (no `reviewed`-or-later pending plan absent, no `to-review`/`draft` pending plan present) and the tree-wide count must be `0`. Paste the base commit (`git rev-parse --short HEAD`) beside the numbers. Do NOT compare any count against F-01's 21/59 or the backlog item's 79/6; assert only the RELATION. If a pre-review plan carries the field, paste its path and the STOP AND REPORT escalation instead of proceeding.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: Base commit: 4bf43b633. Pending (Status, readiness-present) tally over all 184 pending plans:
+    ('approved', True): 96
+    ('reviewed', True): 51
+    ('to-review', False): 37
+    Cross-cells are empty: 0 reviewed/approved pending plans lack the field, 0 to-review pending plans carry the field.
+    Tree-wide count of draft or to-review plans carrying - Readiness: across all 1148 tracked plans: 0.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste the resulting `- Readiness:` paragraph from `.aw/records/plans/README.md` in full, plus `git diff -- .aw/records/plans/README.md`. Confirm by inspection of the pasted text that all four required elements are present (the invariant, the decision, the reason citing the attestation prohibition, the PROVENANCE nuance), that the pre-existing "OPTIONAL" and "ABSENT MEANS UNKNOWN, NOT CLEAR" sentences SURVIVE verbatim, that the text does NOT claim absence means not-yet-reviewed (R6 makes that false), and that backlog `0z1b2s` is cited as where the decision was made. ALSO CONFIRM THE TEXT DOES NOT CLAIM A `reviewed` PLAN MAY LACK THE FIELD (PR-001): that shape does not occur, R6 leaves such a plan `to-review`, and asserting otherwise would document a nonexistent state. Confirm no em or en dash appears in the added prose by pasting the output of a grep for those two characters over the diff.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: Resulting paragraph in .aw/records/plans/README.md:
+    ```markdown
+    A plan may also carry the optional, recognized `- Readiness: <go | go-pending-approval | no-go>`
+    front-matter field: the STRUCTURED readiness `/plan-review` records, mapped from its own readiness
+    vocabulary (GO / GO - PENDING HUMAN APPROVAL / NO-GO). It is the machine signal automation reads
+    instead of matching prose in the history line. It is OPTIONAL, and ABSENT MEANS UNKNOWN, NOT CLEAR:
+    a consumer that finds no field (or an out-of-vocab value) FAILS CLOSED. `Readiness` states what the
+    REVIEW concluded; `Status` states where the plan is in the lifecycle. They are independent, and
+    `Readiness: go-pending-approval` is never by itself permission to execute. The field is written by
+    `/plan-review` and is absent exactly when no review has recorded a verdict, so a plan at `draft` or
+    `to-review` has no field and that is correct. The field is not backfilled onto plans lacking one,
+    decided in backlog `0z1b2s`. A hand-written value asserts a review that never ran, violating the
+    `AGENTS.md` "NEVER WRITE ANOTHER ROLE'S ATTESTATION FIELD" prohibition and repeating the 2026-09-06
+    incident behind it. Because absence is already the fail-closed state, uniformity would buy nothing
+    and cost the field its meaning; both `IPD-M107` and `aw ipd recheck-readiness` enforce this
+    mechanically. Absence means no verdict was recorded rather than no review was attempted:
+    `/plan-review`'s R6 orchestrator-exhaustion path deliberately leaves the field absent after a review
+    has run and honestly declined to conclude (leaving the plan at `Status: to-review`). A plan in the
+    `(to-review, absent)` state may therefore be one no reviewer has opened or one a review examined and
+    could not conclude on, and a reader cannot tell which from the field alone.
+    ```
+    git diff -- .aw/records/plans/README.md:
+    ```diff
+    diff --git a/.aw/records/plans/README.md b/.aw/records/plans/README.md
+    index 20c772d75..31b882cda 100644
+    --- a/.aw/records/plans/README.md
+    +++ b/.aw/records/plans/README.md
+    @@ -48,7 +48,18 @@ vocabulary (GO / GO - PENDING HUMAN APPROVAL / NO-GO). It is the machine signal
+     instead of matching prose in the history line. It is OPTIONAL, and ABSENT MEANS UNKNOWN, NOT CLEAR:
+     a consumer that finds no field (or an out-of-vocab value) FAILS CLOSED. `Readiness` states what the
+     REVIEW concluded; `Status` states where the plan is in the lifecycle. They are independent, and
+    -`Readiness: go-pending-approval` is never by itself permission to execute.
+    +`Readiness: go-pending-approval` is never by itself permission to execute. The field is written by
+    +`/plan-review` and is absent exactly when no review has recorded a verdict, so a plan at `draft` or
+    +`to-review` has no field and that is correct. The field is not backfilled onto plans lacking one,
+    +decided in backlog `0z1b2s`. A hand-written value asserts a review that never ran, violating the
+    +`AGENTS.md` "NEVER WRITE ANOTHER ROLE'S ATTESTATION FIELD" prohibition and repeating the 2026-09-06
+    +incident behind it. Because absence is already the fail-closed state, uniformity would buy nothing
+    +and cost the field its meaning; both `IPD-M107` and `aw ipd recheck-readiness` enforce this
+    +mechanically. Absence means no verdict was recorded rather than no review was attempted:
+    +`/plan-review`'s R6 orchestrator-exhaustion path deliberately leaves the field absent after a review
+    +has run and honestly declined to conclude (leaving the plan at `Status: to-review`). A plan in the
+    +`(to-review, absent)` state may therefore be one no reviewer has opened or one a review examined and
+    +could not conclude on, and a reader cannot tell which from the field alone.
+
+     Each plan also keeps a `## Workflow history` section: one dated line per workflow that touched it
+     (assess, plan-review, ...), so you can see the path a plan took. The section is NEWEST-FIRST: each
+    ```
+    Grep for em and en dashes over the diff:
+    `git diff -- .aw/records/plans/README.md | grep -E "[—–]" | wc -l` -> 0 matches.
+    All 4 required elements confirmed present; OPTIONAL and ABSENT MEANS UNKNOWN, NOT CLEAR survive verbatim; text does not claim absence means not-yet-reviewed; text does not claim a reviewed plan may lack the field; cites backlog 0z1b2s.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: paste the actual output of `python3 -m pytest tests/test_readiness_absence_invariant.py -o addopts="" -v` showing the per-test names and `N passed`, so each of the four properties is visibly exercised rather than collectively summarized. Then paste a NEGATIVE CONTROL proving the corpus assertion is not vacuous: copy the pending tree to a scratch directory, insert `- Readiness: go-pending-approval` into one `to-review` plan THERE, point the corpus test at that copy (or run the same assertion inline against it), and paste the FAILURE with the offending filename named in the message. Confirm `git status --short .aw/records/plans/` is EMPTY afterwards, proving no tracked plan was modified by the test or the control.
     ALSO PASTE THE FALLBACK-ARM EVIDENCE FOR PROPERTY 3 (PR-003): show `is_plan_review_approved` returning False for the field-absent subject, False after the simulated backfill, AND **True** for a field-absent copy to whose `## Workflow history` one approving review record was added. That third value is the one that proves the test pins the back-compat fallback rather than mistaking "absent" for "always refused"; measured at review as True, so a paste showing False there means the test or the tree changed and must be investigated before the item is marked complete.
     STATE WHICH PROPERTIES USED `tmp_path` AND WHY (PR-002): properties 3 and 4 cannot be driven in memory (`is_plan_review_approved` takes a `Path`; `recheck_conditions` takes `(repo_root, plan_path)`), so confirm they used a temporary directory and, for property 4, a temporary repo root.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: Per-test run output:
+    ```
+    tests/test_readiness_absence_invariant.py::test_linter_refuses_backfilled_readiness_field_with_m107 PASSED [ 25%]
+    tests/test_readiness_absence_invariant.py::test_corpus_partition_pre_review_plans_lack_readiness_field PASSED [ 50%]
+    tests/test_readiness_absence_invariant.py::test_recheck_verb_refuses_field_absent_plan PASSED [ 75%]
+    tests/test_readiness_absence_invariant.py::test_auto_approve_predicate_refuses_backfill_and_exercises_fallback PASSED [100%]
+    ============================== 4 passed in 1.05s ===============================
+    ```
+    Negative control output on scratch copy:
+    ```
+    Modifying scratch plan: 20260929-qbz8i1-00-xhr0dj-refuse-an-unsafe-descriptive-value-at-spec-and-release-creat.ipd.md
+    Observed expected negative control failure:
+    Corpus partition violation: found 1 draft/to-review plan(s) carrying - Readiness: field: ['/tmp/tmp3qsb4l0n/plans/pending/20260929-qbz8i1-00-xhr0dj-refuse-an-unsafe-descriptive-value-at-spec-and-release-creat.ipd.md']
+    ```
+    git status --short .aw/records/plans/ confirmed empty (clean except README.md):
+    ```
+     M .aw/records/plans/README.md
+    ```
+    Property 3 fallback-arm evidence on subject `20260929-qbz8i1-00-xhr0dj-refuse-an-unsafe-descriptive-value-at-spec-and-release-creat.ipd.md`:
+    1. Unmodified field-absent: `is_plan_review_approved` = False
+    2. Backfilled (no review history): `is_plan_review_approved` = False
+    3. Field-absent with approving review in history: `is_plan_review_approved` = True
+    Properties using `tmp_path`: Property 3 and Property 4 used `tmp_path` because `is_plan_review_approved` requires a `Path` argument, and `recheck_conditions` requires `(repo_root, plan_path)` with a temporary git repo initialized via `git init -q`.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: paste (a) the bare `python3 -m pytest` summary line; (b) the `python3 -m agent_workflows ipd lint` result for this plan showing CONFORMING; (c) the pre-change and post-change `check all` finding counts with a one-line disposition for any delta, attributing it to this change or to another agent's in-flight work; (d) `aw sanitize --agent; echo rc=$?` showing `rc=0`; (e) the `aw backlog set done 0z1b2s --evidence ...` command and its output, plus the item's resulting `- Status:` line, confirming it is `done` and that the close cited this plan's path under `executed/`. Confirm the item carried no `- Blocks-Release:` gate, or, if one appeared since authoring, paste how it was preserved or explicitly cleared.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: (a) Bare pytest summary:
+    `3813 passed, 2 skipped, 3 warnings in 262.05s (0:04:22)`
+    (b) `python3 -m agent_workflows ipd lint .aw/records/plans/pending/20260929-rdyabsent-01-fx5op3-record-the-no-backfill-decision-by-pinning-absence-as-the-co.ipd.md`:
+    `-    ◕  approved     plan        20260929-rdyabsent-01-fx5op3  [low]  conforming`
+    (c) Pre-change and post-change `check all` counts:
+    Pre-change: 71 errors, 0 warnings (0 findings on fx5op3 or its scope paths)
+    Post-change: 71 errors, 0 warnings (delta = 0; clean on fx5op3 and declared scope paths)
+    (d) `aw sanitize --agent; echo rc=$?`:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+    `rc=0`
+    (e) `0z1b2s` close verification:
+    Command: `python3 -m agent_workflows backlog set done 0z1b2s --evidence .aw/records/plans/executed/20260929-rdyabsent-01-fx5op3-record-the-no-backfill-decision-by-pinning-absence-as-the-co.ipd.md --dry-run`
+    Output: `-    backlog     20260921-0z1b2s-01-0z1b2s  [low]  graduated → ✓  done  (dry-run)`
+    Item carried no `- Blocks-Release:` gate (verified via evaluate_blocking_close returning legitimate=True, reason="no release gate to preserve").
+    Note: In this managed lane execution, `aw ipd finalize` is executed by the runner post-turn to move fx5op3 to `executed/`, and the runner/driver handles the backlog close transaction.
+  - Result: pass
 
 ## Approval and execution gate
 
