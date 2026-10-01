@@ -37,6 +37,17 @@ PLAN_REVIEW_LONG_FILE = (
     WORKFLOWS_DIR / "plan-review-long" / "03-resolve-and-finalize.md"
 )
 SPEC_REVIEW_FILE = WORKFLOWS_DIR / "spec-review" / "spec-review.md"
+REVIEW_RUBRIC_FILE = WORKFLOWS_DIR / "plan-review-long" / "review-rubric.md"
+
+# Anchor phrases for the canonical no-error-added proof shape (IPD k6t24p, set findtier):
+# 1. Gate-consequence measurement function
+# 2. Rule spec severity assertion symbol
+# 3. Naming the exit-0 demand unsatisfiable
+NO_ERROR_ADDED_ANCHOR_PHRASES = [
+    "drift_exit_code",
+    "check_engine.rule_spec",
+    "unsatisfiable",
+]
 
 
 class TestPlanReviewFeasibilityRule(unittest.TestCase):
@@ -144,3 +155,44 @@ class TestPlanReviewFeasibilityRule(unittest.TestCase):
             f"spec-review.md duplicates the feasibility rule ({len(found_phrases)} phrases found: "
             f"{found_phrases}). It must reference the rule, not copy it.",
         )
+
+    def test_no_error_added_proof_shape_in_rubrics(self) -> None:
+        """Assert both single-file and long-form rubrics carry the canonical no-error-added proof shape.
+
+        Exemption from source-text-pin prohibition (GUIDING_PRINCIPLES P16):
+        This test is explicitly within P16's narrow exception ('only where the text or file
+        itself is the artifact under test') because the workflow bodies (plan-review.md and
+        review-rubric.md) are the exact artifacts under change by IPD k6t24p. The test reads
+        no code under agent_workflows/*.
+        """
+        # 1. Single-file rubric: check section G (Plan executability)
+        single_content = PLAN_REVIEW_FILE.read_text(encoding="utf-8")
+        single_start = single_content.find("### G. Plan executability")
+        self.assertNotEqual(
+            single_start,
+            -1,
+            f"Missing heading '### G. Plan executability' in {PLAN_REVIEW_FILE}",
+        )
+        single_section = single_content[single_start:]
+        for phrase in NO_ERROR_ADDED_ANCHOR_PHRASES:
+            self.assertIn(
+                phrase,
+                single_section,
+                f"Anchor phrase '{phrase}' not found in section G of {PLAN_REVIEW_FILE}",
+            )
+
+        # 2. Long-form rubric: check section A (Plan completeness)
+        long_content = REVIEW_RUBRIC_FILE.read_text(encoding="utf-8")
+        long_start = long_content.find("## A. Plan completeness")
+        self.assertNotEqual(
+            long_start,
+            -1,
+            f"Missing heading '## A. Plan completeness' in {REVIEW_RUBRIC_FILE}",
+        )
+        long_section = long_content[long_start:]
+        for phrase in NO_ERROR_ADDED_ANCHOR_PHRASES:
+            self.assertIn(
+                phrase,
+                long_section,
+                f"Anchor phrase '{phrase}' not found in section A of {REVIEW_RUBRIC_FILE}",
+            )

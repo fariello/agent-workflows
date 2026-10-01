@@ -6,7 +6,7 @@
 - Scope: Record, ONCE, in the two plan-review rubric surfaces, the canonical two-limb no-error-added proof shape an author must demand instead (a registry severity assertion plus a behavioral gate-consequence measurement), and name the exit-0 form as the specific anti-pattern to flag. EXCLUDES any change to `artifact_core.drift_exit_code`, to `check_engine.RULE_REGISTRY`, or to any rule's registered severity: the code is correct and this is an authoring-contract defect. EXCLUDES editing executed plan `3i6rso` beyond nothing at all (its record is immutable and it already documents the refusal). EXCLUDES the suite-coverage half of this area, which sibling `y43g6q` owns. EXCLUDES adding a mechanical lint rule, for the reason the adjacent re-derivation convention states: distinguishing a satisfiable evidence demand from an unsatisfiable one requires semantic reading.
 - Scope-Paths: .aw/system/workflows/plan-review/plan-review.md, .aw/system/workflows/plan-review-long/review-rubric.md, tests/test_plan_review_feasibility_rule.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: k6t24p
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: k6t24p verified (set findtier, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-101 through PR-106 all fixed
 
@@ -40,7 +40,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: record the canonical proof shape where a plan author reads it
 
-- [ ] E-01 ADD THE CANONICAL NO-ERROR-ADDED PROOF SHAPE to the single-file rubric's `## Engineering rubric` section G (`Plan executability`), as one bullet in the style of the `Live-artifact success criteria vs. stable code facts (re-derivation convention)` bullet that already sits there, and place it IMMEDIATELY AFTER that bullet, which is its closest sibling (both govern what an author may demand as evidence).
+- [x] E-01 ADD THE CANONICAL NO-ERROR-ADDED PROOF SHAPE to the single-file rubric's `## Engineering rubric` section G (`Plan executability`), as one bullet in the style of the `Live-artifact success criteria vs. stable code facts (re-derivation convention)` bullet that already sits there, and place it IMMEDIATELY AFTER that bullet, which is its closest sibling (both govern what an author may demand as evidence).
   STATE THE TWO LIMBS THE AUTHOR MUST DEMAND, and no more: (a) a REGISTRY SEVERITY assertion, that the rule id resolves through `check_engine.rule_spec` to the intended severity; and (b) a GATE-CONSEQUENCE MEASUREMENT, that `artifact_core.drift_exit_code` is DRIVEN with a finding at that severity and its actual return value pasted, so the rule's effect on the gate is measured rather than assumed.
   WRITE LIMB (b) AS A CONTRASTIVE PAIR, NOT A SINGLE CALL, because a lone `drift_exit_code([warning_finding]) == 1` is satisfied by any nonempty list and so proves nothing about THIS rule's severity. Demand the same shape `3i6rso`'s executor actually produced when it refused the impossible ask, which review read at its `V-04` `Observed evidence`: assert the real finding list exits 1 AND that the SAME list with its severity swapped to `info` exits 0 (its test does `drift_exit_code(drift) == 1` beside `drift_exit_code([d._replace(severity="info") ...]) == 0`). The pair is what localizes the exit code to the severity under test. That executor's refusal is the calibrated passing example for this convention, so the rubric should describe the shape it reached rather than a weaker one.
   ALSO PERMIT, AND PREFER WHERE THE RULE IS LIVE, A PER-RULE COUNT DELTA as a third optional limb: `python3 -m agent_workflows check all --agent` before and after, showing the new rule id as the ONLY id whose count moved. That is the half that actually evidences "adds no error" on the real corpus, it is fully behavioral, and `3i6rso`'s executor produced it too (a `before total=324 / after total=329` table naming `check.identity-absent-from-name 0 -> 2` as the only new id). Mark it optional rather than required, since a rule that reports nothing on this repository's tree cannot produce a nonzero delta.
@@ -49,19 +49,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT propose a source census, a caller count, or any `read_text`/`inspect`/regex read of `agent_workflows/*.py` as a limb. GUIDING_PRINCIPLES P16 prohibits it, and the specific census this backlog item suggested was deleted by commit `80db6750`; canonizing it would mint tests that are born condemned.
   - Depends on: none
   - Expected outcome: the single-file rubric carries the bullet, positioned directly after the re-derivation bullet in `### G. Plan executability`, naming both required limbs with limb (b) written as the contrastive exits-1/swapped-to-info-exits-0 pair, naming the exit-0 ask as a reviewer-flaggable anti-pattern, stating that `info` is the only severity `drift_exit_code` exempts, and prohibiting a source-census limb.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 MIRROR THE SAME BULLET INTO THE LONG-FORM RUBRIC at `.aw/system/workflows/plan-review-long/review-rubric.md`, so the two review routes cannot give an author different contracts.
+- [x] E-02 MIRROR THE SAME BULLET INTO THE LONG-FORM RUBRIC at `.aw/system/workflows/plan-review-long/review-rubric.md`, so the two review routes cannot give an author different contracts.
   PLACE IT BESIDE ITS EXISTING SIBLING, the `Right-sizing and conceptual density (per E-item)` bullet, AND LOCATE THAT BULLET BY ITS QUOTED TEXT RATHER THAN BY A SECTION LETTER. THE TWO FILES' SECTION LETTERS DO NOT CORRESPOND, which is the trap this paragraph exists to stop: the single-file rubric's section G is `### G. Plan executability`, while the long-form rubric's section G is `## G. UX and accessibility`. The long-form file's plan-executability material lives in `## A. Plan completeness`, and that is where the right-sizing bullet sits. So "section G" is correct for E-01 and WRONG for this item; writing the bullet into the long-form file's section G would file an evidence-shape rule under accessibility. Measured at review: the single-file rubric's sections run A. Correctness / B. Security / C. Architecture / D. Anti-regression / E. Testing / F. KISS / G. Plan executability, and the long-form rubric's run A. Plan completeness / B. Data / C. Security / D. Architecture / E. Invariants / F. Testing / G. UX / H. Operations.
   VERIFY BEFORE WRITING that the re-derivation bullet from E-01's anchor is ABSENT from this file, which is what makes the long-form rubric the drifted surface rather than a second copy: measured at review, `review-rubric.md` carries both the `Right-sizing and conceptual density` and `Maintainer sizing signals` bullets VERBATIM but NOT the re-derivation one. If your own read disagrees, state what you observed and place the new bullet beside the right-sizing bullet regardless.
   KEEP THE TWO WORDINGS SUBSTANTIVELY IDENTICAL. Both files must demand the same two limbs and name the same anti-pattern; incidental section-numbering differences are fine, a different contract is not.
   - Depends on: E-01
   - Expected outcome: the long-form rubric carries a substantively identical bullet beside its right-sizing bullet inside `## A. Plan completeness` (located by quoted text, not by section letter), and the observed presence/absence of the re-derivation bullet in that file is stated.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: guard the wording against silent loss
 
-- [ ] E-03 PIN BOTH BULLETS with anchor-phrase assertions in `tests/test_plan_review_feasibility_rule.py`, the module that ALREADY pins workflow-body prose in exactly this way and whose own docstring records why that is permitted.
+- [x] E-03 PIN BOTH BULLETS with anchor-phrase assertions in `tests/test_plan_review_feasibility_rule.py`, the module that ALREADY pins workflow-body prose in exactly this way and whose own docstring records why that is permitted.
   REUSE THAT MODULE RATHER THAN CREATING ONE, and reuse its established pattern: it defines `ANCHOR_PHRASES`, resolves `WORKFLOWS_DIR` from `Path(__file__).resolve().parent.parent`, and reads the workflow body with `read_text`. Add a test asserting a distinctive anchor phrase from the new bullet is present in BOTH `plan-review/plan-review.md` and `plan-review-long/review-rubric.md`.
   YOU MUST ADD A NEW FILE CONSTANT: the module DOES NOT currently read `review-rubric.md` at all. Its three existing module-level path constants are `PLAN_REVIEW_FILE` (`plan-review/plan-review.md`), `PLAN_REVIEW_LONG_FILE` (`plan-review-long/03-resolve-and-finalize.md`, NOT the rubric) and `SPEC_REVIEW_FILE`. Measured at review: no test under `tests/` names `review-rubric.md`, so this plan's second scope path is entering the test suite for the first time and `PLAN_REVIEW_LONG_FILE` is the WRONG constant to reuse. Add a distinctly named constant (for example `REVIEW_RUBRIC_FILE`) rather than repointing the existing one, which three passing tests depend on.
   DO NOT REUSE THE MODULE'S SECTION-SLICING PATTERN WITHOUT RE-DERIVING ITS BOUNDARIES. Its existing tests slice by `### 3.1 `/`### 3.2 ` and by `## 1. Resolve open questions`, none of which exist in either rubric surface this plan edits. Either assert against the whole file text or slice on a heading you have confirmed present; a slice on an absent heading fails with a confusing "missing heading" error rather than a useful "bullet missing" one.
@@ -70,7 +70,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   CHOOSE ANCHORS THAT SURVIVE COPY-EDITING: pick short distinctive tokens tied to the CONTRACT (for example the rule symbol `drift_exit_code` and the phrase naming the exit-0 ask unsatisfiable) rather than a whole sentence, so a reworded-but-correct rubric does not fail.
   - Depends on: E-02
   - Expected outcome: `python3 -m pytest tests/test_plan_review_feasibility_rule.py` passes with the new test present AND the three pre-existing tests still passing (review measured `3 passed` before this plan, so the run must show 4 or more), the test's docstring records the P16 narrow-exception argument, and deleting either bullet makes it fail.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -152,20 +152,146 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: PASTE the committed diff hunk of `.aw/system/workflows/plan-review/plan-review.md` showing the new bullet and showing it sits IMMEDIATELY AFTER the `Live-artifact success criteria vs. stable code facts` bullet inside `### G. Plan executability`. QUOTE the added text and CONFIRM against it, clause by clause, that all four required elements are present: limb (a) the `check_engine.rule_spec` severity assertion, limb (b) the `artifact_core.drift_exit_code` gate-consequence measurement WRITTEN AS THE CONTRASTIVE PAIR (the real list exits 1 AND the same list swapped to `info` exits 0), the exit-0 ask named as a reviewer-flaggable anti-pattern, and the statement that `info` is the only severity `drift_exit_code` exempts. A limb (b) that demands only a single exits-1 call FAILS this item under F-11. CONFIRM the bullet contains NO source-census, caller-count, or `read_text`/`inspect` limb; its presence FAILS this item under F-02. ALSO paste your OWN re-measurement of `drift_exit_code` driven with one synthetic finding at each of `error`, `warning`, `info`, and an empty list, and state the four return values you observed rather than repeating F-01's; if `info -> 0` does not reproduce, STOP, because the convention's premise has changed. CONFIRM the bullet's empty-list statement (if it makes one) matches YOUR measurement and not the two `check_engine.py` comments that say `empty -> 1`, which F-08 measured as wrong.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS.
+    Committed diff hunk of `.aw/system/workflows/plan-review/plan-review.md`:
+    ```diff
+    @@ -552,6 +552,11 @@ Verify the plan states:
+       checklist that maps 1:1 with concrete per-item evidence. A weak or absent verification checklist
+       (one that could let an agent claim completion without doing every step) is an UNDER-SCOPE finding.
+     - **Live-artifact success criteria vs. stable code facts (re-derivation convention):** An `Expected outcome` or acceptance criterion that counts **live artifacts** (such as pending plans, open review findings, or stranded repository state) MUST state the required property and require re-derivation at execution time; a count measured at authoring belongs in the item's prose as context, never as the bar. Criteria counting **stable code facts** (test assertions, schema keys, enum members) or an orchestrator counting its own declared children are EXEMPT, because these are fixed authored facts rather than drifting live populations. (Review is the only enforcement surface; no mechanical lint rule is attempted because distinguishing live artifact counts from stable code facts requires semantic reading.)
+    +- **Canonical no-error-added proof shape vs. unsatisfiable exit-0 demands (evidence-feasibility convention):** When a plan demands proof that an advisory rule adds no error, the author must demand evidence that can actually be produced. The canonical proof requires two limbs:
+    +  (a) a **registry severity assertion**, showing the rule id resolves through `check_engine.rule_spec` to the intended severity; and
+    +  (b) a **gate-consequence measurement**, driving `artifact_core.drift_exit_code` with the finding list and pasting its return value as a contrastive pair--asserting the real finding list exits 1 (e.g. `drift_exit_code(drift) == 1` for `warning` or `error`) AND that the same finding list with its severity swapped to `info` exits 0 (e.g. `drift_exit_code([d._replace(severity="info") for d in drift]) == 0`). The pair is what localizes the exit code to the severity under test.
+    +  Where the rule is live on the repository corpus, an author may also permit or prefer an optional third limb: a **per-rule count delta** from `python3 -m agent_workflows check all --agent` before and after, showing the new rule id as the only id whose count moved.
+    +  **Anti-pattern to flag:** Demanding "a synthetic tree whose only finding is the new rule, on which `aw check` exits 0" is **unsatisfiable** for any severity other than `info`. In `artifact_core.drift_exit_code`, `info` is the only severity exempted (both `error` and `warning` exit 1; clean/empty trees and `info`-only trees exit 0). `warning` does NOT mean "cannot fail anything"; `error` and `warning` have identical gate consequence (both exit 1) and differ only in condition classification. Writing an exit-0 demand for a non-`info` rule forces the executor to either refuse the item or mis-register the rule as `info`, shipping a contract defect. Reviewers must flag an unsatisfiable exit-0 demand as an in-scope plan defect. Proofs must be behavioral; demanding a source census, caller count, or `read_text`/`inspect` search against `agent_workflows/*.py` is strictly prohibited by GUIDING_PRINCIPLES P16.
+     - **Right-sizing and conceptual density (per E-item):** Evaluate whether each E-item addresses exactly **one concern** and is **executable in one focused pass**. A passing count-based size check (`aw ipd lint`) measures only structural count (>18 E-leaves / >5 groups), NOT conceptual density. For each IPD and each E-item, ask:
+    ```
+    The diff hunk confirms the bullet sits immediately after the `Live-artifact success criteria vs. stable code facts` bullet inside `### G. Plan executability`.
 
-- [ ] V-02 validates E-02
+    Quote of added text:
+    "- **Canonical no-error-added proof shape vs. unsatisfiable exit-0 demands (evidence-feasibility convention):** When a plan demands proof that an advisory rule adds no error, the author must demand evidence that can actually be produced. The canonical proof requires two limbs:
+      (a) a **registry severity assertion**, showing the rule id resolves through `check_engine.rule_spec` to the intended severity; and
+      (b) a **gate-consequence measurement**, driving `artifact_core.drift_exit_code` with the finding list and pasting its return value as a contrastive pair--asserting the real finding list exits 1 (e.g. `drift_exit_code(drift) == 1` for `warning` or `error`) AND that the same finding list with its severity swapped to `info` exits 0 (e.g. `drift_exit_code([d._replace(severity="info") for d in drift]) == 0`). The pair is what localizes the exit code to the severity under test.
+      Where the rule is live on the repository corpus, an author may also permit or prefer an optional third limb: a **per-rule count delta** from `python3 -m agent_workflows check all --agent` before and after, showing the new rule id as the only id whose count moved.
+      **Anti-pattern to flag:** Demanding \"a synthetic tree whose only finding is the new rule, on which `aw check` exits 0\" is **unsatisfiable** for any severity other than `info`. In `artifact_core.drift_exit_code`, `info` is the only severity exempted (both `error` and `warning` exit 1; clean/empty trees and `info`-only trees exit 0). `warning` does NOT mean \"cannot fail anything\"; `error` and `warning` have identical gate consequence (both exit 1) and differ only in condition classification. Writing an exit-0 demand for a non-`info` rule forces the executor to either refuse the item or mis-register the rule as `info`, shipping a contract defect. Reviewers must flag an unsatisfiable exit-0 demand as an in-scope plan defect. Proofs must be behavioral; demanding a source census, caller count, or `read_text`/`inspect` search against `agent_workflows/*.py` is strictly prohibited by GUIDING_PRINCIPLES P16."
+
+    Clause-by-clause confirmation:
+    1. Limb (a): confirmed present -- `(a) a **registry severity assertion**, showing the rule id resolves through check_engine.rule_spec to the intended severity;`
+    2. Limb (b): confirmed present as contrastive pair -- `(b) a **gate-consequence measurement**, driving artifact_core.drift_exit_code with the finding list and pasting its return value as a contrastive pair--asserting the real finding list exits 1 (e.g. drift_exit_code(drift) == 1 for warning or error) AND that the same finding list with its severity swapped to info exits 0 (e.g. drift_exit_code([d._replace(severity="info") for d in drift]) == 0). The pair is what localizes the exit code to the severity under test.`
+    3. Anti-pattern named: confirmed present -- `Anti-pattern to flag: Demanding "a synthetic tree whose only finding is the new rule, on which aw check exits 0" is unsatisfiable for any severity other than info. ... Reviewers must flag an unsatisfiable exit-0 demand as an in-scope plan defect.`
+    4. Statement that `info` is the only severity `drift_exit_code` exempts: confirmed present -- `In artifact_core.drift_exit_code, info is the only severity exempted (both error and warning exit 1; clean/empty trees and info-only trees exit 0). warning does NOT mean "cannot fail anything"; error and warning have identical gate consequence (both exit 1) and differ only in condition classification.`
+    5. Prohibits source-census / caller-count / read_text: confirmed -- `Proofs must be behavioral; demanding a source census, caller count, or read_text/inspect search against agent_workflows/*.py is strictly prohibited by GUIDING_PRINCIPLES P16.`
+
+    Own re-measurement of `drift_exit_code`:
+    ```python
+    from collections import namedtuple
+    from agent_workflows import artifact_core
+
+    Drift = namedtuple("Drift", ["severity"], defaults=[""])
+    print("error ->", artifact_core.drift_exit_code([Drift(severity="error")]))
+    print("warning ->", artifact_core.drift_exit_code([Drift(severity="warning")]))
+    print("info ->", artifact_core.drift_exit_code([Drift(severity="info")]))
+    print("empty ->", artifact_core.drift_exit_code([]))
+    ```
+    Output:
+    ```
+    error -> 1
+    warning -> 1
+    info -> 0
+    empty -> 0
+    ```
+    Confirmed `info -> 0` reproduced exactly, and the bullet's statement ("clean/empty trees and info-only trees exit 0") matches our measured `empty -> 0` rather than the two `check_engine.py` comments that say `empty -> 1`.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: PASTE the committed diff hunk of `.aw/system/workflows/plan-review-long/review-rubric.md` showing the mirrored bullet beside the `Right-sizing and conceptual density (per E-item)` bullet. NAME THE ENCLOSING SECTION HEADING YOU LANDED IN and confirm it is the plan-executability section (`## A. Plan completeness` at review) and NOT `## G.`, which in this file is `UX and accessibility`; a bullet under `## G.` FAILS this item under F-09. PASTE a side-by-side or diff of the two added bullets from both files and CONFIRM they demand the same two limbs and name the same anti-pattern; a substantive divergence FAILS this item, while incidental numbering differences do not. STATE what you observed about the `Live-artifact success criteria` bullet's presence in `review-rubric.md` (review measured it ABSENT, while `Right-sizing` and `Maintainer sizing signals` are both present verbatim) and confirm your placement choice against what you actually found.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS.
+    Committed diff hunk of `.aw/system/workflows/plan-review-long/review-rubric.md`:
+    ```diff
+    @@ -35,6 +35,11 @@ For an agent-executable plan (an IPD or similar with actionable steps), it must
+     verification/cross-check checklist that maps 1:1 with concrete per-item evidence; a weak or
+     absent verification checklist (one that could let an agent claim completion without doing every
+     step) is an UNDER-SCOPE finding.
+    +- **Canonical no-error-added proof shape vs. unsatisfiable exit-0 demands (evidence-feasibility convention):** When a plan demands proof that an advisory rule adds no error, the author must demand evidence that can actually be produced. The canonical proof requires two limbs:
+    +  (a) a **registry severity assertion**, showing the rule id resolves through `check_engine.rule_spec` to the intended severity; and
+    +  (b) a **gate-consequence measurement**, driving `artifact_core.drift_exit_code` with the finding list and pasting its return value as a contrastive pair--asserting the real finding list exits 1 (e.g. `drift_exit_code(drift) == 1` for `warning` or `error`) AND that the same finding list with its severity swapped to `info` exits 0 (e.g. `drift_exit_code([d._replace(severity="info") for d in drift]) == 0`). The pair is what localizes the exit code to the severity under test.
+    +  Where the rule is live on the repository corpus, an author may also permit or prefer an optional third limb: a **per-rule count delta** from `python3 -m agent_workflows check all --agent` before and after, showing the new rule id as the only id whose count moved.
+    +  **Anti-pattern to flag:** Demanding "a synthetic tree whose only finding is the new rule, on which `aw check` exits 0" is **unsatisfiable** for any severity other than `info`. In `artifact_core.drift_exit_code`, `info` is the only severity exempted (both `error` and `warning` exit 1; clean/empty trees and `info`-only trees exit 0). `warning` does NOT mean "cannot fail anything"; `error` and `warning` have identical gate consequence (both exit 1) and differ only in condition classification. Writing an exit-0 demand for a non-`info` rule forces the executor to either refuse the item or mis-register the rule as `info`, shipping a contract defect. Reviewers must flag an unsatisfiable exit-0 demand as an in-scope plan defect. Proofs must be behavioral; demanding a source census, caller count, or `read_text`/`inspect` search against `agent_workflows/*.py` is strictly prohibited by GUIDING_PRINCIPLES P16.
+     - **Right-sizing and conceptual density (per E-item):** Evaluate whether each E-item addresses exactly **one concern** and is **executable in one focused pass**. A passing count-based size check (`aw ipd lint`) measures only structural count (>18 E-leaves / >5 groups), NOT conceptual density. For each IPD and each E-item, ask:
+    ```
+    Enclosing section heading:
+    Confirmed landed in `## A. Plan completeness` (line 5), NOT in `## G. UX and accessibility`.
 
-- [ ] V-03 validates E-03
+    Side-by-side / diff comparison of the added bullets:
+    The two added bullet blocks are byte-identical across both files. Diff between the two added text blocks is completely empty (`diff -u` returns 0 differences). They demand the exact same two limbs (registry severity assertion via `check_engine.rule_spec`, contrastive gate-consequence measurement via `artifact_core.drift_exit_code`), permit the same optional per-rule count delta, name the same exit-0 anti-pattern as unsatisfiable, and prohibit source-census/caller-count approaches under GUIDING_PRINCIPLES P16.
+
+    Observation regarding `Live-artifact success criteria`:
+    Grep search for `Live-artifact success criteria` in `.aw/system/workflows/plan-review-long/review-rubric.md` returned no matches (exit code 1). The bullet is confirmed ABSENT from `review-rubric.md`, while `Right-sizing and conceptual density (per E-item)` and `Maintainer sizing signals` are present verbatim. The new bullet was therefore placed immediately before `Right-sizing and conceptual density (per E-item)` inside `## A. Plan completeness`.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: PASTE the ACTUAL output of `python3 -m pytest tests/test_plan_review_feasibility_rule.py` showing the new test passing AND the three pre-existing tests still passing (review measured `3 passed` before this plan, so the count must be 4 or more and no pre-existing test may have been repurposed), and the bare `python3 -m pytest` summary line with the `N passed` count you observed (do not assert any count recorded in this plan; measure your own). CONFIRM you added a NEW path constant for `review-rubric.md` rather than repointing `PLAN_REVIEW_LONG_FILE`, which resolves to `03-resolve-and-finalize.md` and backs an existing test, and that you did NOT append to the shared module-level `ANCHOR_PHRASES`, which `test_spec_review_feasibility_rule_reference` asserts against with an at-most-one bound (F-10). Repointing the constant or extending that list FAILS this item. PASTE THE MUTATION PROOF, which is what makes the test worth having: remove the new bullet from EACH rubric in turn (scratch copy or in-memory patch) and paste the FAILING output for each, then confirm both files are restored byte-identical (`git diff` on both paths must be empty after the mutation runs, aside from the intended additions). PASTE the new test's docstring showing the P16 narrow-exception argument is recorded, and CONFIRM the test reads no path under `agent_workflows/`. FINALLY paste `git diff --name-only` at finalize and confirm no `agent_workflows/` path appears.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS.
+    Actual output of `python3 -m pytest tests/test_plan_review_feasibility_rule.py`:
+    ```
+    bringing up nodes...
+    ....                                                                     [100%]
+    4 passed in 1.88s
+    ```
+    The 3 pre-existing tests (`test_single_file_plan_review_feasibility_rule`, `test_long_form_plan_review_feasibility_rule`, `test_spec_review_feasibility_rule_reference`) all pass, and the new test (`test_no_error_added_proof_shape_in_rubrics`) passes.
+
+    Bare `python3 -m pytest` summary line:
+    ```
+    3879 passed, 2 skipped, 3 warnings in 91.99s (0:01:31)
+    ```
+
+    Confirmation of constants and isolation:
+    - Added a NEW path constant: `REVIEW_RUBRIC_FILE = WORKFLOWS_DIR / "plan-review-long" / "review-rubric.md"`
+    - Left `PLAN_REVIEW_LONG_FILE = (WORKFLOWS_DIR / "plan-review-long" / "03-resolve-and-finalize.md")` unchanged.
+    - Did NOT append to the module-level `ANCHOR_PHRASES` list.
+    - Defined a dedicated constant `NO_ERROR_ADDED_ANCHOR_PHRASES = ["drift_exit_code", "check_engine.rule_spec", "unsatisfiable"]`.
+
+    Mutation proof:
+    1. Removal of bullet from `plan-review.md`:
+    ```
+    FAILED tests/test_plan_review_feasibility_rule.py::TestPlanReviewFeasibilityRule::test_no_error_added_proof_shape_in_rubrics
+    AssertionError: Anchor phrase 'drift_exit_code' not found in section G of .../plan-review.md
+    1 failed, 3 passed in 2.10s
+    ```
+    2. Removal of bullet from `review-rubric.md`:
+    ```
+    FAILED tests/test_plan_review_feasibility_rule.py::TestPlanReviewFeasibilityRule::test_no_error_added_proof_shape_in_rubrics
+    AssertionError: Anchor phrase 'drift_exit_code' not found in section A of .../plan-review-long/review-rubric.md
+    1 failed, 3 passed in 1.80s
+    ```
+    After testing both mutations, both files were restored byte-identical with the intended additions.
+
+    Docstring of new test:
+    ```python
+        """Assert both single-file and long-form rubrics carry the canonical no-error-added proof shape.
+
+        Exemption from source-text-pin prohibition (GUIDING_PRINCIPLES P16):
+        This test is explicitly within P16's narrow exception ('only where the text or file
+        itself is the artifact under test') because the workflow bodies (plan-review.md and
+        review-rubric.md) are the exact artifacts under change by IPD k6t24p. The test reads
+        no code under agent_workflows/*.
+        """
+    ```
+
+    Confirmation of paths read by test:
+    Confirmed `tests/test_plan_review_feasibility_rule.py` reads only files under `.aw/system/workflows/` and reads no path under `agent_workflows/`.
+
+    Final `git diff --name-only` check:
+    ```
+    .aw/records/plans/pending/20260929-findtier-03-k6t24p-state-the-canonical-no-error-added-proof-shape-in-the-review.ipd.md
+    .aw/system/workflows/plan-review-long/review-rubric.md
+    .aw/system/workflows/plan-review/plan-review.md
+    tests/test_plan_review_feasibility_rule.py
+    ```
+    Confirmed: no path under `agent_workflows/` appears.
+  - Result: pass
 
 ## Approval and execution gate
 
