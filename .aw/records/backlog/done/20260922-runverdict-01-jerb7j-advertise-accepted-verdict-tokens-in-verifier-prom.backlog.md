@@ -1,5 +1,5 @@
 - Id: jerb7j
-- Status: graduated
+- Status: done
 - Graduated-To: runverdict
 - Set: runverdict
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Advertise the accepted verifier verdict tokens in the verifier prompt so the schema and its fail-closed consumer cannot disagree
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD 3x5wx9 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-runverdict-01-3x5wx9-advertise-the-verifier-verdict-tokens-the-runner-actually-ac.ipd.md); evidence .aw/records/plans/executed/20260930-runverdict-01-3x5wx9-advertise-the-verifier-verdict-tokens-the-runner-actually-ac.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: 3x5wx9
 - 2026-09-22 created (aw backlog): Found while executing plan 1bfppy.
 
