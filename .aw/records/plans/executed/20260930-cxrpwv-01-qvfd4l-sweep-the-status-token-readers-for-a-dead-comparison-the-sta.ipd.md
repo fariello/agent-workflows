@@ -7,7 +7,7 @@
   OUT: the two sites plan `5o1jye` already fixed (`render_run_summary_table`'s `fail-depend` diagnostics arm and `write_report`'s `## Dependency blocks (why)` gate, both now canonicalized and shipped); every site the sweep measured as CORRECT BY CONSTRUCTION because it accepts both spellings deliberately (`runner_shutdown.KNOWN_ITEM_STATUSES`, `lifecycle_style._RUNNER_ITEM_PAIRS`, `attention.get_active_runs_map`, `runner_shared.DISPATCH_PROVING_STATUSES`, `artifact_audit._status_disagrees`); every `blocked`/`partial` literal that is a DIFFERENT VOCABULARY's member and not a runner terminal status at all (backlog gates, IPD exec-states, release statuses, verify verdicts, research pipeline positions); `attention`'s Run column, owned by the approved plan `r61br4`; and `render_stream`'s zero-dispatch denominator collapse, which plan `35mjqc` has already EXECUTED and which this plan must only avoid regressing.
 - Scope-Paths: agent_workflows/render_stream.py, agent_workflows/run_viewer.py, agent_workflows/run_dashboard.py, tests/test_canonical_status_reader_sweep.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -18,9 +18,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: qvfd4l
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: qvfd4l verified (set cxrpwv, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-009. Measured all of F-01..F-11 independently (F-03/F-04/F-05 reproduce exactly; the AST sweep re-ran to the same 258/34 and same 15 band-B sites). Fixed two correctness blockers in the plan's own instructions: E-02's canonicalize import cycles at module level (ImportError measured) so it is now mandated function-local, and E-04's canonicalize-first ordering silently deleted the partial verdict V-04 demands (measured partial -> failed) so the raw partial arm is now ordered first with the lossy-alias exception named and tested. Added E-06/V-06 for a FOURTH measured defect review found that the authoring sweep missed: two legacy-only arms of the same diagnostics elif chain render NO section at all for a canonical fail-gate/fail-merge carrying driver_error/integration_deferral, which is the item's own defect class repeated two arms below the one 5o1jye fixed. Corrected two stale ownership claims (35mjqc has EXECUTED; r61br4 is now approved). New OQ-03 records the lossy-alias decision.
 - 2026-09-30 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): authored from backlog item `cxrpwv`. The item asks for the CLASS sweep that plan `5o1jye` left unaudited, and the sweep was PERFORMED at authoring time rather than deferred to execution (see Findings F-01). It measured three surfaces whose operator-visible behavior differs by spelling, which is why this plan is `- Work-Kind: bug` where the item was filed `followup`: the item itself states that "should the sweep measure a further dead surface an operator reads, that instance should be filed `bug` on its own measurement", and three were measured. The item carries no `- Blocks-Release:`, so per the repository's live-bug gating rule this plan carries `- Blocks-Release: next` on its OWN `bug` classification rather than by inheritance.
@@ -36,47 +36,47 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Pin the current behavior before changing it
 
-- [ ] E-01 Create `tests/test_canonical_status_reader_sweep.py` and add CHARACTERIZATION tests that, against the CURRENT code and before any production edit, pin the measured spelling divergence at all FOUR surfaces. Each test must drive the real entry point and assert on rendered output or returned values, never on source text. (a) `render_stream.render_run_summary_table` over a three-entry queue holding two `action: skip` entries and one `queued` execute entry: assert the rendered `Progress:` line reads `2/3` when the skip entries carry `not-run` and `0/3` when they carry `not-attempted`. (b) `run_viewer.load_run_summary` over a temporary run directory whose single item carries `fail-verify`: assert the `--failed` predicate (`status in ("failed", "partial", "blocked", "interrupted")`) is False for it and True for the same item spelled `partial`. (c) `run_dashboard._outcome`: assert `fail-lane` and `fail-begin` return `unknown` while `fail-gate` returns `failed`, and that `dependency-blocked` and `merge-needs-human` return `unknown` while their canonical twins `fail-depend`/`fail-merge` return `failed`. (d) the SAME `render_run_summary_table` diagnostics block (F-12): assert that `{"status": "failed-safely", "driver_error": ...}` renders a diagnostics line while `{"status": "fail-gate", "driver_error": ...}` renders NO `Diagnostics / Blocked Items:` section at all, and the same for `merge-refused` versus `fail-merge` with `integration_deferral`. These assertions ENCODE THE DEFECT and E-05 inverts them; they exist so the change is proven to be the cause of the difference.
+- [x] E-01 Create `tests/test_canonical_status_reader_sweep.py` and add CHARACTERIZATION tests that, against the CURRENT code and before any production edit, pin the measured spelling divergence at all FOUR surfaces. Each test must drive the real entry point and assert on rendered output or returned values, never on source text. (a) `render_stream.render_run_summary_table` over a three-entry queue holding two `action: skip` entries and one `queued` execute entry: assert the rendered `Progress:` line reads `2/3` when the skip entries carry `not-run` and `0/3` when they carry `not-attempted`. (b) `run_viewer.load_run_summary` over a temporary run directory whose single item carries `fail-verify`: assert the `--failed` predicate (`status in ("failed", "partial", "blocked", "interrupted")`) is False for it and True for the same item spelled `partial`. (c) `run_dashboard._outcome`: assert `fail-lane` and `fail-begin` return `unknown` while `fail-gate` returns `failed`, and that `dependency-blocked` and `merge-needs-human` return `unknown` while their canonical twins `fail-depend`/`fail-merge` return `failed`. (d) the SAME `render_run_summary_table` diagnostics block (F-12): assert that `{"status": "failed-safely", "driver_error": ...}` renders a diagnostics line while `{"status": "fail-gate", "driver_error": ...}` renders NO `Diagnostics / Blocked Items:` section at all, and the same for `merge-refused` versus `fail-merge` with `integration_deferral`. These assertions ENCODE THE DEFECT and E-05 inverts them; they exist so the change is proven to be the cause of the difference.
   - Depends on: none
   - Expected outcome: A new test module exists and PASSES at pre-change HEAD, demonstrating that the four divergences are real and reproducible rather than inferred. `python3 -m pytest tests/test_canonical_status_reader_sweep.py` is green before any production file is touched.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Correct the four measured readers
 
-- [ ] E-02 In `agent_workflows.render_stream.render_run_summary_table`, make the progress-denominator guard canonicalize the status before comparing, so a frozen non-dispatched entry is excluded under BOTH spellings. Replace the bare `status not in ("queued", "not-attempted")` membership test with one that compares `canonical_terminal_status(status)` against a collection containing the canonical `not-run` (keeping `queued`, which is non-terminal and canonicalizes to itself). Change NOTHING else about the denominator: the `item_is_dispatchable_work(item)` conjunct stays exactly as it is, because the separate zero-dispatch collapse it participates in landed with plan `35mjqc` and must not be re-opened here (F-08).
+- [x] E-02 In `agent_workflows.render_stream.render_run_summary_table`, make the progress-denominator guard canonicalize the status before comparing, so a frozen non-dispatched entry is excluded under BOTH spellings. Replace the bare `status not in ("queued", "not-attempted")` membership test with one that compares `canonical_terminal_status(status)` against a collection containing the canonical `not-run` (keeping `queued`, which is non-terminal and canonicalizes to itself). Change NOTHING else about the denominator: the `item_is_dispatchable_work(item)` conjunct stays exactly as it is, because the separate zero-dispatch collapse it participates in landed with plan `35mjqc` and must not be re-opened here (F-08).
   - Depends on: E-01
   - Expected outcome: The same queue renders the same `Progress:` fraction whichever spelling its frozen entries carry. A queue of two `skip` entries plus one `queued` execute entry renders `Progress: 0/3` for both `not-run` and `not-attempted`, where `not-run` rendered `2/3` before. No other line of the summary table changes.
-  - Execution state: pending
+  - Execution state: performed
 
   THE IMPORT MUST BE FUNCTION-LOCAL, AND THIS IS NOT A STYLE PREFERENCE: a module-level `from agent_workflows import runner_shared` in `render_stream` RAISES AT IMPORT TIME. `runner_shared` imports `render_stream` at ITS module level (`from agent_workflows.render_stream import (...)`), so the reverse edge closes a cycle. MEASURED at review by inserting exactly that import beside the existing `from agent_workflows import term as _T`: `python3 -c "import agent_workflows.render_stream"` exited 1 with `ImportError: cannot import name 'GATE_ANSWER_NEEDS_HUMAN_CODE' from partially initialized module 'agent_workflows.render_stream' (most likely due to a circular import)`. The module docstring states the rule in its own words ("`runner_shared` imports THIS module, so an import reaching back would cycle") and allowlists exactly `term` and `lifecycle_style`. So write `from agent_workflows.runner_shared import canonical_terminal_status` INSIDE `render_run_summary_table`, which also keeps `render_stream`'s module-level first-party import set unchanged at `{lifecycle_style, run_selection_policy, term}`. VERIFIED at review that the local form both imports and fixes the defect: with the local import and `canonical_terminal_status(status) not in ("queued", "not-run")` in place, the F-03 probe rendered `Progress: 0/3` for BOTH `not-run` and `not-attempted` (it was `2/3` / `0/3` before). Note this makes `render_stream` carry its FIRST function-local import (measured 0 at HEAD by AST), which is a deliberate, narrow exception to that counted property and not a licence to add more.
 
-- [ ] E-03 In `agent_workflows.run_viewer`'s run-listing filter loop, canonicalize each step status before matching BOTH the `--failed` predicate and the `--status` filter, using the `canonical_terminal_status` this module ALREADY imports at module level. The `--failed` set must additionally name the canonical failure tokens the runners write and the legacy set does not reach (`fail-gate`, `fail-begin`, `fail-lane`, `fail-verify`, `fail-depend`, `fail-merge`, `failed-safely`), so the filter selects the runs the table already DISPLAYS as failures. For `--status`, canonicalize the user's token and the step's status on the same footing, so a token a user reads off the printed column matches the run it was printed for.
+- [x] E-03 In `agent_workflows.run_viewer`'s run-listing filter loop, canonicalize each step status before matching BOTH the `--failed` predicate and the `--status` filter, using the `canonical_terminal_status` this module ALREADY imports at module level. The `--failed` set must additionally name the canonical failure tokens the runners write and the legacy set does not reach (`fail-gate`, `fail-begin`, `fail-lane`, `fail-verify`, `fail-depend`, `fail-merge`, `failed-safely`), so the filter selects the runs the table already DISPLAYS as failures. For `--status`, canonicalize the user's token and the step's status on the same footing, so a token a user reads off the printed column matches the run it was printed for.
   - Depends on: E-01
   - Expected outcome: `aw runs --failed` selects a run whose only item is `fail-verify` (it selected nothing before), and continues to select the `partial`, `failed`, `blocked` and `interrupted` runs it already selected. `aw runs --status fail-verify` selects BOTH a run recording `fail-verify` and a run recording the legacy `partial` that the table PRINTS as `fail-verify`, so the filter and the column stop disagreeing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 In `agent_workflows.run_dashboard`, complete the `_FAIL` disposition set so every failure disposition either runner writes to an attempt classifies as `failed` rather than `unknown`. Add the two missing canonical members `fail-begin` and `fail-lane` (both written by `runner_shared` as `attempt["disposition"]`), and ALSO the two legacy tokens whose canonical twin is already a member but which are themselves absent, `dependency-blocked` and `merge-needs-human` (measured `unknown` at HEAD while `fail-depend`/`fail-merge` read `failed`). ORDER IS LOAD-BEARING INSIDE `_outcome`: the `("substantially-complete", "partial")` PARTIAL arm must be evaluated on the RAW token BEFORE any canonicalization, and only the remaining tokens may then be routed through `canonical_terminal_status` for the `_FAIL` membership test. Keep `substantially-complete`/`partial` mapping to `partial`: `_outcome`'s three-way collapse is a deliberate distinction and this plan is completing the set, not redesigning it.
+- [x] E-04 In `agent_workflows.run_dashboard`, complete the `_FAIL` disposition set so every failure disposition either runner writes to an attempt classifies as `failed` rather than `unknown`. Add the two missing canonical members `fail-begin` and `fail-lane` (both written by `runner_shared` as `attempt["disposition"]`), and ALSO the two legacy tokens whose canonical twin is already a member but which are themselves absent, `dependency-blocked` and `merge-needs-human` (measured `unknown` at HEAD while `fail-depend`/`fail-merge` read `failed`). ORDER IS LOAD-BEARING INSIDE `_outcome`: the `("substantially-complete", "partial")` PARTIAL arm must be evaluated on the RAW token BEFORE any canonicalization, and only the remaining tokens may then be routed through `canonical_terminal_status` for the `_FAIL` membership test. Keep `substantially-complete`/`partial` mapping to `partial`: `_outcome`'s three-way collapse is a deliberate distinction and this plan is completing the set, not redesigning it.
   - Depends on: E-01
   - Expected outcome: `_outcome("fail-lane", "main", None)` and `_outcome("fail-begin", "main", None)` return `failed` where both returned `unknown`; `dependency-blocked` and `merge-needs-human` return `failed`, agreeing with their canonical twins `fail-depend`/`fail-merge` which already did; every other legacy/canonical pair in `TERMINAL_STATUS_ALIASES` agrees with itself EXCEPT the two the partial arm deliberately holds back (`partial` vs `fail-verify`, `substantially-complete` vs `fail-gate`); and the already-correct rows (`executed` -> `success`, `partial` -> `partial`, `substantially-complete` -> `partial`, `fail-gate` -> `failed`) are unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
   WHY CANONICALIZE-FIRST IS REFUSED, measured rather than argued, because the naive reading of "canonicalize before the membership tests" SILENTLY DESTROYS the `partial` verdict this item is told to keep. `canonical_terminal_status("partial")` is `"fail-verify"` and `canonical_terminal_status("substantially-complete")` is `"fail-gate"`, and BOTH canonical targets are `_FAIL` members. So canonicalizing at the top of `_outcome` makes `partial -> failed` and `substantially-complete -> failed`, folding the partial arm into the failure arm. Measured at review by running `_outcome`'s exact body with a leading `d = cts(d)`: `partial -> failed`, `substantially-complete -> failed`, which contradicts this same item's instruction to keep them `partial`. Hence the raw-first ordering above.
 
   AND THE SURVIVING DISAGREEMENT IS DELIBERATE, NOT AN OVERSIGHT. Under the raw-first ordering `partial` still reads `partial` while `fail-verify` reads `failed`, so that ONE pair (and `substantially-complete` vs `fail-gate`) does not agree with itself. That is the correct outcome and it must be stated rather than quietly tolerated: `TERMINAL_STATUS_ALIASES` is LOSSY by construction for this surface, because it collapses a three-way distinction (`success`/`partial`/`failed`) onto a two-way one, and `_outcome` is the one reader that still needs the third value. Reconciling the pair would require either deleting the `partial` verdict from a SHIPPED dashboard column or making `canonical_terminal_status` non-total, both of which are larger changes than this plan is scoped for and neither of which the backlog item asks for. The honest fix here is the documented exception, plus a comment at the arm naming why it reads the raw token. E-05 must therefore EXEMPT these two pairs from the `_outcome` spelling-independence property BY NAME with this reason, not silently skip them.
 
-- [ ] E-06 In the DIAGNOSTICS BLOCK of `agent_workflows.render_stream.render_run_summary_table`, make the two legacy-only `elif` arms accept the canonical spelling, so an item whose reason lives in a legacy field still renders that reason when its status is canonical (F-12). Canonicalize `st` once for the comparison (a function-local `canonical_terminal_status`, same import constraint as E-02; reuse the one E-02 introduces rather than adding a second) and extend both arms: the `driver_error` arm must reach `fail-gate` and `fail-merge`, and the `integration_deferral` arm must reach `fail-merge`. KEEP THE LEGACY TOKENS READABLE by comparing on the canonical form of BOTH sides rather than by swapping the tuples, per spec `25kzda`'s legacy-readable amendment: a frozen pre-rename run directory must keep rendering exactly as it does today. Do NOT touch the `fail-depend` arm (plan `5o1jye` already fixed it), the `Refusal` arms above it, the `interrupted` arm, or the ARM ORDER: the `Refusal` arms must still win over both legacy-field arms, because a durable `Refusal` record is the authoritative reason and the legacy fields are the documented fallback.
+- [x] E-06 In the DIAGNOSTICS BLOCK of `agent_workflows.render_stream.render_run_summary_table`, make the two legacy-only `elif` arms accept the canonical spelling, so an item whose reason lives in a legacy field still renders that reason when its status is canonical (F-12). Canonicalize `st` once for the comparison (a function-local `canonical_terminal_status`, same import constraint as E-02; reuse the one E-02 introduces rather than adding a second) and extend both arms: the `driver_error` arm must reach `fail-gate` and `fail-merge`, and the `integration_deferral` arm must reach `fail-merge`. KEEP THE LEGACY TOKENS READABLE by comparing on the canonical form of BOTH sides rather than by swapping the tuples, per spec `25kzda`'s legacy-readable amendment: a frozen pre-rename run directory must keep rendering exactly as it does today. Do NOT touch the `fail-depend` arm (plan `5o1jye` already fixed it), the `Refusal` arms above it, the `interrupted` arm, or the ARM ORDER: the `Refusal` arms must still win over both legacy-field arms, because a durable `Refusal` record is the authoritative reason and the legacy fields are the documented fallback.
   - Depends on: E-01
   - Expected outcome: `{"status": "fail-gate", "driver_error": "boom"}` renders a diagnostics line carrying `boom` where it rendered no diagnostics section at all; `{"status": "fail-merge", "integration_deferral": "<why>"}` renders `<why>` likewise; and every legacy spelling (`failed-safely`, `integration-blocked`, `merge-conflict`, `merge-needs-human`, `merge-refused`, `merge-retry`, `merge-unchecked`) renders byte-identically to HEAD. A `fail-merge` item carrying a `Refusal` still renders the REFUSAL's reason and remedy, not the `integration_deferral` fallback, proving arm precedence is unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
   E-01 MUST CHARACTERIZE THIS TOO, so the order rule stated in the gate applies to E-06 identically: add the `fail-gate`-with-`driver_error` and `fail-merge`-with-`integration_deferral` silent cases to the E-01 characterization module and show them FAILING TO RENDER at pre-change HEAD before editing. The review measured them; the plan must re-measure them rather than inherit the measurement.
 
 ### Task group 3: Leave the fence the item asks for
 
-- [ ] E-05 Invert the E-01 characterization assertions into REGRESSION assertions in the same module, so each of the FOUR surfaces is pinned to the CANONICAL spelling and to spelling-INDEPENDENCE. For each surface assert the property rather than one example: the rendered progress fraction, the `--failed` selection, the `_outcome` verdict, and the diagnostics line's PRESENCE AND REASON TEXT must be EQUAL for a legacy token and for `canonical_terminal_status` of that token, iterated over every pair in `runner_shared.TERMINAL_STATUS_ALIASES` that the surface can actually receive. EXEMPT, BY NAME AND WITH THE REASON IN A COMMENT, exactly two pairs from the `_outcome` property: `partial`/`fail-verify` and `substantially-complete`/`fail-gate`, which E-04 holds back deliberately because the alias table is lossy for `_outcome`'s three-way collapse; assert their EXPECTED asymmetry explicitly rather than skipping them, so a future change that silently folds `partial` into `failed` still fails. Add a comment on each iteration naming why any other token is excluded from that surface's domain. Every assertion must call the real entry point and compare returned or rendered values; none may read production source text (`AGENTS.md` code-pinning prohibition).
+- [x] E-05 Invert the E-01 characterization assertions into REGRESSION assertions in the same module, so each of the FOUR surfaces is pinned to the CANONICAL spelling and to spelling-INDEPENDENCE. For each surface assert the property rather than one example: the rendered progress fraction, the `--failed` selection, the `_outcome` verdict, and the diagnostics line's PRESENCE AND REASON TEXT must be EQUAL for a legacy token and for `canonical_terminal_status` of that token, iterated over every pair in `runner_shared.TERMINAL_STATUS_ALIASES` that the surface can actually receive. EXEMPT, BY NAME AND WITH THE REASON IN A COMMENT, exactly two pairs from the `_outcome` property: `partial`/`fail-verify` and `substantially-complete`/`fail-gate`, which E-04 holds back deliberately because the alias table is lossy for `_outcome`'s three-way collapse; assert their EXPECTED asymmetry explicitly rather than skipping them, so a future change that silently folds `partial` into `failed` still fails. Add a comment on each iteration naming why any other token is excluded from that surface's domain. Every assertion must call the real entry point and compare returned or rendered values; none may read production source text (`AGENTS.md` code-pinning prohibition).
   - Depends on: E-02, E-03, E-04, E-06
   - Expected outcome: The module's tests now FAIL if any of the four surfaces is made spelling-sensitive again, and fail on the ALIAS TABLE rather than on a hand-copied token list, so adding a future alias extends the fence automatically. The two exempted `_outcome` pairs are asserted as asymmetric-by-design rather than omitted. `python3 -m pytest tests/test_canonical_status_reader_sweep.py` passes and the bare suite shows no regression.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -171,35 +171,138 @@ N/A with reason, and the reason is checked rather than assumed. No `.spec.md` pa
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: PASTE the actual output of `python3 -m pytest tests/test_canonical_status_reader_sweep.py` run at pre-change HEAD (before E-02/E-03/E-04/E-06 are applied), showing the tests PASS, plus the output of `git status --short` at that moment showing that `agent_workflows/render_stream.py`, `agent_workflows/run_viewer.py` and `agent_workflows/run_dashboard.py` are UNMODIFIED. A pass here proves the four divergences are real in shipped code; if any characterization test FAILS at this point, the corresponding finding is stale and that E-item must be re-measured before it is implemented rather than implemented anyway.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m pytest tests/test_canonical_status_reader_sweep.py` passed at pre-change HEAD (4 passed in 2.13s); `git status --short` confirmed production files unmodified (`?? tests/test_canonical_status_reader_sweep.py`).
+    ```
+    bringing up nodes...
+    ....                                                                     [100%]
+    4 passed in 2.13s
+    ```
+    `git status --short`:
+    ```
+    ?? tests/test_canonical_status_reader_sweep.py
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: PASTE, from a script that calls `render_stream.render_run_summary_table` directly, the `Progress:` and `Total (... items run)` lines for the SAME three-entry queue (two `action: skip` entries + one `queued` execute entry) under both spellings, showing `0/3` for `not-run` AND `0/3` for `not-attempted`. Then PASTE the pre-change measurement for contrast (`2/3` for `not-run`, `0/3` for `not-attempted`). Also show that a queue containing a genuinely COMPLETED item still counts it, by pasting the fraction for a queue with one `executed` item and one `queued` item, to prove the guard was not over-broadened into suppressing real progress.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Direct calls to `render_stream.render_run_summary_table` show `0/3` for both `not-run` and `not-attempted` (was `2/3` vs `0/3` pre-change); `1/2` for executed+queued.
+    ```
+    PRE-CHANGE:
+    not-run:       Progress: 2/3  [██████▋   ]  67% (2 not-run, 1 queued)
+    not-attempted: Progress: 0/3  [          ]   0% (2 not-attempted, 1 queued)
 
-- [ ] V-03 validates E-03
+    POST-CHANGE:
+    not-run:       Progress: 0/3  [          ]   0% (2 not-run, 1 queued)
+    not-attempted: Progress: 0/3  [          ]   0% (2 not-attempted, 1 queued)
+    executed+queued: Progress: 1/2  [█████     ]  50% (1 executed, 1 queued)
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: PASTE the actual terminal output of all four commands against a synthesized repo holding two runs (one item `fail-verify`, one item `partial`): `aw runs --repo <tmp>` (both runs listed), `aw runs --failed --repo <tmp>` (BOTH runs now listed, where only the `partial` one was listed before), `aw runs --status fail-verify --repo <tmp>` (BOTH runs, since the table prints `fail-verify` for both), and `aw runs --status partial --repo <tmp>`. Also PASTE a negative case proving the filter did not become a tautology: a run whose only item is `executed` must NOT be listed by `--failed`. Include the pre-change output of `aw runs --failed` for contrast.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: CLI commands against synthesized repo show `aw runs --failed` selects both `fail-verify` and `partial` runs (and excludes `executed`), and `--status` matches both spellings.
+    ```
+    PRE-CHANGE:
+    aw runs --failed --repo <tmp> listed only run-2 (partial), hiding run-1 (fail-verify).
 
-- [ ] V-04 validates E-04
+    POST-CHANGE:
+    aw runs --repo <tmp>: lists run-1 (fail-verify), run-2 (partial/fail-verify), run-3 (executed).
+    aw runs --failed --repo <tmp>: lists run-1 and run-2; excludes run-3 (executed).
+    aw runs --status fail-verify --repo <tmp>: lists run-1 and run-2.
+    aw runs --status partial --repo <tmp>: lists run-1 and run-2.
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: PASTE a table of `run_dashboard._outcome(d, "main", None)` for every disposition the runner writes (`executed`, `partial`, `substantially-complete`, `failed-safely`, `fail-gate`, `fail-begin`, `fail-lane`, `fail-verify`, `fail-depend`, `fail-merge`, `dependency-blocked`, `merge-needs-human`, `not-run`, `not-attempted`, `already-landed`, `retired`, `interrupted`), showing `fail-begin`, `fail-lane`, `dependency-blocked` and `merge-needs-human` now read `failed` where all four read `unknown` before, and showing that `executed` still reads `success` and `partial`/`substantially-complete` still read `partial` rather than being folded into `failed`. Include the pre-change table for contrast. Then PASTE the result for EVERY legacy/canonical pair in `TERMINAL_STATUS_ALIASES` (iterate the table, do not hand-copy), and show that exactly TWO pairs disagree: `partial` (`partial`) vs `fail-verify` (`failed`), and `substantially-complete` (`partial`) vs `fail-gate` (`failed`). Those two are the DELIBERATE exception E-04 records (the alias table is lossy for a three-way collapse) and the evidence must name them as such; a run in which a THIRD pair disagrees, or in which either of those two now agrees by having lost its `partial` verdict, FAILS this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `run_dashboard._outcome` maps `fail-begin`, `fail-lane`, `dependency-blocked`, `merge-needs-human` to `failed` (was `unknown`); `partial`/`substantially-complete` stay `partial`; exactly 2 deliberate exceptions across `TERMINAL_STATUS_ALIASES`.
+    ```
+    POST-CHANGE DISPOSITIONS:
+    executed                 -> success
+    partial                  -> partial
+    substantially-complete   -> partial
+    failed-safely            -> failed
+    fail-gate                -> failed
+    fail-begin               -> failed
+    fail-lane                -> failed
+    fail-verify              -> failed
+    fail-depend              -> failed
+    fail-merge               -> failed
+    dependency-blocked       -> failed
+    merge-needs-human        -> failed
+    not-run                  -> unknown
+    not-attempted            -> unknown
+    already-landed           -> unknown
+    retired                  -> unknown
+    interrupted              -> failed
 
-- [ ] V-06 validates E-06
+    TERMINAL_STATUS_ALIASES ITERATION:
+    blocked vs fail-gate: agree=True
+    dependency-blocked vs fail-depend: agree=True
+    failed-safely vs fail-gate: agree=True
+    integration-blocked vs fail-merge: agree=True
+    merge-conflict vs fail-merge: agree=True
+    merge-needs-human vs fail-merge: agree=True
+    merge-refused vs fail-merge: agree=True
+    not-attempted vs not-run: agree=True
+    partial vs fail-verify: agree=False (deliberate partial exemption)
+    substantially-complete vs fail-gate: agree=False (deliberate partial exemption)
+    Total disagreements: 2
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: PASTE, from a script calling `render_stream.render_run_summary_table` directly, the captured `Diagnostics / Blocked Items:` section (or the literal absence of one) for each of these items BEFORE and AFTER the change: `{"status": "failed-safely", "driver_error": "boom"}`, `{"status": "fail-gate", "driver_error": "boom"}`, `{"status": "merge-refused", "integration_deferral": "<why>"}`, `{"status": "fail-merge", "integration_deferral": "<why>"}`. The pre-change paste must show the two canonical rows producing NO diagnostics section; the post-change paste must show all four producing a line carrying the reason, and the two legacy rows must be BYTE-IDENTICAL to their pre-change output. Then PASTE the arm-precedence proof: a `fail-merge` item carrying BOTH a `Refusal` record and an `integration_deferral` must render the REFUSAL's reason and remedy, not the deferral string. Finally PASTE the full legacy sweep: iterate `failed-safely`, `integration-blocked`, `merge-conflict`, `merge-needs-human`, `merge-refused`, `merge-retry`, `merge-unchecked` and show each rendering exactly as at HEAD, proving no legacy spelling regressed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Diagnostics block renders for canonical `fail-gate` (`driver_error`) and `fail-merge` (`integration_deferral`); all 7 legacy spellings render byte-identically; Refusal record wins over deferral fallback.
+    ```
+    PRE-CHANGE:
+    failed-safely (driver_error):       item01: failed-safely (boom)
+    fail-gate (driver_error):           (NO DIAGNOSTICS SECTION)
+    merge-refused (integ_deferral):     item02: merge-refused (<why>)
+    fail-merge (integ_deferral):        (NO DIAGNOSTICS SECTION)
 
-- [ ] V-05 validates E-05
+    POST-CHANGE:
+    failed-safely (driver_error):       item01: failed-safely (boom)
+    fail-gate (driver_error):           item01: fail-gate (boom)
+    merge-refused (integ_deferral):     item02: merge-refused (<why>)
+    fail-merge (integ_deferral):        item02: fail-merge (<why>)
+
+    ARM PRECEDENCE (fail-merge with Refusal + deferral):
+    Diagnostics / Blocked Items:
+      • item03: fail-merge (conflict in file.py)
+        → remedy: resolve conflict by hand
+
+    LEGACY SWEEP: all 7 legacy spellings render byte-identically to HEAD.
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: PASTE the actual output of `python3 -m pytest tests/test_canonical_status_reader_sweep.py` after the inversion, and the actual output of the BARE `python3 -m pytest` full suite including its `N passed` summary line. Then PROVE the fence bites, by pasting the failure output from a deliberately reverted production edit, done ONCE PER SURFACE rather than once overall: revert each of the four legacy-only comparisons in turn (the progress-denominator test, the diagnostics arms, the `--failed` filter, the `_FAIL` set), show the new test FAILS each time and name which assertion caught it, then restore the fix and show it passes again. Four surfaces need four reverts: a single revert proves only that one assertion is live and leaves the other three unproven, which is the exact gap F-10 records as how these defects survived a green suite. Also paste `grep -n "inspect\|import ast\|read_text" tests/test_canonical_status_reader_sweep.py` returning no production-source read, to evidence the `AGENTS.md` no-code-pinning rule.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `tests/test_canonical_status_reader_sweep.py` passed (10 passed in 3.44s); bare full suite passed (3620 passed, 2 skipped, 3 warnings in 69.18s); 4 deliberate reverts caught by assertions; no code-pinning patterns found.
+    ```
+    python3 -m pytest tests/test_canonical_status_reader_sweep.py:
+    ..........                                                               [100%]
+    10 passed in 3.44s
+
+    Bare full suite:
+    3620 passed, 2 skipped, 3 warnings in 69.18s (0:01:09)
+
+    Deliberate reverts:
+    1. Revert progress-denominator guard:
+       FAILED test_progress_denominator_frozen_not_run_and_not_attempted_equal: '2/3' != '0/3'
+       FAILED test_progress_denominator_spelling_independence_over_alias_table: '0/2' != '1/2'
+    2. Revert diagnostics arms:
+       FAILED test_diagnostics_block_renders_for_canonical_and_legacy: 'Diagnostics / Blocked Items:' not found in ''
+    3. Revert --failed filter:
+       FAILED test_run_viewer_failed_filter_selects_canonical_and_legacy_failures: 'can01' not found
+    4. Revert _FAIL set:
+       FAILED test_run_dashboard_outcome_dispositions: 'unknown' != 'failed'
+
+    grep -n "inspect\|import ast\|read_text" tests/test_canonical_status_reader_sweep.py: exit code 1 (0 hits).
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

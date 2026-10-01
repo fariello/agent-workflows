@@ -75,6 +75,22 @@ HOLDER_LIVE = "live"
 HOLDER_NONE = "none"
 HOLDER_UNKNOWN = "unknown"
 
+_FAILED_FILTER_STATUSES: frozenset[str] = frozenset(
+    {
+        "failed",
+        "partial",
+        "blocked",
+        "interrupted",
+        "fail-gate",
+        "fail-begin",
+        "fail-lane",
+        "fail-verify",
+        "fail-depend",
+        "fail-merge",
+        "failed-safely",
+    }
+)
+
 
 def driver_holder_state(run_dir: Path) -> str:
     """Is a LIVE driver holding ``run_dir``? Read-only; never writes, never unlinks.
@@ -3568,11 +3584,18 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
         if ipd_filter and not any(s.id6 == ipd_filter for s in summary.steps):
             continue
 
-        if status_filter and not any(s.status == status_filter for s in summary.steps):
+        if status_filter and not any(
+            canonical_terminal_status(s.status)
+            == canonical_terminal_status(status_filter)
+            for s in summary.steps
+        ):
             continue
 
         if failed_only and not any(
-            s.status in ("failed", "partial", "blocked", "interrupted")
+            (
+                canonical_terminal_status(s.status) in _FAILED_FILTER_STATUSES
+                or s.status in _FAILED_FILTER_STATUSES
+            )
             for s in summary.steps
         ):
             continue
