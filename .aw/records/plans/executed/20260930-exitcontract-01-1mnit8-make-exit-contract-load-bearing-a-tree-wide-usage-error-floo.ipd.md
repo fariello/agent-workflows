@@ -114,6 +114,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - THE HUMAN NO-PROJECT EXIT 3 ON `next`/`ipd board`/`att`/`todo`/`attention`. It is the drift that motivated this item and it still reproduces (F-09), but pinning it here would duplicate that plan's E-02/E-05 and race it in the same field. The two are order-independent because no affected spelling is live-safe.
   - Carrier: rwvzqm
+  - Carrier-Evidence: .aw/records/plans/executed/20260929-exit3three-01-rwvzqm-retire-the-human-no-project-exit-3-into-the-published-three.ipd.md
 - RECONCILING THE RUN-FAMILY EXIT VOCABULARY. Four of the six authored corrections touch that family; adding argparse's floor to them is deliberately not a step in deciding whether 3 through 7 should be renumbered (F-11).
   - Carrier: 858lhj
 - WIDENING `runs next` AND `runs status` TO THEIR FULL MEASURED REACHABLE SETS (`(0,2,3,5,7)` and `(0,1,2,3,5,7)`). This plan adds only argparse's floor 2 to whatever is still violating; the reachable 5 and 7 are a separate, independently measured correction owned by an APPROVED sibling. E-03 is written so that if that sibling lands first this plan leaves both leaves untouched, and so that it can never narrow them (F-13).
