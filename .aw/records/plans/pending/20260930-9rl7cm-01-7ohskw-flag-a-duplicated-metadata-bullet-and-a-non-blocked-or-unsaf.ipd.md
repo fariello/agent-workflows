@@ -6,7 +6,7 @@
 - Scope: IN: three new `backlog.validate_item` rules with stable ids - a duplicated metadata bullet inside the leading bullet block, a `- Gate-Summary:` on a non-`blocked` item, and a `- Gate-Summary:` whose value fails the shipped `attention_contract.is_safe_descriptive` bound; registration of all three in `check_engine.RULE_REGISTRY` so each carries an explicit severity and assurance class instead of falling through to `_DEFAULT_RULESPEC`; outcome tests driving each rule through the real validator and through `aw backlog check`; and the `.aw/records/backlog/README.md` rule list, which today enumerates what `check` validates and would otherwise be stale. OUT, each for a stated reason: any WRITE-PATH guard (the `--gate-summary` refusal belongs to the shared positional setter, owned by item `nw9dmz`); fixing `releases.set_blocks_release_line`'s duplication (owned by item `71wqol`); unifying the two `aw backlog set` dispatch paths (owned by item `fcnz1r`); adding `Gate-Summary` to `BacklogItem.__slots__` or to `_TEMPLATE_OWNED_KEYS`; changing `parse_item`'s first-occurrence-wins precedence or its bullet-block boundary; and extending any of the three rules to the specs, plans or releases trees.
 - Scope-Paths: agent_workflows/backlog.py, agent_workflows/check_engine.py, tests/test_backlog_metadata_duplicate_and_gate_summary.py, .aw/records/backlog/README.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 05
 - Author: aw oc run
 - Id: 7ohskw
+- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 approved (aw set): status set to approved
 
 - 2026-09-30 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review APPROVE WITH REVISIONS APPLIED; PR-301 (HIGH, fixed), PR-302, PR-303, PR-304 (MEDIUM, all fixed), PR-305, PR-306, PR-307 (LOW, all fixed). Typed record at `.aw/records/reviews/20260930-9rl7cm-01-7ohskw-flag-a-duplicated-metadata-bullet-and-a-non-blocked-or-unsaf.review.md` with six `### Decisions` rows, none irreversible. ALL ELEVEN of the plan's findings reproduced at HEAD `cd5df51c`, including F-04 end to end: seeding a bare `- Blocks-Release:` line and setting `next` through the shipped writer yields TWO lines at `validate_item` -> `[]`, so a shipped producer really does create the shape. The defect, the specs-versus-backlog asymmetry, and the fix shape are all correct.
   THE DOMINANT REVISION: THE PLAN'S OWN PROPOSED RULE NAME IS CONDEMNED BY THE PLAN'S OWN REASONING (PR-301, F-12). OQ-02 argues for distinct rule ids BECAUSE `doctor.build_remediation` dispatches on substrings; that same mechanism makes `backlog.gate-summary-unsafe` wrong, since it CONTAINS `summary-unsafe` and is captured by that arm. Driven: the returned remediation is titled "Summary is not a single bounded control-char-free line" and says to edit `- Summary:`, so the plan would have shipped a `- Gate-Summary:` finding that points a human at a different field. `test_remediation_family_guard` cannot catch it (command shape only, never own-arm routing). Renamed to `backlog.gate-descriptive-unsafe` at every dependent site, with the `doctor.py`-arm alternative documented and dispreferred to keep this a validator-plus-registry change; V-03 and E-05 now require the routing proof.

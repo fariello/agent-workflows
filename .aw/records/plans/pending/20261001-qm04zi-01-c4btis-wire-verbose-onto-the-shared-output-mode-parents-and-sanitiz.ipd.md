@@ -6,7 +6,7 @@
 - Scope: Declare `--verbose` on the two shared output-mode parents, re-spell the one conflicting leaf declaration so the parser still builds, redact the home path out of the two verbose-only diagnostic fields that make the record refuse validation, and pin reach, acceptance, end-to-end verbosity and the crash-free property with behavioral tests. Does NOT touch `result_types.select_output` (consumption is already correct), does NOT touch the `--limit` or `--fields` surfaces, and does NOT change any record emitted without `--verbose`.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/result_types.py, agent_workflows/upgrade_rehearsal.py, tests/test_verbose_flag_reach.py, docs/cli-agent-protocol.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 07
 - Author: opencode
 - Id: c4btis
+- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH, fixed), PR-002 (MEDIUM, fixed), PR-003 (MEDIUM, fixed), PR-004 (MEDIUM, fixed), PR-005 (LOW, fixed), PR-006 (HIGH, fixed). Readiness recorded in `- Readiness:`. Full re-derivation and the four new findings are summarized on the `reviewed (aw set)` record below and detailed in `.aw/records/reviews/20261001-qm04zi-01-c4btis-...review.md`.
 - 2026-10-01 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH, fixed), PR-002 (MEDIUM, fixed), PR-003 (MEDIUM, fixed), PR-004 (MEDIUM, fixed), PR-005 (LOW, fixed), PR-006 (HIGH, fixed). Re-derived every load-bearing measurement independently at lane HEAD 0dee1b9bd rather than trusting the plan findings; the reach census (152/140/1), the build-time conflict, the ValueError on the verbose --agent surface, and the full upgrade-test flag matrix all reproduce. Four measurements the plan did not have were added as F-19 through F-22. The most consequential is F-22: the same validator refusal is ALREADY LIVE on the shipped compact surface, nondeterministically, through the next field (4 of 25 consecutive unmodified `aw check plans --agent` runs raise with stdout empty and exit 1, because _run_check iterates a set to build next_actions and to_agent_record takes element 0). That falsifies F-09 not-reachable-today, which is struck through and redirected with its narrower surviving claim; the defect is carried to 7tixnq rather than fixed, since next comes from NextAction.command which 9yd6tx E-04 already owns. The other three: the six upgrade-test leaves cannot honor the flag because _emit_agent discards the operator namespace (a pre-existing wdazvp-class defect, carried not fixed), --verbose on common is honored only after the subcommand exactly as its --agent/--fields siblings are, and no forwarded REMAINDER token is stolen on any of the four common-inheriting forwarding leaves. V-04 and V-07 were strengthened to demand those matrices plus a per-home-class redaction proof, the crash-free probe was widened to `aw check` and `aw check all`, the no-change probe now tells an executor not to misattribute F-22 empty stdout, and OQ-03 carries a dated correction where F-19 falsified part of its original reasoning.
 - 2026-10-01 draft (opencode): created.

@@ -6,7 +6,7 @@
 - Scope: Close the lint-side half of the defect, and ONLY that half. Add one value check for `- Date:` to `ipd_schema.validate_metadata`, so a PRESENT-but-unparseable value is reported with the same authority a missing one already has, and pin it with a behavioral test row in each of the two existing tables that own this surface. The accepted grammar is the `YYYY-MM-DD` shape PLUS a real calendar check, and the one reserved exemption is the byte-pinned template placeholder `<YYYY-MM-DD>`. This plan changes NO consumer: the `20260101` fabricators (`plans_refs`, carried by `949enf`; `plans_archive`, carried by `dkfthf`) and every cutover reader stay byte-unchanged, because the backlog item's fix shape is explicitly the LINTER, and a plan that both flags a value and changes what reads it could not show which half produced the effect.
 - Scope-Paths: agent_workflows/ipd_schema.py, tests/test_ipd_schema.py, tests/test_ipd_lint.py, .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 05
 - Author: opencode/claude-opus
 - Id: fqcax0
+- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-201 (MEDIUM, fixed), PR-202 (MEDIUM, fixed), PR-203 (MEDIUM, fixed), PR-204 (LOW, fixed). Readiness recorded in `- Readiness:`. Detail on the `reviewed (aw set)` record below and in `.aw/records/reviews/20260930-5h8u3z-01-fqcax0-...review.md`.
 - 2026-10-01 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-201 (MEDIUM, fixed), PR-202 (MEDIUM, fixed), PR-203 (MEDIUM, fixed), PR-204 (LOW, fixed). This is the strongest-evidenced plan in this sweep and every load-bearing claim reproduced independently at review HEAD cebbcd0f6. Verified end to end: the defect direction (malformed Date lints conforming with zero diagnostics while an absent Date errors IPD-M101), the presence-only root cause, all five consumers (both 20260101 fabricators, the three cutover gates), the impossible-calendar propagation including _age_days returning 0.0, the date.fromisoformat width on the ISO week form and the compact form, the mandatory template placeholder exemption, the IPD-M104 routing chain, the test-table full-pair-set contract, and the synthetic compact fixture that never lints. I additionally prototyped the whole E-03 check in process: all five malformed shapes flip to error carrying exactly IPD-M104 and not IPD-M101, the placeholder and good control stay conforming, both byte-pinned templates stay conforming, and a full before/after author-phase sweep over all 1143 tracked plans reported ZERO changed diagnostic sets. Four findings: the corpus triple 1089/1/0 has drifted to 1142/1/0 so E-04 and V-04 now re-derive it and assert two invariants instead; 949enf has EXECUTED rather than being in review and its shipped _preserved_date docstring now cites this very defect, which strengthens the fence; Section 4.4 required-fields enumeration is ALSO wrong about Id, a second unowned drift in the same section that E-05 is now told explicitly not to touch; and the suite baseline moved 3387 to 3665.
 

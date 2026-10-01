@@ -6,7 +6,7 @@
 - Scope: Move those 35 docs into their computed `reference/YYYYMM/` shards with `aw research promote --apply`, and repair the three LIVE path citations the moves would strand. No source change, no checker rule (that is sibling `ucwlwt`), no frontmatter change beyond what the tool writes.
 - Scope-Paths: .aw/records/research, agent_workflows/comms.py, .aw/records/plans/pending/20260929-sklbrt-01-h8e3sm-mint-an-id6-for-the-two-live-legacy-specs-so-they-are-reacha.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 07
 - Author: opencode Opus 5, its_direct/pt3-claude-opus-5-1m-us
 - Id: mg8bag
+- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (aw set): /plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-201 through PR-209 all FIXED, zero deferred, zero open. PR-201 was a BLOCKER: approved plan 68hdic executed since authoring, so E-06 would have directed an executor to rewrite an immutable executed plan. Findings and four Decisions rows in .aw/records/reviews/20260930-zdsf35-01-mg8bag-migrate-the-35-cold-status-research-docs-from-the-hot-root-i.review.md. Readiness go-pending-approval; human approval still required before execution.
 
 - 2026-10-01 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-201 through PR-209 all FIXED, zero deferred, zero open. THE PLAN'S CENTRAL MEASUREMENT RE-DERIVES EXACTLY at review HEAD `c82c829d8`, character for character: 126 docs under the research tree, 61 at the hot root, 35 of those carrying a cold normalized status, ALL 35 `reference` and none `archive`, targets `reference/202607` (18) / `reference/202608` (14) / `reference/202609` (3), zero `plan_transition` errors, zero hot-status docs inside a cold shard, and 11 of the 35 with a `created` month diverging from their filename month. The 35-id list in E-01 matches my own derivation exactly. F-03's quoted concession in `research_archive.apply_moves` ("if a full-path cite exists it is caught by the dangling detector") is verbatim correct and the claim it makes is indeed false for a tier move, since the basename is unchanged. F-10's three named pre-existing stale citations all check out (`bu9yij`, `27rjro`, `i5gj61` each live in a `reference/` shard), and F-11 holds exactly: zero pending or reusable plans name a cohort doc in `- Scope-Paths:`.

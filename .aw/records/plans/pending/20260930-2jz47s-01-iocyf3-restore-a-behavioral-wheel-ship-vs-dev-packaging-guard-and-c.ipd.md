@@ -6,7 +6,7 @@
 - Scope: Restore a behavioral packaging guard at `tests/test_packaging.py` that builds the wheel and asserts the ship-vs-dev boundary plus the runtime-dependency allowlist, re-measuring both at execution HEAD; correct the THREE false claims in `CONTRIBUTING.md`'s "Packaging and the CLI" section (the dangling test citation, the zero-runtime-dependency parenthetical, and the same bullet's trailing "no runtime dependency is declared" assertion that review measured and the backlog item does not name) so each names what actually enforces it. EXCLUDES the sdist half of the deleted suite, EXCLUDES the four `docs/` danglers that pending plan `1jg2m2` owns, and EXCLUDES any change to `pyproject.toml`'s packaging configuration, which authoring measured to be correct. ON THE `CONTRIBUTING.md` PACKAGING PARAGRAPH THIS PLAN AND `1jg2m2` GENUINELY CONTEND, and the coordination is by RE-READ AND BRANCH inside E-05, NOT by `- Item-Dependencies:`, which is deliberately `none` for the reasons OQ-02 records (corrected at review: the earlier wording claimed an edge this plan does not and should not declare).
 - Scope-Paths: tests/test_packaging.py, CONTRIBUTING.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
@@ -16,8 +16,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: iocyf3
+- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 approved (aw set): status set to approved
 
 - 2026-09-30 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-P01 through PR-P09 all FIXED in place. Structural lint conformed at `author` and reports zero findings at `review-finalize`. INDEPENDENTLY RE-RAN THE PLAN'S CENTRAL MEASUREMENT at HEAD `170368788`: built the wheel (356 entries, 2.09s and 2.57s warm) and applied the deleted test's own forbidden sets, getting ZERO violations, so the plan's premise that the boundary HOLDS and only the guard is missing is confirmed, and restoration rather than prose-weakening is the right fix. Also re-verified the deleted file carries no `slow` marker, the build needs the network (`PIP_NO_INDEX=1` fails; `hatchling` absent so `--no-isolation` fails), `pyproject.toml` needs no change, and no surviving test builds a wheel. FOUR THINGS REVIEW FOUND THAT THE PLAN DID NOT: a THIRD false claim in the same bullet (`and that no runtime dependency is declared`), which E-05 would have left standing while claiming to fix the paragraph (F-11); F-5's substring trap is FALSE as filed, since the shipped `workflow-artifacts-README.md` does not contain the slash-bearing forbidden token and bare substring matching measures ZERO hits exactly as `startswith` does (F-5 corrected, E-03 rewritten); `1jg2m2` is `reviewed`/`go-pending-approval` rather than `to-review`, which falsifies half of OQ-02's stated basis while leaving its conclusion standing (F-12), and it also adds a citation guard scanning `CONTRIBUTING.md` that measures GREEN in BOTH landing orders (F-13); and CI's slow step is `continue-on-error: true`, so the `slow` option OQ-01 weighs would leave the guard non-blocking everywhere (F-15). Human approval is still required, and OQ-01 remains open and NON-BLOCKING. (Review record: `.aw/records/reviews/20260930-2jz47s-01-iocyf3-restore-a-behavioral-wheel-ship-vs-dev-packaging-guard-and-c.review.md`.)
 - 2026-10-01 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): status transition applied by `aw ipd set reviewed iocyf3`, kept beside the `/plan-review` line above as the attributed record of the transition itself. Its date is the setter's UTC stamp while the local date was 2026-09-30, the clock skew backlog `fnb8pl` owns.
