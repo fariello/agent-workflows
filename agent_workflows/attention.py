@@ -3945,10 +3945,11 @@ def run(args) -> int:
             # stdout this fix removes. (The sibling `aw ipd board` had the identical defect and was
             # filed as backlog `5x195l`; nogitmsg `quqyc4` E-05 FIXED it the same way, so no site in
             # the package now builds an `exit_code=3` record. That property is pinned by
-            # `tests/test_awretrofit_project_root_climb.py::NoProjectSubprocessMatrixTests`.)
+            # `tests/test_attention.py::NoProjectAgentEnvelopeTests` and
+            # `tests/test_agent_surface_conformance.py::test_attention_non_project_cwd`.)
             #
             # THE HUMAN PATH IS UNCHANGED at exit 3, so the shipped assertion in
-            # `tests/test_awretrofit_project_root_climb.py` (rc 3, prose on stderr, empty stdout)
+            # `tests/test_agent_surface_conformance.py::test_attention_non_project_cwd` (rc 3, prose on stderr, empty stdout)
             # keeps passing and no operator-visible behavior regresses.
             #
             # nogitmsg `quqyc4` E-04 ADDS THE INSTALL OFFER AS STRUCTURED DATA, not only as prose:

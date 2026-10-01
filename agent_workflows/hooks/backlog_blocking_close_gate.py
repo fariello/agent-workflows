@@ -54,11 +54,59 @@ def check(repo_root: Optional[Path] = None) -> Tuple[int, List[str]]:
     return 1, [f"{d.location}: {d.detail}" for d in drift]
 
 
-def main(argv: Optional[List[str]] = None) -> int:
-    """CLI entry for the pre-commit hook. Prints refusals to stderr; exits 0 (ok) or 1 (refused)."""
+def main(argv: Optional[List[str]] = None, args: Optional[object] = None) -> int:
+    """CLI entry for the pre-commit hook. Emits envelope on --agent
+    or JSON on --json; prints refusals to stderr and returns int exit code in human mode."""
     import sys
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        CommandResult,
+        Diagnostic,
+        select_output,
+    )
 
+    if args is None and argv:
+        import types
+
+        args = types.SimpleNamespace(
+            agent="--agent" in argv,
+            json="--json" in argv,
+        )
+
+    ctx = select_output(args)
     exit_code, messages = check()
+
+    if ctx.is_agent or ctx.is_json:
+        diagnostics: List[Diagnostic] = []
+        for m in messages:
+            loc = "backlog-blocking-close-gate"
+            det = m
+            if ": " in m:
+                parts = m.split(": ", 1)
+                loc = parts[0]
+                det = parts[1]
+            diagnostics.append(Diagnostic(location=loc, rule=_RULE, detail=det))
+        if exit_code != 0 and not diagnostics:
+            diagnostics.append(
+                Diagnostic(
+                    location="backlog-blocking-close-gate",
+                    rule=_RULE,
+                    detail="gate refused",
+                )
+            )
+        res = CommandResult(
+            command="backlog-blocking-close-gate",
+            status="clean" if exit_code == 0 else "findings",
+            exit_code=exit_code,
+            summary=(
+                "backlog-blocking-close-gate: gate passed"
+                if exit_code == 0
+                else f"backlog-blocking-close-gate: refused ({len(messages)} finding(s))"
+            ),
+            diagnostics=diagnostics,
+        )
+        return get_renderer(ctx).emit(res, ctx)
+
     if messages:
         sys.stderr.write(
             "aw backlog-blocking-close gate REFUSED this commit (local prevention; a "

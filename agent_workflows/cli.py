@@ -15298,32 +15298,32 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
     if args.command == "ipd-executed-gate":
         from agent_workflows.hooks import executed_transition_gate as _gate
 
-        return _gate.main([])
+        return _gate.main(args=args)
 
     if args.command == "ipd-status-untooled-gate":
         from agent_workflows.hooks import status_untooled_gate as _sgate
 
-        return _sgate.main([])
+        return _sgate.main(args=args)
 
     if args.command == "backlog-blocking-close-gate":
         from agent_workflows.hooks import backlog_blocking_close_gate as _bgate
 
-        return _bgate.main([])
+        return _bgate.main(args=args)
 
     if args.command == "ipd-dependency-statement-gate":
         from agent_workflows.hooks import ipd_dependency_statement_gate as _dgate
 
-        return _dgate.main([])
+        return _dgate.main(args=args)
 
     if args.command == "precommit-scope-gate":
         from agent_workflows.hooks import precommit_scope_gate as _pcgate
 
-        return _pcgate.main([])
+        return _pcgate.main(args=args)
 
     if args.command == "prepush-authorization-gate":
         from agent_workflows.hooks import prepush_authorization_gate as _ppgate
 
-        return _ppgate.main([])
+        return _ppgate.main(args=args)
 
     parser.print_help()
     return 2
