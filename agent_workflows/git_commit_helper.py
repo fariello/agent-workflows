@@ -320,9 +320,17 @@ def _is_interactive(interactive: Optional[bool] = None) -> bool:
     channel); ``None`` falls back to :func:`agent_workflows.term.is_interactive`.
     """
 
+    # An explicit argument represents a programmatic caller's statement about a channel it
+    # already knows (e.g. runner_shared passing interactive=False, or a test driving interactive=True),
+    # rather than an operator's ambient flag wish (--interactive) that CI must be allowed to veto.
+    # Therefore an explicit boolean is returned directly, while None delegates to the four-rung
+    # resolver in term.is_interactive.
+    if interactive is not None:
+        return bool(interactive)
+
     from agent_workflows import term as _term
 
-    return _term.is_interactive(override=interactive)
+    return _term.is_interactive(override=None)
 
 
 def _prompt(message: str, paths: Sequence[str]) -> bool:
@@ -551,7 +559,9 @@ def offer_commit(
     no_commit:
         The ``--no-commit`` escape hatch. Short-circuits to ``skipped`` regardless of TTY.
     interactive:
-        Explicit interactivity override; ``None`` -> ``sys.stdin.isatty()``.
+        Explicit interactivity override (used by tests and programmatic callers);
+        ``None`` delegates to :func:`agent_workflows.term.is_interactive`, which requires
+        both stdin and the output stream to be a TTY and honors ``AW_NONINTERACTIVE``/``CI``.
     on_unrelated_staged:
         Policy when the index already holds staged paths OUTSIDE ``paths``:
         ``"scope"`` (default) commits only ``paths`` and leaves the rest staged-but-uncommitted;

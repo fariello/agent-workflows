@@ -1,5 +1,5 @@
 - Id: 41mtsm
-- Status: graduated
+- Status: done
 - Graduated-To: 41mtsm
 - Blocks-Release: next
 - Set: 41mtsm
@@ -8,6 +8,7 @@
 - Summary: git_commit_helper._is_interactive trusts stdin alone, so a driver-spawned aw verb with stdin inherited and stdout piped prints a commit prompt into the pipe and blocks; adopt artifact_adopt.leak_gate_is_interactive (or the equivalent both-streams-plus-AW_NONINTERACTIVE fence)
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): closed by aw oc run: IPD 0brmmy executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-41mtsm-01-0brmmy-prove-the-git-commit-helper-commit-prompt-fence-holds-and-st.ipd.md); evidence .aw/records/plans/executed/20260929-41mtsm-01-0brmmy-prove-the-git-commit-helper-commit-prompt-fence-holds-and-st.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260929T021205Z-3914774: 0brmmy
 - 2026-09-27 created (aw backlog): git_commit_helper._is_interactive trusts stdin alone, so a driver-spawned aw verb with stdin inherited and stdout piped prints a commit prompt into the pipe and blocks; adopt artifact_adopt.leak_gate_is_interactive (or the equivalent both-streams-plus-AW_NONINTERACTIVE fence)
 
