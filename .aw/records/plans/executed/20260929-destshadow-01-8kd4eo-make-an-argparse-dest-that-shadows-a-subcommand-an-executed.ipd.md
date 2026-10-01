@@ -6,7 +6,7 @@
 - Scope: Add a durable executed-reachability guard that turns this silent class into a failing test, and nothing else. IN: one new test module `tests/test_cli_dest_shadowing.py` that builds every parser in the package, synthesizes a MINIMAL VALID argv for all 171 canonical leaves across the seven builders (151 of them `cli`'s), parses it, and asserts every subparsers dest on the traversed chain still holds the token the operator typed; a recorded mutation demonstrating the guard is RED for the exact defect the item describes. OUT: any change to `agent_workflows/cli.py` or to any shipped flag, dest, or default (the tree measures CLEAN under this guard today, so there is nothing to fix in production code); the SEPARATE and independently-measured `runs` family-flag loss, which is a live defect of the same MECHANISM but a different SHAPE and is owned by plan `zwv1sa` (Order 02) in this Set; and any author-time lint over the parser's static shape, which review measured VIABLE and which is declined as a design trade rather than on feasibility (see Deferred and F-15).
 - Scope-Paths: tests/test_cli_dest_shadowing.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 8kd4eo
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 8kd4eo verified (set destshadow, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-501..PR-508 all FIXED. Two of three load-bearing measurements did not reproduce: F-07's 1160 measured a BROADER rule than the item's (the item's own rule fires 0 clean, 1 mutated), and F-08's 'no narrowing covers both shapes' is falsified (narrowing (iii) reports integration-lock on the mutated tree). Deliverable kept, rationale replaced with F-15. F-17 fixes a synthesizer gap that would have failed the plan's own coverage assertion at execution (oc_runipd/agy_runipd 6/7). F-18 resolves an E-03 self-contradiction. IPD-Z602 cleared by rewriting E-04.
 
