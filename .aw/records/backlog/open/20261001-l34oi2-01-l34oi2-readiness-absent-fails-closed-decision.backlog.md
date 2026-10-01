@@ -1,0 +1,9 @@
+- Id: l34oi2
+- Status: open
+- Set: l34oi2
+- Priority: low
+- Work-Kind: followup
+- Summary: Decide whether is_plan_review_approved should fail closed on an ABSENT Readiness field, as three documents already claim it does
+
+## Workflow history
+- 2026-10-01 created (aw backlog): Deferred by plan fhinri (rdyreq-01) as its OQ-02, filed so the obligation has a durable carrier rather than vanishing when that plan reaches executed (check.ipd-uncarried-obligation). MEASURED IN LANE at HEAD 52e3754c2: the shipped auto-approve predicate plan_readiness.is_plan_review_approved does NOT fail closed on an absent - Readiness: field; it falls back to the history PROSE via history_verdict_approves and returns True for any approving line. Only the CORRUPT (present-but-out-of-vocab) case refuses outright. THREE DOCUMENTS ASSERT THE OPPOSITE: plan-review.md ('a consumer that finds no field FAILS CLOSED and treats the plan as not cleared'), .aw/records/plans/README.md ('finds no field (or an out-of-vocab value) FAILS CLOSED'), and ipd_schema.META_READINESS's own comment ('FAILS CLOSED on an absent or out-of-vocab value'). Demonstrated by stripping the Readiness line from pending plan 2lxcwt: is_plan_review_approved stays True and approval_refusals stays empty, identical to the unstripped plan. THE OPEN QUESTION is whether the PREDICATE should be changed to match the documentation, which is a behavior change to the gate that promotes plans to approved under --full-auto and would remove the back-compat path for plans reviewed before the field existed. Measured exposure of that fallback: exactly 1 tracked plan (920qnm, in executed/, already terminal). Plan fhinri takes the narrower route instead, refusing an absent field in the LINTER at reviewed/approved via a new IPD-M112, and correcting the three false prose claims; it deliberately does not touch the predicate. Decision belongs to the maintainer: it is a risk-appetite call on the auto-approve gate.
