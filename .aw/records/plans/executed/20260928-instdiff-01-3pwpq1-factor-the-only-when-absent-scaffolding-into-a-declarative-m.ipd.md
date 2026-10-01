@@ -6,7 +6,7 @@
 - Scope: Close the DECLARATIVE 42 by factoring the only-when-absent scaffolding into one shared, side-effect-free member-map producer that both the apply path and the preview consume, so the two cannot drift again the way they drifted for the skill members (backlog `bplplj`, plan `at61gc`). IN: a new `engine` function that returns the scaffolding `dict[str, bytes]` for a target repo (layout-resolved, template-read, no writes), derived by EXTRACTING the target lists the four README ensurers and `create_setup_artifacts` already build rather than by re-spelling them; rewiring those five producers to consume it so one definition backs both paths; an EXISTENCE FILTER at the preview boundary so an only-when-absent member whose destination already exists is never offered to the renderer, which is what stops the preview claiming it will overwrite a user's own README (F-11, the plan's most serious correction); calling it from the `if plan.diff:` branch in `engine.run`; teaching `show_install_diffs` to render a zero-byte member (a `.gitkeep`) as a creation rather than silently dropping it, which is the trap the current equal-content skip sets for 22 of the 42; retiring the hand-inlined `.aw/workflow-artifacts/README.md` special case in favor of the shared map WITHOUT losing the `is_file()` guard that block already carries; a default-visible preview/apply parity test that FAILS at HEAD; and one CHANGELOG line. OUT: `.aw/.gitignore`, which is a create-or-append back-fill and not a flat member (F-12); the 2 merge-writer paths, the 2 `emit_layout_artifacts` paths and the 3 bookkeeping paths (F-03, F-04, and the deferral section, each with a carrier or a declined rationale); adding a `--diff` flag to `aw install`, which does not have one (F-06); changing any WRITE semantics, so no file the installer creates, skips or overwrites changes; and changing `install_all`, `prune_stale`, the backup machinery or the ownership manifest.
 - Scope-Paths: agent_workflows/engine.py, tests/test_installer_scaffold_preview_parity.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 3pwpq1
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 3pwpq1 verified (set instdiff, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-001 through PR-006 all fixed
 
@@ -47,15 +47,15 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure, then build the shared producer
 
-- [ ] E-01 RE-MEASURE THE GAP AND RE-DERIVE THE FOUR-CLASS SPLIT AT THE EXECUTING HEAD, before changing anything, because this count has already moved twice (49 at at61gc's review, 48 at its execution, 50 at this authoring) and the PROPERTY rather than the number is the finding. Create two throwaway git repos inside the lane (for example under `.aw/state/`, which is gitignored; remove them afterwards). Run `python3 install-workflows.py --repo <preview-repo> --diff --no-color` and capture the proposed set as the `Diff: ` header lines; run `python3 install-workflows.py --repo <apply-repo> --yes --no-color` into the other and capture the written set as every non-`.git` file. Paste both counts, the `comm`-derived apply-only set in full, and the apply-only count.
+- [x] E-01 RE-MEASURE THE GAP AND RE-DERIVE THE FOUR-CLASS SPLIT AT THE EXECUTING HEAD, before changing anything, because this count has already moved twice (49 at at61gc's review, 48 at its execution, 50 at this authoring) and the PROPERTY rather than the number is the finding. Create two throwaway git repos inside the lane (for example under `.aw/state/`, which is gitignored; remove them afterwards). Run `python3 install-workflows.py --repo <preview-repo> --diff --no-color` and capture the proposed set as the `Diff: ` header lines; run `python3 install-workflows.py --repo <apply-repo> --yes --no-color` into the other and capture the written set as every non-`.git` file. Paste both counts, the `comm`-derived apply-only set in full, and the apply-only count.
   THEN CLASSIFY EVERY APPLY-ONLY PATH into the five classes F-03 names (declarative scaffolding, create-or-append back-fill, merge-writer, `emit_layout_artifacts`, bookkeeping) and paste the per-class counts. Review re-measured 42 / 1 / 2 / 2 / 3 at `f0186892`. IF THE DECLARATIVE CLASS IS EMPTY, STOP and report the defect fixed rather than writing a change with nothing to fix. IF A PATH FALLS IN NO CLASS, report it as a sixth class and say whether this plan's shape still applies before continuing; do not silently fold it into the declarative set, because the whole plan turns on that set being derivable without writing.
   ALSO CLASSIFY EACH DECLARATIVE PATH BY WHETHER IT IS ZERO-BYTE, because the two halves need different renderer treatment and the counts drive V-04: paste the `.gitkeep` count and the non-empty count (review measured 22 and 20 of the 42). The 20 NON-EMPTY paths are the ones E-07's existence filter protects, since those are the ones a user may have customized (F-11).
   ALSO CONFIRM THE IDEMPOTENCE PREMISE the design rests on: run `--diff` against the ALREADY-INSTALLED apply repo and paste the output, which must be `No changes (everything is already current).`. This is what makes it safe for the preview to include only-when-absent members: on a current repo they are byte-identical and drop out, so a re-install preview stays quiet.
   - Depends on: none
   - Expected outcome: the preview count is materially below the apply count; the apply-only set is enumerated and fully classified into the five classes with the declarative class non-empty; the zero-byte and non-empty halves of the declarative class are counted separately; the already-installed preview reports no changes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 ADD THE SHARED SCAFFOLDING MEMBER-MAP PRODUCER to `agent_workflows/engine.py`, a new module-level function that takes the target repo root and source root and returns the only-when-absent scaffolding as a `dict[str, bytes]` keyed by repo-relative path, resolving layout exactly as the existing producers do and reading templates exactly as they do, and WRITING NOTHING and CREATING NO DIRECTORY. Name it in the style of its siblings (`collect_source_members`, `generate_shim_members`, `_build_skill_members`).
+- [x] E-02 ADD THE SHARED SCAFFOLDING MEMBER-MAP PRODUCER to `agent_workflows/engine.py`, a new module-level function that takes the target repo root and source root and returns the only-when-absent scaffolding as a `dict[str, bytes]` keyed by repo-relative path, resolving layout exactly as the existing producers do and reading templates exactly as they do, and WRITING NOTHING and CREATING NO DIRECTORY. Name it in the style of its siblings (`collect_source_members`, `generate_shim_members`, `_build_skill_members`).
   BUILD IT BY EXTRACTING THE EXISTING TARGET LISTS, NOT BY RE-SPELLING THEM, and this is the requirement the whole plan turns on. `ensure_plans_readmes`, `ensure_docs_readmes` and `ensure_prompts_readmes` each begin by building a local `targets` list of `(rel_path, template_name)` pairs off `_record_scaffold_dirs`, `PLAN_LIFECYCLE_SUBDIRS` and `PROMPT_LIFECYCLE_SUBDIRS`; `create_setup_artifacts` builds a local `files` list of `(relpath, content)` pairs whose own comment records that `a bare "" content = a .gitkeep`. Lift each of those list-building blocks into the shared producer so the ensurers CONSUME it, and do NOT leave a second copy behind. A re-spelled list is a second composition, and a second composition is exactly how the preview drifted for the skill members (F-07); the review of `at61gc` recorded the same lesson.
   PRESERVE THE DEFENSIVE TEMPLATE-MISS BEHAVIOR: all three README ensurers `continue` past a target whose template cannot be read rather than inventing content. The producer must OMIT such a member for the same reason, so the preview cannot advertise a file the apply would skip.
   PRESERVE THE LEGACY-LAYOUT EXCLUSIONS as the existing code has them, notably that the `aw` layout drops the top-level docs README while `legacy` keeps it, and that `create_setup_artifacts` writes `.aw/.gitignore` only for the canonical `aw` layout and per-lane `.gitignore` files otherwise. The producer must be layout-correct for BOTH, since the preview runs against whatever the target repo is.
@@ -63,49 +63,49 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   THE PRODUCER'S KEYS MUST NOT BE FILTERED BY EXISTENCE. Return the FULL target set and let the boundary decide: the apply path's own no-clobber guards already filter per target, and E-07 puts the filter at the preview boundary where its intent is explicit. A producer that pre-filtered would silently change what a rewired ensurer iterates.
   - Depends on: E-01
   - Expected outcome: one new function returns the declarative scaffolding map for a given repo (the full target set, unfiltered by destination existence), is provably side-effect-free (no file or directory created by calling it), is layout-correct for `aw` and `legacy`, omits a template-miss member, excludes `.aw/.gitignore`, and is the ONLY place those target lists are spelled.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 REWIRE THE FIVE APPLY-PATH PRODUCERS ONTO THE SHARED MAP, so the apply behavior is unchanged while the definition becomes shared. The four README ensurers keep their signatures, their no-clobber `is_file()` guard, their `plan.dry_run` early return appending `[install, dry-run]`, their `skipped.append(... [already current])` message, and their staging decisions EXACTLY as they are: `ensure_plans_readmes`, `ensure_docs_readmes` and `ensure_prompts_readmes` stage via `git_add_optional`, while `ensure_workflow_artifacts_readme` DELIBERATELY DOES NOT STAGE and carries a long comment explaining why. `create_setup_artifacts` keeps `_create_if_absent`, keeps its dry-run `[dry-run]` suffix list, and keeps the `migrate_local_lanes_to_untracked` call and the untracked-lane `mkdir` side effects that follow its write loop, which are NOT member writes and must not move into the producer.
+- [x] E-03 REWIRE THE FIVE APPLY-PATH PRODUCERS ONTO THE SHARED MAP, so the apply behavior is unchanged while the definition becomes shared. The four README ensurers keep their signatures, their no-clobber `is_file()` guard, their `plan.dry_run` early return appending `[install, dry-run]`, their `skipped.append(... [already current])` message, and their staging decisions EXACTLY as they are: `ensure_plans_readmes`, `ensure_docs_readmes` and `ensure_prompts_readmes` stage via `git_add_optional`, while `ensure_workflow_artifacts_readme` DELIBERATELY DOES NOT STAGE and carries a long comment explaining why. `create_setup_artifacts` keeps `_create_if_absent`, keeps its dry-run `[dry-run]` suffix list, and keeps the `migrate_local_lanes_to_untracked` call and the untracked-lane `mkdir` side effects that follow its write loop, which are NOT member writes and must not move into the producer.
   RETIRE THE HAND-INLINED `.aw/workflow-artifacts/README.md` SPECIAL CASE in `show_install_diffs` in the same pass, since the shared map is what replaces it. That block currently duplicates the ensurer's template read and its `_ARTIFACTS_README_FALLBACK` fallback, and duplicated fallbacks are how the preview once advertised the opposite of a corrected template (the comment in that block records it). Keep the fallback behavior itself: the shared map must still yield the fallback content when the template read fails, and must still respect that this README is skipped on the legacy layout.
   RETIRING THAT BLOCK RETIRES A GUARD, NOT ONLY A DUPLICATE READ, and losing the guard is a regression. The block is wrapped in `if not artifacts_dest.is_file():`, so today the preview offers this README ONLY when the destination is absent. E-07 is what replaces that guard generically; measured at review, moving this member onto an UNFILTERED map makes the preview print `Diff: .aw/workflow-artifacts/README.md` against a repo whose README the user has customized and the apply will not touch. Do not land this retirement without E-07.
   THIS E-ITEM CHANGES NO WRITE SEMANTICS. Nothing newly created, nothing newly skipped, nothing newly overwritten, nothing newly staged or unstaged. That is the property V-03 is written to falsify.
   - Depends on: E-02
   - Expected outcome: the five apply-path producers derive their targets from the shared map, the inlined preview special case is gone with its existence guard preserved generically by E-07, and the installer's observable write, skip, stage and dry-run behavior is byte-for-byte what it was.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the preview, the zero-byte trap, and coverage
 
-- [ ] E-07 FILTER ONLY-WHEN-ABSENT MEMBERS ON DESTINATION EXISTENCE AT THE PREVIEW BOUNDARY. IT IS NUMBERED LAST AND EXECUTED HERE, third, because ids are allocated monotonically and never renumbered while the checklist is executed in written order; E-04 declares `Depends on: E-07` so the ordering is machine-checked rather than implied by the number. This is the single most important item in this plan and the one whose absence would have made the change WORSE than the defect it fixes. THE DEFECT WITHOUT IT, measured at review on a fresh throwaway repo that was installed and then customized the way a real target repo is: offering the 20 non-empty scaffolding members to `show_install_diffs` unfiltered produced six `Diff:` headers and 10 red `-` lines claiming the install would DELETE the user's own content, including `-# Our team's plan conventions`, `-name: our secret scan` and `-# team rule`, against a repo where a real apply in the same probe changed NOTHING. A preview that promises to overwrite a user's files is a worse failure than one that omits files, because an operator reads a destructive diff and cancels the install.
+- [x] E-07 FILTER ONLY-WHEN-ABSENT MEMBERS ON DESTINATION EXISTENCE AT THE PREVIEW BOUNDARY. IT IS NUMBERED LAST AND EXECUTED HERE, third, because ids are allocated monotonically and never renumbered while the checklist is executed in written order; E-04 declares `Depends on: E-07` so the ordering is machine-checked rather than implied by the number. This is the single most important item in this plan and the one whose absence would have made the change WORSE than the defect it fixes. THE DEFECT WITHOUT IT, measured at review on a fresh throwaway repo that was installed and then customized the way a real target repo is: offering the 20 non-empty scaffolding members to `show_install_diffs` unfiltered produced six `Diff:` headers and 10 red `-` lines claiming the install would DELETE the user's own content, including `-# Our team's plan conventions`, `-name: our secret scan` and `-# team rule`, against a repo where a real apply in the same probe changed NOTHING. A preview that promises to overwrite a user's files is a worse failure than one that omits files, because an operator reads a destructive diff and cancels the install.
   SO PASS ONLY THE MEMBERS WHOSE DESTINATION DOES NOT EXIST. Apply the filter where the preview composes its proposed map (E-05), on the same predicate the apply path's own dry-run branch already uses (`if not (repo_root / rel).exists()` in `create_setup_artifacts`), so the preview's inclusion rule and the apply's write rule are the same rule rather than two guesses. Verified at review: with the filter in place the same customized repo previews `No changes (everything is already current).`, which is what the apply actually does.
   FILTER HERE, NOT IN THE PRODUCER (E-02 says why) AND NOT IN THE RENDERER. `show_install_diffs` also receives body and generated members, which are OVERWRITE-semantics members whose whole purpose is to show a real diff against an existing file; an existence filter inside the renderer would silently stop reporting every framework file update, which is the installer's primary function. The filter belongs to the only-when-absent map alone.
   THIS IS DISTINCT FROM E-04 AND BOTH ARE REQUIRED. E-04 makes an ABSENT destination reportable when the content is empty; this item makes a PRESENT destination unreportable when the member is only-when-absent. E-04 alone under-reports 22 `.gitkeep` files; this item alone leaves them dropped. Neither substitutes for the other.
   - Depends on: E-03
   - Expected outcome: the preview offers an only-when-absent member only when its destination is absent; a repo with user-customized scaffolding previews no scaffolding diff at all; no body or generated member's diff reporting changes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 MAKE THE RENDERER REPORT A ZERO-BYTE CREATION, because without this the rest of the plan silently fails for 22 of the 42 files. `show_install_diffs` computes `current_lines` as empty for an ABSENT destination and compares `"".join(current_lines) == "".join(new_lines)`, so a member whose proposed content is empty compares equal to a missing file and is `continue`d. Verified directly: for empty current and empty new content, the join comparison is `True` and `difflib.unified_diff` returns an EMPTY list, so there is no diff body to print even if the skip were removed. 22 of the 42 in-scope paths are `.gitkeep` files with exactly that content.
+- [x] E-04 MAKE THE RENDERER REPORT A ZERO-BYTE CREATION, because without this the rest of the plan silently fails for 22 of the 42 files. `show_install_diffs` computes `current_lines` as empty for an ABSENT destination and compares `"".join(current_lines) == "".join(new_lines)`, so a member whose proposed content is empty compares equal to a missing file and is `continue`d. Verified directly: for empty current and empty new content, the join comparison is `True` and `difflib.unified_diff` returns an EMPTY list, so there is no diff body to print even if the skip were removed. 22 of the 42 in-scope paths are `.gitkeep` files with exactly that content.
   SO DECIDE THE ABSENCE CASE ON EXISTENCE, NOT ON CONTENT EQUALITY: a member whose destination does not exist is a CREATION and must be reported, even when its content is empty. A member whose destination exists with identical content stays skipped, preserving the current quiet-on-a-current-repo behavior E-01 confirms. Emit a `Diff: <rel>` header for the creation so the existing count-by-header evidence method keeps working, and emit something that reads as a new empty file rather than an empty diff body; the exact rendering is the executor's call, but it MUST be distinguishable from an unchanged file in the output and MUST NOT claim content the file does not have.
   THIS CHANGE IS SAFE FOR EVERY OTHER MEMBER CLASS, which review confirmed rather than assumed, because an existence-based creation rule applied in the renderer touches body and generated members too: measured at review, ZERO of the 159 body members, zero shim members and zero skill members have empty content, so no existing member's rendering can change. Re-confirm that on the executing HEAD before relying on it, and report it as evidence in V-04 rather than repeating this sentence.
   DO NOT FIX THIS BY GIVING `.gitkeep` NON-EMPTY CONTENT. The apply writes it empty (`_create_if_absent` with `""`), so inventing content would make the preview advertise bytes the apply does not write, which is the same class of lie this plan exists to remove.
   - Depends on: E-07
   - Expected outcome: a `--diff` against a fresh repo emits a header for every zero-byte member it would create, distinguishable from an unchanged file, and a `--diff` against an already-installed repo still prints `No changes (everything is already current).`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 CALL THE SHARED PRODUCER FROM THE PREVIEW BRANCH in `engine.run`'s `if plan.diff:` block, applying E-07's existence filter to the scaffolding map and merging the RESULT into the proposed set alongside the body members and the merged shim-plus-skill map, in the same shape and with the same arguments the apply path uses. Follow the precedent the existing branch set for the skill members: MIRROR the apply composition rather than inventing a second answer, and say so in a comment naming this plan. The comment must also record WHY the scaffolding map is filtered and the other two are not, because the asymmetry is the load-bearing detail and an unexplained filter is the kind of thing a later refactor removes.
+- [x] E-05 CALL THE SHARED PRODUCER FROM THE PREVIEW BRANCH in `engine.run`'s `if plan.diff:` block, applying E-07's existence filter to the scaffolding map and merging the RESULT into the proposed set alongside the body members and the merged shim-plus-skill map, in the same shape and with the same arguments the apply path uses. Follow the precedent the existing branch set for the skill members: MIRROR the apply composition rather than inventing a second answer, and say so in a comment naming this plan. The comment must also record WHY the scaffolding map is filtered and the other two are not, because the asymmetry is the load-bearing detail and an unexplained filter is the kind of thing a later refactor removes.
   DECIDE THE MERGE ORDER EXPLICITLY AND STATE IT. Scaffolding keys and body/generated keys are expected to be disjoint; PROVE that on the real corpus rather than assuming it, and if any key does overlap, let the producer that the APPLY path would win with win here too, so the preview cannot show content the apply would not write. Paste the measured overlap set (expected empty) as evidence. Review measured the intersection of the 159 body members with the scaffolding target set as EMPTY at `f0186892`, and separately measured the 44-entry scaffolding target list as containing 44 unique keys, so no member is lost to dict-key collapse inside the producer either; re-derive both rather than citing these.
   DO NOT ADD A `--diff` FLAG TO `aw install`. It has none, and `cli.py` actively sets `engine_args.diff = False` on its install paths; adding one is a CLI-surface change with its own review, and plan `at61gc`'s review already adjudicated that question the same way (F-06).
   - Depends on: E-04
   - Expected outcome: the preview's proposed set includes the absent declarative scaffolding and excludes the present, the apply-only residual drops to the deliberately excluded classes only, and the measured key-overlap between the scaffolding map and the existing maps is stated.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 ADD `tests/test_installer_scaffold_preview_parity.py` WITH DEFAULT-VISIBLE COVERAGE, plus one CHANGELOG line. Behavioral only: drive the real functions and the real CLI and assert on real outputs, exit codes and filesystem state. No `inspect`, no reading production source text, no symbol censuses, no caller counts, no assertions that a comment or docstring survives (GUIDING_PRINCIPLES P16).
+- [x] E-06 ADD `tests/test_installer_scaffold_preview_parity.py` WITH DEFAULT-VISIBLE COVERAGE, plus one CHANGELOG line. Behavioral only: drive the real functions and the real CLI and assert on real outputs, exit codes and filesystem state. No `inspect`, no reading production source text, no symbol censuses, no caller counts, no assertions that a comment or docstring survives (GUIDING_PRINCIPLES P16).
   NO MODULE-LEVEL `pytest.mark.slow`. The property this plan fixes went unseen partly because the only `--diff` test is in a slow-marked module and `addopts` carries `-m 'not slow'`, so the contract-mandated bare run never asserted it. Use `tmp_path` fixtures. If a real install is genuinely needed for one end-to-end case, put THAT case in a class carrying a class-scoped `pytestmark = pytest.mark.slow` and keep the rest bare.
   COVER EIGHT PROPERTIES: (1) THE PARITY PROPERTY, that the preview's proposed key set for a fresh repo is a superset of the declarative scaffolding an apply writes, with the residual apply-only set containing ONLY the deliberately excluded classes, asserted as an explicit allow-list so a NEW omission fails the test instead of widening silently; (2) every `.gitkeep` an apply writes appears in the preview, which is the E-04 trap and must be asserted by path and not by count; (3) the producer is SIDE-EFFECT-FREE, by snapshotting the repo tree, calling it, and asserting the tree is unchanged; (4) IDEMPOTENCE, that `--diff` against an already-installed repo still reports no changes; (5) LAYOUT CORRECTNESS, that a `legacy` target produces the legacy target set and not `.aw/` paths; (6) TEMPLATE-MISS OMISSION, that a target whose template is unreadable is absent from the map rather than present with invented content; (7) THE NO-FALSE-OVERWRITE PROPERTY (E-07), that on a repo whose scaffolding a user has CUSTOMIZED the preview prints no `Diff:` header for any customized path and emits no `-` removal line for the user's content, built by installing, then rewriting at least three non-empty scaffolding files with distinctive strings, then asserting the preview mentions none of them; (8) THE OVERWRITE-MEMBERS-STILL-DIFF PROPERTY, that a BODY member whose destination was modified still produces its `Diff:` header, which is what catches an existence filter applied too widely and stops the E-07 fix from silently disabling the installer's primary reporting.
   MUTATION-CHECK THE TEST AS THREE SEPARATE MUTATIONS, since a regression test that cannot fail proves nothing: revert E-05 alone and paste property (1) FAILING; revert E-04 alone and paste property (2) FAILING; revert E-07's filter alone and paste property (7) FAILING. Restore all three and paste them green. State that the mutations touched only the working tree and were reverted. If property (7) passes with the filter reverted, the test is not asserting what it claims and V-06 MUST be recorded as failed rather than verified.
   ADD ONE `CHANGELOG.md` LINE under the appropriate unreleased bug-fix heading in the file's existing style, saying the `--diff` preview now reports the scaffolding files an install would create. This is user-facing prose: no em or en dashes.
   - Depends on: E-05
   - Expected outcome: a new default-visible test module covering all eight properties with an explicit residual allow-list, mutation-proven to fail without E-07, without E-04 and without E-05, and one CHANGELOG line.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -241,40 +241,808 @@ WHAT THIS PLAN DELIBERATELY DOES NOT DOCUMENT is a promise of full preview/apply
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the PRE-CHANGE preview header count, the PRE-CHANGE apply file count, and the FULL enumerated apply-only path set from the two fresh throwaway repos, plus the preview-only set (which must be empty, proving pure omission). Paste the per-class classification with its FIVE counts and state whether it matched review's 42 / 1 / 2 / 2 / 3; paste the zero-byte and non-empty split of the declarative class (review measured 22 and 20); if a path fell in no class, name it and say whether the plan still applies. Paste the `--diff` run against the already-installed repo showing `No changes (everything is already current).`. State the HEAD commit measured at and name the interpreter used. Confirm the throwaway repos were created inside the lane and removed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Pre-change measurements confirmed 308 preview / 358 apply / 50 apply-only paths; 42/1/2/2/3 split.
+    Pre-change measurement executed at HEAD `014b5fafc9e241eb854dc395216dcceb4e32fd57` using interpreter `Python 3.14.6`:
+    Preview header count: 308
+    Apply file count: 358
+    Preview-only set: empty (`comm -23 preview apply` yields 0 paths).
+    Apply-only set: exactly 50 paths (`comm -13 preview apply` yields 50 paths), enumerated in full:
+    ```
+    .agent-workflows-installer-backups/20260930-194012/.created-files.json
+    .agent-workflows-installer-backups/20260930-194012/.gitignore
+    .aw/.gitignore
+    .aw/records/README.md
+    .aw/records/backlog/.gitkeep
+    .aw/records/comms/README.md
+    .aw/records/comms/shared/archive/.gitkeep
+    .aw/records/comms/shared/inbox/.gitkeep
+    .aw/records/comms/shared/sent/.gitkeep
+    .aw/records/plans/README.md
+    .aw/records/plans/executed/.gitkeep
+    .aw/records/plans/executed/README.md
+    .aw/records/plans/not-executed/.gitkeep
+    .aw/records/plans/not-executed/README.md
+    .aw/records/plans/pending/.gitkeep
+    .aw/records/plans/pending/README.md
+    .aw/records/plans/reusable/.gitkeep
+    .aw/records/plans/reusable/README.md
+    .aw/records/plans/superseded/.gitkeep
+    .aw/records/plans/superseded/README.md
+    .aw/records/prompt-library/.gitkeep
+    .aw/records/prompts/README.md
+    .aw/records/prompts/executed/.gitkeep
+    .aw/records/prompts/executed/README.md
+    .aw/records/prompts/not-executed/.gitkeep
+    .aw/records/prompts/not-executed/README.md
+    .aw/records/prompts/pending/.gitkeep
+    .aw/records/prompts/pending/README.md
+    .aw/records/prompts/reusable/.gitkeep
+    .aw/records/prompts/reusable/README.md
+    .aw/records/prompts/superseded/.gitkeep
+    .aw/records/prompts/superseded/README.md
+    .aw/records/research/.gitkeep
+    .aw/records/research/README.md
+    .aw/records/research/archive/.gitkeep
+    .aw/records/research/reference/.gitkeep
+    .aw/records/reviews/.gitkeep
+    .aw/records/roadmaps/.gitkeep
+    .aw/records/specs/.gitkeep
+    .aw/records/specs/README.md
+    .aw/records/walkthroughs/.gitkeep
+    .aw/records/walkthroughs/README.md
+    .aw/system/layout.json
+    .aw/system/layout.schema.json
+    .aw/system/managed-sections.json
+    .aw/workflow-artifacts/README.md
+    .github/workflows/secret-scan.yml
+    .gitleaksignore
+    .gitignore
+    AGENTS.md
+    ```
+    Per-class classification:
+      - 42 declarative scaffolding (.aw/records/** READMEs and .gitkeeps, .gitleaksignore, secret-scan.yml, comms skeleton)
+      - 1 create-or-append back-fill (.aw/.gitignore)
+      - 2 merge-writer (AGENTS.md, root .gitignore)
+      - 2 emit_layout_artifacts (.aw/system/layout.json, .aw/system/layout.schema.json)
+      - 3 bookkeeping (.aw/system/managed-sections.json, two backup directory files)
+      The 5 counts: 42 / 1 / 2 / 2 / 3, matching review's measurements exactly.
+      Zero-byte and non-empty split of declarative class: exactly 22 zero-byte (.gitkeep) files and 20 non-empty files.
+      No path fell in an unclassified sixth class.
+    Already-installed repo --diff:
+    ```
+    $ python3 install-workflows.py --repo <apply-repo> --diff --no-color
+    No changes (everything is already current).
+    ```
+    All throwaway repositories were created under lane-local `.aw/state/` and deleted after measurement.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the new producer's committed source in full. Confirm by reading it that it WRITES NOTHING and creates no directory, and prove it: paste a recursive listing of a repo before and after calling it, showing an identical tree. Confirm by reading the committed `git diff` that the target lists it contains were MOVED out of the four README ensurers and `create_setup_artifacts` rather than copied, by showing those functions no longer build their own lists; if any list remains duplicated, this item FAILS. Paste evidence that a template-miss member is OMITTED (make one template unreadable in a fixture and show the member absent from the map). Paste the map's key set for an `aw` target and for a `legacy` target and confirm the legacy set contains no `.aw/` path. Confirm `.aw/.gitignore` is ABSENT from the map (F-12) and that the key COUNT equals the number of distinct targets the rewired producers iterate, so no member was lost to a dict-key collision (review measured 44 list entries and 44 unique keys).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. collect_scaffold_members committed in full; side-effect-free, layout-correct, no duplicated target lists.
+    Committed source of `collect_scaffold_members` in full:
+    ```python
+def collect_scaffold_members(
+    repo_root: Path,
+    source_root: Path | None = None,
+    target_layout: str | None = None,
+    *,
+    category: str | None = None,
+) -> dict[str, bytes]:
+    """Produce the declarative only-when-absent scaffolding member map (IPD 3pwpq1).
 
-- [ ] V-03 validates E-03
+    Side-effect-free: writes no files and creates no directories.
+    Resolves layout ('aw' or 'legacy') and reads templates from source_root.
+    Omit template-miss members defensively (OSError on template read).
+    Excludes .aw/.gitignore (which is an append back-fill, not a flat member; F-12).
+    Excludes merge-writer paths (AGENTS.md, root .gitignore), layout artifacts,
+    and bookkeeping paths.
+
+    If category is specified ('workflow_artifacts', 'plans', 'docs', 'prompts', 'setup'),
+    returns only the members for that category to back the corresponding ensurer.
+    If category is None, returns the complete scaffolding map.
+    """
+    if source_root is None:
+        source_root = resolve_source_root(None)
+    layout = target_layout or resolve_target_layout(repo_root)
+    dirs = _record_scaffold_dirs(layout)
+    templates_dir = source_root / "templates"
+    members: dict[str, bytes] = {}
+
+    # 1. Workflow artifacts README
+    if category is None or category == "workflow_artifacts":
+        if layout == "aw":
+            rel_path = f"{ARTIFACTS_DIR}README.md"
+            try:
+                content = (templates_dir / "workflow-artifacts-README.md").read_bytes()
+            except OSError:
+                content = _ARTIFACTS_README_FALLBACK.encode("utf-8")
+            members[rel_path] = content
+
+    # 2. Plans READMEs
+    if category is None or category == "plans":
+        if layout == "aw":
+            record_root_readme = ".aw/records/README.md"
+            record_root_template = "agents-README.md"
+        else:
+            record_root_readme = ".agents/README.md"
+            record_root_template = "agents-legacy-README.md"
+        targets = [
+            (record_root_readme, record_root_template),
+            (f"{dirs['plans']}/README.md", "plans-README.md"),
+        ]
+        for bucket in PLAN_LIFECYCLE_SUBDIRS:
+            targets.append(
+                (f"{dirs['plans']}/{bucket}/README.md", f"plans-{bucket}-README.md")
+            )
+        for rel_path, template_name in targets:
+            try:
+                members[rel_path] = (templates_dir / template_name).read_bytes()
+            except OSError:
+                continue
+
+    # 3. Docs READMEs
+    if category is None or category == "docs":
+        if layout == "aw":
+            targets = []
+        else:
+            targets = [(f"{DOCS_DIR}/README.md", "agents-docs-README.md")]
+        for key, tmpl_bucket in (
+            ("research", "research"),
+            ("walkthroughs", "walkthroughs"),
+            ("specs", "specs"),
+            ("prompt_library", "prompts"),
+        ):
+            targets.append(
+                (f"{dirs[key]}/README.md", f"agents-docs-{tmpl_bucket}-README.md")
+            )
+        for rel_path, template_name in targets:
+            try:
+                members[rel_path] = (templates_dir / template_name).read_bytes()
+            except OSError:
+                continue
+
+    # 4. Prompts READMEs
+    if category is None or category == "prompts":
+        targets = [(f"{dirs['prompts']}/README.md", "prompts-README.md")]
+        for bucket in PROMPT_LIFECYCLE_SUBDIRS:
+            targets.append(
+                (f"{dirs['prompts']}/{bucket}/README.md", f"prompts-{bucket}-README.md")
+            )
+        for rel_path, template_name in targets:
+            try:
+                members[rel_path] = (templates_dir / template_name).read_bytes()
+            except OSError:
+                continue
+
+    # 5. Setup artifacts
+    if category is None or category == "setup":
+        files: list[tuple[str, bytes]] = []
+        for sub in PLAN_LIFECYCLE_SUBDIRS:
+            files.append((f"{dirs['plans']}/{sub}/.gitkeep", b""))
+        for key in (
+            "research",
+            "specs",
+            "walkthroughs",
+            "roadmaps",
+            "prompt_library",
+            "backlog",
+            "reviews",
+        ):
+            _dir = dirs.get(key)
+            if _dir:
+                files.append((f"{_dir}/.gitkeep", b""))
+        for shard in (f"{dirs['research']}/reference", f"{dirs['research']}/archive"):
+            files.append((f"{shard}/.gitkeep", b""))
+        for sub in PROMPT_LIFECYCLE_SUBDIRS:
+            files.append((f"{dirs['prompts']}/{sub}/.gitkeep", b""))
+
+        _canonical_aw = str(dirs["comms"]).replace("\\", "/").startswith(".aw/")
+        # Note: AW_GITIGNORE_PATH (.aw/.gitignore) is excluded (F-12) because it is a
+        # create-or-append back-fill and not a flat member; create_setup_artifacts writes it
+        # directly on apply.
+        if not _canonical_aw:
+            files.append(
+                (
+                    f"{dirs['prompts']}/.gitignore",
+                    _PROMPTS_GITIGNORE_TEMPLATE.encode("utf-8"),
+                )
+            )
+        files.append(
+            (GITLEAKSIGNORE_FILE, _GITLEAKSIGNORE_TEMPLATE.encode("utf-8"))
+        )
+        files.append((SECRET_SCAN_CI, _SECRET_SCAN_CI_TEMPLATE.encode("utf-8")))
+        if not _canonical_aw:
+            files.append(
+                (f"{dirs['comms']}/.gitignore", _COMMS_GITIGNORE_TEMPLATE.encode("utf-8"))
+            )
+        files.append(
+            (f"{dirs['comms']}/README.md", _COMMS_README_TEMPLATE.encode("utf-8"))
+        )
+        for sub in COMMS_SHARED_SUBDIRS:
+            files.append((f"{dirs['comms']}/shared/{sub}/.gitkeep", b""))
+
+        for rel_path, content_bytes in files:
+            members[rel_path] = content_bytes
+
+    return members
+    ```
+    Reading the source confirms it only queries paths and reads templates, executing zero `write_text`, `write_bytes`, `mkdir`, or `open(..., 'w')` calls.
+    Proof of side-effect-free execution (tested via `test_scaffold_producer_is_side_effect_free`):
+    ```python
+    before_listing = sorted(str(p.relative_to(repo)).replace("\\", "/") for p in repo.rglob("*"))
+    members = engine.collect_scaffold_members(repo, source_root)
+    after_listing = sorted(str(p.relative_to(repo)).replace("\\", "/") for p in repo.rglob("*"))
+    assert before_listing == after_listing  # True: identical tree
+    ```
+    Reading the committed `git diff agent_workflows/engine.py` proves target lists were MOVED:
+    - `ensure_plans_readmes` replaced its local list with `collect_scaffold_members(..., category="plans")`
+    - `ensure_docs_readmes` replaced its local list with `collect_scaffold_members(..., category="docs")`
+    - `ensure_prompts_readmes` replaced its local list with `collect_scaffold_members(..., category="prompts")`
+    - `create_setup_artifacts` replaced its local list with `collect_scaffold_members(..., category="setup")`
+    - `ensure_workflow_artifacts_readme` replaced its inline logic with `collect_scaffold_members(..., category="workflow_artifacts")`
+    No target list remains duplicated.
+    Template-miss omission proof (tested via `test_template_miss_member_is_omitted_defensively`):
+    Providing only `agents-README.md` in `fake_source/templates`:
+    `.aw/records/README.md` is present in members; `.aw/records/plans/README.md` (unreadable template) is omitted defensively.
+    Layout keys:
+    - Canonical `aw` target yields 43 keys.
+    - Legacy target yields 44 keys.
+    - Legacy set check: `any(k.startswith(".aw/") for k in scaffold_legacy)` evaluates to `False`.
+    - `.aw/.gitignore` is absent from both maps (`".aw/.gitignore" in scaffold_aw` is `False`).
+    - Key counts match target entries: 43 unique keys for canonical `aw`, 44 unique keys for legacy layout; 0 lost to dict-key collision.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the committed `git diff` for the five rewired writers and for the removal of the inlined `.aw/workflow-artifacts/README.md` block. Confirm by quoting the diff that each writer retains its no-clobber guard (`is_file()` or `_create_if_absent`), its `plan.dry_run` early return and `[install, dry-run]` suffix, its `skipped`/`installed` message strings, and its staging decision, INCLUDING that `ensure_workflow_artifacts_readme` still does not stage and that `create_setup_artifacts` still calls `migrate_local_lanes_to_untracked` and still creates the untracked lane directories after its write loop. Paste a `--dry-run` install into a fresh repo BEFORE and AFTER the change and confirm the reported path set is IDENTICAL, which is the falsifiable form of "no write semantics changed". Paste the full `tests/test_installer.py` module green via `-o addopts=""`, naming `test_readme_templates_are_created_on_a_fresh_install`, `test_every_existing_file_state_is_handled_without_clobbering`, `test_rollback_removes_create_setup_artifacts_files` and the `_ensure_aw_gitignore` lane table individually. Confirm the shared map still yields the `_ARTIFACTS_README_FALLBACK` content on a template read failure and still skips that README on the legacy layout. Confirm that the `if not artifacts_dest.is_file():` guard the retired block carried is REPLACED by E-07's filter and not simply dropped, by pasting a `--diff` against a repo whose `.aw/workflow-artifacts/README.md` the user has customized and showing no header for it (measured at review: unfiltered, that path DOES print a header).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Five producers rewired; dry-run path set identical; full test_installer.py passed (121 passed); no write semantics changed.
+    Committed diff for rewired writers and removed inlined block:
+    ```diff
+@@ -3991,28 +3999,12 @@ def show_install_diffs(
+     for rel, content in shim_members.items():
+         proposed[rel] = content.encode("utf-8")
 
-- [ ] V-07 validates E-07
+-    artifacts_readme = f"{ARTIFACTS_DIR}README.md"
+-    artifacts_dest = plan.repo_root / artifacts_readme
+-    if not artifacts_dest.is_file():
+-        template_path = plan.source_root / "templates" / "workflow-artifacts-README.md"
+-        try:
+-            proposed[artifacts_readme] = template_path.read_bytes()
+-        except OSError:
+-            proposed[artifacts_readme] = _ARTIFACTS_README_FALLBACK.encode("utf-8")
+...
+@@ -6043,15 +6148,8 @@ def ensure_workflow_artifacts_readme(
+     target = f"{ARTIFACTS_DIR}README.md"
+     readme_path = plan.repo_root / target
+     if readme_path.is_file():
+         skipped.append(f"{target} [already current]")
+         return
++    targets = collect_scaffold_members(plan.repo_root, plan.source_root, category="workflow_artifacts")
++    if target not in targets:
++        return
+     if plan.dry_run:
+         installed.append(f"{target} [install, dry-run]")
+         return
+@@ -6069,17 +6165,11 @@ def ensure_plans_readmes(
++    targets = collect_scaffold_members(plan.repo_root, plan.source_root, category="plans")
+-    for rel_path, template_name in targets:
++    for rel_path, content_bytes in targets.items():
+         readme_path = plan.repo_root / rel_path
+         if readme_path.is_file():
+             skipped.append(f"{rel_path} [already current]")
+             continue
+...
+@@ -6134,49 +6216,17 @@ def create_setup_artifacts(
++    targets = collect_scaffold_members(repo_root, category="setup")
++    files: list[tuple[str, str]] = []
++    for rel, content_bytes in targets.items():
++        if rel == GITLEAKSIGNORE_FILE and _canonical_aw:
++            files.append((AW_GITIGNORE_PATH, _AW_GITIGNORE_TEMPLATE))
++        files.append((rel, content_bytes.decode("utf-8")))
+    ```
+    Quoting the diff and source confirms:
+    - `ensure_workflow_artifacts_readme` retains `if readme_path.is_file(): skipped.append(...); return`, `if plan.dry_run: installed.append(... [install, dry-run]); return`, and still has NO `git_add_optional` call (does NOT stage).
+    - `ensure_plans_readmes`, `ensure_docs_readmes`, and `ensure_prompts_readmes` retain `if readme_path.is_file(): skipped.append(... [already current])`, `if plan.dry_run: installed.append(... [install, dry-run])`, and `git_add_optional(plan.repo_root, rel_path)`.
+    - `create_setup_artifacts` retains `_create_if_absent`, `[dry-run]` list suffixes, and following the write loop continues to call:
+      ```python
+      migrate_local_lanes_to_untracked(repo_root, dry_run=dry_run)
+      if not dry_run:
+          for sub in COMMS_UNTRACKED_SUBDIRS:
+              (dirs["comms"] / "untracked" / sub).mkdir(parents=True, exist_ok=True)
+      ```
+    Identical `--dry-run` output before and after change on a fresh repo: exactly 28 reported lines matching before and after.
+    Full `tests/test_installer.py` suite run via `-o addopts=""`:
+    `test_readme_templates_are_created_on_a_fresh_install`, `test_every_existing_file_state_is_handled_without_clobbering`, `test_rollback_removes_create_setup_artifacts_files`, and `AwGitignoreLaneTests` all passed (121 passed, 1 pre-existing rollback cleanup failure).
+    Shared map fallback verification: `collect_scaffold_members` returns `_ARTIFACTS_README_FALLBACK.encode("utf-8")` on OSError, and skips on legacy layout (`category="workflow_artifacts"` yields empty dict).
+    Replaced guard verification: diffing a repo with customized `.aw/workflow-artifacts/README.md` emits no `Diff: .aw/workflow-artifacts/README.md` header.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste the committed diff of the existence filter and confirm by reading it that it is applied to the SCAFFOLDING map only and not to the body or generated maps. Then paste the FALSIFYING PROBE, which is the evidence this item exists for and which a count cannot satisfy: install into a fresh throwaway repo, overwrite at least THREE non-empty scaffolding files with distinctive strings a reader can recognise (for example a plans README, the comms README, and `.gitleaksignore`), paste the exact content you wrote, then paste the FULL `--diff` output for that repo and confirm it contains NO `Diff:` header for any of those paths and NO `-` line quoting any of your distinctive strings. Then paste a real apply into that same repo and a recursive diff proving the apply changed none of those files, so the preview and the apply are shown to agree rather than merely both being quiet. FINALLY paste the counter-case that proves the filter is not simply silencing everything: modify a BODY member in the same repo and paste its `Diff:` header still appearing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Existence filter applied to scaffolding only; falsifying probe verified no false overwrite and empty apply diff.
+    Committed diff of the existence filter in `engine.py` `run()`:
+    ```diff
++            scaffold_all = collect_scaffold_members(
++                plan.repo_root, plan.source_root, target_layout=target_layout
++            )
++            scaffold_members = {
++                rel: b
++                for rel, b in scaffold_all.items()
++                if not (plan.repo_root / rel).exists()
++            }
++            show_install_diffs(
++                plan,
++                body_members,
++                {**shim_members, **skill_members},
++                scaffold_members=scaffold_members,
++            )
+    ```
+    The comprehension `if not (plan.repo_root / rel).exists()` is applied exclusively to `scaffold_all.items()`, while `body_members` and `{**shim_members, **skill_members}` are passed unfiltered.
 
-- [ ] V-04 validates E-04
+    Falsifying probe:
+    Fresh repo installed via `install-workflows.py --repo <repo> --yes --no-color`.
+    Overwrote three non-empty scaffolding files with distinctive strings:
+    - `.aw/records/plans/README.md`: `### TEAM_CUSTOM_PLANS_SECRET_12345\nCustom conventions here.\n`
+    - `.aw/records/comms/README.md`: `### TEAM_CUSTOM_COMMS_POLICY_67890\nCustom comms here.\n`
+    - `.gitleaksignore`: `### TEAM_CUSTOM_GITLEAKS_RULE_99999\nsecret-rule\n`
+
+    FULL `--diff` output on this customized repo:
+    ```
+    $ python3 install-workflows.py --repo <repo> --diff --no-color
+    No changes (everything is already current).
+    ```
+    Zero `Diff:` headers emitted and zero `-` removal lines.
+    Apply into same repo followed by recursive diff against pre-apply snapshot:
+    `diff -u snapshot/.aw/records/plans/README.md repo/.aw/records/plans/README.md` -> EMPTY
+    `diff -u snapshot/.aw/records/comms/README.md repo/.aw/records/comms/README.md` -> EMPTY
+    `diff -u snapshot/.gitleaksignore repo/.gitleaksignore` -> EMPTY
+
+    Counter-case:
+    Appended `# Modified body line for counter-case` to `.aw/system/workflows/advise/README.md`.
+    `--diff` output:
+    ```
+    Diff: .aw/system/workflows/advise/README.md
+    --- a/.aw/system/workflows/advise/README.md
+    +++ b/.aw/system/workflows/advise/README.md
+    @@ -10,5 +10,3 @@
+
+     - `personas/` - the expert-persona charter files (skeptic, architect, security, ...) that
+       focus the shared advise workflow.
+    -
+    -# Modified body line for counter-case
+    ```
+    The body member diff header appears normally.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the committed diff of the renderer's absence decision and confirm by reading it that a member is now reported when its DESTINATION DOES NOT EXIST, independent of content length, while a present-and-identical member is still skipped. Paste the `--diff` output lines for at least FIVE NAMED `.gitkeep` paths drawn from different trees (a plans bucket, a prompts bucket, a flat records leaf, a research shard, a comms shared subdir); paths must appear literally, a count alone does NOT satisfy this item. Paste the count of `.gitkeep` headers in the preview and the count of `.gitkeep` files the apply writes and confirm they match. Confirm by reading the code and by pasting one file's bytes that no `.gitkeep` was given invented content. Paste the already-installed `--diff` again showing it still reports `No changes (everything is already current).`, proving the existence-based rule did not make a current repo noisy. Paste the re-derived EMPTY-CONTENT CENSUS over `collect_source_members`, `generate_shim_members` and `_build_skill_members` showing no zero-length member in any of them (review measured 0 of 159 body plus 0 and 0), which is what proves this renderer change cannot alter an existing member's rendering; a nonzero count means this item FAILS pending its own analysis.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Renderer absence decision reports zero-byte creations (+ (new empty file)); 22 .gitkeep files match apply.
+    Committed diff in `show_install_diffs`:
+    ```diff
+         has_diffs = False
+         for rel, new_bytes in sorted(proposed.items()):
+             dest_path = plan.repo_root / rel
+             current_lines = []
+-            if dest_path.is_file():
++            dest_exists = dest_path.is_file()
+            if dest_exists:
+                 try:
+                     current_text = dest_path.read_text(encoding="utf-8", errors="replace")
+                     current_lines = current_text.splitlines(keepends=True)
+@@ -4022,12 +4014,17 @@ def show_install_diffs(
+             new_text = new_bytes.decode("utf-8", errors="replace")
+             new_lines = new_text.splitlines(keepends=True)
 
-- [ ] V-05 validates E-05
+-            if "".join(current_lines) == "".join(new_lines):
++            if dest_exists and "".join(current_lines) == "".join(new_lines):
+                 continue
+
+             has_diffs = True
+             print(term.colorize(f"\nDiff: {rel}", "bold"))
+
++            if not dest_exists and not new_lines:
++                # Report a zero-byte creation (e.g. .gitkeep) rather than an empty diff body (E-04).
++                print_stdout_safe(term.colorize("+ (new empty file)", "green"))
++                continue
+    ```
+    This reports a member whenever `not dest_exists` regardless of length, while present-and-identical is skipped when `dest_exists and "".join(current_lines) == "".join(new_lines)`.
+    5 named `.gitkeep` paths in `--diff` output across trees:
+    1. Plans bucket:
+       ```
+       Diff: .aw/records/plans/pending/.gitkeep
+       + (new empty file)
+       ```
+    2. Prompts bucket:
+       ```
+       Diff: .aw/records/prompts/pending/.gitkeep
+       + (new empty file)
+       ```
+    3. Flat records leaf:
+       ```
+       Diff: .aw/records/backlog/.gitkeep
+       + (new empty file)
+       ```
+    4. Research shard:
+       ```
+       Diff: .aw/records/research/reference/.gitkeep
+       + (new empty file)
+       ```
+    5. Comms shared subdir:
+       ```
+       Diff: .aw/records/comms/shared/inbox/.gitkeep
+       + (new empty file)
+       ```
+    Total `.gitkeep` diff headers in preview: 22. Total `.gitkeep` files written by apply: 22. Exact match.
+    File bytes confirmation:
+    `Path(".aw/records/backlog/.gitkeep").read_bytes()` -> `b""` (0 bytes; no invented content).
+    Already-installed `--diff` output:
+    `No changes (everything is already current).`
+    Re-derived empty-content census at current HEAD:
+    - `collect_source_members`: 159 body members, 0 empty
+    - `generate_shim_members`: 54 shim members, 0 empty
+    - `_build_skill_members`: 94 skill members, 0 empty
+    Zero empty-content members exist across all three maps.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the committed diff of the `if plan.diff:` branch showing the shared producer called with the same arguments the apply path uses, the existence filter applied to its result, and a comment that names this plan AND states why the scaffolding map is filtered while the body and generated maps are not. Paste the measured key-overlap set between the scaffolding map and the body-plus-generated maps (expected empty; review measured the body intersection empty at `f0186892`) and, if non-empty, state which producer wins and why that matches the apply. Paste the POST-CHANGE preview header count and apply file count, and the POST-CHANGE apply-only set ENUMERATED BY NAME, confirming it contains only the 8 deliberately excluded paths (`.aw/.gitignore`, two merge-writer, two layout, three bookkeeping) and nothing else; a residual containing any declarative scaffolding path means E-05 is incomplete. Confirm `aw install --diff` was NOT added by pasting `python3 -m agent_workflows install --help` showing no `--diff`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Scaffolding merged in engine.run preview; 0 overlap with body/generated; post-change preview 350 / 8 excluded residual.
+    Committed diff of `if plan.diff:` in `engine.py`:
+    ```diff
+@@ -6840,7 +6890,28 @@ def run(args: argparse.Namespace) -> int:
+             skill_members = _build_skill_members(
+                 workflows, plan.source_root, target_layout
+             )
+-            show_install_diffs(plan, body_members, {**shim_members, **skill_members})
++            # The PREVIEW must also include only-when-absent scaffolding (IPD 3pwpq1),
++            # filtered on destination existence at this composition boundary (E-07).
++            # The scaffolding members are written only when absent (no-clobber), so
++            # passing a present destination to the renderer would print a destructive diff
++            # claiming the install will overwrite a user's customized file (PR-001 / F-11),
++            # while the apply changes nothing. Body and generated members are overwrite-
++            # semantics members whose updates MUST be diffed against existing files, which
++            # is why the existence filter is applied here to the scaffolding map alone.
++            scaffold_all = collect_scaffold_members(
++                plan.repo_root, plan.source_root, target_layout=target_layout
++            )
++            scaffold_members = {
++                rel: b
++                for rel, b in scaffold_all.items()
++                if not (plan.repo_root / rel).exists()
++            }
++            show_install_diffs(
++                plan,
++                body_members,
++                {**shim_members, **skill_members},
++                scaffold_members=scaffold_members,
++            )
+             continue
+    ```
+    Measured key-overlap between scaffolding map and body+shim+skill maps:
+    `set(scaffold.keys()) & (set(body_members) | set(shim_members) | set(skill_members))` -> `set()` (strictly empty).
+    In `show_install_diffs`, `scaffold_members` are inserted into `proposed` first, so body/generated overwrite-semantics members would take precedence if any overlap existed, matching the apply path.
+    Post-change preview count: 350
+    Post-change apply count: 358
+    Post-change apply-only set: exactly 8 files, enumerated in full:
+    ```
+    .agent-workflows-installer-backups/20260930-214525/.created-files.json
+    .agent-workflows-installer-backups/20260930-214525/.gitignore
+    .aw/.gitignore
+    .aw/system/layout.json
+    .aw/system/layout.schema.json
+    .aw/system/managed-sections.json
+    .gitignore
+    AGENTS.md
+    ```
+    All 42 declarative scaffolding paths are present in preview diff headers.
+    Confirmation `aw install --diff` was not added:
+    ```
+    $ python3 -m agent_workflows install --help
+    usage: agent-workflows install [-h] [--repo REPO] [--workflows-dir WORKFLOWS_DIR]
+                                  [--all] [--prune] [--no-agents-pointer]
+                                  [--no-gitignore-backups] [--legacy-layout]
+                                  [--clean] [--force] [--json]
+    ```
+    No `--diff` argument present.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste `tests/test_installer_scaffold_preview_parity.py` in full and the run showing it passing. Confirm by quoting the test code that all EIGHT properties are asserted (superset parity with an explicit residual allow-list; every apply-written `.gitkeep` present in the preview, asserted by path; producer side-effect freedom; already-installed idempotence; legacy-layout correctness; template-miss omission; no false overwrite on a customized repo, asserted on the distinctive strings; a modified body member still diffing), and quote the allow-list to show a NEW omission would fail rather than pass. Paste the BARE `python3 -m pytest tests/test_installer_scaffold_preview_parity.py` showing the cases RUNNING with collected and deselected counts, and confirm no module-level slow mark. Paste the THREE SEPARATE mutation proofs: E-05 reverted alone with the parity property FAILING, E-04 reverted alone with the `.gitkeep` property FAILING, and E-07's filter reverted alone with the no-false-overwrite property FAILING, then all three restored and green; state the mutations were working-tree only and reverted. If any mutation does NOT fail its property, record this item as failed rather than verified. Quote the module to show no `inspect`, no production-source text reads, no symbol censuses, no caller counts, no comment-survival assertions. Paste the added `CHANGELOG.md` line with surrounding context showing the correct unreleased heading and the file's existing style, and confirm by inspection that it contains no em or en dash AND that it does not claim full preview/apply parity. Paste the BARE full-suite summary line with its failing-node-id delta against the pre-work baseline, the slow-subset before and after, `python3 -m agent_workflows check` with no new diagnostic, `aw ipd lint` conforming, `aw sanitize --agent` clean, and `git status --short` showing only this plan's three declared scope paths with every throwaway repo removed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. test_installer_scaffold_preview_parity.py covers 8 properties (8 passed); 3 separate mutations verified; CHANGELOG updated.
+    `tests/test_installer_scaffold_preview_parity.py` in full:
+    ```python
+"""Default-visible preview/apply scaffolding parity tests (IPD 3pwpq1).
+
+Covers eight properties:
+(1) Parity property: preview's proposed key set for a fresh repo is a superset of the
+    declarative scaffolding an apply writes, with the residual containing ONLY the deliberately
+    excluded classes asserted via an explicit allow-list.
+(2) Zero-byte member coverage: every .gitkeep an apply writes appears in the preview diff headers,
+    asserted by path and not merely by count.
+(3) Side-effect freedom: collect_scaffold_members writes no files and creates no directories.
+(4) Idempotence: --diff against an already-installed repo reports no changes.
+(5) Layout correctness: a legacy target produces the legacy target set and no .aw/ paths.
+(6) Defensive template-miss omission: an unreadable template results in omission rather than invented content.
+(7) No false overwrite: customized scaffolding on an installed repo is never previewed as an overwrite diff.
+(8) Overwrite members still diff: modified body members still produce Diff headers.
+
+Behavioral only: drives real engine functions and CLI arguments without inspect, ast,
+production-source substring matching, or symbol counting (GUIDING_PRINCIPLES P16).
+"""
+
+from __future__ import annotations
+
+import io
+from contextlib import redirect_stdout
+from pathlib import Path
+
+from agent_workflows import engine
+
+
+def _run_diff(repo: Path) -> str:
+    """Run engine --diff on repo and return stdout text."""
+    args = engine.parse_args(["--repo", str(repo), "--diff", "--no-color"])
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        rc = engine.run(args)
+    assert rc == 0, f"engine.run --diff failed with returncode {rc}"
+    return buf.getvalue()
+
+
+def _extract_diff_headers(out: str) -> set[str]:
+    """Extract set of repo-relative paths from 'Diff: <rel>' lines."""
+    headers: set[str] = set()
+    for line in out.splitlines():
+        if line.startswith("Diff: "):
+            headers.add(line[6:].strip())
+    return headers
+
+
+def test_preview_proposed_set_is_superset_of_declarative_scaffolding_parity(tmp_path: Path) -> None:
+    """Property 1: preview headers on a fresh repo match apply files except for the 8 excluded paths."""
+    source_root = engine.resolve_source_root(None)
+    preview_repo = tmp_path / "preview_repo"
+    apply_repo = tmp_path / "apply_repo"
+    preview_repo.mkdir()
+    apply_repo.mkdir()
+
+    preview_headers = _extract_diff_headers(_run_diff(preview_repo))
+    engine.install_into_repo(apply_repo, source_root, yes=True, no_color=True)
+
+    apply_files = {
+        str(p.relative_to(apply_repo)).replace("\\", "/")
+        for p in apply_repo.rglob("*")
+        if p.is_file() and not str(p.relative_to(apply_repo)).startswith(".git/")
+    }
+
+    apply_only = apply_files - preview_headers
+
+    # Explicit allow-list of deliberately excluded classes (F-03, F-04, F-12):
+    # - 1 create-or-append back-fill: .aw/.gitignore
+    # - 2 merge-writer: AGENTS.md, .gitignore
+    # - 2 layout artifacts: .aw/system/layout.json, .aw/system/layout.schema.json
+    # - 3 bookkeeping: .aw/system/managed-sections.json, backup dir files
+    allowed_residual_fixed = {
+        "AGENTS.md",
+        ".gitignore",
+        ".aw/.gitignore",
+        ".aw/system/layout.json",
+        ".aw/system/layout.schema.json",
+        ".aw/system/managed-sections.json",
+    }
+
+    for path in apply_only:
+        if path.startswith(".agent-workflows-installer-backups/"):
+            continue
+        assert path in allowed_residual_fixed, (
+            f"New omission detected! Path '{path}' was written by apply but missing from preview."
+        )
+
+
+def test_every_apply_written_gitkeep_appears_in_preview(tmp_path: Path) -> None:
+    """Property 2: every .gitkeep written by apply appears in preview headers by path."""
+    source_root = engine.resolve_source_root(None)
+    preview_repo = tmp_path / "preview_repo"
+    apply_repo = tmp_path / "apply_repo"
+    preview_repo.mkdir()
+    apply_repo.mkdir()
+
+    preview_headers = _extract_diff_headers(_run_diff(preview_repo))
+    engine.install_into_repo(apply_repo, source_root, yes=True, no_color=True)
+
+    apply_gitkeeps = {
+        str(p.relative_to(apply_repo)).replace("\\", "/")
+        for p in apply_repo.rglob("*.gitkeep")
+        if p.is_file() and not str(p.relative_to(apply_repo)).startswith(".git/")
+    }
+
+    assert len(apply_gitkeeps) == 22, f"Expected 22 .gitkeep files from apply, found {len(apply_gitkeeps)}"
+    for gk in apply_gitkeeps:
+        assert gk in preview_headers, f"Zero-byte member '{gk}' was dropped from preview diff headers"
+
+
+def test_scaffold_producer_is_side_effect_free(tmp_path: Path) -> None:
+    """Property 3: collect_scaffold_members creates no files and no directories."""
+    source_root = engine.resolve_source_root(None)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "existing.txt").write_text("existing", encoding="utf-8")
+
+    before_listing = sorted(str(p.relative_to(repo)).replace("\\", "/") for p in repo.rglob("*"))
+    members = engine.collect_scaffold_members(repo, source_root)
+    after_listing = sorted(str(p.relative_to(repo)).replace("\\", "/") for p in repo.rglob("*"))
+
+    assert before_listing == after_listing, "collect_scaffold_members mutated the repository filesystem"
+    assert len(members) > 0, "collect_scaffold_members returned an empty map"
+
+
+def test_diff_preview_against_already_installed_repo_is_idempotent(tmp_path: Path) -> None:
+    """Property 4: --diff against an already-installed repo reports no changes."""
+    source_root = engine.resolve_source_root(None)
+    repo = tmp_path / "installed_repo"
+    repo.mkdir()
+    engine.install_into_repo(repo, source_root, yes=True, no_color=True)
+
+    out = _run_diff(repo)
+    assert "No changes (everything is already current)." in out
+    assert len(_extract_diff_headers(out)) == 0
+
+
+def test_legacy_layout_scaffold_targets_exclude_aw_paths(tmp_path: Path) -> None:
+    """Property 5: legacy layout target produces legacy layout paths and zero .aw/ paths."""
+    source_root = engine.resolve_source_root(None)
+    repo = tmp_path / "legacy_repo"
+    repo.mkdir()
+    (repo / ".agents" / "workflows").mkdir(parents=True)
+
+    members = engine.collect_scaffold_members(repo, source_root)
+    aw_paths = [p for p in members if p.startswith(".aw/")]
+    assert aw_paths == [], f"Legacy layout generated .aw/ paths: {aw_paths}"
+    assert ".agents/plans/README.md" in members
+    assert ".agents/prompts/README.md" in members
+
+
+def test_template_miss_member_is_omitted_defensively(tmp_path: Path) -> None:
+    """Property 6: when a template is unreadable or missing, the member is omitted from the map."""
+    fake_source = tmp_path / "fake_source"
+    tmpl_dir = fake_source / "templates"
+    tmpl_dir.mkdir(parents=True)
+    # Provide only one template
+    (tmpl_dir / "agents-README.md").write_text("# Record root", encoding="utf-8")
+
+    target_repo = tmp_path / "target_repo"
+    target_repo.mkdir()
+
+    members = engine.collect_scaffold_members(target_repo, fake_source)
+    assert ".aw/records/README.md" in members
+    assert ".aw/records/plans/README.md" not in members
+
+
+def test_no_false_overwrite_diff_on_customized_scaffolding(tmp_path: Path) -> None:
+    """Property 7: customized scaffolding files preview no diff and emit no removal lines."""
+    source_root = engine.resolve_source_root(None)
+    repo = tmp_path / "custom_repo"
+    repo.mkdir()
+    engine.install_into_repo(repo, source_root, yes=True, no_color=True)
+
+    plan_readme = repo / ".aw" / "records" / "plans" / "README.md"
+    comms_readme = repo / ".aw" / "records" / "comms" / "README.md"
+    gitleaks = repo / ".gitleaksignore"
+
+    s1 = "TEAM_CUSTOM_PLANS_SECRET_12345"
+    s2 = "TEAM_CUSTOM_COMMS_POLICY_67890"
+    s3 = "TEAM_CUSTOM_GITLEAKS_RULE_99999"
+
+    plan_readme.write_text(f"# {s1}\n", encoding="utf-8")
+    comms_readme.write_text(f"# {s2}\n", encoding="utf-8")
+    gitleaks.write_text(f"# {s3}\n", encoding="utf-8")
+
+    out = _run_diff(repo)
+    headers = _extract_diff_headers(out)
+
+    assert ".aw/records/plans/README.md" not in headers
+    assert ".aw/records/comms/README.md" not in headers
+    assert ".gitleaksignore" not in headers
+
+    assert s1 not in out
+    assert s2 not in out
+    assert s3 not in out
+
+    # Confirm real apply does not overwrite the customized files
+    engine.install_into_repo(repo, source_root, yes=True, no_color=True)
+    assert s1 in plan_readme.read_text(encoding="utf-8")
+    assert s2 in comms_readme.read_text(encoding="utf-8")
+    assert s3 in gitleaks.read_text(encoding="utf-8")
+
+
+def test_overwrite_body_members_still_diff(tmp_path: Path) -> None:
+    """Property 8: modified body members still produce a Diff header (counter-case for existence filter)."""
+    source_root = engine.resolve_source_root(None)
+    repo = tmp_path / "body_repo"
+    repo.mkdir()
+    engine.install_into_repo(repo, source_root, yes=True, no_color=True)
+
+    advise_readme = repo / ".aw" / "system" / "workflows" / "advise" / "README.md"
+    advise_readme.write_text(
+        advise_readme.read_text(encoding="utf-8") + "\n# Modified body line\n",
+        encoding="utf-8",
+    )
+
+    out = _run_diff(repo)
+    headers = _extract_diff_headers(out)
+    assert ".aw/system/workflows/advise/README.md" in headers
+    ```
+    Test run output:
+    ```
+    $ python3 -m pytest tests/test_installer_scaffold_preview_parity.py
+    ........                                                                 [100%]
+    8 passed in 2.21s
+    ```
+    All 8 properties asserted:
+    1. `test_preview_proposed_set_is_superset_of_declarative_scaffolding_parity`
+    2. `test_every_apply_written_gitkeep_appears_in_preview`
+    3. `test_scaffold_producer_is_side_effect_free`
+    4. `test_diff_preview_against_already_installed_repo_is_idempotent`
+    5. `test_legacy_layout_scaffold_targets_exclude_aw_paths`
+    6. `test_template_miss_member_is_omitted_defensively`
+    7. `test_no_false_overwrite_diff_on_customized_scaffolding`
+    8. `test_overwrite_body_members_still_diff`
+
+    Explicit residual allow-list:
+    ```python
+    allowed_residual_fixed = {
+        "AGENTS.md",
+        ".gitignore",
+        ".aw/.gitignore",
+        ".aw/system/layout.json",
+        ".aw/system/layout.schema.json",
+        ".aw/system/managed-sections.json",
+    }
+
+    for path in apply_only:
+        if path.startswith(".agent-workflows-installer-backups/"):
+            continue
+        assert path in allowed_residual_fixed, (
+            f"New omission detected! Path '{path}' was written by apply but missing from preview."
+        )
+    ```
+    Any new omission outside the 8 excluded paths immediately triggers assertion failure.
+    No module-level `pytest.mark.slow` exists in the file; all 8 tests run bare.
+
+    Three separate mutations:
+    1. Reverting E-05 alone (omitting `scaffold_members` in preview):
+       `FAILED tests/test_installer_scaffold_preview_parity.py::test_preview_proposed_set_is_superset_of_declarative_scaffolding_parity - AssertionError: New omission detected! Path '.aw/records/plans/README.md' was written by apply but missing from preview.`
+    2. Reverting E-04 alone (omitting `dest_exists` check in renderer):
+       `FAILED tests/test_installer_scaffold_preview_parity.py::test_every_apply_written_gitkeep_appears_in_preview - AssertionError: Zero-byte member '.aw/records/plans/pending/.gitkeep' was dropped from preview diff headers`
+    3. Reverting E-07 alone (omitting existence filter on scaffolding):
+       `FAILED tests/test_installer_scaffold_preview_parity.py::test_no_false_overwrite_diff_on_customized_scaffolding - AssertionError: assert '.aw/records/plans/README.md' not in {'.aw/records/comms/README.md', '.aw/records/plans/README.md', '.gitleaksignore'}`
+    Restoring all three: all 8 tests pass cleanly. Mutations were working-tree only and reverted.
+
+    P16 compliance check:
+    The module contains no `inspect`, no `ast`, no `open()` of source files, no substring searches over production code, and no symbol or line counting.
+
+    `CHANGELOG.md` entry:
+    ```markdown
+    - Fixed: `aw specs check` now reports the examined count in human output, distinguishing a clean verdict over zero specs from a clean verdict over many.
+    - Fixed: a backlog item closed through the question-answered path now keeps its full workflow history instead of losing prior records and gaining a re-dated created line; `aw record-history` help text no longer claims the gitignored sidecar holds full history; and the obsolete inline-history migration has been removed.
+    - Fixed: the installer's --diff preview now reports the only-when-absent scaffolding files an install would create.
+    - Added: an advisory check.spec-criteria-uncovered rule (info severity) in aw check that cross-checks a spec acceptance criteria against the validation coverage of the plan Set implementing it.
+    ```
+    Inspection confirms zero em or en dashes and no claim of full parity.
+
+    Suite comparisons:
+    - Bare pytest summary:
+      Baseline: 3427 passed, 1 failed in 26.54s
+      Post-work: 3435 passed, 1 failed in 25.10s (+8 passed; failing node id `tests/test_backlog.py::test_backlog_set_at_date_preserves_wallclock_across_all_supported_forms` is pre-existing UTC midnight issue, delta is 0 new failures).
+    - Slow subset:
+      Baseline: 3 failed, 199 passed in 44.57s
+      Post-work: 3 failed, 199 passed in 44.20s (identical 3 failing node ids, delta is 0 new failures).
+    - `python3 -m agent_workflows check`: 0 new findings against scope paths or plan 3pwpq1.
+    - `aw ipd lint .aw/records/plans/pending/20260928-instdiff-01-3pwpq1-factor-the-only-when-absent-scaffolding-into-a-declarative-m.ipd.md`: reports `conforming`.
+    - `aw sanitize --agent`: reports `clean` (0 findings).
+    - `git status --short`: clean of throwaway repos, contains only the declared scope paths and this plan.
+  - Result: pass
 
 ## Approval and execution gate
 

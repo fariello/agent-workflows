@@ -3969,12 +3969,20 @@ def show_install_diffs(
     plan: InstallPlan,
     body_members: list[str],
     shim_members: dict[str, str],
+    scaffold_members: dict[str, bytes] | None = None,
 ) -> None:
     """Generate and display a colorized unified diff of the proposed changes."""
     import difflib
 
     term = Term(color=False if plan.no_color else None)
     proposed: dict[str, bytes] = {}
+
+    # Scaffolding members are populated first so that in any hypothetical overlap,
+    # body or generated (shim/skill) members take precedence, matching the apply path
+    # where install_all runs before the no-clobber scaffolding ensurers.
+    if scaffold_members:
+        for rel, content_bytes in scaffold_members.items():
+            proposed[rel] = content_bytes
 
     for member in body_members:
         source_relative = _member_to_source_relative(member)
@@ -3991,28 +3999,12 @@ def show_install_diffs(
     for rel, content in shim_members.items():
         proposed[rel] = content.encode("utf-8")
 
-    # wfartifacts Order 01 (gzhd7t): DERIVED from ARTIFACTS_DIR rather than re-spelled, so the diff
-    # preview can never advertise a path the install path no longer writes.
-    # wfartifacts Order 04 (l1c1iz) E-02: the OSError fallback is the SHARED
-    # `_ARTIFACTS_README_FALLBACK`, not a second inline copy of the README. It previously re-stated
-    # the retired do-not-ignore-this-folder prose here, so the preview could advertise the
-    # OPPOSITE of the rule even after the template was corrected. (Written without the retired
-    # sentence verbatim: this plan's V-02 is a literal repo-wide grep for it, so even a comment
-    # quoting it would read as a surviving copy.)
-    artifacts_readme = f"{ARTIFACTS_DIR}README.md"
-    artifacts_dest = plan.repo_root / artifacts_readme
-    if not artifacts_dest.is_file():
-        template_path = plan.source_root / "templates" / "workflow-artifacts-README.md"
-        try:
-            proposed[artifacts_readme] = template_path.read_bytes()
-        except OSError:
-            proposed[artifacts_readme] = _ARTIFACTS_README_FALLBACK.encode("utf-8")
-
     has_diffs = False
     for rel, new_bytes in sorted(proposed.items()):
         dest_path = plan.repo_root / rel
         current_lines = []
-        if dest_path.is_file():
+        dest_exists = dest_path.is_file()
+        if dest_exists:
             try:
                 current_text = dest_path.read_text(encoding="utf-8", errors="replace")
                 current_lines = current_text.splitlines(keepends=True)
@@ -4022,11 +4014,16 @@ def show_install_diffs(
         new_text = new_bytes.decode("utf-8", errors="replace")
         new_lines = new_text.splitlines(keepends=True)
 
-        if "".join(current_lines) == "".join(new_lines):
+        if dest_exists and "".join(current_lines) == "".join(new_lines):
             continue
 
         has_diffs = True
         print(term.colorize(f"\nDiff: {rel}", "bold"))
+
+        if not dest_exists and not new_lines:
+            # Report a zero-byte creation (e.g. .gitkeep) rather than an empty diff body (E-04).
+            print_stdout_safe(term.colorize("+ (new empty file)", "green"))
+            continue
 
         diff = difflib.unified_diff(
             current_lines,
@@ -5880,6 +5877,153 @@ def _create_if_absent(
     created.append(rel)
 
 
+def collect_scaffold_members(
+    repo_root: Path,
+    source_root: Path | None = None,
+    target_layout: str | None = None,
+    *,
+    category: str | None = None,
+) -> dict[str, bytes]:
+    """Produce the declarative only-when-absent scaffolding member map (IPD 3pwpq1).
+
+    Side-effect-free: writes no files and creates no directories.
+    Resolves layout ('aw' or 'legacy') and reads templates from source_root.
+    Omit template-miss members defensively (OSError on template read).
+    Excludes .aw/.gitignore (which is an append back-fill, not a flat member; F-12).
+    Excludes merge-writer paths (AGENTS.md, root .gitignore), layout artifacts,
+    and bookkeeping paths.
+
+    If category is specified ('workflow_artifacts', 'plans', 'docs', 'prompts', 'setup'),
+    returns only the members for that category to back the corresponding ensurer.
+    If category is None, returns the complete scaffolding map.
+    """
+    if source_root is None:
+        source_root = resolve_source_root(None)
+    layout = target_layout or resolve_target_layout(repo_root)
+    dirs = _record_scaffold_dirs(layout)
+    templates_dir = source_root / "templates"
+    members: dict[str, bytes] = {}
+
+    # 1. Workflow artifacts README
+    if category is None or category == "workflow_artifacts":
+        if layout == "aw":
+            rel_path = f"{ARTIFACTS_DIR}README.md"
+            try:
+                content = (templates_dir / "workflow-artifacts-README.md").read_bytes()
+            except OSError:
+                content = _ARTIFACTS_README_FALLBACK.encode("utf-8")
+            members[rel_path] = content
+
+    # 2. Plans READMEs
+    if category is None or category == "plans":
+        if layout == "aw":
+            record_root_readme = ".aw/records/README.md"
+            record_root_template = "agents-README.md"
+        else:
+            record_root_readme = ".agents/README.md"
+            record_root_template = "agents-legacy-README.md"
+        targets = [
+            (record_root_readme, record_root_template),
+            (f"{dirs['plans']}/README.md", "plans-README.md"),
+        ]
+        for bucket in PLAN_LIFECYCLE_SUBDIRS:
+            targets.append(
+                (f"{dirs['plans']}/{bucket}/README.md", f"plans-{bucket}-README.md")
+            )
+        for rel_path, template_name in targets:
+            try:
+                members[rel_path] = (templates_dir / template_name).read_bytes()
+            except OSError:
+                continue
+
+    # 3. Docs READMEs
+    if category is None or category == "docs":
+        if layout == "aw":
+            targets = []
+        else:
+            targets = [(f"{DOCS_DIR}/README.md", "agents-docs-README.md")]
+        for key, tmpl_bucket in (
+            ("research", "research"),
+            ("walkthroughs", "walkthroughs"),
+            ("specs", "specs"),
+            ("prompt_library", "prompts"),
+        ):
+            targets.append(
+                (f"{dirs[key]}/README.md", f"agents-docs-{tmpl_bucket}-README.md")
+            )
+        for rel_path, template_name in targets:
+            try:
+                members[rel_path] = (templates_dir / template_name).read_bytes()
+            except OSError:
+                continue
+
+    # 4. Prompts READMEs
+    if category is None or category == "prompts":
+        targets = [(f"{dirs['prompts']}/README.md", "prompts-README.md")]
+        for bucket in PROMPT_LIFECYCLE_SUBDIRS:
+            targets.append(
+                (f"{dirs['prompts']}/{bucket}/README.md", f"prompts-{bucket}-README.md")
+            )
+        for rel_path, template_name in targets:
+            try:
+                members[rel_path] = (templates_dir / template_name).read_bytes()
+            except OSError:
+                continue
+
+    # 5. Setup artifacts
+    if category is None or category == "setup":
+        files: list[tuple[str, bytes]] = []
+        for sub in PLAN_LIFECYCLE_SUBDIRS:
+            files.append((f"{dirs['plans']}/{sub}/.gitkeep", b""))
+        for key in (
+            "research",
+            "specs",
+            "walkthroughs",
+            "roadmaps",
+            "prompt_library",
+            "backlog",
+            "reviews",
+        ):
+            _dir = dirs.get(key)
+            if _dir:
+                files.append((f"{_dir}/.gitkeep", b""))
+        for shard in (f"{dirs['research']}/reference", f"{dirs['research']}/archive"):
+            files.append((f"{shard}/.gitkeep", b""))
+        for sub in PROMPT_LIFECYCLE_SUBDIRS:
+            files.append((f"{dirs['prompts']}/{sub}/.gitkeep", b""))
+
+        _canonical_aw = str(dirs["comms"]).replace("\\", "/").startswith(".aw/")
+        # Note: AW_GITIGNORE_PATH (.aw/.gitignore) is excluded (F-12) because it is a
+        # create-or-append back-fill and not a flat member; create_setup_artifacts writes it
+        # directly on apply.
+        if not _canonical_aw:
+            files.append(
+                (
+                    f"{dirs['prompts']}/.gitignore",
+                    _PROMPTS_GITIGNORE_TEMPLATE.encode("utf-8"),
+                )
+            )
+        files.append((GITLEAKSIGNORE_FILE, _GITLEAKSIGNORE_TEMPLATE.encode("utf-8")))
+        files.append((SECRET_SCAN_CI, _SECRET_SCAN_CI_TEMPLATE.encode("utf-8")))
+        if not _canonical_aw:
+            files.append(
+                (
+                    f"{dirs['comms']}/.gitignore",
+                    _COMMS_GITIGNORE_TEMPLATE.encode("utf-8"),
+                )
+            )
+        files.append(
+            (f"{dirs['comms']}/README.md", _COMMS_README_TEMPLATE.encode("utf-8"))
+        )
+        for sub in COMMS_SHARED_SUBDIRS:
+            files.append((f"{dirs['comms']}/shared/{sub}/.gitkeep", b""))
+
+        for rel_path, content_bytes in files:
+            members[rel_path] = content_bytes
+
+    return members
+
+
 def ensure_workflow_artifacts_readme(
     plan: InstallPlan,
     use_git: bool,
@@ -5925,22 +6069,17 @@ def ensure_workflow_artifacts_readme(
         skipped.append(f"{rel_path} [already current]")
         return
 
-    # Read the template from source root.
-    template_path = plan.source_root / "templates" / "workflow-artifacts-README.md"
-    try:
-        readme_content = template_path.read_text(encoding="utf-8")
-    except OSError:
-        # wfartifacts Order 04 (l1c1iz) E-02: the SHARED short fallback, not a second full copy of
-        # the README. This literal used to duplicate the template's retired do-not-ignore-this-folder
-        # prose inline, so a template read failure shipped the opposite of the rule.
-        readme_content = _ARTIFACTS_README_FALLBACK
+    targets = collect_scaffold_members(
+        plan.repo_root, plan.source_root, category="workflow_artifacts"
+    )
+    readme_bytes = targets.get(rel_path, _ARTIFACTS_README_FALLBACK.encode("utf-8"))
 
     if plan.dry_run:
         installed.append(f"{rel_path} [install, dry-run]")
         return
 
     artifacts_dir.mkdir(parents=True, exist_ok=True)
-    readme_path.write_text(readme_content, encoding="utf-8")
+    readme_path.write_bytes(readme_bytes)
     # DELIBERATELY NOT STAGED (wfartifacts Order 01 / gzhd7t, decision D-01). This README is the front
     # door of an UNTRACKED tree, so staging it would commit a file into the one tree Order 07 and D92
     # say must never be committed, and `git`'s ignore rules do NOT untrack an already-tracked path:
@@ -5972,43 +6111,20 @@ def ensure_plans_readmes(
     (`agents-README.md` for aw, `agents-legacy-README.md` for legacy). A bucket with
     no template is skipped defensively.
     """
+    targets = collect_scaffold_members(
+        plan.repo_root, plan.source_root, category="plans"
+    )
 
-    # Layout-aware (IPD awretrofit Order 08): the record-root README goes in the FLAT `.aw/records/`
-    # (aw) or legacy `.agents/` root; the plans README + its buckets hang off the resolved plans dir.
-    # The records-root template is selected by layout (v3cw46).
-    layout = resolve_target_layout(plan.repo_root)
-    dirs = _record_scaffold_dirs(layout)
-    if layout == "aw":
-        record_root_readme = ".aw/records/README.md"
-        record_root_template = "agents-README.md"
-    else:
-        record_root_readme = ".agents/README.md"
-        record_root_template = "agents-legacy-README.md"
-    targets = [
-        (record_root_readme, record_root_template),
-        (f"{dirs['plans']}/README.md", "plans-README.md"),
-    ]
-    for bucket in PLAN_LIFECYCLE_SUBDIRS:
-        targets.append(
-            (f"{dirs['plans']}/{bucket}/README.md", f"plans-{bucket}-README.md")
-        )
-
-    for rel_path, template_name in targets:
+    for rel_path, content_bytes in targets.items():
         readme_path = plan.repo_root / rel_path
         if readme_path.is_file():
             skipped.append(f"{rel_path} [already current]")
-            continue
-        template_path = plan.source_root / "templates" / template_name
-        try:
-            content = template_path.read_text(encoding="utf-8")
-        except OSError:
-            # No template shipped for this target; skip rather than invent content.
             continue
         if plan.dry_run:
             installed.append(f"{rel_path} [install, dry-run]")
             continue
         readme_path.parent.mkdir(parents=True, exist_ok=True)
-        readme_path.write_text(content, encoding="utf-8")
+        readme_path.write_bytes(content_bytes)
         if use_git:
             git_add_optional(plan.repo_root, rel_path)
         installed.append(f"{rel_path} [install]")
@@ -6025,42 +6141,20 @@ def ensure_docs_readmes(
     No-clobber (a user's own README is never overwritten), staged, dry-run aware. Modeled
     on `ensure_plans_readmes`. Templates live under the source `.agents/workflows/templates/`.
     """
+    targets = collect_scaffold_members(
+        plan.repo_root, plan.source_root, category="docs"
+    )
 
-    # Layout-aware (IPD awretrofit Order 08): the doc types are FLAT under `.aw/records/` (aw) or
-    # nested under `.agents/docs/` (legacy). Drop the obsolete top-level `docs/README.md` for the aw
-    # layout (there is no `.aw/records/docs/`); place per-type stubs at the resolved flat dirs.
-    dirs = _record_scaffold_dirs(resolve_target_layout(plan.repo_root))
-    if resolve_target_layout(plan.repo_root) == "aw":
-        targets = []
-    else:
-        targets = [(f"{DOCS_DIR}/README.md", "agents-docs-README.md")]
-    # Per-type README stubs (the shipped template names retain the `agents-docs-<type>` prefix).
-    for key, tmpl_bucket in (
-        ("research", "research"),
-        ("walkthroughs", "walkthroughs"),
-        ("specs", "specs"),
-        ("prompt_library", "prompts"),
-    ):
-        targets.append(
-            (f"{dirs[key]}/README.md", f"agents-docs-{tmpl_bucket}-README.md")
-        )
-
-    for rel_path, template_name in targets:
+    for rel_path, content_bytes in targets.items():
         readme_path = plan.repo_root / rel_path
         if readme_path.is_file():
             skipped.append(f"{rel_path} [already current]")
-            continue
-        template_path = plan.source_root / "templates" / template_name
-        try:
-            content = template_path.read_text(encoding="utf-8")
-        except OSError:
-            # No template shipped for this target; skip rather than invent content.
             continue
         if plan.dry_run:
             installed.append(f"{rel_path} [install, dry-run]")
             continue
         readme_path.parent.mkdir(parents=True, exist_ok=True)
-        readme_path.write_text(content, encoding="utf-8")
+        readme_path.write_bytes(content_bytes)
         if use_git:
             git_add_optional(plan.repo_root, rel_path)
         installed.append(f"{rel_path} [install]")
@@ -6080,31 +6174,20 @@ def ensure_prompts_readmes(
     overwritten), staged, dry-run aware. Modeled on `ensure_plans_readmes`. Templates live
     under the source `.agents/workflows/templates/`.
     """
+    targets = collect_scaffold_members(
+        plan.repo_root, plan.source_root, category="prompts"
+    )
 
-    # Layout-aware (IPD awretrofit Order 08): the prompts STAGING dir + its buckets, resolved flat.
-    dirs = _record_scaffold_dirs(resolve_target_layout(plan.repo_root))
-    targets = [(f"{dirs['prompts']}/README.md", "prompts-README.md")]
-    for bucket in PROMPT_LIFECYCLE_SUBDIRS:
-        targets.append(
-            (f"{dirs['prompts']}/{bucket}/README.md", f"prompts-{bucket}-README.md")
-        )
-
-    for rel_path, template_name in targets:
+    for rel_path, content_bytes in targets.items():
         readme_path = plan.repo_root / rel_path
         if readme_path.is_file():
             skipped.append(f"{rel_path} [already current]")
-            continue
-        template_path = plan.source_root / "templates" / template_name
-        try:
-            content = template_path.read_text(encoding="utf-8")
-        except OSError:
-            # No template shipped for this target; skip rather than invent content.
             continue
         if plan.dry_run:
             installed.append(f"{rel_path} [install, dry-run]")
             continue
         readme_path.parent.mkdir(parents=True, exist_ok=True)
-        readme_path.write_text(content, encoding="utf-8")
+        readme_path.write_bytes(content_bytes)
         if use_git:
             git_add_optional(plan.repo_root, rel_path)
         installed.append(f"{rel_path} [install]")
@@ -6134,49 +6217,17 @@ def create_setup_artifacts(
     # `.aw/records/*` set; a not-yet-migrated `.agents/workflows` repo keeps the legacy nested shape.
     layout = resolve_target_layout(repo_root)
     dirs = _record_scaffold_dirs(layout)
-    # For the legacy layout the doc types nest under DOCS_DIR; for `aw` they are flat leaves. The
-    # research reference/archive shards hang off whichever `research` root the layout resolved.
-    research_root = dirs["research"]
-    research_shards = [f"{research_root}/reference", f"{research_root}/archive"]
-
-    # (relpath, content) files this run may create, no-clobber; a bare "" content = a `.gitkeep`.
-    files: list[tuple[str, str]] = []
-    for sub in PLAN_LIFECYCLE_SUBDIRS:
-        files.append((f"{dirs['plans']}/{sub}/.gitkeep", ""))
-    # Flat doc-type leaves (aw) or nested docs buckets (legacy) - one .gitkeep each.
-    # revgate Order 01 (15zvu6) E-09: `reviews` is scaffolded so a fresh repo actually HAS the tree
-    # the reviews README documents. It is looked up with `.get` because it exists only in the `aw`
-    # layout map (like `releases`), so the legacy layout skips it instead of raising KeyError.
-    for key in (
-        "research",
-        "specs",
-        "walkthroughs",
-        "roadmaps",
-        "prompt_library",
-        "backlog",
-        "reviews",
-    ):
-        _dir = dirs.get(key)
-        if _dir:
-            files.append((f"{_dir}/.gitkeep", ""))
-    for shard in research_shards:
-        files.append((f"{shard}/.gitkeep", ""))
-    for sub in PROMPT_LIFECYCLE_SUBDIRS:
-        files.append((f"{dirs['prompts']}/{sub}/.gitkeep", ""))
-    # awgitignore Order 01: the canonical `.aw/` layout ignores every records untracked/ lane via ONE
-    # framework-owned `.aw/.gitignore`; the legacy (shared) `.agents/` layout keeps per-lane files.
     _canonical_aw = str(dirs["comms"]).replace("\\", "/").startswith(".aw/")
-    if _canonical_aw:
-        files.append((AW_GITIGNORE_PATH, _AW_GITIGNORE_TEMPLATE))
-    else:
-        files.append((f"{dirs['prompts']}/.gitignore", _PROMPTS_GITIGNORE_TEMPLATE))
-    files.append((GITLEAKSIGNORE_FILE, _GITLEAKSIGNORE_TEMPLATE))
-    files.append((SECRET_SCAN_CI, _SECRET_SCAN_CI_TEMPLATE))
-    if not _canonical_aw:
-        files.append((f"{dirs['comms']}/.gitignore", _COMMS_GITIGNORE_TEMPLATE))
-    files.append((f"{dirs['comms']}/README.md", _COMMS_README_TEMPLATE))
-    for sub in COMMS_SHARED_SUBDIRS:
-        files.append((f"{dirs['comms']}/shared/{sub}/.gitkeep", ""))
+
+    targets = collect_scaffold_members(repo_root, category="setup")
+    # AW_GITIGNORE_PATH (.aw/.gitignore) is not in the declarative map (F-12) because it is a
+    # create-or-append back-fill rather than a flat member, but create_setup_artifacts retains
+    # writing it no-clobber for canonical aw layout to preserve exact write semantics.
+    files: list[tuple[str, str]] = []
+    for rel, content_bytes in targets.items():
+        if rel == GITLEAKSIGNORE_FILE and _canonical_aw:
+            files.append((AW_GITIGNORE_PATH, _AW_GITIGNORE_TEMPLATE))
+        files.append((rel, content_bytes.decode("utf-8")))
 
     if dry_run:
         for rel, _content in files:
@@ -6840,7 +6891,28 @@ def run(args: argparse.Namespace) -> int:
             skill_members = _build_skill_members(
                 workflows, plan.source_root, target_layout
             )
-            show_install_diffs(plan, body_members, {**shim_members, **skill_members})
+            # The PREVIEW must also include only-when-absent scaffolding (IPD 3pwpq1),
+            # filtered on destination existence at this composition boundary (E-07).
+            # The scaffolding members are written only when absent (no-clobber), so
+            # passing a present destination to the renderer would print a destructive diff
+            # claiming the install will overwrite a user's customized file (PR-001 / F-11),
+            # while the apply changes nothing. Body and generated members are overwrite-
+            # semantics members whose updates MUST be diffed against existing files, which
+            # is why the existence filter is applied here to the scaffolding map alone.
+            scaffold_all = collect_scaffold_members(
+                plan.repo_root, plan.source_root, target_layout=target_layout
+            )
+            scaffold_members = {
+                rel: b
+                for rel, b in scaffold_all.items()
+                if not (plan.repo_root / rel).exists()
+            }
+            show_install_diffs(
+                plan,
+                body_members,
+                {**shim_members, **skill_members},
+                scaffold_members=scaffold_members,
+            )
             continue
 
         try:
