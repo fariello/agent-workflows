@@ -75,8 +75,11 @@ design-against-roles (no dependence on current internal filenames).
 READ SECTION 4.2's FINDING CODES AS SPECIFICATION, NOT AS SHIPPED BEHAVIOR (re-measured 2026-09-22 at
 `2815aa56`; corrected then by plan `4h7tt0`, which retired `RUN-NO-PUSH`; re-measured 2026-09-20 at
 `007d05e1`; first measured 2026-09-05). Only the `RUN-*` family exists in the package:
-`run_evidence.RUN_FINDING_CODES` carries all 12, of which 10 are BOUND to predicates and the remaining
-two (`RUN-COMMIT-CONTENTS`, `RUN-COMMIT-GATEWAY`) are unbound-by-dependency, so NO code is now
+`run_evidence.RUN_FINDING_CODES` carries all 12, of which 10 are BOUND to predicates (asserting that
+each names a shipped predicate that resolves, but not that a run reaches it; run
+`run_evidence.bound_run_finding_codes_reachability()` to inspect measured reachability) and the remaining
+two (`RUN-COMMIT-CONTENTS`, `RUN-COMMIT-GATEWAY`) are unbound-by-dependency (see 2026-09-30 note by `00pirb`:
+`RUN-COMMIT-GATEWAY` is unbound and fails closed), so NO code is now
 UNBOUND-UNBUILT. `RUN-NO-PUSH` was the last such code and was RETIRED from 4.2 rather than bound,
 because no host push-denial enforcement exists and every cheap mechanism is evadable; see 4.2's own
 recorded reason. NO OTHER FAMILY IS BOUND TO ANY PREDICATE: of the 55 non-`RUN-` codes this spec names (11 `IPD-EXEC-*`, 5 `IPD-DEP-*`, 6
@@ -1634,6 +1637,7 @@ This example demonstrates the revised guarantees: `all` is safely bounded; depen
 
 ## Workflow history
 
+- 2026-10-01 note (aw specs): AMENDED (plan f7z10q, backlog u7bfks): infrastructure paragraph line-78 sentence amended to state what BOUND asserts (named resolving predicate) and does not assert (execution reachability), pointing at run_evidence.bound_run_finding_codes_reachability(); Section 4.2 table untouched
 - 2026-10-01 note (aw specs): AMENDED (plan x2dwu5, backlog oq05nc): Section 5.2 amended in place to record measured Landlock ABI 4 TCP network denial feasibility (proven two-sided on loopback) and its port-granularity limit (no address field, cannot separate git push from model API on TCP 443), and to record the bounded credential withholding status (files inaccessible under opt-in hardened mode, no environment-carried credentials withheld; fail-closed descriptor answer maintained)
 - 2026-10-01 note (aw specs): AMENDED 2026-10-01 (plan 2lxcwt, backlog oye21y): corrected the infrastructure paragraph's stale trailer claims; agent commits are trailered (a6xbso closed j2srcc), reader ships (199u11 closed am1g38), trailer-decided committed path ownership is live in finalize_precheck; 4.2 rows stay unbound on contents-proof grounds
 - 2026-10-01 note (aw specs): AMENDED (plan 4gx141, backlog rb4wgj): Section 5.5 amended with an explicit class-to-disposition table declared across all 15 retry classes, and describes the two classification surfaces (turn_failure_is_retryable by disposition; finalize_retry_decision by gate findings). What deliberately did not change: the 0..10 bound, default of 2, precedence ladder, membership of either class list, and every never-retryable verdict. Composes with plan cpi6p3 (already landed, which declared Section 5.5 normative for the bound paragraph and excluded class lists by name). Notes that plan qo9khm is already executed, so the finalize surface's code-keyed mechanism is described as shipped rather than pending. Records that class 'verifier transport failure' has no consumer in tree and maps to no disposition.

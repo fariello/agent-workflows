@@ -1,5 +1,5 @@
 - Id: u7bfks
-- Status: graduated
+- Status: done
 - Graduated-To: u7bfks
 - Set: u7bfks
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: run_evidence RUN_FINDING_CODES marks a code BOUND when its predicates merely exist, so an unreachable gate reports as bound
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw agy run: IPD f7z10q executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-u7bfks-01-f7z10q-make-a-run-finding-code-s-bound-binding-mean-a-run-can-reach.ipd.md); evidence .aw/records/plans/executed/20260930-u7bfks-01-f7z10q-make-a-run-finding-code-s-bound-binding-mean-a-run-can-reach.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053053Z-3200037: f7z10q
 - 2026-09-28 created (aw backlog): Filed by plan iot7hc (Set 7bj5sa, F-08) as the durable carrier for an obligation that plan deliberately does not absorb.
 
