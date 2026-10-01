@@ -2107,6 +2107,44 @@ def dispatchable_work_total(queue: Sequence[Mapping[str, Any]]) -> int:
     return sum(1 for item in queue if item_is_dispatchable_work(item)) or 1
 
 
+def progress_display_total(queue: Sequence[Mapping[str, Any]]) -> int:
+    """The honest progress denominator for the run summary display.
+
+    Returns 0 for an empty queue, the true dispatchable count when that count is
+    non-zero, and len(queue) (the MATCHED artifact count) when the queue is non-empty
+    but nothing is dispatchable.
+
+    THE MEASURED DEFECT (F-01):
+    In a zero-dispatch run matching 8 artifacts, collapsing the denominator to 1
+    caused the run summary to render 'Progress: 0/1' and 'Total (0/1 items run)'
+    directly above 8 per-artifact rows and alongside '(8 reviewed)' and '8 matched',
+    contradicting the table and disposition summary.
+
+    WHY THE FALLBACK IS THE MATCHED COUNT RATHER THAN 1 (F-02):
+    The trailing 'or 1' in dispatchable_work_total was justified solely as a divide
+    guard ('so a caller dividing by it cannot raise'). Nothing justified collapsing
+    the displayed denominator, which was an unchosen side effect. Falling back to
+    len(queue) for a non-empty zero-dispatch queue makes the denominator honestly
+    state the matched artifact count, agreeing by construction with the disposition
+    summary (F-08).
+
+    WHY THIS IS A SECOND ACCESSOR RATHER THAN AN EDIT TO dispatchable_work_total (F-04, F-06):
+    The obvious fix of removing the 'or 1' from dispatchable_work_total measurably
+    regresses the outcome word across five queue shapes, flipping NO WORK PERFORMED
+    and COMPLETED to QUEUED (F-04). Furthermore, three call sites consume
+    dispatchable_work_total for live display: runner_shared.run_ipd binds it bare
+    for the 'IPD nn/NN' banner, and oc_runipd plus agy_runipd each add their own
+    'or 1' for the live statusline. All three are reached only for an item being
+    dispatched, at which point the item is marked running with an attempt appended,
+    so the raw dispatchable count is >= 1 and the zero-dispatch fallback is
+    unreachable (F-06). Keeping dispatchable_work_total untouched guarantees the
+    banner and live statuslines remain completely unaffected.
+    """
+    if not queue:
+        return 0
+    return sum(1 for item in queue if item_is_dispatchable_work(item)) or len(queue)
+
+
 def execution_index(item: dict[str, Any], state: dict[str, Any]) -> int:
     """The 1-based index of an item in the run's execution sequence.
 
@@ -3024,8 +3062,17 @@ def render_run_summary_table(
     # members that arrived already `executed` and entries frozen `reviewed` awaiting approval, neither
     # of which this run can dispatch, so it promised turns that could not happen. See
     # `item_is_dispatchable_work` for the measurement.
+    #
+    # DISPLAY VS OUTCOME GUARD SEPARATION (IPD 35mjqc E-02):
+    # display_total feeds the rendered fraction (the progress bar and the totals row),
+    # falling back to len(queue) when dispatchable work is 0.
+    # total_items retains dispatchable_work_total(queue) (> 0 for non-empty queues)
+    # to feed the outcome-word chain's 'and total_items > 0' guards. Feeding those
+    # guards a true 0 was PROTOTYPED and relabels both COMPLETED and NO WORK PERFORMED
+    # to QUEUED (F-04), which is why the guard and the display are separate reads.
     total_items = dispatchable_work_total(queue)
-    prog_bar = format_progress_bar(completed_count, total_items, width=10)
+    display_total = progress_display_total(queue)
+    prog_bar = format_progress_bar(completed_count, display_total, width=10)
 
     # Status summary line
     status_parts = []
@@ -3298,7 +3345,7 @@ def render_run_summary_table(
     # literal 6 in five places, which is exactly what makes adding the `Run` column risky; deriving it
     # means the next column added cannot silently mis-span the totals row.
     metrics_start = headers.index("Duration")
-    total_label = f"Total ({completed_count}/{total_items} items run)"
+    total_label = f"Total ({completed_count}/{display_total} items run)"
     for offset, tot_str in enumerate(
         (
             tot_dur_str,

@@ -41,21 +41,21 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: separate the display denominator from the divide guard
 
-- [ ] E-01 Add `progress_display_total(queue)` to `agent_workflows/render_stream.py`, beside `dispatchable_work_total`, returning `0` for an empty queue, the true dispatchable count when that count is non-zero, and `len(queue)` (the MATCHED count) when the queue is non-empty but nothing is dispatchable. Its docstring must state the measured defect (F-01), must state why the fallback is the matched count rather than `1` (F-02), and must state why this is a SECOND accessor rather than an edit to `dispatchable_work_total` (F-06: THREE call sites consume that one for live display, where the zero case provably cannot arise, and where changing the value would change the `IPD nn/NN` banner this plan has no business touching).
+- [x] E-01 Add `progress_display_total(queue)` to `agent_workflows/render_stream.py`, beside `dispatchable_work_total`, returning `0` for an empty queue, the true dispatchable count when that count is non-zero, and `len(queue)` (the MATCHED count) when the queue is non-empty but nothing is dispatchable. Its docstring must state the measured defect (F-01), must state why the fallback is the matched count rather than `1` (F-02), and must state why this is a SECOND accessor rather than an edit to `dispatchable_work_total` (F-06: THREE call sites consume that one for live display, where the zero case provably cannot arise, and where changing the value would change the `IPD nn/NN` banner this plan has no business touching).
   NAME THE THREE CONSUMERS CORRECTLY IF THE DOCSTRING NAMES THEM AT ALL. Measured at review: `runner_shared.run_ipd` binds it BARE for the `IPD nn/NN` banner, and `oc_runipd` and `agy_runipd` each add their own `or 1` for the live statusline. A docstring asserting that "both hosts" guard the banner would be wrong on the module and on the spelling; either state all three accurately or say only "its live-display consumers" without enumerating.
   - Depends on: none
   - Expected outcome: `progress_display_total` returns 8 for the eight-`reviewed` shape, 5 for the five-pre-executed shape, 6 for the ten-member/four-pre-executed shape, 1 for the single-`reviewed` shape, and 0 for an empty queue, while `dispatchable_work_total` returns exactly what it returns today for all five.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `render_run_summary_table`, consume `progress_display_total` for the rendered fraction ONLY. Concretely: the `total_items` binding feeding `format_progress_bar(completed_count, total_items, width=10)` and the `total_label = f"Total ({completed_count}/{total_items} items run)"` row. The two `and total_items > 0` conditions in the outcome-word chain must keep reading a value that is `>0` for a non-empty queue, so the `COMPLETED` and `NO WORK PERFORMED` branches `4po0sc` just landed are unaffected; record in a comment that feeding those guards a true `0` was PROTOTYPED and relabels both branches to `QUEUED` (F-04), which is why the guard and the display are now separate reads.
+- [x] E-02 In `render_run_summary_table`, consume `progress_display_total` for the rendered fraction ONLY. Concretely: the `total_items` binding feeding `format_progress_bar(completed_count, total_items, width=10)` and the `total_label = f"Total ({completed_count}/{total_items} items run)"` row. The two `and total_items > 0` conditions in the outcome-word chain must keep reading a value that is `>0` for a non-empty queue, so the `COMPLETED` and `NO WORK PERFORMED` branches `4po0sc` just landed are unaffected; record in a comment that feeding those guards a true `0` was PROTOTYPED and relabels both branches to `QUEUED` (F-04), which is why the guard and the display are now separate reads.
   - Depends on: E-01
   - Expected outcome: the eight-`reviewed` shape renders `Progress: 0/8  [          ]   0% (8 reviewed)` and `Total (0/8 items run)` with `Outcome: NO WORK PERFORMED` unchanged; the five-pre-executed shape renders `0/5` with `Outcome: COMPLETED` unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Add `tests/test_zero_dispatch_progress_denominator.py` covering, by rendering the real `render_run_summary_table` and asserting on its output text: (a) the eight-`reviewed` shape's progress line and totals row now name 8, and the count in the fraction equals the number of per-artifact rows rendered in the same table; (b) the all-already-executed shape now names 5 and still reads `COMPLETED`; (c) the single-`reviewed` shape is BYTE-IDENTICAL to today, which is what proves `4po0sc`'s pinned assertion is not disturbed; (d) the ten-member/four-pre-executed shape is byte-identical, which proves `progdenom`'s live-workload denominator is not disturbed; (e) an empty queue still renders `0/0`; and (f) `dispatchable_work_total` itself is unchanged for every one of those shapes, which is the falsifiable form of E-01's "the banner is untouched" claim.
+- [x] E-03 Add `tests/test_zero_dispatch_progress_denominator.py` covering, by rendering the real `render_run_summary_table` and asserting on its output text: (a) the eight-`reviewed` shape's progress line and totals row now name 8, and the count in the fraction equals the number of per-artifact rows rendered in the same table; (b) the all-already-executed shape now names 5 and still reads `COMPLETED`; (c) the single-`reviewed` shape is BYTE-IDENTICAL to today, which is what proves `4po0sc`'s pinned assertion is not disturbed; (d) the ten-member/four-pre-executed shape is byte-identical, which proves `progdenom`'s live-workload denominator is not disturbed; (e) an empty queue still renders `0/0`; and (f) `dispatchable_work_total` itself is unchanged for every one of those shapes, which is the falsifiable form of E-01's "the banner is untouched" claim.
   - Depends on: E-02
   - Expected outcome: the new test file passes, and `tests/test_zero_dispatch_outcome.py` plus `tests/test_run_progress_count.py` pass unmodified.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -229,21 +229,282 @@ N/A with reason: no `.spec.md` governs the rendered progress fraction's byte for
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste a transcript calling BOTH accessors on the five shapes named in E-01's expected outcome, showing `progress_display_total` returning 8, 5, 6, 1, 0 and `dispatchable_work_total` returning 1, 1, 6, 1, 0 for the same inputs. (Re-measured at review at HEAD `67e532f6`, `dispatchable_work_total` returns exactly 1, 1, 6, 1, 0 on those five shapes, and the RAW pre-guard count is 0, 0, 6, 0, 0, so the five expected values for the new accessor are arithmetically consistent with its stated rule.) The second half is the point: it is the falsifiable form of "the shared divide guard is untouched", so a transcript showing only the new accessor does NOT satisfy this item. Paste the new docstring and confirm by reading it that it states the measured defect, the matched-count rationale, and the reason the accessors are separate; if it enumerates the consumers, confirm it names all THREE correctly (`runner_shared.run_ipd` bare, both hosts with their own `or 1`) rather than "both hosts".
   ALSO PASTE A `rg dispatchable_work_total agent_workflows/*.py` AT THE EXECUTING HEAD and confirm the only changed line in that output is the ADDITION of the new accessor's definition, i.e. that `runner_shared.run_ipd`'s bare binding and both hosts' `or 1` bindings are textually untouched. That is the cheap falsifiable form of "no live-display call site moved", and it catches an executor who "tidied" the redundant host `or 1` while in the file.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+    Called both accessors on the five shapes at the executing HEAD:
+    ```text
+    Shape                            progress_display_total    dispatchable_work_total
+    --------------------------------------------------------------------------------
+    eight-reviewed                   8                         1
+    five-pre-executed                5                         1
+    ten-member/four-pre-executed     6                         6
+    single-reviewed                  1                         1
+    empty                            0                         0
+    ```
 
-- [ ] V-02 validates E-02
+    New docstring added to `progress_display_total` in `agent_workflows/render_stream.py`:
+    ```python
+    def progress_display_total(queue: Sequence[Mapping[str, Any]]) -> int:
+        """The honest progress denominator for the run summary display.
+
+        Returns 0 for an empty queue, the true dispatchable count when that count is
+        non-zero, and len(queue) (the MATCHED artifact count) when the queue is non-empty
+        but nothing is dispatchable.
+
+        THE MEASURED DEFECT (F-01):
+        In a zero-dispatch run matching 8 artifacts, collapsing the denominator to 1
+        caused the run summary to render 'Progress: 0/1' and 'Total (0/1 items run)'
+        directly above 8 per-artifact rows and alongside '(8 reviewed)' and '8 matched',
+        contradicting the table and disposition summary.
+
+        WHY THE FALLBACK IS THE MATCHED COUNT RATHER THAN 1 (F-02):
+        The trailing 'or 1' in dispatchable_work_total was justified solely as a divide
+        guard ('so a caller dividing by it cannot raise'). Nothing justified collapsing
+        the displayed denominator, which was an unchosen side effect. Falling back to
+        len(queue) for a non-empty zero-dispatch queue makes the denominator honestly
+        state the matched artifact count, agreeing by construction with the disposition
+        summary (F-08).
+
+        WHY THIS IS A SECOND ACCESSOR RATHER THAN AN EDIT TO dispatchable_work_total (F-04, F-06):
+        The obvious fix of removing the 'or 1' from dispatchable_work_total measurably
+        regresses the outcome word across five queue shapes, flipping NO WORK PERFORMED
+        and COMPLETED to QUEUED (F-04). Furthermore, three call sites consume
+        dispatchable_work_total for live display: runner_shared.run_ipd binds it bare
+        for the 'IPD nn/NN' banner, and oc_runipd plus agy_runipd each add their own
+        'or 1' for the live statusline. All three are reached only for an item being
+        dispatched, at which point the item is marked running with an attempt appended,
+        so the raw dispatchable count is >= 1 and the zero-dispatch fallback is
+        unreachable (F-06). Keeping dispatchable_work_total untouched guarantees the
+        banner and live statuslines remain completely unaffected.
+        """
+    ```
+
+    `rg dispatchable_work_total agent_workflows/*.py` at executing HEAD:
+    ```text
+    agent_workflows/oc_runipd.py
+    96:    dispatchable_work_total,
+    2956:    total_items = dispatchable_work_total(queue) or 1
+
+    agent_workflows/render_stream.py
+    2097:def dispatchable_work_total(queue: Sequence[Mapping[str, Any]]) -> int:
+    2124:    The trailing 'or 1' in dispatchable_work_total was justified solely as a divide
+    2131:    WHY THIS IS A SECOND ACCESSOR RATHER THAN AN EDIT TO dispatchable_work_total (F-04, F-06):
+    2132:    The obvious fix of removing the 'or 1' from dispatchable_work_total measurably
+    2135:    dispatchable_work_total for live display: runner_shared.run_ipd binds it bare
+    2140:    unreachable (F-06). Keeping dispatchable_work_total untouched guarantees the
+    2165:    # `dispatchable_work_total` denominator. Without this, a Set with 4 of 10 members already
+    3069:    # total_items retains dispatchable_work_total(queue) (> 0 for non-empty queues)
+    3073:    total_items = dispatchable_work_total(queue)
+
+    agent_workflows/runner_shared.py
+    181:    dispatchable_work_total,
+    31267:    total = dispatchable_work_total(state["queue"])
+
+    agent_workflows/agy_runipd.py
+    97:    dispatchable_work_total as dispatchable_work_total,
+    2464:    total_items = dispatchable_work_total(queue) or 1
+    ```
+    Confirming: `runner_shared.run_ipd`'s bare binding and both hosts' `or 1` bindings are textually untouched.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the FULL rendered summary table for the eight-`reviewed` shape before and after the change (the BEFORE is already pasted under "Measured evidence"; re-render it at the executing HEAD rather than copying it), showing `Progress: 0/8` and `Total (0/8 items run)` after, and showing `Outcome: NO WORK PERFORMED` in BOTH. Paste a unified diff of the two renders and confirm it touches ONLY the progress line and the totals row: no per-artifact row, no diagnostics block, no outcome line. Then paste the same before/after pair for the all-pre-executed shape showing `0/1`->`0/5` with `Outcome: COMPLETED` in both (F-03, OQ-02). Finally, paste the nine-shape matrix at the executing HEAD and confirm no row reports a changed outcome word, which is what proves F-04 was avoided rather than merely intended.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+    Eight-reviewed shape BEFORE:
+    ```text
+    ╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+    │ AW RUN SUMMARY: run-repro (opencode)                                                                              │
+    │ Outcome: NO WORK PERFORMED   Duration: 0s   Spend: $0.00   Tokens: 0 (In: 0 │ Out: 0 │ Cache: 0)                  │
+    │ Progress: 0/1  [          ]   0% (8 reviewed)                                                                     │
+    ├─────┬─────┬──────┬───────┬────────┬──────────┬────────┬──────────┬───────┬─────────┬────────┬─────────┬───────────┤
+    │ Run │ Pos │ ID6  │ Set   │ Action │ Status   │ Verify │ Duration │ Spend │ Tok tot │ Tok in │ Tok out │ Tok cache │
+    ├─────┼─────┼──────┼───────┼────────┼──────────┼────────┼──────────┼───────┼─────────┼────────┼─────────┼───────────┤
+    │  01 │  01 │ it01 │ wtiso │ review │ reviewed │ -      │        - │     - │       - │      - │       - │         - │
+    │  02 │  02 │ it02 │ wtiso │ review │ reviewed │ -      │        - │     - │       - │      - │       - │         - │
+    │  03 │  03 │ it03 │ wtiso │ review │ reviewed │ -      │        - │     - │       - │      - │       - │         - │
+    │  04 │  04 │ it04 │ wtiso │ review │ reviewed │ -      │        - │     - │       - │      - │       - │         - │
+    │  05 │  05 │ it05 │ wtiso │ review │ reviewed │ -      │        - │     - │       - │      - │       - │         - │
+    │  06 │  06 │ it06 │ wtiso │ review │ reviewed │ -      │        - │     - │       - │      - │       - │         - │
+    │  07 │  07 │ it07 │ wtiso │ review │ reviewed │ -      │        - │     - │       - │      - │       - │         - │
+    │  08 │  08 │ it08 │ wtiso │ review │ reviewed │ -      │        - │     - │       - │      - │       - │         - │
+    ├─────┴─────┴──────┴───────┴────────┴──────────┴────────┼──────────┼───────┼─────────┼────────┼─────────┼───────────┤
+    │ Total (0/1 items run)                                 │       0s │ $0.00 │       0 │      0 │       0 │         0 │
+    ╰───────────────────────────────────────────────────────┴──────────┴───────┴─────────┴────────┴─────────┴───────────╯
+    ```
 
-- [ ] V-03 validates E-03
+    Eight-reviewed shape AFTER:
+    ```text
+    ╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+    │ AW RUN SUMMARY: run-repro (opencode)                                                                              │
+    │ Outcome: NO WORK PERFORMED   Duration: 0s   Spend: $0.00   Tokens: 0 (In: 0 │ Out: 0 │ Cache: 0)                  │
+    │ Progress: 0/8  [          ]   0% (8 reviewed)                                                                     │
+    ├─────┬─────┬──────┬───────┬────────┬──────────┬────────┬──────────┬───────┬─────────┬────────┬─────────┬───────────┤
+    │ Run │ Pos │ ID6  │ Set   │ Action │ Status   │ Verify │ Duration │ Spend │ Tok tot │ Tok in │ Tok out │ Tok cache │
+    ├─────┼─────┼──────┼───────┼────────┼──────────┼────────┼──────────┼───────┼─────────┼────────┼─────────┼───────────┤
+    │  01 │  01 │ it01 │ wtiso │ review │ reviewed │ -      │        - │     - │       - │      - │       - │         - │
+    │  02 │  02 │ it02 │ wtiso │ review │ reviewed │ -      │        - │     - │       - │      - │       - │         - │
+    │  03 │  03 │ it03 │ wtiso │ review │ reviewed │ -      │        - │     - │       - │      - │       - │         - │
+    │  04 │  04 │ it04 │ wtiso │ review │ reviewed │ -      │        - │     - │       - │      - │       - │         - │
+    │  05 │  05 │ it05 │ wtiso │ review │ reviewed │ -      │        - │     - │       - │      - │       - │         - │
+    │  06 │  06 │ it06 │ wtiso │ review │ reviewed │ -      │        - │     - │       - │      - │       - │         - │
+    │  07 │  07 │ it07 │ wtiso │ review │ reviewed │ -      │        - │     - │       - │      - │       - │         - │
+    │  08 │  08 │ it08 │ wtiso │ review │ reviewed │ -      │        - │     - │       - │      - │       - │         - │
+    ├─────┴─────┴──────┴───────┴────────┴──────────┴────────┼──────────┼───────┼─────────┼────────┼─────────┼───────────┤
+    │ Total (0/8 items run)                                 │       0s │ $0.00 │       0 │      0 │       0 │         0 │
+    ╰───────────────────────────────────────────────────────┴──────────┴───────┴─────────┴────────┴─────────┴───────────╯
+    ```
+
+    Unified diff for eight-reviewed shape (touches ONLY progress line and totals row):
+    ```diff
+    --- before_8_reviewed
+    +++ after_8_reviewed
+    @@ -1,7 +1,7 @@
+     ╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+     │ AW RUN SUMMARY: run-repro (opencode)                                                                              │
+     │ Outcome: NO WORK PERFORMED   Duration: 0s   Spend: $0.00   Tokens: 0 (In: 0 │ Out: 0 │ Cache: 0)                  │
+    -│ Progress: 0/1  [          ]   0% (8 reviewed)                                                                     │
+    +│ Progress: 0/8  [          ]   0% (8 reviewed)                                                                     │
+     ├─────┬─────┬──────┬───────┬────────┬──────────┬────────┬──────────┬───────┬─────────┬────────┬─────────┬───────────┤
+     │ Run │ Pos │ ID6  │ Set   │ Action │ Status   │ Verify │ Duration │ Spend │ Tok tot │ Tok in │ Tok out │ Tok cache │
+     ├─────┼─────┼──────┼───────┼────────┼──────────┼────────┼──────────┼───────┼─────────┼────────┼─────────┼───────────┤
+    @@ -14,5 +14,5 @@
+     │  07 │  07 │ it07 │ wtiso │ review │ reviewed │ -      │        - │     - │       - │      - │       - │         - │
+     │  08 │  08 │ it08 │ wtiso │ review │ reviewed │ -      │        - │     - │       - │      - │       - │         - │
+     ├─────┴─────┴──────┴───────┴────────┴──────────┴────────┼──────────┼───────┼─────────┼────────┼─────────┼───────────┤
+    -│ Total (0/1 items run)                                 │       0s │ $0.00 │       0 │      0 │       0 │         0 │
+    +│ Total (0/8 items run)                                 │       0s │ $0.00 │       0 │      0 │       0 │         0 │
+     ╰───────────────────────────────────────────────────────┴──────────┴───────┴─────────┴────────┴─────────┴───────────╯
+    ```
+
+    All-pre-executed shape BEFORE:
+    ```text
+    ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+    │ AW RUN SUMMARY: run-repro (opencode)                                                                               │
+    │ Outcome: COMPLETED   Duration: 0s   Spend: $0.00   Tokens: 0 (In: 0 │ Out: 0 │ Cache: 0)                           │
+    │ Progress: 0/1  [          ]   0% (5 executed)                                                                      │
+    ├─────┬─────┬──────┬───────┬─────────┬──────────┬────────┬──────────┬───────┬─────────┬────────┬─────────┬───────────┤
+    │ Run │ Pos │ ID6  │ Set   │ Action  │ Status   │ Verify │ Duration │ Spend │ Tok tot │ Tok in │ Tok out │ Tok cache │
+    ├─────┼─────┼──────┼───────┼─────────┼──────────┼────────┼──────────┼───────┼─────────┼────────┼─────────┼───────────┤
+    │  01 │  01 │ it01 │ wtiso │ execute │ executed │ -      │        - │     - │       - │      - │       - │         - │
+    │  02 │  02 │ it02 │ wtiso │ execute │ executed │ -      │        - │     - │       - │      - │       - │         - │
+    │  03 │  03 │ it03 │ wtiso │ execute │ executed │ -      │        - │     - │       - │      - │       - │         - │
+    │  04 │  04 │ it04 │ wtiso │ execute │ executed │ -      │        - │     - │       - │      - │       - │         - │
+    │  05 │  05 │ it05 │ wtiso │ execute │ executed │ -      │        - │     - │       - │      - │       - │         - │
+    ├─────┴─────┴──────┴───────┴─────────┴──────────┴────────┼──────────┼───────┼─────────┼────────┼─────────┼───────────┤
+    │ Total (0/1 items run)                                  │       0s │ $0.00 │       0 │      0 │       0 │         0 │
+    ╰────────────────────────────────────────────────────────┴──────────┴───────┴─────────┴────────┴─────────┴───────────╯
+    ```
+
+    All-pre-executed shape AFTER:
+    ```text
+    ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+    │ AW RUN SUMMARY: run-repro (opencode)                                                                               │
+    │ Outcome: COMPLETED   Duration: 0s   Spend: $0.00   Tokens: 0 (In: 0 │ Out: 0 │ Cache: 0)                           │
+    │ Progress: 0/5  [          ]   0% (5 executed)                                                                      │
+    ├─────┬─────┬──────┬───────┬─────────┬──────────┬────────┬──────────┬───────┬─────────┬────────┬─────────┬───────────┤
+    │ Run │ Pos │ ID6  │ Set   │ Action  │ Status   │ Verify │ Duration │ Spend │ Tok tot │ Tok in │ Tok out │ Tok cache │
+    ├─────┼─────┼──────┼───────┼─────────┼──────────┼────────┼──────────┼───────┼─────────┼────────┼─────────┼───────────┤
+    │  01 │  01 │ it01 │ wtiso │ execute │ executed │ -      │        - │     - │       - │      - │       - │         - │
+    │  02 │  02 │ it02 │ wtiso │ execute │ executed │ -      │        - │     - │       - │      - │       - │         - │
+    │  03 │  03 │ it03 │ wtiso │ execute │ executed │ -      │        - │     - │       - │      - │       - │         - │
+    │  04 │  04 │ it04 │ wtiso │ execute │ executed │ -      │        - │     - │       - │      - │       - │         - │
+    │  05 │  05 │ it05 │ wtiso │ execute │ executed │ -      │        - │     - │       - │      - │       - │         - │
+    ├─────┴─────┴──────┴───────┴─────────┴──────────┴────────┼──────────┼───────┼─────────┼────────┼─────────┼───────────┤
+    │ Total (0/5 items run)                                  │       0s │ $0.00 │       0 │      0 │       0 │         0 │
+    ╰────────────────────────────────────────────────────────┴──────────┴───────┴─────────┴────────┴─────────┴───────────╯
+    ```
+
+    Unified diff for all-pre-executed shape (touches ONLY progress line and totals row):
+    ```diff
+    --- before_5_pre_executed
+    +++ after_5_pre_executed
+    @@ -1,7 +1,7 @@
+     ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+     │ AW RUN SUMMARY: run-repro (opencode)                                                                               │
+     │ Outcome: COMPLETED   Duration: 0s   Spend: $0.00   Tokens: 0 (In: 0 │ Out: 0 │ Cache: 0)                           │
+    -│ Progress: 0/1  [          ]   0% (5 executed)                                                                      │
+    +│ Progress: 0/5  [          ]   0% (5 executed)                                                                      │
+     ├─────┬─────┬──────┬───────┬─────────┬──────────┬────────┬──────────┬───────┬─────────┬────────┬─────────┬───────────┤
+     │ Run │ Pos │ ID6  │ Set   │ Action  │ Status   │ Verify │ Duration │ Spend │ Tok tot │ Tok in │ Tok out │ Tok cache │
+     ├─────┼─────┼──────┼───────┼─────────┼──────────┼────────┼──────────┼───────┼─────────┼────────┼─────────┼───────────┤
+    @@ -11,5 +11,5 @@
+     │  04 │  04 │ it04 │ wtiso │ execute │ executed │ -      │        - │     - │       - │      - │       - │         - │
+     │  05 │  05 │ it05 │ wtiso │ execute │ executed │ -      │        - │     - │       - │      - │       - │         - │
+     ├─────┴─────┴──────┴───────┴─────────┴──────────┴────────┼──────────┼───────┼─────────┼────────┼─────────┼───────────┤
+    -│ Total (0/1 items run)                                  │       0s │ $0.00 │       0 │      0 │       0 │         0 │
+    +│ Total (0/5 items run)                                  │       0s │ $0.00 │       0 │      0 │       0 │         0 │
+     ╰────────────────────────────────────────────────────────┴──────────┴───────┴─────────┴────────┴─────────┴───────────╯
+    ```
+
+    Nine-shape matrix at executing HEAD:
+    ```text
+    shape                          BEFORE total/outcome               AFTER total/outcome                changed?
+    8 reviewed (THE BUG)           0/1 NO WORK PERFORMED              0/8 NO WORK PERFORMED              PROGRESS
+    1 reviewed                     0/1 NO WORK PERFORMED              0/1 NO WORK PERFORMED
+    2 reviewed                     0/1 NO WORK PERFORMED              0/2 NO WORK PERFORMED              PROGRESS
+    all 5 pre-executed             0/1 COMPLETED                      0/5 COMPLETED                      PROGRESS
+    10 mem 4 pre-exec              6/6 COMPLETED                      6/6 COMPLETED
+    3 live all done                3/3 COMPLETED                      3/3 COMPLETED
+    mixed 2 pre-exec 1 reviewed    0/1 NO WORK PERFORMED              0/3 NO WORK PERFORMED              PROGRESS
+    empty                          0/0 QUEUED                         0/0 QUEUED
+    1 live queued                  0/1 QUEUED                         0/1 QUEUED
+    ```
+    Confirming: No row reports a changed outcome word, proving F-04 was avoided.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the new test file's own run output with its passing count. Paste `python3 -m pytest tests/test_zero_dispatch_outcome.py tests/test_run_progress_count.py` output and state it against this lane's pre-change baseline of `21 passed`; both files must be UNMODIFIED, so also paste `git diff --name-only` and confirm neither appears (F-05). Carry the whole-plan no-regression evidence here, since this is the last item before commit: paste the BARE `python3 -m pytest` output with its `N passed` line, compared against the pre-change baseline captured in this lane by failing NODE IDS rather than totals; paste `aw check`; paste `aw ipd lint --phase pre-transition`; paste `aw sanitize --agent`; and paste `git diff --cached --name-only` immediately before committing, which must list exactly the two paths in `- Scope-Paths:` and nothing another party changed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+    1. New test file run output (`tests/test_zero_dispatch_progress_denominator.py`):
+    ```text
+    $ python3 -m pytest tests/test_zero_dispatch_progress_denominator.py
+    bringing up nodes......................................
+    ......                                                                   [100%]
+    6 passed in 1.93s
+    ```
+
+    2. Two pinned suites run output (`tests/test_zero_dispatch_outcome.py tests/test_run_progress_count.py`):
+    ```text
+    $ python3 -m pytest tests/test_zero_dispatch_outcome.py tests/test_run_progress_count.py
+    bringing up nodes......................................
+    .....................                                                    [100%]
+    21 passed in 2.05s
+    ```
+    Pre-change baseline was 21 passed; both files remain unmodified:
+    ```text
+    $ git diff --name-only tests/test_zero_dispatch_outcome.py tests/test_run_progress_count.py
+    (empty)
+    ```
+
+    3. Whole-plan no-regression evidence:
+    Bare full test suite run output (`python3 -m pytest`):
+    ```text
+    =========================== short test summary info ============================
+    FAILED tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity
+    1 failed, 3425 passed, 2 skipped, 3 warnings in 62.40s (0:01:02)
+    ```
+    Compared against pre-change baseline (1 failed, 3419 passed, 2 skipped in 61.42s):
+    - Exactly +6 passed (the 6 new tests in `tests/test_zero_dispatch_progress_denominator.py`).
+    - The sole failing node id is identical to pre-change baseline: `tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity`, which is an adjacent defect across UTC midnight where backlog setter date clocks diverge (tracked in backlog item `fnb8pl`).
+
+    `aw check` output:
+    No findings against plan `35mjqc` or its scope paths.
+
+    `aw ipd lint --phase pre-transition`:
+    Plan conforms with 0 errors at pre-transition.
+
+    `aw sanitize --agent` output:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+
+    `git diff --cached --name-only` immediately before committing:
+    Lists exactly the declared scope paths:
+    `agent_workflows/render_stream.py`
+    `tests/test_zero_dispatch_progress_denominator.py`
+  - Result: pass
 
 ## Approval and execution gate
 
