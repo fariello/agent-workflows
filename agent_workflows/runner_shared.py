@@ -31108,7 +31108,25 @@ def integrate_retired_lane(
             reason_codes=decision.reason_codes,
             detail=decision.inventory.as_dict(),
         )
-    process_backlog_close(run_dir, state, item)
+    # Skip when the close already succeeded: re-evaluating would answer `item is already done`
+    # (close=False) and OVERWRITE the success record with a refusal, reporting a correct close
+    # to the operator as "left open".
+    #
+    # reattclose-02 (`eg9jjm`) E-04: route through perform_coordinator_backlog_close so the move and
+    # commit happen in a coordinator-owned throwaway worktree and land on main via git merge --ff-only.
+    # Note on gate-tree movement (F-13): routing through the performer passes lane_repo=coord.path to
+    # process_backlog_close, so close_backlog_item evaluates the release-gate predicate in the
+    # coordinator worktree rather than in main. Because a coordinator worktree is a full checkout of
+    # main's HEAD and a retired plan sits in superseded/ in both trees, this is safe and evaluates
+    # identically. The one residual difference is fail-closed: an uncommitted-only carrier in main is
+    # invisible to a HEAD-pinned coordinator worktree, making the gate more likely to refuse.
+    if not (item.get("backlog_close") or {}).get("closed"):
+        perform_coordinator_backlog_close(
+            run_dir,
+            state,
+            item,
+            process_backlog_close=process_backlog_close,
+        )
     return RETIRED_STATUS
 
 

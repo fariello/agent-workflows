@@ -9,7 +9,9 @@ hosts through the real `execute_item` path.
 
 from __future__ import annotations
 
+import copy
 import json
+import os
 import subprocess
 import tempfile
 import unittest
@@ -18,7 +20,7 @@ from unittest import mock
 
 from agent_workflows import agy_runipd, oc_runipd, runner_shared
 from tests import support
-from tests.test_oc_runipd import _init_repo_with_conforming_plan
+from tests.test_oc_runipd import _CONFORMING_PLAN, _init_repo_with_conforming_plan
 
 _HOSTS = (("oc", oc_runipd, "run_opencode"), ("agy", agy_runipd, "run_agy_turn"))
 
@@ -173,10 +175,6 @@ class InLaneRetirementLandsTests(unittest.TestCase):
         )
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class RetiredLaneReintegrationTests(unittest.TestCase):
     """`aw <host> run integrate <id6>` lands a lane whose turn RETIRED its plan (measured: `xts8ux`
     was refused as 'not finalized'), and still refuses a lane whose plan is merely pending."""
@@ -265,3 +263,324 @@ class RetiredLaneReintegrationTests(unittest.TestCase):
             item["attempts"][-1]["disposition"], runner_shared.RETIRED_STATUS
         )
         self.assertEqual(events[0]["event"], "ipd-retired-integrated")
+
+
+class InLaneRetirementBacklogCloseTests(unittest.TestCase):
+    """reattclose-02 (`eg9jjm`) E-02: retired-lane backlog close lands safely in a coordinator worktree and is guarded."""
+
+    def setUp(self) -> None:
+        support.declare_execution_role(self)
+
+    def _setup_repo_and_carriers(
+        self, repo: Path, *, bstatus: str = "graduated"
+    ) -> tuple[Path, Path, Path]:
+        repo.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.invalid"],
+            cwd=repo,
+            check=True,
+        )
+        subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+        (repo / ".gitignore").write_text(
+            ".aw/state/\n.aw/worktrees/\n.aw/records/runs/\n", encoding="utf-8"
+        )
+
+        bdir = repo / ".aw" / "records" / "backlog" / bstatus
+        bdir.mkdir(parents=True, exist_ok=True)
+        bitem = bdir / "20260928-1200-01-bg0001-test.backlog.md"
+        bitem.write_text(
+            f"- Id: bg0001\n- Status: {bstatus}\n- Priority: medium\n- Work-Kind: chore\n",
+            encoding="utf-8",
+        )
+
+        pdir = repo / ".aw" / "records" / "plans" / "pending"
+        pdir.mkdir(parents=True, exist_ok=True)
+        p1_text = _CONFORMING_PLAN.format(id6="ret001").replace(
+            "- Item-Dependencies: none",
+            "- Item-Dependencies: none\n- From-Backlog: bg0001",
+        )
+        plan1 = pdir / "20260828-demo-01-ret001-demo.ipd.md"
+        plan1.write_text(p1_text, encoding="utf-8")
+
+        edir = repo / ".aw" / "records" / "plans" / "executed"
+        edir.mkdir(parents=True, exist_ok=True)
+        p2_text = (
+            _CONFORMING_PLAN.format(id6="ret002")
+            .replace(
+                "- Item-Dependencies: none",
+                "- Item-Dependencies: none\n- From-Backlog: bg0001",
+            )
+            .replace("- Status: approved", "- Status: executed")
+        )
+        plan2 = edir / "20260828-demo-02-ret002-demo.ipd.md"
+        plan2.write_text(p2_text, encoding="utf-8")
+
+        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True)
+
+        return plan1, plan2, bitem
+
+    def _agent(self, run_dir: Path, *, detach: bool = True):
+        base = _fake_agent_retires_in_lane(run_dir)
+
+        def run(state, rd, item, *args, **kwargs):
+            if (
+                not kwargs.get("fresh_session")
+                and kwargs.get("log_suffix") != "verify"
+                and detach
+            ):
+                wt = Path(kwargs["work_dir"])
+                pending = next(
+                    (wt / ".aw" / "records" / "plans" / "pending").glob("*ret001*")
+                )
+                text = pending.read_text(encoding="utf-8").replace(
+                    "- From-Backlog: bg0001", "- From-Backlog: -"
+                )
+                pending.write_text(text, encoding="utf-8")
+            return base(state, rd, item, *args, **kwargs)
+
+        return run
+
+    def test_case_1_success_arm(self):
+        for label, mod, spawn in _HOSTS:
+            with self.subTest(host=label):
+                with tempfile.TemporaryDirectory() as d:
+                    repo = Path(d) / "repo"
+                    p1, p2, bitem = self._setup_repo_and_carriers(repo)
+                    run_dir = repo / ".aw" / "records" / "runs" / "run-test"
+                    (run_dir / "outcomes").mkdir(parents=True)
+                    (run_dir / "prompts").mkdir(parents=True)
+                    state, item = _state_and_item(repo, p1)
+                    item["from_backlog"] = "bg0001"
+                    state["queue"].append(
+                        {
+                            "position": 2,
+                            "id6": "ret002",
+                            "setid": "demo",
+                            "status": "executed",
+                            "earned_paths": [str(p2.relative_to(repo))],
+                        }
+                    )
+                    with mock.patch.object(
+                        mod, spawn, self._agent(run_dir, detach=True)
+                    ):
+                        mod.execute_item(run_dir, state, item, recovery=False)
+
+                    self.assertEqual(item["status"], runner_shared.RETIRED_STATUS)
+                    close_rec = item.get("backlog_close") or {}
+                    self.assertTrue(
+                        close_rec.get("closed"),
+                        f"expected closed: True, got {close_rec}",
+                    )
+                    self.assertEqual(close_rec.get("wrote_in"), "coordinator_worktree")
+                    porcelain = subprocess.run(
+                        [
+                            "git",
+                            "status",
+                            "--porcelain",
+                            "-uall",
+                            "--",
+                            ".aw/records/backlog",
+                        ],
+                        cwd=repo,
+                        capture_output=True,
+                        text=True,
+                    ).stdout.strip()
+                    self.assertEqual(
+                        porcelain, "", "working tree under backlog must be clean"
+                    )
+                    self.assertTrue(
+                        (
+                            repo / ".aw" / "records" / "backlog" / "done" / bitem.name
+                        ).is_file()
+                    )
+                    self.assertFalse(
+                        (
+                            repo
+                            / ".aw"
+                            / "records"
+                            / "backlog"
+                            / "graduated"
+                            / bitem.name
+                        ).exists()
+                    )
+
+    def test_case_2_failure_arm(self):
+        for label, mod, spawn in _HOSTS:
+            with self.subTest(host=label):
+                with tempfile.TemporaryDirectory() as d:
+                    repo = Path(d) / "repo"
+                    p1, p2, bitem = self._setup_repo_and_carriers(repo)
+                    hooks_dir = repo / ".git" / "hooks"
+                    hooks_dir.mkdir(parents=True, exist_ok=True)
+                    hook = hooks_dir / "pre-commit"
+                    hook.write_text(
+                        "#!/bin/sh\nif git diff --cached --name-only | grep -q 'backlog'; then exit 1; fi\nexit 0\n",
+                        encoding="utf-8",
+                    )
+                    os.chmod(hook, 0o755)
+
+                    run_dir = repo / ".aw" / "records" / "runs" / "run-test"
+                    (run_dir / "outcomes").mkdir(parents=True)
+                    (run_dir / "prompts").mkdir(parents=True)
+                    state, item = _state_and_item(repo, p1)
+                    item["from_backlog"] = "bg0001"
+                    state["queue"].append(
+                        {
+                            "position": 2,
+                            "id6": "ret002",
+                            "setid": "demo",
+                            "status": "executed",
+                            "earned_paths": [str(p2.relative_to(repo))],
+                        }
+                    )
+                    with mock.patch.object(
+                        mod, spawn, self._agent(run_dir, detach=True)
+                    ):
+                        mod.execute_item(run_dir, state, item, recovery=False)
+
+                    self.assertEqual(item["status"], runner_shared.RETIRED_STATUS)
+                    close_rec = item.get("backlog_close") or {}
+                    self.assertFalse(close_rec.get("closed"))
+                    porcelain = subprocess.run(
+                        [
+                            "git",
+                            "status",
+                            "--porcelain",
+                            "-uall",
+                            "--",
+                            ".aw/records/backlog",
+                        ],
+                        cwd=repo,
+                        capture_output=True,
+                        text=True,
+                    ).stdout.strip()
+                    self.assertEqual(
+                        porcelain,
+                        "",
+                        "main's backlog working tree must be left clean on failure",
+                    )
+                    self.assertEqual(close_rec.get("wrote_in"), "coordinator_worktree")
+
+    def test_case_3_missing_guard(self):
+        for label, mod, spawn in _HOSTS:
+            with self.subTest(host=label):
+                with tempfile.TemporaryDirectory() as d:
+                    repo = Path(d) / "repo"
+                    p1, p2, bitem = self._setup_repo_and_carriers(repo, bstatus="done")
+                    run_dir = repo / ".aw" / "records" / "runs" / "run-test"
+                    (run_dir / "outcomes").mkdir(parents=True)
+                    (run_dir / "prompts").mkdir(parents=True)
+                    state, item = _state_and_item(repo, p1)
+                    item["from_backlog"] = "bg0001"
+                    initial_close = {
+                        "closed": True,
+                        "commit": "abc123def456",
+                        "wrote_in": "coordinator_worktree",
+                        "landing": {"status": "reconciled", "detail": "ff"},
+                    }
+                    item["backlog_close"] = copy.deepcopy(initial_close)
+
+                    close_calls: list = []
+                    real_close = mod.process_backlog_close
+
+                    def spy_close(*a, **k):
+                        close_calls.append((a, k))
+                        return real_close(*a, **k)
+
+                    perf_calls: list = []
+                    real_perf = runner_shared.perform_coordinator_backlog_close
+
+                    def spy_perf(*a, **k):
+                        perf_calls.append((a, k))
+                        return real_perf(*a, **k)
+
+                    with (
+                        mock.patch.object(
+                            mod, spawn, self._agent(run_dir, detach=True)
+                        ),
+                        mock.patch.object(mod, "process_backlog_close", spy_close),
+                        mock.patch.object(
+                            runner_shared, "perform_coordinator_backlog_close", spy_perf
+                        ),
+                    ):
+                        mod.execute_item(run_dir, state, item, recovery=False)
+
+                    self.assertEqual(
+                        close_calls,
+                        [],
+                        "close performer must not be called when already closed",
+                    )
+                    self.assertEqual(
+                        perf_calls,
+                        [],
+                        "coordinator performer must not be called when already closed",
+                    )
+                    self.assertEqual(
+                        item["backlog_close"],
+                        initial_close,
+                        "backlog_close record must survive byte-for-byte",
+                    )
+
+    def test_case_4_refusing_shape_unchanged(self):
+        for label, mod, spawn in _HOSTS:
+            with self.subTest(host=label):
+                with tempfile.TemporaryDirectory() as d:
+                    repo = Path(d) / "repo"
+                    p1, p2, bitem = self._setup_repo_and_carriers(repo)
+                    run_dir = repo / ".aw" / "records" / "runs" / "run-test"
+                    (run_dir / "outcomes").mkdir(parents=True)
+                    (run_dir / "prompts").mkdir(parents=True)
+                    state, item = _state_and_item(repo, p1)
+                    item["from_backlog"] = "bg0001"
+                    state["queue"].append(
+                        {
+                            "position": 2,
+                            "id6": "ret002",
+                            "setid": "demo",
+                            "status": "executed",
+                            "earned_paths": [str(p2.relative_to(repo))],
+                        }
+                    )
+                    with mock.patch.object(
+                        mod, spawn, self._agent(run_dir, detach=False)
+                    ):
+                        mod.execute_item(run_dir, state, item, recovery=False)
+
+                    self.assertEqual(item["status"], runner_shared.RETIRED_STATUS)
+                    close_rec = item.get("backlog_close") or {}
+                    self.assertFalse(close_rec.get("closed"))
+                    self.assertIn(
+                        "IPD carrier(s) not executed", close_rec.get("reason", "")
+                    )
+                    porcelain = subprocess.run(
+                        [
+                            "git",
+                            "status",
+                            "--porcelain",
+                            "-uall",
+                            "--",
+                            ".aw/records/backlog",
+                        ],
+                        cwd=repo,
+                        capture_output=True,
+                        text=True,
+                    ).stdout.strip()
+                    self.assertEqual(
+                        porcelain, "", "main backlog working tree must be clean"
+                    )
+                    self.assertTrue(
+                        (
+                            repo
+                            / ".aw"
+                            / "records"
+                            / "backlog"
+                            / "graduated"
+                            / bitem.name
+                        ).is_file()
+                    )
+
+
+if __name__ == "__main__":
+    unittest.main()
