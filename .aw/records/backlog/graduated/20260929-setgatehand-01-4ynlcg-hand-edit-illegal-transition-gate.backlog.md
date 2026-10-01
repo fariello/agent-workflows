@@ -1,11 +1,13 @@
 - Id: 4ynlcg
-- Status: open
+- Status: graduated
+- Graduated-To: setgatehand
 - Set: setgatehand
 - Priority: medium
 - Work-Kind: chore
 - Summary: Extend the untooled-transition pre-commit gate to catch a hand-edited illegal plan lifecycle transition
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): graduated by run run-20260930T053059Z-3200713: tliqz6
 - 2026-09-29 created (aw backlog): Extend the untooled-transition pre-commit gate to catch a hand-edited illegal plan lifecycle transition
 
 Split out of plan nvsz19 (Set ipdsetback), which closes the SETTER path only. nvsz19 makes aw set / aw ipd set refuse an illegal backwards plan transition by delegating to ipd_lifecycle.validate_transition. That covers the tooled path, which is what an agent and a human actually use, but it cannot see a hand edit: rewriting '- Status:' in an editor and git-mv-ing the file bypasses the setter entirely.
