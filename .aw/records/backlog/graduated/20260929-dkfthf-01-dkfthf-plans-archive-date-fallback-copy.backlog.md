@@ -1,5 +1,6 @@
 - Id: dkfthf
-- Status: open
+- Status: graduated
+- Graduated-To: dkfthf
 - Blocks-Release: next
 - Set: dkfthf
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: plans_archive._plan_date is a second copy of the 20260101 fabricating fallback, so a plan with no usable - Date: shards to the wrong week and ages about nine months early
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): graduated by run run-20260930T053059Z-3200713: 6i8knl
 - 2026-09-29 created (aw backlog): Filed while authoring plan 949enf (graduating j84jg3): the deferred half of that plan's fence, filed with its measurement rather than left as prose.
 
 MEASURED WHILE AUTHORING PLAN 949enf, which fixes the SAME fabricating fallback in `plans_refs` and deliberately leaves this second copy alone (949enf OQ-02).
