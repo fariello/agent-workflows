@@ -2322,18 +2322,23 @@ _IDENT_H2_RE = _re.compile(r"(?m)^##[ \t]")
 # `<terse-id>`, whitespace, punctuation) is NOT an identifier and can never be satisfied by a rename.
 _IDENT_TOKEN_RE = _re.compile(r"\A[a-z0-9][a-z0-9-]*\Z")
 
-#: `aw rename` takes a plural TYPE, and the suggested command must name the right one or it is worse
-#: than no suggestion at all (the plan's F-10). Verified by running each suggested form at authoring.
-#: `roadmaps` maps to `research`, NOT to itself: a `.roadmap.md` lives in the research tree and `aw
-#: rename roadmaps <id6>` reports "no roadmaps artifact matched" while `aw rename research <id6>`
-#: resolves it. The `comms`/`other` types are absent because no `aw rename` route exists for them.
+#: `aw rename` and `aw group` take a plural TYPE, and the suggested command must name the right one
+#: or it is worse than no suggestion at all (the plan's F-10). The derived noun serves both `aw rename`
+#: shapes (legacy and modern) as well as the Set-field `aw group ... --set <setid> --rename` shape.
+#: A `.roadmap.md` may live in EITHER tree (`.aw/records/roadmaps/` or `.aw/records/research/`): its
+#: location varies across the corpus, its addressable type follows its directory, and the noun is
+#: therefore derived via containment in `selectors.record_dirs` rather than statically asserted.
+#: This makes the hint correct for both filings without resolving the underlying records-taxonomy
+#: question (whether a roadmap-kind document should live under `roadmaps/` or `research/`), which
+#: remains open and is not decided here.
+#: The `comms` and `reviews` types are absent because no `rename` or `group` route exists for them.
 _IDENT_RENAME_TYPE = {
     "plans": "plans",
     "specs": "specs",
     "backlog": "backlog",
     "prompts": "prompts",
     "walkthroughs": "walkthroughs",
-    "roadmaps": "research",
+    "roadmaps": "roadmaps",
     "releases": "releases",
     "research": "research",
 }
@@ -2453,7 +2458,11 @@ def _identity_name_is_modern(
 
 
 def _identity_rename_hint(
-    record_type: str, selector: str, field: str, modern: bool
+    record_type: str,
+    selector: str,
+    field: str,
+    modern: bool,
+    path: Optional[Path] = None,
 ) -> str:
     """The exact `aw rename` a maintainer would run for one record, or "" when none applies.
 
@@ -2469,7 +2478,42 @@ def _identity_rename_hint(
     instead, since the identity slot is already correct and only the cluster key is wrong.
     """
 
-    rename_type = _IDENT_RENAME_TYPE.get(record_type)
+    rename_type = None
+    if path is not None:
+        try:
+            resolved = path.resolve()
+        except OSError:
+            resolved = path
+        curr = resolved if resolved.is_dir() else resolved.parent
+        repo_root = curr
+        for parent in [curr, *curr.parents]:
+            if (
+                (parent / ".git").exists()
+                or (parent / ".aw").exists()
+                or (parent / ".agents").exists()
+            ):
+                repo_root = parent
+                break
+        from agent_workflows import selectors as _sel
+
+        candidates = (
+            ("roadmaps", "research") if record_type == "roadmaps" else (record_type,)
+        )
+        for candidate in candidates:
+            if candidate not in _IDENT_RENAME_TYPE:
+                continue
+            for d in _sel.record_dirs(repo_root, candidate):
+                try:
+                    if resolved.is_relative_to(d.resolve()):
+                        rename_type = candidate
+                        break
+                except (ValueError, OSError):
+                    pass
+            if rename_type is not None:
+                break
+    else:
+        rename_type = _IDENT_RENAME_TYPE.get(record_type)
+
     if rename_type is None or not selector:
         return ""
     if not modern:
@@ -2633,9 +2677,9 @@ def _identity_finding(
             f"declared `{field}: {value}` is absent from an otherwise MODERN id6-clustered filename, "
             f"so the name and the metadata genuinely disagree"
         )
-        recovery = _identity_rename_hint(record_type, selector, field, True) or (
-            "reconcile the filename with the declared metadata"
-        )
+        recovery = _identity_rename_hint(
+            record_type, selector, field, True, path=path
+        ) or ("reconcile the filename with the declared metadata")
     else:
         bucket = "legacy"
         detail = (
@@ -2643,7 +2687,9 @@ def _identity_finding(
             f"record cannot be located by name; the rename is OPTIONAL and a maintainer call "
             f"(grandfathered, not overdue)"
         )
-        recovery = _identity_rename_hint(record_type, selector, field, False) or (
+        recovery = _identity_rename_hint(
+            record_type, selector, field, False, path=path
+        ) or (
             "converting this name to the id6 grammar is optional and a maintainer call"
         )
     return enrich_drift(

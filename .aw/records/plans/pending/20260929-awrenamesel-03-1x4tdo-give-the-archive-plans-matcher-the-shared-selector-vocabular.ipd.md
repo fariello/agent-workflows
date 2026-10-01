@@ -127,6 +127,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier: eby93o
 - THE `roadmaps` ADDRESSABILITY DEFECT and the broken hint that works around it.
   - Carrier: 3qxuw1
+  - Carrier-Evidence: .aw/records/plans/executed/20260929-awrenamesel-04-3qxuw1-derive-the-rename-hint-type-from-where-the-record-lives-so-t.ipd.md
 - WIRING `archive` FOR THE OTHER SEVEN TYPES (F-09). Out of fence and not a defect: no type other than `plans` and `research` has an archive convention to implement, so adding the verb would mean inventing sharding policy for specs, backlog and the rest. That is a feature decision, not a selector fix.
   - Carrier-Declined: there is no shelving convention to implement for the other types; inventing one is a design decision needing its own review, not a consistency repair.
 - CHANGING THE BARE SWEEP'S SELECTION OR EXIT STATUS (F-10, OQ-01). Deliberately untouched: an empty sweep is a successful no-op and a scheduled caller depends on that. Only the explicit-target branch changes.
