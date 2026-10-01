@@ -1,11 +1,13 @@
 - Id: mbjuv5
-- Status: open
+- Status: graduated
+- Graduated-To: mbjuv5
 - Set: mbjuv5
 - Priority: medium
 - Work-Kind: chore
 - Summary: Audit items already closed done through the ungated positional aw backlog set spelling, whose release gate was silently dropped
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): graduated by run run-20260930T053053Z-3200037: 1hrlp3
 - 2026-09-29 created (aw backlog): Audit items already closed done through the ungated positional aw backlog set spelling, whose release gate was silently dropped
 
 Filed while authoring plan 47ttnv (backlog mawwlc), which deferred this row and needs a durable carrier for it.
