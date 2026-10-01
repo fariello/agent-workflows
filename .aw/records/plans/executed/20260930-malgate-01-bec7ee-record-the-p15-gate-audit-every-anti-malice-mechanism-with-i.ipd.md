@@ -6,7 +6,7 @@
 - Scope: Write ONE research decision record under `.aw/records/research/` enumerating every anti-malice mechanism found in the tree, each with its keep / simplify / delete decision, the evidence measured for it, and the carrier that acts on it. Covers the four families backlog `ariaau` names (the `wtiso_gate.py` raising predicates, the `8zgybk` / `x03wgn` adversarial scaffolding, the 'determined same-user' and 'malicious' justifications, and any hook or verb that hides or verifies a secret from an agent) plus whatever the enumeration finds beyond them. EXCLUDES every code, comment, spec and test edit, which belong to Orders 02 and 03; this plan changes no behavior and touches no file under `agent_workflows/`. EXCLUDES re-deciding the four items the backlog item marks ALREADY DECIDED, which are recorded with their prior decision and cited, not reopened.
 - Scope-Paths: .aw/records/research/20260930-malgate-*.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: bec7ee
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: bec7ee verified (set malgate, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): plan-review complete; 6 findings all fixed; Scope-Paths glob corrected for the research ordinal and both reviewer-owned open questions resolved
 
