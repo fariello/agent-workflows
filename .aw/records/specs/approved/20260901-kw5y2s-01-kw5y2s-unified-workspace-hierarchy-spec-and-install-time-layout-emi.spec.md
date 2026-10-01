@@ -6,7 +6,11 @@
 - Author: antigravity
 - Scope: Consolidate workspace directory definitions into a unified Python layout model and emit machine-readable layout.json during repository installation for non-Python tools.
 
+EVERY DATED REGION IN THIS SPEC IS A POINT-IN-TIME SNAPSHOT, NOT A STANDING CLAIM, AND YOU MUST RE-MEASURE BEFORE RELYING ON ANY OF IT. Four regions carry live-code censuses or status assertions that describe WHAT WAS SHIPPED ON THE DATE EACH CARRIES, and each goes stale as the codebase evolves: Section 1.2's fragmentation examples, Section 3.2's corrections and vocabulary source table, Section 3.4's traversal-exclusion census, and Section 5.1's vocabulary acquisition clauses. Each states its measurement date (or resolution commits). A SET GRADUATING FROM THIS SPEC MUST MEASURE CURRENT STATE ITSELF and must not treat any entry here as current; the entry tells you WHERE TO LOOK and WHAT THE ANSWER WAS, never what the answer is. WHY THE SNAPSHOTS SURVIVE AT ALL, rather than being deleted in favor of "measure it yourself": their function is to WARN, not to inform. A reader who re-measures loses nothing by their presence; a reader who would have rebuilt shipped machinery is stopped by it. NOTHING ENFORCES THIS, which is the honest limit: no test and no `aw check` rule reads these lines (verified: no test reads this spec by path), so their accuracy rests on whoever next touches them. ALL FOUR WERE MEASURED STALE ONCE (on 2026-09-29, corrected by plan xx5b7a), which is the evidence for the convention rather than an argument against it.
+
 ## Workflow history
+
+- 2026-10-01 note (aw specs): AMENDED 2026-09-29 (plan xx5b7a, backlog ddon4j): corrected four stale sites that presented shipped work as pending - Section 3.2's claim that aw check reviews fails with unknown artifact type reviews (it succeeds; shipped in adf3c03d, Set wslayout Order 02 zvk796), the vocabulary table's fourth column, which marked backlog, roadmaps, other and reviews as present in only one source vocabulary when all eleven rows are now in both (adf3c03d and 0c7405db), Section 1.2's fragmentation examples, which named the same two now-harmonized discrepancies, and Section 5.1's acquisition clauses; added a point-in-time snapshot convention to the preamble because this spec had none. Status unchanged at approved; no normative requirement, Section 3.4, or the Section 4.1 schema touched.
 - 2026-09-04 approved (aw set, --by-human): status set to approved
 - 2026-09-04 reviewed (aw set): Reviewed updated wslayout spec (API terminology corrections verified against codebase; no blocking findings)
 
@@ -25,7 +29,7 @@ Currently, workspace layout knowledge is fragmented across five separate Python 
 5. `agent_workflows/selectors.py`: Maintains `KNOWN_PRIMARY_TYPES`, `EXCLUDED_RECORD_DIRS`, and directory iteration logic in `record_dirs()`.
 
 This fragmentation introduces several issues:
-- **Drift and Inconsistency**: Adding or updating an artifact type or state path requires editing up to four different files. Subtle naming discrepancies (e.g., `backlog` in `ARTIFACT_TYPES` vs. missing in `RecordClass`, or `reviews` in `RecordClass` vs. `ARTIFACT_TYPES`) must be manually harmonized.
+- **Drift and Inconsistency**: Adding or updating an artifact type or state path required editing up to four different files. Subtle naming discrepancies existed when this spec was written on 2026-09-01 (e.g., `backlog` in `ARTIFACT_TYPES` vs. missing in `RecordClass`, or `reviews` in `RecordClass` vs. `ARTIFACT_TYPES`) and had to be manually harmonized; both were resolved by the union ruling (harmonized in `0c7405db` and `adf3c03d`).
 - **Inaccessible to Non-Python Tooling**: Tools written in Go, Rust, TypeScript, Bash, or Swift cannot inspect the repository hierarchy without executing a Python interpreter or re-implementing fragile string-matching heuristics.
 
 ---
@@ -98,19 +102,19 @@ on 2026-09-01 (plan-review PR-001 on Set `wslayout`). The model DOCUMENTS realit
 it. Nothing that exists today is dropped, and each name missing from one of the two source vocabularies
 is added to the union.
 
-| Record Class | Relative Subpath | File Patterns / Extension | Lifecycle States / Subdirectories | Present today in |
+| Record Class | Relative Subpath | File Patterns / Extension | Lifecycle States / Subdirectories | Source vocabulary when specified (2026-09-01) |
 | :--- | :--- | :--- | :--- | :--- |
 | `plans` | `plans/` | `*.ipd.md` | `pending/`, `executed/`, `superseded/`, `not-executed/`, `reusable/` | both |
 | `specs` | `specs/` | `*.spec.md` | `draft/`, `to-review/`, `reviewed/`, `approved/`, `implementing/`, `implemented/`, `deferred/`, `parked/`, `superseded/` | both |
 | `research` | `research/` | `*.research-report.md`, `*.md` | Sharded by year/month (`YYYY/MM/`) or flat | both |
-| `backlog` | `backlog/` | `*.backlog.md` | Single directory; frontmatter status tracking | `ARTIFACT_TYPES` only (NEW to `RecordClass`) |
-| `reviews` | `reviews/` | `*.review.md` | Single directory; plan-review finding records | `RecordClass` only (NEW to `ARTIFACT_TYPES`) |
+| `backlog` | `backlog/` | `*.backlog.md` | Single directory; frontmatter status tracking | `ARTIFACT_TYPES` only; ADDED to `RecordClass` in `0c7405db` |
+| `reviews` | `reviews/` | `*.review.md` | Single directory; plan-review finding records | `RecordClass` only; ADDED to `ARTIFACT_TYPES` in `adf3c03d` |
 | `releases` | `releases/` | `*.release.md` | Single directory; release gate records | both |
 | `prompts` | `prompts/` | `*.md` | `untracked/`, `sessions/` | both |
 | `walkthroughs` | `walkthroughs/` | `*-walkthrough.md` | Narrative verification records | both |
-| `roadmaps` | `roadmaps/` | `*.roadmap.md` | Single directory | `ARTIFACT_TYPES` only (NEW to `RecordClass`) |
+| `roadmaps` | `roadmaps/` | `*.roadmap.md` | Single directory | `ARTIFACT_TYPES` only; ADDED to `RecordClass` in `0c7405db` |
 | `comms` | `comms/` | `*.md` | `inbox/`, `outbox/`, `archive/` | both |
-| `other` | `other/` | `*.md` | Miscellaneous unclassified records | `ARTIFACT_TYPES` only (NEW to `RecordClass`) |
+| `other` | `other/` | `*.md` | Miscellaneous unclassified records | `ARTIFACT_TYPES` only; ADDED to `RecordClass` in `0c7405db` |
 
 ELEVEN record classes. Two corrections to this table's earlier draft, both mandatory:
 
@@ -120,9 +124,10 @@ ELEVEN record classes. Two corrections to this table's earlier draft, both manda
    (`agent_workflows/artifact_rename.py:827-828,855-856`), referenced in `artifact_refs.py:215`,
    `artifact_naming.py:95`, and `artifact_core.py:169`, and holding 5 artifacts on disk including one
    under `.aw/records/roadmaps/`. Dropping it would break a shipped CLI surface.
-2. `reviews` becoming a member makes it an ACCEPTED CLI TYPE NOUN, which is net-new behavior:
-   `aw check reviews` currently fails with `unknown artifact type 'reviews'`. This is intended, and the
-   implementing plan must test it.
+2. `reviews` becoming a member made it an ACCEPTED CLI TYPE NOUN: this SHIPPED in `adf3c03d`
+   (Set `wslayout` Order 02, plan `zvk796`), and `aw check reviews` succeeds (re-measured 2026-09-29
+   at `6def8fef`: exit 0, `findings 0`). It was net-new when this spec was written; a Set reading
+   this today must CONSUME it, not build it.
 
 ### 3.2.1 The `records` root class (carve-out, NOT an ordinary record class)
 
@@ -380,8 +385,8 @@ class LayoutModel:
 
 ### 5.1 Consolidation of Existing Modules
 To prevent duplicate definitions and maintain strict backward compatibility:
-1. `agent_workflows/artifact_types.py`: Derives `ARTIFACT_TYPES` and `_ALIASES` directly from `agent_workflows/layout.py`. Derivation MUST NOT NARROW the tuple: `roadmaps` and its `roadmap` alias survive (Section 3.2 correction 1). `reviews` is gained.
-2. `agent_workflows/record_producers.py`: Derives `RecordClass` and `_RECORD_CLASS_SUBPATHS` from `agent_workflows/layout.py`. MUST preserve the `records` empty-subpath carve-out (Section 3.2.1) and the bounded legacy map `_LEGACY_RECORD_CLASS_SUBPATHS`. Gains `backlog`, `roadmaps`, and `other`, whose subpaths MUST match where those artifacts already live.
+1. `agent_workflows/artifact_types.py`: Derives `ARTIFACT_TYPES` and `_ALIASES` directly from `agent_workflows/layout.py`. Derivation MUST NOT NARROW the tuple: `roadmaps` and its `roadmap` alias survive (Section 3.2 correction 1). `reviews` was gained.
+2. `agent_workflows/record_producers.py`: Derives `RecordClass` and `_RECORD_CLASS_SUBPATHS` from `agent_workflows/layout.py`. MUST preserve the `records` empty-subpath carve-out (Section 3.2.1) and the bounded legacy map `_LEGACY_RECORD_CLASS_SUBPATHS`. Gained `backlog`, `roadmaps`, and `other`, whose subpaths MUST match where those artifacts already live.
 3. `agent_workflows/selectors.py`: Imports `KNOWN_PRIMARY_TYPES` and `EXCLUDED_RECORD_DIRS` from `agent_workflows/layout.py`. The exclusion set stays at the current seven entries (Section 3.4).
 4. `agent_workflows/project_schema.py`: `LogicalRoot` (4 members) and `RootClass` (6 members) remain strongly typed enums aligned with `layout.py`. Aligning MUST NOT collapse `RootClass` to four or drop a member: logical roots and physical placement classes answer different questions.
 
