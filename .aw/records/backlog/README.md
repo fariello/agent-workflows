@@ -84,6 +84,19 @@ The `- Close-Evidence:` field records the in-tree artifact path cited to satisfy
 3. Not a gate field, so it is never cleared by a status transition.
 It is named `Close-Evidence` rather than `Gate-Evidence` because `Gate-*` is the blocked-gate family (`Gate-Kind`, `Gate-Ref`, and `Gate-Summary`, which `_render_item` deliberately drops on a non-`blocked` item), and a name in that family would be a magnet for that drop rule.
 
+### Citing maintainer rulings (answer to backlog 0szu1p)
+
+A maintainer ruling is cited by `Gate-Kind: decision` with a `D<n>` (or additive-suffixed `D<n>[a-z]*`, e.g. `D22b`) ref pointing to an existing heading in `DECISIONS.md`. The ref is both shape-validated (`attention_contract.validate_gate_ref`) and resolved against actual headings (`check.decision-ref-dangling` in `check_engine`).
+
+Backlog `0szu1p` asked how maintainer rulings should be tracked and offered three options, each evaluated and decided as follows:
+- Option (a) (a new `decisions/` records tree with its own lifecycle, checker, CLI surface, and `aw attention` mapping): REFUSED. A new tree would require registration across `layout`, `lifecycle_dirs`, `artifact_naming`'s facet enum, `check_engine.SUPPORTED`, `attention_contract.TREE_POLICY` and `CLASS_MAPS`, `TYPE_BACKENDS`, `status_set`, `record_placement`, and `artifact_core.SCAN_ROOTS`, and the backlog type alone carries roughly 7400 lines of test code. Adding a whole new record class creates a large permanent maintenance surface for a reference that `Gate-Kind: decision` already expresses in a single line.
+- Option (b) (a convention that a ruling must be written onto the governed artifact's fields immediately): ADOPTED WHERE APPLICABLE, but INSUFFICIENT AS A GENERAL MECHANISM. This is already the shipped convention for Priority and Work-Kind (decided where work is first recorded, enforced in code at `backlog.run_new` and `ipd_authoring`). However, it cannot cover rulings on artifacts whose fields have no dedicated slot for the decision.
+- Option (c) (a backlog item per decided artifact): REFUSED AS A GENERAL MECHANISM. Creating a separate backlog item per decided artifact multiplies records per decision (e.g. 15 items for one ruling) and does not scale. While a blocked backlog item can carry a `Gate-Kind: decision` gate when work is genuinely blocked, it is not the general carrier for rulings.
+
+Scope boundary: this mechanism makes a ruling CITABLE and its citation RESOLVABLE. It does NOT verify that a ruling was APPLIED to the artifacts it names.
+
+Portability limit: `DECISIONS.md` is this repository's own local log and is NOT installed into managed target repositories. Consequently, `Gate-Kind: decision` RESOLVES only in this repository. In a managed target repository, citing a ruling gets shape validation only and no resolution, because the resolution sweep is suppressed entirely when `DECISIONS.md` is absent to prevent false positives.
+
 ## Verbs
 
 - `aw backlog new --summary ... [--status --priority --work-kind --set --slug --gate-kind --gate-ref --body] [--apply]`
