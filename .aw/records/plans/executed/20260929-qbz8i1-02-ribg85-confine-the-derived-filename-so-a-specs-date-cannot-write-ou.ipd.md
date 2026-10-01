@@ -6,7 +6,7 @@
 - Scope: Validate `--date` at `specs.run_new` against the `YYYY-MM-DD` format, using the refusal that `prompts.run_new` already ships for the identical flag, and add a destination-containment assertion so a filename that would resolve outside the resolved records tree is refused rather than written OR PREVIEWED (the containment guard is sited before the dry-run branch, not before the `mkdir`, so both arms refuse: F-11). DELIBERATELY NOT COVERED: `aw research new`, which has the same traversal and is carried separately; the DESCRIPTIVE-value injection vectors, which Order 01 owns; and `build_clustered_name` itself, which is a shared name builder this plan does not change (OQ-02).
 - Scope-Paths: agent_workflows/specs.py, tests/test_specs_date_containment.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: ribg85
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: ribg85 verified (set qbz8i1, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-901..PR-907 all FIXED, none deferred or open. All TEN of the plan's findings reproduced by driving the real CLI at HEAD 938935fe, since this is a path-traversal defect and none of it should be read off source: the escape writes a spec at the repo root at exit 0, a deeper one creates OUTSIDE/deep/ to get there, 9999-99-99 stamps a fabricated date past every checker, and the escaped record is invisible to aw specs check. The diagnosis, the two-guard shape and the separation from Order 01 are all correct. TWO HIGH DEFECTS IN THE PLAN ITSELF. PR-901: E-02's site cannot see half the defect. It says to guard before dest.parent.mkdir, but the dry-run branch returns BETWEEN resolve_creation_path and that mkdir, so the guard would live in the apply arm only; measured, a traversing preview exits 0, prints the escaping path, and emits a CLEAN --agent envelope naming it as a create change. Re-sited above the branch so both arms refuse. PR-902: the plan's own reproduction method is unsafe and I proved it the expensive way. F-03 claims a shallow fixture yields Permission denied; it did not reproduce, and instead the over-deep traversal SUCCEEDED and wrote a real 204-byte spec file above my scratch area, which my sandbox then refused to let me delete. It is untracked, outside any records tree, and no tracked file or co-worker's work was touched, and I am reporting rather than hiding it. The cause is the plan's own F-02: the verb creates intermediate directories, so an over-deep probe succeeds somewhere unintended rather than failing. E-03 now requires the traversal depth be BOUNDED to the fixture depth and asserted before each probe. Added F-11 through F-16. PR-903: the residue was understated, two further verbs (aw adopt, aw group research) read the same unvalidated flag into a derived name; recorded for the m5csyi sweep with an explicit note that neither was driven to an escape. PR-904: E-04's run_set/run_note probe cannot be taken through the CLI, which refuses earlier on argparse; driven at the function it returns 0 and writes the malformed history line with no file created. PR-905 adds the conforming-dry-run non-regression the re-siting makes necessary. PR-906 corrects the terminal transition to aw ipd finalize. PR-907 attributes both self-resolved open questions to the plan author rather than leaving Owner: none or forging a maintainer ruling, and records a suite baseline. OQ-01 and OQ-02 both upheld, OQ-01 on a strengthened basis after driving the sibling verb. No production file touched by this review.
 
