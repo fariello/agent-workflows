@@ -1268,7 +1268,7 @@ def cmd_new(args: argparse.Namespace) -> int:
             status="clean" if exit_code == 0 else "findings",
             summary=f"Rehearsal completed with exit {exit_code}",
         )
-    report(result, verbose=args.verbose)
+    report(result, verbose=getattr(args, "verbose", False))
     return 0 if all(r["exit_code"] == 0 for r in result["runs"]) else 1
 
 

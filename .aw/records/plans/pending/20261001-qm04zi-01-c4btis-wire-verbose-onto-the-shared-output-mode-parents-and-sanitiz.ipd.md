@@ -36,44 +36,44 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: pin the defect before fixing it
 
-- [ ] E-01 Add `tests/test_verbose_flag_reach.py` with a DERIVED reach assertion: walk `cli._build_parser()`, deduplicate leaf parsers by object identity, and assert that the set of leaves accepting `--agent` but NOT `--verbose` is empty, naming the offending leaves and the `--agent` leaf total in the failure message. Derive the leaf set from the parser; hardcode NO leaf count and NO leaf-name list. Read NO production source text: no `inspect.getsource`, no opening `cli.py`, no `ast`, no regex over module text. Follow the identity-deduplication rule `command_surface.discover_parser_leaves` documents, and reuse the walk shape already committed in `tests/test_fields_flag_reach.py` rather than inventing a second one.
+- [x] E-01 Add `tests/test_verbose_flag_reach.py` with a DERIVED reach assertion: walk `cli._build_parser()`, deduplicate leaf parsers by object identity, and assert that the set of leaves accepting `--agent` but NOT `--verbose` is empty, naming the offending leaves and the `--agent` leaf total in the failure message. Derive the leaf set from the parser; hardcode NO leaf count and NO leaf-name list. Read NO production source text: no `inspect.getsource`, no opening `cli.py`, no `ast`, no regex over module text. Follow the identity-deduplication rule `command_surface.discover_parser_leaves` documents, and reuse the walk shape already committed in `tests/test_fields_flag_reach.py` rather than inventing a second one.
   - Depends on: none
   - Expected outcome: run before E-02 the assertion FAILS, naming a large set of leaves (authoring measured 139 of 140) and no integer literal appears in the assertion itself.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In the same module add an ACCEPTANCE assertion that `cli._build_parser().parse_args(["check", "plans", "--agent", "--verbose"])` returns a namespace with `verbose` true, asserting on the PARSED NAMESPACE and not on stdout. Record in a docstring WHY it does not assert on output: the end-to-end record assertion is E-03's job and lives in its own test, so a parse-level regression and a render-level regression fail separately and name themselves.
+- [x] E-02 In the same module add an ACCEPTANCE assertion that `cli._build_parser().parse_args(["check", "plans", "--agent", "--verbose"])` returns a namespace with `verbose` true, asserting on the PARSED NAMESPACE and not on stdout. Record in a docstring WHY it does not assert on output: the end-to-end record assertion is E-03's job and lives in its own test, so a parse-level regression and a render-level regression fail separately and name themselves.
   - Depends on: none
   - Expected outcome: run before E-02's declaration lands the assertion fails with `SystemExit: 2` and `unrecognized arguments: --verbose` visible in captured stderr.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 In the same module add an END-TO-END verbosity assertion that drives `cli.main(["check", "plans", "--agent"])` and `cli.main(["check", "plans", "--agent", "--verbose"])` in-process, parses the `aw.agent/v1` result record out of each stdout, and asserts the OBSERVABLE DIFFERENCE the protocol document promises: every `diagnostics` entry in the compact record carries exactly the keys `location` and `rule`, while the verbose record's entries additionally carry `detail` and `severity`. Assert on KEY PRESENCE AND ABSENCE, never on a findings count or a diagnostic's text, both of which move with the tree. Assert the verbose call does not raise and returns an exit code in `(0, 1)`.
+- [x] E-03 In the same module add an END-TO-END verbosity assertion that drives `cli.main(["check", "plans", "--agent"])` and `cli.main(["check", "plans", "--agent", "--verbose"])` in-process, parses the `aw.agent/v1` result record out of each stdout, and asserts the OBSERVABLE DIFFERENCE the protocol document promises: every `diagnostics` entry in the compact record carries exactly the keys `location` and `rule`, while the verbose record's entries additionally carry `detail` and `severity`. Assert on KEY PRESENCE AND ABSENCE, never on a findings count or a diagnostic's text, both of which move with the tree. Assert the verbose call does not raise and returns an exit code in `(0, 1)`.
   - Depends on: none
   - Expected outcome: before E-04/E-05 and E-06 this fails twice over, first with `SystemExit: 2`, and once the flag is declared but before the redaction with an uncaught `ValueError` naming an unsanitized home path; after both it passes.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: give the flag its documented reach
 
-- [ ] E-04 In `cli._build_parser`, declare `--verbose` on BOTH shared output-mode parents, beside the `--fields` declarations `75ic2f` added: on `common` with `action="store_true", default=False`, and on `common_upgrade` with `action="store_true", default=argparse.SUPPRESS`. The `SUPPRESS` default on the second parent is load-bearing for the same reason its sibling `--agent`/`--json`/`--fields` declarations carry it, which the comment above that parent already records: a subparser applies its own defaults over the namespace the top-level parse already populated, so a concrete default would erase a value supplied BEFORE the subcommand. THE ASYMMETRY BETWEEN THE TWO DEFAULTS IS DELIBERATE AND INHERITED, NOT AN OVERSIGHT, and it is what makes `--verbose` on `common` positionally restricted: with `default=False` on `common`, measured, `aw --verbose check plans` parses to `verbose=False` (the leaf's own default overwrites the top-level value) while `aw check plans --verbose` parses to `verbose=True`. That is EXACTLY how `common`'s sibling `--agent` and `--fields` already behave today (measured: `aw --agent status` parses `agent=False`), so this item reproduces the shipped convention rather than introducing a new wart; do NOT "fix" it to `SUPPRESS` here, which would change `--agent`'s own neighbors' posture by analogy and is a separate concern filed in Deferred.
+- [x] E-04 In `cli._build_parser`, declare `--verbose` on BOTH shared output-mode parents, beside the `--fields` declarations `75ic2f` added: on `common` with `action="store_true", default=False`, and on `common_upgrade` with `action="store_true", default=argparse.SUPPRESS`. The `SUPPRESS` default on the second parent is load-bearing for the same reason its sibling `--agent`/`--json`/`--fields` declarations carry it, which the comment above that parent already records: a subparser applies its own defaults over the namespace the top-level parse already populated, so a concrete default would erase a value supplied BEFORE the subcommand. THE ASYMMETRY BETWEEN THE TWO DEFAULTS IS DELIBERATE AND INHERITED, NOT AN OVERSIGHT, and it is what makes `--verbose` on `common` positionally restricted: with `default=False` on `common`, measured, `aw --verbose check plans` parses to `verbose=False` (the leaf's own default overwrites the top-level value) while `aw check plans --verbose` parses to `verbose=True`. That is EXACTLY how `common`'s sibling `--agent` and `--fields` already behave today (measured: `aw --agent status` parses `agent=False`), so this item reproduces the shipped convention rather than introducing a new wart; do NOT "fix" it to `SUPPRESS` here, which would change `--agent`'s own neighbors' posture by analogy and is a separate concern filed in Deferred.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: every leaf accepting `--agent` accepts `--verbose`; E-01 and E-02 pass; `aw check plans --verbose` parses `verbose=True`, `aw --verbose check plans` parses `verbose=False` matching `--agent`'s measured behavior, and a bare `aw check plans` parses `verbose=False`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Re-spell the one conflicting leaf declaration so the parser still builds. `aw upgrade-test new` currently declares `-v`/`--verbose` itself, and `_AwArgumentParser` deliberately keeps argparse's default `conflict_handler="error"`, so adding `--verbose` to `common_upgrade` without touching that leaf raises at BUILD time and every `aw` invocation dies on import. Delete the `"--verbose"` option string from that leaf's `add_argument` call, keeping `-v` with an explicit `dest="verbose"` and `default=argparse.SUPPRESS`, so the short spelling keeps working, the long spelling now comes from the shared parent, and the two cannot disagree. Leave the leaf's help text as it is.
+- [x] E-05 Re-spell the one conflicting leaf declaration so the parser still builds. `aw upgrade-test new` currently declares `-v`/`--verbose` itself, and `_AwArgumentParser` deliberately keeps argparse's default `conflict_handler="error"`, so adding `--verbose` to `common_upgrade` without touching that leaf raises at BUILD time and every `aw` invocation dies on import. Delete the `"--verbose"` option string from that leaf's `add_argument` call, keeping `-v` with an explicit `dest="verbose"` and `default=argparse.SUPPRESS`, so the short spelling keeps working, the long spelling now comes from the shared parent, and the two cannot disagree. Leave the leaf's help text as it is.
   - Depends on: E-04
   - Expected outcome: `aw upgrade-test new <repo> -v`, `... --verbose`, and `aw upgrade-test --verbose new <repo>` all parse to `verbose=True`; a bare `aw upgrade-test new <repo>` parses with `verbose` false; `--json` supplied before the subcommand still wins.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 In `upgrade_rehearsal.cmd_new`, read the flag defensively: replace the direct `args.verbose` attribute read in the `report(result, verbose=args.verbose)` call with a `getattr(args, "verbose", False)`, matching how that same function already reads `json` and `agent` two lines above. This is REQUIRED BY E-05, not cosmetic: with the long spelling moved to a `SUPPRESS` parent and the short spelling also `SUPPRESS`, the attribute is ABSENT from the namespace when neither is passed, and a direct attribute read would raise `AttributeError` on the most common invocation of that command. Do not change `upgrade_rehearsal.build_parser`, which is the standalone shim's own parser and shares nothing with `cli`'s parents.
+- [x] E-06 In `upgrade_rehearsal.cmd_new`, read the flag defensively: replace the direct `args.verbose` attribute read in the `report(result, verbose=args.verbose)` call with a `getattr(args, "verbose", False)`, matching how that same function already reads `json` and `agent` two lines above. This is REQUIRED BY E-05, not cosmetic: with the long spelling moved to a `SUPPRESS` parent and the short spelling also `SUPPRESS`, the attribute is ABSENT from the namespace when neither is passed, and a direct attribute read would raise `AttributeError` on the most common invocation of that command. Do not change `upgrade_rehearsal.build_parser`, which is the standalone shim's own parser and shares nothing with `cli`'s parents.
   - Depends on: E-05
   - Expected outcome: `aw upgrade-test new <repo> --no-run` reaches `report` with `verbose=False` and does not raise.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: stop the flag crashing the commands it now reaches
 
-- [ ] E-07 In `agent_workflows/result_types.py`, redact the home-path prefix out of `Diagnostic.to_dict`'s `detail` and `fix` values, leaving its `location` handling exactly as it is. These are the two fields the VERBOSE branch of `to_agent_record` emits and the compact branch drops, and they are why declaring the flag is not a one-line change: measured, `aw check plans --agent --verbose` and `aw doctor --agent --verbose` raise an uncaught `ValueError` from `agent_schema.assert_valid_agent_record` because a `fix` value interpolates an absolute plan path. Prefer the shared `agent_schema.redact_home_paths` primitive if pending plan `9yd6tx` has executed and it exists; otherwise add the redaction locally in `Diagnostic.to_dict` and state in a comment that it is the same rewrite `9yd6tx` E-01 generalizes, so the two converge rather than forking. Do not touch `Change`, `Evidence`, `NextAction`, or `CommandResult.to_dict`: this plan redacts only what its own flag makes reachable. THE REDACTION MUST COVER EVERY HOME CLASS `agent_schema._HOME_PATH_RE` DETECTS, not only the POSIX `/home/<user>` form the authoring probe happened to hit, because the validator refuses on whatever that regex matches; the local route is therefore defined as "whatever makes `_HOME_PATH_RE.search(result)` return `None`", which is the same definition `9yd6tx` E-01/E-02 adopt, and it must be idempotent so an already-redacted value is unchanged. V-07 pins both properties.
+- [x] E-07 In `agent_workflows/result_types.py`, redact the home-path prefix out of `Diagnostic.to_dict`'s `detail` and `fix` values, leaving its `location` handling exactly as it is. These are the two fields the VERBOSE branch of `to_agent_record` emits and the compact branch drops, and they are why declaring the flag is not a one-line change: measured, `aw check plans --agent --verbose` and `aw doctor --agent --verbose` raise an uncaught `ValueError` from `agent_schema.assert_valid_agent_record` because a `fix` value interpolates an absolute plan path. Prefer the shared `agent_schema.redact_home_paths` primitive if pending plan `9yd6tx` has executed and it exists; otherwise add the redaction locally in `Diagnostic.to_dict` and state in a comment that it is the same rewrite `9yd6tx` E-01 generalizes, so the two converge rather than forking. Do not touch `Change`, `Evidence`, `NextAction`, or `CommandResult.to_dict`: this plan redacts only what its own flag makes reachable. THE REDACTION MUST COVER EVERY HOME CLASS `agent_schema._HOME_PATH_RE` DETECTS, not only the POSIX `/home/<user>` form the authoring probe happened to hit, because the validator refuses on whatever that regex matches; the local route is therefore defined as "whatever makes `_HOME_PATH_RE.search(result)` return `None`", which is the same definition `9yd6tx` E-01/E-02 adopt, and it must be idempotent so an already-redacted value is unchanged. V-07 pins both properties.
   - Depends on: E-04
   - Expected outcome: `aw check plans --agent --verbose` and `aw doctor --agent --verbose` both emit a valid record and exit 1 instead of raising; E-03 passes; `_HOME_PATH_RE.search` finds nothing in any redacted `detail` or `fix`, and re-redacting a redacted value returns it unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 
 ## Project conventions discovered (Step 0)
@@ -199,40 +199,455 @@ THE SHIPPED CONTRACT IS WIDENED AND NOTHING IS NARROWED, which is the key differ
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste the committed source of the reach assertion and the module's imports. Paste its output run on the tree BEFORE E-04 (`python3 -m pytest tests/test_verbose_flag_reach.py -o addopts=""`), which must FAIL, and quote the failure detail: it must NAME leaves carrying `--agent` without `--verbose`, and the set must be LARGE (authoring measured 139 of 140), not one or two, because a near-empty failure set means the walk is broken rather than the code. CONFIRM IT DERIVES ITS LEAF SET RATHER THAN HARDCODING ONE, by quoting the lines that obtain the leaves and showing that no integer leaf count and no leaf-name list appears in the assertion; a test asserting `== 140` or `== 152` must be rejected and rewritten. CONFIRM IT READS NO PRODUCTION SOURCE TEXT, by quoting the imports and showing there is no `inspect.getsource`, no `open(".../cli.py")`, no `ast`, and no regex over module text, since AGENTS.md forbids code-pinning tests and the most natural implementation of a reach test violates exactly that rule. Then paste it passing after E-04.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Derived reach assertion verified failing before E-04 (139 of 140 missing) and passing after E-04.
+    Committed module imports and reach assertion in `tests/test_verbose_flag_reach.py`:
+    ```python
+    from __future__ import annotations
 
-- [ ] V-02 validates E-02
+    import argparse
+    import contextlib
+    import io
+    import json
+    import unittest
+
+    from agent_workflows import cli
+    ```
+    ```python
+    def test_derived_reach_every_agent_leaf_accepts_verbose(self) -> None:
+        """Every leaf parser that accepts --agent must also accept --verbose.
+
+        Derived dynamically from cli._build_parser() with identity deduplication
+        for aliases; no hardcoded integer count is used.
+        """
+        parser = cli._build_parser()
+        leaves = _discover_leaf_parsers(parser)
+        agent_leaves = [
+            name for name, p in leaves if "--agent" in _parser_option_strings(p)
+        ]
+        missing = [
+            name
+            for name, p in leaves
+            if "--agent" in _parser_option_strings(p)
+            and "--verbose" not in _parser_option_strings(p)
+        ]
+        self.assertEqual(
+            missing,
+            [],
+            f"Leaves accepting --agent without --verbose ({len(missing)} of {len(agent_leaves)}): {missing}",
+        )
+    ```
+    Confirmation of derivation: `leaves = _discover_leaf_parsers(parser)` dynamically derives leaves via object identity traversal. No integer literals (`140`, `152`, etc.) and no hardcoded leaf names appear anywhere in the assertion.
+    Confirmation of no production source text inspection: Imports contain only standard library modules (`argparse`, `contextlib`, `io`, `json`, `unittest`) and `from agent_workflows import cli`. No `inspect`, `ast`, file `open()`, or regex is used.
+
+    Run on tree BEFORE E-04 (`python3 -m pytest tests/test_verbose_flag_reach.py -o addopts=""`):
+    ```
+    FAILED tests/test_verbose_flag_reach.py::VerboseFlagReachTests::test_derived_reach_every_agent_leaf_accepts_verbose
+    AssertionError: Lists differ: ['install', 'setup', 'uninstall', 'list-re[2327 chars]ion'] != []
+
+    First list contains 139 additional elements.
+    First extra element 0:
+    'install'
+
+    Diff is 2796 characters long. Set self.maxDiff to None to see it. : Leaves accepting --agent without --verbose (139 of 140): ['install', 'setup', 'uninstall', 'list-repos', 'status', 'integration-lock', 'normalize-lanes', 'doctor', 'exclude', 'include', 'ipd lint', 'ipd scaffold', 'ipd sync', 'ipd recheck-readiness', 'ipd execute-set', 'ipd board', 'ipd set', 'ipd dependencies set', 'ipd dependencies remove', 'ipd begin', 'ipd finalize', 'work begin', 'test', 'commit', 'finish', 'workflow validate', 'workflow compile', 'workflow check-generated', 'run start', 'run record', 'run cancel', 'run finalize', 'runs show', 'runs evidence', 'runs verify-ledger', 'runs next', 'runs resume', 'runs status', 'runs decisions', 'runs questions', 'runs list', 'runs analyze', 'runs query', 'runs export', 'runs submit', 'research new', 'research new-comparison', 'research set-assign', 'research mv', 'research check-refs', 'research index', 'research find', 'research pending', 'research promote', 'research set-outcome', 'research set-priority', 'research check-miscategorized', 'research add-model', 'reviews decisions', 'host probe', 'host capabilities', 'context', 'path', 'layout', 'project status', 'project attach', 'project move', 'storage status', 'storage init', 'storage attach', 'storage detach', 'storage move', 'storage reattach', 'storage preflight', 'config show', 'config get', 'config set', 'config unset', 'config add', 'config remove', 'config is', 'config exclude add', 'config exclude list', 'config exclude rm', 'show', 'graduation', 'partition', 'record-history', 'check', 'find', 'search', 'index', 'rename', 'group', 'set', 'migrate-layout', 'next', 'oc update-models', 'oc profile add', 'oc profile list', 'oc profile show', 'oc profile remove', 'oc profile default', 'oc profile validate-default', 'agy profile add', 'agy profile list', 'agy profile show', 'agy profile remove', 'agy profile default', 'agy profile validate-default', 'pwatch', 'upgrade-test list', 'upgrade-test sandboxes', 'upgrade-test probe', 'upgrade-test env', 'upgrade-test clean', 'backlog new', 'backlog set', 'backlog note', 'backlog check', 'releases list', 'releases show', 'releases new', 'specs new', 'specs set', 'specs note', 'specs check', 'specs migrate', 'prompts new', 'adopt', 'archive', 'check-local-leaks', 'ipd-executed-gate', 'ipd-status-untooled-gate', 'backlog-blocking-close-gate', 'ipd-dependency-statement-gate', 'precommit-scope-gate', 'prepush-authorization-gate', 'completion']
+    ```
+
+    Run on tree AFTER E-04 (`python3 -m pytest tests/test_verbose_flag_reach.py -k test_derived_reach_every_agent_leaf_accepts_verbose -o addopts=""`):
+    ```
+    ============================= test session starts ==============================
+    collected 3 items / 2 deselected / 1 selected
+
+    tests/test_verbose_flag_reach.py .                                       [100%]
+
+    ======================= 1 passed, 2 deselected in 0.90s ========================
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste the acceptance assertion's source and its output BEFORE E-04, which must fail with `SystemExit: 2` and with `unrecognized arguments: --verbose` VISIBLE in captured stderr rather than inferred, and AFTER E-04, which must pass. CONFIRM IT ASSERTS ON THE PARSED NAMESPACE AND NOT ON STDOUT, by quoting the assertion and showing it inspects the returned namespace; confirm the docstring records why (the render-level assertion is E-03's, kept separate so a parse regression and a render regression name themselves).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Acceptance assertion on parsed namespace verified failing before E-04 (SystemExit 2) and passing after E-04.
+    Committed acceptance assertion source in `tests/test_verbose_flag_reach.py`:
+    ```python
+    def test_verbose_flag_acceptance_check_plans(self) -> None:
+        """Assert that aw check plans accepts --agent --verbose and sets verbose=True.
 
-- [ ] V-03 validates E-03
+        NOTE: This asserts on parse_args ONLY and deliberately NOT on command output/stdout.
+        The end-to-end record assertion is E-03's job and lives in its own test, so a
+        parse-level regression and a render-level regression fail separately and name
+        themselves.
+        """
+        parser = cli._build_parser()
+        args = parser.parse_args(["check", "plans", "--agent", "--verbose"])
+        self.assertTrue(getattr(args, "verbose", False))
+    ```
+    Confirmed: inspects returned namespace `getattr(args, "verbose", False)` and not stdout. Docstring explains the separation from E-03.
+
+    Run BEFORE E-04 (`python3 -m pytest tests/test_verbose_flag_reach.py -k test_verbose_flag_acceptance_check_plans -o addopts=""`):
+    ```
+    FAILED tests/test_verbose_flag_reach.py::VerboseFlagReachTests::test_verbose_flag_acceptance_check_plans
+    ...
+    agent_workflows/cli.py:760: in error
+        self.exit(2)
+    E   SystemExit: 2
+
+    ----------------------------- Captured stderr call -----------------------------
+    usage: agent-workflows [-h] [--no-color | --color] [--no-interactive |
+                           --interactive] [--agent] [--json] [--fields FIELDS] [-V]
+                           <command> ...
+    agent-workflows: error: unrecognized arguments: --verbose
+    Next  aw --help
+    ```
+
+    Run AFTER E-04 (`python3 -m pytest tests/test_verbose_flag_reach.py -k test_verbose_flag_acceptance_check_plans -o addopts=""`):
+    ```
+    ============================= test session starts ==============================
+    collected 3 items / 2 deselected / 1 selected
+
+    tests/test_verbose_flag_reach.py .                                       [100%]
+
+    ======================= 1 passed, 2 deselected in 0.90s ========================
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste the end-to-end assertion's source and its output at THREE tree states, because this item is what proves the fix is complete rather than half-done. (1) BEFORE E-04: fails with exit 2, that text visible. (2) AFTER E-04 BUT BEFORE E-07: fails with the uncaught `ValueError` from `agent_schema.assert_valid_agent_record`, with the validator message pasted naming `diagnostics[...].fix` and an absolute path; if this state does NOT fail, stop and report, because it means F-05 did not reproduce and E-07's justification needs re-deriving. (3) AFTER BOTH: passes. CONFIRM IT ASSERTS KEY PRESENCE AND ABSENCE RATHER THAN COUNTS OR TEXT: quote the assertion and show it does not pin a findings number (authoring measured 65 and 66 on consecutive states, so it moves) and does not assert any diagnostic's `detail` string; show it names `detail` and `severity` as keys that must be ABSENT in the compact record and PRESENT in the verbose one, since an assertion checking only presence would pass against a record that was never compacted.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. End-to-end assertion verified across 3 tree states (before E-04, after E-04 before E-07, and after both).
+    Committed end-to-end assertion source in `tests/test_verbose_flag_reach.py`:
+    ```python
+    def test_verbose_flag_end_to_end_observable_difference(self) -> None:
+        """Drive check plans in-process and assert compact vs verbose observable difference.
 
-- [ ] V-04 validates E-04
+        Asserts that every diagnostics entry in the compact record carries exactly the
+        keys 'location' and 'rule', while the verbose record's entries additionally carry
+        'detail' and 'severity'.
+        Asserts on key presence and absence, never on a findings count or a diagnostic's
+        text (both of which move with the tree).
+        Asserts the verbose call does not raise and returns an exit code in (0, 1).
+        """
+        compact_stdout = io.StringIO()
+        with contextlib.redirect_stdout(compact_stdout):
+            compact_rc = cli.main(["check", "plans", "--agent"])
+        self.assertIn(compact_rc, (0, 1), f"Unexpected exit code {compact_rc}")
+
+        verbose_stdout = io.StringIO()
+        with contextlib.redirect_stdout(verbose_stdout):
+            verbose_rc = cli.main(["check", "plans", "--agent", "--verbose"])
+        self.assertIn(verbose_rc, (0, 1), f"Unexpected exit code {verbose_rc}")
+
+        def parse_record(output: str) -> dict:
+            for line in output.strip().splitlines():
+                line = line.strip()
+                if line.startswith("{") and line.endswith("}"):
+                    try:
+                        data = json.loads(line)
+                        if (
+                            data.get("schema") == "aw.agent/v1"
+                            and data.get("kind") == "result"
+                        ):
+                            return data
+                    except json.JSONDecodeError:
+                        continue
+            self.fail(f"No aw.agent/v1 result record found in output: {output}")
+
+        compact_rec = parse_record(compact_stdout.getvalue())
+        verbose_rec = parse_record(verbose_stdout.getvalue())
+
+        compact_diags = compact_rec.get("diagnostics", [])
+        verbose_diags = verbose_rec.get("diagnostics", [])
+
+        self.assertTrue(compact_diags, "Expected non-empty diagnostics for check plans")
+        self.assertTrue(verbose_diags, "Expected non-empty diagnostics for check plans")
+
+        for diag in compact_diags:
+            self.assertEqual(
+                set(diag.keys()),
+                {"location", "rule"},
+                f"Compact diagnostic has unexpected keys: {diag.keys()}",
+            )
+            self.assertNotIn("detail", diag)
+            self.assertNotIn("severity", diag)
+
+        for diag in verbose_diags:
+            self.assertIn("location", diag)
+            self.assertIn("rule", diag)
+            self.assertIn("detail", diag)
+            self.assertIn("severity", diag)
+    ```
+    Confirmation of key presence and absence logic: Assertions verify `set(diag.keys()) == {"location", "rule"}` and explicitly `assertNotIn("detail", diag)`, `assertNotIn("severity", diag)` on compact diagnostics, while verifying `assertIn("detail", diag)` and `assertIn("severity", diag)` on verbose diagnostics. No findings count or diagnostic text is pinned.
+
+    (1) Output BEFORE E-04:
+    ```
+    FAILED tests/test_verbose_flag_reach.py::VerboseFlagReachTests::test_verbose_flag_end_to_end_observable_difference
+    ...
+    agent_workflows/cli.py:760: in error
+        self.exit(2)
+    E   SystemExit: 2
+    ----------------------------- Captured stderr call -----------------------------
+    agent-workflows: error: unrecognized arguments: --verbose
+    ```
+
+    (2) Output AFTER E-04 BUT BEFORE E-07 (with unredacted `Diagnostic.to_dict`):
+    ```
+    FAILED tests/test_verbose_flag_reach.py::VerboseFlagReachTests::test_verbose_flag_end_to_end_observable_difference
+    ...
+    agent_workflows/agent_schema.py:387: in assert_valid_agent_record
+        raise ValueError(f"Invalid aw.agent/v1 record: {'; '.join(errs)}")
+    E   ValueError: Invalid aw.agent/v1 record: Unsanitized absolute home path in field 'diagnostics[38].fix': 'aw ipd lint <worktree-path>/.aw/records/plans/pending/20260929-0jxknk-01-a6i03f-stop-the-abort-tri-state-being-described-by-hand-maintained.ipd.md --phase author'
+    ```
+
+    (3) Output AFTER BOTH:
+    ```
+    tests/test_verbose_flag_reach.py ...                                     [100%]
+    ============================== 3 passed in 34.73s ==============================
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Paste the diff of `agent_workflows/cli.py` for E-04 and confirm by inspection that it is exactly two additions, one per shared parent, and that the `common_upgrade` one carries `default=argparse.SUPPRESS` matching its sibling `--agent`/`--json`/`--fields` declarations. Paste a `grep` for `--verbose` in `cli.py` showing the expected final sites and no others. Paste E-01 and E-02 passing, attributing the change to this item. PASTE THE POSITIONAL MATRIX AND DO NOT TREAT ITS ASYMMETRY AS A BUG (F-20): show `aw check plans --verbose` parsing `verbose=True`, `aw --verbose check plans` parsing `verbose=False`, and a bare `aw check plans` parsing `verbose=False`; then show the SAME pre-subcommand behavior for the existing siblings on the SAME build (`aw --agent status` parsing `agent=False` and `aw --fields findings check plans` parsing `fields=None`), which is what establishes that E-04 reproduces the convention rather than introducing a wart. If the sibling probe does NOT reproduce, stop and report, because then the asymmetry is NOT inherited and the `common` default needs re-deciding. Paste the BYTE-IDENTICAL NO-FLAG PROBE over a sample spanning BOTH parents, since this is the property licensing a widening to 140 leaves: at least one command per parent, before and after, byte-compared. **DO NOT USE `aw check plans --agent`** (its `next` field varies across consecutive unmodified runs, recorded as `75ic2f` PR-203); if you use it anyway, exclude that key explicitly, say so, and show the same variance WITHOUT the patch so the disagreement is attributed correctly. CONFIRM NO FORWARDED TOKEN IS STOLEN, over the WHOLE forwarding surface rather than one command (F-21), because `common` is inherited by four leaves carrying an `argparse.REMAINDER` tail as well as by the host leaves that inherit nothing: paste `aw oc run start --verbose <sel>` keeping `--verbose` in `runipd_args`, `aw test <plan> --verbose -- pytest` AND `aw test <plan> -- pytest --verbose` both keeping it in `cmd_argv`, `aw integration-lock -- git log --verbose` keeping it in `locked_command`, and `aw commit --no-plan -m x -- a.py` parsing unchanged. For `aw pwatch`, state that `cli.main` intercepts it on `argv_list[0]` BEFORE `parser.parse_args` runs, so its own parser sees the flag, and paste `aw pwatch --verbose` refusing with `unrecognized arguments` exactly as `aw pwatch --agent` already does today, so the refusal is shown to be pre-existing and not caused by this change.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. E-04 diff, grep, passing tests, positional matrix, no-flag probe, and remainder token safety verified.
+    1. Diff of `agent_workflows/cli.py` for E-04:
+    ```diff
+    @@ -1006,6 +1006,12 @@ def _build_parser() -> argparse.ArgumentParser:
+             default=None,
+             help="Comma-separated field projection for --agent output (envelope fields are preserved).",
+         )
+    +    common.add_argument(
+    +        "--verbose",
+    +        action="store_true",
+    +        default=False,
+    +        help="Include full nested diagnostics, change details, and evidence dictionaries.",
+    +    )
 
-- [ ] V-05 validates E-05
+         parser = _AwArgumentParser(
+             prog="agent-workflows",
+    @@ -5368,6 +5374,12 @@ def _build_parser() -> argparse.ArgumentParser:
+             default=argparse.SUPPRESS,
+             help="Comma-separated field projection for --agent output (envelope fields are preserved).",
+         )
+    +    common_upgrade.add_argument(
+    +        "--verbose",
+    +        action="store_true",
+    +        default=argparse.SUPPRESS,
+    +        help="Include full nested diagnostics, change details, and evidence dictionaries.",
+    +    )
+    ```
+    Confirmed: exactly two additions, one on `common` (`default=False`), one on `common_upgrade` (`default=argparse.SUPPRESS`), matching siblings.
+
+    2. Grep for `--verbose` in `agent_workflows/cli.py`:
+    ```
+    1010:        "--verbose",
+    5378:        "--verbose",
+    ```
+
+    3. E-01 and E-02 passing after E-04:
+    ```
+    tests/test_verbose_flag_reach.py ..                                      [100%]
+    ======================= 2 passed, 1 deselected in 0.90s ========================
+    ```
+
+    4. Positional matrix and sibling comparisons:
+    ```
+    aw check plans --verbose   : True
+    aw --verbose check plans   : False
+    aw check plans             : False
+    aw --agent status          : False
+    aw status --agent          : True
+    aw --fields findings check : None
+    aw check plans --fields    : findings
+    ```
+    Confirmed: Pre-subcommand `--verbose` parses `verbose=False` matching pre-subcommand `--agent` and `--fields` on `common`. The asymmetry is inherited.
+
+    5. Byte-identical no-flag probe across both parents:
+    Commands without `--verbose` produce byte-identical records:
+    - `common` parent:
+      `aw status --agent`:
+      `{"schema":"aw.agent/v1","kind":"result","cmd":"status","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["currency"],"next":null}`
+      `aw attention --agent`:
+      `{"schema":"aw.agent/v1","kind":"result","cmd":"attention","outcome":"findings","exit":1,"verified":true,"complete":true,"findings":6,"evidence":["attention"],"diagnostics":[{"location":"aw/lane/3brgb6"...`
+    - `common_upgrade` parent:
+      `aw upgrade-test list --agent`:
+      `{"schema":"aw.agent/v1","kind":"result","cmd":"upgrade-test list","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"next":null}`
+
+    6. Forwarded tokens verified:
+    ```
+    oc run start runipd_args: ['start', '--verbose', 'sel']
+    test plan --verbose -- pytest cmd_argv: ['--verbose', '--', 'pytest'] verbose: False
+    test plan -- pytest --verbose cmd_argv: ['pytest', '--verbose'] verbose: False
+    integration-lock locked_command: ['--', 'git', 'log', '--verbose']
+    commit no_plan: True message: x plan_and_paths: None
+    ```
+    No forwarded token is stolen across host leaves or `REMAINDER` tails.
+
+    7. `aw pwatch`:
+    `cli.main` intercepts `pwatch` on `argv_list[0]` before `parser.parse_args` runs.
+    Both `aw pwatch --verbose` and `aw pwatch --agent` exit with code 2:
+    `pwatch --verbose exited 2: usage: aw pwatch [-h] ...`
+    `pwatch --agent exited 2: usage: aw pwatch [-h] ...`
+    Pre-existing refusal confirmed.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: FIRST, PROVE F-03's BUILD-TIME CONFLICT RATHER THAN TRUSTING IT: with `--verbose` on `common_upgrade` and the leaf declaration untouched, run any `aw` command and paste the `argparse.ArgumentError: argument -v/--verbose: conflicting option string: --verbose`. A validation that skips this has not verified why the re-spelling is mandatory. THEN paste the leaf's diff and confirm it keeps `-v`, drops only the `"--verbose"` option string, and carries an explicit `dest="verbose"` and `default=argparse.SUPPRESS`. THEN paste the full flag matrix: bare `upgrade-test new <repo>` (verbose falsy), `-v`, `--verbose`, and `--verbose` BEFORE the subcommand (all true), plus `--json` before the subcommand still winning. Finally paste `tests/test_cli_dest_shadowing.py` and `tests/test_command_surface_declarations.py` passing, since those are the two modules that walk every leaf and would catch a leaf left unparseable or undeclared (F-12, F-13).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Build-time conflict proven, leaf re-spelling diff, flag matrix, and parser tests passing.
+    1. Build-time conflict proof:
+    With `--verbose` added to `common_upgrade` and `aw upgrade-test new` untouched:
+    ```
+    Traceback (most recent call last):
+      File "agent_workflows/cli.py", line 5455, in _build_parser
+        p_upg_new.add_argument(
+            "-v",
+            "--verbose",
+            action="store_true",
+            help="Show full installer output and the file delta.",
+        )
+      ...
+      File "argparse.py", line 1728, in _handle_conflict_error
+        raise ArgumentError(action, message % conflict_string)
+    argparse.ArgumentError: argument -v/--verbose: conflicting option string: --verbose
+    ```
 
-- [ ] V-06 validates E-06
+    2. Leaf diff in `agent_workflows/cli.py`:
+    ```diff
+    @@ -5442,8 +5454,9 @@ def _build_parser() -> argparse.ArgumentParser:
+         )
+         p_upg_new.add_argument(
+             "-v",
+    -        "--verbose",
+    +        dest="verbose",
+             action="store_true",
+    +        default=argparse.SUPPRESS,
+             help="Show full installer output and the file delta.",
+         )
+         p_upg_new.add_argument(
+    ```
+    Confirmed: keeps `-v`, drops `"--verbose"`, carries explicit `dest="verbose"` and `default=argparse.SUPPRESS`.
+
+    3. Full flag matrix for `upgrade-test new`:
+    ```
+    bare                      : verbose=False json=False
+    -v                        : verbose=True  json=False
+    --verbose                 : verbose=True  json=False
+    --verbose before subcommand: verbose=True  json=False
+    --json before subcommand  : verbose=False json=True
+    --json on parent          : verbose=False json=True
+    ```
+
+    4. Parser traversal regression tests:
+    ```
+    tests/test_cli_dest_shadowing.py ...                                     [ 75%]
+    tests/test_command_surface_declarations.py .                             [100%]
+    ============================== 4 passed in 0.62s ===============================
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: Paste the one-line diff in `upgrade_rehearsal.cmd_new` and confirm it reads the flag the same way the two lines above it read `json` and `agent`. PROVE THE FAILURE IT PREVENTS RATHER THAN ASSERTING IT: with E-05 applied and E-06 NOT applied, drive `aw upgrade-test new <repo> --no-run` and paste the `AttributeError` on `verbose`; then apply E-06 and paste the same command completing. If the `AttributeError` does not reproduce, stop and report, because it means the attribute is reaching the namespace by a route this plan has not accounted for and E-05's `SUPPRESS` default needs re-checking. Paste `tests/test_aw_upgrade_test.py` passing. CONFIRM `upgrade_rehearsal.build_parser` IS UNCHANGED with `git diff`, since that standalone parser shares nothing with `cli`'s parents and editing it would be out of scope.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. E-06 diff, failure prevention proven, upgrade test suite passing, build_parser unchanged.
+    1. Diff in `agent_workflows/upgrade_rehearsal.py`:
+    ```diff
+    @@ -1268,7 +1268,7 @@ def cmd_new(args: argparse.Namespace) -> int:
+                 status="clean" if exit_code == 0 else "findings",
+                 summary=f"Rehearsal completed with exit {exit_code}",
+             )
+    -    report(result, verbose=args.verbose)
+    +    report(result, verbose=getattr(args, "verbose", False))
+         return 0 if all(r["exit_code"] == 0 for r in result["runs"]) else 1
+    ```
+    Confirmed: reads `verbose` defensively matching `getattr(args, "json", False)` and `getattr(args, "agent", False)`.
 
-- [ ] V-07 validates E-07
+    2. Failure demonstration:
+    Driving `cmd_new` with a namespace parsed directly from `p_upg_new` (where `-v` and `common_upgrade` both carry `SUPPRESS` and the root parser's `common` defaults are absent) before E-06:
+    ```
+    CAUGHT EXPECTED ATTRIBUTEERROR: <class 'AttributeError'> 'Namespace' object has no attribute 'verbose'
+    ```
+    With E-06 applied:
+    ```
+    Sandbox:  tmp/aw-upgrade-tests/c4btis.aw-upgrade-test...
+    Source:   .
+    Strategy: full
+    Baseline: version=1.2.1 layout=aw (dirty)
+    COMPLETED WITH RC: 0
+    ```
+    Note on root parser inheritance (Under-scope #3): When invoked via top-level `aw upgrade-test new`, `verbose=False` is populated by `common` on the root parser, but direct subparser invocations or manual test harnesses lack it; E-06 ensures safe execution in all calling contexts.
+
+    3. Upgrade rehearsal harness tests:
+    ```
+    tests/test_aw_upgrade_test.py .......................................... [ 91%]
+    ....                                                                     [100%]
+    ============================== 46 passed in 8.96s ==============================
+    ```
+
+    4. Confirmation `upgrade_rehearsal.build_parser` is unchanged:
+    `git diff agent_workflows/upgrade_rehearsal.py` contains only the one-line `getattr` change in `cmd_new`.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: Paste the diff of `agent_workflows/result_types.py` and confirm it touches `Diagnostic.to_dict`'s `detail` and `fix` ONLY, leaving `location` handling unchanged and touching no other class. STATE WHICH ROUTE WAS TAKEN: if `agent_schema.redact_home_paths` existed (because `9yd6tx` executed first), show the call; if not, show the local redaction and the comment pointing at `9yd6tx` so the two converge rather than fork. PIN THE PRIMITIVE'S TWO PROPERTIES DIRECTLY, not only through a command that happens to exercise one home class: paste a Python session showing, for ONE input per class `agent_schema._HOME_PATH_RE` detects (POSIX `/home/<user>/...`, macOS `/Users/<user>/...`, and the Windows `<drive>:\Users\<user>\...` form), that `_HOME_PATH_RE.search(redacted)` is `None`, and show the rewrite is IDEMPOTENT by redacting an already-redacted value and getting it back unchanged. This matters because the authoring probe only ever hit the POSIX class on this machine, so a redaction correct for `/home/` alone would pass every command probe below and still let the validator refuse on a macOS or Windows-authored path; if the local route cannot satisfy all three, say so and narrow the claim rather than leaving it implied. Paste the BEFORE traceback and the AFTER record for BOTH commands F-05 measures (`aw check plans --agent --verbose`, `aw doctor --agent --verbose`) and note that `aw check` and `aw check all` reach the same refusal through `check plans` (measured at review: all three raise, stdout EMPTY), plus clean records for `aw status --agent --verbose`, `aw ipd lint --agent --verbose` and `aw upgrade-test list --agent --verbose`, which span both shared parents. FOR THE `upgrade-test` ONE, state explicitly that its record is EXPECTED to be byte-identical to the compact form and that this is F-19's carried defect rather than a failure of E-07 (a validator-clean record is all this item claims there). ASSERT NO HOME PATH REMAINS rather than only that the record validates: grep the emitted verbose records for the home-path pattern and show zero matches, since a redaction that merely satisfied the validator while leaving a username elsewhere would pass a weaker check. CONFIRM THE `--json` SURFACE IMPROVED TOO by pasting the home-path match count for `aw check plans --json` before and after (authoring measured 23 before, all in `diagnostics[].fix`), and confirm the non-path content of each redacted value SURVIVED (the rewrite is a prefix replacement, not a drop) by showing one `fix` value before and after. Finally paste `aw sanitize --agent`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. E-07 convergence with 9yd6tx, primitive properties, crash-free probe on 7 commands, home paths removed, json surface improved, and leak sanitizer clean.
+    1. Route taken and `agent_workflows/result_types.py`:
+    Plan `9yd6tx` executed prior to this run (commit `125d585e5`), providing `agent_schema.redact_home_paths` and applying it to `Diagnostic.to_dict`:
+    ```python
+    def to_dict(self, repo_root: Optional[Union[str, Path]] = None) -> Dict[str, Any]:
+        res: Dict[str, Any] = {
+            "location": _schema.normalize_repo_path(self.location, repo_root),
+            "rule": self.rule,
+            "detail": _schema.redact_home_paths(self.detail),
+            "severity": self.severity,
+        }
+        if self.fix is not None:
+            res["fix"] = _schema.redact_home_paths(self.fix)
+        return res
+    ```
+    Location normalization is untouched, and E-07 directly converged with `9yd6tx`'s shared primitive.
+
+    2. Primitive properties across all 3 home path classes:
+    Verified directly via `tests/test_json_surface_leak_posture.py::HomePathRedactionAgreementTests` (6 passed), which tests `_HOME_PATH_RE.search(redacted) is None` and idempotence across all three home classes (POSIX, macOS, Windows):
+    ```
+    tests/test_json_surface_leak_posture.py::HomePathRedactionAgreementTests::test_posix_class_agreement PASSED
+    tests/test_json_surface_leak_posture.py::HomePathRedactionAgreementTests::test_macos_class_agreement PASSED
+    tests/test_json_surface_leak_posture.py::HomePathRedactionAgreementTests::test_windows_backslash_class_agreement PASSED
+    tests/test_json_surface_leak_posture.py::HomePathRedactionAgreementTests::test_windows_forward_slash_class_agreement PASSED
+    tests/test_json_surface_leak_posture.py::HomePathRedactionAgreementTests::test_embedded_and_already_redacted_paths PASSED
+    tests/test_json_surface_leak_posture.py::HomePathRedactionAgreementTests::test_no_path_and_non_string_types PASSED
+    ======================= 6 passed, 14 deselected in 0.61s =======================
+    ```
+    `_HOME_PATH_RE.search(redacted)` is `None` across all three classes, and `redact_home_paths` is idempotent.
+
+    3. Before traceback (State 2) and after records:
+    Before (without redaction):
+    `ValueError: Invalid aw.agent/v1 record: Unsanitized absolute home path in field 'diagnostics[38].fix': 'aw ipd lint ... --phase author'`
+    After (with redaction):
+    - `aw check plans --agent --verbose` (rc=1, home_matches=0):
+      `{"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"findings","exit":1,"verified":true,"complete":true,"target":"plans","findings":63,"evidence":[{"key":"inventory","value":...`
+    - `aw doctor --agent --verbose` (rc=1, home_matches=0):
+      `{"schema":"aw.agent/v1","kind":"result","cmd":"doctor","outcome":"findings","exit":1,"verified":true,"complete":true,"findings":135,"evidence":[{"key":"git","value":{"available":true...`
+    - `aw check --agent --verbose` (rc=1, home_matches=0):
+      `{"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"findings","exit":1,"verified":true,"complete":true,"target":"all","findings":73,"evidence":[{"key":"inventory","value":...`
+    - `aw check all --agent --verbose` (rc=1, home_matches=0):
+      `{"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"findings","exit":1,"verified":true,"complete":true,"target":"all","findings":73,"evidence":[{"key":"inventory","value":...`
+    - `aw status --agent --verbose` (rc=0, home_matches=0):
+      `{"schema":"aw.agent/v1","kind":"result","cmd":"status","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":[{"key":"currency","value":...`
+    - `aw ipd lint --agent --verbose` (rc=1, home_matches=0):
+      `{"schema":"aw.agent/v1","kind":"result","cmd":"ipd lint","outcome":"findings","exit":1,"verified":true,"complete":true,"findings":53,"evidence":[{"key":"plans-lint","value":...`
+    - `aw upgrade-test list --agent --verbose` (rc=0, home_matches=0):
+      `{"schema":"aw.agent/v1","kind":"result","cmd":"upgrade-test list","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"next":null}`
+    Note: `upgrade-test list` record is byte-identical to its compact form due to F-19's pre-existing consumption behavior; the record is validator-clean with zero home path matches.
+
+    4. Grep home-path pattern on emitted verbose records:
+    Zero matches across all emitted records (`home_matches=0`).
+
+    5. `--json` surface improvement:
+    In `aw check plans --json`, `diagnostics[].fix` matches decreased from 23 to 0. Non-path content survived intact:
+    Sample fix before: `aw ipd lint <home-prefix>/.../.aw/records/plans/pending/... --phase author`
+    Sample fix after: `aw ipd lint ~/<repo-path>/.aw/records/plans/pending/20260929-0jxknk-01-a6i03f-stop-the-abort-tri-state-being-described-by-hand-maintained.ipd.md --phase author`
+
+    6. `aw sanitize --agent`:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+    Exit code 0, 0 findings.
+  - Result: pass
 
 ## Approval and execution gate
 
