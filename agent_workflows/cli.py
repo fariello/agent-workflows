@@ -12943,6 +12943,9 @@ def _run_check(
     # existing Diagnostic/compact-agent shape stays byte-compatible for current consumers.
     findings: list = []
     seen_fixes = set()
+    err_cnt = 0
+    warn_cnt = 0
+    info_cnt = 0
     for d in drift:
         try:
             title, dir_str, fname, extra, fix = _doctor._categorize_drift(d, repo_root)
@@ -12950,12 +12953,22 @@ def _run_check(
             fix = None
         # Prefer any determinism/assurance/severity already stamped on the Drift, else the registry.
         enriched = ce.enrich_drift(d, recovery=fix or "")
+        sev = enriched.severity or "error"
+        # Tally findings by enriched severity (IPD tzjtg4). Unknown or out-of-enum
+        # severities fall back to "errors" to remain conservative, matching
+        # _DEFAULT_RULESPEC and drift_exit_code.
+        if sev == "warning":
+            warn_cnt += 1
+        elif sev == "info":
+            info_cnt += 1
+        else:
+            err_cnt += 1
         diagnostics.append(
             Diagnostic(
                 location=d.location,
                 rule=d.rule,
                 detail=d.detail,
-                severity=enriched.severity or "error",
+                severity=sev,
                 fix=fix or None,
             )
         )
@@ -13017,12 +13030,10 @@ def _run_check(
             )
         )
 
-    err_cnt = sum(1 for d in drift if not d.rule.startswith("warn"))
-    warn_cnt = sum(1 for d in drift if d.rule.startswith("warn"))
     evidence.append(
         Evidence(
             key="rules",
-            value={"errors": err_cnt, "warnings": warn_cnt},
+            value={"errors": err_cnt, "warnings": warn_cnt, "info": info_cnt},
             status="clean" if exit_code == 0 else "findings",
         )
     )
