@@ -998,6 +998,23 @@ class PrivacyBoundaryTests(unittest.TestCase):
         self.assertTrue(control)
         self.assertEqual({f.severity for f in control}, {"fail"})
 
+        # Projector sole path
+        run = _write_run(self.root)
+        metric_facts, event_facts, flags, warnings = ingest.build_cache_facts(run)
+        self.assertTrue(set(metric_facts) <= set(privacy.ALLOWED_METRIC_KEYS))
+        for event in event_facts:
+            self.assertTrue(set(event) <= set(privacy.ALLOWED_EVENT_KEYS))
+        self.assertEqual(privacy.project_metric_facts(metric_facts), metric_facts)
+
+        # Unrealistic run id refused
+        with self.assertRaises(privacy.PrivacyRefusal):
+            privacy.project_metric_facts({"run_id": "run-20260908T100000Z-good"})
+        self.assertEqual(
+            privacy.project_metric_facts({"run_id": "run-20260908T100000Z-1234"}),
+            {"run_id": "run-20260908T100000Z-1234"},
+        )
+        self.assertIs(metric_facts["cost_is_estimate"], False)
+
     def test_ruleset_construction_is_location_independent_across_working_directories(
         self,
     ):
@@ -1037,23 +1054,6 @@ class PrivacyBoundaryTests(unittest.TestCase):
 
         # Confirm cwd is restored
         self.assertEqual(Path.cwd(), old_cwd)
-
-        # Projector sole path
-        run = _write_run(self.root)
-        metric_facts, event_facts, flags, warnings = ingest.build_cache_facts(run)
-        self.assertTrue(set(metric_facts) <= set(privacy.ALLOWED_METRIC_KEYS))
-        for event in event_facts:
-            self.assertTrue(set(event) <= set(privacy.ALLOWED_EVENT_KEYS))
-        self.assertEqual(privacy.project_metric_facts(metric_facts), metric_facts)
-
-        # Unrealistic run id refused
-        with self.assertRaises(privacy.PrivacyRefusal):
-            privacy.project_metric_facts({"run_id": "run-20260908T100000Z-good"})
-        self.assertEqual(
-            privacy.project_metric_facts({"run_id": "run-20260908T100000Z-1234"}),
-            {"run_id": "run-20260908T100000Z-1234"},
-        )
-        self.assertIs(metric_facts["cost_is_estimate"], False)
 
 
 class CacheHandoffTests(unittest.TestCase):
