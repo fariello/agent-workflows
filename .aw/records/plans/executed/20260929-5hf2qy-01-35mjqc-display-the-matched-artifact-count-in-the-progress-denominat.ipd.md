@@ -6,7 +6,7 @@
 - Scope: Give the summary renderer a display denominator that falls back to the MATCHED count instead of to `1`, leaving the divide-guard accessor untouched along with all THREE of its live-display call sites (`runner_shared.run_ipd`'s bare binding behind the `IPD nn/NN` banner, and both hosts' `... or 1` statusline bindings).
 - Scope-Paths: agent_workflows/render_stream.py, tests/test_zero_dispatch_progress_denominator.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: 35mjqc
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 35mjqc verified (set 5hf2qy, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-301 through PR-304 all fixed; both rejected and chosen fixes prototyped
 
