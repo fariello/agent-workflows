@@ -815,7 +815,19 @@ class TestBacklogProductionE08(unittest.TestCase):
                                 "--no-commit",
                             ],
                             cwd=target,
-                            check=True,
+                        )
+                        # Misbehaving agent achieves done directly on disk to test runner legitimacy check
+                        bkl_file = list(
+                            target.glob(".aw/records/backlog/open/*bkl201*.backlog.md")
+                        )[0]
+                        bkl_text = bkl_file.read_text(encoding="utf-8").replace(
+                            "- Status: open", "- Status: done"
+                        )
+                        done_dir = target / ".aw/records" / "backlog" / "done"
+                        done_dir.mkdir(parents=True, exist_ok=True)
+                        bkl_file.unlink()
+                        (done_dir / bkl_file.name).write_text(
+                            bkl_text, encoding="utf-8"
                         )
                         return 0, "session", rdir / "log.txt", ["cmd"]
 

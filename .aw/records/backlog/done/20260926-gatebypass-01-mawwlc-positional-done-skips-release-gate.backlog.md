@@ -1,5 +1,5 @@
 - Id: mawwlc
-- Status: graduated
+- Status: done
 - Graduated-To: gatebypass
 - Blocks-Release: next
 - Set: gatebypass
@@ -8,6 +8,7 @@
 - Summary: Positional aw backlog set done closes a release-blocking item with no gate check (the --status spelling refuses correctly)
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): closed by aw oc run: IPD 47ttnv executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-gatebypass-01-47ttnv-run-the-shared-release-gate-close-predicate-on-the-positiona.ipd.md); evidence .aw/records/plans/executed/20260929-gatebypass-01-47ttnv-run-the-shared-release-gate-close-predicate-on-the-positiona.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260929T021205Z-3914774: 47ttnv
 - 2026-09-26 created (aw backlog): Positional aw backlog set done closes a release-blocking item with no gate check (the --status spelling refuses correctly)
 
