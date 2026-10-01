@@ -30064,15 +30064,16 @@ def rescore_is_an_improvement(before: str | None, after: str | None) -> bool:
         emits no event; and
       * a DOWNGRADE is REFUSED (`substantially-complete` -> `partial`, `executed` -> anything lower).
 
-    THREE STATUSES ARE NEVER REPLACEABLE IN EITHER DIRECTION, and the honest reason differs between
-    them. :data:`INTEGRATION_DEFERRED_STATUS` (`merge-retry`) is the one that MATTERS: it is NOT in
-    :data:`DEFECT_REASK_SKIPPED_STATUSES`, so a re-ask can fire on a deferred item and reach the
-    rescore, and relabelling a deferral destroys it (see the comment above
-    :func:`reconcile_disposition`'s deferral passthrough, `oc_runipd.py:6120-6132`, for why). By
-    contrast `runner_stop.STOPPED_DISPOSITION` (`interrupted`) and `runner_stop.FORCED_DISPOSITION`
-    (`unknown_outcome`) ARE both already in that skip set, so neither can be the `before` value at the
-    rescore point today; their entries here are DEFENCE IN DEPTH against a future widening of the skip
-    set, not a live path, and must not be described as the safety property that matters.
+    THREE STATUSES ARE NEVER REPLACEABLE IN EITHER DIRECTION, all as DEFENCE IN DEPTH against future
+    rescore reachability rather than live pre-rescore states today. While
+    :data:`INTEGRATION_DEFERRED_STATUS` (`merge-retry`) is NOT in
+    :data:`DEFECT_REASK_SKIPPED_STATUSES`, it cannot be the `before` value at the rescore point
+    either: `execute_item_core`'s only writer of that status runs later than the rescore, and
+    relabelling a deferral would destroy it (see the deferral passthrough inside
+    :func:`runner_shared.reconcile_disposition` for why). Similarly, `runner_stop.STOPPED_DISPOSITION`
+    (`interrupted`) and `runner_stop.FORCED_DISPOSITION` (`unknown_outcome`) ARE both already in that
+    skip set, so neither can be the `before` value at the rescore point today; their entries here are
+    defence in depth against a future widening of the skip set.
     """
 
     from agent_workflows import runner_stop
@@ -30312,7 +30313,9 @@ def reconcile_disposition(
       1. Deliberate operator stops (`runstop foi1b3`): if stopped deliberately, returns STOPPED_DISPOSITION.
       2. Plan review actions: reviewed/approved if exit 0 and status permits, fail-gate otherwise.
       3. Executed plans: outcome_precedence_disposition against disk bucket and outcome file.
-      4. Integration deferred status fallback.
+      4. Prior-turn deferral passthrough: preserves a prior turn's deferral re-scored on a later turn
+         after `--retry-incomplete` requeued the item; `execute_item_core`'s own two scoring points
+         cannot reach it.
       5. Exit code fallback: fail-verify if exit 0, fail-gate otherwise.
     """
     from agent_workflows import runner_stop
@@ -30426,9 +30429,11 @@ def reconcile_disposition(
     # runrecon-02 (`fduoj4`) E-02: the outcome read and the bucket/outcome precedence are now the two
     # SHARED helpers above, so the CRASH path (`reconcile_interrupted`) honors the same rules from the
     # same code rather than from a second copy. The behavior here is unchanged: the rungs the helper
-    # applies are the three this function applied inline, in the same order, and everything the helper
-    # declines to answer still falls through to the deferral passthrough and the exit-code fallback
-    # below, which stay HERE because they are this caller's and not the precedence's.
+    # applies are the three this function applied inline, in the same order. If the helper declines to
+    # answer, the deferral passthrough preserves a prior turn's deferral re-scored on a later turn after
+    # `--retry-incomplete` requeued the item (a branch `execute_item_core`'s own two scoring points cannot
+    # reach), before falling through to the exit-code fallback below. Both stay HERE because they are this
+    # caller's and not the precedence's.
     outcome: dict[str, Any] | None = read_recorded_outcome(run_dir, item)
     try:
         current_plan = resolve_plan_path(
