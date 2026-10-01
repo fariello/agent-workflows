@@ -190,6 +190,24 @@ def select_output(
 # --------------------------------------------------------------------------------------------------
 
 
+def _redact_value(val: Any) -> Any:
+    """Recursively redact home paths in str, dict, list, tuple containers (E-08)."""
+    if isinstance(val, str):
+        return _schema.redact_home_paths(val)
+    if isinstance(val, dict):
+        return {
+            (_schema.redact_home_paths(k) if isinstance(k, str) else k): _redact_value(
+                v
+            )
+            for k, v in val.items()
+        }
+    if isinstance(val, list):
+        return [_redact_value(v) for v in val]
+    if isinstance(val, tuple):
+        return tuple(_redact_value(v) for v in val)
+    return val
+
+
 @dataclass
 class Diagnostic:
     """A single diagnostic, finding, or drift issue."""
@@ -204,11 +222,11 @@ class Diagnostic:
         res: Dict[str, Any] = {
             "location": _schema.normalize_repo_path(self.location, repo_root),
             "rule": self.rule,
-            "detail": self.detail,
+            "detail": _schema.redact_home_paths(self.detail),
             "severity": self.severity,
         }
         if self.fix is not None:
-            res["fix"] = self.fix
+            res["fix"] = _schema.redact_home_paths(self.fix)
         return res
 
     def to_drift(self) -> Any:
@@ -247,7 +265,7 @@ class Change:
         return {
             "path": _schema.normalize_repo_path(self.path, repo_root),
             "kind": self.kind,
-            "detail": self.detail,
+            "detail": _schema.redact_home_paths(self.detail),
             "applied": self.applied,
         }
 
@@ -264,9 +282,9 @@ class Evidence:
     def to_dict(self, repo_root: Optional[Union[str, Path]] = None) -> Dict[str, Any]:
         return {
             "key": self.key,
-            "value": self.value,
+            "value": _redact_value(self.value),
             "status": self.status,
-            "detail": self.detail,
+            "detail": _schema.redact_home_paths(self.detail),
         }
 
 
@@ -278,9 +296,9 @@ class NextAction:
     description: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
-        res = {"command": self.command}
+        res = {"command": _schema.redact_home_paths(self.command)}
         if self.description:
-            res["description"] = self.description
+            res["description"] = _schema.redact_home_paths(self.description)
         return res
 
 
@@ -322,7 +340,7 @@ class CommandResult:
             "command": self.command,
             "status": self.status,
             "exit_code": self.exit_code,
-            "summary": self.summary,
+            "summary": _schema.redact_home_paths(self.summary),
             "verified": self.verified,
             "complete": self.complete,
             "diagnostics": [d.to_dict(repo_root) for d in self.diagnostics],
@@ -457,7 +475,7 @@ class CommandResult:
 
         # Safe next command
         if self.next_actions:
-            rec["next"] = self.next_actions[0].command
+            rec["next"] = _schema.redact_home_paths(self.next_actions[0].command)
         else:
             rec["next"] = None
 
