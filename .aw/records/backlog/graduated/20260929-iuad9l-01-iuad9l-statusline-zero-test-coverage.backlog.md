@@ -1,11 +1,13 @@
 - Id: iuad9l
-- Status: open
+- Status: graduated
+- Graduated-To: statuscov
 - Set: iuad9l
 - Priority: medium
 - Work-Kind: followup
 - Summary: The statusline box renderer has zero test coverage of any kind
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: 6tjq2j, mzrr7x
 - 2026-09-29 created (aw backlog): Filed at review of plan it6tpj (/plan-review), discharging a Deferred row that instructed the executor to file it.
 
 `render_stream.format_statusline_lines` renders the runner's live 4-line statusline box and NO TEST IN
