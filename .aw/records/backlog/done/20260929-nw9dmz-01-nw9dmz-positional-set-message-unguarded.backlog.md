@@ -1,5 +1,5 @@
 - Id: nw9dmz
-- Status: graduated
+- Status: done
 - Graduated-To: nw9dmz
 - Blocks-Release: next
 - Set: nw9dmz
@@ -8,6 +8,7 @@
 - Summary: The positional aw <tree> set <status> <selector> spelling writes an unvalidated --message into a record history, so a newline in it forges a workflow history record on every tree the shared setter serves
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw agy run: IPD 4gwgo3 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-nw9dmz-01-4gwgo3-refuse-an-unsafe-descriptive-value-at-the-shared-cross-tree.ipd.md); evidence .aw/records/plans/executed/20260930-nw9dmz-01-4gwgo3-refuse-an-unsafe-descriptive-value-at-the-shared-cross-tree.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: 4gwgo3
 - 2026-09-29 created (aw backlog): The positional aw <tree> set <status> <selector> spelling writes an unvalidated --message into a record history, so a newline in it forges a workflow history record on every tree the shared setter serves
 
