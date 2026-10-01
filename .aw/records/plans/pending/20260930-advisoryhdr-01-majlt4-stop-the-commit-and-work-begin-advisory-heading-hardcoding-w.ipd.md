@@ -6,7 +6,7 @@
 - Scope: Correct the advisory report in BOTH gate verbs so a human is told each finding's real registered severity instead of one hardcoded word for the whole batch. Drop the `(warning)` parenthetical from both headings and print each finding's own severity on its own line. OUT: the ROUTING decision (which findings are advisory versus blocking) is untouched, so no finding changes channel and no exit code moves; the registered severity of any rule in `check_engine.RULE_REGISTRY` is untouched; the blocking-branch headings are untouched; and `aw check`'s own tallies and renderers are untouched (owned by pending `tzjtg4`, `xs557y`, `nwcf8j`).
 - Scope-Paths: agent_workflows/work_cmd.py, tests/test_work_gate_severity.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -18,6 +18,7 @@
 - Id: majlt4
 
 ## Workflow history
+- 2026-10-01 reviewed (aw set): /plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-101 through PR-111 all FIXED, zero deferred, zero open. Findings and four Decisions rows in .aw/records/reviews/20260930-advisoryhdr-01-majlt4-stop-the-commit-and-work-begin-advisory-heading-hardcoding-w.review.md. Readiness go-pending-approval; human approval still required before execution.
 
 - 2026-10-01 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-101 through PR-111 all FIXED, zero deferred, zero open. THE PLAN'S CENTRAL CASE WAS RE-DRIVEN RATHER THAN READ, at `65ea492f7`, and it holds exactly: the end-to-end `aw commit` probe reproduced F-01 verbatim (`REGISTERED_SEVERITY = error`, `ENRICHED_SEVERITY = error`, `rc = 0`, heading `aw commit: note - 1 advisory (warning) finding(s) on ... (not blocking):`), the three-rule `rule_spec` probe reproduced F-04's `error`/`warning`/defaulted-`error` triple, the routing comment reads as F-06 quotes it, `ygb3nk`'s `test_scope_drift_registered_severity_is_error` exists as F-06 claims, F-03's `11 passed` baseline reproduced, and all four existing advisory tests were read and assert only the bare substring `advisory` plus a rule id, so the proposed heading breaks none of them.
   F-05, THE FINDING THAT DECIDES THE PLAN'S SHAPE, WAS UPGRADED FROM A HYPOTHETICAL TO A MEASUREMENT (PR-110). It argued the advisory batch can be genuinely MIXED, which is the whole reason the per-finding shape beats a batch parenthetical, but it supported that by rendering wording "in memory", which does not prove the state is REACHABLE. Driving both drifts through the real `_validate_plan_via_engine` returns `advisory = [('check.scope-drift','error'), ('check.review-decision-unescalated','warning')]` with `blocking = []`, so one heading really does introduce two tiers. The plan's conclusion was right and now rests on evidence.
