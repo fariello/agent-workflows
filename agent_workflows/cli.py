@@ -1332,7 +1332,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "path",
         nargs="*",
         default=None,
-        help="Zero or more IPD files to lint (default: every pending plan; or a repo root with --all).",
+        help="Zero or more IPD files to lint (default: every pending plan; with --all, at most one repo root, default: current directory).",
     )
     p_ipd_lint.add_argument(
         "--phase",
@@ -1349,7 +1349,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_ipd_lint.add_argument(
         "--all",
         action="store_true",
-        help="Lint every plan under .aw/records/plans and report a per-disposition inventory.",
+        help="Lint every plan under .aw/records/plans (at most one root, default: current directory; refuses if no plans tree is located).",
     )
     p_ipd_lint.add_argument(
         "--legacy",

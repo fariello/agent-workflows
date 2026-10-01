@@ -2345,21 +2345,37 @@ def _visible_advisories(advisories: List[Diagnostic], detail: bool) -> List[Diag
     return [a for a in advisories if a.code in _ALWAYS_VISIBLE_ADVISORY_CODES]
 
 
-def _iter_plan_files(root: Path) -> List[Path]:
-    # Layout-aware (IPD awretrofit Order 01): resolve .aw/records/plans with a legacy
-    # .agents/plans read-fallback, so `aw ipd lint --all` scans the migrated tree instead of
-    # false-passing with conforming=0.
+def _iter_plan_files(root: Path) -> Tuple[Optional[Path], List[Path]]:
+    # Layout-aware (IPD awretrofit Order 01, gonzhl Order 01): resolve .aw/records/plans
+    # with an in-tree fallback rung and a legacy .agents/plans read-fallback.
+    # Why the in-tree fallback rung exists: for an unconfigured target repo lacking
+    # .aw/config/project.json, resolve_record_path defaults records_backend to 'home'
+    # (provenance builtin_defaults), returning an out-of-tree path under ~/.aw/projects/
+    # that does not exist on disk. When resolve_record_path succeeds with a non-existent
+    # path, we fall back to <root>/.aw/records/plans before trying legacy <root>/.agents/plans,
+    # avoiding a false-pass where plans inside <root> are missed.
     from agent_workflows.record_producers import resolve_record_path
 
+    base: Optional[Path] = None
     try:
-        base = resolve_record_path("plans", target_repo=str(root))
+        resolved = resolve_record_path("plans", target_repo=str(root))
+        if resolved.is_dir():
+            base = resolved
     except Exception:
-        base = root / ".aw" / "records" / "plans"
-    if not base.is_dir() and (root / ".agents" / "plans").is_dir():
-        base = root / ".agents" / "plans"
-    if not base.is_dir():
-        return []
-    return sorted(p for p in base.rglob("*.md") if p.name not in _NON_IPD_BASENAMES)
+        pass
+
+    if base is None:
+        in_tree = root / ".aw" / "records" / "plans"
+        if in_tree.is_dir():
+            base = in_tree
+        elif (root / ".agents" / "plans").is_dir():
+            base = root / ".agents" / "plans"
+
+    if base is None or not base.is_dir():
+        return None, []
+
+    files = sorted(p for p in base.rglob("*.md") if p.name not in _NON_IPD_BASENAMES)
+    return base, files
 
 
 def _default_pending_files() -> List[Path]:
@@ -2522,8 +2538,47 @@ def run_lint(args: argparse.Namespace) -> int:
 
     try:
         if getattr(args, "all", False):
-            root = Path(getattr(args, "path", None) or ".")
-            files = _iter_plan_files(root)
+
+            def _refuse_all(msg: str) -> int:
+                if ctx.is_agent or ctx.is_json:
+                    res = CommandResult(
+                        command="ipd lint",
+                        status="cannot-run",
+                        exit_code=2,
+                        summary=msg,
+                    )
+                    return get_renderer(ctx).emit(res, ctx)
+                print(f"error: {msg}")
+                return 2
+
+            raw_path = getattr(args, "path", None)
+            roots: List[str]
+            if isinstance(raw_path, str):
+                roots = [raw_path]
+            elif raw_path:
+                roots = list(raw_path)
+            else:
+                roots = []
+
+            if len(roots) > 1:
+                return _refuse_all(
+                    f"--all takes at most one repo root (got {len(roots)})."
+                )
+
+            root = Path(roots[0]) if roots else Path(".")
+            if not root.is_dir():
+                from agent_workflows.agent_schema import normalize_repo_path
+
+                return _refuse_all(f"not a directory: {normalize_repo_path(root)}")
+
+            base, files = _iter_plan_files(root)
+            if base is None:
+                from agent_workflows.agent_schema import normalize_repo_path
+
+                return _refuse_all(
+                    f"no plans tree located under {normalize_repo_path(root)}"
+                )
+
             counts = {
                 S.DISPOSITION_CONFORMING: 0,
                 S.DISPOSITION_QUARANTINED: 0,
