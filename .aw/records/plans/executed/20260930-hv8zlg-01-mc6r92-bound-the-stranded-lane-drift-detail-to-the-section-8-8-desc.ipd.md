@@ -6,7 +6,7 @@
 - Scope: Bring the composed lane detail inside the bound by shortening the ONE over-long author-controlled segment (the SUPERSEDED `why` sentence in `runner_shared`'s lane classifier) and pinning the bound with a test that measures what the producer actually composes. Do NOT truncate (Section 8.8 forbids it), do NOT mint a second violation for a row the gate already reports, and do NOT change any lane VERDICT, rule id, severity, or schema key. `attention.py` is deliberately NOT in scope: the assembly there is correct and only its input was too long.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_attention_lane_detail_bound.py, .aw/records/backlog/graduated/20260928-hv8zlg-01-hv8zlg-stranded-lane-detail-exceeds-descriptive-bound.backlog.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: mc6r92
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: mc6r92 verified (set hv8zlg, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (aw set): status set to reviewed
 
