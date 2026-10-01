@@ -1,5 +1,5 @@
 - Id: aaoapo
-- Status: graduated
+- Status: done
 - Graduated-To: structpin
 - Set: structpin
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Two tests pin a redundant literal length beside a correct set-equality assertion, so the literal only goes stale
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD 44c42h executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-structpin-03-44c42h-delete-the-two-redundant-length-literals-that-restate-a-neig.ipd.md); evidence .aw/records/plans/executed/20260930-structpin-03-44c42h-delete-the-two-redundant-length-literals-that-restate-a-neig.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: 44c42h
 - 2026-09-28 created (aw backlog): Two tests pin a redundant literal length beside a correct set-equality assertion, so the literal only goes stale
 
