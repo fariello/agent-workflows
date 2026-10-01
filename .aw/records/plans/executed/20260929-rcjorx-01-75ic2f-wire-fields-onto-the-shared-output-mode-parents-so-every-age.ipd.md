@@ -6,7 +6,7 @@
 - Scope: Move `--fields` from its four hand-wired `aw runs` leaves onto the two shared output-mode parents (`common` and `common_upgrade`) inside `cli._build_parser`, so every leaf that carries `--agent` also carries `--fields` and the guide's example runs. Absorb the measured cost of doing so: adding a second `--f*` long option to 14 leaves destroys their working `--f` (and `check-local-leaks`' `--fi`) abbreviation, so this plan disables argparse prefix abbreviation on the affected parsers rather than shipping that regression silently. Add an executed test pinning flag reach and the surviving abbreviations. Correct `docs/cli-human-guide.md`'s example, which is inert for a SECOND reason this plan does not fix. Does NOT change `agent_schema.filter_record_fields`, does NOT change any record's content, does NOT give `--fields` an effect on `aw find`'s bare-path branch, and does NOT touch `--limit` or `--verbose`.
 - Scope-Paths: agent_workflows/cli.py, tests/test_fields_flag_reach.py, docs/cli-human-guide.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 07
 - Author: opencode
 - Id: 75ic2f
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 75ic2f verified (set rcjorx, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261001-doe2fo-01-doe2fo-backlog-setter-uses-local-date-instead-of-utc-date.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 
