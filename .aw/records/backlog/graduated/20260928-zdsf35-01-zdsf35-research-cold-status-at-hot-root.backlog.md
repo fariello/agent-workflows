@@ -1,11 +1,13 @@
 - Id: zdsf35
-- Status: open
+- Status: graduated
+- Graduated-To: zdsf35
 - Set: zdsf35
 - Priority: low
 - Work-Kind: chore
 - Summary: 35 research docs carry a cold status (reference/archive) while sitting at the hot root, so the physical tier contradicts the frontmatter status
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053053Z-3200037: mg8bag, ucwlwt
 - 2026-09-28 created (aw backlog): 35 research docs carry a cold status (reference/archive) while sitting at the hot root, so the physical tier contradicts the frontmatter status
 
 MEASURED 2026-09-28 while authoring plan 4a8yws (backlog 5u7mug), which fixes the aw set WRITE path that could create the mirror-image state.
