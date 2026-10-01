@@ -38,7 +38,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: pin the wrong hint
 
-- [ ] E-01 REPRODUCE THE WRONG HINT AS A FAILING TEST, and make the test's oracle be that the command RUNS, not that it matches a string. Create `tests/test_identity_rename_hint.py` and add a case that seeds a roadmap under `.aw/records/roadmaps/` whose declared `- Id:` is ABSENT from its filename (which is what makes the identity branch fire), obtains the finding's recovery command, and asserts that RUNNING that command resolves rather than refusing. At HEAD this must FAIL: the emitted command is `aw rename research <id6> --to-id6 --apply` and `aw rename research 7ny1bg --to-id6` exits 2 with `no research artifact matched '7ny1bg'`.
+- [x] E-01 REPRODUCE THE WRONG HINT AS A FAILING TEST, and make the test's oracle be that the command RUNS, not that it matches a string. Create `tests/test_identity_rename_hint.py` and add a case that seeds a roadmap under `.aw/records/roadmaps/` whose declared `- Id:` is ABSENT from its filename (which is what makes the identity branch fire), obtains the finding's recovery command, and asserts that RUNNING that command resolves rather than refusing. At HEAD this must FAIL: the emitted command is `aw rename research <id6> --to-id6 --apply` and `aw rename research 7ny1bg --to-id6` exits 2 with `no research artifact matched '7ny1bg'`.
   THE ORACLE IS EXECUTABILITY, WHICH IS THE WHOLE POINT AND ALSO WHAT KEEPS THIS TEST HONEST. Asserting the hint equals the literal string `aw rename roadmaps ...` would pin an implementation detail and would pass for a command that still refused. Drive the emitted command through `cli.main` in the fixture repo and assert a non-refusal, so the test measures the property the docstring claims ("a suggested command that refuses is worse than no suggestion").
   ADD THE MIRROR CASE, a `.roadmap.md` filed in the RESEARCH tree, whose correct noun is `research`. Both cases must pass after the fix; at HEAD this one already passes, and that asymmetry is exactly why a static map is wrong. Keep it as a control so a fix that merely flipped the constant to `roadmaps` would FAIL it.
   DRIVE THE MIRROR VIA THE `Set` FIELD ON A CONFORMING RESEARCH NAME, NOT VIA `Id` ON A LEGACY ONE (F-15, review). Measured: the mirror as loosely described CANNOT be built on the `Id` branch. A research-tree fixture with a pre-id6 name does not satisfy `research_contract.parse_name` (which requires the `YYYYMMDD-<set>-<NN>-<id6>-<slug>` core), so `research_archive`'s confinement refuses the very command the control must show RESOLVING (`matched no research files within the research root`); give it a conforming name instead and it is MODERN, so `check_name_identity` skips the `Id` field and NO finding fires (measured `findings: 0`), which per this plan's own warning would be a vacuous pass. So seed the mirror as a CONFORMING research `.roadmap.md` whose declared `set:` disagrees with its filename's Set segment. That fires `check.identity-absent-from-name` on the `Set` field, which is ALSO the branch that emits `aw group` rather than `aw rename` (F-14), so this one fixture change gives the control a working shape AND covers the second emission path.
@@ -47,11 +47,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   MAKE THE FINDING ACTUALLY FIRE, WHICH TAKES CARE. `check_name_identity` skips a record whose name matches NO grammar (that is `check.name-nonconformant`'s subject), skips the `Id` half of a MODERN id6-clustered name, and reads the declaration only from the METADATA REGION so a quoted example is not treated as a claim. So the fixture must be a legitimately SHAPED but pre-id6 name carrying a real metadata `- Id:` bullet. Verify the finding appears before asserting anything about its recovery text; a fixture that produces no finding would make a broken test pass vacuously.
   - Depends on: none
   - Expected outcome: THREE cases, not two (F-14, F-15). (a) a `roadmaps/`-tree LEGACY-named roadmap firing the `Id` branch, FAILING at HEAD because its emitted `aw rename research <id6> --to-id6` exits 2; (b) a `roadmaps/`-tree CONFORMING-named roadmap whose declared `set:` disagrees, firing the `Set`/`aw group` branch, FAILING at HEAD because its emitted `aw group research <id6> --set ... --rename` exits 2; (c) a research-tree CONFORMING `.roadmap.md` with a disagreeing `set:` as the control, passing at HEAD. Review measured all three shapes: (a) `recovery='aw rename research zz9zz9 --to-id6 --apply'`, static `rc=2`, derived `roadmaps` `rc=0`; (b) `recovery='aw group research bbb222 --set <setid> --rename --apply'`, static `rc=2`, derived `rc=0`; (c) the finding fires on `Set` and the `research` noun resolves.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: derive the noun
 
-- [ ] E-02 DERIVE THE RENAME TYPE FROM WHERE THE RECORD LIVES. In `check_engine._identity_rename_hint`, choose the type noun by asking which type actually resolves this record at its real path, rather than reading a static map entry. Keep the map for the unambiguous types and use the derivation where the record's type is positional.
+- [x] E-02 DERIVE THE RENAME TYPE FROM WHERE THE RECORD LIVES. In `check_engine._identity_rename_hint`, choose the type noun by asking which type actually resolves this record at its real path, rather than reading a static map entry. Keep the map for the unambiguous types and use the derivation where the record's type is positional.
   PASS THE PATH IN, WHICH IS THE SIGNATURE CHANGE THIS NEEDS. `_identity_rename_hint(record_type, selector, field, modern)` currently receives no path, which is precisely why it cannot answer the question; its caller `_identity_finding` HAS the path. Thread it through rather than re-deriving anything from the selector.
   DERIVE BY CONTAINMENT IN `selectors.record_dirs`, NOT BY `status_set.detect_artifact_type`. This is the measured trap in this area (Order 01 hit the same one): `detect_artifact_type` types ANY `.roadmap.md` as `roadmaps` via its facet-first branch, including the one in the research tree that only `aw rename research` resolves, so using it would emit the refusing command for the OTHER file. Ask instead which type's `record_dirs` CONTAIN the record's path; that is the same question `selectors.resolve` answers when it scopes a search, so the hint and the resolver cannot disagree.
   FALL BACK TO SILENCE, NEVER TO A GUESS. The function already returns `""` when it has no usable type or selector, and `_identity_finding` already substitutes a prose remedy in that case. If no type's directories contain the record, emit no command rather than a plausible-looking one: the docstring's own standard is that a refusing suggestion is worse than none.
@@ -59,26 +59,26 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   ONE DERIVATION FIXES ALL THREE EMITTED SHAPES, AND THAT IS WHY THIS ITEM GAINS NO WORK FROM F-14. The helper returns `aw rename ... --to-id6` (legacy), `aw group ... --set <setid> --rename` (modern + `Set`) and `aw rename ... --slug <slug>` (modern + other) from a SINGLE `rename_type` lookup, so replacing that one lookup with the derivation corrects the `aw group` shape at the same stroke. Do NOT add a second derivation or a per-shape special case; if you find yourself writing one, the lookup was not replaced at the single site.
   - Depends on: E-01
   - Expected outcome: The emitted command names a type noun that resolves the record, for a roadmap in either tree AND for all three emitted shapes including `aw group`, and stays silent rather than guessing when no type owns the path. Review PROTOTYPED this derivation (containment over `_IDENT_RENAME_TYPE`'s key set using `selectors.record_dirs`) and measured it yields `roadmaps` for the `roadmaps/`-tree file and `research` for both research-tree `.roadmap.md` files, with every derived command exiting 0 (`aw rename roadmaps 7ny1bg --to-id6`, `aw rename research effzzi --to-id6`, `aw rename research 3rpcmu --to-id6`, and `aw group roadmaps bbb222 --set newset --rename`).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove the other types did not regress
 
-- [ ] E-03 PIN EVERY OTHER TYPE'S HINT AS STILL CORRECT AND STILL RUNNABLE. Add cases covering each type the map serves (`plans`, `specs`, `backlog`, `prompts`, `walkthroughs`, `releases`, `research`) that seed a record of that type with a declared identity absent from its filename and assert the emitted command RESOLVES. This is the regression surface of E-02's change: the derivation must not alter a noun that was already right.
+- [x] E-03 PIN EVERY OTHER TYPE'S HINT AS STILL CORRECT AND STILL RUNNABLE. Add cases covering each type the map serves (`plans`, `specs`, `backlog`, `prompts`, `walkthroughs`, `releases`, `research`) that seed a record of that type with a declared identity absent from its filename and assert the emitted command RESOLVES. This is the regression surface of E-02's change: the derivation must not alter a noun that was already right.
   ASSERT EXECUTABILITY PER TYPE, not equality with a string, for the same reason as E-01. A type whose derived noun differs from its old static entry is a finding to REPORT, not to paper over: it would mean the static map and the directory layout disagree for a type nobody has checked.
   NOTE THE `plans` CASE IS THE ONE TO WATCH, because its resolver accepts only an id6 until `87m438` lands. The hint already prefers the declared id6, so it should pass both before and after that plan. MEASURED AT REVIEW AND THE ANSWER IS THAT NO EDGE IS OWED (F-16): `aw rename plans 7qx7ys --to-id6` exits 0 at HEAD, so the case passes BEFORE the sibling and this plan correctly declares `- Item-Dependencies: none`. Re-confirm it rather than assuming; if it passes only after `87m438`, that contradicts this measurement and the dependency must then be declared.
   THE EXPECTED RESULT IS THAT EXACTLY ONE TYPE DIFFERS, AND REVIEW ALREADY RAN THIS (F-16). Containment derivation over a real record of each of the eight mapped types agrees with the static entry for seven and differs only for `roadmaps`, which IS the defect. So this item should be uneventful; treat a SECOND difference as a genuine surprise worth reporting under E-03's own report-do-not-paper-over rule, not as expected noise.
   COVER BOTH EMITTED VERBS HERE TOO (F-14). For each mapped type, the `Set`-field shape emits `aw group <noun> ...` rather than `aw rename <noun> ...`, and the derivation must leave that runnable as well. Cover at least one non-roadmap type through the `aw group` shape, so the second emission path is pinned for a type whose noun did not change.
   - Depends on: E-02
   - Expected outcome: Every mapped type's hint still resolves, on BOTH the `aw rename` and `aw group` shapes; exactly one type (`roadmaps`) differs from its static entry, and any FURTHER difference is reported rather than silently accepted; the `plans` case passes before `87m438` lands, confirming no `- Item-Dependencies:` edge is owed.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 STATE THE REMAINING HOLE HONESTLY IN THE CODE, so the next reader is not misled the way this map's comment misled. Replace the stale justification comment (which asserts a `.roadmap.md` "lives in the research tree") with the measured truth: a `.roadmap.md` may live in EITHER tree, its addressable type follows its DIRECTORY, and the noun is therefore derived. Name the types that have NO `rename` route at all (`comms`, `reviews`) so the absence stays deliberate rather than looking like an oversight.
+- [x] E-04 STATE THE REMAINING HOLE HONESTLY IN THE CODE, so the next reader is not misled the way this map's comment misled. Replace the stale justification comment (which asserts a `.roadmap.md` "lives in the research tree") with the measured truth: a `.roadmap.md` may live in EITHER tree, its addressable type follows its DIRECTORY, and the noun is therefore derived. Name the types that have NO `rename` route at all (`comms`, `reviews`) so the absence stays deliberate rather than looking like an oversight.
   SAY THAT THE DERIVED NOUN SERVES `aw group` TOO (F-14), because the comment sits above a lookup feeding THREE emitted shapes and a reader who thinks it only feeds `aw rename` is the reader most likely to reintroduce a per-shape static entry. One sentence naming the `Set`-field `aw group` branch is enough.
   CORRECT THE COMMENT'S OWN FALSE CLAIM RATHER THAN SOFTENING IT. The existing text says a `.roadmap.md` "lives in the research tree" as a flat fact; measured, that is true of 2 of 3 such files and false of the one the hint then mis-advises (F-05). The replacement must not read as "usually lives in the research tree", which preserves the error; state that the location VARIES and that the directory decides.
   DO NOT CLAIM THE UNDERLYING TAXONOMY QUESTION IS FIXED. This plan makes the HINT correct; it does not decide whether a roadmap-kind research document should live under `roadmaps/`, and that ambiguity remains. Say so in the comment and record it in the Deferred section, so a later reader does not read a working hint as evidence that the filing question was settled.
   - Depends on: E-02
   - Expected outcome: The comment describes measured behavior, names the routeless types, and does not overstate what was fixed.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -182,25 +182,170 @@ IF THE EXECUTOR FINDS a spec or README sentence stating which tree owns a `.road
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: The pytest output for BOTH `roadmaps/`-tree cases run against UNFIXED source, pasted verbatim, showing each FAILING, together with the EXACT emitted command and the EXACT refusal and exit code observed when each was run: the `Id`-branch case emitting `aw rename research <id6> --to-id6 --apply`, AND the `Set`-branch case emitting `aw group research <id6> --set <setid> --rename --apply` (F-14). A run covering only the `aw rename` shape does NOT satisfy this item, because the `aw group` shape can stay broken while the suite is green, which is this plan's own defect class. Plus the research-tree control PASSING at HEAD, pasted, driven through the `Set` field on a CONFORMING research name (F-15); a control built on a pre-id6 research name FAILS this item, since review measured that shape refuses for an unrelated reason (`matched no research files within the research root`), and a control built on `Id` with a conforming name fires NO finding at all (`findings: 0`). Plus explicit confirmation that each seeded fixture actually PRODUCED an identity finding (state how many findings and on which file), because a fixture that threads none of the four scope filters would make a broken test pass vacuously. Plus a note that the emitted `--set <setid>` is a human-facing TEMPLATE and state which real setid you substituted to run it.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verbatim pytest failure against unfixed source and pass on research control.
+    Pytest output against UNFIXED source:
+    ```
+    =================================== FAILURES ===================================
+    ___ TestIdentityRenameHint.test_roadmap_tree_legacy_id_rename_hint_resolves ____
+    [gw10] linux -- Python 3.14.6 /.../bin/python3
+        rc, out, err = _run_hint(finding.recovery, self.repo)
+    >   self.assertEqual(rc, 0, f"Suggested command {finding.recovery!r} refused with rc={rc}:\n{out}\n{err}")
+    E   AssertionError: 2 != 0 : Suggested command 'aw rename research zz9zz9 --to-id6 --apply' refused with rc=2:
+    E   error: no research artifact matched 'zz9zz9'
+    tests/test_identity_rename_hint.py:70: AssertionError
+    _ TestIdentityRenameHint.test_roadmap_tree_conforming_set_group_hint_resolves __
+    [gw8] linux -- Python 3.14.6 /.../bin/python3
+        rc, out, err = _run_hint(finding.recovery, self.repo)
+    >   self.assertEqual(rc, 0, f"Suggested command {finding.recovery!r} refused with rc={rc}:\n{out}\n{err}")
+    E   AssertionError: 2 != 0 : Suggested command 'aw group research bbb222 --set <setid> --rename --apply' refused with rc=2:
+    E   error: no research artifact matched 'bbb222'
+    tests/test_identity_rename_hint.py:97: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_identity_rename_hint.py::TestIdentityRenameHint::test_roadmap_tree_legacy_id_rename_hint_resolves
+    FAILED tests/test_identity_rename_hint.py::TestIdentityRenameHint::test_roadmap_tree_conforming_set_group_hint_resolves
+    2 failed, 2 passed in 2.55s
+    ```
+    Research-tree control PASSING at HEAD (unfixed):
+    `tests/test_identity_rename_hint.py::TestIdentityRenameHint::test_research_tree_conforming_set_group_hint_resolves PASSED`
+    Confirmed findings produced:
+    - Fixture `.aw/records/roadmaps/20260712-1200-01-a-roadmap-for-things.roadmap.md`: exactly 1 finding produced on `check.identity-absent-from-name` (Id: zz9zz9).
+    - Fixture `.aw/records/roadmaps/20260712-mytopic-01-bbb222-a-roadmap.roadmap.md`: exactly 1 finding produced on `check.identity-absent-from-name` (Set: otherset).
+    - Fixture `.aw/records/research/20260713-occomms-09-aaa111-another-roadmap.roadmap.md`: exactly 1 finding produced on `check.identity-absent-from-name` (Set: otherset).
+    Template substitution note: emitted `--set <setid>` was replaced with real setid `newset` for execution via `cli.main`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: ALL THREE E-01 cases now PASSING, pasted; plus the `git diff` of `check_engine.py` showing the path threaded into `_identity_rename_hint`, the containment-based derivation, and the silence fallback. THE DIFF MUST SHOW THE LOOKUP REPLACED AT ONE SITE, not a per-shape special case (F-14): all three emitted shapes read the same `rename_type`, so one substitution corrects `aw group` along with both `aw rename` forms, and a diff containing two derivations is a finding against this item. Plus explicit confirmation that `status_set.detect_artifact_type` was NOT used, with the measured reason restated (F-06), since that is the substitution a later reader is most likely to make. Plus confirmation the id6-over-filename selector preference is unchanged.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All three cases passing after single-site derivation fix in check_engine.py.
+    All 3 E-01 cases now PASSING:
+    ```
+    tests/test_identity_rename_hint.py::TestIdentityRenameHint::test_roadmap_tree_conforming_set_group_hint_resolves PASSED
+    tests/test_identity_rename_hint.py::TestIdentityRenameHint::test_roadmap_tree_legacy_id_rename_hint_resolves PASSED
+    tests/test_identity_rename_hint.py::TestIdentityRenameHint::test_research_tree_conforming_set_group_hint_resolves PASSED
+    ```
+    `git diff agent_workflows/check_engine.py`:
+    ```diff
+    @@ -2453,7 +2458,11 @@ def _identity_name_is_modern(
 
-- [ ] V-03 validates E-03
+
+     def _identity_rename_hint(
+    -    record_type: str, selector: str, field: str, modern: bool
+    +    record_type: str,
+    +    selector: str,
+    +    field: str,
+    +    modern: bool,
+    +    path: Optional[Path] = None,
+     ) -> str:
+     ...
+    -    rename_type = _IDENT_RENAME_TYPE.get(record_type)
+    +    rename_type = None
+    +    if path is not None:
+    +        try:
+    +            resolved = path.resolve()
+    +        except OSError:
+    +            resolved = path
+    +        curr = resolved if resolved.is_dir() else resolved.parent
+    +        repo_root = curr
+    +        for parent in [curr, *curr.parents]:
+    +            if (parent / ".git").exists() or (parent / ".aw").exists() or (parent / ".agents").exists():
+    +                repo_root = parent
+    +                break
+    +        from agent_workflows import selectors as _sel
+    +
+    +        candidates = ("roadmaps", "research") if record_type == "roadmaps" else (record_type,)
+    +        for candidate in candidates:
+    +            if candidate not in _IDENT_RENAME_TYPE:
+    +                continue
+    +            for d in _sel.record_dirs(repo_root, candidate):
+    +                try:
+    +                    if resolved.is_relative_to(d.resolve()):
+    +                        rename_type = candidate
+    +                        break
+    +                except (ValueError, OSError):
+    +                    pass
+    +            if rename_type is not None:
+    +                break
+    +    else:
+    +        rename_type = _IDENT_RENAME_TYPE.get(record_type)
+    +
+         if rename_type is None or not selector:
+             return ""
+         if not modern:
+             return f"aw rename {rename_type} {selector} --to-id6 --apply"
+         if field == "Set":
+             return f"aw group {rename_type} {selector} --set <setid> --rename --apply"
+         return f"aw rename {rename_type} {selector} --slug <slug> --apply"
+    ...
+    @@ -2633,7 +2671,7 @@ def _identity_finding(
+                 f"declared `{field}: {value}` is absent from an otherwise MODERN id6-clustered filename, "
+                 f"so the name and the metadata genuinely disagree"
+             )
+    -        recovery = _identity_rename_hint(record_type, selector, field, True) or (
+    +        recovery = _identity_rename_hint(record_type, selector, field, True, path=path) or (
+                 "reconcile the filename with the declared metadata"
+             )
+         else:
+    @@ -2643,7 +2681,7 @@ def _identity_finding(
+                 f"record cannot be located by name; the rename is OPTIONAL and a maintainer call "
+                 f"(grandfathered, not overdue)"
+             )
+    -        recovery = _identity_rename_hint(record_type, selector, field, False) or (
+    +        recovery = _identity_rename_hint(record_type, selector, field, False, path=path) or (
+                 "converting this name to the id6 grammar is optional and a maintainer call"
+             )
+    ```
+    The diff confirms:
+    - Path threaded from `_identity_finding` into `_identity_rename_hint`.
+    - Lookup replaced at ONE SITE right before `if rename_type is None or not selector: return ""`.
+    - Silence fallback returned when path is not contained in candidate directories.
+    - Explicit confirmation: `status_set.detect_artifact_type` was NOT used because it is facet-first and returns `roadmaps` for all `.roadmap.md` files (including research-tree ones that only `research` resolves, F-06).
+    - Id6-over-filename selector preference is unchanged.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Pytest output for the per-type executability cases, pasted, naming each of the EIGHT mapped types (`plans`, `specs`, `backlog`, `prompts`, `walkthroughs`, `roadmaps`, `releases`, `research`; the plan's earlier "seven" omitted `roadmaps` itself) and the command emitted for it, with the observed exit status of RUNNING each. Any type whose derived noun differs from its old static entry must be named explicitly and REPORTED as a finding, not silently accepted; review measured EXACTLY ONE difference (`roadmaps`), so a second one is a real surprise (F-16). Plus at least one non-roadmap type covered through the `aw group` shape (F-14), so the second emission path is pinned where the noun did NOT change. For `plans`, state whether the case passes before `87m438` lands as well as after; review measured `aw rename plans 7qx7ys --to-id6` exiting 0 at HEAD, so it should pass BEFORE and no `Item-Dependencies` edge is owed, and a contrary result means the edge must be declared.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Per-type executability sweep over all eight mapped types passing.
+    Pytest output:
+    `tests/test_identity_rename_hint.py::TestIdentityRenameHint::test_all_other_mapped_types_hints_resolve PASSED`
+    Per-type executability sweep over all eight mapped types:
+    - `plans`: `aw rename plans pl0001 --to-id6 --apply` -> exit 0; `aw group plans pl0002 --set <setid> --rename --apply` -> exit 0 (old static: `plans`, differs: False)
+    - `specs`: `aw rename specs sp0001 --to-id6 --apply` -> exit 0 (old static: `specs`, differs: False)
+    - `backlog`: `aw rename backlog bk0001 --to-id6 --apply` -> exit 0 (old static: `backlog`, differs: False)
+    - `prompts`: `aw rename prompts pr0001 --to-id6 --apply` -> exit 0 (old static: `prompts`, differs: False)
+    - `walkthroughs`: `aw rename walkthroughs wk0001 --to-id6 --apply` -> exit 0 (old static: `walkthroughs`, differs: False)
+    - `roadmaps`: `aw rename roadmaps rm0001 --to-id6 --apply` -> exit 0 (old static: `research`, differs: True - the expected and fixed defect)
+    - `releases`: `aw rename releases rl0001 --to-id6 --apply` -> exit 0 (old static: `releases`, differs: False)
+    - `research`: `aw group research rs0001 --set <setid> --rename --apply` -> exit 0 (old static: `research`, differs: False)
+    Confirmed: exactly ONE type differs from old static (`roadmaps`), exactly as predicted by review (F-16).
+    Non-roadmap `aw group` shape covered for `plans` (`aw group plans pl0002 ...`) and `research`.
+    For `plans`: `aw rename plans pl0001 --to-id6` and `aw rename plans 7qx7ys --to-id6` exit 0 at HEAD before `87m438` lands, confirming no `Item-Dependencies` edge is owed.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: The new comment text pasted in full, showing it states that a `.roadmap.md` may live in either tree, that addressability follows the directory, that the noun is derived, that the derived noun also serves the `aw group` shape (F-14), and that `comms`/`reviews` have no rename route. Plus confirmation that it does NOT claim the filing-taxonomy question is resolved, and does not soften the old false claim into "usually lives in the research tree", which would preserve the error. Plus the bare `python3 -m pytest` summary after the change compared against the baseline YOU measured before editing (not F-12's number), with the delta shown to be exactly the new cases and zero failures.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Accurate doc comment in check_engine.py and full suite regression baseline.
+    New comment in `agent_workflows/check_engine.py`:
+    ```python
+    #: `aw rename` and `aw group` take a plural TYPE, and the suggested command must name the right one
+    #: or it is worse than no suggestion at all (the plan's F-10). The derived noun serves both `aw rename`
+    #: shapes (legacy and modern) as well as the Set-field `aw group ... --set <setid> --rename` shape.
+    #: A `.roadmap.md` may live in EITHER tree (`.aw/records/roadmaps/` or `.aw/records/research/`): its
+    #: location varies across the corpus, its addressable type follows its directory, and the noun is
+    #: therefore derived via containment in `selectors.record_dirs` rather than statically asserted.
+    #: This makes the hint correct for both filings without resolving the underlying records-taxonomy
+    #: question (whether a roadmap-kind document should live under `roadmaps/` or `research/`), which
+    #: remains open and is not decided here.
+    #: The `comms` and `reviews` types are absent because no `rename` or `group` route exists for them.
+    ```
+    The comment states that a `.roadmap.md` may live in either tree, that addressability follows the directory, that the noun is derived, that the derived noun also serves `aw group`, and that `comms`/`reviews` have no route. It explicitly states the records-taxonomy question remains open and is not decided here. It does not soften the false claim into "usually lives in the research tree".
+
+    Bare `python3 -m pytest` suite comparison:
+    Baseline before edit: `1 failed, 3421 passed, 2 skipped, 3 warnings in 150.72s (0:02:30)`
+    Full suite after edit: `1 failed, 3425 passed, 2 skipped, 3 warnings in 104.04s (0:01:44)`
+    Delta is exactly +4 passed tests and zero failures introduced (the 1 failure in test_backlog is the pre-existing timezone parity bug filed as backlog item `jvw1kg`).
+  - Result: pass
 
 ## Approval and execution gate
 
