@@ -1,11 +1,13 @@
 - Id: m94le9
-- Status: open
+- Status: graduated
+- Graduated-To: m94le9
 - Set: m94le9
 - Priority: low
 - Work-Kind: followup
 - Summary: Decide whether the begin receipt should record the allocated lane branch, making the lane-name enumerating resolver in plan iqtt8d unnecessary
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): graduated by run run-20260930T053059Z-3200713: 42ertq
 - 2026-09-29 created (aw backlog): Filed as the durable carrier for OQ-02 of plan iqtt8d (Set fkmjoy).
 
 CARRIER for OQ-02 of plan `iqtt8d` (Set `fkmjoy`, from backlog `fkmjoy`).
