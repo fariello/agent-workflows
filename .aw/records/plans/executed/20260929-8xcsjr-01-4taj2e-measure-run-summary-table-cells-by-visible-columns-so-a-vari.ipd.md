@@ -6,7 +6,7 @@
 - Scope-Paths: agent_workflows/render_stream.py, tests/test_run_summary_visible_width.py
 - Item-Dependencies: none
 - Kind: child
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 4taj2e
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 4taj2e verified (set 8xcsjr, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20260930-phdpbf-01-phdpbf-decide-whether-render-run-summary-table-status-cel.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): status set to reviewed
 
