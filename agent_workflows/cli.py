@@ -12405,7 +12405,12 @@ def _run_search(
                 file_status = None
                 if item_map and resolved_p in item_map:
                     file_status = item_map[resolved_p].native_status
-                if not file_status:
+                # A degraded item from attention.scan carries "-" as native_status, which is
+                # truthy, but "-" is the view's rendering of "unreadable" rather than a real
+                # declared status. aw search -s asks a question about the file's declared status,
+                # which is a different question, so treat "-" as carrying no status and fall through
+                # to _artifact_status(p, text).
+                if not file_status or file_status == "-":
                     file_status = _artifact_status(p, text)
 
                 if status_filters:

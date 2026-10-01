@@ -36,18 +36,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Re-measure the defect before changing a file three other plans declare
 
-- [ ] E-01 RE-MEASURE THE SIX SURFACES AT YOUR OWN HEAD, because this plan's justification is a set of observed outputs and because `agent_workflows/attention.py` is declared by three other pending plans whose landing order you cannot predict.
+- [x] E-01 RE-MEASURE THE SIX SURFACES AT YOUR OWN HEAD, because this plan's justification is a set of observed outputs and because `agent_workflows/attention.py` is declared by three other pending plans whose landing order you cannot predict.
 
   Build a THROWAWAY scratch repo (use `tempfile.mkdtemp`; do NOT write fixtures into this checkout) containing a `git init`-ed tree with `.aw/config/project.json` and two plans under `.aw/records/plans/pending/`: one carrying NO `- Status:` bullet, one well-formed. Then paste, for the malformed artifact's id6: (1) `git rev-parse --short HEAD`; (2) the bare board with `--all`; (3) `-id --all`; (4) `--paths --all`; (5) `--filenames --all`; (6) `--json --all`; (7) `-s <the other plan's status> --all`; (8) `--check`. Record the EXIT CODE of each separately from its stdout, because a pipe swallows it.
 
   CONFIRM THE MECHANISM IS STILL THE ONE THIS PLAN FIXES by reading `attention.scan`: locate BY CONTENT the `drift.extend(` call and the `if rec is None:` / `continue` immediately after it, and confirm `attention._record_for`'s per-tree branches still return `(None, drift)` for a missing status. STOP AND REPORT, rather than adapting, if that shape is gone: another plan has landed in `scan` and this plan must be re-scoped rather than re-fixing something already fixed.
   - Depends on: none
   - Expected outcome: your own HEAD and an eight-row before-table pasted, plus the quoted source proving the drop is still at `if rec is None: continue`. Authoring measured at `66593582`: board `0 artifacts shown` (exit 1), `-id`/`--paths`/`--filenames` EMPTY stdout (exit 1), `--json` `"items": []` with `"valid": false` (exit 1), `-s` narrowing `0 artifacts shown` (exit 1), `--check` naming the file (exit 1).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Synthesize the degraded Item at the one site that drops it
 
-- [ ] E-02 EMIT A DEGRADED ITEM when a tracked artifact resolves to a tree but fails its status parse, so the file becomes a ROW without losing its violation.
+- [x] E-02 EMIT A DEGRADED ITEM when a tracked artifact resolves to a tree but fails its status parse, so the file becomes a ROW without losing its violation.
 
   In `attention.scan`, at the point where it currently does `drift.extend(rec_drift)` then `if rec is None: continue`, add: when `rec is None` AND `rec_drift` contains a FATAL STATUS-PARSE rule, construct `Item(id=<filename id6>, path=rel, tree=tree, native_status="-", attention_class=<blocked>, gate=None, last_history_at=None)` and append it. Read the id6 from the FILENAME with `artifact_naming.parse_clustered(name)`, falling back to `artifact_naming.parse_clustered_prefix(name)`; NOTE BOTH RETURN AN `re.Match`, NOT A DICT (authoring's first probe read `.get("id6")` and silently produced an EMPTY id, which is exactly the failure that would make `aw att <id6>` still not match), so read `m.group("id6")`. When neither matches, use `""` rather than inventing an id.
 
@@ -56,29 +56,29 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   KEEP EVERY DRIFT RECORD. The `drift.extend(rec_drift)` call must be UNCHANGED and must still run for these files, because `--check` and the `valid` flag derive from it. This plan makes the artifact ADDITIONALLY visible; it does not make it forgiven.
   - Depends on: E-01
   - Expected outcome: `aw att <id6> --all` renders the malformed artifact as a `blocked` row with native status `-`, and `--check` still names it and still exits 1. Authoring's in-memory stage produced exactly this (F-06).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 USE THE EXISTING `blocked` CLASS AND ADD NO NEW ONE, and record in a code comment WHY, so a later reader does not "finish" the job by adding an `invalid` class.
+- [x] E-03 USE THE EXISTING `blocked` CLASS AND ADD NO NEW ONE, and record in a code comment WHY, so a later reader does not "finish" the job by adding an `invalid` class.
 
   Assign `attention_contract.BLOCKED`. The comment must state the three reasons authoring measured: (1) a new class would edit `attention_contract.py`, which pending `1qt1u3` and `r61br4` BOTH declare, and would break `tests/test_attention_contract.py::EnumAndPolicyTests::test_five_classes` plus the `ATTENTION_CLASS_ORDER` identity assertion beside it, and would falsify the "five-value" statement in the `attention-registry-and-cross-tree-status` spec's G1/F1 and Section 6 (F-04); (2) `blocked` is semantically RIGHT by that spec's own Section 6 table, which defines `blocked` as "work is intended to continue but a named GATE prevents progress" - an unparseable artifact is precisely work that cannot proceed until someone fixes it; (3) `/whatnext` ALREADY shows `blocked` items and already stops on `valid:false`, so the artifact lands in front of a human with no workflow change.
 
   A GATELESS `blocked` ITEM IS SAFE, and this is the one property worth stating because the spec's Section 8.4 says a `deferred` artifact MUST carry a gate. That clause governs an artifact's FRONT MATTER, not a synthesized view record, and every gate CONSUMER in `attention.py` guards on `if it.gate` before reading it (the `gated` comprehension, the `gate_glyph`, and both row renderers), so `gate=None` renders as no gate rather than crashing. Authoring proved this by execution (F-08).
   - Depends on: E-02
   - Expected outcome: no diff in `agent_workflows/attention_contract.py` (`git diff --stat` shows it absent), the five-class tests still green, and a comment at the assignment naming all three reasons.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Pin the outcome on every surface and pin the two safety properties
 
-- [ ] E-04 ADD `tests/test_attention_degraded_item.py` PINNING THE SIX SURFACES AND THE FAIL-CLOSED NON-REGRESSION, driving the real CLI or the real `scan` and asserting on real output.
+- [x] E-04 ADD `tests/test_attention_degraded_item.py` PINNING THE SIX SURFACES AND THE FAIL-CLOSED NON-REGRESSION, driving the real CLI or the real `scan` and asserting on real output.
 
   Every test builds a throwaway repo (`tempfile`) and asserts on OUTCOMES, never on production source text via `inspect`/`ast`/regex (AGENTS.md P16 forbids code-pinning tests). Pin, at minimum: (1) `scan` returns an Item for the malformed artifact AND still returns its `Drift`; (2) the Item's `id` equals the FILENAME id6 and its `native_status` is `-`; (3) the board renders it as a row under `blocked`; (4) `-id` prints the id6, `--paths` prints its path, `--filenames` prints its name; (5) `--json` lists it in `items` AND names it in `violations` AND still reports `valid: false`; (6) selecting it by id6 yields a non-empty match and does NOT refuse at exit 2; (7) `--check` still names it and still exits 1. Also pin (8) the WELL-FORMED artifact beside it is entirely unaffected.
 
   ADD THE REGRESSION PIN `fqnj8k` LOST (F-03): a token naming a malformed artifact must be reported as MATCHED, not as a typo. That behavior ships today in `selector_match_facts` but its test was deleted by commit `19313eed`, so it is live and unpinned; after E-02 the artifact is an Item and the drift-location rung is no longer the only thing holding it, which makes an unpinned rung even easier to remove by accident later.
   - Depends on: E-02, E-03
   - Expected outcome: a new test module that FAILS against the pre-E-02 code on at least the row, `-id`, `--paths`, `--json` `items` and selector properties, and passes after.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 PIN THE TWO SAFETY PROPERTIES BY EXECUTION, because this plan adds a row to a list that a RUNNER consumes, and a degraded item that could be dispatched would be far worse than the bug being fixed.
+- [x] E-05 PIN THE TWO SAFETY PROPERTIES BY EXECUTION, because this plan adds a row to a list that a RUNNER consumes, and a degraded item that could be dispatched would be far worse than the bug being fixed.
 
   (a) NO DISPATCH REACHABILITY. `partition.py` calls `attention.scan` and filters with `_is_runnable`, which asks `run_selection_policy.action_for_status(spec_type, status)`. Assert that `action_for_status("plan", "-")` returns `ACTION_UNDETERMINED`, and that `_is_runnable` therefore EXCLUDES a degraded item, so no runner can ever queue an unparseable plan. Authoring measured `-`, `""`, `None` and `"unknown"` all returning `undetermined`, and `runner_action` likewise under `full_auto=True` (F-07). Pin this as a behavior test, not as a comment.
 
@@ -89,11 +89,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   EXPECT E-02 ALONE TO BREAK THREE TESTS, AND DO NOT TREAT THAT AS YOUR MISTAKE (F-14). Review staged exactly this design and measured `tests/test_cli_search.py` x2 plus `tests/test_prompts_attention.py` x1 failing. E-06 and E-07 own those; this item's suite run is only clean once they are done, so run it AFTER them rather than reporting a failure here.
   - Depends on: E-02
   - Expected outcome: both properties green as executed tests, plus a CHANGELOG line. Neither property may be asserted by reading source.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: Reconcile every scan consumer (review-added; the design regresses one)
 
-- [ ] E-06 STOP `aw search`'s STATUS FILTER READING THE DEGRADED `-` AS THE FILE'S STATUS, which is a REAL REGRESSION the design causes and which review MEASURED rather than predicted (F-14). This item exists because `attention.scan` has FOUR consumers this plan's F-07 never enumerated, and one of them silently breaks.
+- [x] E-06 STOP `aw search`'s STATUS FILTER READING THE DEGRADED `-` AS THE FILE'S STATUS, which is a REAL REGRESSION the design causes and which review MEASURED rather than predicted (F-14). This item exists because `attention.scan` has FOUR consumers this plan's F-07 never enumerated, and one of them silently breaks.
 
   THE MECHANISM, stated so you can verify it before changing anything. `cli.py`'s search verb builds `item_map` from `att.scan(repo_root)` and then, per file, does `file_status = item_map[resolved_p].native_status` and only falls back to `_artifact_status(p, text)` `if not file_status`. A degraded item supplies the TRUTHY string `-`, so the fallback is preempted and the file is compared against the requested statuses as `-`, matching none. MEASURED at review by staging E-02 in `attention.py` and running the suite: `tests/test_cli_search.py::SearchOptionsTests::test_status_filter_comma_separated` and `::test_status_filter_repeated_flags` both FAIL (`AssertionError: 2 != 4`), and they PASS on the unmodified tree. These are pre-existing passing tests, so this is a regression the plan would ship, not a fixture quirk.
 
@@ -102,16 +102,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   `agent_workflows/cli.py` MUST THEREFORE BE ADDED TO `- Scope-Paths:`, and it is (review added it). NOTE THE OVERLAP HONESTLY: pending `r61br4` also declares `cli.py`. Its edits are in the attention Run-column renderers, not in the search verb's status filter, so the two are disjoint by site; F-10 records the boundary and this item does not change it.
   - Depends on: E-02
   - Expected outcome: with E-02 in place, `python3 -m pytest tests/test_cli_search.py` passes in full, and `aw search -s <status>` returns the same rows for a malformed artifact's neighbours as it does today. A comment at the site records why `-` is not a status.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 RECONCILE THE THREE OTHER `attention.scan` CONSUMERS AND THE ONE REMAINING BROKEN TEST, so "no consumer regressed" is a MEASURED claim rather than the plan's original assumption that only `partition.py` consumes the scan (F-14, F-15).
+- [x] E-07 RECONCILE THE THREE OTHER `attention.scan` CONSUMERS AND THE ONE REMAINING BROKEN TEST, so "no consumer regressed" is a MEASURED claim rather than the plan's original assumption that only `partition.py` consumes the scan (F-14, F-15).
 
   FIRST, FIX OR CORRECT `tests/test_prompts_attention.py::PromptsScanTests::test_scan_prompts`, which review measured FAILING under the staged change (`AssertionError: 7 != 6`). Its fixture includes a deliberately UNBUCKETED prompt that emits `attention.missing-status`, and it asserts `len(prompt_items) == 6`. Under E-02 that prompt becomes a seventh item, so the assertion is now wrong about intended behavior rather than about a defect. DECIDE AND RECORD WHICH: if a degraded prompt SHOULD be an item (it should, by this plan's own goal), update that count to 7 and add an assertion that the new item carries `native_status == "-"` and class `blocked`, so the test pins the NEW contract instead of merely being loosened. Do NOT delete the test and do NOT relax it to an inequality; a count that no longer states an intent is worse than the failure.
 
   SECOND, ENUMERATE AND CLASSIFY EVERY CONSUMER BY EXECUTION, not by reading this plan's F-07. Review measured FOUR beyond `partition.py`: `cli.py`'s doctor/status metrics site (counts `attn_by_class`, so a degraded item shifts a `blocked` count by one, which is CORRECT and is the feature), `cli.py`'s search site (E-06, a real regression), `releases.py::release_blockers_for` (reads `it.blocks_release`, which is `None` on a degraded item, so it cannot fabricate a blocker; this is F-05(b)'s property arriving through a second caller), and `runner_shared.py`'s run-start validity report (reads `drift` ONLY, never `items`, so it is untouched). For EACH of the five, state the effect and whether it is intended, and paste the evidence.
   - Depends on: E-02
   - Expected outcome: a bare `python3 -m pytest` with ZERO failing node ids that are not reproducible on an unmodified tree; the prompts test pinning the new contract with an explicit `-`/`blocked` assertion; and a five-row consumer table with each effect classified.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -197,35 +197,306 @@ No `.spec.md` is amended, and the reason is the DESIGN DECISION rather than an a
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: (a) PASTE `git rev-parse --short HEAD`. (b) PASTE the eight-row before-table (bare board, `-id`, `--paths`, `--filenames`, `--json`, `-s`, `--check`, each with STDOUT and its SEPARATELY captured exit code) from your own throwaway scratch repo. (c) PASTE the quoted source proving the drop is still `drift.extend(...)` then `if rec is None: continue`, and that a missing-status branch still returns `(None, drift)`. (d) STATE EXPLICITLY whether your outputs match authoring's (board `0 artifacts shown`; `-id`/`--paths`/`--filenames` EMPTY stdout; `--json` `items: []` with `valid: false`; all at exit 1). A DIFFERENT exit code or a non-empty list output means the mechanism has changed: STOP and report per E-01 rather than adapting. (e) CONFIRM the scratch repo was built under `tempfile`, not inside this checkout, and that `git status --short` shows no stray fixture.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: PASS. Baseline measured in throwaway repo; observed identical behavior across all 8 surfaces with pre-edit HEAD. Detailed evidence recorded below.
+    (a) `git rev-parse --short HEAD`: `f82d7ea53`
+    (b) Eight-row before-table from throwaway scratch repo:
+    1. bare board with `--all` (exit 1):
+       stdout:
+       VIEW INVALID: contract violations must be resolved before this board is authoritative.
+         ! .aw/records/plans/pending/20260929-set-01-ab12cd-malformed.ipd.md: attention.missing-status: no plan Status
+       0 artifacts shown
+    2. `-id --all` (exit 1):
+       stdout: (empty stdout, 0 bytes)
+    3. `--paths --all` (exit 1):
+       stdout: (empty stdout, 0 bytes)
+    4. `--filenames --all` (exit 1):
+       stdout: (empty stdout, 0 bytes)
+    5. `--json --all` (exit 1):
+       stdout:
+       {
+         "schema_version": 4,
+         "mapping_version": 1,
+         "valid": false,
+         "items": [],
+         "violations": [
+           {
+             "location": ".aw/records/plans/pending/20260929-set-01-ab12cd-malformed.ipd.md",
+             "rule": "attention.missing-status",
+             "detail": "no plan Status"
+           }
+         ],
+         "stranded_lanes": []
+       }
+    6. `-s to-review --all` (exit 1):
+       stdout:
+       VIEW INVALID: contract violations must be resolved before this board is authoritative.
+         ! .aw/records/plans/pending/20260929-set-01-ab12cd-malformed.ipd.md: attention.missing-status: no plan Status
+       0 artifacts shown
+    7. `--check` (exit 1):
+       stdout:
+       .aw/records/plans/pending/20260929-set-01-ab12cd-malformed.ipd.md: attention.missing-status: no plan Status
+    (c) Quoted source:
+    `agent_workflows/attention.py:536-539`:
+    ```python
+        rec, rec_drift = _record_for(pol.name, rel, f, text)
+        drift.extend(rec_drift)
+        if rec is None:
+            continue
+    ```
+    `agent_workflows/attention.py:1282-1285` (`_plans_record`):
+    ```python
+        status = plans_mod.read_status(path, text=text)
+        if status is None:
+            drift.append(core.Drift(rel, "attention.missing-status", "no plan Status"))
+            return None, drift
+    ```
+    (d) Outputs match authoring's outputs exactly: board `0 artifacts shown` (exit 1), `-id`/`--paths`/`--filenames` EMPTY stdout (exit 1), `--json` `"items": []` with `"valid": false` (exit 1), `-s` narrowing `0 artifacts shown` (exit 1), `--check` naming the file (exit 1).
+    (e) Scratch repo built under `tempfile.mkdtemp()`, cleaned up after measurement; `git status --short` confirms no stray fixture.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: (a) PASTE the `git diff -- agent_workflows/attention.py` hunk and CONFIRM BY INSPECTION that `drift.extend(rec_drift)` is UNCHANGED and still runs for the malformed file, that the degraded Item is appended only when `rec is None`, and that the fatal rule set is a NAMED constant containing exactly `attention.missing-status` and `attention.unknown-status`. (b) PASTE the after-table beside V-01's before-table, showing the board row, the `-id` output, the `--paths` output and the `--json` `items` entry. (c) PROVE THE FAIL-CLOSED PROPERTY SURVIVED: `--check` still names the file and still exits 1, and `--json` still reports `"valid": false`. A `valid: true` here FAILS V-02 outright: it would mean the fix traded a visibility bug for a correctness bug. (d) CONFIRM the id6 in the `-id` output is the FILENAME id6 and is not empty, which is the specific trap OQ-02 records.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
-  - Required evidence: (a) PASTE `git diff --stat` and CONFIRM `agent_workflows/attention_contract.py` is ABSENT from it. (b) PASTE `python3 -m pytest tests/test_attention_contract.py -o addopts=""` green, naming `test_five_classes` explicitly, proving the five-value enum is undisturbed. (c) QUOTE the comment added at the class assignment and confirm it names all three reasons (the two pending plans plus the two contract tests; the spec's Section 6 meaning; `/whatnext` already showing `blocked`). (d) PROVE THE GATELESS-BLOCKED PROPERTY by rendering a degraded item through the board AND `--json` and showing no gate display and no exception; state that today's tree has 3 blocked items and 0 gateless ones, so this is the first.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
-  - Required evidence: (a) PASTE `python3 -m pytest tests/test_attention_degraded_item.py -o addopts=""` showing all pinned properties green, and CONFIRM each test asserts on RENDERED OUTPUT or a RETURNED VALUE, never on production source via `inspect`/`ast`/regex (AGENTS.md P16). (b) DEMONSTRATE THE TESTS ARE MEANINGFUL: run the new module against the UNMODIFIED code and paste FAILURES for at least the board-row, `-id`, `--paths`, `--json`-`items` and selector properties. Obtain the before-state WITHOUT `git stash` or `git checkout` in this shared checkout: use a throwaway worktree at the pre-change commit, or temporarily restore the old behavior inside a scratch process. A module that passes both before and after has pinned nothing. (c) CONFIRM the restored selector pin (F-03) is present and green, and state that it replaces `test_E03_a_token_naming_a_MALFORMED_artifact_is_matched_not_a_typo`, deleted by commit `19313eed`. (d) PASTE `python3 -m pytest tests/test_attention.py -o addopts=""` green, naming `DriftSurvivesEveryNarrowingTests`.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
-  - Required evidence: (a) PASTE the executed assertion that `run_selection_policy.action_for_status("plan", "-")` is `ACTION_UNDETERMINED` and that `partition._is_runnable` EXCLUDES a degraded item, so no runner can queue an unparseable plan. This is the safety property that licenses the whole change; a degraded item that IS runnable FAILS V-05 and the plan must not finalize. (b) PASTE the executed assertion that a malformed artifact does NOT appear in `attention.release_blockers`. (c) PASTE your OWN bare `python3 -m pytest` baseline summary and the after summary, with the delta accounted for per E-item and any pre-existing failure identified as pre-existing by reproducing it on an unmodified tree. (d) PASTE `aw sanitize --agent` output, confirming no absolute temp-repo path leaked into a committed test or into CHANGELOG. (e) PASTE the one-line `git diff -- CHANGELOG.md`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Degraded Item synthesized with native_status="-", attention_class=BLOCKED, gate=None; board, selectors, JSON, and --check verified. Detailed evidence recorded below.
+    (a) `git diff -- agent_workflows/attention.py` hunk:
+    ```diff
+    @@ -554,6 +554,37 @@ def scan(
+             rec, rec_drift = _record_for(pol.name, rel, f, text)
+             drift.extend(rec_drift)
+             if rec is None:
+    +            if any(d.rule in FATAL_STATUS_PARSE_RULES for d in rec_drift):
+    +                m = _naming.parse_clustered(f.name)
+    +                if m is None:
+    +                    m = _naming.parse_clustered_prefix(f.name)
+    +                deg_id = m.group("id6") if m else ""
+    +                # E-03: Assign the existing `blocked` class (A.BLOCKED) and add no new class.
+    +                # Three reasons:
+    +                # (1) A new class would edit attention_contract.py (declared by live pending plans
+    +                #     1qt1u3 and r61br4), break tests/test_attention_contract.py::EnumAndPolicyTests::test_five_classes
+    +                #     plus the ATTENTION_CLASS_ORDER identity assertion beside it, and falsify the
+    +                #     five-value enum contract in the attention-registry-and-cross-tree-status spec
+    +                #     (decision 2, G1, Section 6, F1).
+    +                # (2) `blocked` is semantically right by the spec's Section 6 definition: work is
+    +                #     intended to continue but a named gate prevents progress - an unparseable artifact
+    +                #     cannot proceed until a human fixes the status.
+    +                # (3) /whatnext already surfaces `blocked` items and stops on `valid: false`, so the
+    #     artifact lands in front of a human with no workflow changes.
+    # Gateless `blocked` is safe: the spec's Section 8.4 gate requirement governs artifact
+    # front matter, not synthesized view records, and all gate consumers in attention.py
+    # guard on truthiness (if it.gate) before reading kind/ref, rendering as no gate.
+    +                items.append(
+    +                    Item(
+    +                        id=deg_id,
+    +                        path=rel,
+    +                        tree=pol.name,
+    +                        native_status="-",
+    +                        attention_class=A.BLOCKED,
+    +                        gate=None,
+    +                        last_history_at=None,
+    +                    )
+    +                )
+                 continue
+    ```
+    `FATAL_STATUS_PARSE_RULES` defined as named module-level constant above `scan`:
+    ```python
+    FATAL_STATUS_PARSE_RULES: FrozenSet[str] = frozenset(
+        {"attention.missing-status", "attention.unknown-status"}
+    )
+    ```
+    Inspection confirms `drift.extend(rec_drift)` is UNCHANGED and still runs; degraded Item is appended only when `rec is None` and drift contains a fatal rule.
+    (b) After-table from scratch repo:
+    1. bare board with `--all` (exit 1):
+       VIEW INVALID: contract violations must be resolved before this board is authoritative.
+         ! .aw/records/plans/pending/20260929-set-01-ab12cd-malformed.ipd.md: attention.missing-status: no plan Status
 
-- [ ] V-06 validates E-06
+       ## blocked (1)
+       - [plans] .aw/records/plans/pending/20260929-set-01-ab12cd-malformed.ipd.md (-)
+       1 artifact shown
+    2. `-id --all` (exit 1):
+       ab12cd
+    3. `--paths --all` (exit 1):
+       .aw/records/plans/pending/20260929-set-01-ab12cd-malformed.ipd.md
+    4. `--filenames --all` (exit 1):
+       20260929-set-01-ab12cd-malformed.ipd.md
+    5. `--json --all` (exit 1):
+       `"valid": false`
+       `items` contains:
+       `{"id": "ab12cd", "path": ".aw/records/plans/pending/20260929-set-01-ab12cd-malformed.ipd.md", "tree": "plans", "native_status": "-", "attention_class": "blocked", "gate": null, ...}`
+       `violations` contains `.aw/records/plans/pending/20260929-set-01-ab12cd-malformed.ipd.md: attention.missing-status`
+    6. `-s to-review --all` (exit 1): `0 artifacts shown`
+    7. `--check` (exit 1): `.aw/records/plans/pending/20260929-set-01-ab12cd-malformed.ipd.md: attention.missing-status: no plan Status`
+    (c) Proof fail-closed survived: `--check` still names the file and exits 1; `--json` reports `"valid": false`.
+    (d) `-id` output is `ab12cd`, which is the non-empty filename id6 read via `artifact_naming.parse_clustered`.
+  - Result: pass
+- [x] V-03 validates E-03
+  - Required evidence: (a) PASTE `git diff --stat` and CONFIRM `agent_workflows/attention_contract.py` is ABSENT from it. (b) PASTE `python3 -m pytest tests/test_attention_contract.py -o addopts=""` green, naming `test_five_classes` explicitly, proving the five-value enum is undisturbed. (c) QUOTE the comment added at the class assignment and confirm it names all three reasons (the two pending plans plus the two contract tests; the spec's Section 6 meaning; `/whatnext` already showing `blocked`). (d) PROVE THE GATELESS-BLOCKED PROPERTY by rendering a degraded item through the board AND `--json` and showing no gate display and no exception; state that today's tree has 3 blocked items and 0 gateless ones, so this is the first.
+  - Observed evidence: PASS. Gateless blocked invariant verified; render_board and render_json handle gate=None cleanly. Detailed evidence recorded below.
+    (a) `git diff --stat`:
+    ```
+     CHANGELOG.md                    |  1 +
+     agent_workflows/attention.py    | 51 ++++++++++++++++++++++++++++++++++++++++-
+     agent_workflows/cli.py          |  7 +++++-
+     tests/test_prompts_attention.py |  9 +++++++-
+     4 files changed, 65 insertions(+), 3 deletions(-)
+    ```
+    `agent_workflows/attention_contract.py` is completely ABSENT.
+    (b) `python3 -m pytest tests/test_attention_contract.py -o addopts=""`:
+    `27 passed in 0.43s`
+    `tests/test_attention_contract.py::EnumAndPolicyTests::test_five_classes PASSED [100%]`
+    (c) Comment at class assignment:
+    ```python
+                # E-03: Assign the existing `blocked` class (A.BLOCKED) and add no new class.
+                # Three reasons:
+                # (1) A new class would edit attention_contract.py (declared by live pending plans
+                #     1qt1u3 and r61br4), break tests/test_attention_contract.py::EnumAndPolicyTests::test_five_classes
+                #     plus the ATTENTION_CLASS_ORDER identity assertion beside it, and falsify the
+                #     five-value enum contract in the attention-registry-and-cross-tree-status spec
+                #     (decision 2, G1, Section 6, F1).
+                # (2) `blocked` is semantically right by the spec's Section 6 definition: work is
+                #     intended to continue but a named gate prevents progress - an unparseable artifact
+                #     cannot proceed until a human fixes the status.
+                # (3) /whatnext already surfaces `blocked` items and stops on `valid: false`, so the
+                #     artifact lands in front of a human with no workflow changes.
+                # Gateless `blocked` is safe: the spec's Section 8.4 gate requirement governs artifact
+                # front matter, not synthesized view records, and all gate consumers in attention.py
+                # guard on truthiness (if it.gate) before reading kind/ref, rendering as no gate.
+    ```
+    (d) Rendering gateless degraded item:
+    `att.render_board([deg], [])`: `'## blocked (1)\n- [plans] .aw/records/plans/pending/20260929-set-01-ab12cd-malformed.ipd.md (-)\n'` (no gate displayed, no exception).
+    `att.render_json([deg], [])`: `"gate": null` (valid JSON, no exception).
+    Live repository census on current tree: 2120 items, 0 drift, 3 blocked items (all 3 gated, 0 gateless), confirming this is the first.
+  - Result: pass
+- [x] V-04 validates E-04
+  - Required evidence: (a) PASTE `python3 -m pytest tests/test_attention_degraded_item.py -o addopts=""` showing all pinned properties green, and CONFIRM each test asserts on RENDERED OUTPUT or a RETURNED VALUE, never on production source via `inspect`/`ast`/regex (AGENTS.md P16). (b) DEMONSTRATE THE TESTS ARE MEANINGFUL: run the new module against the UNMODIFIED code and paste FAILURES for at least the board-row, `-id`, `--paths`, `--json`-`items` and selector properties. Obtain the before-state WITHOUT `git stash` or `git checkout` in this shared checkout: use a throwaway worktree at the pre-change commit, or temporarily restore the old behavior inside a scratch process. A module that passes both before and after has pinned nothing. (c) CONFIRM the restored selector pin (F-03) is present and green, and state that it replaces `test_E03_a_token_naming_a_MALFORMED_artifact_is_matched_not_a_typo`, deleted by commit `19313eed`. (d) PASTE `python3 -m pytest tests/test_attention.py -o addopts=""` green, naming `DriftSurvivesEveryNarrowingTests`.
+  - Observed evidence: PASS. 12/12 tests in tests/test_attention_degraded_item.py pass; meaningfulness verified; existing tests pass. Detailed evidence recorded below.
+    (a) `python3 -m pytest tests/test_attention_degraded_item.py -o addopts=""`:
+    `12 passed in 4.99s`
+    Every test asserts on rendered CLI stdout, JSON parsed fields, or returned Items/Drift tuples; zero AST, inspect, or regex on source code.
+    (b) Meaningful tests demonstrated against unmodified code (HEAD f82d7ea53 before E-02):
+    `9 failed, 3 passed in 12.34s`
+    Failures captured:
+    - `test_board_renders_degraded_item_under_blocked`: `AssertionError: '## blocked' not found`
+    - `test_id_flag_prints_degraded_id6`: `AssertionError: 'ab12cd' not found in []`
+    - `test_paths_flag_prints_degraded_path`: `AssertionError: False is not true`
+    - `test_filenames_flag_prints_degraded_filename`: `AssertionError: False is not true`
+    - `test_json_lists_in_items_and_violations_and_reports_invalid`: `AssertionError: 'ab12cd' not found in []`
+    - `test_scan_synthesizes_degraded_item_and_preserves_drift`: `AssertionError: 'ab12cd' not found in items_by_id`
+    - `test_unknown_status_also_synthesizes_degraded_item`: `AssertionError: 'cd56ef' not found`
+    - `test_safety_property_no_dispatch_reachability`: `StopIteration`
+    - `test_safety_property_no_false_release_blocker`: `StopIteration`
+    (c) Restored selector pin `test_restored_selector_match_facts_pin` is present and PASSED, restoring coverage for `test_E03_a_token_naming_a_MALFORMED_artifact_is_matched_not_a_typo` deleted by `19313eed`.
+    (d) `python3 -m pytest tests/test_attention.py -o addopts=""`:
+    `39 passed in 8.94s`
+    `tests/test_attention.py::DriftSurvivesEveryNarrowingTests::test_drift_survives_narrowings_and_pruning PASSED`
+  - Result: pass
+- [x] V-05 validates E-05
+  - Required evidence: (a) PASTE the executed assertion that `run_selection_policy.action_for_status("plan", "-")` is `ACTION_UNDETERMINED` and that `partition._is_runnable` EXCLUDES a degraded item, so no runner can queue an unparseable plan. This is the safety property that licenses the whole change; a degraded item that IS runnable FAILS V-05 and the plan must not finalize. (b) PASTE the executed assertion that a malformed artifact does NOT appear in `attention.release_blockers`. (c) PASTE your OWN bare `python3 -m pytest` baseline summary and the after summary, with the delta accounted for per E-item and any pre-existing failure identified as pre-existing by reproducing it on an unmodified tree. (d) PASTE `aw sanitize --agent` output, confirming no absolute temp-repo path leaked into a committed test or into CHANGELOG. (e) PASTE the one-line `git diff -- CHANGELOG.md`.
+  - Observed evidence: PASS. 3571 passed in bare pytest; leak check clean; CHANGELOG updated without dashes; safety invariants verified. Detailed evidence recorded below.
+    (a) Executed assertions:
+    `rsp.action_for_status("plan", "-") == rsp.ACTION_UNDETERMINED` -> True ('undetermined')
+    `rsp.action_for_status("plan", "") == rsp.ACTION_UNDETERMINED` -> True ('undetermined')
+    `rsp.action_for_status("plan", None) == rsp.ACTION_UNDETERMINED` -> True ('undetermined')
+    `rsp.action_for_status("plan", "unknown") == rsp.ACTION_UNDETERMINED` -> True ('undetermined')
+    `rsp.runner_action("plan", "-") == rsp.ACTION_UNDETERMINED` -> True ('undetermined')
+    `rsp.runner_action("plan", "-", full_auto=True) == rsp.ACTION_UNDETERMINED` -> True ('undetermined')
+    In `partition.collect(repo, "plans")`: `_is_runnable` returns False for native_status `"-"`, candidate list is `[]`.
+    (b) `att.release_blockers` execution:
+    For item with `attention_class=A.BLOCKED` and `blocks_release=None`, `release_blockers` returns `[]`.
+    (c) Baseline pytest:
+    `3559 passed, 2 skipped, 3 warnings in 214.04s (0:03:34)` (208 deselected)
+    After pytest:
+    `3571 passed, 2 skipped, 3 warnings in 82.12s (0:01:22)` (208 deselected)
+    Delta: exactly +12 passed (the 12 tests in `tests/test_attention_degraded_item.py`). Zero failures.
+    (d) `aw sanitize --agent`:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+    (e) One-line `git diff -- CHANGELOG.md`:
+    ```diff
+    @@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
+
+     Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
+
+    +- Fixed: `aw attention` now emits a degraded blocked item for a malformed artifact failing its status parse, allowing every CLI surface to name and select it while preserving drift violations.
+     - Fixed: `aw specs check` now reports the examined count in human output, distinguishing a clean verdict over zero specs from a clean verdict over many.
+    ```
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: (a) PASTE `python3 -m pytest tests/test_cli_search.py -o addopts=""` GREEN with E-02 in place, naming `test_status_filter_comma_separated` and `test_status_filter_repeated_flags` explicitly, because review measured BOTH failing (`AssertionError: 2 != 4`) under the staged design. (b) PROVE THE REGRESSION WAS REAL AND IS NOW FIXED, not merely absent: paste the two tests FAILING with E-02 applied and E-06 NOT applied, then passing with both. If you cannot reproduce the failure, do NOT skip this item and do NOT assume review was wrong: state exactly what you ran and what you observed, because a design that no longer regresses here means someone changed the search site and the scope needs re-deriving. (c) PASTE `git diff -- agent_workflows/cli.py` and CONFIRM the change is at the search verb's status-filter site ONLY, touching no attention row renderer (which is `r61br4`'s territory, F-10). (d) QUOTE the comment recording why `-` is not a status.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-07 validates E-07
+  - Observed evidence: PASS. Regression in test_cli_search.py reproduced and resolved with dash fallback; 14/14 tests pass. Detailed evidence recorded below.
+    (a) `python3 -m pytest tests/test_cli_search.py -o addopts=""`:
+    `14 passed in 1.29s`
+    `SearchOptionsTests::test_status_filter_comma_separated PASSED`
+    `SearchOptionsTests::test_status_filter_repeated_flags PASSED`
+    (b) Regression proved: with E-02 applied and E-06 NOT applied:
+    `FAILED tests/test_cli_search.py::SearchOptionsTests::test_status_filter_comma_separated` (AssertionError: 2 != 4)
+    `FAILED tests/test_cli_search.py::SearchOptionsTests::test_status_filter_repeated_flags` (AssertionError: 1 != 2)
+    `2 failed, 12 passed in 1.16s`.
+    With E-06 applied: `14 passed in 1.29s`.
+    (c) `git diff -- agent_workflows/cli.py`:
+    ```diff
+    @@ -12405,7 +12405,12 @@ def _run_search(
+                     file_status = None
+                     if item_map and resolved_p in item_map:
+                         file_status = item_map[resolved_p].native_status
+    -                if not file_status:
+    +                # A degraded item from attention.scan carries "-" as native_status, which is
+    +                # truthy, but "-" is the view's rendering of "unreadable" rather than a real
+    +                # declared status. aw search -s asks a question about the file's declared status,
+    +                # which is a different question, so treat "-" as carrying no status and fall through
+    +                # to _artifact_status(p, text).
+    +                if not file_status or file_status == "-":
+                         file_status = _artifact_status(p, text)
+
+                     if status_filters:
+    ```
+    Change is scoped exclusively to `_run_search` status-filter fallback. Attention row renderers are untouched.
+    (d) Comment quoted:
+    ```python
+                    # A degraded item from attention.scan carries "-" as native_status, which is
+                    # truthy, but "-" is the view's rendering of "unreadable" rather than a real
+                    # declared status. aw search -s asks a question about the file's declared status,
+                    # which is a different question, so treat "-" as carrying no status and fall through
+                    # to _artifact_status(p, text).
+    ```
+  - Result: pass
+- [x] V-07 validates E-07
   - Required evidence: (a) PASTE the FIVE-ROW consumer table (`partition.py`, `cli.py` metrics, `cli.py` search, `releases.py`, `runner_shared.py`), each with its measured effect and an explicit intended/unintended verdict, and each backed by pasted output rather than by reading this plan. (b) PASTE `python3 -m pytest tests/test_prompts_attention.py -o addopts=""` green, and PASTE the diff to that test showing the count moved 6 -> 7 AND that a new assertion pins the degraded prompt's `native_status == "-"` and class `blocked`. A count loosened to an inequality, or the test deleted, FAILS this item. (c) PASTE a bare `python3 -m pytest` and account for EVERY failing node id as reproducible on an unmodified tree; review measured exactly three failures under the staged design (`test_cli_search.py` x2, `test_prompts_attention.py` x1) and ZERO on the clean tree (`3309 passed` staged versus a clean baseline you must take yourself), so any fourth failure is yours to explain. (d) CONFIRM `agent_workflows/releases.py` and `agent_workflows/runner_shared.py` are ABSENT from `git diff --stat`, since E-07 is an analysis-and-reconciliation item and neither needs an edit.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. test_prompts_attention.py count updated 6 to 7 with assertion on blocked degraded item; 5 consumers audited. Detailed evidence recorded below.
+    (a) Five-row consumer table (all measured by execution):
+    1. `partition.py` (`collect()`, line 316): `_is_runnable` checks `action_for_status("plan", "-")` -> `undetermined`, excluded from candidates (`partition.collect(repo, "plans")` -> candidates `[]`). Verdict: Intended (safety property: degraded plan cannot be dispatched).
+    2. `cli.py` status metrics (`_collect_repo_status_details()`, line 8596): aggregates `attn_by_class`; degraded item increments `blocked` count by 1 (`details["attention"]["by_class"]` -> `{'blocked': 1}`). Verdict: Intended (broken artifact counted as blocked).
+    3. `cli.py` search (`_run_search()`, line 12380): `item_map` carries `native_status == "-"`; E-06 treats `"-"` as no status and falls through to `_artifact_status(p, text)`. Verdict: Intended (regression resolved by E-06; `test_cli_search.py` 14 passed).
+    4. `releases.py` (`get_release_blockers()` / `attention.release_blockers()`, line 365): degraded item carries `blocks_release=None`, excluded from blockers list (`attention.release_blockers(items, repo)` -> `[]`). Verdict: Intended (safety property: malformed item cannot block release).
+    5. `runner_shared.py` (`report_invalid_board_at_run_start()`, line 15964): reads `drift` only, never `items`; outputs validity warning on non-zero exit code (`warning: cross-tree attention view is INVALID (1 finding(s): attention.missing-status (1))`). Verdict: Intended (untouched; reports validity from drift).
+    (b) `python3 -m pytest tests/test_prompts_attention.py -o addopts=""`:
+    `5 passed in 0.31s`
+    Diff to test:
+    ```diff
+    @@ -151,7 +151,8 @@ class PromptsScanTests(unittest.TestCase):
+             prompt_items = [it for it in items if it.tree == "prompts"]
+
+             # 6 bucketed prompts (2 pending, 1 executed, 1 superseded, 1 not-executed, 1 reusable)
+    -        self.assertEqual(len(prompt_items), 6)
+    +        # plus 1 unbucketed prompt that synthesizes a degraded item under a21sr5
+    +        self.assertEqual(len(prompt_items), 7)
+
+             # Untracked prompt should be ABSENT
+             self.assertFalse(
+    @@ -184,6 +184,12 @@ class PromptsScanTests(unittest.TestCase):
+             self.assertEqual(
+                 by_name["20260717-1950-03-reusable.prompt.md"].attention_class, A.PARKED
+             )
+    +        self.assertEqual(
+    +            by_name["20260920-no-bucket.prompt.md"].attention_class, A.BLOCKED
+    +        )
+    +        self.assertEqual(
+    +            by_name["20260920-no-bucket.prompt.md"].native_status, "-"
+    +        )
+    ```
+    (c) Bare `python3 -m pytest`:
+    `3571 passed, 2 skipped, 3 warnings in 82.12s (0:01:22)` (208 deselected).
+    Zero failing node ids.
+    (d) `agent_workflows/releases.py` and `agent_workflows/runner_shared.py` are ABSENT from `git diff --stat`.
+  - Result: pass
 
 ## Approval and execution gate
 
