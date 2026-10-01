@@ -102,12 +102,13 @@ def global_id6s(repo_root) -> set:
       is NOT fixed here; bounding the identity readers to the front-matter region is owned by IPD
       ``76w6mq`` (from backlog ``cqytxf``).
 
-    THE SPECIFIC UNBOUNDED READER BEHIND THIS SET IS ``status_set._ID_RE``, and it is OUTSIDE
-    ``76w6mq``'s declared scope (``selectors.py`` + ``check_engine.py``), so one unbounded reader
-    survives even after that plan lands. Recorded as backlog ``q1ov25`` rather than fixed here,
-    because ``cqytxf`` warns that several plans editing these readers is what recreated parser drift
-    before. ``tests/test_id6_global_mint.py`` pins the superset behavior so this cannot be mistaken
-    for an exact census.
+    THE SPECIFIC UNBOUNDED READER BEHIND THIS SET IS ``artifact_adopt.scan_body_identities`` /
+    ``_BULLET_ID_RE``, and it is deliberately left unbounded by plan ``xvon5j`` because minting
+    requires a conservative superset: refusing to mint an id6 that some document merely quotes costs
+    one draw out of 36**6, while narrowing the collision set risks minting a genuine duplicate.
+    The unbounded readers behind checking, status resolution, and dependency indexing were bounded
+    to the metadata region by ``76w6mq`` and ``xvon5j``. ``tests/test_id6_global_mint.py`` pins the
+    superset behavior so this cannot be mistaken for an exact census.
 
     So do NOT "optimize" this onto a checker's reader, do not describe it to a user as "the id6s in
     use", and never reuse it to decide that a collision EXISTS. Over-collect for minting; parse

@@ -1623,6 +1623,27 @@ def _read_declared_id(text: str) -> str | None:
     return m.group(1) if m else None
 
 
+def _read_item_id(text: str) -> str | None:
+    """The record's DECLARED `- Id:` id6 via _ITEM_ID_RE, bounded to the metadata region."""
+
+    m = _ITEM_ID_RE.search(_metadata_region(text))
+    return m.group(1) if m else None
+
+
+def _read_blocks_release(text: str) -> str | None:
+    """The record's DECLARED `- Blocks-Release:` value, bounded to the metadata region."""
+
+    m = _META_BLOCKS_RELEASE_RE.search(_metadata_region(text))
+    return m.group(1) if m else None
+
+
+def _read_plan_status(text: str) -> str | None:
+    """The record's DECLARED `- Status:` value, bounded to the metadata region."""
+
+    m = _PLAN_STATUS_RE.search(_metadata_region(text))
+    return m.group(1) if m else None
+
+
 def _identity_slot_token(filename: str) -> str | None:
     """Return the raw ``<id6>`` token in a filename's identity slot, or None.
 
@@ -3040,13 +3061,12 @@ def check_ipd_draft_ready(
             text = p.read_text(encoding="utf-8")
         except OSError:
             continue
-        m = _PLAN_STATUS_RE.search(text)
-        if not m or m.group(1).strip().lower() != "draft":
+        st = _read_plan_status(text)
+        if not st or st.strip().lower() != "draft":
             continue
         if not _authoring.authoring_placeholders_resolved(text):
             continue  # still a stub: stay silent
-        mid = _ITEM_ID_RE.search(text)
-        id6 = mid.group(1) if mid else p.stem
+        id6 = _read_item_id(text) or p.stem
         recovery = f"aw ipd set to-review {id6}"
         drift.append(
             enrich_drift(
@@ -3391,10 +3411,9 @@ def check_scope_drift(
             text = p.read_text(encoding="utf-8")
         except OSError:
             continue
-        m = _ITEM_ID_RE.search(text)
-        if not m:
+        plan_id = _read_item_id(text)
+        if not plan_id:
             continue
-        plan_id = m.group(1)
         receipt = _life.read_receipt(repo_root, plan_id)
         if not receipt:
             continue  # no active execution -> nothing to reconcile
@@ -4188,8 +4207,7 @@ def find_from_backlog_plans(repo_root: Path, item_id6: str) -> List[Tuple[Path, 
     for p, text in _iter_plan_ipds(repo_root):
         val = _from_backlog_value(text)
         if val == item_id6:
-            mbr = _META_BLOCKS_RELEASE_RE.search(text)
-            out.append((p, mbr.group(1) if mbr else ""))
+            out.append((p, _read_blocks_release(text) or ""))
     return out
 
 
@@ -4205,8 +4223,7 @@ def find_from_backlog_specs(repo_root: Path, item_id6: str) -> List[Tuple[Path, 
     for p, text in _iter_spec_records(repo_root):
         val = _from_backlog_value(text)
         if val == item_id6:
-            mbr = _META_BLOCKS_RELEASE_RE.search(text)
-            out.append((p, mbr.group(1) if mbr else ""))
+            out.append((p, _read_blocks_release(text) or ""))
     return out
 
 
@@ -4341,7 +4358,7 @@ def build_graduation_reverse_index(
             if not sources:
                 continue
             declared_id = _read_declared_id(text) or ""
-            status_match = _PLAN_STATUS_RE.search(_metadata_region(text))
+            status = _read_plan_status(text) or ""
             setid, _descriptive = _parse_setid(text)
             try:
                 rel = str(Path(path).resolve().relative_to(Path(repo_root).resolve()))
@@ -4350,7 +4367,7 @@ def build_graduation_reverse_index(
             record = GraduationArtifact(
                 artifact_type=artifact_type,
                 id6=declared_id,
-                status=status_match.group(1) if status_match else "",
+                status=status,
                 setid=setid or "",
                 path=rel,
             )
@@ -4376,7 +4393,7 @@ def build_plan_setid_index(
         if not setid:
             continue
         declared_id = _read_declared_id(text) or ""
-        status_match = _PLAN_STATUS_RE.search(_metadata_region(text))
+        status = _read_plan_status(text) or ""
         try:
             rel = str(Path(path).resolve().relative_to(Path(repo_root).resolve()))
         except ValueError:
@@ -4384,7 +4401,7 @@ def build_plan_setid_index(
         record = GraduationArtifact(
             artifact_type="plan",
             id6=declared_id,
-            status=status_match.group(1) if status_match else "",
+            status=status,
             setid=setid,
             path=rel,
         )
@@ -4777,10 +4794,8 @@ def evaluate_blocking_close(
         if item_text is not None
         else Path(item_path).read_text(encoding="utf-8")
     )
-    mid = _ITEM_ID_RE.search(text)
-    item_id6 = mid.group(1) if mid else None
-    mbr = _META_BLOCKS_RELEASE_RE.search(text)
-    blocks_release = mbr.group(1) if mbr else None
+    item_id6 = _read_item_id(text)
+    blocks_release = _read_blocks_release(text)
     mce = _META_CLOSE_EVIDENCE_RE.search(text)
     item_close_evidence = mce.group(1) if mce else None
 
@@ -5036,8 +5051,7 @@ def _from_backlog_carrier_index(
             val = _from_backlog_value(text)
             if not val:
                 continue
-            mbr = _META_BLOCKS_RELEASE_RE.search(text)
-            index.setdefault(val, []).append((p, mbr.group(1) if mbr else None))
+            index.setdefault(val, []).append((p, _read_blocks_release(text)))
     return index
 
 
@@ -5088,7 +5102,7 @@ def check_release_gate_consistency(repo_root: Path) -> List[_core.Drift]:
     # bypassed the `aw backlog set done` gate. Fast no-op when nothing under backlog/ is staged.
     for staged_path in _staged_backlog_done_items(repo_root):
         staged_text = _blob_text(repo_root, ":0:", staged_path)
-        if not staged_text or not _META_BLOCKS_RELEASE_RE.search(staged_text):
+        if not staged_text or not _read_blocks_release(staged_text):
             continue
         if _status_meta(staged_text) != "done":
             continue
@@ -5117,10 +5131,10 @@ def check_release_gate_consistency(repo_root: Path) -> List[_core.Drift]:
             text = f.read_text(encoding="utf-8")
         except OSError:
             continue
-        mid = _ITEM_ID_RE.search(text)
-        mbr = _META_BLOCKS_RELEASE_RE.search(text)
-        if mid and mbr:
-            item_gate[mid.group(1)] = (mbr.group(1), str(f))
+        item_id = _read_item_id(text)
+        gate = _read_blocks_release(text)
+        if item_id and gate:
+            item_gate[item_id] = (gate, str(f))
     # bklgrad Order 01 (v58bvy) E-07: scan PLANS AND SPECS. A spec is now an accepted HANDOFF gate
     # carrier (E-06), so the consistency rule must cover it too or the checker and the setter diverge:
     # a spec could carry a mismatched gate, be accepted as a carrier by nothing, and never be flagged.
@@ -5348,8 +5362,7 @@ def release_gate_warnings(repo_root: Path) -> List[_core.Drift]:
         backlog_id = _from_backlog_value(text)
         if not backlog_id:
             continue
-        mbr = _META_BLOCKS_RELEASE_RE.search(text)
-        gate = mbr.group(1) if mbr else ""
+        gate = _read_blocks_release(text) or ""
         is_exec = _carrier_is_executed(_p)
         gates_map = plan_gates_by_backlog.setdefault(backlog_id, {})
         gates_map[gate] = gates_map.get(gate, True) and is_exec
@@ -5362,12 +5375,10 @@ def release_gate_warnings(repo_root: Path) -> List[_core.Drift]:
             text = f.read_text(encoding="utf-8")
         except OSError:
             continue
-        mbr = _META_BLOCKS_RELEASE_RE.search(text)
-        mid = _ITEM_ID_RE.search(text)
-        if not mbr or not mid:
+        item_gate = _read_blocks_release(text)
+        _id6 = _read_item_id(text)
+        if not item_gate or not _id6:
             continue
-        _id6 = mid.group(1)
-        item_gate = mbr.group(1)
         gates_map = plan_gates_by_backlog.get(_id6)
         if gates_map is not None and item_gate in gates_map:
             if gates_map[item_gate]:
@@ -5794,8 +5805,7 @@ def check_plan_priority(
             _schema.PLAN_PRIORITY_UNRESOLVED,
         ):
             continue
-        mid = _ITEM_ID_RE.search(text)
-        id6 = mid.group(1) if mid else p.stem
+        id6 = _read_item_id(text) or p.stem
         drift.append(
             enrich_drift(
                 _core.Drift(
@@ -5853,8 +5863,7 @@ def check_plan_work_kind(
             _schema.PLAN_WORK_KIND_UNRESOLVED,
         ):
             continue
-        mid = _ITEM_ID_RE.search(text)
-        id6 = mid.group(1) if mid else p.stem
+        id6 = _read_item_id(text) or p.stem
         drift.append(
             enrich_drift(
                 _core.Drift(
@@ -5906,8 +5915,7 @@ def check_plan_priority_required(
         if not _lint._scope_paths_gate_applies("author", status):
             continue
         blocking_prio, _ = _lint.check_plan_priority(doc, "author", None)
-        mid = _ITEM_ID_RE.search(text)
-        id6 = mid.group(1) if mid else p.stem
+        id6 = _read_item_id(text) or p.stem
         for b in blocking_prio:
             drift.append(
                 enrich_drift(
@@ -5959,16 +5967,16 @@ def _review_subject_id_sets(repo_root: Path) -> Dict[str, set]:
     """
     return {
         "ipd": {
-            m.group(1)
+            id6
             for _p, text in _iter_plan_ipds(repo_root)
-            for m in (_ITEM_ID_RE.search(text),)
-            if m
+            for id6 in (_read_item_id(text),)
+            if id6
         },
         "spec": {
-            m.group(1)
+            id6
             for _p, text in _iter_spec_records(repo_root)
-            for m in (_ITEM_ID_RE.search(text),)
-            if m
+            for id6 in (_read_item_id(text),)
+            if id6
         },
     }
 
@@ -6088,8 +6096,7 @@ def check_spec_review_attestation(repo_root: Path) -> List[_core.Drift]:
         ms = _re.search(r"(?m)^-[ \t]*Status:[ \t]*(\S+)[ \t]*$", text)
         if ms is None or ms.group(1).strip().lower() != "reviewed":
             continue
-        mid = _ITEM_ID_RE.search(text)
-        id6 = mid.group(1) if mid else ""
+        id6 = _read_item_id(text) or ""
         try:
             missing = _rf.review_attestation_missing(repo_root, id6, "spec")
         except Exception:
@@ -6142,9 +6149,9 @@ def known_spec_ids(repo_root: Path) -> Set[str]:
     repo_root = Path(repo_root)
     known: Set[str] = set()
     for _p, _t in _iter_spec_records(repo_root):
-        m = _ITEM_ID_RE.search(_t)
-        if m:
-            known.add(m.group(1))
+        id6 = _read_item_id(_t)
+        if id6:
+            known.add(id6)
     try:
         from agent_workflows import specs as _specs
 
@@ -6313,8 +6320,7 @@ def check_plan_spec_link_missing(
         if not cited:
             continue
 
-        mid = _ITEM_ID_RE.search(text)
-        id6 = mid.group(1) if mid else p.stem
+        id6 = _read_item_id(text) or p.stem
         cited_str = ", ".join(cited)
         recovery = f"aw ipd set {id6} --from-spec {cited[0]}"
 
@@ -6459,9 +6465,9 @@ def check_spec_criteria_uncovered(
 
     specs: Dict[str, Tuple[Path, str]] = {}
     for path, text in _iter_spec_records(repo_root):
-        mid = _ITEM_ID_RE.search(text)
+        mid = _read_item_id(text)
         if mid:
-            specs[mid.group(1)] = (path, text)
+            specs[mid] = (path, text)
 
     plans_by_spec: Dict[str, List[Tuple[Path, str]]] = {}
     for path, text in _iter_plan_ipds(repo_root):
@@ -6885,10 +6891,9 @@ def evaluate_review_finding_escalation(
     if str(thr).strip().lower() in ("off", ""):
         return drift
 
-    mid = _ITEM_ID_RE.search(plan_text)
-    if mid is None:
+    plan_id6 = _read_item_id(plan_text)
+    if plan_id6 is None:
         return drift  # no `- Id:` to join on; the metadata linter owns that complaint
-    plan_id6 = mid.group(1)
 
     index = _review_index(repo_root) if review_index is None else review_index
     reviews = index.get(plan_id6) or []
@@ -7081,10 +7086,9 @@ def evaluate_review_decision_escalation(
     except Exception:
         return drift
 
-    mid = _ITEM_ID_RE.search(plan_text)
-    if mid is None:
+    plan_id6 = _read_item_id(plan_text)
+    if plan_id6 is None:
         return drift  # no `- Id:` to join on; the metadata linter owns that complaint
-    plan_id6 = mid.group(1)
 
     index = _review_index(repo_root) if review_index is None else review_index
     reviews = index.get(plan_id6) or []

@@ -223,21 +223,23 @@ def read_artifact_record(path: Path, repo_root: Path) -> ArtifactRecord | None:
     if not rtype:
         return None
 
-    id_match = _ID_RE.search(text)
+    meta = _sel.metadata_region(text)
+
+    id_match = _ID_RE.search(meta)
     id6 = id_match.group(1) if id_match else None
     if not id6:
-        yaml_id = re.search(r"(?m)^id:\s*([0-9a-z]{6})\s*$", text)
+        yaml_id = re.search(r"(?m)^id:\s*([0-9a-z]{6})\s*$", meta)
         if yaml_id:
             id6 = yaml_id.group(1)
 
-    status_match = _STATUS_RE.search(text)
+    status_match = _STATUS_RE.search(meta)
     status = status_match.group(1) if status_match else None
     if not status:
-        yaml_status = re.search(r"(?m)^status:\s*(\S+)\s*$", text)
+        yaml_status = re.search(r"(?m)^status:\s*(\S+)\s*$", meta)
         if yaml_status:
             status = yaml_status.group(1)
 
-    set_match = _SET_RE.search(text)
+    set_match = _SET_RE.search(meta)
     set_id = None
     if set_match:
         raw_set = set_match.group(1).strip()

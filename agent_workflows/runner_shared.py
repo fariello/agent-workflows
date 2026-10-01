@@ -13054,10 +13054,9 @@ def discover_specs(repo: Path) -> dict[str, SpecRecord]:
         return specs
 
     for path, text in records:
-        m = _ce._ITEM_ID_RE.search(text)
-        if not m:
+        id6 = _ce._read_item_id(text)
+        if not id6:
             continue  # no id6 -> unnameable, unattestable; see docstring.
-        id6 = m.group(1)
         if id6 in specs:
             continue  # first wins, matching `discover_plans`'s de-duplication by resolved path.
         status = (_sel.read_front_matter_status(text) or "").strip().lower()
@@ -14186,7 +14185,7 @@ def describe_unresolved_plan_selector(repo: Path | None, sel_str: str) -> str:
                         try:
                             from agent_workflows import check_engine as _ce
 
-                            if _ce._ITEM_ID_RE.search(p.read_text(encoding="utf-8")):
+                            if _ce._read_item_id(p.read_text(encoding="utf-8")):
                                 declared = True
                                 break
                         except Exception:
