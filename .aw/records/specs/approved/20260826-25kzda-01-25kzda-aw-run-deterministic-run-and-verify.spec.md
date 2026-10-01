@@ -1149,9 +1149,12 @@ THE HONEST LIMIT, stated so the exception is not trusted further than it holds. 
 "not mine" in good faith about a failure it actually caused, because it has no baseline of the suite
 before its own work and so cannot know what was already red. The maintainer ruled on 2026-09-08 and again
 on 2026-09-20 that no programmatic gate may refuse the verdict on that basis: a pre-work baseline may be
-supplied to the agent as INFORMATION so it can answer more accurately, but nothing refuses on it. So this
-exception mitigates SLOPPINESS and not deception, and ATTRIBUTION is what makes it safe: a wrong answer
-is durably recorded, named, and reviewable afterwards, in the same way an attested `- Readiness:` field
+supplied to the agent as INFORMATION so it can answer more accurately, but nothing refuses or downgrades
+on it. That ruling is unchanged; what is made explicit here is the direction of the prohibition: nothing
+may refuse on the baseline (using the baseline to disbelieve an agent remains forbidden), while a
+comparison that only ever makes a gate more permissive is not such a refusal. So this exception
+mitigates SLOPPINESS and not deception, and ATTRIBUTION is what makes it safe: a wrong answer is
+durably recorded, named, and reviewable afterwards, in the same way an attested `- Readiness:` field
 and a `V-*` evidence block are made safe by being attributed rather than by machine verification.
 
 ### 5.2 Safety policy
@@ -1602,6 +1605,8 @@ aw oc run resume <run-id>
 This example demonstrates the revised guarantees: `all` is safely bounded; dependencies are explicit id6-grounded facts; a failed item is contained instead of poisoning independent work; unmet state cascades without starting dependents; a host capability gap refuses only the affected item; contractless prompt neutrality changes only aggregate exit calculation; and deterministic repository evidence rather than agent confidence decides completion.
 
 ## Workflow history
+
+- 2026-10-01 note (aw specs): AMENDED (plan kcc71f, backlog aced01): Section 5.1's HONEST LIMIT paragraph amended to name the direction the pre-work suite baseline prohibition forbids: nothing may refuse or downgrade an outcome on the strength of the baseline (using the baseline to disbelieve an agent remains forbidden), while a comparison that can only ever make an outcome more permissive is permitted. Reconciles the 2026-09-23 note (plan n9na1c), which recorded the HONEST LIMIT paragraph as unchanged deliberately and verbatim: what that note protected - the maintainer's 2026-09-08/2026-09-20 ruling that no programmatic gate may refuse an outcome on the strength of a pre-work baseline - is preserved verbatim, while the paragraph's undirected wording ("nothing refuses on it") is clarified so it does not contradict shipped, reviewed, and correct permissive comparisons (such as _relative_revalidation_verdict, verified in runner_shared and pinned in tests/test_suite_baseline_direction.py). Conjunctive release conditions, closed answer vocabulary, releasing answers, and attribution requirements are completely untouched.
 
 - 2026-10-01 note (aw specs): AMENDED (plan entv1d, backlog qzxt1m): Run exit codes table exit 1 row amended to name the stranded class explicitly (unintegrated work whose integration was refused) and record its derivation from exit 0's requirement that every actionable item is verified, adhering to docs/cli-output-contract.md Section 3's three-state exit classification; row 4 conflict note left intact.
 - 2026-10-01 note (aw specs): AMENDED (plan cpi6p3, backlog 88manw): Section 5.5 declared the single normative home of the 0..10 correction-budget bound and three-tier precedence; Section 1.4 A2 row, Section 2.1 prose bullet, and Section 4.1 RETRY bullet demoted to pointers at Section 5.5. What deliberately did not change: the bound value (0..10), default of 2, three-tier precedence order, retryable and never-retryable class lists, Section 2.1 synopsis token [--retry-budget <0..10>], and the --integration-retry-limit contrast. Surviving out-of-fence citations: config.py's RUN_POLICY_KEY comment (retargeted to Section 5.5) and flag-surface/command-grammar citations in cli.py, command_surface.py, oc_runipd.py, and agy_runipd.py (deliberate, correct survivors). Composes with backlog rb4wgj, which proposes amending Section 5.5's retry class vocabulary rather than the bound paragraph.

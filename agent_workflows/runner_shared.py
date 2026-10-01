@@ -22930,7 +22930,11 @@ def format_verifier_evidence_section(state: dict[str, Any], run_dir: Path) -> li
 # WHAT THIS IS FOR, AND THE ONE SENTENCE THAT MUST NOT BE "IMPROVED" AWAY:
 #
 #     THE BASELINE IS INFORMATION FOR AN HONEST AGENT, NOT A CHECK ON A DISHONEST ONE. NOTHING MAY
-#     REFUSE, DOWNGRADE, OR OTHERWISE CHANGE AN OUTCOME ON THE STRENGTH OF IT.
+#     REFUSE OR DOWNGRADE AN OUTCOME ON THE STRENGTH OF IT.
+#
+# A comparison that can ONLY make an outcome more permissive is permitted (and one exists). What is
+# forbidden is using the baseline to DISBELIEVE the agent, which is what all four numbered reasons below
+# are about; so a reader who has a baseline-relative comparison in hand asks which SIGN its effect has.
 #
 # THE MAINTAINER RULED THAT EXPLICITLY, 2026-09-08 (recorded on `daexj1` OQ-02 and reaffirmed
 # 2026-09-20): "You cannot build a pre-test that detects deception ... We're mitigating sloppiness,
@@ -22949,12 +22953,16 @@ def format_verifier_evidence_section(state: dict[str, Any], run_dir: Path) -> li
 #      believes the failure is unrelated answers `not-mine` in GOOD FAITH and is WRONG. Telling it
 #      what was already red lets it be RIGHT. That is the whole deliverable.
 #
-# SO THE BASELINE'S ONLY CONSUMER IS THE ADJUDICATION PROMPT, and its only effect is on what the
-# agent READS. `tests/test_suite_baseline.py::NothingRefusesOnTheBaseline` asserts a `not-mine`
-# verdict produces a byte-identical outcome whether the failing id appears in the baseline or not.
-# If you are here to add a comparison that changes an outcome, the four reasons above say why not,
-# and the plan's spec-sync section records that doing so would REQUIRE amending spec `25kzda`
-# because it would change the AUTHORITY under which a red suite may be cleared.
+# THE ADJUDICATION PROMPT IS THE ONLY CONSUMER THAT CAN AFFECT THE ADJUDICATION, and its only effect is
+# on what the agent READS. `revalidation_baseline_for` is a second consumer whose effect is one-way:
+# it only ever makes the post-merge gate MORE PERMISSIVE (see "THE RELATIVE REVALIDATION VERDICT" below,
+# which already draws this exact distinction: "The sign of the effect is the whole difference").
+# `tests/test_suite_baseline_direction.py::test_permissive_direction_is_reachable` and
+# `tests/test_suite_baseline_direction.py::test_forbidden_direction_is_absent` enforce this direction
+# property. Separately, `tests/test_suite_baseline.py::NothingRefusesOnTheBaseline` asserts a `not-mine`
+# verdict produces a byte-identical outcome whether the failing id appears in the baseline or not (a
+# dangling citation carried by `gia5i7`, deliberately left unmodified here). If you are here to add a
+# comparison that makes an outcome stricter or disbelieves the agent, the four reasons above say why not.
 #
 # WHY THE MEASUREMENT IS COMPARABLE TO THE POST-WORK ONE, documented here because the next reader
 # needs to know whether a difference between the two id sets is real or an artifact of WHERE each
