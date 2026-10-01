@@ -49,36 +49,36 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the extractor
 
-- [ ] E-01 ADD `SectionBoundError` AND `section(text, start_marker, end_marker, *, anchored=True, include_end=False)` TO `tests/support.py`, WHOSE DEFINING PROPERTY IS THAT IT REFUSES RATHER THAN FALLS BACK. Locate `start_marker`; if it is absent, raise `SectionBoundError` naming the marker. Locate `end_marker` searching from the END of the start marker (not from position 0, or a start marker containing the end marker matches itself); if it is absent, raise `SectionBoundError` stating that the section's extent is UNKNOWN, that an unrelated later change would enter it, and that `final_section` is the way to declare a genuinely terminal section. Return `text[start:end]`, or through the end marker when `include_end=True`. `SectionBoundError` MUST subclass `AssertionError`, which is the load-bearing detail: a refusal then reports as a test FAILURE rather than an ERROR, so it reads as "this assertion cannot be made" and not as "the helper crashed", and it cannot be swallowed by an `except Exception` in a caller's cleanup path. Do NOT accept a regex for either marker: every measured site uses a literal, and a regex parameter would let a caller re-introduce an unbounded read through a `.*` pattern, which is the whole failure mode.
+- [x] E-01 ADD `SectionBoundError` AND `section(text, start_marker, end_marker, *, anchored=True, include_end=False)` TO `tests/support.py`, WHOSE DEFINING PROPERTY IS THAT IT REFUSES RATHER THAN FALLS BACK. Locate `start_marker`; if it is absent, raise `SectionBoundError` naming the marker. Locate `end_marker` searching from the END of the start marker (not from position 0, or a start marker containing the end marker matches itself); if it is absent, raise `SectionBoundError` stating that the section's extent is UNKNOWN, that an unrelated later change would enter it, and that `final_section` is the way to declare a genuinely terminal section. Return `text[start:end]`, or through the end marker when `include_end=True`. `SectionBoundError` MUST subclass `AssertionError`, which is the load-bearing detail: a refusal then reports as a test FAILURE rather than an ERROR, so it reads as "this assertion cannot be made" and not as "the helper crashed", and it cannot be swallowed by an `except Exception` in a caller's cleanup path. Do NOT accept a regex for either marker: every measured site uses a literal, and a regex parameter would let a caller re-introduce an unbounded read through a `.*` pattern, which is the whole failure mode.
   - Depends on: none
   - Expected outcome: `support.section` returns the bounded text for a present pair of markers; raises `SectionBoundError` for an absent start marker and (separately) for an absent end marker, each message naming the offending marker; `issubclass(support.SectionBoundError, AssertionError)` is True.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 MAKE MARKERS LINE-ANCHORED BY DEFAULT, WITH `anchored=False` AS THE EXPLICIT ESCAPE, BECAUSE AN UNANCHORED MARKER IS A SECOND MEASURED DEFECT AND NOT A HYPOTHETICAL. Anchored matching means the marker must start at a line start (`(?m)^` plus `re.escape`, so the marker itself stays a literal). MEASURED at authoring on the live corpus and RE-MEASURED at review: tracked `.md` files containing `## Workflow history` where an unanchored `.find` disagrees with a line-anchored match numbered 33 of 1806 at authoring and 104 of 1891 at review, so re-derive it rather than trusting either figure. The worked case reproduces exactly: `.aw/records/backlog/done/20260918-yvp951-01-yvp951-specs-set-truncates-legacy-spec-history.backlog.md`, whose `## Detail` prose quotes the heading name, gives unanchored offset 463 against a real heading at 2038.
+- [x] E-02 MAKE MARKERS LINE-ANCHORED BY DEFAULT, WITH `anchored=False` AS THE EXPLICIT ESCAPE, BECAUSE AN UNANCHORED MARKER IS A SECOND MEASURED DEFECT AND NOT A HYPOTHETICAL. Anchored matching means the marker must start at a line start (`(?m)^` plus `re.escape`, so the marker itself stays a literal). MEASURED at authoring on the live corpus and RE-MEASURED at review: tracked `.md` files containing `## Workflow history` where an unanchored `.find` disagrees with a line-anchored match numbered 33 of 1806 at authoring and 104 of 1891 at review, so re-derive it rather than trusting either figure. The worked case reproduces exactly: `.aw/records/backlog/done/20260918-yvp951-01-yvp951-specs-set-truncates-legacy-spec-history.backlog.md`, whose `## Detail` prose quotes the heading name, gives unanchored offset 463 against a real heading at 2038.
 
   **THE ANCHORED DEFAULT HAS A THIRD OUTCOME THE AUTHORED ITEM DID NOT ACCOUNT FOR, AND IT MUST BE HANDLED DELIBERATELY (PR-301, F-09).** Review measured that of the 104 divergent files, only 38 are the "prose occurrence before a real heading" shape this item describes; the other 66 contain the string ONLY in prose and have NO line-anchored occurrence at all (a quoted `>     ## Workflow history` in an archived comms message, `.aw/records/plans/README.md` describing the format inline, research reports enumerating heading names). For those, anchored search finds NOTHING where unanchored search finds something, so `section` RAISES `SectionBoundError` on the start marker. THAT IS THE CORRECT BEHAVIOR and this plan keeps it, because an unanchored match in such a file points at prose and returns a "section" that is not one; but it is a DIFFERENT outcome from "lands on the real heading", the authored Expected outcome asserted the wrong universal ("anchoring lands on the real heading for all 33 of the 33"), and a caller migrating a site in Order 02 must be able to tell a refusal-because-absent from a refusal-because-unterminated. So: state the three outcomes in the docstring (anchored match found; only a prose occurrence exists, so the start marker is ABSENT and the call refuses; `anchored=False` restores the old substring behavior and its attendant defect), and make the absent-start message say that the marker may exist UNANCHORED, so a reader is pointed at `anchored=False` rather than concluding the text is malformed.
 
   Keep `anchored=False` available and document WHY it exists: `tests/test_merge_conflict_sendback.py` lowercases its whole subject before splitting, so its marker is `## conflict details`, which no line in the original text starts with. An escape hatch that a real caller needs is a supported parameter, not a smell.
   - Depends on: E-01
   - Expected outcome: `section(text, "## Workflow history", "\n## ")` skips a body-prose occurrence and starts at the real heading, demonstrated on a fixture built to that shape; a fixture whose ONLY occurrence is prose RAISES on the start marker, with the message naming `anchored=False` as the escape (the F-09 case); `anchored=False` reproduces the old substring behavior; a docstring stating the re-measured corpus basis, enumerating all THREE outcomes, and naming the lowercasing caller the escape hatch exists for.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 ADD `final_section(text, start_marker, *, next_marker, anchored=True)`, WHICH IS THE HONEST WAY TO SAY "THIS SECTION RUNS TO THE END", AND WHICH FAILS WHEN THAT STOPS BEING TRUE. It locates `start_marker`, then searches for `next_marker` after it and raises `SectionBoundError` IF ONE IS FOUND, naming the offset, because the caller's premise (nothing follows) has been falsified. Otherwise it returns `text[start:]`. THIS IS THE ITEM THAT MAKES THE SET WORTH DOING RATHER THAN A RENAME: three of the measured sites read a tail that IS genuinely last today (`## Sets` in `plans.render_status_index`, the disposition summary block, `## Most recent` in `research_index.build_index_md`), so replacing their slice with a bounded one would need a terminator that does not exist. `final_section` lets them state the premise they are already silently relying on and get told when it breaks. Demonstrated: appending `\n## Recently touched\n...` to a real `render_status_index` output makes `final_section(out, "## Sets", next_marker="## ")` refuse, while the unbounded slice absorbs the new section and keeps passing on first-occurrence luck.
+- [x] E-03 ADD `final_section(text, start_marker, *, next_marker, anchored=True)`, WHICH IS THE HONEST WAY TO SAY "THIS SECTION RUNS TO THE END", AND WHICH FAILS WHEN THAT STOPS BEING TRUE. It locates `start_marker`, then searches for `next_marker` after it and raises `SectionBoundError` IF ONE IS FOUND, naming the offset, because the caller's premise (nothing follows) has been falsified. Otherwise it returns `text[start:]`. THIS IS THE ITEM THAT MAKES THE SET WORTH DOING RATHER THAN A RENAME: three of the measured sites read a tail that IS genuinely last today (`## Sets` in `plans.render_status_index`, the disposition summary block, `## Most recent` in `research_index.build_index_md`), so replacing their slice with a bounded one would need a terminator that does not exist. `final_section` lets them state the premise they are already silently relying on and get told when it breaks. Demonstrated: appending `\n## Recently touched\n...` to a real `render_status_index` output makes `final_section(out, "## Sets", next_marker="## ")` refuse, while the unbounded slice absorbs the new section and keeps passing on first-occurrence luck.
   - Depends on: E-01
   - Expected outcome: `final_section` returns the tail when the section is terminal and raises `SectionBoundError` naming the offset when a later marker exists; demonstrated against REAL `plans.render_status_index` output both before and after a section is appended.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 ADD `section_lines(...)`, A THIN `splitlines()` WRAPPER OVER `section`, AND NOTHING MORE. Several measured sites are line-oriented (`tests/test_lifecycle_style.py` walks `lines[start:]` with a `break`, `tests/test_completion.py` walks `lines[esac_index + 1:]`), and a wrapper spares them a re-split while keeping ONE bounding rule. It must take the same parameters and forward them unchanged, with no independent marker handling of its own, so the two entry points cannot drift. Do NOT add a line-INDEX variant returning `(start, end)` offsets: no measured site needs indices, and `GUIDING_PRINCIPLES.md` P6 directs against building for a hypothetical caller.
+- [x] E-04 ADD `section_lines(...)`, A THIN `splitlines()` WRAPPER OVER `section`, AND NOTHING MORE. Several measured sites are line-oriented (`tests/test_lifecycle_style.py` walks `lines[start:]` with a `break`, `tests/test_completion.py` walks `lines[esac_index + 1:]`), and a wrapper spares them a re-split while keeping ONE bounding rule. It must take the same parameters and forward them unchanged, with no independent marker handling of its own, so the two entry points cannot drift. Do NOT add a line-INDEX variant returning `(start, end)` offsets: no measured site needs indices, and `GUIDING_PRINCIPLES.md` P6 directs against building for a hypothetical caller.
   - Depends on: E-01
   - Expected outcome: `section_lines` equals `section(...).splitlines()` for the same arguments, proven over at least one multi-line fixture, and inherits the same two refusals.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: prove it, including the refusals
 
-- [ ] E-05 WRITE `tests/test_support_section.py`, WHOSE JOB IS TO PROVE THE REFUSALS FIRE, NOT MERELY THAT EXTRACTION WORKS. A bounding helper whose happy path is tested and whose refusals are not is the same class of defect as the unbounded slice it replaces: it advertises a protection nobody demonstrated. Cover, each as an OUTCOME over real inputs: (a) a bounded section returns exactly the expected text, and `include_end=True` extends it by the end marker; (b) an absent start marker raises, and the message names the marker; (c) an absent end marker raises, and the message names the marker and points at `final_section`; (d) the anchored default skips a body-prose occurrence and `anchored=False` does not; (e) `final_section` returns a terminal tail and refuses a non-terminal one, naming the offset; (f) `section_lines` agrees with `section().splitlines()`; (g) `SectionBoundError` is an `AssertionError` subclass, asserted through `issubclass` rather than by reading the class statement. THE LOAD-BEARING CASE, which must be driven end to end rather than mocked: build a real backlog item through `backlog.run_new` WITH a `--body` carrying a `## Suggested work` list, transition it with `backlog.run_set`, and assert the helper counts 2 history bullets where the unbounded `split(...)[1]` counts 4. That is `1pgrii`'s defect reproduced against real writers, so a regression in the helper fails on the original bug rather than on a synthetic string.
+- [x] E-05 WRITE `tests/test_support_section.py`, WHOSE JOB IS TO PROVE THE REFUSALS FIRE, NOT MERELY THAT EXTRACTION WORKS. A bounding helper whose happy path is tested and whose refusals are not is the same class of defect as the unbounded slice it replaces: it advertises a protection nobody demonstrated. Cover, each as an OUTCOME over real inputs: (a) a bounded section returns exactly the expected text, and `include_end=True` extends it by the end marker; (b) an absent start marker raises, and the message names the marker; (c) an absent end marker raises, and the message names the marker and points at `final_section`; (d) the anchored default skips a body-prose occurrence and `anchored=False` does not; (e) `final_section` returns a terminal tail and refuses a non-terminal one, naming the offset; (f) `section_lines` agrees with `section().splitlines()`; (g) `SectionBoundError` is an `AssertionError` subclass, asserted through `issubclass` rather than by reading the class statement. THE LOAD-BEARING CASE, which must be driven end to end rather than mocked: build a real backlog item through `backlog.run_new` WITH a `--body` carrying a `## Suggested work` list, transition it with `backlog.run_set`, and assert the helper counts 2 history bullets where the unbounded `split(...)[1]` counts 4. That is `1pgrii`'s defect reproduced against real writers, so a regression in the helper fails on the original bug rather than on a synthetic string.
   - Depends on: E-01, E-02, E-03, E-04
   - Expected outcome: `python3 -m pytest tests/test_support_section.py` green; the backlog-driven case shows 2 versus 4 with both numbers pasted; every refusal has a test that fails WITHOUT the refusal, demonstrated by temporarily removing each raise in turn.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -199,30 +199,282 @@ this plan writes (they are AI-facing internal artifacts).
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: PASTE the final source of `SectionBoundError` and `section` from `tests/support.py`. PASTE a driven demonstration of all three behaviors: a bounded extraction returning the expected text; an absent START marker raising with the marker named in the message; an absent END marker raising with the marker named AND `final_section` mentioned as the remedy. PASTE the output of `issubclass(support.SectionBoundError, AssertionError)` showing True, and state in one sentence why that matters (a refusal must report as a FAILURE, not an ERROR). Review verified the underlying mechanism through a real `unittest.TextTestRunner`, which collected an `AssertionError` subclass in `failures` and a `ValueError` in `errors` (F-11), so the claim is measured rather than assumed; you need only show the `issubclass` result. CONFIRM the end-marker search starts after the end of the start marker, demonstrated with a fixture whose start marker CONTAINS the end marker (for example start `## Workflow history` and end `## `), showing the result is not an empty string.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Source and driven demonstrations verified; issubclass is True; self-match guard verified.
+    Final source of `SectionBoundError` and `section` from `tests/support.py`:
+    ```python
+    class SectionBoundError(AssertionError):
+        """Raised when a section boundary cannot be located or is invalid.
 
-- [ ] V-02 validates E-02
+        Subclasses ``AssertionError`` so a refusal reports as a test FAILURE rather than an
+        ERROR (the assertion cannot be made, not that the helper crashed), and cannot be
+        swallowed by an ``except Exception`` in a caller's cleanup path.
+        """
+
+
+    def section(
+        text: str,
+        start_marker: str,
+        end_marker: str,
+        *,
+        anchored: bool = True,
+        include_end: bool = False,
+    ) -> str:
+        """Extract bounded text between ``start_marker`` and ``end_marker``, refusing on missing bounds.
+
+        Returns ``text[start:end]`` (or through ``end_marker`` when ``include_end=True``).
+        The extracted section includes ``start_marker``; this deliberately differs from
+        production helper ``attention._history_section_lines`` (which returns body lines stripped
+        of the heading line), because test callers typically assert on the heading or index
+        relative to the marker.
+
+        Refuses rather than falls back:
+        - If ``start_marker`` is absent, raises :class:`SectionBoundError` naming the marker.
+        - If ``end_marker`` is absent after ``start_marker``, raises :class:`SectionBoundError`
+          stating that the section extent is unknown, that unrelated later additions would enter it,
+          and that :func:`final_section` is the remedy for a genuinely terminal section.
+
+        Markers are literal strings (no regex patterns are accepted, preventing unbounded reads
+        via patterns like ``.*``).
+
+        Matching is line-anchored by default (``anchored=True``), matching at line start
+        (``(?m)^`` + ``re.escape``). This fixes a measured defect where body prose quotes a heading
+        before the real heading. Tracked ``.md`` files containing ``## Workflow history`` where an
+        unanchored ``.find`` diverges from a line-anchored match numbered 33 of 1806 at authoring,
+        104 of 1891 at review, and 122 of 3077 at execution.
+
+        The anchored default produces three distinct outcomes:
+        1. Anchored match found: starts extraction at the real line-anchored heading.
+        2. Marker exists only in prose: anchored search finds nothing and raises
+           :class:`SectionBoundError` on the start marker, pointing at ``anchored=False``.
+           (Review measured 66 such files; execution measured 80).
+        3. ``anchored=False`` restores substring search behavior and its attendant defect.
+
+        The ``anchored=False`` escape exists for callers that intentionally do unanchored matching,
+        notably ``tests/test_merge_conflict_sendback.py`` which lowercases its subject before
+        splitting (searching for ``## conflict details``, which no line in the original text starts with).
+        """
+        start_span = _find_marker(text, start_marker, 0, anchored=anchored)
+        if start_span is None:
+            if anchored and start_marker in text:
+                raise SectionBoundError(
+                    f"start marker {start_marker!r} not found at line start (marker exists unanchored; "
+                    f"pass anchored=False if matching in prose was intended)"
+                )
+            raise SectionBoundError(f"start marker {start_marker!r} not found in text")
+
+        search_start = start_span[1]
+        end_span = _find_marker(text, end_marker, search_start, anchored=anchored)
+        if end_span is None:
+            if anchored and end_marker in text[search_start:]:
+                raise SectionBoundError(
+                    f"end marker {end_marker!r} not found at line start after start marker {start_marker!r}: "
+                    f"section extent is unknown (marker exists unanchored; pass anchored=False if matching in prose was intended; "
+                    f"an unrelated later change would enter it; use final_section to declare a genuinely terminal section)"
+                )
+            raise SectionBoundError(
+                f"end marker {end_marker!r} not found after start marker {start_marker!r}: "
+                f"section extent is unknown (an unrelated later change would enter it; "
+                f"use final_section to declare a genuinely terminal section)"
+            )
+
+        start = start_span[0]
+        end = end_span[1] if include_end else end_span[0]
+        return text[start:end]
+    ```
+
+    Driven demonstration of all three behaviors:
+    ```
+    === Behavior 1: bounded extraction ===
+    Extracted: '## Section 1\ncontent\n\n'
+
+    === Behavior 2: absent START marker ===
+    Caught SectionBoundError: start marker '## Nonexistent' not found in text
+
+    === Behavior 3: absent END marker ===
+    Caught SectionBoundError: end marker '## Nonexistent End' not found after start marker '## Section 1': section extent is unknown (an unrelated later change would enter it; use final_section to declare a genuinely terminal section)
+    ```
+
+    `issubclass` output and reason:
+    ```
+    issubclass(support.SectionBoundError, AssertionError): True
+    ```
+    Subclassing `AssertionError` ensures that a refusal is reported by test runners as an assertion FAILURE rather than an unexpected crashing ERROR, and prevents caller cleanup paths (`except Exception`) from swallowing boundary violations.
+
+    End-marker search starts after end of start marker confirmation:
+    Start marker `## Workflow history` contains end marker `## `:
+    ```
+    Extracted (start contains end): '## Workflow history\n- 2026-09-30 created: an item\n\n'
+    Not empty: True
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: PASTE a driven case where the marker appears in body prose BEFORE the real heading, showing the anchored default starts at the real heading and `anchored=False` starts at the prose occurrence, with both offsets printed. RE-MEASURE the corpus figure yourself and paste it, PARTITIONED INTO THE THREE OUTCOMES rather than as a single number (F-09): the count of tracked `.md` files containing the marker; of those, how many diverge between an unanchored `.find` and a line-anchored match; and of the divergent set, how many have an anchored match on a real heading versus how many have NO anchored match at all. Report YOUR numbers even if they differ; do not restate a baseline (authoring recorded 33 of 1806 with "33 of 33" landing on a heading, and review measured 1891 containing, 104 diverging, 38 landing on a heading and 66 with no anchored occurrence, which shows the authored universal was wrong). PASTE THE NO-ANCHORED-MATCH CASE SPECIFICALLY: a fixture or a real file whose only occurrence is prose, showing `section` RAISES on the start marker and that the message points at `anchored=False`, so a reader can tell this refusal from a malformed-input one. PASTE the docstring showing the `anchored=False` parameter's reason is recorded and names the lowercasing caller.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Anchored and unanchored offsets verified (26 vs 72); corpus re-measured (3077 total, 2044 containing, 122 divergent: 42 heading, 80 prose-only); docstring verified.
+    Driven case with marker in body prose before real heading:
+    ```
+    Unanchored offset: 26
+    Anchored offset:   72
+    Anchored extract begins with: '## Workflow history'
+    Unanchored extract begins with: '## Workflow history before the real section.'
+    ```
 
-- [ ] V-03 validates E-03
+    Re-measured corpus figures partitioned into the three outcomes (measured over `git ls-files '*.md'`):
+    ```
+    Total .md files tracked: 3077
+    Files containing '## Workflow history': 2044
+    Divergent files: 122
+      - Anchored match on real heading: 42
+      - No anchored match at all (only in prose): 80
+    ```
+
+    No-anchored-match case specifically:
+    Input whose only occurrence is in prose raises `SectionBoundError` naming `anchored=False`:
+    ```
+    Caught refusal on prose-only: start marker '## Workflow history' not found at line start (marker exists unanchored; pass anchored=False if matching in prose was intended)
+    ```
+
+    Docstring recording `anchored=False` reason and naming the lowercasing caller:
+    ```python
+    """...
+    The anchored default produces three distinct outcomes:
+    1. Anchored match found: starts extraction at the real line-anchored heading.
+    2. Marker exists only in prose: anchored search finds nothing and raises
+       :class:`SectionBoundError` on the start marker, pointing at ``anchored=False``.
+       (Review measured 66 such files; execution measured 80).
+    3. ``anchored=False`` restores substring search behavior and its attendant defect.
+
+    The ``anchored=False`` escape exists for callers that intentionally do unanchored matching,
+    notably ``tests/test_merge_conflict_sendback.py`` which lowercases its subject before
+    splitting (searching for ``## conflict details``, which no line in the original text starts with).
+    """
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: PASTE a driven `final_section` against REAL `plans.render_status_index` output (built through `plans_mod.scan` on a temp fixture, not a hand-written string), showing it returns the `## Sets` tail. THEN append `\n## Recently touched\n\n- x\n` to that same output and PASTE the refusal, showing the message names the offset. ALSO paste the contrast that makes the item worth having: the unbounded slice on the appended output, showing it silently grows and the original `assertLess` still passes (authoring probe: 421 chars grows to 495 and the assertion still holds). State explicitly that `final_section` was NOT given a silent fallback.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Real plans.render_status_index output verified (309 chars); appended section refusal at offset 665 verified; contrast with unbounded slice (335 chars) verified; no silent fallback.
+    Driven `final_section` against real `plans.render_status_index` output:
+    ```
+    Tail length: 309
+    Tail starts with: '## Sets (1)\n\nAdvisory ordered groupings (`Set:`/`O'
+    Tail content:
+    ## Sets (1)
 
-- [ ] V-04 validates E-04
+    Advisory ordered groupings (`Set:`/`Order:` front-matter). ADVISORY only: they do not auto-execute or gate approval; the human still approves each plan.
+
+    - **myset** (2)
+      - 1. `.agents/plans/pending/20260101-0001-01-b.md` [pending]
+      - 2. `.agents/plans/pending/20260101-0000-01-a.md` [pending]
+    ```
+
+    Appending `\n## Recently touched\n\n- x\n` and refusal naming offset 665:
+    ```
+    Caught refusal on appended output: terminal section starting at '## Sets' is followed by next marker '## ' at offset 665: premise that section runs to end of text is falsified
+    ```
+
+    Contrast with unbounded slice:
+    ```
+    Unbounded original length: 309
+    Unbounded appended length: 335
+    assertLess(213, 276) on unbounded appended: True
+    ```
+    `final_section` was NOT given a silent fallback: if `next_marker` is found after `start_marker`, it strictly raises `SectionBoundError` naming the offset and falsified premise.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: PASTE a case showing `section_lines(...) == section(...).splitlines()` over a multi-line fixture, and a case showing `section_lines` raises the SAME `SectionBoundError` for an absent end marker. PASTE the wrapper's source, confirming it forwards its parameters to `section` and performs NO marker handling of its own. CONFIRM no line-index variant was added.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. section_lines agrees with section().splitlines(); inherits refusals; pure forwarding verified; no line-index variant verified.
+    `section_lines(...) == section(...).splitlines()` agreement over multi-line fixture:
+    ```
+    lines == expected: True
+    lines: ['## Workflow history', '- 2026-09-30 line 1', '- 2026-09-30 line 2']
+    ```
 
-- [ ] V-05 validates E-05
+    `section_lines` raises same `SectionBoundError` for absent end marker:
+    ```
+    Caught SectionBoundError from section_lines: end marker '## Missing' not found after start marker '## Workflow history': section extent is unknown (an unrelated later change would enter it; use final_section to declare a genuinely terminal section)
+    ```
+
+    Wrapper source confirming pure parameter forwarding:
+    ```python
+    def section_lines(
+        text: str,
+        start_marker: str,
+        end_marker: str,
+        *,
+        anchored: bool = True,
+        include_end: bool = False,
+    ) -> list[str]:
+        """Return ``section(...).splitlines()``. Thin wrapper forwarding parameters unchanged."""
+        return section(
+            text,
+            start_marker,
+            end_marker,
+            anchored=anchored,
+            include_end=include_end,
+        ).splitlines()
+    ```
+
+    Confirmed no line-index variant was added:
+    ```
+    hasattr(support, "section_line_indices"): False
+    hasattr(support, "section_indices"):      False
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: PASTE the actual output of `python3 -m pytest tests/test_support_section.py`. PASTE the `1pgrii` reproduction driven through the REAL writers: the `backlog.run_new` call including its `--body` with a `## Suggested work` list, the `backlog.run_set` transition, and both counts side by side (the unbounded `split(...)[1]` count and the `section()` count), with the four bullets listed so a reader can see the two that do not belong. THEN the mutation proof, which is what makes this item more than a green run: remove EACH of the three refusals in turn (absent start, absent end, non-terminal `final_section`) and paste the FAILING test output for each, then confirm all three are restored and the file is green again. FINALLY paste the bare `python3 -m pytest` summary line with YOUR observed counts, and confirm the passed count ROSE against a baseline YOU measured at lane start. Do NOT compare against a number from this plan: authoring recorded `3246 passed, 2 skipped` and review measured `3278 passed, 2 skipped` a few days later, so both are stale by construction. Confirm no pre-existing test changed status.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. pytest tests/test_support_section.py passes (11 passed); backlog writer reproduction verified (2 vs 4); 3 mutation proofs verified; full suite rose from 3512 to 3523 passed.
+    Actual output of `python3 -m pytest tests/test_support_section.py`:
+    ```
+    bringing up nodes...
+    ...........                                                              [100%]
+    11 passed in 2.19s
+    ```
+
+    `1pgrii` reproduction driven through real writers:
+    ```
+    Unbounded count: 4
+    Bounded count:   2
+    Unbounded bullets:
+      - 2026-10-01 set (aw backlog): finished
+      - 2026-10-01 created (aw backlog): an item
+      - bound the guard
+      - add a control test
+    Bounded bullets:
+      - 2026-10-01 set (aw backlog): finished
+      - 2026-10-01 created (aw backlog): an item
+    ```
+
+    Mutation proof (three refusals removed in turn, each showing failing output):
+    1. Removed absent start refusal (fallback to 0):
+    ```
+    FAILED tests/test_support_section.py::SectionExtractorTests::test_absent_start_marker_raises - AssertionError: SectionBoundError not raised
+    FAILED tests/test_support_section.py::SectionExtractorTests::test_marker_only_in_prose_refuses_anchored_and_points_to_anchored_false
+    2 failed, 9 passed in 1.93s
+    ```
+    2. Removed absent end refusal (fallback to EOF):
+    ```
+    FAILED tests/test_support_section.py::SectionExtractorTests::test_absent_end_marker_raises_and_points_to_final_section - AssertionError: SectionBoundError not raised
+    FAILED tests/test_support_section.py::SectionExtractorTests::test_section_lines_agreement_and_refusal - AssertionError: SectionBoundError not raised
+    2 failed, 9 passed in 2.09s
+    ```
+    3. Removed non-terminal `final_section` refusal:
+    ```
+    FAILED tests/test_support_section.py::SectionExtractorTests::test_final_section_terminal_success_and_refusal - AssertionError: SectionBoundError not raised
+    FAILED tests/test_support_section.py::SectionExtractorTests::test_final_section_against_real_plans_render_status_index - AssertionError: SectionBoundError not raised
+    2 failed, 9 passed in 2.10s
+    ```
+    All three refusals restored and verified green: `11 passed in 2.19s`.
+
+    Bare `python3 -m pytest` suite counts:
+    - Measured baseline at lane start: `3512 passed, 2 skipped, 3 warnings in 123.17s (0:02:03)` (208 deselected)
+    - Measured final run post-implementation: `3523 passed, 2 skipped, 3 warnings in 76.23s (0:01:16)` (208 deselected)
+    The passed count rose by +11 (3512 -> 3523). Zero pre-existing tests changed status.
+  - Result: pass
 
 ## Approval and execution gate
 
