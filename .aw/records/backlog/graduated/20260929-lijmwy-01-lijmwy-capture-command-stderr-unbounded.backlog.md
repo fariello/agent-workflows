@@ -1,5 +1,6 @@
 - Id: lijmwy
-- Status: open
+- Status: graduated
+- Graduated-To: lijmwy
 - Blocks-Release: next
 - Set: lijmwy
 - Priority: low
@@ -7,6 +8,7 @@
 - Summary: capture_command truncates stdout but never stderr, so max_output_bytes bounds only half the captured output
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): graduated by run run-20260930T053059Z-3200713: 75gxkj
 - 2026-09-29 created (aw backlog): capture_command truncates stdout but never stderr, so max_output_bytes bounds only half the captured output
 
 MEASURED 2026-09-29 while authoring the plan graduating backlog he9x6j, at lane HEAD a5b36500.
