@@ -34,7 +34,7 @@ import threading as _threading
 
 import pytest
 
-pytest_plugins = ["tests.deselect_notice"]
+pytest_plugins = ["tests.deselect_notice", "tests.livecorpus_notice"]
 
 # --------------------------------------------------------------------------------------
 # The test session is a COORDINATOR, never a managed worker lane (backlog `1uq1cu`).
