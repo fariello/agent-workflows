@@ -1,5 +1,6 @@
 - Id: wdazvp
-- Status: open
+- Status: graduated
+- Graduated-To: wdazvp
 - Blocks-Release: next
 - Set: wdazvp
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: aw find --agent prints bare paths and ignores --fields and --limit because its agent branch returns before building a record
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): graduated by run run-20260930T053024Z-3198670: okiso1
 - 2026-09-29 created (aw backlog): Carrier filed while authoring plan 75ic2f (backlog rcjorx).
 
 MEASURED 2026-09-29 at HEAD `3f7997b2` while authoring plan `75ic2f` from backlog item `rcjorx`.
