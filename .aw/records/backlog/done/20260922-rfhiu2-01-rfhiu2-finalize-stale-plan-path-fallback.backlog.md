@@ -1,5 +1,5 @@
 - Id: rfhiu2
-- Status: graduated
+- Status: done
 - Graduated-To: rfhiu2
 - Set: rfhiu2
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: The finalize re-resolution silently falls back to a known-stale plan path, the twin of the verify-side hole closed by fzxfph
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw agy run: IPD 1fzist executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-rfhiu2-01-1fzist-refuse-a-finalize-against-a-plan-path-the-runner-knows-may-b.ipd.md); evidence .aw/records/plans/executed/20260930-rfhiu2-01-1fzist-refuse-a-finalize-against-a-plan-path-the-runner-knows-may-b.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053059Z-3200713: 1fzist
 - 2026-09-22 created (aw backlog): Identified while executing IPD fzxfph (runverdict-06).
 
