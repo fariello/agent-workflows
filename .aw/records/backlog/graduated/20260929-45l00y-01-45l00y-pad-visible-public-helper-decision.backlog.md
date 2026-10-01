@@ -1,11 +1,13 @@
 - Id: 45l00y
-- Status: open
+- Status: graduated
+- Graduated-To: padvisible
 - Set: 45l00y
 - Priority: low
 - Work-Kind: followup
 - Summary: Decide whether term._pad_visible should become a public alignment-aware padding helper
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053053Z-3200037: n7yaa6
 - 2026-09-29 created (aw backlog): Filed at review of plan it6tpj (/plan-review), discharging OQ-01's carrier obligation.
 
 An API DECISION for the maintainer, surfaced by two concurrent renderer conversions. No defect exists;
