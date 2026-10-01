@@ -6,7 +6,7 @@
 - Scope: IN: (a) in `check_engine.evaluate_blocking_close`'s HANDOFF arm, require EVERY same-gate carrier to be executed/implemented rather than returning on the first, which means moving the verdict OUT of the carrier loop; (b) align the ANY-shaped remedy advice in `check_engine.release_gate_warnings`, whose `gates_map[gate] = gates_map.get(gate, False) or is_exec` fold makes `check.orphaned-live-blocker` advise `--status done` as soon as one carrier is executed, i.e. the exact close (a) begins refusing; (c) keep SATISFIED (`--evidence`), DE-GATED, the `graduated` arm, the `parked` WARN and the priority-demotion WARN unchanged; (d) REPLACE the one test that pins the permissive semantics (`tests/test_backlog_handoff_close.py::test_case_5_two_carriers_pending_and_executed_allowed`, measured as the ONLY suite failure under the fix) with its tightened counterpart plus an all-executed allowance case; (e) update the repo-local "Close-legitimacy rule" paragraph in `AGENTS.md` (BELOW the managed block) and the backlog README where they describe HANDOFF; (f) record the grandfathering answer OQ-01 resolves. OUT: the runner's own close path (already ALL-carrier and correct, so it is the REFERENCE this plan converges on, not a thing to edit); the residual UNGATED-sibling divergence measured in F-06, which `check.from-backlog-gate-mismatch` already flags and which OQ-02 defers with its reason; plan-SCOPE coverage (owned by `rwhbci`/`2a6phj`, still out); the positional-spelling bypass (owned by pending `47ttnv`); making `- Blocks-Release: -` resolve.
 - Scope-Paths: agent_workflows/check_engine.py, tests/test_backlog_handoff_close.py, tests/test_check_engine_release_gate.py, AGENTS.md, .aw/records/backlog/README.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 2o5wka
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 2o5wka verified (set anycarrier, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20260930-o8l2y2-01-o8l2y2-backlog-setter-and-status-set-diverge-on-history-d.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): status set to reviewed
 
