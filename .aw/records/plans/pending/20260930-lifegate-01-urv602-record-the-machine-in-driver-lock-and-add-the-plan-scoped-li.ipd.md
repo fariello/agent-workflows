@@ -6,7 +6,7 @@
 - Scope: Two additive, no-refusal-behavior changes that give Order 02 something to call. (1) Record the machine when a run takes its `driver.lock`, so the record reads `pid=<n> host=<machine> started=<t>`, keeping older records without `host=` readable. (2) Add ONE predicate to `runner_shared` that answers "which live run, if any, holds this plan's id6?", returning a three-valued verdict (a named holder, no holder, or undeterminable) with the machine and the reason, built from the existing `run_viewer.driver_holder_state` lock probe plus a process-existence check plus an explicit UNFINISHED-STATUS ALLOWLIST (corrected at review from `not in TERMINAL_STATES`, which measurably misreports a resumable `interrupted` item as absent; see F-11), and applying D3's liveness ORDER. EXCLUDES every refusal: nothing in this plan changes what any verb accepts or refuses, and the predicate has no caller until Order 02. EXCLUDES deleting the token or the location guess, which is Order 02's subject and would strand this plan's tests if done here. EXCLUDES the `--take-over` override and the nudge, which are Orders 02 and 03.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/platform_lock.py, tests/test_plan_holder_predicate.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,8 +17,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: urv602
+- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (aw set): /plan-review verdict APPROVE WITH REVISIONS APPLIED; PR-001 (BLOCKER) through PR-006 all fixed; OQ-01/OQ-02 resolved; readiness go-pending-approval
 - 2026-09-30 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored while graduating backlog `dvonrn`, whose decisions D1-D8 were settled with the maintainer on 2026-09-26 and are not reopened here. Every claim in D2 and D3 was re-measured in this lane rather than inherited, and ONE measurement changes this plan's shape from the item's description. The item's D3 says the fix is to record the machine "when a run takes its driver.lock", which reads as a one-line change to one writer; measured, `driver.lock` has TWO independent writers with different shapes (`runner_shared.run_lock` writes the `pid=` record through a descriptor duped from the locked one, while `acquire_repo_scoped_lock` writes `f"{holder_label} pid={os.getpid()} started={utc_now()}\n"` for the integration lock), and only the FIRST is a run's driver lock. Writing the machine into both would put a hostname into the integration lock, which no part of this design reads and which the leak sanitizer would then have to consider on a new surface. So E-02 is deliberately scoped to `run_lock` alone and E-03 states the exclusion. A SECOND measurement sets the reader's shape: `platform_lock.LOCK_RECORD_PID_RE` is `r"(?<!\w)p?id=(\d+)"`, tolerating a missing first byte because a live Windows holder's mandatory lock makes byte 0 unreadable, so the `host=` reader must tolerate the same truncation and must not be a naive split. [CORRECTED AT REVIEW 2026-10-01: that last inference is FALSE. Only byte 0 is lost, and E-02 places `host=` after `pid=`, so the host token is never truncated and a plain split works; see F-8 as corrected and E-03. The regex measurement itself is accurate; only the conclusion drawn for `host=` was wrong.]
 - 2026-09-30 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.

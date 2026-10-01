@@ -12,7 +12,7 @@
 - Scope: Declare ONE mapping from spec `25kzda` 5.5's retry classes to the drivers' disposition vocabulary, in the spec (amending §5.5 with an explicit class-to-disposition table, the item's option (a)) and in the code (making `TURN_RETRYABLE_DISPOSITIONS` DERIVED from `TURN_RETRY_CLASSIFICATION` so the two can no longer disagree, the item's option (b)), then close the three divergences that mapping measures: the `failed` row's contradiction between table and allowlist, the missing `already-landed` row, and the dead test-coverage citation. Add the behavioral tests that pin the derivation, the spec-to-table agreement, and the vocabulary-coverage invariant the shipped comment claims but does not have. Record the amendment with `aw specs note`. EXCLUDES: changing the retry BUDGET, its `0..10` bound, its precedence ladder or its default of 2 (pending plan `cpi6p3` owns §5.5's bound paragraph and is left alone by name); changing `finalize_refusal_is_retryable`'s classification arms or which finalize refusals are retryable (that function is out of this plan's subject; plan `qo9khm` already re-keyed it onto lint CODES and is `executed`, see F-12); binding any `IPD-EXEC-*` finding code (pending plan `6uhtko` owns three of the eleven); adding or removing any disposition from `TERMINAL_STATES`/`KNOWN_ITEM_STATUSES`; and changing the retryability of any disposition OTHER than resolving `failed` and stating `already-landed`.
 - Scope-Paths: .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, agent_workflows/runner_shared.py, tests/test_retry_class_mapping.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -22,8 +22,10 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 4gx141
+- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 approved (aw set): status set to approved
 
 - 2026-09-30 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review APPROVE WITH REVISIONS APPLIED; PR-201 (HIGH, fixed), PR-202, PR-203, PR-204, PR-205 (MEDIUM, all fixed), PR-206, PR-207 (LOW, both fixed). Typed record at `.aw/records/reviews/20260930-rb4wgj-01-4gx141-give-spec-25kzda-5-5-s-retry-classes-one-declared-mapping-on.review.md` with six `### Decisions` rows, none irreversible. ALL ELEVEN of the plan's findings reproduced at HEAD `dac742b5`, several character for character: the empty fifteen-class intersection, the self-contradicting `failed` reason string verbatim, `6b94a4d9` touching the allowlist zero times, zero `TURN_RETRY` matches suite-wide, `already-landed` as the sole uncovered vocabulary member, and no queue-item producer of bare `failed` across thirteen `reconcile_disposition` return sites. The defect, the diagnosis and the derive-plus-declare remedy are all correct.
   THE DOMINANT REVISION: A PLAN THIS ONE TREATS AS PENDING HAS ALREADY EXECUTED (PR-201, F-12). `qo9khm` is `executed`; its implementation landed at `b311fdfc 05:00` and it finalized at `1e4b8a34 05:09`, 1h45m after this plan was authored at 03:24. So the stale mechanism description is THIS PLAN'S: `finalize_refusal_is_retryable` already keys PRIMARILY on shipped lint codes via `retryable_finalize_finding_codes()`, keeping prose only as a deliberate fallback. As written, E-04 would have amended an APPROVED SPEC to describe a mechanism replaced seven hours earlier, in the paragraph whose purpose is durable reference. Seven sites carried the premise and all are corrected; E-04 now cites the surface by SYMBOL and must re-read it at execution HEAD. The two-surfaces finding is untouched and remains the plan's reason to exist.

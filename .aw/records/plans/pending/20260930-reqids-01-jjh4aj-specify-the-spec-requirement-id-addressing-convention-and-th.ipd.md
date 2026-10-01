@@ -6,7 +6,7 @@
 - Scope: Produce the SPEC ONLY: the requirement-ID addressing convention for new specs, the retrofit/grandfathering policy, the parser's required behavior as a contract (not its implementation), and `SPEC-PLAN-TRACE`'s severity and failure mode. Re-measure the corpus at execution HEAD rather than trusting this plan's numbers, register the cutover date so the boundary is stamped rather than hardcoded, and answer OQ-01 (the mandatory-requirement marker) with the maintainer. NO parser, NO check code, NO `production_checks.py` edit, and NO edit to any spec's approved requirements: Order 02 builds against this spec once approved.
 - Scope-Paths: .aw/records/specs, .aw/records/plans/pending/20260930-reqids-01-jjh4aj-specify-the-spec-requirement-id-addressing-convention-and-th.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Spec: 25kzda
 - Work-Kind: feature
@@ -17,8 +17,10 @@
 - Highest E allocated: 09
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: jjh4aj
+- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 approved (aw set): status set to approved
 
 - 2026-09-30 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-R01 through PR-R07 all FIXED in place. Structural lint conformed at `author` with ZERO findings and again at `review-finalize`. RE-MEASURED EVERY MATERIAL CLAIM at HEAD `36bcbfaa3`, including the ones the plan's case depends on, and the load-bearing ones HOLD: 38 specs / 20 live / 12 approved; exactly two live specs carry no requirement id of any form (`25kzda`, `kw5y2s`); 10 of 12 approved carry requirement ids and 7 carry acceptance ids; `_SPEC_ACTIONS` maps ONLY `approved` to `ACTION_PLAN`; and F-05's hinge is confirmed by reading the code, since the production call site computes `new_produced_paths` against `baseline_plan_ids` and passes it into `spec_plan_conformance` and `spec_plan_gate_carry`, so TRACE needs no pre-existing `- From-Spec:` edge. `25kzda` 4.8's TRACE row, its `RETRY, then FAIL ITEM` action and its message template all match the plan's quotation verbatim; TRACE has zero enforcement while its three siblings are built; `z7nbn1` 4.4's deferral and its 'MUST NOT be described as trace-verified' language read as quoted; and `aw ipd dependencies set rtvdak executed:jjh4aj state:spec:approved:<id6> --dry-run` validates. THE DOMINANT FINDING IS A SELF-CONTRADICTION THAT WOULD HAVE STOPPED THE PLAN: OQ-01 carries `- Blocking: no` with a reasoned resolution, while F-08 and the gate both asserted it BLOCKS and the gate added 'this plan is not ready to execute until the maintainer answers'. The field is what the machinery reads, so the prose asserted a stop nothing implements; resolved in favour of `no` and recorded as OQ-04 with the alternative stated (F-12). Three measurement corrections: F-09's acceptance breakdown was wrong in three places and contradicted F-03 (F-13), V-09 pinned a stale `3387 passed` baseline against a suite that now reports `3446 passed` plus one pre-existing unrelated failure owned by backlog `fnb8pl` (F-14), and E-06 said 'five features' over a six-item list while a sibling bullet listed a different five and `config.py`'s own comment says 'three' (F-16). Also recorded: E-09 edits Order 02's plan file, which is undeclared but implicitly allowed, so a `--scope-reason` is owed at finalize (F-15). Human approval is still required. (Review record: `.aw/records/reviews/20260930-reqids-01-jjh4aj-specify-the-spec-requirement-id-addressing-convention-and-th.review.md`.)
 - 2026-10-01 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): status transition applied by `aw ipd set reviewed jjh4aj`, kept beside the `/plan-review` line above as the attributed record of the transition itself. Its date is the setter's UTC stamp while the local date was 2026-09-30, the clock skew backlog `fnb8pl` owns.

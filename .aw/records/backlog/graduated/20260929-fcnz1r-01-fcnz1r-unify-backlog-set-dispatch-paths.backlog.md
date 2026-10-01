@@ -1,11 +1,13 @@
 - Id: fcnz1r
-- Status: open
+- Status: graduated
+- Graduated-To: setdisp
 - Set: fcnz1r
 - Priority: medium
 - Work-Kind: chore
 - Summary: Unify the two aw backlog set dispatch paths so a behavior wired into one spelling cannot be missing from the other
 
 ## Workflow history
+- 2026-10-01 graduated (aw backlog): graduated: 63zo2f, afdmn6, c6f6sj, m1jlwm, m94eht, vhiqo6
 - 2026-09-29 created (aw backlog): Unify the two aw backlog set dispatch paths so a behavior wired into one spelling cannot be missing from the other
 
 Filed while authoring plan 47ttnv (backlog mawwlc), which named this as its under-scope and needs a durable carrier for it.

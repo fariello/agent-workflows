@@ -6,7 +6,7 @@
 - Scope: Add ONE status-versus-tier drift rule to `research_index.check_drift` (so it surfaces through both `aw research index --check` and `aw check research`), register its severity, and cover both directions with fixture-driven tests. No corpus move (that is `mg8bag`), no new verb, no change to any existing rule.
 - Scope-Paths: agent_workflows/research_index.py, agent_workflows/check_engine.py, tests/test_research_index.py, .aw/records/research/README.md
 - Item-Dependencies: executed:mg8bag
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 05
 - Author: opencode Opus 5, its_direct/pt3-claude-opus-5-1m-us
 - Id: ucwlwt
+- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 approved (aw set): status set to approved
 
 - 2026-10-01 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-1001 (HIGH), PR-1002 (HIGH), PR-1003 (MEDIUM), PR-1004 (MEDIUM), PR-1005 (MEDIUM), PR-1006 (LOW), PR-1007 (LOW) all FIXED; zero deferred, zero open. Structural lint `conforming` at `--phase author` and `--phase review-finalize` with NO advisories at either checkpoint. This plan's own first `- Kind:` bullet reads `child`, so the `IPD-S407` orchestrator row check does not apply. No production file, test, document or spec was modified by this review.
   THE DESIGN IS SOUND AND THE PREMISE VERIFIES. Re-measured independently: `check_drift` emits exactly the seven rule ids the plan enumerates and its body contains ZERO references to `REFERENCE_DIR`, `ARCHIVE_DIR`, `.parts` or a path split, which is the direct form of "nothing is directory-aware" (F-01). Every primitive E-02 says it will reuse exists in `research_contract` with the stated values (`HOT_STATUSES` `{todo, active}`, `SHARDED_STATUSES` `{archive, reference}`, `STATUS_NORMALIZATIONS` `{intake: todo}`, `REFERENCE_DIR`/`ARCHIVE_DIR`). F-07's severity argument verifies at every link: `check.stale-index-stale` is registered `warning`, `_DEFAULT_RULESPEC` is `error`, and `drift_exit_code` exempts only `info`. F-03 reproduces EXACTLY (adopted 35, stranded 35, overlap 17, disjoint 18), the only count in the plan that did not move. F-08's enforcement verifies, and the edge is UNMET today since `mg8bag` is `reviewed` and still pending. `test_stale_index_detected` is confirmed as the exact model E-04 cites. Both `5tapom` claims and `aw research promote`'s existence check out.

@@ -6,7 +6,7 @@
 - Scope: IN: thread an `apply` flag through `ipd_lifecycle._early_recovery_result` so that, when false, the `PHASE_COMMITTED_INCOMPLETE` arm REPORTS the recoverable state and the exact command that would complete it instead of performing it; forward the flag from BOTH call sites (`finalize` and `retire_orchestrator`), which share that helper by construction; mint a stable finding id for the new report so no caller branches on prose; surface that id as a diagnostic on `aw ipd finalize`'s EXIT_OK preview, which today drops it on all three output modes (and reaches human plus `--json` only, per F-13); behavioral regression tests covering `finalize`, the real CLI, both `--dry-run` spellings, and a control pinning the rollup path UNCHANGED (F-8 measures its `committed-incomplete` arm unreachable, so forwarding the flag there is drift defense, not a live fix); one CHANGELOG line. OUT: changing the `apply=True` resume in ANY way (it stays "RESUMED, never reverted"); changing `PHASE_UNKNOWN_OUTCOME`'s existing refusal, which already fails closed identically for both flag values; `finalize_precheck`, whose own blindness to a wedged journal is `bn58ha`/`hlv737`'s subject and is deliberately untouched here; adding any auto-clear or remedy for a wedged journal; and `runner_shared.driver_finalize`, measured passing `--apply` unconditionally so no driver path changes behavior.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, tests/test_ipd_lifecycle_cli.py, tests/test_orchestrator_retirement.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 08
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: y8cgvm
+- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (opencode/its_direct-pt3-claude-opus-5-1m-us): /plan-review round 1: 5 findings (PR-001 HIGH .. PR-005 LOW), all FIXED in place
 
 - 2026-10-01 to-review (opencode/its_direct-pt3-claude-opus-5-1m-us): Authored from backlog `hernns`. The item's measurement was INDEPENDENTLY REPRODUCED in this lane before authoring rather than transcribed (F-1): a scratch git fixture, `begin`, in-scope commit, then the `post-transition` lint forced to error to wedge the journal, then `finalize` called on the resulting `executed/` path with `apply=False`. Two no-apply trials and one apply trial produced byte-identical messages, journals cleared and receipts consumed; the real `cli.main(["ipd","finalize",...])` with NO `--apply` did the same. Measurement then went BEYOND the item in two ways that changed the plan's shape. FIRST, two further preview surfaces reach the resume: `aw set executed <plan> --dry-run` and `aw ipd set executed <plan> --dry-run` both map `--dry-run` to `apply=False` through `status_set._delegate_plan_executed_to_finalize` and both were measured completing the transaction and consuming the receipt (F-7). That matters because `--dry-run` promises more than a defaulted `--apply` does, so the item understated the defect. SECOND, `retire_orchestrator` shares the same helper and has the same ordering (F-8), so a one-sided fix in `finalize` would leave the rollup preview defective and put the two transition paths back on the drift surface that `ROLLUP_SHARED_GATES` exists to keep them off. The fix direction was PROTOTYPED and measured end to end (F-5, F-6): preview reports and preserves the receipt, a subsequent `--apply` still resumes successfully, and the BARE suite is unchanged at `3531 passed, 2 skipped` before and after, so no shipped test depends on a preview performing the resume. Prototyping also surfaced F-9, that the new finding id is DROPPED on all three output modes at EXIT_OK, which is why E-05 exists.

@@ -6,7 +6,7 @@
 - Scope: Give the `aw` parser a build-time refusal for the one defect shape `8kd4eo` proved unreachable, implemented as a post-build validation pass over the tree the builder already returns, and prove it refuses the defect while leaving every shipped invocation working. IN: a validation pass plus its raise, wired into `agent_workflows/cli.py` so that building the parser refuses a colliding `dest`; an escape hatch so a refusal can never make the CLI unusable in the field; and `tests/test_cli_dest_shadow_refusal.py` asserting the refusal fires for each of the FOUR registration routes a collision can arrive by, that the clean tree builds, and that the hatch works. OUT: the BROADER any-dest-repeat rule and the option-default shape owned by `zwv1sa` (Order 02), which is a DIFFERENT rule firing on live pairs and is not made to raise here; any rename of a shipped dest, flag, or positional; the reachability walk itself, which `8kd4eo` already shipped and which this plan does not replace; and extending the refusal to the six non-`cli` builders, declined with reason in Deferred.
 - Scope-Paths: agent_workflows/cli.py, tests/test_cli_dest_shadow_refusal.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: z05z73
+- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 approved (aw set): status set to approved
 
 - 2026-10-01 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-901 (HIGH), PR-902 (HIGH), PR-903 (MEDIUM), PR-904 (MEDIUM), PR-905 (MEDIUM), PR-906 (LOW), PR-907 (LOW), PR-908 (LOW), PR-909 (LOW) all FIXED; zero deferred, zero open. Structural lint `conforming` at `--phase author` and `--phase review-finalize` with NO advisories at either checkpoint. This plan's own first `- Kind:` bullet reads `child`, so the `IPD-S407` orchestrator row check does not apply. No production file, test, document or spec was modified by this review; every probe ran in-process or in a throwaway synthetic tree and `git status --porcelain` is clean.
   THE DESIGN IS CONFIRMED SOUND AND REVIEW CHANGED NO E-ITEM'S PURPOSE. The two measurements the whole plan turns on were re-driven independently and both reproduce EXACTLY: the narrow rule reports `[]` over `cli._build_parser()` at 175 parsers and 2076 actions inspected (F-02), and the four-route comparison that justifies choosing a post-build pass over the item's preferred wrapper comes out 4 of 4 against 1 of 4, with the wrapper missing precisely `parents=`, argument groups and mutually exclusive groups for the two mechanical reasons F-05 names. Also reproduced exactly: the per-builder subparsers census (1/1/1/0/0/0, all six plain `ArgumentParser`), the single-builder/single-call wiring (`_build_parser` defined once at line 907, called once at line 14360), the parser-class census `{_AwArgumentParser, _RunsArgumentParser}` with the latter subclassing the former, the `runs` viewer being unreachable through any `choices` walk at prog `aw runs`, the 5665-line builder reading no external state (0 each for `load_config`/`read_text`/`json.load`/`plugin`/`iter_entry_points`), `_AwArgumentParser.__init__`'s two build-time refusals quoting verbatim, and no spec governing dest allocation.

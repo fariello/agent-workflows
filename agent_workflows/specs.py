@@ -808,6 +808,25 @@ def run_set(args) -> int:
     # matching the bare spelling handled by `status_set.py`.
     from_backlog_arg = getattr(args, "from_backlog", None)
     if from_backlog_arg is not None:
+        if from_backlog_arg != "-":
+            # IPD izh17y E-04: refuse unresolvable --from-backlog on the forked `aw specs set --status`
+            # path before mutating new_text. Resolves via `backlog.existing_backlog_ids` using
+            # `_repo_root_of(path)` (F-15: reach repo root identically to the gate inheritance below).
+            # An empty id set skips the refusal so an invisible backlog corpus cannot make every write fail.
+            # DELIBERATE DIVERGENCE FROM CHECKER (F-12): `releases.check_from_backlog` has no empty-set skip
+            # and its own docstring explicitly records that asymmetry ("THE TWO BACK-LINK TWINS DISAGREE ON
+            # FAIL-SAFETY, AND THIS ONE IS THE LESS SAFE ... Do NOT 'harmonize' that guard away to match this
+            # function; the difference is a known gap here, not a standard to spread"). The setter takes the
+            # safe posture rather than copying the checker's less-safe posture.
+            from agent_workflows import backlog as _backlog
+
+            known_backlog = _backlog.existing_backlog_ids(_repo_root_of(path))
+            if known_backlog and from_backlog_arg not in known_backlog:
+                sys.stderr.write(
+                    f"aw specs set: unresolvable backlog id '{from_backlog_arg}' (does not resolve to an existing backlog item)\n"
+                )
+                return 2
+
         from agent_workflows import releases as _releases
 
         new_text = _releases.set_from_backlog_line(new_text, from_backlog_arg)

@@ -557,7 +557,8 @@ def offer_commit(
         The ``--commit`` flag. When true, commit without prompting (the only way to commit
         non-interactively).
     no_commit:
-        The ``--no-commit`` escape hatch. Short-circuits to ``skipped`` regardless of TTY.
+        The ``--no-commit`` escape hatch. Short-circuits to ``skipped`` regardless of TTY, except
+        for a directory argument which refuses with ``error`` even under preview.
     interactive:
         Explicit interactivity override (used by tests and programmatic callers);
         ``None`` delegates to :func:`agent_workflows.term.is_interactive`, which requires
@@ -580,10 +581,12 @@ def offer_commit(
     -------
     CommitOutcome
         ``committed`` (with the new sha; reports any named paths that had nothing to commit),
-        ``skipped`` (gate declined it non-interactively or ``no_commit``), ``declined`` (interactive
-        user said no), ``refused-dirty`` (``on_unrelated_staged="refuse"`` and the index held
-        unrelated staged paths), ``nothing-to-commit`` (no requested path exists/changed, or EVERY
-        requested path is gitignored), or ``error`` (e.g. a directory argument was passed).
+        ``skipped`` (gate declined it non-interactively or ``no_commit`` for non-directory paths),
+        ``declined`` (interactive user said no), ``refused-dirty`` (``on_unrelated_staged="refuse"``
+        and the index held unrelated staged paths), ``nothing-to-commit`` (no requested path exists/changed,
+        or EVERY requested path is gitignored), or ``error`` (e.g. a directory argument was passed,
+        which refuses even under ``no_commit``; the ``no_commit`` short-circuit still precedes other
+        post-staging/dirty checks so a preview is not a general oracle).
 
     Notes
     -----
@@ -614,16 +617,34 @@ def offer_commit(
             STATUS_NOTHING_TO_COMMIT, None, (), "no paths given to commit"
         )
 
-    if no_commit:
-        return CommitOutcome(STATUS_SKIPPED, None, (), "skipped: --no-commit requested")
-
-    # --- Refuse directory arguments BEFORE staging (OQ-01 / F-6 / F-7). ---
+    # --- Refuse directory arguments BEFORE staging and BEFORE no_commit (OQ-01 / F-6 / F-7 / IPD o39zn9). ---
     # A directory argument is staged by `git add -- <dir>`, but git reports the contained FILES at
     # `_staged_paths`, so `our_staged = now_staged & set(rel_paths)` drops them. That dropped the
     # destination of records moves and committed deletions alone (ca8e22e4 / F-1 / F-2). An
     # all-directories call returned `nothing-to-commit` having already staged the full move with no
     # rollback (F-6). Refusing BEFORE staging ensures the index remains untouched.
-    dir_paths = [p for p in rel_paths if (repo_root / p).is_dir()]
+    #
+    # Sited before `no_commit` so a dry-run preview discovers the refusal instead of reporting a
+    # misleading `skipped: --no-commit requested` (a dry run that cannot see a refusal is worse than
+    # no dry run, because it is read as a clean result). Still sited before any staging so a refused
+    # call leaves the index untouched.
+    #
+    # The predicate catches paths that ARE or WERE directories: `(repo_root / p).is_dir()` checks the
+    # filesystem (live or untracked directories), while `_contained_files` checks git status for paths
+    # whose contents were deleted or moved away (the emptied-directory records move shape). An emptied
+    # directory does not exist on disk, but git knows its deleted contents; without this git-derived
+    # branch, a mixed call naming an emptied directory commits the file half and leaves staged deletions
+    # behind in the shared index (F-11). Deleted plain files must NOT match, so we ensure the contained
+    # set is not exactly `[p]` itself.
+    dir_paths = []
+    for p in rel_paths:
+        target = repo_root / p
+        if target.is_dir():
+            dir_paths.append(p)
+        elif not target.exists():
+            contained = _contained_files(repo_root, [p])
+            if contained and contained != [p]:
+                dir_paths.append(p)
     if dir_paths:
         contained = _contained_files(repo_root, dir_paths)
         hint = f": {', '.join(contained)}" if contained else ""
@@ -633,6 +654,9 @@ def offer_commit(
             (),
             f"refusing directory argument(s): {', '.join(dir_paths)}; name explicit file path(s) instead{hint}",
         )
+
+    if no_commit:
+        return CommitOutcome(STATUS_SKIPPED, None, (), "skipped: --no-commit requested")
 
     # --- Drop gitignored paths BEFORE staging (never force-add them). ---
     # A single ignored path makes `git add` exit 1 having staged NOTHING, which previously turned

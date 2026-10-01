@@ -114,13 +114,15 @@ def validate_release(path: Path, text: str) -> List[_core.Drift]:
     return drift
 
 
-_BLOCKS_RELEASE_LINE_RE = re.compile(r"(?m)^- Blocks-Release:[ \t]*\S+[ \t]*$\n?")
+_BLOCKS_RELEASE_LINE_RE = re.compile(r"(?m)^- Blocks-Release:[ \t]*[^\n]*$\n?")
 
 
 def set_blocks_release_line(text: str, value: Optional[str]) -> str:
     """Return `text` with the `- Blocks-Release:` metadata line set to `value`, or removed when
     `value` is '-' or None. Idempotent: replaces an existing line or inserts one after `- Status:`
-    (falling back to after `- Id:`, or the top of the bullet block)."""
+    (falling back to after `- Id:`, or the top of the bullet block). Tolerates any value so an
+    existing malformed line is still replaced (matching precedent in `set_priority_line` and
+    `set_work_kind_line`)."""
     # Always strip any existing line first.
     text = _BLOCKS_RELEASE_LINE_RE.sub("", text)
     if value in (None, "-"):
@@ -485,10 +487,12 @@ def set_from_backlog_line(text: str, value: Optional[str]) -> str:
     """Return `text` with the `- From-Backlog:` metadata line set to `value`, or removed when
     `value` is '-' or None. Idempotent: replaces an existing line or inserts one after `- Status:`
     (falling back to after `- Id:`, or the top of the bullet block). Mirrors
-    `set_blocks_release_line` and `set_from_spec_line`. Unlike the previous `\\S+` form (which
-    could not strip what a previous call had written if it was multi-token or malformed, F-6),
-    `_FROM_BACKLOG_LINE_RE` uses `[^\n]*` to match `_FROM_SPEC_LINE_RE` and `_GRADUATED_TO_LINE_RE`
-    so any prior line is stripped cleanly and idempotency holds on any text (fbcardinal okp2o4)."""
+    `set_blocks_release_line` and `set_from_spec_line` (bklggrad Order ku93tn). Tolerates any value
+    so an existing malformed line is still replaced (matching precedent in `set_priority_line` and
+    `set_work_kind_line`). Unlike the previous `\\S+` form (which could not strip what a previous
+    call had written if it was multi-token or malformed, F-6), `_FROM_BACKLOG_LINE_RE` uses `[^\n]*`
+    to match `_FROM_SPEC_LINE_RE` and `_GRADUATED_TO_LINE_RE` so any prior line is stripped cleanly
+    and idempotency holds on any text (fbcardinal okp2o4)."""
     # Always strip any existing line first.
     text = _FROM_BACKLOG_LINE_RE.sub("", text)
     if value in (None, "-"):

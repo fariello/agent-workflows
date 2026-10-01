@@ -1,12 +1,12 @@
 - Id: 19lmbe
-- Status: open
-- Blocks-Release: next
+- Status: done
 - Set: 19lmbe
 - Priority: high
 - Work-Kind: bug
 - Summary: aw backlog set --status ignores --dry-run and mutates the tree, because the path-form handler reads a nonexistent 'apply' flag
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): Fixed in commit 23ec426df7: dry_run honored in backlog.py
 - 2026-09-21 created (aw backlog): Filed from /plan-review of yv4tb1 after the defect fired on me during review.
 
 `aw backlog set <path> --status <s> --dry-run` IGNORES `--dry-run` AND PERFORMS THE TRANSITION. It

@@ -1,5 +1,5 @@
 - Id: 71wqol
-- Status: graduated
+- Status: done
 - Graduated-To: relwriteempty
 - Blocks-Release: next
 - Set: 71wqol
@@ -8,6 +8,7 @@
 - Summary: releases.set_from_backlog_line and set_blocks_release_line duplicate their field when an empty-valued line exists, because their \S+ value regex cannot match it; and aw ipd set --from-backlog writes any value unvalidated, so it can mint the dangling link check.from-backlog-dangling then errors on
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD izh17y executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-relwriteempty-01-izh17y-make-the-releases-metadata-line-writers-tolerate-an-empty-va.ipd.md); evidence .aw/records/plans/executed/20260930-relwriteempty-01-izh17y-make-the-releases-metadata-line-writers-tolerate-an-empty-va.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053053Z-3200037: izh17y
 - 2026-09-28 created (aw backlog): releases.set_from_backlog_line and set_blocks_release_line duplicate their field when an empty-valued line exists, because their \S+ value regex cannot match it; and aw ipd set --from-backlog writes any value unvalidated, so it can mint the dangling link check.from-backlog-dangling then errors on
 

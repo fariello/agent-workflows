@@ -6,7 +6,7 @@
 - Scope: Restore behavioral test coverage for the records-only front-matter re-derivation mechanism (`agent_workflows/runner_shared.py`), reinstating in particular the two named controls the deleted file existed for (the ANTI-REVERT control and the ALLOW-LIST control), and correct the one stale in-repo citation that still points at the deleted path. Out of scope: deciding backlog `mgz3f1`'s options (a)/(b)/(c), any edit to `REDERIVABLE_FRONT_MATTER_KEYS` itself, and any change to classifier, writer or integration behavior.
 - Scope-Paths: tests/test_records_only_lane_rederive.py, agent_workflows/runner_shared.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
@@ -16,8 +16,10 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 9mi8eg
+- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 approved (aw set): status set to approved
 
 - 2026-09-30 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-R01, PR-R02, PR-R03, PR-R04, PR-R05, PR-R06, PR-R07 all FIXED in place. Structural lint conformed at `author` and at `review-finalize`. Re-measured the plan's own central claims at HEAD `a14f96d58`: the deleted guard is really gone and the widening really is silent (both confirmed, and isolated at the writer), but three authored facts had drifted or were wrong, recorded as new F-10 (the recovered file does not pass as recovered: `INTEGRATION_REFUSAL_CONFLICT` was renamed to `fail-merge` by `6b94a4d9d` one day after the trim), F-11 (the suite is NOT green here: one pre-existing failure owned by backlog `fnb8pl`, so the authored green-suite bar was unreachable) and F-12 (the `3284 passed` baseline is stale at `3414`). Added OQ-03 recording the reviewer's demonstrated decision that the restoration shape is right. Human approval is still required. (Review record: `.aw/records/reviews/20260930-rederiveguard-01-9mi8eg-restore-the-anti-widening-guard-that-keeps-a-release-gate-of.review.md`.)
 - 2026-10-01 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): status transition applied by `aw ipd set reviewed 9mi8eg`, which is the attributed record of the transition itself and is kept beside the `/plan-review` line above rather than replaced by it. Its date is the setter's own UTC stamp while the local date was 2026-09-30, which is the clock skew backlog `fnb8pl` owns (see F-11); left exactly as the tool wrote it rather than hand-corrected.

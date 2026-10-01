@@ -10,7 +10,7 @@
 - Scope: IN: (1) replace both `except DriverError: current_plan_for_finalize = plan_path` arms in `runner_shared.execute_item_core` with a RECORDED REFUSAL that leaves the plan unmoved, spends no finalize, and does not integrate, reusing the `record_refusal` + reason/remedy shape `fzxfph` established on the verify side but with its OWN code rather than a verify-specific one; (2) close the two ways a wrong path becomes a FALSE SUCCESS or a RUN-FATAL crash even when re-resolution succeeded, by making `finalize_already_done` require the plan file to be BOTH present on disk AND CONTAINED IN THE TREE BEING FINALIZED before it may convert a refusal into a no-op (F-10 measures that an existence check ALONE misses the dominant case, where the substituted path exists in the OTHER tree), and by making `finalize_precheck` refuse an unreadable plan file with its own exit-2 cannot-run instead of raising `FileNotFoundError`; (3) behavioral tests for all three, including the false-success direction in BOTH its wrong-tree and its ghost-path shapes, driven through the shipped predicates rather than asserted on source text. OUT: the verify-side site, which `fzxfph` already fixed and which this plan must leave byte-identical; the THREE OTHER `except DriverError: <x> = plan_path` prompt-building fallbacks in the same function (F-7 measures them as a different class with an advisory consumer); `plan_bucket` itself, which must stay IO-free (F-5); `ipd_lifecycle.plan_already_finalized`, whose `executed/`-bucket-without-reachable-commit tolerance is the measured `finidem` incident's own shape (F-5); the finalize retry classification and its budget; and any change to WHICH refusals are retryable.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/ipd_lifecycle.py, tests/test_finalize_stale_plan_path.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -20,9 +20,11 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 1fzist
+- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-10-01 approved (aw set): status set to approved
 
 - 2026-09-30 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH, fixed), PR-002, PR-003, PR-004 (MEDIUM, all fixed), PR-005, PR-006, PR-007 (LOW, all fixed). Typed record at `.aw/records/reviews/20260930-rfhiu2-01-1fzist-refuse-a-finalize-against-a-plan-path-the-runner-knows-may-b.review.md` with six `### Decisions` rows, none irreversible. Every finding the plan authored was RE-MEASURED at HEAD `62b18f47` rather than read, including a real `git worktree` pair, and all of them reproduce.
   THE DOMINANT REVISION CORRECTED THIS PLAN'S OWN FIX (PR-001, F-10). E-04 proposed an EXISTENCE check on `finalize_already_done`, and an existence check does not touch the false-success shape the runner actually produces: measured on a lane branched before the plan existed, with main's copy in `executed/`, the substituted path EXISTS, `finalize_already_done(lane, mainpath)` is `True`, and `finalize_outcome(lane, mainpath, 1, "refused")` returns `0`. As authored the plan would have shipped a guard that passes its own test, closes the minor ghost-path case, and leaves the default lane geometry open. E-04 now requires CONTAINMENT as well as existence, E-06 row (b) is split into both shapes on a real worktree, and V-04 demands the same-tree and non-normalized-spelling controls green BEFORE and AFTER, because a containment guard implemented against the wrong tree would refuse every legitimate idempotent finalize and strand lanes for hand merging.

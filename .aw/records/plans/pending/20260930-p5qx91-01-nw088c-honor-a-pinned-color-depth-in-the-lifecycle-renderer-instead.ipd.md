@@ -6,7 +6,7 @@
 - Scope: Fix the one-line depth coercion in `term.Term.lifecycle_depth` so a resolved `none` is honored, cover all three rungs of the ladder by OBSERVABLE RENDERED OUTPUT (ANSI bytes from real commands and real streams, never source inspection), and correct the three stale coverage citations that the backlog item is about: `uonrjg` Section 9.3's claim that "`tests/test_term.py` asserts the single-originating-definition property", and the two `tests/test_term.py::OneOriginatingDefinitionTests` citations inside `agent_workflows/term.py`'s own docstrings (which `pn7rw3`'s plan `x3zno3` explicitly routes here by name: "Carrier: p5qx91"). The spec edit is a DECLARED AMENDMENT, not a weakening: it replaces a dangling test citation with the behavioral coverage this plan actually lands. EXCLUDES restoring `OneOriginatingDefinitionTests` or `ColorDepthOneDefinitionTests` in any form, and EXCLUDES writing any test that uses `ast`, `inspect`, `read_text()`, or regex against `agent_workflows/*.py` (forbidden by `GUIDING_PRINCIPLES` P16, by the `AGENTS.md` execution contract, and by this item's own maintainer ruling). EXCLUDES the two `should_color` citation sites in `agent_workflows/runner_shared.py` and `tests/test_runner_shared.py`, which are plan `x3zno3`'s declared scope. EXCLUDES every other `uonrjg` criterion and every other renderer: the 16-color palette, the glyph table, and the width policy are untouched.
 - Scope-Paths: agent_workflows/term.py, tests/test_term.py, .aw/records/specs/approved/20260913-uonrjg-01-uonrjg-cross-artifact-lifecycle-symbols-and-ansi-status-styling.spec.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Spec: uonrjg
 - Work-Kind: bug
@@ -18,8 +18,10 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: nw088c
+- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (aw set): status set to reviewed
 - 2026-10-01 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH, fixed), PR-002 (MEDIUM, fixed), PR-003 (LOW, fixed), PR-004 (LOW, fixed). Reviewed in an isolated lane at HEAD `9f33a6eb4`; structural preflight conforming (exit 0, one `IPD-Z602` advisory the plan already addresses on its merits) before and after. THE DIAGNOSIS IS EXCEPTIONALLY WELL EVIDENCED AND REPRODUCES VERBATIM: the pinned-`none` PTY run yields exactly the escape set the plan recorded (`['0','1;38;5;208','1;38;5;220','1;38;5;45','1;38;5;46','38;5;244']`), the two consumers disagree at `none` only (`Term` -> `'\x1b[1;38;5;208mblocked\x1b[0m'` while `Palette` -> `'blocked'`), the pin-16 pipe run yields the plan's `['0','1;33','1;35','1;92','1;96']` 16-tier set, criterion A11 holds on a bare pipe, and F-05's refutation of the naive one-line fix reproduces cell for cell (naive returns `none` on a pipe at pins 16 and 256 where `override=True` returns the pin). The reclassification to `bug` with `Blocks-Release: next` is correct on the repository's user-perceptible-impact test and is upheld. THE ONE SUBSTANTIVE DEFECT IS IN E-05: all six resolver precedence cells it proposed are ALREADY shipped in `tests/test_term.py::ColorDepthPrecedenceTests`, on the same `_DepthTestBase` fixture, so the item would have duplicated a contract while leaving the one surface with zero tests (`Term.lifecycle_depth`, which F-09 measured and the plan then walked past) still uncovered, including no guard at all against `override=True` being dropped later. E-05 is redirected onto the consumer plus an `override=True` cell. Also corrected: a stale green-vs-red suite baseline and an E-01 symbol that does not exist under the name given.
 - 2026-10-01 same-status (aw set): status unchanged (to-review)
