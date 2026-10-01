@@ -7,7 +7,7 @@
   OUT: the two sites plan `5o1jye` already fixed (`render_run_summary_table`'s `fail-depend` diagnostics arm and `write_report`'s `## Dependency blocks (why)` gate, both now canonicalized and shipped); every site the sweep measured as CORRECT BY CONSTRUCTION because it accepts both spellings deliberately (`runner_shutdown.KNOWN_ITEM_STATUSES`, `lifecycle_style._RUNNER_ITEM_PAIRS`, `attention.get_active_runs_map`, `runner_shared.DISPATCH_PROVING_STATUSES`, `artifact_audit._status_disagrees`); every `blocked`/`partial` literal that is a DIFFERENT VOCABULARY's member and not a runner terminal status at all (backlog gates, IPD exec-states, release statuses, verify verdicts, research pipeline positions); `attention`'s Run column, owned by the approved plan `r61br4`; and `render_stream`'s zero-dispatch denominator collapse, which plan `35mjqc` has already EXECUTED and which this plan must only avoid regressing.
 - Scope-Paths: agent_workflows/render_stream.py, agent_workflows/run_viewer.py, agent_workflows/run_dashboard.py, tests/test_canonical_status_reader_sweep.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -18,8 +18,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: qvfd4l
+- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-009. Measured all of F-01..F-11 independently (F-03/F-04/F-05 reproduce exactly; the AST sweep re-ran to the same 258/34 and same 15 band-B sites). Fixed two correctness blockers in the plan's own instructions: E-02's canonicalize import cycles at module level (ImportError measured) so it is now mandated function-local, and E-04's canonicalize-first ordering silently deleted the partial verdict V-04 demands (measured partial -> failed) so the raw partial arm is now ordered first with the lossy-alias exception named and tested. Added E-06/V-06 for a FOURTH measured defect review found that the authoring sweep missed: two legacy-only arms of the same diagnostics elif chain render NO section at all for a canonical fail-gate/fail-merge carrying driver_error/integration_deferral, which is the item's own defect class repeated two arms below the one 5o1jye fixed. Corrected two stale ownership claims (35mjqc has EXECUTED; r61br4 is now approved). New OQ-03 records the lossy-alias decision.
 - 2026-09-30 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): authored from backlog item `cxrpwv`. The item asks for the CLASS sweep that plan `5o1jye` left unaudited, and the sweep was PERFORMED at authoring time rather than deferred to execution (see Findings F-01). It measured three surfaces whose operator-visible behavior differs by spelling, which is why this plan is `- Work-Kind: bug` where the item was filed `followup`: the item itself states that "should the sweep measure a further dead surface an operator reads, that instance should be filed `bug` on its own measurement", and three were measured. The item carries no `- Blocks-Release:`, so per the repository's live-bug gating rule this plan carries `- Blocks-Release: next` on its OWN `bug` classification rather than by inheritance.
 - 2026-09-30 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
