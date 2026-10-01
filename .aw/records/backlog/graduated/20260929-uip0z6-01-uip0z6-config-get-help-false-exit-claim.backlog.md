@@ -1,5 +1,6 @@
 - Id: uip0z6
-- Status: open
+- Status: graduated
+- Graduated-To: uip0z6
 - Blocks-Release: next
 - Set: uip0z6
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: aw config get --help claims a nonzero exit for an unset variable that never happens
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): graduated by run run-20260930T053053Z-3200037: w89bo8
 - 2026-09-29 created (aw backlog): Filed at review of plan ypnk56 (/plan-review). Measured, not inferred.
 
 `aw config get --help` states a contract the command does not honor, so a script written from the
