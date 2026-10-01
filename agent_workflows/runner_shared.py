@@ -16403,6 +16403,85 @@ def _parse_host_config(
         return None, oc_models.CARD_UNPARSEABLE
 
 
+#: Closed set of source labels for launch_model_for_role (attmodel czut8j E-01).
+LAUNCH_MODEL_SOURCES = frozenset(("options", "cost_attribution", "unrecorded"))
+LAUNCH_MODEL_SOURCE_OPTIONS = "options"
+LAUNCH_MODEL_SOURCE_COST_ATTRIBUTION = "cost_attribution"
+LAUNCH_MODEL_SOURCE_UNRECORDED = "unrecorded"
+
+
+def launch_model_for_role(
+    options: Mapping[str, Any] | None,
+    *,
+    role: str = "execute",
+) -> tuple[str, str]:
+    """Answer which model this turn will run under, and who said so, from frozen options.
+
+    Accepts the role vocabulary the runners already distinguish: ``execute`` and ``verify``.
+    A review and a recovery turn are the execute launch and resolve to it (F-04).
+
+    The precedence matches what the argv actually does:
+    For role ``"verify"``:
+    Reads ``options["verify_model"]`` only when ``options.get("verify_launch_profile")`` is truthy,
+    which is the exact condition ``oc_runipd.run_opencode`` computes before selecting the
+    ``verify_*`` key triple; otherwise falls through to the executor keys. Then, and only when the
+    primary key is empty, falls back to ``options["verify_" + COST_ATTRIBUTION_KEY]["model"]``.
+
+    DIVERGENCE FROM ``run_analytics._verify_model_of`` (DELIBERATE, F-08):
+    The claim that this introduces no third opinion is false for the verify role on two measured points:
+    1. ORDER: ``_verify_model_of`` reads ``verify_cost_attribution`` FIRST and ``options["verify_model"]``
+       SECOND, returning ``provC/from-ca`` where this rule returns ``provB/from-options``.
+    2. GATE: ``_verify_model_of`` ignores ``verify_launch_profile`` entirely, so on a run carrying
+       ``verify_model`` without that profile it returns the verifier's model where this rule correctly
+       returns the executor's (``provB/from-options`` versus ``provA/exec``).
+    This rule is implemented anyway because it is the correct one: the gate is what
+    ``oc_runipd.run_opencode`` actually computes before selecting the key triple, so this rule matches
+    the argv while the consumer is reading a run-level field with no gate available to it. A recorded
+    model that disagrees with the launched one is the defect this plan exists to prevent. Reconciling
+    the consumer is Order 03's (``r5fk4k``) declared job.
+
+    DIVERGENCE ON AGY ``explicit_model`` (DELIBERATE):
+    On an options mapping with ``model: None``, ``explicit_model: agy/explicit`` and a
+    ``cost_attribution.model``, ``run_dashboard._run_model`` returns ``('agy/explicit', 'options')``
+    while ``run_analytics._model_of`` returns ``'ca/model'`` because analytics never reads
+    ``explicit_model``. Follow the dashboard (the agy argv is built from the frozen effective model
+    while ``explicit_model`` records the CLI one), reporting source ``"options"`` from the three-value
+    closed set.
+
+    Pure function: mapping in, pair out. Takes no Path, reads no file, and never raises on malformed
+    options (a non-mapping ``cost_attribution`` is treated as absent).
+    Returns ``(model, source)`` where source is one of ``"options"``, ``"cost_attribution"``, or
+    ``"unrecorded"``.
+    """
+    if not isinstance(options, Mapping):
+        return "", LAUNCH_MODEL_SOURCE_UNRECORDED
+
+    norm_role = (role or "execute").strip().lower()
+    if norm_role == "verify" and options.get("verify_launch_profile"):
+        v_model = options.get("verify_model")
+        if v_model:
+            return str(v_model), LAUNCH_MODEL_SOURCE_OPTIONS
+        v_ca = options.get("verify_" + COST_ATTRIBUTION_KEY)
+        if isinstance(v_ca, Mapping):
+            ca_model = v_ca.get("model")
+            if ca_model:
+                return str(ca_model), LAUNCH_MODEL_SOURCE_COST_ATTRIBUTION
+        return "", LAUNCH_MODEL_SOURCE_UNRECORDED
+
+    # Executor launch (role "execute", review, recovery, or verify with no verify_launch_profile)
+    model = options.get("model") or options.get("explicit_model")
+    if model:
+        return str(model), LAUNCH_MODEL_SOURCE_OPTIONS
+
+    ca = options.get(COST_ATTRIBUTION_KEY)
+    if isinstance(ca, Mapping):
+        ca_model = ca.get("model")
+        if ca_model:
+            return str(ca_model), LAUNCH_MODEL_SOURCE_COST_ATTRIBUTION
+
+    return "", LAUNCH_MODEL_SOURCE_UNRECORDED
+
+
 class VerificationDecision(NamedTuple):
     """WHETHER a verifier turn runs for this run, plus WHICH tier decided it.
 
@@ -31246,11 +31325,15 @@ def execute_item_core(
                     for e in stale_refused
                 )
                 ended = utc_now()
+                r_opts = state.get("options", {}) or {}
+                r_model, r_source = launch_model_for_role(r_opts, role="execute")
                 attempt = {
                     "number": attempt_no,
                     "started_at": utc_now(),
                     "ended_at": ended,
                     "action": action,
+                    "model": r_model,
+                    "model_source": r_source,
                     "scope_target_refused": reason,
                     "disposition": "fail-gate",
                 }
@@ -31308,11 +31391,15 @@ def execute_item_core(
             )
             if not preflight.ok:
                 ended = utc_now()
+                r_opts = state.get("options", {}) or {}
+                r_model, r_source = launch_model_for_role(r_opts, role="execute")
                 attempt = {
                     "number": attempt_no,
                     "started_at": utc_now(),
                     "ended_at": ended,
                     "action": action,
+                    "model": r_model,
+                    "model_source": r_source,
                     "host_capability_unavailable": preflight.message,
                     "disposition": "fail-gate",
                 }
@@ -31454,6 +31541,7 @@ def execute_item_core(
         False if (options.get("new_session") or is_rotation) else (session_id is None)
     )
 
+    exec_model, exec_model_source = launch_model_for_role(options, role="execute")
     attempt: dict[str, Any] = {
         "number": attempt_no,
         "started_at": utc_now(),
@@ -31466,6 +31554,8 @@ def execute_item_core(
         "log": str(attempt_log_path(run_dir, item, attempt_no)),
         "recovery": recovery,
         "action": action,
+        "model": exec_model,
+        "model_source": exec_model_source,
     }
     if is_review:
         attempt["review_handler"] = item.get("review_handler") or review_handler_for(
@@ -32372,6 +32462,16 @@ def execute_item_core(
                             tracker,
                             attempt_no,
                         )
+                        # attmodel czut8j E-03: record the verifier launch model on the attempt
+                        # when a verifier turn actually ran. Not simply options["verify_model"]
+                        # read at the consumer, because a resume can reach an attempt whose
+                        # run-level options were frozen by an earlier invocation; the attempt is the
+                        # record of what THIS turn did.
+                        v_model, v_model_source = launch_model_for_role(
+                            options, role="verify"
+                        )
+                        attempt["verify_model"] = v_model
+                        attempt["verify_model_source"] = v_model_source
                         if _v_log:
                             attempt["verify_log"] = str(_v_log)
                             v_cost, v_toks = extract_log_metrics(_v_log)
