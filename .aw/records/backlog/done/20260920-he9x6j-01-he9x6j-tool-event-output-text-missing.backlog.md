@@ -1,5 +1,5 @@
 - Id: he9x6j
-- Status: graduated
+- Status: done
 - Graduated-To: toolevtext
 - Blocks-Release: next
 - Set: he9x6j
@@ -8,6 +8,7 @@
 - Summary: tool_event carried no output text, so every consumer's stdout read silently yielded empty string
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): closed by aw oc run: IPD emzbut executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-toolevtext-01-emzbut-make-capture-command-s-output-text-contract-explicit-and-tes.ipd.md); evidence .aw/records/plans/executed/20260929-toolevtext-01-emzbut-make-capture-command-s-output-text-contract-explicit-and-tes.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: emzbut
 - 2026-09-20 created (aw backlog): Found while executing plan h5pyqa. FIXED IN THAT PLAN for the two live readers; filed so the wider class is visible.
 
