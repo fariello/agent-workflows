@@ -6,7 +6,7 @@
 - Scope: Replace the false and now doubly-stale claims with what the tree actually does, WITHOUT changing any finding-code binding. IN: (a) `run_evidence.py`'s `RUN-COMMIT-CONTENTS` `waiting_on` string, reworded to name the still-missing predicate (a tree-diff proof that a commit's path union equals the item-owned delta) and to stop asserting that nothing passes or reads trailers; (b) the same file's `BINDINGS RE-MEASURED 2026-09-05` comment block, whose bullet repeats "nothing reads a trailer back" and whose closing paragraph calls the outstanding machinery "a trailer READER"; (c) `ipd_lifecycle.py`'s two surviving `a8eufb` pointers in `ChangedPathSources`, repointing them at the shipped reader and dropping the dead "remains the real fix" claim; (d) spec `25kzda`'s Infrastructure-status paragraph, whose "NOTHING READS A TRAILER BACK (backlog `am1g38`)" clause is the same falsehood in the artifact this plan's own corrections cite, and whose "the AGENT's own code commits are generally UNTRAILERED (backlog `j2srcc`)" clause in the SAME sentence is a third falsehood found at review (F-11), both amended with `aw specs note`. OUT: the `binding` field of `RUN-COMMIT-CONTENTS` or `RUN-COMMIT-GATEWAY` (both stay `UNBOUND_BY_DEPENDENCY`; see Deferred, and the standing prohibition in backlog `d07nz2`); Section 4.2's table row cells (`inspects`, `pass_criterion`, `message`, `action`); `RUN-COMMIT-GATEWAY`'s own `waiting_on`, which waits on a commit-gateway RECEIPT and is unaffected by the reader; the `## Workflow history` note at the spec's end, whose `olkeju` line is a historical record of a prior amendment and must stay byte-identical even though a falsehood-grep matches it (F-12); and any behavior change whatsoever, this being a comment-and-prose correction.
 - Scope-Paths: agent_workflows/run_evidence.py, agent_workflows/ipd_lifecycle.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Spec: 25kzda
 - Work-Kind: chore
@@ -17,9 +17,9 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 2lxcwt
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 2lxcwt verified (set oye21y, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 
 - 2026-09-30 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review APPROVE WITH REVISIONS APPLIED; PR-101 (HIGH, fixed), PR-102, PR-103, PR-104 (MEDIUM, all fixed), PR-105, PR-106, PR-107 (LOW, all fixed). Typed record at `.aw/records/reviews/20260930-oye21y-01-2lxcwt-correct-the-stale-trailer-consumption-claims-in-run-evidence.review.md` with six `### Decisions` rows, none irreversible. Nearly every measurement reproduced at HEAD `f801830f`: the reader's three symbols, `6 passed`, `ok=True` with 10/2 over 12 codes, F-04's two zero-hit greps, F-05's exactly two `a8eufb` pointers, and F-09's ownership-is-not-contents distinction read off the consumer. The re-derive-from-disk-not-from-the-item decision was right.
