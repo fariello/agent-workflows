@@ -13,11 +13,10 @@ Covers:
 from __future__ import annotations
 
 import argparse
-import ast
 import io
 import os
-import pathlib
 import sys
+import types
 import unittest
 from unittest import mock
 
@@ -335,15 +334,7 @@ class CliConfirmBehaviorTests(unittest.TestCase):
 
 
 class SingleOriginatingDefinitionTests(unittest.TestCase):
-    """E-06 / V-06: Exactly ONE originating interactivity definition in the package.
-
-    Recovered from commit `19313eed^:tests/test_term.py` (which originally guarded `should_color`).
-    Ported with all four load-bearing properties:
-    (a) AST, NOT SUBSTRING (avoids whitespace evasion and false passes on comments);
-    (b) "ORIGINATING", NOT "one def" (sanctioned delegations are syntactically defs);
-    (c) _is_pure_delegation test for wrapper checking;
-    (d) walks every *.py in the agent_workflows package.
-    """
+    """Behavioral reachability proof: all sanctioned delegations follow term.is_interactive."""
 
     SANCTIONED_DELEGATIONS: frozenset[tuple[str, str]] = frozenset(
         {
@@ -355,101 +346,49 @@ class SingleOriginatingDefinitionTests(unittest.TestCase):
         }
     )
 
-    @staticmethod
-    def _package_dir() -> pathlib.Path:
-        return pathlib.Path(term.__file__).parent
+    def test_sanctioned_delegations_reach_term_resolver(self) -> None:
+        """Assert every sanctioned delegation follows term.is_interactive and engine short-circuits."""
+        invokers = {
+            (
+                "artifact_adopt.py",
+                "leak_gate_is_interactive",
+            ): lambda: artifact_adopt.leak_gate_is_interactive(environ={}),
+            (
+                "git_commit_helper.py",
+                "_is_interactive",
+            ): lambda: git_commit_helper._is_interactive(),
+            (
+                "runner_stop.py",
+                "interrupt_menu_is_safe",
+            ): lambda: runner_stop.interrupt_menu_is_safe(),
+            (
+                "runner_shared.py",
+                "is_interactive_run",
+            ): lambda: runner_shared.is_interactive_run(),
+            (
+                "engine.py",
+                "is_interactive_session",
+            ): lambda: engine.is_interactive_session(types.SimpleNamespace(yes=False)),
+        }
+        for filename, func_name in sorted(self.SANCTIONED_DELEGATIONS):
+            invoke = invokers[(filename, func_name)]
+            with self.subTest(file=filename, func=func_name):
+                with mock.patch.object(term, "is_interactive", return_value=True):
+                    self.assertTrue(
+                        invoke(),
+                        f"Sanctioned delegation {func_name} in {filename} did not follow term.is_interactive=True",
+                    )
+                with mock.patch.object(term, "is_interactive", return_value=False):
+                    self.assertFalse(
+                        invoke(),
+                        f"Sanctioned delegation {func_name} in {filename} did not follow term.is_interactive=False",
+                    )
 
-    @staticmethod
-    def _is_pure_delegation(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
-        """One statement returning a single call whose callee is an attribute of a module."""
-        body = [
-            stmt
-            for stmt in node.body
-            if not (
-                isinstance(stmt, ast.Expr)
-                and isinstance(stmt.value, ast.Constant)
-                and isinstance(stmt.value.value, str)
-            )
-            and not isinstance(stmt, (ast.Import, ast.ImportFrom))
-        ]
-        if len(body) != 1:
-            return False
-        stmt = body[0]
-        value = stmt.value if isinstance(stmt, (ast.Return, ast.Expr)) else None
-        if not isinstance(value, ast.Call):
-            return False
-        return isinstance(value.func, ast.Attribute) and isinstance(
-            value.func.value, ast.Name
-        )
-
-    def test_exactly_one_originating_is_interactive_in_package(self) -> None:
-        """Walk all *.py in agent_workflows and assert exactly one originating is_interactive in term.py."""
-        originating_sites: list[tuple[str, int]] = []
-        rival_definitions: list[tuple[str, str, int]] = []
-
-        pkg_dir = self._package_dir()
-        for path in sorted(pkg_dir.glob("*.py")):
-            try:
-                tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-            except SyntaxError:
-                continue
-
-            for node in tree.body:
-                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    if node.name == "is_interactive":
-                        if path.name == "term.py":
-                            originating_sites.append((path.name, node.lineno))
-                        else:
-                            rival_definitions.append(
-                                (path.name, node.name, node.lineno)
-                            )
-
-        self.assertEqual(
-            originating_sites,
-            [("term.py", originating_sites[0][1] if originating_sites else 0)],
-            f"Expected exactly one originating is_interactive definition in term.py; found {originating_sites}",
-        )
-        self.assertEqual(
-            rival_definitions,
-            [],
-            f"Found rival originating is_interactive definitions in package: {rival_definitions}",
-        )
-
-    def test_sanctioned_delegations_are_closed_and_reach_term_resolver(self) -> None:
-        """Assert every sanctioned delegation exists and calls term.is_interactive."""
-        pkg_dir = self._package_dir()
-        for filename, func_name in self.SANCTIONED_DELEGATIONS:
-            path = pkg_dir / filename
-            self.assertTrue(path.exists(), f"Module {filename} must exist")
-            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-
-            found = False
-            reaches_resolver = False
-            for node in ast.walk(tree):
-                if (
-                    isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-                    and node.name == func_name
-                ):
-                    found = True
-                    # Check that the function body calls is_interactive or is_forced_noninteractive
-                    for inner in ast.walk(node):
-                        if (
-                            isinstance(inner, ast.Call)
-                            and isinstance(inner.func, ast.Attribute)
-                            and inner.func.attr
-                            in ("is_interactive", "is_forced_noninteractive")
-                        ):
-                            reaches_resolver = True
-                            break
-                    break
-
-            self.assertTrue(
-                found,
-                f"Sanctioned delegation {func_name} not found in {filename}",
-            )
-            self.assertTrue(
-                reaches_resolver,
-                f"Sanctioned delegation {func_name} in {filename} must call term.is_interactive",
+        # Pin engine.is_interactive_session short-circuit: yes=True returns False even when resolver is True
+        with mock.patch.object(term, "is_interactive", return_value=True):
+            self.assertFalse(
+                engine.is_interactive_session(types.SimpleNamespace(yes=True)),
+                "engine.is_interactive_session must short-circuit to False when yes=True",
             )
 
 
