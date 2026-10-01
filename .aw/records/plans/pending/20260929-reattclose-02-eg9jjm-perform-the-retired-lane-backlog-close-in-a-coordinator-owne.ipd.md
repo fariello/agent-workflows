@@ -20,6 +20,7 @@
 - Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executing (antigravity/eg9jjm): E-01..E-07 complete; all 6 premise facts reproduced at HEAD bd8b21da17e5ec7405e4a27f19ed7f5713c5b010; 4 tests added to tests/test_inlane_retirement_lands.py; runner_shared.integrate_retired_lane guarded on backlog_close.closed and routed through perform_coordinator_backlog_close; full suite 3653 passed (+4 from baseline 3649).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH), PR-002, PR-003, PR-004, all four FIXED, none deferred, none open. Readiness go-pending-approval. Record: .aw/records/reviews/20260929-reattclose-02-eg9jjm-perform-the-retired-lane-backlog-close-in-a-coordinator-owne.review.md. aw ipd lint --phase author conformed with ZERO findings BEFORE semantic review and --phase review-finalize conforms after, so nothing here was structural. DISCLOSURE: same agent/model authored this plan, so this is a SELF-REVIEW whose value rests on RE-EXECUTING the measurements and reading the surrounding call sites. EVERY LOAD-BEARING CLAIM RE-EXECUTED AT HEAD 2658514a AND ALL HOLD, including BOTH intra-function offsets digit for digit: integrate_retired_lane's body is 5044 chars with the teardown at 4567 and the bare close at 4974, and it contains ZERO closed predicates. The guard harm reproduces verbatim (a record holding closed:True plus commit abc123def456 became reason 'item is already done' with commit null, and unclosed_backlog_items then returned ('bg0001','item is already done')). The stranded half-move reproduces with both porcelain lines plus the ls-tree disagreement, and dirty_tree_overlap returned the stranded path while returning [] for an unrelated one. F-09's refusing verdict reproduces with its exact reason string, which makes the plan's CORRECTION of its own backlog item's reachability claim sound and is the plan's best work. ONE HIGH (PR-001): routing the write through the performer ALSO MOVES THE SETTER'S OWN RELEASE-GATE TREE from main to the coordinator worktree, because close_backlog_item's single --dir chooses both the move tree and the tree evaluate_blocking_close scans, and its own docstring says the two CANNOT BE SPLIT FROM HERE. Measured SAFE for this shape (a coordinator worktree is main's HEAD and evaluate_backlog_close returned the IDENTICAL verdict in both trees; the permissive lane hazard does not apply because a retired plan sits in superseded/ in both), with one fail-closed residual: an uncommitted-only carrier in main is invisible to a HEAD-pinned tree. Unstated, the next reader's obvious fix is to widen the tree, which would create exactly the permissive error the docstring warns about; note the sibling pjuoyj did not address this either, so it is inherited from the shipped mechanism rather than introduced here. FIXED by requiring the comment and a two-tree verdict measurement in V-04, with a differing verdict made a STOP. ONE MEDIUM (PR-002): the --gate-dir deferral row was stale in BOTH facts, calling 9vglxd pending (it is executed) and naming 10pcd5 as a carrier (it is done), so it carried a live obligation pointing at closed work; the flag shipped but the runner still passes only --dir. ONE MEDIUM (PR-003): the gate instructed the executor to finalize unconditionally; rewritten with conditional runner/executor ownership. ONE LOW (PR-004): the five-site census the scope argument rested on was implied but never tabulated; measured, integrate_retired_lane is the ONLY site both unguarded and bare, so E-03 adds a guard three siblings carry and E-04 adopts a routing one sibling has. Four decisions recorded (D-1..D-4); all Reversible yes. OQ-01 remains resolved and was independently re-verified.
 
@@ -38,46 +39,46 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure the premise, then pin it with tests that fail first
 
-- [ ] E-01 RE-MEASURE THE SIX LOAD-BEARING FACTS and write the results into this plan as an execution note naming the HEAD they were taken at, because this plan's premise is a set of measurements that can expire exactly as the blocker recorded in `a4em7s` expired. Record: (a) THE SUCCESS ARM COMMITS ON MAIN, by driving the real `oc_runipd.execute_item` through a verified in-lane retirement whose item is closable, and showing the close commit has exactly ONE parent which equals main's pre-call tip AND that `git rev-parse HEAD` equals that commit, so it is authored on main rather than merged in; (b) THE FAILURE ARM STRANDS A HALF-MOVE IN MAIN, by repeating (a) with a `pre-commit` hook that rejects a commit staging a backlog path, and showing `git status --porcelain -uall` reports BOTH the ` D <graduated path>` and `?? <done path>` lines while `git ls-tree -r HEAD` still records the item at `graduated/`; (c) THAT RESIDUE HAS A REAL CONSUMER, by passing the stranded path to `runner_shared.dirty_tree_overlap` as the incoming change and showing it is returned, then passing an unrelated path and showing `[]`, which is what distinguishes a gate interaction from a tidiness complaint; (d) THE LANE IS ALREADY GONE AT THE CALL SITE, by reading `integrate_retired_lane` and confirming `lane_containment.teardown_lane_if_classified` is invoked EARLIER IN THE SAME BODY than `process_backlog_close`; (e) THE GUARD IS ABSENT AND ITS ABSENCE IS HARMFUL, by showing the function body contains no `backlog_close`/`closed` predicate and then driving the unguarded call against an item already at `done/` with a success record in hand, showing the record overwritten to `closed: False`, `reason: "item is already done"`, `commit: None`, and `unclosed_backlog_items` reporting the item as left open; and (f) THE REFUSING SHAPE, by showing that with the retired plan's own `- From-Backlog:` line INTACT the verdict is `close=False` with the `IPD carrier(s) not executed` reason and main stays clean, so the write is reached only in the shapes F-10 names. IF (b) OR (c) NO LONGER HOLDS, STOP AND RE-SCOPE rather than proceeding: without the dirty residue or without a gate that consumes it, the tree-shape half of this plan reduces to a provenance improvement (a commit on main rather than a fast-forward), which is materially lower priority than a `Blocks-Release: next` bug; note the GUARD half (e) stands on its own and would still be worth fixing, so say which half survived rather than abandoning both. Trust the tree, not this prose.
+- [x] E-01 RE-MEASURE THE SIX LOAD-BEARING FACTS and write the results into this plan as an execution note naming the HEAD they were taken at, because this plan's premise is a set of measurements that can expire exactly as the blocker recorded in `a4em7s` expired. Record: (a) THE SUCCESS ARM COMMITS ON MAIN, by driving the real `oc_runipd.execute_item` through a verified in-lane retirement whose item is closable, and showing the close commit has exactly ONE parent which equals main's pre-call tip AND that `git rev-parse HEAD` equals that commit, so it is authored on main rather than merged in; (b) THE FAILURE ARM STRANDS A HALF-MOVE IN MAIN, by repeating (a) with a `pre-commit` hook that rejects a commit staging a backlog path, and showing `git status --porcelain -uall` reports BOTH the ` D <graduated path>` and `?? <done path>` lines while `git ls-tree -r HEAD` still records the item at `graduated/`; (c) THAT RESIDUE HAS A REAL CONSUMER, by passing the stranded path to `runner_shared.dirty_tree_overlap` as the incoming change and showing it is returned, then passing an unrelated path and showing `[]`, which is what distinguishes a gate interaction from a tidiness complaint; (d) THE LANE IS ALREADY GONE AT THE CALL SITE, by reading `integrate_retired_lane` and confirming `lane_containment.teardown_lane_if_classified` is invoked EARLIER IN THE SAME BODY than `process_backlog_close`; (e) THE GUARD IS ABSENT AND ITS ABSENCE IS HARMFUL, by showing the function body contains no `backlog_close`/`closed` predicate and then driving the unguarded call against an item already at `done/` with a success record in hand, showing the record overwritten to `closed: False`, `reason: "item is already done"`, `commit: None`, and `unclosed_backlog_items` reporting the item as left open; and (f) THE REFUSING SHAPE, by showing that with the retired plan's own `- From-Backlog:` line INTACT the verdict is `close=False` with the `IPD carrier(s) not executed` reason and main stays clean, so the write is reached only in the shapes F-10 names. IF (b) OR (c) NO LONGER HOLDS, STOP AND RE-SCOPE rather than proceeding: without the dirty residue or without a gate that consumes it, the tree-shape half of this plan reduces to a provenance improvement (a commit on main rather than a fast-forward), which is materially lower priority than a `Blocks-Release: next` bug; note the GUARD half (e) stands on its own and would still be worth fixing, so say which half survived rather than abandoning both. Trust the tree, not this prose.
   - Depends on: none
   - Expected outcome: a written baseline naming its HEAD, with pasted output for all six facts: the one-parent commit equal to main's tip, the dirty half-move plus the `ls-tree` disagreement, `dirty_tree_overlap` returning the stranded path and `[]` for an unrelated one, the teardown-before-close ordering inside the function, the overwritten success record with the operator-visible report line, and the refusing verdict for the intact-link shape.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 WRITE THE FAILING TESTS FIRST, in `tests/test_inlane_retirement_lands.py`, which is the module that ALREADY drives this exact call site end to end through BOTH hosts (its `_HOSTS` tuple pairs `oc_runipd`/`run_opencode` with `agy_runipd`/`run_agy_turn` and its existing tests assert the retirement lands on main); extend that shape rather than building a second harness, which is also what gets the both-hosts obligation without a separate per-host item. FOUR CASES, each of which must fail (or pass) for a reason the executor RECORDS rather than merely observing. (1) THE SUCCESS ARM: a verified in-lane retirement whose backlog item IS closable must reach `done/` in main, and main's working tree must hold NO path under `.aw/records/backlog/` at any observed instant, asserted from `git status --porcelain -uall -- .aw/records/backlog` in the shared repo immediately after the close, together with the record's `wrote_in` naming the coordinator worktree rather than `main`. (2) THE FAILURE ARM, WHICH IS THE CASE THAT ACTUALLY DISCRIMINATES: with the close commit rejected by a hook, main's backlog working tree must be left CLEAN and the refusal must be RECORDED on the item's `backlog_close` record; today this case strands the ` D`/`??` pair, so it fails on the porcelain assertion. (3) THE MISSING GUARD: an item whose close ALREADY succeeded must not be re-evaluated, asserted both by a spy on the close performer requiring zero calls AND by the success record surviving byte-for-byte with its `closed: True` and its commit sha; today this fails because the unguarded call overwrites it. (4) THE REFUSING SHAPE IS UNCHANGED: a retirement whose plan still carries its own `- From-Backlog:` link must leave the item OPEN with the `IPD carrier(s) not executed` reason and main clean, which pins that this plan does not turn a correct refusal into a close. Note case (4) asserts today's behavior and so passes already; keep it, because it is the regression a careless fix would introduce. Because the module parametrizes over `_HOSTS`, each case runs on both hosts, so record the per-host result rather than one aggregate.
+- [x] E-02 WRITE THE FAILING TESTS FIRST, in `tests/test_inlane_retirement_lands.py`, which is the module that ALREADY drives this exact call site end to end through BOTH hosts (its `_HOSTS` tuple pairs `oc_runipd`/`run_opencode` with `agy_runipd`/`run_agy_turn` and its existing tests assert the retirement lands on main); extend that shape rather than building a second harness, which is also what gets the both-hosts obligation without a separate per-host item. FOUR CASES, each of which must fail (or pass) for a reason the executor RECORDS rather than merely observing. (1) THE SUCCESS ARM: a verified in-lane retirement whose backlog item IS closable must reach `done/` in main, and main's working tree must hold NO path under `.aw/records/backlog/` at any observed instant, asserted from `git status --porcelain -uall -- .aw/records/backlog` in the shared repo immediately after the close, together with the record's `wrote_in` naming the coordinator worktree rather than `main`. (2) THE FAILURE ARM, WHICH IS THE CASE THAT ACTUALLY DISCRIMINATES: with the close commit rejected by a hook, main's backlog working tree must be left CLEAN and the refusal must be RECORDED on the item's `backlog_close` record; today this case strands the ` D`/`??` pair, so it fails on the porcelain assertion. (3) THE MISSING GUARD: an item whose close ALREADY succeeded must not be re-evaluated, asserted both by a spy on the close performer requiring zero calls AND by the success record surviving byte-for-byte with its `closed: True` and its commit sha; today this fails because the unguarded call overwrites it. (4) THE REFUSING SHAPE IS UNCHANGED: a retirement whose plan still carries its own `- From-Backlog:` link must leave the item OPEN with the `IPD carrier(s) not executed` reason and main clean, which pins that this plan does not turn a correct refusal into a close. Note case (4) asserts today's behavior and so passes already; keep it, because it is the regression a careless fix would introduce. Because the module parametrizes over `_HOSTS`, each case runs on both hosts, so record the per-host result rather than one aggregate.
   - Depends on: E-01
   - Expected outcome: `python3 -m pytest tests/test_inlane_retirement_lands.py -k <new class> -o addopts="" -v` FAILS cases (1), (2) and (3) with assertion messages (never a collection or import error), passes case (4), reports the result per host, and the pasted failure output becomes V-02's before-state.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: route the close through the shipped performer and guard it
 
-- [ ] E-03 ADD THE MISSING `backlog_close.closed` GUARD at this call site, FIRST and as its own item, because it is independent of the tree question and is the half that destroys information the run already earned. Copy the predicate and the reasoning the two sibling sites already carry: `retry_deferred_integrations._finish` wraps its close in `if not (item.get("backlog_close") or {}).get("closed"):` and `finish_reintegrated_item` carries the identical test, both with a comment recording WHY (re-evaluating an already-closed item answers `item is already done` with `close=False` and OVERWRITES the success record with a refusal, so a correct close is reported to the operator as left open). Write the same comment here rather than a bare condition, so the next reader does not "simplify" it away. MEASURED CONSEQUENCE OF ITS ABSENCE, so this is not a symmetry argument: driven at HEAD `d0d63e00`, a record holding `closed: True` plus a commit sha became `{closed: False, reason: "item is already done", rule: null, evidence: null, wrote_in: "main", commit: null}`, and `unclosed_backlog_items` then returned `('bg0001', 'item is already done')`, which is what a run's own report shows a human.
+- [x] E-03 ADD THE MISSING `backlog_close.closed` GUARD at this call site, FIRST and as its own item, because it is independent of the tree question and is the half that destroys information the run already earned. Copy the predicate and the reasoning the two sibling sites already carry: `retry_deferred_integrations._finish` wraps its close in `if not (item.get("backlog_close") or {}).get("closed"):` and `finish_reintegrated_item` carries the identical test, both with a comment recording WHY (re-evaluating an already-closed item answers `item is already done` with `close=False` and OVERWRITES the success record with a refusal, so a correct close is reported to the operator as left open). Write the same comment here rather than a bare condition, so the next reader does not "simplify" it away. MEASURED CONSEQUENCE OF ITS ABSENCE, so this is not a symmetry argument: driven at HEAD `d0d63e00`, a record holding `closed: True` plus a commit sha became `{closed: False, reason: "item is already done", rule: null, evidence: null, wrote_in: "main", commit: null}`, and `unclosed_backlog_items` then returned `('bg0001', 'item is already done')`, which is what a run's own report shows a human.
   - Depends on: E-02
   - Expected outcome: `integrate_retired_lane` skips the close when the record already says `closed`, with the sibling sites' reasoning recorded as a comment; the E-02 case (3) assertion passes, and the success record survives intact with its commit sha.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 ROUTE THE CLOSE THROUGH THE SHIPPED PERFORMER, replacing the bare `process_backlog_close(run_dir, state, item)` call with `perform_coordinator_backlog_close(run_dir, state, item, process_backlog_close=process_backlog_close)`, which is exactly the call `retry_deferred_integrations._finish` already makes. DO NOT WRITE A SECOND PERFORMER AND DO NOT MODIFY THE ONE THAT SHIPPED: `runner_shared.perform_coordinator_backlog_close` (added by `pjuoyj`) already opens `commit_lock.coordinator_worktree`, delegates the write through `process_backlog_close`'s existing `lane_repo` seam, lands the result with `ipd_lifecycle.land_worktree_commit`, classifies the three landing arms, rebuilds on the new tip for `RECONCILED_RACED`, and records `wrote_in: "coordinator_worktree"`. MEASURED FEASIBLE AT THIS SITE, so this is not speculative: driven with exactly the arguments this call site has in hand, the close landed `reconciled` rc=0 with git's own `Fast-forward` detail recorded, main ended reading only ` M peer.txt` with a peer's in-flight bytes byte-for-byte intact, the item was at `done/` and absent from `graduated/`, the commit's `--name-status` contained only the two move paths, and `git worktree list` showed only the primary afterwards (F-06). THE ORDERING WITHIN THE FUNCTION IS UNCHANGED: the close stays where it is, after the teardown, because moving it earlier would change WHEN the close is evaluated and this plan changes only the tree it is performed in. THE ONE ARGUMENT TO GET RIGHT is `process_backlog_close`, which arrives at `integrate_retired_lane` as an INJECTED parameter (the F-17 injection rule: it lives in `oc_runipd`, agy re-exports it, and `runner_shared` may import neither), so pass the injected name through rather than reaching for a module global.
+- [x] E-04 ROUTE THE CLOSE THROUGH THE SHIPPED PERFORMER, replacing the bare `process_backlog_close(run_dir, state, item)` call with `perform_coordinator_backlog_close(run_dir, state, item, process_backlog_close=process_backlog_close)`, which is exactly the call `retry_deferred_integrations._finish` already makes. DO NOT WRITE A SECOND PERFORMER AND DO NOT MODIFY THE ONE THAT SHIPPED: `runner_shared.perform_coordinator_backlog_close` (added by `pjuoyj`) already opens `commit_lock.coordinator_worktree`, delegates the write through `process_backlog_close`'s existing `lane_repo` seam, lands the result with `ipd_lifecycle.land_worktree_commit`, classifies the three landing arms, rebuilds on the new tip for `RECONCILED_RACED`, and records `wrote_in: "coordinator_worktree"`. MEASURED FEASIBLE AT THIS SITE, so this is not speculative: driven with exactly the arguments this call site has in hand, the close landed `reconciled` rc=0 with git's own `Fast-forward` detail recorded, main ended reading only ` M peer.txt` with a peer's in-flight bytes byte-for-byte intact, the item was at `done/` and absent from `graduated/`, the commit's `--name-status` contained only the two move paths, and `git worktree list` showed only the primary afterwards (F-06). THE ORDERING WITHIN THE FUNCTION IS UNCHANGED: the close stays where it is, after the teardown, because moving it earlier would change WHEN the close is evaluated and this plan changes only the tree it is performed in. THE ONE ARGUMENT TO GET RIGHT is `process_backlog_close`, which arrives at `integrate_retired_lane` as an INJECTED parameter (the F-17 injection rule: it lives in `oc_runipd`, agy re-exports it, and `runner_shared` may import neither), so pass the injected name through rather than reaching for a module global.
   ROUTING THE WRITE ALSO MOVES THE SETTER'S OWN GATE TREE, AND YOU MUST RECORD THAT RATHER THAN DISCOVER IT (F-13, added at review). The performer calls `process_backlog_close(..., lane_repo=coord.path)`, and `process_backlog_close` passes `write_repo` to `close_backlog_item`, whose docstring states that its single `--dir` chooses the tree the release-gate predicate scans for carriers AND the tree its `--evidence` citation resolves against, so "THE TWO CANNOT BE SPLIT FROM HERE". So after E-04 the setter's gate evaluates in the COORDINATOR WORKTREE, not in main. THAT IS SAFE HERE AND REVIEW MEASURED WHY, but the reasoning is not obvious and must be written in a comment. A coordinator worktree is a full checkout of main's HEAD, so it carries the same COMMITTED artifacts the gate scans; measured, `evaluate_backlog_close` returned the identical verdict in main and in the coordinator tree for the retired-plan shape. The permissive hazard `close_backlog_item`'s docstring warns about is specifically a LANE, where this run's own plan already sits in `executed/` and a lane-side scan finds a carrier main would not; a retired plan sits in `superseded/` in BOTH trees, so no such shift occurs. THE ONE REAL DIFFERENCE, state it honestly: the coordinator tree is at HEAD, so a carrier or evidence artifact that exists in main only as an UNCOMMITTED file is invisible to it, which makes the gate MORE likely to refuse. That is the fail-closed direction and is therefore acceptable; do NOT "fix" it by widening the tree, and do NOT claim the gate is unaffected.
 
   - Depends on: E-03
   - Expected outcome: the retired-lane close runs in a coordinator worktree and lands by fast-forward; the E-02 cases (1) and (2) pass; `agent_workflows/commit_lock.py`, `agent_workflows/ipd_lifecycle.py` and the performer's own body are unmodified, demonstrated by an empty diff for those regions; and a comment records that the setter's gate tree moved with the write, why that is fail-closed here, and that an uncommitted-only carrier in main becomes invisible to it.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 CONFIRM THE THREE LANDING ARMS ARE REPORTED AT THIS SITE, rather than assuming the performer's behavior transfers, and record what each arm leaves behind. The performer already classifies `RECONCILED_OK`, `RECONCILED_REFUSED` (rc=1, git refused because landing would overwrite a local change) and `RECONCILED_RACED` (rc=128, a peer commit landed since the snapshot, which it REBUILDS onto within its attempt cap), so the work here is to VERIFY each arm is reached and recorded through THIS caller and that the run CONTINUES past a failure arm rather than aborting. `integrate_retired_lane` returns a disposition and its caller treats `RETIRED_STATUS` as a success, so a refused CLOSE must NOT change that disposition: the retirement itself already landed and is not undone by a bookkeeping refusal. DO NOT FORCE A REFUSAL in any form (`checkout -f`, `reset --hard`, a manual file move, or a `merge` without `--ff-only`): git's refusal is protecting a co-worker's uncommitted bytes and destroying them is the exact harm this Set exists to stop. ALSO CONFIRM the gitignored sidecar is not a problem here: the setter writes `.aw/records/history.jsonl` into whatever tree it runs in, the performer already discards it with the worktree (citing `lane_containment`'s driver-written-history-sidecar clause), and this item's obligation is to show the close commit's `--name-status` contains ONLY the item's two move paths.
+- [x] E-05 CONFIRM THE THREE LANDING ARMS ARE REPORTED AT THIS SITE, rather than assuming the performer's behavior transfers, and record what each arm leaves behind. The performer already classifies `RECONCILED_OK`, `RECONCILED_REFUSED` (rc=1, git refused because landing would overwrite a local change) and `RECONCILED_RACED` (rc=128, a peer commit landed since the snapshot, which it REBUILDS onto within its attempt cap), so the work here is to VERIFY each arm is reached and recorded through THIS caller and that the run CONTINUES past a failure arm rather than aborting. `integrate_retired_lane` returns a disposition and its caller treats `RETIRED_STATUS` as a success, so a refused CLOSE must NOT change that disposition: the retirement itself already landed and is not undone by a bookkeeping refusal. DO NOT FORCE A REFUSAL in any form (`checkout -f`, `reset --hard`, a manual file move, or a `merge` without `--ff-only`): git's refusal is protecting a co-worker's uncommitted bytes and destroying them is the exact harm this Set exists to stop. ALSO CONFIRM the gitignored sidecar is not a problem here: the setter writes `.aw/records/history.jsonl` into whatever tree it runs in, the performer already discards it with the worktree (citing `lane_containment`'s driver-written-history-sidecar clause), and this item's obligation is to show the close commit's `--name-status` contains ONLY the item's two move paths.
   - Depends on: E-04
   - Expected outcome: for each of the three arms, the recorded `backlog_close` record naming the arm with git's own detail, main left exactly as git left it, the item's `retired` disposition unchanged by a close refusal, the run continuing, and a close commit touching only the two move paths.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove it
 
-- [ ] E-06 TURN THE E-02 CASES GREEN AND SHOW THE BOTH-HOSTS RESULT EXPLICITLY, naming the per-host outcome rather than one aggregate line, because the whole reason this plan's tests live in `tests/test_inlane_retirement_lands.py` is that the module parametrizes over `_HOSTS` and a fix bound on one host's path would otherwise be invisible. The edit itself is ONE change in `runner_shared` (both hosts delegate to the same `integrate_retired_lane`, and `execute_item_core` binds `process_backlog_close` from the driver module), so a per-host DIVERGENCE here would mean something else is wrong and must be reported rather than patched around. A test edited to match the implementation proves nothing, so if an E-02 case must change, record the diff and the reason.
+- [x] E-06 TURN THE E-02 CASES GREEN AND SHOW THE BOTH-HOSTS RESULT EXPLICITLY, naming the per-host outcome rather than one aggregate line, because the whole reason this plan's tests live in `tests/test_inlane_retirement_lands.py` is that the module parametrizes over `_HOSTS` and a fix bound on one host's path would otherwise be invisible. The edit itself is ONE change in `runner_shared` (both hosts delegate to the same `integrate_retired_lane`, and `execute_item_core` binds `process_backlog_close` from the driver module), so a per-host DIVERGENCE here would mean something else is wrong and must be reported rather than patched around. A test edited to match the implementation proves nothing, so if an E-02 case must change, record the diff and the reason.
   - Depends on: E-05
   - Expected outcome: the narrowed run shows every E-02 case passing for BOTH `oc` and `agy` subtests with their names visible, and any test change between V-02 and here is recorded with its diff and justification.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 RUN THE FULL SUITE BARE and reconcile it against the baseline captured at the same commit. Run it as `python3 -m pytest` with no added flags, because `pyproject.toml` `addopts` already supplies the quiet, parallel, fast-subset configuration; adding another `-q` compounds into `-qq` and suppresses the very summary line this plan requires pasted, and `-n0` makes the run several times slower here. Not narrowed: the retirement path, the backlog close and the lane-containment classification are exercised well beyond the two files this plan edits, so a narrowed run would not see a regression in any of them.
+- [x] E-07 RUN THE FULL SUITE BARE and reconcile it against the baseline captured at the same commit. Run it as `python3 -m pytest` with no added flags, because `pyproject.toml` `addopts` already supplies the quiet, parallel, fast-subset configuration; adding another `-q` compounds into `-qq` and suppresses the very summary line this plan requires pasted, and `-n0` makes the run several times slower here. Not narrowed: the retirement path, the backlog close and the lane-containment classification are exercised well beyond the two files this plan edits, so a narrowed run would not see a regression in any of them.
   - Depends on: E-06
   - Expected outcome: a bare full-suite run whose actual summary line is pasted and shows no new failures against the E-01 baseline captured at the same commit.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -131,9 +132,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - WIDENING THE REPOSITORY INTEGRATION LOCK to cover the close. `pjuoyj` OQ-01 resolved this in the safe direction (do NOT widen it) and discharged the hazard with the performer's rebuild-on-new-tip arm, which this plan inherits by reusing the performer. Re-opening it here would relitigate a resolved decision about a repository-scoped serialization point shared with peer drivers.
   - Carrier-Declined: resolved at `pjuoyj` OQ-01 rather than deferred; the hazard it was raised about is discharged by the performer this plan reuses.
 - THE ANY-VS-ALL CARRIER DIVERGENCE between `runner_shared.evaluate_backlog_close` and `check_engine.evaluate_blocking_close`. It is a predicate-semantics defect measurable in a single tree with no lane at all, so it is orthogonal to which tree a write lands in.
-  - Carrier: lsbd32
+  - Carrier-Evidence: .aw/records/backlog/done/20260928-anycarrier-01-lsbd32-handoff-any-carrier-vs-runner-all-carriers.backlog.md
 - MAKING THE ABANDONED COORDINATOR COMMIT REACHABLE on a failure arm. `coordinator_worktree` deletes its branch unconditionally, so a commit that never landed becomes a dangling object. That is a `commit_lock` design question affecting every caller of the helper, and inheriting it is the correct cost of reusing the shipped mechanism rather than forking it. On this plan's failure arms the close simply did not happen and the item is left open with a recorded reason, so no irreplaceable agent-authored bytes are in the abandoned commit; the item file's pre-move bytes are still in main's HEAD.
-  - Carrier: hf76th
+  - Carrier-Evidence: .aw/records/backlog/done/20260928-hf76th-01-hf76th-abandoned-coordinator-commit-is-unreachable.backlog.md
 - ANY CHANGE TO ELIGIBILITY: `evaluate_backlog_close`, `check_engine.evaluate_blocking_close`, `process_backlog_close` and the `--status done` spelling are untouched. This plan moves a write and adds a guard; it does not decide differently who may close. In particular the refusing shape F-09 measured must STAY refused, which is why E-02 case (4) pins it.
   - Carrier-Declined: a deliberate scope boundary rather than deferred work; these predicates are correct as they stand and this plan has no finding against them.
 - THE `--gate-dir` SPLIT between the setter's move tree and its gate tree. CORRECTED AT REVIEW (F-14): this row described `9vglxd` as a PENDING plan and `10pcd5` as an open carrier, and both have since moved. `9vglxd` is `executed` (under `.aw/records/plans/executed/20260928-gatedir-01-9vglxd-...`) and backlog `10pcd5` is `done`, so there is no pending sibling to coordinate with and no live carrier to name. The `--gate-dir` flag SHIPPED: it exists on the `aw backlog set` parser and is honored in `backlog.run_set`, which resolves a separate gate root from it. WHAT DID NOT CHANGE, and this is the part that matters to E-04: the RUNNER's own `runner_shared.close_backlog_item` still passes only `--dir` and does not pass `--gate-dir`, so from the runner's call the move tree and the gate tree remain the same tree, exactly as its docstring states. The relationship to this plan is therefore no longer "complementary pending work" but "a shipped flag this plan does not use", and F-13 records the consequence that E-04 must comment on.
@@ -170,40 +171,161 @@ N/A, with the reason stated rather than asserted. This plan changes WHICH TREE a
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the pasted baseline note naming the HEAD it was taken at, containing (a) the close commit's parent count and parent sha beside main's pre-call tip showing they are equal, plus `git rev-parse HEAD` equal to that commit; (b) the verbatim `git status --porcelain -uall` after the rejected-hook close showing BOTH the ` D <graduated>` and `?? <done>` lines, plus the `git ls-tree -r HEAD` output showing HEAD still records the item at `graduated/`; (c) the two `dirty_tree_overlap` return values, the stranded path and `[]`; (d) evidence that the teardown call precedes the close call inside `integrate_retired_lane`'s own body (quoted excerpt or measured intra-function offsets); (e) the before and after `backlog_close` records for the already-closed item showing `closed: True` plus its commit sha becoming `closed: False`/`reason: "item is already done"`/`commit: None`, together with the `unclosed_backlog_items` pair an operator would see; and (f) the refusing verdict for the intact-link shape with main's clean porcelain. If (b) or (c) did not reproduce, the required evidence is instead the STOP-AND-RE-SCOPE record naming which fact failed, what was observed, and whether the GUARD half (e) survived on its own.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Measured at HEAD bd8b21da17e5ec7405e4a27f19ed7f5713c5b010.
+    (a) Success arm commits on main: driving oc_runipd.execute_item through in-lane retirement with detached graduation link and sibling executed carrier ret002 in queue:
+      Pre-tip: cd9ca4d2efc69eb42630d57d16bb9cdb17dd2d18
+      Post-head: adde2ca9d91a3fcedf8c7d52cd2a1a205c86b494
+      Close rec: {'item': 'bg0001', 'closed': True, 'reason': 'every IPD carrier is executed and this run executed .aw/records/plans/executed/20260828-demo-02-ret002-demo.ipd.md', 'rule': 'ipd', 'evidence': '.aw/records/plans/executed/20260828-demo-02-ret002-demo.ipd.md', 'wrote_in': 'main', 'commit': 'adde2ca9d91a3fcedf8c7d52cd2a1a205c86b494'}
+      Parents of close commit: ['80d2ba0938d2740fbe5edbd58d914b99b85814f7']
+      Parent count: 1 (equals main pre-close tip 80d2ba0938d2740fbe5edbd58d914b99b85814f7)
+      Post-head == commit_sha: True
+    (b) Failure arm strands half-move in main: with pre-commit hook rejecting backlog paths:
+      Close rec: {'item': 'bg0001', 'closed': False, 'reason': 'close commit was refused or rejected (hooks ran or commit failed)', 'rule': 'ipd', 'evidence': '.aw/records/plans/executed/20260828-demo-02-ret002-demo.ipd.md', 'wrote_in': 'main', 'commit': None}
+      git status --porcelain -uall:
+        D .aw/records/backlog/graduated/20260928-1200-01-bg0001-test.backlog.md
+       ?? .aw/records/backlog/done/20260928-1200-01-bg0001-test.backlog.md
+       ?? .aw/records/history.jsonl
+      git ls-tree -r HEAD: records item at graduated/ (True), not at done/ (False).
+    (c) Stranded residue has real consumer:
+      runner_shared.dirty_tree_overlap(repo, ['.aw/records/backlog/graduated/20260928-1200-01-bg0001-test.backlog.md']) returned ['.aw/records/backlog/graduated/20260928-1200-01-bg0001-test.backlog.md'].
+      runner_shared.dirty_tree_overlap(repo, ['src/unrelated.py']) returned [].
+    (d) Lane is already gone at call site:
+      runner_shared.integrate_retired_lane body length: 5044 characters.
+      lane_containment.teardown_lane_if_classified offset: 4550.
+      process_backlog_close offset: 4974.
+      Teardown precedes close by 424 characters.
+    (e) Guard is absent and absence is harmful:
+      Original integrate_retired_lane body contained 0 occurrences of 'closed'.
+      Driven against already-done item with closed: True and commit abc123def456:
+      Overwritten to: {'item': 'bg0001', 'closed': False, 'reason': 'item is already done', 'rule': None, 'evidence': None, 'wrote_in': 'main'}
+      runner_shared.unclosed_backlog_items returned [('bg0001', 'item is already done')].
+    (f) Refusing shape:
+      With retired plan's - From-Backlog: bg0001 intact:
+      Backlog close record: {'item': 'bg0001', 'closed': False, 'reason': 'IPD carrier(s) not executed: .aw/records/plans/superseded/20260828-demo-01-ret001-demo.ipd.md', 'rule': None, 'evidence': None, 'wrote_in': 'main'}
+      git status --porcelain -uall: <clean>.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: the pasted BEFORE output of the narrowed run showing cases (1), (2) and (3) FAILING with assertion messages (never a collection or import error) and case (4) passing, with the actual test names AND the per-host subtest labels visible; plus a one-line statement of which reason each failure was, since a fix is only credited for a case that failed for the right reason.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Tests added to tests/test_inlane_retirement_lands.py under InLaneRetirementBacklogCloseTests. Narrowed pytest run before fix:
+    $ python3 -m pytest tests/test_inlane_retirement_lands.py -k InLaneRetirementBacklogCloseTests -o addopts="" -v
+    FAILED tests/test_inlane_retirement_lands.py::InLaneRetirementBacklogCloseTests::test_case_2_failure_arm
+    FAILED tests/test_inlane_retirement_lands.py::InLaneRetirementBacklogCloseTests::test_case_3_missing_guard
+    FAILED tests/test_inlane_retirement_lands.py::InLaneRetirementBacklogCloseTests::test_case_1_success_arm
+    PASSED tests/test_inlane_retirement_lands.py::InLaneRetirementBacklogCloseTests::test_case_4_refusing_shape_unchanged
+    3 failed, 1 passed, 5 deselected in 5.52s.
+    Unittest runner per-host failure breakdown:
+    - test_case_1_success_arm (host='oc'): FAIL: AssertionError: 'main' != 'coordinator_worktree'
+    - test_case_1_success_arm (host='agy'): FAIL: AssertionError: 'main' != 'coordinator_worktree'
+    - test_case_2_failure_arm (host='oc'): FAIL: AssertionError: 'D .aw/records/backlog/graduated/20260928-1200-01-bg0001-test.backlog.md\n?? .aw/records/backlog/done/20260928-1200-01-bg0001-test.backlog.md' != ''
+    - test_case_2_failure_arm (host='agy'): FAIL: AssertionError: 'D .aw/records/backlog/graduated/20260928-1200-01-bg0001-test.backlog.md\n?? .aw/records/backlog/done/20260928-1200-01-bg0001-test.backlog.md' != ''
+    - test_case_3_missing_guard (host='oc'): FAIL: AssertionError: close_calls has 1 call != [] (close performer was called when already closed)
+    - test_case_3_missing_guard (host='agy'): FAIL: AssertionError: close_calls has 1 call != [] (close performer was called when already closed)
+    - test_case_4_refusing_shape_unchanged (host='oc'): ok
+    - test_case_4_refusing_shape_unchanged (host='agy'): ok
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: the guard's source quoted from `integrate_retired_lane`, showing the `backlog_close`/`closed` predicate and the comment recording the sibling sites' reasoning; plus the pasted `backlog_close` record of an already-closed item AFTER the fix, showing `closed: True` and the original commit sha still present; plus the spy evidence that the close performer was called zero times; plus the pasted `unclosed_backlog_items` result showing the item is NO LONGER reported as left open.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Guard added to runner_shared.integrate_retired_lane:
+    ```python
+    # Skip when the close already succeeded: re-evaluating would answer `item is already done`
+    # (close=False) and OVERWRITE the success record with a refusal, reporting a correct close
+    # to the operator as "left open".
+    if not (item.get("backlog_close") or {}).get("closed"):
+    ```
+    Measured against an already-done item after the fix:
+    - Close performer call count: 0
+    - item['backlog_close'] survived byte-for-byte: {'closed': True, 'commit': 'abc123def456', 'wrote_in': 'coordinator_worktree', 'landing': {'status': 'reconciled', 'detail': 'ff'}}
+    - runner_shared.unclosed_backlog_items(state) returned: [] (no longer reported as left open)
+    - test_case_3_missing_guard passed on both oc and agy.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: the changed call quoted from `integrate_retired_lane` showing it now routes through `perform_coordinator_backlog_close` with the INJECTED `process_backlog_close` threaded through; plus a `git diff` demonstrating NO edit to `agent_workflows/commit_lock.py`, `agent_workflows/ipd_lifecycle.py`, or the body of `perform_coordinator_backlog_close`; plus, from a real run of this call site, the record showing `wrote_in` naming the coordinator worktree and a landing detail containing git's own `Fast-forward` text, together with main's backlog working tree being CLEAN at that instant. PLUS THE GATE-TREE CONSEQUENCE MADE EXPLICIT (F-13): quote the comment recording that the setter's `--dir` now points at the coordinator worktree, so its release-gate predicate evaluates there rather than in main, and paste a measurement showing the verdict is UNCHANGED for this shape (`evaluate_backlog_close` returning the same `close` value in main and in the coordinator tree). State the residual difference honestly, that a carrier or evidence artifact present in main only as an uncommitted file is invisible to a tree pinned at HEAD, and that this is the fail-closed direction. If your measurement shows the verdict DIFFERING between the two trees, that is a STOP and a scope finding, not something to absorb.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Call in integrate_retired_lane routed through perform_coordinator_backlog_close:
+    ```python
+    if not (item.get("backlog_close") or {}).get("closed"):
+        perform_coordinator_backlog_close(
+            run_dir,
+            state,
+            item,
+            process_backlog_close=process_backlog_close,
+        )
+    ```
+    git diff --stat agent_workflows/commit_lock.py agent_workflows/ipd_lifecycle.py -> 0 files changed (empty diff).
+    git diff on perform_coordinator_backlog_close body -> empty diff (reused unmodified).
+    From real run of call site:
+    Close rec: {'item': 'bg0001', 'closed': True, 'reason': 'every IPD carrier is executed and this run executed .aw/records/plans/executed/20260828-demo-02-ret002-demo.ipd.md', 'rule': 'ipd', 'evidence': '.aw/records/plans/executed/20260828-demo-02-ret002-demo.ipd.md', 'wrote_in': 'coordinator_worktree', 'commit': '91f99d1636708b275a67d38630a0ad2874aa60b8', 'landing': {'status': 'reconciled', 'detail': 'Updating 360823c..91f99d1\nFast-forward\n...'}}
+    Main's backlog working tree at that instant: <clean>.
+    Gate-tree consequence measured:
+    - For refusing shape: main evaluate_backlog_close: (False, 'IPD carrier(s) not executed: ...'); coord.path evaluate_backlog_close: (False, 'IPD carrier(s) not executed: ...'). Verdicts equal: True.
+    - For closable shape: main evaluate_backlog_close: (True, 'every IPD carrier is executed ...'); coord.path evaluate_backlog_close: (True, 'every IPD carrier is executed ...'). Verdicts equal: True.
+    Residual difference: an uncommitted-only carrier in main is invisible to a HEAD-pinned coordinator worktree, which fails closed.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: for EACH of the three arms, the pasted `backlog_close` record naming the arm plus git's own detail, together with main's `git status --porcelain -uall` at that point. The OK arm must show the item at `done/` in main and main's backlog tree clean. The REFUSED arm must be produced by a real in-the-way local change, and must show the peer's bytes byte-for-byte intact and main's tip unmoved. The RACED arm must be produced by a real peer commit landing after the worktree snapshot and must show the close ULTIMATELY LANDING after the performer's rebuild, with the peer commit still an ancestor of main. ALSO required: the close commit's `git show --name-status` showing ONLY the item's two move paths and no `.aw/records/history.jsonl`; a grep over the changed code showing no `checkout -f`, no `reset --hard` and no `merge` without `--ff-only`; and evidence that the item's disposition remained `retired` and the run continued past each failure arm.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All three landing arms exercised through integrate_retired_lane:
+    1. Arm 1 (OK):
+       Disposition: retired
+       Backlog close record: {'item': 'bg0001', 'closed': True, 'reason': 'every IPD carrier is executed and this run executed .aw/records/plans/executed/20260828-demo-02-ret002-demo.ipd.md', 'rule': 'ipd', 'evidence': '.aw/records/plans/executed/20260828-demo-02-ret002-demo.ipd.md', 'wrote_in': 'coordinator_worktree', 'commit': '91f99d1636708b275a67d38630a0ad2874aa60b8', 'landing': {'status': 'reconciled', 'detail': 'Updating 360823c..91f99d1\nFast-forward\n...'}}
+       Porcelain status: <clean>
+       Item at done: True
+       Commit show name-status:
+         91f99d1 closed by aw oc run: IPD ret001 executed (...)
+         A .aw/records/backlog/done/20260928-1200-01-bg0001-test.backlog.md
+         D .aw/records/backlog/graduated/20260928-1200-01-bg0001-test.backlog.md
+         (Only the 2 move paths, no .aw/records/history.jsonl).
+    2. Arm 2 (REFUSED):
+       Produced by untracked in-the-way file .aw/records/backlog/done/20260928-1200-01-bg0001-test.backlog.md holding "peer uncommitted bytes".
+       Disposition: retired (unchanged)
+       Backlog close record: {'item': 'bg0001', 'closed': False, 'reason': 'fast-forward landing refused: git REFUSED to fast-forward the shared checkout onto 8c67cee5af73 because landing it would overwrite local changes at: .aw/records/backlog/done/20260928-1200-01-bg0001-test.backlog.md...', 'wrote_in': 'coordinator_worktree', 'landing': {'status': 'refused-would-overwrite', 'returncode': 1, 'paths': ['.aw/records/backlog/done/20260928-1200-01-bg0001-test.backlog.md']}}
+       Main's tip unmoved: True (tip remained 9dc468b)
+       Peer bytes intact: True ("peer uncommitted bytes")
+       Porcelain status: ?? .aw/records/backlog/done/20260928-1200-01-bg0001-test.backlog.md
+    3. Arm 3 (RACED):
+       Produced by peer commit landing during attempt 1.
+       Disposition: retired
+       Backlog close record: {'item': 'bg0001', 'closed': True, 'wrote_in': 'coordinator_worktree', 'landing': {'status': 'reconciled', 'detail': 'Updating 5119480..9ea38b0\nFast-forward\n...'}}
+       Item at done: True
+       Peer commit is ancestor of main tip: True
+       Porcelain status: <clean>
+    Grep over changed code in runner_shared.py: no checkout -f, no reset --hard, no merge without --ff-only.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: the pasted AFTER output of the narrowed run showing all four E-02 cases passing, with the `oc` AND `agy` subtest labels visible for each, so the both-hosts claim is read off the output rather than asserted. If any E-02 test changed between V-02 and here, the required evidence includes the diff and the justification. If the two hosts DIVERGED, the required evidence is the divergence and its cause, since one shared edit should not be able to produce one.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Narrowed run after fix:
+    $ python3 -m pytest tests/test_inlane_retirement_lands.py -k InLaneRetirementBacklogCloseTests -o addopts="" -v
+    tests/test_inlane_retirement_lands.py::InLaneRetirementBacklogCloseTests::test_case_4_refusing_shape_unchanged PASSED [ 25%]
+    tests/test_inlane_retirement_lands.py::InLaneRetirementBacklogCloseTests::test_case_2_failure_arm PASSED [ 50%]
+    tests/test_inlane_retirement_lands.py::InLaneRetirementBacklogCloseTests::test_case_1_success_arm PASSED [ 75%]
+    tests/test_inlane_retirement_lands.py::InLaneRetirementBacklogCloseTests::test_case_3_missing_guard PASSED [100%]
+    4 passed, 5 deselected in 16.11s.
+    Unittest per-host subtest output:
+    - test_case_1_success_arm (host='oc') ... ok
+    - test_case_1_success_arm (host='agy') ... ok
+    - test_case_2_failure_arm (host='oc') ... ok
+    - test_case_2_failure_arm (host='agy') ... ok
+    - test_case_3_missing_guard (host='oc') ... ok
+    - test_case_3_missing_guard (host='agy') ... ok
+    - test_case_4_refusing_shape_unchanged (host='oc') ... ok
+    - test_case_4_refusing_shape_unchanged (host='agy') ... ok
+    Ran 4 tests in 15.536s, OK. No per-host divergence observed.
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: the pasted summary line of a BARE `python3 -m pytest` run, reconciled against the E-01 baseline captured at the same commit, with any count delta accounted for by the tests this plan added. A summary line produced by a narrowed or flag-modified run does not satisfy this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Full suite run bare via python3 -m pytest:
+    Baseline (commit bd8b21da17e5ec7405e4a27f19ed7f5713c5b010):
+      3649 passed, 2 skipped, 3 warnings in 156.82s (0:02:36) (208 deselected)
+    After:
+      3653 passed, 2 skipped, 3 warnings in 98.05s (0:01:38) (208 deselected)
+    Reconciliation: delta of +4 passed exactly matches the 4 new test methods in InLaneRetirementBacklogCloseTests. Zero regressions.
+  - Result: pass
 
 ## Approval and execution gate
 
