@@ -35,6 +35,7 @@ PLANS_DIR = ".agents/plans"
 ARTIFACT_TYPE_FACETS = _naming.ARTIFACT_TYPE_FACETS
 _FACET_ALT = _naming._FACET_ALT
 _CLUSTERED_RE = _naming._CLUSTERED_RE
+_LEGACY_TIMESTAMP_RE = _naming._LEGACY_TIMESTAMP_RE
 # An old-style plan stem: YYYYMMDD-HHMM-NN (bare, no slug/.md). Shared with specs, so a bare-stem
 # rewrite is driven by an explicit plan map, never by this pattern alone.
 _BARE_STEM_RE = re.compile(r"\b(\d{8}-\d{4}-\d{2})\b")
@@ -222,6 +223,29 @@ def _preserved_order(name: str, text: str) -> int:
     return int(parsed.group("nn")) if parsed else 0
 
 
+def _preserved_date(name: str, text: str) -> str:
+    """The date a plan ALREADY has: filename (clustered then legacy), else front matter, else 20260101.
+
+    949enf: resolve date from current filename before falling back to front matter.
+    NOTE THE DELIBERATE TIER-ORDER ASYMMETRY WITH _preserved_order: _preserved_order
+    reads FRONT MATTER FIRST and the filename second, while this helper reads the
+    FILENAME FIRST. That is deliberate and is what run_mv's existing comment already
+    mandates for the date (vf03z3: 'a bare rename must NOT recompute the date'), and
+    it is what OQ-01 resolves: the front-matter date cannot be trusted ahead of the name
+    here because its own failure mode is a FABRICATED CONSTANT ('20260101') rather than
+    an absent value (and a malformed - Date: escapes lint without complaint), so
+    consulting front matter first reintroduces the bug.
+    """
+
+    parsed_clustered = _CLUSTERED_RE.match(name)
+    if parsed_clustered:
+        return parsed_clustered.group("date")
+    parsed_legacy = _LEGACY_TIMESTAMP_RE.match(name)
+    if parsed_legacy:
+        return parsed_legacy.group("date")
+    return _plan_date(text)
+
+
 def plan_set_assign(
     plans_dir: Path,
     id6s: List[str],
@@ -260,7 +284,7 @@ def plan_set_assign(
         )
         if rename:
             new_name = clustered_name(
-                date=_plan_date(text),
+                date=_preserved_date(src.name, text),
                 set_id=set_k,
                 order=order,
                 id6=id6,
@@ -533,10 +557,9 @@ def run_mv(args: argparse.Namespace) -> "MutationResult":
         else:
             parsed = _CLUSTERED_RE.match(src.name)
             order = int(parsed.group("nn")) if parsed else 0
-    # Preserve the plan's existing date unless we can derive it from the front-matter (vf03z3: a bare
-    # rename must NOT recompute the date). Prefer the current filename's date, then the `- Date:` line.
-    parsed_name = _CLUSTERED_RE.match(src.name)
-    new_date = parsed_name.group("date") if parsed_name else _plan_date(text)
+    # Preserve the plan's existing date (vf03z3: a bare rename must NOT recompute the date;
+    # 949enf: consult clustered name, then legacy name, then front-matter fallback via _preserved_date).
+    new_date = _preserved_date(src.name, text)
     slug = getattr(args, "slug", None)
     new_name = clustered_name(
         date=new_date,

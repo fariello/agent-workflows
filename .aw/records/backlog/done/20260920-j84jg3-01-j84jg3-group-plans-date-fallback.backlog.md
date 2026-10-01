@@ -1,5 +1,5 @@
 - Id: j84jg3
-- Status: graduated
+- Status: done
 - Graduated-To: j84jg3
 - Blocks-Release: next
 - Set: j84jg3
@@ -8,6 +8,7 @@
 - Summary: aw group plans renames a plan with no - Date: line to the literal 20260101 where aw rename preserves its date
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): closed by aw oc run: IPD 949enf executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-j84jg3-01-949enf-resolve-a-plan-filename-date-from-the-name-before-inventing.ipd.md); evidence .aw/records/plans/executed/20260929-j84jg3-01-949enf-resolve-a-plan-filename-date-from-the-name-before-inventing.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: 949enf
 - 2026-09-20 created (aw backlog): Filed while executing plan e3hzyc (F-13): a second, measured divergence between group and rename, deliberately excluded from that plan's fence.
 
