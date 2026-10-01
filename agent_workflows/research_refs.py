@@ -25,6 +25,7 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
 from agent_workflows import artifact_core as _core
 from agent_workflows import artifact_refs as _refs
 from agent_workflows import record_history as _rh
+from agent_workflows import research_cmd as _rcmd
 from agent_workflows import research_contract as R
 from agent_workflows.plans_refs import (
     MutationResult,
@@ -290,6 +291,23 @@ def _repo_root(args: argparse.Namespace) -> Path:
     return resolve_verb_repo_root(getattr(args, "dir", None))
 
 
+def _planned_frontmatter_updates(parsed: R.ResearchName) -> Dict[str, str]:
+    """Derive frontmatter updates from a destination filename (E-03 / PR-001).
+
+    Derives set, order, and kind unconditionally from the parsed destination name.
+    Writes model ONLY when the destination name carries a model facet (PR-001 / F-17),
+    preserving existing model provenance when the name omits the optional facet.
+    """
+    updates: Dict[str, str] = {
+        "set": parsed.set_id,
+        "order": parsed.order,
+    }
+    if parsed.model:
+        updates["model"] = parsed.model
+    updates["kind"] = parsed.kind
+    return updates
+
+
 def _apply_renames(
     repo_root: Path,
     plans: List[RenamePlan],
@@ -316,6 +334,16 @@ def _apply_renames(
             print(w)
         for p in plans:
             print(f"--- would rename {p.old_path} -> {p.new_path.name} ---")
+            parsed, parse_err = R.parse_name(p.new_path.name)
+            if parsed is None:
+                print(
+                    f"warning: destination '{p.new_path.name}' is not a conformant research document: {parse_err}"
+                )
+            else:
+                updates = _planned_frontmatter_updates(parsed)
+                print(
+                    f"--- would set metadata {'/'.join(updates.keys())} in {p.old_path} ---"
+                )
         for e in ref_edits:
             print(
                 f"--- would rewrite {e.hits}x '{e.old_name}' -> '{e.new_name}' in {e.file} ---"
@@ -334,6 +362,21 @@ def _apply_renames(
         dst_rel = p.new_path.relative_to(repo_root).as_posix()
         _git_mv(repo_root, src_rel, dst_rel)
         print(f"renamed {src_rel} -> {dst_rel}")
+        parsed, parse_err = R.parse_name(p.new_path.name)
+        if parsed is None:
+            print(
+                f"warning: destination '{p.new_path.name}' is not a conformant research document: {parse_err}"
+            )
+        else:
+            updates = _planned_frontmatter_updates(parsed)
+            try:
+                old_text = p.new_path.read_text(encoding="utf-8")
+                new_text = _rcmd.update_frontmatter_fields(old_text, updates)
+                if new_text != old_text:
+                    _atomic_write(p.new_path, new_text)
+                print(f"set metadata {'/'.join(updates.keys())} in {dst_rel}")
+            except Exception as e:
+                print(f"warning: could not update frontmatter in '{dst_rel}': {e}")
         # IPD 52zgqr: additive, failure-isolated rename ledger record (never breaks the rename).
         _rh.record_rename(
             repo_root,
