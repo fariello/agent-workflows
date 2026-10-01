@@ -860,7 +860,11 @@ def teardown_worktree(
     survives only as an UNREFERENCED object, i.e. garbage-collectable with no ref and no reflog to
     recover it from; and uncommitted lane files are gone from git AND from disk with nothing to
     recover. So the branch deletion is a DATA-SAFETY HAZARD for any lane that holds work, NOT the
-    "best-effort, not a correctness hazard" cleanup an earlier comment here claimed.
+    "best-effort, not a correctness hazard" cleanup an earlier comment here claimed. An unreferenced
+    commit object remains findable by `git fsck` by subject (via `runner_shared.find_dangling_commits_by_subject`)
+    until git garbage collection prunes it; note the two limits: dangling objects are strictly local to this
+    checkout and can expire to gc at any time. This does not make teardown safe: uncommitted files are
+    still destroyed unrecoverably.
 
     Callers must therefore CLASSIFY FIRST and tear down only a provably-empty lane. Use
     `inspect_lane` (`LaneState.reclaimable`) or the drivers' `reclaim_lanes_on_interrupt`, which

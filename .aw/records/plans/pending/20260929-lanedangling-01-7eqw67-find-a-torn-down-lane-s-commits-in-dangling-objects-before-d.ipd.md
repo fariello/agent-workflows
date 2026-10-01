@@ -40,51 +40,52 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure, then pin the behavior with a test that fails first
 
-- [ ] E-01 RE-MEASURE THE EIGHT LOAD-BEARING FACTS IN THE EXECUTION LANE and write the results into this plan as an execution note, because every one is dated, every one is cheap to re-take, and two of them (the dangling-commit census and the conflict-path count) are properties of THIS CHECKOUT that gc or another worker can change between authoring and execution. Record, with the HEAD they were taken at: (a) the `aw/lane/*` ref count versus the dangling-commit count, via `git branch -a --list 'aw/lane/*' | wc -l` and `git fsck --connectivity-only --no-progress | grep -c 'dangling commit'`; (b) that the `8u6770` finalize tip `0abc01d9` still resolves and is still unreachable, via `git cat-file -e`, `git merge-base --is-ancestor 0abc01d9 main` (expect NONZERO), and `git branch -a --contains 0abc01d9` (expect zero lines); (c) the `git merge-tree --write-tree main 0abc01d9` distinct conflicting-path count; (d) that `--connectivity-only` and a plain `git fsck` return the SAME dangling-commit set, by comparing the two SORTED sha lists for equality rather than comparing counts, since equal counts would not prove equal sets; (e) the timing of both, so the flag choice is justified by a number; (f) that `--lost-found` WRITES, by recording the pre-existing file count under `$(git rev-parse --git-common-dir)/lost-found/` and NOT running it again if that is avoidable; (g) the batched-versus-naive subject-resolution timing; and (h) that `fsck` still has zero occurrences in `agent_workflows/`. IF FACT (b) HAS CHANGED - gc has run and `0abc01d9` is gone - DO NOT FABRICATE A SUBSTITUTE AND DO NOT SILENTLY PROCEED: say so, and fall back to the synthetic-fixture route E-02 already mandates for its unit tests (which never depended on this repository's population), then report that V-02's real-corpus arm is unsatisfiable in this checkout, which is a materially smaller validation and must be re-reviewed rather than quietly accepted. Trust the tree, not this plan's `- Concern:`.
+- [x] E-01 RE-MEASURE THE EIGHT LOAD-BEARING FACTS IN THE EXECUTION LANE and write the results into this plan as an execution note, because every one is dated, every one is cheap to re-take, and two of them (the dangling-commit census and the conflict-path count) are properties of THIS CHECKOUT that gc or another worker can change between authoring and execution. Record, with the HEAD they were taken at: (a) the `aw/lane/*` ref count versus the dangling-commit count, via `git branch -a --list 'aw/lane/*' | wc -l` and `git fsck --connectivity-only --no-progress | grep -c 'dangling commit'`; (b) that the `8u6770` finalize tip `0abc01d9` still resolves and is still unreachable, via `git cat-file -e`, `git merge-base --is-ancestor 0abc01d9 main` (expect NONZERO), and `git branch -a --contains 0abc01d9` (expect zero lines); (c) the `git merge-tree --write-tree main 0abc01d9` distinct conflicting-path count; (d) that `--connectivity-only` and a plain `git fsck` return the SAME dangling-commit set, by comparing the two SORTED sha lists for equality rather than comparing counts, since equal counts would not prove equal sets; (e) the timing of both, so the flag choice is justified by a number; (f) that `--lost-found` WRITES, by recording the pre-existing file count under `$(git rev-parse --git-common-dir)/lost-found/` and NOT running it again if that is avoidable; (g) the batched-versus-naive subject-resolution timing; and (h) that `fsck` still has zero occurrences in `agent_workflows/`. IF FACT (b) HAS CHANGED - gc has run and `0abc01d9` is gone - DO NOT FABRICATE A SUBSTITUTE AND DO NOT SILENTLY PROCEED: say so, and fall back to the synthetic-fixture route E-02 already mandates for its unit tests (which never depended on this repository's population), then report that V-02's real-corpus arm is unsatisfiable in this checkout, which is a materially smaller validation and must be re-reviewed rather than quietly accepted. Trust the tree, not this plan's `- Concern:`.
   - ALSO TAKE THE BARE SUITE BASELINE on the lane, as `python3 -m pytest`, and paste the summary line. Take it BEFORE any edit, so the post-change comparison in V-06 is against a real number measured here rather than against an authoring figure.
   - REVIEW ALREADY RE-TOOK ALL EIGHT FACTS AT HEAD `9929535a` (F-10), so treat this as a THIRD reading and expect drift rather than agreement. Every structural claim held: fact (b) STILL HOLDS (`0abc01d9` resolves, `is-ancestor` rc 1, `branch --contains` zero lines, same subject), the same six subjects match `8u6770` with `e18ceea4` still the `x75obw` over-match, the two fsck modes still return SORTED-EQUAL sha sets, `lost-found` still holds 1749 files with zero refs naming them, and `fsck` still has zero occurrences in `agent_workflows/`. FIVE NUMBERS MOVED, all strengthening the plan: lane refs 12 to 20, dangling commits 622 to 632, the fsck gap 14x to 27x (3.03s versus 83.09s), the batched-subject gap 3x to 152x (0.14s versus 21.18s), and the `merge-tree` conflict count 53 to 60. DO NOT reproduce any of these integers as a target; re-measure and record what you see. The DURABLE claims are the ratio's order of magnitude, the set equality, and fact (b).
   - ONE CAUTION ON FACT (f), MEASURED: `lost-found` ALREADY EXISTS in this checkout with 1749 files, from the authoring probe. So the pre-existing count is NOT zero and E-02 case 4's "unchanged across the call" assertion must compare BEFORE and AFTER rather than assert emptiness. Record the count; do NOT delete the directory to get a clean baseline, since those files are the only on-disk trace of that probe and removing them is a write to the shared git dir this plan exists to avoid.
+  - Execution note: re-measured all eight load-bearing facts at HEAD `7a9e4be3c93ffa44af3c0db7851f66fe167e9e84` in this lane worktree. Fact (b) still holds completely (`0abc01d9` resolves, is-ancestor rc 1, branch --contains 0 lines). Refs vs objects: 26 lane refs vs 635 dangling commits. Conflict paths: 58 distinct paths. Both fsck modes return sorted-identical 635-sha sets; connectivity-only is 10.45x faster (5.28s vs 55.17s). Batched resolution is 74x faster (0.12s vs 9.10s). Lost-found holds 1749 files. fsck occurrences in agent_workflows: 0. Bare suite baseline: 1 failed, 3480 passed, 2 skipped, 3 warnings in 156.72s (failure is pre-existing fnb8pl).
   - Depends on: none
   - Expected outcome: a written, command-cited baseline covering all eight facts with pasted output, plus the bare-suite baseline count; and an explicit statement of whether fact (b) still holds, since E-02's real-corpus test arm depends on it.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 WRITE THE FAILING TESTS FIRST, as a new class in `tests/test_runner_shared.py`, which is the file that already owns the lane-reading assertions (`LaneIntegrationBehaviorTests`, `StrandedLanePredicateTests`, `LaneWorktreeDisplayExistenceTests`). SEVEN cases against the real helper. THE FIRST FIVE USE A SYNTHETIC GIT FIXTURE AND ARE THE CONTRACT: (1) a commit made on a branch that is then deleted is FOUND by subject needle, returning its sha, subject and date; (2) a REACHABLE commit with a matching subject is NOT returned, because the helper answers "what is dangling", and returning reachable commits would make every caller re-filter; (3) a needle matching nothing returns an empty result, distinguishable from an error; (4) the helper writes NOTHING - assert the file count under `$(git rev-parse --git-common-dir)/lost-found/` is unchanged across the call, which is the regression test for F-05 and is the case that FAILS if someone "simplifies" the implementation to `--lost-found`; (5) ORDERING IS DETERMINISTIC AND DOCUMENTED - given three dangling commits with distinct dates, the result is in a stated order (newest first), because a caller choosing among candidates needs a stable presentation and `fsck` output order is not one. CASE (6) IS THE OVER-MATCH CASE AND IS WHY THIS HELPER DOES NOT RETURN A SINGLE ANSWER: two dangling commits, one a real lane commit for needle `aaa111` and one whose subject merely MENTIONS `aaa111` while belonging to lane `bbb222` (the exact shape measured at authoring, F-04), and the helper must return BOTH with enough information to discriminate rather than guessing one. CASE (7) IS THE REAL-CORPUS ARM, and it is conditional BY DESIGN: if and only if E-01 fact (b) held, assert that a search for `8u6770` in THIS repository returns a candidate set containing `0abc01d9`; `skipTest` with an explicit reason otherwise, because a test that silently passes when its corpus vanished is worse than one that says why it skipped.
+- [x] E-02 WRITE THE FAILING TESTS FIRST, as a new class in `tests/test_runner_shared.py`, which is the file that already owns the lane-reading assertions (`LaneIntegrationBehaviorTests`, `StrandedLanePredicateTests`, `LaneWorktreeDisplayExistenceTests`). SEVEN cases against the real helper. THE FIRST FIVE USE A SYNTHETIC GIT FIXTURE AND ARE THE CONTRACT: (1) a commit made on a branch that is then deleted is FOUND by subject needle, returning its sha, subject and date; (2) a REACHABLE commit with a matching subject is NOT returned, because the helper answers "what is dangling", and returning reachable commits would make every caller re-filter; (3) a needle matching nothing returns an empty result, distinguishable from an error; (4) the helper writes NOTHING - assert the file count under `$(git rev-parse --git-common-dir)/lost-found/` is unchanged across the call, which is the regression test for F-05 and is the case that FAILS if someone "simplifies" the implementation to `--lost-found`; (5) ORDERING IS DETERMINISTIC AND DOCUMENTED - given three dangling commits with distinct dates, the result is in a stated order (newest first), because a caller choosing among candidates needs a stable presentation and `fsck` output order is not one. CASE (6) IS THE OVER-MATCH CASE AND IS WHY THIS HELPER DOES NOT RETURN A SINGLE ANSWER: two dangling commits, one a real lane commit for needle `aaa111` and one whose subject merely MENTIONS `aaa111` while belonging to lane `bbb222` (the exact shape measured at authoring, F-04), and the helper must return BOTH with enough information to discriminate rather than guessing one. CASE (7) IS THE REAL-CORPUS ARM, and it is conditional BY DESIGN: if and only if E-01 fact (b) held, assert that a search for `8u6770` in THIS repository returns a candidate set containing `0abc01d9`; `skipTest` with an explicit reason otherwise, because a test that silently passes when its corpus vanished is worse than one that says why it skipped.
   - BUILD EVERY FIXTURE IN A THROWAWAY REPOSITORY, never in the checkout under test, and this is not boilerplate caution: this repository holds live `aw/lane/*` branches (12 measured at authoring) whose commits are unintegrated work, and a test that created, deleted or gc'd a branch here could destroy exactly the evidence this plan exists to make findable. The one test that reads THIS repository (case 7) must be strictly READ-ONLY and must never invoke `gc`, `prune`, `update-ref` or `--lost-found`.
   - Depends on: E-01
   - Expected outcome: `python3 -m pytest tests/test_runner_shared.py -k <new class> -o addopts="" -v` fails cases 1 through 7 with assertion or import errors naming the missing helper (not a collection error in an unrelated module), and that output is pasted into V-02 as the before-state.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the shared read-only helper
 
-- [ ] E-03 ADD THE READ-ONLY SEARCH HELPER to `agent_workflows/runner_shared.py`, placed beside `merge_write_set` because that is the module's existing git-plumbing neighborhood and `merge_write_set` is already the wrapper the recovery half of this workflow uses, so a reader who finds one finds the other. It takes a repository path and a subject needle and returns ranked candidate records (sha, subject, commit date), newest first, empty when nothing matches. THREE IMPLEMENTATION CONSTRAINTS, each measured rather than preferred, and each must be stated in the docstring with its number so a later "simplification" has to argue with evidence. FIRST, USE `git fsck --connectivity-only`, NEVER `--lost-found`: the latter WRITES one file per dangling object into the SHARED git dir (measured 1749 files here), which is a mutation performed by a function whose entire purpose is a read, in a repository with concurrent workers; `--connectivity-only` returns the byte-identical dangling-commit set and is dramatically faster (authoring measured 14x, 0.65s versus 9.49s; review re-measured 27x, 3.03s versus 83.09s). STATE THE RATIO AS MEASURED-AT-EXECUTION rather than transcribing either figure: it varies with population and page-cache state, and the constraint rests on the set equality plus the direction of the gap, not on a constant. SECOND, RESOLVE SUBJECTS IN ONE BATCH via `git log --no-walk --stdin --format=...`, not one `git log` per sha: measured 1.04s versus 3.21s over 622 commits at authoring, and review re-measured 0.14s versus 21.18s over 632, so the gap is far larger than authoring's 3x and widens with the population. Cite the execution-time measurement, not a constant. THIRD, RETURN CANDIDATES AND NEVER A SINGLE "THE LANE TIP": measured, the six commits matching `8u6770` are mutually NON-ANCESTRAL with diffs against main ranging 1 to 71 paths, and one of them belongs to a different lane entirely, so any single-answer signature would be wrong in a way the caller could not detect.
+- [x] E-03 ADD THE READ-ONLY SEARCH HELPER to `agent_workflows/runner_shared.py`, placed beside `merge_write_set` because that is the module's existing git-plumbing neighborhood and `merge_write_set` is already the wrapper the recovery half of this workflow uses, so a reader who finds one finds the other. It takes a repository path and a subject needle and returns ranked candidate records (sha, subject, commit date), newest first, empty when nothing matches. THREE IMPLEMENTATION CONSTRAINTS, each measured rather than preferred, and each must be stated in the docstring with its number so a later "simplification" has to argue with evidence. FIRST, USE `git fsck --connectivity-only`, NEVER `--lost-found`: the latter WRITES one file per dangling object into the SHARED git dir (measured 1749 files here), which is a mutation performed by a function whose entire purpose is a read, in a repository with concurrent workers; `--connectivity-only` returns the byte-identical dangling-commit set and is dramatically faster (authoring measured 14x, 0.65s versus 9.49s; review re-measured 27x, 3.03s versus 83.09s). STATE THE RATIO AS MEASURED-AT-EXECUTION rather than transcribing either figure: it varies with population and page-cache state, and the constraint rests on the set equality plus the direction of the gap, not on a constant. SECOND, RESOLVE SUBJECTS IN ONE BATCH via `git log --no-walk --stdin --format=...`, not one `git log` per sha: measured 1.04s versus 3.21s over 622 commits at authoring, and review re-measured 0.14s versus 21.18s over 632, so the gap is far larger than authoring's 3x and widens with the population. Cite the execution-time measurement, not a constant. THIRD, RETURN CANDIDATES AND NEVER A SINGLE "THE LANE TIP": measured, the six commits matching `8u6770` are mutually NON-ANCESTRAL with diffs against main ranging 1 to 71 paths, and one of them belongs to a different lane entirely, so any single-answer signature would be wrong in a way the caller could not detect.
   - REUSE `_run_git`, THE MODULE'S EXISTING HELPER, rather than adding a fifteenth private git wrapper; this repository already carries roughly fourteen copies of that shape and a new one is a new thing to drift.
   - RETURN EMPTY ON FAILURE, AND SAY SO, BUT DO NOT CONFLATE IT WITH "NOTHING MATCHED" IN THE DOCSTRING: `fsck` can fail (a corrupt object database, an ancient git). Model the distinction the way `merge_write_set` already does for the same class of problem - its docstring states "RETURNS None WHEN THE ANSWER IS UNKNOWN, and that is a distinct third value rather than an empty list" precisely because reporting empty would fabricate an answer. Follow that precedent rather than inventing a second convention in the same module.
   - THE HELPER IS A SEARCH, NOT A VERDICT. It must not decide whether a candidate is usable; that is a `git merge-tree` question the caller asks (E-04), and folding it in would make a cheap read expensive and would couple the search to one caller's notion of usable.
   - Depends on: E-02
   - Expected outcome: E-02 cases 1 through 6 pass (and 7 passes or skips with its stated reason); the helper performs no write, which case 4 proves; and `grep -rn 'lost-found' agent_workflows/` still returns nothing.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: correct the two false claims
 
-- [ ] E-04 STOP THE `REINTEGRATE_LANE_ABSENT` REFUSAL CLAIMING THERE IS NOTHING TO INTEGRATE. Its current reason string asserts "lane {branch} no longer exists (no branch and no registered worktree), so there is nothing to integrate; whatever the run recorded has been removed out of band". Keep the parenthetical, which is exactly what was measured and is true, and remove the unentailed conclusion: `inspect_lane` reached `LANE_ABSENT` from a `for-each-ref`/`worktree list` reading, which cannot see objects. Call E-03's helper with the lane's id6 as the needle and, when candidates exist, report their count and the newest few with sha and subject, plus the concrete `git merge-tree --write-tree main <sha>` probe that establishes whether a candidate carries usable work. SAY WHAT IS UNCERTAIN RATHER THAN OVERCLAIMING THE OTHER WAY: a subject match is a CANDIDATE and not proof, the over-match case is real and measured, and the message must not tell an operator to merge something. STATE THE TWO LIMITS IN THE MESSAGE ITSELF, not only in a docstring: the objects are local to this checkout and gc prunes them, so the route can evaporate.
+- [x] E-04 STOP THE `REINTEGRATE_LANE_ABSENT` REFUSAL CLAIMING THERE IS NOTHING TO INTEGRATE. Its current reason string asserts "lane {branch} no longer exists (no branch and no registered worktree), so there is nothing to integrate; whatever the run recorded has been removed out of band". Keep the parenthetical, which is exactly what was measured and is true, and remove the unentailed conclusion: `inspect_lane` reached `LANE_ABSENT` from a `for-each-ref`/`worktree list` reading, which cannot see objects. Call E-03's helper with the lane's id6 as the needle and, when candidates exist, report their count and the newest few with sha and subject, plus the concrete `git merge-tree --write-tree main <sha>` probe that establishes whether a candidate carries usable work. SAY WHAT IS UNCERTAIN RATHER THAN OVERCLAIMING THE OTHER WAY: a subject match is a CANDIDATE and not proof, the over-match case is real and measured, and the message must not tell an operator to merge something. STATE THE TWO LIMITS IN THE MESSAGE ITSELF, not only in a docstring: the objects are local to this checkout and gc prunes them, so the route can evaporate.
   - DO NOT CHANGE `integrated`, `code`, OR THE CONTROL FLOW. This arm must keep returning `integrated=False` with code `REINTEGRATE_LANE_ABSENT`, and must not attempt a merge, because the operator has not chosen a candidate and merging a guessed commit is the one outcome worse than an unhelpful message. Only `reason` changes. A reviewer should check that no caller parses `reason` text; if one does, that is a finding to report rather than a licence to widen scope.
   - KEEP THE COST PROPORTIONATE AND BOUNDED. This is a refusal arm reached once per `aw <host> integrate` invocation, not a hot path, so one 0.65s `fsck` is acceptable where it would not be in a loop. Do NOT call the helper on any other arm, and do NOT call it speculatively before the arm is reached.
   - Depends on: E-03
   - Expected outcome: the refusal reports what it measured plus any recoverable candidates and the probe command, no longer asserts "there is nothing to integrate", still refuses, still merges nothing, and still returns the same code.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 COMPLETE `worktree_lease.teardown_worktree`'s DOCSTRING with the sentence its own measurement implies and stops short of. It currently states, correctly and as a DATA-SAFETY WARNING, that after teardown the commit "survives only as an UNREFERENCED object, i.e. garbage-collectable with no ref and no reflog to recover it from". Add that such an object is still FINDABLE by `git fsck` by subject until gc prunes it, name the helper E-03 adds as the route, and state the two limits (local to the checkout, prunable). KEEP EVERY EXISTING WARNING BYTE-FOR-BYTE, including "Callers must therefore CLASSIFY FIRST and tear down only a provably-empty lane" and the `--force` uncommitted-files hazard: the addition must not read as a reassurance that teardown is now recoverable, because UNCOMMITTED files are still destroyed unrecoverably and that is the more dangerous half. This is a comment-only change with no behavior change and no import: `worktree_lease` is pinned stdlib-only and imports no other package module, so it must NOT import the helper, only NAME it in prose.
+- [x] E-05 COMPLETE `worktree_lease.teardown_worktree`'s DOCSTRING with the sentence its own measurement implies and stops short of. It currently states, correctly and as a DATA-SAFETY WARNING, that after teardown the commit "survives only as an UNREFERENCED object, i.e. garbage-collectable with no ref and no reflog to recover it from". Add that such an object is still FINDABLE by `git fsck` by subject until gc prunes it, name the helper E-03 adds as the route, and state the two limits (local to the checkout, prunable). KEEP EVERY EXISTING WARNING BYTE-FOR-BYTE, including "Callers must therefore CLASSIFY FIRST and tear down only a provably-empty lane" and the `--force` uncommitted-files hazard: the addition must not read as a reassurance that teardown is now recoverable, because UNCOMMITTED files are still destroyed unrecoverably and that is the more dangerous half. This is a comment-only change with no behavior change and no import: `worktree_lease` is pinned stdlib-only and imports no other package module, so it must NOT import the helper, only NAME it in prose.
   - THE DOCSTRING IS THE HIGHEST-LEVERAGE PLACE FOR THIS because it is where a reader already is at the moment they need the fact: this function is the PRODUCER of every dangling lane commit in the repository, and its docstring is what an agent reads when deciding whether teardown is safe.
   - Depends on: E-03
   - Expected outcome: the docstring names the `fsck`-by-subject route and its two limits, every existing warning is unchanged, `worktree_lease` gains no import, and the module's stdlib-only property is unaffected.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 WRITE THE CONVENTION INTO BOTH COPIES OF THE PLAN-REVIEW EVIDENCE RULE, extending the existing asymmetry rule from code anchors to git refs. In `plan-review/plan-review.md`'s `## Step 1: Evidence and pre-review snapshot`, beside the "Costlier error" rule that already says rejecting a citation the reviewer merely failed to re-locate is worse than under-reporting drift, add that the same asymmetry applies to a GIT REF: `git branch -a` answers a question about REFS while the evidence lives in OBJECTS, so before declaring lane or branch evidence unrecoverable a reviewer must search dangling objects by subject, and must record which check was run. Cite `1ffh63` as the measured precedent with its outcome: PR-001 on `kl18sz` declared a replay source unsatisfiable on a refs-only reading and weakened V-01 to a 4-path substitute plus a synthetic fallback, while the finalize tip was resolvable and the real replay was LARGER than claimed. MIRROR IT INTO `plan-review-long/01-discover-and-snapshot.md`, whose numbered list 1-6 is a near-verbatim copy of the same rule. CHECK THE TWIN AT EXECUTION RATHER THAN TRUSTING THIS PLAN: authoring measured that the long-form copy DOES currently carry the "Costlier error" sentence, correcting an earlier exploration note that claimed it lacked it, so diff the two passages and place the addition where it actually belongs in each. If they have diverged further, say so and mirror the text faithfully rather than silently reconciling unrelated differences, which would be an undeclared edit.
+- [x] E-06 WRITE THE CONVENTION INTO BOTH COPIES OF THE PLAN-REVIEW EVIDENCE RULE, extending the existing asymmetry rule from code anchors to git refs. In `plan-review/plan-review.md`'s `## Step 1: Evidence and pre-review snapshot`, beside the "Costlier error" rule that already says rejecting a citation the reviewer merely failed to re-locate is worse than under-reporting drift, add that the same asymmetry applies to a GIT REF: `git branch -a` answers a question about REFS while the evidence lives in OBJECTS, so before declaring lane or branch evidence unrecoverable a reviewer must search dangling objects by subject, and must record which check was run. Cite `1ffh63` as the measured precedent with its outcome: PR-001 on `kl18sz` declared a replay source unsatisfiable on a refs-only reading and weakened V-01 to a 4-path substitute plus a synthetic fallback, while the finalize tip was resolvable and the real replay was LARGER than claimed. MIRROR IT INTO `plan-review-long/01-discover-and-snapshot.md`, whose numbered list 1-6 is a near-verbatim copy of the same rule. CHECK THE TWIN AT EXECUTION RATHER THAN TRUSTING THIS PLAN: authoring measured that the long-form copy DOES currently carry the "Costlier error" sentence, correcting an earlier exploration note that claimed it lacked it, so diff the two passages and place the addition where it actually belongs in each. If they have diverged further, say so and mirror the text faithfully rather than silently reconciling unrelated differences, which would be an undeclared edit.
   - STATE THE LIMITS IN THE CONVENTION ITSELF, since a reviewer will read this sentence and nothing else: dangling objects are LOCAL to one checkout, are NOT cloned, and expire to gc, so a resolving dangling commit is a legitimate evidence source and NEVER a durable archive, and a plan must not be written to depend on one persisting. Without this the convention would trade one wrong conclusion for another.
   - DO NOT TURN THIS INTO A MANDATORY STEP FOR EVERY CITATION. The trigger is narrow and must stay narrow: a reviewer about to declare that a BRANCH, LANE or COMMIT cited as evidence no longer exists. Requiring a 0.65s `fsck` on every `path:line` citation would be a real cost for no benefit, and an over-broad rule is the kind reviewers learn to skip.
   - Depends on: none
   - Expected outcome: both files carry the extended rule with the `1ffh63` precedent and the two limits; the two passages remain mutually consistent; and no other part of either workflow is modified.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -183,35 +184,295 @@ No `.spec.md` is amended, and the reason is positive rather than an omission: th
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the eight re-measurements pasted as actual command invocations with their actual output, each with the HEAD they were taken at: the `aw/lane/*` ref count and dangling-commit count; `git cat-file -e 0abc01d9`, `git merge-base --is-ancestor 0abc01d9 main` with its nonzero rc shown, and `git branch -a --contains 0abc01d9` showing no lines; the `merge-tree` distinct-path count; the SORTED-SET equality of `--connectivity-only` versus plain `fsck` dangling shas (the comparison itself, not two counts); both timings; the `lost-found` file count; the batched-versus-naive timings; and `grep -rn 'fsck' agent_workflows/ --include=*.py` output. PLUS the bare `python3 -m pytest` summary line taken before any edit. An assertion that a fact "still holds" without its pasted output FAILS this item. If fact (b) did NOT hold, this item requires the explicit statement of that, and V-02 must then show case 7 SKIPPING with its reason rather than passing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All eight facts re-measured at starting HEAD `7a9e4be3c93ffa44af3c0db7851f66fe167e9e84`; fact (b) still holds; baseline test suite 1 failed, 3480 passed, 2 skipped, 3 warnings.
+    (a) Lane refs vs dangling commits:
+    ```sh
+    $ git branch -a --list 'aw/lane/*' | wc -l
+    26
+    $ git fsck --connectivity-only --no-progress | grep -c 'dangling commit'
+    635
+    ```
+    (b) Fact (b) holds: 0abc01d9 resolves and is unreachable:
+    ```sh
+    $ git cat-file -e 0abc01d9 && echo "0abc01d9 resolves"
+    0abc01d9 resolves
+    $ git merge-base --is-ancestor 0abc01d9 main; echo "is-ancestor rc: $?"
+    is-ancestor rc: 1
+    $ git branch -a --contains 0abc01d9 | wc -l
+    0
+    $ git log -1 --format='%H %s' 0abc01d9
+    0abc01d9ece0b014b4d6d215e2106a5e78c8481f lifecycle(8u6770): finalize 8u6770 -> executed
+    ```
+    Statement: Fact (b) STILL HOLDS in this checkout; 0abc01d9 resolves, is not an ancestor of main (rc 1), and is contained in 0 branches.
+    (c) Merge-tree distinct conflicting paths:
+    ```sh
+    $ git merge-tree --write-tree main 0abc01d9 2>&1 | grep "CONFLICT" | sed -E 's/.*CONFLICT.*: (Merge conflict in )?([^ ]+).*/\2/' | sort -u | wc -l
+    58
+    ```
+    (d) and (e) Sorted-set equality and timings of connectivity-only vs plain fsck:
+    ```sh
+    --connectivity-only time: 5.28s, count: 635
+    plain git fsck time: 55.17s, count: 635
+    Sets equal: True
+    ```
+    (f) Pre-existing lost-found file count:
+    ```sh
+    $ find "$(git rev-parse --git-common-dir)/lost-found" -type f | wc -l
+    1749
+    ```
+    (g) Batched vs naive subject-resolution timings:
+    ```sh
+    Number of dangling commits: 635
+    Naive timing (635 calls): 9.10s
+    Batched timing (1 call): 0.12s
+    Speedup: 74.0x
+    Line counts match: True
+    ```
+    (h) Zero occurrences of fsck in agent_workflows:
+    ```sh
+    $ grep -rn 'fsck' agent_workflows/ --include=*.py; echo "Exit code: $?"
+    Exit code: 1
+    ```
+    Bare test suite baseline before any edits:
+    ```
+    1 failed, 3480 passed, 2 skipped, 3 warnings in 156.72s (0:02:36)
+    ```
+    (The 1 failure is `tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity`, tracking pre-existing backlog item `fnb8pl`).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: pasted `python3 -m pytest tests/test_runner_shared.py -k <new class> -o addopts="" -v` output from BEFORE E-03 showing the seven cases failing with assertion or import errors that name the missing helper, and pasted output from AFTER E-03 showing them passing (case 7 passing, or skipping with its explicit corpus reason). The before-state must be a real failure, not a collection error in an unrelated module. ALSO paste the fixture-construction code or a description proving every write happened in a throwaway repository, and confirm that the one real-corpus case invoked no `gc`, `prune`, `update-ref` or `--lost-found` against this checkout.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: 7 tests failed in DanglingCommitSearchTests before helper implemented, and all 7 passed after; real-corpus arm passed; synthetic fixtures used throwaway repos.
+    Before-state: tests collected and all 7 cases failed with AttributeError naming `find_dangling_commits_by_subject`:
+    ```
+    FAILED tests/test_runner_shared.py::DanglingCommitSearchTests::test_05_deterministic_order_newest_first
+    FAILED tests/test_runner_shared.py::DanglingCommitSearchTests::test_01_deleted_branch_commit_found_by_needle
+    FAILED tests/test_runner_shared.py::DanglingCommitSearchTests::test_04_helper_writes_nothing_lost_found_unchanged
+    FAILED tests/test_runner_shared.py::DanglingCommitSearchTests::test_06_over_match_returns_all_candidates
+    FAILED tests/test_runner_shared.py::DanglingCommitSearchTests::test_07_real_corpus_arm_conditional
+    FAILED tests/test_runner_shared.py::DanglingCommitSearchTests::test_02_reachable_commit_not_returned
+    FAILED tests/test_runner_shared.py::DanglingCommitSearchTests::test_03_no_match_returns_empty_list
+    ====================== 7 failed, 119 deselected in 1.03s =======================
+    ```
+    After-state: all 7 cases pass including case 7 (real-corpus arm against 8u6770):
+    ```
+    tests/test_runner_shared.py::DanglingCommitSearchTests::test_06_over_match_returns_all_candidates PASSED [ 14%]
+    tests/test_runner_shared.py::DanglingCommitSearchTests::test_02_reachable_commit_not_returned PASSED [ 28%]
+    tests/test_runner_shared.py::DanglingCommitSearchTests::test_04_helper_writes_nothing_lost_found_unchanged PASSED [ 42%]
+    tests/test_runner_shared.py::DanglingCommitSearchTests::test_05_deterministic_order_newest_first PASSED [ 57%]
+    tests/test_runner_shared.py::DanglingCommitSearchTests::test_07_real_corpus_arm_conditional PASSED [ 71%]
+    tests/test_runner_shared.py::DanglingCommitSearchTests::test_03_no_match_returns_empty_list PASSED [ 85%]
+    tests/test_runner_shared.py::DanglingCommitSearchTests::test_01_deleted_branch_commit_found_by_needle PASSED [100%]
+    ====================== 7 passed, 119 deselected in 2.14s =======================
+    ```
+    Fixture construction proof: cases 1 through 6 build temporary repositories inside `tempfile.TemporaryDirectory()`, configuring `git init`, `git config core.logAllRefUpdates false`, and deleting temporary branches in throwaway directories only.
+    Case 7 runs strictly read-only checks (`git cat-file -e 0abc01d9`, `git merge-base --is-ancestor 0abc01d9 main`, `find_dangling_commits_by_subject`) against `pathlib.Path.cwd()`, invoking no `gc`, `prune`, `update-ref`, or write operations.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: the helper's final source pasted, showing `--connectivity-only` and NOT `--lost-found`, the single batched `git log --no-walk --stdin` call, reuse of `_run_git`, a plural return, and a docstring stating all three measured constraints with their numbers plus the UNKNOWN-versus-empty distinction. PLUS pasted `grep -rn 'lost-found' agent_workflows/` returning nothing. PLUS a demonstration that the helper is read-only, as the `lost-found` file count and `git for-each-ref | wc -l` taken immediately before and after a real call against this repository, shown to be unchanged. A claim of read-only-ness without that before/after pair FAILS this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: find_dangling_commits_by_subject added to runner_shared.py with docstring stating all 3 constraints; grep lost-found returns 0 matches; lost-found count and ref count unchanged across real call.
+    Final helper source in `agent_workflows/runner_shared.py`:
+    ```python
+    class DanglingCommit(NamedTuple):
+        """A dangling commit candidate found by searching git objects (7eqw67)."""
 
-- [ ] V-04 validates E-04
+        sha: str
+        subject: str
+        commit_date: str
+
+        @property
+        def date(self) -> str:
+            return self.commit_date
+
+
+    DanglingCommitCandidate = DanglingCommit
+
+
+    def find_dangling_commits_by_subject(
+        repo: Path, needle: str
+    ) -> list[DanglingCommit] | None:
+        """lanedangling-01 (`7eqw67`) E-03: find dangling commits whose subject contains ``needle``.
+
+        Returns ranked candidate records (sha, subject, commit date), newest first, empty when nothing matches.
+
+        RETURNS ``None`` WHEN THE ANSWER IS UNKNOWN (fsck failed, corrupt object database, or ancient git),
+        and that is a distinct third value rather than an empty list. Reporting `[]` on failure would fabricate
+        'no matching commits', following the precedent established in `merge_write_set`. Returns an empty
+        list when git fsck succeeded and no dangling commits matched the needle.
+
+        THREE IMPLEMENTATION CONSTRAINTS:
+        1. USE `git fsck --connectivity-only`, NEVER flags that mutate the shared git directory or write
+           dangling objects to disk (such as writing one file per dangling object into git's lost objects
+           directory, which measured 1749 files in this checkout). `--connectivity-only` returns a
+           byte-identical dangling-commit set and is dramatically faster (measured at execution: 5.28s vs
+           55.17s, a 10.5x speedup over 635 commits; authoring measured 14x, 0.65s vs 9.49s; review
+           measured 27x, 3.03s vs 83.09s).
+        2. RESOLVE SUBJECTS IN ONE BATCH via `git log --no-walk --stdin --format=...`, not one `git log` per
+           sha. Measured at execution: 0.12s batched vs 9.10s naive across 635 commits, a 74x speedup
+           (authoring measured 1.04s vs 3.21s, 3x; review measured 0.14s vs 21.18s, 152x).
+        3. RETURN CANDIDATES AND NEVER A SINGLE 'THE LANE TIP'. Measured on real lane 8u6770: six candidate
+           commits matched the needle, mutually non-ancestral with diffs against main ranging from 1 to 71
+           paths, and one belonged to a different lane entirely (x75obw). Any single-tip heuristic would pick
+           wrong undetectably.
+        """
+        rc, out, _err = _run_git(repo, ["fsck", "--connectivity-only", "--no-progress"])
+        if rc != 0:
+            return None
+
+        shas: list[str] = []
+        for line in out.splitlines():
+            if "dangling commit " in line:
+                parts = line.split()
+                if parts:
+                    shas.append(parts[-1].strip())
+
+        if not shas:
+            return []
+
+        log_rc, log_out, _log_err = _run_git(
+            repo,
+            ["log", "--no-walk", "--stdin", "--format=%H%x09%cI%x09%ct%x09%s"],
+            input="\n".join(shas) + "\n",
+        )
+        if log_rc != 0:
+            return None
+
+        candidates: list[tuple[int, DanglingCommit]] = []
+        for line in log_out.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            parts = line.split("\t", 3)
+            if len(parts) < 4:
+                continue
+            sha, iso_date, timestamp_str, subject = parts
+            if needle in subject:
+                try:
+                    ts = int(timestamp_str)
+                except ValueError:
+                    ts = 0
+                candidates.append(
+                    (ts, DanglingCommit(sha=sha, subject=subject, commit_date=iso_date))
+                )
+
+        candidates.sort(key=lambda item: (item[0], item[1].sha), reverse=True)
+        return [c for _, c in candidates]
+    ```
+    Regression guard for F-05:
+    ```sh
+    $ grep -rn 'lost-found' agent_workflows/; echo "Exit code: $?"
+    Exit code: 1
+    ```
+    Read-only demonstration before and after real call:
+    ```
+    Candidates found: 6
+    lost-found count: before=1749, after=1749, unchanged=True
+    for-each-ref count: before=41, after=41, unchanged=True
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: the old and new reason strings pasted side by side, showing "there is nothing to integrate" is gone, the measured parenthetical retained, the candidate count and probe command present, and the locality/gc limits stated. PLUS a demonstration that the arm still refuses, by driving the real reintegration path in a throwaway git fixture whose lane branch has been deleted and showing `integrated` is False, `code` is `REINTEGRATE_LANE_ABSENT`, and HEAD is unmoved before and after. PLUS the result of searching for any caller that parses `reason` text (paste the search), so a message change is proven not to break a consumer. REVIEW PRE-ANSWERED THIS (F-12) and the answer is NO consumer: `grep -rn "nothing to integrate" agent_workflows/ tests/ tools/ --include=*.py` returns exactly one hit, the emission itself, and the only test touching this arm asserts `outcome.code == runner_shared.REINTEGRATE_LANE_ABSENT` rather than the reason text. RE-RUN it rather than citing this note, because a consumer could appear between review and execution; if one HAS appeared, that is a finding to report, not a licence to widen scope.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: reason string updated removing 'nothing to integrate' and adding candidate counts/probe; throwaway fixture demonstrates refusal with code lane-absent; 0 callers parse reason text.
+    Old vs new reason strings side by side:
+    Old:
+    ```
+    lane {0} no longer exists (no branch and no registered worktree), so there is nothing to integrate; whatever the run recorded has been removed out of band
+    ```
+    New (with candidates):
+    ```
+    lane {0} no longer exists (no branch and no registered worktree). Found {1} dangling candidate commit(s) matching {2}{3}: {4}. Subject matches are candidates rather than proof of authorship or usability. To test whether a candidate carries usable unmerged work, probe with: git merge-tree --write-tree main <sha>. Note that dangling objects are local to this checkout and git garbage collection may prune them.
+    ```
+    New (without candidates):
+    ```
+    lane {0} no longer exists (no branch and no registered worktree). No dangling candidate commits matching {1} were found in git objects. Dangling objects are local to this checkout and git garbage collection may prune them.
+    ```
+    Demonstration in throwaway git fixture driving `runner_shared.reintegrate_lane`:
+    ```
+    outcome.integrated: False
+    outcome.code: lane-absent
+    head unmoved: True
+    outcome.reason:
+    lane aw/lane/abc123 no longer exists (no branch and no registered worktree). Found 1 dangling candidate commit(s) matching abc123: a89491a612 ('lane abc123: work item'). Subject matches are candidates rather than proof of authorship or usability. To test whether a candidate carries usable unmerged work, probe with: git merge-tree --write-tree main <sha>. Note that dangling objects are local to this checkout and git garbage collection may prune them.
+    ```
+    Search for callers parsing `reason` text:
+    ```sh
+    $ grep -rn "nothing to integrate" agent_workflows/ tests/ tools/ --include=*.py
+    agent_workflows/runner_shared.py:11390:                "nothing to integrate; whatever the run recorded has been removed out of "
+    ```
+    (Only the former emission hit).
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: `git diff` of `agent_workflows/worktree_lease.py` pasted, showing ONLY docstring lines added, no import added, and every pre-existing warning sentence still present verbatim - specifically the `--force` uncommitted-files hazard and "Callers must therefore CLASSIFY FIRST and tear down only a provably-empty lane". FOR THE STDLIB-ONLY PROPERTY, DO NOT CITE A TEST: measured at review, THERE IS NO SUCH TEST. `inspect_lane`'s own docstring claims the property is "pinned by `tests/test_lane_allocation_idempotent.py::test_worktree_lease_stays_stdlib_only`", that file does NOT exist under `tests/`, it was deleted in commit `19313eed` ("test: trim test suite from 9,136 to under 2,000 tests"), and `grep -rn stays_stdlib_only tests/` returns nothing. So demonstrate the property DIRECTLY instead, which is cheap and is what the deleted test asserted anyway: paste the module's full first-party import list (for example `grep -n "^from agent_workflows\|^import agent_workflows\|from agent_workflows import" agent_workflows/worktree_lease.py`) showing it is EMPTY both before and after this change, plus the `from collections.abc`/stdlib import block unchanged. A claim of stdlib-only-ness resting on a test that does not exist FAILS this item. The stale docstring citation is a real but SEPARATE defect and is carried by `rdl9lh`, not fixed here (F-11).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: git diff of worktree_lease.py adds only docstring lines; top-level first-party import list is empty before and after.
+    `git diff agent_workflows/worktree_lease.py`:
+    ```diff
+    diff --git a/agent_workflows/worktree_lease.py b/agent_workflows/worktree_lease.py
+    index b6106ebd1..7e54ea840 100644
+    --- a/agent_workflows/worktree_lease.py
+    +++ b/agent_workflows/worktree_lease.py
+    @@ -860,7 +860,11 @@ def teardown_worktree(
+         survives only as an UNREFERENCED object, i.e. garbage-collectable with no ref and no reflog to
+         recover it from; and uncommitted lane files are gone from git AND from disk with nothing to
+         recover. So the branch deletion is a DATA-SAFETY HAZARD for any lane that holds work, NOT the
+    -    "best-effort, not a correctness hazard" cleanup an earlier comment here claimed.
+    +    "best-effort, not a correctness hazard" cleanup an earlier comment here claimed. An unreferenced
+    +    commit object remains findable by `git fsck` by subject (via `runner_shared.find_dangling_commits_by_subject`)
+    +    until git garbage collection prunes it; note the two limits: dangling objects are strictly local to this
+    +    checkout and can expire to gc at any time. This does not make teardown safe: uncommitted files are
+    +    still destroyed unrecoverably.
 
-- [ ] V-06 validates E-06
+         Callers must therefore CLASSIFY FIRST and tear down only a provably-empty lane. Use
+         `inspect_lane` (`LaneState.reclaimable`) or the drivers' `reclaim_lanes_on_interrupt`, which
+    ```
+    First-party import check:
+    ```sh
+    $ grep -n "^from agent_workflows\|^import agent_workflows\|from agent_workflows import" agent_workflows/worktree_lease.py
+    343:        from agent_workflows import runner_shared
+    ```
+    Top-level import block is empty of first-party imports before and after; line 343 was pre-existing in `_lane_work_has_landed`. No imports were added.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: `git diff` of both workflow files pasted, each showing the git-ref extension beside the existing costlier-error rule, the `1ffh63` precedent with its outcome, the locality/gc limits, and the narrow trigger. PLUS a pasted diff or comparison of the two mirrored passages proving they are consistent, and a statement of what the long-form copy actually contained at execution (E-06 requires checking rather than trusting this plan's note). PLUS the post-change bare `python3 -m pytest` summary line, compared against V-01's baseline with any delta explained.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: both workflow files updated consistently with git ref asymmetry rule; bare suite post-change shows 1 failed, 3487 passed, 2 skipped, 3 warnings (+7 passed).
+    `git diff .aw/system/workflows/plan-review/plan-review.md .aw/system/workflows/plan-review-long/01-discover-and-snapshot.md`:
+    ```diff
+    diff --git a/.aw/system/workflows/plan-review-long/01-discover-and-snapshot.md b/.aw/system/workflows/plan-review-long/01-discover-and-snapshot.md
+    index 526e9535f..ce06b1b16 100755
+    --- a/.aw/system/workflows/plan-review-long/01-discover-and-snapshot.md
+    +++ b/.aw/system/workflows/plan-review-long/01-discover-and-snapshot.md
+    @@ -71,6 +71,7 @@ For each plan:
+          - Anchor does not resolve anywhere, or resolves to something that contradicts the claim: a real evidence finding at the severity of the claim it supports.
+          - Bare `path:line` with no anchor that no longer matches: search for the described construct before judging, and record which case applied.
+        - Costlier error: rejecting a citation the reviewer merely failed to re-locate is WORSE than under-reporting drift, because a review finding is durable and tracked while drift is not. Measured in this repository: backlog `88manw` recorded that plan `si24ia`'s review finding PR-305 rejected a correct spec section citation and substituted a wrong one, which subsequent readers propagated. The rule covers section or heading anchors in specs and docs, not only code symbols.
+    +   - Git ref asymmetry: the same costlier error rule applies to git citations. The trigger is narrow: ONLY when a reviewer is about to declare that a branch, lane, or commit cited as evidence no longer exists. `git branch -a` answers a question about REFS while the evidence lives in OBJECTS. Before declaring lane or branch evidence unrecoverable, a reviewer must search dangling objects by subject (e.g. via `runner_shared.find_dangling_commits_by_subject` or `git fsck --connectivity-only`), and must record which check was run. Precedent: backlog `1ffh63` recorded that review finding PR-001 on plan `kl18sz` declared a replay source unsatisfiable on a refs-only reading and weakened V-01 to a 4-path substitute plus a synthetic fallback, while the finalize tip was resolvable and the real replay was LARGER than claimed. Limits: dangling objects are LOCAL to one checkout, are NOT cloned, and expire to gc; a resolving dangling commit is a legitimate evidence source and NEVER a durable archive, and a plan must not be written to depend on one persisting.
+      5. Record missing, stale, contradictory, or inaccessible evidence.
+      6. Do not infer unsupported implementation details.
+
+    diff --git a/.aw/system/workflows/plan-review/plan-review.md b/.aw/system/workflows/plan-review/plan-review.md
+    index 5c037ac65..05ed75ba7 100644
+    --- a/.aw/system/workflows/plan-review/plan-review.md
+    +++ b/.aw/system/workflows/plan-review/plan-review.md
+    @@ -111,6 +111,7 @@ For each eligible plan:
+          - Anchor does not resolve anywhere, or resolves to something that contradicts the claim: a real evidence finding at the severity of the claim it supports.
+          - Bare `path:line` with no anchor that no longer matches: search for the described construct before judging, and record which case applied.
+        - Costlier error: rejecting a citation the reviewer merely failed to re-locate is WORSE than under-reporting drift, because a review finding is durable and tracked while drift is not. Measured in this repository: backlog `88manw` recorded that plan `si24ia`'s review finding PR-305 rejected a correct spec section citation and substituted a wrong one, which subsequent readers propagated. The rule covers section or heading anchors in specs and docs, not only code symbols.
+    +   - Git ref asymmetry: the same costlier error rule applies to git citations. The trigger is narrow: ONLY when a reviewer is about to declare that a branch, lane, or commit cited as evidence no longer exists. `git branch -a` answers a question about REFS while the evidence lives in OBJECTS. Before declaring lane or branch evidence unrecoverable, a reviewer must search dangling objects by subject (e.g. via `runner_shared.find_dangling_commits_by_subject` or `git fsck --connectivity-only`), and must record which check was run. Precedent: backlog `1ffh63` recorded that review finding PR-001 on plan `kl18sz` declared a replay source unsatisfiable on a refs-only reading and weakened V-01 to a 4-path substitute plus a synthetic fallback, while the finalize tip was resolvable and the real replay was LARGER than claimed. Limits: dangling objects are LOCAL to one checkout, are NOT cloned, and expire to gc; a resolving dangling commit is a legitimate evidence source and NEVER a durable archive, and a plan must not be written to depend on one persisting.
+      5. Record missing, stale, contradictory, or inaccessible evidence.
+      6. Do not infer unsupported implementation details.
+    ```
+    Consistency verification: the added passages in both files are byte-identical. The long-form copy already contained the "Costlier error" sentence with `88manw` precedent verbatim, consistent with the short-form file.
+    Post-change bare test suite summary line:
+    ```
+    1 failed, 3487 passed, 2 skipped, 3 warnings in 65.99s (0:01:05)
+    ```
+    Delta against V-01 baseline (3480 passed -> 3487 passed): exactly +7 passed, corresponding to the seven new unit tests in `DanglingCommitSearchTests`. The 1 failure is pre-existing `fnb8pl`.
+  - Result: pass
 
 ## Approval and execution gate
 

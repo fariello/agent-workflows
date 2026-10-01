@@ -5457,5 +5457,257 @@ class OutputModeFlagsGuardTests(unittest.TestCase):
                     )
 
 
+class DanglingCommitSearchTests(unittest.TestCase):
+    """Test suite for find_dangling_commits_by_subject (7eqw67 E-02)."""
+
+    def _get_helper(self):
+        helper = getattr(runner_shared, "find_dangling_commits_by_subject", None)
+        if helper is None:
+            raise AttributeError(
+                "agent_workflows.runner_shared has no attribute 'find_dangling_commits_by_subject'"
+            )
+        return helper
+
+    def _make_repo(self, root: pathlib.Path) -> pathlib.Path:
+        """A throwaway repo with initial commit on main and no reflogs."""
+        import subprocess
+
+        repo = root / "repo"
+        repo.mkdir()
+
+        def run(*a: str, **kw: object) -> subprocess.CompletedProcess[str]:
+            return subprocess.run(
+                list(a), cwd=repo, check=True, capture_output=True, text=True, **kw
+            )
+
+        run("git", "init", "-q", "-b", "main")
+        run("git", "config", "user.email", "test@example.invalid")
+        run("git", "config", "user.name", "Test")
+        run("git", "config", "commit.gpgsign", "false")
+        run("git", "config", "core.logAllRefUpdates", "false")
+        (repo / "init.txt").write_text("initial\n", encoding="utf-8")
+        run("git", "add", "init.txt")
+        run("git", "commit", "-qm", "initial commit")
+        return repo
+
+    def _create_dangling_commit(
+        self,
+        repo: pathlib.Path,
+        subject: str,
+        *,
+        filename: str = "file.txt",
+        content: str = "content\n",
+        env: dict[str, str] | None = None,
+    ) -> str:
+        """Create a commit on a throwaway branch, delete branch and expire reflogs so commit is dangling."""
+        import os
+        import subprocess
+
+        def run(*a: str, **kw: object) -> subprocess.CompletedProcess[str]:
+            return subprocess.run(
+                list(a), cwd=repo, check=True, capture_output=True, text=True, **kw
+            )
+
+        run("git", "checkout", "-qb", "temp-branch")
+        target = repo / filename
+        target.write_text(content, encoding="utf-8")
+        run("git", "add", filename)
+        run_env = None
+        if env:
+            run_env = dict(os.environ)
+            run_env.update(env)
+        subprocess.run(
+            ["git", "commit", "-qm", subject],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+            env=run_env,
+        )
+        sha = run("git", "rev-parse", "HEAD").stdout.strip()
+        run("git", "checkout", "-q", "main")
+        run("git", "branch", "-D", "temp-branch")
+        run("git", "reflog", "expire", "--expire=now", "--all")
+        return sha
+
+    def _count_lost_found(self, repo: pathlib.Path) -> int:
+        import subprocess
+
+        common_dir = subprocess.run(
+            ["git", "rev-parse", "--git-common-dir"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        lf_path = (repo / common_dir / "lost-found").resolve()
+        if not lf_path.exists():
+            return 0
+        return sum(1 for p in lf_path.rglob("*") if p.is_file())
+
+    def test_01_deleted_branch_commit_found_by_needle(self):
+        """(1) A commit on a deleted branch is found by subject needle with sha, subject and date."""
+        helper = self._get_helper()
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._make_repo(pathlib.Path(tmp))
+            sha = self._create_dangling_commit(
+                repo, "lane 111aaa: feature work", filename="f1.txt", content="111"
+            )
+            results = helper(repo, "111aaa")
+            self.assertIsNotNone(results)
+            self.assertEqual(len(results), 1)
+            candidate = results[0]
+            self.assertEqual(candidate.sha, sha)
+            self.assertEqual(candidate.subject, "lane 111aaa: feature work")
+            self.assertTrue(bool(candidate.commit_date))
+
+    def test_02_reachable_commit_not_returned(self):
+        """(2) A reachable commit matching subject is not returned because it is not dangling."""
+        import subprocess
+
+        helper = self._get_helper()
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._make_repo(pathlib.Path(tmp))
+            (repo / "reachable.txt").write_text("reachable\n", encoding="utf-8")
+            subprocess.run(
+                ["git", "add", "reachable.txt"],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "commit", "-qm", "lane 222bbb: reachable work"],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+            )
+            results = helper(repo, "222bbb")
+            self.assertIsNotNone(results)
+            self.assertEqual(results, [])
+
+    def test_03_no_match_returns_empty_list(self):
+        """(3) A needle matching nothing returns an empty result, distinguishable from an error."""
+        helper = self._get_helper()
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._make_repo(pathlib.Path(tmp))
+            self._create_dangling_commit(
+                repo, "lane 333ccc: something", filename="f3.txt"
+            )
+            results = helper(repo, "nonexistent_needle_xyz")
+            self.assertEqual(results, [])
+
+    def test_04_helper_writes_nothing_lost_found_unchanged(self):
+        """(4) The helper writes nothing - lost-found file count is unchanged across call."""
+        helper = self._get_helper()
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._make_repo(pathlib.Path(tmp))
+            self._create_dangling_commit(repo, "lane 444ddd: work", filename="f4.txt")
+            count_before = self._count_lost_found(repo)
+            results = helper(repo, "444ddd")
+            self.assertIsNotNone(results)
+            count_after = self._count_lost_found(repo)
+            self.assertEqual(count_before, count_after)
+
+    def test_05_deterministic_order_newest_first(self):
+        """(5) Ordering is deterministic and newest first for commits with distinct dates."""
+        helper = self._get_helper()
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._make_repo(pathlib.Path(tmp))
+            sha1 = self._create_dangling_commit(
+                repo,
+                "lane order555: first",
+                filename="f1.txt",
+                content="1",
+                env={
+                    "GIT_AUTHOR_DATE": "2026-09-01T12:00:00Z",
+                    "GIT_COMMITTER_DATE": "2026-09-01T12:00:00Z",
+                },
+            )
+            sha2 = self._create_dangling_commit(
+                repo,
+                "lane order555: second",
+                filename="f2.txt",
+                content="2",
+                env={
+                    "GIT_AUTHOR_DATE": "2026-09-02T12:00:00Z",
+                    "GIT_COMMITTER_DATE": "2026-09-02T12:00:00Z",
+                },
+            )
+            sha3 = self._create_dangling_commit(
+                repo,
+                "lane order555: third",
+                filename="f3.txt",
+                content="3",
+                env={
+                    "GIT_AUTHOR_DATE": "2026-09-03T12:00:00Z",
+                    "GIT_COMMITTER_DATE": "2026-09-03T12:00:00Z",
+                },
+            )
+            results = helper(repo, "order555")
+            self.assertIsNotNone(results)
+            result_shas = [c.sha for c in results]
+            self.assertEqual(result_shas, [sha3, sha2, sha1])
+
+    def test_06_over_match_returns_all_candidates(self):
+        """(6) Two dangling commits, one real and one mentioning needle, both returned."""
+        helper = self._get_helper()
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._make_repo(pathlib.Path(tmp))
+            sha1 = self._create_dangling_commit(
+                repo,
+                "lifecycle(aaa111): finalize aaa111 -> executed",
+                filename="f1.txt",
+                content="1",
+            )
+            sha2 = self._create_dangling_commit(
+                repo,
+                "WIP on aw/lane/bbb222: re-derive front matter for lane aaa111",
+                filename="f2.txt",
+                content="2",
+            )
+            results = helper(repo, "aaa111")
+            self.assertIsNotNone(results)
+            self.assertEqual(len(results), 2)
+            shas = {c.sha for c in results}
+            self.assertEqual(shas, {sha1, sha2})
+            subjects = {c.subject for c in results}
+            self.assertIn("lifecycle(aaa111): finalize aaa111 -> executed", subjects)
+            self.assertIn(
+                "WIP on aw/lane/bbb222: re-derive front matter for lane aaa111",
+                subjects,
+            )
+
+    def test_07_real_corpus_arm_conditional(self):
+        """(7) Conditional real-corpus search: if 0abc01d9 resolves and is unreachable, 8u6770 search finds it."""
+        import subprocess
+
+        repo_path = pathlib.Path.cwd()
+        rc_cat = subprocess.run(
+            ["git", "cat-file", "-e", "0abc01d9"],
+            cwd=repo_path,
+            capture_output=True,
+            check=False,
+        ).returncode
+        if rc_cat != 0:
+            self.skipTest("0abc01d9 does not resolve in this checkout")
+        rc_anc = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", "0abc01d9", "main"],
+            cwd=repo_path,
+            capture_output=True,
+            check=False,
+        ).returncode
+        if rc_anc == 0:
+            self.skipTest("0abc01d9 is reachable from main in this checkout")
+
+        helper = self._get_helper()
+        results = helper(repo_path, "8u6770")
+        self.assertIsNotNone(results)
+        matching_shas = [c.sha for c in results if c.sha.startswith("0abc01d9")]
+        self.assertTrue(
+            bool(matching_shas),
+            f"Expected candidate starting with 0abc01d9 in results: {results}",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
