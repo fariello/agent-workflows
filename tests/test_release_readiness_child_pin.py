@@ -28,6 +28,10 @@ def test_gates_do_not_execute_decoy_package_in_caller_repo_root(tmp_path: Path) 
     # reject the directory before scanning (PR-002).
     subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
 
+    # Initialize a plans directory so ipd lint locates a plans tree rather than
+    # refusing at exit 2 (gonzhl).
+    (tmp_path / ".aw" / "records" / "plans" / "pending").mkdir(parents=True)
+
     # Build synthetic decoy package in tmp_path.
     decoy_pkg = tmp_path / "agent_workflows"
     decoy_pkg.mkdir()

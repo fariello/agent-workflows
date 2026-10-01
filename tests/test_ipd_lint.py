@@ -3471,5 +3471,173 @@ class CitationAnchorsOnDemandTests(unittest.TestCase):
             self.assertEqual(res_flagged.diagnostics, [])
 
 
+class AllRootRegressionTests(unittest.TestCase):
+    """Regression tests for `aw ipd lint --all <root>` through argparse (IPD gonzhl).
+
+    Exercises run_lint through cli._build_parser().parse_args(...) rather than handing it a crafted
+    Namespace, asserting on observable outcomes (exit codes, agent records, files linted) and never
+    on internal structure.
+    """
+
+    def _run_argv(self, argv: list[str]) -> tuple[int, str]:
+        from agent_workflows import cli
+
+        parser = cli._build_parser()
+        args = parser.parse_args(["ipd", "lint"] + argv)
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = L.run_lint(args)
+        return rc, buf.getvalue()
+
+    def test_all_root_with_broken_plan_exits_1(self):
+        """Case (a): --all <root> over an unconfigured repo holding one broken plan exits 1 and names the plan."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            pend = root / ".aw" / "records" / "plans" / "pending"
+            pend.mkdir(parents=True)
+            bad_plan = pend / "bad.md"
+            bad_plan.write_text(
+                "# IPD: bad\n\n- Kind: child\n\n## Goal\n\nno checklist here\n",
+                encoding="utf-8",
+            )
+
+            rc, out = self._run_argv(["--all", str(root)])
+            self.assertEqual(rc, 1)
+            self.assertIn("bad", out)
+
+    def test_all_root_with_conforming_plan_exits_0(self):
+        """Case (b): --all <root> over a configured repo holding one conforming plan exits 0."""
+        from agent_workflows import ipd_authoring as A
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            cfg = root / ".aw" / "config"
+            cfg.mkdir(parents=True)
+            (cfg / "project.json").write_text(
+                '{"records_backend": "repository"}\n', encoding="utf-8"
+            )
+            pend = root / ".aw" / "records" / "plans" / "pending"
+            pend.mkdir(parents=True)
+            plan_path = pend / "20260803-x-01-aaa111-ok.ipd.md"
+            plan_path.write_text(
+                A.build_skeleton(
+                    kind="child",
+                    title="ok (Set x, Order 1)",
+                    author="t",
+                    when="2026-08-03",
+                    set_name="x",
+                    order=1,
+                    plan_id="aaa111",
+                ),
+                encoding="utf-8",
+            )
+
+            rc, out = self._run_argv(["--all", str(root)])
+            self.assertEqual(rc, 0)
+            self.assertIn("error=0", out)
+
+    def test_all_two_roots_refused_exit_2(self):
+        """Case (c): --all with two roots exits 2 and names the count."""
+        with tempfile.TemporaryDirectory() as td:
+            r1 = Path(td) / "r1"
+            r2 = Path(td) / "r2"
+            r1.mkdir()
+            r2.mkdir()
+
+            rc, out = self._run_argv(["--all", str(r1), str(r2)])
+            self.assertEqual(rc, 2)
+            self.assertIn("2", out)
+            self.assertIn("at most one", out)
+
+            # Machine record under --agent
+            rc_agent, out_agent = self._run_argv(["--all", "--agent", str(r1), str(r2)])
+            self.assertEqual(rc_agent, 2)
+            rec = json.loads(out_agent)
+            self.assertEqual(rec.get("kind"), "error")
+            self.assertEqual(rec.get("outcome"), "cannot-run")
+            self.assertEqual(rec.get("exit"), 2)
+            self.assertIs(rec.get("verified"), False)
+            self.assertIs(rec.get("complete"), False)
+
+    def test_all_file_as_root_refused_exit_2(self):
+        """Case (d): --all <path-to-file> exits 2 with a named reason."""
+        with tempfile.TemporaryDirectory() as td:
+            f = Path(td) / "some_file.txt"
+            f.write_text("hello", encoding="utf-8")
+
+            rc, out = self._run_argv(["--all", str(f)])
+            self.assertEqual(rc, 2)
+            self.assertIn("not a directory", out)
+
+            # Machine record under --agent
+            rc_agent, out_agent = self._run_argv(["--all", "--agent", str(f)])
+            self.assertEqual(rc_agent, 2)
+            rec = json.loads(out_agent)
+            self.assertEqual(rec.get("kind"), "error")
+            self.assertEqual(rec.get("outcome"), "cannot-run")
+            self.assertEqual(rec.get("exit"), 2)
+            self.assertIs(rec.get("verified"), False)
+            self.assertIs(rec.get("complete"), False)
+
+            # Verify no home path leak in --json summary
+            abs_home_f = Path.home() / "test_fake_file_gonzhl.txt"
+            rc_json, out_json = self._run_argv(["--all", "--json", str(abs_home_f)])
+            self.assertEqual(rc_json, 2)
+            rec_json = json.loads(out_json)
+            summary = rec_json.get("summary", "")
+            self.assertNotIn(str(Path.home()), summary)
+            self.assertIsNone(re.search(r"/(?:home|Users)/[A-Za-z0-9._-]+", summary))
+
+    def test_all_dir_with_no_plans_tree_refused_exit_2(self):
+        """Case (e): --all <dir-with-no-plans-tree> exits 2 rather than 0."""
+        with tempfile.TemporaryDirectory() as td:
+            empty_dir = Path(td) / "empty"
+            empty_dir.mkdir()
+
+            rc, out = self._run_argv(["--all", str(empty_dir)])
+            self.assertEqual(rc, 2)
+            self.assertIn("no plans tree located", out)
+
+            # Machine record under --agent
+            rc_agent, out_agent = self._run_argv(["--all", "--agent", str(empty_dir)])
+            self.assertEqual(rc_agent, 2)
+            rec = json.loads(out_agent)
+            self.assertEqual(rec.get("kind"), "error")
+            self.assertEqual(rec.get("outcome"), "cannot-run")
+            self.assertEqual(rec.get("exit"), 2)
+            self.assertIs(rec.get("verified"), False)
+            self.assertIs(rec.get("complete"), False)
+
+            # Verify no home path leak in --json summary
+            abs_home_dir = Path.home() / "test_fake_dir_gonzhl"
+            rc_json, out_json = self._run_argv(["--all", "--json", str(abs_home_dir)])
+            self.assertEqual(rc_json, 2)
+            rec_json = json.loads(out_json)
+            summary = rec_json.get("summary", "")
+            self.assertNotIn(str(Path.home()), summary)
+            self.assertIsNone(re.search(r"/(?:home|Users)/[A-Za-z0-9._-]+", summary))
+
+    def test_all_bare_in_this_repo_retains_baseline_exit_code(self):
+        """Case (f): bare --all in this repository retains its baseline exit code (1)."""
+        rc, out = self._run_argv(["--all"])
+        self.assertEqual(rc, 1)
+
+    def test_all_configured_empty_root_exits_0(self):
+        """Case (g): --all <root> over a configured empty repo exits 0 with error=0 (anti-overreach)."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            cfg = root / ".aw" / "config"
+            cfg.mkdir(parents=True)
+            (cfg / "project.json").write_text(
+                '{"records_backend": "repository"}\n', encoding="utf-8"
+            )
+            pend = root / ".aw" / "records" / "plans" / "pending"
+            pend.mkdir(parents=True)
+
+            rc, out = self._run_argv(["--all", str(root)])
+            self.assertEqual(rc, 0)
+            self.assertIn("error=0", out)
+
+
 if __name__ == "__main__":
     unittest.main()
