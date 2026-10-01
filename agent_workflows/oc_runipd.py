@@ -1049,9 +1049,11 @@ class StallWatchdog(runner_shared.StallWatchdog):
 # assertion (`tests/test_oc_runipd.py`) checks the argv against THIS name, so a literal here that drifted
 # from the descriptor would keep passing while the runner wrote the other value.
 FULL_AUTO_ACTOR = runner_shared.OC_HOST_LABELS.full_auto_actor
-FULL_AUTO_APPROVAL_MESSAGE = (
-    "auto-approved by --full-auto: review readiness cleared (not human approval)"
-)
+# Plan 90z361 E-02: READ FROM RUNNER_SHARED rather than defined as an independent literal. The actor
+# above is host-VARYING and so is descriptor data; the approval message is host-INVARIANT and so is a
+# shared constant. Both are references for the same underlying reason: exactly one place each value
+# is written.
+FULL_AUTO_APPROVAL_MESSAGE = runner_shared.FULL_AUTO_APPROVAL_MESSAGE
 
 
 def set_plan_approved(

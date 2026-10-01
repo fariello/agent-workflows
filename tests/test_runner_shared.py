@@ -5063,6 +5063,87 @@ class FullAutoDurableHistoryPinTests(unittest.TestCase):
                 + "\n".join(failures)
             )
 
+    def test_codefined_constants_host_vs_host_equality(self) -> None:
+        """Mechanically ensure co-defined constants across runner hosts do not disagree (90z361 E-03).
+
+        Enumerates common UPPER_CASE module attributes across oc_runipd and agy_runipd via vars()
+        (and NOT with ast.parse or any production source inspection, honoring GUIDING_PRINCIPLES P16).
+
+        This closes the gap in test_no_divergent_codefined_constants_in_runner_shared: that sweep
+        compares the shared value against each host and fails only when it matches neither host,
+        so it is structurally blind to the case where the two hosts disagree with each other.
+
+        The authored expectation is captured in EXPECTED_HOST_VARYING: constants that legitimately
+        vary per host (such as the runner actor provenance) are asserted to remain unequal, ensuring
+        the exemption cannot silently become vacuous. All other co-defined UPPER_CASE attributes
+        are automatically swept for value equality.
+
+        Bounds and characteristics:
+        1. Enumeration with vars() reaches common UPPER_CASE names across both hosts. Most of these
+           are the identical shared object in both hosts (is identity True, re-exports for which
+           divergence is impossible); the sweep's real subjects are those that are not identical objects.
+           Per P16, we assert on value outcomes and do not pin census counts.
+        2. Non-UPPER_CASE co-defined symbols (such as _close_process_streams) are not reached by
+           isupper(); both hosts bind the identical runner_shutdown._close_process_streams object (is True).
+        3. This test reads no production .py source text or ASTs by any mechanism, exercising only
+           module attribute values via getattr().
+        """
+        EXPECTED_HOST_VARYING = {"DEPENDENCY_BLOCK_RECOVERY_HINT", "FULL_AUTO_ACTOR"}
+
+        common_names = sorted(
+            k for k in vars(oc_runipd) if k.isupper() and k in vars(agy_runipd)
+        )
+        failures: list[str] = []
+
+        for name in common_names:
+            v_oc = getattr(oc_runipd, name)
+            v_agy = getattr(agy_runipd, name)
+
+            if name in EXPECTED_HOST_VARYING:
+                if v_oc == v_agy:
+                    failures.append(
+                        f"Expected host-varying constant {name} unexpectedly equal across hosts: {v_oc!r}"
+                    )
+            else:
+                if v_oc != v_agy:
+                    failures.append(f"{name}: oc={v_oc!r} agy={v_agy!r}")
+
+        if failures:
+            self.fail(
+                "Found divergent co-defined module-level constant(s) between oc_runipd and agy_runipd:\n"
+                + "\n".join(failures)
+            )
+
+    def test_full_auto_approval_message_reintroduced_constant_value_pin(self) -> None:
+        """Pin the shared runner_shared.FULL_AUTO_APPROVAL_MESSAGE literal value (90z361 E-04).
+
+        Anti-regression guard for the defect gjni4c resolved: legacy FULL_AUTO_APPROVAL_MESSAGE
+        was deleted from runner_shared because it held a third, divergent value matching neither host
+        ('Auto-approved via --full-auto (review passed all gates)'). Reintroducing the name is safe
+        only while its value matches what both hosts expect.
+
+        Asserts that runner_shared.FULL_AUTO_APPROVAL_MESSAGE matches the expected literal string
+        spelled in the test, and is neither the deleted legacy phrase nor any string containing
+        'passed all gates'.
+        """
+        expected_msg = "auto-approved by --full-auto: review readiness cleared (not human approval)"
+        msg = runner_shared.FULL_AUTO_APPROVAL_MESSAGE
+        self.assertEqual(
+            msg,
+            expected_msg,
+            "runner_shared.FULL_AUTO_APPROVAL_MESSAGE does not match expected literal",
+        )
+        self.assertNotEqual(
+            msg,
+            "Auto-approved via --full-auto (review passed all gates)",
+            "runner_shared.FULL_AUTO_APPROVAL_MESSAGE must not revert to deleted gjni4c legacy value",
+        )
+        self.assertNotIn(
+            "passed all gates",
+            msg,
+            "runner_shared.FULL_AUTO_APPROVAL_MESSAGE must not contain 'passed all gates'",
+        )
+
     def test_no_dead_codefined_def_or_class_symbols_in_runner_shared(self) -> None:
         """Mechanically ensure no dead def-or-class body exists in runner_shared.
 

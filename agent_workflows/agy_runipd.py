@@ -1314,9 +1314,11 @@ def git_common_dir(repo: Path) -> Path:
 # bodies were byte-identical, so a verbatim lift would have had this host's auto-approvals recorded as
 # performed by `aw oc run` in permanent plan history.
 FULL_AUTO_ACTOR = runner_shared.AGY_HOST_LABELS.full_auto_actor
-FULL_AUTO_APPROVAL_MESSAGE = (
-    "auto-approved by --full-auto: review readiness cleared (not human approval)"
-)
+# Plan 90z361 E-02: READ FROM RUNNER_SHARED rather than defined as an independent literal. The actor
+# above is host-VARYING and so is descriptor data; the approval message is host-INVARIANT and so is a
+# shared constant. Both are references for the same underlying reason: exactly one place each value
+# is written.
+FULL_AUTO_APPROVAL_MESSAGE = runner_shared.FULL_AUTO_APPROVAL_MESSAGE
 
 
 def set_plan_approved(
