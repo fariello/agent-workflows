@@ -20,7 +20,17 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Any, Collection, Dict, List, NamedTuple, Optional, Sequence, Tuple
+from typing import (
+    Any,
+    Collection,
+    Dict,
+    FrozenSet,
+    List,
+    NamedTuple,
+    Optional,
+    Sequence,
+    Tuple,
+)
 
 from agent_workflows import artifact_core as core
 from agent_workflows import artifact_naming as _naming
@@ -473,6 +483,14 @@ _TREE_TO_SCAN_ROOTS: Dict[str, Tuple[str, ...]] = {
 }
 
 
+#: The fatal status-parse drift rules that cause an artifact to fail its per-tree status
+#: parse. When one of these fires and no Item was produced, attention.scan synthesizes a
+#: degraded Item so the broken artifact is visible across CLI surfaces.
+FATAL_STATUS_PARSE_RULES: FrozenSet[str] = frozenset(
+    {"attention.missing-status", "attention.unknown-status"}
+)
+
+
 def scan(
     repo_root: Path, type_filters: Optional[Collection[str]] = None
 ) -> Tuple[List[Item], List[core.Drift]]:
@@ -536,6 +554,37 @@ def scan(
         rec, rec_drift = _record_for(pol.name, rel, f, text)
         drift.extend(rec_drift)
         if rec is None:
+            if any(d.rule in FATAL_STATUS_PARSE_RULES for d in rec_drift):
+                m = _naming.parse_clustered(f.name)
+                if m is None:
+                    m = _naming.parse_clustered_prefix(f.name)
+                deg_id = m.group("id6") if m else ""
+                # E-03: Assign the existing `blocked` class (A.BLOCKED) and add no new class.
+                # Three reasons:
+                # (1) A new class would edit attention_contract.py (declared by live pending plans
+                #     1qt1u3 and r61br4), break tests/test_attention_contract.py::EnumAndPolicyTests::test_five_classes
+                #     plus the ATTENTION_CLASS_ORDER identity assertion beside it, and falsify the
+                #     five-value enum contract in the attention-registry-and-cross-tree-status spec
+                #     (decision 2, G1, Section 6, F1).
+                # (2) `blocked` is semantically right by the spec's Section 6 definition: work is
+                #     intended to continue but a named gate prevents progress - an unparseable artifact
+                #     cannot proceed until a human fixes the status.
+                # (3) /whatnext already surfaces `blocked` items and stops on `valid: false`, so the
+                #     artifact lands in front of a human with no workflow changes.
+                # Gateless `blocked` is safe: the spec's Section 8.4 gate requirement governs artifact
+                # front matter, not synthesized view records, and all gate consumers in attention.py
+                # guard on truthiness (if it.gate) before reading kind/ref, rendering as no gate.
+                items.append(
+                    Item(
+                        id=deg_id,
+                        path=rel,
+                        tree=pol.name,
+                        native_status="-",
+                        attention_class=A.BLOCKED,
+                        gate=None,
+                        last_history_at=None,
+                    )
+                )
             continue
 
         # worksequence i6015i E-07: extract the declared dependency edges HERE, while `text` is still

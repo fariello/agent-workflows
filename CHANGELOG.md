@@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
 
 Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
 
+- Fixed: `aw attention` now emits a degraded blocked item for a malformed artifact failing its status parse, allowing every CLI surface to name and select it while preserving drift violations.
 - Fixed: `aw specs check` now reports the examined count in human output, distinguishing a clean verdict over zero specs from a clean verdict over many.
 - Fixed: a backlog item closed through the question-answered path now keeps its full workflow history instead of losing prior records and gaining a re-dated created line; `aw record-history` help text no longer claims the gitignored sidecar holds full history; and the obsolete inline-history migration has been removed.
 - Fixed: the installer's --diff preview now reports the only-when-absent scaffolding files an install would create.

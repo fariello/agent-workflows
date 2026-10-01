@@ -151,7 +151,8 @@ class PromptsScanTests(unittest.TestCase):
         prompt_items = [it for it in items if it.tree == "prompts"]
 
         # 6 bucketed prompts (2 pending, 1 executed, 1 superseded, 1 not-executed, 1 reusable)
-        self.assertEqual(len(prompt_items), 6)
+        # plus 1 unbucketed prompt that synthesizes a degraded item under a21sr5
+        self.assertEqual(len(prompt_items), 7)
 
         # Untracked prompt should be ABSENT
         self.assertFalse(
@@ -185,6 +186,10 @@ class PromptsScanTests(unittest.TestCase):
         self.assertEqual(
             by_name["20260717-1950-03-reusable.prompt.md"].attention_class, A.PARKED
         )
+        self.assertEqual(
+            by_name["20260920-no-bucket.prompt.md"].attention_class, A.BLOCKED
+        )
+        self.assertEqual(by_name["20260920-no-bucket.prompt.md"].native_status, "-")
 
         # Check ID distribution: exactly 1 has Id 'abc123', others have empty string ''
         self.assertEqual(

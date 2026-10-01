@@ -1,5 +1,5 @@
 - Id: fyeg6a
-- Status: graduated
+- Status: done
 - Graduated-To: driftsel
 - Blocks-Release: next
 - Set: driftsel
@@ -8,6 +8,7 @@
 - Summary: aw attention cannot find a MALFORMED artifact by id6: a parse failure yields drift and no item, so the selector matched nothing
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): closed by aw oc run: IPD a21sr5 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-driftsel-01-a21sr5-emit-a-degraded-attention-item-for-a-malformed-artifact-so-e.ipd.md); evidence .aw/records/plans/executed/20260929-driftsel-01-a21sr5-emit-a-degraded-attention-item-for-a-malformed-artifact-so-e.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: a21sr5
 - 2026-09-21 created (aw backlog): aw attention cannot find a MALFORMED artifact by id6: a parse failure yields drift and no item, so the selector matched nothing
 
