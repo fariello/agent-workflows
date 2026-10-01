@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/run_dashboard.py, agent_workflows/run_analytics.py, agent_workflows/run_analytics_statistics.py, agent_workflows/run_analytics_cli.py, tests/test_run_dashboard.py, tests/test_attempt_model_consumers.py, docs/run-analytics.md
 - Item-Dependencies: executed:czut8j
 - Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: medium
 - From-Backlog: 7yz545
