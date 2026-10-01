@@ -141,6 +141,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier: 95jk4s
 - THE CROSS-TYPE PATH GUARD, which this plan depends on rather than implements.
   - Carrier: eby93o
+  - Carrier-Evidence: .aw/records/plans/executed/20260929-awrenamesel-01-eby93o-confine-a-path-selector-to-the-requested-type-tree-so-a-muta.ipd.md
 - MAKING THE PLANS BACKEND HONOR `--to-id6` (F-12). Pre-existing, unrelated to the selector defect, and a genuine feature decision: `--to-id6` mints an id6 and injects it, and every plan in this repository already has one, so there is nothing for it to do here today. Widening this plan to add a minting path would change what `rename plans` WRITES, not just what it ACCEPTS.
   - Carrier-Declined: a no-op flag is a separate defect from a refused selector; implementing minting changes the verb's write behavior and needs its own fence and its own decision about id6 allocation.
 - UNIFYING `plans_refs` INTO `artifact_rename.run_rename_generic` so there is literally one rename engine. Attractive and deliberately declined: the plans backend carries real behavior the generic engine does not (the `vf03z3` Order/date preservation, the `e3hzyc` Order semantics, the `5rzupk` slug derivation, the three-form plan citation rewriter), and folding it in would put all of that at risk in a change whose purpose is to fix a selector. Routing the RESOLUTION through the shared resolver gets the consistency the backlog item asks for at a fraction of the risk.
