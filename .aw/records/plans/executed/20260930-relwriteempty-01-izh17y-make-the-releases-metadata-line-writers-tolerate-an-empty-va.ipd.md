@@ -6,7 +6,7 @@
 - Scope: Change the value group of `releases._BLOCKS_RELEASE_LINE_RE` and `releases._FROM_BACKLOG_LINE_RE` from `\S+` to `[^\n]*`, matching their `set_priority_line`/`set_work_kind_line` siblings, so both writers REPLACE an empty-valued or malformed line instead of duplicating it; and add a resolvability refusal for `--from-backlog` on the two setter surfaces that lack one (`aw ipd set` / the bare `aw set` through `status_set`, and `aw specs set` through `specs.run_set`), mirroring the `--from-spec` refusal those same two functions already carry and reaching the id set through the EXISTING `backlog.existing_backlog_ids` authority. Add the writer and setter tests that do not exist today. EXCLUDES any change to the READER patterns `releases._ITEM_BLOCKS_RELEASE_RE` / `releases._ITEM_FROM_BACKLOG_RE` (measured below: their `\S+` is CORRECT and changing it would be a regression, which is a deliberate correction to the backlog item's suggestion that they be changed in the same pass); EXCLUDES any corpus backfill (zero artifacts carry an empty-valued line today); EXCLUDES `aw ipd scaffold --from-backlog`, which already refuses an unresolvable id; EXCLUDES any change to `check.from-backlog-dangling`, `check.blocks-release-dangling`, or any severity.
 - Scope-Paths: agent_workflows/releases.py, agent_workflows/status_set.py, agent_workflows/specs.py, tests/test_releases_line_writers.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: izh17y
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: izh17y verified (set relwriteempty, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (aw set): status set to reviewed
 
