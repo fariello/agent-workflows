@@ -6,7 +6,7 @@
 - Scope: Re-point `runner_shared.dirty_tree_overlap` at the one porcelain parser, add the behavioral test that the existing re-export test structurally cannot catch, and correct A12b's stale coverage sentence. Explicitly NOT the spec status transition, which is Order 02's subject.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_runner_shared.py, .aw/records/specs/approved/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode model=its_direct/pt3-claude-opus-5-1m-us
 - Id: e9ekuj
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: e9ekuj verified (set specfin7ck, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): /plan-review (opencode model=its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 all FIXED, none deferred or open. HIGH PR-001: the conditional-abandon path told the executor to record E-02/E-03 and V-02/V-03 'not-needed', which is not a legal state in either closed vocabulary (probed: IPD-S401/IPD-S402, author disposition conforming -> error), so a fork already closed would have stranded the plan; rewritten onto E-02 'blocked' with a required Execution note, V-02 'blocked', and E-03 STILL PERFORMED because the test gap F-3 measures is independent of who closed the fork, with the honest IPD-S404 consequence stated (a blocked E-item cannot be finalized, so stop and report for retirement or re-scope). PR-003: F-6's arithmetic was backwards; the spec DEFINES 42 requirement ids and MENTIONS 43, the extra being R3.3b which is never defined at HEAD and survives only in WITHDRAWN A7c, so the backlog item's 42 was right and this plan's 43 was the error, and Order 02 must re-derive rather than adopt either figure. F-1, F-3 and F-4 all reproduce at HEAD 17387e25, and two things the plan asserted are now demonstrated: the forked decode and parse_porcelain_paths agree on all 12 probed porcelain inputs (so E-02 is a pure conformance change), and E-03's spy over parse_porcelain_entries records 0 calls at HEAD but 1 through the projection (so the new test genuinely discriminates). Bare suite 3246 passed, 2 skipped.
 
@@ -40,32 +40,32 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: close the R6.1 fork, and prove the test gap that hid it
 
-- [ ] E-01 RE-MEASURE FINDING F1 AT EXECUTION HEAD BEFORE CHANGING ANYTHING, and abandon the fix if it has already been closed. Read `runner_shared.dirty_tree_overlap` and confirm it still decodes the porcelain format itself rather than delegating: the tells are the two-column strip (`entry = line[3:] if len(line) > 3 else line.strip()`) and the rename split on `" -> "`. Confirm `lane_containment.parse_porcelain_entries` still claims sole ownership ("THE ONE PORCELAIN PARSER (spec R6.1)") and that `parse_porcelain_paths` is its path-only projection. Record which surfaces reach the forked copy: both `oc_runipd` and `agy_runipd` re-export the `runner_shared` function rather than defining their own, so the fork is reached by every driver.
+- [x] E-01 RE-MEASURE FINDING F1 AT EXECUTION HEAD BEFORE CHANGING ANYTHING, and abandon the fix if it has already been closed. Read `runner_shared.dirty_tree_overlap` and confirm it still decodes the porcelain format itself rather than delegating: the tells are the two-column strip (`entry = line[3:] if len(line) > 3 else line.strip()`) and the rename split on `" -> "`. Confirm `lane_containment.parse_porcelain_entries` still claims sole ownership ("THE ONE PORCELAIN PARSER (spec R6.1)") and that `parse_porcelain_paths` is its path-only projection. Record which surfaces reach the forked copy: both `oc_runipd` and `agy_runipd` re-export the `runner_shared` function rather than defining their own, so the fork is reached by every driver.
   - Depends on: none
   - Expected outcome: the two function bodies pasted side by side with the duplicated format knowledge identified line by line, plus an explicit statement that the fork IS or IS NOT still present. IF IT IS ALREADY GONE, follow the legal states named in the Approval and execution gate below (E-02 `blocked` with an `Execution note:` citing the closing commit; E-03 still performed, because the test gap F-3 records is independent of who closed the fork) and do NOT invent a state: `not-needed` is not a legal execution state.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 REPOINT `dirty_tree_overlap` AT THE ONE PARSER, changing no behavior. Replace the inline decode with a call to `lane_containment.parse_porcelain_paths`, using the deferred-import form already used elsewhere in this module (`runner_shared.teardown_lane_if_classified` imports `lane_containment` inside the function body) so no import cycle is introduced. Preserve the function's contract exactly: it still runs `git status --short --untracked-files=all`, still intersects with the incoming set, still returns a sorted list, and still treats BOTH endpoints of a rename as dirty. Keep the docstring's merge-result-diff reasoning and its finding F-7 pointer intact, and replace only the paragraph that documents the format it no longer decodes, noting where the format now lives.
+- [x] E-02 REPOINT `dirty_tree_overlap` AT THE ONE PARSER, changing no behavior. Replace the inline decode with a call to `lane_containment.parse_porcelain_paths`, using the deferred-import form already used elsewhere in this module (`runner_shared.teardown_lane_if_classified` imports `lane_containment` inside the function body) so no import cycle is introduced. Preserve the function's contract exactly: it still runs `git status --short --untracked-files=all`, still intersects with the incoming set, still returns a sorted list, and still treats BOTH endpoints of a rename as dirty. Keep the docstring's merge-result-diff reasoning and its finding F-7 pointer intact, and replace only the paragraph that documents the format it no longer decodes, noting where the format now lives.
   - Depends on: E-01
   - Expected outcome: the new body pasted, showing the delegation and no remaining format knowledge, with the behavioral contract paragraphs preserved.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 ADD THE TEST THE EXISTING ONE STRUCTURALLY CANNOT FAIL, because a fix with no new test would leave the next fork equally invisible. `4fodkt` recorded WHY the fork went unnoticed: the driver-level tests assert only the OVERLAP RESULT (`tests/test_oc_runipd.py::test_dirty_tree_overlap_helper_reports_only_overlap` and its `agy` twin), and `tests/test_runner_shared.py` treats `dirty_tree_overlap` as a plain re-export, so every existing assertion passes whether the parser is shared or forked. Add a test that fails on a fork and passes on delegation, WITHOUT reading source text (AGENTS.md forbids `inspect`/`ast`/regex pins on production source): monkeypatch `lane_containment.parse_porcelain_entries` to record its calls, drive `dirty_tree_overlap` against a real repository with a dirty tracked file, and assert the shared parser was actually invoked. Include a rename case, since that is the clause the two copies could most plausibly drift on. PATCH `parse_porcelain_entries` AND NOT `parse_porcelain_paths`, which is load-bearing and was demonstrated at review: the projection calls the decoder by module-global name, so patching the decoder is observed through the projection E-02 delegates to, whereas patching the projection would be bypassed if a later refactor called the decoder directly. Demonstrated in a scratch probe at review: with a spy bound over `parse_porcelain_entries`, `dirty_tree_overlap(repo, ["a.txt"])` on a dirty tracked file returned `['a.txt']` and the spy recorded `0` calls (the fork, so the test FAILS today), while `parse_porcelain_paths(" M a.txt\nR  orig.txt -> dest.txt\n")` returned `['a.txt', 'dest.txt', 'orig.txt']` with the spy recording `1` call (so the patch point is reached through the projection). RESTORE THE SPY IN A `finally` or with `monkeypatch`, since `lane_containment` is imported process-wide and a leaked spy would corrupt unrelated tests under `-n auto`.
+- [x] E-03 ADD THE TEST THE EXISTING ONE STRUCTURALLY CANNOT FAIL, because a fix with no new test would leave the next fork equally invisible. `4fodkt` recorded WHY the fork went unnoticed: the driver-level tests assert only the OVERLAP RESULT (`tests/test_oc_runipd.py::test_dirty_tree_overlap_helper_reports_only_overlap` and its `agy` twin), and `tests/test_runner_shared.py` treats `dirty_tree_overlap` as a plain re-export, so every existing assertion passes whether the parser is shared or forked. Add a test that fails on a fork and passes on delegation, WITHOUT reading source text (AGENTS.md forbids `inspect`/`ast`/regex pins on production source): monkeypatch `lane_containment.parse_porcelain_entries` to record its calls, drive `dirty_tree_overlap` against a real repository with a dirty tracked file, and assert the shared parser was actually invoked. Include a rename case, since that is the clause the two copies could most plausibly drift on. PATCH `parse_porcelain_entries` AND NOT `parse_porcelain_paths`, which is load-bearing and was demonstrated at review: the projection calls the decoder by module-global name, so patching the decoder is observed through the projection E-02 delegates to, whereas patching the projection would be bypassed if a later refactor called the decoder directly. Demonstrated in a scratch probe at review: with a spy bound over `parse_porcelain_entries`, `dirty_tree_overlap(repo, ["a.txt"])` on a dirty tracked file returned `['a.txt']` and the spy recorded `0` calls (the fork, so the test FAILS today), while `parse_porcelain_paths(" M a.txt\nR  orig.txt -> dest.txt\n")` returned `['a.txt', 'dest.txt', 'orig.txt']` with the spy recording `1` call (so the patch point is reached through the projection). RESTORE THE SPY IN A `finally` or with `monkeypatch`, since `lane_containment` is imported process-wide and a leaked spy would corrupt unrelated tests under `-n auto`.
   - Depends on: E-02
   - Expected outcome: the new test pasted, plus a demonstration that it FAILS against the pre-E-02 body (stash or temporarily restore the inline parser) and PASSES after, so its discriminating power is shown rather than asserted.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: correct the criterion text that is false at HEAD
 
-- [ ] E-04 CORRECT A12b'S STALE COVERAGE SENTENCE, and change nothing else about the criterion. A12b currently asserts that parts (i) and (ii) and the in-place-edit check of part (iii) "currently have no shipped test since commit `19313eed` deleted `tests/test_lane_input_manifest.py`". Verify the present state first: confirm the file exists, count its tests, and identify which of them cover parts (i), (ii), and the in-place-edit half of (iii) BY NAME (at authoring these include `test_an_accidental_in_place_write_fails`, `test_part_iii_a_change_is_a_new_revision_not_an_edit`, and `test_a_restored_write_bit_is_detected`). Then rewrite ONLY that sentence to name the tests that now cover each part, and cite the restoring commit (`654a3adb`, restorecov `dmxc5h`). CLAIM NO MORE THAN THE TESTS PROVE, which is the trap here: A12b parts (i)/(ii) ask for the manifest's and each input's MODE to be pasted in the artifact, whereas the restored tests prove the BEHAVIOR that mode buys (`test_an_accidental_in_place_write_fails` asserts the write raises `PermissionError`; `test_a_restored_write_bit_is_detected` asserts `verify_lane_input_seal` refuses an unsealed input) and assert no mode string. Those are the right tests by GUIDING_PRINCIPLES P16, so the corrected sentence must say the parts are now covered BEHAVIORALLY and name what each test asserts, NOT that the modes are pasted. Do NOT weaken, retarget, or renumber the criterion, and do NOT touch its requirement citation. Append the amendment to the spec's `## Workflow history` using `aw specs note` rather than hand-editing that section.
+- [x] E-04 CORRECT A12b'S STALE COVERAGE SENTENCE, and change nothing else about the criterion. A12b currently asserts that parts (i) and (ii) and the in-place-edit check of part (iii) "currently have no shipped test since commit `19313eed` deleted `tests/test_lane_input_manifest.py`". Verify the present state first: confirm the file exists, count its tests, and identify which of them cover parts (i), (ii), and the in-place-edit half of (iii) BY NAME (at authoring these include `test_an_accidental_in_place_write_fails`, `test_part_iii_a_change_is_a_new_revision_not_an_edit`, and `test_a_restored_write_bit_is_detected`). Then rewrite ONLY that sentence to name the tests that now cover each part, and cite the restoring commit (`654a3adb`, restorecov `dmxc5h`). CLAIM NO MORE THAN THE TESTS PROVE, which is the trap here: A12b parts (i)/(ii) ask for the manifest's and each input's MODE to be pasted in the artifact, whereas the restored tests prove the BEHAVIOR that mode buys (`test_an_accidental_in_place_write_fails` asserts the write raises `PermissionError`; `test_a_restored_write_bit_is_detected` asserts `verify_lane_input_seal` refuses an unsealed input) and assert no mode string. Those are the right tests by GUIDING_PRINCIPLES P16, so the corrected sentence must say the parts are now covered BEHAVIORALLY and name what each test asserts, NOT that the modes are pasted. Do NOT weaken, retarget, or renumber the criterion, and do NOT touch its requirement citation. Append the amendment to the spec's `## Workflow history` using `aw specs note` rather than hand-editing that section.
   - Depends on: none
   - Expected outcome: the before/after text of A12b's coverage sentence, the test names mapped to parts (i)/(ii)/(iii), and the `aw specs note` invocation with its output.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 RUN THE SUITE AND THE SANITIZER, and record the baseline this plan is judged against. Run the suite BARE as `python3 -m pytest` (the repository's `addopts` already supply `-q -n auto --dist=worksteal -m 'not slow'`; do NOT add `-n0`, a second `-q`, or `-p no:randomly`). Also run `python3 -m pytest tests/test_runner_shared.py tests/test_oc_runipd.py tests/test_agy_runipd_cli.py tests/test_lane_input_manifest.py` narrowed, since those are the four surfaces this plan touches or cites. Run `aw sanitize --agent`.
+- [x] E-05 RUN THE SUITE AND THE SANITIZER, and record the baseline this plan is judged against. Run the suite BARE as `python3 -m pytest` (the repository's `addopts` already supply `-q -n auto --dist=worksteal -m 'not slow'`; do NOT add `-n0`, a second `-q`, or `-p no:randomly`). Also run `python3 -m pytest tests/test_runner_shared.py tests/test_oc_runipd.py tests/test_agy_runipd_cli.py tests/test_lane_input_manifest.py` narrowed, since those are the four surfaces this plan touches or cites. Run `aw sanitize --agent`.
   - Depends on: E-03, E-04
   - Expected outcome: the bare suite's own summary line pasted verbatim, the narrowed run's summary pasted, and the sanitizer's exit status, with any new failure attributed to this plan or shown pre-existing at the base commit.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -157,30 +157,266 @@ criterion's id, and its substantive obligations are untouched, so no other plan'
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: both function bodies pasted, with the duplicated format knowledge identified clause by clause (the two-column strip and the rename split), and an explicit IS or IS NOT verdict on the fork. A verdict asserted without both bodies pasted does NOT satisfy this item. If the verdict is IS NOT, the commit that closed it must be cited; V-02 then records `blocked` with its `Observed evidence` naming that commit (`not-needed` is not a legal validation result, and `pass` would assert a delegation this plan did not make), while V-03 is still required to `pass` because E-03 is still performed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Both function bodies compared; duplicated format knowledge identified; fork confirmed present at execution HEAD:
+    Function body 1 (`runner_shared.dirty_tree_overlap` in `agent_workflows/runner_shared.py` at HEAD `c9d1de82ac`):
+    ```python
+    def dirty_tree_overlap(repo: Path, changed_files: Sequence[str]) -> list[str]:
+        incoming = {p for p in changed_files if p.strip()}
+        if not incoming:
+            return []
+        _rc, out, _err = _run_git(repo, ["status", "--short", "--untracked-files=all"])
+        dirty: set[str] = set()
+        for line in out.splitlines():
+            if not line.strip():
+                continue
+            # Strip the two status columns and the following space: entries are `XY path` (min 3 chars).
+            entry = line[3:] if len(line) > 3 else line.strip()
+            # A rename/copy renders as `orig -> dest`; treat both endpoints as dirty.
+            if " -> " in entry:
+                orig, dest = entry.split(" -> ", 1)
+                dirty.add(orig.strip())
+                dirty.add(dest.strip())
+            else:
+                dirty.add(entry.strip())
+        return sorted(incoming & dirty)
+    ```
 
-- [ ] V-02 validates E-02
+    Function body 2 (`lane_containment.parse_porcelain_entries` in `agent_workflows/lane_containment.py`):
+    ```python
+    def parse_porcelain_entries(porcelain: str) -> list[tuple[str, str]]:
+        entries: list[tuple[str, str]] = []
+        for line in porcelain.splitlines():
+            if not line.strip():
+                continue
+            # Strip the two status columns and the following space: entries are `XY path` (min 3 chars).
+            status = line[:2] if len(line) > 3 else ""
+            entry = line[3:] if len(line) > 3 else line.strip()
+            endpoints = (
+                [part.strip() for part in entry.split(" -> ", 1)]
+                if " -> " in entry
+                else [entry.strip()]
+            )
+            for path in endpoints:
+                if path:
+                    entries.append((status, path))
+        return entries
+    ```
+
+    Duplicated format knowledge identified clause by clause:
+    - Clause 1 (two-column strip): `entry = line[3:] if len(line) > 3 else line.strip()` in `runner_shared.dirty_tree_overlap` duplicates identical logic in `lane_containment.parse_porcelain_entries`.
+    - Clause 2 (rename split): `if " -> " in entry: orig, dest = entry.split(" -> ", 1)` in `runner_shared.dirty_tree_overlap` duplicates `" -> " in entry` / `entry.split(" -> ", 1)` in `lane_containment.parse_porcelain_entries`.
+
+    Driver surfaces reaching the forked copy:
+    - `agent_workflows/oc_runipd.py:625`: re-exports `dirty_tree_overlap as dirty_tree_overlap` from `runner_shared`.
+    - `agent_workflows/agy_runipd.py:327`: re-exports `dirty_tree_overlap as dirty_tree_overlap` from `runner_shared`.
+
+    Explicit verdict: The fork IS still present at execution HEAD.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: the post-change body of `dirty_tree_overlap` pasted, showing (a) the delegation to `lane_containment.parse_porcelain_paths`, (b) NO remaining format decoding, (c) the deferred in-function import form, and (d) the preserved contract (the same `git status` invocation, the intersection, the sorted return). Plus the three existing result tests passing, pasted, which is what proves behavior did not change. A paste showing delegation but no passing result tests does NOT satisfy this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Post-change body delegates to lane_containment.parse_porcelain_paths; 3 existing test suites pass:
+    Post-change body of `dirty_tree_overlap` in `agent_workflows/runner_shared.py`:
+    ```python
+    def dirty_tree_overlap(repo: Path, changed_files: Sequence[str]) -> list[str]:
+        """driverfin-03 (7kbtkw) E-01: report the MAIN tree's un-owned dirty paths that overlap an
+        INCOMING CHANGE.
 
-- [ ] V-03 validates E-03
+        Inspect ``git status --short`` in the MAIN repo (working tree + index) and return the sorted set
+        of paths that are BOTH dirty in main AND part of the incoming change. A non-empty result means the
+        integration base is contaminated with un-owned edits to the very paths we are about to integrate,
+        so integrating over it could clobber or half-finish; the caller REFUSES rather than integrating.
+
+        ``changed_files`` IS THE SET THE MERGE WOULD WRITE, NOT THE LANE'S OWN DIFF (mergedirty-01
+        `fujm0y` E-02). The caller passes :func:`merge_write_set`'s result - the merge result tree diffed
+        against HEAD - and falls back to the lane's `changed_files` only when that is UNKNOWN. This
+        parameter therefore means "the incoming change as it will land", and the docstring said
+        ``changed_files`` for a reason that no longer holds: passing the lane's diff was the DEFECT. A
+        non-fast-forward merge also writes paths the lane never touched (commits that landed on main
+        since the lane base, and renames of lane-touched files), and those were outside the check.
+        REPRODUCED (git 2.43.0): the lane changed only `a.txt`, main renamed `a.txt` to `renamed.txt` and
+        was dirty there, `dirty_tree_overlap(repo, ["a.txt"])` returned `[]` (guard says clear), and
+        `git merge --no-ff` then failed on `renamed.txt`.
+
+        WHY THE INPUT IS THE MERGE-RESULT DIFF AND NOT A MERGE-BASE-TO-BOTH-TIPS UNION: the union
+        REFUSES a merge that succeeds safely, so it would trade a missed refusal for a wrong one. The
+        counterexample is measured and lives in :func:`merge_write_set`'s docstring (finding F-7). Read it
+        before changing the input set, because the union reads as the more thorough choice and is not.
+
+        The porcelain format is decoded by :func:`lane_containment.parse_porcelain_paths` (the single
+        parser prescribed by spec `7ckptx` R6.1, which treats both the origin and destination of a
+        rename as dirty).
+        """
+        incoming = {p for p in changed_files if p.strip()}
+        if not incoming:
+            return []
+        from agent_workflows import lane_containment
+
+        _rc, out, _err = _run_git(repo, ["status", "--short", "--untracked-files=all"])
+        dirty = lane_containment.parse_porcelain_paths(out)
+        return sorted(incoming & dirty)
+    ```
+    Confirmation of properties:
+    - (a) Delegates to `lane_containment.parse_porcelain_paths(out)`
+    - (b) No format decoding logic remaining in `runner_shared.py`
+    - (c) Deferred in-function import `from agent_workflows import lane_containment` avoids module cycle
+    - (d) Preserved contract: same `_run_git(repo, ["status", "--short", "--untracked-files=all"])`, `incoming & dirty` set intersection, and `sorted(...)` list return.
+
+    Three existing result tests passing (pasted verbatim):
+    1. `tests/test_oc_runipd.py`:
+       `2 passed in 6.97s`
+    2. `tests/test_agy_runipd_cli.py`:
+       `1 passed in 9.77s`
+    3. `tests/test_runner_shared.py` (`test_a_rename_still_makes_BOTH_endpoints_count_as_dirty`):
+       `1 passed in 9.79s`
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: the new test pasted, plus BOTH runs: its FAILURE output against the pre-E-02 inline body and its PASS output after. The failure run is the load-bearing half, because a test that passes either way is exactly the gap F-3 records; a pass-only paste does NOT satisfy this item. The rename case must appear in the pasted test. Confirm the test reads no production source text (no `inspect`, `ast`, or regex over source), per the AGENTS.md prohibition.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Discriminating test test_dirty_tree_overlap_delegates_to_single_porcelain_parser added and demonstrated failing pre-fix and passing post-fix:
+    Pasted new test `test_dirty_tree_overlap_delegates_to_single_porcelain_parser` in `tests/test_runner_shared.py`:
+    ```python
+    def test_dirty_tree_overlap_delegates_to_single_porcelain_parser(self):
+        """specfin7ck-01 (e9ekuj) E-03: prove dirty_tree_overlap delegates to lane_containment's parser.
 
-- [ ] V-04 validates E-04
+        F-1/F-3: Existing tests assert only the overlap result, passing whether the porcelain format
+        is decoded by the shared parser or forked inline. This test spies on
+        `lane_containment.parse_porcelain_entries` to prove that the single parser prescribed by
+        spec 7ckptx R6.1 is actually invoked, covering both a plain dirty file and a rename.
+        """
+        import tempfile
+        from agent_workflows import lane_containment
+
+        original_parser = lane_containment.parse_porcelain_entries
+        calls: list[str] = []
+
+        def spy_parser(porcelain: str):
+            calls.append(porcelain)
+            return original_parser(porcelain)
+
+        try:
+            lane_containment.parse_porcelain_entries = spy_parser
+            for runner in BOTH:
+                with self.subTest(runner=runner), tempfile.TemporaryDirectory() as tmp:
+                    repo = self._repo(pathlib.Path(tmp))
+                    (repo / "a.txt").write_text("a\n", encoding="utf-8")
+                    self._git(repo, "add", "a.txt")
+                    self._git(repo, "commit", "-qm", "add a")
+
+                    # Case 1: plain dirty tracked file
+                    (repo / "a.txt").write_text("modified\n", encoding="utf-8")
+                    calls.clear()
+                    overlap = _MODULES[runner].dirty_tree_overlap
+                    res = overlap(repo, ["a.txt"])
+                    self.assertEqual(res, ["a.txt"])
+                    self.assertGreaterEqual(
+                        len(calls),
+                        1,
+                        "dirty_tree_overlap must delegate to the shared porcelain parser",
+                    )
+
+                    # Case 2: rename case
+                    self._git(repo, "checkout", "-f", "main")
+                    self._git(repo, "mv", "a.txt", "b.txt")
+                    calls.clear()
+                    res_orig = overlap(repo, ["a.txt"])
+                    self.assertEqual(res_orig, ["a.txt"])
+                    self.assertGreaterEqual(
+                        len(calls),
+                        1,
+                        "rename origin check must delegate to the shared porcelain parser",
+                    )
+                    calls.clear()
+                    res_dest = overlap(repo, ["b.txt"])
+                    self.assertEqual(res_dest, ["b.txt"])
+                    self.assertGreaterEqual(
+                        len(calls),
+                        1,
+                        "rename dest check must delegate to the shared porcelain parser",
+                    )
+        finally:
+            lane_containment.parse_porcelain_entries = original_parser
+    ```
+
+    Both runs:
+    Run 1: FAILURE against pre-E-02 inline body:
+    ```
+    F                                                                        [100%]
+    =================================== FAILURES ===================================
+    _ LaneIntegrationBehaviorTests.test_dirty_tree_overlap_delegates_to_single_porcelain_parser _
+    [gw11] linux -- Python 3.14.6 <venv>/bin/python3
+    ...
+        overlap = _MODULES[runner].dirty_tree_overlap
+        res = overlap(repo, ["a.txt"])
+        self.assertEqual(res, ["a.txt"])
+    >   self.assertGreaterEqual(
+            len(calls),
+            1,
+            "dirty_tree_overlap must delegate to the shared porcelain parser",
+        )
+    E   AssertionError: 0 not greater than or equal to 1 : dirty_tree_overlap must delegate to the shared porcelain parser
+
+    tests/test_runner_shared.py:710: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_runner_shared.py::LaneIntegrationBehaviorTests::test_dirty_tree_overlap_delegates_to_single_porcelain_parser
+    1 failed in 7.71s
+    ```
+
+    Run 2: PASS after E-02 delegation:
+    ```
+    .                                                                        [100%]
+    1 passed in 8.49s
+    ```
+
+    Rename case check: Case 2 explicitly tests `mv a.txt b.txt` and asserts delegation for both `a.txt` (origin) and `b.txt` (destination).
+    Source inspection check: The test contains no `inspect`, `ast`, or regex/substring analysis over production source; it asserts strictly on runtime delegation behavior via a spy on the public function.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: A12b's coverage sentence quoted BEFORE and AFTER; the `tests/test_lane_input_manifest.py` test names mapped to parts (i), (ii), and the in-place-edit half of (iii), with those tests shown passing; the restoring commit cited; and the `aw specs note` command with its output. The AFTER text must describe the coverage as BEHAVIORAL and must not claim the tests paste a mode, since they assert `PermissionError` and a `verify_lane_input_seal` refusal rather than a mode string; a corrected sentence that overclaims is a FAILURE of this item, because it would replace one false sentence with another. Also paste the spec's `- Status:` line before and after, proving it is UNCHANGED, since this plan has no authority over it. Any edit to A12b's id, its `(R5.1a)` citation, or its substantive obligations is a FAILURE of this item, not a pass.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: A12b coverage sentence updated to cite restored behavioral tests; spec note recorded; status unchanged:
+    A12b coverage sentence BEFORE:
+    "Parts (i) and (ii) and the in-place edit check of part (iii) currently have no shipped test since commit `19313eed` deleted `tests/test_lane_input_manifest.py`, leaving only the out-of-position dispatch scoping of part (iii) covered in `tests/test_lane_input_revision_scope.py`."
 
-- [ ] V-05 validates E-05
+    A12b coverage sentence AFTER:
+    "Parts (i) and (ii) and the in-place edit check of part (iii) are covered behaviorally in `tests/test_lane_input_manifest.py` (restored by commit `654a3adb`, restorecov `dmxc5h`): `test_an_accidental_in_place_write_fails` asserts an in-place write to the manifest or an input raises `PermissionError`, `test_a_restored_write_bit_is_detected` asserts `verify_lane_input_seal` detects a restored write bit, and `test_part_iii_a_change_is_a_new_revision_not_an_edit` asserts an input change produces a new revision leaving prior revision bytes untouched, alongside `tests/test_lane_input_revision_scope.py` covering the out-of-position dispatch scoping of part (iii)."
+
+    Test mapping to criterion parts and pass evidence:
+    - Parts (i) and (ii): `test_an_accidental_in_place_write_fails` (raises `PermissionError`) and `test_a_restored_write_bit_is_detected` (`verify_lane_input_seal` detects restored write bit).
+    - Part (iii) in-place edit check: `test_part_iii_a_change_is_a_new_revision_not_an_edit` (produces new revision, prior revision bytes untouched).
+    - Part (iii) out-of-position dispatch: `tests/test_lane_input_revision_scope.py` (`test_out_of_position_turn_attachment_resolves_own_revision`).
+    Restoring commit: `654a3adb` (restorecov `dmxc5h`).
+    Test suite runs:
+    - `python3 -m pytest tests/test_lane_input_manifest.py`: `17 passed in 9.36s`
+    - `python3 -m pytest tests/test_lane_input_revision_scope.py`: `4 passed in 8.93s`
+
+    `aw specs note` invocation and output:
+    ```
+    $ aw specs note .aw/records/specs/approved/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md --message "AMENDED 2026-10-01 (specfin7ck-01 e9ekuj): A12b coverage sentence corrected to cite behavioral test coverage restored by 654a3adb (dmxc5h) in tests/test_lane_input_manifest.py" --date 2026-10-01
+    aw specs note: appended a history record to .aw/records/specs/approved/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md
+    ```
+
+    Spec `- Status:` line BEFORE:
+    `- Status: approved`
+    Spec `- Status:` line AFTER:
+    `- Status: approved`
+    Status is UNCHANGED. A12b's identifier, `(R5.1a)` citation, and substantive obligations are untouched.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: the bare `python3 -m pytest` summary line pasted VERBATIM (the `N passed` line; if it is absent, the run was misinvoked with extra `-q` and must be rerun), the narrowed four-file run's summary, and `aw sanitize --agent`'s exit status. Every failure must be attributed either to this plan or shown pre-existing at the base commit by running it there. A claim of green without the pasted summary line does NOT satisfy this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Bare suite, narrowed suite, and sanitizer verified clean:
+    Bare `python3 -m pytest` summary line (verbatim):
+    `3742 passed, 2 skipped, 3 warnings in 121.52s (0:02:01)`
+
+    Narrowed four-file run (`python3 -m pytest tests/test_runner_shared.py tests/test_oc_runipd.py tests/test_agy_runipd_cli.py tests/test_lane_input_manifest.py`) summary line:
+    `385 passed in 32.62s`
+
+    `aw sanitize --agent` exit status:
+    `0` (output: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`)
+  - Result: pass
 
 ## Approval and execution gate
 

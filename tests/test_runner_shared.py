@@ -674,6 +674,67 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
                 self.assertEqual(overlap(repo, ["unrelated.txt"]), [])
                 self.assertEqual(overlap(repo, []), [])
 
+    def test_dirty_tree_overlap_delegates_to_single_porcelain_parser(self):
+        """specfin7ck-01 (e9ekuj) E-03: prove dirty_tree_overlap delegates to lane_containment's parser.
+
+        F-1/F-3: Existing tests assert only the overlap result, passing whether the porcelain format
+        is decoded by the shared parser or forked inline. This test spies on
+        `lane_containment.parse_porcelain_entries` to prove that the single parser prescribed by
+        spec 7ckptx R6.1 is actually invoked, covering both a plain dirty file and a rename.
+        """
+        import tempfile
+        from agent_workflows import lane_containment
+
+        original_parser = lane_containment.parse_porcelain_entries
+        calls: list[str] = []
+
+        def spy_parser(porcelain: str):
+            calls.append(porcelain)
+            return original_parser(porcelain)
+
+        try:
+            lane_containment.parse_porcelain_entries = spy_parser
+            for runner in BOTH:
+                with self.subTest(runner=runner), tempfile.TemporaryDirectory() as tmp:
+                    repo = self._repo(pathlib.Path(tmp))
+                    (repo / "a.txt").write_text("a\n", encoding="utf-8")
+                    self._git(repo, "add", "a.txt")
+                    self._git(repo, "commit", "-qm", "add a")
+
+                    # Case 1: plain dirty tracked file
+                    (repo / "a.txt").write_text("modified\n", encoding="utf-8")
+                    calls.clear()
+                    overlap = _MODULES[runner].dirty_tree_overlap
+                    res = overlap(repo, ["a.txt"])
+                    self.assertEqual(res, ["a.txt"])
+                    self.assertGreaterEqual(
+                        len(calls),
+                        1,
+                        "dirty_tree_overlap must delegate to the shared porcelain parser",
+                    )
+
+                    # Case 2: rename case
+                    self._git(repo, "checkout", "-f", "main")
+                    self._git(repo, "mv", "a.txt", "b.txt")
+                    calls.clear()
+                    res_orig = overlap(repo, ["a.txt"])
+                    self.assertEqual(res_orig, ["a.txt"])
+                    self.assertGreaterEqual(
+                        len(calls),
+                        1,
+                        "rename origin check must delegate to the shared porcelain parser",
+                    )
+                    calls.clear()
+                    res_dest = overlap(repo, ["b.txt"])
+                    self.assertEqual(res_dest, ["b.txt"])
+                    self.assertGreaterEqual(
+                        len(calls),
+                        1,
+                        "rename dest check must delegate to the shared porcelain parser",
+                    )
+        finally:
+            lane_containment.parse_porcelain_entries = original_parser
+
     _SPEC = ".aw/records/specs/approved/x.spec.md"
     _SPEC_BASE = "# Spec\n\nBody.\n\n## Workflow history\n\n- 2026-09-26 note (aw specs): older\n"
 

@@ -4231,26 +4231,17 @@ def dirty_tree_overlap(repo: Path, changed_files: Sequence[str]) -> list[str]:
     counterexample is measured and lives in :func:`merge_write_set`'s docstring (finding F-7). Read it
     before changing the input set, because the union reads as the more thorough choice and is not.
 
-    The porcelain short format is `XY<space>path` (renames use `orig -> dest`); we take the last
-    path token so both the origin and destination of a rename are considered dirty.
+    The porcelain format is decoded by :func:`lane_containment.parse_porcelain_paths` (the single
+    parser prescribed by spec `7ckptx` R6.1, which treats both the origin and destination of a
+    rename as dirty).
     """
     incoming = {p for p in changed_files if p.strip()}
     if not incoming:
         return []
+    from agent_workflows import lane_containment
+
     _rc, out, _err = _run_git(repo, ["status", "--short", "--untracked-files=all"])
-    dirty: set[str] = set()
-    for line in out.splitlines():
-        if not line.strip():
-            continue
-        # Strip the two status columns and the following space: entries are `XY path` (min 3 chars).
-        entry = line[3:] if len(line) > 3 else line.strip()
-        # A rename/copy renders as `orig -> dest`; treat both endpoints as dirty.
-        if " -> " in entry:
-            orig, dest = entry.split(" -> ", 1)
-            dirty.add(orig.strip())
-            dirty.add(dest.strip())
-        else:
-            dirty.add(entry.strip())
+    dirty = lane_containment.parse_porcelain_paths(out)
     return sorted(incoming & dirty)
 
 
