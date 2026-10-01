@@ -1,5 +1,5 @@
 - Id: 1ffh63
-- Status: graduated
+- Status: done
 - Graduated-To: lanedangling
 - Set: 1ffh63
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Plan kl18sz F-7 declared a replay source unsatisfiable without checking dangling objects, so a review can retire recoverable evidence
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): closed by aw oc run: IPD 7eqw67 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-lanedangling-01-7eqw67-find-a-torn-down-lane-s-commits-in-dangling-objects-before-d.ipd.md); evidence .aw/records/plans/executed/20260929-lanedangling-01-7eqw67-find-a-torn-down-lane-s-commits-in-dangling-objects-before-d.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: 7eqw67
 - 2026-09-22 created (aw backlog): Plan kl18sz F-7 declared a replay source unsatisfiable without checking dangling objects, so a review can retire recoverable evidence
 
