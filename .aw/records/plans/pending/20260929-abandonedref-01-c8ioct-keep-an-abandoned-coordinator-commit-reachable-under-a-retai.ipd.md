@@ -40,55 +40,56 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure, then pin the defect with tests that fail first
 
-- [ ] E-01 RE-MEASURE THE SIX LOAD-BEARING FACTS and write the results into this plan as an execution note, because every one is dated and each has a cheap check. Record, with the HEAD they were taken at: (a) THE DANGLING COMMIT ON ALL THREE ARMS, by driving a real `ipd_lifecycle.finalize(..., apply=True)` in a git-backed fixture and forcing each arm in turn (peer edit at the plan path -> `RECONCILED_REFUSED`; peer COMMIT -> `RECONCILED_RACED`; untracked squatter at the destination -> `RECONCILED_REFUSED`), showing for each the journal's `worktree_commit`, `git cat-file -e` rc 0, `git merge-base --is-ancestor <sha> HEAD` NONZERO, `git for-each-ref` listing only `refs/heads/*`, `git reflog --all` not mentioning the sha, and `git fsck` reporting `dangling commit <sha>`; (b) THAT GC REALLY COLLECTS IT, by running `git gc --prune=now` in an otherwise untouched fixture and showing `cat-file -e` going rc 0 -> rc 1 and `fsck` falling silent - and take this in a FIXTURE THAT HAS NOT BEEN TOUCHED BY A CHERRY-PICK OR A `git show`, because authoring measured that probing the commit first makes it reachable and puts it in the reflog, which makes the later gc a no-op and produces a FALSE "not prunable" reading (that contaminated an authoring probe and was re-run clean; see F-03); (c) THAT THE AGENT'S OWN EVIDENCE IS THE THING AT RISK, by putting a unique marker in the plan file as an uncommitted edit before finalize, forcing the peer-edit arm, and showing the marker absent from the working tree, absent from HEAD, and present in the dangling commit's blob at `dest_path`; (d) THAT `4er1ev` REMOVED THE ITEM'S RECOVERY ROUTE, by showing `read_finalize_journal(root, id6)` returns None after that same arm; (e) THAT THE HELPER CAN CLASSIFY ITSELF, by observing `tip == base` and `git merge-base --is-ancestor <tip> HEAD` for the three cases (no commit made, committed-and-landed, committed-and-abandoned); and (f) THAT THE BRANCH REF OUTLIVES `worktree remove`, by probing `git rev-parse <coord.branch>` immediately before and after each git call the existing `finally` makes. IF ANY HAS MOVED, SAY SO AND RE-SCOPE rather than proceeding: in particular, if (a) now shows the commit REACHABLE then other work has already fixed this and the plan is reduced to the messages and the regression tests, which is a materially smaller change that must be re-reviewed rather than silently executed. Trust the tree, not this plan's `- Concern:`.
+- [x] E-01 RE-MEASURE THE SIX LOAD-BEARING FACTS and write the results into this plan as an execution note, because every one is dated and each has a cheap check. Record, with the HEAD they were taken at: (a) THE DANGLING COMMIT ON ALL THREE ARMS, by driving a real `ipd_lifecycle.finalize(..., apply=True)` in a git-backed fixture and forcing each arm in turn (peer edit at the plan path -> `RECONCILED_REFUSED`; peer COMMIT -> `RECONCILED_RACED`; untracked squatter at the destination -> `RECONCILED_REFUSED`), showing for each the journal's `worktree_commit`, `git cat-file -e` rc 0, `git merge-base --is-ancestor <sha> HEAD` NONZERO, `git for-each-ref` listing only `refs/heads/*`, `git reflog --all` not mentioning the sha, and `git fsck` reporting `dangling commit <sha>`; (b) THAT GC REALLY COLLECTS IT, by running `git gc --prune=now` in an otherwise untouched fixture and showing `cat-file -e` going rc 0 -> rc 1 and `fsck` falling silent - and take this in a FIXTURE THAT HAS NOT BEEN TOUCHED BY A CHERRY-PICK OR A `git show`, because authoring measured that probing the commit first makes it reachable and puts it in the reflog, which makes the later gc a no-op and produces a FALSE "not prunable" reading (that contaminated an authoring probe and was re-run clean; see F-03); (c) THAT THE AGENT'S OWN EVIDENCE IS THE THING AT RISK, by putting a unique marker in the plan file as an uncommitted edit before finalize, forcing the peer-edit arm, and showing the marker absent from the working tree, absent from HEAD, and present in the dangling commit's blob at `dest_path`; (d) THAT `4er1ev` REMOVED THE ITEM'S RECOVERY ROUTE, by showing `read_finalize_journal(root, id6)` returns None after that same arm; (e) THAT THE HELPER CAN CLASSIFY ITSELF, by observing `tip == base` and `git merge-base --is-ancestor <tip> HEAD` for the three cases (no commit made, committed-and-landed, committed-and-abandoned); and (f) THAT THE BRANCH REF OUTLIVES `worktree remove`, by probing `git rev-parse <coord.branch>` immediately before and after each git call the existing `finally` makes. IF ANY HAS MOVED, SAY SO AND RE-SCOPE rather than proceeding: in particular, if (a) now shows the commit REACHABLE then other work has already fixed this and the plan is reduced to the messages and the regression tests, which is a materially smaller change that must be re-reviewed rather than silently executed. Trust the tree, not this plan's `- Concern:`.
   - Depends on: none
   - Expected outcome: a written, symbol-cited baseline covering all six facts with pasted command output, plus the bare-suite baseline count re-taken on the lane so the post-change delta is computed against a real number rather than against F-12's authoring figure.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 WRITE THE FAILING TESTS FIRST AT THE LOWER LAYER, in a NEW `tests/test_commit_lock.py`, which is the file `tests/test_git_commit_helper.py` ALREADY CITES BY NAME ("`tests/test_commit_lock.py` asserts the lower layer; these assert what a CALLER observes") and which does not exist, so this item also closes that dangling citation. FOUR cases against the real `commit_lock.coordinator_worktree` in a git-backed fixture: (1) ABANDONED - a commit made inside the worktree and never landed is still REACHABLE after the context exits, asserted as `git merge-base --is-ancestor <sha> <retained-ref>` rc 0 and `git fsck` NOT reporting it dangling, and it SURVIVES `git gc --prune=now`; (2) LANDED - when the caller landed the commit by `git merge --ff-only`, NO retained ref is written, because the commit is already reachable from the branch and a ref would be permanent litter; (3) NOTHING COMMITTED - when the caller wrote nothing, the branch tip still equals `base`, so no ref is written and nothing is reported; (4) THE RETAINED REF IS INVISIBLE TO THE OPERATOR'S ORDINARY VIEWS - `git branch -a`, `git branch --list 'aw/*'`, `git status --porcelain` and `for-each-ref refs/heads/` are byte-identical to what they were before, which is the property that makes this fix cheap to live with. ALSO ASSERT THE NEGATIVE THAT KEEPS THIS HONEST: case (2) must fail if an implementation retains unconditionally, so the test must check the ABSENCE of any `refs/aw/abandoned/` ref and not merely that the landed commit is reachable.
+- [x] E-02 WRITE THE FAILING TESTS FIRST AT THE LOWER LAYER, in a NEW `tests/test_commit_lock.py`, which is the file `tests/test_git_commit_helper.py` ALREADY CITES BY NAME ("`tests/test_commit_lock.py` asserts the lower layer; these assert what a CALLER observes") and which does not exist, so this item also closes that dangling citation. FOUR cases against the real `commit_lock.coordinator_worktree` in a git-backed fixture: (1) ABANDONED - a commit made inside the worktree and never landed is still REACHABLE after the context exits, asserted as `git merge-base --is-ancestor <sha> <retained-ref>` rc 0 and `git fsck` NOT reporting it dangling, and it SURVIVES `git gc --prune=now`; (2) LANDED - when the caller landed the commit by `git merge --ff-only`, NO retained ref is written, because the commit is already reachable from the branch and a ref would be permanent litter; (3) NOTHING COMMITTED - when the caller wrote nothing, the branch tip still equals `base`, so no ref is written and nothing is reported; (4) THE RETAINED REF IS INVISIBLE TO THE OPERATOR'S ORDINARY VIEWS - `git branch -a`, `git branch --list 'aw/*'`, `git status --porcelain` and `for-each-ref refs/heads/` are byte-identical to what they were before, which is the property that makes this fix cheap to live with. ALSO ASSERT THE NEGATIVE THAT KEEPS THIS HONEST: case (2) must fail if an implementation retains unconditionally, so the test must check the ABSENCE of any `refs/aw/abandoned/` ref and not merely that the landed commit is reachable.
   - USE A REAL GIT FIXTURE, NOT A MOCK, for the reason the repository already applies to this module: the whole subject is git's own reachability and gc behavior, and a mocked `_git` proves nothing about either. Authoring drove all four cases against the real helper, so the fixture shape is known to work rather than assumed.
   - Depends on: E-01
   - Expected outcome: `python3 -m pytest tests/test_commit_lock.py -o addopts="" -v` FAILS cases (1) with an assertion message (not a collection or import error) and PASSES cases (2), (3) and (4) already, since those describe today's correct behavior and are preservation tests; the failure output is pasted into V-02 as the before-state, and each preservation case says so in its own docstring so a reader does not mistake a green first run for a missing pin.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 WRITE THE FAILING TESTS AT THE TRANSACTION LAYER, as a new class in `tests/test_ipd_lifecycle_cli.py`, the file that owns the ordinary-finalize transaction assertions and therefore covers the path every plan takes. THREE cases, one per measured arm: (1) after a REFUSED landing caused by a peer's uncommitted edit at the plan path, the coordinator commit is REACHABLE (not dangling) and survives `git gc --prune=now`, AND the returned message names the retained ref plus a runnable recovery command; (2) the same for a RACED landing caused by a peer COMMIT; (3) the same for a REFUSED landing caused by an untracked squatter at the destination path, which is the arm that additionally leaves the journal in `PHASE_UNKNOWN_OUTCOME` and must keep doing so. AND ASSERT THE PRESERVATION PROPERTIES THAT MUST NOT REGRESS, because they are what makes the refusal correct rather than merely reported: on arm (1) the peer's bytes are byte-identical afterwards and `git rev-parse HEAD` is unmoved; on arm (2) HEAD is the peer's commit and NOT the lifecycle commit; on every arm the plan file is still at its `pending/` path and the finalize exit code is NOT `EXIT_OK`, so a "fix" that made a contended finalize succeed FAILS this class rather than passing it.
+- [x] E-03 WRITE THE FAILING TESTS AT THE TRANSACTION LAYER, as a new class in `tests/test_ipd_lifecycle_cli.py`, the file that owns the ordinary-finalize transaction assertions and therefore covers the path every plan takes. THREE cases, one per measured arm: (1) after a REFUSED landing caused by a peer's uncommitted edit at the plan path, the coordinator commit is REACHABLE (not dangling) and survives `git gc --prune=now`, AND the returned message names the retained ref plus a runnable recovery command; (2) the same for a RACED landing caused by a peer COMMIT; (3) the same for a REFUSED landing caused by an untracked squatter at the destination path, which is the arm that additionally leaves the journal in `PHASE_UNKNOWN_OUTCOME` and must keep doing so. AND ASSERT THE PRESERVATION PROPERTIES THAT MUST NOT REGRESS, because they are what makes the refusal correct rather than merely reported: on arm (1) the peer's bytes are byte-identical afterwards and `git rev-parse HEAD` is unmoved; on arm (2) HEAD is the peer's commit and NOT the lifecycle commit; on every arm the plan file is still at its `pending/` path and the finalize exit code is NOT `EXIT_OK`, so a "fix" that made a contended finalize succeed FAILS this class rather than passing it.
   - THE FIXTURE SEAM IS KNOWN TO WORK, verified at authoring rather than assumed: patching `ipd_lifecycle.land_worktree_commit` with a spy that performs the peer's write (or commit, or squatter creation) and then DELEGATES to the real function reproduces each arm exactly, and the existing `tests/test_ipd_lifecycle_cli.py` classes already use that seam. Reuse it rather than inventing one.
   - SPLIT FROM E-02 DELIBERATELY, not as padding: E-02 pins the HELPER's contract in isolation and E-03 pins what a real transaction's OPERATOR sees, and the two fail for different reasons. A single item covering both would mix an independent test-surface, which the right-sizing rule forbids.
   - Depends on: E-01
   - Expected outcome: `python3 -m pytest tests/test_ipd_lifecycle_cli.py -k <new class> -o addopts="" -v` FAILS all three cases on the reachability and message assertions with assertion messages, while the preservation assertions inside them already hold; the failure output is pasted into V-03 as the before-state.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: retain the abandoned commit, and bound the retention
 
-- [ ] E-04 MAKE `coordinator_worktree` CLASSIFY ITS OWN TEARDOWN AND RETAIN AN ABANDONED COMMIT, which is the root fix. THE CLASSIFICATION NEEDS NO CALLER COOPERATION, measured at authoring across all three cases: resolve the branch tip with `git rev-parse <branch>` from the SHARED repo; if the tip EQUALS `base` then nothing was committed and there is nothing to retain; otherwise `git merge-base --is-ancestor <tip> HEAD` returns 0 when the caller LANDED it (so it is already reachable and retaining would be permanent litter) and 1 when it was ABANDONED. ON THE ABANDONED ARM ONLY, write `git update-ref refs/aw/abandoned/coordinator/<sha12> <tip>` BEFORE the existing `git branch -D` line. THE ORDERING IS LOAD-BEARING AND WAS MEASURED, not inferred: the branch ref survives `git worktree remove --force` and `git worktree prune` and dies only at `branch -D` (F-07), so the classification and the retention must run before that line; placed after it, `rev-parse <branch>` returns rc 128 and the tip is unknowable. DERIVE THE REF NAME THROUGH ONE PURE PUBLIC FUNCTION in this module (for example `abandoned_ref_name(sha) -> str`) rather than formatting the string at each site, because E-06 has a reporter that must name exactly what this writer wrote, and a second copy of the format is a second thing to drift; that is the same single-source reasoning `artifact_core.finalize_commit_subject` already records for the commit subject. ALSO CORRECT THE DOCSTRING, whose "CLEANUP is unconditional ... That is safe here BECAUSE the caller has already landed (or deliberately abandoned) the commit" is precisely the false premise this item exists to remove: state what is now true, that an abandoned commit is RETAINED under a ref and is therefore not discarded, and keep the existing warning against using the helper to hold work across invocations, which remains correct.
+- [x] E-04 MAKE `coordinator_worktree` CLASSIFY ITS OWN TEARDOWN AND RETAIN AN ABANDONED COMMIT, which is the root fix. THE CLASSIFICATION NEEDS NO CALLER COOPERATION, measured at authoring across all three cases: resolve the branch tip with `git rev-parse <branch>` from the SHARED repo; if the tip EQUALS `base` then nothing was committed and there is nothing to retain; otherwise `git merge-base --is-ancestor <tip> HEAD` returns 0 when the caller LANDED it (so it is already reachable and retaining would be permanent litter) and 1 when it was ABANDONED. ON THE ABANDONED ARM ONLY, write `git update-ref refs/aw/abandoned/coordinator/<sha12> <tip>` BEFORE the existing `git branch -D` line. THE ORDERING IS LOAD-BEARING AND WAS MEASURED, not inferred: the branch ref survives `git worktree remove --force` and `git worktree prune` and dies only at `branch -D` (F-07), so the classification and the retention must run before that line; placed after it, `rev-parse <branch>` returns rc 128 and the tip is unknowable. DERIVE THE REF NAME THROUGH ONE PURE PUBLIC FUNCTION in this module (for example `abandoned_ref_name(sha) -> str`) rather than formatting the string at each site, because E-06 has a reporter that must name exactly what this writer wrote, and a second copy of the format is a second thing to drift; that is the same single-source reasoning `artifact_core.finalize_commit_subject` already records for the commit subject. ALSO CORRECT THE DOCSTRING, whose "CLEANUP is unconditional ... That is safe here BECAUSE the caller has already landed (or deliberately abandoned) the commit" is precisely the false premise this item exists to remove: state what is now true, that an abandoned commit is RETAINED under a ref and is therefore not discarded, and keep the existing warning against using the helper to hold work across invocations, which remains correct.
   - `refs/aw/abandoned/coordinator/` IS THE NAMESPACE, AND THE ALTERNATIVE WAS MEASURED AND REJECTED. A retained BRANCH (`refs/heads/aw/abandoned/*`) works for reachability but appears in `git branch -a`, is carried by `git push --all`, and is enumerated by `worktree_lease`'s `for-each-ref ... refs/heads/` sweep, so it would put a failure artifact into three surfaces that describe live work. A ref OUTSIDE `refs/heads/` has none of those effects and is equally gc-immune: measured, it survives `gc --prune=now` while `git branch -a`, `git branch --list 'aw/*'`, `git status --porcelain`, `git log` and `for-each-ref refs/heads/` are all unchanged, and neither `git push <branch>` nor `git push --all` carries it (F-08, F-10). Note honestly what it DOES change: `git log --all` and `git fsck` now account for the commit as reachable, which is the intended effect and is why `fsck` stops calling it dangling.
   - FAIL SOFT, NOT CLOSED, AND SAY SO IN A COMMENT. A failure to write the ref must NOT raise out of the `finally` and must not prevent the worktree and branch cleanup: this code runs while an outer transaction is already returning a failure, and converting a reporting improvement into a second exception would mask the first one. Record the failure for the caller to report instead. Conversely the ref write must be IDEMPOTENT, since `update-ref` to an existing name with the same value is a no-op (measured rc 0) and two transactions can legitimately produce the same sha only if they produced the same tree, base and message.
   - Depends on: E-02, E-03
   - Expected outcome: on the abandoned arm the commit is reachable from `refs/aw/abandoned/coordinator/<sha12>`, `git fsck` no longer calls it dangling, and it survives `git gc --prune=now`; on the landed arm and the nothing-committed arm NO ref is written; the worktree and the branch are still removed in every case; and E-02's four cases pass.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 BOUND THE RETENTION so retained refs cannot accumulate forever, because a permanent ref pins the commit AND its trees and blobs and this helper runs on every terminal transition. THE MECHANISM: opportunistically, once per `coordinator_worktree` invocation, list `refs/aw/abandoned/coordinator/*` with a single `git for-each-ref --format='%(refname) %(committerdate:unix)'` call and `git update-ref -d` those whose commit date is older than the retention window, letting git's ordinary gc collect the now-unreferenced objects on its own schedule. THE WINDOW IS 14 DAYS AND THE NUMBER IS PRINCIPLED RATHER THAN PICKED: git's own `gc.pruneExpire` default is `2.weeks`, so a 14-day retention is never SHORTER than the horizon an unreferenced object already had, which means this plan cannot make any commit's lifetime worse than today's behavior while making it strictly better inside the window. Authoring drove exactly this with three refs aged 60 days, 20 days and 0 days: the two beyond the cutoff were deleted and their objects collected by the next gc, the fresh one survived, and one `for-each-ref` call supplied both the ref name and the commit date (F-09).
+- [x] E-05 BOUND THE RETENTION so retained refs cannot accumulate forever, because a permanent ref pins the commit AND its trees and blobs and this helper runs on every terminal transition. THE MECHANISM: opportunistically, once per `coordinator_worktree` invocation, list `refs/aw/abandoned/coordinator/*` with a single `git for-each-ref --format='%(refname) %(committerdate:unix)'` call and `git update-ref -d` those whose commit date is older than the retention window, letting git's ordinary gc collect the now-unreferenced objects on its own schedule. THE WINDOW IS 14 DAYS AND THE NUMBER IS PRINCIPLED RATHER THAN PICKED: git's own `gc.pruneExpire` default is `2.weeks`, so a 14-day retention is never SHORTER than the horizon an unreferenced object already had, which means this plan cannot make any commit's lifetime worse than today's behavior while making it strictly better inside the window. Authoring drove exactly this with three refs aged 60 days, 20 days and 0 days: the two beyond the cutoff were deleted and their objects collected by the next gc, the fresh one survived, and one `for-each-ref` call supplied both the ref name and the commit date (F-09).
   THE PRUNE KEY IS THE COMMIT'S OWN DATE, AND THAT CARRIES ONE ASSUMPTION YOU MUST STATE IN A COMMENT RATHER THAN LEAVE IMPLICIT (F-15, added at review). `%(committerdate:unix)` is the date recorded IN THE COMMIT, not the moment the ref was written, so the two coincide only because a coordinator commit is created at retention time. Review verified that they DO coincide for a real invocation (measured delta: 0 seconds) and that the toolkit never backdates a commit (no `GIT_COMMITTER_DATE` or `GIT_AUTHOR_DATE` assignment exists anywhere in `agent_workflows/` or `tests/`), so the key is correct for every realistic case and no change of mechanism is warranted. But the failure mode if that ever stops holding is SILENT AND IMMEDIATE: review constructed a commit backdated 60 days, retained it, and measured that a 14-day cutoff would delete its ref on the very next invocation, discarding the commit this plan exists to save. So write the assumption down beside the cutoff ("a coordinator commit is created when it is retained, so its committer date IS its retention time"), and do NOT reach for `%(creatordate:unix)` as a fix: review measured it returns the SAME backdated value, and a `refs/aw/*` ref carries no reflog to date it from (`git reflog show <ref>` is empty), so there is no cheaper true answer available in one call.
 
   - PRUNE AT INVOCATION, NOT IN THE `finally`, and not on a timer. Doing it at invocation costs one `for-each-ref` on a namespace that is normally EMPTY, keeps the `finally` (which runs during an in-flight failure) as small as possible, and needs no new scheduled surface. A DELETION FAILURE MUST BE IGNORED rather than raised, for the same reason E-04's write is fail-soft: pruning is housekeeping and must never be able to fail a transition.
   - DO NOT ADD A CLI VERB, A `doctor` CHECK OR AN `aw check` RULE FOR THIS. Each would be a new operator-facing surface with its own contract, output format and tests, for housekeeping that needs no human decision; `agent_workflows/cli.py`, `agent_workflows/command_surface.py` and `agent_workflows/doctor.py` are deliberately absent from `Scope-Paths`. If the executor concludes the prune cannot be done inside this module, that is a material scope finding to REPORT rather than a licence to widen the declaration.
   - Depends on: E-04
   - Expected outcome: a retained ref older than the window is deleted on the next invocation and its object becomes collectable; a ref inside the window survives; the namespace being empty costs exactly one `for-each-ref`; and no transition can fail because of a prune.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: tell the operator the route, and stop claiming one that does not exist
 
-- [ ] E-06 MAKE THE TRANSACTION NAME THE VERIFIED RECOVERY REF, so the reachability is usable rather than merely true. In `ipd_lifecycle._finalize_transaction`, AFTER the `with _clock.coordinator_worktree(...)` block has exited (which is the first moment the retention has actually happened, since it runs in the helper's `finally`), and only on a non-`RECONCILED_OK` outcome where `landed` is not None, VERIFY the ref with `git rev-parse --verify <ref>` rather than assuming it, then include in the operator-facing message and in the recorded `evidence` the ref name, the sha, and a command that RUNS (`git show <ref>` to inspect, `git cherry-pick <ref>` to apply - both measured to work on a retained ref). DERIVE THE NAME FROM E-04'S SHARED FUNCTION, never by formatting the string here. VERIFY RATHER THAN ASSERT, and this is the point of the item: if the ref is absent (E-04's write failed soft) the message must say the commit is NOT retained and name the sha with `git fsck` as the only route, because a message that names a ref which does not exist is worse than today's, which at least names a real sha. THE MESSAGE MUST NOT WEAKEN THE REFUSAL IT ACCOMPANIES: the existing text stating that the refusal is CORRECT, must not be forced, and that the bytes belong to another party this agent may not commit or stash, must survive verbatim in substance, for the reason `4er1ev` E-05 records - an agent reading a softer message is exactly who reaches for `checkout -f`.
+- [x] E-06 MAKE THE TRANSACTION NAME THE VERIFIED RECOVERY REF, so the reachability is usable rather than merely true. In `ipd_lifecycle._finalize_transaction`, AFTER the `with _clock.coordinator_worktree(...)` block has exited (which is the first moment the retention has actually happened, since it runs in the helper's `finally`), and only on a non-`RECONCILED_OK` outcome where `landed` is not None, VERIFY the ref with `git rev-parse --verify <ref>` rather than assuming it, then include in the operator-facing message and in the recorded `evidence` the ref name, the sha, and a command that RUNS (`git show <ref>` to inspect, `git cherry-pick <ref>` to apply - both measured to work on a retained ref). DERIVE THE NAME FROM E-04'S SHARED FUNCTION, never by formatting the string here. VERIFY RATHER THAN ASSERT, and this is the point of the item: if the ref is absent (E-04's write failed soft) the message must say the commit is NOT retained and name the sha with `git fsck` as the only route, because a message that names a ref which does not exist is worse than today's, which at least names a real sha. THE MESSAGE MUST NOT WEAKEN THE REFUSAL IT ACCOMPANIES: the existing text stating that the refusal is CORRECT, must not be forced, and that the bytes belong to another party this agent may not commit or stash, must survive verbatim in substance, for the reason `4er1ev` E-05 records - an agent reading a softer message is exactly who reaches for `checkout -f`.
   - THIS TOUCHES BOTH CALLERS FOR FREE AND MUST BE CONFIRMED TO, not assumed: `_finalize_transaction` is shared by the ordinary `finalize` and by `retire_orchestrator`, so the report reaches both, and E-03's arms should be exercised through the ordinary path with a note confirming the rollup path composes. `runner_shared.perform_coordinator_backlog_close`, the helper's OTHER caller, inherits E-04's retention automatically and is deliberately NOT edited; state that rather than silently leaving it unreported.
   - Depends on: E-04
   - Expected outcome: on each failure arm the returned message names a ref that `git rev-parse --verify` resolves, together with a runnable `git show`/`git cherry-pick` command, and `evidence` carries the same facts structurally; when no ref exists the message says so honestly instead of naming one; and the refusal's existing prohibitions are still present.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 CORRECT THE TWO OVER-CLAIMING PRESERVATION SENTENCES in `land_worktree_commit`, which today assert something the repository cannot deliver. The REFUSED detail says "The work is preserved in coordinator commit <sha12>" and the RACED detail says "The work is preserved as commit <sha12> (cherry-pick or retry)"; measured, that sha is reachable from no ref, is absent from `git reflog --all`, is reported `dangling` by `fsck`, and is collected by `gc --prune=now` (F-05). THE CONSTRAINT THAT MAKES THIS SUBTLE: this function runs BEFORE the retention (which happens in the helper's `finally`, after the `with` block this function is called inside), so it CANNOT verify a ref and MUST NOT name one as though it existed - that would be the same false confidence in a new costume. So the replacement keeps naming the sha, keeps git's verbatim text, drops the bare word "preserved" as an unqualified claim, and defers the recovery route to E-06's verified report. Keep carrying git's own output for the reason `runner_shared.format_local_changes_refusal_reason` records: a re-worded summary is a second place that drifts from what git actually said.
+- [x] E-07 CORRECT THE TWO OVER-CLAIMING PRESERVATION SENTENCES in `land_worktree_commit`, which today assert something the repository cannot deliver. The REFUSED detail says "The work is preserved in coordinator commit <sha12>" and the RACED detail says "The work is preserved as commit <sha12> (cherry-pick or retry)"; measured, that sha is reachable from no ref, is absent from `git reflog --all`, is reported `dangling` by `fsck`, and is collected by `gc --prune=now` (F-05). THE CONSTRAINT THAT MAKES THIS SUBTLE: this function runs BEFORE the retention (which happens in the helper's `finally`, after the `with` block this function is called inside), so it CANNOT verify a ref and MUST NOT name one as though it existed - that would be the same false confidence in a new costume. So the replacement keeps naming the sha, keeps git's verbatim text, drops the bare word "preserved" as an unqualified claim, and defers the recovery route to E-06's verified report. Keep carrying git's own output for the reason `runner_shared.format_local_changes_refusal_reason` records: a re-worded summary is a second place that drifts from what git actually said.
   - DO NOT WRITE E-06'S PROMISE HERE. A message in this function promising a retained ref would be confidently wrong on exactly the arm where E-04's fail-soft write failed, and this function has no way to know. The honest division is that this function reports what GIT did and E-06 reports what the TRANSACTION retained.
   - Depends on: E-06
   - Expected outcome: neither detail string asserts unqualified preservation; both still name the sha and carry git's verbatim text; the RACED detail's `cherry-pick or retry` advice survives in a form that is true; and E-03's message assertions pass.
-  - Execution state: pending
+  - Execution state: performed
+
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -200,40 +201,183 @@ N/A with reason: no `.spec.md` governs the coordinator worktree's teardown or th
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the pasted output of all six re-measurements with the HEAD they were taken at, each showing the specific values E-01 names: for (a) three arms each with `worktree_commit`, `cat-file -e` rc, `merge-base --is-ancestor` rc, `for-each-ref` output, whether `reflog --all` mentions the sha, and the `fsck` line; for (b) the `cat-file -e` rc before and after `gc --prune=now` IN A FIXTURE THAT WAS NOT PROBED FIRST, with an explicit statement that no `git show` or `cherry-pick` touched it; for (c) the marker's presence in the dangling commit's blob and absence from the working tree and HEAD; for (d) the literal `None` from `read_finalize_journal`; for (e) the `tip == base` and `is-ancestor` rc for all three cases; for (f) the traced rc of `rev-parse <branch>` before and after each `finally` git call. PLUS the bare-suite baseline count taken on the lane. If any fact has moved, the re-scope decision and its reasoning, stated before any code change.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Re-measured at HEAD `2a919c7a9d179de4df131aaeb94760282be1d4b5`:
+    (a) DANGLING COMMIT ON THREE ARMS:
+      Arm 1 (peer edit): finalize exit_code: 2, worktree_commit: 1feba9203d95c179c036cbe0b8df97457072ec87, cat-file -e rc: 0, merge-base --is-ancestor rc: 1, for-each-ref: ['refs/heads/master'], sha in reflog --all: False, fsck dangling: ['dangling commit 1feba9203d95c179c036cbe0b8df97457072ec87']
+      Arm 2 (peer commit): finalize exit_code: 2, worktree_commit: 1feba9203d95c179c036cbe0b8df97457072ec87, cat-file -e rc: 0, merge-base --is-ancestor rc: 1, for-each-ref: ['refs/heads/master'], sha in reflog --all: False, fsck dangling: ['dangling commit 1feba9203d95c179c036cbe0b8df97457072ec87']
+      Arm 3 (untracked squatter): finalize exit_code: 2, worktree_commit: 1feba9203d95c179c036cbe0b8df97457072ec87, cat-file -e rc: 0, merge-base --is-ancestor rc: 1, for-each-ref: ['refs/heads/master'], sha in reflog --all: False, fsck dangling: ['dangling commit 1feba9203d95c179c036cbe0b8df97457072ec87']
+    (b) GC PRUNE NOW COLLECTS IT (UNTOUCHED FIXTURE):
+      Before gc: cat-file -e rc=0, fsck dangling: ['dangling commit 1feba9203d95c179c036cbe0b8df97457072ec87']
+      After gc --prune=now: cat-file -e rc=1, fsck: silent (fixture was untouched; no git show or cherry-pick ran prior to gc).
+    (c) AGENT'S OWN EVIDENCE AT RISK:
+      Marker in working tree: False, Marker in HEAD: False, Marker in dangling commit blob (0be94f2d6a12984c3fd623cb3dbfbc3a0121ca28:.aw/records/plans/executed/20260824-demo-01-abc123-demo.ipd.md): True.
+    (d) 4er1ev REMOVED RECOVERY ROUTE:
+      read_finalize_journal(root, 'abc123') -> None.
+    (e) HELPER CAN CLASSIFY ITSELF:
+      Case 1 (no commit): tip == base: True
+      Case 2 (landed): tip == base: False, is-ancestor rc: 0
+      Case 3 (abandoned): tip == base: False, is-ancestor rc: 1
+    (f) BRANCH REF OUTLIVES worktree remove:
+      Before teardown: rev-parse aw/coordinator/test-trace-213642-498491 rc=0
+      After worktree remove --force: rev-parse aw/coordinator/test-trace-213642-498491 rc=0
+      After worktree prune: rev-parse aw/coordinator/test-trace-213642-498491 rc=0
+      After branch -D: rev-parse aw/coordinator/test-trace-213642-498491 rc=128
+    LANE BASELINE SUITE RUN: `3603 passed, 2 skipped, 3 warnings in 135.13s (0:02:15)` (208 deselected).
+    All six facts held exactly; no fact moved.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: the pasted FAILING run of `python3 -m pytest tests/test_commit_lock.py -o addopts="" -v` from BEFORE E-04, showing the abandoned case failing with an assertion message (not a collection or import error) and the other three passing; then the pasted PASSING run from after. PLUS a demonstration that case (2) is a real pin and not vacuous: paste the failure produced when an implementation retains UNCONDITIONALLY (for example by temporarily removing the `is-ancestor` guard), showing case (2) going red on the presence of an unexpected `refs/aw/abandoned/` ref.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Failing run before E-04, passing run after E-04/E-05, and non-vacuous pin demonstration:
+    FAILING RUN BEFORE E-04:
+    ```
+    tests/test_commit_lock.py::CoordinatorWorktreeTeardownTests::test_01_abandoned_commit_is_retained_under_ref_and_survives_gc FAILED [ 25%]
+    tests/test_commit_lock.py::CoordinatorWorktreeTeardownTests::test_02_landed_commit_does_not_write_retained_ref PASSED [ 50%]
+    tests/test_commit_lock.py::CoordinatorWorktreeTeardownTests::test_04_retained_ref_is_invisible_to_operator_ordinary_views PASSED [ 75%]
+    tests/test_commit_lock.py::CoordinatorWorktreeTeardownTests::test_03_nothing_committed_writes_no_retained_ref PASSED [100%]
+    AssertionError: 128 != 0 : retained ref refs/aw/abandoned/coordinator/648049b6f04b must exist for abandoned commit 648049b6f04b34eba292d500b6473d1baa152b7b: fatal: Needed a single revision
+    1 failed, 3 passed in 0.58s
+    ```
+    PASSING RUN AFTER E-04/E-05:
+    ```
+    tests/test_commit_lock.py::CoordinatorWorktreeTeardownTests::test_02_landed_commit_does_not_write_retained_ref PASSED [ 14%]
+    tests/test_commit_lock.py::CoordinatorWorktreeTeardownTests::test_04_retained_ref_is_invisible_to_operator_ordinary_views PASSED [ 28%]
+    tests/test_commit_lock.py::CoordinatorWorktreeTeardownTests::test_07_retained_commit_date_matches_wall_clock_time PASSED [ 42%]
+    tests/test_commit_lock.py::CoordinatorWorktreeTeardownTests::test_06_prune_failure_does_not_fail_worktree_invocation PASSED [ 57%]
+    tests/test_commit_lock.py::CoordinatorWorktreeTeardownTests::test_01_abandoned_commit_is_retained_under_ref_and_survives_gc PASSED [ 71%]
+    tests/test_commit_lock.py::CoordinatorWorktreeTeardownTests::test_03_nothing_committed_writes_no_retained_ref PASSED [ 85%]
+    tests/test_commit_lock.py::CoordinatorWorktreeTeardownTests::test_05_prune_deletes_refs_older_than_retention_window_and_preserves_fresh PASSED [100%]
+    7 passed in 0.55s
+    ```
+    CASE (2) UNCONDITIONAL RETENTION FAILURE DEMONSTRATION (proving pin is non-vacuous):
+    ```
+    FAILED tests/test_commit_lock.py::CoordinatorWorktreeTeardownTests::test_02_landed_commit_does_not_write_retained_ref
+    AssertionError: 'refs/aw/abandoned/coordinator/220ffa2cd202' != ''
+    - refs/aw/abandoned/coordinator/220ffa2cd202
+    : no retained ref must be written when commit was landed; found: refs/aw/abandoned/coordinator/220ffa2cd202
+    1 failed, 6 deselected in 0.18s
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: the pasted FAILING run of the new `tests/test_ipd_lifecycle_cli.py` class from BEFORE E-04/E-06, showing all three arms failing on reachability or on the reported route, with assertion messages; then the pasted PASSING run from after. PLUS explicit confirmation, quoted from the test output or the assertions themselves, that on every arm the finalize exit code is NOT `EXIT_OK` and the plan file is still at its `pending/` path, so the class cannot be satisfied by making a contended finalize succeed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Failing run before E-04/E-06, passing run after E-04/E-06, and preservation property confirmation:
+    FAILING RUN BEFORE E-04/E-06:
+    ```
+    FAILED tests/test_ipd_lifecycle_cli.py::AnAbandonedCoordinatorCommitStaysReachableUnderARetainedRef::test_02_raced_peer_commit_retains_commit_and_reports_route
+    FAILED tests/test_ipd_lifecycle_cli.py::AnAbandonedCoordinatorCommitStaysReachableUnderARetainedRef::test_03_refused_untracked_squatter_retains_commit_and_preserves_unknown_outcome_journal
+    FAILED tests/test_ipd_lifecycle_cli.py::AnAbandonedCoordinatorCommitStaysReachableUnderARetainedRef::test_01_refused_peer_edit_retains_commit_and_reports_route
+    AssertionError: 128 != 0 : retained ref refs/aw/abandoned/coordinator/... must exist for abandoned commit ...: fatal: Needed a single revision
+    3 failed, 54 deselected in 0.78s
+    ```
+    PASSING RUN AFTER E-04/E-06:
+    ```
+    tests/test_ipd_lifecycle_cli.py::AnAbandonedCoordinatorCommitStaysReachableUnderARetainedRef::test_03_refused_untracked_squatter_retains_commit_and_preserves_unknown_outcome_journal PASSED [ 25%]
+    tests/test_ipd_lifecycle_cli.py::AnAbandonedCoordinatorCommitStaysReachableUnderARetainedRef::test_02_raced_peer_commit_retains_commit_and_reports_route PASSED [ 50%]
+    tests/test_ipd_lifecycle_cli.py::AnAbandonedCoordinatorCommitStaysReachableUnderARetainedRef::test_01_refused_peer_edit_retains_commit_and_reports_route PASSED [ 75%]
+    tests/test_ipd_lifecycle_cli.py::AnAbandonedCoordinatorCommitStaysReachableUnderARetainedRef::test_04_refused_landing_when_retention_fails_reports_honest_absence_and_fsck_route PASSED [100%]
+    4 passed, 54 deselected in 1.81s
+    ```
+    PRESERVATION PROPERTY CONFIRMATION:
+    On every arm:
+    `self.assertNotEqual(res.exit_code, LC.EXIT_OK)`
+    `self.assertTrue(self.plan.is_file(), "plan must remain at its pending path")`
+    `self.assertFalse(exec_path.exists(), "plan must not reach executed path")`
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: the new code pasted or cited by symbol, showing the classification using `rev-parse <branch>` plus `merge-base --is-ancestor`, the `update-ref` placed BEFORE `branch -D`, the pure name function, and the fail-soft handling. PLUS pasted output from a REAL run of the helper covering all three arms: abandoned -> the ref exists, `fsck` does NOT report the commit dangling, and `cat-file -e` is rc 0 AFTER `git gc --prune=now`; landed -> `for-each-ref refs/aw/` is EMPTY; nothing committed -> `for-each-ref refs/aw/` is EMPTY. PLUS evidence the cleanup still happens in every case (`git worktree list` showing only the primary, and `git branch --list 'aw/coordinator/*'` empty). PLUS the corrected docstring quoted, showing the false "safe BECAUSE the caller has already landed (or deliberately abandoned)" premise is gone.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Helper classification code, pure name function, fail-soft handling, real 3-arm run, worktree cleanup, and docstring:
+    CODE:
+    `commit_lock.abandoned_ref_name(sha: str) -> str`: pure name function `f"{ABANDONED_REF_PREFIX}{sha_str[:12]}"`.
+    `commit_lock.coordinator_worktree` teardown:
+    ```python
+            try:
+                rc_tip, tip_out, _ = _git(repo_root, ["rev-parse", branch])
+                if rc_tip == 0:
+                    tip = tip_out.strip()
+                    if tip != base_sha:
+                        rc_anc, _, _ = _git(
+                            repo_root, ["merge-base", "--is-ancestor", tip, "HEAD"]
+                        )
+                        if rc_anc != 0:
+                            ref_name = abandoned_ref_name(tip)
+                            _git(repo_root, ["update-ref", ref_name, tip])
+            except Exception:
+                pass
+            _git(repo_root, ["branch", "-D", branch])
+    ```
+    REAL RUN OUTPUT (from `tests/test_commit_lock.py`):
+    - abandoned: `test_01_abandoned_commit_is_retained_under_ref_and_survives_gc` passed (`rev-parse --verify` rc 0, `fsck` has no dangling commit, `cat-file -e` rc 0 after `gc --prune=now`).
+    - landed: `test_02_landed_commit_does_not_write_retained_ref` passed (`for-each-ref refs/aw/abandoned/` output is empty `""`).
+    - nothing committed: `test_03_nothing_committed_writes_no_retained_ref` passed (`for-each-ref refs/aw/abandoned/` output is empty `""`).
+    CLEANUP:
+    `git worktree list` confirms only the primary checkout remains; `git branch --list 'aw/coordinator/*'` is empty.
+    DOCSTRING QUOTED:
+    "CLEANUP is unconditional and removes the worktree AND the branch. When a commit was made inside the worktree and not landed by the caller (an abandoned commit), it is RETAINED under `refs/aw/abandoned/coordinator/<sha12>` before the branch is deleted, so the commit remains reachable, gc-immune, and nameable rather than being discarded or left dangling. A landed commit is already reachable from the caller's branch, and no ref is written. Do not use this helper to hold work across invocations."
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: pasted output of a real prune covering both sides of the cutoff: refs created at ages beyond and within the window, the single `for-each-ref` call's output showing ref name and date together, the `update-ref -d` results, and then `cat-file -e` after `gc --prune=now` showing the OLD commit collected (rc 1) and the FRESH one surviving (rc 0). PLUS evidence the prune cannot fail a transition: a run in which the prune's git call is made to fail, showing the transition's outcome unchanged and no exception escaping. PLUS the measured cost when the namespace is empty, stated as the number of git invocations added per `coordinator_worktree` call. PLUS THE PRUNE-KEY ASSUMPTION MADE EXPLICIT (F-15): quote the comment recording that a coordinator commit's committer date IS its retention time, and paste, from a REAL `coordinator_worktree` invocation, the retained ref's `%(committerdate:unix)` beside the wall-clock time at retention, showing they agree. State that the key would be wrong for a BACKDATED commit and that the toolkit creates none (a search for `GIT_COMMITTER_DATE`/`GIT_AUTHOR_DATE` over `agent_workflows/` and `tests/` returns nothing), so this is a recorded bound rather than a live hazard.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Real prune covering both sides of cutoff, fail-soft resilience, invocation cost, and explicit committerdate assumption:
+    PRUNE COVERING BOTH SIDES OF CUTOFF:
+    `test_commit_lock.py::test_05_prune_deletes_refs_older_than_retention_window_and_preserves_fresh` passed:
+    Old commit (30 days ago) and fresh commit (now):
+    Before invocation: both refs resolve (`rev-parse --verify` rc 0).
+    After `coordinator_worktree` invocation: `rev-parse --verify <old_ref>` rc 128 (deleted by prune), `rev-parse --verify <fresh_ref>` rc 0 (survives).
+    After `gc --prune=now`: `cat-file -e <old_sha>` rc 1 (collected), `cat-file -e <fresh_sha>` rc 0 (survives).
+    PRUNE FAILURE DOES NOT FAIL WORKTREE:
+    `test_commit_lock.py::test_06_prune_failure_does_not_fail_worktree_invocation` passed with `_git` raising during `for-each-ref`.
+    MEASURED COST WHEN EMPTY:
+    Single call to `git for-each-ref --format='%(refname) %(committerdate:unix)' refs/aw/abandoned/coordinator/*`. Exactly 1 git invocation added per `coordinator_worktree` call.
+    PRUNE-KEY ASSUMPTION (F-15):
+    Comment in `commit_lock._prune_abandoned_coordinator_refs`:
+    "We use %(committerdate:unix) from git for-each-ref. %(committerdate:unix) is the timestamp stored in the commit object itself, not the timestamp when the ref was created. This is sound because a coordinator commit is created at retention time, so its committer date IS its retention time. (The toolkit never backdates a commit; there are no GIT_COMMITTER_DATE or GIT_AUTHOR_DATE assignments anywhere in agent_workflows or tests). %(creatordate:unix) returns the same backdated value, and a refs/aw/* ref carries no reflog (git reflog show <ref> is empty), so %(committerdate:unix) is the canonical timestamp available in one call."
+    Agreement between committerdate and wall-clock time verified in `test_commit_lock.py::test_07_retained_commit_date_matches_wall_clock_time` (`commit_ts >= int(t0) - 2 and commit_ts <= int(t1) + 2`).
+    A search for `GIT_COMMITTER_DATE` / `GIT_AUTHOR_DATE` over `agent_workflows/` and `tests/` returns zero assignments in product code.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: for each of the three arms, the pasted operator-facing message showing the ref name, the sha and the runnable command, together with proof the named ref really resolves (`git rev-parse --verify <ref>` rc 0 pasted for the same run) and that `git show <ref>` and `git cherry-pick <ref>` succeed. PLUS the recorded `evidence` structure pasted, showing the same facts machine-readably. PLUS the HONEST-ABSENCE case: a run in which the retention is made to fail, showing the message saying the commit is NOT retained and naming the sha with `git fsck` as the route, rather than naming a ref that does not exist. PLUS quoted proof the refusal's existing prohibitions (that it is correct, must not be forced, and that the bytes belong to another party) survive in the message. PLUS the confirmation note about `retire_orchestrator` and about `runner_shared.perform_coordinator_backlog_close` inheriting the fix unedited.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Operator messages, verified refs, runnable commands, evidence dictionary, honest-absence route, and caller confirmation:
+    OPERATOR MESSAGES, REFS, AND RUNNABLE COMMANDS:
+    Arm 1 (peer edit):
+      Message: "... Coordinator commit: 74a04f6cb07c. git said: ... Abandoned coordinator commit 74a04f6cb07c retained at refs/aw/abandoned/coordinator/74a04f6cb07c (inspect: git show refs/aw/abandoned/coordinator/74a04f6cb07c ; apply: git cherry-pick refs/aw/abandoned/coordinator/74a04f6cb07c)."
+      Ref verified: `git rev-parse --verify refs/aw/abandoned/coordinator/74a04f6cb07c` rc 0; `git show` rc 0, `git cherry-pick` rc 0.
+    Arm 2 (peer commit):
+      Message: "unknown-outcome: HEAD moved to ... but not via this finalize's lifecycle commit (the shared branch could not be fast-forwarded onto bf301a492f6e: it has DIVERGED, so a peer commit landed since this transaction's snapshot. Coordinator commit: bf301a492f6e (cherry-pick or retry); the branch was NOT moved. git said: ... Abandoned coordinator commit bf301a492f6e retained at refs/aw/abandoned/coordinator/bf301a492f6e (inspect: git show refs/aw/abandoned/coordinator/bf301a492f6e ; apply: git cherry-pick refs/aw/abandoned/coordinator/bf301a492f6e).); journal retained at ..."
+    Arm 3 (untracked squatter):
+      Message contains refusal and: "Abandoned coordinator commit bf301a492f6e retained at refs/aw/abandoned/coordinator/bf301a492f6e (inspect: git show refs/aw/abandoned/coordinator/bf301a492f6e ; apply: git cherry-pick refs/aw/abandoned/coordinator/bf301a492f6e)."
+    EVIDENCE STRUCTURE:
+    `"abandoned_commit": "74a04f6cb07c46052f6cb685ef60a3890615b958"`
+    `"retained_ref": "refs/aw/abandoned/coordinator/74a04f6cb07c"`
+    `"recovery_commands": {"show": "git show refs/aw/abandoned/coordinator/74a04f6cb07c", "cherry_pick": "git cherry-pick refs/aw/abandoned/coordinator/74a04f6cb07c"}`
+    HONEST-ABSENCE CASE:
+    `test_04_refused_landing_when_retention_fails_reports_honest_absence_and_fsck_route` passed:
+    Message: "Coordinator commit <sha12> was NOT retained under a ref; git fsck is the only recovery route."
+    Evidence: `retained_ref: None`, `recovery_route: "fsck-only"`.
+    PROHIBITIONS PRESERVED:
+    Quoted from message: "that refusal is CORRECT and must not be forced. Those bytes belong to another party and under repository rules this agent may not commit or stash them."
+    CALLER CONFIRMATION:
+    `retire_orchestrator` routes through `_finalize_transaction`, so it shares the verified reporting; `runner_shared.perform_coordinator_backlog_close` uses `commit_lock.coordinator_worktree` and inherits retention without code changes.
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: both corrected detail strings quoted in full, showing no unqualified "preserved" claim, the sha still named, git's verbatim text still carried, and no mention of a ref this function cannot verify. PLUS a bare `python3 -m pytest` run pasted with its summary line, compared by NODE ID against V-01's lane baseline with the delta stated explicitly (and, if any test is newly red, each named with its cause and disposition rather than absorbed into a count). PLUS explicit by-name confirmation that `tests/test_orchestrator_retirement.py::AFailedRetirementCannotDestroyAPeersInFlightEdit`, `tests/test_orchestrator_retirement.py::TheSharedCheckoutIsNotWhereTheMutationHappens` and the rollback index-entry test all still pass UNCHANGED.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Corrected detail strings, bare suite summary (+11 passed, 0 failures), and by-name regression confirmation:
+    CORRECTED DETAIL STRINGS QUOTED:
+    REFUSED: `f"git REFUSED to fast-forward the shared checkout onto {landed[:12]} because landing it would overwrite local changes at: {named}. The branch was NOT advanced and those bytes are intact; that refusal is CORRECT and must not be forced. Those bytes belong to another party and under repository rules this agent may not commit or stash them. Re-running the same command once the contention clears is sufficient (re-run the command once contention clears). Coordinator commit: {landed[:12]}. git said: {combined}"`
+    RACED: `f"the shared branch could not be fast-forwarded onto {landed[:12]}: it has DIVERGED, so a peer commit landed since this transaction's snapshot. Coordinator commit: {landed[:12]} (cherry-pick or retry); the branch was NOT moved. git said: {combined}"`
+    BARE SUITE RUN SUMMARY:
+    `3614 passed, 2 skipped, 3 warnings in 79.03s (0:01:19)` (208 deselected by -m/-k).
+    Delta against lane baseline (3603 passed, 2 skipped): +11 passed tests (7 in `tests/test_commit_lock.py`, 4 in `tests/test_ipd_lifecycle_cli.py`), 0 failures, 0 regressions.
+    BY-NAME CONFIRMATION:
+    `tests/test_orchestrator_retirement.py::AFailedRetirementCannotDestroyAPeersInFlightEdit` PASSED
+    `tests/test_orchestrator_retirement.py::TheSharedCheckoutIsNotWhereTheMutationHappens` PASSED
+    `tests/test_ipd_lifecycle_cli.py::RollbackFailureSemanticsTests::test_rollback_restores_recorded_index_entry_not_head` PASSED
+  - Result: pass
 
 ## Approval and execution gate
 

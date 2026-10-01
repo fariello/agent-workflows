@@ -2489,5 +2489,320 @@ class ScaffoldStopsWritingTheShapeItsOwnSetterRefuses(unittest.TestCase):
         self.assertNotIn("normalized", buf2.getvalue())
 
 
+class AnAbandonedCoordinatorCommitStaysReachableUnderARetainedRef(unittest.TestCase):
+    """E-03: pin reachability, retained-ref recovery reporting and preservation across the three failure arms."""
+
+    def setUp(self) -> None:
+        support.declare_execution_role(self)
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        _init_git(self.root)
+        (self.root / "agent_workflows").mkdir()
+        (self.root / "tests").mkdir()
+        self.plan = _write_plan(
+            self.root, _completed_plan_text(), "20260824-demo-01-abc123-demo.ipd.md"
+        )
+        _commit_all(self.root, "init")
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _head(self) -> str:
+        return subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+    def _begin_and_work(self):
+        LC.begin(self.root, self.plan, "opencode/test", timestamp="t")
+        (self.root / "agent_workflows" / "demo.py").write_text("x\n", encoding="utf-8")
+        (self.root / "tests" / "test_demo.py").write_text("x\n", encoding="utf-8")
+        _commit_all(self.root, "in-scope work")
+
+    def test_01_refused_peer_edit_retains_commit_and_reports_route(self):
+        """Case (1): peer edit causes REFUSED landing; coordinator commit is retained and reported."""
+        self._begin_and_work()
+        head_before = self._head()
+        peer_bytes = self.plan.read_text(encoding="utf-8") + "\nPEER EDIT IN FLIGHT\n"
+        captured_sha: dict[str, str] = {}
+        real_land = LC.land_worktree_commit
+
+        def spy_land(repo_root, landed, *, expected_base=None):
+            captured_sha["commit"] = landed
+            self.plan.write_text(peer_bytes, encoding="utf-8")
+            return real_land(repo_root, landed, expected_base=expected_base)
+
+        with mock.patch.object(LC, "land_worktree_commit", spy_land):
+            res = LC.finalize(self.root, self.plan, "opencode/test", "m", apply=True)
+
+        # Preservation checks that must not regress
+        self.assertNotEqual(res.exit_code, LC.EXIT_OK)
+        self.assertTrue(self.plan.is_file(), "plan must remain at its pending path")
+        exec_path = (
+            self.root / ".aw" / "records" / "plans" / "executed" / self.plan.name
+        )
+        self.assertFalse(exec_path.exists(), "plan must not reach executed path")
+        self.assertEqual(
+            self.plan.read_text(encoding="utf-8"),
+            peer_bytes,
+            "peer bytes must be byte-identical afterwards",
+        )
+        self.assertEqual(
+            self._head(), head_before, "git rev-parse HEAD must be unmoved"
+        )
+
+        # Reachability checks
+        from agent_workflows import commit_lock
+
+        sha = captured_sha["commit"]
+        ref_name = commit_lock.abandoned_ref_name(sha)
+
+        verify_res = subprocess.run(
+            ["git", "rev-parse", "--verify", ref_name],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(
+            verify_res.returncode,
+            0,
+            f"retained ref {ref_name} must exist for abandoned commit {sha}: {verify_res.stderr.strip()}",
+        )
+
+        anc_res = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", sha, ref_name],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(
+            anc_res.returncode, 0, f"commit {sha} must be reachable from {ref_name}"
+        )
+
+        fsck_res = subprocess.run(
+            ["git", "fsck"], cwd=self.root, capture_output=True, text=True
+        )
+        self.assertNotIn(f"dangling commit {sha}", fsck_res.stdout)
+
+        subprocess.run(["git", "gc", "--prune=now"], cwd=self.root, check=True)
+        cat_res = subprocess.run(
+            ["git", "cat-file", "-e", sha],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(
+            cat_res.returncode, 0, f"commit {sha} must survive gc --prune=now"
+        )
+
+        # Message and evidence checks
+        self.assertIn(ref_name, res.message)
+        self.assertIn(f"git show {ref_name}", res.message)
+        self.assertIn(f"git cherry-pick {ref_name}", res.message)
+        self.assertIn("refusal is CORRECT", res.message)
+        self.assertIn("must not be forced", res.message)
+        self.assertIn("belong to another party", res.message)
+        self.assertIsNotNone(res.evidence)
+        self.assertEqual(res.evidence.get("abandoned_commit"), sha)
+        self.assertEqual(res.evidence.get("retained_ref"), ref_name)
+
+    def test_02_raced_peer_commit_retains_commit_and_reports_route(self):
+        """Case (2): peer commit causes RACED landing; coordinator commit is retained and reported."""
+        self._begin_and_work()
+        captured_sha: dict[str, str] = {}
+        peer_commit_sha: dict[str, str] = {}
+        real_land = LC.land_worktree_commit
+
+        def spy_land(repo_root, landed, *, expected_base=None):
+            captured_sha["commit"] = landed
+            (self.root / "peer_work.txt").write_text("peer advance\n", encoding="utf-8")
+            subprocess.run(["git", "add", "peer_work.txt"], cwd=self.root, check=True)
+            subprocess.run(
+                ["git", "commit", "-m", "peer advance"], cwd=self.root, check=True
+            )
+            peer_commit_sha["head"] = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=self.root,
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout.strip()
+            return real_land(repo_root, landed, expected_base=expected_base)
+
+        with mock.patch.object(LC, "land_worktree_commit", spy_land):
+            res = LC.finalize(self.root, self.plan, "opencode/test", "m", apply=True)
+
+        # Preservation checks that must not regress
+        self.assertNotEqual(res.exit_code, LC.EXIT_OK)
+        self.assertTrue(self.plan.is_file(), "plan must remain at its pending path")
+        exec_path = (
+            self.root / ".aw" / "records" / "plans" / "executed" / self.plan.name
+        )
+        self.assertFalse(exec_path.exists(), "plan must not reach executed path")
+        self.assertEqual(
+            self._head(), peer_commit_sha["head"], "HEAD must be the peer's commit"
+        )
+        self.assertNotEqual(
+            self._head(),
+            captured_sha["commit"],
+            "HEAD must NOT be the lifecycle commit",
+        )
+
+        # Reachability checks
+        from agent_workflows import commit_lock
+
+        sha = captured_sha["commit"]
+        ref_name = commit_lock.abandoned_ref_name(sha)
+
+        verify_res = subprocess.run(
+            ["git", "rev-parse", "--verify", ref_name],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(
+            verify_res.returncode,
+            0,
+            f"retained ref {ref_name} must exist for abandoned commit {sha}: {verify_res.stderr.strip()}",
+        )
+
+        subprocess.run(["git", "gc", "--prune=now"], cwd=self.root, check=True)
+        cat_res = subprocess.run(
+            ["git", "cat-file", "-e", sha],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(
+            cat_res.returncode, 0, f"commit {sha} must survive gc --prune=now"
+        )
+
+        # Message and evidence checks
+        self.assertIn(ref_name, res.message)
+        self.assertIn(f"git cherry-pick {ref_name}", res.message)
+        self.assertIsNotNone(res.evidence)
+        self.assertEqual(res.evidence.get("abandoned_commit"), sha)
+        self.assertEqual(res.evidence.get("retained_ref"), ref_name)
+
+    def test_03_refused_untracked_squatter_retains_commit_and_preserves_unknown_outcome_journal(
+        self,
+    ):
+        """Case (3): squatter causes REFUSED landing with unknown-outcome; commit retained and reported."""
+        self._begin_and_work()
+        captured_sha: dict[str, str] = {}
+        dest_path = (
+            self.root / ".aw" / "records" / "plans" / "executed" / self.plan.name
+        )
+        real_land = LC.land_worktree_commit
+
+        def spy_land(repo_root, landed, *, expected_base=None):
+            captured_sha["commit"] = landed
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
+            dest_path.write_text("SQUATTER BYTES\n", encoding="utf-8")
+            return real_land(repo_root, landed, expected_base=expected_base)
+
+        with mock.patch.object(LC, "land_worktree_commit", spy_land):
+            res = LC.finalize(self.root, self.plan, "opencode/test", "m", apply=True)
+
+        # Preservation checks that must not regress
+        self.assertNotEqual(res.exit_code, LC.EXIT_OK)
+        self.assertTrue(self.plan.is_file(), "plan must remain at its pending path")
+        self.assertEqual(
+            dest_path.read_text(encoding="utf-8"),
+            "SQUATTER BYTES\n",
+            "squatter bytes intact",
+        )
+        journal = LC.read_finalize_journal(self.root, "abc123")
+        self.assertIsNotNone(
+            journal, "journal must be retained on squatter rollback error"
+        )
+        self.assertEqual(journal.get("phase"), LC.PHASE_UNKNOWN_OUTCOME)
+
+        # Reachability checks
+        from agent_workflows import commit_lock
+
+        sha = captured_sha["commit"]
+        ref_name = commit_lock.abandoned_ref_name(sha)
+
+        verify_res = subprocess.run(
+            ["git", "rev-parse", "--verify", ref_name],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(
+            verify_res.returncode,
+            0,
+            f"retained ref {ref_name} must exist for abandoned commit {sha}: {verify_res.stderr.strip()}",
+        )
+
+        subprocess.run(["git", "gc", "--prune=now"], cwd=self.root, check=True)
+        cat_res = subprocess.run(
+            ["git", "cat-file", "-e", sha],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(
+            cat_res.returncode, 0, f"commit {sha} must survive gc --prune=now"
+        )
+
+        # Message and evidence checks
+        self.assertIn(ref_name, res.message)
+        self.assertIsNotNone(res.evidence)
+        self.assertEqual(res.evidence.get("abandoned_commit"), sha)
+        self.assertEqual(res.evidence.get("retained_ref"), ref_name)
+
+    def test_04_refused_landing_when_retention_fails_reports_honest_absence_and_fsck_route(
+        self,
+    ):
+        """Case (4): when retention fails soft, message honestly reports absence and fsck route."""
+        self._begin_and_work()
+        peer_bytes = self.plan.read_text(encoding="utf-8") + "\nPEER EDIT IN FLIGHT\n"
+        captured_sha: dict[str, str] = {}
+        real_land = LC.land_worktree_commit
+
+        def spy_land(repo_root, landed, *, expected_base=None):
+            captured_sha["commit"] = landed
+            self.plan.write_text(peer_bytes, encoding="utf-8")
+            return real_land(repo_root, landed, expected_base=expected_base)
+
+        from agent_workflows import commit_lock
+
+        real_git = commit_lock._git
+
+        def failing_update_ref_git(repo_root, args):
+            # Simulate failure when writing the abandoned ref
+            if (
+                args
+                and args[0] == "update-ref"
+                and any("refs/aw/abandoned/" in str(a) for a in args)
+            ):
+                return 1, "", "simulated update-ref failure"
+            return real_git(repo_root, args)
+
+        with mock.patch.object(LC, "land_worktree_commit", spy_land):
+            with mock.patch("agent_workflows.commit_lock._git", failing_update_ref_git):
+                res = LC.finalize(
+                    self.root, self.plan, "opencode/test", "m", apply=True
+                )
+
+        sha = captured_sha["commit"]
+        self.assertNotEqual(res.exit_code, LC.EXIT_OK)
+        # Message must honestly report that the commit was NOT retained and name fsck as recovery route
+        self.assertIn(
+            f"Coordinator commit {sha[:12]} was NOT retained under a ref; git fsck is the only recovery route.",
+            res.message,
+        )
+        self.assertNotIn("retained at refs/aw/abandoned/", res.message)
+        self.assertIsNotNone(res.evidence)
+        self.assertEqual(res.evidence.get("abandoned_commit"), sha)
+        self.assertIsNone(res.evidence.get("retained_ref"))
+        self.assertEqual(res.evidence.get("recovery_route"), "fsck-only")
+
+
 if __name__ == "__main__":
     unittest.main()
