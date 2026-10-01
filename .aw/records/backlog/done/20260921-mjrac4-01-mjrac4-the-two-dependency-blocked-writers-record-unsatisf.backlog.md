@@ -1,5 +1,5 @@
 - Id: mjrac4
-- Status: graduated
+- Status: done
 - Graduated-To: mjrac4
 - Set: mjrac4
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: The two dependency-blocked writers record unsatisfied_dependencies in DIFFERENT shapes, so every consumer needs a special case
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): closed by aw oc run: IPD 8eei5p executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-mjrac4-01-8eei5p-give-every-dependency-block-producer-the-recovery-hint-by-th.ipd.md); evidence .aw/records/plans/executed/20260929-mjrac4-01-8eei5p-give-every-dependency-block-producer-the-recovery-hint-by-th.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: 8eei5p
 - 2026-09-21 created (aw backlog): Found while executing akzy45.
 

@@ -798,25 +798,6 @@ EXECUTION_SUCCESS_STATES = runner_shared.EXECUTION_SUCCESS_STATES
 # automatic content-based decision. Deliberately short: an unattended run must never block on shutdown.
 LANE_PROMPT_TIMEOUT: float = 180.0
 
-# revgate Order 03 (7nkcgp) E-08. The EXACT recovery command for a `dependency-blocked` item, stated
-# host-appropriately for this driver. Recovery is NOT automatic: re-queueing happens ONLY under the
-# `if retry_incomplete:` branch of `run_queue`, which is False for a plain `start` and comes from the
-# explicit `--retry-incomplete` flag on `resume`, so a bare `resume` leaves the item blocked.
-#
-# NARROWED BY depblock 01 (`akzy45`) E-01/E-02, symmetrically with `oc_runipd`. This note used to record
-# that with nothing satisfiable the loop blocked EVERY queued item and BROKE out of the run. THE
-# ALL-OR-NOTHING PART IS GONE: the drain arm now classifies each remaining item through the shared
-# `runner_shared.classify_drain_block` and writes this terminal label only on a PERMANENTLY blocked one;
-# an item whose every unmet prerequisite is still NON-TERMINAL is left `queued` and reported. The loop
-# still BREAKS, since nothing inside a run re-queues such a prerequisite. See `oc_runipd`'s counterpart
-# comment for the three write sites and their classifications; the predicate is shared, so this host
-# cannot drift from it.
-DEPENDENCY_BLOCK_RECOVERY_HINT = (
-    "resolve the named cause, then re-queue with "
-    "`aw agy runipd resume --repo <repo> --retry-incomplete <run-id>`; "
-    "a bare `resume` does NOT re-queue a dependency-blocked item"
-)
-
 # Frontmatter and filename extraction regexes
 _ID_RE = re.compile(r"(?m)^-\s*Id:\s*([0-9a-z]{6})\s*$")
 _STATUS_RE = re.compile(r"(?m)^-\s*Status:\s*(\S+)\s*$")
@@ -3081,7 +3062,11 @@ def run_queue(
         # 8guhs0 E-04 (symmetric with oc_runipd): cascade FIRST, so an item whose prerequisite
         # reached a non-success terminal state is marked `dependency-blocked` (transitively) instead
         # of stalling the queue, while independent items keep running.
-        if cascade_dependency_blocked(state, run_dir):
+        if cascade_dependency_blocked(
+            state,
+            run_dir,
+            recovery_hint=runner_shared.AGY_HOST_LABELS.dependency_block_recovery,
+        ):
             save_state(run_dir, state)
             state = load_state(run_dir)
         # integpath-03 (`51vw4y`) E-03: RUNG 1, the exact counterpart of the `oc_runipd` site. Re-attempt
@@ -3224,7 +3209,9 @@ def run_queue(
                 # revgate Order 03 (7nkcgp) E-04: ADDITIVE companion keys; the flat
                 # `unsatisfied_dependencies` list[str] keeps its exact shape for existing consumers.
                 item["unsatisfied_dependency_reasons"] = why
-                item["dependency_block_recovery"] = DEPENDENCY_BLOCK_RECOVERY_HINT
+                item["dependency_block_recovery"] = (
+                    runner_shared.AGY_HOST_LABELS.dependency_block_recovery
+                )
                 append_jsonl(
                     run_dir / "events.jsonl",
                     {
@@ -3234,7 +3221,9 @@ def run_queue(
                         "dependencies": missing,
                         # Additive: the flat `dependencies` list above is unchanged.
                         "reasons": why,
-                        "recovery": DEPENDENCY_BLOCK_RECOVERY_HINT,
+                        "recovery": (
+                            runner_shared.AGY_HOST_LABELS.dependency_block_recovery
+                        ),
                         # depblock 01 (`akzy45`): the classification that justified the terminal label.
                         "block_class": verdict.verdict,
                         "block_detail": verdict.detail,
@@ -3267,6 +3256,7 @@ def run_queue(
                 actor=driver_actor(state),
                 terminal_states=TERMINAL_STATES,
                 success_states=EXECUTION_SUCCESS_STATES,
+                recovery_hint=runner_shared.AGY_HOST_LABELS.dependency_block_recovery,
             )
             save_state(run_dir, state)
             continue

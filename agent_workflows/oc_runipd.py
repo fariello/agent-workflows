@@ -891,43 +891,6 @@ EXECUTION_SUCCESS_STATES = runner_shared.EXECUTION_SUCCESS_STATES
 # automatic content-based decision. Deliberately short: an unattended run must never block on shutdown.
 LANE_PROMPT_TIMEOUT: float = 180.0
 
-# revgate Order 03 (7nkcgp) E-08. The EXACT recovery command for a `dependency-blocked` item.
-#
-# Stated as a constant, and surfaced in the event payload and the run report, because recovery here is
-# NOT automatic and NOT free: re-queueing a `dependency-blocked` item happens ONLY under the
-# `if retry_incomplete:` branch of `run_queue`, and `retry_incomplete` is False for a plain `start` and
-# comes exclusively from the explicit `--retry-incomplete` flag on `resume`. A bare `aw oc resume`
-# therefore leaves the item blocked. A block whose exit is undocumented is a usability failure, so the
-# command is carried in the payload rather than left for the operator to discover.
-#
-# NARROWED BY depblock 01 (`akzy45`) E-01/E-02. This note used to record, as a known limitation, that
-# when NO queued item is satisfiable the selection loop marked EVERY remaining queued item
-# `dependency-blocked` and BROKE out of the run, so a findings-block could end a run rather than park
-# one item. THE ALL-OR-NOTHING PART IS GONE: the drain arm now CLASSIFIES each remaining item through
-# the shared `runner_shared.classify_drain_block` and writes this terminal label only on one that is
-# PERMANENTLY blocked (a terminal-non-success prerequisite, a cycle, a dangling or unsatisfiable
-# external edge, or any cause it cannot prove transient). An item whose every unmet prerequisite is
-# still NON-TERMINAL is left `queued` and reported through `render_transient_dependency_waits` instead.
-# The loop still BREAKS - nothing in a run re-queues such a prerequisite, so waiting inside this
-# invocation cannot pay off - but the item keeps the cheaper recovery route below.
-#
-# THE THREE WRITE SITES FOR THIS STATUS, classified by E-01 so the next reader need not re-derive them:
-#   1. `cascade_dependency_blocked` - PERMANENT by construction. It fires only on a prerequisite that
-#      is `in TERMINAL_STATES and st not in required` (action-aware), which is exactly the
-#      can-never-be-ready case. CORRECT AS WRITTEN; deliberately unchanged by `akzy45`.
-#   2. The drain-time `if runnable is None:` arm in `run_queue` (this host and `agy_runipd`). This was
-#      the site that conflated the two facts, and it is the ONE site `akzy45` changed.
-#   3. `runner_shared.dispatch_orchestrator_item`'s `terminal_status` DEFAULT PARAMETER, reached by its
-#      TERMINATE outcome. ALREADY CORRECT and the worked example this fix generalizes: `pgq326` split
-#      that path three ways, where RECONSIDER writes NO status (leaving the item `queued`, which is
-#      precisely the transient handling) and TERMINATE writes the terminal status WITH a specific
-#      reason. Left byte-unchanged.
-DEPENDENCY_BLOCK_RECOVERY_HINT = (
-    "resolve the named cause, then re-queue with "
-    "`aw oc runipd resume --repo <repo> --retry-incomplete <run-id>`; "
-    "a bare `resume` does NOT re-queue a dependency-blocked item"
-)
-
 # Frontmatter and filename extraction regexes
 _ID_RE = re.compile(r"(?m)^-\s*Id:\s*([0-9a-z]{6})\s*$")
 _STATUS_RE = re.compile(r"(?m)^-\s*Status:\s*(\S+)\s*$")
@@ -3609,7 +3572,11 @@ def run_queue(
         # 8guhs0 E-04: cascade FIRST. An item whose prerequisite already reached a non-success
         # terminal state can never become runnable, so mark it (and its dependents, transitively)
         # `dependency-blocked` and keep going with independent work rather than stalling the queue.
-        if cascade_dependency_blocked(state, run_dir):
+        if cascade_dependency_blocked(
+            state,
+            run_dir,
+            recovery_hint=runner_shared.OC_HOST_LABELS.dependency_block_recovery,
+        ):
             save_state(run_dir, state)
             state = load_state(run_dir)
         # integpath-03 (`51vw4y`) E-03: RUNG 1. Re-attempt every DEFERRED integration here, at the top
@@ -3769,7 +3736,9 @@ def run_queue(
                 # `unsatisfied_dependencies` list[str] keeps its exact shape and meaning, so every
                 # existing consumer is untouched; the reasons live alongside it.
                 item["unsatisfied_dependency_reasons"] = why
-                item["dependency_block_recovery"] = DEPENDENCY_BLOCK_RECOVERY_HINT
+                item["dependency_block_recovery"] = (
+                    runner_shared.OC_HOST_LABELS.dependency_block_recovery
+                )
                 append_jsonl(
                     run_dir / "events.jsonl",
                     {
@@ -3779,7 +3748,9 @@ def run_queue(
                         "dependencies": missing,
                         # Additive: the flat `dependencies` list above is unchanged.
                         "reasons": why,
-                        "recovery": DEPENDENCY_BLOCK_RECOVERY_HINT,
+                        "recovery": (
+                            runner_shared.OC_HOST_LABELS.dependency_block_recovery
+                        ),
                         # depblock 01 (`akzy45`): the classification that JUSTIFIED the terminal label,
                         # so a reader of the stream can see it was decided rather than assumed.
                         "block_class": verdict.verdict,
@@ -3811,6 +3782,7 @@ def run_queue(
                 actor=driver_actor(state),
                 terminal_states=TERMINAL_STATES,
                 success_states=EXECUTION_SUCCESS_STATES,
+                recovery_hint=runner_shared.OC_HOST_LABELS.dependency_block_recovery,
             )
             save_state(run_dir, state)
             continue
