@@ -36,16 +36,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: give the shared writer a label, without changing any caller silently
 
-- [ ] E-01 `agent_workflows/backlog.py` (`_reattach_history`): add a keyword parameter `label: str = "set"` and build the record as `f"- {today} {label} (aw backlog): {msg}"` instead of hardcoding `set`. CHANGE NOTHING ELSE IN THIS FUNCTION. Specifically: `msg = message.strip() or f"status -> {new_status}"` stays exactly as it is (the `new_status` parameter keeps its message-fallback job and does NOT become the label, so a caller that passes a status but wants the old token is unaffected); the `old_text`-not-`rendered` source of prior records stays (the docstring explains, with a measurement, why reading priors from `rendered` preserved a re-dated forgery); and the newest-first assembly `hist_block = "\n".join([new_record] + prior)` stays.
+- [x] E-01 `agent_workflows/backlog.py` (`_reattach_history`): add a keyword parameter `label: str = "set"` and build the record as `f"- {today} {label} (aw backlog): {msg}"` instead of hardcoding `set`. CHANGE NOTHING ELSE IN THIS FUNCTION. Specifically: `msg = message.strip() or f"status -> {new_status}"` stays exactly as it is (the `new_status` parameter keeps its message-fallback job and does NOT become the label, so a caller that passes a status but wants the old token is unaffected); the `old_text`-not-`rendered` source of prior records stays (the docstring explains, with a measurement, why reading priors from `rendered` preserved a re-dated forgery); and the newest-first assembly `hist_block = "\n".join([new_record] + prior)` stays.
 
     THE DEFAULT IS THE WHOLE SAFETY ARGUMENT AND IT IS NOT DECORATION. `_reattach_history` has exactly TWO callers in the tree, `backlog.run_set` and `set_records.close_on_answer` (verified by searching the whole repository for the symbol), and E-02 and E-03 update both. Defaulting to `"set"` nonetheless means a THIRD caller arriving on a long-lived branch keeps today's behavior rather than raising a `TypeError` at merge time, which is the failure mode a required parameter would introduce for no gain. Add a docstring paragraph recording WHY the parameter exists (the two spellings disagreed; backlog `awqzuh`), naming `status_set.apply_status_change` as the writer whose label shape this now matches, and stating that the default preserves the legacy token for an unaware caller.
 
     DO NOT "SIMPLIFY" THIS BY DERIVING THE LABEL FROM `new_status` INSIDE THE FUNCTION. That looks tidier and is wrong in a measured way: `close_on_answer` passes `new_status="done"` and a same-status `run_set` call passes the item's CURRENT status, so an internal derivation would have to re-implement the same-status discrimination E-02 performs, in a function that cannot see the item's prior status (it receives `old_text`, not a parsed item, and parsing it here would duplicate `parse_item` work the caller has already done). The label is the CALLER's knowledge; the parameter is how the caller states it.
   - Depends on: none
   - Expected outcome: `_reattach_history(old, rendered, "done", "msg")` (no `label`) still emits `- <today> set (aw backlog): msg`, byte-identical to today; `_reattach_history(old, rendered, "done", "msg", label="done")` emits `- <today> done (aw backlog): msg`; prior records are preserved verbatim and newest-first in both calls; the function's other three behaviors (message fallback, prior-record source, body re-emission) are unchanged in the diff.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 `agent_workflows/backlog.py` (`run_set`): pass the label at the `_reattach_history` call site, discriminating a genuine transition from a same-status write, so the `--status` spelling agrees with the positional one on BOTH cases. Compute the label from the item's PRIOR status (read from the file text as it was, via `parse_item(text).status`, NOT from `item.status`, which `run_set` has ALREADY overwritten with `new_status` several lines earlier at `item.status = new_status`): when the prior status differs from `new_status` the label is `new_status`; when they are equal the label is `same-status`.
+- [x] E-02 `agent_workflows/backlog.py` (`run_set`): pass the label at the `_reattach_history` call site, discriminating a genuine transition from a same-status write, so the `--status` spelling agrees with the positional one on BOTH cases. Compute the label from the item's PRIOR status (read from the file text as it was, via `parse_item(text).status`, NOT from `item.status`, which `run_set` has ALREADY overwritten with `new_status` several lines earlier at `item.status = new_status`): when the prior status differs from `new_status` the label is `new_status`; when they are equal the label is `same-status`.
 
     THE SAME-STATUS HALF IS NOT OPTIONAL AND IT IS NOT GOLD-PLATING. `status_set.apply_status_change` tags a true same-status write `same-status` DELIBERATELY, and its docstring states the reason: "so verdict readers do not mistake it for a review record". Labelling a same-status `--status open` write `open` would therefore make the `--status` spelling assert a transition that did not happen, which is a WORSE record than today's uninformative `set`. Measured on the probe: with the status-only label, a same-status call through `run_set` wrote `- <today> open (aw backlog): exempted reason` while the positional spelling wrote `- <today> same-status (aw set): exempted reason`, so the two spellings still disagreed and `test_release_exempt_setter_roundtrip_and_parity` still failed (that test normalizes `set (aw backlog)` on one side against `same-status (aw set)` on the other, which is itself evidence that same-status is the case it exercises). With the `same-status` discrimination added, both spellings emitted `same-status`.
 
@@ -68,20 +68,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     NOTE WHAT THIS ITEM DOES NOT FIX, and do not be tempted into it here: the two spellings also differ on DEDUPLICATION. Measured at HEAD `4b7f2582` with no probe applied, two identical same-status `--status` calls produced TWO identical records, while two identical positional calls produced ONE (`apply_status_change` consults `same_status_message_is_duplicate`; `run_set` consults nothing). That is a separate, real defect with its own blast radius (it decides whether a write happens at all, not what a record says), and it is ALREADY FILED as backlog `r74211`. Do not wire the dedup predicate into `run_set` here, even though it would be a two-line change: that widens this plan past the scope its review approved, and `r74211` records two implementation hazards a casual port would trip on.
   - Depends on: E-01
   - Expected outcome: `aw backlog set <path> --status graduated` on an `open` item writes `- <today> graduated (aw backlog): <msg>`; the same call with `--status open` on an `open` item writes `- <today> same-status (aw backlog): <msg>`; every prior record survives verbatim in both; the label is computed from the file's PRIOR status, so re-reading `item.status` (already mutated) cannot make a genuine transition look like a same-status write.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 `agent_workflows/set_records.py` (`close_on_answer`): pass `label="done"` to the `_reattach_history` call, so the question-answered close records the transition it actually performs. The call becomes `_backlog._reattach_history(text, rendered, "done", "question answered; close-on-answer", label="done")`.
+- [x] E-03 `agent_workflows/set_records.py` (`close_on_answer`): pass `label="done"` to the `_reattach_history` call, so the question-answered close records the transition it actually performs. The call becomes `_backlog._reattach_history(text, rendered, "done", "question answered; close-on-answer", label="done")`.
 
     THIS IS THE ITEM THAT DISCHARGES `eikajx`'s ACCEPTED DEBT. `eikajx` E-01 routed `close_on_answer` through `_reattach_history` (correctly, to stop it destroying prior records) and its review then measured that the emitted label could not be the `done (aw set)` its own Expected outcome demanded, accepted `set (aw backlog)`, and filed the asymmetry as `awqzuh` with an explicit instruction not to widen the shared writer inside that plan's scope. This plan is the widening, deliberately scoped, so the instruction is honored rather than contradicted.
 
     CHANGE NOTHING ELSE IN `close_on_answer`. The `evaluate_blocking_close` refusal stays exactly where `rendrop` E-08 put it, AFTER rendering and BEFORE `core.atomic_write`, and still receives the reattached text; the function's signature, its `ValueError` refusal shape, and its single-`repo_root` coupling are untouched (`gatedir` `9vglxd` OQ-01 resolved that split against).
   - Depends on: E-01
   - Expected outcome: `close_on_answer` on a `blocked` item writes `- <today> done (aw backlog): question answered; close-on-answer` as the FIRST record, with every prior record intact and no re-dated `created` line; the release-gate refusal still raises `ValueError` on an un-handed-off gate and still writes nothing.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: correct the two tests this change breaks, and fence the parity
 
-- [ ] E-04 Correct the two EXISTING tests in `tests/test_backlog.py` that pin the old label. Both were measured to FAIL against the probe of E-01 through E-03, and neither failure indicates a regression: each test asserts the very string this plan deliberately changes.
+- [x] E-04 Correct the two EXISTING tests in `tests/test_backlog.py` that pin the old label. Both were measured to FAIL against the probe of E-01 through E-03, and neither failure indicates a regression: each test asserts the very string this plan deliberately changes.
 
     (a) `BacklogPreservationTests::test_close_on_answer_preserves_prior_history_records` asserts `self.assertIn("set (aw backlog)", history_lines[0])`. Measured failure: `AssertionError: 'set (aw backlog)' not found in '- 2026-09-30 done (aw backlog): question answered; close-on-answer'`. Change that assertion to `done (aw backlog)`. DO NOT WEAKEN IT to a substring that would pass either way (for example asserting only `(aw backlog)`): the label is now the contract and the test is its pin. Leave the other four assertions in that test exactly as they are; they pin the preservation property `eikajx` restored and this plan must not disturb (4 records, close record first, the three originals byte-identical, no re-dated `created` line).
 
@@ -105,9 +105,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     Add no new assertions to either test here; E-05 owns the new coverage.
   - Depends on: E-02, E-03
   - Expected outcome: both named tests pass, and test (b) passes under BOTH the machine's local timezone and `TZ=UTC` (demonstrate both, since at base it passes only under one); test (a) now asserts `done (aw backlog)` and still asserts all four preservation properties; test (b)'s `--status`-side normalization reads `same-status (aw backlog)`, its date is normalized by shape rather than by a second clock read, and a comment names both hidden asymmetries and why each is not fixed here.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Author `tests/test_history_label_parity.py` fencing the new contract across BOTH spellings, so the asymmetry cannot silently return. Every test must DRIVE a surface and assert on the written file; none may read production source with `inspect`/`ast`/regex, count callers, or assert docstring text (`AGENTS.md`, GUIDING_PRINCIPLES P16). Reach the `--status` spelling through `cli.main(["backlog", "set", <path>, "--status", ..., "--no-commit", "--dir", ...])` and the positional spelling through `cli.main(["backlog", "set", <status>, <id6>, "--yes", "--no-commit", "--dir", ...])`, following the pattern `tests/test_history_provenance.py` already uses; pass `--no-commit` on every invocation (`rendrop` F-12). Read the written records through `attention._history_section_lines` + `attention_contract.HISTORY_RECORD_RE`, the shared readers, rather than re-deriving the block boundary.
+- [x] E-05 Author `tests/test_history_label_parity.py` fencing the new contract across BOTH spellings, so the asymmetry cannot silently return. Every test must DRIVE a surface and assert on the written file; none may read production source with `inspect`/`ast`/regex, count callers, or assert docstring text (`AGENTS.md`, GUIDING_PRINCIPLES P16). Reach the `--status` spelling through `cli.main(["backlog", "set", <path>, "--status", ..., "--no-commit", "--dir", ...])` and the positional spelling through `cli.main(["backlog", "set", <status>, <id6>, "--yes", "--no-commit", "--dir", ...])`, following the pattern `tests/test_history_provenance.py` already uses; pass `--no-commit` on every invocation (`rendrop` F-12). Read the written records through `attention._history_section_lines` + `attention_contract.HISTORY_RECORD_RE`, the shared readers, rather than re-deriving the block boundary.
 
     EVERY CROSS-SPELLING COMPARISON IN THIS MODULE MUST NORMALIZE THE DATE BY SHAPE AND PASS AN EXPLICIT `--message`, for the reasons E-02 and E-04 record: the two writers read DIFFERENT CLOCKS (local versus UTC, bug `fnb8pl`), and their DEFAULTED messages differ (`status -> X` versus `status set to X`). A comparison that omits either is red for part of every day, exactly as `test_release_exempt_setter_roundtrip_and_parity` is at base. Normalize with a regex on the date SHAPE (`^- \d{4}-\d{2}-\d{2} `), never by reading a clock in the test, which reintroduces the race. Assert the LABEL positively by name in each case so the normalization can never make a case vacuous.
 
@@ -123,16 +123,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     PRE-CHANGE FAIL/PASS SPLIT, authored as a PREDICTION to be MEASURED, not as a result: (a), (b), (c) and (e) are NEW pins of NEW behavior, so (a), (b) and (c) are expected to fail on the base commit (the `--status` side writes `set` there) and (e) to pass (the default is today's behavior). (d) is expected to pass on the base commit; it pins a property `eikajx` already shipped, and demanding it fail first would be demanding a test lie. Do not manufacture a failure for (d) or (e). RUN IT UNDER BOTH THE LOCAL TIMEZONE AND `TZ=UTC` and report both: a case that passes under one and fails under the other has a clock dependency the date normalization above was supposed to remove, and that is a defect in the TEST, to be fixed by normalizing rather than by pinning `TZ`.
   - Depends on: E-02, E-03
   - Expected outcome: a new test module whose five named cases all pass after E-01 through E-03, identically under the machine's local timezone and under `TZ=UTC`; (a), (b) and (c) demonstrably FAIL on the base commit with the `set` label visible in the failure output; (d) and (e) pass on the base commit and pin thereafter; every cross-spelling comparison normalizes the date by shape and passes an explicit `--message`; no test in the module reads production source text.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: record the user-visible change and reconcile the tree
 
-- [ ] E-06 Add ONE `CHANGELOG.md` entry under the `## 2.0.0 (pending)` heading recording what a USER sees: a backlog item's history record now names the transition (`graduated`, `done`, `same-status`) whichever spelling of `aw backlog set` was used, instead of the uninformative `set` on one of them. Describe only the user-visible effect, name no private helper, and write no em or en dashes (user-facing prose, `AGENTS.md`). Place it beside the existing history-provenance entry that `eikajx` E-07 wrote ("a backlog item closed through the question-answered path now keeps its full workflow history..."), since the two describe the same surface and a reader benefits from finding them together.
+- [x] E-06 Add ONE `CHANGELOG.md` entry under the `## 2.0.0 (pending)` heading recording what a USER sees: a backlog item's history record now names the transition (`graduated`, `done`, `same-status`) whichever spelling of `aw backlog set` was used, instead of the uninformative `set` on one of them. Describe only the user-visible effect, name no private helper, and write no em or en dashes (user-facing prose, `AGENTS.md`). Place it beside the existing history-provenance entry that `eikajx` E-07 wrote ("a backlog item closed through the question-answered path now keeps its full workflow history..."), since the two describe the same surface and a reader benefits from finding them together.
 
     DO NOT FILE THE DEDUP ASYMMETRY HERE: IT IS ALREADY FILED. Backlog `r74211` was created at AUTHORING time (not deferred to execution), carrying both measured outputs, the name of the predicate `backlog.run_set` fails to call, the reason it was fenced out of this plan, and two implementation hazards a later executor would otherwise rediscover (the unconditional sidecar write, and `apply_status_change`'s `_write_history_anyway` branch). It is cited as the carrier of this plan's fourth Deferred row. Verify it still resolves rather than filing a second copy.
   - Depends on: E-01, E-02, E-03, E-04, E-05
   - Expected outcome: one CHANGELOG entry in the file's established voice, naming only the user-visible effect, containing no em or en dash, and sitting beside the existing history-provenance entry; backlog `r74211` still resolves via `aw find r74211` and is unchanged by this item.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -218,35 +218,339 @@ No open questions.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste a transcript of a python session that calls `backlog._reattach_history` TWICE on the same 3-record fixture, once WITHOUT `label` and once with `label="done"`, printing the full returned text both times. The no-`label` call must show `set (aw backlog)` and the `label="done"` call must show `done (aw backlog)`; both must show all three prior records verbatim with their original dates, newest-first, and no re-dated `created` line. ALSO paste `git diff -- agent_workflows/backlog.py` restricted to `_reattach_history` and confirm by inspection that the message fallback (`msg = message.strip() or ...`), the `prior = _prior_history_records(old_text)` source, and the body re-emission are unchanged.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Called _reattach_history twice on 3-record fixture; without label emitted 'set', with label='done' emitted 'done'; git diff confirmed.
+    ```
+    === CALL 1: WITHOUT label ===
+    - Id: bk0001
+    - Status: done
+    - Set: demo
+    - Priority: medium
+    - Work-Kind: chore
+    - Summary: test item
 
-- [ ] V-02 validates E-02
+    ## Workflow history
+    - 2026-10-01 set (aw backlog): closing item
+    - 2026-03-03 note (tester): third
+    - 2026-02-02 note (tester): second
+    - 2026-01-01 created (tester): initial
+
+    Prose body paragraph.
+
+    === CALL 2: WITH label="done" ===
+    - Id: bk0001
+    - Status: done
+    - Set: demo
+    - Priority: medium
+    - Work-Kind: chore
+    - Summary: test item
+
+    ## Workflow history
+    - 2026-10-01 done (aw backlog): closing item
+    - 2026-03-03 note (tester): third
+    - 2026-02-02 note (tester): second
+    - 2026-01-01 created (tester): initial
+
+    Prose body paragraph.
+    ```
+    The call without label emitted `- 2026-10-01 set (aw backlog): closing item`; the call with `label="done"` emitted `- 2026-10-01 done (aw backlog): closing item`. Both preserved all three prior records verbatim with their original dates and no re-dated created record.
+
+    `git diff -- agent_workflows/backlog.py` restricted to `_reattach_history`:
+    ```diff
+    @@ -1858,7 +1864,11 @@ def _prior_history_records(text: str) -> List[str]:
+
+
+     def _reattach_history(
+    -    old_text: str, rendered: str, new_status: str, message: str
+    +    old_text: str,
+    +    rendered: str,
+    +    new_status: str,
+    +    message: str,
+    +    label: str = "set",
+     ) -> str:
+         """Prepend one transition record to the inline `## Workflow history`, PRESERVING prior records.
+
+    @@ -1880,13 +1890,18 @@ def _reattach_history(
+         `created` line dated today). `old_text` is the file as it was on disk, so it is the only honest
+         source. The re-minted `created` line is dropped for the same reason.
+
+    +    THE LABEL PARAMETER (plan `jbipfa`, backlog `awqzuh`) allows the caller to specify the transition
+    +    token (e.g. "graduated", "done", or "same-status"), aligning with `status_set.apply_status_change`
+    +    which names the transition rather than writing an uninformative "set". The default "set" preserves
+    +    the legacy record token for an unaware caller.
+    +
+         THE SIDECAR IS STILL WRITTEN by the caller; it is a machine-local activity log, not the durable
+         store, so it can never gate this write (see `record_history.append_advisory`).
+         """
+
+         today = datetime.date.today().isoformat()
+         msg = message.strip() or f"status -> {new_status}"
+    -    new_record = f"- {today} set (aw backlog): {msg}"
+    +    new_record = f"- {today} {label} (aw backlog): {msg}"
+         # rebuild: metadata block from `rendered` up to its history header, then the NEW record followed by
+         # every prior record from the FILE AS IT WAS (newest-first, matching status_set's plan writer),
+         # then the prose body.
+    ```
+    Inspection confirms that `msg = message.strip() or f"status -> {new_status}"` is unchanged, `prior = _prior_history_records(old_text)` is unchanged, and body re-emission logic is unchanged.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the three rows of the parity table measured on the POST-change tree, each produced by driving `cli.main(["backlog", "set", <path>, "--status", <target>, "--message", ...])` and printing the written file's first record: `open -> graduated` must read `graduated (aw backlog)`, `open -> open` must read `same-status (aw backlog)`, and `open -> done` must read `done (aw backlog)`. Then paste the matching positional-spelling record for each and confirm that, once the DATE and the ACTOR are normalized by shape, the records are EQUAL. Paste the RAW records too, not only the normalized ones, and state explicitly whether the raw dates differed on this run (they will whenever the machine's local date and the UTC date differ; that is bug `fnb8pl` and is NOT a failure of this item). FALSIFIER REQUIRED: also paste a run proving the label is read from the PRIOR status and not from the already-mutated `item.status` - drive a genuine `open -> graduated` transition and show the label is `graduated` and NOT `same-status` (a naive `item.status` read would produce `same-status` for every call, since `run_set` sets `item.status = new_status` before the render).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Measured post-change parity table across all 3 cases with normalized equality True; falsifier confirmed.
+    ```
+    === Case: open -> graduated ===
+    RAW --status:   - 2026-10-01 graduated (aw backlog): handed off to plan
+    RAW positional: - 2026-10-01 graduated (aw set): handed off to plan
+    NORM --status:   - HIST_DATE graduated (HIST_ACTOR): handed off to plan
+    NORM positional: - HIST_DATE graduated (HIST_ACTOR): handed off to plan
+    Normalized Equal: True
 
-- [ ] V-03 validates E-03
+    === Case: open -> open ===
+    RAW --status:   - 2026-10-01 same-status (aw backlog): clarification note
+    RAW positional: - 2026-10-01 same-status (aw set): clarification note
+    NORM --status:   - HIST_DATE same-status (HIST_ACTOR): clarification note
+    NORM positional: - HIST_DATE same-status (HIST_ACTOR): clarification note
+    Normalized Equal: True
+
+    === Case: open -> done ===
+    RAW --status:   - 2026-10-01 done (aw backlog): work finished
+    RAW positional: - 2026-10-01 done (aw set): work finished
+    NORM --status:   - HIST_DATE done (HIST_ACTOR): work finished
+    NORM positional: - HIST_DATE done (HIST_ACTOR): work finished
+    Normalized Equal: True
+    ```
+    Raw dates status: on this test execution, the machine local date (2026-10-01) and UTC date (2026-10-01) coincided so raw dates were both 2026-10-01. When dates differ across timezones (e.g. under TZ=Etc/GMT+12), raw dates differ (2026-09-30 vs 2026-10-01) due to bug fnb8pl, and date-shape normalization handles the skew.
+
+    Falsifier test transcript:
+    ```
+    === FALSIFIER: open -> graduated label must be graduated and NOT same-status ===
+    Record: - 2026-10-01 graduated (aw backlog): verify falsifier
+    Falsifier check: PASS (label is graduated, not same-status)
+    ```
+    This proves the label is read from the disk prior status via `parse_item(text).status` rather than from mutated `item.status` (which had already been set to `new_status`).
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the full written file from driving `set_records.close_on_answer` on a `blocked` item carrying three real records. It must show FOUR records, the first reading `- <today> done (aw backlog): question answered; close-on-answer`, the three originals byte-identical with their original dates, and no `created` line dated today. Separately paste the refusal path still working: a `close_on_answer` call on an item carrying an un-handed-off `- Blocks-Release:` must raise `ValueError` and leave no file written under `done/` (show the exception text and the empty directory listing).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. close_on_answer emits 4 records with 'done (aw backlog)' and preserves priors; refusal raises ValueError.
+    ```markdown
+    - Id: bk0001
+    - Status: done
+    - Set: demo
+    - Priority: high
+    - Work-Kind: feature
+    - Summary: test item
 
-- [ ] V-04 validates E-04
+    ## Workflow history
+    - 2026-10-01 done (aw backlog): question answered; close-on-answer
+    - 2026-09-20 note (aw backlog): note 1
+    - 2026-09-10 set (aw backlog): set 1
+    - 2026-09-01 created (aw backlog): initial creation
+
+    ## Body
+    Prose content
+    ```
+    The item has 4 records, the first is `- 2026-10-01 done (aw backlog): question answered; close-on-answer`, the three originals are byte-identical with their original dates, and no newly-dated `created` record appears.
+
+    Refusal path verification:
+    ```
+    === REFUSAL PATH: close_on_answer on item with un-handed-off Blocks-Release ===
+    Caught expected ValueError: backlog item carries Blocks-Release 'next'; closing it `done` would silently drop that release gate; fixes: hand the gate to a plan: add `- From-Backlog: <this id6>` (and the same `- Blocks-Release`) to a plan via `aw ipd set ... --from-backlog <id6>`; cite satisfying evidence: `aw backlog set done <item> --evidence <in-tree artifact path>`; explicitly release the gate first: `aw backlog set done <item> --blocks-release -`
+    Files in done/ matching bk0002: []
+    ```
+    The gate check raises ValueError and no destination file is written under `done/`.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the actual output of `python3 -m pytest tests/test_backlog.py -o addopts=""` showing both named tests passing by name (`test_close_on_answer_preserves_prior_history_records`, `test_release_exempt_setter_roundtrip_and_parity`), plus the per-test counts that clearing `addopts` provides. PASTE THE SAME COMMAND RUN TWICE, once under the machine's local timezone and once as `TZ=UTC python3 -m pytest ...`, both green: at the base commit `test_release_exempt_setter_roundtrip_and_parity` passes under only one of the two, so a single green run does not demonstrate the time-dependence was removed. ALSO paste the BASE-COMMIT narrowed run for that one test (stash or scratch checkout) so the before/after is visible, and state its base result honestly rather than claiming the suite was green at base. FINALLY paste `git diff -- tests/test_backlog.py` and confirm by inspection that test (a) retains its four preservation assertions (4 records, close record first, originals equal, no re-dated `created`), that test (b) normalizes the date by SHAPE and not by reading a clock, and that its comment names both hidden asymmetries (actor: deliberate; date: bug `fnb8pl`) and why neither is fixed here.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. test_close_on_answer and test_release_exempt pass in local timezone, TZ=UTC, and TZ=Etc/GMT+12; base failure reproduced.
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=2835365495
+    rootdir: <repo_root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 46 items
 
-- [ ] V-05 validates E-05
+    tests/test_backlog.py ..............................................     [100%]
+
+    ============================== 46 passed in 1.86s ==============================
+    ```
+    Output under `TZ=UTC`:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=4217646047
+    rootdir: <repo_root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 46 items
+
+    tests/test_backlog.py ..............................................     [100%]
+
+    ============================== 46 passed in 1.17s ==============================
+    ```
+    Output under `TZ=Etc/GMT+12` (date offset by -1 day from UTC):
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=2524876277
+    rootdir: <repo_root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 46 items
+
+    tests/test_backlog.py ..............................................     [100%]
+
+    ============================== 46 passed in 1.31s ==============================
+    ```
+    Both named tests (`test_close_on_answer_preserves_prior_history_records` and `test_release_exempt_setter_roundtrip_and_parity`) pass in all timezones.
+
+    Base-commit narrowed run for `test_release_exempt_setter_roundtrip_and_parity` (under `TZ=Etc/GMT+12` where local and UTC dates diverge):
+    ```
+    FAILED tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity
+    E AssertionError: '- Id[175 chars]2026-09-30 HIST_ACTOR: exempted reason\n- 2026[39 chars]se\n' != '- Id[175 chars]2026-10-01 HIST_ACTOR: exempted reason\n- 2026[39 chars]se\n'
+    E - - 2026-09-30 HIST_ACTOR: exempted reason
+    E + - 2026-10-01 HIST_ACTOR: exempted reason
+    ======================= 1 failed, 45 deselected in 0.67s =======================
+    ```
+    This confirms the base commit was time-dependent and failed whenever local and UTC dates differed.
+
+    `git diff -- tests/test_backlog.py`:
+    ```diff
+    @@ -1163,7 +1163,7 @@ class BacklogPreservationTests(unittest.TestCase):
+                 ]
+                 self.assertEqual(len(history_lines), 4)
+                 self.assertIn("question answered; close-on-answer", history_lines[0])
+    -            self.assertIn("set (aw backlog)", history_lines[0])
+    +            self.assertIn("done (aw backlog)", history_lines[0])
+                 self.assertEqual(history_lines[1:], original_records)
+                 self.assertNotIn("created (aw backlog): test item", text)
+
+    @@ -1713,15 +1713,24 @@ class BacklogPreservationTests(unittest.TestCase):
+                 self.assertIn("- Release-Exempt-Ref: D42\n", res2_text)
+                 self.assertIn("exempted reason", res2_text)
+
+    -            norm1 = (
+    +            # Two asymmetries are normalized away here:
+    +            # 1. Actor: (aw backlog) vs (aw set) truthfully identifies the code path and is deliberate.
+    +            # 2. Date: backlog._reattach_history stamps the local clock while status_set stamps UTC.
+    +            #    This clock skew is live bug fnb8pl (out of scope for jbipfa), so dates are normalized by shape.
+    +            import re as _re
+    +
+    +            _DATE = _re.compile(r"^- \d{4}-\d{2}-\d{2} ", _re.MULTILINE)
+    +            norm1 = _DATE.sub(
+    +                "- HIST_DATE ",
+                     res1_text.replace("bk0001", "bkXXXX")
+                     .replace("Bug 1", "Bug X")
+    -                .replace("set (aw backlog)", "HIST_ACTOR")
+    +                .replace("same-status (aw backlog)", "HIST_ACTOR"),
+                 )
+    -            norm2 = (
+    +            norm2 = _DATE.sub(
+    +                "- HIST_DATE ",
+                     res2_text.replace("bk0002", "bkXXXX")
+                     .replace("Bug 2", "Bug X")
+    -                .replace("same-status (aw set)", "HIST_ACTOR")
+    +                .replace("same-status (aw set)", "HIST_ACTOR"),
+                 )
+                 self.assertEqual(norm1, norm2)
+    ```
+    Inspection confirms that test (a) retains its 4 preservation assertions (len 4, close record first, originals equal, no created line dated today), test (b) normalizes the date by shape using `_DATE = re.compile(r"^- \d{4}-\d{2}-\d{2} ", re.MULTILINE)`, and comments name both hidden asymmetries (actor and date bug fnb8pl).
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste `python3 -m pytest tests/test_history_label_parity.py -o addopts=""` green with all five cases named, AND the same command under `TZ=UTC`, also green, so the module is demonstrated free of the clock dependence that makes the pre-existing parity test time-dependent. THEN paste the PRE-CHANGE run of the same module against the base commit (stash the production changes, or run in a scratch checkout at the base commit) showing which cases fail and with what message. Report the split as MEASURED against E-05's PREDICTION (a, b, c fail with the `set` label visible; d and e pass); if it differs, say which case moved and why, and do NOT adjust a test to match the prediction.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. All 5 cases in test_history_label_parity pass in local and UTC; pre-change split on base matches prediction (3 fail, 2 pass).
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=2845387248
+    rootdir: <repo_root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 5 items
 
-- [ ] V-06 validates E-06
+    tests/test_history_label_parity.py .....                                 [100%]
+
+    ============================== 5 passed in 1.33s ===============================
+    ```
+    Post-change test run under `TZ=UTC`:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=1695945455
+    rootdir: <repo_root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 5 items
+
+    tests/test_history_label_parity.py .....                                 [100%]
+
+    ============================== 5 passed in 1.06s ===============================
+    ```
+    All five named tests pass identically in both timezones:
+    - `test_a_genuine_transition_status_spelling_records_graduated_label`
+    - `test_b_genuine_transition_positional_spelling_agrees_with_status_spelling`
+    - `test_c_same_status_write_records_same_status_on_both_spellings`
+    - `test_d_status_spelling_preserves_prior_history_records`
+    - `test_e_reattach_history_default_label_is_legacy_set`
+
+    Pre-change run against the base commit (before modifying `backlog.py` and `set_records.py`):
+    ```
+    =========================== short test summary info ============================
+    FAILED tests/test_history_label_parity.py::HistoryLabelParityTests::test_a_genuine_transition_status_spelling_records_graduated_label
+    FAILED tests/test_history_label_parity.py::HistoryLabelParityTests::test_b_genuine_transition_positional_spelling_agrees_with_status_spelling
+    FAILED tests/test_history_label_parity.py::HistoryLabelParityTests::test_c_same_status_write_records_same_status_on_both_spellings
+    ========================= 3 failed, 2 passed in 0.99s ==========================
+    ```
+    Failure details showing the uninformative `set` label on the base commit:
+    - For (a): `AssertionError: ' graduated (aw backlog): carrier handed off' not found in '- 2026-10-01 set (aw backlog): carrier handed off'`
+    - For (b): `AssertionError: ' graduated (aw backlog): handed off to plan' not found in '- 2026-10-01 set (aw backlog): handed off to plan'`
+    - For (c): `AssertionError: ' same-status (aw backlog): clarification note' not found in '- 2026-10-01 set (aw backlog): clarification note'`
+    - (d) and (e) passed as predicted.
+    The measured split matches E-05's prediction exactly (a, b, c fail with `set` visible, d and e pass).
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the new `CHANGELOG.md` entry verbatim and confirm it contains no em or en dash (show the check you ran, for example a grep for the two characters returning nothing on that entry). Paste `AW_NO_REEXEC=1 aw find r74211` resolving to the filed dedup item, and `git diff -- .aw/records/backlog/` showing NO change to it (this item must not edit the carrier it cites). FINALLY paste the whole-tree gate pass: the BARE `python3 -m pytest` with its `N passed` line and a baseline re-derived on the pre-change tree; `aw backlog check`, `aw specs check` and `aw sanitize --agent` each exiting 0; `aw check` and `aw attention --check` reporting an IDENTICAL named finding set before and after (both exit 1 on pre-existing conditions, which is not this plan's failure); `aw ipd lint --phase pre-transition` conforming; and `git diff --cached --name-only` matching this plan's declared scope with nothing belonging to a co-worker.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. CHANGELOG entry added with no dashes; r74211 resolves; whole-tree gate passes (3798 tests pass, checks pass).
+    ```markdown
+    - Fixed: a backlog item's history record now names the transition (such as graduated, done, or same-status) whichever spelling of `aw backlog set` was used, replacing the uninformative set label on the flag-based path.
+    ```
+    No em/en dash verification:
+    ```
+    Line 30: - Fixed: a backlog item's history record now names the transition (such as graduated, done, or same-status) whichever spelling of `aw backlog set` was used, replacing the uninformative set label on the flag-based path.
+    Dash check: PASS (no em or en dashes)
+    ```
+
+    Resolution of carrier backlog `r74211`:
+    ```
+    $ PYTHONPATH=. AW_NO_REEXEC=1 aw find r74211
+    ◕  open          r74211  .aw/records/backlog/open/20260930-histlabel-01-r74211-backlog-set-status-same-status-dedup-asymmetry.backlog.md
+    ```
+    `git diff -- .aw/records/backlog/` output: clean (no changes to backlog records).
+
+    Whole-tree gate pass:
+    - BARE test suite (`python3 -m pytest`):
+      Baseline: `3793 passed, 2 skipped, 3 warnings in 215.27s (0:03:35)`
+      Post-change: `3798 passed, 2 skipped, 3 warnings in 174.69s (0:02:54)` (+5 tests from `test_history_label_parity.py`)
+    - `AW_NO_REEXEC=1 aw backlog check`:
+      `aw backlog check: all backlog items conform.` (exit 0)
+    - `AW_NO_REEXEC=1 aw specs check`:
+      `aw specs check: all specs conform. 38 specs checked.` (exit 0)
+    - `AW_NO_REEXEC=1 aw sanitize --agent`:
+      `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}` (exit 0)
+    - `AW_NO_REEXEC=1 aw check --json`:
+      Baseline: 73 policy findings; Post-change: 73 policy findings; findings set identical (`Policy findings identical: True`).
+    - `AW_NO_REEXEC=1 aw attention --check`:
+      Baseline and post-change reports identical (5 pre-existing lane warnings: 3brgb6, dvonrn, om3rzi, om3rzi_attempt2, qczq5r).
+    - `aw ipd lint --phase pre-transition`:
+      Conforming.
+    - `git diff --cached --name-only`: verified to contain only plan-scoped files before commit.
+  - Result: pass
 
 ## Approval and execution gate
 
