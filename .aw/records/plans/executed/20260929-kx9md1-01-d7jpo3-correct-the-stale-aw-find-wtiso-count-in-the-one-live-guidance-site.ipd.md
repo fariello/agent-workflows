@@ -6,7 +6,7 @@
 - Scope: Correct the ONE live site and refuse the other three, with the evidence that decides each. IN: the `## Guardrails any implementation inherits from 826o13` block in backlog `59t9x5`, whose present-tense "returns 3 records while a filename glob returns 12" is guidance a future implementer is told to preserve. The resolved count is re-measured (8); the glob figure is NOT replaced by a new integer but by a property, because review measured it to be SELF-REFERENTIAL (this plan's own filename contains `wtiso`, so it counts itself: 15 at authoring, 16 at review, 17 once this review's record lands). The correction names `ecdd348f` so the change does not read as a behavior regression. ALSO IN, added at review: the SECOND bullet of the same block, stale from the same commit in three respects (no 4096-byte header bound survives, the count is 291 not nine, and the named example `25kzda` is no longer an instance). OUT, with reasons in Findings and Deferred: the executed plan `826o13` (immutable, and it ALREADY self-corrects at E-01's execution note, naming eight, the offsets, and this very item), the review record's four dated count statements across rounds 1 and 3 (accounts of commands actually run and of a decision's basis), and backlog `f8m2z2`'s graduated-history line (dated, and its body's only `wtiso` claim is the EXCLUSION property, which re-measures TRUE). No product code is touched; `selectors.py` is READ for E-03's evidence, is not in `- Scope-Paths:`, and must not be edited.
 - Scope-Paths: .aw/records/backlog/done/20260912-59t9x5-01-59t9x5-find-display-layer-double-read.backlog.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: d7jpo3
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: d7jpo3 verified (set kx9md1, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): status set to reviewed
 
