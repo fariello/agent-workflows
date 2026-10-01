@@ -37,50 +37,50 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: reproduce the divergence before changing anything
 
-- [ ] E-01 RE-MEASURE the divergence at the executing HEAD on a scratch fixture, and confirm the ARM SHAPE you are about to edit rather than trusting this plan's quotation of it. Build a temp repo carrying one `planned` release resolving `next`, a gated backlog item (`- Id: bbbbbb`, `- Blocks-Release: next`), a carrier `cccccc` under `.aw/records/plans/executed/` and a carrier `dddddd` under `.aw/records/plans/pending/`, both carrying `- From-Backlog: bbbbbb` and `- Blocks-Release: next`. Paste, side by side: `check_engine.evaluate_blocking_close(root, item, "done")` (its `legitimate` and `path`) and `runner_shared.evaluate_backlog_close(root, "bbbbbb", [<the executed carrier's repo-relative path>])` (its `close` and `reason`). Then drive the HAND CLOSE end to end: `aw backlog set bbbbbb --status done --dir <repo>`, pasting the exit code and the item's resulting directory. If the two predicates already AGREE, STOP and report rather than proceeding.
+- [x] E-01 RE-MEASURE the divergence at the executing HEAD on a scratch fixture, and confirm the ARM SHAPE you are about to edit rather than trusting this plan's quotation of it. Build a temp repo carrying one `planned` release resolving `next`, a gated backlog item (`- Id: bbbbbb`, `- Blocks-Release: next`), a carrier `cccccc` under `.aw/records/plans/executed/` and a carrier `dddddd` under `.aw/records/plans/pending/`, both carrying `- From-Backlog: bbbbbb` and `- Blocks-Release: next`. Paste, side by side: `check_engine.evaluate_blocking_close(root, item, "done")` (its `legitimate` and `path`) and `runner_shared.evaluate_backlog_close(root, "bbbbbb", [<the executed carrier's repo-relative path>])` (its `close` and `reason`). Then drive the HAND CLOSE end to end: `aw backlog set bbbbbb --status done --dir <repo>`, pasting the exit code and the item's resulting directory. If the two predicates already AGREE, STOP and report rather than proceeding.
   - Depends on: none
   - Expected outcome: `legitimate=True, path='HANDOFF'` against `close=False, reason='IPD carrier(s) not executed: ...pending/...'`; the hand close exits 0 and the item lands in `backlog/done/`.
   - ALREADY DRIVEN AT AUTHORING at HEAD `2121d304`, so treat this as confirmation and do NOT expect the stop condition to fire. Observed verbatim: `check_engine.evaluate_blocking_close -> legitimate=True path=HANDOFF`, reason `gate 'next' handed off to a From-Backlog plan or spec`; `runner_shared.evaluate_backlog_close -> close=False rule=None`, reason `IPD carrier(s) not executed: .aw/records/plans/pending/20260101-s-01-dddddd-p.ipd.md`; and `aw backlog set: 20260101-s-01-bbbbbb-i.backlog.md -> done` at exit 0 with the file present in `done/`.
   - RECORD THE ARM ORDER, because E-03 preserves it deliberately: the `done` branch tests DE-GATED first (no `Blocks-Release`), then HANDOFF, then SATISFIED (`--evidence`), then fails closed with three fixes. HANDOFF short-circuits BEFORE evidence is consulted. E-03 must not reorder these; it changes only WHEN the HANDOFF arm is allowed to return.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 MEASURE THE CORPUS BEFORE THE FIX, so the grandfathering question OQ-01 answers is decided on counts rather than on a guess, and so V-08 has a baseline to compare against. Using `check_engine._from_backlog_carrier_index` (the ONE shared walk; do NOT call `find_from_backlog_artifacts` in a per-item loop, which `tests/test_carrier_scan_single_item_contract.py` mechanically forbids), report over the live tree: total backlog items; how many carry `- Blocks-Release:`; how many have at least one carrier; how many have MORE than one; how many have more than one AND a gate; the carrier-count distribution; and, for each item that has a gate, more than one carrier, at least one EXECUTED carrier and at least one UNEXECUTED one, its id6, its current status directory, and its executed/unexecuted counts. Separately paste `aw check release-gates` on the UNCHANGED tree.
+- [x] E-02 MEASURE THE CORPUS BEFORE THE FIX, so the grandfathering question OQ-01 answers is decided on counts rather than on a guess, and so V-08 has a baseline to compare against. Using `check_engine._from_backlog_carrier_index` (the ONE shared walk; do NOT call `find_from_backlog_artifacts` in a per-item loop, which `tests/test_carrier_scan_single_item_contract.py` mechanically forbids), report over the live tree: total backlog items; how many carry `- Blocks-Release:`; how many have at least one carrier; how many have MORE than one; how many have more than one AND a gate; the carrier-count distribution; and, for each item that has a gate, more than one carrier, at least one EXECUTED carrier and at least one UNEXECUTED one, its id6, its current status directory, and its executed/unexecuted counts. Separately paste `aw check release-gates` on the UNCHANGED tree.
   - Depends on: E-01
   - Expected outcome: a concrete exposed set, and a conforming `aw check release-gates` baseline.
   - MEASURED AT AUTHORING for comparison (re-measure; these WILL drift as plans execute, and a drifted number is expected, not a defect): 706 items, 374 gated, 351 with at least one carrier, 36 multi-carrier, 18 multi-carrier AND gated, distribution `{1: 315, 2: 18, 3: 3, 4: 8, 5: 4, 6: 1, 9: 2}`. RE-MEASURED AT REVIEW one day later, HEAD `fd5fbe73`, which demonstrates the drift the plan predicts and is why no integer here is an acceptance bar: 746 items, 386 gated, 414 carried, 40 multi-carrier, 21 multi-carrier AND gated, distribution `{1: 374, 2: 20, 3: 3, 4: 10, 5: 4, 6: 1, 9: 2}`. THE EXPOSED SET, by contrast, was IDENTICAL at review: the same seven id6s with the same statuses and the same executed/unexecuted counts, which is the durable claim this item rests on. SEVEN items were exposed right then: `1ap48y` (done, 4 carriers, 3 executed), `7m0aro` (graduated, 2, 1), `ciesaj` (graduated, 2, 1), `dh0uno` (done, 3, 1), `h7qsje` (done, 3, 2), `kjzlgw` (done, 9, 8), `vqv9im` (graduated, 4, 2). Note the backlog item's own figures were taken on 2026-09-28 (653 items, 31 multi-carrier, 16 multi-carrier+gated) and this is the same measurement one day later; the SHAPE is the durable claim, not the integers.
   - FOUR OF THOSE SEVEN ARE ALREADY `done`, which is the fact OQ-01 turns on, so do not skip past it: `1ap48y`, `dh0uno`, `h7qsje` and `kjzlgw` were closed under the permissive arm and their verdicts flip to `legitimate=False` under the fix. Paste each one's verdict BEFORE the fix too, so the pair can be compared in V-08.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: pin the intended behavior in tests before the fix
 
-- [ ] E-03 REWRITE the one test that pins the permissive semantics and add the cases that pin the new rule, in `tests/test_backlog_handoff_close.py`, BEFORE touching the predicate. Behavior only, driven through `cli.main(["backlog", "set", ...])` and/or `check_engine.evaluate_blocking_close` on `git init` scratch repos: (1) REPLACE `test_case_5_two_carriers_pending_and_executed_allowed`, whose docstring reads "(5) TWO carriers, one pending and one executed -> allowed (rc 0)", with the tightened expectation: rc 1, the item does NOT move to `done/`, and stderr names the unexecuted carrier; (2) ADD an ALL-EXECUTED allowance case: two carriers, BOTH under `executed/`, close allowed rc 0 and `verdict.path == "HANDOFF"`; (3) ADD a three-carrier case with two executed and one pending -> refused, so the rule is pinned as universal rather than as "two"; (4) ADD a MIXED-KIND case: one executed plan plus one `approved` (not `implemented`) same-gate SPEC carrier -> refused, and the same spec `implemented` -> allowed, which pins that the tightening spans both carrier kinds `_carrier_is_executed` handles; (5) keep every other case in the file passing UNCHANGED, explicitly including case (2) (single executed carrier -> allowed), case (6) SATISFIED and case (7) DE-GATED. Update the file's module docstring, which currently enumerates case (5) as "TWO carriers, one pending and one executed -> allowed".
+- [x] E-03 REWRITE the one test that pins the permissive semantics and add the cases that pin the new rule, in `tests/test_backlog_handoff_close.py`, BEFORE touching the predicate. Behavior only, driven through `cli.main(["backlog", "set", ...])` and/or `check_engine.evaluate_blocking_close` on `git init` scratch repos: (1) REPLACE `test_case_5_two_carriers_pending_and_executed_allowed`, whose docstring reads "(5) TWO carriers, one pending and one executed -> allowed (rc 0)", with the tightened expectation: rc 1, the item does NOT move to `done/`, and stderr names the unexecuted carrier; (2) ADD an ALL-EXECUTED allowance case: two carriers, BOTH under `executed/`, close allowed rc 0 and `verdict.path == "HANDOFF"`; (3) ADD a three-carrier case with two executed and one pending -> refused, so the rule is pinned as universal rather than as "two"; (4) ADD a MIXED-KIND case: one executed plan plus one `approved` (not `implemented`) same-gate SPEC carrier -> refused, and the same spec `implemented` -> allowed, which pins that the tightening spans both carrier kinds `_carrier_is_executed` handles; (5) keep every other case in the file passing UNCHANGED, explicitly including case (2) (single executed carrier -> allowed), case (6) SATISFIED and case (7) DE-GATED. Update the file's module docstring, which currently enumerates case (5) as "TWO carriers, one pending and one executed -> allowed".
   - Depends on: E-02
   - Expected outcome: the rewritten case (1) and the new cases (3) and (4)-refused-half FAIL against unchanged code; (2), (4)-allowed-half and every pre-existing case PASS before and after.
   - THIS IS A DELIBERATE TEST REVERSAL AND MUST BE NAMED AS ONE, not quietly edited. Measured at authoring by prototyping the fix against the FULL suite: `test_case_5_two_carriers_pending_and_executed_allowed` is the ONLY test in the repository that fails (`1 failed, 3245 passed, 2 skipped` of 3246 selected), and it fails at `self.assertEqual(rc, 0)` with `AssertionError: 1 != 0`. So it is not incidental collateral; it is an intentional assertion of the ANY-carrier rule, written by `2a6phj` under OQ-03. Do NOT delete it: rewrite it, and say in its docstring that it previously asserted the opposite and which plan reversed it, so a future reader does not "restore" the permissive behavior as a regression fix.
   - DO NOT ADD CODE-PINNING TESTS. No `inspect`, no `ast`, no regex over `check_engine.py`, no assertion that the verdict-returning statement sits outside the loop. The observable contract is the verdict and the CLI exit code; `tests/test_carrier_scan_single_item_contract.py` is the repository's one sanctioned AST guard and its own docstring fences it to call SHAPES in `agent_workflows/`, which is not this.
   - THE `IPD-Z602` DENSITY ADVISORY FIRES ON THIS ITEM AND IS ASSESSED, NOT DISMISSED (review, 2026-09-30). `aw ipd lint --long` reports "E-03: action text may bundle multiple concerns (explicit multi-part enumeration with multiple independent actions or deliverables)". JUDGEMENT: keep it whole. The five numbered parts are ONE concern (the test-level contract for the new rule) in ONE file, and they share the same two fixture helpers (`_write_backlog_item`, `_write_plan`) and the same scratch-repo harness, so each is a handful of lines differing only in carrier bucket and count. Splitting them would produce items that cannot be independently verified: V-03 demands a SINGLE before-failing run proving the rewritten case and the new refusal cases red against unchanged code, and that proof is one command over one file. Right-sizing asks whether an item is executable in one focused pass, and this one is; the advisory keys on the enumeration's SHAPE, which here reflects a careful specification rather than bundled deliverables. The genuinely separable piece, the `release_gate_warnings` fixture, is ALREADY its own item (E-05) in its own file.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: the fix
 
-- [ ] E-04 IN `check_engine.evaluate_blocking_close`, HANDOFF arm: MOVE the verdict out of the carrier loop so it is returned only when EVERY same-gate carrier satisfies `_carrier_is_executed`. Concretely, the loop keeps appending to `same_gate_carriers` and stops returning; after it, return the HANDOFF verdict when `same_gate_carriers` is non-empty AND all of them are executed. Leave `_carrier_is_executed` itself UNTOUCHED (it already answers correctly for both a plan, by `executed` path segment including a sharded `executed/YYYYMM/`, and a spec, by its `- Status: implemented` field). Leave the existing not-shipped refusal below it in place: it already names every carrier it found, which is precisely why this change needs no new message. Update the docstring's `HANDOFF` line from "an executed plan or implemented spec" to EVERY same-gate carrier, and cite this plan plus backlog `lsbd32` and the runner function it now agrees with.
+- [x] E-04 IN `check_engine.evaluate_blocking_close`, HANDOFF arm: MOVE the verdict out of the carrier loop so it is returned only when EVERY same-gate carrier satisfies `_carrier_is_executed`. Concretely, the loop keeps appending to `same_gate_carriers` and stops returning; after it, return the HANDOFF verdict when `same_gate_carriers` is non-empty AND all of them are executed. Leave `_carrier_is_executed` itself UNTOUCHED (it already answers correctly for both a plan, by `executed` path segment including a sharded `executed/YYYYMM/`, and a spec, by its `- Status: implemented` field). Leave the existing not-shipped refusal below it in place: it already names every carrier it found, which is precisely why this change needs no new message. Update the docstring's `HANDOFF` line from "an executed plan or implemented spec" to EVERY same-gate carrier, and cite this plan plus backlog `lsbd32` and the runner function it now agrees with.
   - Depends on: E-03
   - Expected outcome: E-03's cases (1), (3) and (4)-refused-half pass; every other case in the file still passes.
   - THE MINIMAL EDIT IS KNOWN TO WORK AND IS RECORDED HERE SO IT IS NOT RE-DERIVED WRONG, but VERIFY the anchor against the shipped source before applying it, because `ooydp3` already rewrote the gate comparison in this arm once (it is `_same_release(...)` today, not a `==`) and another plan may move it again. Prototyped at authoring: replacing the in-loop `if _carrier_is_executed(_p): return CloseVerdict(...)` with a post-loop `if same_gate_carriers and all(_carrier_is_executed(_c) for _c in same_gate_carriers): return CloseVerdict(...)` produced exactly the intended single test failure and left `aw check release-gates` conforming.
   - DO NOT REORDER THE ARMS while doing this. HANDOFF must still be tested before SATISFIED. The change is real but narrow: a multi-carrier item with an unexecuted sibling AND a valid `--evidence` citation now falls THROUGH to SATISFIED and is allowed there, which is correct (evidence is an independent escape the maintainer's rule already grants) and is why E-03 case (6) must keep asserting `path == "SATISFIED"` rather than merely `rc == 0`.
   - DO NOT ALSO "FIX" THE UNGATED-SIBLING HOLE HERE. F-06 measures a residual divergence that survives this change, and OQ-02 defers it with its reason. Widening the same-gate FILTER in this item would change which carriers the arm considers, which is a different decision with a different blast radius, and it would make V-04's before/after comparison unreadable.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 ALIGN `check_engine.release_gate_warnings` so its `check.orphaned-live-blocker` remedy stops advising the close E-04 now refuses. Today it folds carrier state with `gates_map[gate] = gates_map.get(gate, False) or is_exec`, i.e. ANY-executed, and then advises `aw backlog set <id6> --status done` on that basis. Change the fold to ALL-executed (so the `--status done` advice is emitted only when every same-gate carrier is executed) and keep the other branch's `--status graduated` advice for the mixed and none-executed cases. Preserve two documented properties of this function: it stays PLANS-ONLY (its comment records that spec carriers deliberately produce no warning here, and widening that is a separate behavior change), and it keeps using the shared index rather than a per-item scan.
+- [x] E-05 ALIGN `check_engine.release_gate_warnings` so its `check.orphaned-live-blocker` remedy stops advising the close E-04 now refuses. Today it folds carrier state with `gates_map[gate] = gates_map.get(gate, False) or is_exec`, i.e. ANY-executed, and then advises `aw backlog set <id6> --status done` on that basis. Change the fold to ALL-executed (so the `--status done` advice is emitted only when every same-gate carrier is executed) and keep the other branch's `--status graduated` advice for the mixed and none-executed cases. Preserve two documented properties of this function: it stays PLANS-ONLY (its comment records that spec carriers deliberately produce no warning here, and widening that is a separate behavior change), and it keeps using the shared index rather than a per-item scan.
   - Depends on: E-04
   - Expected outcome: a mixed executed/pending carrier set yields the `graduated` advice, not the `done` advice; an all-executed set still yields `done`.
   - THE BUG HERE IS THE SAME BUG IN A SECOND PLACE, which is why this is one plan and not two: the `or is_exec` fold IS the ANY-carrier rule expressed as a boolean accumulator. Leaving it would leave `aw check` telling an operator to run a command the setter refuses, which is the "advises the one route that cannot refuse" defect `2a6phj`'s own review already caught once in this exact function.
   - MEASURED AT AUTHORING: `release_gate_warnings` returns ZERO `check.orphaned-live-blocker` warnings on the live tree right now (the rule inspects `open/` items only, and the exposed multi-carrier items are `done`/`graduated`). So this change is NOT observable on the real corpus and MUST be validated on a synthetic fixture; do not report "no warnings changed on the repo" as evidence that it works.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: make the prose match the shipped rule
 
-- [ ] E-06 UPDATE THE HUMAN-FACING RULE STATEMENTS to say EVERY carrier. (a) `AGENTS.md`, the repo-local paragraph beginning "Close-legitimacy rule for a release-blocking backlog item", which sits BELOW `<!-- /aw:block -->` (do NOT edit inside a managed block): fix (1) currently reads "HANDOFF, an EXECUTED plan (or an implemented spec) carrying `- From-Backlog: <this id6>` and the same `- Blocks-Release: <R>`"; make it require EVERY same-gate carrier, and add one sentence saying a multi-carrier item stays `graduated` until the last carrier executes. (b) `.aw/records/backlog/README.md`, where the lifecycle and promotion sections describe reaching `done` after "the plan executes": make the multi-carrier case explicit in the same voice. User-facing prose: no em or en dashes.
+- [x] E-06 UPDATE THE HUMAN-FACING RULE STATEMENTS to say EVERY carrier. (a) `AGENTS.md`, the repo-local paragraph beginning "Close-legitimacy rule for a release-blocking backlog item", which sits BELOW `<!-- /aw:block -->` (do NOT edit inside a managed block): fix (1) currently reads "HANDOFF, an EXECUTED plan (or an implemented spec) carrying `- From-Backlog: <this id6>` and the same `- Blocks-Release: <R>`"; make it require EVERY same-gate carrier, and add one sentence saying a multi-carrier item stays `graduated` until the last carrier executes. (b) `.aw/records/backlog/README.md`, where the lifecycle and promotion sections describe reaching `done` after "the plan executes": make the multi-carrier case explicit in the same voice. User-facing prose: no em or en dashes.
   - Depends on: E-05
   - Expected outcome: both documents state the ALL-carrier rule; `git diff` shows no edit inside `<!-- aw:block -->`.
   - VERIFY THE MANAGED-BLOCK BOUNDARY BY LINE NUMBER BEFORE EDITING, because getting this wrong ships a repo-local rule into every managed target. Measured at authoring: `<!-- /aw:block -->` at `AGENTS.md:125`, paragraph at `:224`. RE-MEASURED AT REVIEW: the marker is still `:125` and the paragraph now begins at `:225` (it drifted by one line), which is exactly why the plan says re-check rather than trust. Anchor on the QUOTED opening string "Close-legitimacy rule for a release-blocking backlog item" rather than on either offset.
@@ -88,22 +88,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - `engine.py` IS DELIBERATELY NOT IN SCOPE-PATHS, and this differs from `2a6phj`, which DID have to edit it, so do not copy that plan's conclusion. Measured at authoring AND RE-VERIFIED AT REVIEW: `grep -rn "Close-legitimacy\|FAILS CLOSED unless" agent_workflows/ tools/` returns NOTHING and `grep -c Close-legitimacy agent_workflows/engine.py` is 0, so this paragraph is repo-local prose and is not installed from `engine.py`. CONFIRM with a fresh grep and, if it turns out false, STOP and report rather than silently adding a sixth path.
   - TWO FURTHER PROSE SITES SAY "AN EXECUTED PLAN" AND ARE DELIBERATELY LEFT ALONE, identified at review so the executor does not discover them mid-edit and improvise. (i) `engine.py`'s managed pre-commit-config TEMPLATE comment, at BOTH of its two occurrences, reads "HANDOFF via an EXECUTED From-Backlog plan or implemented spec" (the plan originally quoted this as "HANDOFF via a From-Backlog plan", which is not its text). (ii) `agent_workflows/hooks/backlog_blocking_close_gate.py`'s module docstring reads "HANDOFF (a `From-Backlog` blocking plan present in the staged tree with the same `Blocks-Release`)". BOTH become imprecise rather than false under this fix: each names WHICH ARM exists and what shape of carrier it accepts, not how many carriers must be executed, and a singular noun in a contract sentence is a weaker defect than a wrong rule. They stay out of scope because (i) is INSTALLED INTO EVERY MANAGED TARGET, so editing it is an install-surface change with a different blast radius from a repo-local paragraph, and (ii) is a docstring on a module this plan does not otherwise touch. RECORD them in the final report rather than fixing them; OQ-03 carries the decision.
   - `.aw/records/backlog/README.md`'s EXACT EDIT SITE, measured at review so E-06b is actionable rather than a direction: the sentence to make explicit is "Once the plan executes, the item can be closed `done` via `aw backlog set <item> --status done`." Its neighbor two paragraphs above already says the right thing for the single-carrier case ("reaching `done` still" requires a preserved gate), so extend the multi-carrier case in that same voice rather than adding a new section.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 5: validate, including the corpus effect
 
-- [ ] E-07 RUN THE FULL SUITE BARE and reconcile it against the prototype measurement. Run `python3 -m pytest` with NO added flags (`pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow'`; adding `-n0` makes it several times slower here and a second `-q` suppresses the summary line this plan requires you to paste). Paste the actual summary line. Then paste `aw check release-gates` and `aw check` on the changed tree.
+- [x] E-07 RUN THE FULL SUITE BARE and reconcile it against the prototype measurement. Run `python3 -m pytest` with NO added flags (`pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow'`; adding `-n0` makes it several times slower here and a second `-q` suppresses the summary line this plan requires you to paste). Paste the actual summary line. Then paste `aw check release-gates` and `aw check` on the changed tree.
   - Depends on: E-06
   - Expected outcome: the suite passes with no failures; `aw check release-gates` still CONFORMS with 0 errors.
   - THE EXPECTED DELTA IS KNOWN, so an unexpected failure is a real signal and must not be waved through: the authoring prototype produced exactly `1 failed, 3245 passed, 2 skipped` where the single failure was the test E-03 rewrites. REVIEW RE-PROTOTYPED THE SAME EDIT against the live tree and reproduced the SHAPE exactly, with a drifted total: `1 failed, 3290 passed, 2 skipped`, the sole failure again `tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_5_two_carriers_pending_and_executed_allowed`. So the ONE-FAILURE claim is reproduced and the TOTAL is not a bar: capture the pre-edit baseline in the executing lane and compare against that, since 3245/3290 will both be stale by execution. After E-03 rewrites the test, the suite must be GREEN. Any OTHER failing test means this plan's premise is incomplete: report it rather than adjusting the test to match the code.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 RE-MEASURE THE CORPUS AFTER THE FIX and record the grandfathering outcome OQ-01 resolves. Re-run E-02's measurement on the changed tree and paste, for each of the already-`done` exposed items, its verdict BEFORE and AFTER. Confirm by reading the code (not by assuming) that `check.blocking-item-closed-without-gate` is COMMIT-SCOPED, so those historical closes are not retroactively flagged, and paste the `aw check release-gates` result that demonstrates it. If any historical item IS flagged, STOP and report: that is the one outcome that would require a maintainer grandfathering decision before this ships.
+- [x] E-08 RE-MEASURE THE CORPUS AFTER THE FIX and record the grandfathering outcome OQ-01 resolves. Re-run E-02's measurement on the changed tree and paste, for each of the already-`done` exposed items, its verdict BEFORE and AFTER. Confirm by reading the code (not by assuming) that `check.blocking-item-closed-without-gate` is COMMIT-SCOPED, so those historical closes are not retroactively flagged, and paste the `aw check release-gates` result that demonstrates it. If any historical item IS flagged, STOP and report: that is the one outcome that would require a maintainer grandfathering decision before this ships.
   - Depends on: E-07
   - Expected outcome: the historical `done` items' verdicts flip to `legitimate=False` in isolation, yet `aw check release-gates` CONFORMS with 0 errors because the rule only examines a close STAGED in the current commit.
   - THIS IS THE ITEM THAT ANSWERS "DO WE NEED TO GRANDFATHER 16 ITEMS?", and the answer measured at authoring is NO, which is why OQ-01 is resolved rather than blocking. Under the prototype, all four already-`done` exposed items (`1ap48y`, `dh0uno`, `h7qsje`, `kjzlgw`) returned `legitimate=False`, AND `aw check release-gates` still reported `CONFORMS 388 release-gates checked, errors 0, warnings 0`. The mechanism is recorded in the rule's own comment ("only a backlog item whose close-to-`done` is STAGED in THIS commit is examined, so historical `done/` items closed before this guard existed are grandfathered") and in the hook module's docstring. Re-derive it; do not cite this plan as the proof.
   - THE THREE `graduated` EXPOSED ITEMS ARE THE REAL FORWARD EFFECT and should be reported as such, not as a problem: `7m0aro`, `ciesaj` and `vqv9im` will now be REFUSED a `done` close until their remaining carriers execute. That is the intended behavior change and it is exactly what the runner would already have refused.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -207,45 +207,379 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: PASTE the fixture construction (or the script) and BOTH predicate verdicts side by side, showing `evaluate_blocking_close` -> `legitimate=True, path='HANDOFF'` and `evaluate_backlog_close` -> `close=False` naming the pending carrier in its reason. PASTE the `aw backlog set ... --status done` invocation with its exit code and the item's resulting directory listing. PASTE the observed arm order (DE-GATED, HANDOFF, SATISFIED, fail-closed). A verdict pair that AGREES fails this item and means STOP.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Divergence reproduced at HEAD, evaluate_blocking_close yielded HANDOFF while evaluate_backlog_close yielded close=False; hand-close succeeded; arm order verified.
+    Fixture setup and execution at HEAD 0f824cd9a51ada98c66561e5cdab4ba3ead011f8:
+    Temp git repo initialized with:
+      - Release: .aw/records/releases/20260901-rel001-01-rel001-v1.release.md (Status: planned, Version: 1.0.0, resolves 'next')
+      - Gated backlog item: .aw/records/backlog/graduated/20260101-s-01-bbbbbb-i.backlog.md (- Id: bbbbbb, - Blocks-Release: next)
+      - Executed carrier: .aw/records/plans/executed/20260101-s-01-cccccc-p.ipd.md (- From-Backlog: bbbbbb, - Blocks-Release: next)
+      - Pending carrier: .aw/records/plans/pending/20260101-s-01-dddddd-p.ipd.md (- From-Backlog: bbbbbb, - Blocks-Release: next)
 
-- [ ] V-02 validates E-02
+    Verdicts side-by-side:
+      check_engine.evaluate_blocking_close -> legitimate=True path='HANDOFF' reason="gate 'next' handed off to a From-Backlog plan or spec"
+      runner_shared.evaluate_backlog_close -> close=False reason='IPD carrier(s) not executed: .aw/records/plans/pending/20260101-s-01-dddddd-p.ipd.md'
+
+    Hand close invocation and resulting directory:
+      aw backlog set bbbbbb --status done --dir <repo> --message close
+      exit code: 0
+      stdout: aw backlog set: 20260101-s-01-bbbbbb-i.backlog.md -> done
+      resulting directory: ['done']
+
+    Observed arm order in check_engine.evaluate_blocking_close (lines 4454-4521):
+      1. DE-GATED (if not blocks_release)
+      2. HANDOFF (same_gate_carriers scan)
+      3. SATISFIED (if evidence and resolve_evidence_artifact)
+      4. Graduated-first refusal (if same_gate_carriers)
+      5. Fail-closed with three remedies
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: PASTE the pre-fix corpus numbers (totals, gated, carried, multi-carrier, multi-carrier AND gated, the distribution) and the enumerated exposed set with each item's id6, status directory and executed/unexecuted counts. PASTE each already-`done` exposed item's pre-fix verdict. PASTE `aw check release-gates` on the unchanged tree. Numbers that differ from this plan's authoring measurement are EXPECTED and acceptable; what fails this item is an absent measurement, or a measurement taken with a per-item `find_from_backlog_artifacts` loop instead of the shared index.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Pre-fix corpus measured via _from_backlog_carrier_index: 780 backlog items, 393 gated, 48 multi-carrier, 22 multi-carrier & gated, 7 exposed items; 0 release gate errors on baseline.
+    Pre-fix corpus measurement via check_engine._from_backlog_carrier_index:
+      Total backlog items: 780
+      Gated items (- Blocks-Release:): 393
+      Items with >=1 carrier: 462
+      Multi-carrier items (>1): 48
+      Multi-carrier AND gated items: 22
+      Carrier-count distribution: {1: 414, 2: 24, 3: 4, 4: 13, 5: 4, 6: 1, 9: 2}
 
-- [ ] V-03 validates E-03
+    Exposed items (gated, >1 carrier, >=1 executed, >=1 unexecuted):
+      - 1ap48y: status_dir=done, total=4, executed=3, unexecuted=1
+      - 7m0aro: status_dir=graduated, total=2, executed=1, unexecuted=1
+      - ciesaj: status_dir=graduated, total=2, executed=1, unexecuted=1
+      - dh0uno: status_dir=done, total=3, executed=1, unexecuted=2
+      - h7qsje: status_dir=done, total=3, executed=2, unexecuted=1
+      - kjzlgw: status_dir=done, total=9, executed=8, unexecuted=1
+      - vqv9im: status_dir=graduated, total=4, executed=2, unexecuted=2
+
+    Verdicts for already-done exposed items (BEFORE fix):
+      - 1ap48y: legitimate=True, path='HANDOFF', severity='ok', reason="gate 'next' handed off to a From-Backlog plan or spec"
+      - dh0uno: legitimate=True, path='HANDOFF', severity='ok', reason="gate 'next' handed off to a From-Backlog plan or spec"
+      - h7qsje: legitimate=True, path='HANDOFF', severity='ok', reason="gate 'next' handed off to a From-Backlog plan or spec"
+      - kjzlgw: legitimate=True, path='HANDOFF', severity='ok', reason="gate 'next' handed off to a From-Backlog plan or spec"
+
+    aw check release-gates on unchanged tree:
+      AW check  release-gates                                                  5993 ms
+      ✓ CONFORMS  545 release-gates checked
+      Evidence
+        backlog  334   specs  20   plans  190   releases  1
+        errors  0   warnings  0
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: PASTE the rewritten case (5) source INCLUDING its docstring, which must state that it previously asserted the opposite and name this plan as the reversal. PASTE the new all-executed, three-carrier and mixed-kind cases. PASTE a pre-fix targeted run showing the rewritten case and the new refusal cases FAILING against unchanged code (this is the before-failing proof; a test that passes before the fix proves nothing). PASTE the updated module docstring enumeration. Any use of `inspect`, `ast`, or a regex over `check_engine.py` FAILS this item outright.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. test_case_5 rewritten to require all carriers executed; new tests added for all-executed allowance, 3-carrier refusal, and mixed-kind carrier refusal; red proof measured (3 failed against pre-edit code).
+    Rewritten case (5) source and docstring:
+    ```python
+    def test_case_5_two_carriers_pending_and_executed_refused(self) -> None:
+        """(5) TWO carriers, one pending and one executed -> refused (rc 1).
 
-- [ ] V-04 validates E-04
+        Deliberately reversed by plan 2o5wka (backlog lsbd32, anycarrier Order 1):
+        previously asserted rc 0 allowed under the permissive ANY-carrier rule authored
+        by 2a6phj (OQ-03). Now requires ALL same-gate carriers to be executed.
+        """
+        item_path = _write_backlog_item(
+            self.repo, "item01", status="graduated", blocks_release="next"
+        )
+        _write_plan(
+            self.repo,
+            "plan01",
+            bucket="pending",
+            status="approved",
+            from_backlog="item01",
+            blocks_release="next",
+        )
+        _write_plan(
+            self.repo,
+            "plan02",
+            bucket="executed",
+            status="executed",
+            from_backlog="item01",
+            blocks_release="next",
+        )
+
+        stderr_buf = io.StringIO()
+        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
+            io.StringIO()
+        ):
+            rc = cli.main(
+                [
+                    "backlog",
+                    "set",
+                    "item01",
+                    "--status",
+                    "done",
+                    "--dir",
+                    str(self.repo),
+                    "--message",
+                    "close",
+                ]
+            )
+
+        self.assertEqual(rc, 1)
+        self.assertTrue(item_path.exists())
+        done_path = self.repo / ".aw" / "records" / "backlog" / "done" / item_path.name
+        self.assertFalse(done_path.exists())
+        stderr_text = stderr_buf.getvalue()
+        self.assertIn("plan01", stderr_text)
+    ```
+
+    New cases:
+    - test_case_5_two_carriers_both_executed_allowed (all-executed allowance: rc 0, verdict.path == "HANDOFF")
+    - test_case_5_three_carriers_two_executed_one_pending_refused (three-carrier case: rc 1, verdict.legitimate is False, stderr names plan03)
+    - test_case_5_mixed_kind_carriers_plan_and_spec (mixed-kind case: approved spec refused rc 1; implemented spec allowed rc 0, verdict.path == "HANDOFF")
+
+    Pre-fix targeted run output showing the 3 refusal cases FAILING against unchanged code:
+      FAILED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_5_mixed_kind_carriers_plan_and_spec
+      FAILED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_5_three_carriers_two_executed_one_pending_refused
+      FAILED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_5_two_carriers_pending_and_executed_refused
+      3 failed, 17 passed in 2.55s
+
+    Updated module docstring line (5):
+      "(5) TWO carriers, one pending and one executed -> refused (rc 1), both executed -> allowed (rc 0)."
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: PASTE the committed HANDOFF arm. The verdict-returning statement must sit OUTSIDE the carrier loop and be guarded by an all-carriers-executed condition; a `return` still inside the `for` body fails this item. PASTE the updated docstring `HANDOFF` line. PASTE a post-fix re-run of E-01's exact fixture showing the two predicates now AGREE (`legitimate=False` against `close=False`), plus a two-executed-carrier fixture showing `legitimate=True, path='HANDOFF'` so the fix is proved not to be a blanket refusal. PASTE `git diff` for this file showing the arms were NOT reordered and `_carrier_is_executed` was NOT modified.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. evaluate_blocking_close updated to ALL-carrier requirement across same_gate_carriers; arms order preserved; parity verified against runner_shared.
+    Committed HANDOFF arm (agent_workflows/check_engine.py):
+    ```python
+        # HANDOFF: EVERY From-Backlog PLAN or SPEC with the SAME Blocks-Release must be EXECUTED/IMPLEMENTED.
+        # Maintainer ruling 2026-09-26 (OQ-01, backlog rwhbci, closescope 2a6phj), tightened by
+        # anycarrier Order 1 (2o5wka, backlog lsbd32) to require all same-gate carriers executed,
+        # converging onto runner_shared.evaluate_backlog_close.
+        same_gate_carriers: List[Path] = []
+        if item_id6:
+            release_cache: Dict[str, Optional[Path]] = {}
+            for _p, carrier_br in find_from_backlog_artifacts(repo_root, item_id6):
+                if _same_release(
+                    repo_root, carrier_br, blocks_release, cache=release_cache
+                ):
+                    same_gate_carriers.append(_p)
+            if same_gate_carriers and all(
+                _carrier_is_executed(_c) for _c in same_gate_carriers
+            ):
+                return CloseVerdict(
+                    True,
+                    "ok",
+                    f"gate {blocks_release!r} handed off to a From-Backlog plan or spec",
+                    (),
+                    "HANDOFF",
+                )
+    ```
 
-- [ ] V-05 validates E-05
+    Updated docstring HANDOFF line:
+      "HANDOFF  - EVERY same-gate carrier (From-Backlog plan or spec with the same Blocks-Release) is executed/implemented, matching runner_shared.evaluate_backlog_close (backlog lsbd32, plan 2o5wka)"
+
+    Post-fix re-run of E-01 fixture (1 executed, 1 pending):
+      check_engine.evaluate_blocking_close -> legitimate=False path=None reason="gate 'next' is handed off to From-Backlog carrier(s) (20260101-s-01-cccccc-p.ipd.md, 20260101-s-01-dddddd-p.ipd.md) but the work has not shipped (carrier is not executed/implemented)"
+      runner_shared.evaluate_backlog_close -> close=False reason='IPD carrier(s) not executed: .aw/records/plans/pending/20260101-s-01-dddddd-p.ipd.md'
+      (Predicates AGREE: close refused)
+
+    Two-executed-carrier fixture:
+      check_engine.evaluate_blocking_close -> legitimate=True path='HANDOFF' reason="gate 'next' handed off to a From-Backlog plan or spec"
+      (Proves not a blanket refusal)
+
+    git diff check:
+      Arms order preserved: DE-GATED -> HANDOFF -> SATISFIED -> graduated refusal -> fail-closed.
+      _carrier_is_executed was NOT modified.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: PASTE the committed fold and the two remedy branches. PASTE the synthetic-fixture test output proving a MIXED carrier set advises `aw backlog set <id6> --status graduated` and an ALL-EXECUTED set advises `--status done`. PASTE evidence the function is still plans-only and still uses the shared index. An observation that the live tree's warning count is unchanged does NOT satisfy this item: F-09 measured that count at zero, so it is vacuous.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. release_gate_warnings fold updated from ANY to ALL executed; test_release_gate_warnings_multi_carrier_all_executed_remedy added and passing.
+    Committed fold (agent_workflows/check_engine.py):
+    ```python
+        # We record whether ALL same-gate plans are executed (closescope 2a6phj E-05, anycarrier 2o5wka E-05).
+        plan_gates_by_backlog: Dict[str, Dict[str, bool]] = {}
+        for _p, text in _iter_plan_ipds(repo_root):
+            backlog_id = _from_backlog_value(text)
+            if not backlog_id:
+                continue
+            mbr = _META_BLOCKS_RELEASE_RE.search(text)
+            gate = mbr.group(1) if mbr else ""
+            is_exec = _carrier_is_executed(_p)
+            gates_map = plan_gates_by_backlog.setdefault(backlog_id, {})
+            gates_map[gate] = gates_map.get(gate, True) and is_exec
+    ```
 
-- [ ] V-06 validates E-06
+    The two remedy branches (lines 4985-5010):
+    ```python
+            if gates_map[item_gate]:
+                # Executed carrier: remedy advises closing done with the corrected --status spelling (F-9)
+                warnings.append(
+                    _core.Drift(
+                        str(f),
+                        "check.orphaned-live-blocker",
+                        (
+                            "an open release-blocking item is already graduated to a From-Backlog "
+                            "plan; close it `done` (the gate is preserved via handoff).\n"
+                            f"    Fix: aw backlog set {_id6} --status done"
+                        ),
+                    )
+                )
+            else:
+                # Pending carrier: remedy advises graduating the item until the carrier executes
+                warnings.append(
+                    _core.Drift(
+                        str(f),
+                        "check.orphaned-live-blocker",
+                        (
+                            "an open release-blocking item is graduated to a pending From-Backlog "
+                            "plan; keep it `graduated` until the plan executes.\n"
+                            f"    Fix: aw backlog set {_id6} --status graduated"
+                        ),
+                    )
+                )
+    ```
+
+    Synthetic-fixture test output in tests/test_check_engine_release_gate.py::test_release_gate_warnings_multi_carrier_all_executed_remedy:
+      Mixed set (executed + pending) advises: "Fix: aw backlog set bug001 --status graduated"
+      All-executed set advises: "Fix: aw backlog set bug001 --status done"
+      Test passed (in 51 passed suite run).
+
+    Function preserves plans-only index (_iter_plan_ipds) and uses plan_gates_by_backlog single walk.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: PASTE the rewritten `AGENTS.md` paragraph and the changed backlog README prose, both stating EVERY same-gate carrier, with no em or en dashes. PASTE the line numbers of `<!-- /aw:block -->` and of the edited paragraph, proving the edit is below the marker. PASTE `git diff --stat` showing `agent_workflows/engine.py` ABSENT. PASTE the fresh grep output that justified excluding it (no "Close-legitimacy"/"FAILS CLOSED unless" match under `agent_workflows/`). ALSO paste the two OUT-OF-SCOPE prose sites OQ-03 defers, quoted as they stand after this plan, so the report shows they were seen and left rather than missed: `engine.py`'s template comment ("HANDOFF via an EXECUTED From-Backlog plan or implemented spec", both occurrences) and `hooks/backlog_blocking_close_gate.py`'s docstring HANDOFF sentence. Confirm carrier `d1ldvk` still resolves (`aw find backlog d1ldvk`). AND state whether `47ttnv` has landed its co-edit to this same paragraph (F-12): if the enforcement sentence is already rewritten, say so and confirm you edited only fix (1); a `git diff` that reverts or rewrites the enforcement sentence FAILS this item. PASTE a demonstration that the setter, `aw check` and the hook all pick up the new rule WITHOUT being edited: for one fixture, the setter's refusal, the `check.blocking-item-closed-without-gate` verdict path, and `hooks.backlog_blocking_close_gate.check`'s result.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. AGENTS.md and backlog README.md updated without dashes; engine.py confirmed zero-delta; setter, aw check, and pre-commit hook pick up new rule without edits.
+    Rewritten AGENTS.md paragraph:
+      Close-legitimacy rule for a release-blocking backlog item: `aw backlog set done` on an item carrying
+      `- Blocks-Release: <R>` FAILS CLOSED unless the gate is provably preserved or released via one of three
+      fixes: (1) HANDOFF, EVERY same-gate carrier (From-Backlog plan or spec) carrying `- From-Backlog: <this id6>` and
+      the same `- Blocks-Release: <R>` must be executed or implemented (set with `aw ipd set ... --from-backlog <id6>`);
+      a multi-carrier item stays `graduated` until the last carrier executes; (2) SATISFIED, a resolvable in-tree artifact citation
+      `aw backlog set done <item> --evidence <path>`; (3) DE-GATED, clear the gate first (or in the same call)
+      with `aw backlog set done <item> --blocks-release -`. Parking a blocker or demoting its priority is
+      allowed but WARNs. One shared predicate (`check_engine.evaluate_blocking_close`) backs the setter, the
+      `aw check` consistency rules (`check.blocking-item-closed-without-gate`, `check.from-backlog-gate-mismatch`,
+      and the advisory `check.orphaned-live-blocker`), and the opt-in pre-commit hook, so they cannot diverge.
 
-- [ ] V-07 validates E-07
+    Rewritten .aw/records/backlog/README.md prose:
+      "When a backlog item becomes committed execution work, author an IPD under `.aw/records/plans/pending/`,
+      then transition the item to `graduated` via `aw backlog set <item> --status graduated` with a history
+      line citing the plan id. Once the plan executes (or, for a multi-carrier item, once every same-gate carrier executes), the item can be closed `done` via
+      `aw backlog set <item> --status done`. The backlog captured the intent; the plan owns execution."
+
+    Line numbers in AGENTS.md:
+      <!-- /aw:block --> is at line 125.
+      Edited paragraph begins at line 227 (well below the managed block marker).
+
+    git diff --stat showing agent_workflows/engine.py ABSENT:
+      .aw/records/backlog/README.md           |   2 +-
+      AGENTS.md                               |   6 +-
+      agent_workflows/check_engine.py         |  32 ++---
+      tests/test_backlog_handoff_close.py     | 208 +++++++++++++++++++++++++++++++-
+      tests/test_check_engine_release_gate.py |  96 +++++++++++++++
+      5 files changed, 322 insertions(+), 22 deletions(-)
+
+    Grep output justifying engine.py exclusion:
+      grep -rn "Close-legitimacy\|FAILS CLOSED unless" agent_workflows/ tools/ -> (exit 1, no matches)
+      grep -c Close-legitimacy agent_workflows/engine.py -> 0
+
+    Two deferred prose sites quoted as they stand (OQ-03):
+      (i) agent_workflows/engine.py lines 5554, 5570:
+          "# `- Status: done` without a preserved-or-satisfied gate (HANDOFF via an EXECUTED From-Backlog plan or implemented spec, DE-GATED,"
+      (ii) agent_workflows/hooks/backlog_blocking_close_gate.py line 19:
+          "evidence=` arg): HANDOFF (a `From-Backlog` blocking plan present in the staged tree with the same"
+
+    Carrier d1ldvk resolution:
+      aw find backlog d1ldvk:
+      ◕  open          d1ldvk  .aw/records/backlog/open/20260930-anycarrier-01-d1ldvk-handoff-prose-says-singular-carrier.backlog.md
+
+    Co-editor 47ttnv status:
+      47ttnv had not yet landed in AGENTS.md; the enforcement sentence was present in its original form and was left intact. Only fix (1) was modified.
+
+    Demonstration of setter, aw check, and hook picking up new rule without edits:
+      1. Setter refusal:
+         Exit code: 1
+         Stderr: aw backlog set: refused: gate 'next' is handed off to From-Backlog carrier(s) (20260101-s-01-pln001-p.ipd.md, 20260101-s-01-pln002-p.ipd.md) but the work has not shipped (carrier is not executed/implemented).
+      2. aw check consistency rule:
+         evaluate_blocking_close verdict: legitimate=False, path=None
+         check_release_gate_consistency finding count for tst001: 1
+         drift rule: check.blocking-item-closed-without-gate
+         drift location: .aw/records/backlog/done/20260101-s-01-tst001-i.backlog.md
+         drift detail: a done backlog item staged in this commit still carries Blocks-Release with no handoff (From-Backlog plan), resolvable evidence, or de-gate; close it via `aw backlog set done` (which enforces the gate) rather than by hand
+      3. Pre-commit hook (backlog_blocking_close_gate.check):
+         Hook exit code: (1, ['.aw/records/backlog/done/20260101-s-01-tst001-i.backlog.md: a done backlog item staged in this commit still carries Blocks-Release with no handoff (From-Backlog plan), resolvable evidence, or de-gate; close it via `aw backlog set done` (which enforces the gate) rather than by hand'])
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: PASTE the ACTUAL bare `python3 -m pytest` summary line (for example `N passed in M.MMs`), with no failures, AND the pre-edit baseline line captured in this same lane. The command must be bare: a pasted invocation carrying `-n0`, an extra `-q`, or `-p no:randomly` FAILS this item. Do NOT compare against `3245` or `3290`: both are stale (authoring and review respectively); the bar is the SHAPE (one failure before E-03's rewrite, that named test; green after) measured against the lane baseline. PASTE `aw check release-gates` and `aw check` output with 0 errors in the `release-gates` family; note `aw check` overall carries pre-existing errors unrelated to this plan, so paste the count with and without this plan's changes if it is nonzero rather than reporting a raw total as a regression. If any test other than the one E-03 rewrote failed at any point, PASTE it and its resolution.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full suite bare run: 3409 passed (delta +4 passed, pre-existing midnight defect isolated); aw check release-gates reports 0 errors.
+    Pre-edit bare baseline in this lane:
+      FAILED tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity
+      1 failed, 3405 passed, 2 skipped, 3 warnings in 168.58s (0:02:48)
+      (Sole failure is pre-existing test_release_exempt_setter_roundtrip_and_parity due to local EDT vs UTC timezone across midnight UTC; filed as defect o8l2y2).
 
-- [ ] V-08 validates E-08
+    Post-edit bare run in this lane:
+      FAILED tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity
+      1 failed, 3409 passed, 2 skipped, 3 warnings in 86.09s (0:01:26)
+      (Exactly +4 passed tests: 3 new tests in test_backlog_handoff_close.py, 1 new test in test_check_engine_release_gate.py; test_case_5 is green; identical failure profile to baseline).
+
+    aw check release-gates on changed tree:
+      AW check  release-gates                                                  1846 ms
+      ✓ CONFORMS  545 release-gates checked
+      Evidence
+        backlog  334   specs  20   plans  190   releases  1
+        errors  0   warnings  0
+
+    aw check on changed tree:
+      Evidence
+        plans  190   specs  20   prompts  2   research  94   backlog  334   walkthroughs  24   roadmaps  1   comms  1   releases  1   reviews  603   other  1274
+        errors  66   warnings  0
+      (66 pre-existing errors across repo, 0 errors in release-gates family).
+  - Result: pass
+
+- [x] V-08 validates E-08
   - Required evidence: PASTE the post-fix corpus measurement beside the pre-fix one from V-02. PASTE each already-`done` exposed item's verdict BEFORE and AFTER, showing the flip to `legitimate=False`. PASTE `aw check release-gates` on the changed tree showing CONFORMS with 0 errors despite those flips, and PASTE the quoted commit-scoping comment (or the code) that explains why, derived at execution rather than cited from this plan. PASTE the three `graduated` items now refused a `done` close. A single retroactive finding against a historical item fails this item and means STOP and report.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Post-fix corpus re-measured: 4 historical items grandfathered by commit-scoping (aw check release-gates 0 errors); 3 graduated items refused done; defect o8l2y2 filed as backlog item.
+    Post-fix corpus measurement (identical counts to V-02):
+      Total backlog items: 780
+      Gated items (- Blocks-Release:): 393
+      Items with >=1 carrier: 462
+      Multi-carrier items (>1): 48
+      Multi-carrier AND gated items: 22
+      Carrier-count distribution: {1: 414, 2: 24, 3: 4, 4: 13, 5: 4, 6: 1, 9: 2}
+
+    Already-done exposed items verdicts BEFORE vs AFTER:
+      - 1ap48y:
+          BEFORE: legitimate=True, path='HANDOFF', severity='ok', reason="gate 'next' handed off to a From-Backlog plan or spec"
+          AFTER:  legitimate=False, path=None, severity='error', reason="gate 'next' is handed off to From-Backlog carrier(s) (20260829-wkindname-00-c2tvmm-one-work-nature-field-name-across-backlog-plans-and-specs.ipd.md, 20260829-wkindname-01-9trlc3-rename-backlog-s-kind-field-to-work-kind-and-migrate-the-exi.ipd.md, 20260829-wkindname-02-ng2blv-add-the-recognized-but-optional-work-kind-field-to-ipds-and.ipd.md, 20260829-workkind-01-a6cej0-add-a-uniform-recognized-but-optional-work-kind-field-to-ipd.ipd.md) but the work has not shipped (carrier is not executed/implemented)"
+      - dh0uno:
+          BEFORE: legitimate=True, path='HANDOFF', severity='ok', reason="gate 'next' handed off to a From-Backlog plan or spec"
+          AFTER:  legitimate=False, path=None, severity='error', reason="gate 'next' is handed off to From-Backlog carrier(s) (20260901-ctlroot-01-eulhzt-anchor-control-state-on-the-checkout-not-the-cwd-close-dh0un.ipd.md, 20260828-wtiso-04-7p9n2v-phase-3-one-typed-executioncontext-pathresolver-keyed-by-git.ipd.md, 20260828-wtiso-05-58ha43-phase-4-relocate-runtime-machine-state-out-of-the-repo-to-an.ipd.md) but the work has not shipped (carrier is not executed/implemented)"
+      - h7qsje:
+          BEFORE: legitimate=True, path='HANDOFF', severity='ok', reason="gate 'next' handed off to a From-Backlog plan or spec"
+          AFTER:  legitimate=False, path=None, severity='error', reason="gate 'next' is handed off to From-Backlog carrier(s) (20260906-hostdefault-01-tm2cz8-move-the-verification-default-into-the-per-host-runner-regis.ipd.md, 20260906-hostdefault-02-ybkmzp-wire-the-resolved-verification-decision-into-both-host-drive.ipd.md, 20260906-verifygap-01-mn3gwr-wire-the-per-profile-validate-tri-state-into-both-runners-so.ipd.md) but the work has not shipped (carrier is not executed/implemented)"
+      - kjzlgw:
+          BEFORE: legitimate=True, path='HANDOFF', severity='ok', reason="gate 'next' handed off to a From-Backlog plan or spec"
+          AFTER:  legitimate=False, path=None, severity='error', reason="gate 'next' is handed off to From-Backlog carrier(s) (20260829-bklgrad-01-v58bvy-backlog-graduated-status-plus-the-graduate-implement-execute.ipd.md, 20260829-runstop-00-zpbx7o-runner-graceful-quit-protocol-adopt-spec-c4gd2h.ipd.md, 20260829-runstop-01-2ouj70-phase-0-the-shared-clean-shutdown-routine-reap-tree-release.ipd.md, 20260829-runstop-02-gq6m2u-phase-1-durable-monotonic-stop-request-flag-and-the-cooperat.ipd.md, 20260829-runstop-03-1qxuke-phase-2-levels-1-and-2-stop-after-call-stop-after-set-at-bet.ipd.md, 20260829-runstop-04-foi1b3-phase-3-level-3-stop-now-at-the-next-observed-safe-checkpoin.ipd.md, 20260829-runstop-05-m0z0ti-phase-4-level-4-stop-now-force-with-unknown-outcome-and-resu.ipd.md, 20260829-runstop-06-71vjbn-phase-5-trigger-ux-escalating-sigint-sigterm-and-the-aw-oc-a.ipd.md, 20260829-c4gd2h-01-c4gd2h-runner-lifecycle-graceful-quit.spec.md) but the work has not shipped (carrier is not executed/implemented)"
+
+    aw check release-gates on changed tree:
+      AW check  release-gates                                                  1846 ms
+      ✓ CONFORMS  545 release-gates checked
+      Evidence
+        backlog  334   specs  20   plans  190   releases  1
+        errors  0   warnings  0
+
+    Commit-scoping comment and code in agent_workflows/check_engine.py (lines 4704-4708):
+      # Rule 1: the hand-edit-bypass backstop. COMMIT-SCOPED (the check_status_untooled philosophy):
+      # only a backlog item whose close-to-`done` is STAGED in THIS commit is examined, so historical
+      # `done/` items closed before this guard existed are grandfathered (never retroactively flagged).
+      # A staged done+blocking item with no legitimate gate is the fingerprint of a hand-edit that
+      # bypassed the `aw backlog set done` gate. Fast no-op when nothing under backlog/ is staged.
+      for staged_path in _staged_backlog_done_items(repo_root):
+
+    The three graduated items now refused a done close:
+      - 7m0aro: legitimate=False, path=None, reason="gate 'next' is handed off to From-Backlog carrier(s) ... but the work has not shipped"
+      - ciesaj: legitimate=False, path=None, reason="gate 'next' is handed off to From-Backlog carrier(s) ... but the work has not shipped"
+      - vqv9im: legitimate=False, path=None, reason="gate 'next' is handed off to From-Backlog carrier(s) ... but the work has not shipped"
+  - Result: pass
 
 ## Approval and execution gate
 
