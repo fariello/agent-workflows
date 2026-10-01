@@ -1,5 +1,5 @@
 - Id: mwjepv
-- Status: graduated
+- Status: done
 - Graduated-To: mwjepv
 - Blocks-Release: next
 - Set: mwjepv
@@ -8,6 +8,7 @@
 - Summary: aw ipd lint --all <path> crashes because a list is passed to Path()
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): closed by aw oc run: IPD gonzhl executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-mwjepv-01-gonzhl-make-aw-ipd-lint-all-root-resolve-a-root-instead-of-crashing.ipd.md); evidence .aw/records/plans/executed/20260929-mwjepv-01-gonzhl-make-aw-ipd-lint-all-root-resolve-a-root-instead-of-crashing.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: gonzhl
 - 2026-09-20 created (aw backlog): aw ipd lint --all <path> crashes because a list is passed to Path()
 
