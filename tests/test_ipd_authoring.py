@@ -556,5 +556,103 @@ class ScaffoldDurableCarrierGateTests(unittest.TestCase):
             self.assertIn("OQ-01", findings_edited[0].detail)
 
 
+class ScaffoldVocabularyIntroTests(unittest.TestCase):
+    """Scaffolded plans must state both closed vocabularies in their section intros (plan uh9jsk)."""
+
+    def test_scaffold_intros_state_closed_vocabularies_and_no_unaccepted_values(self):
+        expected_exec = set(S.EXEC_STATES)
+        expected_valid = set(S.VALIDATION_RESULTS)
+
+        for kind in ("child", "orchestrator"):
+            text = A.build_skeleton(
+                kind=kind,
+                title=f"Vocabulary Intro Test {kind}",
+                author="tester",
+                when="2026-10-01",
+                set_name="vocabprobe",
+                order=1 if kind == "child" else 0,
+                plan_id="vcb123",
+            )
+            # Locate intro lines in the scaffold by their section headings
+            lines = text.splitlines()
+            exec_intro = None
+            valid_intro = None
+            for i, line in enumerate(lines):
+                if line.startswith("## ") and line[3:].strip() == S.H_EXECUTION:
+                    for candidate in lines[i + 1 : i + 5]:
+                        if candidate.startswith("Execution-state rule:"):
+                            exec_intro = candidate
+                            break
+                elif line.startswith("## ") and line[3:].strip() in (
+                    S.H_VALIDATION_CHILD,
+                    S.H_VALIDATION_ORCH,
+                ):
+                    for candidate in lines[i + 1 : i + 5]:
+                        if candidate.startswith("Validation-state rule:"):
+                            valid_intro = candidate
+                            break
+
+            self.assertIsNotNone(
+                exec_intro, f"missing execution intro in {kind} scaffold"
+            )
+            self.assertIsNotNone(
+                valid_intro, f"missing validation intro in {kind} scaffold"
+            )
+
+            # Positive assertions: every member of the closed vocabulary is stated
+            for state in expected_exec:
+                self.assertIn(
+                    state,
+                    exec_intro,
+                    f"execution intro in {kind} missing member {state!r}",
+                )
+            for result in expected_valid:
+                self.assertIn(
+                    result,
+                    valid_intro,
+                    f"validation intro in {kind} missing member {result!r}",
+                )
+
+            # Terminal gate demand is stated
+            self.assertIn("'performed'", exec_intro)
+            self.assertIn("'pass'", valid_intro)
+
+            # Negative assertions: extract the rendered value list from each intro
+            # and verify NO token is outside the frozenset.
+            m_exec = re.search(r"Accepted execution states:\s*([^;]+);", exec_intro)
+            self.assertIsNotNone(
+                m_exec, f"could not locate execution states list in {kind} intro"
+            )
+            exec_tokens = {t.strip() for t in m_exec.group(1).split(",") if t.strip()}
+            unrecognized_exec = exec_tokens - expected_exec
+            self.assertEqual(
+                unrecognized_exec,
+                set(),
+                f"execution intro in {kind} advertises out-of-vocabulary value: {unrecognized_exec}",
+            )
+            self.assertEqual(
+                exec_tokens,
+                expected_exec,
+                f"execution intro in {kind} does not match EXEC_STATES",
+            )
+
+            m_valid = re.search(r"Accepted validation results:\s*([^;]+);", valid_intro)
+            self.assertIsNotNone(
+                m_valid, f"could not locate validation results list in {kind} intro"
+            )
+            valid_tokens = {t.strip() for t in m_valid.group(1).split(",") if t.strip()}
+            unrecognized_valid = valid_tokens - expected_valid
+            self.assertEqual(
+                unrecognized_valid,
+                set(),
+                f"validation intro in {kind} advertises out-of-vocabulary value: {unrecognized_valid}",
+            )
+            self.assertEqual(
+                valid_tokens,
+                expected_valid,
+                f"validation intro in {kind} does not match VALIDATION_RESULTS",
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

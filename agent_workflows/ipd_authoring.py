@@ -70,11 +70,17 @@ _EXEC_INTRO = (
     "Execution-state rule: mark an `E-*` item complete only after performing the action. "
     "That mark is not validation. Right-sizing rule: each E-item must address one concern "
     "and be executable in one focused pass; split when an E-item names multiple distinct deliverables "
-    "or independent test-surfaces."
+    "or independent test-surfaces. "
+    "Accepted execution states: "
+    + ", ".join(sorted(S.EXEC_STATES))
+    + "; terminal gate demands 'performed'."
 )
 _VALID_INTRO = (
     "Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item "
-    "complete from memory or from the matching execution checkmark."
+    "complete from memory or from the matching execution checkmark. "
+    "Accepted validation results: "
+    + ", ".join(sorted(S.VALIDATION_RESULTS))
+    + "; terminal gate demands 'pass'."
 )
 
 
