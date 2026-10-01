@@ -6,7 +6,7 @@
 - Scope: Correct the stale `-m 'not slow'` fragment to the configured `-m 'not slow and not livecorpus'` at every live-editable site, state the two deselected categories BY NAME so a future third category is a visible omission rather than a silent one, regenerate the managed `AGENTS.md` block from `engine.py` through the installer's own merge path rather than by hand, and add one regression test that fails when the managed instruction text stops naming the marker expression `addopts` actually configures. EXCLUDES changing `addopts` itself or any marker semantics (no test changes selection), EXCLUDES the stale fragment inside terminal records under `.aw/records/` (immutable history, correct when written), and EXCLUDES `tests/deselect_notice.py`, whose hardcoded category names are a SEPARATE defect class this plan FILES rather than fixes (see E-06 and OQ-01).
 - Scope-Paths: agent_workflows/engine.py, agent_workflows/runner_shared.py, pyproject.toml, Makefile, AGENTS.md, tests/test_installer.py, tests/test_cli.py, tests/test_leak_sanitizer.py, tests/test_suite_instruction_marker_parity.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: zb81ah
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: zb81ah verified (set 3wofej, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261001-6offt7-01-6offt7-derive-deselect-notice-categories.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-10-01 approved (aw set): status set to approved
 
 - 2026-10-01 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-010. Re-measured every finding at review HEAD `37402c39`; F-1, F-3, F-4, F-6, F-7's substance, F-8 and F-10 all reproduce. THREE CORRECTIONS MATTER. FIRST, THE SITE CENSUS WAS INCOMPLETE: three `tests/test_*.py` module-header comments (`test_installer.py`, `test_cli.py`, `test_leak_sanitizer.py`) each carry the same stale `-m "not slow"` claim and were missed by an authoring sweep that searched only the single-quoted spelling, so the plan would have shipped having fixed four of eight live sites while its own title claimed completeness; all three are now in scope. SECOND, E-05's PRESCRIBED TEST COLLIDES WITH P16 AND CANNOT ENFORCE WHAT V-02 DEMANDS: the plan's own `Project conventions` paragraph cites P16, whose first prohibition names `read_text()` and regex against production code, and the prescribed assertion cannot distinguish a quoted-string-only fix from one that NAMES the categories, because the quoted expression `not slow and not livecorpus` contains both names as substrings; E-05 now states the P16 narrow-exception argument explicitly and asserts a property that can actually fail. THIRD, E-03's CITED API FORM IS WRONG: `merge_aw_block` returns a 2-TUPLE `(text, action)`, not an object carrying `.action`, and it reports a preserved section through an explicit `warnings=` list parameter that the plan never passes, so an executor following the plan literally would crash and then be unable to observe the consent warning the item it is told to stop on. F-5's figures had already drifted (207 to 208 deselected, 202 to 203 slow) and F-10's baseline by 119 tests, which is exactly why E-01's re-derivation instruction is the plan's strongest feature.
