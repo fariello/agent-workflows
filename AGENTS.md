@@ -226,9 +226,9 @@ rule nudge when a pending plan cites a spec without carrying the link.
 
 Close-legitimacy rule for a release-blocking backlog item: `aw backlog set done` on an item carrying
 `- Blocks-Release: <R>` FAILS CLOSED unless the gate is provably preserved or released via one of three
-fixes: (1) HANDOFF, an EXECUTED plan (or an implemented spec) carrying `- From-Backlog: <this id6>` and
-the same `- Blocks-Release: <R>` (set with `aw ipd set ... --from-backlog <id6>`); before the carrier executes,
-the item stays `graduated`; (2) SATISFIED, a resolvable in-tree artifact citation
+fixes: (1) HANDOFF, EVERY same-gate carrier (From-Backlog plan or spec) carrying `- From-Backlog: <this id6>` and
+the same `- Blocks-Release: <R>` must be executed or implemented (set with `aw ipd set ... --from-backlog <id6>`);
+a multi-carrier item stays `graduated` until the last carrier executes; (2) SATISFIED, a resolvable in-tree artifact citation
 `aw backlog set done <item> --evidence <path>`; (3) DE-GATED, clear the gate first (or in the same call)
 with `aw backlog set done <item> --blocks-release -`. Parking a blocker or demoting its priority is
 allowed but WARNs. One shared predicate (`check_engine.evaluate_blocking_close`) backs the setter, the
