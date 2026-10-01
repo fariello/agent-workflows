@@ -13,7 +13,7 @@
 - Priority: low
 - Set: netnsfilter
 - Order: 0
-- Highest E allocated: 03
+- Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: m0kl28
 
@@ -41,29 +41,40 @@ and verify children and produce no artifact of their own.
 
 ### Task group 1: sequence and verify the Set
 
-- [ ] E-01 Confirm, before any child runs, that this Set's premise still holds ON THE EXECUTING HOST by re-running the capability measurements research `akmzyq` records: namespace creation (`unshare -Urn --map-root-user true`), egress denial by default inside the namespace, AF_UNIX reachability across the boundary, and `iptables -t nat` usability in-namespace. Record each result. If namespace creation FAILS here, do not abandon the Set: children 01 and 04 remain fully executable (the probe must return False correctly on exactly such a host, which is the fail-closed half of its contract), while children 02 and 03 cannot be validated and must be reported blocked with the measured reason rather than executed on faith.
+- [ ] E-01 CONFIRM nxh5s4 REACHED executed
   - Depends on: none
-  - Expected outcome: A recorded per-host capability baseline naming which children are validatable here. A host that cannot create a namespace produces a reduced but honest Set, not a failed run.
+  Confirm child 01 (`nxh5s4`, probe host-granular egress filtering) reached `executed`, with its two-sided verdict recorded. Confirms, before any other child runs, that this Set's premise holds on the executing host.
+  - Expected outcome: A recorded per-host capability baseline naming which children are validatable here. The probe is built and returns a two-sided verdict.
   - Execution state: pending
 
-- [ ] E-02 Verify each child reached `executed` IN ORDER and that its successor's premise still holds, rather than assuming the queue order sufficed. Specifically: after 01, the probe exists and returns a two-sided verdict; after 02, the policy refuses an unlisted destination in a unit test; after 03, a confined worker's teardown attempt was verified from OUTSIDE the sandbox. Each check reads the child's pasted evidence, not its checkbox.
+- [ ] E-02 CONFIRM rozdkp REACHED executed
   - Depends on: E-01
-  - Expected outcome: Either confirmation that every executed child's successor can legitimately start, or a named child whose evidence does not support the next one, stopping the Set before it builds on an unproven step.
+  Confirm child 02 (`rozdkp`, build egress policy and parent-owned filtering broker) reached `executed`. Confirms destination allow-list policy type and filtering broker are implemented and tested.
+  - Expected outcome: Destination allow-list policy type and parent-owned broker implemented; policy refuses unlisted destination in unit test.
   - Execution state: pending
 
-- [ ] E-03 Verify the Set's END STATE does not overclaim, which is this Set's single largest risk and the reason the whole `denypush` lineage exists. Confirm by RUNNING commands that: no artifact introduces the name `supports_deny_push` (`tests/test_host_capability_extension.py`'s `DenyPushRemovedTests` must still pass); `run_evidence.validate_finding_table` still reports exactly 12 codes; `ACTION_CLASSES` is still `(ACTION_READ_ONLY,)`; and the new capability's `probe_notes` entry states the allow-list and proxy-trust limits research `akmzyq` records under "what is NOT established". Child 04 owns the full audit; this item verifies the audit actually ran and reported, since a parent that trusts a child's self-report adds nothing.
+- [ ] E-03 CONFIRM 2j4pd0 REACHED executed
   - Depends on: E-02
+  Confirm child 03 (`2j4pd0`, confine worker in egress boundary and prove non-evadability) reached `executed`. Confirms boundary is wired into hardened profile, drops `CAP_NET_ADMIN`, and teardown attempt is refused from outside the sandbox.
+  - Expected outcome: Confined worker in egress boundary verified from outside the sandbox.
+  - Execution state: pending
+
+- [ ] E-04 CONFIRM wn956n REACHED executed
+  - Depends on: E-03
+  Confirm child 04 (`wn956n`, amend contracts and audit against overclaim) reached `executed`. Confirms the Set's end state does not overclaim, amends contracts, and closes the Set honestly.
   - Expected outcome: The Set closes with a capability that claims destination-granular filtering with a declared allow list, and nowhere claims a universal push boundary.
   - Execution state: pending
 
+Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
+
 ## Child IPDs, sequence, and dependencies
 
-| Order | File | What it does | Depends on |
-|---|---|---|---|
-| 01 | `20261001-netnsfilter-01-nxh5s4-probe-host-granular-egress-filtering-by-attempt-two-sided-an.ipd.md` | Adds the hermetic two-sided executed probe and the capability field, reported and gating nothing | none |
-| 02 | `20261001-netnsfilter-02-rozdkp-build-the-egress-policy-and-the-parent-owned-filtering-broke.ipd.md` | Adds the destination allow-list policy type and the parent-owned filtering broker that enforces it | executed:nxh5s4 |
-| 03 | `20261001-netnsfilter-03-2j4pd0-confine-a-worker-in-the-egress-boundary-and-prove-it-survive.ipd.md` | Wires the boundary into the hardened execution profile, drops `CAP_NET_ADMIN`, and proves non-evadability from outside | executed:rozdkp |
-| 04 | `20261001-netnsfilter-04-wn956n-amend-the-contracts-and-close-the-set-with-an-audited-honest.ipd.md` | Amends spec `25kzda` 5.2 and the module docstring, and audits the end state for overclaim | executed:2j4pd0 |
+| Order | Id | File | What it does | Depends on |
+|---|---|---|---|---|
+| 01 | `nxh5s4` | `20261001-netnsfilter-01-nxh5s4-probe-host-granular-egress-filtering-by-attempt-two-sided-an.ipd.md` | Adds the hermetic two-sided executed probe and the capability field, reported and gating nothing | none |
+| 02 | `rozdkp` | `20261001-netnsfilter-02-rozdkp-build-the-egress-policy-and-the-parent-owned-filtering-broke.ipd.md` | Adds the destination allow-list policy type and the parent-owned filtering broker that enforces it | executed:nxh5s4 |
+| 03 | `2j4pd0` | `20261001-netnsfilter-03-2j4pd0-confine-a-worker-in-the-egress-boundary-and-prove-it-survive.ipd.md` | Wires the boundary into the hardened execution profile, drops `CAP_NET_ADMIN`, and proves non-evadability from outside | executed:rozdkp |
+| 04 | `wn956n` | `20261001-netnsfilter-04-wn956n-amend-the-contracts-and-close-the-set-with-an-audited-honest.ipd.md` | Amends spec `25kzda` 5.2 and the module docstring, and audits the end state for overclaim | executed:2j4pd0 |
 
 The order is forced by evidence dependency and not by preference. The probe (01) must exist before a
 policy is worth enforcing, because a policy on a host that cannot create the namespace is
@@ -206,20 +217,22 @@ specific failure this Set guards against is a contract written to a hoped-for ca
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: Pasted actual output of each of the four re-run measurements with its exit status: `unshare -Urn --map-root-user true`; an in-namespace outbound connect attempt (expected `Network is unreachable`); an AF_UNIX connect from inside the namespace to a parent-held socket (expected success); and `iptables -t nat -L` inside the namespace. Plus an explicit statement naming which children are validatable on this host. A pasted claim with no command output FAILS this item.
-  - IF NAMESPACE CREATION FAILS, SAY SO AND CONTINUE. Record that children 02 and 03 are blocked with the measured error, and state that child 01's probe MUST still be built and MUST return False here. A False on such a host is the fail-closed half of the contract and is a PASS, not a defect; reporting the whole Set as blocked because one host lacks a namespace would abandon work that is fully executable.
+  - Required evidence: Child 01 (`nxh5s4`) reached `executed` in `.aw/records/plans/executed/` with its two-sided probe verdict and namespace availability recorded in its evidence.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: For each executed child, the specific pasted evidence its successor depends on, quoted from that child's own `V-*` blocks: child 01's two-sided probe verdict with the host's namespace availability beside it; child 02's test output showing an unlisted destination REFUSED; child 03's outside-the-sandbox confirmation that a teardown attempt was refused. State for each whether the successor's premise is supported.
-  - A CHECKBOX IS NOT EVIDENCE. If a child is marked executed but its `V-*` blocks carry no pasted command output, this item FAILS and the Set stops, because the next child would then build on an unverified step. Name the child and the missing evidence.
+  - Required evidence: Child 02 (`rozdkp`) reached `executed` with test output showing an unlisted destination refused and parent-owned filtering broker verified.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: Four pasted command outputs: `python3 -m pytest tests/test_host_capability_extension.py -k DenyPushRemovedTests` passing; a `python3 -c` printing `run_evidence.validate_finding_table()` and `len(run_finding_codes())` equal to 12; a `python3 -c` printing `ACTION_CLASSES` equal to `(ACTION_READ_ONLY,)`; and `aw host capabilities opencode` showing the new capability's note. Plus a quotation of the note itself and a one-sentence judgement that it states the allow-list and proxy-trust limits.
-  - GREP FOR THE OVERCLAIM AND STATE THE COUNT, rather than asserting its absence. Run `grep -rn "deny_push" agent_workflows/ tests/` and `grep -rni "denies push\|push denial" agent_workflows/`, state each count, and judge every hit as either a HISTORICAL or REQUIREMENT reference (acceptable, for example `run_evidence`'s retirement comment) or an available-guarantee claim (a defect to fix before the Set closes). An empty result with no judgement recorded FAILS this item, because the check is the judgement and not the absence.
+  - Required evidence: Child 03 (`2j4pd0`) reached `executed` with outside-the-sandbox confirmation that a teardown attempt was refused and `CAP_NET_ADMIN` dropped.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-04 validates E-04
+  - Required evidence: Child 04 (`wn956n`) reached `executed` with audit against overclaim and contract amendments in `25kzda` 5.2 verified.
   - Observed evidence:
   - Result: pending
 
