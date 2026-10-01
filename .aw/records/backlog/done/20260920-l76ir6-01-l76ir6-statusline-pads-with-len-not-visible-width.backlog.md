@@ -1,5 +1,5 @@
 - Id: l76ir6
-- Status: graduated
+- Status: done
 - Graduated-To: l76ir6
 - Blocks-Release: next
 - Set: l76ir6
@@ -8,6 +8,7 @@
 - Summary: Statusline pads box columns with len() rather than visible_width, so any Ambiguous-width or VS-bearing glyph misaligns the box
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD it6tpj executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-l76ir6-01-it6tpj-measure-every-statusline-box-column-in-visible-terminal-colu.ipd.md); evidence .aw/records/plans/executed/20260929-l76ir6-01-it6tpj-measure-every-statusline-box-column-in-visible-terminal-colu.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: it6tpj
 - 2026-09-20 created (aw backlog): Found executing plan qdd5jq (lifeglyph 07).
 
