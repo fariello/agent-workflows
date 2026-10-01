@@ -7,6 +7,7 @@
 - Summary: The spec 25kzda 'built but UNWIRED' string cited by several plans no longer exists, so those citations resolve to nothing
 
 ## Workflow history
+- 2026-10-01 note (aw backlog): Plan mt54wr measured that the item's replacement evidence at :59-62 had itself rotted (removed by plan olkeju on 2026-09-26); executed replacement cites Section 6.2 and in-code measurements instead
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: mt54wr
 - 2026-09-21 created (aw backlog): Found by the i1hlgx execution turn while re-verifying its premise.
 
