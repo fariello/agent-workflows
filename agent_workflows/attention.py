@@ -506,12 +506,7 @@ def scan(
         # only artifacts under an inventoried tree matter; the four root docs + READMEs are not artifacts
         pol = _classify_tree(rel)
         if pol is None:
-            # a file under no inventoried tree, but only flag it if it is under .agents/ (not a root doc)
-            if (
-                rel.startswith(".agents/")
-                and not rel.endswith("/README.md")
-                and Path(rel).name != "README.md"
-            ):
+            if not A.is_exempt_unclassified(rel):
                 drift.append(
                     core.Drift(
                         rel,
@@ -564,6 +559,31 @@ def scan(
             else:
                 seen_ids[rec.id] = rel
         items.append(rec)
+
+    # E-04 (IPD 1qt1u3): shallow discovery of uninventoried records trees.
+    # When a tree exists on disk but has no entry in SCAN_ROOTS, iter_scan_files never opens it,
+    # so no per-file check can see it. A shallow listing of the records root surfaces such trees.
+    if not type_filters:
+        records_dir = repo_root / ".aw" / "records"
+        if not records_dir.is_dir():
+            records_dir = repo_root / ".agents"
+        if records_dir.is_dir():
+            for entry in sorted(records_dir.iterdir(), key=lambda p: p.name):
+                if not entry.is_dir():
+                    continue
+                if core.is_ignored_path(entry, repo_root):
+                    continue
+                rel_dir = _rel_posix(repo_root, entry)
+                if _classify_tree(rel_dir) is None and not any(
+                    pol.root.startswith(rel_dir + "/") for pol in A.TREE_POLICY
+                ):
+                    drift.append(
+                        core.Drift(
+                            rel_dir,
+                            "attention.uninventoried-tree",
+                            "tree directory under records root matching no policy",
+                        )
+                    )
 
     # setupmarker Order 01: the operational-action ledger was DELETED (it was redundant with backlog
     # and its eager mkdir made this read path stamp `.aw/state/` into every scanned repo - write-on-

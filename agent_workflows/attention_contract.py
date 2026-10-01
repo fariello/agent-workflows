@@ -264,6 +264,23 @@ def is_nonartifact_name(name: str) -> bool:
     return False
 
 
+def is_exempt_unclassified(rel_posix: str) -> bool:
+    """True if an unclassified scanned path is exempt from the per-file unclassified drift.
+
+    A repository-root document (a path with no '/' separator, structurally matching the
+    non-tree SCAN_ROOTS entries) is a PROSE document and not a lifecycle artifact (it
+    carries no `- Status:`, so the pure-and-total mapping Section 6 requires has no enum
+    to be total over), matching the rationale that the walkthroughs and roadmaps exclusions
+    already carry. Non-artifact files (such as READMEs and index files) are also exempt
+    via is_nonartifact_name.
+    """
+
+    if "/" not in rel_posix:
+        return True
+    filename = rel_posix.rsplit("/", 1)[-1]
+    return is_nonartifact_name(filename)
+
+
 # --------------------------------------------------------------------------------------
 # Per-tree native-status enums and the PURE, TOTAL class mapping (spec Section 6/7)
 # --------------------------------------------------------------------------------------
@@ -758,6 +775,9 @@ RULE_IDS: FrozenSet[str] = frozenset(
         "attention.unstable-path",  # invalid/symlink-escaping repo-relative path
         "attention.unreadable",  # unreadable / unsupported-encoding / malformed front matter
         "attention.unclassified-tree",
+        # attention.uninventoried-tree is a per-DIRECTORY finding (location is a tree root),
+        # distinct from attention.unclassified-tree which is a per-FILE finding (E-03).
+        "attention.uninventoried-tree",
         "attention.unsafe-field",  # control-char / over-length / newline / non-http issue url
         "attention.external-state-invalid",  # invalid, unreadable, or escaping external AW state root
     )
