@@ -6,7 +6,7 @@
 - Scope: Make that one test exercise the branch it claims, by pointing its drain dependency at a LEGAL id6 resolved against a SYNTHESIZED repository root under the `tmp_path` the test already receives, so the verdict depends on nothing in the live checkout. Repointing the token is NECESSARY AND NOT SUFFICIENT: review measured that the existing assertion set stays green under a reason-destroying `edge_satisfied` stub even after the repoint (F9), so the test must ALSO gain an assertion that the reason is a RESOLUTION reason and not one of the three fallback texts, which is what gives the restored coverage teeth. Prove it with a mutation check in both directions. Also drop the now-vestigial `Path(__file__).resolve().parents[1]` live-root reference from that one test. Does NOT touch `agent_workflows/runner_shared.py`, `agent_workflows/render_stream.py`, or `agent_workflows/run_selection_policy.py`: no production behavior is wrong here (`dependency_status_detailed` is CORRECT in every measurement below), and the two adjacent PRODUCTION defects are separately carried by `8mohre` and `csjq81`. Does NOT audit the other tests that reference the live root, and does NOT author the standing convention that governs this class, which plan `kmzude` owns.
 - Scope-Paths: tests/test_dependency_block_reporting.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: jefifu
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: jefifu verified (set 03aicr, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (opencode/its_direct-pt3-claude-opus-5-1m-us): plan-review: APPROVE WITH REVISIONS APPLIED; PR-401 (HIGH), PR-402 (MEDIUM), PR-403 (LOW), all FIXED. E-04/V-04 added after review measured that E-02 alone leaves the test green under a reason-destroying edge_satisfied stub.
 
@@ -51,25 +51,25 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: prove the current green is over the wrong branch, then move it
 
-- [ ] E-01 REPRODUCE THE THREE MEASUREMENTS THIS PLAN RESTS ON, at execution HEAD, before editing anything, because every one of them is a claim about behavior that could have changed since authoring and the whole plan collapses if any is false. (a) THE ITEM'S REPORTED RED IS GONE: run a bare `python3 -m pytest` and paste the summary line; the authoring baseline is `3246 passed, 2 skipped` at lane HEAD `a70cdb6a`, and the item's `1 failed, 3034 passed, 2 skipped` at `71aee0d3` must NOT reproduce. If it DOES reproduce, STOP and report: the interim commit is not in your tree and this plan's premise is wrong. (b) THE CURRENT TOKEN IS UNPARSEABLE: show `runner_shared.parse_dependency_token("executed:drnprereq")` returning `None`, and show `runner_shared.ID6_RE.pattern` so the nine-versus-six character cause is visible rather than asserted. (c) `edge_satisfied` IS NEVER REACHED: monkeypatch or wrap `runner_shared.edge_satisfied` with a counting spy, call `dependency_status_detailed` on the test's own drain item verbatim, and paste both the call count (baseline `0`) and the returned reason map (baseline `{'executed:drnprereq': 'executed:drnprereq: unparseable dependency token'}`). Do the spying in a throwaway script or an inline `python3 -c`, NOT by adding a test; delete nothing from `tests/` and add nothing to it in this item.
+- [x] E-01 REPRODUCE THE THREE MEASUREMENTS THIS PLAN RESTS ON, at execution HEAD, before editing anything, because every one of them is a claim about behavior that could have changed since authoring and the whole plan collapses if any is false. (a) THE ITEM'S REPORTED RED IS GONE: run a bare `python3 -m pytest` and paste the summary line; the authoring baseline is `3246 passed, 2 skipped` at lane HEAD `a70cdb6a`, and the item's `1 failed, 3034 passed, 2 skipped` at `71aee0d3` must NOT reproduce. If it DOES reproduce, STOP and report: the interim commit is not in your tree and this plan's premise is wrong. (b) THE CURRENT TOKEN IS UNPARSEABLE: show `runner_shared.parse_dependency_token("executed:drnprereq")` returning `None`, and show `runner_shared.ID6_RE.pattern` so the nine-versus-six character cause is visible rather than asserted. (c) `edge_satisfied` IS NEVER REACHED: monkeypatch or wrap `runner_shared.edge_satisfied` with a counting spy, call `dependency_status_detailed` on the test's own drain item verbatim, and paste both the call count (baseline `0`) and the returned reason map (baseline `{'executed:drnprereq': 'executed:drnprereq: unparseable dependency token'}`). Do the spying in a throwaway script or an inline `python3 -c`, NOT by adding a test; delete nothing from `tests/` and add nothing to it in this item.
   - Depends on: none
   - Expected outcome: three pasted measurements. (a) a bare-suite summary line with no failure, contradicting the item's report and confirming F1. (b) `None` from `parse_dependency_token`, with `^[a-z0-9]{6}$` shown. (c) an `edge_satisfied` call count of `0` beside the `unparseable dependency token` reason, which is the finding that makes this plan necessary at all.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 POINT THE DRAIN DEPENDENCY AT A LEGAL id6 RESOLVED AGAINST A SYNTHESIZED REPOSITORY ROOT UNDER `tmp_path`, which is the fix backlog `03aicr` itself suggests first and which the test is already equipped for (it takes `tmp_path` and uses it for nothing today). Three coupled edits, all inside `test_drain_and_cascade_mapped_reasons_rendered_once`. FIRST, build the synthetic root: write one plan file under `tmp_path` at `.aw/records/plans/pending/` whose name and `- Id:` carry a SIX-character id6, with a non-`executed` `- Status:`, so the `executed:` edge is legitimately unmet for a REASON THAT IS ABOUT DEPENDENCY RESOLUTION. The worked shape, measured to produce the intended branch, is a file named `20260919-s-01-<id6>-dep.ipd.md` containing `# IPD: dep\n\n- Id: <id6>\n- Status: approved\n`; `tests/test_finalize_sendback.py` already uses exactly this idiom (its `pending / "20260919-s-01-yaxr4i-dep.ipd.md"` write), so follow that precedent rather than inventing a fixture shape. SECOND, set `state_drain["repo"]` to that `tmp_path` root instead of the live checkout, which is what severs the coupling the backlog item filed. THIRD, set the drain item's `"dependencies"` to `["executed:<that id6>"]`. CHOOSE AN id6 THAT IS NOT A REAL PLAN'S, so a future collision cannot resurrect the original bug in reverse; the synthesized root makes a collision harmless, but a distinctive value keeps the intent legible. DO NOT reuse `aaa111`, which the same file already uses for the cascade half of this test and for three other tests, because the drain and cascade halves assert DIFFERENT reason texts and sharing the token invites a copy-paste error that makes one half assert the other's string. DO NOT weaken any assertion: `assert not sat`, the single-diagnostic-line assertion, the `(blocked)` absence, and the `un_reasons[...] in drain_diags[0]` containment all stay, and the last one keeps reading the reason out of the map rather than hardcoding prose, which is what keeps this test from pinning `edge_satisfied`'s exact wording (wording that `csjq81` may legitimately change). FINALLY, KNOW WHAT THIS ITEM DOES NOT ACHIEVE, because the original plan claimed it achieved the whole goal and review measured otherwise (F9): after this repoint the test is still GREEN under a reason-destroying `edge_satisfied` stub, so this item restores the BRANCH but not yet the SENSITIVITY. E-04 adds the assertion that makes the mutation check bite. Do not report the plan's goal met at the end of this item, and do not run the mutation check here (it belongs to E-04, whose V-04 owns it).
+- [x] E-02 POINT THE DRAIN DEPENDENCY AT A LEGAL id6 RESOLVED AGAINST A SYNTHESIZED REPOSITORY ROOT UNDER `tmp_path`, which is the fix backlog `03aicr` itself suggests first and which the test is already equipped for (it takes `tmp_path` and uses it for nothing today). Three coupled edits, all inside `test_drain_and_cascade_mapped_reasons_rendered_once`. FIRST, build the synthetic root: write one plan file under `tmp_path` at `.aw/records/plans/pending/` whose name and `- Id:` carry a SIX-character id6, with a non-`executed` `- Status:`, so the `executed:` edge is legitimately unmet for a REASON THAT IS ABOUT DEPENDENCY RESOLUTION. The worked shape, measured to produce the intended branch, is a file named `20260919-s-01-<id6>-dep.ipd.md` containing `# IPD: dep\n\n- Id: <id6>\n- Status: approved\n`; `tests/test_finalize_sendback.py` already uses exactly this idiom (its `pending / "20260919-s-01-yaxr4i-dep.ipd.md"` write), so follow that precedent rather than inventing a fixture shape. SECOND, set `state_drain["repo"]` to that `tmp_path` root instead of the live checkout, which is what severs the coupling the backlog item filed. THIRD, set the drain item's `"dependencies"` to `["executed:<that id6>"]`. CHOOSE AN id6 THAT IS NOT A REAL PLAN'S, so a future collision cannot resurrect the original bug in reverse; the synthesized root makes a collision harmless, but a distinctive value keeps the intent legible. DO NOT reuse `aaa111`, which the same file already uses for the cascade half of this test and for three other tests, because the drain and cascade halves assert DIFFERENT reason texts and sharing the token invites a copy-paste error that makes one half assert the other's string. DO NOT weaken any assertion: `assert not sat`, the single-diagnostic-line assertion, the `(blocked)` absence, and the `un_reasons[...] in drain_diags[0]` containment all stay, and the last one keeps reading the reason out of the map rather than hardcoding prose, which is what keeps this test from pinning `edge_satisfied`'s exact wording (wording that `csjq81` may legitimately change). FINALLY, KNOW WHAT THIS ITEM DOES NOT ACHIEVE, because the original plan claimed it achieved the whole goal and review measured otherwise (F9): after this repoint the test is still GREEN under a reason-destroying `edge_satisfied` stub, so this item restores the BRANCH but not yet the SENSITIVITY. E-04 adds the assertion that makes the mutation check bite. Do not report the plan's goal met at the end of this item, and do not run the mutation check here (it belongs to E-04, whose V-04 owns it).
   - Depends on: E-01
   - Expected outcome: the drain half of the test resolves a legal `executed:<id6>` edge against a `tmp_path` root, and the reason now comes from the RESOLUTION path. Authoring baseline for the new reason, REPRODUCED at review: `executed:<id6>: external target <id6> is 'approved' (directory 'pending'), needs one of ['executed'] (it is not in this run, so it cannot become satisfied here)`, with an `edge_satisfied` spy count of `1` where the pre-change count is `0`. The test passes, and `git diff` shows no assertion removed or relaxed. Expected NOT to hold yet: mutation sensitivity (E-04).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 REMOVE THE NOW-VESTIGIAL LIVE-ROOT REFERENCE FROM THIS TEST AND FIX THE DOCSTRING CLAIM IT FALSIFIED, because leaving either in place preserves the coupling this plan exists to remove. The line `repo_root = Path(__file__).resolve().parents[1]` exists ONLY to feed `state_drain["repo"]`, which E-02 repoints, so after E-02 it is either unused or (worse) still silently pointing part of the test at the live tree. Delete it and confirm by `grep` that `parents[` no longer appears in the file. If `Path` becomes unused, drop the import; if it is still used (the cascade half and other tests take `tmp_path: Path` annotations, so it very likely is), KEEP it and say so in V-03 rather than deleting an import the type annotations need. SEPARATELY, the module docstring's case (c) reads "drain-shaped and post-E-01 cascade items render mapped reasons exactly once" and the function docstring repeats it; that claim was FALSE for the drain half under the interim token (E-01(c) measures why). It becomes TRUE under E-02, so do NOT rewrite the claim, but DO make the drain half's mechanism explicit in the test body so the next reader cannot repeat `f1b5b9ff`'s mistake: state in a short comment that the dependency must be a LEGAL SIX-CHARACTER id6 resolved against a synthesized root, and that a malformed token silently diverts to the unparseable-token guard and asserts nothing about resolution. Keep it to a sentence or two; this is a landmine marker, not an essay, and P16's concern is the test's behavior rather than its prose.
+- [x] E-03 REMOVE THE NOW-VESTIGIAL LIVE-ROOT REFERENCE FROM THIS TEST AND FIX THE DOCSTRING CLAIM IT FALSIFIED, because leaving either in place preserves the coupling this plan exists to remove. The line `repo_root = Path(__file__).resolve().parents[1]` exists ONLY to feed `state_drain["repo"]`, which E-02 repoints, so after E-02 it is either unused or (worse) still silently pointing part of the test at the live tree. Delete it and confirm by `grep` that `parents[` no longer appears in the file. If `Path` becomes unused, drop the import; if it is still used (the cascade half and other tests take `tmp_path: Path` annotations, so it very likely is), KEEP it and say so in V-03 rather than deleting an import the type annotations need. SEPARATELY, the module docstring's case (c) reads "drain-shaped and post-E-01 cascade items render mapped reasons exactly once" and the function docstring repeats it; that claim was FALSE for the drain half under the interim token (E-01(c) measures why). It becomes TRUE under E-02, so do NOT rewrite the claim, but DO make the drain half's mechanism explicit in the test body so the next reader cannot repeat `f1b5b9ff`'s mistake: state in a short comment that the dependency must be a LEGAL SIX-CHARACTER id6 resolved against a synthesized root, and that a malformed token silently diverts to the unparseable-token guard and asserts nothing about resolution. Keep it to a sentence or two; this is a landmine marker, not an essay, and P16's concern is the test's behavior rather than its prose.
   - Depends on: E-02
   - Expected outcome: no `parents[` in `tests/test_dependency_block_reporting.py`; a short comment in the drain half naming the legal-id6 requirement and the guard it would otherwise hit; the `Path` import's fate stated with its reason; the file's other five tests byte-unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 ADD THE ASSERTION THAT MAKES THE RESTORED COVERAGE SENSITIVE, namely that the drain reason is a RESOLUTION reason and NOT any of `dependency_status_detailed`'s three fallback texts. THIS ITEM IS THE PLAN'S ACTUAL FIX AND E-02 ALONE IS INSUFFICIENT, measured at review (F9) by prototyping E-02 verbatim and running it under mutation: with `runner_shared.edge_satisfied` stubbed to `lambda edge, item, state, by_id: (False, "")`, the repointed test still reports `1 passed`, because `dependency_status_detailed` substitutes `f"{dep}: dependency not satisfied"` for an empty reason (`runner_shared.py`, the `_block(dep, reason or f"{dep}: dependency not satisfied")` line) and every surviving assertion is satisfied by that substitute: `not sat` still holds, one diagnostic still renders, `(blocked)` is still absent, and the containment check reads the substitute out of the very map it compares against, so it is TRUE BY CONSTRUCTION for ANY reason string whatsoever. THE ASSERTION TO ADD, in the drain half, after `dependency_status_detailed` returns and before the render: assert the reason for the drain token contains NONE of the three fallback texts `"unparseable dependency token"`, `"Cannot locate IPD"`, and `f"{token}: dependency not satisfied"`. Those three are exactly the arms that are NOT the drain case: the malformed-token guard `f1b5b9ff` landed on, `resolve_plan_path`'s `DriverError` arm, and the empty-reason substitute a broken `edge_satisfied` produces. MEASURED AT REVIEW, this form gives the test teeth in both directions and does NOT pin prose: with the three guards present the test FAILS under the reason-destroying stub and FAILS on the pre-E-02 token, and PASSES only on the intended resolution branch. Assert on the reason read from `un_reasons`, NOT on the rendered line, so the guard survives `csjq81`'s renderer change. DO NOT substitute an exact-equality assertion on the resolution wording (OQ-01 forbids it and `csjq81` would break it), and DO NOT assert positively on the resolution text's own words (`external target`, `directory`, `needs one of`), which would pin the same prose by the opposite spelling.
+- [x] E-04 ADD THE ASSERTION THAT MAKES THE RESTORED COVERAGE SENSITIVE, namely that the drain reason is a RESOLUTION reason and NOT any of `dependency_status_detailed`'s three fallback texts. THIS ITEM IS THE PLAN'S ACTUAL FIX AND E-02 ALONE IS INSUFFICIENT, measured at review (F9) by prototyping E-02 verbatim and running it under mutation: with `runner_shared.edge_satisfied` stubbed to `lambda edge, item, state, by_id: (False, "")`, the repointed test still reports `1 passed`, because `dependency_status_detailed` substitutes `f"{dep}: dependency not satisfied"` for an empty reason (`runner_shared.py`, the `_block(dep, reason or f"{dep}: dependency not satisfied")` line) and every surviving assertion is satisfied by that substitute: `not sat` still holds, one diagnostic still renders, `(blocked)` is still absent, and the containment check reads the substitute out of the very map it compares against, so it is TRUE BY CONSTRUCTION for ANY reason string whatsoever. THE ASSERTION TO ADD, in the drain half, after `dependency_status_detailed` returns and before the render: assert the reason for the drain token contains NONE of the three fallback texts `"unparseable dependency token"`, `"Cannot locate IPD"`, and `f"{token}: dependency not satisfied"`. Those three are exactly the arms that are NOT the drain case: the malformed-token guard `f1b5b9ff` landed on, `resolve_plan_path`'s `DriverError` arm, and the empty-reason substitute a broken `edge_satisfied` produces. MEASURED AT REVIEW, this form gives the test teeth in both directions and does NOT pin prose: with the three guards present the test FAILS under the reason-destroying stub and FAILS on the pre-E-02 token, and PASSES only on the intended resolution branch. Assert on the reason read from `un_reasons`, NOT on the rendered line, so the guard survives `csjq81`'s renderer change. DO NOT substitute an exact-equality assertion on the resolution wording (OQ-01 forbids it and `csjq81` would break it), and DO NOT assert positively on the resolution text's own words (`external target`, `directory`, `needs one of`), which would pin the same prose by the opposite spelling.
   - Depends on: E-02
   - Expected outcome: three negative substring assertions on the drain reason, reading from `un_reasons` rather than from the rendered line. REVIEW-REPRODUCED mutation matrix for this exact form, which V-04 must reproduce: pre-E-02 token under no mutation FAILS (guard trips on `unparseable dependency token`); post-E-02 under no mutation PASSES; post-E-02 under the reason-destroying stub FAILS; post-E-02 under a `(True, "")` stub FAILS at `assert not sat`.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -163,25 +163,120 @@ No user-facing documentation changes: the edit is confined to a test's own body 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: all three measurements pasted at execution HEAD, each labelled with the exact command run, and each COMPARED to the authoring baseline rather than merely stated. (a) the bare-suite summary line, which must show NO failure of `test_drain_and_cascade_mapped_reasons_rendered_once`; if it DOES fail, this item's correct outcome is to STOP and report that the plan's premise is wrong, and that is a conforming result for V-01 while E-02 and E-03 must then not proceed unchanged. (b) `parse_dependency_token("executed:drnprereq")` -> `None`, WITH `ID6_RE.pattern` shown beside it, since the finding is the length mismatch and not merely a `None`. (c) the `edge_satisfied` call count, which MUST be pasted as an actual number from an actual spy (baseline `0`); a claim that the function "is not reached" does NOT satisfy this item, because a zero is precisely what a reader cannot verify from prose. Paste the reason map alongside it. Confirm no file under `tests/` was added or modified by this item (`git status --porcelain`).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS.
+    (a) Bare-suite baseline run:
+    Command: `python3 -m pytest`
+    Summary:
+    `3878 passed, 2 skipped, 3 warnings in 135.97s (0:02:15)`
+    `NOTE: 208 tests were deselected by -m/-k and did not run (the default run skips 'slow' and 'livecorpus'); run everything with: make test-all`
+    Comparison: Authoring baseline was `3246 passed, 2 skipped` at `a70cdb6a`. Suite has grown and is completely green with 0 failures. The item's reported red from older HEAD (`71aee0d3`) does not reproduce.
+    (b) Current token unparseable measurement:
+    Command:
+    `python3 -c 'from agent_workflows import runner_shared; token = "executed:drnprereq"; print(runner_shared.parse_dependency_token(token)); print(runner_shared.ID6_RE.pattern); print(len(token.split(":", 1)[1]))'`
+    Output:
+    `None`
+    `^[a-z0-9]{6}$`
+    `9`
+    Cause: token stem `'drnprereq'` is 9 characters, which exceeds `ID6_RE`'s strict 6-character requirement.
+    (c) `edge_satisfied` unreachable measurement:
+    Command: inline spy wrapping `runner_shared.edge_satisfied` calling `runner_shared.dependency_status_detailed` on the drain item verbatim.
+    Output:
+    `sat: False`
+    `un_deps: ['executed:drnprereq']`
+    `un_reasons: {'executed:drnprereq': 'executed:drnprereq: unparseable dependency token'}`
+    `edge_satisfied call count: 0`
+    Baseline `0` call count and `{'executed:drnprereq': 'executed:drnprereq: unparseable dependency token'}` reproduced exactly.
+    `git status --porcelain` before edits returned empty output (no files added or modified in `tests/`).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: FOUR things, each closing a way this could be reported satisfied while the branch was still wrong. THE MUTATION CHECK IS NOT ONE OF THEM AND IS NOT OWED HERE: it moved to V-04, because review MEASURED that E-02's change alone does not make the test mutation-sensitive (F9), so demanding it here would demand something E-02 cannot deliver. FIRST, the new reason string pasted from an actual run, shown to be a RESOLUTION reason (naming the target's status and directory) and NOT `unparseable dependency token` and NOT `Cannot locate IPD`; those three arms are distinguishable by text and the whole point of E-02 is landing on the first. SECOND, an `edge_satisfied` SPY COUNT of `1` from an actual spy over the repointed item, pasted as a number, beside V-01(c)'s `0`; that pair is what proves the control flow MOVED, which is E-02's own deliverable and is provable without any mutation. THIRD, the test passing normally, with the assertion set shown UNCHANGED by diff: `assert not sat`, the single-diagnostic assertion, the `(blocked)` absence, and the containment check must all still be present and unweakened, and the containment check must still read from `un_reasons` rather than a hardcoded string (an exact-prose assertion FAILS this item per OQ-01). FOURTH, the synthesized root shown to be under `tmp_path`, by quoting the lines that build it, so a reviewer can see the live checkout is no longer consulted.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS.
+    FIRST: New reason string from resolution path:
+    `"executed:drn999: external target drn999 is 'approved' (directory 'pending'), needs one of ['executed'] (it is not in this run, so it cannot become satisfied here)"`
+    Names target status (`approved`) and directory (`pending`); contains neither `unparseable dependency token` nor `Cannot locate IPD`.
+    SECOND: `edge_satisfied` spy count: `1` (compared to V-01(c)'s `0`), proving control flow reached the resolution path.
+    THIRD: `python3 -m pytest -o addopts="" tests/test_dependency_block_reporting.py -v`: 12 passed in 0.23s. The diff shows all assertions (`assert not sat`, `assert len(drain_diags) == 1`, `assert "(blocked)" not in drain_diags[0]`, and `assert un_reasons[drain_token] in drain_diags[0]`) preserved and unweakened, reading directly from `un_reasons` without pinning exact prose.
+    FOURTH: Synthesized root under `tmp_path`:
+    ```python
+    pending = tmp_path / ".aw" / "records" / "plans" / "pending"
+    pending.mkdir(parents=True)
+    (pending / "20260919-s-01-drn999-dep.ipd.md").write_text(
+        "# IPD: dep\n\n- Id: drn999\n- Status: approved\n", encoding="utf-8"
+    )
+    ```
+    `state_drain["repo"]` is set to `str(tmp_path)`; live checkout is no longer referenced.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: `grep -n 'parents\[' tests/test_dependency_block_reporting.py` returning NOTHING, pasted (an empty result must be shown as a pasted command with its exit status, not asserted). PLUS the fate of the `Path` import stated with its reason: if kept, name the surviving use; if removed, show the file still imports what its annotations need and the suite still passes. PLUS the new comment quoted, checked to name BOTH the legal-six-character-id6 requirement AND the unparseable-token guard it prevents, since a comment that says only "use a real id6" does not tell the next reader what goes wrong. PLUS a diff confirming the file's other five tests are byte-unchanged, and a `grep` showing no real plan id6 remains in the drain half. PLUS the bare-suite summary line after all three items, compared to V-01(a)'s, with NO NEW failures. PLUS `aw ipd lint --phase pre-transition` conforming and `aw sanitize --agent` clean, both pasted.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS.
+    Command: `grep -n 'parents\[' tests/test_dependency_block_reporting.py; echo "EXIT_STATUS: $?"`
+    Output: `EXIT_STATUS: 1` (no matches).
+    Fate of `Path` import: KEPT, because `Path` is used for type annotations (`tmp_path: Path` in 7 tests) and `Path.cwd()` in `test_orchestrator_terminate_carries_recovery_hint_and_reconsider_does_not`.
+    New comment quoted:
+    ```python
+    # Synthesize a pending plan under tmp_path so the dependency resolves against
+    # disk without coupling to the live repository. The dependency token must be a
+    # legal six-character id6; a malformed token silently diverts to the unparseable-token
+    # guard and asserts nothing about resolution.
+    ```
+    Names both legal six-character id6 requirement and the unparseable-token guard prevented.
+    `git diff` confirms all other tests in `tests/test_dependency_block_reporting.py` are byte-unchanged.
+    `grep` confirms no real plan id6 in drain half (only synthetic `drn001` and `drn999`).
+    Bare-suite summary line post-change: `3878 passed, 2 skipped, 3 warnings in 146.58s (0:02:26)` (identical passed count to V-01(a), zero new failures).
+    `aw ipd lint .aw/records/plans/pending/20260929-03aicr-01-jefifu-restore-the-drain-test-s-real-branch-coverage-which-an-inter.ipd.md --phase pre-transition` conforming.
+    `aw sanitize --agent` output:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}` (clean, 0 findings).
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: THE MUTATION CHECK, IN FOUR CELLS, which is this plan's decisive evidence and the one it cannot be reported done without. Paste the pytest result line for each, each labelled with the exact stub and token used, and each COMPARED to the review-reproduced matrix. (a) the final test under NO mutation: PASSES. (b) the final test with `runner_shared.edge_satisfied` stubbed to `lambda edge, item, state, by_id: (False, "")`: FAILS, and paste the assertion that tripped, which must be one of E-04's three guards and NOT an unrelated error. (c) the final test with the same stub returning `(True, "")`: FAILS at `assert not sat`. (d) the PRE-E-02 form (token `executed:drnprereq`, live root) carrying E-04's guards: FAILS on the `unparseable dependency token` guard, which is what proves the guard discriminates the branch rather than merely being true today. CELLS (b) AND (d) ARE THE WHOLE POINT and neither may be omitted: without (b) there is no evidence the test can fail when the code breaks, and without (d) there is no evidence the new assertion would have caught `f1b5b9ff`. Also paste, for contrast, the SAME four cells run WITHOUT E-04's guards (i.e. E-02 only), which review measured as PASS/PASS/FAIL/PASS; that contrast is what shows E-04 and not E-02 restored the sensitivity, and a run reporting the same matrix for both forms has mismeasured something and must not be reported satisfied. Stub via a throwaway probe or monkeypatch, NEVER by editing `agent_workflows/runner_shared.py`, and confirm `git status --porcelain` shows no production file touched and no probe left behind. FINALLY, quote the three added assertions and confirm each reads from `un_reasons` (not from `drain_diags`), and that none asserts positively on the resolution wording.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS.
+    Four-cell mutation matrix WITH E-04 guards (run via throwaway probe):
+    Cell (a) [final test under NO mutation, token `executed:drn999`, synthetic root]:
+      Command: `python3 -m pytest -o addopts="" tests/probe_jefifu_mutation.py::test_guards_cell_a_no_mutation`
+      Result: `1 passed in 0.16s` (PASS)
+    Cell (b) [final test with `runner_shared.edge_satisfied` stubbed to `lambda e,i,s,b: (False, "")`]:
+      Command: `python3 -m pytest -o addopts="" tests/probe_jefifu_mutation.py::test_guards_cell_b_reason_destroy`
+      Result: `1 failed in 0.41s` (FAIL)
+      Tripped assertion:
+      `AssertionError: assert 'executed:drn999: dependency not satisfied' not in 'executed:drn999: dependency not satisfied'`
+      (`assert f"{token}: dependency not satisfied" not in drain_reason`)
+    Cell (c) [final test with stub returning `(True, "")`]:
+      Command: `python3 -m pytest -o addopts="" tests/probe_jefifu_mutation.py::test_guards_cell_c_satisfy_stub`
+      Result: `1 failed in 0.49s` (FAIL)
+      Tripped assertion:
+      `assert not True` (`assert not sat`)
+    Cell (d) [pre-E-02 form with token `executed:drnprereq`, live root, carrying E-04 guards]:
+      Command: `python3 -m pytest -o addopts="" tests/probe_jefifu_mutation.py::test_guards_cell_d_pre_e02_token`
+      Result: `1 failed in 0.37s` (FAIL)
+      Tripped assertion:
+      `AssertionError: assert 'unparseable dependency token' not in 'executed:drnprereq: unparseable dependency token'`
+      (`assert "unparseable dependency token" not in drain_reason`)
+
+    Contrast matrix WITHOUT E-04 guards (E-02 only):
+    Cell (a) [final test under NO mutation]: `1 passed in 0.32s` (PASS)
+    Cell (b) [final test with reason-destroying stub]: `1 passed in 0.28s` (PASS)
+    Cell (c) [final test with satisfy-stub]: `1 failed in 0.43s` (FAIL)
+    Cell (d) [pre-E-02 form with token `executed:drnprereq`, live root]: `1 passed in 0.38s` (PASS)
+
+    Matrix comparison:
+    With E-04 guards: PASS / FAIL / FAIL / FAIL (all 4 cells match expected matrix).
+    Without E-04 guards: PASS / PASS / FAIL / PASS (reproduces review measurement F9).
+    Probe removed immediately; `git status --porcelain` confirms no probe left behind and no production file touched.
+
+    Quoted three added assertions:
+    ```python
+    drain_reason = un_reasons[drain_token]
+    assert "unparseable dependency token" not in drain_reason
+    assert "Cannot locate IPD" not in drain_reason
+    assert f"{drain_token}: dependency not satisfied" not in drain_reason
+    ```
+    Each assertion reads directly from `un_reasons` (not from `drain_diags`), and none asserts positively on the resolution wording.
+  - Result: pass
 
 ## Approval and execution gate
 

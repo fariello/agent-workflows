@@ -154,24 +154,40 @@ def test_frozen_record_no_duplicate_parenthetical_or_blocked() -> None:
 
 def test_drain_and_cascade_mapped_reasons_rendered_once(tmp_path: Path) -> None:
     """Case (c): drain-shaped and post-E-01 cascade items render mapped reason exactly once."""
-    repo_root = Path(__file__).resolve().parents[1]
+    # Synthesize a pending plan under tmp_path so the dependency resolves against
+    # disk without coupling to the live repository. The dependency token must be a
+    # legal six-character id6; a malformed token silently diverts to the unparseable-token
+    # guard and asserts nothing about resolution.
+    pending = tmp_path / ".aw" / "records" / "plans" / "pending"
+    pending.mkdir(parents=True)
+    (pending / "20260919-s-01-drn999-dep.ipd.md").write_text(
+        "# IPD: dep\n\n- Id: drn999\n- Status: approved\n", encoding="utf-8"
+    )
 
     # Drain item: reasons derived via dependency_status_detailed
+    drain_token = "executed:drn999"
     drain_item: dict[str, Any] = {
         "position": 1,
         "id6": "drn001",
         "setid": "test",
         "action": "execute",
         "status": "fail-depend",
-        "dependencies": ["executed:drnprereq"],
+        "dependencies": [drain_token],
     }
     state_drain: dict[str, Any] = {
         "queue": [drain_item],
-        "repo": str(repo_root),
+        "repo": str(tmp_path),
         "run_id": "run-drain",
     }
     sat, un_deps, un_reasons = dependency_status_detailed(drain_item, state_drain)
     assert not sat
+
+    # Guard against falling back to unparseable token, resolver error, or empty-reason substitute:
+    drain_reason = un_reasons[drain_token]
+    assert "unparseable dependency token" not in drain_reason
+    assert "Cannot locate IPD" not in drain_reason
+    assert f"{drain_token}: dependency not satisfied" not in drain_reason
+
     drain_item["unsatisfied_dependencies"] = un_deps
     drain_item["unsatisfied_dependency_reasons"] = un_reasons
 
@@ -180,7 +196,7 @@ def test_drain_and_cascade_mapped_reasons_rendered_once(tmp_path: Path) -> None:
     assert len(drain_diags) == 1
     assert "(blocked)" not in drain_diags[0]
     # Reason mapped from dependency_status_detailed appears in output
-    assert un_reasons["executed:drnprereq"] in drain_diags[0]
+    assert un_reasons[drain_token] in drain_diags[0]
 
     # Post-E-01 cascade item: produced by calling cascade_dependency_blocked
     prereq = {
