@@ -1,5 +1,5 @@
 - Id: 52zt7n
-- Status: graduated
+- Status: done
 - Graduated-To: readmestale
 - Set: 52zt7n
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: A stale records-root README survives forever in an already-installed repo because the ensurer is no-clobber
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD xqf71x executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-readmestale-01-xqf71x-give-the-framework-generated-records-root-readme-a-known-shi.ipd.md); evidence .aw/records/plans/executed/20260930-readmestale-01-xqf71x-give-the-framework-generated-records-root-readme-a-known-shi.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053059Z-3200713: xqf71x
 - 2026-09-28 created (aw backlog): A stale records-root README survives forever in an already-installed repo because the ensurer is no-clobber
 
