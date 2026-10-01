@@ -1,11 +1,13 @@
 - Id: jd01a0
-- Status: open
+- Status: graduated
+- Graduated-To: jd01a0
 - Set: jd01a0
 - Priority: low
 - Work-Kind: chore
 - Summary: Decide whether spec kw5y2s should move from approved to implemented now its wslayout Set has fully executed
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): graduated by run run-20260930T053059Z-3200713: dwivqd
 - 2026-09-29 created (aw backlog): Decide whether spec kw5y2s should move from approved to implemented now its wslayout Set has fully executed
 
 Spec kw5y2s (.aw/records/specs/approved/20260901-kw5y2s-01-kw5y2s-unified-workspace-hierarchy-spec-and-install-time-layout-emi.spec.md) is still Status: approved, but the evidence that it is IMPLEMENTED is strong, measured at HEAD 6def8fef on 2026-09-29:
