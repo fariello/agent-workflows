@@ -1074,6 +1074,35 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         legacy_flags=("--workflow", "--actor", "--step", "--agent", "--json"),
         exit_contract=(0, 2, 3, 5, 6),
     ),
+    # `command_class="read"`: `runs next` reconstructs state and reports runnable steps without
+    # writing to the ledger or disk, matching `RUNS_VIEWER_LEAF_NAMES` and `run_cli` docstring.
+    #
+    # `exit_contract=(0, 2, 3, 5, 7)`:
+    # - 0: `EXIT_OK` from `_run_next`'s terminal-run arm (`if terminal: return EXIT_OK`) and from
+    #   its runnable-steps arm (`return EXIT_OK if runnable_ids else EXIT_BLOCKED`).
+    # - 2: `EXIT_INVALID_INVOCATION` from `_resolve_or_error`'s `_emit_no_target` and
+    #   `_emit_ledger_not_found` arms, from `_build_engine`'s empty-ledger and catch-all read-failure
+    #   arms, and from argparse's own usage error on invalid flags.
+    # - 3: `EXIT_BLOCKED` from `_run_next`'s final `return EXIT_OK if runnable_ids else EXIT_BLOCKED`,
+    #   reached by a non-terminal run with no runnable steps.
+    # - 5: `EXIT_CORRUPTED_LEDGER` from `_build_engine`'s `LedgerCorruption` arm and from `_run_next`'s
+    #   own `except store.LedgerCorruption` arm.
+    # - 7: `EXIT_NOT_A_LEDGER` from `_build_engine`'s `NotALedgerError` arm via `_emit_not_a_ledger`.
+    #
+    # Two negatives are deliberate:
+    # (a) NOTHING IS REMOVED HERE, and in particular 3 IS GENUINELY REACHABLE on this leaf, unlike on
+    # `runs resume` where plan `ck0vya` removed it: `next`'s 3 comes from a plain `if/else` on
+    # `runnable_ids` in `_run_next` and needs no `UnknownOutcomeError`, no `STATE_RUNNING`, and no
+    # ephemeral engine state, so the reasoning that made 3 unreachable on `resume` does not transfer
+    # and must not be copied across.
+    # (b) 1 IS ABSENT DELIBERATELY: `_run_next` never returns `EXIT_INCOMPLETE`, and adding it would
+    # oblige a `domain_failure` conformance scenario in `tests/conformance_matrix.required_scenarios`,
+    # which keys precisely on `1 in decl.exit_contract` for a `read` class, for an outcome this verb
+    # does not produce. `conformance_matrix` is currently a dead surface with no live importer (F-05),
+    # so the obligation is currently latent rather than enforced, and 1 is still omitted on correctness
+    # grounds rather than because nothing would catch it. The contract is not capped at (0, 1, 2)
+    # because `run_cli._emit_error` machine payloads are deliberately not `aw.agent/v1` records and
+    # `run_cli` imports `agent_schema` zero times.
     CommandDeclaration(
         command="runs next",
         command_class="read",
@@ -1082,7 +1111,7 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         mutation_gate="none",
         empty_error_renderer="renderer_boundary",
         legacy_flags=("--workflow", "--agent", "--json"),
-        exit_contract=(0, 3),
+        exit_contract=(0, 2, 3, 5, 7),
     ),
     CommandDeclaration(
         command="run record",
@@ -1143,6 +1172,29 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         legacy_flags=("--workflow", "--actor", "--reason", "--agent", "--json"),
         exit_contract=(0, 5, 6),
     ),
+    # `command_class="read"`: `runs status` reconstructs state and displays run progress without
+    # writing to the ledger or disk, matching `RUNS_VIEWER_LEAF_NAMES`.
+    #
+    # `exit_contract=(0, 1, 2, 3, 5, 7)`:
+    # - 0: `EXIT_OK` from `_run_status` when run is terminal and state is `run_state.STATE_COMPLETE`.
+    # - 1: `EXIT_INCOMPLETE` from `_run_status`'s tail for any non-terminal run (e.g. `STATE_PENDING`),
+    #   representing ordinary work-in-progress status rather than an error.
+    # - 2: `EXIT_INVALID_INVOCATION` from `_resolve_or_error`'s `_emit_no_target` and
+    #   `_emit_ledger_not_found` arms, from `_build_engine`'s empty-ledger and catch-all read-failure
+    #   arms, and from argparse's own usage error on invalid flags.
+    # - 3: `EXIT_BLOCKED` from `_run_status` when run is terminal and state is `run_state.STATE_CANCELLED`.
+    # - 5: `EXIT_CORRUPTED_LEDGER` from `_build_engine`'s `LedgerCorruption` arm and from `_run_status`'s
+    #   own `except store.LedgerCorruption` arm.
+    # - 7: `EXIT_NOT_A_LEDGER` from `_build_engine`'s `NotALedgerError` arm via `_emit_not_a_ledger`.
+    #
+    # Sibling asymmetry with `runs next`:
+    # `status` KEEPS 1 while `next` omits it, and the two declarations therefore have different
+    # `required_scenarios` under `tests/conformance_matrix.required_scenarios`: `status` obliges a
+    # `domain_failure` row while `next` does not. This asymmetry is genuine and reflects the verbs'
+    # real behavior (`_run_status` returns `EXIT_INCOMPLETE` on work-in-progress, whereas `_run_next`
+    # returns `EXIT_OK` if runnable steps remain or `EXIT_BLOCKED` if none are runnable). It must
+    # not be "tidied" into symmetry. Because `status` already declared 1 prior to plan `69rdv6`,
+    # widening with 2 and 7 changes no required conformance scenario.
     CommandDeclaration(
         command="runs status",
         command_class="read",
@@ -1151,7 +1203,7 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         mutation_gate="none",
         empty_error_renderer="renderer_boundary",
         legacy_flags=("--workflow", "--agent", "--json"),
-        exit_contract=(0, 1, 3, 5),
+        exit_contract=(0, 1, 2, 3, 5, 7),
     ),
     # runprofile Order 04 (ygzq71) E-01: the two HOST-NEUTRAL DISPATCH routes on the writing noun.
     # `aw run as <profile> ...` and `aw run ipd ...` forward argv verbatim to the resolved host
