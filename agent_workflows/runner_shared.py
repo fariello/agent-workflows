@@ -20650,17 +20650,20 @@ def render_transient_dependency_waits(state: Mapping[str, Any]) -> list[str]:
     """Report lines for every item left `queued` by a TRANSIENT drain verdict. SHARED renderer.
 
     Returns [] when there are none, so an unaffected run's report is byte-identical to before.
+    A non-mapping queue entry cannot carry transient dependency waits and is skipped, so it cannot
+    hide a waiting item.
 
     Shared for the same reason `format_preserved_lanes` is: the measured failure mode in this
     repository is a run that preserves or defers something and mentions it ZERO times in the report a
     human actually reads, so the two hosts must not be able to disagree about which items are waiting.
     """
 
-    waiting = [
-        item
-        for item in (state.get("queue") or [])
-        if item.get(TRANSIENT_DEPENDENCY_WAIT_KEY)
-    ]
+    waiting: list[Mapping[str, Any]] = []
+    for item in state.get("queue") or []:
+        if not isinstance(item, Mapping):
+            continue
+        if item.get(TRANSIENT_DEPENDENCY_WAIT_KEY):
+            waiting.append(item)
     if not waiting:
         return []
     lines = [
@@ -22611,10 +22614,14 @@ def format_verifier_evidence_section(state: dict[str, Any], run_dir: Path) -> li
     """Render the `## Verification evidence` section for `execution-report.md`.
 
     Returns [] if no items have verified test evidence, ensuring unaffected reports are byte-identical.
+    A non-mapping queue entry cannot carry verifier evidence and is skipped, so it cannot hide test
+    evidence.
     """
     queue = state.get("queue", [])
     verified_items: list[tuple[dict[str, Any], list[str], list[str]]] = []
     for item in queue:
+        if not isinstance(item, Mapping):
+            continue
         pos = item.get("position", 1)
         id6 = item.get("id6", "")
         v_outcome_file = run_dir / "outcomes" / f"{pos:02d}-{id6}-verification.json"
@@ -26199,6 +26206,28 @@ EXIT_SUCCESS_TOKEN = "aw-item-met-its-action-success-bar"
 #: a failure under both normal and graceful-stop runs rather than silently excusing it.
 EXIT_MALFORMED_ENTRY_TOKEN = "aw-queue-entry-was-malformed"
 
+#: The report-facing status token :func:`write_report` emits for a queue entry that was NOT a mapping
+#: (0kh97v E-02). Unlike :data:`EXIT_MALFORMED_ENTRY_TOKEN`, which lives in the exit-code vocabulary
+#: and is deliberately not spellable as a real status, this token is rendered in human-facing report
+#: table cells and parsed by downstream report parsers, so it reads as a plain status word.
+#:
+#: WHY A DISTINCT BUCKET: :func:`canonical_terminal_status` passes this token through unchanged, so
+#: folding it onto a real status such as 'failed' or 'unknown' would assert a disposition nobody
+#: measured, while its own bucket is honest and visibly not a driver-written status.
+#:
+#: SPELLING CONSTRAINTS: Must contain no backtick, no pipe, and no leading digit so that
+#: `run_viewer.load_run_summary`'s report-table fallback arm parses it cleanly into counts.
+#:
+#: COORDINATED DUPLICATION WITH SIBLING PLAN 165lkb (F-13): Pending plan 165lkb (from s438xd) adds a
+#: render-facing token of the SAME SPELLING as a `render_stream` module constant (`render_stream`
+#: cannot import from `runner_shared` at module level without creating an import cycle, and its
+#: allowlist deliberately restricts first-party imports). The two constants are therefore parallel
+#: definitions by design rather than an overlooked duplicate.
+REPORT_MALFORMED_ENTRY_TOKEN = "malformed-entry"
+
+#: Placeholder marker in report table cells for fields that could not be read from a malformed queue entry.
+REPORT_UNREADABLE_MARKER = "(unreadable)"
+
 
 def exit_code_statuses(queue: Sequence[Mapping[str, Any]]) -> list[str]:
     """Project each queue entry onto the token the run's exit-code predicate should judge (zz5yxq E-02).
@@ -26797,9 +26826,16 @@ def format_generated_next_actions_section(
     *,
     host_command: str = "oc",
 ) -> list[str]:
-    """Render the 'Generated next actions' section for execution-report.md (E-06)."""
+    """Render the 'Generated next actions' section for execution-report.md (E-06).
+
+    Returns [] when no generated next actions apply, so an unaffected run's report is byte-identical
+    to before. A non-mapping queue entry cannot carry generated next actions and is skipped, so it
+    cannot hide real actions.
+    """
     actions: list[tuple[str, dict[str, Any]]] = []
     for item in state.get("queue") or []:
+        if not isinstance(item, Mapping):
+            continue
         for act in item.get("generated_next_actions") or []:
             actions.append((str(item.get("id6") or ""), act))
     if not actions:
@@ -26857,6 +26893,11 @@ def write_report(
     """
     counts: dict[str, int] = {}
     for item in state["queue"]:
+        if not isinstance(item, Mapping):
+            counts[REPORT_MALFORMED_ENTRY_TOKEN] = (
+                counts.get(REPORT_MALFORMED_ENTRY_TOKEN, 0) + 1
+            )
+            continue
         counts[item["status"]] = counts.get(item["status"], 0) + 1
     lines = [
         f"{labels.report_title} {state.get('run_id', '')}",
@@ -26881,7 +26922,13 @@ def write_report(
             "|---:|---|---|---|---|---|---:|---|",
         ]
     )
-    for item in state["queue"]:
+    for _idx, item in enumerate(state["queue"], 1):
+        if not isinstance(item, Mapping):
+            lines.append(
+                f"| {_idx} | `{REPORT_UNREADABLE_MARKER}` | `{REPORT_UNREADABLE_MARKER}` | `{REPORT_UNREADABLE_MARKER}` | "
+                f"{REPORT_MALFORMED_ENTRY_TOKEN} |  | 0 | `` |"
+            )
+            continue
         attempts = item.get("attempts", [])
         session = attempts[-1].get("session_id", "") if attempts else ""
         action = item.get("action", "execute")
@@ -26895,7 +26942,8 @@ def write_report(
     blocked = [
         item
         for item in state["queue"]
-        if canonical_terminal_status(item.get("status")) == "fail-depend"
+        if isinstance(item, Mapping)
+        and canonical_terminal_status(item.get("status")) == "fail-depend"
         and (
             item.get("unsatisfied_dependencies")
             or item.get("unsatisfied_dependency_reasons")
@@ -26904,6 +26952,8 @@ def write_report(
     if blocked:
         lines.extend(["", "## Dependency blocks (why)", ""])
         for item in blocked:
+            if not isinstance(item, Mapping):
+                continue
             reasons = item.get("unsatisfied_dependency_reasons") or {}
             lines.append(f"- `{item['id6']}` (position {item['position']}):")
             for dep in item.get("unsatisfied_dependencies") or []:

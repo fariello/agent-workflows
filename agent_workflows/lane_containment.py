@@ -48,7 +48,7 @@ import sys
 import tempfile
 import threading
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any, NamedTuple, Protocol
 
@@ -3984,10 +3984,13 @@ def format_preserved_lanes(state: dict[str, Any]) -> list[str]:
 
     ONE RENDERER, called by BOTH drivers' `write_report` (spec R6.1): the two reports diverge in
     format, but "which lanes survived and why" must not diverge in CONTENT. Returns `[]` when nothing
-    was preserved, so an unaffected run's report is byte-identical to before.
+    was preserved, so an unaffected run's report is byte-identical to before. A non-mapping queue entry
+    cannot carry `preserved_worktree` and is skipped as having preserved nothing.
     """
     lines: list[str] = []
     for item in state.get("queue", []) or []:
+        if not isinstance(item, Mapping):
+            continue
         if not item.get("preserved_worktree"):
             continue
         lines.append(
