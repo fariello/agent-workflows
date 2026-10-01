@@ -6,7 +6,7 @@
 - Scope: Apply line-integrity validation to every user-supplied value `status_set.run_set_command` writes into an artifact and does not already validate, refusing BEFORE any file is written or any id resolved, so one guard covers all five trees that share this dispatch. The guarded set is the five flags measured live here: `--message` and `--actor` (which land in the `## Workflow history` line) and `--gate-ref`, `--gate-summary` and `--blocks-release` (which land in FRONT MATTER). Mode is LINE INTEGRITY ONLY for `--message` (newline, carriage return, control characters; NOT length), because roughly two fifths of all committed history messages across the three populated trees already exceed the 300-character `MAX_DESCRIPTIVE_LEN` bound (measured 2589/6889 at authoring and 2847/7427 at review; the RATIO is the stable fact, the counts drift) and a length bound would refuse the setter's own normal output; the four short identifier-shaped or single-line fields get the full bounded predicate. THE COVERAGE CLAIM IS ENUMERATED, NOT ASSERTED: `--graduated-to` and `--release-exempt-ref` already refuse a newline through existing shape validators, and `--by-human`/`--allow-open-questions`/`--dry-run`/`--force`/`--yes` are store_true booleans carrying no value, so the guarded set plus the already-validated set is the complete value-bearing surface of this function. DELIBERATELY NOT COVERED: the `--status` spelling of each tree's own `run_set` (plan `uz05bl` owns it), the dead `aw prompts set` parser registration (F-09), and the `status_set` display-regex divergence (F-08).
 - Scope-Paths: agent_workflows/status_set.py, tests/test_status_set_descriptive_safety.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 4gwgo3
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 4gwgo3 verified (set nw9dmz, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): plan-review complete: PR-201..PR-205 all fixed, zero deferred, zero open
 
