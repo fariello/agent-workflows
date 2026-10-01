@@ -56,47 +56,47 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: stop the uncaught refusal
 
-- [ ] E-01 In `git_commit_helper.offer_commit`, catch `commit_lock.CommitLockBusy` around the `with _lock.writer_lock(repo_root, owner="git_commit_helper.offer_commit"):` statement and return `CommitOutcome(STATUS_ERROR, None, (), <the exception's message>)` instead of letting it propagate. Keep the raise itself in `commit_lock` untouched: `writer_lock` is a general context manager whose fail-closed contract `9bq5o4` established and a test pins, so the translation belongs at the caller that owns the `CommitOutcome` vocabulary. Place the `try` OUTSIDE the `with` so nothing inside the lock window changes, and so a `CommitLockBusy` raised by the acquisition (the only place it is raised) is the only exception caught: do NOT wrap the body, which would swallow a genuine failure from the staging and commit steps.
+- [x] E-01 In `git_commit_helper.offer_commit`, catch `commit_lock.CommitLockBusy` around the `with _lock.writer_lock(repo_root, owner="git_commit_helper.offer_commit"):` statement and return `CommitOutcome(STATUS_ERROR, None, (), <the exception's message>)` instead of letting it propagate. Keep the raise itself in `commit_lock` untouched: `writer_lock` is a general context manager whose fail-closed contract `9bq5o4` established and a test pins, so the translation belongs at the caller that owns the `CommitOutcome` vocabulary. Place the `try` OUTSIDE the `with` so nothing inside the lock window changes, and so a `CommitLockBusy` raised by the acquisition (the only place it is raised) is the only exception caught: do NOT wrap the body, which would swallow a genuine failure from the staging and commit steps.
   - Depends on: none
 
   CATCHING `CommitLockBusy` SPECIFICALLY IS WHAT MAKES THE `try` PLACEMENT SAFE, AND THE BLOCK IS BIG, so this is worth stating rather than assuming. Measured at review: the `with` body contains ELEVEN `return` statements, several of them already returning `CommitOutcome(STATUS_ERROR, ...)` for a failed `git add` or a bad trailer. A `try` wrapping the `with` is transparent to every one of them (a `return` is not an exception), which is why this placement costs nothing; but it is ONLY safe because the `except` names `CommitLockBusy`. If it named `Exception` it would convert a genuine mid-commit failure inside that eleven-return body into a lock-busy message, mislabelling a real defect as contention. That is the single most damaging way to mis-implement this item, and it is invisible in the happy path.
   - Expected outcome: with a live peer holding the lock past the budget, `offer_commit` RETURNS an outcome whose `status` is `STATUS_ERROR` and whose message names the holding PID and owner, rather than raising. The five call sites that already branch on `STATUS_ERROR` (`cli._offer_records_commit`, `specs`, `status_set`, `plans_archive`, `research_archive`) reach their existing "warning: self-commit skipped" line with no edit to any of them, and `work_cmd.run_commit` reaches its `return 1` arm.
-  - Execution state: pending
+  - Execution state: performed
 
   NOTE THE `STATUS_ERROR` ARM IS DOUBLED AT EACH OF THE FIVE, and both halves must become live. Verified at review: each of those five has TWO `STATUS_ERROR` branches, one inside an `is_agent_or_json` block writing to stderr and one in the human path. An `--agent`/`--json` invocation takes the first and a plain invocation the second, so a reproduction driven only one way proves only one arm. Exercise at least one verb BOTH ways.
 
-- [ ] E-02 Verify by reading, and record in this plan's Findings, that the message the new outcome carries is the actionable one `commit_lock` already composes (it names the live PID, the owner string, the seconds waited, and the absolute lock path to remove if the holder is dead). Do NOT compose a second message: a caller-side rewrite would drop the lock path, which is the only part a human can act on when the holder is genuinely dead. If the text passes through unchanged, say so; if anything is lost, name what and fix the pass-through rather than the text.
+- [x] E-02 Verify by reading, and record in this plan's Findings, that the message the new outcome carries is the actionable one `commit_lock` already composes (it names the live PID, the owner string, the seconds waited, and the absolute lock path to remove if the holder is dead). Do NOT compose a second message: a caller-side rewrite would drop the lock path, which is the only part a human can act on when the holder is genuinely dead. If the text passes through unchanged, say so; if anything is lost, name what and fix the pass-through rather than the text.
   - Depends on: E-01
   - Expected outcome: a written confirmation that the operator-facing text is preserved verbatim from `commit_lock`'s raise, with the four elements enumerated, and no new message string introduced anywhere.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: restore the coverage the module promises
 
-- [ ] E-03 Add a test to `tests/test_contention_wait.py` asserting `commit_lock.lock_path(repo) == ipd_lifecycle.finalize_lock_path(repo)`. `commit_lock.py`'s comment beside `_LOCK_RELPATH` claims "a test asserts the two paths are identical so they cannot drift apart silently"; that test lived in `tests/test_commit_lock.py`, which was deleted wholesale in commit `19313eed` ("test: trim test suite from 9,136 to under 2,000 tests"), so the claim is currently false. The nearest survivor only asserts the substring `ipd_finalize_writer.lock` appears in a refusal message, which would still pass if the two directories diverged. Put it in the same file as the other surviving `writer_lock` call-site tests rather than reviving the deleted module, so the lock's coverage stays in one place.
+- [x] E-03 Add a test to `tests/test_contention_wait.py` asserting `commit_lock.lock_path(repo) == ipd_lifecycle.finalize_lock_path(repo)`. `commit_lock.py`'s comment beside `_LOCK_RELPATH` claims "a test asserts the two paths are identical so they cannot drift apart silently"; that test lived in `tests/test_commit_lock.py`, which was deleted wholesale in commit `19313eed` ("test: trim test suite from 9,136 to under 2,000 tests"), so the claim is currently false. The nearest survivor only asserts the substring `ipd_finalize_writer.lock` appears in a refusal message, which would still pass if the two directories diverged. Put it in the same file as the other surviving `writer_lock` call-site tests rather than reviving the deleted module, so the lock's coverage stays in one place.
   - Depends on: none
   - Expected outcome: one test that FAILS if either path expression is changed independently, pinning the shared-file property that `commit_lock`'s module docstring calls the whole point of not adding a second lock.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add a test to `tests/test_contention_wait.py` driving `git_commit_helper.offer_commit` in a real temporary git repository with a live-peer lock payload in place, asserting it RETURNS `STATUS_ERROR` with the holder named and does NOT raise. Use the same fake-`_pid_alive` and small-`timeout` technique the neighbouring `writer_lock` tests already use so the test stays fast. This is the regression guard for E-01 and must exercise the real `offer_commit` (not a stubbed lock), because the defect was precisely that an exception crossed that function boundary.
+- [x] E-04 Add a test to `tests/test_contention_wait.py` driving `git_commit_helper.offer_commit` in a real temporary git repository with a live-peer lock payload in place, asserting it RETURNS `STATUS_ERROR` with the holder named and does NOT raise. Use the same fake-`_pid_alive` and small-`timeout` technique the neighbouring `writer_lock` tests already use so the test stays fast. This is the regression guard for E-01 and must exercise the real `offer_commit` (not a stubbed lock), because the defect was precisely that an exception crossed that function boundary.
   - Depends on: E-01
   - Expected outcome: a behavioral test that fails against pre-E-01 code with an uncaught `CommitLockBusy` and passes after, asserting on the returned outcome's status and message rather than on any code structure.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: retire the superseded claims
 
-- [ ] E-05 Correct the comment block on `ipd_lifecycle.FINALIZE_LOCK_WAIT_SECONDS`, which asserts three things that are all false at HEAD, and add the CHANGELOG line. The three: that `writer_lock` holders "keep it for well under a second" (this is the exact false premise backlog `bqz8kn` was filed against, and it survives HERE after `9bq5o4` corrected the copy in `commit_lock`); that `writer_lock` waits "(default 5 s, polling every 50 ms)" (it waits 1800s polling every 0.1s); and the heading "WHY LONGER THAN `writer_lock`'s 5 s", whose whole premise is gone because both budgets now resolve to the same `contention_wait.TIMEOUT_SECONDS`. Keep the paragraph's genuinely load-bearing content: the measured 2026-09-27 race in run `run-20260927T001634Z-258437` that motivated waiting at all, and the reason the bound stays finite. Replace the stale "why longer" heading with the accurate reason the two budgets are now one shared policy constant. Then add ONE `- Fixed:` line under `## 2.0.0 (pending)` in `CHANGELOG.md` describing the user-visible change from E-01 (a busy peer no longer crashes the command), in the user-facing register with no em or en dashes.
+- [x] E-05 Correct the comment block on `ipd_lifecycle.FINALIZE_LOCK_WAIT_SECONDS`, which asserts three things that are all false at HEAD, and add the CHANGELOG line. The three: that `writer_lock` holders "keep it for well under a second" (this is the exact false premise backlog `bqz8kn` was filed against, and it survives HERE after `9bq5o4` corrected the copy in `commit_lock`); that `writer_lock` waits "(default 5 s, polling every 50 ms)" (it waits 1800s polling every 0.1s); and the heading "WHY LONGER THAN `writer_lock`'s 5 s", whose whole premise is gone because both budgets now resolve to the same `contention_wait.TIMEOUT_SECONDS`. Keep the paragraph's genuinely load-bearing content: the measured 2026-09-27 race in run `run-20260927T001634Z-258437` that motivated waiting at all, and the reason the bound stays finite. Replace the stale "why longer" heading with the accurate reason the two budgets are now one shared policy constant. Then add ONE `- Fixed:` line under `## 2.0.0 (pending)` in `CHANGELOG.md` describing the user-visible change from E-01 (a busy peer no longer crashes the command), in the user-facing register with no em or en dashes.
   - Depends on: E-01
   - Expected outcome: no PRODUCTION SOURCE file asserts the 5-second budget or the sub-second hold time; `grep -rn "well under a second" agent_workflows/` and `grep -rn "default 5 s" agent_workflows/` each return no hits; the measured-race justification survives; and one CHANGELOG entry describes the fix in user terms.
-  - Execution state: pending
+  - Execution state: performed
 
   THE EXIT CRITERION IS SCOPED TO `agent_workflows/`, AND THE EARLIER TREE-WIDE VERSION WAS UNSATISFIABLE. Corrected at review. A tree-wide `rg "well under a second"` cannot reach zero hits and MUST NOT: measured at review, the phrase also appears in backlog `bqz8kn`'s own `- Summary:` and body and in DONE backlog item `duac3v`, all of which are DURABLE HISTORICAL RECORDS quoting the false claim as the defect they were filed against. Editing them would rewrite the record of why this work happened, which the repository's plan-lifecycle rules forbid. `default 5 s` is the same shape: at review its only non-plan hit is the one production line E-05 fixes, but the criterion is scoped for the same reason so a future record quoting it cannot make this item fail. Verify with `git status --short` after E-05 that no `.aw/records/` path was modified.
 
 ### Task group 4: prove no regression
 
-- [ ] E-06 Establish the suite baseline BEFORE any edit in this plan and re-measure it after, then compare. Run `python3 -m pytest` BARE (no added flags) at the unmodified HEAD of this lane and record the summary line plus the full FAILED set; run it again after E-01 through E-05 and record the same. Compare the two FAILED sets and account for every difference. This is ordered last in the checklist but its FIRST half must be performed FIRST, before any source edit, because a baseline taken afterwards cannot distinguish a failure this plan caused from one it inherited.
+- [x] E-06 Establish the suite baseline BEFORE any edit in this plan and re-measure it after, then compare. Run `python3 -m pytest` BARE (no added flags) at the unmodified HEAD of this lane and record the summary line plus the full FAILED set; run it again after E-01 through E-05 and record the same. Compare the two FAILED sets and account for every difference. This is ordered last in the checklist but its FIRST half must be performed FIRST, before any source edit, because a baseline taken afterwards cannot distinguish a failure this plan caused from one it inherited.
   - Depends on: E-05
   - Expected outcome: two pasted bare-suite summary lines with their FAILED sets, and an explicit statement of whether the sets are identical. Any new failure is either fixed or explained with evidence; a difference is never waved through as flakiness without naming the test and re-running it.
-  - Execution state: pending
+  - Execution state: performed
 
   THE SUITE IS GREEN, AND THIS ITEM PREVIOUSLY SAID THE OPPOSITE. Corrected at review: the earlier wording asserted "the repository has at least one known pre-existing failure, so 'the suite is green' is not the expected result and must not be asserted". MEASURED at review HEAD `1ea30f80` with a bare `python3 -m pytest`: `3246 passed, 2 skipped, 3 warnings` and ZERO `FAILED` lines. That correction matters because the old wording pre-authorized an executor to see a failure and attribute it to inherited breakage: with a green baseline, ANY failure in the after-run is caused by this plan and must be fixed, not explained away. Re-measure the baseline yourself rather than trusting this number (another lane may have integrated since), but if your baseline is NOT clean, say so explicitly and name every failing node id, because that is now the surprising result rather than the expected one.
 
@@ -127,6 +127,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-12 | E-05's exit criterion, and `.aw/records/backlog/` | ADDED AT REVIEW. E-05 and V-05 demanded `rg "well under a second"` return no hits TREE-WIDE. That is UNSATISFIABLE and must not be satisfied: measured, the phrase also appears in backlog `bqz8kn`'s `- Summary:` and body and in done item `duac3v`, both of which QUOTE the false claim as the defect they were filed against. An executor pursuing zero tree-wide hits would rewrite the durable record of why this plan exists. Scoped to `agent_workflows/`, where the sole surviving hit is the one line E-05 fixes. |
 | F-13 | the Goal's user-facing promise, and `status_set._offer_self_commit` | ADDED AT REVIEW. The Goal promised that `aw commit` "and `aw set`, `aw specs`, `aw backlog`, `aw work`, `aw archive`) exits nonzero" on a busy lock. FALSE for five of the seven: measured, the shared self-commit helper in `status_set`, `specs`, `plans_archive`, `research_archive` and `cli` is annotated `-> None` and its `STATUS_ERROR` arm writes `warning: self-commit skipped` WITHOUT affecting the exit code. Only `work_cmd.run_commit` returns 1 (F-5). The zero exit is CORRECT (the artifact rewrite succeeded; only the optional commit was skipped), so the defect was the plan's claim, not the code. Left as-is and the Goal corrected, because changing five verbs' exit codes would be an interface change well outside a crash fix. |
 | F-14 | backlog `bqz8kn`'s current status | ADDED AT REVIEW. The plan says the item is `open` in two places (F-2: "which is why the item is still `open` and still release-gating"; the workflow-history entry). Measured at review: it is `- Status: graduated` with `- Graduated-To: wlockbudget`, so the runner already recorded this plan as its handoff. `- Blocks-Release: next` and `- Work-Kind: bug` are unchanged, so the gate claim and the inheritance argument both stand; only the status word was stale. Corrected so V-06 does not send an executor looking for an `open` item. |
+| F-15 | `git_commit_helper.offer_commit` | VERIFIED AT EXECUTION (E-02, V-01, V-02): the message carried by `CommitOutcome` on expired wait is `str(exc)` passed through verbatim from `CommitLockBusy`, preserving all four actionable elements (live PID, owner string, seconds waited, absolute lock path) with no new message literal introduced. |
+
 
 ## Proposed changes (ordered, validatable)
 
@@ -190,35 +192,249 @@ does change is in-code (the `ipd_lifecycle` comment, E-05) plus one user-facing 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the diff of the `try`/`except CommitLockBusy` addition in `offer_commit`, showing the `try` is OUTSIDE the `with` and that the `except` names `CommitLockBusy` specifically (not `Exception`). Paste a transcript of a live-peer lock driven through the real `offer_commit` showing the RETURNED status and message (expected shape: `STATUS_ERROR` plus text naming the holding PID and owner), and confirm no traceback appears. A WORKING REPRODUCTION RECIPE, verified at review, so this evidence costs no discovery: in a scratch git repo write `{"pid": 1, "owner": "peer.test"}` into `commit_lock.lock_path(repo)` (PID 1 is always alive, so no `_pid_alive` fake is needed), shrink the budget by wrapping `commit_lock.writer_lock` with `functools.partial(orig, timeout=0.3, report_every=1000.0)`, then call `offer_commit`. At review that produced, verbatim, `RAISED UNCAUGHT: CommitLockBusy | the shared aw writer lock is held by live PID 1 (owner: peer.test); waited 0s. Wait for it to finish, or if that process is dead remove <abs path>`. State explicitly that `commit_lock.writer_lock`'s own raise was left unmodified, with the unchanged signature line quoted. ALSO paste the PER-VERB exit behavior the corrected Goal now claims: `work_cmd.run_commit` returning 1, and at least one of the five `-> None` self-commit helpers printing `warning: self-commit skipped` and NOT changing the exit code (F-13). Do NOT report "all verbs exit nonzero"; that was the earlier draft's false claim.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Live reproduction verified; diff confirms try/except CommitLockBusy outside with.
+    1. Diff of the `try`/`except CommitLockBusy` addition in `offer_commit` (`agent_workflows/git_commit_helper.py`), showing the `try` is OUTSIDE the `with` and that the `except` specifically names `_lock.CommitLockBusy`:
+    ```diff
+    @@ -695,7 +695,8 @@
+         # still fails closed. See `commit_lock` for the reproduction and the honest limit.
+         from agent_workflows import commit_lock as _lock
 
-- [ ] V-02 validates E-02
+    +    try:
+    +        with _lock.writer_lock(repo_root, owner="git_commit_helper.offer_commit"):
+    ...
+    +            return CommitOutcome(
+    +                STATUS_ERROR,
+    +                None,
+    +                tuple(our_staged),
+    +                f"git commit failed: {iso.detail}",
+    +            )
+    +    except _lock.CommitLockBusy as exc:
+    +        return CommitOutcome(STATUS_ERROR, None, (), str(exc))
+    ```
+    2. Live reproduction transcript driving real `offer_commit` with live PID 1 holder and 0.3s timeout in temporary git repository:
+    ```
+    === DIRECT OFFER_COMMIT ===
+    RETURNED status: error
+    RETURNED message: the shared aw writer lock is held by live PID 1 (owner: peer.test); waited 0s. Wait for it to finish, or if that process is dead remove /tmp/tmpnxpjnuac/.aw/state/runtime/locks/ipd_finalize_writer.lock
+    ```
+    Confirmed: outcome status is `error` (`STATUS_ERROR`), message names live PID 1 and owner `peer.test`, and no traceback appears.
+    3. `commit_lock.writer_lock`'s own raise was left unmodified. Unchanged signature line:
+    ```python
+    def writer_lock(
+        repo_root: Path,
+        *,
+        owner: str,
+        timeout: float = 1800.0,
+        poll: float = 0.1,
+        report_every: float = 60.0,
+        required: bool = True,
+        sleep: Callable[[float], None] = time.sleep,
+        now: Callable[[], float] = time.monotonic,
+        report: Optional[Callable[[str], None]] = None,
+    ) -> Iterator[bool]:
+    ```
+    4. Per-verb exit behavior:
+    - `work_cmd.run_commit` (`aw commit` verb):
+    ```
+    === WORK_CMD.RUN_COMMIT ===
+    aw commit: no plan governs this commit (--no-plan), so two plan-derived protections are SKIPPED: Scope-Paths enforcement and plan validation. Every other protection is unchanged: only the paths you named are staged, and the shared helper still snapshots the index first and commits only the intersection, so a co-worker's staged change cannot be swept in.
+    aw commit: error: the shared aw writer lock is held by live PID 1 (owner: peer.test); waited 0s. Wait for it to finish, or if that process is dead remove /tmp/tmpnxpjnuac/.aw/state/runtime/locks/ipd_finalize_writer.lock
+    EXIT CODE: 1
+    ```
+    - `status_set._offer_self_commit` (human path):
+    ```
+    === STATUS_SET._OFFER_SELF_COMMIT ===
+    warning: self-commit skipped: the shared aw writer lock is held by live PID 1 (owner: peer.test); waited 0s. Wait for it to finish, or if that process is dead remove /tmp/tmpnxpjnuac/.aw/state/runtime/locks/ipd_finalize_writer.lock
+    HELPER RETURN VALUE: None
+    ```
+    - `status_set._offer_self_commit` (agent mode - stderr):
+    ```
+    === STATUS_SET._OFFER_SELF_COMMIT (AGENT MODE - STDERR) ===
+    warning: self-commit skipped: the shared aw writer lock is held by live PID 1 (owner: peer.test); waited 0s. Wait for it to finish, or if that process is dead remove /tmp/tmphlenj97z/.aw/state/runtime/locks/ipd_finalize_writer.lock
+    HELPER RETURN VALUE: None
+    ```
+    Exit code is 0 / unaffected for `status_set._offer_self_commit`.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: quote the message string actually carried by the returned outcome and enumerate the four actionable elements present in it (live PID, owner, seconds waited, absolute lock path). Confirm with a `rg` that no new refusal message literal was introduced in `git_commit_helper.py`, pasting the command and its output. If any element was lost, paste the before/after and the fix.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Message string verified with four actionable elements; no new refusal literal in git_commit_helper.py.
+    1. Message string carried by the returned outcome:
+    `the shared aw writer lock is held by live PID 1 (owner: peer.test); waited 0s. Wait for it to finish, or if that process is dead remove /tmp/tmpnxpjnuac/.aw/state/runtime/locks/ipd_finalize_writer.lock`
+    Four actionable elements present:
+    - Live PID: `1`
+    - Owner: `peer.test`
+    - Seconds waited: `0s`
+    - Absolute lock path: `/tmp/tmpnxpjnuac/.aw/state/runtime/locks/ipd_finalize_writer.lock`
+    2. Confirming with `git diff` that no new refusal message literal was introduced in `git_commit_helper.py`:
+    `git diff agent_workflows/git_commit_helper.py | grep -E '^\+[^+]' | grep -i 'writer lock'` returns exit 1 (0 lines matching). The only new text is `return CommitOutcome(STATUS_ERROR, None, (), str(exc))`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the new test's name and source, and its passing result. Then paste proof that it BITES: temporarily change one of the two path expressions (for example `_LOCK_RELPATH`), paste the resulting FAILURE output, restore, and paste the restored pass. Confirm the test compares computed path values at runtime and reads no production source text (P16).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: test_writer_lock_and_finalize_lock_paths_are_identical added, verified passing, and proven to bite.
+    1. New test name and source:
+    `test_writer_lock_and_finalize_lock_paths_are_identical` in `tests/test_contention_wait.py`:
+    ```python
+    def test_writer_lock_and_finalize_lock_paths_are_identical(self):
+        """(E-03) commit_lock.lock_path and ipd_lifecycle.finalize_lock_path resolve to the identical path."""
+        from agent_workflows import commit_lock, ipd_lifecycle
 
-- [ ] V-04 validates E-04
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo = Path(temp_dir)
+            self.assertEqual(
+                commit_lock.lock_path(repo),
+                ipd_lifecycle.finalize_lock_path(repo),
+            )
+    ```
+    2. Passing result:
+    `tests/test_contention_wait.py` passed with `12 passed in 2.36s`.
+    3. Proof that test bites:
+    Temporarily changed `_LOCK_RELPATH` in `agent_workflows/commit_lock.py` to `("locks", "drifted_writer.lock")` and ran `python3 -m pytest tests/test_contention_wait.py -k test_writer_lock_and_finalize_lock_paths_are_identical`:
+    ```
+    FAILED tests/test_contention_wait.py::ContentionWaitCallSiteTests::test_writer_lock_and_finalize_lock_paths_are_identical
+    E AssertionError: PosixPath('/tmp/tmph9v_gfok/.aw/state/runtime/locks/drifted_writer.lock') != PosixPath('/tmp/tmph9v_gfok/.aw/state/runtime/locks/ipd_finalize_writer.lock')
+    1 failed in 3.68s
+    ```
+    Restored `_LOCK_RELPATH = ("locks", "ipd_finalize_writer.lock")`, and re-ran: passed.
+    4. Confirmed the test compares computed path values at runtime and reads no production source text (P16).
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the new test's name and source, its passing result, and its FAILING output against pre-change code (stash E-01, re-run), which must show the uncaught `CommitLockBusy`. Confirm the test drives the real `git_commit_helper.offer_commit` in a real temporary git repository and asserts on the returned outcome, not on a stubbed lock or on code structure.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: test_offer_commit_returns_error_outcome_on_busy_writer_lock added, fails pre-change, passes post-change.
+    1. New test name and source:
+    `test_offer_commit_returns_error_outcome_on_busy_writer_lock` in `tests/test_contention_wait.py`:
+    ```python
+    def test_offer_commit_returns_error_outcome_on_busy_writer_lock(self):
+        """(E-04) offer_commit with a live peer holding writer_lock returns STATUS_ERROR and does not raise."""
+        from agent_workflows import commit_lock, git_commit_helper
 
-- [ ] V-05 validates E-05
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo = Path(temp_dir) / "repo"
+            repo.mkdir()
+            for cmd in (
+                ["git", "init", "-q"],
+                ["git", "config", "user.email", "test@example.com"],
+                ["git", "config", "user.name", "Tester"],
+            ):
+                subprocess.run(cmd, cwd=repo, check=True)
+
+            (repo / "file.txt").write_text("initial\n", encoding="utf-8")
+            subprocess.run(["git", "add", "file.txt"], cwd=repo, check=True)
+            subprocess.run(
+                ["git", "commit", "-q", "-m", "initial commit"], cwd=repo, check=True
+            )
+
+            (repo / "file.txt").write_text("updated\n", encoding="utf-8")
+
+            lock_path = commit_lock.lock_path(repo)
+            lock_path.parent.mkdir(parents=True, exist_ok=True)
+            lock_path.write_text(
+                json.dumps(
+                    {
+                        "pid": 999999,
+                        "owner": "live-peer",
+                        "timestamp": "2026-09-29T00:00:00+00:00",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            orig_writer_lock = commit_lock.writer_lock
+
+            def fast_writer_lock(*args, **kwargs):
+                kwargs["timeout"] = 0.1
+                kwargs["poll"] = 0.02
+                return orig_writer_lock(*args, **kwargs)
+
+            with mock.patch(
+                "agent_workflows.commit_lock._pid_alive", return_value=True
+            ):
+                with mock.patch(
+                    "agent_workflows.commit_lock.writer_lock",
+                    side_effect=fast_writer_lock,
+                ):
+                    outcome = git_commit_helper.offer_commit(
+                        repo,
+                        ["file.txt"],
+                        message="test commit",
+                        assume_yes=True,
+                    )
+
+            self.assertEqual(git_commit_helper.STATUS_ERROR, outcome.status)
+            self.assertIsNone(outcome.commit)
+            self.assertEqual((), outcome.staged)
+            self.assertIn("live PID 999999 (owner: live-peer)", outcome.message)
+            self.assertIn("ipd_finalize_writer.lock", outcome.message)
+    ```
+    2. Failing output against pre-change code:
+    Ran against pre-E-01 `git_commit_helper.py`:
+    ```
+    FAILED tests/test_contention_wait.py::ContentionWaitCallSiteTests::test_offer_commit_returns_error_outcome_on_busy_writer_lock
+    ...
+    agent_workflows/commit_lock.py:683: CommitLockBusy
+    E agent_workflows.commit_lock.CommitLockBusy: the shared aw writer lock is held by live PID 999999 (owner: live-peer); waited 0s. Wait for it to finish, or if that process is dead remove /tmp/tmpttxrcdc2/repo/.aw/state/runtime/locks/ipd_finalize_writer.lock
+    1 failed, 11 passed in 4.56s
+    ```
+    3. Passing output after E-01:
+    `12 passed in 2.36s`.
+    4. Confirmed the test drives real `git_commit_helper.offer_commit` in a real temporary git repository and asserts on returned outcome, not on stubbed lock or code structure.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the corrected `FINALIZE_LOCK_WAIT_SECONDS` comment in full, showing all three stale claims gone and the measured 2026-09-27 race justification retained. Paste `grep -rn "well under a second" agent_workflows/` and `grep -rn "default 5 s" agent_workflows/` output proving zero hits IN PRODUCTION SOURCE. Do NOT run these tree-wide and do NOT attempt to reach zero hits tree-wide: backlog `bqz8kn` and `duac3v` quote the false claim as the defect they record, and editing a durable record to satisfy a grep would destroy the provenance of this very plan (corrected at review). Paste `git status --short` showing no `.aw/records/` path modified by E-05. Paste the added CHANGELOG line and confirm it is under `## 2.0.0 (pending)`, is user-facing, and contains no em or en dash.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Comment corrected, zero hits in production source, clean git status, and one CHANGELOG line added.
+    1. Corrected `FINALIZE_LOCK_WAIT_SECONDS` comment in `agent_workflows/ipd_lifecycle.py`:
+    ```python
+    #: How long ``acquire_finalize_lock`` WAITS for a LIVE holder before refusing, in seconds.
+    #:
+    #: WHY IT WAITS AT ALL. This lock file is SHARED with ``commit_lock.writer_lock`` (``aw commit``,
+    #: ``aw set``, the runners' self-commits), and it used to be checked exactly ONCE. With several
+    #: drivers in one checkout that single check lost ordinary races: measured 2026-09-27, run
+    #: ``run-20260927T001634Z-258437`` had TWO verified items (``8y13kn``, ``cnzrxb``) refused
+    #: ``fail-gate`` because a peer's commit held the lock at the instant finalize looked, and both
+    #: holder PIDs had exited moments later.
+    #:
+    #: SHARED TIMEOUT POLICY. Both ``acquire_finalize_lock`` and ``writer_lock`` share the same
+    #: ``contention_wait.TIMEOUT_SECONDS`` budget. A self-commit or a finalize transaction can run
+    #: hooks and lint over multiple seconds, so queueing callers wait for the active holder rather than
+    #: failing on an ordinary race. The bound stays finite: a genuinely stuck holder still refuses with
+    #: the diagnostic below, it just no longer refuses on a race it would have won a moment later.
+    FINALIZE_LOCK_WAIT_SECONDS = contention_wait.TIMEOUT_SECONDS
+    ```
+    All three stale claims ("well under a second", "default 5 s", "WHY LONGER THAN writer_lock's 5 s") removed; measured 2026-09-27 race justification and finite bound retained.
+    2. Production source grep results:
+    `grep -rn "well under a second" agent_workflows/`: 0 hits.
+    `grep -rn "default 5 s" agent_workflows/`: 0 hits.
+    3. `git status --short` shows no `.aw/records/` paths modified by E-05:
+    ```
+    M CHANGELOG.md
+    M agent_workflows/git_commit_helper.py
+    M agent_workflows/ipd_lifecycle.py
+    M tests/test_contention_wait.py
+    ```
+    4. Added CHANGELOG line under `## 2.0.0 (pending)`:
+    `- Fixed: when another process holds the shared writer lock past the wait budget, commands now report a clean refusal message naming the lock holder instead of failing with an unhandled exception traceback.`
+    Confirmed user-facing and contains no em or en dashes.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste the BARE `python3 -m pytest` summary line from before the change and after it, plus the FAILED set for each, and state whether the two FAILED sets are identical. THE BASELINE IS EXPECTED TO BE CLEAN: review measured `3246 passed, 2 skipped, 3 warnings` with ZERO `FAILED` lines at HEAD `1ea30f80` (F-11), correcting this plan's earlier claim that a known pre-existing failure existed. So any failure in the AFTER run is caused by this plan and must be FIXED, not attributed to inherited breakage; and if your BEFORE run is not clean, name every failing node id explicitly, because that is now the surprising result. Compare node IDS, not totals. Also paste the focused `python3 -m pytest tests/test_contention_wait.py` summary. Confirm no flag was added to the bare invocation (no `-n0`, no extra `-q`, no `-p no:randomly`), and confirm the pre-change baseline was captured before the first source edit.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Full suite passes bare (3525 passed, 0 failed), clean baseline (3523 passed, 0 failed), focused suite passes.
+    1. Bare `python3 -m pytest` before any change:
+    `3523 passed, 2 skipped, 3 warnings in 108.27s (0:01:48)`
+    FAILED set: none (0 failed).
+    2. Bare `python3 -m pytest` after changes:
+    `3525 passed, 2 skipped, 3 warnings in 65.92s (0:01:05)`
+    FAILED set: none (0 failed).
+    3. FAILED sets comparison: identical (both clean, 0 failed). Net +2 passed tests corresponding to E-03 and E-04.
+    4. Focused `python3 -m pytest tests/test_contention_wait.py`:
+    `12 passed in 2.35s`
+    5. Confirmed no flags added to bare invocation (run bare as `python3 -m pytest`), and baseline was captured prior to any edits.
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -479,18 +479,17 @@ def _atomic_write_json_at(path: Path, payload: Dict[str, Any]) -> None:
 #: How long ``acquire_finalize_lock`` WAITS for a LIVE holder before refusing, in seconds.
 #:
 #: WHY IT WAITS AT ALL. This lock file is SHARED with ``commit_lock.writer_lock`` (``aw commit``,
-#: ``aw set``, the runners' self-commits), whose holders keep it for well under a second, and it used
-#: to be checked exactly ONCE. With several drivers in one checkout that single check lost ordinary
-#: races: measured 2026-09-27, run ``run-20260927T001634Z-258437`` had TWO verified items (``8y13kn``,
-#: ``cnzrxb``) refused ``fail-gate`` because a peer's sub-second commit held the lock at the instant
-#: finalize looked, and both holder PIDs had exited moments later. ``writer_lock`` already waits
-#: (default 5 s, polling every 50 ms), so finalize was the one party that would not queue.
+#: ``aw set``, the runners' self-commits), and it used to be checked exactly ONCE. With several
+#: drivers in one checkout that single check lost ordinary races: measured 2026-09-27, run
+#: ``run-20260927T001634Z-258437`` had TWO verified items (``8y13kn``, ``cnzrxb``) refused
+#: ``fail-gate`` because a peer's commit held the lock at the instant finalize looked, and both
+#: holder PIDs had exited moments later.
 #:
-#: WHY LONGER THAN ``writer_lock``'s 5 s. A FINALIZE also holds this lock (for its whole journaled
-#: transaction, which runs hooks and lint and measured several seconds), so a finalizer queued behind
-#: another finalizer needs more than a commit's budget. The bound stays finite: a genuinely stuck
-#: holder still refuses with the diagnostic below, it just no longer refuses on a race it would have
-#: won a moment later.
+#: SHARED TIMEOUT POLICY. Both ``acquire_finalize_lock`` and ``writer_lock`` share the same
+#: ``contention_wait.TIMEOUT_SECONDS`` budget. A self-commit or a finalize transaction can run
+#: hooks and lint over multiple seconds, so queueing callers wait for the active holder rather than
+#: failing on an ordinary race. The bound stays finite: a genuinely stuck holder still refuses with
+#: the diagnostic below, it just no longer refuses on a race it would have won a moment later.
 FINALIZE_LOCK_WAIT_SECONDS = contention_wait.TIMEOUT_SECONDS
 FINALIZE_LOCK_POLL_SECONDS = contention_wait.POLL_SECONDS
 FINALIZE_LOCK_BUSY_SUMMARY = "ipd finalize writer lock held by active PID"
