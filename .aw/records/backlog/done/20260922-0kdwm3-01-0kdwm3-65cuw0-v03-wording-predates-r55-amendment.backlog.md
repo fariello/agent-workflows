@@ -1,5 +1,5 @@
 - Id: 0kdwm3
-- Status: graduated
+- Status: done
 - Graduated-To: 0kdwm3
 - Set: 0kdwm3
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Plan 65cuw0's V-03 wording requires a gitignored file to refuse lane teardown, contradicting the 2026-09-18 amendment to spec 7ckptx R5.5
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD hyuos6 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-0kdwm3-01-hyuos6-reconcile-65cuw0-s-v-03-gitignored-refusal-wording-with-the.ipd.md); evidence .aw/records/plans/executed/20260929-0kdwm3-01-hyuos6-reconcile-65cuw0-s-v-03-gitignored-refusal-wording-with-the.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: hyuos6
 - 2026-09-22 created (aw backlog): Plan 65cuw0's V-03 wording requires a gitignored file to refuse lane teardown, contradicting the 2026-09-18 amendment to spec 7ckptx R5.5
 
