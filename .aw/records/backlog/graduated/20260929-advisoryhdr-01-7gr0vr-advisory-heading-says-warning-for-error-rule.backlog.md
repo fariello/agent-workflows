@@ -1,11 +1,13 @@
 - Id: 7gr0vr
-- Status: open
+- Status: graduated
+- Graduated-To: advisoryhdr
 - Set: advisoryhdr
 - Priority: low
 - Work-Kind: chore
 - Summary: aw commit/work begin advisory heading says '(warning)' for an error-registered rule
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053053Z-3200037: majlt4
 - 2026-09-29 created (aw backlog): aw commit/work begin advisory heading says '(warning)' for an error-registered rule
 
 FOUND BY: /plan-review of plan ygb3nk, 2026-09-29.
