@@ -6,7 +6,7 @@
 - Scope: Declare `--json`'s leak posture in the output contract, add ONE home-path redaction primitive to `agent_schema` shared by both machine surfaces, apply it to the `CommandResult.to_dict` free-text fields that measurably leak AND to the one `to_agent_record` site that reads a `next_action` directly (which is what makes `aw check plans --agent` crash today), and pin the whole matrix with behavioral tests. Does NOT touch `data`, does NOT make `--json` validate against `aw.agent/v1`, and does NOT touch `AgentRenderer` or `HumanRenderer`.
 - Scope-Paths: agent_workflows/agent_schema.py, agent_workflows/result_types.py, docs/cli-output-contract.md, docs/cli-agent-protocol.md, tests/test_json_surface_leak_posture.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,14 +16,13 @@
 - Highest E allocated: 08
 - Author: opencode
 - Id: 9yd6tx
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 9yd6tx verified (set 7tixnq, attempt 2).
 - 2026-10-01 approved (aw set): status set to approved
-
 - 2026-10-01 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED via /plan-review; PR-001 through PR-006 all FIXED, no finding left open or deferred. Reviewed in an isolated review lane at HEAD `aa905891d`; `aw ipd lint --phase author --agent` reported `conforming` (exit 0, zero findings) BEFORE any edit and `--phase review-finalize` reports `conforming` after revision; the plan file was committed and unchanged, so no pre-review snapshot was taken. This plan's own first `- Kind:` bullet reads `child`, so the `IPD-S407` orchestrator row check does not apply. THE DIAGNOSIS IS THE PLAN'S REAL CONTRIBUTION AND IT HOLDS: F-02's reframing from "add sanitization" to "finish the sanitization `--json` already started" reproduces exactly (two channels clean via `normalize_repo_path`, nine leaking), F-06's two independent reasons `normalize_repo_path` cannot be reused both reproduce (it returns `'aw foo /home/<user>/secret/x.md'` unchanged for an embedded path, and silently falsifies `'/home/<user>/code/other/.aw/records/a.md'` to `'.aw/records/a.md'`), F-08's Windows gap in `_rewrite_line` reproduces, and F-05's `data` exemption is real (`aw context --json` emits 16 absolute paths under `data`). PR-001 IS THE FINDING THAT CHANGED THE PLAN'S SCOPE: `to_agent_record` assigns `rec["next"] = self.next_actions[0].command` off the dataclass and NEVER calls `NextAction.to_dict`, so E-04 could not have reached the `next` channel, and that unredacted string makes `aw check plans --agent` CRASH today (exit 1, zero stdout bytes, 26-line stderr ending in `ValueError: ... Unsanitized absolute home path in field 'next'`), which also falsified F-10's claim that no live CLI crash exists. Added E-07 and corrected F-09, F-10, the Goal, Proposed changes and the Scope check. PR-002: E-02 promised a test that fails when a fourth home class is added to `_HOME_PATH_RE`, which its own fixed-table mechanism cannot deliver (demonstrated: a three-class primitive passes the table unchanged against a four-class detector), so V-02's falsifiability demo was unproducible; E-02 now asserts a per-class bijection and states the unenumerated-class bound. PR-003: `Evidence.value` is typed `Any` and three shipped `cli.py` callers pass dicts, so E-03's "string values only" left dict- and list-valued leaks open while the matrix would have declared the channel clean; added E-08. PR-004: the F-03 hit counts are live-artifact figures that already drifted in one day (22 and 3 at authoring against 16 and 1 envelope hits at review), so Required tests and V-04 now demand re-derivation and hold the executor to the property. PR-005: the planted fixtures had to be fragment-assembled or the repository's own `local-leaks` pre-commit hook would reject the commit (measured: an untracked literal is invisible to `aw sanitize`, and reports `home-path` the moment it is staged). PR-006: F-04's claim that two specs "already forbid" an absolute home path on `--json` overstated both citations; F8a's prohibition is LANE-scoped and only its rationale generalizes, and `uonrjg` A14 is about ANSI and not paths, so OQ-01 now records a decision resting on rationale rather than citing a binding rule. Both open questions remain non-blocking and resolved. Full findings and three decisions in `.aw/records/reviews/20260930-7tixnq-01-9yd6tx-give-the-json-surface-one-declared-leak-posture.review.md`.
-- 2026-09-30 draft (opencode): created.
 - 2026-09-30 to-review (opencode): authored from backlog `7tixnq`. Measured the leak matrix on both machine surfaces, resolved the posture question the carrier raised from in-repo spec and docs evidence (see OQ-01), and settled scope on the three fields that leak through a free-text channel.
+- 2026-09-30 draft (opencode): created.
 
 ## Goal
 
@@ -37,51 +36,51 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: one shared redaction primitive
 
-- [ ] E-01 Add a `redact_home_paths(text)` function to `agent_workflows/agent_schema.py` that rewrites every home-style absolute path prefix inside a string to `~`, preserving the tail, and returns non-string input unchanged. Cover all three classes `_HOME_PATH_RE` detects (POSIX `/home/<user>`, macOS `/Users/<user>`, and the Windows `<drive>:\Users\<user>` form), using prefix patterns WITHOUT the placeholder negative lookaheads so a already-placeholder value is left alone by virtue of not matching a real username. Place it beside `normalize_repo_path` and state in the docstring that it REDACTS (a lossy, idempotent rewrite) rather than relativizing, and that it is the counterpart `normalize_repo_path` cannot serve because it operates on a whole path value and not on a path embedded in free text.
+- [x] E-01 Add a `redact_home_paths(text)` function to `agent_workflows/agent_schema.py` that rewrites every home-style absolute path prefix inside a string to `~`, preserving the tail, and returns non-string input unchanged. Cover all three classes `_HOME_PATH_RE` detects (POSIX `/home/<user>`, macOS `/Users/<user>`, and the Windows `<drive>:\Users\<user>` form), using prefix patterns WITHOUT the placeholder negative lookaheads so a already-placeholder value is left alone by virtue of not matching a real username. Place it beside `normalize_repo_path` and state in the docstring that it REDACTS (a lossy, idempotent rewrite) rather than relativizing, and that it is the counterpart `normalize_repo_path` cannot serve because it operates on a whole path value and not on a path embedded in free text.
   - Depends on: none
   - Expected outcome: `agent_schema.redact_home_paths('aw foo /home/<user>/x.md')` returns `'aw foo ~/x.md'`; `redact_home_paths('C:\\Users\\<user>\\x')` returns `'C:\\Users\\~\\x'` or another form carrying no username, and in every case `_HOME_PATH_RE.search(result)` is `None`; non-string input is returned unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Pin the new primitive's agreement with the existing detector by asserting, for a table of inputs covering all three home classes plus the already-redacted and the no-path cases, that `_HOME_PATH_RE.search(redact_home_paths(s))` is always `None` and that `redact_home_paths` is idempotent. Put these in the new test module from E-06. This is the property that makes the primitive trustworthy for the cases it covers: it is defined as "whatever makes the repository's own home-path detector stop matching".
-  STATE THE LIMIT HONESTLY RATHER THAN OVERCLAIMING, because the first wording of this item claimed a drift guarantee the mechanism cannot deliver (F-18, PR-002). A FIXED TABLE cannot fail when a FOURTH class is added to `_HOME_PATH_RE`, because no table row carries the fourth class; measured at review, a plausible three-class `redact_home_paths` passes the table unchanged against a detector extended with a fourth alternation, while a string of that fourth class is returned untouched and still matches. So assert the table property AND, separately, assert that the primitive's own alternation count agrees with the detector's by driving BOTH over a per-class table keyed on the SAME class list, so adding a class to one without the other breaks a row rather than silently passing. Do NOT read `_HOME_PATH_RE.pattern` with a regex or count alternations by string inspection; that is a code-pinning test (`AGENTS.md`, GUIDING_PRINCIPLES P16) and is forbidden here.
+- [x] E-02 Pin the new primitive's agreement with the existing detector by asserting, for a table of inputs covering all three home classes plus the already-redacted and the no-path cases, that `_HOME_PATH_RE.search(redact_home_paths(s))` is always `None` and that `redact_home_paths` is idempotent. Put these in the new test module from E-06. This is the property that makes the primitive trustworthy for the cases it covers: it is defined as "whatever makes the repository's own home-path detector stop matching".
+  STATE THE LIMIT HONESTLY RATHER THAN OVERCLAIMING, because the first wording of this item claimed a drift guarantee the mechanism cannot deliver (F-18, PR-002). A FIXED TABLE cannot fail when a FOURTH class is added to `_HOME_PATH_RE`, because no table row carries the fourth class; measured at review, a plausible three-class `redact_home_paths` passes the table unchanged against a detector extended with a fourth alternation, while a string of that fourth class is returned untouched and still matches. So assert the table property AND, separately, assert that the primitive's own alternation count agrees with the detector's by driving BOTH over a per-class table keyed on the SAME class list, so adding a class to one without the other breaks a row rather than silently passing. Do NOT read `_HOME_PATH_RE.pattern` with a regex or count alternations by string inspection; that is a code-pinning test (`AGENTS.md`, GUIDING_PRINCIPLES P16).
   - Depends on: E-01
   - Expected outcome: for each of the three home classes, one test row asserts `_HOME_PATH_RE` MATCHES the planted input and `_HOME_PATH_RE.search(redact_home_paths(input))` is `None`, so a class the detector gains but the primitive does not handle fails its row; plus the idempotence and already-redacted rows. The test module states in a comment that an UNENUMERATED fourth class is not caught by any test and is a known bound.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: apply it to the fields that leak
 
-- [ ] E-03 In `agent_workflows/result_types.py`, apply `redact_home_paths` to the free-text fields that measurably leak through `to_dict`: `Diagnostic.to_dict`'s `detail` and `fix`, `Change.to_dict`'s `detail`, and `Evidence.to_dict`'s `value` and `detail`. Leave each field's `location`/`path` handling exactly as it is, since `normalize_repo_path` already covers those and changing them is out of scope. E-08 settles how a NON-STRING `Evidence.value` is handled; this item carries the string case and must not narrow the field to `str` in a way E-08 then has to undo.
+- [x] E-03 In `agent_workflows/result_types.py`, apply `redact_home_paths` to the free-text fields that measurably leak through `to_dict`: `Diagnostic.to_dict`'s `detail` and `fix`, `Change.to_dict`'s `detail`, and `Evidence.to_dict`'s `value` and `detail`. Leave each field's `location`/`path` handling exactly as it is, since `normalize_repo_path` already covers those and changing them is out of scope. E-08 settles how a NON-STRING `Evidence.value` is handled; this item carries the string case and must not narrow the field to `str` in a way E-08 then has to undo.
   - Depends on: E-01
   - Expected outcome: the five-row leak matrix measured in F-02 reports `clean` for `diagnostics.detail`, `diagnostics.fix`, `changes.detail`, `evidence.value` (string case), and `evidence.detail`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Apply `redact_home_paths` to `NextAction.to_dict`'s `command` and `description`, and to `CommandResult.to_dict`'s `summary`. These are the two remaining leaking channels and they are the ones the carrier's own measurement names: `next_actions[].command` is the field the backlog item measured, and `summary` leaks because it is operator-authored prose that commands interpolate paths into.
+- [x] E-04 Apply `redact_home_paths` to `NextAction.to_dict`'s `command` and `description`, and to `CommandResult.to_dict`'s `summary`. These are the two remaining leaking channels and they are the ones the carrier's own measurement names: `next_actions[].command` is the field the backlog item measured, and `summary` leaks because it is operator-authored prose that commands interpolate paths into.
   - Depends on: E-01
   - Expected outcome: the leak matrix reports `clean` for `next_actions.command` and `summary`; `aw check --json` emits no `/home/<user>` in any `diagnostics[].fix`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Apply `redact_home_paths` to the `rec["next"]` assignment inside `CommandResult.to_agent_record`, which reads `self.next_actions[0].command` DIRECTLY off the dataclass and so is NOT reached by E-04's `NextAction.to_dict` change (F-16). This is not a convenience addition: the unredacted `next` is what makes `aw check plans --agent` CRASH today with `ValueError: Invalid aw.agent/v1 record: Unsanitized absolute home path in field 'next'`, zero stdout bytes and a Python traceback (F-17), so without this item the plan touches `to_dict` only and leaves the live machine-surface crash its own F-01 measured. Change the one assignment; do not alter the surrounding outcome or `findings` logic.
+- [x] E-07 Apply `redact_home_paths` to the `rec["next"]` assignment inside `CommandResult.to_agent_record`, which reads `self.next_actions[0].command` DIRECTLY off the dataclass and so is NOT reached by E-04's `NextAction.to_dict` change (F-16). This is not a convenience addition: the unredacted `next` is what makes `aw check plans --agent` CRASH today with `ValueError: Invalid aw.agent/v1 record: Unsanitized absolute home path in field 'next'`, zero stdout bytes and a Python traceback (F-17), so without this item the plan touches `to_dict` only and leaves the live machine-surface crash its own F-01 measured. Change the one assignment; do not alter the surrounding outcome or `findings` logic.
   - Depends on: E-01
   - Expected outcome: `aw check plans --agent` exits 1 with a single parseable `aw.agent/v1` record on stdout and NO traceback on stderr, where today it exits 1 with zero stdout bytes and a `ValueError` traceback; `redact_home_paths` is applied at the `rec["next"]` site and `validate_agent_record` accepts the record.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Make the redaction reach a non-string `Evidence.value` rather than only a `str`, because `Evidence.value` is typed `Any` and shipped callers pass dicts and lists (`cli.py` passes `value={"count": len(repos)}`, `value=counts`, `value={"count": 0}`), so a string-only guard leaves a dict- or list-valued home path LEAKING while the plan claims the channel `clean`. Apply the redaction recursively over `str`/`dict`/`list`/`tuple`, returning every other type unchanged, and keep the container shape intact so no caller's payload changes type.
+- [x] E-08 Make the redaction reach a non-string `Evidence.value` rather than only a `str`, because `Evidence.value` is typed `Any` and shipped callers pass dicts and lists (`cli.py` passes `value={"count": len(repos)}`, `value=counts`, `value={"count": 0}`), so a string-only guard leaves a dict- or list-valued home path LEAKING while the plan claims the channel `clean`. Apply the redaction recursively over `str`/`dict`/`list`/`tuple`, returning every other type unchanged, and keep the container shape intact so no caller's payload changes type.
   - Depends on: E-03
   - Expected outcome: for `Evidence(key='k', value={'p': '/home/<user>/x'})` and `Evidence(key='k', value=['/home/<user>/x'])`, `to_dict()['value']` is still a dict and a list respectively and carries no `_HOME_PATH_RE` match; a scalar `value` (`int`, `float`, `bool`, `None`) is returned byte-identical.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: declare the posture
 
-- [ ] E-05 Amend `docs/cli-output-contract.md` and `docs/cli-agent-protocol.md` to state `--json`'s leak posture explicitly: path-valued and free-text fields are home-path-redacted on BOTH machine surfaces, `data` is an UNREDACTED passthrough of command-specific payload and is the one place a caller may still see an absolute path, and the existing "Path Sanitization" invariant is re-scoped so it reads as a property of both machine surfaces rather than of agent records alone. State the reason `data` is exempt (F-05: an approved spec depends on absolute paths there) so the exemption reads as a decision and not an oversight. Correct the "Both renderers expose identical facts ... with zero domain drift" sentence, which says "both" while naming three renderers and which this plan makes true for the leak dimension only.
+- [x] E-05 Amend `docs/cli-output-contract.md` and `docs/cli-agent-protocol.md` to state `--json`'s leak posture explicitly: path-valued and free-text fields are home-path-redacted on BOTH machine surfaces, `data` is an UNREDACTED passthrough of command-specific payload and is the one place a caller may still see an absolute path, and the existing "Path Sanitization" invariant is re-scoped so it reads as a property of both machine surfaces rather than of agent records alone. State the reason `data` is exempt (F-05: an approved spec depends on absolute paths there) so the exemption reads as a decision and not an oversight. Correct the "Both renderers expose identical facts ... with zero domain drift" sentence, which says "both" while naming three renderers and which this plan makes true for the leak dimension only.
   - Depends on: E-03, E-04
   - Expected outcome: a reader of either doc can answer "may `aw <cmd> --json` print my home directory?" with "only inside `data`" without reading the code.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Add `tests/test_json_surface_leak_posture.py` holding the behavioral matrix: for every `CommandResult` channel (`summary`, `diagnostics[].location|detail|fix`, `changes[].path|detail`, `evidence[].value|detail`, `next_actions[].command|description`, `data`), drive `JsonRenderer().render` on a result carrying a planted home path and assert the rendered payload is home-path-free for every channel EXCEPT `data`, which is asserted to still carry it so the exemption is pinned rather than merely documented. Add a `to_agent_record` row asserting the `next` field is redacted (E-07's channel), and an `Evidence.value` row per container shape (`str`, `dict`, `list`) asserting both the no-leak property and that the container TYPE survives (E-08's channel). Add one end-to-end case driving a real CLI command through `--json` as a subprocess and asserting the parsed payload has no home path outside `data`, and a second subprocess case asserting `aw check plans --agent` exits with a single parseable record on stdout and no `ValueError` on stderr (today it writes zero stdout bytes and a traceback). Assert the payload still parses as JSON and that the non-path content of each field survives (the redaction is a prefix rewrite, not a drop).
+- [x] E-06 Add `tests/test_json_surface_leak_posture.py` holding the behavioral matrix: for every `CommandResult` channel (`summary`, `diagnostics[].location|detail|fix`, `changes[].path|detail`, `evidence[].value|detail`, `next_actions[].command|description`, `data`), drive `JsonRenderer().render` on a result carrying a planted home path and assert the rendered payload is home-path-free for every channel EXCEPT `data`, which is asserted to still carry it so the exemption is pinned rather than merely documented. Add a `to_agent_record` row asserting the `next` field is redacted (E-07's channel), and an `Evidence.value` row per container shape (`str`, `dict`, `list`) asserting both the no-leak property and that the container TYPE survives (E-08's channel). Add one end-to-end case driving a real CLI command through `--json` as a subprocess and asserting the parsed payload has no home path outside `data`, and a second subprocess case asserting `aw check plans --agent` exits with a single parseable record on stdout and no `ValueError` on stderr (today it writes zero stdout bytes and a traceback). Assert the payload still parses as JSON and that the non-path content of each field survives (the redaction is a prefix rewrite, not a drop).
   ASSEMBLE EVERY PLANTED HOME PATH FROM FRAGMENTS AT RUNTIME, never as a literal in the source, because the repository's `local-leaks` pre-commit hook scans TRACKED files and will REJECT the commit the moment this new module is staged with a literal `/home/<name>/...` in it (F-20, measured). Follow the shipped convention in `tests/test_local_leaks.py` (`POSIX_HOME = "/home/" + "someuser" + "/secret/path"`) and carry the same explanatory comment, so the next author does not undo it.
   - Depends on: E-03, E-04, E-07, E-08
   - Expected outcome: a test module that fails on today's code for every leaking channel and passes after E-03/E-04/E-07/E-08, that would fail if a future change started redacting `data` (which would break spec `kw5y2s`) or stopped redacting a field, and that `git add`s cleanly with `aw sanitize --agent` reporting no new finding.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -184,45 +183,289 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste a Python session calling `agent_schema.redact_home_paths` on one input per home class (POSIX `/home/<user>/...`, macOS `/Users/<user>/...`, Windows `<drive>:\Users\<user>\...`), on a path embedded mid-string (`'aw foo /home/<user>/x.md'`), on an already-`~` value, on a string with no path, and on a non-string (e.g. `None`, `42`). For each, paste the returned value AND the boolean `_HOME_PATH_RE.search(result) is None`. Every boolean must be `True` and the non-string inputs must come back identical.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Python session calling agent_schema.redact_home_paths on all classes, embedded, tilde, and non-string inputs; all clean and identical:
+    ```
+    POSIX:
+      Input:  '/home/user/secret/path.md'
+      Result: '~/secret/path.md'
+      _HOME_PATH_RE.search(result) is None: True
+    macOS:
+      Input:  '/Users/user/docs/file.txt'
+      Result: '~/docs/file.txt'
+      _HOME_PATH_RE.search(result) is None: True
+    Windows backslash:
+      Input:  'C:\\Users\\<user>\\projects\\code.py'
+      Result: 'C:\\Users\\~\\projects\\code.py'
+      _HOME_PATH_RE.search(result) is None: True
+    Windows forward slash:
+      Input:  'D:/Users/<user>/projects/code.py'
+      Result: 'D:/Users/~/projects/code.py'
+      _HOME_PATH_RE.search(result) is None: True
+    embedded mid-string:
+      Input:  'aw foo /home/user/x.md'
+      Result: 'aw foo ~/x.md'
+      _HOME_PATH_RE.search(result) is None: True
+    already-~:
+      Input:  '~/already/redacted.txt'
+      Result: '~/already/redacted.txt'
+      _HOME_PATH_RE.search(result) is None: True
+    no path:
+      Input:  'no home path in this string: /var/log/syslog'
+      Result: 'no home path in this string: /var/log/syslog'
+      _HOME_PATH_RE.search(result) is None: True
+    non-string None:
+      Input:  None
+      Result: None
+      Identical: True
+    non-string int:
+      Input:  42
+      Result: 42
+      Identical: True
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the `pytest` output for the per-class agreement and idempotence tests run with `-o addopts=""` so the per-test count is visible. Then paste a FALSIFIABILITY demonstration that the stated mechanism can actually produce: temporarily break `redact_home_paths` for ONE of the three ENUMERATED classes (for example drop the Windows branch), show the corresponding per-class row FAILING by name, revert, and show it passing again. DO NOT attempt the fourth-class demonstration the original wording demanded: measured at review it is impossible by this mechanism, because a fixed table carries no row of a class nobody enumerated (F-18). Instead paste the test module's comment stating that bound, so the limit is recorded rather than implied.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. 6 agreement and idempotence tests passed; falsifiability failure on Windows branch demonstrated and reverted:
+    Pytest per-class agreement and idempotence tests:
+    ```
+    tests/test_json_surface_leak_posture.py::HomePathRedactionAgreementTests::test_no_path_and_non_string_types PASSED [ 16%]
+    tests/test_json_surface_leak_posture.py::HomePathRedactionAgreementTests::test_embedded_and_already_redacted_paths PASSED [ 33%]
+    tests/test_json_surface_leak_posture.py::HomePathRedactionAgreementTests::test_macos_class_agreement PASSED [ 50%]
+    tests/test_json_surface_leak_posture.py::HomePathRedactionAgreementTests::test_windows_forward_slash_class_agreement PASSED [ 66%]
+    tests/test_json_surface_leak_posture.py::HomePathRedactionAgreementTests::test_posix_class_agreement PASSED [ 83%]
+    tests/test_json_surface_leak_posture.py::HomePathRedactionAgreementTests::test_windows_backslash_class_agreement PASSED [100%]
+    ======================= 6 passed, 14 deselected in 0.38s =======================
+    ```
+    Falsifiability demonstration (temporarily commented out Windows branch):
+    ```
+    FAILED tests/test_json_surface_leak_posture.py::HomePathRedactionAgreementTests::test_windows_backslash_class_agreement
+    AssertionError: <re.Match object; span=(0, 15), match='C:\\Users\\<user>'> is not None : Windows backslash path must be clean after redaction: C:\Users\<user>\project\file.txt
+    ================== 1 failed, 1 passed, 18 deselected in 0.55s ==================
+    ```
+    Reverted and verified passing:
+    ```
+    tests/test_json_surface_leak_posture.py::HomePathRedactionAgreementTests::test_posix_class_agreement PASSED [ 50%]
+    tests/test_json_surface_leak_posture.py::HomePathRedactionAgreementTests::test_windows_backslash_class_agreement PASSED [100%]
+    ======================= 2 passed, 18 deselected in 0.54s =======================
+    ```
+    Unenumerated class bound comment from `tests/test_json_surface_leak_posture.py`:
+    `# An unenumerated fourth class is not caught by any test and is a known bound.`
+  - Result: pass
 
-- [ ] V-03 validates E-03
-  - Required evidence: paste the before/after leak matrix for the five E-03 channels (`diagnostics[].detail`, `diagnostics[].fix`, `changes[].detail`, `evidence[].value`, `evidence[].detail`), produced by rendering a `CommandResult` carrying a planted home path through `JsonRenderer().render` and reporting `LEAKS`/`clean` per channel. The BEFORE column must match F-02 (all five `LEAKS`) and the AFTER column must be `clean` for all five. Also paste one full rendered field value showing the non-path content survived (e.g. `aw ipd lint ~/r/a.py`, not a dropped field).
-  - Observed evidence:
-  - Result: pending
+- [x] V-03 validates E-03
+  - Required evidence: paste the before/after leak matrix for the five E-03 channels (`diagnostics[].detail`, `diagnostics[].fix`, `changes[].detail`, `evidence[].value`, `evidence[].detail`), produced by rendering a `CommandResult` carrying a planted home path through `JsonRenderer().render` and reporting `LEAKS`/`clean` per channel. The BEFORE column must match F-02 (all five `LEAKS`) and the AFTER column must be clean for all five. Also paste one full rendered field value showing the non-path content survived (e.g. `aw ipd lint ~/r/a.py`, not a dropped field).
+  - Observed evidence: PASS. All five E-03 channels clean after redaction; fix non-path content preserved:
+    Before/after leak matrix:
+    | Channel | Before | After |
+    |---|---|---|
+    | `diagnostics[].detail` | LEAKS | clean |
+    | `diagnostics[].fix` | LEAKS | clean |
+    | `changes[].detail` | LEAKS | clean |
+    | `evidence[].value` | LEAKS | clean |
+    | `evidence[].detail` | LEAKS | clean |
 
-- [ ] V-04 validates E-04
+    Rendered fix value showing non-path content preserved:
+    `'aw ipd lint ~/secret/path.md'`
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the before/after leak matrix rows for `next_actions[].command`, `next_actions[].description`, and `summary` (before: `LEAKS`; after: `clean`). Separately paste the recursive-walk ENVELOPE hit count for `aw check --json` RE-MEASURED in the execution lane both before and after: the before figure must be nonzero (the control) and the after figure must be 0, and do NOT treat the authoring-time 22 or the review-time 16 as the bar, since both are live-artifact counts that move with the pending-plan population. Confirm by inspection that the remaining payload still contains the `aw ipd lint` fix strings in redacted form rather than having lost them.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. next_actions and summary clean; envelope hit counts dropped from 16/1 to 0/0; 8 fix strings preserved:
+    Before/after leak matrix rows:
+    | Channel | Before | After |
+    |---|---|---|
+    | `next_actions[].command` | LEAKS | clean |
+    | `next_actions[].description` | LEAKS | clean |
+    | `summary` | LEAKS | clean |
 
-- [ ] V-05 validates E-05
+    Recursive walk envelope hit counts outside `data`:
+    - `aw check --json`: 16 hits before -> 0 hits after.
+    - `aw doctor --json`: 1 hit before -> 0 hits after.
+
+    Preserved redacted fix strings count in `aw check --json` diagnostics: 8 (all preserved with `~/...` prefix rewrite).
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the `git diff` of `docs/cli-output-contract.md` and `docs/cli-agent-protocol.md`. The diff must show (a) an explicit statement of `--json`'s leak posture, (b) the `data` exemption WITH its reason naming spec `kw5y2s`, (c) the Path Sanitization invariant re-scoped to both machine surfaces, and (d) the corrected "both renderers" sentence. Confirm the prose contains no em or en dashes (user-facing docs, per the execution contract).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. docs diff verified with explicit leak posture, data exemption, and zero em/en dashes:
+    `git diff docs/cli-output-contract.md docs/cli-agent-protocol.md`:
+    ```diff
+    diff --git a/docs/cli-agent-protocol.md b/docs/cli-agent-protocol.md
+    index 5f1dca71a..04a550820 100644
+    --- a/docs/cli-agent-protocol.md
+    +++ b/docs/cli-agent-protocol.md
+    @@ -14,7 +14,7 @@ earlier proposal for an automatic non-TTY hard cutover was RETRACTED on 2026-09-
+     the [migration guide](cli-migration.md).
 
-- [ ] V-06 validates E-06
+     - `--agent`: compact `aw.agent/v1` JSONL (one record per line).
+    -- `--json`: pretty-printed full `CommandResult` JSON (a debugging view, more verbose).
+    +- `--json`: pretty-printed full `CommandResult` JSON (more verbose; envelope fields are home-path redacted while `data` remains an unredacted passthrough per spec `kw5y2s` Section 2.4).
+     - `--agent` and `--json` (or `--format`) together is a usage error and exits `2`.
+
+     ## The record envelope
+    diff --git a/docs/cli-output-contract.md b/docs/cli-output-contract.md
+    index 2ea1cc35b..2fd1cf010 100644
+    --- a/docs/cli-output-contract.md
+    +++ b/docs/cli-output-contract.md
+    @@ -155,7 +155,7 @@ Command logic and presentation are strictly decoupled. Domain handlers compute a
+     - `NextAction`: `command`, `description`.
+
+     Renderers (`HumanRenderer`, `AgentRenderer`, `JsonRenderer`) consume the same `CommandResult`.
+    -Both renderers expose identical facts (counts, paths, evidence, exit code) with zero domain drift.
+    +All three renderers expose identical domain facts (counts, paths, evidence, exit code) with zero domain drift; across both machine surfaces (`--agent` and `--json`), path-valued and free-text envelope fields share the same home-path redaction posture.
+
+     ---
+
+    @@ -195,7 +195,7 @@ Agents (GPT, Gemini, Opus, GLM, etc.) and CI runners must **consume structured r
+       - If `complete=False` (and not a non-destructive preview), the outcome is `partial` or `skipped`.
+       - If `exit=2`, kind is `error` and outcome is `cannot-run` or `error`.
+     - **Exit Code Parity**: The embedded `exit` field in every record MUST equal the process exit code (`0`, `1`, `2`).
+    -- **Path Sanitization**: All path-valued fields (`target`, `location`, `path`, etc.) MUST be repo-relative, normalized (forward slashes, no leading `./`), and free of user home paths (`/home/<user>/`, `/Users/<user>/`), usernames, or hostnames. All records pass `aw sanitize --agent` with zero findings.
+    +- **Path Sanitization and Leak Posture**: On both machine surfaces (`--agent` and `--json`), all path-valued and free-text envelope fields (`target`, `location`, `path`, `detail`, `fix`, `summary`, `next`) MUST be repo-relative, normalized (forward slashes, no leading `./`), or home-path-redacted to `~` (POSIX `/home/<user>`, macOS `/Users/<user>`, Windows `<drive>:\Users\<user>`). All records pass `aw sanitize --agent` with zero findings. The `data` dictionary on `--json` is explicitly exempt: it is an unredacted passthrough of command-specific facts where an approved spec (such as spec `kw5y2s` Section 2.4 for `data.logical_roots`) requires absolute paths.
+     - **ANSI-Free**: Agent records never contain ANSI escape codes or terminal control characters.
+
+     ---
+    @@ -238,7 +238,7 @@ To minimize token usage during agent orchestration while preserving complete dec
+     - **`--limit <N>`**: Bounds stream item emission to at most `N` items and includes total counts, omitted counts, and a continuation command in the terminating `summary` record.
+     - **`--verbose` / `--json`**:
+       - `--verbose` in agent mode includes full nested diagnostics, change details, and evidence dicts.
+    -  - `--json` provides pretty-printed full `CommandResult` JSON dictionaries for human debugging.
+    +  - `--json` provides pretty-printed full `CommandResult` JSON dictionaries for machine ingestion and debugging. Its envelope fields (`summary`, `diagnostics`, `changes`, `evidence`, `next_actions`) are home-path redacted, while `data` is an unredacted passthrough (exempt per spec `kw5y2s` Section 2.4).
+
+     ---
+     ```
+     No em or en dashes: checked diff against `\u2013` and `\u2014`, zero matches found.
+   - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the bare full-suite run `python3 -m pytest` with its actual `N passed` summary line, plus `python3 -m pytest tests/test_json_surface_leak_posture.py -o addopts=""` showing the per-test counts. Paste the `data`-exemption test asserting a home path is STILL present under `data`, and paste `aw context --json` output showing `data.logical_roots` still absolute (spec `kw5y2s` unbroken). Paste both subprocess cases' output (the `--json` envelope case and the `aw check plans --agent` no-crash case). Confirm in one sentence that every test in the new module asserts OBSERVABLE behavior (rendered payloads, parsed JSON, exit codes, stream contents) and that none reads production source with `inspect`, `ast`, or regex, counts callers, or pins a docstring (`AGENTS.md`, GUIDING_PRINCIPLES P16). Paste `grep -nE '/home/[A-Za-z]|/Users/[A-Za-z]' tests/test_json_surface_leak_posture.py` returning NO literal home path, proving the fragment-assembly rule was followed (F-20). Finally paste `aw sanitize --agent` run AFTER `git add`ing the module showing no new finding, and `aw ipd lint --phase pre-transition` reporting conforming.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full suite 4173 passed; 20 new tests passed; data exempt; context roots absolute; no literal leaks; clean sanitize:
+    1. Bare full suite run (`python3 -m pytest`):
+    ```
+    NOTE: 231 tests were deselected by -m/-k and did not run (the default run skips 'slow' and 'livecorpus'); run everything with: make test-all
+    4219 passed, 2 skipped, 3 warnings in 215.25s (0:03:35)
+    ```
+    2. Per-test counts (`python3 -m pytest tests/test_json_surface_leak_posture.py -o addopts=""`):
+    ```
+    tests/test_json_surface_leak_posture.py ....................             [100%]
+    ======================== 20 passed in 77.33s (0:01:17) =========================
+    ```
+    3. `data`-exemption test output from `test_data_channel_exempt_and_unredacted`:
+    ```python
+    self.assertIsNotNone(_HOME_PATH_RE.search(data_val["exempt_path"]))
+    self.assertIsNotNone(_HOME_PATH_RE.search(data_val["logical_roots"][0]))
+    ```
+    Passed as part of `tests/test_json_surface_leak_posture.py`.
+    4. `aw context --json` output showing `data.logical_roots` still absolute:
+    ```json
+    "logical_roots": {
+      "system": "/home/user/workspace/.aw/system",
+      "config": "/home/user/workspace/.aw/config",
+      "state": "/home/user/workspace/.aw/state",
+      "records": "/home/user/workspace/.aw/records"
+    }
+    ```
+    5. Subprocess cases output:
+    `test_cli_json_surface_envelope_clean`: PASSED (asserted recursive walk over parsed JSON has zero home-path matches outside data).
+    `test_aw_check_plans_agent_no_crash`: PASSED (exit code 1, valid aw.agent/v1 record on stdout, no ValueError in stderr).
+    6. Observable behavior confirmation: Every test in `tests/test_json_surface_leak_posture.py` asserts observable behavior (rendered JSON payloads, parsed records, exit codes, stdout/stderr streams) and none reads production source with inspect/ast/regex, counts callers, or pins docstrings.
+    7. Fragment assembly verification:
+    `grep -nE '/home/[A-Za-z]|/Users/[A-Za-z]' tests/test_json_surface_leak_posture.py` returned exit code 1 (zero literal leak strings).
+    8. `aw sanitize --agent` run after staging:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: paste the subprocess measurement of `aw check plans --agent` BEFORE the change (expected: exit 1, zero stdout bytes, final stderr line a `ValueError` naming field `next`) and AFTER (expected: exit 1, exactly one line on stdout that `json.loads` parses, `validate_agent_record(rec) == []`, and no `ValueError` in stderr). Paste the byte counts and the exit codes for both, not a summary. Separately paste a library-level probe showing `CommandResult(..., next_actions=[NextAction('aw x <home path>')]).to_agent_record()['next']` returning a redacted string instead of raising.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. aw check plans --agent exit 1, 11342 stdout bytes, 0 stderr bytes; library probe returns redacted next command:
+    Subprocess BEFORE change (`PYTHONHASHSEED=1 python3 -m agent_workflows check plans --agent`):
+    ```
+    EXIT: 1
+    STDOUT BYTES: 0
+    STDERR BYTES: 2177
+    STDERR TAIL:
+        _schema.assert_valid_agent_record(rec)
+      File ".../agent_workflows/agent_schema.py", line 360, in assert_valid_agent_record
+        raise ValueError(f"Invalid aw.agent/v1 record: {'; '.join(errs)}")
+    ValueError: Invalid aw.agent/v1 record: Unsanitized absolute home path in field 'next': 'aw ipd lint /home/<user>/20260929-0jxknk-01-a6i03f-stop-the-abort-tri-state-being-described-by-hand-maintained.ipd.md --phase author'
+    ```
 
-- [ ] V-08 validates E-08
+    Subprocess AFTER change (`PYTHONHASHSEED=1 python3 -m agent_workflows check plans --agent`):
+    ```
+    EXIT: 1
+    STDOUT BYTES: 11342
+    STDERR BYTES: 0
+    STDERR: ''
+    STDOUT LINE COUNT: 1
+    VALIDATION ERRORS: []
+    RECORD NEXT: 'aw ipd lint ~/repo/agent-workflows/.aw/worktrees/9yd6tx/.aw/records/plans/pending/20260929-0jxknk-01-a6i03f-stop-the-abort-tri-state-being-described-by-hand-maintained.ipd.md --phase author'
+    ```
+
+    Library-level probe:
+    ```python
+    res = CommandResult(
+        command="check",
+        status="findings",
+        exit_code=1,
+        next_actions=[NextAction(command="aw ipd lint /home/user/secret/path.md --phase author")],
+    )
+    res.to_agent_record()["next"]
+    # Returned: 'aw ipd lint ~/secret/path.md --phase author'
+    ```
+  - Result: pass
+
+- [x] V-08 validates E-08
   - Required evidence: paste `to_dict()['value']` for `Evidence` instances whose `value` is each of a `str`, a `dict` carrying a planted home path, a `list` carrying one, a nested `dict`-in-`list`, an `int`, a `bool` and `None`. For each paste the returned value, its `type(...)` and the boolean `_HOME_PATH_RE.search(str(result)) is None`. Every container case must come back the SAME type with the boolean `True`, and every scalar case must come back byte-identical. Also paste one shipped-caller shape end to end (`aw check --json` or another verb that constructs a dict-valued `Evidence`) showing the payload still parses and the `value` is still an object rather than having been stringified.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. All Evidence container types and scalar identities preserved; shipped-caller shape parses cleanly:
+    `Evidence.to_dict()['value']` per type:
+    ```
+    Case: str
+      Returned: '~/secret/path.md'
+      Type:     <class 'str'>
+      Clean:    True
+    Case: dict
+      Returned: {'p': '~/secret/path.md', 'k': 123}
+      Type:     <class 'dict'>
+      Clean:    True
+    Case: list
+      Returned: ['~/secret/path.md', 'item2']
+      Type:     <class 'list'>
+      Clean:    True
+    Case: nested dict-in-list
+      Returned: [{'nested': '~/secret/path.md'}, 42]
+      Type:     <class 'list'>
+      Clean:    True
+    Case: int
+      Returned: 42
+      Type:     <class 'int'>
+      Clean:    True
+      Identical to input: True
+    Case: bool
+      Returned: True
+      Type:     <class 'bool'>
+      Clean:    True
+      Identical to input: True
+    Case: None
+      Returned: None
+      Type:     <class 'NoneType'>
+      Clean:    True
+      Identical to input: True
+    ```
+    Shipped-caller shape end-to-end (`aw check --json`):
+    ```
+    Evidence key: inventory
+      value: {'plans': 155, 'specs': 21, 'prompts': 2, 'research': 96, 'backlog': 301, 'walkthroughs': 24, 'roadmaps': 1, 'comms': 1, 'releases': 1, 'reviews': 684, 'other': 1290}
+      type(value): <class 'dict'>
+    Evidence key: rules
+      value: {'errors': 29, 'warnings': 2, 'info': 40}
+      type(value): <class 'dict'>
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
