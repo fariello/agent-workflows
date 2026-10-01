@@ -6,7 +6,7 @@
 - Scope: IN: (a) publish the contract ONCE in `docs/cli-output-contract.md` beside the exit-code semantics it governs, naming `info` as the only non-failing tier, the fail-closed treatment of an empty or unrecognized severity, and the SECOND contract (`aw commit` / `aw work begin` / `aw ipd lint`, where `warning` is genuinely non-blocking) so a reader learns both rather than half; (b) a new behavior test module pinning the `drift_exit_code` severity mapping including the fail-closed cases, the registry's conformance to the three-value enum, and the existence of at least one `info` rule, so the contract is enforced by execution rather than by comment; (c) one CHANGELOG line. OUT, and this is the load-bearing exclusion: CHANGING what any tier MEANS, i.e. backlog `1dvtiq`'s options (b) "add a fourth advisory tier" and (c) "make warning non-failing and promote today's warning rules to error". Those re-tier 12 live `warning` rules and change CI behavior tree-wide, and the item itself files them for a MAINTAINER DECISION; OQ-01 puts the question to the maintainer rather than this plan answering it. Also OUT: any edit to `artifact_core.drift_exit_code` or to any `RuleSpec` severity (no behavior changes at all; this plan is documentation plus tests); the `aw check` errors/warnings TALLY, which is a separate measured defect owned by pending plan `tzjtg4` (set `checkinfotally`) and backlog `xqm16x`; the volume of the rendered findings report (backlog `ct1n04`); and deleting or consolidating the 9 existing `check_engine.py` comments, since a reader at the registry still benefits from a local statement (E-02 adds a pointer instead).
 - Scope-Paths: docs/cli-output-contract.md, tests/test_severity_tier_contract.py, CHANGELOG.md, agent_workflows/check_engine.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: wm40yl
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: wm40yl verified (set warnadvisory, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-W01 (HIGH, fixed), PR-W02 (HIGH, fixed), PR-W03 (MEDIUM, fixed), PR-W04 (MEDIUM, fixed), PR-W05 (LOW, fixed), PR-W06 (LOW, fixed), PR-W07 (HIGH, fixed). Findings recorded in .aw/records/reviews/20260930-warnadvisory-01-wm40yl-document-the-severity-tier-contract-so-warning-is-not.review.md. The diagnosis is correct and I re-ran it: all eight drift_exit_code verdicts reproduce to the value (info and [] alone return 0), the legacy three-positional Drift carries severity='' and yields 1, _DEFAULT_RULESPEC is error, F-02's three review instances are all real (including the verbatim DECISION 02-k9awrq-D1 comment), F-04's documentation gap is exactly as described, F-06's seven sites in six files reproduce, and OQ-01's 12-warning-rule cost plus the two staged toward error both verify. TWO SERIOUS FINDINGS. PR-W01: E-02 instructed the executor to publish that aw ipd lint's carrier merge treats warning as a non-blocking advisory, which is FALSE (that merge blocks anything not info), so a documentation plan would have shipped a false sentence in the document written to stop people being misled; the plan's own F-06 says so and warns against overclaiming, so the plan contradicted itself and the item an executor follows carried the wrong version. E-02 now states each gate separately and adds the check.scope-drift rule-id override that the commit gate applies beside severity. PR-W02: three of the plan's four live counts had already drifted before review (test modules 7->9, package references 32->54, registry 52/7-info->56/11-info, live findings 25->58 with the warning tier falling to ZERO), so E-01 and E-05 now re-derive rather than confirm and E-04's advisory property is pinned non-empty; new F-11 separates the stable figures from the drifting ones. FURTHER: F-05's claim that no test pins the contract is false of the COMMIT gate, which tests/test_work_gate_severity.py pins in eleven passing tests, sharpening E-04's target to the exit-code half; E-01's STOP-on-a-third-predicate-shape would have halted on the plan's own baseline; E-03's skip branch invited omitting the highest-value line; and E-04 property 5 could have been pinned as a count. PR-W07: the plan itself carried a live error-severity check.ipd-uncarried-obligation finding, six obligations (five Deferred rows plus OQ-01) naming their owners only in PROSE, which the machine-readable field cannot see, so all six would have vanished into `done` once the plan executed; note the ipd lint reported conforming throughout, so the structural preflight alone would not have caught it. Added `- Carrier:` to three rows and OQ-01 and a reasoned `- Carrier-Declined:` to the two rows that are decisions rather than deferrals; re-measured to zero findings. OQ-01 correctly left open as a maintainer decision (D-4).
 
@@ -35,36 +35,36 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Confirm both contracts at the execution base before writing a word about them
 
-- [ ] E-01 RE-MEASURE BOTH CONTRACTS, because this plan's entire deliverable is a statement ABOUT behavior and a stale statement is worse than none. (1) Drive `artifact_core.drift_exit_code` with a one-element drift list for each of `error`, `warning`, `warn`, `info`, `""`, `"advisory"`, `"INFO"`, and with `[]`, and paste the eight results. (2) Print the registry severity census: `python3 -c "from agent_workflows import check_engine as ce; from collections import Counter; print(len(ce.RULE_REGISTRY), Counter(s.severity for s in ce.RULE_REGISTRY.values()))"`, and print `ce._DEFAULT_RULESPEC`. (3) Enumerate EVERY consumer that branches on a severity being `info`, with `git grep -n 'severity.*"info"' -- agent_workflows/ | grep -E 'if |!=|=='` filtered of `severity="info"` constructions and `severity_label` calls, and classify each hit by WHICH PREDICATE SHAPE it applies: `non-info-fails` (the exit-code shape) or `warning-is-advisory` (the commit-gate shape). At authoring, and re-confirmed at review, there are exactly seven such sites in six files (F-06). THREE PREDICATE SHAPES ALREADY EXIST, NOT TWO, so do not expect a two-way split: six of the seven sites use `non-info-fails`, and only `work_cmd._validate_plan_via_engine` uses `warning-is-advisory`. `ipd_lint`'s carrier merge sits at a lifecycle gate but applies the `non-info-fails` shape, which is exactly why E-02 must state the gates individually (F-10). ALSO RECORD, per site, whether it branches on anything BESIDES severity: `work_cmd._validate_plan_via_engine` additionally routes `check_engine._SCOPE_DRIFT_RULE` to advisory by RULE ID despite its registered `error`, and a document that omits that override is incomplete about that gate. STOP AND REPORT only if a site applies neither predicate shape, or if `drift_exit_code` no longer exempts `info` alone: the document E-02 writes would then be describing behavior that no longer exists, and the correct response is to re-scope rather than publish a false statement. Finding a THIRD shape is NOT a stop condition, because the third shape is already present at base and E-02 is written to describe it.
+- [x] E-01 RE-MEASURE BOTH CONTRACTS, because this plan's entire deliverable is a statement ABOUT behavior and a stale statement is worse than none. (1) Drive `artifact_core.drift_exit_code` with a one-element drift list for each of `error`, `warning`, `warn`, `info`, `""`, `"advisory"`, `"INFO"`, and with `[]`, and paste the eight results. (2) Print the registry severity census: `python3 -c "from agent_workflows import check_engine as ce; from collections import Counter; print(len(ce.RULE_REGISTRY), Counter(s.severity for s in ce.RULE_REGISTRY.values()))"`, and print `ce._DEFAULT_RULESPEC`. (3) Enumerate EVERY consumer that branches on a severity being `info`, with `git grep -n 'severity.*"info"' -- agent_workflows/ | grep -E 'if |!=|=='` filtered of `severity="info"` constructions and `severity_label` calls, and classify each hit by WHICH PREDICATE SHAPE it applies: `non-info-fails` (the exit-code shape) or `warning-is-advisory` (the commit-gate shape). At authoring, and re-confirmed at review, there are exactly seven such sites in six files (F-06). THREE PREDICATE SHAPES ALREADY EXIST, NOT TWO, so do not expect a two-way split: six of the seven sites use `non-info-fails`, and only `work_cmd._validate_plan_via_engine` uses `warning-is-advisory`. `ipd_lint`'s carrier merge sits at a lifecycle gate but applies the `non-info-fails` shape, which is exactly why E-02 must state the gates individually (F-10). ALSO RECORD, per site, whether it branches on anything BESIDES severity: `work_cmd._validate_plan_via_engine` additionally routes `check_engine._SCOPE_DRIFT_RULE` to advisory by RULE ID despite its registered `error`, and a document that omits that override is incomplete about that gate. STOP AND REPORT only if a site applies neither predicate shape, or if `drift_exit_code` no longer exempts `info` alone: the document E-02 writes would then be describing behavior that no longer exists, and the correct response is to re-scope rather than publish a false statement. Finding a THIRD shape is NOT a stop condition, because the third shape is already present at base and E-02 is written to describe it.
   - Depends on: none
   - Expected outcome: the eight exit codes pasted, showing `info` and `[]` alone yielding 0; the registry census and the `error` default printed; and every severity-branching consumer enumerated with its predicate shape named and any non-severity branch recorded beside it, with the count stated. Re-derive every number here; do NOT restate the registry census or the site count written in this plan's Findings, which were measured at authoring and have already drifted once (F-11). This is the evidence base E-02 and E-03 write from, so nothing downstream restates a number this item did not produce.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Publish the contract where a reader will find it
 
-- [ ] E-02 In `docs/cli-output-contract.md`, add a subsection under `## 3. Exit Code Semantics` (which already states the `0`/`1`/`2` classification and is the section this contract refines) stating the severity tier contract, using ONLY figures E-01 produced. It must state: that `Diagnostic` severity is `error` / `warning` / `info` as section 2 already lists; that for the `--check` / findings exit code, `info` is the ONLY tier that does not contribute to exit 1, so a `warning` fails a gate exactly as an `error` does; that an ABSENT, EMPTY, or unrecognized severity is treated as FAILING (fail closed), and that an unregistered rule id is stamped `error` by `check_engine._DEFAULT_RULESPEC`, so forgetting to register a rule yields the STRICTEST behavior rather than the laxest; and that the authority is `artifact_core.drift_exit_code` and `check_engine.RULE_REGISTRY`, cited by symbol. Then state the SECOND contract explicitly and in the same place, and state it PER GATE rather than as one rule covering both, because the two gates do NOT agree and a document claiming they do would be false (F-10). At `aw commit` and `aw work begin` (`work_cmd._validate_plan_via_engine`), `error` refuses, `warning` prints as a non-blocking advisory, and `info` is dropped silently. At `aw ipd lint`'s durable-carrier merge, only `info` is advisory and a `warning` BLOCKS, which is the exit-code rule rather than the commit-gate one. So the honest summary is that `info` is advisory EVERYWHERE, while `warning` is advisory at exactly two gates and failing everywhere else. Name the practical consequence a rule author needs: to add a rule that reports without ever failing anything, register `info`. ALSO STATE THE ONE RULE-ID OVERRIDE, because a reader who trusts the severity table alone will be wrong about it: `work_cmd._validate_plan_via_engine` routes `check.scope-drift` to the advisory list BY RULE ID even though it is registered `error`, deliberately (its in-code comment records that lowering its registered severity would affect `aw check`, CI and the pre-commit hook), so severity is not the only input at that gate. Write it as USER-FACING prose with no em or en dashes (AGENTS.md). Do NOT restate the per-rule reasoning that belongs in `check_engine.py`, and do NOT edit any `.py` file in this item.
+- [x] E-02 In `docs/cli-output-contract.md`, add a subsection under `## 3. Exit Code Semantics` (which already states the `0`/`1`/`2` classification and is the section this contract refines) stating the severity tier contract, using ONLY figures E-01 produced. It must state: that `Diagnostic` severity is `error` / `warning` / `info` as section 2 already lists; that for the `--check` / findings exit code, `info` is the ONLY tier that does not contribute to exit 1, so a `warning` fails a gate exactly as an `error` does; that an ABSENT, EMPTY, or unrecognized severity is treated as FAILING (fail closed), and that an unregistered rule id is stamped `error` by `check_engine._DEFAULT_RULESPEC`, so forgetting to register a rule yields the STRICTEST behavior rather than the laxest; and that the authority is `artifact_core.drift_exit_code` and `check_engine.RULE_REGISTRY`, cited by symbol. Then state the SECOND contract explicitly and in the same place, and state it PER GATE rather than as one rule covering both, because the two gates do NOT agree and a document claiming they do would be false (F-10). At `aw commit` and `aw work begin` (`work_cmd._validate_plan_via_engine`), `error` refuses, `warning` prints as a non-blocking advisory, and `info` is dropped silently. At `aw ipd lint`'s durable-carrier merge, only `info` is advisory and a `warning` BLOCKS, which is the exit-code rule rather than the commit-gate one. So the honest summary is that `info` is advisory EVERYWHERE, while `warning` is advisory at exactly two gates and failing everywhere else. Name the practical consequence a rule author needs: to add a rule that reports without ever failing anything, register `info`. ALSO STATE THE ONE RULE-ID OVERRIDE, because a reader who trusts the severity table alone will be wrong about it: `work_cmd._validate_plan_via_engine` routes `check.scope-drift` to the advisory list BY RULE ID even though it is registered `error`, deliberately (its in-code comment records that lowering its registered severity would affect `aw check`, CI and the pre-commit hook), so severity is not the only input at that gate. Write it as USER-FACING prose with no em or en dashes (AGENTS.md). Do NOT restate the per-rule reasoning that belongs in `check_engine.py`, and do NOT edit any `.py` file in this item.
   - Depends on: E-01
   - Expected outcome: `git diff docs/cli-output-contract.md` shows one new subsection under section 3 stating the exit-code contract and the gate contracts PER GATE (not merged), every claim traceable to an E-01 measurement, and citing `artifact_core.drift_exit_code`, `check_engine.RULE_REGISTRY`, `check_engine._DEFAULT_RULESPEC`, `work_cmd._validate_plan_via_engine` and `check_engine._SCOPE_DRIFT_RULE` by symbol. The subsection must NOT contain a sentence asserting that `warning` is non-blocking at `aw ipd lint`, which is false (F-10). No other file touched by this item.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 ADD THE POINTER AT THE PLACE AUTHORS ALREADY STAND, so the new document is reachable from the code rather than needing to be known about. In `agent_workflows/check_engine.py`, at the `RULE_REGISTRY` definition's leading comment block (the one beginning "The versioned rule registry: stable rule id -> RuleSpec"), add ONE sentence naming `docs/cli-output-contract.md` section 3 as the published contract for what each severity does to an exit code. This is COMMENT-ONLY and changes no behavior. Do NOT delete, shorten, or consolidate any of the 9 existing comments in this file that re-derive the contract locally (F-07): each sits beside the specific rule whose severity it justifies and is load-bearing for that rule's review history. THIS ITEM PUTS `agent_workflows/check_engine.py` INTO `- Scope-Paths:`. DO THE EDIT: it is one comment sentence, it costs nothing, and the whole finding this plan exists to close (F-02, three authors wrong at the registry) is that the registry is where authors stand when they get it wrong, so a pointer there is the single highest-value line in the plan. The SKIP branch exists only for a genuinely blocking condition (for example the comment block has been restructured such that no single sentence fits), and taking it REQUIRES recording the specific reason in the execution state, not a preference. If skipped, the declared path goes unused, which `aw ipd finalize` satisfies with a `--scope-ack` for the declared-but-unmodified path rather than needing a `--scope-reason`.
+- [x] E-03 ADD THE POINTER AT THE PLACE AUTHORS ALREADY STAND, so the new document is reachable from the code rather than needing to be known about. In `agent_workflows/check_engine.py`, at the `RULE_REGISTRY` definition's leading comment block (the one beginning "The versioned rule registry: stable rule id -> RuleSpec"), add ONE sentence naming `docs/cli-output-contract.md` section 3 as the published contract for what each severity does to an exit code. This is COMMENT-ONLY and changes no behavior. Do NOT delete, shorten, or consolidate any of the 9 existing comments in this file that re-derive the contract locally (F-07): each sits beside the specific rule whose severity it justifies and is load-bearing for that rule's review history. THIS ITEM PUTS `agent_workflows/check_engine.py` INTO `- Scope-Paths:`. DO THE EDIT: it is one comment sentence, it costs nothing, and the whole finding this plan exists to close (F-02, three authors wrong at the registry) is that the registry is where authors stand when they get it wrong, so a pointer there is the single highest-value line in the plan. The SKIP branch exists only for a genuinely blocking condition (for example the comment block has been restructured such that no single sentence fits), and taking it REQUIRES recording the specific reason in the execution state, not a preference. If skipped, the declared path goes unused, which `aw ipd finalize` satisfies with a `--scope-ack` for the declared-but-unmodified path rather than needing a `--scope-reason`.
   - Depends on: E-02
   - Expected outcome: either `git diff agent_workflows/check_engine.py` shows exactly one added comment sentence naming the doc section and no code change, or the item is recorded SKIPPED with a reason and the file is untouched.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Make the contract fail loudly if it changes
 
-- [ ] E-04 Add `tests/test_severity_tier_contract.py`, a BEHAVIOR test pinning the contract so a future change to it is deliberate and visible rather than silent. It must cover: (1) THE EXIT MAPPING, that `artifact_core.drift_exit_code` returns 0 for a lone `info` finding and for an empty list, and 1 for `error`, for `warning`, and for an unrecognized severity string, which is the exact property the documentation asserts; (2) FAIL-CLOSED ON ABSENCE, that a legacy three-positional `Drift(location, rule, detail)` carrying no severity yields 1, since that is what keeps every pre-enrichment producer blocking; (3) REGISTRY ENUM CONFORMANCE, that every `RuleSpec.severity` in `check_engine.RULE_REGISTRY` is one of the three values, which is UNPINNED today (F-08) and is what makes a typo such as `warn` or `advisory` silently fail closed instead of being caught; (4) THE CONSERVATIVE DEFAULT, that `check_engine.rule_spec` on a rule id that is not registered returns severity `error`; (5) AT LEAST ONE ADVISORY RULE EXISTS, that some registered rule carries `info`, so the advisory tier cannot be emptied without a test failing and a human noticing. Assert this as a NON-EMPTY property (`>= 1`), never as the measured count, which was 7 at authoring and 11 at review (F-11). Do NOT assert an exact COUNT of rules or an exact per-severity distribution: the registry grows by design and such an assertion would fail on every unrelated rule addition, which is churn rather than protection. Do NOT read `artifact_core.py` or `check_engine.py` source with `inspect`, `ast`, regex, or substring search, do NOT assert on symbol censuses or caller counts, and do NOT assert that any comment text is present (AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE"; GUIDING_PRINCIPLES P16). Every assertion calls the real function and checks its real return value.
+- [x] E-04 Add `tests/test_severity_tier_contract.py`, a BEHAVIOR test pinning the contract so a future change to it is deliberate and visible rather than silent. It must cover: (1) THE EXIT MAPPING, that `artifact_core.drift_exit_code` returns 0 for a lone `info` finding and for an empty list, and 1 for `error`, for `warning`, and for an unrecognized severity string, which is the exact property the documentation asserts; (2) FAIL-CLOSED ON ABSENCE, that a legacy three-positional `Drift(location, rule, detail)` carrying no severity yields 1, since that is what keeps every pre-enrichment producer blocking; (3) REGISTRY ENUM CONFORMANCE, that every `RuleSpec.severity` in `check_engine.RULE_REGISTRY` is one of the three values, which is UNPINNED today (F-08) and is what makes a typo such as `warn` or `advisory` silently fail closed instead of being caught; (4) THE CONSERVATIVE DEFAULT, that `check_engine.rule_spec` on a rule id that is not registered returns severity `error`; (5) AT LEAST ONE ADVISORY RULE EXISTS, that some registered rule carries `info`, so the advisory tier cannot be emptied without a test failing and a human noticing. Assert this as a NON-EMPTY property (`>= 1`), never as the measured count, which was 7 at authoring and 11 at review (F-11). Do NOT assert an exact COUNT of rules or an exact per-severity distribution: the registry grows by design and such an assertion would fail on every unrelated rule addition, which is churn rather than protection. Do NOT read `artifact_core.py` or `check_engine.py` source with `inspect`, `ast`, regex, or substring search, do NOT assert on symbol censuses or caller counts, and do NOT assert that any comment text is present (AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE"; GUIDING_PRINCIPLES P16). Every assertion calls the real function and checks its real return value.
   - Depends on: E-01
   - Expected outcome: a new test module that passes at the base (it pins existing behavior, so it must go green immediately) and that FAILS if `drift_exit_code`'s predicate is inverted, if a registry entry acquires an out-of-enum severity, if `_DEFAULT_RULESPEC` is loosened below `error`, or if the last `info` rule is removed.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: Verify and close out
 
-- [ ] E-05 Verify the whole change and record it. Confirm the new documentation contains no em or en dash: `git diff docs/cli-output-contract.md | grep -nP '[\x{2013}\x{2014}]'` must print nothing. Run the suite BARE as `python3 -m pytest` and paste the actual summary line. Run `python3 -m agent_workflows check all` and report its exit code, noting whether any finding is error-or-warning versus `info` rather than claiming a finding count (the tree is LIVE and its counts move; see F-09). The same re-derive rule covers EVERY live figure and not only the findings count (F-11): if this item reports a registry census, a reference count, or a test-module count, it must re-derive it and must not compare against any number in this plan's Findings, three of which moved between authoring and review. Note specifically that the live tree measured ZERO `warning` findings at review, so an error-or-warning-versus-`info` breakdown with an empty warning tier is a correct observation and not a defect. Run `aw sanitize --agent; echo rc=$?`. Add ONE `CHANGELOG.md` line describing the published contract and the new test, in the existing entry style, with no em or en dashes.
+- [x] E-05 Verify the whole change and record it. Confirm the new documentation contains no em or en dash: `git diff docs/cli-output-contract.md | grep -nP '[\x{2013}\x{2014}]'` must print nothing. Run the suite BARE as `python3 -m pytest` and paste the actual summary line. Run `python3 -m agent_workflows check all` and report its exit code, noting whether any finding is error-or-warning versus `info` rather than claiming a finding count (the tree is LIVE and its counts move; see F-09). The same re-derive rule covers EVERY live figure and not only the findings count (F-11): if this item reports a registry census, a reference count, or a test-module count, it must re-derive it and must not compare against any number in this plan's Findings, three of which moved between authoring and review. Note specifically that the live tree measured ZERO `warning` findings at review, so an error-or-warning-versus-`info` breakdown with an empty warning tier is a correct observation and not a defect. Run `aw sanitize --agent; echo rc=$?`. Add ONE `CHANGELOG.md` line describing the published contract and the new test, in the existing entry style, with no em or en dashes.
   - Depends on: E-02, E-03, E-04
   - Expected outcome: no en/em dash in the new prose; suite green with the summary pasted; `aw check all` exit code reported with the error-or-warning versus `info` breakdown stated; sanitizer rc 0; one CHANGELOG line added.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -150,26 +150,173 @@ NO SPEC AMENDMENT, and the reason is measured rather than assumed. `git grep -rl
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the eight `drift_exit_code` results verbatim (`error`, `warning`, `warn`, `info`, `""`, `"advisory"`, `"INFO"`, `[]`), showing exactly `info` and `[]` returning 0. Paste the registry census output and the printed `_DEFAULT_RULESPEC`, as FRESHLY DERIVED values (the census moved from 52/7-info to 56/11-info between authoring and review, so a match against this plan's figures is not expected and not required; F-11). Paste the full consumer enumeration with each site labelled by PREDICATE SHAPE (`non-info-fails` or `warning-is-advisory`), the total stated, and any non-severity branch recorded beside its site. State explicitly whether any site applied neither shape, and state the shape split (six / one at review).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: Verified drift_exit_code with 8 cases (only info and [] return 0), registry census 64 rules (Counter({'error': 35, 'info': 17, 'warning': 12})), _DEFAULT_RULESPEC is error, and 7 consumers in 6 files (6 non-info-fails, 1 warning-is-advisory with rule-id override).
+    Eight drift_exit_code test results:
+    drift_exit_code(['error']): 1
+    drift_exit_code(['warning']): 1
+    drift_exit_code(['warn']): 1
+    drift_exit_code(['info']): 0
+    drift_exit_code(['']): 1
+    drift_exit_code(['advisory']): 1
+    drift_exit_code(['INFO']): 1
+    drift_exit_code([]): 0
+    Exactly info and [] return 0; all other cases return 1.
+
+    Registry severity census and default rulespec:
+    64 Counter({'error': 35, 'info': 17, 'warning': 12})
+    RuleSpec(severity='error', assurance='repository', determinism='deterministic', invariant='')
+
+    Consumer enumeration (7 sites in 6 files):
+    1. agent_workflows/artifact_adopt.py:1178: if d.severity != "info":
+       Predicate shape: non-info-fails. Non-severity branches: none.
+    2. agent_workflows/artifact_core.py:689: return 1 if any(getattr(d, "severity", "") != "info" for d in drift) else 0
+       Predicate shape: non-info-fails. Non-severity branches: none.
+    3. agent_workflows/ipd_lint.py:2348: (advisory if d.severity == "info" else blocking).append(diag)
+       Predicate shape: non-info-fails. Non-severity branches: none.
+    4. agent_workflows/runner_shared.py:16013: violating = [d for d in drift if getattr(d, "severity", "") != "info"]
+       Predicate shape: non-info-fails. Non-severity branches: none.
+    5. agent_workflows/runner_shared.py:19424: if getattr(d, "severity", "") != "info":
+       Predicate shape: non-info-fails. Non-severity branches: none.
+    6. agent_workflows/runner_shared.py:19446: if getattr(d, "severity", "") != "info":
+       Predicate shape: non-info-fails. Non-severity branches: none.
+    7. agent_workflows/work_cmd.py:291: if enriched.severity == "info": continue ... if enriched.rule == _ce._SCOPE_DRIFT_RULE: advisory.append(enriched) elif enriched.severity == "warning": advisory.append(enriched) else: blocking.append(enriched)
+       Predicate shape: warning-is-advisory. Non-severity branches: routes check.scope-drift to advisory by rule ID despite registered error.
+
+    Shape split: six non-info-fails, one warning-is-advisory. Zero sites applied neither shape.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste `git diff docs/cli-output-contract.md`. Confirm by quoting from the diff that it states (a) `info` as the only tier exempt from the findings exit code, (b) `warning` failing the exit gate exactly as `error` does, (c) absent/empty/unrecognized severity treated as failing, (d) the unregistered-rule `error` default, (e) the `aw commit` / `aw work begin` gate where `warning` IS a non-blocking advisory, (f) the `aw ipd lint` carrier merge where `warning` BLOCKS, stated as its own case and not merged with (e), and (g) the `check.scope-drift` rule-id override at the commit gate. Confirm each figure appears in V-01's evidence. Then paste a NEGATIVE check: quote the diff's gate paragraphs and state in one sentence that no sentence claims `warning` is non-blocking at `aw ipd lint`, which is the false statement E-02 as originally authored would have published (F-10). Paste the `grep -nP '[\x{2013}\x{2014}]'` run showing no output.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: Verified git diff docs/cli-output-contract.md contains new subsection 3.1 stating exit-code mapping, fail-closed handling, unregistered error default, per-gate semantics (commit vs ipd lint), and check.scope-drift override, with no claims of warning non-blocking at ipd lint and no en/em dashes.
+    git diff docs/cli-output-contract.md:
+    ```diff
+    +### 3.1 Severity Tier Contract and Gate Semantics
+    +
+    +The `Diagnostic` type defines three severity levels: `error`, `warning`, and `info` (Section 2). While this vocabulary suggests a three-level scale of seriousness, its effect on process exit codes is strictly two-level.
+    +
+    +#### The Exit-Code Contract (Findings Gates)
+    +
+    +For `--check` invocations, CI checks, and finding reports, `info` is the ONLY severity tier that does not contribute to exit 1. The authority governing this mapping is `artifact_core.drift_exit_code`, together with rule declarations in `check_engine.RULE_REGISTRY`:
+    +
+    +- `info`: Evaluates to clean (`0`). A lone `info` finding or an empty finding list returns exit code `0`.
+    +- `warning`: Evaluates to failing (`1`). A `warning` finding fails the exit-code gate exactly as an `error` does.
+    +- `error`: Evaluates to failing (`1`).
+    +- Absent, empty, or unrecognized severity: Evaluates to failing (`1`). The check engine fails closed. If a diagnostic carries an empty severity string `""`, an unknown label such as `"advisory"` or `"warn"`, or wrong casing like `"INFO"`, `artifact_core.drift_exit_code` treats it as failing.
+    +- Unregistered rules: Stamped with severity `error` by `check_engine._DEFAULT_RULESPEC`. Forgetting to register a rule in `check_engine.RULE_REGISTRY` yields the strictest behavior rather than the laxest.
+    +
+    +#### The Second Contract: Per-Gate Lifecycle Behavior
+    +
+    +The exit-code rule above is not uniform across all repository gates. Two distinct lifecycle gates apply narrower contracts, and they must be understood individually rather than merged:
+    +
+    +1. **Commit and work-begin gates (`aw commit` and `aw work begin`)**:
+    +   Enforced in `work_cmd._validate_plan_via_engine`. Here, `error` findings refuse the operation, `warning` findings print as non-blocking advisories, and `info` findings are dropped silently.
+    +
+    +   *Rule-ID override*: At this gate, severity is not the only decision input. `work_cmd._validate_plan_via_engine` routes `check_engine._SCOPE_DRIFT_RULE` (`check.scope-drift`) to the advisory list by rule ID even though it is registered as `error`. This override is intentional: lowering the registered severity of `check.scope-drift` would weaken `aw check`, CI, and pre-commit hooks, while the commit gate handles path validation through its own staged-path check and defers execution-wide scope reconciliation to `aw ipd finalize`.
+    +
+    +2. **Durable-carrier merge gate (`aw ipd lint`)**:
+    +   At `aw ipd lint`'s durable-carrier merge, only `info` is advisory. A `warning` blocks the gate, adhering to the exit-code contract rather than the commit-gate contract.
+    +
+    +#### Summary for Rule Authors
+    +
+    +In summary, `info` is advisory everywhere, whereas `warning` is advisory at exactly two gates (`aw commit` and `aw work begin`) and failing everywhere else (including `aw check`, CI, and `aw ipd lint`).
+    +
+    +Practical consequence: to author a rule that reports diagnostics without ever failing any gate or check, register the rule with severity `info`.
+    ```
+
+    Content verification against V-01:
+    (a) info as only non-failing tier: "info is the ONLY severity tier that does not contribute to exit 1"
+    (b) warning failing like error: "A warning finding fails the exit-code gate exactly as an error does."
+    (c) absent/empty/unrecognized failing: "Absent, empty, or unrecognized severity: Evaluates to failing (1). The check engine fails closed."
+    (d) unregistered rule error default: "Unregistered rules: Stamped with severity error by check_engine._DEFAULT_RULESPEC."
+    (e) aw commit / aw work begin gate: "Here, error findings refuse the operation, warning findings print as non-blocking advisories, and info findings are dropped silently."
+    (f) aw ipd lint carrier merge: "At aw ipd lint's durable-carrier merge, only info is advisory. A warning blocks the gate, adhering to the exit-code contract rather than the commit-gate contract."
+    (g) check.scope-drift rule-id override: "work_cmd._validate_plan_via_engine routes check_engine._SCOPE_DRIFT_RULE (check.scope-drift) to the advisory list by rule ID even though it is registered as error."
+
+    Negative check: The gate paragraphs state "At aw ipd lint's durable-carrier merge, only info is advisory. A warning blocks the gate"; no sentence claims warning is non-blocking at aw ipd lint.
+    Dash check: git diff docs/cli-output-contract.md | grep -nP '[\x{2013}\x{2014}]' produced no output (rc=1).
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: EITHER paste `git diff agent_workflows/check_engine.py` showing exactly one added comment sentence naming `docs/cli-output-contract.md` section 3, with no non-comment line changed, AND confirm by count that the file still carries its 9 pre-existing contract comments; OR paste the item's recorded SKIP reason together with `git status --short agent_workflows/check_engine.py` showing the file unmodified. State which branch was taken.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: Verified check_engine.py RULE_REGISTRY header comment updated with one sentence pointing to docs/cli-output-contract.md section 3, with no non-comment lines changed and all 9 pre-existing contract comments intact.
+    Branch taken: performed edit in agent_workflows/check_engine.py.
+    git diff agent_workflows/check_engine.py:
+    ```diff
+    --- a/agent_workflows/check_engine.py
+    +++ b/agent_workflows/check_engine.py
+    @@ -131,6 +131,7 @@ class RuleSpec(NamedTuple):
+
+     # The versioned rule registry: stable rule id -> RuleSpec. Assurance classes trace to the Phase-0
+     # invariant catalog (spec pqsx96). Rules not listed here fall back to a conservative default.
+    +# See docs/cli-output-contract.md section 3 for the published contract governing what each severity tier does to an exit code.
+     RULE_REGISTRY: Dict[str, RuleSpec] = {
+         # Naming grammar (catalog I-09).
+         "check.name-nonconformant": RuleSpec(
+    ```
+    Exactly one comment sentence added; no non-comment lines modified. The 9 pre-existing contract comments throughout check_engine.py remain intact and undisturbed.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: paste the new module's test run output (`python3 -m pytest tests/test_severity_tier_contract.py`) showing every test passing, and paste the file's test method names so the five required properties are visibly covered. Then paste a MUTATION CHECK proving the module actually guards. Perform it WITHOUT editing any tracked file, since `artifact_core.py` is declared OUT of scope: monkeypatch in a throwaway probe under `/tmp` (for example patch `check_engine.RULE_REGISTRY` with an added out-of-enum severity entry, and patch `check_engine._DEFAULT_RULESPEC` to a non-`error` severity), run the module against each patch, show it FAILING, and confirm afterwards with `git status --short` that no tracked file was modified by the check. Confirm the two pre-existing incidental assertions named in Required tests still pass, AND paste `python3 -m pytest tests/test_work_gate_severity.py` green, since that module is the existing pin on the commit-gate half of the contract this plan documents and a behavior-neutral plan must not move it (F-05). Confirm by inspection that the module contains no `inspect`/`ast`/regex source read, no exact rule-count assertion, and no assertion on a per-severity distribution (property 5 must read as `>= 1` and not as `== 11`).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: Verified tests/test_severity_tier_contract.py passes 9/9 tests covering all five required properties, 4 mutation checks fail as expected, incidental assertions and test_work_gate_severity.py pass, and no source code regex/ast inspections.
+    Test suite execution output:
+    python3 -m pytest tests/test_severity_tier_contract.py:
+    ......... [100%]
+    9 passed in 6.57s
+
+    Test method names covering the five properties:
+    - test_drift_exit_code_lone_info_returns_clean_zero (Property 1: exit mapping info -> 0)
+    - test_drift_exit_code_empty_list_returns_clean_zero (Property 1: exit mapping [] -> 0)
+    - test_drift_exit_code_error_returns_failing_one (Property 1: exit mapping error -> 1)
+    - test_drift_exit_code_warning_returns_failing_one (Property 1: exit mapping warning -> 1)
+    - test_drift_exit_code_unrecognized_severity_fails_closed (Property 1: exit mapping unrecognized -> 1)
+    - test_drift_exit_code_legacy_drift_without_severity_fails_closed (Property 2: legacy drift without severity -> 1)
+    - test_rule_registry_severities_conform_to_canonical_enum (Property 3: registry enum conformance)
+    - test_rule_spec_unregistered_rule_defaults_to_error_severity (Property 4: conservative error default)
+    - test_rule_registry_contains_at_least_one_advisory_info_rule (Property 5: advisory info rule exists, len >= 1)
+
+    Mutation checks (all failed as expected when patched via unittest.mock in memory, with zero tracked file edits):
+    - Mutation 1 (out-of-enum severity in RULE_REGISTRY): test_rule_registry_severities_conform_to_canonical_enum failed with AssertionError: {'check.mutated-out-of-enum': 'invalid_sev'} != {}
+    - Mutation 2 (_DEFAULT_RULESPEC patched to 'warning'): test_rule_spec_unregistered_rule_defaults_to_error_severity failed with AssertionError: 'warning' != 'error'
+    - Mutation 3 (drift_exit_code inverted): test_drift_exit_code_error_returns_failing_one failed with AssertionError: 0 != 1
+    - Mutation 4 (RULE_REGISTRY info rules stripped): test_rule_registry_contains_at_least_one_advisory_info_rule failed with AssertionError: 0 not greater than or equal to 1
+
+    Tracked files after mutation checks remained clean: git status --short showed no modification to artifact_core.py or other files outside Scope-Paths.
+    Pre-existing incidental assertions pass:
+    - tests/test_check_engine_spec_criteria.py test_drift_exit_code_info_versus_warning: passed
+    - tests/test_check_engine.py test_the_warn_tier_does_not_fail_the_gate_but_the_error_tier_does: passed
+    - tests/test_work_gate_severity.py: 11 passed in 5.57s
+
+    Inspection check: tests/test_severity_tier_contract.py contains no inspect/ast/regex source reads, no exact rule count assertion, and no assertion on per-severity distribution (Property 5 asserts len(info_rules) >= 1).
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: paste the BARE `python3 -m pytest` summary line verbatim. Paste the `python3 -m agent_workflows check all` exit code together with an explicit statement of how many findings are error-or-warning versus `info`, and NO comparison to any count written in this plan. Paste `aw sanitize --agent; echo rc=$?` showing rc 0. Paste the added `CHANGELOG.md` line and confirm it contains no em or en dash. Paste `git diff --stat` and confirm every changed path is in `- Scope-Paths:`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified bare pytest suite (4213 passed, 2 skipped, 3 warnings), aw check all breakdown (errors 29, warnings 2, info 42), aw sanitize rc 0, CHANGELOG.md entry with no en/em dashes, and all changed paths in Scope-Paths.
+    Bare pytest suite execution:
+    python3 -m pytest:
+    4213 passed, 2 skipped, 3 warnings in 161.51s (0:02:41)
+
+    aw check all execution:
+    python3 -m agent_workflows check all:
+    Exit code: 1
+    Breakdown: errors 29, warnings 2, info 42
+
+    aw sanitize check:
+    python3 -m agent_workflows sanitize --agent; echo rc=$?:
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    rc=0
+
+    Added CHANGELOG.md line:
+    - Added: published the check engine severity tier contract in docs/cli-output-contract.md naming info as the only non-failing findings tier and defining per-gate lifecycle distinctions, and pinned the exit mapping and registry properties in tests/test_severity_tier_contract.py.
+    Dash check on CHANGELOG.md: git diff CHANGELOG.md | grep -nP '[\x{2013}\x{2014}]' produced no output (rc=1).
+
+    Scope-Paths check:
+    git diff --stat:
+     CHANGELOG.md                    |  1 +
+     agent_workflows/check_engine.py |  1 +
+     docs/cli-output-contract.md     | 32 ++++++++++++++++++++++++++++++++
+    Plus untracked tests/test_severity_tier_contract.py.
+    All 4 changed paths are declared in - Scope-Paths:.
+  - Result: pass
 
 ## Approval and execution gate
 
