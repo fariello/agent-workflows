@@ -1,11 +1,13 @@
 - Id: sq1go0
-- Status: open
+- Status: graduated
+- Graduated-To: destshadow
 - Set: destshadow
 - Priority: low
 - Work-Kind: followup
 - Summary: Decide whether an argparse dest that shadows an ancestor subparsers dest should be refused at parser build rather than only caught by a test
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): graduated by run run-20260930T053024Z-3198670: z05z73
 - 2026-09-29 created (aw backlog): Carries OQ-02 of plan 8kd4eo (destshadow Order 01), which deferred the question to the maintainer.
 
 Filed as the durable carrier for `OQ-02` of plan `8kd4eo`, which is DEFERRED to the maintainer rather than
