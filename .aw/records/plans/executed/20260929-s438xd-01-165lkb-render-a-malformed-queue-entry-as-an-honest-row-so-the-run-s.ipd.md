@@ -6,7 +6,7 @@
 - Scope: Make `render_run_summary_table` render a COMPLETE table for a queue holding a non-mapping entry, by giving that entry its own honest ROW and its own counted status bucket rather than dropping it, and by guarding the EIGHT other measured per-entry read sites the same input reaches (the `run_order` sort key, the row loop, FIVE outcome-ladder comprehensions - the `interrupted`, FAILED and BLOCKED tests plus the TWO separate success-tuple `all(...)` calls in the `COMPLETED` and `NO WORK PERFORMED` branches - and the diagnostics loop) plus the four `render_stream` helpers that crash on it (`item_is_dispatchable_work`, `activity_for_item`, `_interrupt_reason_of`, `format_generated_next_actions_summary_block`). NOT `runner_shared.write_report`, which crashes FIRST in the same tail (`fcodik`, plan `0kh97v`). NOT `run_selection_policy`'s disposition surfaces (`3z91mq`, plan `cup9r7`). NOT `oc_runipd.report_run_spec_edits`, which DEGRADES rather than crashing and is `cup9r7`'s reported gap (F-02). NOT `run_viewer.load_run_summary` (F-14, filed nowhere; reported, not fixed). NOT any well-formed entry's row, count, outcome word, or byte.
 - Scope-Paths: agent_workflows/render_stream.py, tests/test_run_summary_malformed_entry.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 165lkb
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 165lkb verified (set s438xd, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 
