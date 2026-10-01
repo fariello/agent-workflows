@@ -1,5 +1,5 @@
 - Id: mgz3f1
-- Status: graduated
+- Status: done
 - Graduated-To: rederiveguard
 - Set: mgz3f1
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: The records-only re-derivation carve-out does not cover a backfill that also writes Blocks-Release, so lc4unl-shaped lanes still strand
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw agy run: IPD 9mi8eg executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-rederiveguard-01-9mi8eg-restore-the-anti-widening-guard-that-keeps-a-release-gate-of.ipd.md); evidence .aw/records/plans/executed/20260930-rederiveguard-01-9mi8eg-restore-the-anti-widening-guard-that-keeps-a-release-gate-of.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053053Z-3200037: 9mi8eg
 - 2026-09-22 created (aw backlog): The records-only re-derivation carve-out does not cover a backfill that also writes Blocks-Release, so lc4unl-shaped lanes still strand
 
