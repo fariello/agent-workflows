@@ -96,7 +96,8 @@ It is named `Close-Evidence` rather than `Gate-Evidence` because `Gate-*` is the
   decision, or a finding on an item. Reach for `set` only when the status actually changes: a
   same-status `set` is a transition call doing an annotation's job, and history is what suffers.
 - `aw backlog check [--agent]` validate the tree fail-closed (valid enums, status-mirrors-directory,
-  gate present-and-valid iff blocked, unique id6, nonempty summary).
+  gate present-and-valid iff blocked, unique id6, nonempty summary, no repeated metadata bullets [backlog.metadata-bullet-repeated],
+  Gate-Summary present only when blocked [backlog.gate-summary-unexpected], safe bounded Gate-Summary [backlog.gate-descriptive-unsafe]).
 
 History is recorded INLINE in the item's `## Workflow history`, newest record first, and prior records
 are kept. That inline block is the durable copy, because it is the one that is committed and therefore
