@@ -2007,6 +2007,44 @@ class CitationAnchorAdvisoryTests(unittest.TestCase):
             "a thousand advisories on plans nobody can edit, and a rule that fires mostly on "
             "untouchable history is one every reader learns to skip",
         ),
+        (
+            "a symbol on the first line and an offset on an indented continuation line",
+            "- `check_engine.carrier_severity_for_plan` is defined\n  at `check_engine.py:1204-1210`",
+            0,
+            "LOGICAL UNIT CONTINUATION (E-01): a multi-line bullet is judged as a single unit so "
+            "an anchor on the first line protects a citation on an indented continuation line",
+        ),
+        (
+            "an offset with a qualifying anchor beyond the proximity window",
+            "- `python3 -m pytest tests/test_ipd_lifecycle_cli.py` "
+            + ("x" * 200)
+            + " `foo.py:123`",
+            1,
+            "PROXIMITY WINDOW (E-02): an anchor sitting far away in the same line does not anchor "
+            "the citation; pins the 8i0xa7-shaped defect where a shell command 835 characters away scored an anchor",
+        ),
+        (
+            "a symbol immediately beside the citation",
+            "- see `check_engine.carrier_severity_for_plan` at `check_engine.py:1204-1210`",
+            0,
+            "IMMEDIATE PROXIMITY (E-02): a qualified symbol right beside the citation satisfies "
+            "the proximity window and draws no advisory",
+        ),
+        (
+            "a table row whose one cell carries a bare citation while a sibling cell carries a symbol",
+            "| `check_engine.check_collisions` | `foo.py:123` |",
+            1,
+            "TABLE ROW CELL INDEPENDENCE (E-01): cells in a table row are judged independently, "
+            "so a symbol in one cell does not anchor a bare citation in another",
+        ),
+        (
+            "a pasted grep output line as the accepted residual false positive",
+            "- `tests/test_cli.py:29: def test_foo():`",
+            1,
+            "ACCEPTED RESIDUAL FALSE POSITIVE (spec Section 10.2): pasted grep / diagnostic output "
+            "where the line number is the subject being reported; accepted as a 5% false positive at info "
+            "severity rather than exempting the shape and creating an unmeasured false negative",
+        ),
     )
 
     def test_the_rule_flags_a_missing_anchor_and_never_the_digits(self):

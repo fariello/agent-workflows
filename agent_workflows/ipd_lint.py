@@ -980,6 +980,9 @@ _QUALIFIED_IDENT_RE = re.compile(r"^[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+$")
 #: newest plan date for that reason and caught it. Moved to `20260923` rather than `20260922` so a
 #: plan authored later today does not immediately re-trip the same guard.
 CITATION_ANCHOR_CUTOVER_DATE = "20260923"  # compact YYYYMMDD
+#: citeanchor `tx0q0e` E-02. Proximity window (characters) for durable anchor association.
+CITATION_ANCHOR_PROXIMITY_WINDOW = 80
+CITATION_ANCHOR_WINDOW = CITATION_ANCHOR_PROXIMITY_WINDOW
 
 _CITATION_PLAN_DATE_RE = re.compile(r"(?m)^- Date:[ \t]*(\d{4})-(\d{2})-(\d{2})[ \t]*$")
 
@@ -1000,6 +1003,51 @@ def _citation_anchor_applies(doc: ParsedDoc) -> bool:
     return "{0}{1}{2}".format(*m.groups()) >= CITATION_ANCHOR_CUTOVER_DATE
 
 
+_LIST_ITEM_RE = re.compile(r"^\s*(?:[-*+]|\d+[.)])(?:\s+|$)")
+
+
+def _is_logical_unit_start(line: str) -> bool:
+    """True if ``line`` starts a new logical unit (list item, table row, heading, or blank line)."""
+    stripped = line.strip()
+    if not stripped:
+        return True
+    if stripped.startswith("|"):
+        return True
+    if line.lstrip().startswith("#"):
+        return True
+    if _LIST_ITEM_RE.match(line):
+        return True
+    return False
+
+
+def _group_logical_units(
+    struct_lines: Iterable[Tuple[int, str]],
+) -> List[Tuple[int, str]]:
+    """Group structural lines into logical units (Set hesb87 tx0q0e E-01).
+
+    A new unit starts at a list-item marker, a table row (a line whose stripped form begins with a
+    pipe), a heading, or a blank line; any other line continues the current unit.
+    """
+    units: List[Tuple[int, str]] = []
+    curr_lines: List[str] = []
+    curr_lineno: int = 0
+    for lineno, line in struct_lines:
+        if _is_logical_unit_start(line):
+            if curr_lines:
+                units.append((curr_lineno, "\n".join(curr_lines)))
+                curr_lines = []
+            curr_lineno = lineno
+            if line.strip():
+                curr_lines.append(line)
+        else:
+            if not curr_lines:
+                curr_lineno = lineno
+            curr_lines.append(line)
+    if curr_lines:
+        units.append((curr_lineno, "\n".join(curr_lines)))
+    return units
+
+
 def _citation_units(line: str) -> List[str]:
     """The text spans a citation is judged against: a table row's CELLS, else the whole line."""
     stripped = line.strip()
@@ -1008,10 +1056,20 @@ def _citation_units(line: str) -> List[str]:
     return [line]
 
 
-def _has_durable_anchor(unit: str) -> bool:
-    """True when ``unit`` carries a durable anchor BESIDE its citation (spec Section 10.2 (a)/(b))."""
-    for token in _BACKTICK_TOKEN_RE.findall(unit):
-        tok = token.strip()
+def _has_durable_anchor(
+    unit: str,
+    cit_start: Optional[int] = None,
+    cit_end: Optional[int] = None,
+    *,
+    window: int = CITATION_ANCHOR_PROXIMITY_WINDOW,
+) -> bool:
+    """True when ``unit`` carries a durable anchor BESIDE its citation within ``window`` chars (spec Section 10.2)."""
+    if cit_start is None:
+        m = _CITATION_RE.search(unit)
+        if m is not None:
+            cit_start, cit_end = m.start(), m.end()
+    for m_tok in _BACKTICK_TOKEN_RE.finditer(unit):
+        tok = m_tok.group(1).strip()
         if not tok:
             continue
         if _CITATION_RE.search(tok):
@@ -1020,10 +1078,20 @@ def _has_durable_anchor(unit: str) -> bool:
             continue  # `:906-915` - a second offset, not an anchor
         if _BARE_PATH_RE.match(tok):
             continue  # `check_engine.py` - names the file the citation already named
+        is_anchor = False
         if re.search(r"\s", tok):
-            return True  # a quoted content string (Section 10.2 (b))
-        if _QUALIFIED_IDENT_RE.match(tok):
-            return True  # `module.function` / `Class.method` (Section 10.2 (a))
+            is_anchor = True  # a quoted content string (Section 10.2 (b))
+        elif _QUALIFIED_IDENT_RE.match(tok):
+            is_anchor = True  # `module.function` / `Class.method` (Section 10.2 (a))
+        if not is_anchor:
+            continue
+        if cit_start is not None and cit_end is not None and window is not None:
+            tok_start = m_tok.start()
+            tok_end = m_tok.end()
+            dist = max(0, cit_start - tok_end, tok_start - cit_end)
+            if dist > window:
+                continue
+        return True
     return False
 
 
@@ -1040,25 +1108,24 @@ def check_citation_anchors(
     exempt for free. Re-implementing it is how a rule starts flagging pasted diagnostics, whose
     offsets are the FACT being reported (the Section 10.2 line-as-subject exception).
 
-    KNOWN AND ACCEPTED LIMIT, recorded so it is not later filed as a bug: the helper's unit is a LINE,
-    so a multi-line E-item whose symbol sits on the first line and whose offset sits on an indented
-    continuation line is judged per line, and the continuation flags. That is a false positive. It is
-    precisely why this rule is `info` and must not be promoted to a gating severity without the
-    measurement the plan's deferred row demands.
+    Judges citations against their LOGICAL unit (bullet plus indented continuations, via
+    ``_group_logical_units``) within a proximity window (``CITATION_ANCHOR_PROXIMITY_WINDOW``),
+    curing continuation-line false positives while ensuring candidate anchors accompany the citation.
     """
     if not include_pre_cutover and not _citation_anchor_applies(doc):
         return []
     out: List[Diagnostic] = []
-    for lineno, line in _structural_lines(text):
-        for unit in _citation_units(line):
+    for lineno, unit_text in _group_logical_units(_structural_lines(text)):
+        for unit in _citation_units(unit_text):
             if not _CITATION_RE.search(unit):
                 continue
-            if _has_durable_anchor(unit):
-                continue
             for m in _CITATION_RE.finditer(unit):
+                if _has_durable_anchor(unit, m.start(), m.end()):
+                    continue
+                line_offset = unit[: m.start()].count("\n")
                 out.append(
                     Diagnostic(
-                        lineno,
+                        lineno + line_offset,
                         1,
                         C_CITATION_ANCHOR,
                         "citation '{0}' has no durable anchor: name the SYMBOL "
