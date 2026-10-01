@@ -6,7 +6,7 @@
 - Scope: Restore the SIGTERM (spec `c4gd2h` R13/A3) and terminal-rung (`install_stop_signal_handlers`) end-to-end assertions as behavioral tests driven by real signals to a real spawned driver, on a fixture plan that clears today's run preflight. No production change.
 - Scope-Paths: tests/test_runner_stop_triggers_e2e.py, .aw/records/plans/pending/20260929-wqk5s2-01-oi0sv9-restore-the-sigterm-and-terminal-rung-end-to-end-stop-covera.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Spec: c4gd2h
 - Work-Kind: bug
@@ -18,9 +18,9 @@
 - Highest E allocated: 04
 - Author: OpenCode Claude Opus
 - Id: oi0sv9
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: oi0sv9 verified (set wqk5s2, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 same-status (aw set): status unchanged (to-review)
 
