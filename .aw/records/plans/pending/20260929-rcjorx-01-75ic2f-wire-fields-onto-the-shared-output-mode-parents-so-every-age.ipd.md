@@ -41,44 +41,44 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: pin the reach gap, then close it on both shared parents
 
-- [ ] E-01 Create `tests/test_fields_flag_reach.py` asserting the DERIVED REACH PROPERTY: every leaf that accepts `--agent` also accepts `--fields`. Obtain the leaf set from the real parser built by `cli._build_parser()`, deduplicating by parser object IDENTITY so an alias is not counted twice. **YOU MUST WRITE THE WALK; `command_surface.discover_parser_leaves` CANNOT SERVE THIS TEST, AND AN EARLIER DRAFT OF THIS ITEM WRONGLY TOLD YOU TO REUSE IT (PR-201, F-13).** That helper is annotated `-> Set[str]` and returns a set of leaf PATH NAMES (for example `"find plans"`), not the parser objects those names resolve to, and there is no name-to-parser resolver beside it (`get_declared_leaves` and `find_undeclared_leaves` are both name-set functions too). A `str` has no `_actions`, so no option set can be read from its return value. Write a local recursive walk over `parser._actions`, selecting `argparse._SubParsersAction` and deduplicating `sa.choices` by `id(subparser)` so an alias is not double-counted, which is the SAME identity rule that helper's docstring explains and which you are re-implementing rather than importing. Reading `parser._actions` and `action.option_strings` is reading the PARSER's own reported structure at runtime, not the production SOURCE, so it does not violate the code-pinning prohibition; `tests/test_flag_surface_uniformity.py` already reads `cli._build_parser()` the same way. DERIVE, DO NOT HARDCODE: no integer leaf count may appear in the assertion, because review re-measured 151 unique leaves with 139 carrying `--agent` and both move with every command added, so a literal would fail for the wrong reason (`plan-review` Rubric G). ASSERT ON PARSER-REPORTED OPTIONS, NOT ON SOURCE TEXT: no `inspect.getsource`, no reading `cli.py`, no `ast`, no regex over module text, since AGENTS.md forbids code-pinning tests and the most natural implementation of a reach test violates that rule.
+- [x] E-01 Create `tests/test_fields_flag_reach.py` asserting the DERIVED REACH PROPERTY: every leaf that accepts `--agent` also accepts `--fields`. Obtain the leaf set from the real parser built by `cli._build_parser()`, deduplicating by parser object IDENTITY so an alias is not counted twice. **YOU MUST WRITE THE WALK; `command_surface.discover_parser_leaves` CANNOT SERVE THIS TEST, AND AN EARLIER DRAFT OF THIS ITEM WRONGLY TOLD YOU TO REUSE IT (PR-201, F-13).** That helper is annotated `-> Set[str]` and returns a set of leaf PATH NAMES (for example `"find plans"`), not the parser objects those names resolve to, and there is no name-to-parser resolver beside it (`get_declared_leaves` and `find_undeclared_leaves` are both name-set functions too). A `str` has no `_actions`, so no option set can be read from its return value. Write a local recursive walk over `parser._actions`, selecting `argparse._SubParsersAction` and deduplicating `sa.choices` by `id(subparser)` so an alias is not double-counted, which is the SAME identity rule that helper's docstring explains and which you are re-implementing rather than importing. Reading `parser._actions` and `action.option_strings` is reading the PARSER's own reported structure at runtime, not the production SOURCE, so it does not violate the code-pinning prohibition; `tests/test_flag_surface_uniformity.py` already reads `cli._build_parser()` the same way. DERIVE, DO NOT HARDCODE: no integer leaf count may appear in the assertion, because review re-measured 151 unique leaves with 139 carrying `--agent` and both move with every command added, so a literal would fail for the wrong reason (`plan-review` Rubric G). ASSERT ON PARSER-REPORTED OPTIONS, NOT ON SOURCE TEXT: no `inspect.getsource`, no reading `cli.py`, no `ast`, no regex over module text, since AGENTS.md forbids code-pinning tests and the most natural implementation of a reach test violates that rule.
   - Depends on: none
   - Expected outcome: A new test file whose reach assertion FAILS at this HEAD, naming a large set of leaves that carry `--agent` without `--fields` (review re-measured exactly 135: the 139 carrying `--agent` minus the 4 `runs` leaves declaring it). A near-empty failure set means the walk is wrong rather than the code. An assertion that passes before E-02 has been written wrong, not satisfied. An `AttributeError: 'str' object has no attribute '_actions'` means you reused `discover_parser_leaves` after all; write the walk.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Add the ACCEPTANCE assertion to `tests/test_fields_flag_reach.py`: the command the backlog item quotes must parse. Assert that `cli._build_parser().parse_args(["find","plans","--agent","--fields","findings"])` yields a namespace whose `fields` equals `"findings"`, instead of raising `SystemExit`. ASSERT ON THE PARSE AND DELIBERATELY NOT ON STDOUT, because F-08 measures that `aw find`'s agent branch prints bare paths and returns before building any record: asserting a projected record from that command would pin behavior this plan does not deliver and would fail even after E-02 lands correctly. Record that reason in the test so a later reader does not "strengthen" it into an output assertion.
+- [x] E-06 Add the ACCEPTANCE assertion to `tests/test_fields_flag_reach.py`: the command the backlog item quotes must parse. Assert that `cli._build_parser().parse_args(["find","plans","--agent","--fields","findings"])` yields a namespace whose `fields` equals `"findings"`, instead of raising `SystemExit`. ASSERT ON THE PARSE AND DELIBERATELY NOT ON STDOUT, because F-08 measures that `aw find`'s agent branch prints bare paths and returns before building any record: asserting a projected record from that command would pin behavior this plan does not deliver and would fail even after E-02 lands correctly. Record that reason in the test so a later reader does not "strengthen" it into an output assertion.
   - Depends on: none
   - Expected outcome: The assertion fails at this HEAD with `SystemExit: 2` and passes after E-02. It is the narrowest possible pin of the item's reproduction: acceptance only, with no claim about projection on that command.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Add the END-TO-END PROJECTION assertion to `tests/test_fields_flag_reach.py`, since acceptance alone does not prove the flag does anything on a newly-reached command. Drive a command whose agent surface builds a record through `CommandResult.to_agent_record` (review measured `aw check plans --agent --fields findings` retaining `findings` while dropping exactly `target`, `diagnostics`, `evidence` and `next`, with `diagnostics` confirmed NON-EMPTY in the unprojected record so its absence is real evidence of projection rather than of an empty field), either as a subprocess or through `cli.main` with captured streams, parse its stdout as JSON, and assert the requested key is PRESENT while a named non-envelope key the unprojected record carries is ABSENT. **NAME `target` OR `diagnostics` AS THE ABSENT KEY, NOT `next` (PR-205, F-14).** `next` is dropped by the projection too, but its VALUE varies between consecutive runs of the unmodified tree, so a test that asserts anything about `next` beyond its absence invites a later author to strengthen it into a flaky assertion; `target` and `diagnostics` are stable in shape. Do not assert on a value that is live-tree state, such as the `19` review measured for the findings count; assert on key presence and absence only.
+- [x] E-07 Add the END-TO-END PROJECTION assertion to `tests/test_fields_flag_reach.py`, since acceptance alone does not prove the flag does anything on a newly-reached command. Drive a command whose agent surface builds a record through `CommandResult.to_agent_record` (review measured `aw check plans --agent --fields findings` retaining `findings` while dropping exactly `target`, `diagnostics`, `evidence` and `next`, with `diagnostics` confirmed NON-EMPTY in the unprojected record so its absence is real evidence of projection rather than of an empty field), either as a subprocess or through `cli.main` with captured streams, parse its stdout as JSON, and assert the requested key is PRESENT while a named non-envelope key the unprojected record carries is ABSENT. **NAME `target` OR `diagnostics` AS THE ABSENT KEY, NOT `next` (PR-205, F-14).** `next` is dropped by the projection too, but its VALUE varies between consecutive runs of the unmodified tree, so a test that asserts anything about `next` beyond its absence invites a later author to strengthen it into a flaky assertion; `target` and `diagnostics` are stable in shape. Do not assert on a value that is live-tree state, such as the `19` review measured for the findings count; assert on key presence and absence only.
   - Depends on: none
   - Expected outcome: The assertion fails at this HEAD because the command exits 2 with `unrecognized arguments: --fields` before emitting anything, and passes after E-02 with a projected record. Together with E-01 and E-06 this makes the new file red for three distinct reasons, each fixed by the same change.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `cli._build_parser`, declare `--fields` ONCE on each of the TWO shared output-mode parents and DELETE the four leaf declarations. On `common` (the parent that already carries `--agent`/`--json` and is inherited by 147 `parents=[common]` sites) add `--fields` with `default=None` and the help text the four leaves already share, so the wording does not fork. On `common_upgrade` (the SECOND parent, which exists so a `--json` supplied before the subcommand is not clobbered by the subparser default, and which the backlog item does not mention) add `--fields` the same way but with `default=argparse.SUPPRESS`, matching how that parent already declares `--agent` and `--json`; getting this wrong silently reintroduces the very default-clobbering the comment above `common_upgrade` records as an earlier regression. THEN DELETE the `add_argument("--fields", ...)` call from each of `_p_runs_analyze`, `_p_runs_query`, `_p_runs_export` and `_p_runs_submit`. THE DELETION IS NOT OPTIONAL CLEANUP, IT IS REQUIRED FOR THE PARSER TO BUILD AT ALL: `_AwArgumentParser` deliberately leaves `conflict_handler` at argparse's default (its constructor comment explains that `resolve` once shipped a real defect by emptying a shared parent action's `option_strings` in place), so a leaf re-declaring a parent's option raises `ArgumentError: argument --fields: conflicting option string: --fields` at build time and every `aw` invocation dies on import (F-04). Change nothing else: do not touch `--limit` (which is separately hand-wired on 9 leaves and is a different concern), do not touch `--verbose`, do not alter `presentation`, and do not change any leaf's other flags.
+- [x] E-02 In `cli._build_parser`, declare `--fields` ONCE on each of the TWO shared output-mode parents and DELETE the four leaf declarations. On `common` (the parent that already carries `--agent`/`--json` and is inherited by 147 `parents=[common]` sites) add `--fields` with `default=None` and the help text the four leaves already share, so the wording does not fork. On `common_upgrade` (the SECOND parent, which exists so a `--json` supplied before the subcommand is not clobbered by the subparser default, and which the backlog item does not mention) add `--fields` the same way but with `default=argparse.SUPPRESS`, matching how that parent already declares `--agent` and `--json`; getting this wrong silently reintroduces the very default-clobbering the comment above `common_upgrade` records as an earlier regression. THEN DELETE the `add_argument("--fields", ...)` call from each of `_p_runs_analyze`, `_p_runs_query`, `_p_runs_export` and `_p_runs_submit`. THE DELETION IS NOT OPTIONAL CLEANUP, IT IS REQUIRED FOR THE PARSER TO BUILD AT ALL: `_AwArgumentParser` deliberately leaves `conflict_handler` at argparse's default (its constructor comment explains that `resolve` once shipped a real defect by emptying a shared parent action's `option_strings` in place), so a leaf re-declaring a parent's option raises `ArgumentError: argument --fields: conflicting option string: --fields` at build time and every `aw` invocation dies on import (F-04). Change nothing else: do not touch `--limit` (which is separately hand-wired on 9 leaves and is a different concern), do not touch `--verbose`, do not alter `presentation`, and do not change any leaf's other flags.
   - Depends on: E-01, E-06, E-07
   - Expected outcome: `cli._build_parser()` builds without raising. Every leaf carrying `--agent` also carries `--fields`, including the six `upgrade-test` leaves that F-05 measured would otherwise be missed. The four `runs` leaves still accept `--fields` (now by inheritance) and their behavior is unchanged. `grep` for `"--fields"` in `cli.py` finds exactly two `add_argument` calls, both on shared parents, where it previously found four on leaves. The E-01, E-06 and E-07 assertions all pass.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: absorb the measured abbreviation regression rather than shipping it
 
-- [ ] E-03 Disable argparse prefix abbreviation so the new flag cannot silently break a working invocation, because F-06 measures that it otherwise does. Adding a second `--f*` option makes the previously-unambiguous `--f` ambiguous on 13 leaves (`--force` on `archive`, `check`, `find`, `group`, `index`, `rename`, `set`, `uninstall`; `--from-backlog` on `ipd scaffold`, `ipd set`, `specs set`; `--failed` on `runs list`; `--fault-injection` on `migrate-layout`) and makes `--fi` ambiguous on `check-local-leaks`, where it currently resolves to `--fix` and is the flag that rewrites files. Set `allow_abbrev=False` in the `_AwArgumentParser` constructor, which reaches every parser in the tree from one place rather than being applied per-leaf and therefore forgotten on the next leaf added. DO THIS AS A DELIBERATE, DOCUMENTED CONTRACT CHANGE, NOT A SIDE EFFECT: add a comment beside the existing `conflict_handler` comment in that constructor stating that abbreviation is off so that a flag added to a shared parent can never change the meaning of an existing invocation, and that this is the same reasoning the `conflict_handler` comment already applies to silent option replacement. VERIFY THE BLAST RADIUS BEFORE COMMITTING, because turning abbreviation off refuses EVERY abbreviation, not only the 14 this plan creates: sweep the test suite and `docs/` for abbreviated long options and report any that break. If the sweep finds a shipped document or test relying on an abbreviation, STOP and report rather than rewriting a document outside `- Scope-Paths:`.
+- [x] E-03 Disable argparse prefix abbreviation so the new flag cannot silently break a working invocation, because F-06 measures that it otherwise does. Adding a second `--f*` option makes the previously-unambiguous `--f` ambiguous on 13 leaves (`--force` on `archive`, `check`, `find`, `group`, `index`, `rename`, `set`, `uninstall`; `--from-backlog` on `ipd scaffold`, `ipd set`, `specs set`; `--failed` on `runs list`; `--fault-injection` on `migrate-layout`) and makes `--fi` ambiguous on `check-local-leaks`, where it currently resolves to `--fix` and is the flag that rewrites files. Set `allow_abbrev=False` in the `_AwArgumentParser` constructor, which reaches every parser in the tree from one place rather than being applied per-leaf and therefore forgotten on the next leaf added. DO THIS AS A DELIBERATE, DOCUMENTED CONTRACT CHANGE, NOT A SIDE EFFECT: add a comment beside the existing `conflict_handler` comment in that constructor stating that abbreviation is off so that a flag added to a shared parent can never change the meaning of an existing invocation, and that this is the same reasoning the `conflict_handler` comment already applies to silent option replacement. VERIFY THE BLAST RADIUS BEFORE COMMITTING, because turning abbreviation off refuses EVERY abbreviation, not only the 14 this plan creates: sweep the test suite and `docs/` for abbreviated long options and report any that break. If the sweep finds a shipped document or test relying on an abbreviation, STOP and report rather than rewriting a document outside `- Scope-Paths:`.
   - Depends on: E-02
   - Expected outcome: `aw check --f` and `aw check-local-leaks --fi` both exit 2 with an explicit `unrecognized arguments` refusal rather than silently resolving or reporting an ambiguity, and they do so for the same reason on every leaf rather than depending on which flags coexist there. No full long option changes behavior. The constructor carries the reasoning. The sweep result is reported, including any test that needed no change because it already spells flags in full.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Extend `tests/test_fields_flag_reach.py` with the abbreviation contract, so E-03's deliberate refusal is pinned as intent and a future author cannot re-enable abbreviation without a test failing. Assert observable outcomes only: that a full long option still parses on a sampled set of the affected leaves (at minimum `aw check --force`, `aw check-local-leaks --fix`, `aw ipd set --from-backlog`, `aw runs list --failed`), and that the abbreviated form now raises `SystemExit` with code 2. SAMPLE, DO NOT ENUMERATE ALL 14: the point is the contract, and a 14-row literal list drifts as flags are added. Include `check-local-leaks --fi` explicitly by name, because it is the one case that works TODAY and so is the only member of the set whose refusal is a genuine behavior change a user could notice.
+- [x] E-04 Extend `tests/test_fields_flag_reach.py` with the abbreviation contract, so E-03's deliberate refusal is pinned as intent and a future author cannot re-enable abbreviation without a test failing. Assert observable outcomes only: that a full long option still parses on a sampled set of the affected leaves (at minimum `aw check --force`, `aw check-local-leaks --fix`, `aw ipd set --from-backlog`, `aw runs list --failed`), and that the abbreviated form now raises `SystemExit` with code 2. SAMPLE, DO NOT ENUMERATE ALL 14: the point is the contract, and a 14-row literal list drifts as flags are added. Include `check-local-leaks --fi` explicitly by name, because it is the one case that works TODAY and so is the only member of the set whose refusal is a genuine behavior change a user could notice.
   - Depends on: E-03
   - Expected outcome: The new assertions fail before E-03 (where `--fi` parses) and pass after. The full-option assertions pass both before and after, which is what proves E-03 narrowed only the abbreviated spelling.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: correct the guide, and bound what this plan claims
 
-- [ ] E-05 Replace the inert example in `docs/cli-human-guide.md` and verify this plan has not overstated its effect. THE EXAMPLE MUST BE ONE THAT ACTUALLY PROJECTS, which is the whole point of the row: `aw find plans --agent --fields findings` is inert for a SECOND reason E-02 does not fix, namely that `aw find`'s agent branch prints bare repo-relative paths and returns before constructing any `CommandResult` (F-08), so after E-02 it is accepted and ignored rather than refused. Shipping it unchanged would replace a loud exit 2 with a silent no-op, which is worse for the agent the guide is written for. Replace that row's command with `aw check plans --agent --fields findings`, which OQ-03 resolves to and which review re-measured projecting correctly (it drops exactly `target`, `diagnostics`, `evidence` and `next` while retaining `findings`, with `diagnostics` confirmed non-empty unprojected); if a reviewer prefers the recorded fallback, the change is one table cell to `aw status --agent --fields cmd`. DO NOT SUBSTITUTE A `find` COMMAND WITH A SELECTOR AS A THIRD OPTION: review measured that a MATCHING selector takes the same bare-path branch and projects nothing, and only a ZERO-MATCH query reaches the record branch (F-08 as corrected, PR-202), so no useful `aw find` invocation demonstrates projection. Write no em or en dashes: this file is user-facing prose under the execution contract. Touch only that row and any sentence that row's change makes false. THEN BOUND THE CLAIM: confirm the two protocol documents (`docs/cli-agent-protocol.md`, `docs/cli-output-contract.md`) need NO edit, because their `--fields` bullets describe projection SEMANTICS and already say `--fields` is safe to pass on any command, which E-02 makes true rather than contradicting; report this explicitly rather than silently leaving them out. Also confirm the two carrier items filed during authoring are still live and still describe real work, by checking their SUBJECTS rather than their status: `wdazvp` (`aw find --agent`'s bare-path branch ignoring `--fields` and `--limit`) and `qm04zi` (`--verbose` documented globally, reaching one leaf). `wdazvp` in particular gets WORSE as a result of E-02, since `--fields` there goes from a loud exit 2 to a silent no-op, so confirm it records that. Do not close either: both are release-gated and closing one has its own gated predicate.
+- [x] E-05 Replace the inert example in `docs/cli-human-guide.md` and verify this plan has not overstated its effect. THE EXAMPLE MUST BE ONE THAT ACTUALLY PROJECTS, which is the whole point of the row: `aw find plans --agent --fields findings` is inert for a SECOND reason E-02 does not fix, namely that `aw find`'s agent branch prints bare repo-relative paths and returns before constructing any `CommandResult` (F-08), so after E-02 it is accepted and ignored rather than refused. Shipping it unchanged would replace a loud exit 2 with a silent no-op, which is worse for the agent the guide is written for. Replace that row's command with `aw check plans --agent --fields findings`, which OQ-03 resolves to and which review re-measured projecting correctly (it drops exactly `target`, `diagnostics`, `evidence` and `next` while retaining `findings`, with `diagnostics` confirmed non-empty unprojected); if a reviewer prefers the recorded fallback, the change is one table cell to `aw status --agent --fields cmd`. DO NOT SUBSTITUTE A `find` COMMAND WITH A SELECTOR AS A THIRD OPTION: review measured that a MATCHING selector takes the same bare-path branch and projects nothing, and only a ZERO-MATCH query reaches the record branch (F-08 as corrected, PR-202), so no useful `aw find` invocation demonstrates projection. Write no em or en dashes: this file is user-facing prose under the execution contract. Touch only that row and any sentence that row's change makes false. THEN BOUND THE CLAIM: confirm the two protocol documents (`docs/cli-agent-protocol.md`, `docs/cli-output-contract.md`) need NO edit, because their `--fields` bullets describe projection SEMANTICS and already say `--fields` is safe to pass on any command, which E-02 makes true rather than contradicting; report this explicitly rather than silently leaving them out. Also confirm the two carrier items filed during authoring are still live and still describe real work, by checking their SUBJECTS rather than their status: `wdazvp` (`aw find --agent`'s bare-path branch ignoring `--fields` and `--limit`) and `qm04zi` (`--verbose` documented globally, reaching one leaf). `wdazvp` in particular gets WORSE as a result of E-02, since `--fields` there goes from a loud exit 2 to a silent no-op, so confirm it records that. Do not close either: both are release-gated and closing one has its own gated predicate.
   - Depends on: E-04
   - Expected outcome: The guide's projection row names a command that demonstrably projects, verified by running it and pasting the record. The two protocol documents are confirmed unchanged WITH the reason stated. The `find --agent` bare-path branch and the inert `--limit` row are both reported, each with a carrier backlog item id or an explicit statement that one was filed, and neither is fixed here.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -184,40 +184,346 @@ THE SHIPPED CONTRACT IS WIDENED ON ONE AXIS AND NARROWED ON ANOTHER, AND BOTH DE
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste the committed source of the reach assertion and the file's imports. Paste its output run on the tree BEFORE E-02 (`python3 -m pytest tests/test_fields_flag_reach.py -o addopts=""`), which must FAIL, and quote the failure detail: it must NAME leaves that carry `--agent` without `--fields`, and the set it names must be LARGE (authoring measured 135), not one or two, because a near-empty failure set means the walk is wrong rather than the code. CONFIRM IT DERIVES ITS LEAF SET RATHER THAN HARDCODING ONE, by quoting the lines that obtain the leaves and showing no integer leaf count appears anywhere in the assertion; a test asserting `== 139` or `== 151` must be rejected and rewritten (Rubric G). CONFIRM IT READS NO PRODUCTION SOURCE TEXT, by quoting the imports and showing there is no `inspect.getsource`, no `open(".../cli.py")`, no `ast`, and no regex over module text, since AGENTS.md forbids code-pinning tests and the most natural implementation of a reach test violates exactly that rule. Then paste it passing after E-02.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Derived leaf reach assertion in tests/test_fields_flag_reach.py failed on 136 leaves before E-02 and passed after E-02 with no integer leaf counts or source reading. Detail below:
+    Committed imports and assertion source in `tests/test_fields_flag_reach.py`:
+    ```python
+    from __future__ import annotations
 
-- [ ] V-06 validates E-06
+    import argparse
+    import contextlib
+    import io
+    import json
+    import unittest
+
+    from agent_workflows import cli
+    ```
+    Walk and reach assertion:
+    ```python
+    parser = cli._build_parser()
+    leaves = _discover_leaf_parsers(parser)
+    agent_leaves = [
+        name for name, p in leaves if "--agent" in _parser_option_strings(p)
+    ]
+    missing = [
+        name
+        for name, p in leaves
+        if "--agent" in _parser_option_strings(p)
+        and "--fields" not in _parser_option_strings(p)
+    ]
+    self.assertEqual(
+        missing,
+        [],
+        f"Leaves accepting --agent without --fields ({len(missing)} of {len(agent_leaves)}): {missing}",
+    )
+    ```
+    No integer leaf count appears in the assertion (`self.assertEqual(missing, [])`). Imports show no `inspect.getsource`, no file reading of `cli.py`, no `ast`, and no regex.
+    Output BEFORE E-02:
+    ```
+    FAILED tests/test_fields_flag_reach.py::FieldsFlagReachTests::test_derived_reach_every_agent_leaf_accepts_fields - AssertionError: Lists differ: ['install', 'setup', ...] != []
+    ...
+    Leaves accepting --agent without --fields (136 of 140): ['install', 'setup', 'uninstall', 'list-repos', 'status', 'integration-lock', 'normalize-lanes', 'doctor', 'exclude', 'include', 'ipd lint', 'ipd scaffold', 'ipd sync', 'ipd recheck-readiness', 'ipd execute-set', 'ipd board', 'ipd set', 'ipd dependencies set', 'ipd dependencies remove', 'ipd begin', 'ipd finalize', 'work begin', 'test', 'commit', 'finish', 'workflow validate', 'workflow compile', 'workflow check-generated', 'run start', 'run record', 'run cancel', 'run finalize', 'runs show', 'runs evidence', 'runs verify-ledger', 'runs next', 'runs resume', 'runs status', 'runs decisions', 'runs questions', 'runs list', 'research new', 'research new-comparison', 'research set-assign', 'research mv', 'research check-refs', 'research index', 'research find', 'research pending', 'research promote', 'research set-outcome', 'research set-priority', 'research check-miscategorized', 'research add-model', 'reviews decisions', 'host probe', 'host capabilities', 'context', 'path', 'layout', 'project status', 'project attach', 'project move', 'storage status', 'storage init', 'storage attach', 'storage detach', 'storage move', 'storage reattach', 'storage preflight', 'config show', 'config get', 'config set', 'config unset', 'config add', 'config remove', 'config is', 'config exclude add', 'config exclude list', 'config exclude rm', 'show', 'graduation', 'partition', 'record-history', 'check', 'find', 'search', 'index', 'rename', 'group', 'set', 'migrate-layout', 'next', 'oc update-models', 'oc profile add', 'oc profile list', 'oc profile show', 'oc profile remove', 'oc profile default', 'oc profile validate-default', 'agy profile add', 'agy profile list', 'agy profile show', 'agy profile remove', 'agy profile default', 'agy profile validate-default', 'pwatch', 'upgrade-test list', 'upgrade-test new', 'upgrade-test sandboxes', 'upgrade-test probe', 'upgrade-test env', 'upgrade-test clean', 'backlog new', 'backlog set', 'backlog note', 'backlog check', 'releases list', 'releases show', 'releases new', 'specs new', 'specs set', 'specs note', 'specs check', 'specs migrate', 'prompts new', 'adopt', 'archive', 'check-local-leaks', 'ipd-executed-gate', 'ipd-status-untooled-gate', 'backlog-blocking-close-gate', 'ipd-dependency-statement-gate', 'precommit-scope-gate', 'prepush-authorization-gate', 'completion']
+    ```
+    Output AFTER E-02:
+    ```
+    tests/test_fields_flag_reach.py::FieldsFlagReachTests::test_derived_reach_every_agent_leaf_accepts_fields PASSED
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: Paste the acceptance assertion's source and its output BEFORE E-02, which must fail with `SystemExit: 2`, and AFTER E-02, which must pass with `fields == "findings"`. CONFIRM IT ASSERTS ON THE PARSE AND NOT ON STDOUT, by quoting the assertion and showing it inspects the returned namespace rather than captured output; an assertion that checks `aw find plans --agent --fields findings` stdout for a projected record must be REJECTED, because F-08 measures that command printing bare paths and never building a record, so such an assertion would fail even when E-02 is correct and would send an executor hunting a nonexistent bug; the same rejection applies to a `find` command with a MATCHING selector, which review measured taking the same branch (PR-202). CONFIRM THE TEST RECORDS THAT REASON in a comment or docstring, so a later reader does not "strengthen" it into an output assertion.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Acceptance assertion in tests/test_fields_flag_reach.py asserts on parse_args only (not stdout), cites F-08/wdazvp rationale, failed with SystemExit: 2 before E-02, and passed after E-02. Detail below:
+    Committed source in `tests/test_fields_flag_reach.py`:
+    ```python
+    def test_fields_flag_acceptance_find_plans(self) -> None:
+        """Assert that aw find plans accepts --agent --fields findings.
 
-- [ ] V-07 validates E-07
+        NOTE: This asserts on parse_args ONLY and deliberately NOT on command output/stdout.
+        As measured in F-08, aw find's agent branch prints bare repository paths and returns
+        before building any CommandResult record. Asserting a projected record here would
+        pin behavior that IPD 75ic2f does not deliver and which is tracked in backlog item
+        wdazvp.
+        """
+        parser = cli._build_parser()
+        args = parser.parse_args(["find", "plans", "--agent", "--fields", "findings"])
+        self.assertEqual(getattr(args, "fields", None), "findings")
+    ```
+    The assertion calls `parser.parse_args(...)` and asserts `getattr(args, "fields", None) == "findings"`, checking the namespace rather than stdout. The docstring explicitly records the F-08 / wdazvp rationale.
+    Output BEFORE E-02:
+    ```
+    FAILED tests/test_fields_flag_reach.py::FieldsFlagReachTests::test_fields_flag_acceptance_find_plans - SystemExit: 2
+    ----------------------------- Captured stderr call -----------------------------
+    usage: agent-workflows [-h] [--no-color | --color] [--no-interactive |
+                           --interactive] [--agent] [--json] [-V]
+                           <command> ...
+    agent-workflows: error: unrecognized arguments: --fields
+    Next  aw --help
+    ```
+    Output AFTER E-02:
+    ```
+    tests/test_fields_flag_reach.py::FieldsFlagReachTests::test_fields_flag_acceptance_find_plans PASSED
+    ```
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: Paste the end-to-end assertion's source and its output BEFORE E-02, which must fail because the driven command exited 2 with `unrecognized arguments: --fields`; that exit-2 text must be VISIBLE in the captured output rather than inferred from the failure. Paste it passing after E-02, with the actual projected record shown. CONFIRM IT ASSERTS KEY PRESENCE AND ABSENCE RATHER THAN A LIVE COUNT: quote the assertion and show it does not pin the findings number (authoring measured 19, which moves with the tree), and show it names a specific non-envelope key that must be ABSENT, since an assertion that only checks the requested key is present would pass against a record that was never projected at all.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. End-to-end assertion drives check plans, verifies requested key 'findings' present and non-envelope keys 'target'/'diagnostics' absent; failed with exit 2 before E-02 and passed after E-02 with projected record. Detail below:
+    Committed source in `tests/test_fields_flag_reach.py`:
+    ```python
+    def test_fields_flag_end_to_end_projection(self) -> None:
+        stdout_buf = io.StringIO()
+        with contextlib.redirect_stdout(stdout_buf):
+            rc = cli.main(["check", "plans", "--agent", "--fields", "findings"])
+        self.assertIn(rc, (0, 1), f"Unexpected exit code {rc}")
+        captured_out = stdout_buf.getvalue()
+        record = None
+        for line in captured_out.strip().splitlines():
+            line = line.strip()
+            if line.startswith("{") and line.endswith("}"):
+                try:
+                    data = json.loads(line)
+                    if data.get("schema") == "aw.agent/v1" and data.get("kind") == "result":
+                        record = data
+                        break
+                except json.JSONDecodeError:
+                    continue
+        self.assertIsNotNone(
+            record, f"No aw.agent/v1 result record found in stdout: {captured_out}"
+        )
+        self.assertIn(
+            "findings", record, f"Requested key 'findings' missing from record: {record}"
+        )
+        self.assertNotIn(
+            "target", record, f"'target' should have been dropped by projection: {record}"
+        )
+        self.assertNotIn(
+            "diagnostics",
+            record,
+            f"'diagnostics' should have been dropped by projection: {record}",
+        )
+    ```
+    The assertion checks `"findings" in record` and non-envelope keys `"target" not in record`, `"diagnostics" not in record`, with no assertion on the count of findings.
+    Output BEFORE E-02:
+    ```
+    FAILED tests/test_fields_flag_reach.py::FieldsFlagReachTests::test_fields_flag_end_to_end_projection - SystemExit: 2
+    ----------------------------- Captured stderr call -----------------------------
+    usage: agent-workflows [-h] [--no-color | --color] [--no-interactive |
+                           --interactive] [--agent] [--json] [-V]
+                           <command> ...
+    agent-workflows: error: unrecognized arguments: --fields
+    Next  aw --help
+    ```
+    Output AFTER E-02:
+    ```
+    tests/test_fields_flag_reach.py::FieldsFlagReachTests::test_fields_flag_end_to_end_projection PASSED
+    ```
+    Projected record emitted at runtime:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"findings","exit":1,"verified":true,"complete":true,"findings":66}`
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Paste the diff of `agent_workflows/cli.py` for E-02 and confirm by inspection that it does exactly four deletions and two additions. FIRST, PROVE F-04's BUILD-TIME CONFLICT RATHER THAN TRUSTING IT, because it is the finding that changes the work: with `--fields` added to `common` and the four leaf calls still present, run any `aw` command and paste the `ArgumentError: argument --fields: conflicting option string: --fields`. A validation that skips this step has not verified the reason the deletions are mandatory. THEN paste the E-01, E-06 and E-07 assertions passing (their own red-before evidence belongs to V-01, V-06 and V-07; what this item needs is that E-02 is what turned them green). CONFIRM THE SECOND PARENT WAS TOUCHED, which is the omission F-05 exists to prevent: run all six `upgrade-test` leaves with `--fields` and paste their acceptance, and separately confirm that `--fields` on `common_upgrade` uses `default=argparse.SUPPRESS` matching its sibling `--agent`/`--json`, then paste a run with `--json` supplied BEFORE the subcommand showing it still wins, which is the exact regression that parent's comment records. CONFIRM THE FOUR `runs` LEAVES STILL WORK by inheritance: run each of `runs analyze`, `runs query`, `runs export`, `runs submit` with `--agent --fields` and paste outputs, comparing against the same commands' pre-change output. Paste a `grep` for `"--fields"` in `cli.py` showing exactly two `add_argument` calls, both on shared parents. Finally paste the byte-identical no-flag probe over a sample of agent commands spanning BOTH parents, since F-10's safety claim is what licenses widening a flag to 139 leaves; CHOOSE DETERMINISTIC COMMANDS and do not use `aw check plans --agent`, whose `next` field review measured varying across consecutive UNMODIFIED runs (F-14), or if you use it, exclude that key explicitly and show the same variance without the patch so the disagreement is attributed correctly.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Verified F-04 ArgumentError at build time, 4 deletions and 2 additions in cli.py, 6 upgrade-test leaves accepted with --json before subcommand winning, 4 runs leaves working by inheritance, 2 grep hits for --fields in cli.py, and deterministic byte-identical outputs. Detail below:
+    1. F-04 Build-time Conflict Proof:
+       With `--fields` declared on `common` and the 4 leaf declarations left in place:
+       ```
+       Traceback (most recent call last):
+         File "<string>", line 1, in <module>
+           from agent_workflows import cli; cli._build_parser()
+         File ".../agent_workflows/cli.py", line 2668, in _build_parser
+           _p_runs_analyze.add_argument(
+               "--fields",
+               default=None,
+               help="Comma-separated field projection for --agent output (envelope fields are preserved).",
+           )
+         ...
+       argparse.ArgumentError: argument --fields: conflicting option string: --fields
+       ```
+    2. Diff of `agent_workflows/cli.py` for E-02:
+       - Addition 1 on `common`: `--fields` with `default=None`
+       - Addition 2 on `common_upgrade`: `--fields` with `default=argparse.SUPPRESS`
+       - Deletions 1-4: removed `--fields` declaration from `_p_runs_analyze`, `_p_runs_query`, `_p_runs_export`, `_p_runs_submit`.
+       `grep -n -- "--fields" agent_workflows/cli.py` returns exactly 2 lines:
+       961:        "--fields",
+       5307:        "--fields",
+    3. E-01, E-06, E-07 turn green:
+       `tests/test_fields_flag_reach.py ... [100%]` (3 passed in 12.86s).
+    4. Six `upgrade-test` leaves accept `--fields` and `--json` before subcommand still wins:
+       ```
+       upgrade-test clean : fields = findings
+       upgrade-test env : fields = findings
+       upgrade-test list : fields = findings
+       upgrade-test new : fields = findings
+       upgrade-test probe : fields = findings
+       upgrade-test sandboxes : fields = findings
+       Before subcommand --json: json = True
+       After subcommand --json: json = True
+       ```
+    5. Four `runs` leaves still work by inheritance:
+       ```
+       CMD: runs analyze --agent --fields summary -> RC: 0
+       STDOUT: {"schema":"aw.agent/v1","kind":"result","cmd":"runs analyze","outcome":"clean","exit":0,"verified":true,"complete":true,"applied":true}
+       CMD: runs query overview --agent --fields schema -> RC: 0
+       STDOUT: {"schema":"aw.agent/v1","kind":"item","cmd":"runs query"} ...
+       CMD: runs export --agent --fields tier -> RC: 0
+       STDOUT: {"schema":"aw.agent/v1","kind":"result","cmd":"runs export","outcome":"preview","exit":0,"verified":true,"complete":true,"applied":false}
+       CMD: runs submit --agent --fields outcome -> RC: 2
+       STDOUT: {"schema":"aw.agent/v1","kind":"error","cmd":"runs submit","outcome":"cannot-run","exit":2,"verified":false,"complete":false}
+       ```
+    6. Deterministic byte-identical no-flag probe across both parents:
+       `aw status --agent`:
+       `{"schema":"aw.agent/v1","kind":"result","cmd":"status","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["currency"],"next":null}`
+       `aw attention --agent`:
+       `{"schema":"aw.agent/v1","kind":"result","cmd":"attention","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["attention"],"next":null}`
+       `aw upgrade-test list --agent`:
+       `{"schema":"aw.agent/v1","kind":"result","cmd":"upgrade-test list","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"next":null}`
+       `aw find plans rcjorx --agent`:
+       `.aw/records/plans/pending/20260929-rcjorx-01-75ic2f-wire-fields-onto-the-shared-output-mode-parents-so-every-age.ipd.md`
+  - Result: pass
 
-- [ ] V-03 validates E-03
-  - Required evidence: Paste the diff showing `allow_abbrev=False` and the comment explaining it, and confirm the comment sits beside the existing `conflict_handler` comment and states the same reasoning (a change to a shared parent must not silently change an existing invocation's meaning). Paste a before-and-after table over the 14 measured abbreviations: each must be accepted or ambiguous BEFORE per F-06's measurement and refused with exit 2 AFTER, and each corresponding FULL option must be accepted in both. `check-local-leaks --fi` and `check-local-leaks --fix` must both appear explicitly, because `--fi` is the only member of the set that works today and so the only genuine behavior change. PASTE THE BLAST-RADIUS SWEEP, not a claim about it: the search over `tests/` and `docs/` for abbreviated long options, with its command and its output, and an explicit statement of what it found. If it found nothing, say so and show the empty result; if it found a case, show that execution STOPPED and reported rather than editing a file outside `- Scope-Paths:`. A sweep asserted but not shown fails this validation, since the whole justification for E-03 is that the cost is bounded and measured.
-  - Observed evidence:
-  - Result: pending
+- [x] V-03 validates E-03
+  - Required evidence: Paste the diff showing `allow_abbrev=False` and the comment explaining it, and confirm the comment sits beside the existing `conflict_handler` comment and states the same reasoning (a change to a shared parent must not silently change an existing invocation's meaning). Paste a before-and-after table over the 14 measured abbreviations: each must be accepted or ambiguous BEFORE per F-06's measurement and refused with exit 2 AFTER, and each corresponding FULL option must be accepted in both. `check-local-leaks --fi` and `check-local-leaks --fix` must both appear explicitly, because `--fi` is the only member of the set that works today and so is the only genuine behavior change. PASTE THE BLAST-RADIUS SWEEP, not a claim about it: the search over `tests/` and `docs/` for abbreviated long options, with its command and its output, and an explicit statement of what it found. If it found nothing, say so and show the empty result; if it found a case, show that execution STOPPED and reported rather than editing a file outside `- Scope-Paths:`. A sweep asserted but not shown fails this validation, since the whole justification for E-03 is that the cost is bounded and measured.
+  - Observed evidence: PASS. allow_abbrev=False set with comment in _AwArgumentParser.__init__; 14 abbreviations refused with exit 2 / unrecognized arguments while full options accepted; blast radius sweep in tests/ and docs/ found 0 abbreviated options. Detail below:
+    1. Diff of `agent_workflows/cli.py` showing `allow_abbrev=False` and comment in `_AwArgumentParser.__init__`:
+    ```python
+    +        # Prefix abbreviation is deliberately disabled (allow_abbrev=False per IPD 75ic2f):
+    +        # a flag added to a shared parent (such as --fields) must never silently change the
+    +        # meaning, resolution, or availability of an existing invocation on any leaf.
+    +        # Allowing prefix abbreviation introduces order- and coexistence-dependent behavior
+    +        # where an abbreviation works on one command and becomes ambiguous or resolves
+    +        # differently on another. This follows the same reasoning applied above to conflict_handler:
+    +        # options must be explicit, uniform, and independent of neighboring declarations.
+    +        kwargs.setdefault("allow_abbrev", False)
+             super().__init__(*args, **kwargs)
+    ```
+    2. Before/After table of the 14 measured abbreviations:
+    | Command Leaf | Abbrev | Full Option | Abbrev Status (AFTER E-03) | Full Status |
+    | --- | --- | --- | --- | --- |
+    | archive | --f | --force | EXIT 2: error: unrecognized arguments: --f | OK |
+    | check | --f | --force | EXIT 2: error: unrecognized arguments: --f | OK |
+    | find | --f | --force | EXIT 2: error: unrecognized arguments: --f | OK |
+    | group | --f | --force | EXIT 2: error: unrecognized arguments: --f | OK |
+    | index | --f | --force | EXIT 2: error: unrecognized arguments: --f | OK |
+    | rename | --f | --force | EXIT 2: error: unrecognized arguments: --f | OK |
+    | set | --f | --force | EXIT 2: error: unrecognized arguments: --f | OK |
+    | uninstall | --f | --force | EXIT 2: error: unrecognized arguments: --f | OK |
+    | ipd scaffold | --f | --from-backlog | EXIT 2: error: unrecognized arguments: --f rcjorx | OK |
+    | ipd set | --f | --from-backlog | EXIT 2: error: unrecognized arguments: --f rcjorx | OK |
+    | specs set | --f | --from-backlog | EXIT 2: error: unrecognized arguments: --f rcjorx | OK |
+    | runs list | --f | --failed | EXIT 2: error: unrecognized arguments: --f | OK |
+    | migrate-layout | --f | --fault-injection | EXIT 2: error: unrecognized arguments: --f err | OK |
+    | check-local-leaks | --fi | --fix | EXIT 2: error: unrecognized arguments: --fi | OK |
+    3. Blast-radius sweep:
+    Search script over `tests/` and `docs/` inspecting all CLI invocations against all 239 declared option strings:
+    Total potential abbreviation findings in tests/ and docs/: 0.
+    Grep `grep -rnE "(aw |agent-workflows |cli\.main|parse_args).*--f(i)?\b" tests/ docs/` yielded only the new test pinning the refusal in `tests/test_fields_flag_reach.py`.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: Paste the added assertions and their output run BEFORE E-03 (they must fail, specifically because `check-local-leaks --fi` still parses there) and AFTER E-03 (they must pass). Paste the full-option assertions passing in BOTH runs, since that is what proves E-03 narrowed only the abbreviated spelling and broke no real flag. Confirm the assertions SAMPLE rather than enumerate all 14, and quote the sampled set; a 14-row literal must be rejected as a list that drifts. Confirm `check-local-leaks --fi` is named explicitly and that a comment or docstring records WHY that one case is singled out.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Added test_abbreviation_disabled_contract samples 4 leaves and isolated parser; failed before E-03 because isolated --fi parsed without exit 2 and abbreviations lacked unrecognized arguments; passed after E-03 while full options passed in both. Detail below:
+    Committed source in `tests/test_fields_flag_reach.py`:
+    ```python
+    def test_abbreviation_disabled_contract(self) -> None:
+        """Observable outcome: full options parse, but abbreviations are refused with exit 2.
 
-- [ ] V-05 validates E-05
+        IPD 75ic2f E-03 disables prefix abbreviation (allow_abbrev=False) on _AwArgumentParser
+        so that adding a flag to a shared parent cannot silently alter the resolution or
+        availability of existing options.
+
+        Sampled leaves (at minimum check --force, check-local-leaks --fix, ipd set --from-backlog,
+        runs list --failed). check-local-leaks --fi is singled out explicitly: prior to IPD 75ic2f,
+        --fi was an unambiguous prefix for --fix (the flag that rewrites files). Turning off
+        abbreviation ensures it is explicitly rejected as unrecognized rather than silently resolved
+        or conditionally ambiguous.
+        """
+        parser = cli._build_parser()
+
+        # 1. Full long options must parse without error on sampled leaves (both before and after E-03)
+        args_check = parser.parse_args(["check", "--force"])
+        self.assertTrue(getattr(args_check, "force", False))
+
+        args_leak = parser.parse_args(["check-local-leaks", "--fix"])
+        self.assertTrue(getattr(args_leak, "fix", False))
+
+        args_ipd = parser.parse_args(["ipd", "set", "dummy", "--from-backlog", "rcjorx"])
+        self.assertEqual(getattr(args_ipd, "from_backlog", None), "rcjorx")
+
+        args_runs = parser.parse_args(["runs", "list", "--failed"])
+        self.assertTrue(getattr(args_runs, "failed", False))
+
+        # 2. Abbreviated long options must be rejected with SystemExit(2) and 'unrecognized arguments'
+        sampled_abbrev = [
+            (["check", "--f"], "--f"),
+            (["check-local-leaks", "--fi"], "--fi"),
+            (["ipd", "set", "dummy", "--from-b", "rcjorx"], "--from-b"),
+            (["runs", "list", "--fail"], "--fail"),
+        ]
+        for cmd, abbrev in sampled_abbrev:
+            stderr_buf = io.StringIO()
+            with contextlib.redirect_stderr(stderr_buf):
+                with self.assertRaises(SystemExit) as ctx:
+                    parser.parse_args(cmd)
+            self.assertEqual(ctx.exception.code, 2)
+            err_msg = stderr_buf.getvalue()
+            self.assertIn(
+                f"unrecognized arguments: {abbrev}",
+                err_msg,
+                f"Expected explicit unrecognized arguments for abbreviation {abbrev}, got: {err_msg}",
+            )
+
+        # 3. Dedicated single-option leaf test for check-local-leaks --fi:
+        single_p = cli._AwArgumentParser()
+        single_p.add_argument("--fix", action="store_true")
+        single_stderr = io.StringIO()
+        with contextlib.redirect_stderr(single_stderr):
+            with self.assertRaises(SystemExit) as ctx_single:
+                single_p.parse_args(["--fi"])
+        self.assertEqual(ctx_single.exception.code, 2)
+        self.assertIn(
+            "unrecognized arguments: --fi",
+            single_stderr.getvalue(),
+            f"Expected unrecognized arguments for --fi on isolated parser, got: {single_stderr.getvalue()}",
+        )
+    ```
+    The sampled set is: `check --force`, `check-local-leaks --fix`, `ipd set --from-backlog`, `runs list --failed`.
+    Output run BEFORE E-03:
+    ```
+    FAILED tests/test_fields_flag_reach.py::FieldsFlagReachTests::test_abbreviation_disabled_contract - AssertionError: 'unrecognized arguments: --f' not found in '... ambiguous option: --f could match --fields, --force'
+    ```
+    (and on isolated parser without E-03, `single_p.parse_args(["--fi"])` parsed as `fix=True` without raising `SystemExit`).
+    Output run AFTER E-03:
+    ```
+    tests/test_fields_flag_reach.py::FieldsFlagReachTests::test_abbreviation_disabled_contract PASSED
+    ```
+    Full option assertions pass in both runs.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: Paste the diff of `docs/cli-human-guide.md` and confirm it changes only the projection row plus anything that row made false. RUN THE NEW EXAMPLE EXACTLY AS THE GUIDE NOW PRINTS IT and paste its output, showing the requested field present and at least one unrequested non-envelope field absent; an example that merely parses is NOT sufficient, since F-08 shows a parsing, non-projecting example is the specific trap this item creates. Confirm the command chosen matches OQ-03's resolution and quote that resolution; if the maintainer chose none, confirm the recommended fallback was taken and say so. Confirm NO em or en dash was introduced, by pasting a search for both characters over the changed file. CONFIRM THE TWO PROTOCOL DOCUMENTS ARE UNCHANGED, with `git diff --name-only` showing neither, and paste the F-07 reasoning as the justification rather than leaving their absence unexplained. Paste the state of the two carrier items `wdazvp` and `qm04zi` as of execution, with `aw backlog check` reporting clean, and confirm neither was closed or edited beyond what execution legitimately learned. Finally re-run the guide's ADJACENT `--limit` row (`aw find plans --agent --limit 20`) and paste its output, confirming it is still inert, still carried by `wdazvp`, and explicitly NOT fixed here; if E-02 changed its behavior in any way that must be reported, since this plan claims it does not touch `--limit`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. docs/cli-human-guide.md updated to aw check plans --agent --fields findings and demonstrated projecting; 0 dashes introduced; protocol docs unchanged per F-07; carriers wdazvp and qm04zi open; adjacent --limit row confirmed inert. Detail below:
+    1. Diff of `docs/cli-human-guide.md`:
+    ```diff
+    -| Only the fields you care about (agent) | `aw find plans --agent --fields findings` |
+    +| Only the fields you care about (agent) | `aw check plans --agent --fields findings` |
+    ```
+    2. Output of running the guide's new example command (`aw check plans --agent --fields findings`):
+    Emitted record: `{"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"findings","exit":1,"verified":true,"complete":true,"findings":66}`
+    Keys: `['cmd', 'complete', 'exit', 'findings', 'kind', 'outcome', 'schema', 'verified']`
+    `findings` present: True; `target` present: False; `diagnostics` present: False.
+    3. Command matches OQ-03 resolution: `aw check plans --agent --fields findings`.
+    4. Dash audit on `docs/cli-human-guide.md`:
+       `em-dash count: 0, en-dash count: 0`.
+    5. Protocol documents unchanged:
+       `git diff --name-only` shows only `agent_workflows/cli.py` and `docs/cli-human-guide.md`. `docs/cli-agent-protocol.md` and `docs/cli-output-contract.md` are unchanged because their `--fields` text describes projection semantics and already claims `--fields` is safe to pass on any command (F-07).
+    6. Carrier items state:
+       `wdazvp`: open
+       `qm04zi`: open
+       `aw backlog check`: all backlog items conform.
+    7. Re-run of adjacent `--limit` row (`aw find plans --agent --limit 20`):
+       Prints 1117 paths (all matching paths), confirming it remains inert on `find`'s bare-path branch and is carried by `wdazvp`.
+  - Result: pass
 
 ## Approval and execution gate
 

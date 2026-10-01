@@ -696,6 +696,15 @@ class _AwArgumentParser(argparse.ArgumentParser):
         # Note: the blanket `kwargs.setdefault("conflict_handler", "resolve")` line removed here
         # was never argued for; it arrived unremarked in commit ef55eadb (a 984-line CLI migration)
         # with no comment and no explanation. Do not re-add "resolve" here.
+        #
+        # Prefix abbreviation is deliberately disabled (allow_abbrev=False per IPD 75ic2f):
+        # a flag added to a shared parent (such as --fields) must never silently change the
+        # meaning, resolution, or availability of an existing invocation on any leaf.
+        # Allowing prefix abbreviation introduces order- and coexistence-dependent behavior
+        # where an abbreviation works on one command and becomes ambiguous or resolves
+        # differently on another. This follows the same reasoning applied above to conflict_handler:
+        # options must be explicit, uniform, and independent of neighboring declarations.
+        kwargs.setdefault("allow_abbrev", False)
         super().__init__(*args, **kwargs)
 
     def format_help(self) -> str:
@@ -956,6 +965,11 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="json",
         action="store_true",
         help="Emit full structured JSON representation.",
+    )
+    common.add_argument(
+        "--fields",
+        default=None,
+        help="Comma-separated field projection for --agent output (envelope fields are preserved).",
     )
 
     parser = _AwArgumentParser(
@@ -2660,11 +2674,6 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Maximum records per agent stream page (bounded so a record stays inside its budget).",
     )
-    _p_runs_analyze.add_argument(
-        "--fields",
-        default=None,
-        help="Comma-separated field projection for --agent output (envelope fields are preserved).",
-    )
 
     _p_runs_query = runs_sub.add_parser(
         "query",
@@ -2755,11 +2764,6 @@ def _build_parser() -> argparse.ArgumentParser:
         "--limit",
         default=None,
         help="Rows per page (default 20, max 500) so each record stays inside its budget.",
-    )
-    _p_runs_query.add_argument(
-        "--fields",
-        default=None,
-        help="Comma-separated field projection for --agent output (envelope fields are preserved).",
     )
 
     # ---- runanalytics Order 09 (`ixis0c`) E-01: the two DATA-SHARING leaves ------------------------
@@ -2868,11 +2872,6 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Who attested, recorded as provenance (e.g. 'maintainer via chat').",
     )
-    _p_runs_export.add_argument(
-        "--fields",
-        default=None,
-        help="Comma-separated field projection for --agent output (envelope fields are preserved).",
-    )
 
     _p_runs_submit = runs_sub.add_parser(
         "submit",
@@ -2937,11 +2936,6 @@ def _build_parser() -> argparse.ArgumentParser:
         "--actor",
         default=None,
         help="Who attested, recorded as provenance in the local receipt.",
-    )
-    _p_runs_submit.add_argument(
-        "--fields",
-        default=None,
-        help="Comma-separated field projection for --agent output (envelope fields are preserved).",
     )
 
     p_research = sub.add_parser(
@@ -5317,6 +5311,11 @@ def _build_parser() -> argparse.ArgumentParser:
         const=True,
         default=argparse.SUPPRESS,
         help="Emit full structured JSON representation.",
+    )
+    common_upgrade.add_argument(
+        "--fields",
+        default=argparse.SUPPRESS,
+        help="Comma-separated field projection for --agent output (envelope fields are preserved).",
     )
 
     p_upgrade_test = sub.add_parser(
