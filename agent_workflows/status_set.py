@@ -1807,6 +1807,25 @@ def _offer_self_commit(
         print(f"warning: self-commit skipped: {outcome.message}")
 
 
+def _refuse_unsafe_descriptive(
+    verb: str,
+    flag: str,
+    value: str | None,
+    *,
+    bound_length: bool = True,
+) -> str | None:
+    """Judge one descriptive value against Section 8.8 output-safety.
+
+    Delegates to backlog._refuse_unsafe_descriptive to keep refusal wording byte-identical
+    across trees without a third copy (IPD 4gwgo3 E-01).
+    """
+    from agent_workflows import backlog as _backlog
+
+    return _backlog._refuse_unsafe_descriptive(
+        verb, flag, value, bound_length=bound_length
+    )
+
+
 def run_set_command(
     raw_args: list[str],
     scoped_type: str | None = None,
@@ -1926,6 +1945,27 @@ def run_set_command(
         if _exempt_err:
             term.status("fail", _exempt_err)
             return 2
+
+    # IPD 4gwgo3 E-02, E-03: validate descriptive and identity fields BEFORE resolving or writing
+    # anything, so an unsafe value carrying newlines, control characters, or exceeding length bounds
+    # refuses with exit 2 without mutating artifacts or forging workflow history / front matter
+    # across any tree. Mode is line-integrity only for --message (no length bound); bounded for
+    # --actor, --gate-ref, --gate-summary, --blocks-release, and --gate-kind.
+    for _val, _flag, _bound in [
+        (getattr(args, "message", None), "--message", False),
+        (getattr(args, "actor", None), "--actor", True),
+        (getattr(args, "gate_ref", None), "--gate-ref", True),
+        (getattr(args, "gate_summary", None), "--gate-summary", True),
+        (getattr(args, "blocks_release", None), "--blocks-release", True),
+        (getattr(args, "gate_kind", None), "--gate-kind", True),
+    ]:
+        if _val is not None:
+            _err = _refuse_unsafe_descriptive(
+                "aw set", _flag, _val, bound_length=_bound
+            )
+            if _err:
+                term.status("fail", _err)
+                return 2
 
     scoped_type_canonical = canonical_type(scoped_type)
 
