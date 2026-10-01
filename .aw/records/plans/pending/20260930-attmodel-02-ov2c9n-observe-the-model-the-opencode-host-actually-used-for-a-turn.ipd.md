@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/runner_shared.py, tests/test_attempt_host_model_observation.py
 - Item-Dependencies: executed:czut8j
 - Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: medium
 - From-Backlog: 7yz545
