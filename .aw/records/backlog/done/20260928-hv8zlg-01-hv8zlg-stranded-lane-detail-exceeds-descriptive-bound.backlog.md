@@ -1,5 +1,5 @@
 - Id: hv8zlg
-- Status: graduated
+- Status: done
 - Graduated-To: hv8zlg
 - Set: hv8zlg
 - Priority: low
@@ -7,6 +7,8 @@
 - Summary: A stranded-lane drift detail can exceed the Section 8.8 descriptive-field bound and nothing checks it
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD mc6r92 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-hv8zlg-01-mc6r92-bound-the-stranded-lane-drift-detail-to-the-section-8-8-desc.ipd.md); evidence .aw/records/plans/executed/20260930-hv8zlg-01-mc6r92-bound-the-stranded-lane-drift-detail-to-the-section-8-8-desc.ipd.md
+- 2026-10-01 note (aw backlog): mc6r92: contract decision resolved by shortening the composed why segment to fit MAX_DESCRIPTIVE_LEN; truncation (forbidden by Section 8.8) and new violation id (would double-count advisory lane-superseded at error severity) both refused; framing corrected as remedy hint is 41 chars and untouched
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053053Z-3200037: mc6r92
 - 2026-09-28 created (aw backlog): A stranded-lane drift detail can exceed the Section 8.8 descriptive-field bound and nothing checks it
 
