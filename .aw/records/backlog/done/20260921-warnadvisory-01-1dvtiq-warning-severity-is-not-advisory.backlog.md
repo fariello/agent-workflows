@@ -1,5 +1,5 @@
 - Id: 1dvtiq
-- Status: graduated
+- Status: done
 - Graduated-To: warnadvisory
 - Set: warnadvisory
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: warning severity is not advisory: only info exempts drift_exit_code, which is a trap for the next rule author
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD wm40yl executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-warnadvisory-01-wm40yl-document-the-severity-tier-contract-so-warning-is-not-mistak.ipd.md); evidence .aw/records/plans/executed/20260929-warnadvisory-01-wm40yl-document-the-severity-tier-contract-so-warning-is-not-mistak.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: wm40yl
 - 2026-09-21 created (aw backlog): warning severity is not advisory: only info exempts drift_exit_code, which is a trap for the next rule author
 
