@@ -5184,6 +5184,55 @@ class HostIntegrateVerbTests(unittest.TestCase):
             )
             self.assertNotIn("aw agy run", subject)
 
+    def test_integrate_exit_contract_and_stream_routing_on_refusal_and_success(self):
+        """PIN THE EXIT CONTRACT AND STREAM ROUTING (baskrx `9oj6t2` E-04).
+
+        Asserted through the real `driver.main(["integrate", ...])` on both refusal and success:
+          * refusal: rc != 0 (specifically 1), stdout empty, stderr carries the refusal sentence.
+          * success: rc == 0, stdout carries the confirmation message.
+        """
+        from tests.test_runner_shared import (
+            _passing_suite,
+            _repo_with_pending_plan,
+            _stranded_item,
+            _verified_lane,
+            _write_run_state,
+        )
+
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td) / "repo"
+            repo.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+
+            out_buf = io.StringIO()
+            err_buf = io.StringIO()
+            with contextlib.redirect_stdout(out_buf), contextlib.redirect_stderr(
+                err_buf
+            ):
+                rc = driver.main(["integrate", "zzzzzz", "--repo", os.fspath(repo)])
+            self.assertEqual(rc, 1)
+            self.assertEqual(out_buf.getvalue(), "")
+            self.assertIn(
+                "integrate zzzzzz REFUSED (no-lane-record)", err_buf.getvalue()
+            )
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            repo = _repo_with_pending_plan(root, "oci002")
+            lane = _verified_lane(repo, root, "oci002")
+            _write_run_state(repo, {"repo": str(repo), "queue": [_stranded_item(lane)]})
+
+            out_buf = io.StringIO()
+            err_buf = io.StringIO()
+            with mock.patch.object(driver, "run_suite_check", _passing_suite):
+                with contextlib.redirect_stdout(out_buf), contextlib.redirect_stderr(
+                    err_buf
+                ):
+                    rc = driver.main(["integrate", "oci002", "--repo", os.fspath(repo)])
+            self.assertEqual(rc, 0)
+            self.assertIn("integrated oci002 from lane", out_buf.getvalue())
+            self.assertNotIn("REFUSED", out_buf.getvalue())
+
 
 class HostResumeIntegratesInsteadOfDispatchingTests(unittest.TestCase):
     """integpath-04 (`rl67b0`) E-03/E-06: THE TWO ABSENCES, on this host's real `run_queue`.
