@@ -2599,9 +2599,22 @@ def integration_refusal_detail(item: dict[str, Any]) -> str | None:
     return _redact_absolute_paths(detail)
 
 
-#: An absolute POSIX path embedded in recorded prose. Deliberately coarse: this runs over a driver's
-#: own message text, where over-redacting one token is harmless and under-redacting leaks a home path.
-_ABSOLUTE_PATH_IN_TEXT = re.compile(r"(?<![\w/])/(?:[\w.\-+@]+/)*[\w.\-+@]+")
+#: An absolute POSIX path embedded in recorded prose.
+#:
+#: Requires at least one interior '/' separator (`(?:[\w.\-+@]+/)+` rather than `*`) so single-segment
+#: root-relative tokens such as slash commands (`/spec-review`, `/plan-review`, `/exec-set`, `/whatnext`)
+#: are NOT matched or mangled into `<path>` (IPD 7sc8fk, F-05/F-06).
+#:
+#: DELIBERATE LOSSES (F-06b): Four single-segment system roots (`/home`, `/tmp`, `/root`, `/var`) stop being
+#: redacted to `<path>` under this pattern. This trade is intentional: a bare root names no user, machine,
+#: or repository and carries no leak hazard under AGENTS.md, while destroying an operator-facing slash command
+#: in a refusal remedy breaks actionable remedies. Multi-segment paths such as `/home/<user>/VC/proj` or
+#: `/Users/<user>/proj` are still caught.
+#:
+#: The leading `(?<![\w/])` lookbehind is load-bearing (F-06c): it prevents matching URLs (`https://...`),
+#: git refs (`main..aw/lane/x`), dates (`2026/09/30`), repo-relative paths (`.aw/...`), test node ids,
+#: flags (`--dist=worksteal`), or prose slashes (`and/or`, `50/50`). It must not be dropped.
+_ABSOLUTE_PATH_IN_TEXT = re.compile(r"(?<![\w/])/(?:[\w.\-+@]+/)+[\w.\-+@]+")
 
 
 def _redact_absolute_paths(text: str) -> str:
@@ -2788,8 +2801,17 @@ def record_refusal(
 
     THE ONE WRITER, paired with :func:`refusal_of_item`. Both hosts call this rather than assigning
     the key themselves, so the reader and the writer cannot drift apart the way F-4 measured.
+
+    PATH REDACTION AT THE WRITER (IPD 7sc8fk): `reason` and `remedy` are redacted through
+    :func:`_redact_absolute_paths` before constructing the :class:`Refusal`. Precedent: the two sibling
+    readers (:func:`integration_refusal_detail` and :func:`review_integration_refusal_detail`) already
+    redact for this exact surface because the run summary is the most-copied output in the product.
+    Performing redaction here ensures all producer call sites and future refusal codes inherit leak
+    protection uniformly. `code` is deliberately not redacted because it is a machine token.
     """
-    refusal = Refusal(code=code, reason=reason, remedy=remedy)
+    redacted_reason = _redact_absolute_paths(reason)
+    redacted_remedy = _redact_absolute_paths(remedy)
+    refusal = Refusal(code=code, reason=redacted_reason, remedy=redacted_remedy)
     item[REFUSAL_KEY] = refusal.to_dict()
     return refusal
 
