@@ -6,7 +6,7 @@
 - Scope: Make that one test exercise the branch it claims, by pointing its drain dependency at a LEGAL id6 resolved against a SYNTHESIZED repository root under the `tmp_path` the test already receives, so the verdict depends on nothing in the live checkout. Repointing the token is NECESSARY AND NOT SUFFICIENT: review measured that the existing assertion set stays green under a reason-destroying `edge_satisfied` stub even after the repoint (F9), so the test must ALSO gain an assertion that the reason is a RESOLUTION reason and not one of the three fallback texts, which is what gives the restored coverage teeth. Prove it with a mutation check in both directions. Also drop the now-vestigial `Path(__file__).resolve().parents[1]` live-root reference from that one test. Does NOT touch `agent_workflows/runner_shared.py`, `agent_workflows/render_stream.py`, or `agent_workflows/run_selection_policy.py`: no production behavior is wrong here (`dependency_status_detailed` is CORRECT in every measurement below), and the two adjacent PRODUCTION defects are separately carried by `8mohre` and `csjq81`. Does NOT audit the other tests that reference the live root, and does NOT author the standing convention that governs this class, which plan `kmzude` owns.
 - Scope-Paths: tests/test_dependency_block_reporting.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: jefifu
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: jefifu verified (set 03aicr, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (opencode/its_direct-pt3-claude-opus-5-1m-us): plan-review: APPROVE WITH REVISIONS APPLIED; PR-401 (HIGH), PR-402 (MEDIUM), PR-403 (LOW), all FIXED. E-04/V-04 added after review measured that E-02 alone leaves the test green under a reason-destroying edge_satisfied stub.
 
