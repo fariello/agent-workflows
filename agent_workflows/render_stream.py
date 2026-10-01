@@ -1073,7 +1073,9 @@ def format_action_label(action: str | None) -> str:
     if not action:
         return "Review"
     key = action.strip().lower()
-    return ACTION_DISPLAY_MAP.get(key, action.strip()[:7].capitalize())
+    return ACTION_DISPLAY_MAP.get(
+        key, _T.truncate_visible(action.strip(), 7).capitalize()
+    )
 
 
 def format_activity_cell(
@@ -1122,7 +1124,9 @@ def format_artifact_kind_label(artifact_kind: str | None) -> str:
     if not artifact_kind:
         return "IPD"
     key = artifact_kind.strip().lower()
-    return ARTIFACT_DISPLAY_MAP.get(key, artifact_kind.strip()[:7].capitalize())
+    return ARTIFACT_DISPLAY_MAP.get(
+        key, _T.truncate_visible(artifact_kind.strip(), 7).capitalize()
+    )
 
 
 def statusline_action_for_item(item: dict[str, Any]) -> str:
@@ -1188,12 +1192,12 @@ def format_statusline_lines(
 
     col2_w = max(
         27,
-        len(hdr2_left) + len(hdr2_right) + 1,
-        len(val2_left) + len(val2_right) + 1,
+        _T.visible_width(hdr2_left) + _T.visible_width(hdr2_right) + 1,
+        _T.visible_width(val2_left) + _T.visible_width(val2_right) + 1,
     )
 
-    h2 = f"{hdr2_left}{hdr2_right:>{col2_w - len(hdr2_left)}s}"
-    v2 = f"{val2_left}{val2_right:>{col2_w - len(val2_left)}s}"
+    h2 = f"{hdr2_left}{' ' * max(0, col2_w - _T.visible_width(hdr2_left) - _T.visible_width(hdr2_right))}{hdr2_right}"
+    v2 = f"{val2_left}{' ' * max(0, col2_w - _T.visible_width(val2_left) - _T.visible_width(val2_right))}{val2_right}"
 
     # 2. Item Elapsed & Progress Bar (Col 3)
     item_elapsed = max(0, int(now_ts - item_start_ts))
@@ -1204,18 +1208,26 @@ def format_statusline_lines(
     if setid and id6:
         hdr3_left = f" set: {setid}"
         hdr3_right = f"id6: {id6} "
-        col3_w = max(31, len(hdr3_left) + len(hdr3_right) + 1, len(val3) + 2)
-        h3 = f"{hdr3_left}{hdr3_right:>{col3_w - len(hdr3_left)}s}"
+        col3_w = max(
+            31,
+            _T.visible_width(hdr3_left) + _T.visible_width(hdr3_right) + 1,
+            _T.visible_width(val3) + 2,
+        )
+        h3 = f"{hdr3_left}{' ' * max(0, col3_w - _T.visible_width(hdr3_left) - _T.visible_width(hdr3_right))}{hdr3_right}"
     elif setid:
-        col3_w = max(31, len(setid) + 8, len(val3) + 2)
-        h3 = f" set: {setid} ".ljust(col3_w)
+        col3_w = max(31, _T.visible_width(setid) + 8, _T.visible_width(val3) + 2)
+        h3 = f" set: {setid} " + (
+            " " * max(0, col3_w - _T.visible_width(f" set: {setid} "))
+        )
     elif id6:
-        col3_w = max(31, len(id6) + 8, len(val3) + 2)
-        h3 = f" id6: {id6} ".ljust(col3_w)
+        col3_w = max(31, _T.visible_width(id6) + 8, _T.visible_width(val3) + 2)
+        h3 = f" id6: {id6} " + (
+            " " * max(0, col3_w - _T.visible_width(f" id6: {id6} "))
+        )
     else:
-        col3_w = max(31, len(val3) + 2)
-        h3 = " -".ljust(col3_w)
-    v3 = f"{val3:<{col3_w}s}"
+        col3_w = max(31, _T.visible_width(val3) + 2)
+        h3 = " -" + (" " * max(0, col3_w - _T.visible_width(" -")))
+    v3 = f"{val3}{' ' * max(0, col3_w - _T.visible_width(val3))}"
 
     # 3. Action / Artifact Kind (Col 4), plus the live ACTIVITY when the runner can signal one
     # (lifeglyph `qdd5jq` E-03, spec Section 7.1).
@@ -1233,19 +1245,19 @@ def format_statusline_lines(
     art_str = format_artifact_kind_label(artifact_kind)
     activity_cell, activity_w = format_activity_cell(activity, pal)
     if activity_cell:
-        col4_w = max(9, activity_w + 2, len(art_str) + 2)
+        col4_w = max(9, activity_w + 2, _T.visible_width(art_str) + 2)
         h4 = (" " * max(0, col4_w - 1 - activity_w)) + activity_cell + " "
     else:
-        col4_w = max(9, len(act_str) + 2, len(art_str) + 2)
-        h4 = f"{act_str:>{col4_w - 1}s} "
-    v4 = f"{art_str:>{col4_w - 1}s} "
+        col4_w = max(9, _T.visible_width(act_str) + 2, _T.visible_width(art_str) + 2)
+        h4 = (" " * max(0, col4_w - 1 - _T.visible_width(act_str))) + act_str + " "
+    v4 = (" " * max(0, col4_w - 1 - _T.visible_width(art_str))) + art_str + " "
 
     # 4. Spend (Col 5)
     cost = tracker.cost if tracker is not None else 0.0
     cost_str = f"${cost:.2f}"
-    col5_w = max(7, len(cost_str) + 2)
-    h5 = " Spend ".rjust(col5_w)
-    v5 = f"{cost_str:>{col5_w - 1}s} "
+    col5_w = max(7, _T.visible_width(cost_str) + 2)
+    h5 = (" " * max(0, col5_w - _T.visible_width(" Spend "))) + " Spend "
+    v5 = (" " * max(0, col5_w - 1 - _T.visible_width(cost_str))) + cost_str + " "
 
     # 5. Token Sub-columns (Cols 6-10)
     # Col 6: Tok / ens
@@ -1260,34 +1272,34 @@ def format_statusline_lines(
         else 0
     )
     tot_str = format_compact_tokens(tot_tok)
-    col7_w = max(7, len(tot_str) + 2)
-    h7 = " Total ".rjust(col7_w)
-    v7 = f"{tot_str:>{col7_w - 1}s} "
+    col7_w = max(7, _T.visible_width(tot_str) + 2)
+    h7 = (" " * max(0, col7_w - _T.visible_width(" Total "))) + " Total "
+    v7 = (" " * max(0, col7_w - 1 - _T.visible_width(tot_str))) + tot_str + " "
 
     # Col 8: In
     in_tok = tracker.input_tokens if tracker is not None else 0
     in_str = format_compact_tokens(in_tok)
-    col8_w = max(6, len(in_str) + 2)
-    h8 = "   In ".rjust(col8_w)
-    v8 = f"{in_str:>{col8_w - 1}s} "
+    col8_w = max(6, _T.visible_width(in_str) + 2)
+    h8 = (" " * max(0, col8_w - _T.visible_width("   In "))) + "   In "
+    v8 = (" " * max(0, col8_w - 1 - _T.visible_width(in_str))) + in_str + " "
 
     # Col 9: Out
     out_tok = tracker.output_tokens if tracker is not None else 0
     out_str = format_compact_tokens(out_tok)
-    col9_w = max(8, len(out_str) + 2)
-    h9 = "    Out ".rjust(col9_w)
-    v9 = f"{out_str:>{col9_w - 1}s} "
+    col9_w = max(8, _T.visible_width(out_str) + 2)
+    h9 = (" " * max(0, col9_w - _T.visible_width("    Out "))) + "    Out "
+    v9 = (" " * max(0, col9_w - 1 - _T.visible_width(out_str))) + out_str + " "
 
     # Col 10: Cache
     cache_tok = tracker.cache_tokens if tracker is not None else 0
     cache_str = format_compact_tokens(cache_tok)
-    col10_w = max(7, len(cache_str) + 2)
-    h10 = " Cache ".rjust(col10_w)
-    v10 = f"{cache_str:>{col10_w - 1}s} "
+    col10_w = max(7, _T.visible_width(cache_str) + 2)
+    h10 = (" " * max(0, col10_w - _T.visible_width(" Cache "))) + " Cache "
+    v10 = (" " * max(0, col10_w - 1 - _T.visible_width(cache_str))) + cache_str + " "
 
     # Col 1: Time
     col1_w = 9
-    h1 = f"{'Time':<{col1_w}s}"
+    h1 = "Time" + (" " * max(0, col1_w - _T.visible_width("Time")))
     v1 = f"{t_str:<8s} "
 
     col_widths = [
@@ -1341,7 +1353,9 @@ def format_statusline_lines(
 
     c_h1 = f"{dim_hdr}{h1}"
     if countdown:
-        pad_len = col2_w - len(hdr2_left) - len(hdr2_right)
+        pad_len = max(
+            0, col2_w - _T.visible_width(hdr2_left) - _T.visible_width(hdr2_right)
+        )
         c_h2 = f"{dim_hdr}{hdr2_left}{' ' * pad_len}{b_warn}{hdr2_right}"
     else:
         c_h2 = f"{dim_hdr}{h2}"
@@ -1357,7 +1371,9 @@ def format_statusline_lines(
 
     c_v1 = f"{b_clock}{v1}"
     if progress_source:
-        pad_len = col2_w - len(val2_left) - len(val2_right)
+        pad_len = max(
+            0, col2_w - _T.visible_width(val2_left) - _T.visible_width(val2_right)
+        )
         c_v2 = f"{b_blue}{val2_left}{' ' * pad_len}{dim_src}{val2_right}"
     else:
         c_v2 = f"{b_blue}{v2}"
