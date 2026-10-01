@@ -22,9 +22,12 @@ Pure stdlib implementation conforming to D138 (dependency minimization) and D139
 
 from __future__ import annotations
 
+import ast
+from collections import defaultdict
 import datetime
 import hashlib
 import os
+import re
 import subprocess
 from pathlib import Path
 from typing import (
@@ -32,6 +35,7 @@ from typing import (
     Callable,
     Dict,
     FrozenSet,
+    Iterable,
     List,
     Mapping,
     NamedTuple,
@@ -1226,6 +1230,10 @@ class RunFindingCode(NamedTuple):
                               one still resolves, which is what stops the mapping rotting silently.
       * ``waiting_on``      - for an UNBOUND row, the missing machinery (and its owner, when one
                               exists). Empty for a BOUND row.
+      * ``reachability``    - for a BOUND row, the reachability of each named predicate from runner
+                              entrypoints is not stored as a static field (which would rot or slow
+                              down import), but is derived lazily and memoized via
+                              :func:`predicate_verdicts_for` (or :func:`predicate_reachability_for`).
     """
 
     code: str
@@ -1275,6 +1283,12 @@ ABORT_CLASSES: Tuple[str, ...] = (
 # predicate that does not answer its question is a fail-OPEN checker - it passes because nothing was
 # checked. The second is the failure this three-state field exists to make impossible, so a binding
 # is recorded only where a shipped predicate genuinely answers THAT code's question.
+#
+# REACHABILITY VS EXISTENCE (f7z10q). A row being BOUND records that it names shipped deciding
+# predicates, but symbol existence does not prove execution reachability from run entrypoints.
+# Reachability is measured dynamically across entrypoints by :func:`prove_predicate_reachability`
+# and partitioned by :func:`bound_run_finding_codes_reachability`. Prefer recomputing via the
+# accessor over trusting static counts.
 
 #: A shipped predicate decides this code; the code is a stable NAME over existing logic.
 BOUND = "BOUND"
@@ -1295,6 +1309,11 @@ BINDING_STATES: Tuple[str, ...] = (BOUND, UNBOUND_BY_DEPENDENCY, UNBOUND_UNBUILT
 #   * `RUN-HOST-CAPABILITY` is now BOUND, not UNBOUND-BY-DEPENDENCY: `hostcap-01` (`mjx7ne`)
 #     executed and shipped `host_sandbox_profile.preflight_host_capabilities` plus that code's
 #     verbatim message.
+#     (2026-09-30 note, plan f7z10q): That inference was existence-only; mjx7ne shipped the
+#     function without wiring it to a runner call site. Plan iot7hc later supplied the missing call
+#     site in runner_shared. The row was reported BOUND throughout the intervening period during
+#     which no run could emit it. Reachability is now measured by
+#     :func:`bound_run_finding_codes_reachability` rather than inferred from symbol existence.
 #   * `RUN-BASELINE-OWNERSHIP` is now BOUND, not UNBOUND-UNBUILT: the per-path lease overlap check
 #     F3 said nobody had built ships as `worktree_lease.LeaseTable.claim` (`m2wwns`), and
 #     `dirty_within` decides the pre-existing-dirty-path half.
@@ -1701,6 +1720,227 @@ def unbound_run_finding_codes() -> Tuple[str, ...]:
     return tuple(row.code for row in RUN_FINDING_CODES if row.binding != BOUND)
 
 
+# ---- reachability prover and accessors (f7z10q / E-02, E-03, E-05) -------------------------------
+
+REACHABLE = "reachable"
+UNREACHABLE = "unreachable"
+UNRESOLVED = "unresolved"
+PREDICATE_REACHABILITY_VERDICTS: Tuple[str, ...] = (
+    REACHABLE,
+    UNREACHABLE,
+    UNRESOLVED,
+)
+
+DEFAULT_ENTRYPOINT_MODULES: Tuple[str, ...] = (
+    "oc_runipd",
+    "agy_runipd",
+    "runner_shared",
+)
+
+
+class BoundReachabilityPartition(NamedTuple):
+    """The reachability partition of BOUND codes in :data:`RUN_FINDING_CODES`."""
+
+    reachable: Tuple[str, ...]
+    unreachable: Tuple[str, ...]
+
+
+_REACHABILITY_CACHE: Dict[
+    Tuple[str, Tuple[str, ...]],
+    Tuple[Set[str], Dict[str, Set[str]], Dict[str, Set[str]]],
+] = {}
+
+
+def _build_reachability_graph(
+    package_dir: Path,
+    entrypoints: Tuple[str, ...],
+) -> Tuple[Set[str], Dict[str, Set[str]], Dict[str, Set[str]]]:
+    """Parse modules under package_dir and build name-keyed transitive reachability closure."""
+    py_files = sorted(p for p in package_dir.glob("*.py") if not p.name.startswith("."))
+    defined_func_names: Set[str] = set()
+    defs_by_mod: Dict[str, Set[str]] = defaultdict(set)
+    module_classes: Dict[str, Set[str]] = defaultdict(set)
+    func_nodes: List[Tuple[str, str, ast.AST]] = []
+    top_nodes: Dict[str, List[ast.AST]] = defaultdict(list)
+
+    for p in py_files:
+        mod = p.stem
+        try:
+            tree = ast.parse(p.read_text(encoding="utf-8"), filename=str(p))
+        except (SyntaxError, UnicodeDecodeError, OSError):
+            continue
+        for node in tree.body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                defined_func_names.add(node.name)
+                defs_by_mod[mod].add(node.name)
+                func_nodes.append((mod, node.name, node))
+            elif isinstance(node, ast.ClassDef):
+                module_classes[mod].add(node.name)
+                for item in node.body:
+                    if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                        defined_func_names.add(item.name)
+                        defs_by_mod[mod].add(item.name)
+                        defs_by_mod[mod].add(f"{node.name}.{item.name}")
+                        func_nodes.append((mod, item.name, item))
+            else:
+                top_nodes[mod].append(node)
+
+    graph: Dict[str, Set[str]] = defaultdict(set)
+    for mod, fn_name, node in func_nodes:
+        for child in ast.walk(node):
+            if isinstance(child, ast.Name) and child.id in defined_func_names:
+                graph[fn_name].add(child.id)
+            elif isinstance(child, ast.Attribute) and child.attr in defined_func_names:
+                graph[fn_name].add(child.attr)
+
+    ep_names = {ep.split(".")[-1] for ep in entrypoints}
+    frontier: Set[str] = set()
+    for ep in ep_names:
+        for fn in defs_by_mod[ep]:
+            frontier.add(fn.split(".")[-1])
+        for top_node in top_nodes[ep]:
+            for child in ast.walk(top_node):
+                if isinstance(child, ast.Name) and child.id in defined_func_names:
+                    frontier.add(child.id)
+                elif (
+                    isinstance(child, ast.Attribute)
+                    and child.attr in defined_func_names
+                ):
+                    frontier.add(child.attr)
+
+    reachable: Set[str] = set(frontier)
+    queue: List[str] = list(frontier)
+    while queue:
+        curr = queue.pop()
+        for neighbor in graph[curr]:
+            if neighbor not in reachable:
+                reachable.add(neighbor)
+                queue.append(neighbor)
+
+    return reachable, defs_by_mod, module_classes
+
+
+def prove_predicate_reachability(
+    predicate: str,
+    *,
+    entrypoints: Optional[Iterable[str]] = None,
+    package_dir: Optional[Union[Path, str]] = None,
+) -> str:
+    """Compute whether a dotted ``module.symbol`` predicate is reachable from runner entrypoints.
+
+    Returns a three-valued verdict:
+      * ``'reachable'``: reachable from the entrypoint frontier via the transitive name-keyed call graph.
+      * ``'unreachable'``: symbol definition exists in the module as a function or method, but no transitive
+        call path from entrypoints reaches it.
+      * ``'unresolved'``: no definition of the symbol exists as a function or method in the named module
+        (this covers rotted symbol mappings as well as non-function symbols like exception classes).
+
+    Entrypoints default to the three runner modules (:mod:`oc_runipd`, :mod:`agy_runipd`, :mod:`runner_shared`).
+    Any trailing ``[...]`` qualification (e.g. ``validate_evidence[EV-HASH-MISMATCH]``) is stripped before
+    resolution.
+
+    DELIBERATE OVER-APPROXIMATION AND ASYMMETRY OF VERDICTS (f7z10q / E-02):
+    Name-keyed edges over-approximate reach: if any function body mentions a name that matches a defined
+    function or method anywhere in the package, an edge is created. A ``'reachable'`` verdict is therefore
+    weaker than a formal proof of reachability. Conversely, an ``'unreachable'`` verdict is STRONG: if no
+    reachable function mentions the name, execution cannot reach it. Validation in :func:`validate_finding_table`
+    (via ``RC-UNREACHABLE-BINDING``) keys strictly on this strong direction: it refuses a BOUND row only when
+    NO named predicate is reachable.
+
+    Two known consequences of this design:
+      1. A method name shared by an unrelated class creates a false edge (over-approximation).
+      2. ``worktree_lease.LeaseTable.claim`` is reported unreachable with zero real ``.claim(`` call sites
+         anywhere in the package, which is a true negative and not a limitation.
+    """
+    if entrypoints is None:
+        ep_tuple = DEFAULT_ENTRYPOINT_MODULES
+    else:
+        ep_tuple = tuple(sorted(entrypoints))
+
+    pkg_path = (
+        Path(package_dir).resolve()
+        if package_dir is not None
+        else Path(__file__).parent.resolve()
+    )
+    key = (str(pkg_path), ep_tuple)
+    if key not in _REACHABILITY_CACHE:
+        _REACHABILITY_CACHE[key] = _build_reachability_graph(pkg_path, ep_tuple)
+
+    reachable, defs_by_mod, module_classes = _REACHABILITY_CACHE[key]
+
+    clean = re.sub(r"\[.*\]$", "", predicate.strip())
+    if clean.startswith("agent_workflows."):
+        clean = clean[len("agent_workflows.") :]
+    mod, _, sym = clean.partition(".")
+    if not mod or not sym:
+        return UNRESOLVED
+
+    target_name = sym.split(".")[-1]
+    if sym in defs_by_mod[mod] or (
+        target_name in defs_by_mod[mod]
+        and any(sym.startswith(f"{cls}.") for cls in module_classes[mod])
+    ):
+        if target_name in reachable:
+            return REACHABLE
+        return UNREACHABLE
+
+    return UNRESOLVED
+
+
+predicate_reachability = prove_predicate_reachability
+
+
+def predicate_verdicts_for(row_or_code: Union[RunFindingCode, str]) -> Dict[str, str]:
+    """Return a mapping of predicate -> verdict for each predicate named by a code or row.
+
+    Derived lazily and memoized so the graph build is paid at most once per process and only
+    when requested. Row literals and NamedTuple field definitions remain untouched.
+    """
+    if isinstance(row_or_code, str):
+        row = RUN_FINDING_CODES_BY_CODE.get(row_or_code)
+        if row is None:
+            # Check IPD_EXEC_FINDING_CODES_BY_CODE if available
+            row = globals().get("IPD_EXEC_FINDING_CODES_BY_CODE", {}).get(row_or_code)
+        if row is None:
+            raise KeyError(f"Unknown finding code: {row_or_code!r}")
+    else:
+        row = row_or_code
+
+    result: Dict[str, str] = {}
+    for pred in row.predicates:
+        result[pred] = prove_predicate_reachability(pred)
+    return result
+
+
+predicate_reachability_for = predicate_verdicts_for
+
+
+def bound_run_finding_codes_reachability() -> BoundReachabilityPartition:
+    """Return the partition of BOUND finding codes by measured reachability.
+
+    Returns a :class:`BoundReachabilityPartition` with ``reachable`` containing codes that have
+    at least one reachable predicate, and ``unreachable`` containing codes where no predicate is
+    reachable.
+
+    NOTE (F-09): This accessor partitions :data:`RUN_FINDING_CODES` specifically, not every
+    ``RUN-*`` code that may be emitted across the package.
+    """
+    reachable_codes: List[str] = []
+    unreachable_codes: List[str] = []
+    for row in RUN_FINDING_CODES:
+        if row.binding != BOUND:
+            continue
+        verdicts = predicate_verdicts_for(row)
+        if any(v == REACHABLE for v in verdicts.values()):
+            reachable_codes.append(row.code)
+        else:
+            unreachable_codes.append(row.code)
+    return BoundReachabilityPartition(tuple(reachable_codes), tuple(unreachable_codes))
+
+
+bound_reachability_partition = bound_run_finding_codes_reachability
+
+
 def _validate_finding_row(
     row: RunFindingCode,
     _fail: Callable[[str, str, str, str], None],
@@ -1729,6 +1969,16 @@ def _validate_finding_row(
                 "BOUND code names no deciding predicate",
                 "a BOUND code must name the shipped predicate that decides it",
             )
+        else:
+            verdicts = predicate_verdicts_for(row)
+            if not any(v == REACHABLE for v in verdicts.values()):
+                unreachable_list = [f"{p} ({v})" for p, v in verdicts.items()]
+                _fail(
+                    "RC-UNREACHABLE-BINDING",
+                    where,
+                    f"BOUND code {row.code} has no reachable predicates: {', '.join(unreachable_list)}",
+                    "a BOUND code must have at least one reachable predicate",
+                )
         if row.waiting_on:
             _fail(
                 "RC-BINDING",
