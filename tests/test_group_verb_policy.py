@@ -1,10 +1,13 @@
-"""Outcome tests for setid length policy enforcement across all aw group backends.
+"""Outcome tests for setid length policy enforcement and date preservation across aw group and rename.
 
-Covers the refusal (> 24 chars), warning (15-24 chars), and quiet boundaries
-(<= 14 chars quiet; 24 chars warns without refusal) for every artifact type
-in `artifact_types.TYPE_BACKENDS` that implements the `group` verb.
+Covers setid length policy enforcement across all aw group backends: refusal (> 24 chars),
+warning (15-24 chars), and quiet boundaries (<= 14 chars quiet; 24 chars warns without refusal)
+for every artifact type in `artifact_types.TYPE_BACKENDS` that implements the `group` verb.
 Iterates the backend registry dynamically so newly registered types are covered
 automatically without editing test lists.
+
+Also covers date preservation for `aw group plans` and `aw rename plans` when front-matter `- Date:`
+is absent or malformed, restoring date regression coverage deleted in `19313eed` (IPD 949enf).
 """
 
 from __future__ import annotations
@@ -12,6 +15,7 @@ from __future__ import annotations
 import io
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+import re
 import subprocess
 
 import pytest
@@ -320,3 +324,257 @@ def test_research_setassign_spelling_preserves_order(temp_git_repo: Path):
     assert orders == [
         "03"
     ], f"Observed orders {orders} from names {names}; output: {out}"
+
+
+def _seed_plan_record(
+    repo_dir: Path,
+    filename: str,
+    id6: str,
+    *,
+    set_line: str = "oldset (old set)",
+    order: int = 3,
+    date_line: str | None = None,
+    disposition: str = "pending",
+) -> Path:
+    pdir = repo_dir / ".aw" / "records" / "plans" / disposition
+    pdir.mkdir(parents=True, exist_ok=True)
+    path = pdir / filename
+    lines = [
+        f"# IPD: Test plan {id6}",
+        "",
+        f"- Id: {id6}",
+        f"- Set: {set_line}",
+        f"- Order: {order}",
+    ]
+    if date_line is not None:
+        lines.append(f"- Date: {date_line}")
+    lines.extend(["", "## Goal", "", "Test goal.", ""])
+    path.write_text("\n".join(lines), encoding="utf-8")
+    return path
+
+
+def _run_group_plans(
+    selectors: list[str],
+    setid: str,
+    repo_dir: Path,
+    *,
+    order: int | None = None,
+    rename: bool = False,
+    apply: bool = False,
+) -> tuple[int, str, str]:
+    """Run `aw group plans <selectors...> --set <setid> [--order <order>] [--rename] [--apply] --dir <repo_dir>` in-process."""
+    cmd = ["group", "plans", *selectors, "--set", setid]
+    if order is not None:
+        cmd.extend(["--order", str(order)])
+    if rename:
+        cmd.append("--rename")
+    if apply:
+        cmd.append("--apply")
+    cmd.extend(["--dir", str(repo_dir)])
+    buf_out = io.StringIO()
+    buf_err = io.StringIO()
+    with redirect_stdout(buf_out), redirect_stderr(buf_err):
+        rc = cli.main(cmd)
+    return rc, buf_out.getvalue(), buf_err.getvalue()
+
+
+def _run_rename_plans(
+    id6: str,
+    repo_dir: Path,
+    *,
+    setid: str | None = None,
+    order: int | None = None,
+    slug: str | None = None,
+    apply: bool = False,
+) -> tuple[int, str, str]:
+    """Run `aw rename plans --id <id6> [--set <setid>] [--order <order>] [--slug <slug>] [--apply] --dir <repo_dir>` in-process."""
+    cmd = ["rename", "plans", "--id", id6]
+    if setid is not None:
+        cmd.extend(["--set", setid])
+    if order is not None:
+        cmd.extend(["--order", str(order)])
+    if slug is not None:
+        cmd.extend(["--slug", slug])
+    if apply:
+        cmd.append("--apply")
+    cmd.extend(["--dir", str(repo_dir)])
+    buf_out = io.StringIO()
+    buf_err = io.StringIO()
+    with redirect_stdout(buf_out), redirect_stderr(buf_err):
+        rc = cli.main(cmd)
+    return rc, buf_out.getvalue(), buf_err.getvalue()
+
+
+def test_group_plans_absent_date_preserves_filename_date(temp_git_repo: Path):
+    """E-01/V-01: aw group plans preserves the filename date when - Date: front matter is absent."""
+    _seed_plan_record(
+        temp_git_repo,
+        "20260714-oldset-03-abc123-probe.ipd.md",
+        "abc123",
+        date_line=None,
+    )
+    rc, out, err = _run_group_plans(
+        ["abc123"], "newset", temp_git_repo, rename=True, apply=True
+    )
+    assert rc == 0, f"Command failed: {out}\n{err}"
+    pdir = temp_git_repo / ".aw" / "records" / "plans" / "pending"
+    files = sorted(pdir.glob("*.md"))
+    names = [f.name for f in files]
+    assert len(names) == 1
+    assert names[0].startswith(
+        "20260714"
+    ), f"Filename date was clobbered: {names[0]}; output: {out}"
+
+
+def test_group_plans_malformed_date_preserves_filename_date(temp_git_repo: Path):
+    """E-01/V-01: aw group plans preserves the filename date when - Date: front matter is malformed."""
+    _seed_plan_record(
+        temp_git_repo,
+        "20260715-oldset-03-def456-probe.ipd.md",
+        "def456",
+        date_line="2026-07-23 (fleshed 2026-07-26 from research)",
+    )
+    rc, out, err = _run_group_plans(
+        ["def456"], "newset", temp_git_repo, rename=True, apply=True
+    )
+    assert rc == 0, f"Command failed: {out}\n{err}"
+    pdir = temp_git_repo / ".aw" / "records" / "plans" / "pending"
+    files = sorted(pdir.glob("*.md"))
+    names = [f.name for f in files]
+    assert len(names) == 1
+    assert names[0].startswith(
+        "20260715"
+    ), f"Filename date was clobbered: {names[0]}; output: {out}"
+
+
+def test_group_plans_good_date_guard(temp_git_repo: Path):
+    """E-01/V-01 guard: aw group plans preserves date when - Date: front matter is valid."""
+    _seed_plan_record(
+        temp_git_repo,
+        "20260716-oldset-03-ghi789-probe.ipd.md",
+        "ghi789",
+        date_line="20260716",
+    )
+    rc, out, err = _run_group_plans(
+        ["ghi789"], "newset", temp_git_repo, rename=True, apply=True
+    )
+    assert rc == 0, f"Command failed: {out}\n{err}"
+    pdir = temp_git_repo / ".aw" / "records" / "plans" / "pending"
+    files = sorted(pdir.glob("*.md"))
+    names = [f.name for f in files]
+    assert len(names) == 1
+    assert names[0].startswith(
+        "20260716"
+    ), f"Filename date was altered: {names[0]}; output: {out}"
+
+
+def test_rename_plans_legacy_name_preserves_date(temp_git_repo: Path):
+    """E-02/V-02: aw rename plans preserves the date from a legacy-formatted filename (F-07)."""
+    _seed_plan_record(
+        temp_git_repo,
+        "20260723-1100-07-clean-delta-design-spec.ipd.md",
+        "qrokie",
+        order=7,
+        date_line="2026-07-23 (fleshed 2026-07-26 from research)",
+    )
+    rc, out, err = _run_rename_plans(
+        "qrokie", temp_git_repo, setid="newset", apply=True
+    )
+    assert rc == 0, f"Command failed: {out}\n{err}"
+    pdir = temp_git_repo / ".aw" / "records" / "plans" / "pending"
+    files = sorted(pdir.glob("*.md"))
+    names = [f.name for f in files]
+    assert len(names) == 1
+    assert names[0].startswith(
+        "20260723"
+    ), f"Legacy filename date was clobbered: {names[0]}; output: {out}"
+
+
+def test_rename_plans_clustered_name_control(temp_git_repo: Path):
+    """E-02/V-02 control: aw rename plans already preserves date for modern clustered filename."""
+    _seed_plan_record(
+        temp_git_repo,
+        "20260723-oldset-07-qrokie-clean-delta-design-spec.ipd.md",
+        "qrokie",
+        order=7,
+        date_line=None,
+    )
+    rc, out, err = _run_rename_plans(
+        "qrokie", temp_git_repo, setid="newset", apply=True
+    )
+    assert rc == 0, f"Command failed: {out}\n{err}"
+    pdir = temp_git_repo / ".aw" / "records" / "plans" / "pending"
+    files = sorted(pdir.glob("*.md"))
+    names = [f.name for f in files]
+    assert len(names) == 1
+    assert names[0].startswith(
+        "20260723"
+    ), f"Clustered filename date was clobbered: {names[0]}; output: {out}"
+
+
+def test_group_plans_preview_matches_apply(temp_git_repo: Path):
+    """E-04/V-04: Dry-run preview advertises the same preserved-date name that apply writes."""
+    _seed_plan_record(
+        temp_git_repo,
+        "20260714-oldset-03-abc123-probe.ipd.md",
+        "abc123",
+        date_line=None,
+    )
+    # Dry run
+    rc_dry, out_dry, err_dry = _run_group_plans(
+        ["abc123"], "newset", temp_git_repo, rename=True, apply=False
+    )
+    assert rc_dry == 0, f"Dry run failed: {out_dry}\n{err_dry}"
+    m = re.search(r"---\s+would rename\s+\S+\s+->\s+(\S+)\s+---", out_dry)
+    assert m is not None, f"Preview rename line not found in output:\n{out_dry}"
+    previewed_name = m.group(1)
+
+    # Apply run
+    rc_app, out_app, err_app = _run_group_plans(
+        ["abc123"], "newset", temp_git_repo, rename=True, apply=True
+    )
+    assert rc_app == 0, f"Apply failed: {out_app}\n{err_app}"
+    pdir = temp_git_repo / ".aw" / "records" / "plans" / "pending"
+    files = sorted(pdir.glob("*.md"))
+    assert len(files) == 1
+    applied_name = files[0].name
+
+    assert previewed_name == applied_name
+    assert applied_name.startswith(
+        "20260714"
+    ), f"Expected preserved date 20260714, got {applied_name}"
+
+
+def test_group_plans_two_successive_regroups_self_perpetuation(temp_git_repo: Path):
+    """E-05/V-05: Real date survives two successive regroups, preventing self-perpetuation of 20260101."""
+    _seed_plan_record(
+        temp_git_repo,
+        "20260714-oldset-03-abc123-probe.ipd.md",
+        "abc123",
+        date_line=None,
+    )
+    pdir = temp_git_repo / ".aw" / "records" / "plans" / "pending"
+
+    # Regroup 1: into set A
+    rc1, out1, err1 = _run_group_plans(
+        ["abc123"], "seta", temp_git_repo, rename=True, apply=True
+    )
+    assert rc1 == 0, f"Regroup 1 failed: {out1}\n{err1}"
+    files1 = sorted(pdir.glob("*.md"))
+    assert len(files1) == 1
+    name1 = files1[0].name
+
+    # Regroup 2: into set B
+    rc2, out2, err2 = _run_group_plans(
+        ["abc123"], "setb", temp_git_repo, rename=True, apply=True
+    )
+    assert rc2 == 0, f"Regroup 2 failed: {out2}\n{err2}"
+    files2 = sorted(pdir.glob("*.md"))
+    assert len(files2) == 1
+    name2 = files2[0].name
+
+    # Assert real date survived both regroups without self-perpetuating 20260101
+    assert name1.startswith("20260714") and name2.startswith("20260714"), (
+        f"Self-perpetuation observed: regroup 1 produced {name1}, "
+        f"and regroup 2 preserved/produced {name2}"
+    )
