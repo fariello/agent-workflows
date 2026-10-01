@@ -1,11 +1,13 @@
 - Id: rayd4c
-- Status: open
+- Status: graduated
+- Graduated-To: rayd4c
 - Set: rayd4c
 - Priority: low
 - Work-Kind: chore
 - Summary: Remove the dead cli._completion_configured, which has had zero production callers since 4y95tp replaced it with _completion_state
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): graduated by run run-20260930T053059Z-3200713: yi24m0
 - 2026-09-29 created (aw backlog): Remove the dead cli._completion_configured, which has had zero production callers since 4y95tp replaced it with _completion_state
 
 FOUND while authoring plan s2yf26 (Set lz16f3), whose F-08 measured it and whose Deferred section declines to delete it in scope.
