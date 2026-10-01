@@ -2719,7 +2719,7 @@ class VerifierPromptTests(unittest.TestCase):
             self.assertIn("Independent Rigorous Verification", prompt)
             self.assertIn("fresh OpenCode session", prompt)
             self.assertIn("03-abc123-verification.json", prompt)
-            self.assertIn("VERIFIED|CORRECTION_REQUIRED|BLOCKED", prompt)
+            self.assertIn("VERIFIED|CORRECTION_REQUIRED|BLOCKED|NOT CONFORMING", prompt)
             self.assertIn("Never push", prompt)
             self.assertIn("## Concurrent Work", prompt)
             self.assertIn(
@@ -7442,6 +7442,62 @@ class VerdictTruthTableTests(unittest.TestCase):
         self.assertEqual(
             rs.map_verdict("garbage").state, run_state.STATE_CORRECTION_REQUIRED
         )
+
+
+class VerdictPromptAgreementTests(unittest.TestCase):
+    """E-04: pin the bijection between prompt-advertised verdicts and map_verdict recognized tokens."""
+
+    @staticmethod
+    def _extract_advertised_tokens(prompt: str) -> list[str]:
+        match = re.search(r'"verdict":\s*"([^"]+)"', prompt)
+        assert match is not None, "Prompt schema line must contain 'verdict' key"
+        return match.group(1).split("|")
+
+    def test_verdict_prompt_and_table_bijection(self):
+        from agent_workflows import runner_shared as rs
+
+        with tempfile.TemporaryDirectory() as temp:
+            run_dir = Path(temp) / "run"
+            (run_dir / "outcomes").mkdir(parents=True)
+            item = {"position": 1, "id6": "tst123", "setid": "test", "order": 1}
+            state = {"run_id": "run-test"}
+            plan_path = Path("/dummy/plan.ipd.md")
+
+            in_run_prompt = rs.build_verifier_prompt(
+                item, state, run_dir, plan_path, labels=rs.OC_HOST_LABELS, audit=False
+            )
+            audit_prompt = rs.build_verifier_prompt(
+                item, state, run_dir, plan_path, labels=rs.OC_HOST_LABELS, audit=True
+            )
+
+            for prompt, prompt_name in (
+                (in_run_prompt, "in-run verifier prompt"),
+                (audit_prompt, "standalone audit prompt"),
+            ):
+                with self.subTest(prompt=prompt_name):
+                    advertised_tokens = self._extract_advertised_tokens(prompt)
+                    advertised_set = set(advertised_tokens)
+
+                    # Direction 1: Every token advertised in the schema line must map to recognized=True
+                    for token in advertised_tokens:
+                        mapping = rs.map_verdict(token)
+                        self.assertTrue(
+                            mapping.recognized,
+                            f"Advertised token {token!r} in {prompt_name} must be recognized by map_verdict",
+                        )
+
+                    # Direction 2: Every recognized token in _VERDICT_TABLE must appear in the schema line
+                    for token, mapping in rs._VERDICT_TABLE.items():
+                        if mapping.recognized:
+                            self.assertIn(
+                                token,
+                                advertised_set,
+                                f"Recognized token {token!r} in _VERDICT_TABLE must be advertised in {prompt_name}",
+                            )
+
+                    # CONFORMING is explicitly not recognized and must NOT be advertised
+                    self.assertNotIn("CONFORMING", advertised_set)
+                    self.assertFalse(rs.map_verdict("CONFORMING").recognized)
 
 
 class VerdictRefusalReasonTests(unittest.TestCase):

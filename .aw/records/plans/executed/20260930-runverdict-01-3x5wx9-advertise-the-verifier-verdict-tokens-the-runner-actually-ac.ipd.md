@@ -6,7 +6,7 @@
 - Scope: Derive BOTH renderings of the schema line from the same constants the consumer is keyed on, so the advertised set and the accepted set cannot disagree; correct the two falsified provenance claims in the code comments so they name the two prompts that DO ask for `NOT CONFORMING`; and pin the agreement with a test that fails if a token is added to the table without reaching the prompt or vice versa. Does NOT add, remove, or re-map any table entry, so no verdict's behavior changes: `CONFORMING` stays absent and fail-closed (the resolution executed plan `1bfppy` recorded as OQ-02, whose reasoning this plan strengthens rather than revisits). Does NOT touch the two `tools/awphysical/` audit prompts, whose `CONFORMING`/`CONFORMING AFTER CORRECTIONS` vocabulary belongs to `agy_run`'s prose-report path that writes no outcome JSON and reaches no verdict table. Does NOT implement the `correction_required -> runnable` requeue (`1bfppy` OQ-01).
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_oc_runipd.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: 3x5wx9
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 3x5wx9 verified (set runverdict, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 
 - 2026-09-30 reviewed (opencode/its_direct-pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-201..PR-206, all FIXED. ALL EIGHT AUTHORED FINDINGS VERIFIED INDEPENDENTLY at HEAD `a62a357b`, including the three that correct the backlog item: the pipe literal occurs exactly 3 times in `runner_shared.py` and once in `tests/test_oc_runipd.py` and nowhere else in any `*.py` (F-1); both `tools/awphysical/` prompts do carry `- Verdict: \`CONFORMING\`, \`CONFORMING AFTER CORRECTIONS\`, or \`NOT CONFORMING\``, so the item's and the code comment's "appears nowhere / nothing is known to emit it" claim is false, and `git log -S` dates the claim to `0fbb7498` (2026-09-22) against prompts added 2026-08-10 and 2026-08-16 (F-2, F-3); `agy_run.py` carries zero `CONFORMING` and zero `map_verdict`, and its audit branch ends in `print(audit.response.rstrip())`, so nothing reaches the table (F-4); `tests/test_reporting_contract.py` genuinely does not exist, so the item would have sent an executor to an unopenable path (F-7). I also executed E-01's specified derivation and it yields exactly `VERIFIED|CORRECTION_REQUIRED|BLOCKED|NOT CONFORMING`, and E-04's bijection holds in both directions with `CONFORMING` correctly unadvertised. THE CENTRAL FINDING (PR-201, HIGH) IS THAT THIS PLAN WOULD HAVE COMMITTED ITS OWN DEFECT: E-02 falsifies a THIRD comment (the `VERDICT_VERIFIED` block, which calls the three constants "verbatim from the prompt's schema line" and quotes the superseded literal) that no E-item owned, so a plan whose purpose is to remove a stale comment would have created one. E-03 now covers it and depends on E-02. PR-202 (MEDIUM) found that `map_verdict`'s OWN docstring claims a live guard from `tests/test_runner_refork_guard.py`, deleted in `19313eed`; `runner_shared.py` carries four unannotated citations against the host modules' 15 annotated ones, and E-03 now fixes the one inside this plan's subject while the Deferred entry states the boundary for the other three. PR-203 corrected a provenance error (the two prompts were added by DIFFERENT commits, `b629defc` and `1ca197c7`). PR-204 recorded the two non-obvious composer arguments after `build_verifier_prompt` raised `KeyError: 'position'` under the obvious invocation. PR-205 strengthened V-01's seed check with the measured permutation it detects and V-04's proof to both bijection directions plus a re-derived 195-test baseline. PR-206 corrected the scope-fence and under-scope wording to the declaration-plus-justification shape. OQ-01 remains open and NON-BLOCKING, enriched with the re-verified measurement that `BLOCKED` and `NOT CONFORMING` map identically, so it does not gate readiness. Two decisions recorded in the typed review record, both `Reversible: yes`. Structural preflight `conforming` at `author` and at `review-finalize`.
@@ -38,30 +38,30 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: make the advertised set derived rather than spelled
 
-- [ ] E-01 Add a single module-level source of the ADVERTISED verdict set to `agent_workflows/runner_shared.py`, derived from the recognized entries of `_VERDICT_TABLE` rather than from a literal, plus a helper that renders it in the prompt's `A|B|C` shape. Place both immediately after `_VERDICT_TABLE` (it is the input) and before `map_verdict`. The renderer must emit the three currently-advertised tokens FIRST and in their present order (`VERIFIED`, `CORRECTION_REQUIRED`, `BLOCKED`) so the rendered string is a pure EXTENSION of today's `VERIFIED|CORRECTION_REQUIRED|BLOCKED` and not a reordering of it; a set iteration order is not acceptable because the rendered text is operator-facing and must be stable across runs.
+- [x] E-01 Add a single module-level source of the ADVERTISED verdict set to `agent_workflows/runner_shared.py`, derived from the recognized entries of `_VERDICT_TABLE` rather than from a literal, plus a helper that renders it in the prompt's `A|B|C` shape. Place both immediately after `_VERDICT_TABLE` (it is the input) and before `map_verdict`. The renderer must emit the three currently-advertised tokens FIRST and in their present order (`VERIFIED`, `CORRECTION_REQUIRED`, `BLOCKED`) so the rendered string is a pure EXTENSION of today's `VERIFIED|CORRECTION_REQUIRED|BLOCKED` and not a reordering of it; a set iteration order is not acceptable because the rendered text is operator-facing and must be stable across runs.
   - Depends on: none
   - Expected outcome: `runner_shared` exposes a name whose value is computed from `_VERDICT_TABLE` and renders exactly `VERIFIED|CORRECTION_REQUIRED|BLOCKED|NOT CONFORMING` at HEAD's table, with no literal token list written beside it.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Replace the hand-spelled `"verdict": "VERIFIED|CORRECTION_REQUIRED|BLOCKED"` line in BOTH prompt renderings with the E-01 renderer: the in-run one in `runner_shared.build_verifier_prompt` and the audit one in `runner_shared._build_audit_prompt`. Both are f-strings already, so this is an interpolation and not a restructure. Leave every other byte of both prompts unchanged, including `_build_audit_prompt`'s additional `diff_basis` and `findings_filed` keys.
+- [x] E-02 Replace the hand-spelled `"verdict": "VERIFIED|CORRECTION_REQUIRED|BLOCKED"` line in BOTH prompt renderings with the E-01 renderer: the in-run one in `runner_shared.build_verifier_prompt` and the audit one in `runner_shared._build_audit_prompt`. Both are f-strings already, so this is an interpolation and not a restructure. Leave every other byte of both prompts unchanged, including `_build_audit_prompt`'s additional `diff_basis` and `findings_filed` keys.
   - Depends on: E-01
   - Expected outcome: neither prompt composer contains the literal `VERIFIED|CORRECTION_REQUIRED|BLOCKED`; both interpolate the derived renderer; a rendered prompt's schema line reads `"verdict": "VERIFIED|CORRECTION_REQUIRED|BLOCKED|NOT CONFORMING"`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: correct the falsified claim and pin the agreement
 
-- [ ] E-03 Rewrite the docstring comment block on `VERDICT_NOT_CONFORMING` in `runner_shared.py` so it no longer asserts the token "appears nowhere in this repository except the gate that used to test for it" and no longer concludes "nothing is known to emit it". State instead what is measurable: two tracked prompts (`tools/awphysical/agy-self-audit-prompt.md` and `tools/awphysical/agy-spec-audit-prompt.md`) instruct a model to report exactly this token; they drive `agy_run`'s prose-report path (`agy_run.build_turn2_prompt`, whose result is printed by `agy_run.main` and parsed by nothing), so no verdict from them reaches this table TODAY, and that is why the entry is kept as cheap insurance rather than as a live wiring. Also correct the adjacent `VERDICT_CONFORMING` block's closing sentence, which recommends a future fix "on the strength of a plausible story about a model echoing `aw ipd lint`'s vocabulary" and ends "Nothing in the corpus has ever written it": the vocabulary is not `aw ipd lint`'s but those two prompts', which is a stronger and checkable provenance.
+- [x] E-03 Rewrite the docstring comment block on `VERDICT_NOT_CONFORMING` in `runner_shared.py` so it no longer asserts the token "appears nowhere in this repository except the gate that used to test for it" and no longer concludes "nothing is known to emit it". State instead what is measurable: two tracked prompts (`tools/awphysical/agy-self-audit-prompt.md` and `tools/awphysical/agy-spec-audit-prompt.md`) instruct a model to report exactly this token; they drive `agy_run`'s prose-report path (`agy_run.build_turn2_prompt`, whose result is printed by `agy_run.main` and parsed by nothing), so no verdict from them reaches this table TODAY, and that is why the entry is kept as cheap insurance rather than as a live wiring. Also correct the adjacent `VERDICT_CONFORMING` block's closing sentence, which recommends a future fix "on the strength of a plausible story about a model echoing `aw ipd lint`'s vocabulary" and ends "Nothing in the corpus has ever written it": the vocabulary is not `aw ipd lint`'s but those two prompts', which is a stronger and checkable provenance.
   FIX A THIRD COMMENT THIS PLAN'S OWN E-02 FALSIFIES, added at review (F-9): the block above `VERDICT_VERIFIED` opens `The three verdicts \`build_verifier_prompt\` asks the model for, verbatim from the prompt's schema line (\`"verdict": "VERIFIED|CORRECTION_REQUIRED|BLOCKED"\`)`. After E-02 the prompt asks for FOUR and that quoted literal is no longer what it renders, so leaving this block would have this plan CREATE a stale comment of exactly the kind it exists to remove. Rewrite it to say these three are the historically-advertised tokens whose order the renderer pins first, and point at the derived renderer as the authority for what the prompt actually advertises, rather than quoting a literal that can go stale again.
   CORRECT THE ONE UNANNOTATED CITATION OF A DELETED TEST INSIDE THIS PLAN'S OWN EDIT SITE, added at review (F-10): `map_verdict`'s docstring reads "neither driver carries a verdict test of its own, and `tests/test_runner_refork_guard.py` fails if one grows back", naming a file `19313eed` deleted, so it asserts a live guard that does not exist. Annotate it in the shape the host modules already use for the same deletion ("deleted in `19313eed`; no live guard currently enforces this"). This is one sentence inside the very function this plan is about, so it is not the out-of-scope comment sweep the Deferred section declines: that entry is about the eight-plus citations in the two 19k-line host modules, which stay out of scope and are already annotated.
   Do NOT change either constant's VALUE and do NOT change the table, so the OQ-02 resolution stands exactly as executed.
   - Depends on: E-02
   - Expected outcome: no comment block in `runner_shared.py`'s verdict region asserts the falsified nonexistence claim, quotes the superseded three-token literal as what the prompt asks for, or claims a live guard from the deleted `tests/test_runner_refork_guard.py`; the `NOT CONFORMING` and `CONFORMING` blocks name the two prompt files and the `agy_run` path; `_VERDICT_TABLE` and both constants are byte-identical in value to HEAD.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add a test to the existing verdict test home, `tests/test_oc_runipd.py`, asserting the AGREEMENT as a behavioral property rather than as a text match: render both prompts through the real composers and assert that every token `map_verdict` reports `recognized` appears in the rendered schema line, and that every token in that rendered line maps to a `recognized` mapping. Place it beside `VerdictTruthTableTests` so the two are read together. It must be a BIJECTION assertion in both directions, because a one-way check passes vacuously if the renderer emits a superset. Additionally assert that `CONFORMING` is NOT advertised (it is not recognized, so advertising it would invite the very widening `1bfppy` refused) and update the existing `test_verifier_prompt_contents_and_paths` assertion, which pins the old three-token literal via `assertIn("VERIFIED|CORRECTION_REQUIRED|BLOCKED", prompt)`; note that this assertion still passes on the extended string because the new value has it as a PREFIX, so it must be tightened deliberately rather than left to pass by accident.
+- [x] E-04 Add a test to the existing verdict test home, `tests/test_oc_runipd.py`, asserting the AGREEMENT as a behavioral property rather than as a text match: render both prompts through the real composers and assert that every token `map_verdict` reports `recognized` appears in the rendered schema line, and that every token in that rendered line maps to a `recognized` mapping. Place it beside `VerdictTruthTableTests` so the two are read together. It must be a BIJECTION assertion in both directions, because a one-way check passes vacuously if the renderer emits a superset. Additionally assert that `CONFORMING` is NOT advertised (it is not recognized, so advertising it would invite the very widening `1bfppy` refused) and update the existing `test_verifier_prompt_contents_and_paths` assertion, which pins the old three-token literal via `assertIn("VERIFIED|CORRECTION_REQUIRED|BLOCKED", prompt)`; note that this assertion still passes on the extended string because the new value has it as a PREFIX, so it must be tightened deliberately rather than left to pass by accident.
   - Depends on: E-01, E-02
   - Expected outcome: a new test fails if a token is added to `_VERDICT_TABLE` without reaching either prompt, fails if a prompt advertises an unrecognized token, and fails if `CONFORMING` becomes advertised; the pre-existing prompt test no longer passes on a stale prefix.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -97,8 +97,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - The two `tools/awphysical/` audit prompts' own vocabulary (`CONFORMING`, `CONFORMING AFTER CORRECTIONS`, `NOT CONFORMING`) is NOT changed. They drive a prose-report path that parses nothing (F-4), so aligning them with the runner's tokens would be a behavior-free edit to a human-read report format, and doing it inside a plan whose whole point is that the two sides must agree would create a NEW claim (that they now share a vocabulary) that nothing checks. If that alignment is wanted it is its own item.
+  - Carrier-Declined: The prompts drive an unparsed prose-report path and need no alignment; any future alignment is independent work if requested.
 - Re-mapping `CONFORMING` to a pass is explicitly out of scope. Plan `1bfppy` resolved it fail-closed on the argument that at HEAD it already mapped to `unverified`, so accepting it would WIDEN the pass set of a gate built to narrow it. This plan's F-2 strengthens that reasoning by showing real prompts DO ask for `CONFORMING`; it does not disturb the resolution.
+  - Carrier-Declined: Already resolved fail-closed by executed plan 1bfppy (OQ-02); no work is owed.
 - The `correction_required -> runnable` requeue (`1bfppy` OQ-01) remains unimplemented and untouched.
+  - Carrier-Declined: Deferred to 1bfppy OQ-01 (requires design for retry accounting); out of scope for this chore.
 - Repairing the stale citations of the deleted `tests/test_runner_refork_guard.py` in `oc_runipd.py` and `agy_runipd.py` is out of scope: they ARE already annotated in place with "deleted in `19313eed`" (measured at review: 9 such annotations in `oc_runipd.py` and 6 in `agy_runipd.py`), they are unrelated to the verdict surface, and touching them would put two 19k-line host modules in Scope-Paths for a comment sweep.
   - BOUNDARY STATED EXPLICITLY, corrected at review (F-10): `runner_shared.py` ALSO carries four citations of that deleted file, and unlike the host modules' they are NOT annotated. Exactly ONE of the four is in scope and is fixed by E-03, because it sits in `map_verdict`'s own docstring and this plan is about `map_verdict`. The other three (in an unrelated front-matter-reader comment, an extracted-symbol comment, and a driver-copy comment) stay out of scope on the same reasoning as the host modules: they are unrelated to the verdict surface, and sweeping them would widen a four-item chore into a file-wide comment audit. The executor must NOT silently fix the other three, and must NOT leave the `map_verdict` one unannotated.
   - Carrier-Declined: Nothing is owed for the three out-of-scope occurrences. They are already covered by an existing, broader concern: pending plan `1jg2m2` (backlog `ikxtkj`) adds `tests/test_docs_test_citations.py` for dangling `tests/test_*.py` citations in published prose, and sibling `2wmwf7` adds the same shape for package source, so the CLASS has carriers. Filing a third item for three comment lines in one module would duplicate work already designed, and these are internal code comments rather than published prose, so no reader is being misled about a verifiable claim in a user-facing document.
@@ -134,25 +137,275 @@ No `.spec.md` file is amended, and none is in Scope-Paths. Checked: spec `25kzda
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste a Python invocation that imports `runner_shared` and prints both the derived advertised set and the rendered `A|B|C` string, showing the rendered value is exactly `VERIFIED|CORRECTION_REQUIRED|BLOCKED|NOT CONFORMING` (verified achievable at review by the specified derivation). Paste `rg -n` output over the new code showing it references `_VERDICT_TABLE` and contains no hand-written list of all four tokens. Demonstrate ORDER STABILITY by printing the rendered string under at least three DIFFERENT `PYTHONHASHSEED` values in separate interpreter invocations, pasting all of them and showing they are byte-identical. THIS CHECK IS NOT CEREMONIAL and the review measured why: under differing seeds a set-derived ordering of these exact four tokens really does permute (`PYTHONHASHSEED=0` yields `VERIFIED|NOT CONFORMING|CORRECTION_REQUIRED|BLOCKED` and `=1` yields `NOT CONFORMING|VERIFIED|BLOCKED|CORRECTION_REQUIRED`), so a renderer that iterated a set would be caught here and nowhere else. Also confirm the rendered value is a PREFIX-EXTENSION of the historical literal, since E-01 requires an extension rather than a reordering.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified derived advertised set, renderer helper, rg check, seed stability, and prefix extension.
+    1. Python invocation printing derived advertised set and rendered A|B|C string:
+    ```
+    $ python3 -c "from agent_workflows import runner_shared as rs; print('ADVERTISED_VERDICTS:', rs.ADVERTISED_VERDICTS); print('RENDERED:', rs.render_advertised_verdicts())"
+    ADVERTISED_VERDICTS: ('VERIFIED', 'CORRECTION_REQUIRED', 'BLOCKED', 'NOT CONFORMING')
+    RENDERED: VERIFIED|CORRECTION_REQUIRED|BLOCKED|NOT CONFORMING
+    ```
+    2. `rg -n` output over the new code showing it references `_VERDICT_TABLE` and contains no hand-written list of all four tokens:
+    ```
+    $ rg -n -C 5 "ADVERTISED_VERDICTS" agent_workflows/runner_shared.py
+    22401-    VERDICT_BLOCKED,
+    22402-)
+    22403-
+    22404-#: The ADVERTISED verdict set, derived from recognized entries of `_VERDICT_TABLE`.
+    22405-#: Preserves the historical prefix order and appends any additional recognized tokens.
+    22406:ADVERTISED_VERDICTS: tuple[str, ...] = tuple(
+    22407-    token
+    22408-    for token in _HISTORICAL_ADVERTISED_ORDER
+    22409-    if token in _VERDICT_TABLE and _VERDICT_TABLE[token].recognized
+    22410-) + tuple(
+    22411-    token
+    22412-    for token, mapping in _VERDICT_TABLE.items()
+    22413-    if mapping.recognized and token not in _HISTORICAL_ADVERTISED_ORDER
+    22414-)
+    22415-
+    22416-
+    22417-def render_advertised_verdicts() -> str:
+    22418-    """Render the advertised verdict tokens in prompt schema shape (`A|B|C`)."""
+    22419:    return "|".join(ADVERTISED_VERDICTS)
+    ```
+    3. Order stability across three different `PYTHONHASHSEED` values:
+    ```
+    $ PYTHONHASHSEED=0 python3 -c "from agent_workflows import runner_shared as rs; print(rs.render_advertised_verdicts())"
+    VERIFIED|CORRECTION_REQUIRED|BLOCKED|NOT CONFORMING
+    $ PYTHONHASHSEED=1 python3 -c "from agent_workflows import runner_shared as rs; print(rs.render_advertised_verdicts())"
+    VERIFIED|CORRECTION_REQUIRED|BLOCKED|NOT CONFORMING
+    $ PYTHONHASHSEED=42 python3 -c "from agent_workflows import runner_shared as rs; print(rs.render_advertised_verdicts())"
+    VERIFIED|CORRECTION_REQUIRED|BLOCKED|NOT CONFORMING
+    ```
+    All outputs are byte-identical.
+    4. Prefix extension: the rendered string `VERIFIED|CORRECTION_REQUIRED|BLOCKED|NOT CONFORMING` begins with the historical literal `VERIFIED|CORRECTION_REQUIRED|BLOCKED` as its exact prefix, extending it with `|NOT CONFORMING`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the rendered schema line from BOTH composers, obtained by calling `runner_shared.build_verifier_prompt` with `audit=False` and with `audit=True` and grepping the returned text for `"verdict"`; both must read `"verdict": "VERIFIED|CORRECTION_REQUIRED|BLOCKED|NOT CONFORMING"`. A WORKING INVOCATION IS RECORDED HERE so the executor does not rediscover it: the function requires `labels=runner_shared.OC_HOST_LABELS` and an `item` dict carrying `position` as well as `id6`/`setid`/`order` (verified at review: omitting `position` raises `KeyError: 'position'` from the outcome-path construction). Paste `rg -n 'VERIFIED\|CORRECTION_REQUIRED\|BLOCKED' agent_workflows/runner_shared.py` and account for EVERY surviving occurrence by line context. Measured at review, HEAD carries exactly three: the `VERDICT_VERIFIED` comment and the two composer literals. After E-02 the two composer literals are gone, and after E-03's F-9 edit the comment no longer quotes it as what the prompt asks for, so the expected surviving count is ZERO; if any survives, state which and why it is legitimate rather than adjusting the claim. Paste a diff stat proving no other line of either prompt changed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified rendered schema line in both composers, 0 surviving occurrences of literal, and clean diff stat.
+    1. Rendered schema line from both composers (`audit=False` and `audit=True`):
+    ```
+    $ python3 -c "
+    from pathlib import Path
+    from agent_workflows import runner_shared as rs
+    item = {'position': 1, 'id6': 'tst123', 'setid': 'test', 'order': 1}
+    state = {'run_id': 'run-test'}
+    run_dir = Path('/tmp/test_run')
+    plan_path = Path('/tmp/plan.ipd.md')
+    p_inrun = rs.build_verifier_prompt(item, state, run_dir, plan_path, labels=rs.OC_HOST_LABELS, audit=False)
+    p_audit = rs.build_verifier_prompt(item, state, run_dir, plan_path, labels=rs.OC_HOST_LABELS, audit=True)
+    for line in p_inrun.splitlines():
+        if '\"verdict\":' in line:
+            print('in-run:', line.strip())
+    for line in p_audit.splitlines():
+        if '\"verdict\":' in line:
+            print('audit: ', line.strip())
+    "
+    in-run: "verdict": "VERIFIED|CORRECTION_REQUIRED|BLOCKED|NOT CONFORMING",
+    audit:  "verdict": "VERIFIED|CORRECTION_REQUIRED|BLOCKED|NOT CONFORMING",
+    ```
+    2. `rg -n 'VERIFIED\|CORRECTION_REQUIRED\|BLOCKED' agent_workflows/runner_shared.py`:
+    ```
+    $ rg -n 'VERIFIED\|CORRECTION_REQUIRED\|BLOCKED' agent_workflows/runner_shared.py
+    (Exit code: 1, 0 matches found)
+    ```
+    Surviving count is exactly 0.
+    3. Diff stat proving only the schema line changed in both prompts:
+    ```
+    $ git diff agent_workflows/runner_shared.py
+    @@ -27580,7 +27606,7 @@ def build_verifier_prompt(
+        {{
+          "schema_version": 1,
+          "id6": "{item["id6"]}",
+    -     "verdict": "VERIFIED|CORRECTION_REQUIRED|BLOCKED",
+    +     "verdict": "{render_advertised_verdicts()}",
+          "summary": "...",
+    @@ -27673,7 +27699,7 @@ def _build_audit_prompt(
+        {{
+          "schema_version": 1,
+          "id6": "{item["id6"]}",
+    -     "verdict": "VERIFIED|CORRECTION_REQUIRED|BLOCKED",
+    +     "verdict": "{render_advertised_verdicts()}",
+          "summary": "...",
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste ALL FOUR rewritten regions in full: the `VERDICT_NOT_CONFORMING` block, the `VERDICT_CONFORMING` block, the `VERDICT_VERIFIED` block (F-9), and `map_verdict`'s docstring sentence (F-10). Paste `rg -n 'appears nowhere in this repository|nothing is known to emit it' agent_workflows/runner_shared.py` returning no matches. Paste `rg -n 'verbatim from the prompt' agent_workflows/runner_shared.py` returning no match that claims the three-token literal is what the prompt asks for. Paste `rg -n 'test_runner_refork_guard' agent_workflows/runner_shared.py` and show that the occurrence inside `map_verdict`'s docstring now carries the deletion annotation; state the other surviving occurrences' line contexts and confirm each is outside this plan's scope and already annotated or deliberately untouched. Paste `git diff` over `_VERDICT_TABLE`, `VERDICT_NOT_CONFORMING`'s value and `VERDICT_CONFORMING`'s value showing the values are UNCHANGED, and paste passing output for `tests/test_terminal_status_vocabulary.py` (F-8's direct subscript assertions) as proof the table was not reshaped.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified all 4 rewritten comment regions, no falsified/verbatim claims, deletion annotated in map_verdict, unchanged table/constants, and 16 terminal status tests passed.
+    1. Four rewritten regions in `agent_workflows/runner_shared.py`:
+    `VERDICT_VERIFIED` block (lines 22286-22292):
+    ```python
+    #: The three historically-advertised verdict tokens whose order `render_advertised_verdicts`
+    #: pins first. The prompt schema line advertises these plus any additional recognized tokens
+    #: derived from `_VERDICT_TABLE`; see `ADVERTISED_VERDICTS` and `render_advertised_verdicts` for
+    #: the authority on what the prompt currently advertises.
+    VERDICT_VERIFIED: str = "VERIFIED"
+    VERDICT_CORRECTION_REQUIRED: str = "CORRECTION_REQUIRED"
+    VERDICT_BLOCKED: str = "BLOCKED"
+    ```
+    `VERDICT_NOT_CONFORMING` block (lines 22294-22303):
+    ```python
+    #: `NOT CONFORMING`, the one LINTER-vocabulary token that is mapped. Two tracked prompts
+    #: (`tools/awphysical/agy-self-audit-prompt.md` and `tools/awphysical/agy-spec-audit-prompt.md`)
+    #: instruct a model to report exactly this token; they drive `agy_run`'s prose-report path
+    #: (`agy_run.build_turn2_prompt`, whose result is printed by `agy_run.main` and parsed by nothing),
+    #: so no verdict from them reaches this table TODAY, and that is why the entry is kept as cheap
+    #: insurance rather than as a live wiring. It is mapped because the cost of an entry is nil, because
+    #: the pre-existing gate DID honor it (so mapping it preserves behavior rather than changing it),
+    #: and because a rejection is the safe reading of a token containing the word "NOT".
+    VERDICT_NOT_CONFORMING: str = "NOT CONFORMING"
+    ```
+    `VERDICT_CONFORMING` closing sentence (lines 22320-22326):
+    ```python
+    #: IF A REAL VERIFIER IS EVER OBSERVED WRITING IT, the fix is a PROMPT/schema change (advertise the
+    #: accepted tokens) plus an entry here, not a silent widening now on the strength of a plausible story
+    #: about a model echoing the two audit prompts' vocabulary (`tools/awphysical/agy-self-audit-prompt.md`
+    #: and `tools/awphysical/agy-spec-audit-prompt.md`). Nothing in the corpus has ever written it to
+    #: an outcome file parsed by this runner.
+    VERDICT_CONFORMING: str = "CONFORMING"
+    ```
+    `map_verdict` docstring sentence (lines 22425-22428):
+    ```python
+        Consumed by BOTH hosts through `execute_item_core`; neither driver carries a verdict test of its
+        own (formerly checked by `tests/test_runner_refork_guard.py`, deleted in `19313eed`; no live guard
+        currently enforces this).
+    ```
+    2. Check for falsified claims:
+    ```
+    $ rg -n 'appears nowhere in this repository|nothing is known to emit it' agent_workflows/runner_shared.py
+    (Exit code: 1, 0 matches)
+    ```
+    3. Check for verbatim prompt claim:
+    ```
+    $ rg -n 'verbatim from the prompt' agent_workflows/runner_shared.py
+    (Exit code: 1, 0 matches)
+    ```
+    4. Citations of `test_runner_refork_guard`:
+    ```
+    $ rg -n 'test_runner_refork_guard' agent_workflows/runner_shared.py
+    331:    (`test_runner_refork_guard.py`'s `Owned("should_color", "runner_shared", BOTH)` row,
+    12641:    and `tests/test_runner_refork_guard.py::FrontMatterReaderBehaviorTests` pins BOTH halves, so
+    20962:# `tests/test_runner_refork_guard.py` pins that no runner REDEFINES an extracted symbol and that
+    22426:    own (formerly checked by `tests/test_runner_refork_guard.py`, deleted in `19313eed`; no live guard
+    32628:                            # and `tests/test_runner_refork_guard.py` fails if a driver grows a copy.
+    36676:        # `tests/test_runner_refork_guard.py` tables it as `selectors`-owned under both hosts' local
+    ```
+    Line 22426 inside `map_verdict` carries the annotation `(formerly checked by tests/test_runner_refork_guard.py, deleted in 19313eed; no live guard currently enforces this)`. The remaining 5 citations are outside this plan's scope and untouched.
+    5. Table and constants unchanged:
+    `git diff agent_workflows/runner_shared.py` confirms `_VERDICT_TABLE`, `VERDICT_NOT_CONFORMING`, and `VERDICT_CONFORMING` values are byte-identical to HEAD.
+    6. Subscript assertions in `tests/test_terminal_status_vocabulary.py`:
+    ```
+    $ python3 -m pytest tests/test_terminal_status_vocabulary.py -o addopts=""
+    ============================== 16 passed in 1.31s ==============================
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the new test's source. Paste its RED-then-GREEN proof: the actual failure output with the injected extra table entry (or restored literal) in place, then the actual passing output after reverting, with exit codes. Paste the tightened `test_verifier_prompt_contents_and_paths` source and show it FAILS against a prompt still carrying only the old three tokens. Paste the full bare `python3 -m pytest` summary line as regression evidence, and the per-test counts for the four named files run with `-o addopts=""`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified VerdictPromptAgreementTests source, RED-then-GREEN proofs for (a) and (b), tightened test failure and pass, 273 directly affected tests passed, and 3970 regression tests passed.
+    1. Source of new test `VerdictPromptAgreementTests` in `tests/test_oc_runipd.py`:
+    ```python
+    class VerdictPromptAgreementTests(unittest.TestCase):
+        """E-04: pin the bijection between prompt-advertised verdicts and map_verdict recognized tokens."""
+
+        @staticmethod
+        def _extract_advertised_tokens(prompt: str) -> list[str]:
+            match = re.search(r'"verdict":\s*"([^"]+)"', prompt)
+            assert match is not None, "Prompt schema line must contain 'verdict' key"
+            return match.group(1).split("|")
+
+        def test_verdict_prompt_and_table_bijection(self):
+            from agent_workflows import runner_shared as rs
+
+            with tempfile.TemporaryDirectory() as temp:
+                run_dir = Path(temp) / "run"
+                (run_dir / "outcomes").mkdir(parents=True)
+                item = {"position": 1, "id6": "tst123", "setid": "test", "order": 1}
+                state = {"run_id": "run-test"}
+                plan_path = Path("/dummy/plan.ipd.md")
+
+                in_run_prompt = rs.build_verifier_prompt(
+                    item, state, run_dir, plan_path, labels=rs.OC_HOST_LABELS, audit=False
+                )
+                audit_prompt = rs.build_verifier_prompt(
+                    item, state, run_dir, plan_path, labels=rs.OC_HOST_LABELS, audit=True
+                )
+
+                for prompt, prompt_name in (
+                    (in_run_prompt, "in-run verifier prompt"),
+                    (audit_prompt, "standalone audit prompt"),
+                ):
+                    with self.subTest(prompt=prompt_name):
+                        advertised_tokens = self._extract_advertised_tokens(prompt)
+                        advertised_set = set(advertised_tokens)
+
+                        # Direction 1: Every token advertised in the schema line must map to recognized=True
+                        for token in advertised_tokens:
+                            mapping = rs.map_verdict(token)
+                            self.assertTrue(
+                                mapping.recognized,
+                                f"Advertised token {token!r} in {prompt_name} must be recognized by map_verdict",
+                            )
+
+                        # Direction 2: Every recognized token in _VERDICT_TABLE must appear in the schema line
+                        for token, mapping in rs._VERDICT_TABLE.items():
+                            if mapping.recognized:
+                                self.assertIn(
+                                    token,
+                                    advertised_set,
+                                    f"Recognized token {token!r} in _VERDICT_TABLE must be advertised in {prompt_name}",
+                                )
+
+                        # CONFORMING is explicitly not recognized and must NOT be advertised
+                        self.assertNotIn("CONFORMING", advertised_set)
+                        self.assertFalse(rs.map_verdict("CONFORMING").recognized)
+    ```
+    2. RED-then-GREEN proof (a) (injected unadvertised recognized token into `_VERDICT_TABLE`):
+    RED output:
+    ```
+    $ python3 -m pytest tests/test_oc_runipd.py -k "VerdictPromptAgreementTests" -o addopts=""
+    FAILED tests/test_oc_runipd.py::VerdictPromptAgreementTests::test_verdict_prompt_and_table_bijection
+    AssertionError: 'INJECTED_EXTRA_TOKEN' not found in {'VERIFIED', 'CORRECTION_REQUIRED', 'BLOCKED', 'NOT CONFORMING'} : Recognized token 'INJECTED_EXTRA_TOKEN' in _VERDICT_TABLE must be advertised in in-run verifier prompt
+    Exit code: 1
+    ```
+    GREEN output after reverting:
+    ```
+    $ python3 -m pytest tests/test_oc_runipd.py -k "VerdictPromptAgreementTests" -o addopts=""
+    ====================== 1 passed, 181 deselected in 1.54s =======================
+    Exit code: 0
+    ```
+    3. RED-then-GREEN proof (b) (temporarily restoring 3-token literal in prompt):
+    RED output:
+    ```
+    $ python3 -m pytest tests/test_oc_runipd.py -k "VerdictPromptAgreementTests or test_verifier_prompt_contents_and_paths" -o addopts=""
+    FAILED tests/test_oc_runipd.py::VerdictPromptAgreementTests::test_verdict_prompt_and_table_bijection
+    AssertionError: 'NOT CONFORMING' not found in {'VERIFIED', 'CORRECTION_REQUIRED', 'BLOCKED'} : Recognized token 'NOT CONFORMING' in _VERDICT_TABLE must be advertised in in-run verifier prompt
+    FAILED tests/test_oc_runipd.py::VerifierPromptTests::test_verifier_prompt_contents_and_paths
+    AssertionError: 'VERIFIED|CORRECTION_REQUIRED|BLOCKED|NOT CONFORMING' not found in ...
+    Exit code: 1
+    ```
+    GREEN output after restoring interpolation:
+    ```
+    $ python3 -m pytest tests/test_oc_runipd.py -k "VerdictPromptAgreementTests or test_verifier_prompt_contents_and_paths" -o addopts=""
+    ====================== 2 passed, 180 deselected in 1.86s =======================
+    Exit code: 0
+    ```
+    4. Tightened source of `test_verifier_prompt_contents_and_paths`:
+    ```python
+                self.assertIn("03-abc123-verification.json", prompt)
+                self.assertIn(
+                    "VERIFIED|CORRECTION_REQUIRED|BLOCKED|NOT CONFORMING", prompt
+                )
+                self.assertIn("Never push", prompt)
+    ```
+    5. Test counts and regression:
+    - Pre-change baseline: `python3 -m pytest tests/test_oc_runipd.py tests/test_terminal_status_vocabulary.py -o addopts="" -q` -> `197 passed in 95.95s`
+    - Directly affected test files: `python3 -m pytest tests/test_oc_runipd.py tests/test_terminal_status_vocabulary.py tests/test_verifier_evidence.py tests/test_agy_runipd_cli.py -o addopts=""` -> `273 passed in 291.96s (0:04:51)`
+    - Bare full regression suite: `python3 -m pytest` -> `3970 passed, 2 skipped, 3 warnings in 198.32s (0:03:18)`
+  - Result: pass
 
 ## Approval and execution gate
 
