@@ -1,5 +1,5 @@
 - Id: ghff0p
-- Status: graduated
+- Status: done
 - Graduated-To: ghff0p
 - Blocks-Release: next
 - Set: ghff0p
@@ -8,6 +8,7 @@
 - Summary: The run queue builder's unguarded manifest lookup can raise a bare KeyError after the run directory exists
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD kqb9ok executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-ghff0p-01-kqb9ok-refuse-a-manifest-absent-queue-id-ahead-of-durable-state-and.ipd.md); evidence .aw/records/plans/executed/20260929-ghff0p-01-kqb9ok-refuse-a-manifest-absent-queue-id-ahead-of-durable-state-and.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: kqb9ok
 - 2026-09-20 created (aw backlog): The run queue builder's unguarded manifest lookup can raise a bare KeyError after the run directory exists
 
