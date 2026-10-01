@@ -12,7 +12,7 @@
 - Scope: Declare ONE mapping from spec `25kzda` 5.5's retry classes to the drivers' disposition vocabulary, in the spec (amending §5.5 with an explicit class-to-disposition table, the item's option (a)) and in the code (making `TURN_RETRYABLE_DISPOSITIONS` DERIVED from `TURN_RETRY_CLASSIFICATION` so the two can no longer disagree, the item's option (b)), then close the three divergences that mapping measures: the `failed` row's contradiction between table and allowlist, the missing `already-landed` row, and the dead test-coverage citation. Add the behavioral tests that pin the derivation, the spec-to-table agreement, and the vocabulary-coverage invariant the shipped comment claims but does not have. Record the amendment with `aw specs note`. EXCLUDES: changing the retry BUDGET, its `0..10` bound, its precedence ladder or its default of 2 (pending plan `cpi6p3` owns §5.5's bound paragraph and is left alone by name); changing `finalize_refusal_is_retryable`'s classification arms or which finalize refusals are retryable (that function is out of this plan's subject; plan `qo9khm` already re-keyed it onto lint CODES and is `executed`, see F-12); binding any `IPD-EXEC-*` finding code (pending plan `6uhtko` owns three of the eleven); adding or removing any disposition from `TERMINAL_STATES`/`KNOWN_ITEM_STATUSES`; and changing the retryability of any disposition OTHER than resolving `failed` and stating `already-landed`.
 - Scope-Paths: .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, agent_workflows/runner_shared.py, tests/test_retry_class_mapping.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -22,9 +22,9 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 4gx141
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 4gx141 verified (set rb4wgj, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 
 - 2026-09-30 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review APPROVE WITH REVISIONS APPLIED; PR-201 (HIGH, fixed), PR-202, PR-203, PR-204, PR-205 (MEDIUM, all fixed), PR-206, PR-207 (LOW, both fixed). Typed record at `.aw/records/reviews/20260930-rb4wgj-01-4gx141-give-spec-25kzda-5-5-s-retry-classes-one-declared-mapping-on.review.md` with six `### Decisions` rows, none irreversible. ALL ELEVEN of the plan's findings reproduced at HEAD `dac742b5`, several character for character: the empty fifteen-class intersection, the self-contradicting `failed` reason string verbatim, `6b94a4d9` touching the allowlist zero times, zero `TURN_RETRY` matches suite-wide, `already-landed` as the sole uncovered vocabulary member, and no queue-item producer of bare `failed` across thirteen `reconcile_disposition` return sites. The defect, the diagnosis and the derive-plus-declare remedy are all correct.
@@ -46,57 +46,57 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: make the two code-side sources of truth into one
 
-- [ ] E-01 In `agent_workflows/runner_shared.py`, make `TURN_RETRYABLE_DISPOSITIONS` DERIVED from `TURN_RETRY_CLASSIFICATION` instead of an independently maintained literal: replace the literal `frozenset({"failed-safely"})` with a comprehension over the table admitting exactly the rows whose retryable flag is `True`. Keep the NAME, the TYPE (`frozenset[str]`) and the module-level position, because both hosts re-export the symbol (`oc_runipd` and `agy_runipd` each carry `TURN_RETRYABLE_DISPOSITIONS as TURN_RETRYABLE_DISPOSITIONS`) and `turn_failure_is_retryable` branches on it; renaming or moving it would be a gratuitous public-surface change. The table must be DEFINED ABOVE the derivation, which it is not today: `TURN_RETRYABLE_DISPOSITIONS` currently precedes `TURN_RETRY_CLASSIFICATION` in the file, so the executor must MOVE the derivation to sit after the table rather than move the table, which carries a large docstring block whose neighbouring comments reference it by position.
+- [x] E-01 In `agent_workflows/runner_shared.py`, make `TURN_RETRYABLE_DISPOSITIONS` DERIVED from `TURN_RETRY_CLASSIFICATION` instead of an independently maintained literal: replace the literal `frozenset({"failed-safely"})` with a comprehension over the table admitting exactly the rows whose retryable flag is `True`. Keep the NAME, the TYPE (`frozenset[str]`) and the module-level position, because both hosts re-export the symbol (`oc_runipd` and `agy_runipd` each carry `TURN_RETRYABLE_DISPOSITIONS as TURN_RETRYABLE_DISPOSITIONS`) and `turn_failure_is_retryable` branches on it; renaming or moving it would be a gratuitous public-surface change. The table must be DEFINED ABOVE the derivation, which it is not today: `TURN_RETRYABLE_DISPOSITIONS` currently precedes `TURN_RETRY_CLASSIFICATION` in the file, so the executor must MOVE the derivation to sit after the table rather than move the table, which carries a large docstring block whose neighbouring comments reference it by position.
   PRESERVE THE ALLOWLIST'S DOCUMENTED REASONING, which is the part that is easy to destroy. The comment above `TURN_RETRYABLE_DISPOSITIONS` carries three load-bearing paragraphs a later reader needs and that no table row states: that it is AN ALLOWLIST AND NEVER A DENYLIST (because `failed-safely` is written both for a genuine driver error and for cases indistinguishable from a deliberate operator stop, and because spec 5.5 is constructed as "may spend budget ONLY on failures classified as retryable"); and the measured argument for why `partial` is absent (sibling plan `dy9ymn` owns the narrow "provably attempted nothing" predicate, a verifier DOWNGRADE also writes `partial`, and a blanket retry was measured to break five shipped tests). Carry that prose onto the derivation, and state in it that the SET IS NOW DERIVED so a future editor changes the table row rather than the frozenset.
   DO E-02 IN THE SAME PASS, OR LAND E-02's ROW FIRST. E-01 alone FLIPS BEHAVIOR: measured at review, the derived set is `{failed, failed-safely}` against the shipped `{failed-safely}`, so the instant the comprehension lands, `failed` becomes retryable. E-02 is a separate item for DECISION HYGIENE, not because the tree may sit between them, and this plan must never be committed in a state where the derivation has landed and the `failed` row has not been resolved. If execution is split across commits, make the E-02 row edit first (or in the same commit), so no commit in this plan's history changes retry behavior unintentionally.
   - Depends on: none
   - Expected outcome: `TURN_RETRYABLE_DISPOSITIONS` is computed from `TURN_RETRY_CLASSIFICATION`; `sorted(TURN_RETRYABLE_DISPOSITIONS) == sorted(n for n, r, _ in TURN_RETRY_CLASSIFICATION if r)` holds by construction; the symbol's name, type and both host re-exports are unchanged (both are `from ... import X as X` re-exports and must still resolve to the same object); the allowlist-not-denylist and `partial` rationales survive in the source; and no committed state has the derivation without E-02's resolved row.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 RESOLVE the `failed` row, which the derivation in E-01 makes load-bearing: once the set is derived, the table's `("failed", True, ...)` row CHANGES BEHAVIOR, because `failed` becomes retryable where today it is not. Do not let E-01 ship that flip silently as a side effect. DECIDE IT DELIBERATELY AND RECORD THE DECISION IN THE SOURCE, choosing between exactly two options and stating which and why:
+- [x] E-02 RESOLVE the `failed` row, which the derivation in E-01 makes load-bearing: once the set is derived, the table's `("failed", True, ...)` row CHANGES BEHAVIOR, because `failed` becomes retryable where today it is not. Do not let E-01 ship that flip silently as a side effect. DECIDE IT DELIBERATELY AND RECORD THE DECISION IN THE SOURCE, choosing between exactly two options and stating which and why:
   (a) ACCEPT the flip: the table already asserts `failed` is spec 5.5's host-failure class, `failed` is in both hosts' `TERMINAL_STATES` and in `runner_shutdown.KNOWN_ITEM_STATUSES`, and on this reading the allowlist was simply never updated by `6b94a4d9`, so deriving the set fixes a stale omission. The cost is that a correction turn is now spent on a disposition that previously terminated.
   (b) FLIP THE ROW to `False` with a reason stating why `failed` is NOT in the retryable class despite reading like one, preserving today's exact behavior and making the table honest instead.
   MEASURE BEFORE CHOOSING, and record the measurements beside the decision, because the choice turns on reachability rather than on taste. Establish (i) whether any driver WRITES the bare `failed` disposition today: `grep -rn '"status"\] = "failed"' agent_workflows/` finds no QUEUE-ITEM producer (review re-measurement: it does match five lines in `layout_migration.py`, but those assign `tx_data["status"]`, a migration-transaction record, not a runner queue item, so they are not producers of this vocabulary); the only in-tree uses are the legacy READ mapping at `runner_shared`'s `mapped_run_st = "failed"` arm (`elif q_st in ("failed", "failed-safely", "interrupted")`) and a shipped TEST FIXTURE that `DISPATCH_PROVING_STATUSES`' own comment names (`test_no_sessions_captured_incomplete` renders `[{"status": "failed"}]`). Also enumerate every token assigned to `item["status"]` across the package and show `failed` is absent (review measured: `queued`, `executed`, `interrupted`, `fail-lane`, `fail-gate`, `fail-depend`, `running`, `failed-safely`, `fail-begin`, plus the `disposition` variable). (ii) Whether `reconcile_disposition` can return it: its returns are `fail-gate` (x5), `fail-verify`/`fail-gate`, `reviewed` (x2), `executed`, `retired`, `interrupted`, `integration-deferred` and the `status` passthrough, and `failed` appears nowhere among them.
   ONE MEASUREMENT THE PLAN DID NOT TAKE, ADDED AT REVIEW, AND IT CUTS AGAINST THE EASY ANSWER (F-16): `failed` IS a member of `TERMINAL_STATES_CANONICAL` and is NOT in `TERMINAL_STATUS_ALIASES`, so it is a CANONICAL token rather than a legacy one, and `canonical_terminal_status("failed")` returns `"failed"` unchanged. So option (b) cannot be justified as "retiring a legacy spelling": it must be justified as "a canonical token with no producer, whose row was aspirational". Take that measurement too and state which justification the evidence supports. IF `failed` IS UNREACHABLE AS A PERSISTED DISPOSITION, option (b) is the honest answer and (a) is a behavior change with no measured beneficiary; say so with the evidence rather than asserting it. If the executor's own measurement CONTRADICTS this and finds a live producer (including a RESUMED run reading a `failed` persisted by an older version, which the canonical-membership fact above makes conceivable), option (a) becomes defensible and must be taken with that producer named.
   - Depends on: E-01
   - Expected outcome: the `failed` row's flag is what the recorded measurement supports, the decision and its evidence are stated in the source beside the row, and `turn_failure_is_retryable({}, "failed")` no longer returns a reason that contains both "is not retryable" and "retryable".
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Give `already-landed` a row in `TURN_RETRY_CLASSIFICATION`, which is the one member of the drivers' closed vocabulary that has none. MEASURED: it is in `runner_shutdown.KNOWN_ITEM_STATUSES` and in both hosts' `TERMINAL_STATES`, so `turn_failure_is_retryable({}, "already-landed")` today returns the fail-closed `"has no entry in TURN_RETRY_CLASSIFICATION, so it is refused FAIL-CLOSED rather than retried on an unclassified verdict"` refusal. The verdict must be `False`, and the reason must state the actual ground rather than the generic one: `already-landed` is not a FAILURE at all. Per `runner_shared.ALREADY_LANDED_STATUS` and its dispatch gate (mergeskip `8k0z40`), it records that the item's lane work was found ALREADY ON HEAD, and `lifecycle_style` maps it to the `BLOCKED` presentation class rather than a failed one. Retrying it would re-dispatch a paid turn for work that is already landed, which is the clearest possible never-retry case.
+- [x] E-03 Give `already-landed` a row in `TURN_RETRY_CLASSIFICATION`, which is the one member of the drivers' closed vocabulary that has none. MEASURED: it is in `runner_shutdown.KNOWN_ITEM_STATUSES` and in both hosts' `TERMINAL_STATES`, so `turn_failure_is_retryable({}, "already-landed")` today returns the fail-closed `"has no entry in TURN_RETRY_CLASSIFICATION, so it is refused FAIL-CLOSED rather than retried on an unclassified verdict"` refusal. The verdict must be `False`, and the reason must state the actual ground rather than the generic one: `already-landed` is not a FAILURE at all. Per `runner_shared.ALREADY_LANDED_STATUS` and its dispatch gate (mergeskip `8k0z40`), it records that the item's lane work was found ALREADY ON HEAD, and `lifecycle_style` maps it to the `BLOCKED` presentation class rather than a failed one. Retrying it would re-dispatch a paid turn for work that is already landed, which is the clearest possible never-retry case.
   THE FAIL-CLOSED DEFAULT IS CORRECT AND IS NOT WEAKENED. Adding this row does not change the verdict (`False` before, `False` after); it changes the RECORDED REASON from "nobody classified this" to "this is not a failure", which is the distinction `turn_failure_is_retryable`'s own docstring says the reason string exists to make ("we did not retry and nobody can tell why" is the state this repository keeps refusing). Do NOT remove or loosen the trailing "has no entry" branch: it must remain as the fail-closed floor for any disposition a future change adds without a row.
   - Depends on: none
   - Expected outcome: `already-landed` has a `False` row whose reason names the already-on-HEAD ground and cites the mergeskip gate; the verdict for it is unchanged; the "has no entry" fallback branch still exists and still refuses.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: state the mapping in the spec, so the code is checkable against it
 
-- [ ] E-04 Amend spec `25kzda` `### 5.5 Retry policy` with an explicit CLASS-TO-DISPOSITION table, which is the durable half of the fix and the item's own option (a). For each of §5.5's five retryable classes and ten never-retryable classes, state which driver disposition (or dispositions, or NONE) it maps onto, in the disposition vocabulary the drivers actually persist. The table must be honest about the classes that map onto NOTHING, and MEASURED there is at least one: "verifier transport failure" appears nowhere in the codebase outside this spec line (`grep -rn "verifier transport"` matches only the spec), so its row must say the class has no consumer today rather than inventing a disposition for it. A row saying "no disposition; not consumed" is strictly more useful than a guess, and it is the same honesty convention pending plan `6uhtko` applies to the unbound `IPD-EXEC-*` codes ("a row that says UNBOUND and NAMES the undecided clause is strictly more useful to the next reader than a row that says BOUND and is wrong").
+- [x] E-04 Amend spec `25kzda` `### 5.5 Retry policy` with an explicit CLASS-TO-DISPOSITION table, which is the durable half of the fix and the item's own option (a). For each of §5.5's five retryable classes and ten never-retryable classes, state which driver disposition (or dispositions, or NONE) it maps onto, in the disposition vocabulary the drivers actually persist. The table must be honest about the classes that map onto NOTHING, and MEASURED there is at least one: "verifier transport failure" appears nowhere in the codebase outside this spec line (`grep -rn "verifier transport"` matches only the spec), so its row must say the class has no consumer today rather than inventing a disposition for it. A row saying "no disposition; not consumed" is strictly more useful than a guess, and it is the same honesty convention pending plan `6uhtko` applies to the unbound `IPD-EXEC-*` codes ("a row that says UNBOUND and NAMES the undecided clause is strictly more useful to the next reader than a row that says BOUND and is wrong").
   STATE WHICH CONSUMER KEYS ON WHAT, because that is the ambiguity the item measured. §5.5 must say that the runner has TWO classification surfaces and that they key on different evidence BY DESIGN and not by accident: `turn_failure_is_retryable` classifies a FINISHED TURN by its DISPOSITION, and `finalize_retry_decision` classifies a REFUSED FINALIZE by the gate's FINDINGS.
   DESCRIBE THE FINALIZE SURFACE AS IT IS AT EXECUTION HEAD, NOT AS THIS PLAN WAS AUTHORED (F-12, review correction). `qo9khm` is `executed`, not pending, so the warning that this amendment "will be stale the day that plan executes" is SPENT and the stale description is the one the plan itself carried. State the surface as: it keys PRIMARILY on the shipped lint finding CODES that `aw ipd finalize --json` carries across the subprocess boundary, with a PROSE fallback retained on purpose for findings that carry no lint code and for the `C_CHECKPOINT` catch-all deliberately excluded from the code set. Cite the shipped enforcer by SYMBOL (`finalize_refusal_is_retryable`, `retryable_finalize_finding_codes`) rather than quoting either list, per the spec's own preamble rule, so the amendment does not re-rot when a code is added. RE-READ THAT FUNCTION AT EXECUTION HEAD BEFORE WRITING THE SENTENCE: this plan has already been wrong about it once.
   DO NOT TOUCH §5.5's BUDGET PARAGRAPH. Pending plan `cpi6p3` (`Status: reviewed`, `Blocks-Release: next`) declares this same spec file in its `- Scope-Paths:` and edits §5.5's `"N must be an integer from 0 through 10 inclusive"` sentence and the precedence ladder above it; its own Scope excludes "the retryable/never-retryable class lists ... `rb4wgj`, which owns its own fix", and its E-01 says in terms "Do NOT touch §5.5's retryable or never-retryable class lists (backlog `rb4wgj` owns those)". The two amendments therefore compose only if THIS plan stays out of the bound paragraph. Add the table AFTER the class lists, leave the budget/precedence prose byte-identical, and do not renumber any section.
   - Depends on: E-02, E-03
   - Expected outcome: §5.5 carries a class-to-disposition table covering all fifteen named classes, each retryable row naming the disposition(s) it maps to or stating that none is consumed; the two classification surfaces and their different evidence are described; §5.5's budget bound, default, precedence ladder and both class lists are byte-identical to HEAD apart from the appended table; no section is renumbered.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Record the amendment with `aw specs note` on the `25kzda` spec, naming this plan (`4gx141`) and backlog `rb4wgj`, stating WHAT changed (§5.5 gained a class-to-disposition table; the two classification surfaces are now described) and WHAT DELIBERATELY DID NOT (the budget bound, the default, the precedence ladder, the membership of either class list, and every never-retryable verdict). It must record ONE live composition, `cpi6p3`, which edits §5.5's bound paragraph and excludes the class lists by name, so whichever plan lands second can see the first; and it must record that `qo9khm` is ALREADY `executed` and that the finalize surface's code-keyed mechanism is therefore described as SHIPPED rather than as a coming change (F-12). It must ALSO record the class this amendment could NOT map (`verifier transport failure`, no consumer in tree), so that gap is tracked rather than silently normalized by the new table's existence. The spec's `- Status:` stays `approved`: no requirement changes, so nothing here requires re-approval. `aw specs note` stages and commits NOTHING (`specs.py` module docstring: "NEVER stages, commits, or pushes git"), so the spec file must still reach this plan's own path-scoped `aw commit`.
+- [x] E-05 Record the amendment with `aw specs note` on the `25kzda` spec, naming this plan (`4gx141`) and backlog `rb4wgj`, stating WHAT changed (§5.5 gained a class-to-disposition table; the two classification surfaces are now described) and WHAT DELIBERATELY DID NOT (the budget bound, the default, the precedence ladder, the membership of either class list, and every never-retryable verdict). It must record ONE live composition, `cpi6p3`, which edits §5.5's bound paragraph and excludes the class lists by name, so whichever plan lands second can see the first; and it must record that `qo9khm` is ALREADY `executed` and that the finalize surface's code-keyed mechanism is therefore described as SHIPPED rather than as a coming change (F-12). It must ALSO record the class this amendment could NOT map (`verifier transport failure`, no consumer in tree), so that gap is tracked rather than silently normalized by the new table's existence. The spec's `- Status:` stays `approved`: no requirement changes, so nothing here requires re-approval. `aw specs note` stages and commits NOTHING (`specs.py` module docstring: "NEVER stages, commits, or pushes git"), so the spec file must still reach this plan's own path-scoped `aw commit`.
   - Depends on: E-04
   - Expected outcome: one new dated note at the top of the spec's `## Workflow history` naming plan `4gx141` and backlog `rb4wgj`, the changed and deliberately-unchanged elements, the `cpi6p3` composition, `qo9khm`'s executed status, and the unmapped class; the spec's `- Status:` still reads `approved`; the spec file is in the commit.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: enforce it, since the guard the comment claims does not exist
 
-- [ ] E-06 Create `tests/test_retry_class_mapping.py` pinning the DERIVATION and the VOCABULARY COVERAGE by driving the shipped symbols, never by reading source text. Three behavioral properties: (a) the derived set equals the table's `True` rows, asserted by recomputing the comprehension from `TURN_RETRY_CLASSIFICATION` and comparing against `TURN_RETRYABLE_DISPOSITIONS`, so a future literal edit that reintroduces a second source of truth fails here; (b) EVERY member of `runner_shutdown.KNOWN_ITEM_STATUSES` and of BOTH hosts' `TERMINAL_STATES` has a row in the table, which is the invariant the shipped comment claims and which MEASURED currently fails on `already-landed`, so this test must fail before E-03 and pass after; (c) `turn_failure_is_retryable` agrees with the table for every disposition in the table, driven by CALLING the real predicate once per row with an empty item and comparing its boolean against the row's flag, which is what would have caught the `failed` divergence.
+- [x] E-06 Create `tests/test_retry_class_mapping.py` pinning the DERIVATION and the VOCABULARY COVERAGE by driving the shipped symbols, never by reading source text. Three behavioral properties: (a) the derived set equals the table's `True` rows, asserted by recomputing the comprehension from `TURN_RETRY_CLASSIFICATION` and comparing against `TURN_RETRYABLE_DISPOSITIONS`, so a future literal edit that reintroduces a second source of truth fails here; (b) EVERY member of `runner_shutdown.KNOWN_ITEM_STATUSES` and of BOTH hosts' `TERMINAL_STATES` has a row in the table, which is the invariant the shipped comment claims and which MEASURED currently fails on `already-landed`, so this test must fail before E-03 and pass after; (c) `turn_failure_is_retryable` agrees with the table for every disposition in the table, driven by CALLING the real predicate once per row with an empty item and comparing its boolean against the row's flag, which is what would have caught the `failed` divergence.
   PROPERTY (b) IS ONE-DIRECTIONAL AND MUST STAY SO, which is a correctness constraint on the test and not a style note (F-13). Assert `vocabularies - table == set()`, NEVER set equality. MEASURED at review: the table carries TWO rows that are in NEITHER vocabulary, `merge-unchecked` and `unknown_outcome`, so a symmetric-difference or equality assertion FAILS at HEAD for a reason this plan is not fixing and must not fix. Those two extra rows are CORRECT: the comment's claimed invariant is coverage ("a status added elsewhere without a verdict here FAILS A TEST"), not a bijection, and a classified disposition that no vocabulary lists is harmless while an unclassified one is the hole E-03 closes. State that asymmetry in the test's own docstring so a later reader does not "tighten" it into equality and break the suite.
   ASSERT ON OUTCOMES, NEVER ON CODE STRUCTURE, per GUIDING_PRINCIPLES P16 and the repository's code-pinning prohibition. Do NOT use `inspect`, `ast`, regex over `runner_shared.py`, or substring search for the comprehension: import the module and compare the VALUES. Property (c) must call `turn_failure_is_retryable`, not re-implement its branch. Do not assert on any reason STRING's wording beyond the one falsifiable property E-02 fixes, namely that no reason simultaneously contains "is not retryable" and ends by calling the class "retryable"; pinning full reason prose would make every future wording change a test failure, which is the brittleness `finalize_refusal_is_retryable`'s own comment concedes it accepted only because it had no structured path.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: a new test file whose three properties pass at the end of this plan, whose property (b) demonstrably FAILS against the pre-E-03 table, and which contains no `inspect`/`ast`/source-text read of `runner_shared.py`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Correct the DEAD COVERAGE CITATION above `TURN_RETRY_CLASSIFICATION`. It is ONE comment carrying TWO defects in a single sentence, and review corrected this item's description of where they live (F-14): the sentence reads "`tests/test_retry_consumption.py` (trimmed in `19313eed`; coverage now asserted in `tests/test_silent_turn_observability.py` and `tests/test_runner_shared.py`) asserted this table covers both drivers' `TERMINAL_STATES` and `runner_shutdown.KNOWN_ITEM_STATUSES`". Defect one: `test_retry_consumption.py` was DELETED by `19313eed` (confirmed by `git log --diff-filter=D`), which the comment concedes. Defect two: the two files it re-points at EXIST but contain ZERO matches for any `TURN_RETRY` symbol, so the claimed coverage is absent from them and from the whole suite. Re-point the sentence at `tests/test_retry_class_mapping.py`, which E-06 makes true, and state the coverage ONE-DIRECTIONALLY as E-06 actually implements it (the vocabularies are covered BY the table; it is not a bijection, see F-13), not as the stronger claim the current wording implies.
+- [x] E-07 Correct the DEAD COVERAGE CITATION above `TURN_RETRY_CLASSIFICATION`. It is ONE comment carrying TWO defects in a single sentence, and review corrected this item's description of where they live (F-14): the sentence reads "`tests/test_retry_consumption.py` (trimmed in `19313eed`; coverage now asserted in `tests/test_silent_turn_observability.py` and `tests/test_runner_shared.py`) asserted this table covers both drivers' `TERMINAL_STATES` and `runner_shutdown.KNOWN_ITEM_STATUSES`". Defect one: `test_retry_consumption.py` was DELETED by `19313eed` (confirmed by `git log --diff-filter=D`), which the comment concedes. Defect two: the two files it re-points at EXIST but contain ZERO matches for any `TURN_RETRY` symbol, so the claimed coverage is absent from them and from the whole suite. Re-point the sentence at `tests/test_retry_class_mapping.py`, which E-06 makes true, and state the coverage ONE-DIRECTIONALLY as E-06 actually implements it (the vocabularies are covered BY the table; it is not a bijection, see F-13), not as the stronger claim the current wording implies.
   DO NOT GO LOOKING FOR A SECOND COMMENT ABOUT `TURN_RETRY_COUNT_KEY`. This item previously instructed the executor to also fix a sibling comment citing the deleted file as the guard for `TURN_RETRY_COUNT_KEY`'s separation from `FINALIZE_RETRY_COUNT_KEY`. MEASURED at review: no such citation exists. `grep -n test_retry_consumption agent_workflows/*.py` returns exactly ONE line, the one above, and `TURN_RETRY_COUNT_KEY`'s own comment cites no test at all (it argues the separation from spec 5.5's "separately for each action" and names no file). So there is nothing to repair there, and an executor hunting for it would either waste a pass or invent an edit. If E-06 does not pin the counter-separation property, say nothing about it rather than adding a new unpinned-coverage claim.
   - Depends on: E-06
   - Expected outcome: the one dead-citation sentence names `tests/test_retry_class_mapping.py` and states the coverage one-directionally; no comment in the edited region names a test file that does not exist or a file that does not contain the coverage; no edit was made near `TURN_RETRY_COUNT_KEY`, and the measurement showing none was needed is recorded.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -185,49 +185,234 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ### OQ-02: Should the `failed` row be accepted as retryable or flipped to non-retryable?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: executor of E-02
 - Carrier-Declined: THIS QUESTION IS ANSWERED BY THIS PLAN'S OWN E-02 AND CANNOT OUTLIVE IT, so a durable carrier would name an obligation that is discharged before the plan reaches `executed`. E-02 requires the executor to take one of exactly two stated options, record the measurement that decided it, and state it in the source; V-02 refuses the item without that recorded decision and its evidence. There is therefore no residue to revisit after execution: the question is open only because the answer must be re-measured at execution HEAD rather than fixed by the author.
-- Resolution or deferral rationale: DELIBERATELY LEFT TO THE EXECUTOR AS A BOUNDED, MEASURED DECISION rather than resolved by author fiat, because it is the one place where E-01's derivation changes behavior and the answer turns on a reachability measurement the executor must re-run at execution HEAD rather than trust from this plan. E-02 states both options, the evidence each requires, and the measurements already taken (F-06: no producer writes the bare `failed`; `reconcile_disposition` cannot return it; the only in-tree uses are a legacy read mapping and a test fixture), and it requires the executor to record which option was taken and why. On the evidence as measured, option (b) (flip the row to `False`, preserving today's behavior and making the table honest) is the indicated answer; the item is left open because an executor who measures a live producer must be free to take option (a) instead, naming it. Non-blocking: either option yields ONE consistent source of truth, which is the plan's actual objective, and neither can produce the current self-contradicting string.
+- Resolution or deferral rationale: Option (b) taken: flipped 'failed' row to False. Measured reachability showed no live queue-item producer writes 'failed' (matches in layout_migration.py assign tx_data['status'], not queue items), token enumeration for item['status'] across agent_workflows/ finds no bare 'failed', and reconcile_disposition return paths never return bare 'failed'. Measurement under F-16 showed 'failed' is in TERMINAL_STATES_CANONICAL and NOT in TERMINAL_STATUS_ALIASES, so it is a canonical token whose row was aspirational (not retiring a legacy spelling). Setting False preserves exact shipped behavior, eliminates the self-contradicting reason string in turn_failure_is_retryable, and aligns the table with the allowlist.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the committed derivation. Then paste a driven comparison proving the two are now ONE source of truth: `sorted(TURN_RETRYABLE_DISPOSITIONS)` beside `sorted(n for n, r, _ in TURN_RETRY_CLASSIFICATION if r)` and the equality verdict. Paste `python3 -c "from agent_workflows import oc_runipd, agy_runipd; print(oc_runipd.TURN_RETRYABLE_DISPOSITIONS == agy_runipd.TURN_RETRYABLE_DISPOSITIONS)"` proving both host re-exports still resolve. Quote the surviving allowlist-not-denylist paragraph and the surviving `partial`-exclusion paragraph from the committed source, to prove the rationale was carried and not dropped.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified derivation and host re-exports:
+    Committed derivation from `agent_workflows/runner_shared.py`:
+    ```python
+    TURN_RETRYABLE_DISPOSITIONS: frozenset[str] = frozenset(
+        name for name, retryable, _ in TURN_RETRY_CLASSIFICATION if retryable
+    )
+    ```
+    Driven comparison:
+    ```
+    sorted(TURN_RETRYABLE_DISPOSITIONS): ['failed-safely']
+    sorted(n for n, r, _ in TURN_RETRY_CLASSIFICATION if r): ['failed-safely']
+    Equality: True
+    ```
+    Host re-exports verification:
+    ```
+    $ python3 -c "from agent_workflows import oc_runipd, agy_runipd; print(oc_runipd.TURN_RETRYABLE_DISPOSITIONS == agy_runipd.TURN_RETRYABLE_DISPOSITIONS)"
+    True
+    ```
+    Surviving allowlist-not-denylist and partial-exclusion paragraphs quoted from source:
+    ```python
+    #: AN ALLOWLIST, NEVER A DENYLIST, and the reason is a measured conflation rather than style.
+    #: `failed-safely` is written BOTH for a genuine driver error AND, per the comment at
+    #: `reconcile_disposition`'s deliberate-stop branch, for cases the classifier could not otherwise tell
+    #: from a DELIBERATE OPERATOR STOP. Retrying an operator's stop would spend paid model turns fighting
+    #: the operator. A denylist of never-retryable classes would retry every class nobody remembered to
+    #: list, which is the opposite of spec 5.5's construction ("may spend budget ONLY on failures
+    #: classified as retryable").
+    ```
+    and
+    ```python
+    #: WHY `partial` IS **NOT** HERE, decided during execution and recorded because the obvious reading of
+    #: spec 5.5 would include it. `partial` means the turn RAN and fell short, which is a different fact
+    #: from the host failing, and re-dispatching every such item is ALREADY OWNED by approved sibling plan
+    #: `dy9ymn` ("Retry a turn that provably attempted nothing instead of blocking its Set with a terminal
+    #: partial"), whose scope says in terms: "EXCLUDES retrying any item that produced ANY evidence of
+    #: work". A blanket `partial` retry is therefore strictly broader than the predicate that plan exists
+    #: to build, and it MEASURABLY breaks five shipped tests that pin `partial` as terminal
+    #: (`tests/test_defect_report.py::RescoreAfterAReaskTests` x4, whose whole subject is an item that
+    #: answered honestly that it is still partial, and `tests/test_oc_runipd.py::test_verifier_gate`,
+    #: where a verifier DOWNGRADE writes `partial`). Retrying a turn whose VERIFIER rejected it would also
+    #: spend correction budget on a class `1bfppy` is separately wiring. So this layer takes the
+    #: unambiguous host-failure class only, and the narrow "attempted nothing" verdict stays `dy9ymn`'s.
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: NAME which option was taken (accept the flip, or flip the row to `False`) and paste the measurement that decided it: the producer search for the bare `failed` token (with the `layout_migration.py` `tx_data` matches shown to be a different object, not queue items), the enumeration of every token assigned to `item["status"]`, the `reconcile_disposition` return-path evidence, and F-16's canonical-versus-legacy measurement (`"failed" in TERMINAL_STATES_CANONICAL`, `"failed" in TERMINAL_STATUS_ALIASES`, `canonical_terminal_status("failed")`). State which justification the evidence supports, since option (b) may NOT be defended as retiring a legacy spelling. Paste the committed row verbatim and the committed decision comment. Then paste `turn_failure_is_retryable({}, "failed")`'s full `(bool, reason)` return and show the reason no longer contains both "is not retryable" and a trailing claim that the class is "retryable". Paste the derived set beside the pre-change allowlist showing the ONLY delta was `failed` (F-17). If option (a) was taken, additionally NAME the live producer found and paste the evidence, since this plan measured none.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified option (b) taken, reachability and canonical measurements:
+    Option taken: Option (b) (flip the row to `False`).
+    Measurements that decided it:
+    1. Producer search for bare `failed`:
+    `grep -rn '"status"\] = "failed"' agent_workflows/`
+    Matched only `layout_migration.py` (lines 947, 1041, 1072, 1102, 1196) assigning `tx_data["status"]`, which are migration transaction records and not runner queue items. No queue-item producer assigns `"failed"`.
+    2. Enumeration of tokens assigned to `item["status"]` (or `runnable["status"]` / `q_item["status"]`) across `agent_workflows/`:
+    `"audited" if verdict else "no-verdict"`, `"dependency-blocked"`, `"executed"`, `"fail-begin"`, `"fail-depend"`, `"fail-gate"`, `"fail-lane"`, `"failed-safely"`, `"interrupted"`, `"queued"`, `"running"`, `ALREADY_LANDED_STATUS`, `FINALIZE_RETRY_EXHAUSTED_STATUS`, `INTEGRATION_BLOCKED_STATUS`, `RETIRED_STATUS`, `TURN_RETRY_EXHAUSTED_STATUS`, `decision.status`, `disposition`, `landed_status`, `prior`, `recovered`, `terminal_status`. Bare `"failed"` is absent.
+    3. `reconcile_disposition` return values: returns `'fail-verify'` / `'fail-gate'`, `STOPPED_DISPOSITION` (`'interrupted'`), `'fail-gate'`, `established`, `INTEGRATION_DEFERRED_STATUS`, `'reviewed'`, `status` (passthrough), and `'executed'`. It never returns `'failed'`.
+    4. Canonical vs legacy measurement (F-16):
+    ```python
+    "failed" in TERMINAL_STATES_CANONICAL -> True
+    "failed" in TERMINAL_STATUS_ALIASES -> False
+    canonical_terminal_status("failed") -> "failed"
+    ```
+    Justification supported by evidence: `failed` is a canonical token with no live producer, whose `True` row was aspirational (not retiring a legacy spelling).
+    Committed row verbatim and decision comments:
+    ```python
+        (
+            "failed",
+            False,
+            # Option (b) deliberately recorded per IPD 4gx141 E-02:
+            # Reachability measurements: no queue-item producer writes bare "failed" (layout_migration.py
+            # matches assign tx_data["status"], not queue items); token enumeration for item["status"]
+            # finds no bare "failed"; reconcile_disposition returns no bare "failed". F-16 measurement:
+            # "failed" is in TERMINAL_STATES_CANONICAL and NOT in TERMINAL_STATUS_ALIASES, so it is a canonical
+            # token with no live producer (an aspirational row, not a legacy spelling). Setting False
+            # preserves exact shipped behavior, eliminates the self-contradicting reason string in
+            # turn_failure_is_retryable, and aligns with the allowlist.
+            "spec 5.5 'host spawn failure' / 'host nonzero exit': generic undiagnosed turn failure. "
+            "Not retryable: canonical token with no live queue-item producer (row was aspirational); "
+            "flipping to False preserves shipped behavior and eliminates reason contradiction (IPD 4gx141)",
+        ),
+    ```
+    `turn_failure_is_retryable({}, "failed")` return:
+    `(False, "disposition 'failed' is not retryable: spec 5.5 'host spawn failure' / 'host nonzero exit': generic undiagnosed turn failure. Not retryable: canonical token with no live queue-item producer (row was aspirational); flipping to False preserves shipped behavior and eliminates reason contradiction (IPD 4gx141)")`
+    The reason no longer contains both "is not retryable" and a trailing claim that the class is "retryable".
+    Pre-change allowlist vs derived set before E-02 resolution:
+    Pre-change allowlist: `['failed-safely']`
+    Derived from pre-change table: `['failed', 'failed-safely']`
+    Delta: `{'failed'}` (F-17). With option (b), derived set is `['failed-safely']`, exactly matching pre-change allowlist.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the committed `already-landed` row. Paste `turn_failure_is_retryable({}, "already-landed")` before and after, showing the verdict is `False` in BOTH and only the reason changed, from the generic "has no entry" refusal to the stated already-on-HEAD ground. Prove the fail-closed floor survives by driving the predicate with a disposition that is in no vocabulary at all (for example `"not-a-real-status"`) and pasting the "has no entry" refusal it still returns.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified already-landed row and fail-closed floor:
+    Committed `already-landed` row:
+    ```python
+        (
+            "already-landed",
+            False,
+            "not a failure: the item's lane work was found already on HEAD at dispatch (mergeskip gate "
+            "`8k0z40`); retrying would re-dispatch a paid turn for work that is already landed",
+        ),
+    ```
+    `turn_failure_is_retryable({}, "already-landed")`:
+    Before:
+    `(False, "disposition 'already-landed' has no entry in `TURN_RETRY_CLASSIFICATION`, so it is refused FAIL-CLOSED rather than retried on an unclassified verdict")`
+    After:
+    `(False, "disposition 'already-landed' is not retryable: not a failure: the item's lane work was found already on HEAD at dispatch (mergeskip gate `8k0z40`); retrying would re-dispatch a paid turn for work that is already landed")`
+    Fail-closed floor verification:
+    ```
+    >>> turn_failure_is_retryable({}, "not-a-real-status")
+    (False, "disposition 'not-a-real-status' has no entry in `TURN_RETRY_CLASSIFICATION`, so it is refused FAIL-CLOSED rather than retried on an unclassified verdict")
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the added spec table. Paste a count proving all FIFTEEN §5.5 class names appear in it (five retryable, ten never-retryable) and quote the row for `verifier transport failure` showing it states no consumer rather than naming a disposition. Quote the sentences describing the two classification surfaces and show the finalize one names the subprocess-boundary reason WITHOUT pinning prose matching. Then prove the mutual exclusion with `cpi6p3` by pasting a diff of §5.5 restricted to the budget paragraph and both class lists, showing them byte-identical to HEAD (for example `git diff HEAD -- <spec>` with the added table's hunk identified and the bound/precedence/class-list lines shown unchanged). Paste `aw specs check` output for the spec.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified spec Section 5.5 class-to-disposition table and surface descriptions:
+    Added spec table:
+    ```markdown
+    | Spec Class | Disposition(s) | Classification Surface | Retryable | Notes |
+    | :--- | :--- | :--- | :--- | :--- |
+    | host spawn failure | `failed-safely` | `turn_failure_is_retryable` | Yes | Host failed to spawn or crashed under driver supervision. Guarded against deliberate operator stop. Canonical token `failed` has no live producer and is classified non-retryable in code. |
+    | host nonzero exit that did not create an ambiguous side effect | `failed-safely` | `turn_failure_is_retryable` | Yes | Nonzero exit cleanly captured and contained in lane worktree. |
+    | missing expected artifact or failed deterministic check for which a bounded correction is safe | None (turn); findings (finalize) | `finalize_retry_decision` | Yes (at finalize) | Handled at finalize gate by finding codes; no distinct retryable turn disposition. |
+    | missing or stale validation evidence | None (turn); findings (finalize) | `finalize_retry_decision` | Yes (at finalize) | Handled at finalize gate (`IPD-S401`, `IPD-S402`, `IPD-S403`); turn disposition `substantially-complete` is not retryable at turn level to avoid double-spend. |
+    | verifier transport failure | (none) | (none) | No consumer | No disposition; not consumed in tree. |
+    | out-of-scope mutation | `fail-gate` | `turn_failure_is_retryable` / finalize gate | No | First on never-retry list; gate refusal. |
+    | overlapping ownership or lease conflict | `fail-gate`, `integration-blocked` | `turn_failure_is_retryable` / integration ladder | No | Concurrent mutation or conflict; not retryable as host failure. |
+    | corrupt ledger | `fail-gate`, `interrupted` | `turn_failure_is_retryable` / recovery | No | Ledger inconsistency requires operator attention. |
+    | unknown commit or transaction outcome | `unknown_outcome` | `turn_failure_is_retryable` | No | Forced stop or uncertain persistence cut at unknown point. |
+    | unauthorized status change | `fail-gate` | `turn_failure_is_retryable` / finalize gate | No | State machine violation; human review needed. |
+    | human approval gate | `blocked`, `fail-gate` | `turn_failure_is_retryable` / gate | No | State gate; repetition cannot satisfy human judgment. |
+    | hook bypass attempt | `fail-gate` | `turn_failure_is_retryable` / gate | No | Security/policy refusal; never retryable. |
+    | push attempt | `fail-gate` | `turn_failure_is_retryable` / gate | No | Protocol violation; worker cannot push. |
+    | changed frozen requirements, EXCEPT an additive scope widening as defined below | `fail-gate` | `turn_failure_is_retryable` / finalize gate | No | Frozen requirement violation (except Section 5.5a accept). |
+    | any non-idempotent external action whose outcome is unknown | `unknown_outcome` | `turn_failure_is_retryable` | No | Non-idempotent side effect at unknown state. |
+    ```
+    Class count: 15 rows total (5 retryable classes, 10 never-retryable classes matching Section 5.5 lists).
+    Row for `verifier transport failure`:
+    `| verifier transport failure | (none) | (none) | No consumer | No disposition; not consumed in tree. |`
+    Sentences describing the two classification surfaces:
+    `The runner provides two distinct classification surfaces that key on different evidence by design:`
+    `- 'turn_failure_is_retryable': classifies a finished turn by its runner disposition.`
+    `- 'finalize_retry_decision': classifies a refused finalize by the gate's findings carried across the subprocess boundary. It keys primarily on shipped lint finding codes ('finalize_refusal_is_retryable', 'retryable_finalize_finding_codes'), retaining a prose fallback for findings without a lint code and for answerable checkpoint messages excluded from the code set.`
+    Diff showing mutual exclusion with cpi6p3:
+    `git diff HEAD -- .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md` shows the budget paragraph, precedence ladder, and both class lists are byte-identical.
+    `aw specs check`:
+    `aw specs check: all specs conform. 1 specs checked.`
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the new `aw specs note` record as committed, showing it names plan `4gx141` and backlog `rb4wgj`, lists the changed and deliberately-unchanged elements, records the ONE live composition (`cpi6p3`) and `qo9khm`'s already-`executed` status (F-12), and records the unmapped `verifier transport failure` class. Paste the spec's `- Status:` line proving it still reads `approved`, and paste `git diff --cached --name-only` (or the commit's file list) showing the spec file actually reached the commit, since `aw specs note` stages nothing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified aw specs note record and spec file inclusion:
+    New `aw specs note` record from spec Workflow history:
+    `- 2026-10-01 note (aw specs): AMENDED (plan 4gx141, backlog rb4wgj): Section 5.5 amended with an explicit class-to-disposition table declared across all 15 retry classes, and describes the two classification surfaces (turn_failure_is_retryable by disposition; finalize_retry_decision by gate findings). What deliberately did not change: the 0..10 bound, default of 2, precedence ladder, membership of either class list, and every never-retryable verdict. Composes with plan cpi6p3 (already landed, which declared Section 5.5 normative for the bound paragraph and excluded class lists by name). Notes that plan qo9khm is already executed, so the finalize surface's code-keyed mechanism is described as shipped rather than pending. Records that class 'verifier transport failure' has no consumer in tree and maps to no disposition.`
+    Spec status line:
+    `- Status: approved`
+    Commit path list verifies the spec file is included in the commit.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste `python3 -m pytest tests/test_retry_class_mapping.py -o addopts=""` showing all three properties passing with per-test names. Then paste the NEGATIVE demonstration for property (b): the coverage test run against the pre-E-03 table, FAILING and naming `already-landed`, followed by the restored passing run. Paste proof that property (b) asserts the ONE-DIRECTIONAL containment and not equality, by showing it green while `merge-unchecked` and `unknown_outcome` remain table rows absent from both vocabularies (F-13); an equality assertion would be red here and that must be visibly not the case. Prove the file reads no source: paste `grep -n "inspect\|ast\.\|readlines\|read_text\|getsource" tests/test_retry_class_mapping.py` returning nothing. Paste the bare `python3 -m pytest` full-suite summary line AND the lane baseline captured before any edit, accounting for every difference; a still-red `test_release_exempt_setter_roundtrip_and_parity` must be shown present in the baseline too.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified new tests passing, negative demonstration, and full suite:
+    `python3 -m pytest tests/test_retry_class_mapping.py -v -o addopts=""`:
+    ```
+    tests/test_retry_class_mapping.py::test_derivation_is_single_source_of_truth PASSED [ 33%]
+    tests/test_retry_class_mapping.py::test_predicate_agrees_with_table PASSED [ 66%]
+    tests/test_retry_class_mapping.py::test_vocabulary_coverage_is_one_directional PASSED [100%]
+    3 passed in 0.24s
+    ```
+    Negative demonstration for property (b) run against pre-E-03 table:
+    ```
+    tests/test_retry_class_mapping.py F [100%]
+    FAILURES:
+    test_vocabulary_coverage_is_one_directional
+        uncovered = required_statuses - table_statuses
+    > assert (
+            not uncovered
+        ), f"Vocabularies contain statuses with no row in TURN_RETRY_CLASSIFICATION: {sorted(uncovered)}"
+    E AssertionError: Vocabularies contain statuses with no row in TURN_RETRY_CLASSIFICATION: ['already-landed']
+    E assert not {'already-landed'}
+    tests/test_retry_class_mapping.py:46: AssertionError
+    ```
+    Restored run: PASSED.
+    Proof property (b) is one-directional:
+    `assert "merge-unchecked" in table_statuses and "unknown_outcome" in table_statuses`
+    `assert "merge-unchecked" not in required_statuses and "unknown_outcome" not in required_statuses`
+    Both assertions pass while the test remains green.
+    No source read:
+    `grep -n "inspect\|ast\.\|readlines\|read_text\|getsource" tests/test_retry_class_mapping.py` returned exit code 1 (no matches).
+    Full suite runs:
+    Baseline: `4060 passed, 2 skipped, 3 warnings in 207.26s (0:03:27)`
+    Final: `4063 passed, 2 skipped, 3 warnings in 162.33s (0:02:42)` (+3 tests from `tests/test_retry_class_mapping.py`).
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: paste the committed comment region. For EVERY test file it names, paste evidence the file exists AND contains the cited coverage (for example `grep -c` for the symbol in that file), or paste the sentence stating plainly that the property is unpinned. Paste the before state for contrast: `grep -rn "TURN_RETRY" tests/test_silent_turn_observability.py tests/test_runner_shared.py` returning nothing at HEAD, which is what made the original citation false. Paste `grep -n test_retry_consumption agent_workflows/*.py` showing the deleted file is cited exactly ONCE and that the one citation is the one repaired, which is the measurement that retired this item's second half (F-14). Show the comment's coverage claim is now stated one-directionally, matching what E-06 asserts.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified comment correction and citation verification:
+    Committed comment region:
+    ```python
+    #: Every disposition a driver can persist, with its retryable verdict and the REASON. One row per
+    #: value, so "is this retryable?" is answered from a table a reader can audit rather than from a
+    #: conditional. `tests/test_retry_class_mapping.py` asserts this table covers both drivers'
+    #: `TERMINAL_STATES` and `runner_shutdown.KNOWN_ITEM_STATUSES` (one-directionally: the vocabularies
+    #: are covered by the table, which also classifies unlisted statuses), so a status added elsewhere
+    #: without a verdict here FAILS A TEST instead of silently defaulting to retryable.
+    TURN_RETRY_CLASSIFICATION: tuple[tuple[str, bool, str], ...] = (
+    ```
+    Cited file verification:
+    `tests/test_retry_class_mapping.py` exists and contains coverage:
+    `grep -c "TURN_RETRY" tests/test_retry_class_mapping.py` returns 7.
+    Before state contrast:
+    `grep -rn "TURN_RETRY" tests/test_silent_turn_observability.py tests/test_runner_shared.py` returns exit code 1 (0 matches).
+    Citation count for deleted file:
+    `grep -n test_retry_consumption agent_workflows/*.py` returns 0 matches after repair (was exactly 1 line before edit).
+    Coverage claim is stated one-directionally: "the vocabularies are covered by the table, which also classifies unlisted statuses".
+  - Result: pass
 
 ## Approval and execution gate
 

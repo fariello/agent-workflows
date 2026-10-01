@@ -1,5 +1,5 @@
 - Id: rb4wgj
-- Status: graduated
+- Status: done
 - Graduated-To: rb4wgj
 - Set: rb4wgj
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: spec 25kzda 5.5 enumerates retry classes in a vocabulary no driver disposition uses, so every consumer must invent the mapping and two consumers can map it differently
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw agy run: IPD 4gx141 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-rb4wgj-01-4gx141-give-spec-25kzda-5-5-s-retry-classes-one-declared-mapping-on.ipd.md); evidence .aw/records/plans/executed/20260930-rb4wgj-01-4gx141-give-spec-25kzda-5-5-s-retry-classes-one-declared-mapping-on.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: 4gx141
 - 2026-09-22 created (aw backlog): spec 25kzda 5.5 enumerates retry classes in a vocabulary no driver disposition uses, so every consumer must invent the mapping and two consumers can map it differently
 
