@@ -43,45 +43,45 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the expiry path, proven by killing real processes (A10)
 
-- [ ] E-01 CREATE `tests/test_turn_bounds.py` AND PROVE BOTH BOUNDS KILL A REAL CHILD THROUGH THE DEFAULT SHARED REAPER. This is the criterion the backlog item cares about most and the one a fake process cannot establish. For EACH bound, spawn a genuine `subprocess.Popen([sys.executable, "-c", "import time\nwhile True: time.sleep(0.05)"])`, which is both SILENT (so it could never be caught from the driver's blocking read loop, which is why the watch is a thread) and IMMORTAL (so only a real kill ends it). Construct `TurnBoundWatch` with `reap=lane_containment.bound_expiry_reaper(process, run_dir, item)` and NO `reap=` override on the inner call, so the DEFAULT reaper is exercised and the termination is genuinely attributable to `runner_shutdown.clean_shutdown` (spec `c4gd2h` R5's single reaper) rather than to a test double. Then assert on OUTCOMES: `process.wait(timeout=20)` returns a NEGATIVE returncode (signal death, measured `-2`), `watch.fired` is the expected `BOUND_MAX_TURN` / `BOUND_PERMISSION` constant, `item["turn_bound_expiry"]["bound"]` names the same one, and its `disposition` is `BOUND_EXPIRY_DISPOSITION` (`"failed-safely"`).
+- [x] E-01 CREATE `tests/test_turn_bounds.py` AND PROVE BOTH BOUNDS KILL A REAL CHILD THROUGH THE DEFAULT SHARED REAPER. This is the criterion the backlog item cares about most and the one a fake process cannot establish. For EACH bound, spawn a genuine `subprocess.Popen([sys.executable, "-c", "import time\nwhile True: time.sleep(0.05)"])`, which is both SILENT (so it could never be caught from the driver's blocking read loop, which is why the watch is a thread) and IMMORTAL (so only a real kill ends it). Construct `TurnBoundWatch` with `reap=lane_containment.bound_expiry_reaper(process, run_dir, item)` and NO `reap=` override on the inner call, so the DEFAULT reaper is exercised and the termination is genuinely attributable to `runner_shutdown.clean_shutdown` (spec `c4gd2h` R5's single reaper) rather than to a test double. Then assert on OUTCOMES: `process.wait(timeout=20)` returns a NEGATIVE returncode (signal death, measured `-2`), `watch.fired` is the expected `BOUND_MAX_TURN` / `BOUND_PERMISSION` constant, `item["turn_bound_expiry"]["bound"]` names the same one, and its `disposition` is `BOUND_EXPIRY_DISPOSITION` (`"failed-safely"`).
   DO NOT ASSERT THAT THE WAIT COMPLETES "INSIDE THE BOUND'S OWN WINDOW", WHICH IS FALSE AND WOULD MAKE THIS TEST RED AT ITS FIRST RUN (F12). `TurnBoundWatch.__init__` takes a `check_interval` defaulting to `1.0` and its thread loop is `while not self._stop.wait(self.check_interval)`, so expiry is NOTICED ONLY AT A POLL TICK, never at the instant the bound elapses. Against a 0.3s bound the FIRST tick is at 1.0s, so elapsed is POLL-DOMINATED, not bound-dominated: review measured `check_interval` default -> `rc=-2 elapsed=0.475`, and `check_interval=0.05` -> `rc=-2 elapsed=0.382`, both firing correctly. (The authored `0.415s`/`0.417s` figures reproduce in the same range.) The correct assertions are therefore `elapsed >= bound` as the LOWER bound and a generous ceiling well above `bound + check_interval`; state the `check_interval` you pass (or that you accept the 1.0 default) in the test, since it is the number that decides the timing envelope. A tight upper bound here is the single most likely way this file arrives flaky under `-n auto`. Measured at authoring: max-turn with `max_turn_timeout=0.3` gave `rc -2` in `0.415s`; permission with `permission_timeout=0.3` after `note_permission_request()` gave `rc -2` in `0.417s`. FOR THE PERMISSION CASE, ENCODE A10's "DEMONSTRABLY NOT AT THE COARSE NO-PROGRESS BOUND" AS AN ASSERTION RATHER THAN A COMMENT: set `max_turn_timeout=0` and pick a nominal stall figure at least 20x the permission window (authoring used `STALL=6.0` against `PERM=0.3`), assert that ratio in the test body so the margin cannot be silently eroded, and assert the observed elapsed time is under it. Note that `bound_expiry_reaper`'s default reaper PRINTS a `clean shutdown:` report to stderr when invariants are unsatisfied (measured: `ledger_coherent` is NOT satisfied because a bare `tmp_path` has no `state.json`); that output is expected, is not a failure, and the test must not assert it absent.
   - Depends on: none
   - Expected outcome: `tests/test_turn_bounds.py` exists with both real-subprocess tests passing; pasted output showing, per bound, the negative returncode, the elapsed seconds, `watch.fired`, and the `bound`+`disposition` read back off the item; the permission test's `assert PERM * 20 <= STALL` present in the body.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 PROVE THE THREE EXPIRY-PATH PROPERTIES THAT NEED NO REAL CHILD, WITHOUT WEAKENING E-01. These are separated from E-01 deliberately: they are about the RECORD and the RESET SEMANTICS rather than about killing a process, they run in milliseconds, and folding them into E-01 would make one test assert four unrelated things. (a) THE RESET ASYMMETRY, which `TurnBoundWatch`'s docstring calls "the whole design": with only the permission bound armed, `note_permission_request()` then `note_progress()` then a sleep PAST the window must leave the reap UNCALLED (measured: `{}`); with only the max-turn bound armed, calling `note_progress()` in a tight loop must NOT prevent the fire (measured: fired `max-turn-timeout`). That second half is the property that makes this bound worth having beside the no-progress watchdog, so it is asserted directly. (b) THE DEAD CHILD IS NOT REAPED TWICE: with `is_alive=lambda: False` and a `0.05s` bound, sleeping `0.3s` must record ZERO reap calls (measured: `[]`), because the watch must return rather than reap a corpse. (c) BOOKKEEPING FAILURE MUST NOT BLOCK THE REAP: point `bound_expiry_reaper` at an unwritable run dir (authoring used a path containing a NUL byte, which makes the `events.jsonl` append raise) and assert the injected reaper still ran (measured: `['r']`). Case (c) is the one place in this plan an injected `reap=` double is CORRECT rather than a shortcut, because the property under test is that the reap survives a recording error, and observing that needs a spy; the injected double must keep the `(process, *, run_dir)` keyword shape `_ReapCallable` declares, or the call raises `TypeError` for an unrelated reason.
+- [x] E-02 PROVE THE THREE EXPIRY-PATH PROPERTIES THAT NEED NO REAL CHILD, WITHOUT WEAKENING E-01. These are separated from E-01 deliberately: they are about the RECORD and the RESET SEMANTICS rather than about killing a process, they run in milliseconds, and folding them into E-01 would make one test assert four unrelated things. (a) THE RESET ASYMMETRY, which `TurnBoundWatch`'s docstring calls "the whole design": with only the permission bound armed, `note_permission_request()` then `note_progress()` then a sleep PAST the window must leave the reap UNCALLED (measured: `{}`); with only the max-turn bound armed, calling `note_progress()` in a tight loop must NOT prevent the fire (measured: fired `max-turn-timeout`). That second half is the property that makes this bound worth having beside the no-progress watchdog, so it is asserted directly. (b) THE DEAD CHILD IS NOT REAPED TWICE: with `is_alive=lambda: False` and a `0.05s` bound, sleeping `0.3s` must record ZERO reap calls (measured: `[]`), because the watch must return rather than reap a corpse. (c) BOOKKEEPING FAILURE MUST NOT BLOCK THE REAP: point `bound_expiry_reaper` at an unwritable run dir (authoring used a path containing a NUL byte, which makes the `events.jsonl` append raise) and assert the injected reaper still ran (measured: `['r']`). Case (c) is the one place in this plan an injected `reap=` double is CORRECT rather than a shortcut, because the property under test is that the reap survives a recording error, and observing that needs a spy; the injected double must keep the `(process, *, run_dir)` keyword shape `_ReapCallable` declares, or the call raises `TypeError` for an unrelated reason.
   - Depends on: E-01
   - Expected outcome: three passing tests; pasted output for each of (a), (b), (c) showing respectively the empty-then-fired pair, the empty reap list, and the `['r']` spy list.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the bounds are named, defaulted and uniformly armed (A10b)
 
-- [ ] E-03 ASSERT THE NAMES, DEFAULTS AND ZERO-DISABLES BY READING THE LIVE MODULE ATTRIBUTES, NOT THE SOURCE. A10b requires the constants be spelled `PERMISSION_TIMEOUT` and `MAX_TURN_TIMEOUT` (not `..._DEADLINE`), that `MAX_TURN_TIMEOUT` default to 4 hours and `PERMISSION_TIMEOUT` to `0`, and that both accept `0` to disable. Assert with `hasattr`/`getattr` on the imported module and with `assert not hasattr(lane_containment, "PERMISSION_DEADLINE")`, which interrogates the OBJECT rather than the text and so is not a P16 pin: a rename genuinely breaks an importer, which is the contract being defended. Measured at authoring: `PERMISSION_TIMEOUT == 0.0`, `MAX_TURN_TIMEOUT == 14400.0` (`== 4*60*60`), `HOST_CEILING_OFFSET_SECONDS == 300.0`, `BOUND_PERMISSION == "permission-timeout"`, `BOUND_MAX_TURN == "max-turn-timeout"`, `BOUND_EXPIRY_DISPOSITION == "failed-safely"`. For the zero-disable half, assert BEHAVIOR rather than the value: `TurnBoundWatch(reap=..., max_turn_timeout=0, permission_timeout=0).enabled is False` (measured `False`), and confirm no thread fires by entering that watch and observing no reap. ALSO assert `BOUND_EXPIRY_DISPOSITION` is a value both drivers' reconcile machinery already understands, by checking it against the shipped terminal-status vocabulary rather than hardcoding the string a second time; if no importable vocabulary exposes it, assert the literal and say so in a comment rather than inventing an accessor. DO NOT restore the deleted file's docstring assertions (it parsed `#:` comment blocks out of `lane_containment.py` with `inspect.getfile(...).read_text()` to prove each constant documents its measured-from instant and reset semantics); P16's "no text, banner, or docstring pins" prohibits that outright, and F5 records that this criterion clause is consequently left to review rather than re-asserted mechanically.
+- [x] E-03 ASSERT THE NAMES, DEFAULTS AND ZERO-DISABLES BY READING THE LIVE MODULE ATTRIBUTES, NOT THE SOURCE. A10b requires the constants be spelled `PERMISSION_TIMEOUT` and `MAX_TURN_TIMEOUT` (not `..._DEADLINE`), that `MAX_TURN_TIMEOUT` default to 4 hours and `PERMISSION_TIMEOUT` to `0`, and that both accept `0` to disable. Assert with `hasattr`/`getattr` on the imported module and with `assert not hasattr(lane_containment, "PERMISSION_DEADLINE")`, which interrogates the OBJECT rather than the text and so is not a P16 pin: a rename genuinely breaks an importer, which is the contract being defended. Measured at authoring: `PERMISSION_TIMEOUT == 0.0`, `MAX_TURN_TIMEOUT == 14400.0` (`== 4*60*60`), `HOST_CEILING_OFFSET_SECONDS == 300.0`, `BOUND_PERMISSION == "permission-timeout"`, `BOUND_MAX_TURN == "max-turn-timeout"`, `BOUND_EXPIRY_DISPOSITION == "failed-safely"`. For the zero-disable half, assert BEHAVIOR rather than the value: `TurnBoundWatch(reap=..., max_turn_timeout=0, permission_timeout=0).enabled is False` (measured `False`), and confirm no thread fires by entering that watch and observing no reap. ALSO assert `BOUND_EXPIRY_DISPOSITION` is a value both drivers' reconcile machinery already understands, by checking it against the shipped terminal-status vocabulary rather than hardcoding the string a second time; if no importable vocabulary exposes it, assert the literal and say so in a comment rather than inventing an accessor. DO NOT restore the deleted file's docstring assertions (it parsed `#:` comment blocks out of `lane_containment.py` with `inspect.getfile(...).read_text()` to prove each constant documents its measured-from instant and reset semantics); P16's "no text, banner, or docstring pins" prohibits that outright, and F5 records that this criterion clause is consequently left to review rather than re-asserted mechanically.
   - Depends on: E-01
   - Expected outcome: passing tests asserting each constant's value and the absence of the `..._DEADLINE` spellings; `enabled is False` for the both-zero construction plus a shown-empty reap list; pasted values for all six constants; no `read_text`/`inspect.getfile`/`ast` call anywhere in the new file (verified by search, pasted).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 DRIVE BOTH REAL LAUNCHERS AND PROVE THE BOUND IS ARMED IDENTICALLY FOR AN ISOLATED AND A NON-ISOLATED TURN, HERMETICALLY. This is A10b's "armed for a NON-isolated turn as well as an isolated one" and it cannot be established without running the launcher, because the arming site sits inside `run_opencode` / `run_agy_turn`. For each host, call the real launcher twice (`work_dir=<lane>` and `work_dir=None`) with `subprocess.Popen` patched to a stub yielding an empty stdout and `lane_containment.TurnBoundWatch` patched to a spy that RECORDS its kwargs and delegates to the real class, then assert exactly ONE watch is constructed per turn with the SAME positive `max_turn_timeout` on both. Measured at authoring: oc armed `14400.0` on both; agy armed `14100.0` on both (the offset value, which is E-06's subject). The oc launcher additionally needs `observe_opencode_policy` stubbed, or the R4.2 probe spawns a real host. HERMETICITY IS REQUIRED, NOT OPTIONAL, AND IT IS WHY THIS E-ITEM IS THE RISKIEST ONE HERE. If the test also contrasts the isolation-scoped permission POLICY (present when isolated, absent when not) it MUST NOT read the ambient environment: `run_opencode` builds the child env from `os.environ`, an OpenCode-hosted agent exports `OPENCODE_CONFIG_CONTENT` itself, and the assertion then fails for every lane agent while passing in a clean shell and in CI. That exact defect was filed at least SEVEN times (`cfgj8s`, `wnabns`, `mepbmp`, `tem4g9`, `4vn040`, `wx72g3`, `1ixbnr`; `cfgj8s` records twenty-three filings of one non-hermetic assertion) and was fixed by executed plan `heglfv` inside the very file `19313eed` deleted, so THE FIX NO LONGER EXISTS IN THE TREE. It reproduced in THIS authoring lane: with the variable ambient, the non-isolated env showed the key PRESENT; with `env -u OPENCODE_CONFIG_CONTENT`, ABSENT (F7). So either scrub the variable per-test with `monkeypatch.delenv(lane_containment.OPENCODE_RUNTIME_CONFIG_ENV, raising=False)` before driving, or omit the policy contrast entirely and assert only the bound arming, which is what A10b actually demands. DO NOT add a session-wide `conftest.py` scrub for it: `cfgj8s` explicitly REJECTS that mechanism ("what made rolevac `8i0xa7`'s role guard vacuous"), and `conftest.py`'s own note records that it scrubs `AW_EXECUTION_ROLE`, `AW_RUN_ID` and `AW_ITEM_ID6` and deliberately not this one.
+- [x] E-04 DRIVE BOTH REAL LAUNCHERS AND PROVE THE BOUND IS ARMED IDENTICALLY FOR AN ISOLATED AND A NON-ISOLATED TURN, HERMETICALLY. This is A10b's "armed for a NON-isolated turn as well as an isolated one" and it cannot be established without running the launcher, because the arming site sits inside `run_opencode` / `run_agy_turn`. For each host, call the real launcher twice (`work_dir=<lane>` and `work_dir=None`) with `subprocess.Popen` patched to a stub yielding an empty stdout and `lane_containment.TurnBoundWatch` patched to a spy that RECORDS its kwargs and delegates to the real class, then assert exactly ONE watch is constructed per turn with the SAME positive `max_turn_timeout` on both. Measured at authoring: oc armed `14400.0` on both; agy armed `14100.0` on both (the offset value, which is E-06's subject). The oc launcher additionally needs `observe_opencode_policy` stubbed, or the R4.2 probe spawns a real host. HERMETICITY IS REQUIRED, NOT OPTIONAL, AND IT IS WHY THIS E-ITEM IS THE RISKIEST ONE HERE. If the test also contrasts the isolation-scoped permission POLICY (present when isolated, absent when not) it MUST NOT read the ambient environment: `run_opencode` builds the child env from `os.environ`, an OpenCode-hosted agent exports `OPENCODE_CONFIG_CONTENT` itself, and the assertion then fails for every lane agent while passing in a clean shell and in CI. That exact defect was filed at least SEVEN times (`cfgj8s`, `wnabns`, `mepbmp`, `tem4g9`, `4vn040`, `wx72g3`, `1ixbnr`; `cfgj8s` records twenty-three filings of one non-hermetic assertion) and was fixed by executed plan `heglfv` inside the very file `19313eed` deleted, so THE FIX NO LONGER EXISTS IN THE TREE. It reproduced in THIS authoring lane: with the variable ambient, the non-isolated env showed the key PRESENT; with `env -u OPENCODE_CONFIG_CONTENT`, ABSENT (F7). So either scrub the variable per-test with `monkeypatch.delenv(lane_containment.OPENCODE_RUNTIME_CONFIG_ENV, raising=False)` before driving, or omit the policy contrast entirely and assert only the bound arming, which is what A10b actually demands. DO NOT add a session-wide `conftest.py` scrub for it: `cfgj8s` explicitly REJECTS that mechanism ("what made rolevac `8i0xa7`'s role guard vacuous"), and `conftest.py`'s own note records that it scrubs `AW_EXECUTION_ROLE`, `AW_RUN_ID` and `AW_ITEM_ID6` and deliberately not this one.
   - Depends on: E-01
   - Expected outcome: per host, pasted spy output showing exactly one watch per turn and equal positive `max_turn_timeout` for isolated and non-isolated; if the policy contrast is kept, the pasted per-test `delenv` line and the test passing BOTH with the variable ambient and with `env -u OPENCODE_CONFIG_CONTENT`; if it is omitted, that choice stated in the test's docstring with `cfgj8s` cited.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 PROVE THE NON-ISOLATED PROMPT IS STILL BYTE-IDENTICAL AND NAMES NEITHER BOUND. A10b requires this and the reason is structural rather than decorative: R4.4a claims an exception to R1.3's byte-identity rule, and the exception is only safe because these bounds are driver-side supervision that changes no instruction an agent reads. For each host, build the prompt twice through the real `build_prompt` (once with no lane argument, once with the explicit `lane_root=None`) and compare SHA-256 digests, then assert the emitted text contains neither `MAX_TURN_TIMEOUT` nor `PERMISSION_TIMEOUT` nor `lane-submissions`. Measured at authoring: identical on both hosts, and all three strings absent from both. NOTE THE ONE SUBTLETY A REVIEWER SHOULD CHECK RATHER THAN TAKE ON TRUST: the prompt DOES carry a turn-budget sentence built by `runner_shared.build_turn_budget_notice`, which renders the ceiling as a NUMBER (measured: "after 14400 seconds (about 4 hours) in total regardless of progress", and "14100 seconds (about 3.9 hours)" for the agy ceiling). So the emitted text is influenced by the bound's VALUE even though it never names the CONSTANT, and the byte-identity claim here is between two builds at the same value, NOT a claim that changing `MAX_TURN_TIMEOUT` leaves the prompt untouched. Assert the former and state the latter in the docstring; asserting the stronger thing would be false.
+- [x] E-05 PROVE THE NON-ISOLATED PROMPT IS STILL BYTE-IDENTICAL AND NAMES NEITHER BOUND. A10b requires this and the reason is structural rather than decorative: R4.4a claims an exception to R1.3's byte-identity rule, and the exception is only safe because these bounds are driver-side supervision that changes no instruction an agent reads. For each host, build the prompt twice through the real `build_prompt` (once with no lane argument, once with the explicit `lane_root=None`) and compare SHA-256 digests, then assert the emitted text contains neither `MAX_TURN_TIMEOUT` nor `PERMISSION_TIMEOUT` nor `lane-submissions`. Measured at authoring: identical on both hosts, and all three strings absent from both. NOTE THE ONE SUBTLETY A REVIEWER SHOULD CHECK RATHER THAN TAKE ON TRUST: the prompt DOES carry a turn-budget sentence built by `runner_shared.build_turn_budget_notice`, which renders the ceiling as a NUMBER (measured: "after 14400 seconds (about 4 hours) in total regardless of progress", and "14100 seconds (about 3.9 hours)" for the agy ceiling). So the emitted text is influenced by the bound's VALUE even though it never names the CONSTANT, and the byte-identity claim here is between two builds at the same value, NOT a claim that changing `MAX_TURN_TIMEOUT` leaves the prompt untouched. Assert the former and state the latter in the docstring; asserting the stronger thing would be false.
   - Depends on: E-01
   - Expected outcome: passing per-host test with the two digests pasted and shown equal, the three absent strings shown, and the docstring stating the value-sensitivity limit; a pasted `build_turn_budget_notice` rendering for one nonzero ceiling, so the limit is demonstrated rather than merely described. CALL IT WITH A STATE DICT, NOT A FLOAT (F14): the signature is `build_turn_budget_notice(state: dict)` reading `state["options"]["turn_ceiling"]`, so `build_turn_budget_notice({'options': {'turn_ceiling': 14100.0}})` is the shape; a bare float raises `AttributeError`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: the unproven detector and the host overlap (A10c, A10d)
 
-- [ ] E-06 ASSERT THE ANTIGRAVITY OVERLAP IS ATTRIBUTABLE BY MEASUREMENT (A10d). A10d asks that the relationship between the host's `240m` `--print-timeout` and the driver's `MAX_TURN_TIMEOUT` be stated, naming which fires first, and that a post-mortem be able to attribute a termination. THE "IS IT DOCUMENTED" HALF IS NOT RESTORABLE AS A TEST and this plan does not fake it: the deleted file asserted the prose with `inspect.getfile(driver).read_text()`, which P16 forbids (F6). What IS testable is the BEHAVIOR the prose describes, and that is what to assert: `parse_host_ceiling_seconds(agy_runipd.DEFAULT_TIMEOUT)` is `14400.0` (so `"240m"` is parsed as minutes, not read as 240 bare SECONDS, which would kill every turn after four minutes); `driver_bound_for_host(14400.0)` is `14100.0`, strictly LESS than the host ceiling, so the driver fires FIRST; the gap equals `HOST_CEILING_OFFSET_SECONDS` exactly; `driver_bound_for_host(None)` is unreduced `14400.0`, since OpenCode has no host-enforced equivalent; and an unparseable ceiling returns `None` and leaves the driver bound at its own default (measured: `parse_host_ceiling_seconds("banana") is None`, and the resulting bound is `14400.0`), which is the fail-toward-the-LONGER-bound direction the docstring requires because guessing short kills healthy turns. Then close the loop on ATTRIBUTION behaviorally, which is A10d's actual point: reuse E-01's real-child harness once with the max-turn bound and assert the recorded `item["turn_bound_expiry"]["bound"]` names `max-turn-timeout` specifically, so a post-mortem reading that record can tell the driver killed the turn rather than an opaque host timeout.
+- [x] E-06 ASSERT THE ANTIGRAVITY OVERLAP IS ATTRIBUTABLE BY MEASUREMENT (A10d). A10d asks that the relationship between the host's `240m` `--print-timeout` and the driver's `MAX_TURN_TIMEOUT` be stated, naming which fires first, and that a post-mortem be able to attribute a termination. THE "IS IT DOCUMENTED" HALF IS NOT RESTORABLE AS A TEST and this plan does not fake it: the deleted file asserted the prose with `inspect.getfile(driver).read_text()`, which P16 forbids (F6). What IS testable is the BEHAVIOR the prose describes, and that is what to assert: `parse_host_ceiling_seconds(agy_runipd.DEFAULT_TIMEOUT)` is `14400.0` (so `"240m"` is parsed as minutes, not read as 240 bare SECONDS, which would kill every turn after four minutes); `driver_bound_for_host(14400.0)` is `14100.0`, strictly LESS than the host ceiling, so the driver fires FIRST; the gap equals `HOST_CEILING_OFFSET_SECONDS` exactly; `driver_bound_for_host(None)` is unreduced `14400.0`, since OpenCode has no host-enforced equivalent; and an unparseable ceiling returns `None` and leaves the driver bound at its own default (measured: `parse_host_ceiling_seconds("banana") is None`, and the resulting bound is `14400.0`), which is the fail-toward-the-LONGER-bound direction the docstring requires because guessing short kills healthy turns. Then close the loop on ATTRIBUTION behaviorally, which is A10d's actual point: reuse E-01's real-child harness once with the max-turn bound and assert the recorded `item["turn_bound_expiry"]["bound"]` names `max-turn-timeout` specifically, so a post-mortem reading that record can tell the driver killed the turn rather than an opaque host timeout.
   - Depends on: E-01
   - Expected outcome: passing test with all five `driver_bound_for_host`/`parse_host_ceiling_seconds` measurements pasted, including the `14100.0 < 14400.0` ordering and the exact `300.0` gap; the attribution assertion shown reading a real expiry record.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 RECORD A10c OPTION (ii) HONESTLY: THE DETECTOR IS UNPROVEN, SHIPS DISABLED, AND HAS ZERO PRODUCTION CALLERS, YET WORKS WHEN ARMED. A10c offers two routes and forbids the cheap middle: a test that feeds a SYNTHETIC line the detector was written against does NOT satisfy it, "because that proves the regex matches itself rather than that the shape ever reaches stdout". Option (i) needs a real provoked permission ask, which this plan cannot produce and must not pretend to. So take option (ii) and assert its three parts BEHAVIORALLY. (a) THE DEFAULT REMAINS DISABLED: `PERMISSION_TIMEOUT == 0.0`, and a watch constructed with defaults (no `permission_timeout=` argument) never fires a permission expiry even with a pending ask noted, which is stronger than reading the constant because it proves the default propagates into the live object. (b) OFF BY DEFAULT IS NOT UNIMPLEMENTED: the mechanism must work the day detection is proven, which E-01's permission case already demonstrates by arming it explicitly; assert here only that the DEFAULT construction differs from the armed one, so nobody "simplifies" the bound away. (c) THE STRONGER FACT THIS PLAN MEASURED, which the deleted file did not assert and which a reviewer should weigh: `note_permission_request` has ZERO production call sites. Measured at HEAD `e9d397a4`, searching `agent_workflows/` and `tools/` returns only its own `def` and one docstring mention; both drivers call `turn_bounds.note_progress()` on every stdout line but NOTHING ever calls `note_permission_request()`, so the permission bound could not fire in production even if `PERMISSION_TIMEOUT` were set to 30. State that in the test's docstring as the recorded finding A10c option (ii) asks for, and assert the CONSEQUENCE the spec names: that `MAX_TURN_TIMEOUT` is therefore the only bound covering a permission deadlock. DO NOT assert the caller count itself, which would be the census pin P16 forbids and would break the day someone correctly wires it; assert instead that the max-turn bound alone terminates a real wedged child with no permission observation made at all, which is the same claim in behavioral form and stays true after wiring. File the wiring gap as a carrier (see Deferred); do NOT fix it here.
+- [x] E-07 RECORD A10c OPTION (ii) HONESTLY: THE DETECTOR IS UNPROVEN, SHIPS DISABLED, AND HAS ZERO PRODUCTION CALLERS, YET WORKS WHEN ARMED. A10c offers two routes and forbids the cheap middle: a test that feeds a SYNTHETIC line the detector was written against does NOT satisfy it, "because that proves the regex matches itself rather than that the shape ever reaches stdout". Option (i) needs a real provoked permission ask, which this plan cannot produce and must not pretend to. So take option (ii) and assert its three parts BEHAVIORALLY. (a) THE DEFAULT REMAINS DISABLED: `PERMISSION_TIMEOUT == 0.0`, and a watch constructed with defaults (no `permission_timeout=` argument) never fires a permission expiry even with a pending ask noted, which is stronger than reading the constant because it proves the default propagates into the live object. (b) OFF BY DEFAULT IS NOT UNIMPLEMENTED: the mechanism must work the day detection is proven, which E-01's permission case already demonstrates by arming it explicitly; assert here only that the DEFAULT construction differs from the armed one, so nobody "simplifies" the bound away. (c) THE STRONGER FACT THIS PLAN MEASURED, which the deleted file did not assert and which a reviewer should weigh: `note_permission_request` has ZERO production call sites. Measured at HEAD `e9d397a4`, searching `agent_workflows/` and `tools/` returns only its own `def` and one docstring mention; both drivers call `turn_bounds.note_progress()` on every stdout line but NOTHING ever calls `note_permission_request()`, so the permission bound could not fire in production even if `PERMISSION_TIMEOUT` were set to 30. State that in the test's docstring as the recorded finding A10c option (ii) asks for, and assert the CONSEQUENCE the spec names: that `MAX_TURN_TIMEOUT` is therefore the only bound covering a permission deadlock. DO NOT assert the caller count itself, which would be the census pin P16 forbids and would break the day someone correctly wires it; assert instead that the max-turn bound alone terminates a real wedged child with no permission observation made at all, which is the same claim in behavioral form and stays true after wiring. File the wiring gap as a carrier (see Deferred); do NOT fix it here.
   - Depends on: E-01
   - Expected outcome: passing tests for (a) and (b); the docstring recording the unproven-detector finding AND the zero-caller measurement with its date and HEAD; (c) asserted as a real-child max-turn kill with no `note_permission_request()` call anywhere in that test; the carrier id6 for the wiring gap recorded in Deferred.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -299,40 +299,206 @@ No user-facing documentation changes: the deliverable is one new test file.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: FOR EACH of the two bounds, pasted from an actual run: (a) the child's returncode, which must be NEGATIVE (a signal death; authoring measured `-2`) and NOT `0` and NOT `None`, since a zero would mean the child exited on its own and the bound proved nothing; (b) the measured elapsed seconds, shown to be AT LEAST the bound and comfortably under the `wait` timeout, together with the `check_interval` the test uses (or an explicit statement that it accepts the 1.0 default). REJECT AN ASSERTION THAT ELAPSED IS WITHIN THE BOUND ITSELF: the watch polls at `check_interval` (default 1.0s), so against a 0.3s bound the elapsed time is poll-dominated and legitimately exceeds the bound (review measured 0.475s at the default and 0.382s at `check_interval=0.05`, both firing correctly). A test built on the tighter claim is red at its first run and is the likeliest source of flake under `-n auto` (F12); (c) `watch.fired`, matching the expected constant by NAME; (d) `item["turn_bound_expiry"]["bound"]` and `["disposition"]`, read back off the item, showing the record names the same bound and carries `failed-safely`. PLUS the `TurnBoundWatch` construction QUOTED from the test, shown to pass `reap=lane_containment.bound_expiry_reaper(process, run_dir, item)` with NO inner `reap=` override, which is what makes the kill attributable to the one shared reaper rather than to a double; a test that injects a reaper here does NOT satisfy this item. PLUS, for the permission case, the `assert PERM * 20 <= STALL` line quoted, since A10's "demonstrably not at the coarse no-progress bound" is that margin and a version without it asserts less than the criterion. Confirm the child is a REAL `subprocess.Popen` by quoting the spawn line.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Both real-child tests executed and verified:
+    Spawn line:
+    ```python
+    proc = subprocess.Popen(
+        [sys.executable, "-c", "import time\nwhile True: time.sleep(0.05)"]
+    )
+    ```
+    TurnBoundWatch construction quoted from test (no inner reap override):
+    ```python
+    reaper = lane_containment.bound_expiry_reaper(proc, tmp_path, item)
+    watch = lane_containment.TurnBoundWatch(
+        reap=reaper,
+        is_alive=lambda: proc.poll() is None,
+        max_turn_timeout=bound_seconds,
+        permission_timeout=0.0,
+    )
+    ```
+    Permission margin check quoted:
+    ```python
+    perm_seconds = 0.3
+    stall_ceiling = 6.0
+    assert perm_seconds * 20 <= stall_ceiling, "margin between permission and stall must be >= 20x"
+    ```
+    Pasted live run output:
+    - Max-turn: rc = -2, elapsed = 0.424s (>= 0.3s and < 3.0s), check_interval = 0.075s, watch.fired = 'max-turn-timeout', record['bound'] = 'max-turn-timeout', record['disposition'] = 'failed-safely'.
+    - Permission: rc = -2, elapsed = 0.422s (>= 0.3s and < 6.0s), check_interval = 0.075s, watch.fired = 'permission-timeout', record['bound'] = 'permission-timeout', record['disposition'] = 'failed-safely'.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: THREE pasted results, each labelled with the construction used. (a) the reset asymmetry in BOTH halves: an EMPTY reap record after `note_permission_request()` + `note_progress()` + a sleep past the permission window, AND a FIRED `max-turn-timeout` despite `note_progress()` being called in a tight loop. Both halves are required; the second is the one that proves the bound is unresettable, which is its entire reason for existing beside the no-progress watchdog, and a version asserting only the first has tested the easy half. (b) an EMPTY reap list for the `is_alive=lambda: False` construction, pasted as an actual empty collection rather than claimed. (c) the `['r']` spy list from the unwritable-run-dir case, PLUS the injected double's signature quoted, shown to keep the `(process, *, run_dir)` keyword shape (a positional-only double raises `TypeError` and would make this item pass for the wrong reason). State explicitly that (c) is the only injected reaper in the file and why.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Three properties verified and pasted from live execution:
+    (a) Reset asymmetry:
+      - Permission bound disarmed by progress: reap_calls = [] (empty after sleep 0.15s > 0.05s).
+      - Max-turn survives tight note_progress() loop: reap_calls = ['max-turn-timeout'], watch.fired = 'max-turn-timeout'.
+    (b) Dead child corpse guard:
+      - is_alive=lambda: False with 0.05s bound, slept 0.2s: reap_calls = [].
+    (c) Bookkeeping failure does not block reap:
+      - Double signature quoted from test:
+        ```python
+        def spy_reaper(process: Any, /, *, run_dir: Path) -> Any:
+            double_calls.append("r")
+        ```
+      - Double calls recorded: ['r'].
+      - Explicit statement: This is the ONLY injected reaper double in `tests/test_turn_bounds.py`, because observing that clean_shutdown proceeds despite an event-log write failure requires a spy.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: the six constant values pasted from the live module (`PERMISSION_TIMEOUT`, `MAX_TURN_TIMEOUT`, `HOST_CEILING_OFFSET_SECONDS`, `BOUND_PERMISSION`, `BOUND_MAX_TURN`, `BOUND_EXPIRY_DISPOSITION`), with `MAX_TURN_TIMEOUT` shown equal to `4*60*60` by computation rather than as the literal `14400.0` alone. PLUS the `..._DEADLINE` absence assertions quoted. PLUS `enabled is False` for the both-zero construction AND a shown-empty reap list after entering that watch, since `enabled` returning `False` while a thread still fired would satisfy a property-only check. PLUS how `BOUND_EXPIRY_DISPOSITION` was checked against the shipped terminal vocabulary: name the accessor used, or, if none is importable, say so and show the literal assertion with its comment. PLUS the pasted search over the new file showing zero `inspect.getfile`/`getsource`/`ast.*`/`read_text` uses (required item 5), which this item owns because E-03 is where the temptation to restore the docstring pins lives.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Live module attributes and behavior verified:
+    Six constants pasted from live lane_containment module:
+    ```
+    PERMISSION_TIMEOUT = 0.0
+    MAX_TURN_TIMEOUT = 14400.0 == 4 * 60 * 60.0: True
+    HOST_CEILING_OFFSET_SECONDS = 300.0
+    BOUND_PERMISSION = 'permission-timeout'
+    BOUND_MAX_TURN = 'max-turn-timeout'
+    BOUND_EXPIRY_DISPOSITION = 'failed-safely'
+    ```
+    Absence assertions quoted:
+    ```python
+    assert not hasattr(lane_containment, "PERMISSION_DEADLINE")
+    assert not hasattr(lane_containment, "MAX_TURN_DEADLINE")
+    ```
+    Zero-disable behavior:
+    - `watch_zero.enabled == False`
+    - `zero_calls == []` after entering watch context.
+    Vocabulary check: Checked against shipped terminal states in runner_shared:
+    `assert lane_containment.BOUND_EXPIRY_DISPOSITION in runner_shared.TERMINAL_STATES` (evaluates True).
+    P16 code search over `tests/test_turn_bounds.py` showing zero occurrences:
+    ```
+    inspect.getsource: 0
+    inspect.getsourcelines: 0
+    inspect.getfile: 0
+    ast.parse: 0
+    ast.walk: 0
+    ast.unparse: 0
+    read_text: 0
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: PER HOST, the spy output pasted, showing EXACTLY ONE `TurnBoundWatch` construction per turn and an EQUAL, POSITIVE `max_turn_timeout` for the isolated and non-isolated turns (authoring: oc `14400.0`/`14400.0`, agy `14100.0`/`14100.0`). A count other than one per turn fails this item even if the values match, because A10b's uniformity claim is about one bound being armed on each path. PLUS THE HERMETICITY PROOF IN BOTH DIRECTIONS, which is non-negotiable and is required item 3: the file passing with `OPENCODE_CONFIG_CONTENT` AMBIENT (set it explicitly if absent) and under `env -u OPENCODE_CONFIG_CONTENT`, both summary lines pasted. A pass in one direction only does NOT satisfy this item; that is precisely the historical failure (F7). PLUS, if the policy contrast was kept, the `monkeypatch.delenv` line quoted; if it was omitted, the docstring sentence recording that choice with `cfgj8s` cited. PLUS confirmation that `conftest.py` was NOT modified (`git status --porcelain` pasted).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Uniform launcher arming and hermeticity verified:
+    Per-host spy output:
+    ```
+    V-04 oc non-iso count: 1 timeout: 14400.0
+    V-04 oc iso count: 1 timeout: 14400.0
+    V-04 agy non-iso count: 1 timeout: 14100.0
+    V-04 agy iso count: 1 timeout: 14100.0
+    ```
+    Exactly one watch constructed per turn on each host; isolated and non-isolated timeouts are equal.
+    Hermeticity proof in both directions:
+    - Ambient: `OPENCODE_CONFIG_CONTENT='{"ambient": true}' python3 -m pytest tests/test_turn_bounds.py` -> `12 passed in 5.19s`
+    - Scrubbed: `env -u OPENCODE_CONFIG_CONTENT python3 -m pytest tests/test_turn_bounds.py` -> `12 passed in 4.79s`
+    Docstring sentence recording policy contrast omission:
+    `"Per OQ-01 and backlog cfgj8s, policy contrast is omitted to maintain hermeticity across ambient execution environments, asserting solely the uniform bound arming demanded by A10b."`
+    `conftest.py` untouched: `git status --porcelain tests/conftest.py` is empty.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: per host, the two SHA-256 digests pasted and shown equal, plus the three absence checks (`MAX_TURN_TIMEOUT`, `PERMISSION_TIMEOUT`, `lane-submissions`) each shown `False`. PLUS the docstring sentence quoted, stating that the identity is between two builds AT THE SAME BOUND VALUE and is NOT a claim that changing `MAX_TURN_TIMEOUT` leaves the prompt byte-identical. PLUS a pasted `runner_shared.build_turn_budget_notice` rendering for a nonzero ceiling, demonstrating the value does reach the prompt text (F8); without that rendering the limit is merely described, and the point of stating it is that a later reader not over-read the digest equality. The call takes a STATE DICT (F14), e.g. `build_turn_budget_notice({'options': {'turn_ceiling': 14100.0}})`; a pasted `AttributeError` from passing a float does not satisfy this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Prompt byte-identity verified for both hosts:
+    - OpenCode:
+      sha1: `0c4f08f478bd13d51f1a113dcdbe0983992054def3989f6f4ce9027e4afc80e8`
+      sha2: `0c4f08f478bd13d51f1a113dcdbe0983992054def3989f6f4ce9027e4afc80e8` (sha1 == sha2: True)
+      MAX_TURN_TIMEOUT in prompt: False
+      PERMISSION_TIMEOUT in prompt: False
+      lane-submissions in prompt: False
+    - Antigravity:
+      sha1: `7be3e9723d722cbcfc42d9ac3d9137f9610fef2d590e7132f14879bb55eb9fee`
+      sha2: `7be3e9723d722cbcfc42d9ac3d9137f9610fef2d590e7132f14879bb55eb9fee` (sha1 == sha2: True)
+      MAX_TURN_TIMEOUT in prompt: False
+      PERMISSION_TIMEOUT in prompt: False
+      lane-submissions in prompt: False
+    Docstring sentence quoted from test:
+    `"Note that byte-identity is between two builds at the same bound value (omitted vs explicit lane_root=None). Changing MAX_TURN_TIMEOUT does affect the prompt text because runner_shared.build_turn_budget_notice renders the numeric ceiling."`
+    Rendered turn budget notice for state dict `{'options': {'turn_ceiling': 14100.0}}`:
+    `'Turn budget: this turn is terminated after 900 seconds with no observed progress, and after 14100 seconds (about 3.9 hours) in total regardless of progress; before starting a long command, estimate whether it fits; if it cannot fit, record a deferred question with the preserved state instead of starting it.'`
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: five pasted measurements, each with the exact call: `parse_host_ceiling_seconds(agy_runipd.DEFAULT_TIMEOUT)` -> `14400.0` (and shown NOT to be `240`, since reading `"240m"` as bare seconds is the specific error this guards); `driver_bound_for_host(14400.0)` -> `14100.0` with the strict `<` ordering against the host ceiling shown; the gap shown EQUAL to `HOST_CEILING_OFFSET_SECONDS` (`300.0`); `driver_bound_for_host(None)` -> `14400.0`, unreduced; and `parse_host_ceiling_seconds("banana")` -> `None` with the resulting driver bound shown to be the UNREDUCED default, which is the fail-toward-the-longer-bound direction. PLUS the attribution assertion: a real expiry record pasted whose `bound` is `max-turn-timeout`, so A10d's "a post-mortem can attribute a termination" is demonstrated on a real record rather than on the constant. State explicitly that the "is it documented" half of A10d is NOT asserted here and why (F6).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Five measurements verified from live code:
+    1. `parse_host_ceiling_seconds(agy_runipd.DEFAULT_TIMEOUT)` -> `14400.0` (and != `240.0`, properly parsed as minutes).
+    2. `driver_bound_for_host(14400.0)` -> `14100.0`, strictly `< 14400.0`.
+    3. Gap: `14400.0 - 14100.0 == 300.0 == lane_containment.HOST_CEILING_OFFSET_SECONDS`.
+    4. `driver_bound_for_host(None)` -> `14400.0` (unreduced default).
+    5. `parse_host_ceiling_seconds("banana")` -> `None`, and `driver_bound_for_host(None)` -> `14400.0`.
+    Attribution assertion with real expiry record pasted:
+    `{'bound': 'max-turn-timeout', 'timeout_seconds': 0.3, 'disposition': 'failed-safely', 'at': '2026-10-01T17:02:32+00:00', 'scope': 'one turn (not one run)', 'detail': "the driver's max-turn-timeout bound expired after 0s and terminated the child through the one shared reaper; the driver continues with the next item"}`
+    Statement: The "is it documented" half of A10d is human-verified in the artifact prose rather than asserted via source/text scraping, as P16 strictly prohibits code-pinning text checks (F6).
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: TWO PARTS, and the second is this plan's decisive evidence. FIRST, E-07's own assertions: `PERMISSION_TIMEOUT == 0.0`; a DEFAULT-constructed watch with a pending ask noted shown NOT to fire; the docstring recording F10's zero-caller finding with its date and HEAD; and E-07(c) shown to make no `note_permission_request()` call at all (quote the test body), so it asserts the max-turn-only coverage in a form that survives the detector being wired (OQ-02). SECOND, THE MUTATION MATRIX (required item 4, P16's own rule), each cell pasted with the exact mutation used and the resulting pytest line. Mutate via monkeypatch or a throwaway probe, NEVER by editing `agent_workflows/lane_containment.py`; paste `git status --porcelain` afterwards showing no production file touched and no probe left behind. (a) The file under NO mutation: PASSES. (b) With `TurnBoundWatch._expired` stubbed to always return `None` (the bound never notices expiry): E-01's BOTH real-child tests must FAIL, and paste the assertion that tripped in each, which must be the returncode or `fired` assertion and not a timeout in an unrelated place. THE STUB MUST ACCEPT THE `now` ARGUMENT (`lambda self, now: None`), since the loop calls `self._expired(time.monotonic())`; a zero-arg stub raises `TypeError` and would redden the tests for an unrelated reason. Verified achievable at review (F15): the child survives with `rc='TIMEOUT(survived)' fired=None record=None`. (c) With `driver_bound_for_host` stubbed to return `MAX_TURN_TIMEOUT` unconditionally (deleting the host offset): E-06 must FAIL on the ordering or gap assertion, which is what proves that assertion discriminates the offset rather than being true by construction. (d) With `note_progress` stubbed to a no-op: E-02(a)'s FIRST half must FAIL (the permission bound would no longer be disarmed by progress) while its SECOND half still PASSES, and that split result must be shown, because a mutation that reddens both halves has not isolated the resettable/unresettable distinction. CELLS (b), (c) AND (d) ARE THE WHOLE POINT and none may be omitted: without them there is no evidence the restored file can fail when the bounds break, which is the difference between coverage and the appearance of coverage. FINALLY paste the bare-suite summary line (required item 1), `python3 -m pytest tests/test_turn_bounds.py -v` with every test named (item 2), `aw ipd lint --phase pre-transition` conforming (item 6), and `aw sanitize --agent` clean (item 7).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Both parts verified and complete:
+    Part 1:
+    - `lane_containment.PERMISSION_TIMEOUT == 0.0`.
+    - Default watch with noted ask: `watch_default.permission_timeout == 0.0`, `watch_default.enabled is False`, `reap_calls == []`.
+    - Docstring records F10 finding (2026-09-30, HEAD e9d397a4, zero production call sites, carrier 4xtpvg).
+    - E-07(c) body makes no `note_permission_request()` call:
+      ```python
+      with watch_max_only:
+          # Deliberately do NOT call note_permission_request()
+          try:
+              rc = proc.wait(timeout=3.0)
+          except subprocess.TimeoutExpired:
+              proc.kill()
+              proc.wait()
+              rc = "TIMEOUT(survived)"
+      assert rc != "TIMEOUT(survived)"
+      assert item["turn_bound_expiry"]["bound"] == lane_containment.BOUND_MAX_TURN
+      ```
+    Part 2: Mutation Matrix:
+    (a) No mutation:
+      `12 passed in 2.56s`
+    (b) `TurnBoundWatch._expired` stubbed to `lambda self, now: None`:
+      Both real child tests fail on wait timeout assertion:
+      `AssertionError: child survived wait timeout (rc='TIMEOUT(survived)' elapsed=3.003s fired=None record=None)`
+      `FAILED tests/test_turn_bounds.py::test_real_child_max_turn_bound_kills_process`
+      `FAILED tests/test_turn_bounds.py::test_real_child_permission_bound_kills_process`
+      `2 failed, 10 deselected in 6.27s`
+    (c) `driver_bound_for_host` stubbed to return `MAX_TURN_TIMEOUT` (`14400.0`):
+      E-06 fails on ordering assertion:
+      `AssertionError: driver bound must fire strictly before host ceiling`
+      `assert 14400.0 < 14400.0`
+      `FAILED tests/test_turn_bounds.py::test_antigravity_overlap_and_attribution`
+      `1 failed, 11 deselected in 0.18s`
+    (d) `note_progress` stubbed to `lambda self: None`:
+      Split result demonstrated:
+      `FAILED tests/test_turn_bounds.py::test_reset_asymmetry_permission_disarmed_by_progress`
+      `PASSED tests/test_turn_bounds.py::test_reset_asymmetry_max_turn_survives_progress`
+      `1 failed, 1 passed, 10 deselected in 0.35s`
+    Git status porcelain after mutations:
+    `?? tests/test_turn_bounds.py` (no production files touched, no probes left behind).
+
+    Required final evidence:
+    - Bare suite before: `4034 passed, 2 skipped, 3 warnings in 163.03s (0:02:43)`
+    - Bare suite after: `4046 passed, 2 skipped, 3 warnings in 87.27s (0:01:27)` (+12 tests, 0 new failing node IDs)
+    - `python3 -m pytest tests/test_turn_bounds.py -v -o addopts=""`:
+      ```
+      tests/test_turn_bounds.py::test_real_child_permission_bound_kills_process PASSED [  8%]
+      tests/test_turn_bounds.py::test_constants_names_defaults_and_zero_disable PASSED [ 16%]
+      tests/test_turn_bounds.py::test_launcher_uniform_arming_antigravity PASSED [ 25%]
+      tests/test_turn_bounds.py::test_dead_child_not_reaped_twice PASSED       [ 33%]
+      tests/test_turn_bounds.py::test_real_child_max_turn_bound_kills_process PASSED [ 41%]
+      tests/test_turn_bounds.py::test_non_isolated_prompt_byte_identical_and_names_neither_bound PASSED [ 50%]
+      tests/test_turn_bounds.py::test_launcher_uniform_arming_opencode PASSED  [ 58%]
+      tests/test_turn_bounds.py::test_antigravity_overlap_and_attribution PASSED [ 66%]
+      tests/test_turn_bounds.py::test_bookkeeping_failure_does_not_block_reap PASSED [ 75%]
+      tests/test_turn_bounds.py::test_reset_asymmetry_max_turn_survives_progress PASSED [ 83%]
+      tests/test_turn_bounds.py::test_reset_asymmetry_permission_disarmed_by_progress PASSED [ 91%]
+      tests/test_turn_bounds.py::test_permission_bound_disabled_by_default_and_unproven_detector PASSED [100%]
+      12 passed in 3.20s
+      ```
+    - `aw ipd lint .aw/records/plans/pending/20260930-f15tne-01-3vh74b-restore-behavioral-turn-bound-coverage-so-spec-7ckptx-a10-a1.ipd.md --phase pre-transition` conforming.
+    - `aw sanitize --agent`: clean (exit 0, 0 findings).
+  - Result: pass
 
 ## Approval and execution gate
 
