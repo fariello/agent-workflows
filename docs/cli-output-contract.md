@@ -345,13 +345,23 @@ mutation feedback, and error states across all `aw` verbs.
 
 ### 11.1 Empty Result Convention (Read and List Verbs)
 When a query, find, search, or list verb matches zero records or produces an empty result set:
-- **Never Fail Silently / Blank**: The handler MUST NOT print blank output or an uninformative raw string.
-- **Interactive Human TTY**: Handlers MUST use `Term.empty_result(summary, filters=..., next_action=...)`.
+- **Discriminator (Standing Question vs. Named-Artifact Assertion)**:
+  The convention distinguishes between two kinds of zero-match requests:
+  - **Standing questions about repository state**: A query asking about a category of artifacts (a tree name, an attention class, an artifact status, a priority, a run state, or a bare invocation with no selector at all) is a standing question. A zero-match result indicates the repository currently has zero artifacts in that state; this is a clean empty result and is **not refused**.
+  - **Assertions that a named artifact exists**: A query specifying an artifact identifier (an id6, a setid, or a filename fragment) asserts that a specific artifact exists. If that selector matches zero records, the invocation is treated under Section 11.4 as an unresolved selector refusal and exits 2 (`attention.EXIT_UNRESOLVED_SELECTOR`) with `outcome: "cannot-run"`, `verified: false`, and `complete: false`.
+- **Precedent and Scope**:
+  Spec `25kzda` Sections 2.3 and 2.4a established the precedent for this distinction, observing that an empty status query such as `reviews` matching nothing is a successful answer rather than an error, while a misspelled id6 exits 2. Spec `25kzda` specifically governs the runner verbs `aw oc run` and `aw agy run` rather than read verbs generally, so its status-selector carve-out serves as precedent rather than a binding contract. The read verb `aw attention` follows and extends this pattern by deriving its exempt vocabulary via `attention.selector_vocabulary` and evaluating `attention.SelectorMatchFacts.refusable`, following the shipped precedent in `run_viewer.emit_unresolvable_target_refusal`.
+- **Not Refused vs. Exit Codes (Drift Separation)**:
+  The standing-question exemption is worded as **not refused** rather than flatly "exits 0". The exemption skips the refusal predicate, after which the verb's ordinary exit classification still applies. In a repository without drift or findings, the exempt query yields `outcome: "clean"` with exit 0. However, if the repository concurrently contains contract drift or policy violations, a concurrent drift finding still reports itself normally and exits 1 through the drift path. Conversely, a selector refusal is a separate condition from a contract finding: it neither appends a drift record nor flips the `--json` `valid` flag, ensuring an operator typo is never misreported as repository damage.
+- **List-Mode Stream Rule (Pipe Safety)**:
+  For list modes targeting machine ingestion (`-id`, `--paths`, `--filenames`), a selector refusal emits its diagnostic message to `stderr` while `stdout` remains strictly empty (0 bytes). This prevents error text from corrupting shell pipes or downstream tool consumers.
+- **Never Fail Silently / Blank**: For non-refused empty results, the handler MUST NOT print blank output or an uninformative raw string.
+- **Interactive Human TTY**: For non-refused empty queries, handlers MUST use `Term.empty_result(summary, filters=..., next_action=...)`.
   The render displays:
   1. Outcome line with clean status (e.g. `✓ CLEAN  no matching <type>`).
   2. `Active filters:` section echoing all applied selectors, types, sets, or flags.
   3. `Next` recommendation offering a broadening query (e.g. searching without selectors) or helpful navigation.
-- **Agent Protocol (`aw.agent/v1`)**: The handler MUST emit a structured `result` (or `summary`) record with:
+- **Agent Protocol (`aw.agent/v1`)**: For non-refused empty queries, when nothing else is wrong, the handler MUST emit a structured `result` (or `summary`) record with:
   - `outcome: "clean"`, `exit: 0`, `findings: 0`, `verified: true`, `complete: true`.
   - Evidence/data carrying the zero count and active filter dictionary.
   - `next`: the suggested broadening or fallback command.

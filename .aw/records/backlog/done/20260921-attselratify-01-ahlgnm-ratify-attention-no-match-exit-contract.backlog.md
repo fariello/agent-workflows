@@ -1,5 +1,5 @@
 - Id: ahlgnm
-- Status: graduated
+- Status: done
 - Graduated-To: attselratify
 - Set: attselratify
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Ratify or relax the aw attention no-match exit contract: exit 2 and a refusing --check shipped as the fail-closed default
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD o6ksmw executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-attselratify-01-o6ksmw-ratify-the-aw-attention-no-match-exit-contract-by-publishing.ipd.md); evidence .aw/records/plans/executed/20260929-attselratify-01-o6ksmw-ratify-the-aw-attention-no-match-exit-contract-by-publishing.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: o6ksmw
 - 2026-09-21 created (aw backlog): Ratify or relax the aw attention no-match exit contract: exit 2 and a refusing --check shipped as the fail-closed default
 
