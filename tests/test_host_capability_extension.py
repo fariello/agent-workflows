@@ -724,6 +724,75 @@ class SessionResumeArgvTrackingTests(unittest.TestCase):
         self.assertTrue(caps.supports_session_resume)
 
 
+class StructuredToolEventsRendererTrackingTests(unittest.TestCase):
+    """dwbm7a: verify emits_structured_tool_events tracks the real renderer and argv."""
+
+    def test_verdict_tracks_renderer_and_not_a_name(self):
+        from agent_workflows import agy_runipd, render_stream
+
+        # 1. Opencode: when the event renderer returns None, verdict flips to False
+        orig_render = render_stream.render_event
+
+        def bad_render(*args, **kwargs):
+            return None
+
+        render_stream.render_event = bad_render
+        try:
+            caps = detect_host_capabilities("opencode")
+            self.assertFalse(caps.emits_structured_tool_events)
+            self.assertIn(
+                "renderer probe failed",
+                caps.probe_notes.get("emits_structured_tool_events", ""),
+            )
+        finally:
+            render_stream.render_event = orig_render
+
+        caps = detect_host_capabilities("opencode")
+        self.assertTrue(caps.emits_structured_tool_events)
+
+        # 2. Antigravity: when the event renderer returns None, verdict flips to False
+        orig_agy_render = agy_runipd.render_agy_event
+
+        def bad_agy_render(*args, **kwargs):
+            return None
+
+        agy_runipd.render_agy_event = bad_agy_render
+        try:
+            caps = detect_host_capabilities("antigravity")
+            self.assertFalse(caps.emits_structured_tool_events)
+            self.assertIn(
+                "renderer probe failed",
+                caps.probe_notes.get("emits_structured_tool_events", ""),
+            )
+        finally:
+            agy_runipd.render_agy_event = orig_agy_render
+
+        caps = detect_host_capabilities("antigravity")
+        self.assertTrue(caps.emits_structured_tool_events)
+
+    def test_verdict_tracks_argv_and_not_a_name(self):
+        saved_cache = dict(hsp._HOST_ARGV_CACHE)
+        try:
+            # Force cached argv without stream flags
+            hsp._HOST_ARGV_CACHE["opencode"] = ["/bin/false", "run"]
+            hsp._HOST_ARGV_CACHE["antigravity"] = ["/bin/false", "-p", "x"]
+            caps_oc = detect_host_capabilities("opencode")
+            self.assertFalse(caps_oc.emits_structured_tool_events)
+            self.assertIn(
+                "argv probe failed",
+                caps_oc.probe_notes.get("emits_structured_tool_events", ""),
+            )
+            caps_agy = detect_host_capabilities("antigravity")
+            self.assertFalse(caps_agy.emits_structured_tool_events)
+            self.assertIn(
+                "argv probe failed",
+                caps_agy.probe_notes.get("emits_structured_tool_events", ""),
+            )
+        finally:
+            hsp._HOST_ARGV_CACHE.clear()
+            hsp._HOST_ARGV_CACHE.update(saved_cache)
+
+
 class CommitGatewayClaimConsistencyTests(unittest.TestCase):
     """Invariant: nothing in this package enforces a commit gateway, so any artifact
     reporting otherwise is the fail-open drift backlog b7tlsh recorded.

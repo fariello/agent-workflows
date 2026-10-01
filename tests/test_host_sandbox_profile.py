@@ -1013,5 +1013,198 @@ class SessionResumeProbeTests(unittest.TestCase):
         )
 
 
+class StructuredToolEventsProbeTests(unittest.TestCase):
+    """dwbm7a E-02: verify emits_structured_tool_events is decided by an executed probe."""
+
+    def test_case_1_antigravity_emits_structured_tool_events(self):
+        caps = detect_host_capabilities("antigravity")
+        self.assertTrue(caps.emits_structured_tool_events)
+
+    def test_case_2_opencode_emits_structured_tool_events(self):
+        caps = detect_host_capabilities("opencode")
+        self.assertTrue(caps.emits_structured_tool_events)
+
+    def test_case_3_scripted_does_not_emit_structured_tool_events(self):
+        caps = detect_host_capabilities("scripted")
+        self.assertFalse(caps.emits_structured_tool_events)
+        self.assertIn(
+            "emits_structured_tool_events",
+            caps.probe_notes,
+            "every capability verdict must publish its evidence note",
+        )
+
+    def test_case_4_probe_notes_present_and_non_empty_for_runner_hosts(self):
+        for host in ("opencode", "antigravity"):
+            with self.subTest(host=host):
+                caps = detect_host_capabilities(host)
+                note = caps.probe_notes.get("emits_structured_tool_events", "")
+                self.assertTrue(
+                    bool(note),
+                    f"probe_notes['emits_structured_tool_events'] must be present and non-empty for {host!r}",
+                )
+
+    def test_direct_probe_structured_tool_events_triple_and_notes(self):
+        ok_oc, note_oc = hsp._probe_structured_tool_events("opencode")
+        self.assertTrue(ok_oc)
+        self.assertIn("renderer parsed canonical opencode tool event", note_oc)
+        self.assertIn("--format json", note_oc)
+
+        ok_agy, note_agy = hsp._probe_structured_tool_events("antigravity")
+        self.assertTrue(ok_agy)
+        self.assertIn("renderer parsed canonical antigravity tool event", note_agy)
+        self.assertIn("--output-format stream-json", note_agy)
+
+        ok_scr, note_scr = hsp._probe_structured_tool_events("scripted")
+        self.assertFalse(ok_scr)
+        self.assertIn("no event renderer is known for host 'scripted'", note_scr)
+
+    def test_renderer_half_canonical_tool_and_negative_control(self):
+        from agent_workflows import agy_runipd, render_stream
+
+        pal = render_stream.Palette(False)
+
+        # 1. OpenCode: tool event line contains tool name, non-tool returns None
+        oc_tool = json.dumps(
+            {
+                "type": "tool_use",
+                "part": {
+                    "tool": "bash",
+                    "state": {
+                        "status": "completed",
+                        "input": {"command": "pytest -q"},
+                        "metadata": {},
+                    },
+                },
+            }
+        )
+        oc_tool_rendered = render_stream.render_event(oc_tool, pal)
+        self.assertIsNotNone(oc_tool_rendered)
+        self.assertIn("bash", oc_tool_rendered)
+
+        oc_nontool = json.dumps({"type": "totally_unknown", "part": {}})
+        self.assertIsNone(render_stream.render_event(oc_nontool, pal))
+
+        # 2. Antigravity: tool event line contains tool name, non-tool returns None
+        agy_tool = json.dumps(
+            {
+                "event": "step_update",
+                "step_update": {
+                    "state": "DONE",
+                    "step_type": "tool",
+                    "tool_info": {
+                        "name": "run_command",
+                        "parameters": {"CommandLine": "pytest -q"},
+                    },
+                },
+            }
+        )
+        agy_tool_rendered = agy_runipd.render_agy_event(agy_tool, pal)
+        self.assertIsNotNone(agy_tool_rendered)
+        self.assertIn("bash", agy_tool_rendered)
+
+        agy_nontool = json.dumps(
+            {
+                "event": "step_update",
+                "step_update": {"state": "DONE", "step_type": "thinking"},
+            }
+        )
+        self.assertIsNone(agy_runipd.render_agy_event(agy_nontool, pal))
+
+        # 3. F-09 proof: unparseable line returns fallback string on BOTH hosts, NOT None
+        self.assertEqual(
+            render_stream.render_event("not json at all", pal), "not json at all"
+        )
+        self.assertEqual(
+            agy_runipd.render_agy_event("not json at all", pal), "  not json at all"
+        )
+
+    def test_f05_schema_trap_still_live(self):
+        from agent_workflows import agy_runipd, render_stream
+
+        pal = render_stream.Palette(False)
+        trap_event = json.dumps(
+            {
+                "event": "step_update",
+                "step_update": {
+                    "state": "DONE",
+                    "step_type": "tool_call",
+                    "tool_info": {"tool_name": "bash"},
+                },
+            }
+        )
+        self.assertIsNone(agy_runipd.render_agy_event(trap_event, pal))
+
+    def test_two_halves_rule(self):
+        saved_cache = dict(hsp._HOST_ARGV_CACHE)
+        orig_renderer = hsp._probe_host_event_renderer
+        orig_stream = hsp._probe_host_stream_argv
+        try:
+            # Force renderer half to fail
+            hsp._probe_host_event_renderer = lambda host: (
+                False,
+                "forced renderer failure",
+            )
+            ok, note = hsp._probe_structured_tool_events("opencode")
+            self.assertFalse(ok)
+            self.assertIn("renderer probe failed: forced renderer failure", note)
+
+            # Force argv half to fail
+            hsp._probe_host_event_renderer = orig_renderer
+            hsp._probe_host_stream_argv = lambda host: (False, "forced argv failure")
+            ok, note = hsp._probe_structured_tool_events("opencode")
+            self.assertFalse(ok)
+            self.assertIn("argv probe failed: forced argv failure", note)
+        finally:
+            hsp._probe_host_event_renderer = orig_renderer
+            hsp._probe_host_stream_argv = orig_stream
+            hsp._HOST_ARGV_CACHE.clear()
+            hsp._HOST_ARGV_CACHE.update(saved_cache)
+
+    def test_reentrancy_guard_and_cleared_after_raising_probe(self):
+        # 1. Guard suppresses re-entrant probe when set
+        try:
+            hsp._PROBING_STRUCTURED_TOOL_EVENTS = True
+            ok, note = hsp._probe_structured_tool_events("opencode")
+            self.assertFalse(ok)
+            self.assertEqual(note, "re-entrant probe suppressed")
+        finally:
+            hsp._PROBING_STRUCTURED_TOOL_EVENTS = False
+
+        # 2. Guard clears after raising probe
+        orig_renderer = hsp._probe_host_event_renderer
+        try:
+
+            def boom(host):
+                raise RuntimeError("deliberate boom")
+
+            hsp._probe_host_event_renderer = boom
+            ok, note = hsp._probe_structured_tool_events("opencode")
+            self.assertFalse(ok)
+            self.assertIn("deliberate boom", note)
+            self.assertFalse(
+                hsp._PROBING_STRUCTURED_TOOL_EVENTS, "guard must clear in finally"
+            )
+        finally:
+            hsp._probe_host_event_renderer = orig_renderer
+
+        # Normal call after raising probe succeeds
+        ok2, note2 = hsp._probe_structured_tool_events("opencode")
+        self.assertTrue(ok2, f"probe must succeed after raising probe; got {note2}")
+
+    def test_off_platform_pin_darwin_win32(self):
+        # Off-platform query returns True for runner hosts
+        for host in ("opencode", "antigravity"):
+            for plat in ("darwin", "win32"):
+                with self.subTest(host=host, platform=plat):
+                    caps = detect_host_capabilities(host, plat)
+                    self.assertTrue(
+                        caps.emits_structured_tool_events,
+                        f"{host} on {plat} must report emits_structured_tool_events=True",
+                    )
+                    self.assertIn("emits_structured_tool_events", caps.probe_notes)
+        caps_scr = detect_host_capabilities("scripted", "darwin")
+        self.assertFalse(caps_scr.emits_structured_tool_events)
+
+
 if __name__ == "__main__":
     unittest.main()

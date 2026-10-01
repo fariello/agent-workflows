@@ -36,19 +36,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure the premise, then pin the lie with a test that fails first
 
-- [ ] E-01 RE-MEASURE the premise and write the results into this plan as an execution note, because every load-bearing fact here is dated and each has a cheap check. Record, with the HEAD they were taken at: (a) the operator-facing lie, `python3 -m agent_workflows host capabilities opencode` and `... antigravity`, showing `yes` and `NO` respectively on the `emits_structured_tool_events` row, and note that the opencode `yes` carries NO `why:` line while every probed field does (that missing note is the identity assertion's visible signature); (b) the identity branch itself, `rg -n "emits_structured_tool_events" agent_workflows/host_sandbox_profile.py`, showing the field declared once and assigned once inside `if host == "opencode":`; (c) THE STOP CONDITION, that the field still gates no action, `python3 -c "from agent_workflows import host_sandbox_profile as h; print(h.ACTION_CLASSES, {a: r.required for a, r in h.ACTION_CAPABILITY_REQUIREMENTS.items()})"`, expecting `('read_only',)` and `{'read_only': ()}`; (d) that both hosts really do stream and parse, `rg -n "output-format|--format" agent_workflows/agy_runipd.py agent_workflows/oc_runipd.py` plus the SHIPPED proof `python3 -m pytest 'tests/test_agy_runipd_cli.py::AgyVerbosityFlagTests::test_render_agy_event_and_tracker' -o addopts="" -v`. THE CLASS NAME IS `AgyVerbosityFlagTests`, MEASURED AT REVIEW: the authored version of this item said `AgyStreamRenderingTests`, which DOES NOT EXIST in the file, so the command as authored would have collected nothing and an executor could have read the resulting `no tests ran` as the proof passing. Re-locate by the METHOD name `test_render_agy_event_and_tracker` if the class has moved again; that method is the target, and it is the test asserting `render_agy_event` renders a `run_command` tool event. IF (c) HAS MOVED, STOP AND RE-SCOPE rather than proceeding: an action whose `required` tuple names this field means the flip newly REFUSES a real dispatch through the preflight `iot7hc` wired into `runner_shared`, which is a different and much larger risk than this plan's gate assesses. Trust the tree, not this plan's Concern.
+- [x] E-01 RE-MEASURE the premise and write the results into this plan as an execution note, because every load-bearing fact here is dated and each has a cheap check. Record, with the HEAD they were taken at: (a) the operator-facing lie, `python3 -m agent_workflows host capabilities opencode` and `... antigravity`, showing `yes` and `NO` respectively on the `emits_structured_tool_events` row, and note that the opencode `yes` carries NO `why:` line while every probed field does (that missing note is the identity assertion's visible signature); (b) the identity branch itself, `rg -n "emits_structured_tool_events" agent_workflows/host_sandbox_profile.py`, showing the field declared once and assigned once inside `if host == "opencode":`; (c) THE STOP CONDITION, that the field still gates no action, `python3 -c "from agent_workflows import host_sandbox_profile as h; print(h.ACTION_CLASSES, {a: r.required for a, r in h.ACTION_CAPABILITY_REQUIREMENTS.items()})"`, expecting `('read_only',)` and `{'read_only': ()}`; (d) that both hosts really do stream and parse, `rg -n "output-format|--format" agent_workflows/agy_runipd.py agent_workflows/oc_runipd.py` plus the SHIPPED proof `python3 -m pytest 'tests/test_agy_runipd_cli.py::AgyVerbosityFlagTests::test_render_agy_event_and_tracker' -o addopts="" -v`. THE CLASS NAME IS `AgyVerbosityFlagTests`, MEASURED AT REVIEW: the authored version of this item said `AgyStreamRenderingTests`, which DOES NOT EXIST in the file, so the command as authored would have collected nothing and an executor could have read the resulting `no tests ran` as the proof passing. Re-locate by the METHOD name `test_render_agy_event_and_tracker` if the class has moved again; that method is the target, and it is the test asserting `render_agy_event` renders a `run_command` tool event. IF (c) HAS MOVED, STOP AND RE-SCOPE rather than proceeding: an action whose `required` tuple names this field means the flip newly REFUSES a real dispatch through the preflight `iot7hc` wired into `runner_shared`, which is a different and much larger risk than this plan's gate assesses. Trust the tree, not this plan's Concern.
   - Depends on: none
   - Expected outcome: all four measurements recorded with their HEAD; (c) still reads `{'read_only': ()}` so the plan proceeds, or the plan is stopped and re-scoped with the reason stated.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 WRITE THE FAILING TESTS FIRST, in `tests/test_host_sandbox_profile.py`, so the defect is pinned by a test that fails at this commit and passes after E-04. Three cases, and the third is what keeps this plan honest: (1) `detect_host_capabilities("antigravity").emits_structured_tool_events` is True (fails today); (2) `detect_host_capabilities("opencode").emits_structured_tool_events` is True (passes today for the WRONG reason, so it must be accompanied by case 4 below); (3) a host with no known renderer, e.g. `"scripted"`, is False, which AGREES with the shipped `tests/test_hostdedup_third_host.py::ThirdHostCapabilitiesTests::test_scripted_host_describes_cleanly` rather than contradicting it (do NOT edit that shipped test); (4) THE ANTI-REGRESSION CASE, that the verdict tracks the RENDERER and not the host name: assert `probe_notes["emits_structured_tool_events"]` is present and non-empty for both runner hosts, since a host-identity assertion cannot produce a probe note and this is the one assertion a future re-introduction of the identity branch would fail. RUN THEM AND PASTE THE FAILURE before implementing; a test that does not fail first proves nothing about the defect. NOTE FOR CASE (3): use `"scripted"` or another host with no renderer entry, and do NOT assert its verdict by asserting a renderer returns `None` for junk, which F-09 measured is false for both real hosts; the third-host case is False because no renderer is KNOWN for it, which is a table lookup and not a render result.
+- [x] E-02 WRITE THE FAILING TESTS FIRST, in `tests/test_host_sandbox_profile.py`, so the defect is pinned by a test that fails at this commit and passes after E-04. Three cases, and the third is what keeps this plan honest: (1) `detect_host_capabilities("antigravity").emits_structured_tool_events` is True (fails today); (2) `detect_host_capabilities("opencode").emits_structured_tool_events` is True (passes today for the WRONG reason, so it must be accompanied by case 4 below); (3) a host with no known renderer, e.g. `"scripted"`, is False, which AGREES with the shipped `tests/test_hostdedup_third_host.py::ThirdHostCapabilitiesTests::test_scripted_host_describes_cleanly` rather than contradicting it (do NOT edit that shipped test); (4) THE ANTI-REGRESSION CASE, that the verdict tracks the RENDERER and not the host name: assert `probe_notes["emits_structured_tool_events"]` is present and non-empty for both runner hosts, since a host-identity assertion cannot produce a probe note and this is the one assertion a future re-introduction of the identity branch would fail. RUN THEM AND PASTE THE FAILURE before implementing; a test that does not fail first proves nothing about the defect. NOTE FOR CASE (3): use `"scripted"` or another host with no renderer entry, and do NOT assert its verdict by asserting a renderer returns `None` for junk, which F-09 measured is false for both real hosts; the third-host case is False because no renderer is KNOWN for it, which is a table lookup and not a render result.
   - Depends on: E-01
   - Expected outcome: the four cases exist and the run shows case (1) and case (4) FAILING at this HEAD with the actual pasted output.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: build the executed probe
 
-- [ ] E-03 ADD THE RENDERER HALF of `_probe_structured_tool_events`: the in-process check that the host's own renderer PARSES a canonical structured tool event in that host's real wire schema. This is the half that carries the plan's whole meaning (a stream nobody parses is not a capability), and it is cheap and side-effect free, which is why it is separated from the argv half.
+- [x] E-03 ADD THE RENDERER HALF of `_probe_structured_tool_events`: the in-process check that the host's own renderer PARSES a canonical structured tool event in that host's real wire schema. This is the half that carries the plan's whole meaning (a stream nobody parses is not a capability), and it is cheap and side-effect free, which is why it is separated from the argv half.
 
   USE THESE EXACT MEASURED SCHEMAS, because the guessable ones silently return `None` (F-05, re-measured at review). OpenCode wants `{"type": "tool_use", "part": {"tool": "bash", "state": {"status": "completed", "input": {"command": "..."}, "metadata": {}}}}` through `render_stream.render_event`. Antigravity wants `{"event": "step_update", "step_update": {"state": "DONE", "step_type": "tool", "tool_info": {"name": "run_command", "parameters": {"CommandLine": "..."}}}}` through `agy_runipd.render_agy_event`. Note `step_type` is `"tool"` and the key is `tool_info.name`; the plausible `"tool_call"`/`tool_name` spelling renders `None` and would report a capable host as False. Both renderers need a real `render_stream.Palette(False)` rather than a lambda (re-measured: a lambda raises `AttributeError: 'function' object has no attribute 'enabled'` inside `format_event_prefix`, on BOTH renderers).
 
@@ -57,45 +57,45 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   USE THE TWO MEASURED DISCRIMINATORS INSTEAD, both verified at review for both hosts. FIRST, a WELL-FORMED NON-TOOL event returns `None` from both renderers: `{"type": "totally_unknown", "part": {}}` for OpenCode and `{"event": "step_update", "step_update": {"state": "DONE", "step_type": "thinking"}}` for Antigravity each rendered `None`. That is the real negative control and it is what distinguishes a schema-aware parser from a passthrough, since a passthrough would echo it. SECOND, the positive case must assert the rendered line CONTAINS THE TOOL NAME rather than merely being non-empty: `'❯ bash:  {"command": "pytest -q"}'` for OpenCode and `'❯ bash:  pytest -q'` for Antigravity both contain `bash`, whereas the junk fallback line does not. A non-empty check alone would pass on the junk fallback and is therefore not sufficient. Note the empty string and a whitespace-only line DO return `None` from both, so do not use those as the non-tool control either: they prove nothing about schema awareness.
   - Depends on: E-02
   - Expected outcome: a renderer-half helper that returns True with a note for both runner hosts, False with a note naming the absent renderer for an unknown host, and that is proven by a well-formed non-tool event returning `None` and by the tool line containing the tool name.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 ADD THE ARGV HALF and assemble `_probe_structured_tool_events(host) -> Tuple[bool, str]`, following the shape the sibling `_probe_session_resume` established (function-local imports, per-host table, conservative False for an unknown host, never propagating an exception). The argv half asserts the host's own turn argv builder asks for a structured stream at all: `--format json` for OpenCode (`oc_runipd.run_opencode` builds `argv.extend(["--dir", agent_dir, "--format", "json"])`) and `--output-format stream-json` for Antigravity (`agy_runipd.run_agy_turn`'s argv literal, verified at review).
+- [x] E-04 ADD THE ARGV HALF and assemble `_probe_structured_tool_events(host) -> Tuple[bool, str]`, following the shape the sibling `_probe_session_resume` established (function-local imports, per-host table, conservative False for an unknown host, never propagating an exception). The argv half asserts the host's own turn argv builder asks for a structured stream at all: `--format json` for OpenCode (`oc_runipd.run_opencode` builds `argv.extend(["--dir", agent_dir, "--format", "json"])`) and `--output-format stream-json` for Antigravity (`agy_runipd.run_agy_turn`'s argv literal, verified at review).
 
   BOTH HALVES MUST PASS for a True verdict, because each alone is a lie in a different direction (OQ-02): argv alone passes for a host requesting a stream nobody parses, renderer alone passes for a host whose parser exists but whose turns never request a stream.
 
   PREFER THE ARGV HALF WITHOUT RE-DRIVING A FULL TURN. `_probe_session_resume` already pays a measured cost to drive the real builders (re-measured at review: `detect_host_capabilities` 26 ms opencode / 32 ms antigravity, the resume probe itself 23 ms / 25 ms) and spawns subprocesses including a `bwrap` attempt plus journal/telemetry writes (review `qul11h` PR-302 inventoried them), and `detect_host_capabilities` now runs per-dispatch through the preflight `iot7hc` wired, so a second full-turn drive doubles that cost on a hot path. If the argv half is obtained by reusing or refactoring the existing capture rather than adding a second drive, say so and keep the change confined; if a second drive is genuinely required, it MUST own a throwaway temp tree and touch no caller-supplied run directory, exactly as PR-302 required of its sibling. NOTE A CHEAPER ROUTE THE AUTHOR DID NOT NAME: the argv half needs only that a flag PAIR appears in a built argv, and `_probe_session_resume` already captures the FULL argv for both hosts at its `Popen` seam, so extracting that capture into a helper both probes call is the confined change this item prefers.
   - Depends on: E-03
   - Expected outcome: `_probe_structured_tool_events` returns `(True, <note naming what was observed on BOTH halves>)` for both runner hosts, `(False, <note naming which half failed>)` for a third host, and its added cost is measured and recorded with a statement of whether a second full-turn drive was added.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 WIRE THE VERDICT AND DELETE THE IDENTITY ASSERTION, in `detect_host_capabilities`. Three edits, and the deletion is the point of the plan: (a) set `emits_structured_tool_events` from `_probe_structured_tool_events(host)` and record its note in `probe_notes["emits_structured_tool_events"]`; (b) DELETE the `caps.emits_structured_tool_events = True` line AND the `if host == "opencode":` branch that now has no body, plus its stale comment ("Proven by the existing driver: `--format json` streams structured events ... Session resume is probed above"), since leaving an empty branch invites a future author to refill it; (c) PLACE THE CALL BEFORE THE PLATFORM EARLY-RETURNS, beside the existing `_probe_session_resume` call and its explanatory comment, because parsing a JSON event is platform-independent and the current placement after both returns is F-04's measured platform lie. MEASURED BEFORE/AFTER an approver must be told, and V-05 demands both: `detect_host_capabilities("opencode", "darwin").emits_structured_tool_events` is False TODAY and becomes True. Add a comment beside the placement saying why it is outside the platform gate, so a later reader does not "restore parity" by moving it inside and thereby re-break the off-platform report, mirroring the comment `qul11h` left for the sibling. GUARD RE-ENTRANCY WITH A MODULE-LEVEL FLAG SET AND CLEARED IN A `try/finally`, for the measured reason and not as defensive noise: `oc_runipd` imports this module at module level and `_apply_execution_profile` calls `detect_host_capabilities("opencode")`, so any path that drives runner code re-enters this function; the module's own `_FORCED_RUNNER_SAFETY` comment states the same restore discipline, and `qul11h` PR-304 measured that a guard cleared only on the success path WEDGES the conservative False for the whole process, which is the original defect inverted and invisible because fail-closed looks correct. When the guard is set, return `(False, "re-entrant probe suppressed")`.
+- [x] E-05 WIRE THE VERDICT AND DELETE THE IDENTITY ASSERTION, in `detect_host_capabilities`. Three edits, and the deletion is the point of the plan: (a) set `emits_structured_tool_events` from `_probe_structured_tool_events(host)` and record its note in `probe_notes["emits_structured_tool_events"]`; (b) DELETE the `caps.emits_structured_tool_events = True` line AND the `if host == "opencode":` branch that now has no body, plus its stale comment ("Proven by the existing driver: `--format json` streams structured events ... Session resume is probed above"), since leaving an empty branch invites a future author to refill it; (c) PLACE THE CALL BEFORE THE PLATFORM EARLY-RETURNS, beside the existing `_probe_session_resume` call and its explanatory comment, because parsing a JSON event is platform-independent and the current placement after both returns is F-04's measured platform lie. MEASURED BEFORE/AFTER an approver must be told, and V-05 demands both: `detect_host_capabilities("opencode", "darwin").emits_structured_tool_events` is False TODAY and becomes True. Add a comment beside the placement saying why it is outside the platform gate, so a later reader does not "restore parity" by moving it inside and thereby re-break the off-platform report, mirroring the comment `qul11h` left for the sibling. GUARD RE-ENTRANCY WITH A MODULE-LEVEL FLAG SET AND CLEARED IN A `try/finally`, for the measured reason and not as defensive noise: `oc_runipd` imports this module at module level and `_apply_execution_profile` calls `detect_host_capabilities("opencode")`, so any path that drives runner code re-enters this function; the module's own `_FORCED_RUNNER_SAFETY` comment states the same restore discipline, and `qul11h` PR-304 measured that a guard cleared only on the success path WEDGES the conservative False for the whole process, which is the original defect inverted and invisible because fail-closed looks correct. When the guard is set, return `(False, "re-entrant probe suppressed")`.
   - Depends on: E-04
   - Expected outcome: the field is set from the probe for both runner hosts, the `if host == "opencode":` branch is GONE from the file, and the darwin query returns True.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: tell the truth about the barrier this field feeds
 
-- [ ] E-06 UPDATE `run_discovery_then_execution`'s DOCSTRING to reflect what its inputs now mean, WITHOUT changing its condition or behavior. The function's contract paragraph says the two-phase barrier is "Offered ONLY when `supports_read_only_phase` AND `emits_structured_tool_events` are both True"; that sentence stays TRUE and is not edited away. What must be added is the consequence of this plan: the second input is now an EXECUTED verdict rather than a host-identity assertion, so on a Linux host with a proven sandbox the barrier becomes reachable for Antigravity where it previously was not. Do NOT touch the `if not (...)` condition, the `missing` list, or the `DiscoveryExecutionResult` shape: this plan changes an input, deliberately, and OQ-01 records why changing the consumer is out of scope. State plainly in the docstring that the function still has NO non-test caller (F-03), so the reachability change is LATENT, because a reader who sees "the barrier became reachable" without that qualifier will overestimate what shipped.
+- [x] E-06 UPDATE `run_discovery_then_execution`'s DOCSTRING to reflect what its inputs now mean, WITHOUT changing its condition or behavior. The function's contract paragraph says the two-phase barrier is "Offered ONLY when `supports_read_only_phase` AND `emits_structured_tool_events` are both True"; that sentence stays TRUE and is not edited away. What must be added is the consequence of this plan: the second input is now an EXECUTED verdict rather than a host-identity assertion, so on a Linux host with a proven sandbox the barrier becomes reachable for Antigravity where it previously was not. Do NOT touch the `if not (...)` condition, the `missing` list, or the `DiscoveryExecutionResult` shape: this plan changes an input, deliberately, and OQ-01 records why changing the consumer is out of scope. State plainly in the docstring that the function still has NO non-test caller (F-03), so the reachability change is LATENT, because a reader who sees "the barrier became reachable" without that qualifier will overestimate what shipped.
   - Depends on: E-05
   - Expected outcome: the docstring records the input's new provenance and the latency of the effect, with the condition and behavior byte-identical.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 UPDATE THE MODULE DOCSTRING's runner-safety section, which currently enumerates the probed capabilities and their mechanisms (`supports_fresh_verifier_session`, `supports_commit_gateway`, `supports_session_resume`) but says nothing about this field. Add an `emits_structured_tool_events` bullet in the same voice: PROBED by attempt, naming the two halves (the argv requests a structured stream; the host's own renderer parses a canonical tool event in that host's schema), and stating it is platform-independent. RE-READ THE DOCSTRING IN THE TREE BEFORE EDITING rather than trusting this plan's quotation of it: two sibling plans (`qul11h`, `iot7hc`) have both edited this same docstring since, so the surrounding text has moved, and the "WHY THE PROBE EXECUTES INSTEAD OF INSPECTING" section plus the `HostSandboxCapabilities` field docstring must be left intact because they are the authority this plan's Concern cites against the very line E-04 deletes.
+- [x] E-07 UPDATE THE MODULE DOCSTRING's runner-safety section, which currently enumerates the probed capabilities and their mechanisms (`supports_fresh_verifier_session`, `supports_commit_gateway`, `supports_session_resume`) but says nothing about this field. Add an `emits_structured_tool_events` bullet in the same voice: PROBED by attempt, naming the two halves (the argv requests a structured stream; the host's own renderer parses a canonical tool event in that host's schema), and stating it is platform-independent. RE-READ THE DOCSTRING IN THE TREE BEFORE EDITING rather than trusting this plan's quotation of it: two sibling plans (`qul11h`, `iot7hc`) have both edited this same docstring since, so the surrounding text has moved, and the "WHY THE PROBE EXECUTES INSTEAD OF INSPECTING" section plus the `HostSandboxCapabilities` field docstring must be left intact because they are the authority this plan's Concern cites against the very line E-04 deletes.
   - Depends on: E-05
   - Expected outcome: the docstring lists this field among the probed capabilities with its mechanism, and the sibling paragraphs are preserved.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: verify nothing else depended on the old value
 
-- [ ] E-08 SWEEP EVERY READER OF THE FIELD AND EVERY TEST THAT CONSTRUCTS IT, then fix only what the flip actually breaks. Run `rg -n "emits_structured_tool_events" -- agent_workflows tests` and classify each hit: the dataclass declaration, the new probe and its wiring, the `run_discovery_then_execution` barrier and its `missing` list, the `tests/test_host_sandbox_profile.py` descriptors that pass `emits_structured_tool_events=True` explicitly (those construct a descriptor directly and are unaffected by a detection change, so they must NOT be rewritten to rely on detection), `CONTRACT_FIELDS` (already lists the field, so none is added or removed), and `tests/test_hostdedup_third_host.py`'s `scripted` assertion (must still pass unchanged). Also check `host_cmd._capability_rows`, which introspects the dataclass rather than a hand-written list and therefore needs no edit, and confirm that. REPORT ANY HIT THIS PLAN DID NOT ANTICIPATE rather than quietly adapting it: an unanticipated consumer means the behavior analysis in OQ-01 is incomplete and the gate must be re-read before finishing.
+- [x] E-08 SWEEP EVERY READER OF THE FIELD AND EVERY TEST THAT CONSTRUCTS IT, then fix only what the flip actually breaks. Run `rg -n "emits_structured_tool_events" -- agent_workflows tests` and classify each hit: the dataclass declaration, the new probe and its wiring, the `run_discovery_then_execution` barrier and its `missing` list, the `tests/test_host_sandbox_profile.py` descriptors that pass `emits_structured_tool_events=True` explicitly (those construct a descriptor directly and are unaffected by a detection change, so they must NOT be rewritten to rely on detection), `CONTRACT_FIELDS` (already lists the field, so none is added or removed), and `tests/test_hostdedup_third_host.py`'s `scripted` assertion (must still pass unchanged). Also check `host_cmd._capability_rows`, which introspects the dataclass rather than a hand-written list and therefore needs no edit, and confirm that. REPORT ANY HIT THIS PLAN DID NOT ANTICIPATE rather than quietly adapting it: an unanticipated consumer means the behavior analysis in OQ-01 is incomplete and the gate must be re-read before finishing.
   - Depends on: E-05
   - Expected outcome: every hit classified, the shipped `scripted` and direct-construction tests untouched and passing, and any unanticipated consumer reported.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-09 RUN THE FULL SUITE BARE and judge on the DELTA OF FAILING NODE IDS rather than on a carried count. Run `python3 -m pytest` (bare: `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow'`; do NOT add `-n0`, a second `-q`, or `-p no:randomly`). Re-derive the baseline at the SAME commit as the after-state rather than trusting this plan's recorded 3246 passed / 2 skipped, since `main` advances between authoring and execution and a carried number is the classic false comparison. Also run the two capability verbs and paste them, `python3 -m agent_workflows host capabilities opencode` and `... antigravity`, since the operator-facing report is what the backlog item is about and the suite does not display it. Finally run `python3 -m agent_workflows check release-gates` and `aw sanitize --agent`.
+- [x] E-09 RUN THE FULL SUITE BARE and judge on the DELTA OF FAILING NODE IDS rather than on a carried count. Run `python3 -m pytest` (bare: `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow'`; do NOT add `-n0`, a second `-q`, or `-p no:randomly`). Re-derive the baseline at the SAME commit as the after-state rather than trusting this plan's recorded 3246 passed / 2 skipped, since `main` advances between authoring and execution and a carried number is the classic false comparison. Also run the two capability verbs and paste them, `python3 -m agent_workflows host capabilities opencode` and `... antigravity`, since the operator-facing report is what the backlog item is about and the suite does not display it. Finally run `python3 -m agent_workflows check release-gates` and `aw sanitize --agent`.
   - Depends on: E-06, E-07, E-08
   - Expected outcome: no new failing node id against a baseline taken at the same commit, both capability reports show `yes  emits_structured_tool_events` with a `why:` note, and both checks clean.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -194,50 +194,343 @@ No `.spec.md` file is amended, and no spec is in `- Scope-Paths:`. Spec `25kzda`
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the pasted output of `python3 -m agent_workflows host capabilities opencode` and `... antigravity` showing `yes` and `NO` on the `emits_structured_tool_events` row with the opencode row carrying no `why:` line; the pasted `rg -n "emits_structured_tool_events" agent_workflows/host_sandbox_profile.py` showing the single assignment inside `if host == "opencode":`; the pasted requirement-map output; the pasted shipped agy-renderer test run; and the HEAD sha all four were taken at. If the requirement map is no longer `{'read_only': ()}`, the evidence must instead show the plan STOPPED and re-scoped.
-  - Observed evidence:
-  - Result: pending
+  - Result: pass
+  - Observed evidence: pass. Verified baseline host capabilities outputs, single assignment, requirement map stop condition, agy-renderer test, and HEAD sha 3047d0afbc64acf48a9e070f006dc01b8b791f06.
+    Measured at HEAD `3047d0afbc64acf48a9e070f006dc01b8b791f06`:
+    1. Pre-implementation `host capabilities` outputs:
+       `python3 -m agent_workflows host capabilities opencode`:
+       ```
+       host opencode  platform=linux  sandbox_mechanism=landlock
+         NO   supports_inline_permissions
+         yes  supports_read_only_phase
+         yes  supports_session_resume
+              why: observed --session ses-probe-sentinel in the host's own resume argv (launch refused before exec; git subprocess executed in temp tree)
+         yes  emits_structured_tool_events
+         NO   emits_child_permission_events
+       ```
+       (Note: `yes  emits_structured_tool_events` carried no `why:` note).
+       `python3 -m agent_workflows host capabilities antigravity`:
+       ```
+       host antigravity  platform=linux  sandbox_mechanism=landlock
+         NO   supports_inline_permissions
+         yes  supports_read_only_phase
+         yes  supports_session_resume
+              why: observed --conversation ses-probe-sentinel in the host's own resume argv (launch refused before exec; git subprocess executed in temp tree)
+         NO   emits_structured_tool_events
+         NO   emits_child_permission_events
+       ```
+    2. Single assignment in `host_sandbox_profile.py` inside `if host == "opencode":`:
+       `rg -n "emits_structured_tool_events" agent_workflows/host_sandbox_profile.py`:
+       ```
+       215:    emits_structured_tool_events: bool = False
+       1078:    if host == "opencode":
+       1079:        caps.emits_structured_tool_events = True
+       1342:    Offered ONLY when `supports_read_only_phase` AND `emits_structured_tool_events` are
+       1355:        and capabilities.emits_structured_tool_events
+       1362:                    "emits_structured_tool_events",
+       1363:                    capabilities.emits_structured_tool_events,
+       ```
+    3. Requirement map stop condition checked:
+       `python3 -c "import agent_workflows.host_sandbox_profile as m; print(m.ACTION_CLASSES); print(m.ACTION_CAPABILITY_REQUIREMENTS)"`:
+       ```
+       ('read_only',)
+       {'read_only': ()}
+       ```
+       Stop condition satisfied (`{'read_only': ()}` unchanged; field gates nothing).
+    4. Shipped agy-renderer test passed:
+       `python3 -m pytest tests/test_agy_runipd_cli.py::AgyVerbosityFlagTests::test_render_agy_event_and_tracker`:
+       ```
+       .                                                                        [100%]
+       1 passed in 3.12s
+       ```
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: the pasted PRE-IMPLEMENTATION test run showing the antigravity case and the probe-note case FAILING with their assertion messages, proving the tests pin the real defect rather than passing vacuously. A run in which all four cases pass before E-04 is a FAILED validation and must be reported as such, not accepted.
-  - Observed evidence:
-  - Result: pending
+  - Result: pass
+  - Observed evidence: pass. Verified pre-implementation test failures pinning antigravity False and missing probe note on opencode.
+    Ran `python3 -m pytest tests/test_host_sandbox_profile.py::StructuredToolEventsProbeTests` prior to probe implementation:
+    ```
+    =================================== FAILURES ===================================
+    _ StructuredToolEventsProbeTests.test_case_1_antigravity_emits_structured_tool_events _
+    self = <tests.test_host_sandbox_profile.StructuredToolEventsProbeTests testMethod=test_case_1_antigravity_emits_structured_tool_events>
+        def test_case_1_antigravity_emits_structured_tool_events(self):
+            caps = detect_host_capabilities("antigravity")
+    >       self.assertTrue(caps.emits_structured_tool_events)
+    E       AssertionError: False is not true
 
-- [ ] V-03 validates E-03
+    _ StructuredToolEventsProbeTests.test_case_4_probe_notes_present_and_non_empty_for_runner_hosts _
+    self = <tests.test_host_sandbox_profile.StructuredToolEventsProbeTests testMethod=test_case_4_probe_notes_present_and_non_empty_for_runner_hosts>
+        def test_case_4_probe_notes_present_and_non_empty_for_runner_hosts(self):
+            for host in ("opencode", "antigravity"):
+                with self.subTest(host=host):
+                    caps = detect_host_capabilities(host)
+                    note = caps.probe_notes.get("emits_structured_tool_events", "")
+    >               self.assertTrue(
+                        bool(note),
+                        f"probe_notes['emits_structured_tool_events'] must be present and non-empty for {host!r}",
+                    )
+    E               AssertionError: False is not true : probe_notes['emits_structured_tool_events'] must be present and non-empty for 'opencode'
+    =========================== short test summary info ============================
+    FAILED tests/test_host_sandbox_profile.py::StructuredToolEventsProbeTests::test_case_1_antigravity_emits_structured_tool_events - AssertionError: False is not true
+    FAILED tests/test_host_sandbox_profile.py::StructuredToolEventsProbeTests::test_case_4_probe_notes_present_and_non_empty_for_runner_hosts - AssertionError: False is not true : probe_notes['emits_structured_tool_events'] must be present and non-empty for 'opencode'
+    2 failed, 2 passed in 3.65s
+    ```
+
+- [x] V-03 validates E-03
   - Required evidence: PASTE the committed renderer-half source, and PASTE a transcript proving all FOUR measured cases per runner host, because the negative control is what this item exists to check. (a) THE TOOL EVENT RENDERS AND THE LINE CONTAINS THE TOOL NAME: the actual rendered string for each host, shown to contain `bash`, not merely shown non-empty. (b) THE WELL-FORMED NON-TOOL EVENT RETURNS `None`: the actual `None` for `{"type": "totally_unknown", "part": {}}` (OpenCode) and for `{"event": "step_update", "step_update": {"state": "DONE", "step_type": "thinking"}}` (Antigravity). (c) THE GUESSABLE SCHEMA STILL RETURNS `None`, pasting the `tool_call`/`tool_name` shape rendering `None`, so the F-05 trap is shown still live rather than assumed. (d) THE UNPARSEABLE LINE IS NOT USED AS A CONTROL: paste `render_agy_event("not json at all", pal)` and `render_event("not json at all", pal)` showing they return the DIM FALLBACK LINES `'  not json at all'` and `'not json at all'` rather than `None`, and state in one line that the probe therefore does NOT assert `is None` on junk. THIS ITEM FAILS if the probe's negative control is an unparseable line (F-09), and it FAILS if the positive assertion is merely non-empty, because the junk fallback is non-empty and would satisfy it.
-  - Observed evidence:
-  - Result: pending
+  - Result: pass
+  - Observed evidence: pass. Verified committed renderer source and all four measured cases: tool event containing bash, non-tool None, guessable trap None, unparseable line returning fallback string.
+    1. Committed renderer-half source in `agent_workflows/host_sandbox_profile.py`:
+       ```python
+       def _probe_host_event_renderer(host: str) -> Tuple[bool, str]:
+           """Renderer half of structured tool event probe (dwbm7a E-03)."""
+           try:
+               import json
+               from agent_workflows import agy_runipd as _agy, render_stream as _rs
 
-- [ ] V-04 validates E-04
+               pal = _rs.Palette(False)
+               specs: Dict[str, Tuple[Dict[str, Any], Dict[str, Any], Callable[[str, Any], Optional[str]], str, str]] = {
+                   "opencode": (
+                       {
+                           "type": "tool_use",
+                           "part": {
+                               "tool": "bash",
+                               "state": {
+                                   "status": "completed",
+                                   "input": {"command": "pytest -q"},
+                                   "metadata": {},
+                               },
+                           },
+                       },
+                       {"type": "totally_unknown", "part": {}},
+                       _rs.render_event,
+                       "bash",
+                       "canonical opencode tool event",
+                   ),
+                   "antigravity": (
+                       {
+                           "event": "step_update",
+                           "step_update": {
+                               "state": "DONE",
+                               "step_type": "tool",
+                               "tool_info": {
+                                   "name": "run_command",
+                                   "parameters": {"CommandLine": "pytest -q"},
+                               },
+                           },
+                       },
+                       {"event": "step_update", "step_update": {"state": "DONE", "step_type": "thinking"}},
+                       _agy.render_agy_event,
+                       "bash",
+                       "canonical antigravity tool event",
+                   ),
+               }
+               if host not in specs:
+                   return False, f"no event renderer is known for host {host!r}"
+
+               tool_spec, nontool_spec, render_fn, tool_needle, label = specs[host]
+               tool_event = json.dumps(tool_spec)
+               rendered_tool = render_fn(tool_event, pal)
+               if not rendered_tool or tool_needle not in rendered_tool:
+                   return (
+                       False,
+                       f"renderer failed to render {label} containing tool name: {rendered_tool!r}",
+                   )
+
+               nontool_event = json.dumps(nontool_spec)
+               rendered_nontool = render_fn(nontool_event, pal)
+               if rendered_nontool is not None:
+                   return (
+                       False,
+                       f"renderer did not return None for well-formed non-tool event: {rendered_nontool!r}",
+                   )
+
+               return (
+                   True,
+                   f"renderer parsed {label} containing '{tool_needle}' and ignored non-tool event",
+               )
+           except Exception as exc:
+               return (
+                   False,
+                   f"event renderer probe failed for {host!r}: {type(exc).__name__}: {exc}",
+               )
+       ```
+    2. Measured cases transcript:
+       (a) Tool event renders and contains tool name:
+           OpenCode: `❯ bash:  {"command": "pytest -q"}` (contains `'bash'`)
+           Antigravity: `❯ bash:  pytest -q` (contains `'bash'`)
+       (b) Well-formed non-tool event returns `None`:
+           OpenCode (`{"type": "totally_unknown", "part": {}}`): `None`
+           Antigravity (`{"event": "step_update", "step_update": {"state": "DONE", "step_type": "thinking"}}`): `None`
+       (c) Guessable schema still returns `None` (F-05 trap live):
+           Antigravity `{"event": "step_update", "step_update": {"state": "DONE", "step_type": "tool_call", "tool_info": {"tool_name": "bash"}}}`: `None`
+       (d) Unparseable line returns fallback dim string, NOT `None`:
+           OpenCode `render_event("not json at all", pal)`: `'not json at all'`
+           Antigravity `render_agy_event("not json at all", pal)`: `'  not json at all'`
+           The probe therefore does NOT assert `is None` on junk; it uses the well-formed non-tool event control and asserts `tool_needle in rendered_tool`.
+
+- [x] V-04 validates E-04
   - Required evidence: PASTE the assembled `_probe_structured_tool_events("opencode")`, `("antigravity")` and `("scripted")` return values, showing `(True, <note>)`, `(True, <note>)`, `(False, <note>)` with each note quoted IN FULL and naming what was observed on BOTH halves. PASTE the argv-half evidence itself: the captured argv (or the extracted flag pair) showing `--format json` for OpenCode and `--output-format stream-json` for Antigravity. PASTE the MEASURED cost of the new probe per host and the resulting `detect_host_capabilities` cost, against the review-measured baseline of 26 ms (opencode) and 32 ms (antigravity), with an explicit statement of whether a second full-turn drive was added and, if so, the throwaway temp tree it owned. A bare "no side effects" claim is REJECTED: F-07 measures that the existing sibling probe spawns subprocesses including a `bwrap` attempt and writes journal/telemetry artifacts, so the evidence must say what this one actually does. ALSO show the two-halves rule is real: paste a transcript in which ONE half is forced to fail and the verdict is False with a note naming which half.
-  - Observed evidence:
-  - Result: pending
+  - Result: pass
+  - Observed evidence: pass. Verified assembled probe returns for opencode, antigravity, and scripted, captured argv flag pairs, performance timing, and two-halves rule.
+    1. Assembled probe return values:
+       - `_probe_structured_tool_events("opencode")`:
+         `(True, "renderer parsed canonical opencode tool event containing 'bash' and ignored non-tool event; observed --format json in the host's own turn argv")`
+       - `_probe_structured_tool_events("antigravity")`:
+         `(True, "renderer parsed canonical antigravity tool event containing 'bash' and ignored non-tool event; observed --output-format stream-json in the host's own turn argv")`
+       - `_probe_structured_tool_events("scripted")`:
+         `(False, "renderer probe failed: no event renderer is known for host 'scripted'")`
+    2. Argv-half evidence (extracted flag pairs from real turn builders):
+       - OpenCode: `['--format', 'json']`
+       - Antigravity: `['--output-format', 'stream-json']`
+    3. Performance & Side Effect Profile:
+       - No second full-turn drive was added: `_probe_host_stream_argv` calls `_capture_turn_argv(host)`, which caches captured argv in `_HOST_ARGV_CACHE` for the duration of `detect_host_capabilities`. The sibling `_probe_session_resume` reuses the same helper. `_probe_host_event_renderer` runs purely in-memory with no subprocesses or disk writes.
+       - Measured timing warm: `detect_host_capabilities("opencode")` = 64.10 ms min, `detect_host_capabilities("antigravity")` = 60.19 ms min. When `_probe_structured_tool_events` runs with cached argv inside `detect_host_capabilities`, its incremental cost is < 1 ms (0.75 ms).
+    4. Two-halves rule transcript:
+       - Renderer half forced to fail:
+         `Renderer failed: (False, 'renderer probe failed: simulated renderer failure')`
+       - Argv half forced to fail:
+         `Argv failed: (False, 'argv probe failed: simulated argv failure')`
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: (a) the pasted `rg -n "if host == \"opencode\"" agent_workflows/host_sandbox_profile.py` returning NO match, proving the identity branch is gone rather than merely bypassed; (b) the pasted `python3 -m agent_workflows host capabilities antigravity` showing `yes  emits_structured_tool_events` WITH its `why:` note; (c) the off-platform before/after, the recorded `False` from V-01's HEAD and the pasted post-change `detect_host_capabilities("opencode", "darwin").emits_structured_tool_events` returning `True`, so the placement change is visible rather than assumed; (d) evidence the re-entrancy guard is CLEARED after a deliberately raising probe (a raising-probe test followed by a normal call that still returns the TRUE verdict), not merely that the guard fires, since a guard cleared only on the success path wedges the conservative False for the whole process (`qul11h` PR-304).
-  - Observed evidence:
-  - Result: pending
+  - Result: pass
+  - Observed evidence: pass. Verified deletion of opencode check, antigravity report with why note, off-platform darwin/win32 True, and re-entrancy guard clearing.
+    (a) `rg -n 'if host == "opencode"' agent_workflows/host_sandbox_profile.py` output:
+        Exit code 1, 0 matches. The branch is completely deleted.
+    (b) `python3 -m agent_workflows host capabilities antigravity`:
+        ```
+        host antigravity  platform=linux  sandbox_mechanism=landlock
+          NO   supports_inline_permissions
+          yes  supports_read_only_phase
+          yes  supports_session_resume
+               why: observed --conversation ses-probe-sentinel in the host's own resume argv (launch refused before exec; git subprocess executed in temp tree)
+          yes  emits_structured_tool_events
+               why: renderer parsed canonical antigravity tool event containing 'bash' and ignored non-tool event; observed --output-format stream-json in the host's own turn argv
+          NO   emits_child_permission_events
+        ```
+    (c) Off-platform before/after:
+        Before (HEAD `3047d0afbc64acf48a9e070f006dc01b8b791f06`): `detect_host_capabilities("opencode", "darwin").emits_structured_tool_events` was `False`.
+        After:
+        ```python
+        detect_host_capabilities('opencode', 'darwin').emits_structured_tool_events: True
+        detect_host_capabilities('opencode', 'win32').emits_structured_tool_events: True
+        detect_host_capabilities('antigravity', 'darwin').emits_structured_tool_events: True
+        detect_host_capabilities('antigravity', 'win32').emits_structured_tool_events: True
+        ```
+    (d) Re-entrancy guard clearing:
+        ```python
+        Normal call 1: True
+        Raising probe returned: (False, "structured tool events probe failed for 'opencode': RuntimeError: deliberate boom")
+        Guard state after raise: False
+        Normal call after raise: True
+        ```
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: the pasted before/after of `run_discovery_then_execution`'s docstring paragraph, plus the pasted `git diff -- agent_workflows/host_sandbox_profile.py` hunk for that function showing the `if not (...)` condition, the `missing` list and the returned `DiscoveryExecutionResult` are UNCHANGED, and showing the added text states the latency qualifier (no non-test caller).
-  - Observed evidence:
-  - Result: pending
+  - Result: pass
+  - Observed evidence: pass. Verified docstring diff for run_discovery_then_execution with latency qualifier, and condition/missing list/result shape unchanged.
+    1. Before/after diff for `run_discovery_then_execution`:
+       ```diff
+       @@ -1338,6 +1524,13 @@ def run_discovery_then_execution(
+            the caller must keep the prerequisite in the driver - x03wgn Layer 4: "If the host
+            cannot enforce read-only files or phase-specific tools, the barrier is advisory."
 
-- [ ] V-07 validates E-07
+       +    The second input (`emits_structured_tool_events`) is decided by an EXECUTED probe of
+       +    the host's real event stream and parser (dwbm7a), replacing the prior host-identity
+       +    assertion. On a Linux host with a proven sandbox, the barrier becomes reachable for
+       +    Antigravity where it previously was not. Note that `run_discovery_then_execution`
+       +    currently has no non-test caller in the repository, so this reachability change is
+       +    LATENT and does not alter live dispatch behavior.
+       +
+            A PROSE claim is never sufficient: the driver validates a STRUCTURED submission, and a
+            submission that fails validation does NOT get product writes.
+            """
+       ```
+    2. Verified lines immediately following:
+       `if not (capabilities.supports_read_only_phase and capabilities.emits_structured_tool_events):`
+       and `missing.append(("emits_structured_tool_events", capabilities.emits_structured_tool_events))`
+       remain strictly UNCHANGED.
+
+- [x] V-07 validates E-07
   - Required evidence: the pasted module-docstring section showing the new `emits_structured_tool_events` bullet naming its two-half mechanism and its platform independence, together with evidence that the "WHY THE PROBE EXECUTES INSTEAD OF INSPECTING" section and the `HostSandboxCapabilities` field docstring survive intact (quote them, or show a diff touching neither).
-  - Observed evidence:
-  - Result: pending
+  - Result: pass
+  - Observed evidence: pass. Verified module docstring runner-safety bullet, and docstring sections intact.
+    1. Module docstring addition:
+       ```diff
+       @@ -118,10 +118,17 @@ action NEEDS against what a host PROVED. Two fields and a preflight close that:
+          * `supports_session_resume` - PROBED by attempt (qul11h). Drives each host's real turn
+            argv builder with an explicit sentinel session id, intercepts the launch at the
+            `subprocess.Popen` seam, refuses to launch, and verifies the host's resume flag
+            (`--session` for OpenCode, `--conversation` for Antigravity) is immediately followed
+            by the sentinel. Platform-independent, and confined to a throwaway temporary repo.
+       +  * `emits_structured_tool_events` - PROBED by attempt (dwbm7a). Requires both halves:
+       +    the host's turn builder requests a structured stream (`--format json` for OpenCode,
+       +    `--output-format stream-json` for Antigravity), and the host's event renderer parses
+       +    a canonical structured tool event in that host's wire schema (producing a rendered line
+       +    containing the tool name while ignoring a well-formed non-tool event).
+       +    Platform-independent.
+       ```
+    2. Both sections verified intact on disk:
+       - "WHY THE PROBE EXECUTES INSTEAD OF INSPECTING" exists unchanged at line 37.
+       - `HostSandboxCapabilities` dataclass and `emits_structured_tool_events: bool = False` exist unchanged at lines 214-224.
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: the pasted `rg -n "emits_structured_tool_events" -- agent_workflows tests` output WITH each hit classified in one line, plus the pasted passing runs of `tests/test_hostdedup_third_host.py::ThirdHostCapabilitiesTests` and the `run_discovery_then_execution` tests in `tests/test_host_sandbox_profile.py`, showing they pass UNCHANGED (a diff proving those files' relevant assertions were not edited). THE REVIEW-MEASURED HIT SET, so an executor can tell an anticipated hit from a new one: `agent_workflows/host_sandbox_profile.py` (the dataclass default, the identity assignment this plan deletes, the barrier condition, and the `missing` list entry) and `tests/` (`test_host_sandbox_profile.py`'s `CONTRACT_FIELDS` entry plus its three direct-construction descriptors, and `test_hostdedup_third_host.py`'s single `assertFalse`). Any hit outside that set must be named explicitly, with a statement of whether it invalidates OQ-01.
-  - Observed evidence:
-  - Result: pending
+  - Result: pass
+  - Observed evidence: pass. Verified classified hit list across codebase, and tests passing unchanged without assertion edits.
+    1. Classified hit list:
+       - `agent_workflows/host_sandbox_profile.py:123`: module docstring runner-safety bullet (E-07)
+       - `agent_workflows/host_sandbox_profile.py:224`: dataclass field definition defaulting False (expected)
+       - `agent_workflows/host_sandbox_profile.py:1061`: docstring for `_probe_structured_tool_events` (E-04)
+       - `agent_workflows/host_sandbox_profile.py:1118`: docstring for `detect_host_capabilities` (E-05)
+       - `agent_workflows/host_sandbox_profile.py:1141-1142`: assignment from probe result and probe_notes (E-05)
+       - `agent_workflows/host_sandbox_profile.py:1522, 1527, 1539, 1546`: `run_discovery_then_execution` docstring and condition (unchanged, E-06)
+       - `tests/test_hostdedup_third_host.py:192`: assertion that scripted host reports False (unchanged)
+       - `tests/test_host_sandbox_profile.py:49`: `CONTRACT_FIELDS` tuple member (unchanged)
+       - `tests/test_host_sandbox_profile.py:646, 662, 702`: `DiscoveryThenExecutionTests` explicit constructor kwargs (unchanged)
+       - `tests/test_host_sandbox_profile.py:1016-1163`: new unit tests `StructuredToolEventsProbeTests` (E-02)
+       - `tests/test_host_capability_extension.py:728-789`: new unit tests `StructuredToolEventsRendererTrackingTests` (E-03..E-05)
+       All hits outside the review-measured baseline are the new tests and probe definitions authored under this plan. None invalidate OQ-01.
+    2. Shipped tests passing unchanged:
+       `python3 -m pytest tests/test_hostdedup_third_host.py::ThirdHostCapabilitiesTests`:
+       ```
+       ..                                                                       [100%]
+       2 passed in 2.87s
+       ```
+       `python3 -m pytest tests/test_host_sandbox_profile.py::DiscoveryThenExecutionTests`:
+       ```
+       ...                                                                      [100%]
+       3 passed in 4.16s
+       ```
+       Neither test's code or assertions were modified.
 
-- [ ] V-09 validates E-09
+- [x] V-09 validates E-09
   - Required evidence: the pasted tail of a bare `python3 -m pytest` including its `N passed` summary line, AND the baseline run re-derived at the same commit, with the comparison stated as a delta of failing node ids rather than as two totals (this plan's recorded 3246/2, re-confirmed at review HEAD `d449f3d2`, is DATED CONTEXT and must not be carried as the bar); the pasted `host capabilities` output for BOTH hosts; the pasted `python3 -m agent_workflows check release-gates`; and the pasted `aw sanitize --agent` exit status.
-  - Observed evidence:
-  - Result: pending
+  - Result: pass
+  - Observed evidence: pass. Verified bare test suite 3669 passed (0 failures, +12 new passing tests), host capabilities reports, check release-gates 0 errors, and aw sanitize exit 0.
+    1. Bare test suite validation:
+       - Baseline at HEAD `3047d0afbc64acf48a9e070f006dc01b8b791f06`:
+         `3657 passed, 2 skipped, 3 warnings in 115.90s` (0 failing node IDs).
+       - Post-change bare test suite:
+         `3669 passed, 2 skipped, 3 warnings in 77.66s` (0 failing node IDs; +12 new passing tests).
+    2. Host capabilities output for both hosts:
+       - `python3 -m agent_workflows host capabilities opencode`:
+         `yes emits_structured_tool_events`
+         `why: renderer parsed canonical opencode tool event containing 'bash' and ignored non-tool event; observed --format json in the host's own turn argv`
+       - `python3 -m agent_workflows host capabilities antigravity`:
+         `yes emits_structured_tool_events`
+         `why: renderer parsed canonical antigravity tool event containing 'bash' and ignored non-tool event; observed --output-format stream-json in the host's own turn argv`
+    3. Release-gates check:
+       `python3 -m agent_workflows check release-gates`:
+       ```
+       546 gates checked: 0 errors, 0 warnings
+       ```
+    4. Leak sanitizer check:
+       `aw sanitize --agent`:
+       Exit code: 0, 0 findings.
 
 ## Approval and execution gate
 
