@@ -1,5 +1,5 @@
 - Id: d8o2cv
-- Status: graduated
+- Status: done
 - Graduated-To: d8o2cv
 - Set: d8o2cv
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: docs/runner-profiles.md documents the per-host verification flag spelling difference for start but is silent on resume
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): closed by aw oc run: IPD gyd8sq executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-d8o2cv-01-gyd8sq-document-the-resume-subcommand-verification-flag-asymmetry-i.ipd.md); evidence .aw/records/plans/executed/20260930-d8o2cv-01-gyd8sq-document-the-resume-subcommand-verification-flag-asymmetry-i.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: gyd8sq
 - 2026-09-28 created (aw backlog): Filed while authoring plan 7dz3wv (graduating xdgorn); measured at HEAD beb37773.
 
