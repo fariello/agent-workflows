@@ -1,5 +1,5 @@
 - Id: 4bicgv
-- Status: graduated
+- Status: done
 - Graduated-To: runsexits
 - Set: runsexits
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: runs next and runs status under-declare their exit contracts: reachable codes 2, 5 and 7 are missing
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD 69rdv6 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-runsexits-01-69rdv6-declare-runs-next-and-runs-status-by-their-measured-exit-cod.ipd.md); evidence .aw/records/plans/executed/20260930-runsexits-01-69rdv6-declare-runs-next-and-runs-status-by-their-measured-exit-cod.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: 69rdv6
 - 2026-09-28 created (aw backlog): runs next and runs status under-declare their exit contracts: reachable codes 2, 5 and 7 are missing
 
