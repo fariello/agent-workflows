@@ -1,5 +1,5 @@
 - Id: 9vkhkk
-- Status: graduated
+- Status: done
 - Graduated-To: instdiff
 - Blocks-Release: next
 - Set: instdiff
@@ -8,6 +8,7 @@
 - Summary: Teach the install --diff preview about the ~49 ensurer-written files it still omits, so the dry run stops under-reporting an apply
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): closed by aw oc run: IPD 3pwpq1 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-instdiff-01-3pwpq1-factor-the-only-when-absent-scaffolding-into-a-declarative-m.ipd.md); evidence .aw/records/plans/executed/20260928-instdiff-01-3pwpq1-factor-the-only-when-absent-scaffolding-into-a-declarative-m.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T235632Z-1358353: 3pwpq1
 - 2026-09-20 created (aw backlog): Filed by plan at61gc as the durable carrier for its F-13 deferral.
 
