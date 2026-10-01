@@ -1,5 +1,5 @@
 - Id: qpgs4t
-- Status: graduated
+- Status: done
 - Graduated-To: runviewdisc
 - Set: runviewdisc
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Seven terminal-failure run statuses are still reported as artifact-status discrepancies by aw runs
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD p5yaqw executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-runviewdisc-03-p5yaqw-retire-the-redundant-status-tolerance-enumeration-in-artifac.ipd.md); evidence .aw/records/plans/executed/20260930-runviewdisc-03-p5yaqw-retire-the-redundant-status-tolerance-enumeration-in-artifac.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053053Z-3200037: p5yaqw
 - 2026-09-22 created (aw backlog): Filed from IPD vdabn5 execution (F-10). Each needs its own measured argument about which declared statuses are legitimate for it.
 
