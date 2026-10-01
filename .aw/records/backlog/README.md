@@ -57,6 +57,7 @@ attention `Gate-Kind`/`Gate-Ref` bullets), then a prose body:
 - Graduated-To: <setid>[, <setid>...]                        # optional, multi-valued
 - Release-Exempt-Kind: <artifact|decision|todo|issue|date|external>  # optional exemption pair
 - Release-Exempt-Ref: <ref>                                          # optional exemption pair
+- Close-Evidence: <in-tree artifact path>   # optional; written by the setter on an evidence-satisfied done close
 
 ## Workflow history
 - YYYY-MM-DD <event> (<actor>): <one line>
@@ -76,6 +77,12 @@ Choosing `bug` also sets a RELEASE GATE: a live `bug` item must carry `- Blocks-
 ship known bugs. The rule, what counts as a bug (including when a slow-but-correct path does), and its two
 limits are stated in `AGENTS.md` under "Every live bug gates the next release"; read it there rather than
 here, so the policy has one home.
+
+The `- Close-Evidence:` field records the in-tree artifact path cited to satisfy a release gate on a `done` close. Three properties define its contract:
+1. Written by the tool, never by hand: it is an attestation that a specific citation was resolved and accepted by the close predicate, so a hand-written value forges the acceptance (the same rule `AGENTS.md` states for `- Readiness:`).
+2. Retained on the item forever, since the close it records is permanent.
+3. Not a gate field, so it is never cleared by a status transition.
+It is named `Close-Evidence` rather than `Gate-Evidence` because `Gate-*` is the blocked-gate family (`Gate-Kind`, `Gate-Ref`, and `Gate-Summary`, which `_render_item` deliberately drops on a non-`blocked` item), and a name in that family would be a magnet for that drop rule.
 
 ## Verbs
 
