@@ -1,5 +1,6 @@
 - Id: m5csyi
-- Status: open
+- Status: graduated
+- Graduated-To: m5csyi
 - Blocks-Release: next
 - Set: m5csyi
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: aw research new interpolates an unvalidated --date into the derived filename, so a traversal in it writes a record outside the records tree; prompts new already refuses this and specs is fixed under qbz8i1
 
 ## Workflow history
+- 2026-10-01 graduated (aw backlog): graduated by run run-20261001T222151Z-2118435: iumgvk
 - 2026-09-29 created (aw backlog): aw research new interpolates an unvalidated --date into the derived filename, so a traversal in it writes a record outside the records tree; prompts new already refuses this and specs is fixed under qbz8i1
 
 FILED AS THE CARRIER for the research-tree row in plan `ribg85` (Set `qbz8i1`), which fixes the same defect in `aw specs new` only.
