@@ -1,5 +1,5 @@
 - Id: qdro85
-- Status: graduated
+- Status: done
 - Graduated-To: qdro85
 - Set: qdro85
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: The AST-freeze harness had no route for a REVISED docstring; DOCUMENTED_SINCE_MOVE only handles a GAINED one
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): closed by aw oc run: IPD ery0ia executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-qdro85-01-ery0ia-delete-the-dead-ast-freeze-exemption-tables-so-the-two-docst.ipd.md); evidence .aw/records/plans/executed/20260929-qdro85-01-ery0ia-delete-the-dead-ast-freeze-exemption-tables-so-the-two-docst.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: ery0ia
 - 2026-09-28 note (aw backlog): Maintainer ruling: Tests that pin code or freeze AST structure instead of testing functionality/outcomes have no business existing. We do not test to make sure code does not change or that text in a script remains the same.
 - 2026-09-21 created (aw backlog): Filed by plan 2iye0e execution turn; the immediate gap is already closed by that plan's REDOCUMENTED_SINCE_MOVE, this item records the residual design concern.
