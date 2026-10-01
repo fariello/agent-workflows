@@ -1,5 +1,5 @@
 - Id: mc57em
-- Status: graduated
+- Status: done
 - Graduated-To: vresultvocab
 - Set: mc57em
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: the IPD validation-result vocabulary is 'pass' but every V-item's own instruction and the lint error say nothing about it
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD uh9jsk executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-vresultvocab-01-uh9jsk-state-the-accepted-validation-result-vocabulary-where-an-aut.ipd.md); evidence .aw/records/plans/executed/20260930-vresultvocab-01-uh9jsk-state-the-accepted-validation-result-vocabulary-where-an-aut.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053059Z-3200713: uh9jsk
 - 2026-09-22 created (aw backlog): the IPD validation-result vocabulary is 'pass' but every V-item's own instruction and the lint error say nothing about it
 
