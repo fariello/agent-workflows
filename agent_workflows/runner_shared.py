@@ -113,9 +113,9 @@ eight flags twice is how two parsers diverge, and the shipped `--full-auto` had 
 It is admitted under a DIFFERENT rule from the 34, stated so the admission rule above is not read as
 having been bent: the 34 are PROVEN-IDENTICAL EXISTING bodies moved without edit, fingerprint-pinned
 by `tests/test_runner_shared.py`. This block is NEW code that never existed in either runner, so it
-has no pre-move fingerprint to match and is deliberately absent from that fixture. What replaces the
-fingerprint as its guard is `tests/test_run_flag_surface.py`, which drives every assertion from
-`RUN_POLICY_FLAGS` as DATA and therefore fails when the spec grows a flag the code lacks.
+has no pre-move fingerprint to match and is deliberately absent from that fixture. The former guard
+(`tests/test_run_flag_surface.py`, which drove assertions from `RUN_POLICY_FLAGS` as data) was deleted in
+`19313eed`, so the flag surface currently has no such data-driven test (coverage carrier: backlog `xvp5vx`).
 """
 
 from __future__ import annotations
@@ -1123,8 +1123,8 @@ def add_output_mode_flags(
     That distinction is the reason the original two copies were shaped this way and it is preserved.
 
     DELIBERATELY NOT IN `RUN_POLICY_FLAGS`: that table is the closed flag list spec `25kzda` 2.1
-    declares and `tests/test_run_flag_surface.py` asserts against the spec file, so registering a
-    DISPLAY flag there would fail `test_no_owned_flag_is_absent_from_the_spec`.
+    declares; the data-driven test guard (`tests/test_run_flag_surface.py`) was deleted in `19313eed`
+    and the surface is currently unguarded (carrier: backlog `xvp5vx`), but the closed contract stands.
 
     `verbosity_default` is `0` on `start` (a bare run freezes tier 0) and `None` on `resume`, so an
     OMITTED flag on resume leaves the frozen value untouched rather than resetting it to 0 - the same
@@ -14702,8 +14702,9 @@ RESUME_NONE_DEFAULT = "none-default"
 #: `--allow-dirty-base` JOINED with dirtybase Order 01 (`3i0aaz`), which added the dirty-base refusal
 #: on the shared-tree path and therefore needed the CONSENT half in the same change: shipping a
 #: refusal with no sanctioned override is how an operator learns to work around a gate instead of
-#: through it. Spec 2.1 declares it in the same commit, because `tests/test_run_flag_surface.py` reads
-#: the spec FILE in BOTH directions and a row here that 2.1 does not declare fails the suite.
+#: through it. Spec 2.1 declares it in the same commit: the data-driven test (`tests/test_run_flag_surface.py`)
+#: was deleted in `19313eed` and is currently unguarded (carrier: backlog `xvp5vx`), but the requirement
+#: that spec 2.1 declare every row here in the same change remains in force.
 #:
 #: THE COUNT IS DELIBERATELY NOT STATED. It said "NINE" and was already one edit behind by the time a
 #: tenth arrived; the contract test derives the expected set from the spec for exactly this reason.
@@ -14901,8 +14902,9 @@ RUN_POLICY_FLAGS: tuple = (
     # THIS table, and not on each host's parser, on the maintainer's 2026-09-07 OQ-04 ruling: the
     # shared spec-governed table is what stops the two hosts diverging, which is the failure
     # `--full-auto` already demonstrated (default `False` on one host, `True` on the other). Spec
-    # `25kzda` 2.1 was amended to DECLARE both in the same change that registers them here, because
-    # `tests/test_run_flag_surface.py` reads that section as a FILE in BOTH directions.
+    # `25kzda` 2.1 was amended to DECLARE both in the same change that registers them here: the former
+    # guard (`tests/test_run_flag_surface.py`) was deleted in `19313eed` (carrier: backlog `xvp5vx`),
+    # but the requirement that spec 2.1 declare every registered row in the same change remains in force.
     RunPolicyFlag(
         flag="--integration-retry-limit",
         dest="integration_retry_limit",
@@ -14922,9 +14924,9 @@ RUN_POLICY_FLAGS: tuple = (
         resume_rule=RESUME_REFUSE,
     ),
     # orchprobe-03 (`m7gvuz`) E-05: the orchestrator coverage gate's UNATTENDED half. Spec `25kzda`
-    # 2.1 and the new 2.5b are amended in the same change that registers it, because
-    # `tests/test_run_flag_surface.py` reads that section as a FILE in BOTH directions and a row here
-    # the spec does not declare fails the suite.
+    # 2.1 and the new 2.5b are amended in the same change that registers it: the former data-driven
+    # test (`tests/test_run_flag_surface.py`) was deleted in `19313eed` (carrier: backlog `xvp5vx`),
+    # but the requirement that spec 2.1 declare every registered row in the same change remains in force.
     #
     # IT TAKES A JUSTIFICATION, WHICH IS WHY IT IS THE TABLE'S FIRST `"str"` ROW. The risk it accepts
     # is that a parent plan's own items are reported complete having never been performed OR verified,
@@ -14948,10 +14950,9 @@ RUN_POLICY_FLAGS: tuple = (
         ),
     ),
     # runconcur-01 (`vddpml`) E-04: the integration-serialization ESCAPE HATCH. Spec `25kzda` 2.1 is
-    # amended in the SAME change that registers it, because `tests/test_run_flag_surface.py` reads that
-    # section as a FILE in BOTH directions and a row here the spec does not declare fails the suite
-    # (proven at review by construction: injecting one undeclared flag turned
-    # `test_the_spec_and_the_owned_table_agree_in_both_directions` RED).
+    # amended in the SAME change that registers it: the bidirectional test (`tests/test_run_flag_surface.py`)
+    # was deleted in `19313eed` and is currently unguarded (carrier: backlog `xvp5vx`), but the requirement
+    # that spec 2.1 declare every registered row in the same change remains in force.
     #
     # IT TAKES A JUSTIFICATION, the table's second `"str"` row, for the same reason
     # `--allow-uncovered-orchestrator-work` does: the risk it accepts is that two drivers publish to
@@ -28684,10 +28685,10 @@ def initialize_run_core(
     # own completion criterion requires its refusal be readable in `aw runs`, which reads durable run
     # state. A pre-directory refusal leaves that surface nothing to read at all.
     #
-    # THE THREE GATES ARE DESCRIBED HERE AND NOT SPELLED, deliberately: `test_run_flag_surface.py
-    # ::test_the_mixed_type_call_site_was_not_duplicated` counts occurrences of that gate's SYMBOL in
-    # this function's source to prove it has exactly one call site, so naming it in a comment would
-    # fail a correct test on a comment. Locate each by its own call above.
+    # THE THREE GATES ARE DESCRIBED HERE AND NOT SPELLED, historically: the former test
+    # (`tests/test_run_flag_surface.py::test_the_mixed_type_call_site_was_not_duplicated`, deleted in
+    # `19313eed`, carrier: backlog `xvp5vx`) counted occurrences of that gate's SYMBOL in this function's
+    # source to prove it had exactly one call site. Locate each by its own call above.
     #
     # WHAT "COSTS NOTHING" MEANS HERE: no agent turn, no lane worktree, no session. All three are
     # allocated downstream in `run_queue`/`execute_item`, so a refusal that raises from this line has
