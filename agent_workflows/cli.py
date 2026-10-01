@@ -4226,6 +4226,12 @@ def _build_parser() -> argparse.ArgumentParser:
                 action="store_true",
                 help="Scan packaged source (agent_workflows/ and tools/, non-test .py only) for dangling record citations. Read-only report; does not rewrite or fix because source citations may be runtime paths.",
             )
+            _p.add_argument(
+                "--source-anchors",
+                dest="source_anchors",
+                action="store_true",
+                help="Scan source files for spec line-anchor citations and report enclosing headings (opt-in, advisory info; runs across source regardless of positional record type).",
+            )
             _p.formatter_class = _AlphaHelpFormatter
             _p.epilog = (
                 "AVAILABLE TYPES\n"
@@ -12729,6 +12735,90 @@ def _run_check(
                 "human_rendered": human_rendered,
                 "skipped_test_files": skipped_tests,
                 "scanned_files": scanned_count,
+            },
+            verified=True,
+            complete=True,
+        )
+        return get_renderer(ctx).emit(result, ctx)
+
+    if getattr(args, "source_anchors", False):
+        from agent_workflows import agent_schema as _schema
+        from agent_workflows import spec_citations
+        from agent_workflows.result_types import OutputMode
+
+        scan_paths = [
+            p
+            for p in [
+                repo_root / "agent_workflows",
+                repo_root / "tools",
+                repo_root / "tests",
+            ]
+            if p.exists()
+        ]
+        if not scan_paths:
+            scan_paths = [repo_root]
+
+        findings = spec_citations.stale_spec_anchors(repo_root, scan_paths)
+        exit_code = 0
+        status = "clean" if len(findings) == 0 else "findings"
+        summary = (
+            "0 stale spec anchor findings detected across source"
+            if len(findings) == 0
+            else f"{len(findings)} stale spec line-anchor citation finding(s) detected across source"
+        )
+
+        lines: list[str] = []
+        for f in findings:
+            try:
+                rel = f.file.relative_to(repo_root).as_posix()
+            except ValueError:
+                rel = f.file.as_posix()
+            lines.append(
+                f"{rel}:{f.line}: spec {f.id6} :{f.offset} -> {f.enclosing_heading or f.validity}"
+            )
+
+        human_rendered = "\n".join(lines) + ("\n" if lines else "")
+
+        diagnostics = [
+            Diagnostic(
+                location=f"{_schema.normalize_repo_path(f.file, repo_root)}:{f.line}",
+                rule="check.spec-anchor-stale",
+                detail=(
+                    f"Spec line anchor ':{f.offset}' for spec '{f.id6}' encloses "
+                    f"'{f.enclosing_heading}' (validity: {f.validity})"
+                    if f.enclosing_heading
+                    else f"Spec line anchor ':{f.offset}' for spec '{f.id6}' is invalid ({f.validity})"
+                ),
+                severity="info",
+            )
+            for f in findings
+        ]
+
+        evidence = [
+            Evidence(
+                key="source_anchors",
+                value={"findings_count": len(findings)},
+                status="clean" if len(findings) == 0 else "findings",
+            ),
+            Evidence(
+                key="rules",
+                value={"errors": 0, "warnings": 0, "info": len(findings)},
+                status="clean" if len(findings) == 0 else "findings",
+            ),
+        ]
+
+        result = CommandResult(
+            command="check",
+            status=status,
+            exit_code=exit_code,
+            summary=summary,
+            diagnostics=diagnostics,
+            evidence=evidence,
+            data={
+                "target": "source-anchors",
+                "repo_root": repo_root,
+                "human_rendered": human_rendered,
+                "findings_count": len(findings),
             },
             verified=True,
             complete=True,

@@ -223,6 +223,20 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.spec-criteria-uncovered": RuleSpec(
         "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
     ),
+    # IPD mt54wr (backlog sbh1o1): advisory detection of spec line-anchor citations whose cited offset
+    # resolves to a different heading than the citing prose implies or lands in an invalid position.
+    # Advisory by design (`info` severity), for two independent reasons:
+    # 1. `artifact_core.drift_exit_code` exempts ONLY `info`, so `warning` would exit nonzero exactly
+    #    as `error` does and would turn 28 pre-existing stale anchors into an immediate red check on an
+    #    unswept tree;
+    # 2. The rule's verdict is NECESSARY-NOT-SUFFICIENT, because an offset resolving to a different
+    #    heading than the citing prose implies is strong evidence of rot and not proof of it (a
+    #    citation may legitimately name a section while pointing at a line inside a neighbouring one).
+    # Claims invariant `""` rather than borrowing an existing `I-*` row: no catalog invariant in spec
+    # `pqsx96` governs citation freshness, and inventing one is out of scope.
+    "check.spec-anchor-stale": RuleSpec(
+        "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
     # IPD 0ykozn (backlog 1zknu7): advisory pending-scoped nudge flagging a pending plan whose
     # front-matter bullets cite a resolvable spec id6 while carrying no `- From-Spec:`.
     # Advisory by design (`info` severity) because citing a spec as a constraint does not necessarily
