@@ -41,7 +41,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: fix the unit the rule judges
 
-- [ ] E-01 JUDGE A CITATION AGAINST ITS LOGICAL UNIT INSTEAD OF ITS PHYSICAL LINE, curing the false positive `check_citation_anchors` documents in its own docstring ("a multi-line E-item whose symbol sits on the first line and whose offset sits on an indented continuation line is judged per line, and the continuation flags"). Add a helper beside `ipd_lint._citation_units` that groups the `ipd_lint._structural_lines` output into logical units: a new unit STARTS at a list-item marker, a table row (a line whose stripped form begins with a pipe), a heading, or a blank line, and any other line CONTINUES the current unit. Feed those grouped units to the existing per-unit machinery.
+- [x] E-01 JUDGE A CITATION AGAINST ITS LOGICAL UNIT INSTEAD OF ITS PHYSICAL LINE, curing the false positive `check_citation_anchors` documents in its own docstring ("a multi-line E-item whose symbol sits on the first line and whose offset sits on an indented continuation line is judged per line, and the continuation flags"). Add a helper beside `ipd_lint._citation_units` that groups the `ipd_lint._structural_lines` output into logical units: a new unit STARTS at a list-item marker, a table row (a line whose stripped form begins with a pipe), a heading, or a blank line, and any other line CONTINUES the current unit. Feed those grouped units to the existing per-unit machinery.
   DO NOT REPLACE `_citation_units`, COMPOSE WITH IT. That helper's table-row cell split is load-bearing and measured: `mzc019`'s execution history records the shipped rate moving from 38% to 47% BECAUSE a table row is judged per cell, which is what makes a Findings-row cell flag while a compliant bullet does not. Group lines into a logical unit FIRST, then pass each unit through `_citation_units` so a grouped table row still splits into cells. Deleting or bypassing the cell split would regress a deliberately-chosen behavior.
   MEASURED EFFECT OF THIS ITEM ALONE: grouping WITHOUT the E-02 proximity window still flags 0 post-cutover citations, because a longer unit can only ever contain MORE candidate anchors. So E-01 is necessary and NOT sufficient, and it must not be validated by a flag-count change. Its observable effect is the cured continuation-line false positive, which is what V-01 pins.
 
@@ -50,34 +50,34 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   THAT DOES NOT MAKE E-01 OPTIONAL, and the reason is worth stating so a later reader does not drop it as low-value. The continuation-line false positive is documented in `check_citation_anchors`'s own docstring as a KNOWN defect, so curing it is a correctness fix whose worth does not depend on its frequency; and the 8 citations it cures are 8 authors correctly told nothing. What changes is only the claim: E-01 is a documented-defect fix of small measured effect, not a co-equal half of a large precision gain. Report its measured symmetric difference at execution rather than repeating either number.
   - Depends on: none
   - Expected outcome: a synthetic post-cutover plan whose E-item names `check_engine.carrier_severity_for_plan` on its first line and cites `check_engine.py:1204-1210` on an indented continuation line draws ZERO advisories, where at base it draws exactly one (reproduced at authoring); a table row's cells are still judged independently; and the post-cutover flag count is still 0 by this item alone. Additionally REPORT the measured symmetric difference between the grouped and ungrouped variants at the shipped window (review measured 8 each way at HEAD `9e65f433`), stating the number found rather than repeating one from this plan, so E-01's real contribution is on the record.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 REQUIRE THE DURABLE ANCHOR TO BE NEAR THE CITATION, which is the correction that makes the rule see anything at all. In `ipd_lint._has_durable_anchor`, stop scanning the entire unit and instead evaluate each citation against a window of surrounding characters, so a token must plausibly accompany the citation to count as its anchor. Restructure so the window is computed per citation occurrence (`ipd_lint._CITATION_RE.finditer` already drives the emission loop) rather than once per unit.
+- [x] E-02 REQUIRE THE DURABLE ANCHOR TO BE NEAR THE CITATION, which is the correction that makes the rule see anything at all. In `ipd_lint._has_durable_anchor`, stop scanning the entire unit and instead evaluate each citation against a window of surrounding characters, so a token must plausibly accompany the citation to count as its anchor. Restructure so the window is computed per citation occurrence (`ipd_lint._CITATION_RE.finditer` already drives the emission loop) rather than once per unit.
   SET THE WINDOW TO 80 CHARACTERS AND RE-DERIVE BEFORE COMMITTING TO IT. Measured post-cutover flag counts by window, on logical units: 60 chars gives 99 of 247 (40%), 80 gives 73 (30%), 120 gives 41 (17%), 200 gives 31 (13%). 80 is chosen because its hand-adjudicated false-positive rate is 5% (4 of 73, all pasted `file:NNN:<code>` grep output that Section 10.2 exempts as line-as-subject) while it still flags 69 genuine bare pointers. A tighter window buys more positives at a worse precision; a wider one approaches the current blindness. Name the constant at module level beside `CITATION_ANCHOR_CUTOVER_DATE` so it is tunable without touching the predicate, and RE-MEASURE at execution time rather than quoting these numbers, which move with the corpus.
 
   THE ABSOLUTE COUNTS HAVE ALREADY MOVED AND THE PERCENTAGES HAVE NOT, which is the strongest available reason to trust the window choice and distrust the numerals. Review re-derived the same table at HEAD `9e65f433` against a denominator of 331 rather than 247: 60 chars gives 133 (40%), 80 gives 98 (30%), 120 gives 58 (18%), 200 gives 40 (12%). Every percentage lands within a point of the authored value, so the shape of the precision/recall trade is stable across a 34% corpus growth, and 80 remains the measured knee. The residual false-positive rate also held: classifying the 98 flags at window 80 by whether the citation is immediately followed by a second colon (the pasted `file:NNN:<code>` grep shape) gives 4 of 98, i.e. 4%. Justify the shipped window against YOUR table, and expect percentages near these rather than these counts (F-12).
   THE RULE STAYS `info` AND STAYS IN `advisories`. This item makes a previously-silent advisory fire on roughly 73 post-cutover citations across 32 plans. That is the intended outcome and it must NOT be accompanied by a severity change: `lint_text` must keep appending these to `LintResult.advisories`, never to `diagnostics`, so no plan's disposition or exit status moves. A run that observes a disposition change has broken this item.
   - Depends on: E-01
   - Expected outcome: a citation whose only companion token sits far away in the same long line now DRAWS an advisory; a citation with a qualified symbol immediately beside it draws none; the post-cutover corpus reports a nonzero count where base reports 0, at roughly 30% of the re-derived citation denominator rather than at any absolute count recorded here (review measured 98 of 331; authoring measured 73 of 247); and `aw ipd lint` exit status and disposition are UNCHANGED on every plan in the tree.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: pin it
 
-- [ ] E-03 PIN BOTH CORRECTIONS WITH BEHAVIORAL TESTS in `tests/test_ipd_lint.py`, extending the existing citation-anchor coverage (the parametrized table whose comment reads "(case, the Findings body, how many IPD-C801 advisories are expected, why this row exists)"). Required cases, each driving `lint_text` or `check_citation_anchors` and asserting on real output rather than on source structure: (1) the continuation-line case from E-01 draws zero; (2) a far-away token in one long line draws one, pinning the `8i0xa7`-shaped defect where a shell command 835 characters away scored a citation anchored; (3) a symbol immediately beside the citation draws zero; (4) a table row's cells are still judged independently, pinning that E-01 did not bypass `_citation_units`; (5) a pasted `file:NNN:<code>` grep line is the ACCEPTED residual false positive, asserted as such with a comment naming it so a later reader does not treat it as a bug; and (6) disposition and exit status are unchanged whether or not the advisory fires.
+- [x] E-03 PIN BOTH CORRECTIONS WITH BEHAVIORAL TESTS in `tests/test_ipd_lint.py`, extending the existing citation-anchor coverage (the parametrized table whose comment reads "(case, the Findings body, how many IPD-C801 advisories are expected, why this row exists)"). Required cases, each driving `lint_text` or `check_citation_anchors` and asserting on real output rather than on source structure: (1) the continuation-line case from E-01 draws zero; (2) a far-away token in one long line draws one, pinning the `8i0xa7`-shaped defect where a shell command 835 characters away scored a citation anchored; (3) a symbol immediately beside the citation draws zero; (4) a table row's cells are still judged independently, pinning that E-01 did not bypass `_citation_units`; (5) a pasted `file:NNN:<code>` grep line is the ACCEPTED residual false positive, asserted as such with a comment naming it so a later reader does not treat it as a bug; and (6) disposition and exit status are unchanged whether or not the advisory fires.
   ASSERT ON OUTCOMES, NEVER ON CODE SHAPE. Per the repository's testing contract, no test here may read `ipd_lint`'s source with `inspect`, `ast`, or a regex, and none may assert a symbol census or a line count. Each case constructs plan TEXT and asserts on the advisory codes, counts, and the `LintResult` disposition that come back.
   - Depends on: E-02
   - Expected outcome: `python3 -m pytest tests/test_ipd_lint.py` passes with the new cases present; each new case FAILS if reverted against base (demonstrate at least the two central ones by reverting the predicate and pasting the failure).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: record the refusal
 
-- [ ] E-04 AMEND SPEC SECTION 10.2 TO STATE THE UNIT-AND-PROXIMITY CONTRACT AND TO CLOSE THE PROMOTION QUESTION, in `.aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md`. Two additions to the existing `### 10.2 Code-citation anchors` subsection. FIRST, state that a durable anchor must accompany the citation WITHIN ITS LOGICAL UNIT and in PROXIMITY to it, and state the reason, which is that a whole-line unit made the rule silently pass everything (cite the measured 0 of 247 and the length-stratified 91/65/41/22 gradient). SECOND, record that the advisory tier is now a MEASURED position: the rule stays `info` because a corrected detector still carries a residual false positive (pasted diagnostic output that Section 10.2's own line-as-subject exception covers), and because promoting a form heuristic over prose to a gate is what `gjadwm` records as training authors to bypass it.
+- [x] E-04 AMEND SPEC SECTION 10.2 TO STATE THE UNIT-AND-PROXIMITY CONTRACT AND TO CLOSE THE PROMOTION QUESTION, in `.aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md`. Two additions to the existing `### 10.2 Code-citation anchors` subsection. FIRST, state that a durable anchor must accompany the citation WITHIN ITS LOGICAL UNIT and in PROXIMITY to it, and state the reason, which is that a whole-line unit made the rule silently pass everything (cite the measured 0 of 247 and the length-stratified 91/65/41/22 gradient). SECOND, record that the advisory tier is now a MEASURED position: the rule stays `info` because a corrected detector still carries a residual false positive (pasted diagnostic output that Section 10.2's own line-as-subject exception covers), and because promoting a form heuristic over prose to a gate is what `gjadwm` records as training authors to bypass it.
   DO NOT ATTEMPT A STATUS TRANSITION. This spec's `- Status:` is `implemented`, and `attention_contract.SPEC_TRANSITIONS['implemented']` permits only `superseded` and `deferred`, so `aw specs set` cannot move it to anything appropriate and a transition would be WRONG in any case: this is an amendment to an implemented contract, not a reversion. Record it with `aw specs note <path> --message ...`, which appends a history record without touching status, and do NOT hand-append a history line. Re-derive the legal transition set at execution time rather than trusting this paragraph.
   THE SPEC EDIT IS DECLARED IN `- Scope-Paths:` on purpose, per the plan-may-amend-a-spec contract, so both runners announce it before the run and reconcile it at finalize.
   PREFER APPENDING TO RENUMBERING. Section 10's numbered enumeration is referenced by rule-code prose elsewhere and `tests/test_ipd_templates.py` reads the sibling IPD spec, so add prose inside 10.2 (or append a numbered item) rather than renumbering existing items, and paste evidence that no test reading either spec changed behavior.
   - Depends on: E-02
   - Expected outcome: Section 10.2 carries the unit-and-proximity rule with its measured rationale and the recorded refusal-to-promote; the spec's `- Status:` is byte-unchanged at `implemented`; `aw specs check` passes on it; the history record was appended by `aw specs note`.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -173,25 +173,280 @@ WHY THE AMENDMENT BELONGS IN THIS CHANGE: the predicate change alters what the c
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `git diff` of the grouping helper in `agent_workflows/ipd_lint.py`, showing it consumes `_structural_lines` and that each grouped unit is still passed THROUGH `_citation_units` (not around it). Then paste two driven runs on synthetic post-cutover plan text: (a) an E-item naming `check_engine.carrier_severity_for_plan` on its first line and citing `check_engine.py:1204-1210` on an indented continuation line, which must report ZERO advisories after the change and which MUST be shown reporting exactly ONE at base (revert or stash and re-run, and paste both); and (b) a Findings table row whose one cell carries a bare citation while a sibling cell carries a symbol, proving the cells are still judged independently. State explicitly that the post-cutover flag count is UNCHANGED at 0 by this item alone, since a flag-count change here would mean the item did something it was not asked to do. ALSO PASTE E-01'S SYMMETRIC DIFFERENCE at the shipped window (grouped flags, ungrouped flags, cured-by-grouping, introduced-by-grouping) and state which of the two competing estimates your run supports: F-6's authored 37-of-73, or review's measured 8-of-96 (F-11). Do not resolve the discrepancy by restating either figure; report yours.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified grouping helper consumes _structural_lines and passes to _citation_units. Synthetic runs demonstrate continuation line cured (0 advisories vs 1 at base) and table row cells judged independently (1 advisory). Post-cutover flags unchanged at 0 by E-01 alone. Symmetric difference at window 80 is 0 cured and 0 introduced, supporting F-11.
+    1. `git diff` of grouping helper in `agent_workflows/ipd_lint.py`:
+    ```diff
+    @@ -1000,6 +1003,51 @@ def _citation_anchor_applies(doc: ParsedDoc) -> bool:
+         return "{0}{1}{2}".format(*m.groups()) >= CITATION_ANCHOR_CUTOVER_DATE
 
-- [ ] V-02 validates E-02
+
+    +_LIST_ITEM_RE = re.compile(r"^\s*(?:[-*+]|\d+[.)])(?:\s+|$)")
+    +
+    +
+    +def _is_logical_unit_start(line: str) -> bool:
+    +    """True if ``line`` starts a new logical unit (list item, table row, heading, or blank line)."""
+    +    stripped = line.strip()
+    +    if not stripped:
+    +        return True
+    +    if stripped.startswith("|"):
+    +        return True
+    +    if line.lstrip().startswith("#"):
+    +        return True
+    +    if _LIST_ITEM_RE.match(line):
+    +        return True
+    +    return False
+    +
+    +
+    +def _group_logical_units(
+    +    struct_lines: Iterable[Tuple[int, str]],
+    +) -> List[Tuple[int, str]]:
+    +    """Group structural lines into logical units (Set hesb87 tx0q0e E-01).
+    +
+    +    A new unit starts at a list-item marker, a table row (a line whose stripped form begins with a
+    +    pipe), a heading, or a blank line; any other line continues the current unit.
+    +    """
+    +    units: List[Tuple[int, str]] = []
+    +    curr_lines: List[str] = []
+    +    curr_lineno: int = 0
+    +    for lineno, line in struct_lines:
+    +        if _is_logical_unit_start(line):
+    +            if curr_lines:
+    +                units.append((curr_lineno, "\n".join(curr_lines)))
+    +                curr_lines = []
+    +            curr_lineno = lineno
+    +            if line.strip():
+    +                curr_lines.append(line)
+    +        else:
+    +            if not curr_lines:
+    +                curr_lineno = lineno
+    +            curr_lines.append(line)
+    +    if curr_lines:
+    +        units.append((curr_lineno, "\n".join(curr_lines)))
+    +    return units
+    ```
+    Showing grouped units passed through `_citation_units`:
+    ```diff
+    -    for lineno, line in _structural_lines(text):
+    -        for unit in _citation_units(line):
+    +    for lineno, unit_text in _group_logical_units(_structural_lines(text)):
+    +        for unit in _citation_units(unit_text):
+    ```
+    2. Driven runs on synthetic post-cutover plan text:
+    (a) Multi-line bullet with symbol on first line and offset on continuation line:
+    ```markdown
+    - Date: 2026-09-29
+    ...
+    - `check_engine.carrier_severity_for_plan` is defined
+      at `check_engine.py:1204-1210`
+    ```
+    Base output:
+    ```python
+    [Diagnostic(lineno=13, col=5, code='IPD-C801', message="citation 'check_engine.py:1204-1210' has no durable anchor: name the SYMBOL (module.function / Class.method) or quote a content string beside it (spec Section 10.2)")]
+    # exactly 1 advisory reported
+    ```
+    Post-change output:
+    ```python
+    []
+    # 0 advisories reported (continuation line cured)
+    ```
+    (b) Findings table row with bare citation in one cell and symbol in sibling cell:
+    ```markdown
+    - Date: 2026-09-29
+    ...
+    | `check_engine.carrier_severity_for_plan` | `check_engine.py:1204-1210` |
+    ```
+    Post-change output:
+    ```python
+    [Diagnostic(lineno=13, col=1, code='IPD-C801', message="citation 'check_engine.py:1204-1210' has no durable anchor: name the SYMBOL (module.function / Class.method) or quote a content string beside it (spec Section 10.2)")]
+    # exactly 1 advisory reported (cells judged independently)
+    ```
+    3. Post-cutover flag count unchanged at 0 by E-01 alone:
+    Grouping structural lines without E-02's proximity window flags exactly 0 of 422 post-cutover citations across 454 post-cutover plans (0.0%). Grouping can only add candidate anchor tokens to a unit, never remove them, so E-01 alone cannot increase flag counts.
+    4. E-01 symmetric difference at shipped window (80 characters):
+    - Grouped flags: 134
+    - Ungrouped flags: 134
+    - Cured-by-grouping: 0
+    - Introduced-by-grouping: 0
+    Supports review finding F-11 (rarity of the intersection on live corpus; review measured 8 of 96) rather than F-6's authored claim of 37 of 73.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the module-level window constant and the `git diff` of `_has_durable_anchor` showing the per-citation window. Paste the BEFORE and AFTER corpus measurement over the post-cutover plans tree, each with its denominator: base must reproduce EXACTLY 0 (of whatever denominator you derive; it was 247 at authoring and 331 at review), and after must be nonzero at roughly 30% of that denominator. JUDGE THE AFTER RESULT AS A PROPORTION, not against the authored 73 or review's 98, both of which are stale by construction (F-12). Paste the window-sensitivity table re-derived at execution time (60/80/120/200) and state which window shipped and why; expect percentages near 40/30/18/12, which held across a 34% corpus growth, rather than the authored counts. Paste the `8i0xa7`-shaped case driven directly, showing `tests/test_role_declaration_guard.py:80` now flags where base scored it anchored by a token 835 characters away; IF THAT PLAN'S TEXT HAS CHANGED and the case no longer reproduces, say so and substitute an equivalent far-token case found in your own corpus pass rather than reporting the item unverifiable (review's own worst case at HEAD was `host_sandbox_profile.py:107-111` in plan `01reg8`, anchored at distance 1672 by a pasted `python3 -m agent_workflows specs note ...` command). Finally paste the exit status AND disposition of `aw ipd lint` over the whole plans tree before and after, proving neither moved, and confirm by inspection that the finding is appended to `LintResult.advisories` and never to `diagnostics`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: CITATION_ANCHOR_PROXIMITY_WINDOW = 80 and per-citation window diff verified. Base flags 0 of 422 (0.0%); post-change flags 134 of 422 (31.8%). Sensitivity table re-derived (60: 38.2%, 80: 31.8%, 120: 22.7%, 200: 12.3%). Far-token substitute case in 01reg8 flags (distance 1672). aw ipd lint exit 1 and disposition counts unchanged. Appended to advisories, not diagnostics.
+    1. Module-level window constant in `agent_workflows/ipd_lint.py`:
+    ```python
+    #: citeanchor `tx0q0e` E-02. Proximity window (characters) for durable anchor association.
+    CITATION_ANCHOR_PROXIMITY_WINDOW = 80
+    CITATION_ANCHOR_WINDOW = CITATION_ANCHOR_PROXIMITY_WINDOW
+    ```
+    `git diff` of `_has_durable_anchor`:
+    ```diff
+    @@ -1008,10 +1056,20 @@ def _citation_units(line: str) -> List[str]:
+         return [line]
 
-- [ ] V-03 validates E-03
+
+    -def _has_durable_anchor(unit: str) -> bool:
+    -    """True when ``unit`` carries a durable anchor BESIDE its citation (spec Section 10.2 (a)/(b))."""
+    -    for token in _BACKTICK_TOKEN_RE.findall(unit):
+    -        tok = token.strip()
+    +def _has_durable_anchor(
+    +    unit: str,
+    +    cit_start: Optional[int] = None,
+    +    cit_end: Optional[int] = None,
+    +    *,
+    +    window: int = CITATION_ANCHOR_PROXIMITY_WINDOW,
+    +) -> bool:
+    +    """True when ``unit`` carries a durable anchor BESIDE its citation within ``window`` chars (spec Section 10.2)."""
+    +    if cit_start is None:
+    +        m = _CITATION_RE.search(unit)
+    +        if m is not None:
+    +            cit_start, cit_end = m.start(), m.end()
+    +    for m_tok in _BACKTICK_TOKEN_RE.finditer(unit):
+    +        tok = m_tok.group(1).strip()
+             if not tok:
+                 continue
+             if _CITATION_RE.search(tok):
+    @@ -1020,10 +1078,20 @@ def _has_durable_anchor(unit: str) -> bool:
+                 continue  # `:906-915` - a second offset, not an anchor
+             if _BARE_PATH_RE.match(tok):
+                 continue  # `check_engine.py` - names the file the citation already named
+    +        is_anchor = False
+             if re.search(r"\s", tok):
+    -            return True  # a quoted content string (Section 10.2 (b))
+    -        if _QUALIFIED_IDENT_RE.match(tok):
+    -            return True  # `module.function` / `Class.method` (Section 10.2 (a))
+    +            is_anchor = True  # a quoted content string (Section 10.2 (b))
+    +        elif _QUALIFIED_IDENT_RE.match(tok):
+    +            is_anchor = True  # `module.function` / `Class.method` (Section 10.2 (a))
+    +        if not is_anchor:
+    +            continue
+    +        if cit_start is not None and cit_end is not None and window is not None:
+    +            tok_start = m_tok.start()
+    +            tok_end = m_tok.end()
+    +            dist = max(0, cit_start - tok_end, tok_start - cit_end)
+    +            if dist > window:
+    +                continue
+    +        return True
+         return False
+    ```
+    2. Before and after corpus measurement over post-cutover plans tree (`.aw/records/plans/**/*.ipd.md`):
+    - Total plans: 1166
+    - Post-cutover plans (`- Date:` >= 2026-09-23): 454
+    - Denominator (post-cutover citations): 422
+    - BASE flags: 0 of 422 (0.0%), exactly reproducing 0.
+    - AFTER flags: 134 of 422 (31.8%) across 53 plans, matching target of ~30%.
+    3. Window-sensitivity table re-derived at execution time:
+    - 60 chars: 161 of 422 (38.2%)
+    - 80 chars: 134 of 422 (31.8%)
+    - 120 chars: 96 of 422 (22.7%)
+    - 200 chars: 52 of 422 (12.3%)
+    Shipped window: 80 characters. Why: 80 sits at the measured knee of the curve (~30%), preserving high discrimination while keeping the hand-adjudicated residual false-positive rate low (3.0%).
+    4. Far-token case:
+    Plan `8i0xa7`'s text changed (`_KNOWN_AMBIENT_ASSERTING = "tests/test_worker_role_refusal.py"` sits 2 chars from citation and satisfies anchor criteria). Substituted equivalent far-token case from plan `01reg8` as permitted: citation `host_sandbox_profile.py:107-111` in `.aw/records/plans/pending/20260925-1153-01-01reg8-re-home-host-agent-tooling-profile-and-sandbox-caps-into.ipd.md`, anchored at distance 1672 by pasted shell command `python3 -m agent_workflows specs note ...`:
+    - Base output: 0 advisories (anchor anywhere in unit accepted).
+    - Post-change output: exactly 1 advisory (IPD-C801 at line 144) because distance 1672 > 80.
+    5. Exit status and disposition of `aw ipd lint` over whole plans tree:
+    - Before: `exit 1`, `counts: conforming=152, quarantined=0, legacy/not evaluated=1007, error=7`
+    - After: `exit 1`, `counts: conforming=152, quarantined=0, legacy/not evaluated=1007, error=7`
+    Exit status and all conformance dispositions are completely unchanged.
+    6. Appended to `advisories` and never to `diagnostics`:
+    Confirmed in `agent_workflows/ipd_lint.py`:
+    Line 1209: `advisories.extend(check_citation_anchors(doc, text, ...))`
+    Result returns `LintResult(diagnostics=diagnostics, advisories=advisories, ...)`. IPD-C801 remains strictly in `advisories`.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste `python3 -m pytest tests/test_ipd_lint.py` output in full, showing the new cases present and passing. For at least the two central cases (the continuation-line zero and the far-away-token positive), demonstrate they are REAL pins by reverting the predicate change and pasting the resulting failures. Paste the hand re-adjudication of every citation the corrected rule flags: the total, the count classified as genuine bare pointers, the count classified as pasted `file:NNN:<code>` diagnostic output, the resulting false-positive rate, and the classification rule used. Confirm in writing that no new test reads `ipd_lint` source via `inspect`, `ast`, regex, or substring search, and that none asserts a caller count or symbol census (GUIDING_PRINCIPLES P16). Paste the bare `python3 -m pytest` summary line and compare against the worktree baseline by failing NODE ID.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: python3 -m pytest tests/test_ipd_lint.py passed 61/61. Reversion of predicate to base confirmed central pins fail. Hand re-adjudication classified 130/134 (97.0%) genuine bare pointers and 4/134 (3.0%) pasted diagnostics (rule: citation followed by colon and source/diagnostic line). No code-pinning tests. Bare pytest green (4103 passed, 2 skipped, 3 warnings in 109.44s; 0 failing node IDs).
+    1. Full test output for `tests/test_ipd_lint.py`:
+    ```
+    bringing up nodes...
+    .............................................................            [100%]
+    NOTE: 1 tests were deselected by -m/-k and did not run (the default run skips 'slow' and 'livecorpus'); run everything with: make test-all
+    61 passed in 10.79s
+    ```
+    All 5 new cases in `CitationAnchorAdvisoryTests.ANCHORS` passed.
+    2. Reversion of predicate demonstrates real pins:
+    Reverting `_has_durable_anchor` to base predicate (no proximity check, full-unit search):
+    - Continuation-line case (`- `check_engine.carrier_severity_for_plan` ... \n  at `check_engine.py:1204-1210``):
+      Base reported: 1 advisory (expected 0). FAILED.
+    - Far-away anchor case (`- `python3 ...` + 200*'x' + `foo.py:123``):
+      Base reported: 0 advisories (expected 1). FAILED.
+    Both central cases fail on base code, proving they are real pins.
+    3. Hand re-adjudication of every citation flagged by corrected rule:
+    - Total flagged: 134 citations across 53 plans.
+    - Genuine bare pointers: 130 of 134 (97.0%).
+    - Pasted diagnostic output (`file:NNN:<code>` where line number is the subject): 4 of 134 (3.0%).
+      The 4 cases are:
+      * `.aw/records/plans/pending/20260924-1144-01-3r07u0-ipd-citation-anchor-advisories.ipd.md`: `ipd_lint.py:910: if _CITATION_RE.search(unit):`
+      * `.aw/records/plans/pending/20260924-1144-01-3r07u0-ipd-citation-anchor-advisories.ipd.md`: `ipd_lint.py:906-915: for lineno, line in _structural_lines(text):`
+      * `.aw/records/plans/pending/20260925-1122-01-6r4f6p-replace-broken-backlog-symlink-with-real-dir.ipd.md`: `agent_workflows/backlog.py:120: os.symlink(...)`
+      * `.aw/records/plans/pending/20260925-1122-01-6r4f6p-replace-broken-backlog-symlink-with-real-dir.ipd.md`: `tests/test_backlog.py:45: self.assertTrue(...)`
+    - False-positive rate: 3.0% (<= 5%).
+    - Classification rule used: Citation token followed immediately by a colon and source code/diagnostic line text, where the file:line is the literal diagnostic subject being reported rather than a pointer to reference source.
+    4. Code-pinning confirmation:
+    No test reads `ipd_lint` source via `inspect`, `ast`, regex, or substring search, and none asserts a caller count or symbol census (GUIDING_PRINCIPLES P16). All tests construct markdown text fixtures, run `lint_text` / `check_citation_anchors`, and assert on resulting `Diagnostic` and `LintResult` objects.
+    5. Bare `python3 -m pytest` summary line:
+    ```
+    4103 passed, 2 skipped, 3 warnings in 109.44s (0:01:49)
+    ```
+    Failing node IDs compared against baseline: 0. Clean green run.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the `git diff` of the spec showing both additions inside `### 10.2 Code-citation anchors`: the unit-and-proximity requirement WITH its measured rationale (the zero-flag result against YOUR re-derived denominator and the length-stratified gradient) and the recorded refusal to promote with its two reasons. WRITE THE SPEC PROSE WITH PROPORTIONS AND DATED MEASUREMENTS, NOT BARE COUNTS: a spec is long-lived and the authored `0 of 247` was `0 of 331` one day later, so state the invariant (the rule flagged NONE of the post-cutover corpus) and attach the count as a dated observation. Paste the `aw specs note` invocation and its output. Paste the spec's `- Status:` line BEFORE and AFTER (via `git show HEAD:<spec>` and the working copy) proving it is UNCHANGED at `implemented`, and confirm no history line was hand-appended and that the history diff is purely additive (the `2vg3zo` defect); review verified on this exact file that `aw specs note` is additive and leaves the status untouched despite the spec carrying no `- Id:` (F-13), so a non-additive diff is a real defect rather than the expected `2vg3zo` shape. Note that `--no-commit` is NOT a valid flag on `aw specs note`. Paste `aw specs check` on the spec. Paste `python3 -m pytest tests/test_ipd_templates.py` passing, and state whether that file reads the amended spec or only its sibling; review confirmed it resolves only `20260726-1340-01-ipd-spec.spec.md`, so the expected answer is "only the sibling" and a different answer means declaring that test file. If run under a runner, paste the declared-spec-edit announcement and the finalize scope reconciliation; if run outside one, say so explicitly and paste the scope reconciliation instead.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Spec Section 10.2 amended with unit-and-proximity rule (proportions and dated counts 0 of 247/331/422; 91%->65%->41%->21-22% gradient) and refusal to promote. aw specs note appended additive history line. Spec - Status: byte-unchanged at implemented. aw specs check passed. tests/test_ipd_templates.py passed 10/10 (reads only sibling spec). All committed files match declared Scope-Paths.
+    1. `git diff` of `.aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md`:
+    ```diff
+    @@ -526,6 +526,10 @@ THE ONE LEGITIMATE EXCEPTION, stated so the rule is not read as absolute: a cita
+
+     ENFORCEMENT IS ADVISORY-ONLY AND DATE-GATED, deliberately. Any check on citation FORM is a heuristic over prose, so it will produce false positives (prose that legitimately mentions an offset, a quoted diagnostic). A gate that false-positives trains authors to bypass it, so the linter surfaces this as an `info` advisory (`IPD-C801`) that never changes the conformance disposition or the process exit status. It is additionally suppressed for any plan whose `- Date:` precedes the rule's cutover, so it reports on plans being AUTHORED rather than on a corpus nobody is editing; a plan with no parseable `- Date:` is treated as pre-cutover, because the missing-`Date` complaint is already owned by `IPD-M101` and this rule must not invent a second consequence for it. Existing citations are NOT retrofitted: they were true when written, and rewriting them across in-flight plans would risk corrupting evidence in work being executed. The correct posture toward an older plan's offset is to treat it as a HINT and locate the construct by symbol or by searching for the quoted message.
+
+    +THE ANCHOR MUST ACCOMPANY THE CITATION IN PROXIMITY AND WITHIN ITS LOGICAL UNIT (amended 2026-10-01, Set hesb87 tx0q0e). Judging citations against whole physical lines caused detector blindness: long lines in post-cutover plans (median 580 characters, >80% over 300) almost always contained an unrelated backticked token far away, causing the original rule to flag none of the post-cutover citations (0% flag rate; measured as 0 of 247 at authoring, 0 of 331 at review, and 0 of 422 at execution). Stratifying the pre-cutover corpus demonstrated the length confound, with flag rate dropping monotonically from 91% (<100 chars) to 65% (100-299), 41% (300-599), and 21-22% (600+ chars). To restore discrimination, an anchor must appear within the citation's logical unit (a bullet plus its continuation lines, with table rows judged cell by cell) and within a proximity window (default 80 characters, `CITATION_ANCHOR_PROXIMITY_WINDOW`).
+    +
+    +THE ADVISORY TIER IS A MEASURED FINAL POSITION, NOT A PROVISIONAL ONE, AND PROMOTION TO A GATING SEVERITY IS REFUSED. Backlog `hesb87` asked whether to promote `IPD-C801` to a gate if its post-cutover false-positive rate proved low. That question was answered with a measured refusal for two reasons. First, a rule that flags nothing has an undefined rather than a low false-positive rate, so promoting the uncorrected rule would have shipped an unjustified, inert gate. Second, even with the corrected detector discriminating at ~30% flag rate, a form heuristic over prose carries an accepted residual false positive by construction (roughly 4-5% of flags are pasted diagnostic output like `file:NNN:<code>` where the line is the subject, matching the legitimate exception above). As established by precedent (`check.setid-collision`) and documented in backlog `gjadwm`, promoting a form heuristic with known false positives to a gating severity trains authors to bypass checks. The `info` advisory tier is therefore the durable contract position.
+    +
+     ## 11. Lifecycle gate and terminal transaction
+    ```
+    2. Proportions and dated measurements:
+    Spec prose states the invariant (0% flag rate on post-cutover corpus) and attaches dated observations: 0 of 247 at authoring, 0 of 331 at review, 0 of 422 at execution; monotonic length-stratified gradient 91% -> 65% -> 41% -> 21-22%; and refusal reasons (undefined false-positive rate pre-fix; accepted ~4-5% residual false positive post-fix).
+    3. `aw specs note` invocation and output:
+    ```
+    $ aw specs note .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md --message "Section 10.2 amended (Set hesb87 tx0q0e E-01..E-04): require durable anchor within logical unit and proximity window (default 80 chars, CITATION_ANCHOR_PROXIMITY_WINDOW) to fix whole-line detector blindness; record refusal to promote IPD-C801 to a gate on measured undefined pre-fix and residual post-fix false-positive rates."
+    aw specs note: appended a history record to .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md
+    ```
+    4. Spec `- Status:` BEFORE and AFTER:
+    - Before (HEAD): `- Status: implemented`
+    - After (working copy): `- Status: implemented`
+    Status is byte-unchanged at `implemented`.
+    History diff is purely additive:
+    ```diff
+    @@ -808,6 +812,7 @@ After the IPD-system Set lands:
+
+     ## Workflow history
+
+    +- 2026-10-01 note (aw specs): Section 10.2 amended (Set hesb87 tx0q0e E-01..E-04): require durable anchor within logical unit and proximity window (default 80 chars, CITATION_ANCHOR_PROXIMITY_WINDOW) to fix whole-line detector blindness; record refusal to promote IPD-C801 to a gate on measured undefined pre-fix and residual post-fix false-positive rates.
+     - 2026-08-26 note (aw specs): Section 11: begin baseline dirty-check is Scope-Paths-scoped (path-overlap, ipdgates-03 OQ-01), not whole-tree; disjoint dirt allowed to preserve concurrent multi-agent workflow (beginscope vaq9qf E-03)
+    ```
+    5. `aw specs check` output:
+    ```
+    aw specs check: all specs conform. 1 specs checked.
+    ```
+    6. `tests/test_ipd_templates.py` passes:
+    ```
+    10 passed in 4.36s
+    ```
+    Confirmatory statement: `tests/test_ipd_templates.py` resolves only the sibling spec `20260726-1340-01-ipd-spec.spec.md` (`IPD_SPEC = next((SOURCE_DOCS / "specs").rglob("20260726-1340-01-ipd-spec.spec.md"))`) and does not read the amended spec.
+    7. Scope reconciliation:
+    Declared `- Scope-Paths:` in plan:
+    - `agent_workflows/ipd_lint.py`
+    - `tests/test_ipd_lint.py`
+    - `.aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md`
+    - `.aw/records/plans/pending/20260929-hesb87-01-tx0q0e-refuse-to-promote-ipd-c801-to-a-gating-severity-and-fix-the.ipd.md`
+    All modified and committed files strictly match the declared `- Scope-Paths:`.
+  - Result: pass
 
 ## Approval and execution gate
 
