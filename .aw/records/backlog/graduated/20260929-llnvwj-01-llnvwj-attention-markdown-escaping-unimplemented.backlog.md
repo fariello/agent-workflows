@@ -1,11 +1,13 @@
 - Id: llnvwj
-- Status: open
+- Status: graduated
+- Graduated-To: llnvwj
 - Set: llnvwj
 - Priority: low
 - Work-Kind: chore
 - Summary: The attention markdown board emits a descriptive field unescaped, so a pipe or link in a spec Scope reaches the rendered surface raw; spec 8.8 requires deterministic Markdown escaping and nothing implements it
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): graduated by run run-20260930T053053Z-3200037: qpw45x
 - 2026-09-29 created (aw backlog): The attention markdown board emits a descriptive field unescaped, so a pipe or link in a spec Scope reaches the rendered surface raw; spec 8.8 requires deterministic Markdown escaping and nothing implements it
 
 FILED AS THE CARRIER for the Markdown-escaping row in plan `ynhst5` (Set `qbz8i1`), which makes over-length and control-character descriptive values a named finding but adds no escaping to any renderer.
