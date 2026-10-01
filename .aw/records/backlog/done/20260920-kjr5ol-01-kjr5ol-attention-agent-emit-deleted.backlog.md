@@ -1,5 +1,5 @@
 - Id: kjr5ol
-- Status: graduated
+- Status: done
 - Graduated-To: agentemitswp
 - Blocks-Release: next
 - Set: kjr5ol
@@ -8,6 +8,7 @@
 - Summary: aw attention --agent emitted no record outside a project: a perf commit deleted the emit call and nothing failed
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): closed by aw oc run: IPD f36de0 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-agentemitswp-01-f36de0-pin-every-declared-machine-surface-with-an-executed-conforma.ipd.md); evidence .aw/records/plans/executed/20260929-agentemitswp-01-f36de0-pin-every-declared-machine-surface-with-an-executed-conforma.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: f36de0
 - 2026-09-20 created (aw backlog): aw attention --agent emitted no record outside a project: a perf commit deleted the emit call and nothing failed
 
