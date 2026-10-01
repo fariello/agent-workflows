@@ -1,5 +1,5 @@
 - Id: rrvrwv
-- Status: graduated
+- Status: done
 - Graduated-To: ipdsetback
 - Blocks-Release: next
 - Set: ipdsetback
@@ -8,6 +8,7 @@
 - Summary: aw ipd set performs a backwards executed -> reviewed transition that validate_transition refuses
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD nvsz19 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-ipdsetback-01-nvsz19-route-plan-status-transitions-through-the-shared-lifecycle-p.ipd.md); evidence .aw/records/plans/executed/20260929-ipdsetback-01-nvsz19-route-plan-status-transitions-through-the-shared-lifecycle-p.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: nvsz19
 - 2026-09-21 created (aw backlog): aw ipd set performs a backwards executed -> reviewed transition that validate_transition refuses
 
