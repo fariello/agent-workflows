@@ -1594,6 +1594,49 @@ class AgyIntegrateVerbTests(unittest.TestCase):
             )
             self.assertNotIn("aw oc run", subject)
 
+    def test_integrate_exit_contract_and_stream_routing_on_refusal_and_success(self):
+        """PIN THE EXIT CONTRACT AND STREAM ROUTING (baskrx `9oj6t2` E-04).
+
+        Asserted through the real `agy_runipd.main(["integrate", ...])` on both refusal and success:
+          * refusal: rc != 0 (specifically 1), stdout empty, stderr carries the refusal sentence.
+          * success: rc == 0, stdout carries the confirmation message.
+        """
+        from tests.test_runner_shared import (
+            _passing_suite,
+            _repo_with_pending_plan,
+            _stranded_item,
+            _verified_lane,
+            _write_run_state,
+        )
+
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            repo.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+
+            out = io.StringIO()
+            err = io.StringIO()
+            with redirect_stdout(out), redirect_stderr(err):
+                rc = agy_runipd.main(["integrate", "zzzzzz", "--repo", str(repo)])
+            self.assertEqual(rc, 1)
+            self.assertEqual(out.getvalue(), "")
+            self.assertIn("integrate zzzzzz REFUSED (no-lane-record)", err.getvalue())
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            repo = _repo_with_pending_plan(root, "agi002")
+            lane = _verified_lane(repo, root, "agi002")
+            _write_run_state(repo, {"repo": str(repo), "queue": [_stranded_item(lane)]})
+
+            out = io.StringIO()
+            err = io.StringIO()
+            with mock.patch.object(agy_runipd, "run_suite_check", _passing_suite):
+                with redirect_stdout(out), redirect_stderr(err):
+                    rc = agy_runipd.main(["integrate", "agi002", "--repo", str(repo)])
+            self.assertEqual(rc, 0)
+            self.assertIn("integrated agi002 from lane", out.getvalue())
+            self.assertNotIn("REFUSED", out.getvalue())
+
 
 class AgyResumeIntegratesInsteadOfDispatchingTests(unittest.TestCase):
     """integpath-04 (`rl67b0`) E-03/E-06, agy half: THE TWO ABSENCES on this host's real `run_queue`."""

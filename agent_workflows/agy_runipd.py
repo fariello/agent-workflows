@@ -1736,29 +1736,14 @@ def retry_deferred_integrations(
 def _integrate_stranded_lanes(
     run_dir: Path, state: dict[str, Any]
 ) -> list[dict[str, Any]]:
-    """integpath-04 (`rl67b0`) E-03/E-04: this host's wiring for the resume-time integration pass.
-
-    The MIRROR of the oc twin and equally thin: the DECISION (which items qualify, the refusals, the
-    real validation runner, the gate call, the honest state write, E-04's hold-back) is the shared
-    `runner_shared.integrate_stranded_lanes`. This binds only the host-specific four: THIS host's
-    `integrate_lane_branch` wrapper (so a recovered merge subject on MAIN reads
-    `integrate(aw agy run): ...`), this host's bound `run_suite_check` and `process_backlog_close`
-    (injected because `runner_shared` may not import either driver), and where the operator-facing
-    lines go.
-    """
-
-    repo = Path(state["repo"])
-    pal = Palette(should_color(sys.stdout))
-    return runner_shared.integrate_stranded_lanes(
-        repo=repo,
-        run_dir=run_dir,
-        state=state,
+    """integpath-04 (`rl67b0`) / baskrx (`9oj6t2`): thin wrapper over runner_shared."""
+    return runner_shared._integrate_stranded_lanes(
+        run_dir,
+        state,
         integrate=integrate_lane_branch,
         suite_check=run_suite_check,
         save_state=save_state,
-        append_jsonl=append_jsonl,
         process_backlog_close=process_backlog_close,
-        report=lambda message: print(pal(message, "cyan"), file=sys.stderr),
     )
 
 
@@ -3846,29 +3831,11 @@ AUTOMATIC STATUS ROUTING:
 def handle_integrate_command(args: argparse.Namespace) -> int:
     """Execute the `integrate` verb: re-attempt integration for one verified lane, NO agent turn.
 
-    integpath-04 (`rl67b0`) E-02, the exact counterpart of `oc_runipd.handle_integrate_command`. THIN
-    by contract: the whole decision (lane resolution from durable state, every refusal, the real
-    validation runner, the gate call) is `runner_shared.reintegrate_lane`. This binds only what is
-    host-specific - THIS host's `integrate_lane_branch` wrapper, so a recovered merge subject reads
-    `integrate(aw agy run): ...` rather than the other driver's name, and this host's bound
-    `run_suite_check`, which the shared module may not import.
-
-    EXIT CONTRACT: 0 integrated, 1 refused (nothing merged, main untouched, lane preserved), 2 on a
-    driver error.
+    Thin wrapper over runner_shared.handle_integrate_command (baskrx `9oj6t2`).
     """
-
-    repo = Path(getattr(args, "repo", ".") or ".").resolve()
-    id6 = str(getattr(args, "id6", "") or "")
-    outcome = runner_shared.reintegrate_lane(
-        repo,
-        id6,
-        integrate=integrate_lane_branch,
-        suite_check=run_suite_check,
-        run_id=getattr(args, "run_id", None),
+    return runner_shared.handle_integrate_command(
+        args, integrate=integrate_lane_branch, suite_check=run_suite_check
     )
-    message = runner_shared.render_reintegration_result(outcome, id6=id6)
-    print(message, file=sys.stdout if outcome.integrated else sys.stderr)
-    return 0 if outcome.integrated else 1
 
 
 def handle_audit_command(args: argparse.Namespace) -> int:

@@ -65,42 +65,42 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Re-measure, then re-derive the one stale classification
 
-- [ ] E-01 RE-MEASURE THE CENSUS AND THE CLOSURE AT EXECUTION HEAD, AND REFUSE TO PROCEED ON THIS PLAN'S NUMBERS. Run `python3 tools/runner_fork_scan.py` and `python3 tools/runner_fork_scan.py --closure --symbols _integrate_stranded_lanes handle_integrate_command`, and compare the identical set against the four this plan names. The scanner is the repository's own instrument and prints its metric with its output, so quote both. THEN RE-DERIVE THE ITEM'S FLAGGED CLASSIFICATION, which is a separate question its own sentence asks: the item says `handle_integrate_command` is classified `still-defined-twice` in `tests/test_rununify_main.py` "with a recorded reason (each host binds its own `integrate_lane_branch` wrapper and its own `run_suite_check`)". Establish BOTH halves at execution HEAD: whether that file still exists, and whether each named binding is still host-specific. Authoring measurement, to be confirmed or refuted rather than inherited: the file is GONE (deleted in `19313eed` with the other three `test_rununify_*` pin files), and the reason is HALF FALSE because `run_suite_check` is now a single shared object on both hosts while `integrate_lane_branch` genuinely is still a per-host wrapper binding a different `host_label`. If the re-derivation disagrees with that, STOP and record the disagreement instead of lifting.
+- [x] E-01 RE-MEASURE THE CENSUS AND THE CLOSURE AT EXECUTION HEAD, AND REFUSE TO PROCEED ON THIS PLAN'S NUMBERS. Run `python3 tools/runner_fork_scan.py` and `python3 tools/runner_fork_scan.py --closure --symbols _integrate_stranded_lanes handle_integrate_command`, and compare the identical set against the four this plan names. The scanner is the repository's own instrument and prints its metric with its output, so quote both. THEN RE-DERIVE THE ITEM'S FLAGGED CLASSIFICATION, which is a separate question its own sentence asks: the item says `handle_integrate_command` is classified `still-defined-twice` in `tests/test_rununify_main.py` "with a recorded reason (each host binds its own `integrate_lane_branch` wrapper and its own `run_suite_check`)". Establish BOTH halves at execution HEAD: whether that file still exists, and whether each named binding is still host-specific. Authoring measurement, to be confirmed or refuted rather than inherited: the file is GONE (deleted in `19313eed` with the other three `test_rununify_*` pin files), and the reason is HALF FALSE because `run_suite_check` is now a single shared object on both hosts while `integrate_lane_branch` genuinely is still a per-host wrapper binding a different `host_label`. If the re-derivation disagrees with that, STOP and record the disagreement instead of lifting.
   - Depends on: none
   ALSO CAPTURE THE PRE-LIFT `is_pure_delegation` BASELINE for both target symbols, because that predicate is this plan's success criterion (F-12) and a criterion with no before-value cannot be shown to have moved. Drive `tools.runner_fork_scan.is_pure_delegation` over each host's `FunctionDef` for both symbols and record the statement count beside the verdict. Authoring-and-review measurement to confirm: `_integrate_stranded_lanes stmts=3 False` and `handle_integrate_command stmts=6 False` on both hosts, against `save_state stmts=1 True` in the same file as the sanctioned shape.
   - Expected outcome: the scanner's output pasted with its metric, the four-symbol identical set confirmed or the difference named, a two-line verdict on the item's classification note (file present or absent; each binding host-specific or shared) supported by what was run, and the pre-lift `is_pure_delegation` verdict plus statement count for both symbols on both hosts.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Lift the two symbols
 
-- [ ] E-02 LIFT `_integrate_stranded_lanes` INTO `runner_shared` AS ONE DEFINITION, leaving each host a thin delegating wrapper. The shared function it wraps (`runner_shared.integrate_stranded_lanes`) already takes every host binding as a keyword parameter, so the lifted shell threads them through rather than inventing a seam: `integrate`, `suite_check`, `save_state`, `append_jsonl`, `process_backlog_close`, `report`. THE ONE THING THAT MUST NOT CHANGE IS THE NARRATION SINK. Both current bodies build `Palette(should_color(sys.stdout))` and then print to `sys.stderr`, which looks like a typo and is not: `should_color` is asked about the stream a human is reading while the text goes to the operational stream, and the shared `integrate_stranded_lanes` docstring's own reasoning for stderr narration applies. Preserve that pairing EXACTLY; a "tidy-up" to `should_color(sys.stderr)` is a behavior change to colorization under redirection and is out of scope. `Palette`, `should_color` and `append_jsonl` are already the SAME objects in all three modules (verified by `is` at authoring), so no import moves.
+- [x] E-02 LIFT `_integrate_stranded_lanes` INTO `runner_shared` AS ONE DEFINITION, leaving each host a thin delegating wrapper. The shared function it wraps (`runner_shared.integrate_stranded_lanes`) already takes every host binding as a keyword parameter, so the lifted shell threads them through rather than inventing a seam: `integrate`, `suite_check`, `save_state`, `append_jsonl`, `process_backlog_close`, `report`. THE ONE THING THAT MUST NOT CHANGE IS THE NARRATION SINK. Both current bodies build `Palette(should_color(sys.stdout))` and then print to `sys.stderr`, which looks like a typo and is not: `should_color` is asked about the stream a human is reading while the text goes to the operational stream, and the shared `integrate_stranded_lanes` docstring's own reasoning for stderr narration applies. Preserve that pairing EXACTLY; a "tidy-up" to `should_color(sys.stderr)` is a behavior change to colorization under redirection and is out of scope. `Palette`, `should_color` and `append_jsonl` are already the SAME objects in all three modules (verified by `is` at authoring), so no import moves.
   - Depends on: E-01
   THE WRAPPER MUST REDUCE TO EXACTLY ONE NON-DOCSTRING STATEMENT, and this is the plan's measurable success criterion rather than a style preference (F-12). The body is 3 statements today, which is precisely why `tools/runner_fork_scan.py::is_pure_delegation` returns False for it and why the scanner counts it a REAL FORK despite classing it `BOTH-DELEGATE`. A wrapper that still opens with `repo = Path(state["repo"])` or `pal = Palette(...)` would satisfy every other requirement here while leaving the census at `REAL FORKS 10` and the symbol still a fork, i.e. the work would not have been done. Both of those statements are host-NEUTRAL and must move INTO the shared body: `repo` reads only `state`, and `Palette`/`should_color` are `is`-identical in all three modules (F-13). Pass only what genuinely varies. Per F-16, `suite_check` and `append_jsonl` need not be threaded at all (`run_suite_check` and `append_jsonl` are the SAME OBJECT in all three modules), while `integrate`, `save_state` and `process_backlog_close` must be, because each is a per-host wrapper binding its own host callables even where its source text matches.
   - Expected outcome: one definition in `runner_shared`, a thin wrapper in each host at the unchanged name `_integrate_stranded_lanes` with the unchanged `(run_dir, state)` signature, so the single call site in each host's `run_queue` is untouched. State whether the shared shell takes the two bindings that vary (`integrate`, `save_state`) as parameters or reads them some other way, and paste the diff of the two call sites showing they did not change. AND paste `tools.runner_fork_scan.is_pure_delegation` returning True for both host wrappers, with the statement count shown as 1.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 LIFT `handle_integrate_command` INTO `runner_shared` AS ONE DEFINITION, with the same wrapper treatment, and CARRY THE EXIT CONTRACT AND THE STREAM ROUTING INTO THE SHARED BODY RATHER THAN LEAVING EITHER IN A HOST. The mapping to preserve, measured on both hosts at authoring by calling each host's function directly against a git repo with no run record: `rc=1`, stdout EMPTY, and the refusal sentence on stderr beginning `integrate zzzzzz REFUSED (no-lane-record): ...`. The success half routes to stdout instead (`sys.stdout if outcome.integrated else sys.stderr`). Preserve the `getattr(args, ...)` tolerance verbatim: it is what lets the verb be reached through two different argv routes (the driver subcommand and the `cli.py` host-noun alias) without each one having to populate identical attributes. Note the third exit code in the docstring's contract (2 for a usage/driver error) is produced by each host's `main` error handling, NOT by this body, so lifting this body does not move it and the shared docstring must not claim it does.
+- [x] E-03 LIFT `handle_integrate_command` INTO `runner_shared` AS ONE DEFINITION, with the same wrapper treatment, and CARRY THE EXIT CONTRACT AND THE STREAM ROUTING INTO THE SHARED BODY RATHER THAN LEAVING EITHER IN A HOST. The mapping to preserve, measured on both hosts at authoring by calling each host's function directly against a git repo with no run record: `rc=1`, stdout EMPTY, and the refusal sentence on stderr beginning `integrate zzzzzz REFUSED (no-lane-record): ...`. The success half routes to stdout instead (`sys.stdout if outcome.integrated else sys.stderr`). Preserve the `getattr(args, ...)` tolerance verbatim: it is what lets the verb be reached through two different argv routes (the driver subcommand and the `cli.py` host-noun alias) without each one having to populate identical attributes. Note the third exit code in the docstring's contract (2 for a usage/driver error) is produced by each host's `main` error handling, NOT by this body, so lifting this body does not move it and the shared docstring must not claim it does.
   - Depends on: E-01
   THE SAME SINGLE-STATEMENT CRITERION APPLIES (F-12): this body is 6 non-docstring statements today and `is_pure_delegation` is False for it. All six are host-neutral except the injected `integrate_lane_branch` (`repo`/`id6` are `getattr` reads of `args`; `outcome`/`message`/`print`/`return` reach only shared symbols), so the reduction is available (F-13) and the wrapper must take it. ALSO: do NOT repeat the two production docstrings' claim that `tests/test_runner_shared.py::NoRunnerImportTests` forbids `runner_shared` importing a driver. That test DOES NOT EXIST; it was deleted in `19313eed` and only prose comments survive (F-14). The INVARIANT is real and the shared docstring should state it as a rule, but it must not cite a test an executor cannot run.
   - Expected outcome: one definition in `runner_shared`, a thin wrapper in each host at the unchanged name so `main`'s `if args.command == "integrate": return handle_integrate_command(args)` dispatch is untouched, and the attribute `handle_integrate_command` still present on BOTH host modules (see E-05 for why that is load-bearing). AND `is_pure_delegation` True for both host wrappers with the statement count shown as 1, plus confirmation that no new docstring cites `NoRunnerImportTests`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Pin what the lift could silently break
 
-- [ ] E-04 PIN THE EXIT CONTRACT AND THE STREAM ROUTING ON BOTH HOSTS, BEHAVIORALLY, IN BOTH DIRECTIONS. This is the assertion that makes the lift safe rather than merely smaller, and it does not exist today: no test in the tree checks that the two hosts agree on which stream a refusal goes to or that a refusal exits nonzero with an empty stdout. Drive each host's real `main(["integrate", ...])` (not the lifted function in isolation) and assert, per host: a refusal gives a nonzero exit with the refusal text on stderr and NOTHING on stdout, and a success gives exit 0 with the confirmation on stdout. The success half has an existing fixture family to reuse rather than reinvent: `tests/test_runner_shared.py` exports `_repo_with_pending_plan`, `_verified_lane`, `_write_run_state`, `_stranded_item` and `_passing_suite`, and both host suites already import them for their merge-subject tests. NO SOURCE INSPECTION, NO SYMBOL CENSUS, NO DOCSTRING PIN (GUIDING_PRINCIPLES P16): this asserts exit codes and stream contents, which is what a one-sided edit would actually change.
+- [x] E-04 PIN THE EXIT CONTRACT AND THE STREAM ROUTING ON BOTH HOSTS, BEHAVIORALLY, IN BOTH DIRECTIONS. This is the assertion that makes the lift safe rather than merely smaller, and it does not exist today: no test in the tree checks that the two hosts agree on which stream a refusal goes to or that a refusal exits nonzero with an empty stdout. Drive each host's real `main(["integrate", ...])` (not the lifted function in isolation) and assert, per host: a refusal gives a nonzero exit with the refusal text on stderr and NOTHING on stdout, and a success gives exit 0 with the confirmation on stdout. The success half has an existing fixture family to reuse rather than reinvent: `tests/test_runner_shared.py` exports `_repo_with_pending_plan`, `_verified_lane`, `_write_run_state`, `_stranded_item` and `_passing_suite`, and both host suites already import them for their merge-subject tests. NO SOURCE INSPECTION, NO SYMBOL CENSUS, NO DOCSTRING PIN (GUIDING_PRINCIPLES P16): this asserts exit codes and stream contents, which is what a one-sided edit would actually change.
   - Depends on: E-02, E-03
   - Expected outcome: the new assertions added to `tests/test_oc_runipd.py` and `tests/test_agy_runipd_cli.py` beside each host's existing integrate-verb class, green, with the run pasted. State explicitly that each host's merge subject test (`integrate(aw oc run): ...` / `integrate(aw agy run): ...`) still passes, since that is the one thing the shared body may NOT bind and the lift's most plausible way to go wrong.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 CONFIRM THE `attention` PROBE STILL RESOLVES, because it reads one of the lifted names BY ATTRIBUTE and a lift is exactly what could break it. `attention.LANE_INTEGRATE_PROBE_SYMBOL` is the literal string `"handle_integrate_command"`, and `attention.lane_remedy_hint` does `hasattr(oc_runipd, LANE_INTEGRATE_PROBE_SYMBOL)` to decide whether to print `Recover it with \`aw oc integrate <id6>\`` or to fall back to "no `aw integrate` verb exists yet". THE WRAPPER FORM THIS PLAN CHOOSES KEEPS THAT TRUE, and the failure mode is measured rather than hypothetical: with the attribute deleted the hint degrades to the by-hand sentence (verified at authoring), and `tests/test_attention.py::LaneRemedyHintTests` already asserts both the present and absent branches on BOTH hosts. So this item is a CHECK, not a change: run that test and confirm it passes unchanged. If a chosen implementation would remove the attribute from either host module, that implementation is wrong and the wrapper must stay.
+- [x] E-05 CONFIRM THE `attention` PROBE STILL RESOLVES, because it reads one of the lifted names BY ATTRIBUTE and a lift is exactly what could break it. `attention.LANE_INTEGRATE_PROBE_SYMBOL` is the literal string `"handle_integrate_command"`, and `attention.lane_remedy_hint` does `hasattr(oc_runipd, LANE_INTEGRATE_PROBE_SYMBOL)` to decide whether to print `Recover it with \`aw oc integrate <id6>\`` or to fall back to "no `aw integrate` verb exists yet". THE WRAPPER FORM THIS PLAN CHOOSES KEEPS THAT TRUE, and the failure mode is measured rather than hypothetical: with the attribute deleted the hint degrades to the by-hand sentence (verified at authoring), and `tests/test_attention.py::LaneRemedyHintTests` already asserts both the present and absent branches on BOTH hosts. So this item is a CHECK, not a change: run that test and confirm it passes unchanged. If a chosen implementation would remove the attribute from either host module, that implementation is wrong and the wrapper must stay.
   - Depends on: E-03
   - Expected outcome: `tests/test_attention.py::LaneRemedyHintTests` green after the lift with no edit to it, pasted, plus the hint string itself shown unchanged for one id6.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 RUN THE FULL SUITE AND COMPARE AGAINST A BASELINE TAKEN THE SAME WAY. Bare `python3 -m pytest`, per the repository's execution contract; do not add flags. TAKE THE BASELINE FRESH, IN THE SAME CHECKOUT, BEFORE ANY EDIT, AND DO NOT COMPARE AGAINST ANY COUNT WRITTEN IN THIS PLAN: the bare total is a live population that every merged lane moves, and it stood at `3312 passed, 2 skipped` at review against no authoring figure at all, while the narrow three-file gate's `357 passed` held but its `24.05s` timing did not. Compare FAILING NODE IDS, not totals. A test that fails only after the lift is a real regression in this plan's scope and must be fixed rather than re-based, because this plan changes no behavior and therefore has no license to move an assertion. THEN RE-RUN THE SCANNER and show the census MOVED: `REAL FORKS` must drop from 10 to 8 and `byte-identical` from 4 to 2, with the two lifted symbols absent from the IDENTICAL FORKS section. That is the plan's own asserted outcome (its Scope check says "leaving 8 real forks by the scanner's count") and until this item measures it, nothing does (F-12).
+- [x] E-06 RUN THE FULL SUITE AND COMPARE AGAINST A BASELINE TAKEN THE SAME WAY. Bare `python3 -m pytest`, per the repository's execution contract; do not add flags. TAKE THE BASELINE FRESH, IN THE SAME CHECKOUT, BEFORE ANY EDIT, AND DO NOT COMPARE AGAINST ANY COUNT WRITTEN IN THIS PLAN: the bare total is a live population that every merged lane moves, and it stood at `3312 passed, 2 skipped` at review against no authoring figure at all, while the narrow three-file gate's `357 passed` held but its `24.05s` timing did not. Compare FAILING NODE IDS, not totals. A test that fails only after the lift is a real regression in this plan's scope and must be fixed rather than re-based, because this plan changes no behavior and therefore has no license to move an assertion. THEN RE-RUN THE SCANNER and show the census MOVED: `REAL FORKS` must drop from 10 to 8 and `byte-identical` from 4 to 2, with the two lifted symbols absent from the IDENTICAL FORKS section. That is the plan's own asserted outcome (its Scope check says "leaving 8 real forks by the scanner's count") and until this item measures it, nothing does (F-12).
   - Depends on: E-02, E-03, E-04, E-05
   - Expected outcome: two pasted summary lines, before and after, from a freshly captured baseline, with any difference named and explained rather than absorbed; plus the post-lift scanner output showing `REAL FORKS 8` and `byte-identical 2` with neither lifted symbol listed as a fork.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -349,7 +349,7 @@ stop and report rather than amend.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the two scanner invocations pasted with their output INCLUDING the metric line the
     tool prints, and the identical set compared explicitly against this plan's four symbols. Plus a
     two-part verdict on the item's classification note: whether `tests/test_rununify_main.py` exists at
@@ -358,10 +358,10 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     divergence from the authoring measurement stated, not absorbed. PLUS the pre-lift
     `is_pure_delegation` baseline for both symbols on both hosts, with the statement count beside each
     verdict, since that predicate is this plan's success criterion (F-12) and V-06 compares against it.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Full pre-lift scanner census showed co-defined 56, wrappers 46, REAL FORKS 10 (identical 4, divergent 6), matching StallWatchdog, _integrate_stranded_lanes, disable_lane_prompt, handle_integrate_command. Closure confirmed all deps present or injectable (ABSENT-FROM-SHARED only for runner_shared itself). Classification re-derivation confirmed tests/test_rununify_main.py exists: False, run_suite_check is shared (True), integrate_lane_branch is host-specific (False). Pre-lift is_pure_delegation: oc _integrate_stranded_lanes stmts=3 False, oc handle_integrate_command stmts=6 False, agy _integrate_stranded_lanes stmts=3 False, agy handle_integrate_command stmts=6 False.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: the shared definition's signature quoted, plus the `git diff` for both hosts showing
     each body replaced by a thin delegation at the UNCHANGED name and `(run_dir, state)` signature. The
     diff must show `Palette(should_color(sys.stdout))` and `file=sys.stderr` still paired as they are
@@ -374,10 +374,10 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     for both host wrappers where it returned False at HEAD. A multi-statement wrapper leaves the symbol a
     REAL FORK by the scanner's own predicate, so the lift would not have been performed (F-12); a diff
     that merely looks smaller does not satisfy this.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: runner_shared._integrate_stranded_lanes signature: def _integrate_stranded_lanes(run_dir: Path, state: MutableMapping[str, Any], *, integrate: Callable[[Path, Any, str, Any], tuple[bool, str, str]], save_state: Callable[..., Any], process_backlog_close: Callable[..., Any] | None = None, suite_check: Callable[..., Any] | None = None, append_jsonl: Callable[..., Any] = append_jsonl) -> list[dict[str, Any]]:. Palette(should_color(sys.stdout)) paired with sys.stderr preserved in shared body. Both host bodies replaced by thin 1-stmt delegation calling runner_shared._integrate_stranded_lanes. Call site in run_queue untouched. Resume tests HostResumeIntegratesInsteadOfDispatchingTests and AgyResumeIntegratesInsteadOfDispatchingTests pass (4 passed). is_pure_delegation: oc _integrate_stranded_lanes stmts=1 True, agy _integrate_stranded_lanes stmts=1 True.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: the shared definition's signature quoted, plus the `git diff` for both hosts showing
     a thin delegation at the unchanged name. The `getattr(args, ...)` tolerance shown preserved. Plus
     `hasattr(oc_runipd, "handle_integrate_command")` and the agy equivalent both True after the lift,
@@ -391,10 +391,10 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     file rather than looking for both in both. PLUS `is_pure_delegation` True with a statement count of 1
     for both host wrappers, as in V-02. PLUS confirmation that no docstring this item writes cites
     `tests/test_runner_shared.py::NoRunnerImportTests`, which does not exist (F-14).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: runner_shared.handle_integrate_command signature: def handle_integrate_command(args: argparse.Namespace, *, integrate: Callable[[Path, Any, str, Any], tuple[bool, str, str]], suite_check: Callable[..., Any] | None = None) -> int:. getattr(args, ...) tolerance preserved verbatim. hasattr(oc_runipd, "handle_integrate_command"): True, hasattr(agy_runipd, "handle_integrate_command"): True. Both routing tests test_both_spellings_reach_the_same_implementation (oc) and test_both_spellings_reach_the_shared_implementation_once (agy) pass. is_pure_delegation: oc handle_integrate_command stmts=1 True, agy handle_integrate_command stmts=1 True. Confirmed no docstring cites NoRunnerImportTests.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: the new test code quoted, and its run pasted green. The evidence must show, PER
     HOST and in BOTH directions, four concrete observations: refusal exit code (nonzero), refusal stream
     (stderr carries the refusal text), refusal stdout (EMPTY), and success (exit 0 with the confirmation on
@@ -402,17 +402,17 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     would have to change in the production body to make it fail, and prefer showing it (for example by
     temporarily inverting the stream choice and pasting the failure) over asserting it. Plus both hosts'
     merge-subject tests pasted green, unedited.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Added test_integrate_exit_contract_and_stream_routing_on_refusal_and_success to HostIntegrateVerbTests (tests/test_oc_runipd.py) and AgyIntegrateVerbTests (tests/test_agy_runipd_cli.py). Run output: 2 passed in 3.51s (asserts rc=1, stdout='', refusal on stderr; rc=0, confirmation on stdout). Test sensitivity demonstrated: temporarily inverting stream routing in handle_integrate_command (sys.stderr if outcome.integrated else sys.stdout) caused both tests to fail with AssertionError on stdout != ''. Host merge subject tests test_this_hosts_merge_subject_says_aw_oc_run and test_this_hosts_merge_subject_still_says_aw_agy_run pass unedited.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: `python3 -m pytest tests/test_attention.py` pasted green, with `git diff --stat`
     showing that file UNCHANGED by this plan. Plus the hint itself for one concrete id6, showing it still
     reads `Recover it with \`aw oc integrate <id6>\`.` rather than the by-hand degradation.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: python3 -m pytest tests/test_attention.py: 39 passed in 5.14s. git diff --stat tests/test_attention.py: 0 files changed (empty). Hint resolution attention.lane_remedy_hint("abc123") confirmed producing "Recover it with \`aw oc integrate abc123\`." without degradation.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: the BEFORE and AFTER `python3 -m pytest` summary lines pasted, with the invocation
     form stated verbatim and shown to carry no added flags, where the BEFORE line is captured fresh at
     execution HEAD and NOT read from this plan (the bare total is a live population; it measured
@@ -420,8 +420,8 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     difference. A claim of "no new failures" without both lines does not satisfy this item. PLUS the
     post-lift scanner run pasted, showing `REAL FORKS` at 8 and `byte-identical` at 2 with neither lifted
     symbol in the IDENTICAL FORKS section; without that the plan's own asserted outcome is unverified.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: BEFORE line (python3 -m pytest bare): 3508 passed, 2 skipped, 3 warnings in 144.99s (0:02:24). AFTER line (python3 -m pytest bare): 3510 passed, 2 skipped, 3 warnings in 132.14s (0:02:12). Node ID diff: 0 failing node IDs before, 0 failing node IDs after; exactly +2 tests passed representing new E-04 behavioral assertions. Post-lift scanner census: co-defined 56, wrappers 48 (NOT forks), REAL FORKS 8 (byte-identical 2: StallWatchdog, disable_lane_prompt; divergent 6). Neither lifted symbol in IDENTICAL FORKS.
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -11835,6 +11835,44 @@ def integrate_stranded_lanes(
     return records
 
 
+def _integrate_stranded_lanes(
+    run_dir: Path,
+    state: MutableMapping[str, Any],
+    *,
+    integrate: Callable[[Path, Any, str, Any], tuple[bool, str, str]],
+    save_state: Callable[..., Any],
+    process_backlog_close: Callable[..., Any] | None = None,
+    suite_check: Callable[..., Any] | None = None,
+    append_jsonl: Callable[..., Any] = append_jsonl,
+) -> list[dict[str, Any]]:
+    """integpath-04 (`rl67b0`) / baskrx (`9oj6t2`): shared resume-time integration shell.
+
+    Lifts the common wiring from both host runners (`oc_runipd` and `agy_runipd`). The host-neutral
+    setup (resolving `repo` from `state` and constructing the palette) and operator-facing narration
+    sink live here.
+
+    Binds only what is host-specific from the caller: `integrate`, `save_state`, and
+    `process_backlog_close`. Note that `Palette(should_color(sys.stdout))` paired with printing to
+    `sys.stderr` is deliberate: `should_color` inspects the stream a human is reading while the
+    narration goes to the operational stream (stderr).
+    """
+    if suite_check is None:
+        suite_check = run_suite_check
+    repo = Path(state["repo"])
+    pal = Palette(should_color(sys.stdout))
+    return integrate_stranded_lanes(
+        repo=repo,
+        run_dir=run_dir,
+        state=state,
+        integrate=integrate,
+        suite_check=suite_check,
+        save_state=save_state,
+        append_jsonl=append_jsonl,
+        process_backlog_close=process_backlog_close,
+        report=lambda message: print(pal(message, "cyan"), file=sys.stderr),
+    )
+
+
 def render_reintegration_result(outcome: ReintegrationOutcome, *, id6: str) -> str:
     """The verb's operator-facing sentence for one attempt. ONE renderer, so both hosts agree."""
 
@@ -11906,6 +11944,38 @@ def add_integrate_parser(sub: Any, *, command: str = "aw oc run") -> Any:
         help="Disambiguate when the id6 has more than one recorded lane (e.g. an attempt-scoped one)",
     )
     return integrate
+
+
+def handle_integrate_command(
+    args: argparse.Namespace,
+    *,
+    integrate: Callable[[Path, Any, str, Any], tuple[bool, str, str]],
+    suite_check: Callable[..., Any] | None = None,
+) -> int:
+    """Execute the `integrate` verb: re-attempt integration for one verified lane, NO agent turn.
+
+    Lifts the common shell from both host runners (baskrx `9oj6t2`). Thin wrapper in each host binds
+    its host-specific `integrate_lane_branch` callable. The runner import rule forbids runner_shared
+    importing either driver, so the driver callable is injected.
+
+    EXIT CONTRACT: 0 integrated, 1 refused (nothing was merged, main untouched, the lane preserved).
+    Exit code 2 for a usage/driver error is produced by each host's main error handling.
+    STREAM ROUTING: success to stdout, refusal to stderr.
+    """
+    if suite_check is None:
+        suite_check = run_suite_check
+    repo = Path(getattr(args, "repo", ".") or ".").resolve()
+    id6 = str(getattr(args, "id6", "") or "")
+    outcome = reintegrate_lane(
+        repo,
+        id6,
+        integrate=integrate,
+        suite_check=suite_check,
+        run_id=getattr(args, "run_id", None),
+    )
+    message = render_reintegration_result(outcome, id6=id6)
+    print(message, file=sys.stdout if outcome.integrated else sys.stderr)
+    return 0 if outcome.integrated else 1
 
 
 AUDIT_VERB_HELP = (
