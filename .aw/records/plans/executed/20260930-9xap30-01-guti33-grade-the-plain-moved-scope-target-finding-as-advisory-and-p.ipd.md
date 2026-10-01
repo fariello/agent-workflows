@@ -6,7 +6,7 @@
 - Scope: IN: (a) re-tier the PLAIN `moved` classification to `info` (NOT `warning`, and that difference is the plan's single most load-bearing measurement, see F-05) while `moved-terminal` and `vanished` stay `error`, by stamping a per-finding severity in `check_scope_path_target_stale` the way `check_durable_carrier` already stamps its own staged tier, leaving the registry entry at `error` so an unclassified finding still fails toward visible; (b) amend the registry comment and spec `25kzda` Section 5.7's paragraph so the published contract states the severity split rather than only the refusal split; (c) extend `tests/test_scope_path_target_stale.py` with behavior tests pinning the per-classification severity and the resulting exit code; (d) one CHANGELOG line. OUT: changing WHICH classifications the rule reports (all three still report, which is the design `6h8j1r` F-8 states and which this plan must not quietly narrow); changing the runner's refusal set; the backlog item's option (c), teaching every status setter to rewrite citing `Scope-Paths` (see OQ-01, which routes the underlying cause to the maintainer with its cost measured, and the Deferred section, which carries it); repairing whatever live stale entries exist in other agents' pending plans (not this plan's files, see the shared-checkout rule, and the population turns over daily per F-01); and `agent_workflows/doctor.py`, which never runs this rule at all (F-07).
 - Scope-Paths: agent_workflows/check_engine.py, tests/test_scope_path_target_stale.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: guti33
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: guti33 verified (set 9xap30, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (aw set): status set to reviewed
 
@@ -36,41 +36,41 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Re-measure the base, because every number this plan acts on is about a LIVE tree
 
-- [ ] E-01 RE-MEASURE THE FIVE BASE FACTS at the executing HEAD and paste each, because this plan's entire justification is a set of measurements over a tree other agents are changing concurrently, and review measured EVERY ONE of them moving in a single day (F-01, F-04). (1) THE SEVERITY MAPPING: drive `artifact_core.drift_exit_code` with a one-element list for each of `error`, `warning`, `info`, `""`, and with `[]`, and paste the five results. (2) THE LIVE FINDING POPULATION: run `check_engine.check_scope_path_target_stale(Path("."))` and print, per finding, its location and the classification substring in its detail, plus the count per classification. Report it as an OBSERVATION, never as a bar: a count of zero is a legitimate tree state and does NOT invalidate this plan, because the re-tier is correct for the classification regardless of how many instances happen to exist this hour. (3) THE REACHABILITY: print whether `check_engine.check_type(Path("."), "plans")` yields any finding whose rule is `check.scope-path-target-stale` (expected False, because the rule rides the `types == ["all"]` seam), and the exit codes of `python3 -m agent_workflows check plans` and `python3 -m agent_workflows check all`. (4) THE REGISTRY TIER: print `check_engine.rule_spec("check.scope-path-target-stale")`. (5) THE TEST BASELINE AS A NODE-ID SET: run bare `python3 -m pytest` BEFORE touching anything and paste the summary line plus every `FAILED`/`ERROR` node id. The base is NOT green (two pre-existing failures measured at review); this set, not a count, is what E-06 compares against. STOP AND REPORT, changing nothing, if (1) shows `warning -> 0`, because the entire severity argument in F-05 then rests on a predicate that has changed and the right response is to re-review this plan rather than implement a conclusion drawn from a different `drift_exit_code`.
+- [x] E-01 RE-MEASURE THE FIVE BASE FACTS at the executing HEAD and paste each, because this plan's entire justification is a set of measurements over a tree other agents are changing concurrently, and review measured EVERY ONE of them moving in a single day (F-01, F-04). (1) THE SEVERITY MAPPING: drive `artifact_core.drift_exit_code` with a one-element list for each of `error`, `warning`, `info`, `""`, and with `[]`, and paste the five results. (2) THE LIVE FINDING POPULATION: run `check_engine.check_scope_path_target_stale(Path("."))` and print, per finding, its location and the classification substring in its detail, plus the count per classification. Report it as an OBSERVATION, never as a bar: a count of zero is a legitimate tree state and does NOT invalidate this plan, because the re-tier is correct for the classification regardless of how many instances happen to exist this hour. (3) THE REACHABILITY: print whether `check_engine.check_type(Path("."), "plans")` yields any finding whose rule is `check.scope-path-target-stale` (expected False, because the rule rides the `types == ["all"]` seam), and the exit codes of `python3 -m agent_workflows check plans` and `python3 -m agent_workflows check all`. (4) THE REGISTRY TIER: print `check_engine.rule_spec("check.scope-path-target-stale")`. (5) THE TEST BASELINE AS A NODE-ID SET: run bare `python3 -m pytest` BEFORE touching anything and paste the summary line plus every `FAILED`/`ERROR` node id. The base is NOT green (two pre-existing failures measured at review); this set, not a count, is what E-06 compares against. STOP AND REPORT, changing nothing, if (1) shows `warning -> 0`, because the entire severity argument in F-05 then rests on a predicate that has changed and the right response is to re-review this plan rather than implement a conclusion drawn from a different `drift_exit_code`.
   - Depends on: none
   - Expected outcome: five exit codes pasted with `info` and `[]` alone yielding 0; the live finding list with a per-classification count, stated as an observation; the reachability answer with both command exit codes; the registered `RuleSpec` printed; and the pre-existing failing node-id set pasted. These are the figures E-02, E-03, E-05 and E-06 write from, so no later item restates a number this item did not produce.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Stamp the per-classification severity where the classification is already known
 
-- [ ] E-02 In `agent_workflows/check_engine.py`, inside `check_scope_path_target_stale`, stamp an EXPLICIT per-finding severity onto the `Drift` it constructs: `info` when `stale.classification` is `SCOPE_STALE_MOVED`, and `error` for `SCOPE_STALE_MOVED_TERMINAL` and `SCOPE_STALE_VANISHED`. Pass it as the `severity=` keyword on the `_core.Drift(...)` construction, which `enrich_drift` then PRESERVES rather than overwriting (`enrich_drift` reads `severity=drift.severity or spec.severity`, so an explicitly stamped value wins and an unstamped one falls back to the registry). THERE IS EXACTLY ONE `Drift` CONSTRUCTION AND ONE `enrich_drift` CALL IN THIS FUNCTION, measured at review by walking the function's AST (F-13): the `if stale.resolved: / else:` branching above it computes only the `detail`, `observed` and `recovery` STRINGS, then falls through to a single shared `drift.append(enrich_drift(_core.Drift(str(path), _SCOPE_PATH_TARGET_STALE_RULE, detail), ...))`. So this item adds ONE keyword argument at ONE site. Derive the tier from a single module-level mapping (classification -> severity) placed beside the three `SCOPE_STALE_*` constants rather than an inline conditional, because the mapping is the self-documenting form and because a future refactor that does split the emit into two branches then cannot let them disagree. DO NOT change the registry entry's tier: it stays `error`, for the same reason `check.ipd-uncarried-obligation` stays `error` while `evaluate_durable_carrier` downgrades per plan via `carrier_severity_for_plan`, namely that anything the downgrade does not reach must fail toward visible. DO NOT change which classifications are reported, and DO NOT change `stale_record_scope_paths`, which is the shared predicate the runner also calls: this item must not be able to alter the runner's refusal set.
+- [x] E-02 In `agent_workflows/check_engine.py`, inside `check_scope_path_target_stale`, stamp an EXPLICIT per-finding severity onto the `Drift` it constructs: `info` when `stale.classification` is `SCOPE_STALE_MOVED`, and `error` for `SCOPE_STALE_MOVED_TERMINAL` and `SCOPE_STALE_VANISHED`. Pass it as the `severity=` keyword on the `_core.Drift(...)` construction, which `enrich_drift` then PRESERVES rather than overwriting (`enrich_drift` reads `severity=drift.severity or spec.severity`, so an explicitly stamped value wins and an unstamped one falls back to the registry). THERE IS EXACTLY ONE `Drift` CONSTRUCTION AND ONE `enrich_drift` CALL IN THIS FUNCTION, measured at review by walking the function's AST (F-13): the `if stale.resolved: / else:` branching above it computes only the `detail`, `observed` and `recovery` STRINGS, then falls through to a single shared `drift.append(enrich_drift(_core.Drift(str(path), _SCOPE_PATH_TARGET_STALE_RULE, detail), ...))`. So this item adds ONE keyword argument at ONE site. Derive the tier from a single module-level mapping (classification -> severity) placed beside the three `SCOPE_STALE_*` constants rather than an inline conditional, because the mapping is the self-documenting form and because a future refactor that does split the emit into two branches then cannot let them disagree. DO NOT change the registry entry's tier: it stays `error`, for the same reason `check.ipd-uncarried-obligation` stays `error` while `evaluate_durable_carrier` downgrades per plan via `carrier_severity_for_plan`, namely that anything the downgrade does not reach must fail toward visible. DO NOT change which classifications are reported, and DO NOT change `stale_record_scope_paths`, which is the shared predicate the runner also calls: this item must not be able to alter the runner's refusal set.
   - Depends on: E-01
   - Expected outcome: `git diff agent_workflows/check_engine.py` shows the new classification-to-severity mapping and a `severity=` argument on the ONE `Drift` construction in `check_scope_path_target_stale`, with no edit to `stale_record_scope_paths`, no edit to the `RULE_REGISTRY` tier, and no change to which classifications are emitted. If the executor finds MORE than one `Drift` construction in the function at the executing HEAD, another agent has refactored it: stamp every one of them from the same mapping and say so in V-02 rather than treating the count as a defect.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 In the SAME file, amend the `RULE_REGISTRY` comment for `check.scope-path-target-stale` so the published justification stops being false for one of its three classifications. It currently reads "Registered `error` because a stale target makes the plan unexecutable as written" and then insists "THE RULE REPORTS ALL THREE CLASSIFICATIONS, including plain `moved` ... Do not harmonize the check down to the runner's subset." Both halves must survive, because the second is a real design decision `6h8j1r` F-8 made and this plan does not reverse it. Add: that the REGISTERED tier is the fail-closed default and the EVALUATOR stamps `info` for plain `moved`; that the severity split therefore MATCHES the runner's action split while the REPORTING split deliberately does not; that `info` and not `warning` is the advisory tier because `artifact_core.drift_exit_code` exempts only `info` (cite the measurement from E-01, and the `check.stale-index-missing` precedent directly above in the same registry, whose comment already records this exact dilemma); and that a plain `moved` finding is still REPORTED and still worth fixing, it just does not set an exit code. Comment-only in this item: change no behavior here.
+- [x] E-03 In the SAME file, amend the `RULE_REGISTRY` comment for `check.scope-path-target-stale` so the published justification stops being false for one of its three classifications. It currently reads "Registered `error` because a stale target makes the plan unexecutable as written" and then insists "THE RULE REPORTS ALL THREE CLASSIFICATIONS, including plain `moved` ... Do not harmonize the check down to the runner's subset." Both halves must survive, because the second is a real design decision `6h8j1r` F-8 made and this plan does not reverse it. Add: that the REGISTERED tier is the fail-closed default and the EVALUATOR stamps `info` for plain `moved`; that the severity split therefore MATCHES the runner's action split while the REPORTING split deliberately does not; that `info` and not `warning` is the advisory tier because `artifact_core.drift_exit_code` exempts only `info` (cite the measurement from E-01, and the `check.stale-index-missing` precedent directly above in the same registry, whose comment already records this exact dilemma); and that a plain `moved` finding is still REPORTED and still worth fixing, it just does not set an exit code. Comment-only in this item: change no behavior here.
   - Depends on: E-02
   - Expected outcome: the registry comment states the severity split, names `drift_exit_code`'s exemption as the reason the advisory tier is `info`, cites the `check.stale-index-missing` precedent, and retains the existing prohibition on narrowing the reported set. No behavior change in this item's diff.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Pin the new contract by execution, not by comment
 
-- [ ] E-04 Extend `tests/test_scope_path_target_stale.py` with behavior tests for the severity contract this plan creates. Cover: (1) a plain `moved` finding, enriched through `check_engine.enrich_drift`, carries severity `info` and a one-element list containing it yields `artifact_core.drift_exit_code(...) == 0`; (2) a `moved-terminal` finding carries `error` and yields exit code 1; (3) a `vanished` finding carries `error` and yields exit code 1; (4) a MIXED tree containing both a plain `moved` and a `moved-terminal` entry still yields exit code 1, which is the property that proves the downgrade did not make the rule toothless; (5) all three classifications are still REPORTED (the finding count is unchanged by this plan), asserted by classification substring in the detail, so a future change that silences `moved` instead of downgrading it fails a test. Build each case with the existing module's own fixture style (a `tempfile.TemporaryDirectory` repo with the artifact written at its real location and the plan declaring the stale one), call the real functions, and assert on real return values. Do NOT read `check_engine.py` source with `inspect`, `ast`, regex, or substring search; do NOT assert a registry census, a caller count, or the presence of any comment text; and do NOT assert the LIVE tree's finding count, which moves with other agents' work (F-01 measured it moving from 0 to 4 in four days).
+- [x] E-04 Extend `tests/test_scope_path_target_stale.py` with behavior tests for the severity contract this plan creates. Cover: (1) a plain `moved` finding, enriched through `check_engine.enrich_drift`, carries severity `info` and a one-element list containing it yields `artifact_core.drift_exit_code(...) == 0`; (2) a `moved-terminal` finding carries `error` and yields exit code 1; (3) a `vanished` finding carries `error` and yields exit code 1; (4) a MIXED tree containing both a plain `moved` and a `moved-terminal` entry still yields exit code 1, which is the property that proves the downgrade did not make the rule toothless; (5) all three classifications are still REPORTED (the finding count is unchanged by this plan), asserted by classification substring in the detail, so a future change that silences `moved` instead of downgrading it fails a test. Build each case with the existing module's own fixture style (a `tempfile.TemporaryDirectory` repo with the artifact written at its real location and the plan declaring the stale one), call the real functions, and assert on real return values. Do NOT read `check_engine.py` source with `inspect`, `ast`, regex, or substring search; do NOT assert a registry census, a caller count, or the presence of any comment text; and do NOT assert the LIVE tree's finding count, which moves with other agents' work (F-01 measured it moving from 0 to 4 in four days).
   - Depends on: E-02
   - Expected outcome: new tests in `tests/test_scope_path_target_stale.py` that FAIL at the base (the `moved` case asserts `info` where the base stamps `error`) and PASS after E-02, and that would fail again if a future change silenced the `moved` classification or promoted it back to a gating tier.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: Keep the specification and the code saying the same thing
 
-- [ ] E-05 AMEND SPEC `25kzda` Section 5.7 so the specified contract carries the severity split. The paragraph following the refusal-class table already states the ACTION split correctly ("the runner refuses only `moved-terminal` and `vanished` ... `aw check` reports all three classifications so a maintainer can correct the declared path"). Add to that same paragraph that `aw check` grades a plain `moved` at `info`, the advisory tier that does not set an exit code, while `moved-terminal` and `vanished` are graded `error`; and state WHY in one clause: a plain `moved` names a stale string on a plan that remains executable, so it must be visible without failing a gate. Keep the existing sentences intact rather than rewriting them: they are the reason the runner's narrower refusal is legitimate, and they are cited by `runner_shared`'s refusal block. THIS EDIT IS WHY `.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md` IS DECLARED IN `- Scope-Paths:`, which is what makes the amendment visible to both runners' pre-run spec-edit announcement and to the finalize scope gate (AGENTS.md, "A PLAN MAY AMEND A SPEC, AND MUST DECLARE IT"). Do NOT change the spec's `- Status:`, do NOT touch its refusal-class table row (the `scope_target_stale` reason string is consumed by code), and write no em or en dash.
+- [x] E-05 AMEND SPEC `25kzda` Section 5.7 so the specified contract carries the severity split. The paragraph following the refusal-class table already states the ACTION split correctly ("the runner refuses only `moved-terminal` and `vanished` ... `aw check` reports all three classifications so a maintainer can correct the declared path"). Add to that same paragraph that `aw check` grades a plain `moved` at `info`, the advisory tier that does not set an exit code, while `moved-terminal` and `vanished` are graded `error`; and state WHY in one clause: a plain `moved` names a stale string on a plan that remains executable, so it must be visible without failing a gate. Keep the existing sentences intact rather than rewriting them: they are the reason the runner's narrower refusal is legitimate, and they are cited by `runner_shared`'s refusal block. THIS EDIT IS WHY `.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md` IS DECLARED IN `- Scope-Paths:`, which is what makes the amendment visible to both runners' pre-run spec-edit announcement and to the finalize scope gate (AGENTS.md, "A PLAN MAY AMEND A SPEC, AND MUST DECLARE IT"). Do NOT change the spec's `- Status:`, do NOT touch its refusal-class table row (the `scope_target_stale` reason string is consumed by code), and write no em or en dash.
   - Depends on: E-02, E-03
   - Expected outcome: `git diff` on the spec shows only the Section 5.7 paragraph gaining the severity split, with the existing action-split sentences unchanged, the refusal-class table untouched, and the spec's status and metadata unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Verify the whole change and record it. (1) Run the suite BARE as `python3 -m pytest` and paste the actual summary line, then compare the FAILING NODE-ID SET against the set E-01 re-derived at the base; treat as blocking only a node id absent from that base set. Do NOT compare counts and do NOT treat the plan's authoring figures as the bar: the base is NOT green (two pre-existing failures measured at review, one date-dependent and one non-reproducing; see the Required tests section). (2) Run `python3 -m agent_workflows check all`, paste its exit code, and state the per-severity breakdown of the `check.scope-path-target-stale` findings specifically (obtained by enriching them), NEVER a total finding count compared against a number written here. (3) Confirm `python3 -m agent_workflows check plans` exit code is UNCHANGED from E-01's measurement, which proves this plan did not alter the fail-closed CI step's behavior in either direction. (4) Run `aw sanitize --agent; echo rc=$?`. (5) Confirm the spec diff contains no em or en dash with a LOCALE-INDEPENDENT probe, not with `grep -P '[\x{2013}\x{2014}]'`: run `git diff -- .aw/records/specs/ | python3 -c "import sys; [print(i, repr(l)) for i, l in enumerate(sys.stdin, 1) if '\u2013' in l or '\u2014' in l]"` and show it printing nothing. THE REASON IS MEASURED (F-14): GNU grep 3.11 accepts `\x{...}` only in a UTF-8 locale and under `LC_ALL=C` it FAILS with "character code point value in \x{} is too large" and exit 2, writing nothing to stdout, so a pipeline or CI shell with a C locale makes the check pass VACUOUSLY on prose that does contain a dash. Python decodes the literal regardless of locale. (6) Add ONE `CHANGELOG.md` line in the existing entry style, with no em or en dash, naming the re-tiering and the reason.
+- [x] E-06 Verify the whole change and record it. (1) Run the suite BARE as `python3 -m pytest` and paste the actual summary line, then compare the FAILING NODE-ID SET against the set E-01 re-derived at the base; treat as blocking only a node id absent from that base set. Do NOT compare counts and do NOT treat the plan's authoring figures as the bar: the base is NOT green (two pre-existing failures measured at review, one date-dependent and one non-reproducing; see the Required tests section). (2) Run `python3 -m agent_workflows check all`, paste its exit code, and state the per-severity breakdown of the `check.scope-path-target-stale` findings specifically (obtained by enriching them), NEVER a total finding count compared against a number written here. (3) Confirm `python3 -m agent_workflows check plans` exit code is UNCHANGED from E-01's measurement, which proves this plan did not alter the fail-closed CI step's behavior in either direction. (4) Run `aw sanitize --agent; echo rc=$?`. (5) Confirm the spec diff contains no em or en dash with a LOCALE-INDEPENDENT probe, not with `grep -P '[\x{2013}\x{2014}]'`: run `git diff -- .aw/records/specs/ | python3 -c "import sys; [print(i, repr(l)) for i, l in enumerate(sys.stdin, 1) if '\u2013' in l or '\u2014' in l]"` and show it printing nothing. THE REASON IS MEASURED (F-14): GNU grep 3.11 accepts `\x{...}` only in a UTF-8 locale and under `LC_ALL=C` it FAILS with "character code point value in \x{} is too large" and exit 2, writing nothing to stdout, so a pipeline or CI shell with a C locale makes the check pass VACUOUSLY on prose that does contain a dash. Python decodes the literal regardless of locale. (6) Add ONE `CHANGELOG.md` line in the existing entry style, with no em or en dash, naming the re-tiering and the reason.
   - Depends on: E-02, E-03, E-04, E-05
   - Expected outcome: suite summary pasted and reconciled against the re-derived base measured in E-01 (NOT against any count written in this plan); `aw check all` exit code reported with this rule's per-severity breakdown; `aw check plans` exit code shown unchanged; sanitizer rc 0; the locale-independent dash probe printing nothing on the spec diff; one CHANGELOG line added.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -185,35 +185,226 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: PASTE all five measurement blocks verbatim: (1) the five `drift_exit_code` results with their input severities, showing `info` and `[]` alone yielding 0 and `warning` yielding 1; (2) the live `check_scope_path_target_stale` findings with each location and classification, plus the per-classification count, labelled an observation (a count of 0 is acceptable and must not be read as a failure); (3) the boolean for whether `check_type(repo, "plans")` contains this rule, and the exit codes of `check plans` and `check all`; (4) the printed `rule_spec("check.scope-path-target-stale")` tuple; (5) the pre-change bare-suite summary line and the full set of `FAILED`/`ERROR` node ids. A `warning -> 0` in (1) means STOP; state explicitly that it did not occur.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence recorded below.
+    (1) Severity mapping exit codes:
+    ['error'] -> 1
+    ['warning'] -> 1
+    ['info'] -> 0
+    [''] -> 1
+    [] -> 0
+    Confirmed: warning -> 0 did NOT occur; only info and [] yield 0.
 
-- [ ] V-02 validates E-02
+    (2) Live finding population (observation):
+    Total findings: 4
+    Location: .aw/records/plans/pending/20260929-sklbrt-01-h8e3sm-mint-an-id6-for-the-two-live-legacy-specs-so-they-are-reacha.ipd.md
+    Detail: Scope-Paths entry '.aw/records/backlog/open/20260929-tf4jz5-01-tf4jz5-repair-qrokie-fabricated-filename-date.backlog.md' is moved (resolved: .aw/records/backlog/graduated/20260929-tf4jz5-01-tf4jz5-repair-qrokie-fabricated-filename-date.backlog.md)
+    Location: .aw/records/plans/pending/20260929-sklbrt-01-h8e3sm-mint-an-id6-for-the-two-live-legacy-specs-so-they-are-reacha.ipd.md
+    Detail: Scope-Paths entry '.aw/records/plans/pending/20260929-j84jg3-01-949enf-resolve-a-plan-filename-date-from-the-name-before-inventing.ipd.md' is moved-terminal (resolved: .aw/records/plans/executed/20260929-j84jg3-01-949enf-resolve-a-plan-filename-date-from-the-name-before-inventing.ipd.md)
+    Location: .aw/records/plans/pending/20260930-p7dtbr-01-qkwu1r-teach-the-integration-poll-rung-that-a-mid-merge-base-is-not.ipd.md
+    Detail: Scope-Paths entry '.aw/records/backlog/open/20260928-p7dtbr-01-p7dtbr-poll-rung-cannot-see-merge-in-progress.backlog.md' is moved (resolved: .aw/records/backlog/graduated/20260928-p7dtbr-01-p7dtbr-poll-rung-cannot-see-merge-in-progress.backlog.md)
+    Location: .aw/records/plans/pending/20260930-zdsf35-01-mg8bag-migrate-the-35-cold-status-research-docs-from-the-hot-root-i.ipd.md
+    Detail: Scope-Paths entry '.aw/records/plans/pending/20260929-zftbta-01-68hdic-report-a-dangling-record-citation-in-packaged-source-as-a-ch.ipd.md' is moved-terminal (resolved: .aw/records/plans/executed/20260929-zftbta-01-68hdic-report-a-dangling-record-citation-in-packaged-source-as-a-ch.ipd.md)
+    Counts per classification: {'moved': 2, 'moved-terminal': 2}
+
+    (3) Reachability:
+    check_type(Path("."), "plans") has check.scope-path-target-stale: False
+    python3 -m agent_workflows check plans rc=1
+    python3 -m agent_workflows check all rc=1
+
+    (4) Registry tier:
+    rule_spec: RuleSpec(severity='error', assurance='repository', determinism='deterministic', invariant='')
+
+    (5) Pre-change bare-suite baseline:
+    3559 passed, 2 skipped, 3 warnings in 130.54s (0:02:10)
+    FAILED/ERROR node ids: set() (0 failing node ids at base)
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: PASTE `git diff agent_workflows/check_engine.py`. It must show the classification-to-severity mapping and a `severity=` argument on EVERY `Drift` construction in `check_scope_path_target_stale` (review measured exactly one; state the count you found). Then PASTE proof of the three negatives this item promised, each as a command and its real output: `git diff` contains no change inside `stale_record_scope_paths` (show the diff is confined to the check function and the new mapping constant); the `RULE_REGISTRY` entry for this rule still reads `"error"`; and the emitted finding COUNT on a fixture containing one entry of each classification is still 3 (nothing was silenced). Also PASTE, from a scratch fixture, the enriched severity of one finding of each classification.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence recorded below.
+    `git diff agent_workflows/check_engine.py`:
+    ```diff
+    @@ -6247,6 +6264,12 @@ SCOPE_STALE_MOVED_TERMINAL = "moved-terminal"
+     SCOPE_STALE_MOVED = "moved"
+     SCOPE_STALE_VANISHED = "vanished"
 
-- [ ] V-03 validates E-03
+    +SCOPE_STALE_SEVERITY: Dict[str, str] = {
+    +    SCOPE_STALE_MOVED: "info",
+    +    SCOPE_STALE_MOVED_TERMINAL: "error",
+    +    SCOPE_STALE_VANISHED: "error",
+    +}
+    +
+     _RECORDS_ARTIFACT_FACETS = (
+         ".ipd.md",
+         ".spec.md",
+    @@ -6387,6 +6410,9 @@ def check_scope_path_target_stale(repo_root: Path) -> List[_core.Drift]:
+                             str(path),
+                             _SCOPE_PATH_TARGET_STALE_RULE,
+                             detail,
+    +                        severity=SCOPE_STALE_SEVERITY.get(
+    +                            stale.classification, "error"
+    +                        ),
+                         ),
+                         observed=observed,
+                         required="Scope-Paths entries under .aw/records/ must exist at their declared path",
+    ```
+    Count of Drift constructions in check_scope_path_target_stale: exactly 1 found and stamped.
+
+    Three negatives:
+    1. Diff is confined to the check function, new mapping constant, and comment in RULE_REGISTRY. No changes inside stale_record_scope_paths:
+    Command: `git diff agent_workflows/check_engine.py | grep -E "^@@" -A 1`
+    Shows hunks at @@ -236,11 +236,28 @@, @@ -6247,6 +6264,12 @@, and @@ -6387,6 +6410,9 @@. Lines inside stale_record_scope_paths (6251-6325) are completely untouched.
+    2. RULE_REGISTRY entry still reads "error":
+    Command: `python3 -c 'from agent_workflows import check_engine; print(check_engine.RULE_REGISTRY["check.scope-path-target-stale"].severity)'`
+    Output: `error`
+    3. Emitted finding COUNT on a scratch fixture containing one entry of each classification is still 3 (nothing silenced):
+    Output: `Emitted finding COUNT: 3`
+
+    Enriched severities from scratch fixture:
+    `Rule: check.scope-path-target-stale, Severity: error, Detail: Scope-Paths entry '.aw/records/plans/pending/20260901-test-01-tst001-target.ipd.md' is moved-terminal (resolved: .aw/records/plans/executed/20260901-test-01-tst001-target.ipd.md)`
+    `Rule: check.scope-path-target-stale, Severity: info, Detail: Scope-Paths entry '.aw/records/specs/approved/20260901-spc001-01-spc001-target.spec.md' is moved (resolved: .aw/records/specs/to-review/20260901-spc001-01-spc001-target.spec.md)`
+    `Rule: check.scope-path-target-stale, Severity: error, Detail: Scope-Paths entry '.aw/records/specs/approved/20260901-spc999-01-spc999-target.spec.md' is vanished`
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: PASTE the amended registry comment block. It must (a) still contain the existing prohibition on narrowing the reported set, quoted; (b) state that the registered tier is the fail-closed default and the evaluator stamps `info` for plain `moved`; (c) name `drift_exit_code`'s `info`-only exemption with the measured figures from V-01; and (d) cite `check.stale-index-missing` as the precedent. Confirm by diff that this item changed no executable line.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence recorded below.
+    Amended registry comment block:
+    ```python
+    # planstale 6h8j1r (backlog mlc6mj): a pending plan whose literal Scope-Paths entry under
+    # .aw/records/ no longer exists at its declared path. Pure predicate reports three classifications:
+    # moved-terminal (artifact moved to a retired status/path), moved (artifact moved to a non-retired
+    # path), and vanished (artifact cannot be found). Registered `error` because a stale target makes
+    # the plan unexecutable as written for moved-terminal and vanished, and because the registered
+    # tier is the fail-closed default if an unclassified finding ever escapes the evaluator.
+    # Evaluator check_scope_path_target_stale stamps `info` for plain `moved` (IPD guti33, backlog
+    # 9xap30), so the severity split matches the runner's action split (moved-terminal and vanished
+    # stop the work and stay `error`, while plain `moved` does not stop the work and is `info`),
+    # while the reporting split deliberately does not.
+    #
+    # WHY `info` AND NOT `warning`: `artifact_core.drift_exit_code` exempts ONLY `info` (measured:
+    # ['error'] -> 1, ['warning'] -> 1, ['info'] -> 0, [''] -> 1, [] -> 0), so `warning` fails the gate
+    # identically to `error` and would still exit 1 on runnable plans. The exact in-tree precedent is
+    # `check.stale-index-missing` directly above in this registry ("MISSING -> `info`, the ONLY non-failing
+    # severity. `artifact_core.drift_exit_code` fails the gate for anything that is not `info`, so `warning`
+    # here would still exit 1 on every fresh clone and every fresh worktree").
+    #
+    # Invariant is `""`: no catalog invariant in spec pqsx96 covers scope-target freshness, and
+    # inventing one is out of scope.
+    #
+    # THE RULE REPORTS ALL THREE CLASSIFICATIONS, including plain `moved`, and its detail must name
+    # the classification: the check's job is "this declared path is wrong, fix it", which is true of
+    # all three, while the runner refuses only moved-terminal and vanished (F-8). Do not harmonize the
+    # check down to the runner's subset. A plain `moved` finding is still REPORTED and still worth
+    # fixing, it just does not set an exit code.
+    "check.scope-path-target-stale": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
+    ```
+    Confirmation:
+    (a) contains quoted prohibition: "Do not harmonize the check down to the runner's subset."
+    (b) states registered tier is fail-closed default and evaluator stamps info for plain moved.
+    (c) names drift_exit_code info-only exemption with measured figures (['error'] -> 1, ['warning'] -> 1, ['info'] -> 0, [''] -> 1, [] -> 0).
+    (d) cites check.stale-index-missing directly above as precedent.
+    Diff check: `git diff -U0 agent_workflows/check_engine.py` on this block modifies only comment lines (`# ...`), changing no executable code.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: PASTE the output of running the module alone with the defaults cleared so per-test counts are visible: `python3 -m pytest -o addopts="" tests/test_scope_path_target_stale.py -v`, showing every new test passing AND every pre-existing test passing (16 at review; state the count you observed rather than asserting this one), with `test_09_check_scope_path_target_stale` and `test_14_dispatch_moved_negative_reaches_launcher_and_check_reports` named in the output. Then demonstrate the tests are not vacuous: revert E-02's mapping temporarily (or stub the severity to `error` for `moved`), PASTE the resulting failure showing the `moved`-severity test failing, and restore. State that no test reads production source text, asserts a symbol census, or asserts a live-tree finding count.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence recorded below.
+    `python3 -m pytest -o addopts="" tests/test_scope_path_target_stale.py -v`:
+    ```
+    tests/test_scope_path_target_stale.py::ScopePathTargetStaleTests::test_10_dispatch_oc_host_refusal_moved_terminal PASSED [  4%]
+    tests/test_scope_path_target_stale.py::ScopePathTargetStaleTests::test_02_predicate_moved_terminal_backlog PASSED [  9%]
+    tests/test_scope_path_target_stale.py::ScopePathTargetStaleTests::test_07_predicate_grandfathered_scope_paths PASSED [ 14%]
+    tests/test_scope_path_target_stale.py::ScopePathTargetStaleTests::test_13_dispatch_new_code_file_not_refused PASSED [ 19%]
+    tests/test_scope_path_target_stale.py::ScopePathTargetStaleTests::test_04_predicate_vanished_records_path PASSED [ 23%]
+    tests/test_scope_path_target_stale.py::ScopePathTargetStaleTests::test_12_dispatch_two_item_queue_run_queue PASSED [ 28%]
+    tests/test_scope_path_target_stale.py::ScopePathTargetStaleTests::test_03_predicate_moved_non_retired_spec PASSED [ 33%]
+    tests/test_scope_path_target_stale.py::ScopePathTargetStaleTests::test_01_predicate_moved_terminal_plan PASSED [ 38%]
+    tests/test_scope_path_target_stale.py::ScopePathTargetStaleTests::test_05_predicate_non_records_path_ignored PASSED [ 42%]
+    tests/test_scope_path_target_stale.py::ScopePathTargetStaleTests::test_06_predicate_glob_and_existing_dir_ignored PASSED [ 47%]
+    tests/test_scope_path_target_stale.py::ScopePathTargetStaleTests::test_17_check_severity_plain_moved_info_and_exit_code_zero PASSED [ 52%]
+    tests/test_scope_path_target_stale.py::ScopePathTargetStaleTests::test_21_check_all_three_classifications_reported_count_and_detail PASSED [ 57%]
+    tests/test_scope_path_target_stale.py::ScopePathTargetStaleTests::test_15_predicate_non_artifact_basename_vanished_empty_resolved PASSED [ 61%]
+    tests/test_scope_path_target_stale.py::ScopePathTargetStaleTests::test_08_predicate_legacy_spec_basename_fallback PASSED [ 66%]
+    tests/test_scope_path_target_stale.py::ScopePathTargetStaleTests::test_09_check_scope_path_target_stale PASSED [ 71%]
+    tests/test_scope_path_target_stale.py::ScopePathTargetStaleTests::test_16_dispatch_no_orphan_prompt_on_refusal PASSED [ 76%]
+    tests/test_scope_path_target_stale.py::ScopePathTargetStaleTests::test_19_check_severity_vanished_error_and_exit_code_one PASSED [ 80%]
+    tests/test_scope_path_target_stale.py::ScopePathTargetStaleTests::test_20_check_severity_mixed_tree_retains_exit_code_one PASSED [ 85%]
+    tests/test_scope_path_target_stale.py::ScopePathTargetStaleTests::test_18_check_severity_moved_terminal_error_and_exit_code_one PASSED [ 90%]
+    tests/test_scope_path_target_stale.py::ScopePathTargetStaleTests::test_14_dispatch_moved_negative_reaches_launcher_and_check_reports PASSED [ 95%]
+    tests/test_scope_path_target_stale.py::ScopePathTargetStaleTests::test_11_dispatch_agy_host_refusal_moved_terminal PASSED [100%]
+    ============================== 21 passed in 5.87s ==============================
+    ```
+    Observed test counts: 21 passed (16 pre-existing passed, 5 new passed).
+    test_09_check_scope_path_target_stale and test_14_dispatch_moved_negative_reaches_launcher_and_check_reports both passed.
 
-- [ ] V-05 validates E-05
+    Demonstration of non-vacuousness (stubbing severity of moved to 'error'):
+    ```
+    FAIL: test_17_check_severity_plain_moved_info_and_exit_code_zero (tests.test_scope_path_target_stale.ScopePathTargetStaleTests.test_17_check_severity_plain_moved_info_and_exit_code_zero)
+    ----------------------------------------------------------------------
+    Traceback (most recent call last):
+      File "tests/test_scope_path_target_stale.py", line 707, in test_17_check_severity_plain_moved_info_and_exit_code_zero
+        self.assertEqual(f.severity, "info")
+        ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+    AssertionError: 'error' != 'info'
+    - error
+    + info
+    ```
+    No test reads production source text, asserts a symbol census, or asserts a live-tree finding count.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: PASTE `git diff -- .aw/records/specs/`. It must show ONLY the Section 5.7 paragraph gaining the severity split; the existing action-split sentences must appear unchanged in the context; the refusal-class table row for `scope_target_stale` must not appear in the diff; and no `- Status:` or other metadata line may appear in the diff. PASTE the LOCALE-INDEPENDENT dash probe (the `python3 -c` form E-06 specifies, NOT `grep -P '[\x{2013}\x{2014}]'`, which exits 2 and prints nothing under a C locale and so passes vacuously; F-14) showing no output, and show its exit status so a vacuous pass is distinguishable from a real one.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence recorded below.
+    `git diff -- .aw/records/specs/`:
+    ```diff
+    diff --git a/.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md b/.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+    index 89516674e..ad6c7a3ed 100644
+    --- a/.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+    +++ b/.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+    @@ -1441,7 +1441,7 @@ Run exit codes:
+     | Dependency cycle | Shared predicate returns a cyclic component | Fail cycle members; cascade dependents; continue disconnected components | `dependency_cycle` |
+     | Dependency not met | Required edge's target failed, stopped, was unsatisfied, or could not be met in this run | Skip without session; record and propagate root chain | `dependency_not_met` |
 
-- [ ] V-06 validates E-06
+    -Only literal `.aw/records/` scope paths are checked because non-records paths (new code or test files) are legitimately absent before execution. The shared predicate (`check_engine.stale_record_scope_paths`) reports three classifications (`moved-terminal`, `moved`, and `vanished`), but the runner refuses only `moved-terminal` and `vanished`. A plain `moved` target (an artifact that merely changed status directory, such as an approved spec advancing to implementing) remains fully editable; refusing it would cause false refusals on runnable plans. `aw check` reports all three classifications so a maintainer can correct the declared path.
+    +Only literal `.aw/records/` scope paths are checked because non-records paths (new code or test files) are legitimately absent before execution. The shared predicate (`check_engine.stale_record_scope_paths`) reports three classifications (`moved-terminal`, `moved`, and `vanished`), but the runner refuses only `moved-terminal` and `vanished`. A plain `moved` target (an artifact that merely changed status directory, such as an approved spec advancing to implementing) remains fully editable; refusing it would cause false refusals on runnable plans. `aw check` reports all three classifications so a maintainer can correct the declared path. `aw check` grades a plain `moved` at `info`, the advisory tier that does not set an exit code, while `moved-terminal` and `vanished` are graded `error`: a plain `moved` names a stale string on a plan that remains executable, so it must be visible without failing a gate.
+
+     ### 5.8 Interactive and unattended parity
+
+    ```
+    Locale-independent dash probe:
+    Command: `git diff -- .aw/records/specs/ | python3 -c "import sys; [print(i, repr(l)) for i, l in enumerate(sys.stdin, 1) if '\u2013' in l or '\u2014' in l]"; echo "probe rc=$?"`
+    Output: `probe rc=0` (no output printed, exit 0)
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: PASTE the bare `python3 -m pytest` summary line AND its full `FAILED`/`ERROR` node-id list, then compare that SET against the set E-01 pasted at the base, naming any node id present now and absent then; only such a node id is blocking. Do NOT compare against `3312 passed` or any other count written in this plan: review measured the base at `2 failed, 3445 passed, 2 skipped` one day after authoring measured `3312 passed`, and a count comparison would manufacture a false regression. PASTE `python3 -m agent_workflows check all`'s exit code together with the per-severity breakdown of this rule's findings only (state the count at `info` and at `error`); do NOT paste or compare a total finding count. PASTE `python3 -m agent_workflows check plans`'s exit code and state that it equals V-01's measurement. PASTE `aw sanitize --agent; echo rc=$?` showing rc 0. PASTE the added `CHANGELOG.md` line and confirm it contains no em or en dash.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detailed evidence recorded below.
+    Bare pytest summary line:
+    `3564 passed, 2 skipped, 3 warnings in 146.28s (0:02:26)`
+    FAILED/ERROR node-id list: set() (0 failing node ids)
+    Comparison against E-01 base set: base set was set(), current set is set(), difference is empty.
+
+    `python3 -m agent_workflows check all` exit code: 1
+    `check.scope-path-target-stale` findings per-severity breakdown:
+    {'info': 2, 'error': 2}
+    - 2 findings at `info` (both plain moved)
+    - 2 findings at `error` (both moved-terminal)
+
+    `python3 -m agent_workflows check plans` exit code: 1 (equals V-01 measurement).
+
+    `aw sanitize --agent; echo rc=$?`:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+    `rc=0`
+
+    Added `CHANGELOG.md` line:
+    `- Changed: `aw check` now grades plain moved scope target findings as info rather than error, preventing false gate refusals on runnable plans while keeping moved-terminal and vanished at error.`
+    Confirmed no em or en dash in CHANGELOG line via Python probe (exit 0).
+  - Result: pass
 
 ## Approval and execution gate
 
