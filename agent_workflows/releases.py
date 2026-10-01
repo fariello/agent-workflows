@@ -114,13 +114,15 @@ def validate_release(path: Path, text: str) -> List[_core.Drift]:
     return drift
 
 
-_BLOCKS_RELEASE_LINE_RE = re.compile(r"(?m)^- Blocks-Release:[ \t]*\S+[ \t]*$\n?")
+_BLOCKS_RELEASE_LINE_RE = re.compile(r"(?m)^- Blocks-Release:[ \t]*[^\n]*$\n?")
 
 
 def set_blocks_release_line(text: str, value: Optional[str]) -> str:
     """Return `text` with the `- Blocks-Release:` metadata line set to `value`, or removed when
     `value` is '-' or None. Idempotent: replaces an existing line or inserts one after `- Status:`
-    (falling back to after `- Id:`, or the top of the bullet block)."""
+    (falling back to after `- Id:`, or the top of the bullet block). Tolerates any value so an
+    existing malformed line is still replaced (matching precedent in `set_priority_line` and
+    `set_work_kind_line`)."""
     # Always strip any existing line first.
     text = _BLOCKS_RELEASE_LINE_RE.sub("", text)
     if value in (None, "-"):
@@ -478,14 +480,16 @@ def set_work_kind_line(text: str, value: Optional[str]) -> str:
     return text
 
 
-_FROM_BACKLOG_LINE_RE = re.compile(r"(?m)^- From-Backlog:[ \t]*\S+[ \t]*$\n?")
+_FROM_BACKLOG_LINE_RE = re.compile(r"(?m)^- From-Backlog:[ \t]*[^\n]*$\n?")
 
 
 def set_from_backlog_line(text: str, value: Optional[str]) -> str:
     """Return `text` with the `- From-Backlog:` metadata line set to `value`, or removed when
     `value` is '-' or None. Idempotent: replaces an existing line or inserts one after `- Status:`
     (falling back to after `- Id:`, or the top of the bullet block). Mirrors
-    `set_blocks_release_line` exactly (bklggrad Order ku93tn)."""
+    `set_blocks_release_line` exactly (bklggrad Order ku93tn). Tolerates any value so an
+    existing malformed line is still replaced (matching precedent in `set_priority_line` and
+    `set_work_kind_line`)."""
     # Always strip any existing line first.
     text = _FROM_BACKLOG_LINE_RE.sub("", text)
     if value in (None, "-"):

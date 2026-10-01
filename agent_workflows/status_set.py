@@ -1170,6 +1170,22 @@ def apply_status_change(
     # primitive (no duplicate write path).
     fb = getattr(args, "from_backlog", None)
     if fb is not None:
+        if fb != "-":
+            # IPD izh17y E-03: validation backstop in apply_status_change preventing unresolvable
+            # dangling links even via direct calls. Resolves via `backlog.existing_backlog_ids` (P8).
+            # An empty id set skips the refusal so an invisible backlog corpus cannot make every write fail.
+            # DELIBERATE DIVERGENCE FROM CHECKER (F-12): `releases.check_from_backlog` has no empty-set skip
+            # and its own docstring explicitly records that asymmetry ("THE TWO BACK-LINK TWINS DISAGREE ON
+            # FAIL-SAFETY, AND THIS ONE IS THE LESS SAFE ... Do NOT 'harmonize' that guard away to match this
+            # function; the difference is a known gap here, not a standard to spread"). The setter takes the
+            # safe posture rather than copying the checker's less-safe posture.
+            from agent_workflows import backlog as _backlog
+
+            known_backlog = _backlog.existing_backlog_ids(repo_root)
+            if known_backlog and fb not in known_backlog:
+                raise ValueError(
+                    f"unresolvable backlog id '{fb}' (does not resolve to an existing backlog item)"
+                )
         from agent_workflows import releases as _releases
 
         tmp_text = "\n".join(new_lines)
@@ -1852,6 +1868,27 @@ def run_set_command(
             term.status("fail", f"aw set: {_gt_err}")
             return 2
         args.graduated_to = _gt_canonical
+
+    # IPD izh17y E-03: validate `--from-backlog` value BEFORE any artifact is resolved or written,
+    # so an unresolvable backlog id refuses with exit 2 instead of creating a dangling link.
+    # Resolves via existing authority `backlog.existing_backlog_ids` (P8: no second scanner).
+    # An empty id set skips the refusal so an invisible backlog corpus cannot make every write fail.
+    # DELIBERATE DIVERGENCE FROM CHECKER (F-12): `releases.check_from_backlog` has no empty-set skip
+    # and its own docstring explicitly records that asymmetry ("THE TWO BACK-LINK TWINS DISAGREE ON
+    # FAIL-SAFETY, AND THIS ONE IS THE LESS SAFE ... Do NOT 'harmonize' that guard away to match this
+    # function; the difference is a known gap here, not a standard to spread"). The setter takes the
+    # safe posture rather than copying the checker's less-safe posture.
+    fb_val = getattr(args, "from_backlog", None)
+    if fb_val is not None and fb_val != "-":
+        from agent_workflows import backlog as _backlog
+
+        known_backlog = _backlog.existing_backlog_ids(repo_root)
+        if known_backlog and fb_val not in known_backlog:
+            term.status(
+                "fail",
+                f"aw set: unresolvable backlog id '{fb_val}' (does not resolve to an existing backlog item)",
+            )
+            return 2
 
     # IPD 0ykozn E-02 (review finding PR-504): validate `--from-spec` value BEFORE any artifact
     # is resolved or written, so an unresolvable spec id6 refuses with a nonzero exit instead of
