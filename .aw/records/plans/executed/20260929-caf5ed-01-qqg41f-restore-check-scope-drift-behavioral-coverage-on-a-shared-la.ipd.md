@@ -6,7 +6,7 @@
 - Scope: Restore the DELETED BEHAVIORAL COVERAGE of `check_engine.check_scope_drift` as one new test module, arranged through ONE shared fixture helper added to `tests/support.py` so the lane cannot be forgotten by the next author, and make every silent assertion carry a paired firing positive control so a rule that reported nothing could not satisfy the module. INCLUDES, as a first-class row rather than as fixture hygiene, the rule's HEADLINE CLAIM that the LANE and only the lane is measured: a change made out of scope in the MAIN checkout while the lane is clean must be SILENT, which is the one row that catches the historical wrong-tree regression and the only row that distinguishes a wrong-tree rule from a rule that reports nothing (review 2026-09-30, F-11). This is the backlog item's CANDIDATE DIRECTION (1) (a shared arranging helper) combined with its DIRECTION (3) (the positive-control convention), and it deliberately DECLINES its DIRECTION (2) (a meta-test asserting each file allocates a lane) because that is a code-structure pin `GUIDING_PRINCIPLES.md` P16 prohibits outright; the reasoning is recorded in Findings rather than left implicit. EXCLUDES restoring the three unrelated halves of the deleted files (receipt liveness, event-derived transition validity, and finalize ownership attribution), which lost their own coverage in the same commit but are separate surfaces with separate claims and belong to the general trim audit `xvp5vx`; this plan restores only what the drift advisory itself asserts. EXCLUDES any change to `check_engine.check_scope_drift` or to `worktree_lease`: the rule's behavior is the SUBJECT here and must not move while coverage is being written around it.
 - Scope-Paths: tests/support.py, tests/test_check_scope_drift.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: qqg41f
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: qqg41f verified (set caf5ed, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 
@@ -56,24 +56,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the shared arranging fixture
 
-- [ ] E-01 ADD ONE SHARED SCOPE-DRIFT ARRANGER TO `tests/support.py` THAT ALLOCATES THE LANE ITSELF, SO A CALLER CANNOT FORGET IT. Add a function (suggested `scope_drift_repo`) that builds a complete drift subject in one call and RETURNS BOTH the repo root and the lane path, because the caller needs the lane to place its change and the rule needs the root. The ONE deliverable is that arranging function, and the steps below are its body rather than separate concerns. It `git init`s a repo by reusing `support.init_repo` (the established helper) rather than re-implementing it. It writes a `.gitignore` containing BOTH `.aw/state/` and `.aw/worktrees/` so the fixture repo has the shape a real managed repo has; DO NOT restate the authored claim that this is required to keep the lane directory out of the changed set, which review MEASURED FALSE (2026-09-30, F-12): `check_scope_drift` excludes both prefixes UNCONDITIONALLY in its own comprehension, and omitting the `.gitignore` entirely changes no row's outcome (row (b) SILENT either way; the only difference is two extra `??` entries in the main tree's porcelain). Keep the write, drop the false justification, and do NOT let a future author delete the write on the strength of that correction either: E-06's row asserts on the MAIN tree's dirty set, so an ungitignored `.aw/state/` there is noise a reader of a failure would have to discount. It writes a plan under `.aw/records/plans/pending/` carrying a real `- Id:` and a parameterized `- Scope-Paths:`, commits, and captures HEAD as the frozen base. It writes the begin receipt at that base through the PRODUCTION path helper `ipd_lifecycle.receipt_path_for` rather than a hand-built `.aw/state/ipd-lifecycle/<id6>.receipt.json` string, so the fixture cannot drift from where `ipd_lifecycle.read_receipt` looks. Finally it allocates the lane via `worktree_lease.allocate_worktree(root, plan_id, base_commit=base)`. THE `base_commit=base` ARGUMENT IS LOAD-BEARING, NOT TIDINESS: `check_engine._plan_execution_tree` runs `merge-base --is-ancestor base_head HEAD` in the lane and returns `None` (rule silent) when it fails, and `allocate_worktree`'s own docstring records that a lane cut from an older base makes intervening commits appear in the delta. Expose parameters for `scope_paths`, the plan id, whether to write the receipt at all, AND THE PLAN'S DIRECTORY RELATIVE TO THE PLANS ROOT (defaulting to `pending`), since E-04's terminal rows need to place the plan under `executed/` and under a `executed/YYYYMM/` shard and must do so WITHOUT hand-building a second repo. Do NOT add a knob for the lane's base commit: the one legitimate non-ancestor arrangement is constructed by COMMITTING on the lane and freezing the receipt at that lane-only commit (see E-04), which the caller does after the helper returns. MEASURED PRECEDENT for putting it here rather than in a new module: `support.ready_plan_text` was extracted for this exact reason, its docstring citing "twenty-one hand-maintained copies", and the four deleted files each rolled their own arranger (`_allocate_lane`/`_dirty_out_of_scope`/`_arrange`, `_repo`, `_mk_repo`/`_lane_of`, and one ad-hoc block) which is the duplication that let the lane be forgotten in the first place.
+- [x] E-01 ADD ONE SHARED SCOPE-DRIFT ARRANGER TO `tests/support.py` THAT ALLOCATES THE LANE ITSELF, SO A CALLER CANNOT FORGET IT. Add a function (suggested `scope_drift_repo`) that builds a complete drift subject in one call and RETURNS BOTH the repo root and the lane path, because the caller needs the lane to place its change and the rule needs the root. The ONE deliverable is that arranging function, and the steps below are its body rather than separate concerns. It `git init`s a repo by reusing `support.init_repo` (the established helper) rather than re-implementing it. It writes a `.gitignore` containing BOTH `.aw/state/` and `.aw/worktrees/` so the fixture repo has the shape a real managed repo has; DO NOT restate the authored claim that this is required to keep the lane directory out of the changed set, which review MEASURED FALSE (2026-09-30, F-12): `check_scope_drift` excludes both prefixes UNCONDITIONALLY in its own comprehension, and omitting the `.gitignore` entirely changes no row's outcome (row (b) SILENT either way; the only difference is two extra `??` entries in the main tree's porcelain). Keep the write, drop the false justification, and do NOT let a future author delete the write on the strength of that correction either: E-06's row asserts on the MAIN tree's dirty set, so an ungitignored `.aw/state/` there is noise a reader of a failure would have to discount. It writes a plan under `.aw/records/plans/pending/` carrying a real `- Id:` and a parameterized `- Scope-Paths:`, commits, and captures HEAD as the frozen base. It writes the begin receipt at that base through the PRODUCTION path helper `ipd_lifecycle.receipt_path_for` rather than a hand-built `.aw/state/ipd-lifecycle/<id6>.receipt.json` string, so the fixture cannot drift from where `ipd_lifecycle.read_receipt` looks. Finally it allocates the lane via `worktree_lease.allocate_worktree(root, plan_id, base_commit=base)`. THE `base_commit=base` ARGUMENT IS LOAD-BEARING, NOT TIDINESS: `check_engine._plan_execution_tree` runs `merge-base --is-ancestor base_head HEAD` in the lane and returns `None` (rule silent) when it fails, and `allocate_worktree`'s own docstring records that a lane cut from an older base makes intervening commits appear in the delta. Expose parameters for `scope_paths`, the plan id, whether to write the receipt at all, AND THE PLAN'S DIRECTORY RELATIVE TO THE PLANS ROOT (defaulting to `pending`), since E-04's terminal rows need to place the plan under `executed/` and under a `executed/YYYYMM/` shard and must do so WITHOUT hand-building a second repo. Do NOT add a knob for the lane's base commit: the one legitimate non-ancestor arrangement is constructed by COMMITTING on the lane and freezing the receipt at that lane-only commit (see E-04), which the caller does after the helper returns. MEASURED PRECEDENT for putting it here rather than in a new module: `support.ready_plan_text` was extracted for this exact reason, its docstring citing "twenty-one hand-maintained copies", and the four deleted files each rolled their own arranger (`_allocate_lane`/`_dirty_out_of_scope`/`_arrange`, `_repo`, `_mk_repo`/`_lane_of`, and one ad-hoc block) which is the duplication that let the lane be forgotten in the first place.
   - Depends on: none
   - Expected outcome: `tests/support.py` exports one arranger returning `(root, lane)`; called with its defaults and a change written under `lane/other/`, `check_engine.check_scope_drift(root)` returns exactly one finding whose detail contains `other/f.txt` (measured at review, the detail for a single untracked file under `other/` is `"1 changed path is outside the plan's declared Scope-Paths: 'other/f.txt'"`, the FILE and not the directory, even though the lane's own porcelain shows the collapsed `?? other/`); no test file needs to mention `allocate_worktree` to get a correct subject. The lane path the helper returns is `worktree_lease.allocate_worktree(...).path` (the handle's field is `path`, NOT `worktree_path`, which is `inspect_lane`'s field and does not exist on `WorktreeHandle`); review lost a cycle to that confusion, so the helper is the one place it is resolved.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 STATE IN THE ARRANGER'S DOCSTRING WHY THE CHANGE BELONGS IN THE LANE, AS A PRECONDITION OF THE RULE RATHER THAN AS FIXTURE SCAFFOLDING. The docstring must say that `check_scope_drift` measures the plan's ISOLATED LANE and reports nothing at all for a plan without one, so a change placed in the main checkout is INVISIBLE to it and any assertion built that way passes for a reason unrelated to its subject. Cite the authority already recorded in the rule itself: `check_scope_drift`'s docstring section "WHICH TREE IS MEASURED IS PART OF THE RULE" (rcptstale `wmnmei`, backlog `v880xk`, maintainer ruling 2026-09-10), and the accepted cost it names, that hand work in a shared main checkout gets no advisory. This is the knowledge that was lost when the four files were deleted: three of them carried explicit warnings against exactly this vacuity, and with the files gone nothing records it. Keep it in the HELPER's docstring specifically, because that is the one place every future caller must pass through.
+- [x] E-02 STATE IN THE ARRANGER'S DOCSTRING WHY THE CHANGE BELONGS IN THE LANE, AS A PRECONDITION OF THE RULE RATHER THAN AS FIXTURE SCAFFOLDING. The docstring must say that `check_scope_drift` measures the plan's ISOLATED LANE and reports nothing at all for a plan without one, so a change placed in the main checkout is INVISIBLE to it and any assertion built that way passes for a reason unrelated to its subject. Cite the authority already recorded in the rule itself: `check_scope_drift`'s docstring section "WHICH TREE IS MEASURED IS PART OF THE RULE" (rcptstale `wmnmei`, backlog `v880xk`, maintainer ruling 2026-09-10), and the accepted cost it names, that hand work in a shared main checkout gets no advisory. This is the knowledge that was lost when the four files were deleted: three of them carried explicit warnings against exactly this vacuity, and with the files gone nothing records it. Keep it in the HELPER's docstring specifically, because that is the one place every future caller must pass through.
   - Depends on: E-01
   - Expected outcome: the arranger's docstring states the lane precondition, names the measured-tree ruling, and says plainly that a main-tree arrangement yields a vacuous pass; no equivalent prose is duplicated into the test module, which points at the helper instead.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the restored behavioral coverage
 
-- [ ] E-03 WRITE `tests/test_check_scope_drift.py` WITH THE FOUR-ROW TABLE THAT CARRIES THE RULE'S CORE CONTRACT, EVERY ROW ARRANGED THROUGH THE E-01 HELPER. Restore, as behavior, the four cases the deleted `test_event_derived_lifecycle.py::TestScopeDrift` asserted, each a distinct clause of the rule: (a) an out-of-scope change in the lane FIRES, and the finding's detail must NAME the offending path, not merely be non-empty; ROW (a) MUST ARRANGE THREE OUT-OF-SCOPE PATHS, NOT ONE, and must assert BOTH `len(drift) == 1` and that all three paths appear in that single finding's detail, because that is what pins the ONE-FINDING-PER-PLAN COLLAPSE the rule's docstring calls load-bearing ("A single frozen base used to emit one finding per intervening file, which is how 350 findings came from six causes"). Review MEASURED that a one-offender arrangement cannot pin it: with one dirty path, the correct collapsed rule and a per-path regression are byte-identical (`len==1`, same detail), so `assert len(drift) == 1` passes for both; with three, the collapsed rule gives `len==1` with a three-path detail and the regression gives `len==3`, so the assertion discriminates (F-13); (b) an IN-SCOPE change is SILENT, which is the rule's purpose; (c) a `grandfathered` `Scope-Paths:` is SILENT, which is the documented sentinel carve-out `check_scope_drift` honors by treating an empty frozen allowlist as advisory-satisfied, and which somebody could "helpfully" tighten; (d) NO RECEIPT is SILENT, which is what stops the sweep attributing every uncommitted file in a shared checkout to whichever plan it found first. ROW (a) IS THE ANTI-VACUITY CONTROL FOR ROWS (b) TO (d) AND MUST BE IN THE SAME TABLE: three assertions of silence are all satisfied by a rule that reports nothing, which is precisely the state measured at authoring, so the firing row is what makes the other three mean anything. Row (d) MUST STILL ALLOCATE ITS LANE (pass the helper's write-receipt knob, do not skip the allocation), so its silence is attributable to the MISSING RECEIPT alone and not to the plan having no lane to measure. The failure message must diagnose the systematic mode explicitly: if all three silent rows pass while row (a) fails, the rule has stopped reporting entirely and the silent rows are vacuous.
+- [x] E-03 WRITE `tests/test_check_scope_drift.py` WITH THE FOUR-ROW TABLE THAT CARRIES THE RULE'S CORE CONTRACT, EVERY ROW ARRANGED THROUGH THE E-01 HELPER. Restore, as behavior, the four cases the deleted `test_event_derived_lifecycle.py::TestScopeDrift` asserted, each a distinct clause of the rule: (a) an out-of-scope change in the lane FIRES, and the finding's detail must NAME the offending path, not merely be non-empty; ROW (a) MUST ARRANGE THREE OUT-OF-SCOPE PATHS, NOT ONE, and must assert BOTH `len(drift) == 1` and that all three paths appear in that single finding's detail, because that is what pins the ONE-FINDING-PER-PLAN COLLAPSE the rule's docstring calls load-bearing ("A single frozen base used to emit one finding per intervening file, which is how 350 findings came from six causes"). Review MEASURED that a one-offender arrangement cannot pin it: with one dirty path, the correct collapsed rule and a per-path regression are byte-identical (`len==1`, same detail), so `assert len(drift) == 1` passes for both; with three, the collapsed rule gives `len==1` with a three-path detail and the regression gives `len==3`, so the assertion discriminates (F-13); (b) an IN-SCOPE change is SILENT, which is the rule's purpose; (c) a `grandfathered` `Scope-Paths:` is SILENT, which is the documented sentinel carve-out `check_scope_drift` honors by treating an empty frozen allowlist as advisory-satisfied, and which somebody could "helpfully" tighten; (d) NO RECEIPT is SILENT, which is what stops the sweep attributing every uncommitted file in a shared checkout to whichever plan it found first. ROW (a) IS THE ANTI-VACUITY CONTROL FOR ROWS (b) TO (d) AND MUST BE IN THE SAME TABLE: three assertions of silence are all satisfied by a rule that reports nothing, which is precisely the state measured at authoring, so the firing row is what makes the other three mean anything. Row (d) MUST STILL ALLOCATE ITS LANE (pass the helper's write-receipt knob, do not skip the allocation), so its silence is attributable to the MISSING RECEIPT alone and not to the plan having no lane to measure. The failure message must diagnose the systematic mode explicitly: if all three silent rows pass while row (a) fails, the rule has stopped reporting entirely and the silent rows are vacuous.
   - Depends on: E-01, E-02
   - Expected outcome: `tests/test_check_scope_drift.py` holds the four-row core-contract table; the whole module passes on the unmodified tree; row (a) arranges THREE out-of-scope paths and asserts both `len(drift) == 1` and that all three appear in that finding's detail; every row obtains its subject from the E-01 helper and no row hand-builds a lane.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 ADD THE LIVENESS ROWS AS BLACK-BOX ROWS ABOUT THE RULE'S OBSERVABLE SILENCE, AND STATE WHICH CLAUSE EACH ONE ACTUALLY REACHES RATHER THAN WHICH ONE IT LOOKS LIKE IT REACHES. `check_scope_drift` is silent for a terminal plan and for a plan whose frozen `base_head` is unreachable, and both silences are worth pinning, because both are what kept one plan from owning another agent's files. Write FOUR rows: (a) the pending TWIN that FIRES, identical in every respect except the plan's directory; (b) the plan under `.aw/records/plans/executed/` is SILENT; (c) the plan under a `executed/YYYYMM/` SHARDED path is SILENT, which is the shape a real archived plan has; (d) a receipt frozen at a commit unreachable from the main tree's HEAD is SILENT.
+- [x] E-04 ADD THE LIVENESS ROWS AS BLACK-BOX ROWS ABOUT THE RULE'S OBSERVABLE SILENCE, AND STATE WHICH CLAUSE EACH ONE ACTUALLY REACHES RATHER THAN WHICH ONE IT LOOKS LIKE IT REACHES. `check_scope_drift` is silent for a terminal plan and for a plan whose frozen `base_head` is unreachable, and both silences are worth pinning, because both are what kept one plan from owning another agent's files. Write FOUR rows: (a) the pending TWIN that FIRES, identical in every respect except the plan's directory; (b) the plan under `.aw/records/plans/executed/` is SILENT; (c) the plan under a `executed/YYYYMM/` SHARDED path is SILENT, which is the shape a real archived plan has; (d) a receipt frozen at a commit unreachable from the main tree's HEAD is SILENT.
 
   ATTRIBUTION CORRECTION, MEASURED AT REVIEW AND LOAD-BEARING, because the authored version of this item asserted something false and V-04 demanded evidence for it. Rows (b) and (c) DO NOT exercise `_receipt_is_live`'s terminal-plan branch, and no test can make them: `check_scope_drift` iterates `_iter_type_files(repo_root, "plans")` with the default `include_retired=False`, and `check_engine.is_retired` returns True for any path containing a segment in `_RETIRED_PATH_SEGMENTS`, which is `{archive, executed, superseded, not-executed, parked, done, shipped}` and is a strict SUPERSET of `plans.TERMINAL` (`executed`, `superseded`, `not-executed`). A terminal plan is therefore never yielded to the loop at all, so the receipt is never read and `_receipt_is_live` is never called on it. Review PROVED this by replacing `_receipt_is_live` with `lambda *_: True` (deleting the terminal rejection outright) and re-running: the terminal and sharded rows stayed SILENT and `_iter_type_files` returned `[]` for both (F-09). So write rows (b) and (c) as assertions of the rule's OBSERVABLE CONTRACT ("a terminal plan gets no drift advisory"), state IN THE TEST that the suppression is measured to come from the retired-path filter and not from receipt liveness, and DO NOT claim in a comment or a docstring that they cover `_receipt_is_live`. An honest black-box row about a real contract is worth keeping; a row mislabelled with a clause it cannot reach teaches a later reader the wrong thing and would make the module's own charter false.
 
@@ -82,20 +82,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   Use the E-01 helper for every row, and obtain the terminal placements through its plan-directory parameter rather than by moving files or building second repos, so the pending/terminal comparison stays genuinely one-variable.
   - Depends on: E-03
   - Expected outcome: four rows (pending-fires, terminal-silent, sharded-terminal-silent, unreachable-base-silent-via-lane-only-commit) pass on the unmodified tree; the terminal pair differs only in the plan's directory; row (d) uses a lane-only commit and NOT an orphan commit; no row or comment claims rows (b)/(c) exercise `_receipt_is_live`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: the wrong-tree row and the mutation proofs
 
-- [ ] E-06 ADD THE WRONG-TREE ROW: MAIN DIRTY OUT OF SCOPE, LANE CLEAN, ASSERTED SILENT. THIS IS THE ONLY ROW THAT COVERS THE RULE'S HEADLINE CLAIM. Arrange through the E-01 helper exactly as row (a) does, then write the out-of-scope change into the MAIN CHECKOUT and leave the lane untouched. Assert SILENCE. The row's docstring must say what it guards, in these terms: `check_scope_drift`'s docstring records that the rule once diffed the frozen base against whichever tree the command ran in, producing 350 findings across six plans of which 350 of 350 were other agents' COMMITTED history, and that the lane-measured answer for the same six was 9/5/1/0 with two plans having no usable lane. This row is the assertion that the fix holds.
+- [x] E-06 ADD THE WRONG-TREE ROW: MAIN DIRTY OUT OF SCOPE, LANE CLEAN, ASSERTED SILENT. THIS IS THE ONLY ROW THAT COVERS THE RULE'S HEADLINE CLAIM. Arrange through the E-01 helper exactly as row (a) does, then write the out-of-scope change into the MAIN CHECKOUT and leave the lane untouched. Assert SILENCE. The row's docstring must say what it guards, in these terms: `check_scope_drift`'s docstring records that the rule once diffed the frozen base against whichever tree the command ran in, producing 350 findings across six plans of which 350 of 350 were other agents' COMMITTED history, and that the lane-measured answer for the same six was 9/5/1/0 with two plans having no usable lane. This row is the assertion that the fix holds.
 
   WHY IT IS A SEPARATE E-ITEM AND NOT A FIFTH ROW OF E-03, stated because the distinction is the whole reason it exists: every OTHER row in this module arranges its change inside the lane, which leaves the main tree clean, which makes all of them blind to WHERE the rule looked. Review measured this three ways on real source (F-11). Replacing the lane resolution with the running tree (`exec_tree = Path(repo_root)`) fails exactly ONE of the other rows, row (a), which is the same single row the report-nothing mutation fails, so the two defects are indistinguishable without this row. Simulating the ACTUAL historical defect (the rule measuring the UNION of the lane and the running tree) passes ALL SEVEN other rows, because in each of them the union equals the lane; this row is the only one that fails. And this row is NOT confounded with the report-nothing mutation, because under that mutation it correctly stays silent.
 
   The row must also carry the ACCEPTED-COST note, because a later reader will otherwise read it as a bug report: the silence it asserts IS the deliberate maintainer ruling of 2026-09-10 that hand work in a shared main checkout gets no advisory at all. This row pins that ruling as behavior. Do not write it in a way that argues the ruling should change.
   - Depends on: E-01, E-02
   - Expected outcome: `tests/test_check_scope_drift.py` holds a row that dirties the MAIN tree out of scope with a CLEAN lane and asserts `check_engine.check_scope_drift(root) == []`; its docstring names the 350-finding measurement and the 2026-09-10 accepted cost; the row passes on the unmodified tree.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 PROVE THE NEW MODULE IS SENSITIVE BY MUTATION, AND RECORD THE RESULT IN THE MODULE DOCSTRING AS ITS REASON FOR EXISTING. A restored test is only worth its line count if breaking the behavior breaks it, and this whole plan exists because the current suite is green against a rule that returns nothing. Re-run the authoring mutation (an unconditional early `return drift` at the top of `check_engine.check_scope_drift`) and confirm the new module FAILS, then revert it and confirm the module passes.
+- [x] E-05 PROVE THE NEW MODULE IS SENSITIVE BY MUTATION, AND RECORD THE RESULT IN THE MODULE DOCSTRING AS ITS REASON FOR EXISTING. A restored test is only worth its line count if breaking the behavior breaks it, and this whole plan exists because the current suite is green against a rule that returns nothing. Re-run the authoring mutation (an unconditional early `return drift` at the top of `check_engine.check_scope_drift`) and confirm the new module FAILS, then revert it and confirm the module passes.
 
   THE SECOND MUTATION IS THE WRONG-TREE ONE, AND THE AUTHORED SPELLING OF IT WAS MEASURED USELESS. Do NOT "delete the `exec_tree is None` guard": review applied that literally to real source and it fails NOT ONE ROW of the entire module, because deleting the guard does not redirect the rule to another tree, it only removes the early `continue`, and every row in this module has a resolvable lane so `exec_tree` is never None in the first place (F-14). Worse, on the one arrangement where `exec_tree` IS None the mutated rule raises `FileNotFoundError: [Errno 2] No such file or directory: 'None'` rather than measuring anything, so the authored mutation is not a behavior change a test could meaningfully catch. THE CORRECT SECOND MUTATION replaces the lane selection with the running tree:
 
@@ -104,12 +104,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   Measured at review, that mutation fails row (a) AND E-06's wrong-tree row, and the E-06 failure is the one that carries the information, because row (a) also fails under the report-nothing mutation while E-06's row does not. State the outcome in the module docstring as the module's charter, and state its BOUND honestly: this module covers the drift advisory's own OBSERVABLE decisions (which tree is measured, silence for a terminal plan, silence for an unreachable frozen base, the grandfathered sentinel, in-scope silence, and the one-finding-per-plan collapse) and does NOT restore the receipt-liveness, transition-validity, or finalize-ownership claims that died with the same four files. The docstring must ALSO record, per E-04, that the terminal rows are black-box assertions whose measured suppressor is the retired-path filter rather than `_receipt_is_live`. DO NOT write any mutation into the repository in any form, and DO NOT add a test that reads `check_engine`'s source to assert a guard is present: that is the code-structure pin P16 forbids, and the mutation is a one-off validation technique whose evidence belongs in V-05.
   - Depends on: E-03, E-04, E-06
   - Expected outcome: with the early-return mutation applied the new module fails and the pasted output names the failing rows; with it reverted the module passes; the corrected wrong-tree mutation (`exec_tree = Path(repo_root)`) fails at least E-06's row; the module docstring states the charter, the bound, and the terminal-row attribution; `git diff` confirms no production file was left modified.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 PROVE THE MODULE CATCHES THE ACTUAL HISTORICAL REGRESSION, NOT ONLY A SYNTHETIC ONE, AS A THIRD MUTATION. The two mutations in E-05 are both coarse: one silences the rule and one redirects it wholesale. The defect this rule was BUILT to fix was neither, it was a rule that measured a tree CONTAINING the plan's own lane changes plus everybody else's. Reproduce it as a third scratch mutation, by making the changed-path computation return the UNION of the execution tree's changed set and the repository root's changed set, and confirm the module fails. Measured at review, this mutation passes every row in the module EXCEPT E-06's (F-11), which is precisely why E-06 exists and why this mutation is the one that validates it rather than validating row (a) a third time. Revert it and confirm the module passes. This is a VALIDATION TECHNIQUE only: nothing is written to the repository, and the evidence belongs in V-07.
+- [x] E-07 PROVE THE MODULE CATCHES THE ACTUAL HISTORICAL REGRESSION, NOT ONLY A SYNTHETIC ONE, AS A THIRD MUTATION. The two mutations in E-05 are both coarse: one silences the rule and one redirects it wholesale. The defect this rule was BUILT to fix was neither, it was a rule that measured a tree CONTAINING the plan's own lane changes plus everybody else's. Reproduce it as a third scratch mutation, by making the changed-path computation return the UNION of the execution tree's changed set and the repository root's changed set, and confirm the module fails. Measured at review, this mutation passes every row in the module EXCEPT E-06's (F-11), which is precisely why E-06 exists and why this mutation is the one that validates it rather than validating row (a) a third time. Revert it and confirm the module passes. This is a VALIDATION TECHNIQUE only: nothing is written to the repository, and the evidence belongs in V-07.
   - Depends on: E-05, E-06
   - Expected outcome: with the union mutation applied `tests/test_check_scope_drift.py` FAILS on the wrong-tree row (and passes every other row, which is the point); reverted, the module passes; `git diff --stat agent_workflows/` prints nothing afterwards.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -204,41 +204,471 @@ N/A with reason. No spec governs the drift advisory's TEST coverage, and the rul
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the added `tests/support.py` arranger quoted in full, showing it calls `support.init_repo`, writes `.gitignore` with BOTH `.aw/state/` and `.aw/worktrees/`, derives the receipt path from `ipd_lifecycle.receipt_path_for` (no hand-built path string), calls `worktree_lease.allocate_worktree(..., base_commit=<frozen base>)` and returns that handle's `.path`, and exposes the FOUR knobs E-01 names (`scope_paths`, plan id, write-receipt, plan directory). Plus PASTED output of a throwaway invocation that calls the helper with defaults, writes a file under `lane/other/`, and prints `check_engine.check_scope_drift(root)`: the printed result must be exactly one finding whose detail contains `other/f.txt`. A printed empty list FAILS this item. The `.gitignore` claim must be stated as E-01 now states it (fixture shape, keeping E-06's main-tree assertion readable) and NOT as a requirement for excluding the lane from the changed set, which is measured false; an evidence block repeating the false rationale FAILS this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Added support.scope_drift_repo arranger, verified throwaway invocation and gitignore shape.
+    1. Added `tests/support.py` arranger quoted in full:
+    ```python
+    def scope_drift_repo(
+        path: Path,
+        *,
+        scope_paths: str | Sequence[str] = "src/demo.py",
+        plan_id: str = "abc123",
+        write_receipt: bool = True,
+        plan_dir: str | Path = "pending",
+    ) -> tuple[Path, Path]:
+        """Build a complete scope-drift test subject repository, returning ``(repo_root, lane_path)``.
 
-- [ ] V-02 validates E-02
+        Arranges a minimal git repo via :func:`init_repo`, writes a ``.gitignore`` containing
+        both ``.aw/state/`` and ``.aw/worktrees/`` (giving the fixture repo the shape a real
+        managed repo has, and keeping main-tree dirty assertions in tests like E-06 readable and
+        clean of ungitignored runtime scratch; note that ``check_scope_drift`` excludes both prefixes
+        unconditionally in its own comprehension, so the gitignore is for fixture shape and clean
+        main porcelain rather than keeping the lane out of the delta), writes an approved plan
+        carrying ``plan_id`` and ``scope_paths`` under ``plan_dir`` (relative to the plans root),
+        commits, captures HEAD as the frozen base, writes an atomic begin receipt at that base using
+        :func:`agent_workflows.ipd_lifecycle.receipt_path_for` (when ``write_receipt=True``),
+        and allocates a dedicated lane worktree cut at that base commit via
+        :func:`agent_workflows.worktree_lease.allocate_worktree`.
+
+        WHY CHANGES BELONG IN THE LANE (PRECONDITION OF THE RULE, NOT FIXTURE SCAFFOLDING):
+        ``check_scope_drift`` measures the plan's ISOLATED LANE and reports nothing at all
+        for a plan without one. A change placed in the main checkout is INVISIBLE to it, so any
+        assertion built in the main tree passes vacuously for a reason unrelated to its subject.
+
+        Authority recorded in the rule itself: ``check_scope_drift``'s docstring section
+        "WHICH TREE IS MEASURED IS PART OF THE RULE" (rcptstale `wmnmei`, backlog `v880xk`,
+        maintainer ruling 2026-09-10), and the accepted cost it names: hand work in a shared
+        main checkout gets no advisory at all. Callers must place modifications in the returned
+        lane path rather than the main repo root, unless explicitly testing main-tree non-advisory
+        behavior.
+        """
+        from agent_workflows import ipd_lifecycle as _life
+        from agent_workflows import worktree_lease as _lease
+
+        root = init_repo(path)
+        (root / ".gitignore").write_text(".aw/state/\n.aw/worktrees/\n", encoding="utf-8")
+
+        plan_dir_path = root / ".aw" / "records" / "plans" / plan_dir
+        plan_dir_path.mkdir(parents=True, exist_ok=True)
+        plan_file = plan_dir_path / f"20260901-demo-01-{plan_id}-demo.ipd.md"
+
+        scope_paths_str = (
+            scope_paths if isinstance(scope_paths, str) else ", ".join(scope_paths)
+        )
+        plan_content = ready_plan_text(
+            plan_id=plan_id,
+            scope_paths=scope_paths_str,
+            status="approved",
+        )
+        plan_file.write_text(plan_content, encoding="utf-8")
+
+        git(root, "add", "-A")
+        git(root, "commit", "-m", "initial", "-q")
+        base = git(root, "rev-parse", "HEAD").stdout.strip()
+
+        if write_receipt:
+            rcpt_path = _life.receipt_path_for(root, plan_id)
+            rcpt_path.parent.mkdir(parents=True, exist_ok=True)
+            rcpt_data = {
+                "schema_version": 2,
+                "kind": "ipd_begin_receipt",
+                "plan_id": plan_id,
+                "base_head": base,
+            }
+            rcpt_path.write_text(json.dumps(rcpt_data), encoding="utf-8")
+
+        handle = _lease.allocate_worktree(root, plan_id, base_commit=base)
+        return root, handle.path
+    ```
+    The helper calls `init_repo(path)`, writes `.gitignore` containing both `.aw/state/` and `.aw/worktrees/`, derives the receipt path via `ipd_lifecycle.receipt_path_for`, calls `worktree_lease.allocate_worktree(root, plan_id, base_commit=base)` and returns `(root, handle.path)`. It exposes all 4 required knobs: `scope_paths`, `plan_id`, `write_receipt`, and `plan_dir`.
+    Per F-12, the `.gitignore` write is retained for fixture shape and to keep main-tree porcelain readable for assertions like E-06, and NOT as a requirement to exclude the lane from the changed set (which `check_scope_drift` already excludes unconditionally).
+
+    2. Pasted output of throwaway invocation with defaults, writing `lane/other/f.txt`:
+    ```
+    result count: 1
+    finding: [Drift(location='/tmp/tmpzxqb63aw/.aw/records/plans/pending/20260901-demo-01-abc123-demo.ipd.md', rule='check.scope-drift', detail="1 changed path is outside the plan's declared Scope-Paths: 'other/f.txt'", observed="changed (1): 'other/f.txt'", required='a change within the declared Scope-Paths: src/demo.py', recovery="restrict the change to Scope-Paths, or declare the path in the plan's Scope-Paths (then re-`aw ipd begin`), or reconcile it at `aw ipd finalize`", assurance='repository', determinism='deterministic', severity='error')]
+    detail: 1 changed path is outside the plan's declared Scope-Paths: 'other/f.txt'
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: the arranger's docstring quoted verbatim, showing it states (a) that the rule measures the isolated lane, (b) that a plan with no lane is reported on not at all, and (c) that a main-tree arrangement therefore passes vacuously. Plus a `grep`-style confirmation that the citation of the measured-tree ruling (`wmnmei` / `v880xk` / 2026-09-10) appears in it.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified docstring cites measured-tree ruling wmnmei/v880xk/2026-09-10 and states lane precondition.
+    1. Docstring quoted verbatim:
+    ```
+        """Build a complete scope-drift test subject repository, returning ``(repo_root, lane_path)``.
 
-- [ ] V-03 validates E-03
+        Arranges a minimal git repo via :func:`init_repo`, writes a ``.gitignore`` containing
+        both ``.aw/state/`` and ``.aw/worktrees/`` (giving the fixture repo the shape a real
+        managed repo has, and keeping main-tree dirty assertions in tests like E-06 readable and
+        clean of ungitignored runtime scratch; note that ``check_scope_drift`` excludes both prefixes
+        unconditionally in its own comprehension, so the gitignore is for fixture shape and clean
+        main porcelain rather than keeping the lane out of the delta), writes an approved plan
+        carrying ``plan_id`` and ``scope_paths`` under ``plan_dir`` (relative to the plans root),
+        commits, captures HEAD as the frozen base, writes an atomic begin receipt at that base using
+        :func:`agent_workflows.ipd_lifecycle.receipt_path_for` (when ``write_receipt=True``),
+        and allocates a dedicated lane worktree cut at that base commit via
+        :func:`agent_workflows.worktree_lease.allocate_worktree`.
+
+        WHY CHANGES BELONG IN THE LANE (PRECONDITION OF THE RULE, NOT FIXTURE SCAFFOLDING):
+        ``check_scope_drift`` measures the plan's ISOLATED LANE and reports nothing at all
+        for a plan without one. A change placed in the main checkout is INVISIBLE to it, so any
+        assertion built in the main tree passes vacuously for a reason unrelated to its subject.
+
+        Authority recorded in the rule itself: ``check_scope_drift``'s docstring section
+        "WHICH TREE IS MEASURED IS PART OF THE RULE" (rcptstale `wmnmei`, backlog `v880xk`,
+        maintainer ruling 2026-09-10), and the accepted cost it names: hand work in a shared
+        main checkout gets no advisory at all. Callers must place modifications in the returned
+        lane path rather than the main repo root, unless explicitly testing main-tree non-advisory
+        behavior.
+        """
+    ```
+    States (a) rule measures isolated lane, (b) plan with no lane reported not at all, (c) main-tree passes vacuously.
+
+    2. Grep confirmation for citations `wmnmei`, `v880xk`, `2026-09-10`:
+    ```
+    $ grep -E "wmnmei|v880xk|2026-09-10" tests/support.py
+        "WHICH TREE IS MEASURED IS PART OF THE RULE" (rcptstale `wmnmei`, backlog `v880xk`,
+        maintainer ruling 2026-09-10), and the accepted cost it names: hand work in a shared
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: PASTED output of `python3 -m pytest tests/test_check_scope_drift.py` showing the four-row table passing, plus the table quoted from the source showing all four rows (out-of-scope FIRES, in-scope SILENT, grandfathered SILENT, no-receipt SILENT) and showing that the no-receipt row still allocates its lane. Plus, for the firing row, proof that it arranges THREE out-of-scope paths and asserts BOTH `len(drift) == 1` and all three paths in the single finding's detail; a firing row arranging only ONE path FAILS this item, because review measured that a one-path arrangement cannot distinguish the collapsed finding from a per-path regression. Plus a demonstration that the three silent rows are non-vacuous: for each, paste the FAILING output produced when its single suppressing condition is removed (change moved out of scope; sentinel replaced with a real allowlist; receipt written), then confirm the row passes again once reverted.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified 4-row core contract table passes in pytest, confirmed 3 offenders collapsed, and verified 3 silent rows non-vacuous.
+    1. Pasted output of pytest showing four-row table passing:
+    ```
+    $ python3 -m pytest tests/test_check_scope_drift.py -k "test_core_contract_table"
+    .                                                                        [100%]
+    1 passed in 1.83s
+    ```
+    (Full module: `6 passed in 4.91s`)
 
-- [ ] V-04 validates E-04
+    2. Table quoted from source showing all four rows and lane allocation assertion:
+    ```python
+        CORE_FIXTURES = (
+            (
+                "out-of-scope change in lane FIRES (three paths collapsed)",
+                "src/",
+                ("other/a.txt", "other/b.txt", "other/c.txt"),
+                True,
+                ("other/a.txt", "other/b.txt", "other/c.txt"),
+                "THE RULE'S ONE POSITIVE CASE in the core table: three out-of-scope paths "
+                "collapse into exactly one Drift finding whose detail names all three paths. "
+                "Anti-vacuity control for rows (b) through (d).",
+            ),
+            (
+                "in-scope change in lane is SILENT",
+                "src/",
+                ("src/demo.py",),
+                True,
+                None,
+                "THE RULE'S PURPOSE: changes within declared Scope-Paths must not trigger a drift advisory.",
+            ),
+            (
+                "grandfathered Scope-Paths sentinel is SILENT",
+                "grandfathered",
+                ("other/a.txt",),
+                True,
+                None,
+                "DOCUMENTED CARVE-OUT: grandfathered sentinel yields empty allowlist, "
+                "treated as advisory-satisfied.",
+            ),
+            (
+                "no begin receipt is SILENT (lane still allocated)",
+                "src/",
+                ("other/a.txt",),
+                False,
+                None,
+                "NO LIVE EXECUTION: no receipt means no execution authority to reconcile. "
+                "Lane is still allocated so silence is attributable to missing receipt alone.",
+            ),
+        )
+    ```
+    In `test_core_contract_table`, lane allocation is checked for all rows including (d):
+    ```python
+        self.assertTrue(lane.is_dir(), f"Lane must be allocated for {case}")
+    ```
+
+    3. Firing row proof (arranges 3 paths, asserts count=1 and all paths in detail):
+    Row (a) specifies `("other/a.txt", "other/b.txt", "other/c.txt")` and asserts:
+    ```python
+        elif len(hits) != 1:
+            problems.append(f"expected 1 collapsed finding, got {len(hits)}: {[d.detail for d in hits]!r}")
+        for needle in expected_needles:
+            if not any(needle in d.detail for d in hits):
+                problems.append(f"detail missing needle {needle!r}: {[d.detail for d in hits]!r}")
+    ```
+
+    4. Non-vacuity demonstrations (failing output when suppressing conditions are removed):
+    - Row (b) (in-scope change moved out-of-scope to `other/f.txt`):
+      `Row (b) without suppressor (change out-of-scope): len = 1 ["1 changed path is outside the plan's declared Scope-Paths: 'other/f.txt'"]`
+    - Row (c) (`grandfathered` sentinel replaced with real allowlist `src/` while change is in `other/a.txt`):
+      `Row (c) without suppressor (real allowlist instead of sentinel): len = 1 ["1 changed path is outside the plan's declared Scope-Paths: 'other/a.txt'"]`
+    - Row (d) (receipt written while change is in `other/a.txt`):
+      `Row (d) without suppressor (receipt written): len = 1 ["1 changed path is outside the plan's declared Scope-Paths: 'other/a.txt'"]`
+    All three silent rows pass when suppressing conditions are present and fail when removed.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: PASTED passing output for the four liveness rows, plus evidence that the terminal pair differs ONLY in the plan's directory (quote both arrangements side by side). Plus proof that each silent liveness row is non-vacuous: paste the FAILING output when the plan is moved back to `pending/` for the terminal rows, and when the receipt's `base_head` is set to the main tree's HEAD for the unreachable-base row. The sharded row must show a `<disposition>/YYYYMM/` path in its arrangement.
   - Required evidence (attribution, and this item FAILS without it): row (d) must be quoted showing it freezes the receipt at a LANE-ONLY COMMIT, and must NOT use an orphan commit, which review measured to be over-determined (it defeats `_receipt_is_live` AND `_plan_execution_tree` at once). Paste, for row (d)'s arrangement, the printed values of `check_engine._receipt_is_live(root, plan, receipt)` and whether `check_engine._plan_execution_tree(root, plan_id, base_head)` resolved a lane: the expected pair is `False` and a resolved LANE, which is what makes the row one-variable. And the terminal rows (b)/(c) must be quoted showing they claim only the OBSERVABLE contract and explicitly record that the measured suppressor is `_iter_type_files`' retired-path filter; any comment, name, or docstring in those rows asserting they exercise `_receipt_is_live` FAILS this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified 4 liveness rows pass in pytest, confirmed terminal rows differ only in plan_dir, and verified lane-only commit attribution.
+    1. Pasted passing output for the four liveness rows:
+    ```
+    $ python3 -m pytest tests/test_check_scope_drift.py -k "test_liveness"
+    ....                                                                     [100%]
+    4 passed in 2.05s
+    ```
 
-- [ ] V-06 validates E-06
+    2. Side-by-side terminal pair comparison (differs ONLY in `plan_dir`):
+    ```python
+    # Row (a) Pending Twin (FIRES):
+    root, lane = support.scope_drift_repo(Path(td), scope_paths="src/", plan_dir="pending")
+    out_file = lane / "other" / "f.txt"
+    out_file.parent.mkdir(parents=True, exist_ok=True)
+    out_file.write_text("drift\n", encoding="utf-8")
+
+    # Row (b) Terminal Plan (SILENT):
+    root, lane = support.scope_drift_repo(Path(td), scope_paths="src/", plan_dir="executed")
+    out_file = lane / "other" / "f.txt"
+    out_file.parent.mkdir(parents=True, exist_ok=True)
+    out_file.write_text("drift\n", encoding="utf-8")
+
+    # Row (c) Sharded Terminal Plan (SILENT):
+    root, lane = support.scope_drift_repo(Path(td), scope_paths="src/", plan_dir="executed/202609")
+    out_file = lane / "other" / "f.txt"
+    out_file.parent.mkdir(parents=True, exist_ok=True)
+    out_file.write_text("drift\n", encoding="utf-8")
+    ```
+
+    3. Non-vacuity demonstrations:
+    - Terminal plan moved to `pending/`:
+      `Terminal plan moved to pending: len = 1 ["1 changed path is outside the plan's declared Scope-Paths: 'other/f.txt'"]`
+    - Sharded plan moved to `pending/`:
+      `Sharded plan moved to pending: len = 1 ["1 changed path is outside the plan's declared Scope-Paths: 'other/f.txt'"]`
+    - Unreachable base with `base_head` set to main tree HEAD (`base`):
+      ```
+      With base_head set to main HEAD:
+        _receipt_is_live: True
+        _plan_execution_tree: True
+        drifts len = 1 ["2 changed paths are outside the plan's declared Scope-Paths: 'lane_commit.txt', 'other/f.txt'"]
+      ```
+
+    4. Attribution proof for row (d) (lane-only commit, not orphan commit):
+    Quoted from `test_liveness_unreachable_base_silent_via_lane_only_commit`:
+    ```python
+        # Create a lane-only commit
+        lane_file = lane / "lane_commit.txt"
+        lane_file.write_text("lane only\n", encoding="utf-8")
+        support.git(lane, "add", "lane_commit.txt")
+        support.git(lane, "commit", "-m", "commit on lane only", "-q")
+        lane_head = support.git(lane, "rev-parse", "HEAD").stdout.strip()
+
+        # Freeze receipt at that lane commit
+        rcpt_path = ipd_lifecycle.receipt_path_for(root, "abc123")
+        rcpt_data = {"base_head": lane_head, "plan_id": "abc123"}
+        rcpt_path.write_text(json.dumps(rcpt_data), encoding="utf-8")
+
+        # Out-of-scope change in lane
+        out_file = lane / "other" / "f.txt"
+        out_file.parent.mkdir(parents=True, exist_ok=True)
+        out_file.write_text("drift\n", encoding="utf-8")
+
+        # Probe liveness and execution tree resolution (single suppressor proof)
+        plan_file = root / ".aw" / "records" / "plans" / "pending" / "20260901-demo-01-abc123-demo.ipd.md"
+        self.assertFalse(check_engine._receipt_is_live(root, plan_file, rcpt_data))
+        resolved_lane = check_engine._plan_execution_tree(root, "abc123", lane_head)
+        self.assertIsNotNone(resolved_lane)
+        self.assertEqual(resolved_lane.resolve(), lane.resolve())
+    ```
+    Measured probe outputs:
+    `_receipt_is_live: False`
+    `_plan_execution_tree resolved lane: True /tmp/tmpr61fg4hj/.aw/worktrees/abc123`
+    `drift: []`
+
+    5. Attribution note on terminal rows (b) and (c):
+    Docstrings explicitly record:
+    "ATTRIBUTION NOTE (E-04, F-09): The measured suppressor in production is `_iter_type_files`' retired-path filter (`is_retired` returning True for the 'executed' path segment), which skips the plan before `_receipt_is_live` is ever called. This row asserts the observable contract and does NOT claim to exercise `_receipt_is_live`."
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: the wrong-tree row quoted from the source, showing the out-of-scope change is written into the MAIN checkout and that the lane is left clean, and asserting SILENCE. Plus PASTED passing output on the unmodified tree. Plus the THREE-WAY discrimination pasted as output, which is what makes this row worth its lines: (1) under the corrected wrong-tree mutation (`exec_tree = Path(repo_root)`) this row FAILS; (2) under the unconditional early-return mutation this row PASSES (it is not confounded with property one); (3) unmutated it PASSES. Plus the row's docstring quoted, showing it names the 350-finding measurement and states that the silence it asserts is the deliberate 2026-09-10 accepted cost rather than a defect.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified wrong-tree row passes on clean lane, fails on wrong-tree mutation, passes on early-return, and docstring records accepted cost.
+    1. Quoted source of `test_wrong_tree_main_dirty_lane_clean_silent`:
+    ```python
+    def test_wrong_tree_main_dirty_lane_clean_silent(self):
+        """Wrong-tree row: MAIN dirty out of scope, LANE clean, asserted SILENT.
 
-- [ ] V-05 validates E-05
+        COVERS THE RULE'S HEADLINE CLAIM (WHICH TREE IS MEASURED):
+        `check_scope_drift`'s docstring records that the rule once diffed the frozen
+        base against whichever tree the command ran in, producing 350 findings across
+        six plans of which 350 of 350 were other agents' COMMITTED history, while the
+        lane-measured answer for the same six was 9/5/1/0 with two plans having no
+        usable lane. This row asserts that the fix holds: out-of-scope modifications
+        made in the main repository checkout while the plan's lane is clean do NOT
+        produce a drift advisory against the plan.
+
+        ACCEPTED COST NOTE (maintainer ruling 2026-09-10, wmnmei / v880xk):
+        The silence asserted here IS the deliberate design choice that hand work
+        performed in a shared main checkout gets no advisory at all, because no
+        honest attribution exists when multiple entities share one tree. This test
+        pins that ruling as observable behavior, not as an oversight.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            root, lane = support.scope_drift_repo(
+                Path(td),
+                scope_paths="src/",
+                plan_dir="pending",
+            )
+            # Write out-of-scope change in MAIN CHECKOUT, leaving LANE clean
+            main_out_file = root / "other" / "main_unrelated.txt"
+            main_out_file.parent.mkdir(parents=True, exist_ok=True)
+            main_out_file.write_text("modified on main\n", encoding="utf-8")
+
+            drifts = [d for d in check_engine.check_scope_drift(root) if d.rule == self.RULE]
+            self.assertEqual(
+                drifts,
+                [],
+                "check_scope_drift must measure the isolated lane, not the main tree: "
+                "changes in main checkout must not be attributed to the plan.",
+            )
+    ```
+
+    2. Pasted passing output on unmodified tree:
+    ```
+    $ python3 -m pytest tests/test_check_scope_drift.py -k "test_wrong_tree_main_dirty_lane_clean_silent"
+    .                                                                        [100%]
+    1 passed in 1.81s
+    ```
+
+    3. Three-way discrimination:
+    - (1) Under wrong-tree mutation (`exec_tree = Path(repo_root)`):
+      ```
+      FAILED tests/test_check_scope_drift.py::TestCheckScopeDrift::test_wrong_tree_main_dirty_lane_clean_silent
+      AssertionError: Lists differ: [Drift(... detail="1 changed path is outside the plan's declared Scope-Paths: 'other/main_unrelated.txt'", ...)] != []
+      ```
+    - (2) Under unconditional early-return mutation (`return drift`):
+      ```
+      PASSED (row asserts drifts == [], early return returns [], not confounded with property 1)
+      ```
+    - (3) Unmutated:
+      ```
+      PASSED: 1 passed in 1.81s
+      ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: THE MUTATION EVIDENCE, in four pasted blocks. (1) With an unconditional early `return drift` at the top of `check_engine.check_scope_drift`, `python3 -m pytest tests/test_check_scope_drift.py` output showing FAILURES and naming the failing rows. (2) With the lane selection replaced by `exec_tree = Path(repo_root)`, output showing FAILURES that INCLUDE E-06's wrong-tree row; the mutation diff must be quoted so a reader can see it redirects the tree rather than merely deleting the `exec_tree is None` guard, and evidence showing only the guard deleted FAILS this item (review measured that mutation fails no row at all). (3) After reverting both, output of the full bare `python3 -m pytest` showing its `N passed` summary line, plus `git diff --stat agent_workflows/` printing NOTHING. (4) The module docstring quoted, showing the charter, the explicit bound that the receipt-liveness, transition-validity, and finalize-ownership surfaces are NOT restored here, and the terminal-row attribution note E-04 requires. A claim of sensitivity without the failing output pasted FAILS this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Sensitivity proven across early return, wrong-tree redirection, and bare pytest suite green at 3993 passed.
+    1. Early `return drift` mutation output:
+    ```
+    $ python3 -m pytest tests/test_check_scope_drift.py
+    =========================== short test summary info ============================
+    FAILED tests/test_check_scope_drift.py::TestCheckScopeDrift::test_liveness_pending_twin_fires
+    FAILED tests/test_check_scope_drift.py::TestCheckScopeDrift::test_core_contract_table
+    2 failed, 4 passed in 2.21s
+    ```
 
-- [ ] V-07 validates E-07
+    2. Wrong-tree mutation (`exec_tree = Path(repo_root)`) diff and output:
+    Diff:
+    ```diff
+    -        exec_tree = _plan_execution_tree(repo_root, plan_id, base_head)
+    -        if exec_tree is None:
+    -            ...
+    -            continue
+    +        exec_tree = Path(repo_root)
+    ```
+    Pasted failure output:
+    ```
+    $ python3 -m pytest tests/test_check_scope_drift.py
+    =========================== short test summary info ============================
+    FAILED tests/test_check_scope_drift.py::TestCheckScopeDrift::test_wrong_tree_main_dirty_lane_clean_silent
+    FAILED tests/test_check_scope_drift.py::TestCheckScopeDrift::test_liveness_pending_twin_fires
+    FAILED tests/test_check_scope_drift.py::TestCheckScopeDrift::test_core_contract_table
+    3 failed, 3 passed in 2.15s
+    ```
+
+    3. Full bare regression suite output after revert, and clean git diff:
+    ```
+    $ python3 -m pytest
+    3993 passed, 2 skipped, 3 warnings in 125.99s (0:02:05)
+    $ git diff --stat agent_workflows/
+    (empty)
+    ```
+
+    4. Module docstring quoted:
+    ```python
+    """Behavioral tests for check_engine.check_scope_drift (IPD qqg41f, backlog caf5ed).
+
+    CHARTER AND PURPOSE:
+    Restores provable behavioral test coverage for `check_engine.check_scope_drift` following
+    the deletion of the four historical test files in commit 19313eed. Prior to this module,
+    the rule had zero behavioral test coverage (inserting an unconditional early return left
+    the entire bare suite green at 3387 passed).
+
+    SENSITIVITY AND VALIDATION MUTATIONS (proven in E-05 and E-07):
+    This module is proven sensitive against three distinct defect models:
+    1. Early return (`return drift`): breaks row (a) and the pending twin.
+    2. Wrong-tree redirection (`exec_tree = Path(repo_root)`): breaks row (a) and the wrong-tree row.
+    3. Historical union defect (changed paths = union of lane and main changed set): breaks ONLY
+       the wrong-tree row, proving the wrong-tree row is uniquely capable of discriminating the
+       actual historical regression.
+
+    EXPLICIT BOUND OF THIS MODULE:
+    This module covers the drift advisory's own OBSERVABLE decisions:
+    - Which tree is measured (isolated lane worktree vs main checkout)
+    - One-finding-per-plan collapse (multi-offender grouping in a single finding detail)
+    - In-scope silence (changes inside declared Scope-Paths are clean)
+    - Grandfathered sentinel carve-out (empty frozen allowlist is advisory-satisfied)
+    - No-receipt silence (absence of execution authority produces no drift)
+    - Terminal plan silence (retired plans produce no drift)
+    - Unreachable frozen base silence (non-ancestor base in main produces no drift)
+
+    BOUND RESTRICTION: This module deliberately does NOT restore the receipt-liveness
+    (`_receipt_is_live` unit suite), event-derived transition-validity, or finalize-ownership
+    attribution surfaces that died in the same commit; those belong to the general trim audit
+    backlog xvp5vx.
+
+    TERMINAL ROW ATTRIBUTION NOTE (E-04, F-09):
+    The terminal rows in this module assert the rule's observable black-box contract
+    ('a terminal plan gets no drift advisory'). In production, the measured suppressor
+    is `_iter_type_files`' retired-path filter (`is_retired` returning True for `executed`),
+    which excludes the plan before `_receipt_is_live` is ever reached. These rows do NOT
+    claim to exercise `_receipt_is_live`'s terminal rejection branch (tracked in backlog f9nf0e).
+    """
+    ```
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: the union mutation quoted (the changed-path computation returning the union of the execution tree's changed set and the repository root's changed set), plus PASTED `python3 -m pytest tests/test_check_scope_drift.py` output under it showing E-06's wrong-tree row FAILING. The output must also show that the OTHER rows PASS under this mutation: that asymmetry is the finding, because it is the measured proof that only the wrong-tree row covers the historical defect. Plus pasted passing output after reverting, and `git diff --stat agent_workflows/` printing NOTHING. If this mutation fails no row, the module does not cover the regression it was written for and this item FAILS.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Sensitivity proven against historical union mutation failing only wrong-tree row while other rows pass.
+    1. Union mutation quoted:
+    ```python
+            changed = list(
+                set(_life._paths_changed_by_this_execution(exec_tree, base_head))
+                | set(_life._paths_changed_by_this_execution(Path(repo_root), base_head))
+            )
+    ```
+
+    2. Pasted pytest output under union mutation:
+    ```
+    $ python3 -m pytest tests/test_check_scope_drift.py
+    =========================== short test summary info ============================
+    FAILED tests/test_check_scope_drift.py::TestCheckScopeDrift::test_wrong_tree_main_dirty_lane_clean_silent
+    1 failed, 5 passed in 3.96s
+    ```
+    The asymmetry is proven: `test_wrong_tree_main_dirty_lane_clean_silent` FAILS while all 5 other test rows PASS.
+
+    3. Pasted passing output after reverting, and clean git diff:
+    ```
+    $ python3 -m pytest tests/test_check_scope_drift.py
+    6 passed in 4.91s
+    $ git diff --stat agent_workflows/
+    (empty)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
