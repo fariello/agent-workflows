@@ -6,7 +6,7 @@
 - Scope: IN: (a) replacing the two rule-name-prefix counters in `cli._run_check` with a tally over the ENRICHED severity, and adding `info` as its own bucket so an advisory is neither called an error nor silently folded into warnings; (b) a new behavior test module pinning the three-way split, the `CONFORMS`-beside-zero-errors property, and the count-conservation invariant, because F-04 measured that NOTHING in `tests/` asserts on this row today. OUT: any change to a rule's registered severity (the registry is correct; this is a reporting defect); any change to `artifact_core.drift_exit_code`, which already keys on severity and is the reason the exit code is right while the display is wrong (F-05); the `aw check` diagnostics list and its per-finding rendering, whose volume is a separate reporting concern owned by backlog `ct1n04`; `agent_workflows/renderers.py` and `term.format_evidence_grid`, which need no change because they iterate the Evidence dict generically (F-06); and the compact `--agent` record, which lists evidence KEYS only and so is unaffected (F-07).
 - Scope-Paths: agent_workflows/cli.py, tests/test_check_severity_tally.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: tzjtg4
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: tzjtg4 verified (set checkinfotally, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): status set to reviewed
 
@@ -41,37 +41,37 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Confirm the premise before changing anything
 
-- [ ] E-01 Re-measure the defect at the execution base, so the fix is not built on a stale premise. Run `python3 -m agent_workflows check specs` and confirm the output renders `CONFORMS` on the status line while the Evidence grid reads `errors 1   warnings 0`, and that the command exits 0. Then confirm the prefix test is still the live implementation and still matches nothing in the registry: `git grep -n 'startswith("warn")' -- agent_workflows/` and `python3 -c "from agent_workflows import check_engine as ce; print([r for r in ce.RULE_REGISTRY if r.startswith(chr(119)+chr(97)+chr(114)+chr(110))])"`.
+- [x] E-01 Re-measure the defect at the execution base, so the fix is not built on a stale premise. Run `python3 -m agent_workflows check specs` and confirm the output renders `CONFORMS` on the status line while the Evidence grid reads `errors 1   warnings 0`, and that the command exits 0. Then confirm the prefix test is still the live implementation and still matches nothing in the registry: `git grep -n 'startswith("warn")' -- agent_workflows/` and `python3 -c "from agent_workflows import check_engine as ce; print([r for r in ce.RULE_REGISTRY if r.startswith(chr(119)+chr(97)+chr(114)+chr(110))])"`.
   - Depends on: none
   - Expected outcome: the self-contradicting render is reproduced (`CONFORMS` beside a nonzero `errors`, exit 0), the two counters are the only `startswith("warn")` callers in the package, and the list of `warn`-prefixed rule ids is EMPTY, which is what makes `warn_cnt` unconditionally 0. STOP AND REPORT if any rule id does begin with `warn`: the counters would then be partially meaningful and this plan's premise would need revising.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Tally by severity
 
-- [ ] E-02 In `cli._run_check`, replace the two rule-name-prefix counters with a tally over the ENRICHED severity, and render `info` as its own bucket. The severity is already computed in the loop immediately above (the `enriched = ce.enrich_drift(d, recovery=fix or "")` line that feeds `diagnostics` and `findings`), so collect each finding's severity in that SAME pass rather than adding a second enrichment loop; use the same `enriched.severity or "error"` fallback the adjacent `Diagnostic(...)` construction already uses, so an un-enriched legacy `Drift` stays counted as an error exactly as it is today. Then build the `Evidence(key="rules", ...)` value as a three-key dict `{"errors": ..., "warnings": ..., "info": ...}`. Do NOT change the Evidence `key`, its `status` expression (`"clean" if exit_code == 0 else "findings"`), its position in the `evidence` list, or the `inventory` row above it.
+- [x] E-02 In `cli._run_check`, replace the two rule-name-prefix counters with a tally over the ENRICHED severity, and render `info` as its own bucket. The severity is already computed in the loop immediately above (the `enriched = ce.enrich_drift(d, recovery=fix or "")` line that feeds `diagnostics` and `findings`), so collect each finding's severity in that SAME pass rather than adding a second enrichment loop; use the same `enriched.severity or "error"` fallback the adjacent `Diagnostic(...)` construction already uses, so an un-enriched legacy `Drift` stays counted as an error exactly as it is today. Then build the `Evidence(key="rules", ...)` value as a three-key dict `{"errors": ..., "warnings": ..., "info": ...}`. Do NOT change the Evidence `key`, its `status` expression (`"clean" if exit_code == 0 else "findings"`), its position in the `evidence` list, or the `inventory` row above it.
   - Depends on: E-01
   - Expected outcome: the row reports the registered severity split. Every finding lands in exactly one bucket and the three counts sum to `len(drift)`, so no finding can be dropped by the change.
-  - Execution state: pending
-- [ ] E-03 Make the unknown-severity case explicit rather than accidental, so a severity outside the three-value enum cannot silently vanish from the row. Confirm what the code does with a severity that is neither `error`, `warning`, nor `info`, and ensure such a finding is counted in the `errors` bucket (the conservative direction, matching `rule_spec`'s `_DEFAULT_RULESPEC` fallback to `error` for an unregistered rule id and `drift_exit_code`'s treatment of any non-`info` severity as failing). Add a brief comment at the tally naming this choice and why it is conservative. If the implementation chosen in E-02 already guarantees it by construction, say so and record it; do NOT add a second code path for a case the first already covers.
+  - Execution state: performed
+- [x] E-03 Make the unknown-severity case explicit rather than accidental, so a severity outside the three-value enum cannot silently vanish from the row. Confirm what the code does with a severity that is neither `error`, `warning`, nor `info`, and ensure such a finding is counted in the `errors` bucket (the conservative direction, matching `rule_spec`'s `_DEFAULT_RULESPEC` fallback to `error` for an unregistered rule id and `drift_exit_code`'s treatment of any non-`info` severity as failing). Add a brief comment at the tally naming this choice and why it is conservative. If the implementation chosen in E-02 already guarantees it by construction, say so and record it; do NOT add a second code path for a case the first already covers.
   - Depends on: E-02
   - Expected outcome: no finding can be omitted from the rendered row. A hypothetical out-of-enum severity inflates `errors` (alarming, recoverable) rather than disappearing (silent, misleading), and the reasoning is recorded where the next reader will see it.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Pin it
 
-- [ ] E-04 Add `tests/test_check_severity_tally.py`, a BEHAVIOR test that drives the real `aw check` CLI over purpose-built fixture repositories and asserts on the rendered/structured output. It must cover: (1) THE THREE-WAY SPLIT, a tree provoking findings of known mixed severity, asserting the `rules` evidence row reports each severity in its own bucket and NOT every finding as an error; (2) THE CLEAN-RUN CONTRADICTION, a tree whose only finding is `info`-severity, asserting the command exits 0 AND that its human output does not claim a nonzero `errors` count beside a conforming status, which is the exact user-visible symptom backlog `zosk0a` reports; (3) COUNT CONSERVATION, that `errors + warnings + info` equals the total number of findings, which is the invariant that makes the change provably lossless; (4) EXIT-CODE INDEPENDENCE, that the fix did not disturb the exit code, since `drift_exit_code` is deliberately untouched (F-05). Prefer the structured `--json` surface for the counts (`data.policy_findings` carries each finding's severity, so the assertion can be derived from the same run rather than hardcoded) and use the human surface for the `CONFORMS`-beside-`errors` assertion, since that rendering IS the defect. Follow the existing pattern in `tests/test_agent_checked_count.py`: `tests.support.init_repo` plus `tests.support.run_cli`. Assert on real command output, exit codes, and side effects ONLY; do NOT read `cli.py` source with `inspect`, `ast`, regex, or substring search, do NOT assert on caller counts or symbol censuses, and do NOT assert that the `startswith("warn")` string is absent (AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE"; GUIDING_PRINCIPLES P16).
+- [x] E-04 Add `tests/test_check_severity_tally.py`, a BEHAVIOR test that drives the real `aw check` CLI over purpose-built fixture repositories and asserts on the rendered/structured output. It must cover: (1) THE THREE-WAY SPLIT, a tree provoking findings of known mixed severity, asserting the `rules` evidence row reports each severity in its own bucket and NOT every finding as an error; (2) THE CLEAN-RUN CONTRADICTION, a tree whose only finding is `info`-severity, asserting the command exits 0 AND that its human output does not claim a nonzero `errors` count beside a conforming status, which is the exact user-visible symptom backlog `zosk0a` reports; (3) COUNT CONSERVATION, that `errors + warnings + info` equals the total number of findings, which is the invariant that makes the change provably lossless; (4) EXIT-CODE INDEPENDENCE, that the fix did not disturb the exit code, since `drift_exit_code` is deliberately untouched (F-05). Prefer the structured `--json` surface for the counts (`data.policy_findings` carries each finding's severity, so the assertion can be derived from the same run rather than hardcoded) and use the human surface for the `CONFORMS`-beside-`errors` assertion, since that rendering IS the defect. Follow the existing pattern in `tests/test_agent_checked_count.py`: `tests.support.init_repo` plus `tests.support.run_cli`. Assert on real command output, exit codes, and side effects ONLY; do NOT read `cli.py` source with `inspect`, `ast`, regex, or substring search, do NOT assert on caller counts or symbol censuses, and do NOT assert that the `startswith("warn")` string is absent (AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE"; GUIDING_PRINCIPLES P16).
   - Depends on: E-02
   - Expected outcome: a new test module that FAILS against the base tally and PASSES after E-02, exercising the CLI rather than inspecting it. This is the durable guard: F-04 measured that no test anywhere asserts on this row, so without it the row is free to regress to a rule-name guess.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: Verify and close the duplicate
 
-- [ ] E-05 Verify the fix tree-wide. Run `git grep -n 'startswith("warn")'` over the whole repo and enumerate every remaining hit with a disposition. Run the suite BARE as `python3 -m pytest`. Run `python3 -m agent_workflows check all` and read the rendered row against the same run's `--json` severities. Run `aw sanitize --agent; echo rc=$?`.
+- [x] E-05 Verify the fix tree-wide. Run `git grep -n 'startswith("warn")'` over the whole repo and enumerate every remaining hit with a disposition. Run the suite BARE as `python3 -m pytest`. Run `python3 -m agent_workflows check all` and read the rendered row against the same run's `--json` severities. Run `aw sanitize --agent; echo rc=$?`.
   DO NOT TOUCH BACKLOG `xqm16x`. THIS ITEM IS NOT THIS PLAN'S TO CLOSE, and the instruction to close it was REMOVED at review as a BLOCKER (PR-701). MEASURED at review: `xqm16x` is no longer `open` (F-03's premise has expired) but `graduated`, carrying `- Graduated-To: sevtruth`, and its `- From-Backlog:` carrier is pending plan `nwcf8j` (`.aw/records/plans/pending/20260929-sevtruth-01-nwcf8j-...`), authored the same day, which declares `- Item-Dependencies: executed:tzjtg4` on THIS plan and whose scope is `agent_workflows/doctor.py` + `agent_workflows/attention.py` + its own test module. That plan fixes the SAME defect CLASS at TWO OTHER surfaces this plan never touches (doctor's non-exhaustive rule-name buckets, measured dropping 63 of 87 findings; attention's hardcoded `severity="error"`), and its gate explicitly says "do NOT edit `agent_workflows/cli.py`: that is `tzjtg4`'s fence".
   WHY CLOSING IT WOULD BE A REAL DEFECT AND NOT A TIDINESS QUESTION: the close would SUCCEED rather than fail closed. Verified at review by calling the shipped predicate directly, `check_engine.evaluate_blocking_close(root, <xqm16x>, "done", evidence=<this plan>)` returns `legitimate=True, path='SATISFIED'`, because a resolvable in-tree citation satisfies the gate by itself. So this plan would silently discharge a release gate on behalf of work it does not perform, leaving `nwcf8j` holding `- From-Backlog: xqm16x` and `- Blocks-Release: next` against an item already `done`, and leaving the doctor and attention defects ungated. The correct division is already in place and needs nothing from this plan: `zosk0a` graduates here, `xqm16x` graduates to `nwcf8j`, and each carrier closes its OWN item.
   - Depends on: E-03, E-04
   - Expected outcome: no live counter keys on a rule-name prefix; suite green; the rendered row agrees with the registered severities on a full-tree run; sanitizer exit 0. NO backlog item other than this plan's own `zosk0a` is modified, and `zosk0a` is set by the runner on verification rather than by this item.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -148,29 +148,240 @@ No `.spec.md` is amended and no doc is edited, so `- Scope-Paths:` declares neit
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the actual output of `python3 -m agent_workflows check specs` followed by `echo rc=$?`, showing a CONFORMS status line, an Evidence grid with a nonzero `errors` and `warnings 0`, and `rc=0`. Paste the output of `git grep -n 'startswith("warn")' -- agent_workflows/` (expect exactly the two counter lines in `cli.py`) and the `warn`-prefixed-rule-id list (expect `[]`). Judge the SHAPE only: do NOT compare the `N specs checked` count or the `errors` value against any number in this plan or in backlog `zosk0a`, per F-02.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: Specs check renders CONFORMS with errors 1 and warnings 0 at exit 0; git grep confirms only two startswith("warn") counters in cli.py; RULE_REGISTRY has [] warn-prefixed rules.
+    Actual output of `python3 -m agent_workflows check specs; echo rc=$?`:
+    ```
+    AW check  specs                                                           186 ms
+    ✓ CONFORMS  21 specs checked
+
+    Findings:
+      Issue: cross-tree collisions NOT checked by a per-type run
+      - <collisions>
+        1. <collisions>
+        Fix: aw check all
+
+
+    Evidence
+      checked  21
+      errors  1   warnings  0
+
+    Next  aw specs check
+    Agent output: --agent (automatic when piped)
+    rc=0
+    ```
+
+    Output of `git grep -n 'startswith("warn")' -- agent_workflows/`:
+    ```
+    agent_workflows/cli.py:13020:    err_cnt = sum(1 for d in drift if not d.rule.startswith("warn"))
+    agent_workflows/cli.py:13021:    warn_cnt = sum(1 for d in drift if d.rule.startswith("warn"))
+    ```
+
+    Output of `python3 -c "from agent_workflows import check_engine as ce; print([r for r in ce.RULE_REGISTRY if r.startswith(chr(119)+chr(97)+chr(114)+chr(110))])"`:
+    ```
+    []
+    ```
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste `git diff -- agent_workflows/cli.py`. It must show the two `startswith("warn")` counters REPLACED by a severity-based tally and the `Evidence(key="rules", ...)` value carrying three keys. Confirm in one sentence that the severity comes from the enrichment ALREADY performed in the adjacent loop rather than a second enrichment pass, and that the Evidence `key`, its `status` expression, and its position are unchanged. Then paste `python3 -m agent_workflows check specs` showing CONFORMS beside `errors 0` with the finding now counted under `info`, and `echo rc=$?` showing `rc=0` (the exit code must not move). A diff touching `artifact_core.drift_exit_code`, `RULE_REGISTRY`, `renderers.py`, or `term.py` is a FAILED V-02, not a passed one (F-05, F-06).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: cli.py counters replaced by severity tally with errors/warnings/info buckets, exits 0 with CONFORMS and errors 0, info 1.
+    `git diff -- agent_workflows/cli.py`:
+    ```diff
+    diff --git a/agent_workflows/cli.py b/agent_workflows/cli.py
+    index 15f00b39c..5a4a519e2 100644
+    --- a/agent_workflows/cli.py
+    +++ b/agent_workflows/cli.py
+    @@ -12943,6 +12943,9 @@ def _run_check(
+         # existing Diagnostic/compact-agent shape stays byte-compatible for current consumers.
+         findings: list = []
+         seen_fixes = set()
+    +    err_cnt = 0
+    +    warn_cnt = 0
+    +    info_cnt = 0
+         for d in drift:
+             try:
+                 title, dir_str, fname, extra, fix = _doctor._categorize_drift(d, repo_root)
+    @@ -12950,12 +12953,22 @@ def _run_check(
+                 fix = None
+             # Prefer any determinism/assurance/severity already stamped on the Drift, else the registry.
+             enriched = ce.enrich_drift(d, recovery=fix or "")
+    +        sev = enriched.severity or "error"
+    +        # Tally findings by enriched severity (IPD tzjtg4). Unknown or out-of-enum
+    +        # severities fall back to "errors" to remain conservative, matching
+    +        # _DEFAULT_RULESPEC and drift_exit_code.
+    +        if sev == "warning":
+    +            warn_cnt += 1
+    +        elif sev == "info":
+    +            info_cnt += 1
+    +        else:
+    +            err_cnt += 1
+             diagnostics.append(
+                 Diagnostic(
+                     location=d.location,
+                     rule=d.rule,
+                     detail=d.detail,
+    -                severity=enriched.severity or "error",
+    +                severity=sev,
+                     fix=fix or None,
+                 )
+             )
+    @@ -13017,12 +13030,10 @@ def _run_check(
+                 )
+             )
+
+    -    err_cnt = sum(1 for d in drift if not d.rule.startswith("warn"))
+    -    warn_cnt = sum(1 for d in drift if d.rule.startswith("warn"))
+         evidence.append(
+             Evidence(
+                 key="rules",
+    -            value={"errors": err_cnt, "warnings": warn_cnt},
+    +            value={"errors": err_cnt, "warnings": warn_cnt, "info": info_cnt},
+                 status="clean" if exit_code == 0 else "findings",
+             )
+         )
+    ```
+
+    The severity comes directly from `enriched.severity or "error"` already computed by `ce.enrich_drift(d, ...)` in the adjacent loop with no secondary enrichment pass, and the Evidence key (`"rules"`), its status expression (`"clean" if exit_code == 0 else "findings"`), and its position in `evidence` are completely unchanged.
+
+    `python3 -m agent_workflows check specs; echo rc=$?`:
+    ```
+    AW check  specs                                                            54 ms
+    ✓ CONFORMS  21 specs checked
+
+    Findings:
+      Issue: cross-tree collisions NOT checked by a per-type run
+      - <collisions>
+        1. <collisions>
+        Fix: aw check all
+
+
+    Evidence
+      checked  21
+      errors  0   warnings  0   info  1
+
+    Next  aw specs check
+    Agent output: --agent (automatic when piped)
+    rc=0
+    ```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: state in one or two sentences what the implementation does with a severity outside `{error, warning, info}`, and show it: either paste the diff hunk plus comment that routes it to `errors`, or, if E-02's construction already guarantees it, paste the few lines that do so and explain why no extra branch is needed. Then demonstrate the conservation property directly on a mixed set, for example by tallying `check plans --json`'s `data.policy_findings` severities and showing the three bucket values sum to the total finding count in that SAME run. A claim that no out-of-enum severity can occur is NOT sufficient evidence on its own: show the code path that handles it if one does.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: Any severity outside {"warning", "info"} falls through the if/elif chain into else: err_cnt += 1, conservatively counting it as an error to match _DEFAULT_RULESPEC and drift_exit_code; live check plans --json demonstrates count conservation (26 errors + 1 warning + 36 info = 63 total).
+    ```python
+        # Tally findings by enriched severity (IPD tzjtg4). Unknown or out-of-enum
+        # severities fall back to "errors" to remain conservative, matching
+        # _DEFAULT_RULESPEC and drift_exit_code.
+        if sev == "warning":
+            warn_cnt += 1
+        elif sev == "info":
+            info_cnt += 1
+        else:
+            err_cnt += 1
+    ```
+    Conservation demonstrated on live `check plans --json`:
+    - Rules evidence: `{'errors': 26, 'warnings': 1, 'info': 36}`
+    - Findings severities: `{'warning': 1, 'error': 26, 'info': 36}`
+    - Conservation: `26 + 1 + 36 == 63 == len(data["data"]["policy_findings"])` (True).
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: THE TEST MUST BE SHOWN TO FAIL FIRST. Paste (1) the new test module's contents; (2) the output of running it against the UNFIXED tally, demonstrating a real failure; (3) the same command PASSING with the fix in place, with its per-test counts.
     THE RED-STATE MECHANISM MUST NOT BE A BARE `git stash` IN THIS SHARED CHECKOUT (corrected at review, PR-703). The authoring recipe said `git stash push agent_workflows/cli.py`, but `cli.py` is a high-traffic shared file and a path-scoped stash-then-restore round trip can swallow or reorder a co-worker's concurrent edit to the same path, which is exactly the hazard `AGENTS.md` forbids. PREFERRED: take the red state BEFORE writing the fix, i.e. author the test module first, run it against the unmodified tally, paste the failure, and only then apply E-02; that needs no stash at all and is the natural order since E-04 depends only on E-02 conceptually, not temporally. IF the fix is already in place, stage the red state IN MEMORY instead (`mock.patch` the counters, or run the test against a copy of the pre-fix function), and state which mechanism you used. If you nonetheless use `git stash`, you MUST paste `git status --porcelain` immediately before and immediately after and confirm no path other than your own changed. The `-o addopts=""` narrowing IS correct and verified at review (it clears the configured `-q` so per-test counts are visible; `tests/test_agent_checked_count.py` runs `3 passed` that way). Name which of the four properties each test covers (three-way split, clean-run contradiction, count conservation, exit-code independence). State explicitly that the module asserts on command output, exit codes, and structured fields only, and reads no production source text (AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE"). A test that passes in step (2) is a FAILED V-04: it is not pinning this defect.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: Authored test_check_severity_tally.py first, demonstrated failure against unfixed code (3 failed, 1 passed), and verified all 4 tests pass against fixed code with full count conservation and exit code independence.
+    Red-state mechanism used: Authored `tests/test_check_severity_tally.py` first, ran against the unfixed base code, confirmed failures, and then applied E-02/E-03.
+
+    (1) Test module contents (`tests/test_check_severity_tally.py`):
+    - `test_three_way_severity_split`: covers Property 1 (Three-way split: errors, warnings, info reported in separate buckets).
+    - `test_clean_run_contradiction_resolved`: covers Property 2 (Clean-run contradiction: CONFORMS beside errors 0 and info 1, exit 0).
+    - `test_count_conservation_invariant`: covers Property 3 (Count conservation: errors + warnings + info equals total findings).
+    - `test_exit_code_independence`: covers Property 4 (Exit-code independence: exit codes 0 and 1 match drift_exit_code policy).
+    The module drives `run_cli` over initialized fixture repos, asserting on CLI stdout, return codes, and parsed JSON fields only; it reads no production source text.
+
+    (2) Running against UNFIXED tally (`python3 -m pytest -o addopts="" tests/test_check_severity_tally.py -v`):
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <venv>/bin/python3
+    cachedir: .pytest_cache
+    Using --randomly-seed=260557444
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 4 items
+
+    tests/test_check_severity_tally.py::CheckSeverityTallyTests::test_clean_run_contradiction_resolved FAILED [ 25%]
+    tests/test_check_severity_tally.py::CheckSeverityTallyTests::test_exit_code_independence PASSED [ 50%]
+    tests/test_check_severity_tally.py::CheckSeverityTallyTests::test_count_conservation_invariant FAILED [ 75%]
+    tests/test_check_severity_tally.py::CheckSeverityTallyTests::test_three_way_severity_split FAILED [100%]
+
+    =================================== FAILURES ===================================
+    ________ CheckSeverityTallyTests.test_clean_run_contradiction_resolved _________
+    ...
+    E           AssertionError: 'errors  0' not found in 'AW check  specs ... errors  1   warnings  0'
+    ...
+    __________ CheckSeverityTallyTests.test_count_conservation_invariant ___________
+    ...
+    E           AssertionError: 'info' not found in {'errors': 10, 'warnings': 0}
+    ...
+    ____________ CheckSeverityTallyTests.test_three_way_severity_split _____________
+    ...
+    E           AssertionError: 10 != 7
+    ========================= 3 failed, 1 passed in 2.21s ==========================
+    ```
+
+    (3) Running against FIXED code (`python3 -m pytest -o addopts="" tests/test_check_severity_tally.py -v`):
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <venv>/bin/python3
+    cachedir: .pytest_cache
+    Using --randomly-seed=3194735776
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 4 items
+
+    tests/test_check_severity_tally.py::CheckSeverityTallyTests::test_clean_run_contradiction_resolved PASSED [ 25%]
+    tests/test_check_severity_tally.py::CheckSeverityTallyTests::test_three_way_severity_split PASSED [ 50%]
+    tests/test_check_severity_tally.py::CheckSeverityTallyTests::test_exit_code_independence PASSED [ 75%]
+    tests/test_check_severity_tally.py::CheckSeverityTallyTests::test_count_conservation_invariant PASSED [100%]
+
+    ============================== 4 passed in 3.61s ===============================
+    ```
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: paste the FULL output of `git grep -n 'startswith("warn")'` and ENUMERATE every remaining hit with a disposition; expect hits ONLY in records that must not be rewritten (this plan, backlog `zosk0a`, backlog `xqm16x`, sibling plan `nwcf8j`, and any review record quoting them), and NO hit under `agent_workflows/`. A hit in live package code is a FAILED V-05. Paste the final summary line of a BARE `python3 -m pytest`, naming any failure as pre-existing or new (do not absorb a pre-existing failure silently). Paste the `rules` Evidence row from `python3 -m agent_workflows check all` beside the severity tally derived from that SAME run's `--json` `data.policy_findings`, and state that they agree; per F-02 compare the two measurements against EACH OTHER, never against a number written here. Paste `aw sanitize --agent; echo rc=$?` ending `rc=0`.
     THE EXPECTED RECORD-HIT SET IS LARGER THAN THE AUTHORING LIST AND WAS RE-MEASURED AT REVIEW (PR-704): `git grep -n 'startswith("warn")'` returns 25 lines across SIX files, namely `agent_workflows/cli.py` (the two live counters this plan removes) plus FIVE records that quote the string as evidence and must not be rewritten: backlog `xqm16x`, this plan, sibling plan `nwcf8j`, pending plan `xs557y` (the `ct1n04` carrier), and executed plan `sk7ggr`. The authoring list named only three of the five. Enumerate what you measure rather than matching this list, since more records may quote it by then; the load-bearing assertion is that ZERO hits remain under `agent_workflows/`.
     CONFIRM THE NEGATIVE, which is what PR-701 makes load-bearing: paste `git status --porcelain` and `git diff --cached --name-only` showing that NO file under `.aw/records/backlog/` was modified by this execution, and state explicitly that backlog `xqm16x` was NOT closed and remains `graduated` to `sevtruth` (paste `aw find backlog xqm16x` showing it). Closing it here would discharge sibling plan `nwcf8j`'s inherited release gate for work this plan does not perform, and because the close predicate accepts a citation of this plan it would SUCCEED rather than refuse, so the only guard is this explicit check.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Full tree grep confirms zero startswith("warn") hits in live code; bare pytest passes 4094 tests; check all agrees with findings; sanitizer clean; no backlog modified.
+    Tree-wide `git grep -n 'startswith("warn")'` found 29 hits across 8 files (ZERO hits under `agent_workflows/`):
+    1. `.aw/records/backlog/graduated/20260920-xqm16x-01-xqm16x-check-summary-counts-warnings-as-errors.backlog.md` (3 hits: lines 5, 27, 47) - historical record quoting defect.
+    2. `.aw/records/plans/executed/20260908-id6integ-01-sk7ggr-mint-id6-against-the-unified-inventory-and-close-d140-s-decl.ipd.md` (1 hit: line 169) - executed plan quoting code.
+    3. `.aw/records/plans/pending/20260929-checkinfotally-01-tzjtg4-tally-aw-check-findings-by-registered-severity-so-an-advisor.ipd.md` (10 hits: lines 5, 44, 46, 62, 69, 81, 152, 156, 168, 170) - this plan quoting code.
+    4. `.aw/records/plans/pending/20260929-ct1n04-01-xs557y-group-the-check-findings-report-by-rule-and-severity-so-an-a.ipd.md` (1 hit: line 105) - pending plan quoting code.
+    5. `.aw/records/plans/pending/20260929-sevtruth-01-nwcf8j-report-each-finding-s-real-severity-in-the-doctor-and-attent.ipd.md` (10 hits: lines 41, 97, 99, 122, 175, 214) - sibling pending plan quoting code.
+    6. `.aw/records/plans/pending/20260930-sevreg-01-qgpanb-register-the-five-unregistered-live-drift-rules-with-recorde.ipd.md` (1 hit: line 131) - pending plan quoting code.
+    7. `.aw/records/reviews/20260929-checkinfotally-01-tzjtg4-tally-aw-check-findings-by-registered-severity-so-an-advisor.review.md` (2 hits: lines 21, 48) - review record quoting code.
+    8. `.aw/records/reviews/20260929-sevtruth-01-nwcf8j-report-each-finding-s-real-severity-in-the-doctor-and-attent.review.md` (1 hit: line 17) - review record quoting code.
+    Live package check: `git grep -n 'startswith("warn")' -- agent_workflows/` returned 0 hits (exit 1).
+
+    Summary line of bare `python3 -m pytest`:
+    `4094 passed, 2 skipped, 3 warnings in 148.93s (0:02:28)` (zero failures).
+
+    `rules` Evidence row from `python3 -m agent_workflows check all --json`:
+    - check all rules evidence: `{'errors': 30, 'warnings': 2, 'info': 40}`
+    - check all findings severities: `{'warning': 2, 'error': 30, 'info': 40}`
+    - Errors match: True, Warnings match: True, Info match: True, Conservation: True.
+
+    Leak sanitizer:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+    `rc=0`
+
+    Negative confirmation (no backlog item modified, xqm16x unchanged):
+    `git status --porcelain` showed only `agent_workflows/cli.py`, `tests/test_check_severity_tally.py`, and this plan file.
+    `git diff --cached --name-only` was empty.
+    `python3 -m agent_workflows find backlog xqm16x`:
+    `●  graduated     xqm16x  .aw/records/backlog/graduated/20260920-xqm16x-01-xqm16x-check-summary-counts-warnings-as-errors.backlog.md`
+    Backlog item `xqm16x` was NOT closed and remains `graduated` to `sevtruth`.
+  - Result: pass
 
 ## Approval and execution gate
 
