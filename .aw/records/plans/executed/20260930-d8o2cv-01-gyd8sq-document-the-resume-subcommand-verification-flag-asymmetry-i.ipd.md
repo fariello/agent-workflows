@@ -6,7 +6,7 @@
 - Scope: Correct and extend one paragraph of `docs/runner-profiles.md`, plus one row of its troubleshooting table. Operator-facing prose only. No behavior, no code, no test, and no spec is changed.
 - Scope-Paths: docs/runner-profiles.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: gyd8sq
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: gyd8sq verified (set d8o2cv, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-701..PR-703, all three FIXED, none deferred, none open. Readiness go-pending-approval. Record: .aw/records/reviews/20260930-d8o2cv-01-gyd8sq-document-the-resume-subcommand-verification-flag-asymmetry-i.review.md. aw ipd lint --phase author conformed with ZERO findings BEFORE semantic review and --phase review-finalize conforms with zero after. DISCLOSURE: same agent/model authored this plan, so this is a SELF-REVIEW whose value rests on RE-EXECUTING its measurements and checking the cross-plan facts it reasoned about. EVERY MEASUREMENT REPRODUCES EXACTLY, which for a documentation plan is most of the work: the 24-cell probe re-driven over both parsers matches the plan and spec 25kzda Section 2.1c cell for cell (oc accepts all six on BOTH start and resume; agy start takes --validate/--no-validate to validate, routes --no-verify/--no-audit to a separate no_verify=True leaving validate=None, and exits 2 on --verify and --audit; agy resume exits 2 on ALL SIX with 'unrecognized arguments'); the contradictory-pair asymmetry reproduces with oc last-wins in both orders and no oc verification_flag_tristate attribute; agy validate_default is True against oc False; both targeted sentences are present verbatim; the file greps clean for resume outside the Durability section and the one --verify-with row; F-07's precedent row and the table preamble are verbatim; the end-to-end CLI confirms aw agy run resume --no-verify exits 2 creating NO run directory so the preamble stays true of E-04's new row; the 24-cell test passes 4 passed; the file has zero em and zero en dashes; and F-04's provenance checks out, with executed plan 7dz3wv recording the identical measurement as its own F-14 and naming d8o2cv as carrier. ONE HIGH (PR-701), AND IT IS THE FINDING: DECISION-01 chose to correct the contradictory-pair sentence now, stating as its reason that 'zdgc6t is to-review, not approved, so its execution is not guaranteed'. Measured, zdgc6t is APPROVED with Readiness go-pending-approval and Blocks-Release next, so it is DISPATCHABLE TODAY while this plan is not, making the near-certain ordering the OPPOSITE of the one assumed; after it lands opencode REFUSES the pair and 25kzda is amended to match, so writing 'opencode resolves by last-wins' would ship a NEW affirmative falsehood of exactly the kind DECISION-01 exists to prevent, and E-02 as written contradicted this plan's own gate. E-02 is now an explicit TWO-BRANCH instruction keyed on a re-measurement (host-qualify if oc still last-wins; confirm-and-leave-intact if oc now refuses), with the branch and its evidence recorded; DECISION-01 preserves the authored reasoning and records the inversion; F-08's stale status is corrected; OQ-01 is re-resolved with a real owner; and V-02 now demands the branch rather than an unconditional stop (D-1). ONE MEDIUM (PR-702): the antigravity refusal is POST-PARSE, not a parser refusal. The agy parser ACCEPTS the pair in both orders yielding validate=True no_verify=True, and the refusal comes from verification_flag_tristate raising RunFlagRefusal, as its own docstring records. That makes the shipped phrase 'refused before the run starts' EXACT and it must be preserved, while an unrecognized-arguments framing would conflate it with the resume exit 2 E-03 and E-04 document, which is the message an operator will be comparing against. ONE LOW (PR-703): one pre-existing suite failure (tests/test_backlog.py release-exempt parity, the known tl8qmc/2wae2x timezone defect) which bites harder on a documentation-only plan because a red suite invites self-suspicion; named as pre-existing and the repair forbidden since that file is not in Scope-Paths. Three decisions recorded (D-1..D-3); all Reversible yes. The no-test trade was challenged and UPHELD, with the compensating 24-cell guard verified passing rather than assumed.
 
@@ -35,27 +35,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: correct the two inaccurate claims already in the paragraph
 
-- [ ] E-01 In the "BOTH HOSTS HONOR THIS CHAIN" paragraph of `docs/runner-profiles.md`, correct the lead-in clause "The flags differ only in spelling", which understates a per-host EXISTENCE difference as a mere naming difference. Measured (F-03): `--verify` and `--audit` are not registered on `aw agy run start` at all and exit 2 with `unrecognized arguments`, so an operator who reads "only in spelling" and reaches for `aw agy run --verify` gets a usage error rather than the alias the sentence implies. Reword the lead-in to say the two hosts accept DIFFERENT SETS of spellings, keeping the existing enumeration that follows it (which is itself accurate about which spellings each host accepts) substantially intact rather than rewriting it. Do NOT change the first two sentences of the paragraph ("BOTH HOSTS HONOR THIS CHAIN" and the stored-per-model-choice sentence): the tri-state resolution chain they describe genuinely is host-neutral and remains correct.
+- [x] E-01 In the "BOTH HOSTS HONOR THIS CHAIN" paragraph of `docs/runner-profiles.md`, correct the lead-in clause "The flags differ only in spelling", which understates a per-host EXISTENCE difference as a mere naming difference. Measured (F-03): `--verify` and `--audit` are not registered on `aw agy run start` at all and exit 2 with `unrecognized arguments`, so an operator who reads "only in spelling" and reaches for `aw agy run --verify` gets a usage error rather than the alias the sentence implies. Reword the lead-in to say the two hosts accept DIFFERENT SETS of spellings, keeping the existing enumeration that follows it (which is itself accurate about which spellings each host accepts) substantially intact rather than rewriting it. Do NOT change the first two sentences of the paragraph ("BOTH HOSTS HONOR THIS CHAIN" and the stored-per-model-choice sentence): the tri-state resolution chain they describe genuinely is host-neutral and remains correct.
   - Depends on: none
   - Expected outcome: The paragraph no longer claims the per-host difference is confined to spelling, and a reader can tell that `--verify` and `--audit` exist on opencode only.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In the same paragraph, correct the affirmatively FALSE host-unqualified sentence "Passing a contradictory pair such as `--no-verify --validate` is refused before the run starts rather than resolved by precedence, because either winner would be a verification decision you did not make." Measured (F-04): that is true on antigravity and FALSE on opencode, where the pair parses silently and is resolved by argparse last-wins, so `--no-verify --validate` yields `validate=True` and `--validate --no-verify` yields `validate=False`. Host-qualify the sentence so the refusal is attributed to antigravity and the opencode behavior is stated as the order-dependent last-wins it actually is, preserving the existing "a verification decision you did not make" rationale as the reason the antigravity refusal exists. KEEP THE EXISTING "before the run starts" PHRASE AND DO NOT DOWNGRADE IT TO A USAGE ERROR (F-11): measured, the antigravity parser ACCEPTS the pair and the refusal comes from `agy_runipd.verification_flag_tristate` raising `runner_shared.RunFlagRefusal` afterwards, identically in both argument orders. That phrase is therefore already exact, and describing it as an `unrecognized arguments` exit would conflate it with the `resume` exit 2 that E-03 and E-04 document, which is a different mechanism an operator will be comparing against. THIS ITEM IS ORDER-DEPENDENT AND MUST BE RE-MEASURED BEFORE IT IS WRITTEN; DO NOT WRITE EITHER WORDING FROM THIS PLAN'S TEXT (F-10, revised at review). Sibling plan `zdgc6t` is `- Status: approved` with `- Readiness: go-pending-approval` and `- Blocks-Release: next`, so it is DISPATCHABLE TODAY while this plan is not, making it LIKELY to execute first; its E-04 makes opencode refuse the pair on both subcommands and amends spec `25kzda` to match. SO BRANCH ON A MEASUREMENT, as the plan's own gate already requires. FIRST, re-drive both hosts and both argument orders. IF OPENCODE STILL RESOLVES BY LAST-WINS, host-qualify the sentence exactly as described above. IF OPENCODE NOW REFUSES, the host-unqualified sentence has become TRUE and the correct action is to leave it substantially alone (optionally naming both hosts explicitly), NOT to write the last-wins claim this plan measured at authoring, which would be a new falsehood. Record which branch you took and the measurement that chose it. See DECISION-01 for the full reasoning and the drop-E-02 fallback.
+- [x] E-02 In the same paragraph, correct the affirmatively FALSE host-unqualified sentence "Passing a contradictory pair such as `--no-verify --validate` is refused before the run starts rather than resolved by precedence, because either winner would be a verification decision you did not make." Measured (F-04): that is true on antigravity and FALSE on opencode, where the pair parses silently and is resolved by argparse last-wins, so `--no-verify --validate` yields `validate=True` and `--validate --no-verify` yields `validate=False`. Host-qualify the sentence so the refusal is attributed to antigravity and the opencode behavior is stated as the order-dependent last-wins it actually is, preserving the existing "a verification decision you did not make" rationale as the reason the antigravity refusal exists. KEEP THE EXISTING "before the run starts" PHRASE AND DO NOT DOWNGRADE IT TO A USAGE ERROR (F-11): measured, the antigravity parser ACCEPTS the pair and the refusal comes from `agy_runipd.verification_flag_tristate` raising `runner_shared.RunFlagRefusal` afterwards, identically in both argument orders. That phrase is therefore already exact, and describing it as an `unrecognized arguments` exit would conflate it with the `resume` exit 2 that E-03 and E-04 document, which is a different mechanism an operator will be comparing against. THIS ITEM IS ORDER-DEPENDENT AND MUST BE RE-MEASURED BEFORE IT IS WRITTEN; DO NOT WRITE EITHER WORDING FROM THIS PLAN'S TEXT (F-10, revised at review). Sibling plan `zdgc6t` is `- Status: approved` with `- Readiness: go-pending-approval` and `- Blocks-Release: next`, so it is DISPATCHABLE TODAY while this plan is not, making it LIKELY to execute first; its E-04 makes opencode refuse the pair on both subcommands and amends spec `25kzda` to match. SO BRANCH ON A MEASUREMENT, as the plan's own gate already requires. FIRST, re-drive both hosts and both argument orders. IF OPENCODE STILL RESOLVES BY LAST-WINS, host-qualify the sentence exactly as described above. IF OPENCODE NOW REFUSES, the host-unqualified sentence has become TRUE and the correct action is to leave it substantially alone (optionally naming both hosts explicitly), NOT to write the last-wins claim this plan measured at authoring, which would be a new falsehood. Record which branch you took and the measurement that chose it. See DECISION-01 for the full reasoning and the drop-E-02 fallback.
   - Depends on: E-01
   - Expected outcome: the paragraph's contradictory-pair sentence is TRUE of shipped behavior at execution HEAD on both hosts, with the branch taken and its measurement recorded. Under the last-wins branch that means the refusal is attributed to antigravity and opencode's order-dependence is stated; under the refuses-too branch it means the existing sentence is confirmed correct and left substantially intact.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: fill the documented silence on resume
 
-- [ ] E-03 Add to the same paragraph (or as a short labelled continuation of it, whichever reads better in place) the `resume` subcommand asymmetry the file is currently silent on, stating three measured facts and no more: (1) `aw oc run resume` accepts all six spellings and an explicit flag there overrides the frozen decision for the rest of the run; (2) `aw agy run resume` registers NONE of the six, so any of them exits 2 with `unrecognized arguments`; (3) the practical consequence is that an Antigravity run's verification posture is fixed when the run is created and cannot be changed on resume. Say WHY that asymmetry lands hardest on antigravity, because it is the non-obvious part: antigravity is the host that verifies BY DEFAULT (`runner_profiles.RUNNER_REGISTRY['agy'].validate_default` is `True`, against `False` for opencode, measured in F-05), so it is precisely the operator resuming a long antigravity run and wanting to SKIP the verifier turn who has no flag to reach for. Keep this to a few sentences: this file is an operator guide, and the exhaustive per-cell mapping already has a normative home in spec `25kzda` Section 2.1c, which this prose must not duplicate.
+- [x] E-03 Add to the same paragraph (or as a short labelled continuation of it, whichever reads better in place) the `resume` subcommand asymmetry the file is currently silent on, stating three measured facts and no more: (1) `aw oc run resume` accepts all six spellings and an explicit flag there overrides the frozen decision for the rest of the run; (2) `aw agy run resume` registers NONE of the six, so any of them exits 2 with `unrecognized arguments`; (3) the practical consequence is that an Antigravity run's verification posture is fixed when the run is created and cannot be changed on resume. Say WHY that asymmetry lands hardest on antigravity, because it is the non-obvious part: antigravity is the host that verifies BY DEFAULT (`runner_profiles.RUNNER_REGISTRY['agy'].validate_default` is `True`, against `False` for opencode, measured in F-05), so it is precisely the operator resuming a long antigravity run and wanting to SKIP the verifier turn who has no flag to reach for. Keep this to a few sentences: this file is an operator guide, and the exhaustive per-cell mapping already has a normative home in spec `25kzda` Section 2.1c, which this prose must not duplicate.
   - Depends on: E-02
   - Expected outcome: An operator reading the verification section learns that `resume` differs by host, which host refuses, and that an antigravity run's posture is frozen at creation.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add one row to the "When something is wrong" table in `docs/runner-profiles.md` covering a verification flag passed to `aw agy run resume`, so the exit-2 an operator actually hits is explained where they will look for it. Follow the shape of the adjacent shipped row "`--verify-with` passed to `resume` | Exit 2. The verifier launch is frozen at creation; omit the flag to use it, or start a new run.", which is exact precedent for documenting a frozen-at-creation refusal on resume in that table. The new row must name the outcome (exit 2, unrecognized arguments) and the operator's remedy (the posture is frozen at creation, so start a new run with the posture you want). Do NOT add a row for opencode resume: it accepts the flags, so there is nothing that goes wrong. VERIFY THE TABLE'S PREAMBLE STILL HOLDS before adding the row, and if it does not, report rather than weakening it: the preamble promises every listed situation "fails BEFORE the run has any durable side effect: no run id, no run directory, no partial state", and an argparse-level exit 2 on resume satisfies it only because parsing precedes any state write.
+- [x] E-04 Add one row to the "When something is wrong" table in `docs/runner-profiles.md` covering a verification flag passed to `aw agy run resume`, so the exit-2 an operator actually hits is explained where they will look for it. Follow the shape of the adjacent shipped row "`--verify-with` passed to `resume` | Exit 2. The verifier launch is frozen at creation; omit the flag to use it, or start a new run.", which is exact precedent for documenting a frozen-at-creation refusal on resume in that table. The new row must name the outcome (exit 2, unrecognized arguments) and the operator's remedy (the posture is frozen at creation, so start a new run with the posture you want). Do NOT add a row for opencode resume: it accepts the flags, so there is nothing that goes wrong. VERIFY THE TABLE'S PREAMBLE STILL HOLDS before adding the row, and if it does not, report rather than weakening it: the preamble promises every listed situation "fails BEFORE the run has any durable side effect: no run id, no run directory, no partial state", and an argparse-level exit 2 on resume satisfies it only because parsing precedes any state write.
   - Depends on: E-03
   - Expected outcome: The troubleshooting table explains the exit 2 an operator gets from `aw agy run resume --no-verify`, with the remedy, and its no-durable-side-effect preamble remains true of every row including the new one.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -152,25 +152,126 @@ THE DIVISION OF LABOUR IS INTENTIONAL AND SHOULD BE PRESERVED: the spec carries 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste the `git diff` of `docs/runner-profiles.md` showing the "differ only in spelling" clause replaced by wording that names a difference in which spellings exist. Paste driven output showing agy `start --verify` and `start --audit` each exit 2, confirming the new wording is the true one. Paste the unchanged first two sentences of the paragraph to show the host-neutral resolution chain was not disturbed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git diff` shows lead-in reworded to name different sets of spellings; agy `start --verify` and `--audit` both exit 2; first two sentences preserved unchanged.
+    ```diff
+    @@ -150,7 +150,7 @@ your having to remember a flag on every invocation.
+     BOTH HOSTS HONOR THIS CHAIN. `aw oc run` and `aw agy run` resolve it the same way, so a stored
+    -per-model choice decides either one. The flags differ only in spelling: opencode accepts
+    +per-model choice decides either one. The two hosts accept different sets of spellings: opencode
+     accepts `--validate` / `--no-validate` (with `--verify` and `--audit` as aliases), and antigravity
+    ```
+    Driven exit 2 on agy `start --verify` and `start --audit`:
+    ```text
+    runagy: error: unrecognized arguments: --verify -> SystemExit 2
+    runagy: error: unrecognized arguments: --audit -> SystemExit 2
+    ```
+    Unchanged first two sentences:
+    "BOTH HOSTS HONOR THIS CHAIN. `aw oc run` and `aw agy run` resolve it the same way, so a stored per-model choice decides either one."
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Paste the `git diff` hunk for the contradictory-pair sentence, showing the refusal attributed to antigravity and opencode's last-wins stated. Paste driven output for BOTH orders on BOTH hosts at execution HEAD. Review measured, and the executor must re-derive rather than trust: oc `start --validate --no-verify` yields `validate=False` and `start --no-verify --validate` yields `validate=True` with no refusal; agy PARSES both orders to `validate=True, no_verify=True` and then `verification_flag_tristate` raises `RunFlagRefusal` for both, which is the post-parse refusal F-11 records and NOT an argparse error. STATE WHICH OF E-02's TWO BRANCHES YOU TOOK AND PASTE THE MEASUREMENT THAT CHOSE IT (F-10). Read `zdgc6t`'s `- Status:` on disk and report it: it was `approved` at review, so it may well have landed before this plan. If opencode now REFUSES the pair, take the refuses-too branch (confirm the existing sentence is true and leave it substantially intact) rather than writing the last-wins claim this plan measured at authoring; do NOT simply stop, because the branch is specified and a measurement decides it. Paste the parser result for both orders on both hosts, plus the `RunFlagRefusal` (or its absence) from `verification_flag_tristate`, and confirm the wording you shipped matches what you measured.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Took the LAST-WINS branch because `zdgc6t` has not landed yet (`zdgc6t` remains pending with `- Status: approved` on disk at `.aw/records/plans/pending/20260929-byazcp-01-zdgc6t-refuse-a-contradictory-verification-flag-pair-on-oc-run-as-a.ipd.md`); driven measurement shows oc resolves by last-wins without refusal, while agy parses both orders to `validate=True, no_verify=True` and `verification_flag_tristate` raises `RunFlagRefusal`.
+    ```diff
+    -Passing a contradictory pair such as `--no-verify --validate` is
+    -refused before the run starts rather than resolved by precedence, because either winner would be a
+    -verification decision you did not make.
+    +On Antigravity, passing a contradictory pair such as
+    +`--no-verify --validate` is refused before the run starts rather than resolved by precedence,
+    +because either winner would be a verification decision you did not make. On OpenCode, the same
+    +pair is resolved by argument order (last-wins).
+    ```
+    Driven measurement for both orders on both hosts:
+    ```text
+    oc start --no-verify --validate -> parsed: validate=True, no_verify=NO_ATTR
+      no verification_flag_tristate attribute
+    oc start --validate --no-verify -> parsed: validate=False, no_verify=NO_ATTR
+      no verification_flag_tristate attribute
+    agy start --no-verify --validate -> parsed: validate=True, no_verify=True
+      verification_flag_tristate raised: RunFlagRefusal: --no-verify (or --no-audit) and --validate contradict each other: one asks to skip turn-2 verification and the other asks to run it. Pass exactly one; --no-verify is the same request as --no-validate
+    agy start --validate --no-verify -> parsed: validate=True, no_verify=True
+      verification_flag_tristate raised: RunFlagRefusal: --no-verify (or --no-audit) and --validate contradict each other: one asks to skip turn-2 verification and the other asks to run it. Pass exactly one; --no-verify is the same request as --no-validate
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: Paste the `git diff` hunk adding the resume prose. Paste the full 24-cell probe output from F-02 re-run at execution time, and check off against it each of the three documented facts: all six spellings accepted on oc `resume`, all six exiting 2 on agy `resume`, and the frozen-at-creation consequence. Paste driven `runner_profiles.RUNNER_REGISTRY['agy'].validate_default` and `['oc'].validate_default` to show the verify-by-default claim is true. Confirm by driven count that the added prose introduced no em dash and no en dash, and quote the sentence count to show the guide did not absorb the spec's table.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git diff` shows resume prose added (5 sentences, 0 em dashes, 0 en dashes); 24-cell probe confirms oc resume accepts all 6 and agy resume exits 2 on all 6; validate defaults confirmed (`oc: False`, `agy: True`).
+    ```diff
+    +The `resume` subcommand is asymmetric between hosts. `aw oc run resume` accepts all six spellings,
+    +and an explicit flag passed there overrides the frozen decision for the rest of the run. `aw agy run resume`
+    +registers none of the six, so passing any verification flag exits 2 with `unrecognized arguments`.
+    +In practice, an Antigravity run's verification posture is fixed when the run is created and cannot
+    +be changed on resume. This lands hardest on Antigravity because it verifies by default: an operator
+    +resuming a long Antigravity run who wants to skip the verifier turn has no flag to do so and must
+    +start a new run instead.
+    ```
+    24-cell probe output at execution HEAD:
+    ```text
+    oc start --validate -> validate=True, no_verify=NO_ATTR
+    oc start --no-validate -> validate=False, no_verify=NO_ATTR
+    oc start --verify -> validate=True, no_verify=NO_ATTR
+    oc start --no-verify -> validate=False, no_verify=NO_ATTR
+    oc start --audit -> validate=True, no_verify=NO_ATTR
+    oc start --no-audit -> validate=False, no_verify=NO_ATTR
+    oc resume --validate -> validate=True, no_verify=NO_ATTR
+    oc resume --no-validate -> validate=False, no_verify=NO_ATTR
+    oc resume --verify -> validate=True, no_verify=NO_ATTR
+    oc resume --no-verify -> validate=False, no_verify=NO_ATTR
+    oc resume --audit -> validate=True, no_verify=NO_ATTR
+    oc resume --no-audit -> validate=False, no_verify=NO_ATTR
+    agy start --validate -> validate=True, no_verify=False
+    agy start --no-validate -> validate=False, no_verify=False
+    agy start --verify -> SystemExit 2
+    agy start --no-verify -> validate=None, no_verify=True
+    agy start --audit -> SystemExit 2
+    agy start --no-audit -> validate=None, no_verify=True
+    agy resume --validate -> SystemExit 2
+    agy resume --no-validate -> SystemExit 2
+    agy resume --verify -> SystemExit 2
+    agy resume --no-verify -> SystemExit 2
+    agy resume --audit -> SystemExit 2
+    agy resume --no-audit -> SystemExit 2
+    ```
+    Facts checked off:
+    - [x] (1) `aw oc run resume` accepts all six spellings and explicit flag overrides frozen decision
+    - [x] (2) `aw agy run resume` registers none of the six and exits 2 with unrecognized arguments
+    - [x] (3) practical consequence: Antigravity verification posture is fixed at creation and cannot change on resume
+    Driven validate_default:
+    `runner_profiles.RUNNER_REGISTRY['oc'].validate_default = False`
+    `runner_profiles.RUNNER_REGISTRY['agy'].validate_default = True`
+    Sentence count: 5 sentences.
+    Dash count: em-dashes = 0, en-dashes = 0.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: Paste the `git diff` hunk adding the table row, and the rendered row text. Paste the end-to-end CLI evidence for the documented situation (`aw agy run resume --no-verify <run>` exiting 2 with the `unrecognized arguments` message), captured from the CLI and not only from `parse_args`. Demonstrate the table preamble still holds for the new row by showing no run directory or state file is created by that refused invocation. Then paste, from the same run: a FULL bare `python3 -m pytest` summary line with the measured baseline stated, `aw sanitize --agent`, `aw check`, and `aw ipd lint --phase pre-transition` on this plan reporting conforming.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Troubleshooting table row added; CLI exit 2 confirmed with no state created; full pytest baseline green; leak sanitizer clean; `aw check` reports only pre-existing repository issues; `aw ipd lint --phase pre-transition` conforms.
+    ```diff
+    +| A verification flag passed to `aw agy run resume` | Exit 2 (unrecognized arguments). The verification posture is frozen at creation; start a new run with the posture you want. |
+    ```
+    Rendered row text:
+    `| A verification flag passed to `aw agy run resume` | Exit 2 (unrecognized arguments). The verification posture is frozen at creation; start a new run with the posture you want. |`
+    End-to-end CLI execution:
+    ```text
+    $ aw agy run resume --no-verify fake-run-id
+    usage: runagy [-h] {start,resume,status,report,stop,integrate,audit} ...
+    runagy: error: unrecognized arguments: --no-verify
+    [exit code: 2]
+    ```
+    Preamble check (no durable side effects created):
+    `ls -ld .aw/runs/*fake-run-id*` -> `No such file or directory` (no directory or state created).
+    Full bare `python3 -m pytest` summary line:
+    `3639 passed, 2 skipped, 3 warnings in 117.54s (0:01:57)`
+    `aw sanitize --agent`:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+    `aw check`:
+    `Evidence plans 192 specs 20 prompts 2 research 94 backlog 337 walkthroughs 24 roadmaps 1 comms 1 releases 1 reviews 657 other 1333 errors 78 warnings 0` (all 78 errors pre-existing across other artifacts, none in gyd8sq or docs/runner-profiles.md).
+    `aw ipd lint --phase pre-transition`:
+    `-    ◕  approved     plan        20260930-d8o2cv-01-gyd8sq  [low]  conforming`
+  - Result: pass
 
 ## Approval and execution gate
 
