@@ -36,7 +36,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: separate the two disregard reasons, which today are indistinguishable
 
-- [ ] E-01 In `ipd_lifecycle._trailer_owned_committed_paths`, additionally collect the PATHS of commits classified `foreign` AND the paths of commits classified `unknown`, returning both alongside the owned set. Today the foreign branch increments `foreign_count` and DISCARDS `paths` (the `elif classification == "foreign": foreign_count += 1` arm), as does the `else: unknown_count += 1` arm, so both pieces of per-path evidence are computed and thrown away.
+- [x] E-01 In `ipd_lifecycle._trailer_owned_committed_paths`, additionally collect the PATHS of commits classified `foreign` AND the paths of commits classified `unknown`, returning both alongside the owned set. Today the foreign branch increments `foreign_count` and DISCARDS `paths` (the `elif classification == "foreign": foreign_count += 1` arm), as does the `else: unknown_count += 1` arm, so both pieces of per-path evidence are computed and thrown away.
 
   COLLECT THE `unknown` PATHS TOO, NOT ONLY THE FOREIGN ONES (review PR-302, F-13). The no-evidence class must be computed POSITIVELY from the `unknown` paths, never as `disregarded minus foreign`: F-13 measures one path touched by BOTH a foreign commit and this execution's own untrailered commit, where the subtraction yields the empty set and the note falls silent about the very path this plan exists to record. Add BOTH `foreign_paths: FrozenSet[str]` and `unknown_paths: FrozenSet[str]`. The two sets may legitimately OVERLAP, and that is the honest shape rather than a flaw to normalize away: a path really can carry evidence of another owner AND be touched by an untrailered commit.
 
@@ -45,20 +45,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   THIS IS EVIDENCE COLLECTION ONLY AND MUST CHANGE NO VERDICT. After this item `out_of_scope_paths` and `disregarded_unowned_paths` must be byte-identical to before for every input; V-01 pins that with a before/after comparison rather than trusting it.
   - Depends on: none
   - Expected outcome: `_trailer_owned_committed_paths` returns `foreign_paths` and `unknown_paths` sets naming the paths of foreign- and unknown-classified commits respectively, `paths` (the owned set) is unchanged in name, position and membership, and every existing caller compiles and behaves identically.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `finalize_precheck`, classify the disregarded set by its EVIDENCE into two additive keys in `evidence["scope_audit"]`: keep `disregarded_unowned_paths` as the complete list (existing consumers read it: `_disregarded_unowned_note`, `runner_shared` comments, and four shipped tests in `tests/test_finalize_trailer_attribution.py` plus one in `tests/test_ipd_lifecycle_cli.py`), and ADD `disregarded_foreign_owned_paths` (the disregarded paths in E-01's `foreign_paths`) and `disregarded_no_evidence_paths` (the disregarded paths in E-01's `unknown_paths`).
+- [x] E-02 In `finalize_precheck`, classify the disregarded set by its EVIDENCE into two additive keys in `evidence["scope_audit"]`: keep `disregarded_unowned_paths` as the complete list (existing consumers read it: `_disregarded_unowned_note`, `runner_shared` comments, and four shipped tests in `tests/test_finalize_trailer_attribution.py` plus one in `tests/test_ipd_lifecycle_cli.py`), and ADD `disregarded_foreign_owned_paths` (the disregarded paths in E-01's `foreign_paths`) and `disregarded_no_evidence_paths` (the disregarded paths in E-01's `unknown_paths`).
 
   STORE THE NO-EVIDENCE CLASS POSITIVELY; DO NOT DERIVE IT BY SUBTRACTION (review PR-302, F-13). The first authoring derived it as `disregarded_unowned_paths` minus the foreign set and instructed the executor to compute it at the point of use. That is measurably wrong: F-13 builds one path written by BOTH a foreign-trailered commit and this execution's own untrailered commit, where the subtraction returns EMPTY and E-03's note goes silent about the one path that most needs recording. Compute each key by INTERSECTING the disregarded list with the corresponding E-01 set, and allow the two keys to OVERLAP for a path carrying both kinds of evidence. A path in NEITHER key (possible only when the audit's working-tree half disregarded it, since an uncommitted path appears in no commit at all) belongs in the no-evidence class too, so compute it as `disregarded and (in unknown_paths or in neither)` rather than as a bare intersection; V-02 pins that arm with the uncommitted case explicitly.
 
   DO NOT REMOVE OR NARROW `disregarded_unowned_paths`. It is asserted by name in five shipped tests (`assertIn("other.py", scope_audit.get("disregarded_unowned_paths", []))` and siblings); narrowing it would either break them or, worse, silently change what they measure. Both new keys are ADDITIVE, which also keeps `runner_shared.compute_scope_reconciliation` untouched, since it reads only `out_of_scope_paths`, `in_scope_unmodified` and `widened_paths`.
   - Depends on: E-01
   - Expected outcome: `evidence["scope_audit"]` carries additive `disregarded_foreign_owned_paths` and `disregarded_no_evidence_paths` keys computed positively from E-01's sets; a path carrying both kinds of evidence appears in BOTH; `disregarded_unowned_paths` is unchanged in membership and order; the five tests naming it stay green unmodified.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: put the no-evidence class into the permanent record
 
-- [ ] E-03 Add a renderer beside `_reconciliation_history_note` that renders the NO-EVIDENCE disregarded class as a verbatim note, and fold it into the attributed history message at the SAME site the reconciliation note is folded in (the `recon_note = _reconciliation_history_note(...)` / `if recon_note: message = f"{message} [{recon_note}]"` block inside `finalize`, guarded by `if not apply: return` immediately above it).
+- [x] E-03 Add a renderer beside `_reconciliation_history_note` that renders the NO-EVIDENCE disregarded class as a verbatim note, and fold it into the attributed history message at the SAME site the reconciliation note is folded in (the `recon_note = _reconciliation_history_note(...)` / `if recon_note: message = f"{message} [{recon_note}]"` block inside `finalize`, guarded by `if not apply: return` immediately above it).
 
   WORD IT AS WHAT THE CODE CAN SUBSTANTIATE, WHICH IS NOT OWNERSHIP. This is the load-bearing wording constraint and getting it wrong would manufacture the exact false claim the ownership filter exists to prevent. The note must say the path was changed since the frozen base, is OUTSIDE the declared `Scope-Paths`, could NOT be attributed to this execution, and was therefore NOT justified by anyone. It must NOT say the plan changed it, because in a shared checkout it may be a co-worker's (F-06 measures twelve such paths in one realistic arrangement). Name the `attribution_source` in the note, exactly as the refusal path already does for a demand, so a reader can weigh it.
 
@@ -67,20 +67,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   IT MUST NOT COLLIDE WITH THE RECONCILIATION NOTE. Both are bracketed additions to one message; emit at most one bracketed group each and keep the existing note FIRST so `tests/test_ipd_lifecycle_cli.py::ReconciliationTests`'s `assertIn("out-of-scope tests/extra.py: discovered mid-stream", moved_both)` and its `assertNotIn("Scope reconciliation", moved_clean)` both still hold. The second of those is the trap: a clean-delta finalize must remain free of BOTH notes, so the new note must be empty when the no-evidence class is empty.
   - Depends on: E-02
   - Expected outcome: a finalize whose execution disregarded a no-evidence out-of-scope path writes that path, and its attribution source, verbatim into the executed plan's `## Workflow history` line and into the lifecycle commit message; the note names at most 5 paths and always states the total count; a clean-delta finalize writes neither note; a finalize whose only disregarded paths are foreign-trailered writes no new note.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Record at the changed site WHY this plan records rather than re-decides, naming the asymmetry it rests on and the two questions it deliberately leaves open (OQ-01, OQ-02).
+- [x] E-04 Record at the changed site WHY this plan records rather than re-decides, naming the asymmetry it rests on and the two questions it deliberately leaves open (OQ-01, OQ-02).
 
   NAME THE ASYMMETRY THE REPOSITORY ALREADY RELIES ON, because it is the reason a recording-only fix is the right one and it is already stated in this same module: `_run_record_committed_paths`'s HONEST LIMIT paragraph argues that a weak-evidence failure is acceptable precisely because it "can only cause a MISSING demand ... never a false CLAIM written into permanent history". F-07 measures the other half of that asymmetry directly, so the comment can cite a measurement rather than an opinion: a false DEMAND is auto-answered by the runner and writes `out-of-scope <path>: changed by the plan's approved execution` into permanent history for a path the plan never touched.
 
   ALSO NAME WHAT THIS DOES NOT FIX. After this plan the path is still EXCUSED, no reason is still demanded, and a reader who believes the justify-or-refuse loop is closed end to end would be wrong. Point at OQ-01 and at the backlog item so the residue stays discoverable.
   - Depends on: E-03
   - Expected outcome: a comment at the changed site naming the measured asymmetry, the unchanged verdict, and the two open questions, with the backlog item cited.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin it mechanically, in both directions
 
-- [ ] E-05 Add a new test module `tests/test_finalize_disregarded_record.py` driving real temp git repos, asserting the record in both directions and the verdict's invariance.
+- [x] E-05 Add a new test module `tests/test_finalize_disregarded_record.py` driving real temp git repos, asserting the record in both directions and the verdict's invariance.
 
   ASSERT SEVEN CASES, and the negative ones are what stop this plan being satisfied by a note that always fires: (a) RECORDED - the F-02 escaping shape (an in-scope commit plus a solo untrailered out-of-scope commit) finalizes exit 0 AND the executed plan's text names the out-of-scope path; (b) LIFECYCLE COMMIT - the same path appears in the lifecycle commit message, since the executed plan alone could be edited later while the commit cannot; (c) CLEAN IS SILENT - a finalize with no out-of-scope delta writes neither note (guarding the `assertNotIn("Scope reconciliation", ...)` invariant in the shipped sibling test); (d) FOREIGN IS NOT CLAIMED - a path disregarded because its commit carries a FOREIGN `AW-Item` is NOT named in this plan's record, which is the assertion that stops the note manufacturing a false claim; (e) VERDICT UNCHANGED - for each of (a), (c) and (d), the finalize exit code and `out_of_scope_paths` equal what the shipped code produces; (f) OVERLAP IS RECORDED, the F-13 regression test (review PR-302) - a path written by BOTH a foreign-trailered commit and this execution's own untrailered commit IS named in the record, which is the assertion a subtraction-derived class fails; (g) VOLUME IS CAPPED, the F-06 regression test (review PR-301) - with twelve disjoint UNTRAILERED co-worker commits the note names at most 5 paths, states the total 12, and the audit key still holds all twelve.
 
@@ -93,7 +93,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT ASSERT THE NOTE'S EXACT SENTENCE. Assert the PATH is present and the `attribution_source` token is present; pinning full prose makes every later wording fix a test edit, which is the coupling this repository's own guidance bans. For (g), assert the CAP behaviorally (a bounded count of named paths plus the total appearing in the text), not a literal rendered string.
   - Depends on: E-03
   - Expected outcome: a new test module of seven tests proving the path is recorded in both the plan and the lifecycle commit, that a clean delta and a foreign-only path are both silent, that an overlapping path is still recorded, that twelve no-evidence paths render capped-with-total, and that no finalize verdict moved.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -192,30 +192,143 @@ The `pqsx96` adherence-invariant catalog (`- Status: draft`) describes the I-01/
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: (a) paste `inspect.signature`/field list of `TrailerAttribution` showing the new `foreign_paths` AND `unknown_paths` fields WITH defaults, plus the `paths` field unchanged in name and position; (b) paste, for F-05's mixed arrangement, `trailer_attribution` showing `foreign_paths` containing the foreign commit's path, `unknown_paths` containing the untrailered commit's path, and `owned_paths` unchanged; (c) paste, for F-13's OVERLAP arrangement, the one shared path present in BOTH new sets, proving overlap is represented rather than normalized away; (d) THE INVARIANCE ARM: paste `out_of_scope_paths` and `disregarded_unowned_paths` for both arrangements BEFORE and AFTER this item and show them identical, proving evidence collection changed no verdict.
   - Observed evidence:
-  - Result: pending
+    (a) TrailerAttribution signature and fields:
+    fields: ('paths', 'owned', 'foreign', 'unknown', 'foreign_paths', 'unknown_paths')
+    field_defaults: {'foreign_paths': frozenset(), 'unknown_paths': frozenset()}
+    signature: (paths: FrozenSet[str], owned: int, foreign: int, unknown: int, foreign_paths: FrozenSet[str] = frozenset(), unknown_paths: FrozenSet[str] = frozenset())
+    (b) F-05 mixed arrangement:
+    trailer_attribution: {'owned_commits': 0, 'foreign_commits': 1, 'unknown_commits': 2, 'owned_paths': []}
+    foreign_paths: frozenset({'agent_workflows/theirs.py'})
+    unknown_paths: frozenset({'agent_workflows/demo.py', 'agent_workflows/mine.py'})
+    owned_paths: frozenset()
+    (c) F-13 overlap arrangement:
+    foreign_paths: frozenset({'agent_workflows/shared.py'})
+    unknown_paths: frozenset({'agent_workflows/demo.py', 'agent_workflows/shared.py'})
+    'agent_workflows/shared.py' present in both sets.
+    (d) Invariance arm:
+    F-05 before/after: out_of_scope_paths: [] / [], disregarded_unowned_paths: ['agent_workflows/mine.py', 'agent_workflows/theirs.py'] / ['agent_workflows/mine.py', 'agent_workflows/theirs.py']
+    F-13 before/after: out_of_scope_paths: [] / [], disregarded_unowned_paths: ['agent_workflows/shared.py'] / ['agent_workflows/shared.py']
+    Identical verdicts in both arrangements.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: (a) paste `evidence["scope_audit"]` keys showing `disregarded_foreign_owned_paths` and `disregarded_no_evidence_paths` both present and `disregarded_unowned_paths` still present; (b) paste, for F-05's mixed arrangement, the foreign path in the foreign key, the untrailered path in the no-evidence key, and BOTH paths still in `disregarded_unowned_paths`, proving the old key was not narrowed; (c) THE SUBTRACTION-REGRESSION ARM: paste, for F-13's overlap arrangement, the shared path present in BOTH new keys, and state explicitly that a subtraction-derived class would have yielded the empty set here; (d) paste the UNCOMMITTED case (a disregarded working-tree-only path, which appears in no commit and so in neither E-01 set) showing it present in `disregarded_no_evidence_paths`; (e) paste the passing result of the five shipped assertions that name `disregarded_unowned_paths` (four in `tests/test_finalize_trailer_attribution.py`, one in `tests/test_ipd_lifecycle_cli.py`) with `git diff --stat` showing both files UNCHANGED.
   - Observed evidence:
-  - Result: pending
+    (a) evidence["scope_audit"] keys:
+    ['grandfathered', 'in_scope', 'out_of_scope_paths', 'in_scope_unmodified', 'intervening_in_scope_commits', 'disregarded_unowned_paths', 'disregarded_foreign_owned_paths', 'disregarded_no_evidence_paths', 'committed_paths', 'working_tree_paths', 'widened_paths']
+    (b) F-05 mixed arrangement:
+    disregarded_foreign_owned_paths: ['agent_workflows/theirs.py']
+    disregarded_no_evidence_paths: ['agent_workflows/mine.py']
+    disregarded_unowned_paths: ['agent_workflows/mine.py', 'agent_workflows/theirs.py']
+    (c) F-13 overlap arrangement:
+    disregarded_foreign_owned_paths: ['agent_workflows/shared.py']
+    disregarded_no_evidence_paths: ['agent_workflows/shared.py']
+    Both new keys contain 'agent_workflows/shared.py'. A subtraction-derived class (disregarded minus foreign) would have yielded the empty set [] here.
+    (d) Uncommitted case (dirty working-tree path uncommitted.py):
+    disregarded_unowned_paths: ['uncommitted.py']
+    disregarded_foreign_owned_paths: []
+    disregarded_no_evidence_paths: ['uncommitted.py']
+    (e) Five shipped assertions passed:
+    python3 -m pytest tests/test_finalize_trailer_attribution.py tests/test_ipd_lifecycle_cli.py -k "FinalizeTrailerAttributionTests or ReconciliationTests" -o addopts=""
+    10 passed, 57 deselected in 3.00s.
+    git diff --stat tests/test_finalize_trailer_attribution.py tests/test_ipd_lifecycle_cli.py -> empty diff (both unchanged).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: (a) paste the executed plan's `## Workflow history` line and `git log -1 --format=%B` for F-02's escaping shape BEFORE and AFTER, per validation step 4, before omitting the path and after naming it with its `attribution_source`; (b) paste a clean-delta finalize's moved plan text containing NEITHER `Scope reconciliation` NOR the new note, per validation step 7; (c) paste a finalize whose only disregarded path is FOREIGN-trailered, showing the new note absent; (d) THE VOLUME-CAP ARM (review PR-301): paste the rendered history line for F-06's TWELVE-untrailered-co-worker arrangement, showing at most 5 paths named, the total 12 stated, and the full twelve still present in `disregarded_no_evidence_paths`; state the line's character length; (e) paste the `finalize` exit code for all four, each equal to the shipped value.
   - Observed evidence:
-  - Result: pending
+    (a) F-02 escaping shape:
+    BEFORE:
+    History line: - 2026-09-30 executed (probe): execute demo
+    git log -1: execute demo (omits other.py entirely)
+    AFTER:
+    History line: - 2026-10-01 executed (opencode/test): execute demo [Scope attribution - 1 changed path(s) OUTSIDE Scope-Paths were DISREGARDED as not attributable to this execution (evidence: commit-cohesion), so no --scope-reason was demanded for them: other.py]
+    git log -1:
+    lifecycle(abc123): finalize abc123 -> executed
+    execute demo [Scope attribution - 1 changed path(s) OUTSIDE Scope-Paths were DISREGARDED as not attributable to this execution (evidence: commit-cohesion), so no --scope-reason was demanded for them: other.py]
+    Executed by opencode/test via aw ipd finalize.
+    (b) Clean-delta shape:
+    History line: - 2026-10-01 executed (opencode/test): execute demo
+    Scope reconciliation in text: False
+    Scope attribution in text: False
+    (c) Foreign-trailered shape:
+    History line: - 2026-10-01 executed (opencode/test): execute demo
+    foreign.py in text: False
+    Scope attribution in text: False
+    (d) Volume-cap shape (12 untrailered):
+    History line: - 2026-10-01 executed (opencode/test): execute demo [Scope attribution - 12 changed path(s) OUTSIDE Scope-Paths were DISREGARDED as not attributable to this execution (evidence: commit-cohesion), so no --scope-reason was demanded for them: coworker_01.py, coworker_02.py, coworker_03.py, coworker_04.py, coworker_05.py (... and 7 more; see disregarded_no_evidence_paths in the finalize evidence)]
+    History line length: 396 characters (bounded; uncapped would exceed 539 chars).
+    disregarded_no_evidence_paths count: 12.
+    (e) Finalize exit codes for all four:
+    Case (a): 0
+    Case (b): 0
+    Case (c): 0
+    Case (d): 0
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the added comment, and confirm by quotation that it names (i) the measured asymmetry with F-07's fabricated-claim text, (ii) that the verdict is unchanged, (iii) that the path is still excused and no reason is demanded, and (iv) `s9z85a` and OQ-01 as the residue's carriers. A comment missing (iii) fails this item, because that omission is what would let a later reader believe the justify-or-refuse loop is closed.
   - Observed evidence:
-  - Result: pending
+    Added comment at ipd_lifecycle.py:3485:
+    # --------------------------------------------------------------------------------------
+    # RECORDING ONLY, VERDICT UNCHANGED (IPD 1dcl10, backlog s9z85a, OQ-01, OQ-02).
+    #
+    # WHY THIS PLAN RECORDS RATHER THAN RE-DECIDES:
+    # It rests on the measured asymmetry the repository already relies on in _run_record_committed_paths:
+    # a weak-evidence failure can only cause a missing demand, never a false claim written into permanent
+    # history. F-07 directly measured the opposite direction: a false demand is auto-answered by the
+    # runner and writes "changed by the plan's approved execution" into immutable history for a path
+    # the plan never touched (a fabricated claim). By recording the disregarded paths instead of demanding
+    # reasons, the verdict is unchanged and no false claims are manufactured.
+    #
+    # WHAT THIS DOES NOT FIX:
+    # The path is still excused and no reason is demanded for it. A reader who believes the
+    # justify-or-refuse loop is closed end to end would be wrong. Backlog item s9z85a and OQ-01
+    # remain the residue's carriers for the maintainer ruling on whether unattributable paths should
+    # ultimately be demanded or excused.
+    # --------------------------------------------------------------------------------------
+    Quotation confirmation:
+    (i) measured asymmetry with F-07 text: "changed by the plan's approved execution"
+    (ii) verdict unchanged: "the verdict is unchanged"
+    (iii) path still excused and no reason demanded: "The path is still excused and no reason is demanded for it."
+    (iv) s9z85a and OQ-01 carriers: "Backlog item s9z85a and OQ-01 remain the residue's carriers"
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: (a) paste the bare full-suite result per validation step 2, with the count delta stated against your own re-derived baseline and attributed to this module; (b) paste the targeted run per validation step 1 naming each of the seven new tests; (c) THE MUTATION PROOFS per validation step 5, all three, each pasted RED under its mutation and GREEN unmutated: widen the note to the whole disregarded set and show E-05(d) (foreign) FAILING; derive the no-evidence class by SUBTRACTION instead of positively and show E-05(f) (overlap) FAILING; remove the cap and show E-05(g) (volume) FAILING. A test that does not go red under its mutation has not closed the finding it cites.
   - Observed evidence:
-  - Result: pending
+    (a) Full bare suite:
+    python3 -m pytest
+    4052 passed, 2 skipped, 3 warnings in 105.21s (0:01:45)
+    Baseline at HEAD 57ef95a: 4045 passed, 2 skipped, 3 warnings in 212.48s.
+    Count delta: +7 passed, zero failures, matching the 7 tests added by tests/test_finalize_disregarded_record.py.
+    (b) Targeted run naming each of seven new tests:
+    python3 -m pytest tests/test_finalize_disregarded_record.py tests/test_finalize_trailer_attribution.py tests/test_ipd_lifecycle_cli.py -o addopts=""
+    tests/test_finalize_disregarded_record.py::FinalizeDisregardedRecordTests::test_a_recorded PASSED
+    tests/test_finalize_disregarded_record.py::FinalizeDisregardedRecordTests::test_b_lifecycle_commit PASSED
+    tests/test_finalize_disregarded_record.py::FinalizeDisregardedRecordTests::test_c_clean_is_silent PASSED
+    tests/test_finalize_disregarded_record.py::FinalizeDisregardedRecordTests::test_d_foreign_is_not_claimed PASSED
+    tests/test_finalize_disregarded_record.py::FinalizeDisregardedRecordTests::test_e_verdict_unchanged PASSED
+    tests/test_finalize_disregarded_record.py::FinalizeDisregardedRecordTests::test_f_overlap_is_recorded PASSED
+    tests/test_finalize_disregarded_record.py::FinalizeDisregardedRecordTests::test_g_volume_is_capped PASSED
+    74 passed in 48.52s (7 + 6 + 61).
+    (c) Mutation proofs:
+    (i) Widen note to whole disregarded set (disregarded_unowned_paths):
+    test_d_foreign_is_not_claimed -> RED:
+    AssertionError: 'foreign.py' unexpectedly found in "... [Scope attribution - 1 changed path(s) OUTSIDE Scope-Paths were DISREGARDED as not attributable to this execution (evidence: commit-cohesion), so no --scope-reason was demanded for them: foreign.py]"
+    Reverted -> GREEN (1 passed in 1.80s).
+    (ii) Derive no-evidence class by subtraction (disregarded minus foreign):
+    test_f_overlap_is_recorded -> RED:
+    AssertionError: 'shared.py' not found in []
+    Reverted -> GREEN (1 passed in 2.06s).
+    (iii) Remove 5-path cap in _disregarded_history_note:
+    test_g_volume_is_capped -> RED:
+    AssertionError: '7 more' not found in "... coworker_01.py, coworker_02.py, coworker_03.py, coworker_04.py, coworker_05.py, coworker_06.py, coworker_07.py, coworker_08.py, coworker_09.py, coworker_10.py, coworker_11.py, coworker_12.py]"
+    Reverted -> GREEN (1 passed in 2.60s).
+  - Result: pass
 
 ## Approval and execution gate
 

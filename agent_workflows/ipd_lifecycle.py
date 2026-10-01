@@ -2413,6 +2413,8 @@ class TrailerAttribution(NamedTuple):
     owned: int
     foreign: int
     unknown: int
+    foreign_paths: FrozenSet[str] = frozenset()
+    unknown_paths: FrozenSet[str] = frozenset()
 
 
 def _classify_item_trailer_value(raw_item: str, plan_id6: str) -> str:
@@ -2491,6 +2493,8 @@ def _trailer_owned_committed_paths(
         return TrailerAttribution(frozenset(), 0, 0, 0)
 
     owned_paths: Set[str] = set()
+    foreign_paths: Set[str] = set()
+    unknown_paths: Set[str] = set()
     owned_count = 0
     foreign_count = 0
     unknown_count = 0
@@ -2512,11 +2516,18 @@ def _trailer_owned_committed_paths(
             owned_paths.update(paths)
         elif classification == "foreign":
             foreign_count += 1
+            foreign_paths.update(paths)
         else:
             unknown_count += 1
+            unknown_paths.update(paths)
 
     return TrailerAttribution(
-        frozenset(owned_paths), owned_count, foreign_count, unknown_count
+        frozenset(owned_paths),
+        owned_count,
+        foreign_count,
+        unknown_count,
+        frozenset(foreign_paths),
+        frozenset(unknown_paths),
     )
 
 
@@ -2894,6 +2905,7 @@ def finalize_precheck(
     #     uncommitted work so a concurrent multi-agent workflow is not thrashed.
     out_of_scope: List[str] = []
     disregarded_unowned: List[str] = []
+    trailered = TrailerAttribution(frozenset(), 0, 0, 0)
     if scope_paths:
         committed_set = set(sources.committed)
         # EXACT ATTRIBUTION FIRST, COHESION AS THE FALLBACK (`gys47u` E-02). The run record names this
@@ -2970,6 +2982,15 @@ def finalize_precheck(
                 disregarded_unowned.append(p)
                 continue
             out_of_scope.append(p)
+    disregarded_foreign = [
+        p for p in disregarded_unowned if p in trailered.foreign_paths
+    ]
+    disregarded_no_evidence = [
+        p
+        for p in disregarded_unowned
+        if p in trailered.unknown_paths
+        or (p not in trailered.foreign_paths and p not in trailered.unknown_paths)
+    ]
     # (b') IN-SCOPE-UNMODIFIED paths (Order 05, the MISSING-work direction): a Scope-Paths entry the
     #      execution did NOT touch. Requires the receipt's LITERAL declared Scope-Paths (Order 03/04).
     #      Acknowledge-and-proceed (a declared-but-unneeded file is normal, not a failure).
@@ -2997,6 +3018,8 @@ def finalize_precheck(
         # trail has a single shape; `committed_paths`/`working_tree_paths` below already say which
         # half any given path came from, so no second key is needed to tell them apart.
         "disregarded_unowned_paths": list(disregarded_unowned),
+        "disregarded_foreign_owned_paths": list(disregarded_foreign),
+        "disregarded_no_evidence_paths": list(disregarded_no_evidence),
         "committed_paths": list(sources.committed),
         "working_tree_paths": list(sources.working_tree),
         # rcptwiden `63425h` E-04: the paths this execution ADDED to `Scope-Paths` after begin, under
@@ -3458,6 +3481,51 @@ def _reconciliation_history_note(
     if not bits:
         return ""
     return "Scope reconciliation - " + "; ".join(bits)
+
+
+# --------------------------------------------------------------------------------------
+# RECORDING ONLY, VERDICT UNCHANGED (IPD 1dcl10, backlog s9z85a, OQ-01, OQ-02).
+#
+# WHY THIS PLAN RECORDS RATHER THAN RE-DECIDES:
+# It rests on the measured asymmetry the repository already relies on in _run_record_committed_paths:
+# a weak-evidence failure can only cause a missing demand, never a false claim written into permanent
+# history. F-07 directly measured the opposite direction: a false demand is auto-answered by the
+# runner and writes "changed by the plan's approved execution" into immutable history for a path
+# the plan never touched (a fabricated claim). By recording the disregarded paths instead of demanding
+# reasons, the verdict is unchanged and no false claims are manufactured.
+#
+# WHAT THIS DOES NOT FIX:
+# The path is still excused and no reason is demanded for it. A reader who believes the
+# justify-or-refuse loop is closed end to end would be wrong. Backlog item s9z85a and OQ-01
+# remain the residue's carriers for the maintainer ruling on whether unattributable paths should
+# ultimately be demanded or excused.
+# --------------------------------------------------------------------------------------
+
+
+def _disregarded_history_note(
+    paths: Sequence[str],
+    attribution_source: Optional[str] = None,
+) -> str:
+    """Render the no-evidence disregarded class as a compact, capped note for the terminal record.
+
+    Per E-03: Names at most the first 5 paths in sorted order, always stating the total count
+    unconditionally. Capped to prevent unbounded history lines in shared checkouts (PR-301, F-06).
+    When empty, returns empty string.
+    """
+    if not paths:
+        return ""
+    sorted_paths = sorted(paths)
+    total = len(sorted_paths)
+    source = attribution_source or "unknown"
+    head = sorted_paths[:5]
+    named = ", ".join(head)
+    if total > 5:
+        residual = total - 5
+        named = f"{named} (... and {residual} more; see disregarded_no_evidence_paths in the finalize evidence)"
+    return (
+        f"Scope attribution - {total} changed path(s) OUTSIDE Scope-Paths were DISREGARDED as not "
+        f"attributable to this execution (evidence: {source}), so no --scope-reason was demanded for them: {named}"
+    )
 
 
 def classify_commit_refusal(
@@ -4571,6 +4639,12 @@ def finalize(
     )
     if recon_note:
         message = f"{message} [{recon_note}]"
+    disregarded_note = _disregarded_history_note(
+        evidence.get("scope_audit", {}).get("disregarded_no_evidence_paths", []),
+        evidence.get("attribution_source"),
+    )
+    if disregarded_note:
+        message = f"{message} [{disregarded_note}]"
 
     # --- E-02/E-03 forward transition, wrapped in the durable two-phase journal (Order 3xh53a) ---
     rec = _ss.read_artifact_record(plan_path, repo_root)
