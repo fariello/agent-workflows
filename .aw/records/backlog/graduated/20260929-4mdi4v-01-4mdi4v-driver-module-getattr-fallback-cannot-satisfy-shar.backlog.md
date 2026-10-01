@@ -1,11 +1,13 @@
 - Id: 4mdi4v
-- Status: open
+- Status: graduated
+- Graduated-To: fbkfix
 - Set: 4mdi4v
 - Priority: medium
 - Work-Kind: chore
 - Summary: Six execute_item_core getattr(driver_module, ...) fallbacks default to a shared definition that cannot satisfy the call site, so a host without its own copy gets TypeError instead of working behavior
 
 ## Workflow history
+- 2026-10-01 graduated (aw backlog): graduated by run run-20261001T221821Z-1985969: vfjw09
 - 2026-09-29 created (aw backlog): Filed while authoring plan vbhat9 (from backlog 2yjc5l) as the durable carrier for that plan's deferred fallback-chain row (its F-09 and F-10).
 
 MEASURED 2026-09-29 at HEAD f7f9e7de while authoring plan `vbhat9` from backlog `2yjc5l`. That item

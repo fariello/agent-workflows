@@ -1,0 +1,179 @@
+# IPD: Make the execute_item_core driver_module fallbacks either work or fail at bind time
+
+- Date: 2026-10-01
+- Kind: child
+- Concern: `runner_shared.execute_item_core` rebinds 25 names off `driver_module`, and for five of them the shared default CANNOT satisfy the call site because it declares a required keyword-only argument the call site does not pass. The default is therefore not a fallback but a deferred `TypeError`. The two shipped hosts both define every one, so nothing is broken today; a THIRD host, which this repository already treats as a supported shape, lands directly on the broken seam. The same class has shipped two silent defects already by the repository's own written measurements.
+- Scope: Repair the FALLBACK SHAPE of the broken `getattr(driver_module, ...)` defaults in `runner_shared.execute_item_core`, per symbol, with the choice recorded per symbol; and add a behavioral guard that drives a turn through a descriptor-only host so the seam is exercised in the direction a third host will actually use it. NO behavior change on either shipped host: both define every rebound name, so every host-bound path resolves exactly as it does today. This plan does NOT lift any forked function, does NOT add a third host to `DEFAULT_HOSTS`, and does NOT attempt to make a descriptor-only host fully execute (four unrelated structural walls block that, and they are out of scope).
+- Scope-Paths: agent_workflows/runner_shared.py, tests/test_runner_fallback_bindings.py
+- Item-Dependencies: none
+- Status: to-review
+- Work-Kind: chore
+- Priority: medium
+- From-Backlog: 4mdi4v
+- Set: fbkfix
+- Order: 1
+- Highest E allocated: 05
+- Author: opencode its_direct/pt3-claude-opus-5-1m-us
+- Id: vfjw09
+
+## Workflow history
+
+- 2026-10-01 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
+- 2026-10-01 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): authored from backlog `4mdi4v`. Every claim in the item was re-measured at HEAD `7168b42b` rather than inherited, which CORRECTED the item in four material ways (F-02, F-03, F-04, F-05) and found a defect class the item did not name (F-06). The per-symbol decision the item asked for is recorded in F-08.
+
+## Goal
+
+Make every `getattr(driver_module, ...)` default in `runner_shared.execute_item_core` either WORK or FAIL AT BIND TIME, so a host that does not define a name gets working behavior or an immediate, explicit error instead of a `TypeError` raised much later from inside a shared body. Add the guard that proves it, driving a real turn through a module that defines none of the rebound names, because the current test suite cannot reach this seam at all and that unreachability is why two instances of this class shipped silently.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
+
+### Task group 1: Establish the census before changing anything
+
+- [ ] E-01 Re-derive the COMPLETE census of `getattr(driver_module, ...)` rebindings in `runner_shared.execute_item_core` from the code, classifying each by (a) what its default is, (b) whether the shared definition can satisfy the call site, and (c) which shipped hosts define it. Do NOT work from this plan's F-01 table as input: regenerate it and report any divergence, because a divergence means the function changed under this plan and the per-symbol decisions in F-08 must be re-checked before being applied.
+  - Depends on: none
+  - Expected outcome: a regenerated table of all 25 rebindings with the five broken-fallback symbols identified (`route_recovery_turn`, `integrate_lane_branch`, `build_lane_outcome`, `git_head`, `git_status`), plus the three other classes F-01 names (self-sufficient shared default, `None` default, absent from `runner_shared`). State explicitly whether the count is still 25 and whether the broken set is still exactly those five. If `acquire_review_sweep_lane` still has a satisfied call site, say so: F-04 corrects the item on that point and the correction must be re-confirmed, not assumed.
+  - Execution state: pending
+
+### Task group 2: Fix the broken fallbacks per symbol
+
+- [ ] E-02 Apply the F-08 per-symbol decision to the FIVE broken fallbacks in `runner_shared.execute_item_core`, pre-binding a working default (option 1) for each by closing over injections already in that function's scope. Preserve the host-bound path exactly: the `getattr` must still prefer the host attribute, so both shipped hosts resolve to their own wrapper as they do today.
+  - Depends on: E-01
+  - Expected outcome: the five defaults are callable at the shapes their call sites use. State for each symbol which injection the lambda supplies and where that injection comes from. Confirm in the report that you relied on PYTHON'S LATE BINDING for the three defaults bound textually before `run_checked` (F-07): a closure resolves the variable at call time, so no reordering of the binding block is needed, and reordering it would be a gratuitous change to a 4000-line function.
+  - Execution state: pending
+
+- [ ] E-03 Make `integrate_lane_branch`'s `except TypeError` retry shim in `execute_item_core`'s `_publish` closure unnecessary, and remove it, since E-02 makes the first call shape succeed. This is the one broken fallback whose call site already compensates for the defect, and leaving a now-dead `except TypeError` behind would silently swallow a REAL `TypeError` from inside the merge body, which is strictly worse than no shim.
+  - Depends on: E-02
+  - Expected outcome: `_publish` calls `integrate_lane_branch` once with the full keyword set and no `except TypeError` fallback remains. Confirm the removal does not change which arguments reach the shared body on either host: today the shim's SECOND branch is what runs for a host-bound wrapper that rejects the 4-positional shape, so state which branch each shipped host actually took before the change, measured rather than reasoned.
+  - Execution state: pending
+
+### Task group 3: Guard the seam behaviorally
+
+- [ ] E-04 Add `tests/test_runner_fallback_bindings.py` driving a REAL turn through `execute_item_core` with a `driver_module` that defines NONE of the rebound names, asserting the turn reaches a terminal item status and that the attempt records an OBSERVED `starting_head` and `starting_status` rather than an error string or a crash. This is a behavioral outcome test, not a code-structure test: it must not read source text, count callers, or assert on symbol censuses (AGENTS execution contract; GUIDING_PRINCIPLES P16).
+  - Depends on: E-02
+  - Expected outcome: a test that FAILS before E-02 with `TypeError: route_recovery_turn() missing 1 required keyword-only argument: 'save_state'` and PASSES after. Paste both. Reuse the existing full-turn harness rather than building a new one (F-09 names it and shows it already drives a complete turn with a scripted spawn), and state what you reused.
+  - Execution state: pending
+
+- [ ] E-05 Pin the REMAINING walls in the same test file, so the guard records honestly how far a descriptor-only host gets and no further. F-06 measured four additional `None`-defaulted bindings that are called UNGUARDED (`integration_is_earned` first), which this plan deliberately does not fix; assert the next failure is one of those and name it, so the day someone fixes it this guard fails loudly and the next integrator inherits a current map instead of rediscovering the sequence.
+  - Depends on: E-04
+  - Expected outcome: the test documents the measured boundary: the five fixed fallbacks no longer block, and the next blocker is the `None`-defaulted `integration_is_earned`. State explicitly that this is a LIMIT pin in the same spirit as `tests/test_hostdedup_third_host.py::test_pin_measured_turn_execution_limits`, and that fixing those four is out of scope per the Deferred section.
+  - Execution state: pending
+
+Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
+
+## Project conventions discovered (Step 0)
+
+- Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`). This plan cites by symbol throughout; where a line number appears it is appended to a symbol or a quoted string, never used alone.
+- INJECTION IS THE ESTABLISHED SEAM for a host-specific collaborator in `runner_shared`. `runner_shared.git_head`, `runner_shared.git_status` and `runner_shared.git_common_dir` all take `run_checked` as a required keyword-only argument, and plan `integpath-02` (`6sb3yu`) records WHY in its F-7: "the precedent exists because `run_checked` is host-specific (opencode-only `env_builder`), so it does NOT generalize to an already-shared collaborator". That caveat is why this plan does not add injection parameters to the self-sufficient symbols in F-01.
+- A PRE-BOUND LAMBDA DEFAULT is already the convention IN THIS EXACT FUNCTION for this exact problem. `execute_item_core` binds `write_report`, `save_state` and `run_checked` with a lambda default that supplies the host-specific argument, e.g. `lambda r, s: globals()["save_state"](r, s, write_report=write_report)`. Those three are the three that WORK; the five this plan fixes are the ones that were given a bare `globals().get(...)` instead.
+- REFUSING A DEFAULT is also established, with a recorded reason. `runner_shared._record_checkpoint_stop` takes `git_status_fn` with no default, and its docstring states the rule: "no default is offered so the mistake cannot recur silently". That docstring is also one of the two shipped instances of this defect class (F-05).
+- A DESCRIPTOR-ONLY THIRD HOST IS A SUPPORTED SHAPE, not a hypothetical. `tests/test_hostdedup_third_host.py` constructs `SCRIPTED_HOST_LABELS` with no `*_runipd.py` module at all, and its `test_pin_measured_turn_execution_limits` deliberately pins the limit rather than a passing host, which is the precedent E-05 follows.
+- A SELF-SUFFICIENT SHARED DEFINITION NEEDS NO REBINDING AT ALL. `runner_shared.git_branch` takes only `repo` and calls `subprocess.run` directly, and `execute_item_core` calls it WITHOUT rebinding it off `driver_module`, on the line immediately after its `git_head` call. It is the working counter-example to the five this plan fixes and the reason F-08 rejects adding injection where none is needed.
+- Tests MUST test observable behavior, never code structure: no `inspect`, `ast`, regex or substring reads of production source, no caller counts or symbol censuses as a correctness proxy (AGENTS execution contract; GUIDING_PRINCIPLES P16). E-01's census is an authoring measurement, NOT a shipped test, and E-04/E-05 are written as behavioral turn-driving tests for this reason.
+
+## Findings
+
+All findings measured 2026-10-01 at HEAD `7168b42b` in an isolated lane worktree. The backlog item was measured at HEAD `f7f9e7de`; four of its claims CHANGED or were imprecise and are corrected below.
+
+| # | Finding | Evidence |
+|---|---|---|
+| F-01 | **THE CENSUS IS 25 REBINDINGS IN FOUR CLASSES, NOT ONE CLASS OF SIX.** `execute_item_core` carries 25 `getattr(driver_module, ...)` rebindings. They split: 3 with a WORKING pre-bound lambda default (`write_report`, `save_state`, `run_checked`); 7 whose shared default is SELF-SUFFICIENT and so already correct (`driver_begin`, `assert_child_tool_identity`, `allocate_isolation_worktree`, `clean_base_launch_decision`, `evaluate_clean_base_for_launch`, `reconcile_disposition`, `make_integration_validation_runner`); 5 with a BROKEN `globals().get(...)` default; 5 defaulting to `None`; and the remainder bound from a parameter or absent from `runner_shared`. Only the third class is this plan's subject. | AST walk of the `execute_item_core` body collecting `Assign` nodes whose value is `getattr(driver_module, ...)`, cross-referenced with `inspect.signature` for required keyword-only params and `hasattr` on both host modules |
+| F-02 | **THE BROKEN SET IS FIVE, NOT SIX, AND THE ITEM'S OWN SIXTH ENTRY SAYS SO.** `route_recovery_turn`, `integrate_lane_branch`, `build_lane_outcome`, `git_head` and `git_status` have a shared default that cannot satisfy the call site. The item lists `acquire_review_sweep_lane` as a sixth while annotating it "its call site DOES pass it, so this one is currently safe" - so the item's own prose contradicts its own count of six. This plan fixes five. | `inspect.signature` on each shared definition plus the call shape at each call site in the `execute_item_core` body |
+| F-03 | **THE FAILURE IS NOW LOUD, NOT SILENT, AND THE ITEM'S HARM MODEL IS STALE.** The item argues from a 2026-09-20 measurement where a `build_lane_outcome` `TypeError` was "swallowed whole by the `contextlib.suppress(Exception)` around it". At HEAD both `build_lane_outcome` call sites now guard on `DriverError`, not `Exception`: one `except DriverError:` and one `with contextlib.suppress(DriverError):`. `issubclass(TypeError, DriverError)` is `False`, so a `TypeError` now ESCAPES and aborts the turn. That makes the exposure an aborted turn rather than a silently missing file list. It is a weaker harm but a more honest one, and it removes the item's strongest stated argument, so the plan should not repeat that argument as if it still held. | `issubclass(TypeError, runner_shared.DriverError)` returns `False`; both call-site guards read `DriverError` at HEAD |
+| F-04 | **`acquire_review_sweep_lane` IS DEFINED BY NEITHER HOST, so its default is ALWAYS taken** - and it works, because its call site passes `save_state=save_state`. It is the proof that option 1 is viable: a shared definition reached by every host is fine precisely when the call site supplies the injection. It is evidence FOR the fix, not an instance of the defect. | `hasattr(oc_runipd, 'acquire_review_sweep_lane')` and the `agy_runipd` equivalent are both `False`; the call site passes `save_state=save_state` |
+| F-05 | **THE TWO SHIPPED INSTANCES THE ITEM CITES ARE REAL AND BOTH ARE STILL READABLE IN THE SOURCE.** The `build_lane_outcome` comment in `execute_item_core` records the 2026-09-20 `TypeError` swallowed on "EVERY integration refusal", so `integration_changed_files` was never written. `runner_shared._record_checkpoint_stop`'s docstring records that its shared body would have written `"<unobserved: git_status() missing 1 required keyword-only argument: 'run_checked'"` into every level-3 stop record, and states "That was invisible precisely BECAUSE the definition was dead; pointing the hosts at it is what would have shipped the defect." Both are fixed; the pattern is not. | Both passages present in `runner_shared.py` at HEAD |
+| F-06 | **A SIXTH AND LARGER CLASS EXISTS THAT THE ITEM DOES NOT NAME: `None` DEFAULTS CALLED UNGUARDED.** `integration_is_earned`, `driver_finalize` and `set_plan_approved` default to `None` and are called with NO `is not None` guard, so a host lacking them gets `TypeError: 'NoneType' object is not callable`. `integrate_review_lane_branch` is ABSENT from `runner_shared` entirely, so its `globals().get(...)` default is `None` too, with the same fate. Only `observe_host_model` is properly guarded (`if session_id and observe_host_model is not None`). Measured by granting a synthetic host the five E-02 fixes and re-driving a turn: the next failure is `integration_is_earned`, raising `TypeError: 'NoneType' object is not callable`. **So fixing the five does NOT make a descriptor-only host work**, and any plan claiming it would is overclaiming. This plan fixes the five, pins the next wall in E-05, and defers the rest with that measurement as the reason. | Grep for each name's call sites in the `execute_item_core` body; staged turn-driving probe granting fixes one at a time |
+| F-07 | **THE THREE `run_checked`-DEPENDENT DEFAULTS ARE BOUND TEXTUALLY BEFORE `run_checked` ITSELF**, and that is harmless. `git_head`, `git_status` and `build_lane_outcome` are rebound ABOVE the `run_checked` rebinding in the same block. A lambda closes over the VARIABLE and resolves it at call time, so a pre-bound default referencing `run_checked` works without reordering the block. Verified with a minimal late-binding closure returning the value assigned after the lambda was defined. This matters because reordering 80 lines of a 4000-line function to "fix" a non-problem is exactly the gratuitous change review should reject. | Late-binding closure probe; relative order of the rebindings in the `execute_item_core` binding block |
+| F-08 | **THE PER-SYMBOL DECISION THE ITEM ASKS FOR: OPTION 1 FOR ALL FIVE, and the reason is the same for each.** Every injection the five need is ALREADY in `execute_item_core`'s scope: `save_state` (pre-bound lambda in the same block) for `route_recovery_turn`; `run_checked` (pre-bound lambda in the same block) for `git_head`, `git_status` and `build_lane_outcome`; and for `integrate_lane_branch`, `host_labels.command` (a parameter), `run_checked`, and the literal `"execute"` its own call site already passes. So option 1 costs five lambdas and makes the fallback genuinely work. Options 2 and 3 are REJECTED on measured grounds, not preference: see F-10. | Signature of each shared definition versus the names available in the `execute_item_core` scope at the binding site |
+| F-09 | **A FULL-TURN HARNESS ALREADY EXISTS AND REACHES THIS SEAM, so E-04 needs no new scaffolding.** `tests/test_attempt_model_identity.py::_drive_execute_turn` builds a temp git repo with a conforming plan, a scripted `spawn_executor` that writes an outcome JSON, and calls `execute_item_core` with `driver_module=oc_runipd`. Substituting a bare `types.ModuleType` for that argument reproduces the defect end to end, raising `TypeError: route_recovery_turn() missing 1 required keyword-only argument: 'save_state'` from the shared body. That is the exact assertion E-04 inverts. | Probe reusing `_drive_execute_turn` with a synthetic empty module as `driver_module` |
+| F-10 | **OPTION 2 (DROP THE DEFAULT) IS NOT BEHAVIOR-PRESERVING FOR THE EXISTING SUITE, which decides the choice.** Three test call sites omit `driver_module` entirely, so it is `None`: `tests/test_host_capability_wiring.py`, and two in `tests/test_action_table_runner_parity.py`. `getattr(None, "git_head")` with no default raises `AttributeError: 'NoneType' object has no attribute 'git_head'` AT BIND TIME, which is before the early return those tests rely on, so option 2 breaks all three. They pass today only because they return before any broken name is CALLED, confirmed by instrumenting the shared `git_head`/`git_status` to shout if reached: 9 tests ran, 0 failures, and the unbound definitions were reached NONE of the time. Option 3 (require the injection) has the same bind-time problem plus it changes the public signature. | `getattr(None, 'git_head')` raises `AttributeError`; instrumented run of `tests/test_action_table_runner_parity.py` reports 9 passed and "UNBOUND shared definitions actually REACHED: NONE" |
+| F-11 | **THE CURRENT SUITE CANNOT REACH THIS SEAM, which is why the class ships silently.** Of the 11 `execute_item_core` call sites outside the two runners, 8 pass `driver_module=oc_runipd` and 3 omit it, and the 3 that omit it return early. So no existing test exercises a fallback default at a call site. This is the gap E-04 closes and the mechanism F-05's two instances escaped through. | Grep of `execute_item_core(` across `agent_workflows/` and `tests/`, plus the `driver_module` argument at each site; instrumented reachability run from F-10 |
+
+## Proposed changes (ordered, validatable)
+
+1. Regenerate the F-01 census from code and report divergence from this plan's table (E-01). No file changes.
+2. In `runner_shared.execute_item_core`, replace the five broken `globals().get(...)` defaults with pre-bound lambdas supplying the injection each shared definition requires, leaving the `getattr` host preference intact (E-02).
+3. Remove the now-unnecessary `except TypeError` retry shim from the `_publish` closure around `integrate_lane_branch` (E-03).
+4. Add `tests/test_runner_fallback_bindings.py` driving a real turn through a descriptor-only `driver_module` and asserting observed git state on the attempt (E-04).
+5. Extend that file to pin the next measured wall, `integration_is_earned`, as a limit (E-05).
+
+## Deferred / out of scope (with reason)
+
+- **The four `None`-defaulted bindings called unguarded (`integration_is_earned`, `driver_finalize`, `set_plan_approved`, `integrate_review_lane_branch`).** F-06 measured these as the NEXT wall, so they are the natural follow-on, and they are deliberately not fixed here. The reason is that they are a DIFFERENT defect with a different right answer: a `globals().get(...)` default that cannot satisfy its call site should become a working default, whereas a `None` default is arguably correct and the bug is the MISSING GUARD at the call site. Conflating them would mean choosing a fix for seven symbols on evidence gathered about five. They should be filed as a follow-up backlog item citing F-06; this plan does not file it, because the runner sets this item to `graduated` and filing a second item from within an authoring turn would create a carrier nobody reviewed.
+- **Making a descriptor-only host actually execute a turn.** Out of scope and not achievable by this plan: `tests/test_hostdedup_third_host.py::test_pin_measured_turn_execution_limits` pins four independent structural walls (forked `execute_item`/`run_queue`, no spawn seam, no argv contract, runner-internal label binding), and plan `hostdedup-03` (`xdvglg`) records that lifting the five large forked functions is explicitly out of that Set too. This plan removes one seam defect on the path, nothing more.
+- **`acquire_review_sweep_lane`.** Not a defect (F-04): its call site passes `save_state`, so its always-taken shared default already works. Changing it would be churn.
+- **The 7 self-sufficient `globals().get(...)` defaults.** They work. Adding injection parameters would be cargo-culting the `run_checked` precedent against that precedent's own recorded caveat in plan `integpath-02` (`6sb3yu`) F-7.
+- **Adding a `Blocks-Release:` gate.** The item carries none and is `Work-Kind: chore`. F-03 shows the exposure is a path no user can execute on either shipped host, so the repository's "every live bug gates the next release" rule does not reach it. Inventing a gate would be out of contract.
+
+## Scope check
+
+- Over-scope: none. The two declared paths are the minimum: the defect is in `runner_shared.execute_item_core` and the guard needs a new test file. No host module is touched, because both hosts already define every rebound name (F-01) and the `getattr` preference is preserved, so neither host's resolution changes.
+- Under-scope: deliberately, per the Deferred section. The four unguarded `None` defaults (F-06) remain, so this plan does NOT deliver a working descriptor-only host and must not be reported as doing so. It delivers five working fallbacks, the removal of a defect-compensating shim, and the first test that can reach this seam at all (F-11).
+
+## Required tests / validation
+
+- `python3 -m pytest` run BARE, with the actual summary line pasted. Baseline at HEAD `7168b42b` must be captured BEFORE any edit and compared after, since this plan touches a function every runner test drives.
+- `python3 -m pytest tests/test_runner_fallback_bindings.py` for the new guard, with output pasted.
+- `python3 -m pytest tests/test_host_capability_wiring.py tests/test_action_table_runner_parity.py tests/test_attempt_model_identity.py tests/test_finalize_stale_plan_path.py tests/test_attempt_host_model_observation.py tests/test_hostdedup_third_host.py` as the targeted regression set: these are every test that calls `execute_item_core`, including the three that pass `driver_module=None` which F-10 identifies as the ones option 2 would have broken.
+- The new test must be demonstrated to FAIL before E-02 and PASS after, with both outputs pasted. A guard that was never seen red is not evidence.
+
+## Spec / documentation sync
+
+N/A with reason: no spec governs the internal binding shape of `execute_item_core`. Spec `25kzda` governs host asymmetry and per-host capability descriptors, and `77tr3o` governs orchestrator retirement; neither constrains how a shared function resolves a host collaborator. This plan changes no public contract, no CLI surface, no artifact format and no lifecycle behavior, so no `.spec.md` file is in `- Scope-Paths:`. The two in-source records of this defect class (F-05) are docstring/comment prose that stays accurate after this change.
+
+## Open questions
+
+### OQ-01: Should the four unguarded `None`-defaulted bindings be fixed here rather than deferred?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: DEFERRED, on the measurement in F-06 rather than on scope preference. They are a genuinely different defect with a different correct fix: a `globals().get(...)` default that cannot satisfy its call site is a broken DEFAULT, while a `None` default is arguably the correct default and the defect is the missing `is not None` GUARD at the call site, which `observe_host_model` demonstrates by being the one that has it. Fixing both classes in one pass would mean choosing a remedy for seven symbols from evidence gathered about five, and would double the diff in the most contended function in the runner. E-05 pins the boundary so the deferral is recorded in an executable form rather than in prose that rots.
+
+### OQ-02: Does removing the `except TypeError` shim (E-03) risk masking a real behavior change on a shipped host?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: NO, and E-03 is written to prove it rather than assert it. Both shipped hosts define `integrate_lane_branch`, so the `getattr` resolves to the host wrapper and the shim's behavior is determined entirely by whether that wrapper accepts the 4-positional shape. E-03's expected outcome therefore requires MEASURING which branch each host actually takes today before the removal, so the change is justified by observation. The removal is itself a safety improvement: once E-02 makes the first shape succeed, a retained `except TypeError` can only catch a TypeError raised from INSIDE the merge body, silently converting a real bug into a confusing second call.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
+
+- [ ] V-01 validates E-01
+  - Required evidence: paste the regenerated census table showing all `getattr(driver_module, ...)` rebindings in `execute_item_core` with each one's default kind, the shared definition's required keyword-only arguments, and which hosts define it. State the total and whether it is still 25. State the broken set and whether it is still exactly the five of F-02. Explicitly confirm or refute F-04 (`acquire_review_sweep_lane` defined by NEITHER host yet satisfied at its call site) and F-06 (the four unguarded `None` defaults). If any count differs from this plan's table, say which and whether it changes the F-08 decision.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-02 validates E-02
+  - Required evidence: paste the diff of the five changed bindings. For each, name the injection its lambda supplies and where that value comes from. Then paste a runtime probe proving BOTH directions: (a) with a `driver_module` defining none of them, each default is now callable at its call site's shape without `TypeError`; and (b) with `driver_module=oc_runipd`, each name still resolves to the HOST's own function and not to the shared default, so no shipped-host behavior changed. Direction (b) is the one that matters for regression and must not be skipped.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-03 validates E-03
+  - Required evidence: paste the diff removing the `except TypeError` branch from the `_publish` closure. Paste the measurement, taken BEFORE the removal, of which branch each shipped host took (i.e. whether `oc_runipd.integrate_lane_branch` and the `agy_runipd` equivalent accept the 4-positional call). State the conclusion explicitly: that no host's effective arguments changed. If a host DID rely on the retry branch, stop and report rather than removing it.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-04 validates E-04
+  - Required evidence: paste the new test's output FAILING against the pre-E-02 code, showing `TypeError: route_recovery_turn() missing 1 required keyword-only argument: 'save_state'`, and then PASSING after. Paste the test body and confirm it asserts on observed outcomes (terminal item status, and `starting_head`/`starting_status` holding real git values rather than an error string) and that it reads no production source text, counts no callers, and asserts on no symbol census (GUIDING_PRINCIPLES P16). State which existing harness you reused.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-05 validates E-05
+  - Required evidence: paste the limit-pin test's output and the assertion showing the NEXT blocker is the `None`-defaulted `integration_is_earned` raising `TypeError: 'NoneType' object is not callable`. Confirm the test names the deferred symbols so it fails loudly when they are fixed. Then paste the BARE `python3 -m pytest` summary line for the whole suite, alongside the pre-change baseline captured before E-02, and the targeted regression set from `## Required tests / validation` including the three `driver_module=None` call sites. Any net-new failure must be explained or the plan must not be marked executed.
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+This plan is NOT approved for execution. It is authored `to-review` from backlog item `4mdi4v` and requires `/plan-review` and then explicit human approval before any execution. The `- Readiness:` field is deliberately ABSENT: it is an output of `/plan-review`, and writing one here would forge the attestation the auto-approve predicate reads first.
+
+Execution contract for whoever runs this: honor `- Scope-Paths:` exactly (`agent_workflows/runner_shared.py` and `tests/test_runner_fallback_bindings.py`); commit only those paths through `aw commit <plan> -- <paths>`; never `git add -A` and never push. Capture the bare `python3 -m pytest` baseline BEFORE the first edit, since V-05 compares against it and a baseline taken afterwards proves nothing. Do not mark any `V-*` item `pass` without the pasted evidence it demands, and do not move this plan to `.aw/records/plans/executed/` until `aw ipd lint --phase pre-transition` reports conforming and every validation item is verified.
+
+Two honest limits a reviewer should hold this plan to. FIRST, it does NOT make a descriptor-only host work: F-06 measured four further unguarded `None` defaults that block immediately after these five, and a report claiming a working third host would be false. SECOND, the harm it prevents is an ABORTED TURN on a host that does not exist yet, not a live user-visible defect, which is why it is `chore` and carries no release gate; F-03 specifically retires the backlog item's stronger "silently swallowed" argument as stale.
