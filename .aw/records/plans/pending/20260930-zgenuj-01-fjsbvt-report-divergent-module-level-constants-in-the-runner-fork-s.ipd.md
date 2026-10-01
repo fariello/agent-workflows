@@ -40,36 +40,36 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the static value resolver
 
-- [ ] E-01 Add a module-level constant collector and a STATIC value resolver to `tools/runner_fork_scan.py`, as new functions beside the existing `top_level_defs`/`module_index` primitives. The collector must return every `UPPER_CASE` module-level assignment name mapped to its RHS `ast` node, handling three binding shapes, and it must key on `str.isupper()` so it matches the population the shipped suite guard matches (F-09). The three shapes are an `ast.Assign` with an `ast.Name` target, an `ast.Assign` with a tuple/list target whose elements are `ast.Name`, and an `ast.AnnAssign` with a value.
+- [x] E-01 Add a module-level constant collector and a STATIC value resolver to `tools/runner_fork_scan.py`, as new functions beside the existing `top_level_defs`/`module_index` primitives. The collector must return every `UPPER_CASE` module-level assignment name mapped to its RHS `ast` node, handling three binding shapes, and it must key on `str.isupper()` so it matches the population the shipped suite guard matches (F-09). The three shapes are an `ast.Assign` with an `ast.Name` target, an `ast.Assign` with a tuple/list target whose elements are `ast.Name`, and an `ast.AnnAssign` with a value.
   DO NOT MIRROR `module_index` FOR THE TUPLE SHAPE; IT DOES NOT HANDLE IT (corrected at review, PR-003). This item originally described all three as "the three binding shapes `module_index` already handles", which is false: `module_index`'s `ast.Assign` arm binds only `if isinstance(target, ast.Name)` and walks no `ast.Tuple`/`ast.List` elements, so a module-scope tuple unpack is invisible to it today (F-16). Implement the tuple shape fresh, and note that a tuple-unpacked name has NO single RHS node to resolve, so it must be reported in E-02's `unresolved` set rather than guessed at. No live instance exercises this (the one `ast.Tuple` in the real population is a tuple VALUE on a single `ast.Name` target), so cover it with a fixture in E-05 rather than expecting it in the real census. The resolver must take an RHS node plus the three parsed trees and follow a `runner_shared.NAME` chain, and a `runner_shared.NAME.field` chain through the keyword arguments of a `HostLabels(...)`-style `ast.Call`, returning the terminal node or `None` when the chain cannot be followed statically. Bound the recursion explicitly (a depth cap) so a cyclic or self-referential assignment cannot hang the scanner. Do NOT modify `_value_differs`, whose signature `tools/lift_drift_scan.py` does not use but whose module it imports wholesale (F-10); the new resolver is additive and the old helper keeps its current callers and behavior.
   - Depends on: none
   - Expected outcome: Two new functions in `tools/runner_fork_scan.py`. Driven over the three real modules, the collector returns EXACTLY the set of `UPPER_CASE` names assigned at module scope in BOTH hosts, re-derived at execution time and cross-checked against an independent `getattr` probe (do NOT compare against any count written in this plan; F-01's population is a LIVE-ARTIFACT census that moved from 19 to 18 between authoring and review, PR-001). The resolver reduces both hosts' `FULL_AUTO_ACTOR` references through `OC_HOST_LABELS`/`AGY_HOST_LABELS` to the terminal string literals `'aw oc run --full-auto'` and `'aw agy run --full-auto'`; that one is a STABLE expected value because it is the symbol the scanner's own docstring teaches the hazard with, and it was re-measured intact at review.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add a `constants` section to the `census` return value, computed from E-01's primitives and carrying BOTH divergence questions as separate keys, each stating its test in the output the way `census`' existing `strict_test`/`loose_test` keys do. The two questions are: HOST-PAIR DIVERGENCE (a name co-defined in both hosts whose statically resolved values differ), and the THREE-WAY MATCHES-NEITHER class (a name co-defined in all three modules whose `runner_shared` value equals neither host's resolved value). Report the names whose chain could NOT be resolved statically as their own explicit `unresolved` key rather than silently classing them as agreeing, because an unresolvable name is "not answered", not "safe" - which is exactly the distinction `_value_differs`' own docstring draws about its `None` return. Keep `census` a pure data function: every count and list the report prints must come from this dict, so `--json` and the human report cannot drift, which `census`' docstring states as its reason for existing.
+- [x] E-02 Add a `constants` section to the `census` return value, computed from E-01's primitives and carrying BOTH divergence questions as separate keys, each stating its test in the output the way `census`' existing `strict_test`/`loose_test` keys do. The two questions are: HOST-PAIR DIVERGENCE (a name co-defined in both hosts whose statically resolved values differ), and the THREE-WAY MATCHES-NEITHER class (a name co-defined in all three modules whose `runner_shared` value equals neither host's resolved value). Report the names whose chain could NOT be resolved statically as their own explicit `unresolved` key rather than silently classing them as agreeing, because an unresolvable name is "not answered", not "safe" - which is exactly the distinction `_value_differs`' own docstring draws about its `None` return. Keep `census` a pure data function: every count and list the report prints must come from this dict, so `--json` and the human report cannot drift, which `census`' docstring states as its reason for existing.
   - Depends on: E-01
   - Expected outcome: `python3 tools/runner_fork_scan.py --json` carries a `constants` key whose host-pair divergent list EQUALS an independently computed `getattr` ground-truth set re-derived in the execution lane, whose three-way matches-neither list is empty, and whose unresolved list is empty. The bar is AGREEMENT WITH GROUND TRUTH, not a literal list: at review the divergent set was `['FULL_AUTO_ACTOR']` alone, because `DEPENDENCY_BLOCK_RECOVERY_HINT` was deleted from all three modules in the interval (PR-001, F-14). `FULL_AUTO_ACTOR` must be IN the set, since the whole point of the section is to report the symbol the docstring teaches with and that `--closure` now misses entirely.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the report surface
 
-- [ ] E-03 Render the new section and gate it behind a `--constants` flag that `--all` also enables, following the exact shape `--triples` and `--repo-wide` already use in `main` (an `action="store_true"` argument whose `render` keyword is `args.constants or args.all`). The rendered section must print each divergent name WITH BOTH HOST VALUES, because the value is the whole finding: a reader who learns only that `FULL_AUTO_ACTOR` diverges still cannot tell which host will be misattributed. Carry the same READ-DO-NOT-RULE framing the `--repo-wide` section carries: a host-VARYING constant is frequently CORRECT (`DEPENDENCY_BLOCK_RECOVERY_HINT` names each host's own re-queue command and `FULL_AUTO_ACTOR` is deliberately per-host via the descriptor), so the section reports a LIFT HAZARD and never a defect, and must say so in its own header rather than leaving a reader to infer it. Add the flag to the `USAGE` block in the module docstring beside the other five.
+- [x] E-03 Render the new section and gate it behind a `--constants` flag that `--all` also enables, following the exact shape `--triples` and `--repo-wide` already use in `main` (an `action="store_true"` argument whose `render` keyword is `args.constants or args.all`). The rendered section must print each divergent name WITH BOTH HOST VALUES, because the value is the whole finding: a reader who learns only that `FULL_AUTO_ACTOR` diverges still cannot tell which host will be misattributed. Carry the same READ-DO-NOT-RULE framing the `--repo-wide` section carries: a host-VARYING constant is frequently CORRECT (`DEPENDENCY_BLOCK_RECOVERY_HINT` names each host's own re-queue command and `FULL_AUTO_ACTOR` is deliberately per-host via the descriptor), so the section reports a LIFT HAZARD and never a defect, and must say so in its own header rather than leaving a reader to infer it. Add the flag to the `USAGE` block in the module docstring beside the other five.
   - Depends on: E-02
   - Expected outcome: `python3 tools/runner_fork_scan.py --constants` prints a constants section naming EVERY divergent name with its per-host values and carrying the read-do-not-rule caveat; `--all` prints it too; the default invocation does not. Do not expect a fixed number of names: at review the set was one name (`FULL_AUTO_ACTOR`), at authoring two (PR-001). The `DEPENDENCY_BLOCK_RECOVERY_HINT` example in this item's prose is RETAINED as the illustration of a legitimately host-varying constant even though it no longer exists in the tree (F-14), because the reasoning it carries about why the section reports a hazard rather than a defect is unaffected; `FULL_AUTO_ACTOR` is the live example.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Correct the module docstring's account of the limitation, which this plan makes false in one direction and sharpens in another. The docstring currently presents `--closure` as the answer to the name-matching hazard ("that is why `--closure` exists ... READ THE CLOSURE REPORT BEFORE ACTING ON THE IDENTITY REPORT") and cites `set_plan_approved` plus `FULL_AUTO_ACTOR` as the measured case. Two corrections, both measured and both RE-VERIFIED AT REVIEW: `set_plan_approved` is no longer a listed fork (re-measured, `--triples` lists 8 forks and it is not among them) and `FULL_AUTO_ACTOR` appears in no report section (re-measured, reachable from none of the 8 forks' closures), so the cited example no longer reproduces from the tool's own output; and `--closure` is a PER-FORK view whose constant coverage shrinks as unification succeeds, which is the structural point `--constants` exists to fix. The coverage claim is now EXACT rather than directional: re-measured at review the closure section flags ZERO divergent constants while ground truth has one, so coverage of this defect class has reached zero (F-14). Say the hazard is enumerated by `--constants` without quoting a count, since the count moves. State the hazard, name `--constants` as the complete enumeration and `--closure` as the per-fork view, and keep the `set_plan_approved` history as PAST history (it is the real incident that motivated the tooling) rather than deleting it or presenting it as current state. Change no executable line in this item.
+- [x] E-04 Correct the module docstring's account of the limitation, which this plan makes false in one direction and sharpens in another. The docstring currently presents `--closure` as the answer to the name-matching hazard ("that is why `--closure` exists ... READ THE CLOSURE REPORT BEFORE ACTING ON THE IDENTITY REPORT") and cites `set_plan_approved` plus `FULL_AUTO_ACTOR` as the measured case. Two corrections, both measured and both RE-VERIFIED AT REVIEW: `set_plan_approved` is no longer a listed fork (re-measured, `--triples` lists 8 forks and it is not among them) and `FULL_AUTO_ACTOR` appears in no report section (re-measured, reachable from none of the 8 forks' closures), so the cited example no longer reproduces from the tool's own output; and `--closure` is a PER-FORK view whose constant coverage shrinks as unification succeeds, which is the structural point `--constants` exists to fix. The coverage claim is now EXACT rather than directional: re-measured at review the closure section flags ZERO divergent constants while ground truth has one, so coverage of this defect class has reached zero (F-14). Say the hazard is enumerated by `--constants` without quoting a count, since the count moves. State the hazard, name `--constants` as the complete enumeration and `--closure` as the per-fork view, and keep the `set_plan_approved` history as PAST history (it is the real incident that motivated the tooling) rather than deleting it or presenting it as current state. Change no executable line in this item.
   - Depends on: E-03
   - Expected outcome: The docstring's `--closure` paragraph names `--constants` as the enumerating section, no longer asserts a current-state example that the tool's own output contradicts, and preserves the `set_plan_approved` incident as history.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: behavioral coverage
 
-- [ ] E-05 Add `tests/test_runner_fork_scan_constants.py` covering the new section BEHAVIORALLY, by driving the scanner over FIXTURE modules written into a `tmp_path` tree and pointed at by overriding `package_dir`, never by asserting on `agent_workflows/` source. This file is the scanner's first test of any kind (F-11), so it must establish the pattern rather than extend one. Cover five properties, each with a fixture that isolates it: a host-pair divergent constant is reported with both values; a constant both hosts spell as DIFFERENT references that resolve to the SAME value is reported as AGREEING, which is the false-positive class a source-text comparison gets wrong (demonstrated in F-08, re-demonstrated at review) and is the single property that justifies E-01's resolver over the existing helper; a three-way constant whose shared value matches neither host is reported in the matches-neither list; a constant whose chain cannot be resolved statically is reported in the `unresolved` list rather than in either divergent list; and a module-scope TUPLE-TARGET constant is collected and lands in `unresolved`, which is new code rather than a mirror of `module_index` (F-16) and which the real tree does not exercise.
+- [x] E-05 Add `tests/test_runner_fork_scan_constants.py` covering the new section BEHAVIORALLY, by driving the scanner over FIXTURE modules written into a `tmp_path` tree and pointed at by overriding `package_dir`, never by asserting on `agent_workflows/` source. This file is the scanner's first test of any kind (F-11), so it must establish the pattern rather than extend one. Cover five properties, each with a fixture that isolates it: a host-pair divergent constant is reported with both values; a constant both hosts spell as DIFFERENT references that resolve to the SAME value is reported as AGREEING, which is the false-positive class a source-text comparison gets wrong (demonstrated in F-08, re-demonstrated at review) and is the single property that justifies E-01's resolver over the existing helper; a three-way constant whose shared value matches neither host is reported in the matches-neither list; a constant whose chain cannot be resolved statically is reported in the `unresolved` list rather than in either divergent list; and a module-scope TUPLE-TARGET constant is collected and lands in `unresolved`, which is new code rather than a mirror of `module_index` (F-16) and which the real tree does not exercise.
   THE FIXTURE MECHANISM IS VERIFIED, so this is not a guess: at review I wrote a three-module fixture tree into a temp dir, set `rfs.package_dir` to it, and confirmed `module_tree`, `module_index`, `_value_differs` and `census(None)` all operate over the fixtures rather than the real package (`census` returned `co_defined=0` for a constants-only tree and `co_defined=1, real_forks=['f']` once a co-defined `def` was added). Note `census` calls `repo_wide_sweep`, which globs the fixture dir too, so a minimal tree is fine; and read `data["co_defined"]` as an INT (a count), not a list, which is the shape `census` actually returns. Assert against the `census` dict and against the rendered text for the value-printing requirement. Do NOT assert the real repository's constant census in this file: that is a live-corpus assertion whose numbers move with every lift, and the repository marks exactly that class `livecorpus` for the measured reason that a red live-corpus test blocks integration for every concurrent lane.
   - Depends on: E-04
   - Expected outcome: A new test file whose tests pass, which drives the scanner over fixtures only, and in which reverting E-01's resolver to the source-text comparison turns the same-value-different-reference test RED.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -153,30 +153,212 @@ N/A with reason: no spec governs `tools/runner_fork_scan.py`. No `.spec.md` file
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste a probe transcript that imports the modified `tools/runner_fork_scan.py`, calls the new collector over the three real modules, and prints (a) the count and sorted list of names co-defined in both hosts BESIDE an independently computed `getattr` population re-derived in the lane, and assert the two AGREE; do NOT compare against F-01's 19 names, which were already stale at review (18, PR-001, F-14). Print (b) the resolver's terminal output for both hosts' `FULL_AUTO_ACTOR`, which must be the string literals `'aw oc run --full-auto'` and `'aw agy run --full-auto'`, proving the `HostLabels` field chain was followed and not merely the first `runner_shared.X` hop; that expectation is stable and was re-measured intact at review. Paste also a transcript showing the depth cap returns `None` rather than recursing on a self-referential fixture assignment, and one showing a module-scope TUPLE-TARGET name is collected and lands in `unresolved` (F-16: `module_index` does not handle that shape, so it is new code with no live instance). Paste the `rg -n "runner_fork_scan\.[a-z_]+" tools/lift_drift_scan.py` output showing the four imported primitive names are unchanged from F-10.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Collector count 18 agrees with independent count 18, FULL_AUTO_ACTOR resolves to host strings, depth cap and tuple unpack return None, lift_drift_scan imports unchanged.
+    Probe transcript executing against lane working tree:
+    ```
+    Collector count  : 18
+    Collector names  : ['ACTION_CHOICES', 'ACTION_IMPLEMENTED', 'DEFAULT_RUNBOOK_TEXT', 'DEFAULT_STALL_TIMEOUT', 'EXECUTION_SUCCESS_STATES', 'FULL_AUTO_ACTOR', 'FULL_AUTO_APPROVAL_MESSAGE', 'LANE_PROMPT_TIMEOUT', 'OUTPUT_MODES', 'SUCCESS_STATES', 'TERMINAL_STATES', 'TERMINAL_STATES_CANONICAL', 'TERMINAL_STATUS_ALIASES', '_ID_RE', '_LANE_PROMPT_DISABLED', '_SIGINT_GRACE_SECONDS', '_SIGTERM_GRACE_SECONDS', '_STATUS_RE']
+    Independent count: 18
+    Independent names: ['ACTION_CHOICES', 'ACTION_IMPLEMENTED', 'DEFAULT_RUNBOOK_TEXT', 'DEFAULT_STALL_TIMEOUT', 'EXECUTION_SUCCESS_STATES', 'FULL_AUTO_ACTOR', 'FULL_AUTO_APPROVAL_MESSAGE', 'LANE_PROMPT_TIMEOUT', 'OUTPUT_MODES', 'SUCCESS_STATES', 'TERMINAL_STATES', 'TERMINAL_STATES_CANONICAL', 'TERMINAL_STATUS_ALIASES', '_ID_RE', '_LANE_PROMPT_DISABLED', '_SIGINT_GRACE_SECONDS', '_SIGTERM_GRACE_SECONDS', '_STATUS_RE']
+    AGREE: True
+    getattr divergent count: 1
+    getattr divergent names: ['FULL_AUTO_ACTOR']
+    FULL_AUTO_ACTOR terminal oc : 'aw oc run --full-auto'
+    FULL_AUTO_ACTOR terminal agy: 'aw agy run --full-auto'
+    FULL_AUTO_ACTOR string literals verified!
+    Self-referential assignment with depth cap returned: None
+    Tuple target collected: {'TUP_TARGET_1': None, 'TUP_TARGET_2': None}
+    Tuple target resolved: None
+    ```
+    `rg -n "runner_fork_scan\.[a-z_]+" tools/lift_drift_scan.py`:
+    ```
+    4:Reuses primitives from tools/runner_fork_scan.py to compare pre-lift host bodies at <commit>^
+    32:    return runner_fork_scan.normalize(node)
+    36:    return runner_fork_scan.top_level_defs(tree)
+    40:    return runner_fork_scan.free_names(node)
+    44:    return runner_fork_scan.is_pure_delegation(node)
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Paste the `constants` subtree of `python3 tools/runner_fork_scan.py --json` (for example via a `python3 -c` filter that prints `json.load(...)["constants"]`), showing the three-way matches-neither list is empty, the unresolved list is empty, and each question carries its stated test string. PASTE BESIDE IT the independent `getattr` ground-truth probe re-run in the execution lane and assert the host-pair divergent list EQUALS it, which is the real bar: do NOT expect the literal `['DEPENDENCY_BLOCK_RECOVERY_HINT', 'FULL_AUTO_ACTOR']`, since `DEPENDENCY_BLOCK_RECOVERY_HINT` no longer exists in any of the three modules and ground truth at review was `['FULL_AUTO_ACTOR']` alone (PR-001, F-14). Confirm explicitly that `FULL_AUTO_ACTOR` is present, since reporting it is the plan's whole purpose and `--closure` reports it in no section.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Scanner JSON host_pair_divergent equals ground truth divergent ['FULL_AUTO_ACTOR'], three-way matches neither and unresolved empty.
+    `python3 tools/runner_fork_scan.py --json` constants subtree:
+    ```json
+    {
+      "co_defined": [
+        "ACTION_CHOICES",
+        "ACTION_IMPLEMENTED",
+        "DEFAULT_RUNBOOK_TEXT",
+        "DEFAULT_STALL_TIMEOUT",
+        "EXECUTION_SUCCESS_STATES",
+        "FULL_AUTO_ACTOR",
+        "FULL_AUTO_APPROVAL_MESSAGE",
+        "LANE_PROMPT_TIMEOUT",
+        "OUTPUT_MODES",
+        "SUCCESS_STATES",
+        "TERMINAL_STATES",
+        "TERMINAL_STATES_CANONICAL",
+        "TERMINAL_STATUS_ALIASES",
+        "_ID_RE",
+        "_LANE_PROMPT_DISABLED",
+        "_SIGINT_GRACE_SECONDS",
+        "_SIGTERM_GRACE_SECONDS",
+        "_STATUS_RE"
+      ],
+      "divergent": [
+        "FULL_AUTO_ACTOR"
+      ],
+      "host_pair_divergent": [
+        "FULL_AUTO_ACTOR"
+      ],
+      "host_pair_test": "HOST-PAIR DIVERGENCE: UPPER_CASE constants co-defined in both hosts whose statically resolved values differ",
+      "three_way_matches_neither": [],
+      "three_way_test": "THREE-WAY MATCHES-NEITHER: UPPER_CASE constants co-defined in all three modules whose runner_shared value equals neither host's resolved value",
+      "unresolved": [],
+      "unresolved_test": "UNRESOLVED: UPPER_CASE constants whose value chain could not be resolved statically",
+      "values": {
+        "FULL_AUTO_ACTOR": {
+          "agy": "'aw agy run --full-auto'",
+          "oc": "'aw oc run --full-auto'"
+        }
+      }
+    }
+    ```
+    Independent `getattr` ground-truth probe beside it:
+    ```
+    Ground truth divergent: ['FULL_AUTO_ACTOR']
+    Scanner host_pair_divergent: ['FULL_AUTO_ACTOR']
+    EQUALITY ASSERTION: PASSED (both equal ['FULL_AUTO_ACTOR'])
+    ```
+    Confirmed: `FULL_AUTO_ACTOR` is present in `host_pair_divergent`, `three_way_matches_neither` is `[]`, and `unresolved` is `[]`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: Paste the constants section as printed by `python3 tools/runner_fork_scan.py --constants`, showing EVERY divergent name the lane's ground truth carries, each with BOTH host values rendered, and the read-do-not-rule caveat present in the section header. (At review that is one name, `FULL_AUTO_ACTOR`; do not expect two, PR-001.) Paste the section appearing under `--all`. Paste a `python3 tools/runner_fork_scan.py | rg -c -i constant` (or equivalent) showing the section is ABSENT from the default invocation, so the new flag is opt-in like its siblings. Paste `python3 tools/runner_fork_scan.py --help` showing `--constants` documented.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. --constants renders FULL_AUTO_ACTOR with both host values and read-do-not-rule caveat, --all renders section, default invocation excludes constants.
+    `python3 tools/runner_fork_scan.py --constants`:
+    ```
+    MODULE-LEVEL CONSTANTS (READ, DO NOT RULE: a host-varying constant reports a lift hazard and never a defect; differences are frequently correct by design)
+      HOST-PAIR DIVERGENCE: UPPER_CASE constants co-defined in both hosts whose statically resolved values differ
+      co-defined in both runners   : 18
+      divergent between hosts      : 1
+        FULL_AUTO_ACTOR
+            oc : 'aw oc run --full-auto'
+            agy: 'aw agy run --full-auto'
 
-- [ ] V-04 validates E-04
+      THREE-WAY MATCHES-NEITHER: UPPER_CASE constants co-defined in all three modules whose runner_shared value equals neither host's resolved value
+      matches neither host         : 0
+        none
+    ```
+    Section appearing under `--all`:
+    ```
+    MODULE-LEVEL CONSTANTS (READ, DO NOT RULE: a host-varying constant reports a lift hazard and never a defect; differences are frequently correct by design)
+      HOST-PAIR DIVERGENCE: UPPER_CASE constants co-defined in both hosts whose statically resolved values differ
+      co-defined in both runners   : 18
+      divergent between hosts      : 1
+        FULL_AUTO_ACTOR
+            oc : 'aw oc run --full-auto'
+            agy: 'aw agy run --full-auto'
+
+      THREE-WAY MATCHES-NEITHER: UPPER_CASE constants co-defined in all three modules whose runner_shared value equals neither host's resolved value
+      matches neither host         : 0
+        none
+    ```
+    Default invocation check (absent without flag):
+    `python3 tools/runner_fork_scan.py | rg -c -i constant` exited 1 (0 matches).
+    `python3 tools/runner_fork_scan.py --help` excerpt:
+    ```
+      --constants           module-level constants census and divergence report
+                            between hosts
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Paste the revised docstring paragraph(s) and the revised `USAGE` block. Paste the current-state check that motivated the correction, re-run at the executed HEAD: the probe from F-02 showing `FULL_AUTO_ACTOR` is reachable from no entry in any `real_forks` closure, beside the new `--constants` output showing it IS now reported. State explicitly that the `set_plan_approved` incident is retained as history and quote the sentence that retains it, since E-04 forbids deleting it.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Docstring paragraphs updated, USAGE block updated with --constants, F-02 check confirmed, set_plan_approved retained as history.
+    Revised docstring paragraph:
+    ```
+    WHAT "IDENTICAL" MEANS HERE, precisely. Two co-defined top-level symbols are IDENTICAL when their
+    `ast.unparse` normalizations are equal after docstrings are stripped from every nested scope. That
+    normalization deliberately erases comments, formatting and docstrings, because those are exactly the
+    differences that do not affect behavior. It equally deliberately does NOT erase NAMES, which is the
+    scanner's most important limitation: two bodies that both read `FULL_AUTO_ACTOR` compare EQUAL while
+    resolving to different strings per host. That was measured history in `set_plan_approved` (`"aw oc run
+    --full-auto"` on oc, `"aw agy run --full-auto"` on agy; since unified), where a lift performed on the
+    identity verdict alone would have misattributed every Antigravity auto-approval in permanent plan
+    history. That hazard is enumerated repository-wide by `--constants`, which statically resolves
+    module-level assignments co-defined across both hosts regardless of whether any still-forked def loads
+    them. `--closure` remains the complementary per-fork view, showing which dependencies a specific function
+    pulls in. READ THE CONSTANTS AND CLOSURE REPORTS BEFORE ACTING ON THE IDENTITY REPORT.
+    ```
+    Revised USAGE block:
+    ```
+    USAGE
 
-- [ ] V-05 validates E-05
+        python3 tools/runner_fork_scan.py                  # the census
+        python3 tools/runner_fork_scan.py --closure        # + per-symbol module-level closure
+        python3 tools/runner_fork_scan.py --hazards        # + __file__ / host-token scan
+        python3 tools/runner_fork_scan.py --triples        # + symbols ALSO defined in runner_shared
+        python3 tools/runner_fork_scan.py --constants      # + module-level constants divergence scan
+        python3 tools/runner_fork_scan.py --repo-wide      # + the sweep over ALL agent_workflows/*.py
+        python3 tools/runner_fork_scan.py --all            # every section
+        python3 tools/runner_fork_scan.py --json           # machine-readable
+        python3 tools/runner_fork_scan.py --symbols A B C   # restrict to named symbols
+    ```
+    F-02 check re-run at executed HEAD:
+    ```
+    real_forks count: 7
+    closure reachable names count: 89
+    FULL_AUTO_ACTOR in closure: False
+    Flagged divergent in closure: []
+    Reported by --constants: ['FULL_AUTO_ACTOR']
+    ```
+    Retention of `set_plan_approved` incident as history: Retained verbatim as past history. Quoted sentence:
+    `"That was measured history in set_plan_approved (\"aw oc run --full-auto\" on oc, \"aw agy run --full-auto\" on agy; since unified), where a lift performed on the identity verdict alone would have misattributed every Antigravity auto-approval in permanent plan history."`
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: Paste `python3 -m pytest tests/test_runner_fork_scan_constants.py -o addopts=""` showing all five property tests passing with their counts. Then paste the MUTATION both ways: with E-01's resolver replaced by the source-text comparison, the same-value-different-reference test RED (with the failure text), and restored, GREEN. Paste a bare `python3 -m pytest` summary line and attribute every failure against the baseline YOU measured on a clean tree before editing. The expected bar is GREEN (`3629 passed, 2 skipped` at review, F-15); F-12's date flake is SPENT and must not be cited to excuse a failure (PR-002). Paste `python3 tools/lift_drift_scan.py --help` exiting 0, and the `aw sanitize --agent` result over the changed files.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. tests/test_runner_fork_scan_constants.py passes 5/5, mutation test verified RED and restored GREEN, suite baseline checked, sanitize clean.
+    `python3 -m pytest tests/test_runner_fork_scan_constants.py -o addopts=""`:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=1559747045
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 5 items
+
+    tests/test_runner_fork_scan_constants.py .....                           [100%]
+
+    ============================== 5 passed in 0.11s ===============================
+    ```
+    Mutation demonstration (source-text comparison replacing resolver):
+    ```
+    FAILED tests/test_runner_fork_scan_constants.py::test_same_value_different_reference_not_divergent
+    E       AssertionError: assert ['GREETING'] == []
+    E         Left contains one more item: 'GREETING'
+    ========================= 3 failed, 2 passed in 0.13s ==========================
+    ```
+    Restored (GREEN):
+    ```
+    ============================== 5 passed in 0.11s ===============================
+    ```
+    Suite summary line (baseline measured on clean tree before editing was `2 failed, 4327 passed, 2 skipped, 3 warnings in 481.36s` where the 2 failures `test_verbose_flag_end_to_end_observable_difference` and `test_box_renderer_invariants_across_swept_inputs` passed in isolation `44 passed in 40.84s`):
+    `4332 passed, 2 skipped, 2 failed` (+5 new passing tests from this plan).
+    `python3 tools/lift_drift_scan.py --help` exit 0:
+    ```
+    usage: lift_drift_scan.py [-h] [--exclude SYMBOL [SYMBOL ...]] [commits ...]
+    ```
+    `aw sanitize --agent`:
+    ```
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
