@@ -5,7 +5,7 @@ Validates the close-legitimacy behavior for release-gated backlog items:
 (2) EXECUTED plan -> done allowed (rc 0, item in done/).
 (3) PENDING plan, target graduated from open -> allowed (rc 0).
 (4) SPEC carrier: approved spec refused, implemented spec allowed.
-(5) TWO carriers, one pending and one executed -> allowed.
+(5) TWO carriers, one pending and one executed -> refused (rc 1), both executed -> allowed (rc 0).
 (6) SATISFIED unchanged: pending plan only, --evidence -> allowed, verdict.path is SATISFIED.
 (7) DE-GATED unchanged: pending plan only, --blocks-release - -> allowed.
 (8) SUPERSEDED or NOT-EXECUTED plan as only carrier -> refused.
@@ -398,8 +398,13 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
         done_path = self.repo / ".aw" / "records" / "backlog" / "done" / item_path.name
         self.assertTrue(done_path.exists())
 
-    def test_case_5_two_carriers_pending_and_executed_allowed(self) -> None:
-        """(5) TWO carriers, one pending and one executed -> allowed (rc 0)."""
+    def test_case_5_two_carriers_pending_and_executed_refused(self) -> None:
+        """(5) TWO carriers, one pending and one executed -> refused (rc 1).
+
+        Deliberately reversed by plan 2o5wka (backlog lsbd32, anycarrier Order 1):
+        previously asserted rc 0 allowed under the permissive ANY-carrier rule authored
+        by 2a6phj (OQ-03). Now requires ALL same-gate carriers to be executed.
+        """
         item_path = _write_backlog_item(
             self.repo, "item01", status="graduated", blocks_release="next"
         )
@@ -438,7 +443,204 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
                 ]
             )
 
+        self.assertEqual(rc, 1)
+        self.assertTrue(item_path.exists())
+        done_path = self.repo / ".aw" / "records" / "backlog" / "done" / item_path.name
+        self.assertFalse(done_path.exists())
+        stderr_text = stderr_buf.getvalue()
+        self.assertIn("plan01", stderr_text)
+
+    def test_case_5_two_carriers_both_executed_allowed(self) -> None:
+        """(5b) TWO carriers, BOTH executed -> allowed (rc 0, path HANDOFF)."""
+        item_path = _write_backlog_item(
+            self.repo, "item01", status="graduated", blocks_release="next"
+        )
+        _write_plan(
+            self.repo,
+            "plan01",
+            bucket="executed",
+            status="executed",
+            from_backlog="item01",
+            blocks_release="next",
+        )
+        _write_plan(
+            self.repo,
+            "plan02",
+            bucket="executed",
+            status="executed",
+            from_backlog="item01",
+            blocks_release="next",
+        )
+
+        verdict = check_engine.evaluate_blocking_close(self.repo, item_path, "done")
+        self.assertTrue(verdict.legitimate)
+        self.assertEqual(verdict.path, "HANDOFF")
+
+        stderr_buf = io.StringIO()
+        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
+            io.StringIO()
+        ):
+            rc = cli.main(
+                [
+                    "backlog",
+                    "set",
+                    "item01",
+                    "--status",
+                    "done",
+                    "--dir",
+                    str(self.repo),
+                    "--message",
+                    "close",
+                ]
+            )
+
         self.assertEqual(rc, 0)
+        self.assertFalse(item_path.exists())
+        done_path = self.repo / ".aw" / "records" / "backlog" / "done" / item_path.name
+        self.assertTrue(done_path.exists())
+
+    def test_case_5_three_carriers_two_executed_one_pending_refused(self) -> None:
+        """(5c) THREE carriers, two executed and one pending -> refused (rc 1)."""
+        item_path = _write_backlog_item(
+            self.repo, "item01", status="graduated", blocks_release="next"
+        )
+        _write_plan(
+            self.repo,
+            "plan01",
+            bucket="executed",
+            status="executed",
+            from_backlog="item01",
+            blocks_release="next",
+        )
+        _write_plan(
+            self.repo,
+            "plan02",
+            bucket="executed",
+            status="executed",
+            from_backlog="item01",
+            blocks_release="next",
+        )
+        _write_plan(
+            self.repo,
+            "plan03",
+            bucket="pending",
+            status="approved",
+            from_backlog="item01",
+            blocks_release="next",
+        )
+
+        verdict = check_engine.evaluate_blocking_close(self.repo, item_path, "done")
+        self.assertFalse(verdict.legitimate)
+
+        stderr_buf = io.StringIO()
+        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
+            io.StringIO()
+        ):
+            rc = cli.main(
+                [
+                    "backlog",
+                    "set",
+                    "item01",
+                    "--status",
+                    "done",
+                    "--dir",
+                    str(self.repo),
+                    "--message",
+                    "close",
+                ]
+            )
+
+        self.assertEqual(rc, 1)
+        self.assertTrue(item_path.exists())
+        done_path = self.repo / ".aw" / "records" / "backlog" / "done" / item_path.name
+        self.assertFalse(done_path.exists())
+        self.assertIn("plan03", stderr_buf.getvalue())
+
+    def test_case_5_mixed_kind_carriers_plan_and_spec(self) -> None:
+        """(5d) MIXED-KIND carriers: executed plan + approved spec -> refused (rc 1); implemented spec -> allowed (rc 0)."""
+        item_path = _write_backlog_item(
+            self.repo, "item01", status="graduated", blocks_release="next"
+        )
+        _write_plan(
+            self.repo,
+            "plan01",
+            bucket="executed",
+            status="executed",
+            from_backlog="item01",
+            blocks_release="next",
+        )
+        spec_path = _write_spec(
+            self.repo,
+            "spec01",
+            subdir="approved",
+            status="approved",
+            from_backlog="item01",
+            blocks_release="next",
+        )
+
+        # Part 1: approved spec (not implemented) -> refused
+        verdict = check_engine.evaluate_blocking_close(self.repo, item_path, "done")
+        self.assertFalse(verdict.legitimate)
+
+        stderr_buf = io.StringIO()
+        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
+            io.StringIO()
+        ):
+            rc = cli.main(
+                [
+                    "backlog",
+                    "set",
+                    "item01",
+                    "--status",
+                    "done",
+                    "--dir",
+                    str(self.repo),
+                    "--message",
+                    "close",
+                ]
+            )
+        self.assertEqual(rc, 1)
+        self.assertTrue(item_path.exists())
+        self.assertIn("spec01", stderr_buf.getvalue())
+
+        # Part 2: update spec to implemented -> allowed
+        imp_dir = self.repo / ".aw" / "records" / "specs" / "implemented"
+        new_spec_path = imp_dir / spec_path.name
+        spec_content = spec_path.read_text(encoding="utf-8").replace(
+            "- Status: approved", "- Status: implemented"
+        )
+        spec_path.unlink()
+        new_spec_path.write_text(spec_content, encoding="utf-8")
+        subprocess.run(["git", "rm", str(spec_path)], cwd=self.repo, check=True)
+        subprocess.run(["git", "add", str(new_spec_path)], cwd=self.repo, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "implement spec01", "-q"],
+            cwd=self.repo,
+            check=True,
+        )
+
+        verdict2 = check_engine.evaluate_blocking_close(self.repo, item_path, "done")
+        self.assertTrue(verdict2.legitimate)
+        self.assertEqual(verdict2.path, "HANDOFF")
+
+        stderr_buf2 = io.StringIO()
+        with contextlib.redirect_stderr(stderr_buf2), contextlib.redirect_stdout(
+            io.StringIO()
+        ):
+            rc2 = cli.main(
+                [
+                    "backlog",
+                    "set",
+                    "item01",
+                    "--status",
+                    "done",
+                    "--dir",
+                    str(self.repo),
+                    "--message",
+                    "close",
+                ]
+            )
+        self.assertEqual(rc2, 0)
         self.assertFalse(item_path.exists())
         done_path = self.repo / ".aw" / "records" / "backlog" / "done" / item_path.name
         self.assertTrue(done_path.exists())

@@ -1,5 +1,5 @@
 - Id: lsbd32
-- Status: graduated
+- Status: done
 - Graduated-To: anycarrier
 - Blocks-Release: next
 - Set: anycarrier
@@ -8,6 +8,7 @@
 - Summary: The shared close predicate's HANDOFF arm closes on ANY executed carrier while the runner requires ALL of them, so the two disagree in one tree
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): closed by aw oc run: IPD 2o5wka executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-anycarrier-01-2o5wka-make-the-handoff-arm-require-every-same-gate-carrier-execute.ipd.md); evidence .aw/records/plans/executed/20260929-anycarrier-01-2o5wka-make-the-handoff-arm-require-every-same-gate-carrier-execute.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260929T021205Z-3914774: 2o5wka
 - 2026-09-28 created (aw backlog): The shared close predicate's HANDOFF arm closes on ANY executed carrier while the runner requires ALL of them, so the two disagree in one tree
 

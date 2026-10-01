@@ -987,6 +987,102 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
             self.assertIn("aw backlog set bug001 --status done", warns2[0].detail)
             self.assertNotIn("set done bug001", warns2[0].detail)
 
+    def test_release_gate_warnings_multi_carrier_all_executed_remedy(self) -> None:
+        """anycarrier 2o5wka E-05: orphaned-live-blocker warning requires ALL same-gate carriers executed for done remedy."""
+        with TemporaryDirectory() as tmp:
+            repo = _create_minimal_repo(Path(tmp))
+            bug_file = (
+                repo
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "open"
+                / "20260920-bug001-01-bug001-test-defect.backlog.md"
+            )
+            bug_file.write_text(
+                "- Id: bug001\n"
+                "- Status: open\n"
+                "- Blocks-Release: next\n"
+                "- Set: bug001\n"
+                "- Priority: medium\n"
+                "- Work-Kind: bug\n"
+                "- Summary: Gated bug\n",
+                encoding="utf-8",
+            )
+            exec_plan = (
+                repo
+                / ".aw"
+                / "records"
+                / "plans"
+                / "executed"
+                / "20260920-plan01-01-plan01-fix-bug.ipd.md"
+            )
+            exec_plan.write_text(
+                "# IPD: Fix bug 1\n\n"
+                "- Id: plan01\n"
+                "- Status: executed\n"
+                "- From-Backlog: bug001\n"
+                "- Blocks-Release: next\n"
+                "- Set: plan01\n"
+                "- Scope: Fix\n"
+                "- Scope-Paths: foo.py\n",
+                encoding="utf-8",
+            )
+            pend_plan = (
+                repo
+                / ".aw"
+                / "records"
+                / "plans"
+                / "pending"
+                / "20260920-plan02-01-plan02-fix-bug.ipd.md"
+            )
+            pend_plan.write_text(
+                "# IPD: Fix bug 2\n\n"
+                "- Id: plan02\n"
+                "- Status: approved\n"
+                "- From-Backlog: bug001\n"
+                "- Blocks-Release: next\n"
+                "- Set: plan02\n"
+                "- Scope: Fix\n"
+                "- Scope-Paths: bar.py\n",
+                encoding="utf-8",
+            )
+
+            # 1. Mixed executed + pending plans: advises graduated, NOT done
+            warns = check_engine.release_gate_warnings(repo)
+            self.assertEqual(len(warns), 1)
+            self.assertEqual(warns[0].rule, "check.orphaned-live-blocker")
+            self.assertIn(
+                "Fix: aw backlog set bug001 --status graduated", warns[0].detail
+            )
+            self.assertNotIn("--status done", warns[0].detail)
+
+            # 2. Both executed plans: advises done
+            pend_plan.unlink()
+            exec_plan2 = (
+                repo
+                / ".aw"
+                / "records"
+                / "plans"
+                / "executed"
+                / "20260920-plan02-01-plan02-fix-bug.ipd.md"
+            )
+            exec_plan2.write_text(
+                "# IPD: Fix bug 2\n\n"
+                "- Id: plan02\n"
+                "- Status: executed\n"
+                "- From-Backlog: bug001\n"
+                "- Blocks-Release: next\n"
+                "- Set: plan02\n"
+                "- Scope: Fix\n"
+                "- Scope-Paths: bar.py\n",
+                encoding="utf-8",
+            )
+            warns2 = check_engine.release_gate_warnings(repo)
+            self.assertEqual(len(warns2), 1)
+            self.assertEqual(warns2[0].rule, "check.orphaned-live-blocker")
+            self.assertIn("Fix: aw backlog set bug001 --status done", warns2[0].detail)
+
     def test_from_backlog_sentinels_treated_as_absent(self) -> None:
         """E-05: -, none, unresolved on From-Backlog are treated as absent across all readers."""
         for sentinel in ("-", "none", "unresolved"):

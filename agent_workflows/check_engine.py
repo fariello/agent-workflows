@@ -4432,7 +4432,7 @@ def evaluate_blocking_close(
 
     Transitions:
       -> done   : LEGITIMATE iff one of
-                    HANDOFF  - an executed plan or implemented spec carrying `From-Backlog: <this id6>` AND the same `Blocks-Release` (maintainer ruling 2026-09-26, backlog rwhbci, closescope 2a6phj)
+                    HANDOFF  - EVERY same-gate carrier (From-Backlog plan or spec with the same Blocks-Release) is executed/implemented, matching runner_shared.evaluate_backlog_close (backlog lsbd32, plan 2o5wka)
                     SATISFIED- a resolvable `evidence` artifact citation
                     DE-GATED - the (post-mutation) item no longer carries Blocks-Release
                   else ILLEGITIMATE (severity error, fail-closed).
@@ -4457,10 +4457,10 @@ def evaluate_blocking_close(
             return CloseVerdict(
                 True, "ok", "no release gate to preserve", (), "DE-GATED"
             )
-        # HANDOFF: an EXECUTED From-Backlog PLAN or IMPLEMENTED SPEC with the SAME Blocks-Release inherited the gate.
-        # Maintainer ruling 2026-09-26 (OQ-01, backlog rwhbci, closescope 2a6phj): require an executed carrier.
-        # bklgrad Order 01 (v58bvy) E-06: this scanned plans only, which made a spec-first graduation
-        # unclosable by construction even though a spec preserves the gate identically.
+        # HANDOFF: EVERY From-Backlog PLAN or SPEC with the SAME Blocks-Release must be EXECUTED/IMPLEMENTED.
+        # Maintainer ruling 2026-09-26 (OQ-01, backlog rwhbci, closescope 2a6phj), tightened by
+        # anycarrier Order 1 (2o5wka, backlog lsbd32) to require all same-gate carriers executed,
+        # converging onto runner_shared.evaluate_backlog_close.
         same_gate_carriers: List[Path] = []
         if item_id6:
             release_cache: Dict[str, Optional[Path]] = {}
@@ -4469,14 +4469,16 @@ def evaluate_blocking_close(
                     repo_root, carrier_br, blocks_release, cache=release_cache
                 ):
                     same_gate_carriers.append(_p)
-                    if _carrier_is_executed(_p):
-                        return CloseVerdict(
-                            True,
-                            "ok",
-                            f"gate {blocks_release!r} handed off to a From-Backlog plan or spec",
-                            (),
-                            "HANDOFF",
-                        )
+            if same_gate_carriers and all(
+                _carrier_is_executed(_c) for _c in same_gate_carriers
+            ):
+                return CloseVerdict(
+                    True,
+                    "ok",
+                    f"gate {blocks_release!r} handed off to a From-Backlog plan or spec",
+                    (),
+                    "HANDOFF",
+                )
         # SATISFIED: a resolvable evidence artifact citation.
         if evidence and resolve_evidence_artifact(repo_root, evidence):
             return CloseVerdict(
@@ -4954,7 +4956,7 @@ def release_gate_warnings(repo_root: Path) -> List[_core.Drift]:
     # Note: this index is PLANS-ONLY (_iter_plan_ipds plus From-Backlog), so a spec
     # carrier produces no warning here. This asymmetry is deliberate (E-05): the predicate
     # is spec-aware, but widening this advisory is a separate behavior change.
-    # We record whether at least one same-gate plan is executed (closescope 2a6phj E-05).
+    # We record whether ALL same-gate plans are executed (closescope 2a6phj E-05, anycarrier 2o5wka E-05).
     plan_gates_by_backlog: Dict[str, Dict[str, bool]] = {}
     for _p, text in _iter_plan_ipds(repo_root):
         backlog_id = _from_backlog_value(text)
@@ -4964,7 +4966,7 @@ def release_gate_warnings(repo_root: Path) -> List[_core.Drift]:
         gate = mbr.group(1) if mbr else ""
         is_exec = _carrier_is_executed(_p)
         gates_map = plan_gates_by_backlog.setdefault(backlog_id, {})
-        gates_map[gate] = gates_map.get(gate, False) or is_exec
+        gates_map[gate] = gates_map.get(gate, True) and is_exec
 
     warnings: List[_core.Drift] = []
     for f in _backlog._iter_items(repo_root):
