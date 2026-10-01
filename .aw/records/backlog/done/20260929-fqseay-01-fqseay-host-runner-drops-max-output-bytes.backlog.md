@@ -1,5 +1,5 @@
 - Id: fqseay
-- Status: graduated
+- Status: done
 - Graduated-To: fqseay
 - Blocks-Release: next
 - Set: fqseay
@@ -8,6 +8,7 @@
 - Summary: run_worker_process silently ignores TaskPacket.max_output_bytes, so a worker's output bound is unenforced
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw agy run: IPD egywai executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-fqseay-01-egywai-enforce-taskpacket-max-output-bytes-in-run-worker-process-so.ipd.md); evidence .aw/records/plans/executed/20260930-fqseay-01-egywai-enforce-taskpacket-max-output-bytes-in-run-worker-process-so.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: egywai
 - 2026-09-29 created (aw backlog): run_worker_process silently ignores TaskPacket.max_output_bytes, so a worker's output bound is unenforced
 

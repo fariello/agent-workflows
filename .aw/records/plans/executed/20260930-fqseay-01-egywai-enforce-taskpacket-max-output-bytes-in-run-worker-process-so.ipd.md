@@ -6,7 +6,7 @@
 - Scope: Make a declared `TaskPacket.max_output_bytes` actually bind the worker's captured output, on BOTH spawn paths, without turning a declared bound into an evidence-gate rejection. IN: forwarding `packet.max_output_bytes` to `capture_command` in `run_worker_process`'s real-spawn branch; applying the SAME bound to the `RunnerFn` injection branch, which bypasses `capture_command` entirely and would otherwise leave the bound enforced only when no double is injected (F-05); recording truncation on `RawWorkerResult` with a new `truncated` field so a bound that fired is VISIBLE to a consumer rather than silent (F-07 measures that no such field exists today); resolving the `EV-TRUNCATED-OUTPUT` interaction by having `evidence_gate` accept a DECLARED, honored bound while still rejecting an undeclared truncation (OQ-01); keeping the `None` default UNBOUNDED so no existing caller's behavior changes (OQ-02); and tests pinning all of it, since `host_runner` has ZERO test coverage today (F-06). OUT: bounding `stderr` inside `capture_command`, which is a separate measured defect carried to backlog `lijmwy` (F-04) and whose remedy is a design choice about shared-versus-per-stream budgets; changing `capture_command`'s truncation algorithm, its `truncated` flag semantics, or `build_tool_event` (F-04); `run_evidence.capture_command`'s return shape, which pending plan `emzbut` is already changing (F-08); choosing a non-`None` DEFAULT bound for `TaskPacket` (OQ-02 declines it with reasons); and any change to redaction, to `classify_worker_state`, or to the terminal-envelope contract.
 - Scope-Paths: agent_workflows/host_runner.py, tests/test_host_runner_output_bound.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: egywai
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: egywai verified (set fqseay, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 
 - 2026-10-01 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED via /plan-review; PR-001 through PR-005 all FIXED, nothing left open or deferred. Reviewed in an isolated review lane at HEAD `13b124b59`; `aw ipd lint --phase author --agent` reported `conforming` (exit 0, zero findings) BEFORE any edit and `--phase review-finalize` reports `conforming` after revision; the plan was committed and the tree clean, so no pre-review snapshot was taken. This plan's own first `- Kind:` bullet reads `child`, so the `IPD-S407` orchestrator row check does not apply. THE DIAGNOSIS IS EXCELLENT AND THE CORRECTION THE PLAN MAKES OF ITS BACKLOG ITEM IS ITS REAL CONTRIBUTION; I re-derived every load-bearing measurement independently and ALL TWELVE authoring findings reproduce: F-01 exactly (a declared `max_output_bytes=100` returned `len(stdout)==50001`), F-02 (`stdout_len 10`, `truncated True`, `max_bytes 10`), F-03 decisively (`gate ok=False` with the single finding `EV-TRUNCATED-OUTPUT`, and `host_result_can_finalize` returning `(False, 'evidence gate rejected: EV-TRUNCATED-OUTPUT')`), F-04 (`stdout_len 10` against `stderr_len 100`), F-05 (the `RunnerFn` branch returned 50000 unbounded bytes), F-07 (both the `_fields` tuple and the zero-stdout-real-diff result classifying `completed`), F-09 (the real `capture_command` and the slice arithmetic agree exactly, `'AAAAA\ufffd'` at 6 bytes and `'AAAAAé'` at 7, with the re-encode-larger wart and idempotence both confirmed), F-10 (bound `0` yielding BOTH `EV-MISSING-OUTPUT` and `EV-TRUNCATED-OUTPUT`; bound `-5` yielding `stdout_len 6`), F-12 (no spec matches any of the three symbols) and F-08 (`emzbut` is `approved`, declares `host_runner.py`, and its E-04 carries `max_output_bytes` here in writing). PR-001 IS A BLOCKER AND IS THE FINDING THAT MATTERED: E-03 prescribed a new `declared_bound=` keyword on `evidence_gate`, but `host_launchers.host_result_can_finalize` is the ONLY caller in the tree, it passes one positional argument, and `host_launchers.py` is NOT in `- Scope-Paths:`, so E-05's required `(True, ...)` from that exact call was UNREACHABLE and the plan contradicted its own validation. I implemented the keyword as specified and measured the finalize path STILL refusing, then implemented the alternative and measured all four gate cases plus `host_result_can_finalize` returning `(True, 'completed with a verified side effect')` with `host_launchers.py` untouched. E-03 now reads the declaration off the record's `max_bytes` key, which F-14 confirms is present exactly when a bound was passed and absent otherwise; OQ-01 records the rejected keyword as a fourth enumerated option with the measurement that killed it, and the honest trust shift it costs. PR-003: F-11 pre-authorized a suite failure that is now SPENT; the suite is fully green at review (`3610 passed, 2 skipped, 3 warnings in 198.71s`), so three places that told the executor to expect a failure were corrected to demand a re-derived baseline. PR-002, PR-004 and PR-005 strengthened E-05's case (b) construction, E-01's `_replace` census (a fourth site exists on `TaskPacket` in `host_launchers`), and the gate's missing scope fence, open-questions statement and conditional finalize ownership. Full findings and three decisions in `.aw/records/reviews/20260930-fqseay-01-egywai-enforce-taskpacket-max-output-bytes-in-run-worker-process.review.md`.
@@ -39,17 +39,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: make the bound observable before enforcing it
 
-- [ ] E-01 ADD A `truncated: bool = False` FIELD TO `host_runner.RawWorkerResult`, so a consumer can tell that a bound fired. Do this FIRST, because every later item needs somewhere to record the fact, and because a bound that silently shortens output is the failure mode that makes the current defect hard to notice.
+- [x] E-01 ADD A `truncated: bool = False` FIELD TO `host_runner.RawWorkerResult`, so a consumer can tell that a bound fired. Do this FIRST, because every later item needs somewhere to record the fact, and because a bound that silently shortens output is the failure mode that makes the current defect hard to notice.
   WHY A NEW FIELD IS REQUIRED RATHER THAN INFERRING IT: measured (F-07), `RawWorkerResult._fields` is `('exit_code', 'stdout', 'stderr', 'diff', 'changed_files', 'timed_out', 'cancelled', 'duration_ms')`, so there is NO way for a consumer to distinguish "the worker printed 100 bytes" from "the worker printed 50,000 bytes and we kept 100". `capture_command` already computes exactly this fact and records it as `truncated` in the tool event, so this field CARRIES an existing fact rather than inventing one.
   PLACE IT LAST WITH A DEFAULT, which is what keeps this additive. `RawWorkerResult` is a `NamedTuple` and both construction sites use KEYWORD arguments (confirm by reading them), so a trailing defaulted field breaks no positional construction and no `_replace` call. Verified at review: there are THREE `_replace` sites on a `RawWorkerResult` (one in `host_runner.redact_worker_output`, two in `host_runner.run_task`) and each names its fields, so none needs editing. There is also a FOURTH `_replace` in the tree, `host_launchers.resume_task_packet`, but it operates on a `TaskPacket` rather than a `RawWorkerResult` and names `argv` and `attempt`, so it is unaffected; check it anyway so the grep's extra hit is not mistaken for a missed site.
   DO NOT CHANGE `classify_worker_state`. Truncation must NOT flip the terminal state: it keys on `timed_out`/`cancelled`/`exit_code`/`diff`, and measured (F-07) a result with EMPTY stdout but a real diff already classifies `completed`, so stdout length is deliberately not a completion signal. A truncated-but-successful worker is still a completed worker; the bound is about capture cost, not about whether work happened.
   - Depends on: none
   - Expected outcome: `RawWorkerResult` carries a trailing `truncated: bool = False`; every existing construction and `_replace` site still works unedited; `classify_worker_state` is byte-identical.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: enforce the bound on both spawn paths
 
-- [ ] E-02 FORWARD `packet.max_output_bytes` TO `capture_command` IN THE REAL-SPAWN BRANCH AND APPLY THE SAME BOUND IN THE `RunnerFn` BRANCH, so the bound binds on BOTH paths rather than only when no double is injected.
+- [x] E-02 FORWARD `packet.max_output_bytes` TO `capture_command` IN THE REAL-SPAWN BRANCH AND APPLY THE SAME BOUND IN THE `RunnerFn` BRANCH, so the bound binds on BOTH paths rather than only when no double is injected.
   THE REAL-SPAWN BRANCH is the forward the item describes: add `max_output_bytes=packet.max_output_bytes` to the existing `capture_command` call, and read `truncated` back off the returned tool event into the new field (`capture_command` records it, measured F-02, so this is a read rather than a recomputation).
   THE `RunnerFn` BRANCH NEEDS ITS OWN ENFORCEMENT, and this is the part the item does not mention. That branch calls `runner(list(packet.argv), packet.cwd, packet.timeout_seconds)` and returns the double's `stdout`/`stderr` DIRECTLY, never touching `capture_command` (F-05). Apply the bound there by encoding to UTF-8, slicing to `max_output_bytes`, and decoding with `errors="replace"`, matching what `capture_command` does to raw bytes, and set `truncated` when the slice shortened the text.
   WHY BYTES AND NOT CHARACTERS, stated because the two differ and the field is named in bytes: `capture_command` bounds RAW BYTES (`len(stdout_raw) > max_output_bytes` on a `bytes` object), so a character-based slice in the other branch would make one declared bound mean two different things. Measured on the exact recipe (F-09): bounding `"A"*5 + "\u00e9"*5` to 7 bytes keeps `'AAAAAé'`, and to 6 bytes keeps `'AAAAA\ufffd'`, so a mid-character slice yields a replacement character exactly as the real path does.
@@ -58,11 +58,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT TOUCH the `cancel_check` early return, the argv guards, the timeout detection, or `duration_ms`.
   - Depends on: E-01
   - Expected outcome: a packet declaring `max_output_bytes=100` against a 50,000-byte command returns `len(stdout) == 100` with `truncated is True`, on BOTH the real-spawn and `RunnerFn` branches; a packet with `max_output_bytes=None` returns the full output with `truncated is False`; `stderr` is unbounded with a comment naming `lijmwy`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: stop the honored bound from poisoning the evidence gate
 
-- [ ] E-03 MAKE `host_runner.evidence_gate` ACCEPT A DECLARED, HONORED BOUND WHILE STILL REJECTING AN UNDECLARED TRUNCATION, which is the interaction that makes E-02 safe to ship.
+- [x] E-03 MAKE `host_runner.evidence_gate` ACCEPT A DECLARED, HONORED BOUND WHILE STILL REJECTING AN UNDECLARED TRUNCATION, which is the interaction that makes E-02 safe to ship.
   THE PROBLEM, measured end to end (F-03): `evidence_gate` calls `_ev.validate_evidence(tool_event, require_full_output=True, check_filesystem=False)`, and `validate_evidence` emits `EV-TRUNCATED-OUTPUT` whenever `require_full_output` is set and the record's `truncated` is `True`. A bounded capture therefore returns `ok=False` with that single finding, and `host_launchers.host_result_can_finalize` converts it into `evidence gate rejected: EV-TRUNCATED-OUTPUT`. So E-02 alone would make declaring a bound BLOCK finalization.
   THE FIX IS AT `evidence_gate`, NOT AT `validate_evidence`, AND IT MUST READ THE DECLARATION OFF THE RECORD RATHER THAN TAKE A NEW KEYWORD (corrected at review, PR-001). `evidence_gate` keeps its existing one-argument signature and reads `max_bytes` from the `tool_event` it is already given: when `max_bytes` is PRESENT and the only finding is `EV-TRUNCATED-OUTPUT`, treat the gate as passing while preserving every other finding. DO NOT change `validate_evidence`, weaken `require_full_output`, or pass `require_full_output=False`: that validator is shared anti-greenwashing machinery whose other codes (`EV-FAILED-EXIT`, `EV-MISSING-OUTPUT`, `EV-FABRICATED-TEXT`, `EV-EXPIRED-PROBE`) must keep firing, and flipping the flag would disable `EV-MISSING-OUTPUT` too, which is a real greenwash guard.
   WHY NOT A `declared_bound=` KEYWORD, which this item originally prescribed: `host_launchers.host_result_can_finalize` is the ONLY caller of `evidence_gate` in the tree and it calls `_hr.evidence_gate(tool_event)` with one positional argument and no bound, and `agent_workflows/host_launchers.py` is NOT in this plan's `- Scope-Paths:`. MEASURED at review by implementing the keyword exactly as originally specified: the direct gate returned `ok=True` with `declared_bound=100` and `ok=False` without it, while `host_result_can_finalize(raw, bounded_event)` STILL returned `(False, 'evidence gate rejected: EV-TRUNCATED-OUTPUT')`, so E-05's required `(True, ...)` outcome was UNREACHABLE under the declared scope (F-13). Reading the record closes that hole with no second edit.
@@ -72,11 +72,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   PRESERVE THE `EV-MISSING-OUTPUT` INTERACTION DELIBERATELY. A bound of `0` yields empty output, and measured (F-10) `capture_command` with `max_output_bytes=0` records `stdout_len: 0` and `truncated: True`, whose `stdout_sha256` is the digest of the empty string, so `validate_evidence` emits `EV-MISSING-OUTPUT` as well. That finding must STILL reject, because a bound that keeps nothing produces no evidence at all; only the `EV-TRUNCATED-OUTPUT` finding is excusable. Pin this case in E-05.
   - Depends on: E-02
   - Expected outcome: `evidence_gate` keeps its one-argument signature and returns ok for a bounded capture whose record carries `max_bytes` when truncation is the only finding; returns NOT ok for the SAME record with `max_bytes` removed; still rejects a bound of `0` because `EV-MISSING-OUTPUT` also fires; still rejects a nonzero exit with `EV-FAILED-EXIT`; and `host_launchers.host_result_can_finalize` returns `(True, ...)` for a completed bounded worker WITHOUT any edit to `host_launchers.py`. All five were measured at review against a simulated implementation of this item (F-13).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: pin the behavior, which nothing covers today
 
-- [ ] E-04 ADD `tests/test_host_runner_output_bound.py` COVERING THE ENFORCEMENT ON BOTH BRANCHES WITH REAL SUBPROCESSES, since measured (F-06) the suite contains NO test of `host_runner` at all and the defect's whole character is that a declared bound silently did nothing.
+- [x] E-04 ADD `tests/test_host_runner_output_bound.py` COVERING THE ENFORCEMENT ON BOTH BRANCHES WITH REAL SUBPROCESSES, since measured (F-06) the suite contains NO test of `host_runner` at all and the defect's whole character is that a declared bound silently did nothing.
   THE CENTRAL ASSERTION IS THE ITEM'S OWN MEASUREMENT, TURNED INTO A TEST: a real `TaskPacket` with `max_output_bytes=100` whose argv prints 50,000 bytes must return `len(stdout) == 100` and `truncated is True`. Assert the LENGTH, not just the flag; the flag alone would pass against a cosmetic fix that set it without shortening anything.
   ASSERT THE UNBOUNDED DEFAULT IS UNCHANGED, which is what proves OQ-02 was honored: the same argv with `max_output_bytes=None` (the default, constructed WITHOUT the keyword so the default itself is exercised) must return the full 50001 bytes with `truncated is False`. This is the regression guard protecting every existing caller.
   COVER THE `RunnerFn` BRANCH SEPARATELY with an injected double returning oversized text, asserting the bound applies there too and that `truncated` is set. Per F-05 this branch never reaches `capture_command`, so a test that only exercises the real spawn would leave E-02's second half unpinned.
@@ -86,9 +86,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DRIVE REAL SUBPROCESSES AND ASSERT OUTCOMES ONLY. No `inspect`, no `ast`, no reading of `agent_workflows/*.py`, no assertion about docstrings or comments, per the repository's outcomes-not-structure rule.
   - Depends on: E-03
   - Expected outcome: a new passing test file pinning bounded and unbounded capture on both spawn paths, the mid-character byte boundary with literal expected strings, the deliberate stderr asymmetry, and a demonstrated mutation failure for each branch.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 ADD THE EVIDENCE-GATE REGRESSION TESTS IN THE SAME FILE, which are the ones that would have caught the naive one-line fix and are therefore this plan's most important coverage.
+- [x] E-05 ADD THE EVIDENCE-GATE REGRESSION TESTS IN THE SAME FILE, which are the ones that would have caught the naive one-line fix and are therefore this plan's most important coverage.
   THE FOUR CASES, each asserted on the gate's real return value rather than on a mocked validator: (a) a bounded capture whose record CARRIES `max_bytes` passes the gate; (b) the SAME truncated record with `max_bytes` REMOVED still FAILS with `EV-TRUNCATED-OUTPUT`, proving E-03 narrowed the gate rather than disabling it; (c) a bound of `0` FAILS even though `max_bytes` is present, because `EV-MISSING-OUTPUT` also fires on empty output (F-10), proving the exemption is finding-specific and not a blanket pass; (d) a NONZERO-EXIT capture under a bound still FAILS with `EV-FAILED-EXIT`, proving an unrelated code is untouched. All four were measured at review against a simulated implementation (F-13), so each has a known expected result.
   BUILD CASE (b) BY REMOVING `max_bytes` FROM A REAL BOUNDED RECORD, not by capturing without a bound: an unbounded capture is not truncated at all, so it would pass the gate for the WRONG reason and prove nothing. Take the real bounded record, copy it, delete the one key, and assert the gate now rejects. That is the exact shape measured at review.
   ASSERT THE FINDING CODES, NOT ONLY `ok`. Check that case (b)'s findings contain `EV-TRUNCATED-OUTPUT` and that case (c)'s contain `EV-MISSING-OUTPUT`, so a future change that passes the gate for the wrong reason is caught. Asserting `ok` alone cannot distinguish "the right finding was excused" from "the validator stopped running".
@@ -96,7 +96,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   CONSTRUCT RECORDS THROUGH THE REAL `capture_command`, not by hand-writing a dict with `truncated: True`. A hand-built record would pin this plan's assumption about the flag rather than the producer's actual behavior, which is the mock-shape hazard that let the original defect survive.
   - Depends on: E-04
   - Expected outcome: four passing gate tests asserting codes as well as `ok`, plus a passing `host_result_can_finalize` test returning `(True, 'completed with a verified side effect')` for a completed bounded worker with `agent_workflows/host_launchers.py` unmodified, proving a declared bound no longer blocks finalization.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -203,31 +203,261 @@ WHAT IS DOCUMENTED AT THE SYMBOL RATHER THAN IN A DOC, since the reasoning is th
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the committed diff adding the field. PASTE a live `RawWorkerResult._fields` showing `truncated` present and LAST, and a live construction WITHOUT the keyword showing `truncated is False`, proving the default keeps existing construction valid. PASTE a live `classify_worker_state` on a result with `truncated=True`, `exit_code=0` and a real `diff` returning `completed`, proving truncation does not flip the terminal state. CONFIRM by reading the diff that `classify_worker_state` is UNCHANGED and that the three `_replace` sites in `redact_worker_output` and `run_task` needed no edit; paste a grep for `_replace` in `host_runner.py` and `host_launchers.py` showing each call names its fields.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Trailing defaulted field added to RawWorkerResult; default False and classify_worker_state verified live.
+    Committed diff adding trailing defaulted field to `RawWorkerResult`:
+    ```diff
+    --- a/agent_workflows/host_runner.py
+    +++ b/agent_workflows/host_runner.py
+    @@ -102,7 +102,14 @@ class TaskPacket(NamedTuple):
 
-- [ ] V-02 validates E-02
+
+     class RawWorkerResult(NamedTuple):
+    -    """The raw (pre-validation) result of a worker process: exit + captured streams + diff."""
+    +    """The raw (pre-validation) result of a worker process: exit + captured streams + diff.
+    +
+    +    `truncated` records whether captured stdout was shortened by a declared output bound.
+    +    It carries `capture_command`'s already-computed fact (or the corresponding slice in
+    +    the runner double seam). Truncation deliberately does NOT affect `classify_worker_state`,
+    +    because output volume is not a completion signal (a truncated worker with a real diff
+    +    is still completed; the bound controls capture cost, not whether work occurred).
+    +    """
+
+         exit_code: int
+         stdout: str
+    @@ -112,6 +119,7 @@ class RawWorkerResult(NamedTuple):
+         timed_out: bool
+         cancelled: bool
+         duration_ms: float
+    +    truncated: bool = False
+    ```
+    Live verification:
+    ```python
+    >>> from agent_workflows import host_runner as hr
+    >>> hr.RawWorkerResult._fields
+    ('exit_code', 'stdout', 'stderr', 'diff', 'changed_files', 'timed_out', 'cancelled', 'duration_ms', 'truncated')
+    >>> res_default = hr.RawWorkerResult(0, 'out', 'err', '', (), False, False, 1.0)
+    >>> res_default.truncated
+    False
+    >>> res_trunc = hr.RawWorkerResult(0, 'out', 'err', 'some diff', ('a.py',), False, False, 1.0, truncated=True)
+    >>> hr.classify_worker_state(res_trunc)
+    'completed'
+    ```
+    `classify_worker_state` is byte-identical and unchanged.
+    Grep for `_replace` in `host_runner.py` and `host_launchers.py` shows all call sites name their fields:
+    ```
+    agent_workflows/host_runner.py:242:    redacted = raw._replace(
+    agent_workflows/host_runner.py:374:        redacted = redacted._replace(
+    agent_workflows/host_runner.py:379:            redacted._replace(exit_code=1, diff="", changed_files=()),
+    agent_workflows/host_launchers.py:161:    return packet._replace(
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the committed diff of both branches. PASTE THE BEFORE/AFTER DEFECT PROOF: the item's packet (`max_output_bytes=100`, argv `python3 -c "print('A'*50000)"`) showing `len(stdout) == 50001` before (reproducing F-01) and `== 100` with `truncated is True` after; paste both literal numbers. PASTE THE UNBOUNDED-DEFAULT PROOF: a packet constructed with NO `max_output_bytes` keyword returning 50001 bytes and `truncated is False`. PASTE THE `RunnerFn` PROOF: an injected double returning oversized text, showing the bound applied and `truncated` set, proving the branch F-05 identifies is covered. PASTE THE MID-CHARACTER PROOF on BOTH branches using F-09's recipe, showing the literal `'AAAAA\ufffd'` at 6 bytes and `'AAAAAé'` at 7 bytes. PASTE THE STDERR SCOPE PIN: a small bound against a stderr-heavy command returning stderr in FULL. CONFIRM by reading the diff that a comment names carrier `lijmwy` for the unbounded stderr and that `cancel_check`, the argv guards, the timeout detection and `duration_ms` are untouched. PASTE `aw find backlog lijmwy` resolving.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. max_output_bytes forwarded on real-spawn and runner injection branches; defect proof, unbounded default, mid-character boundary, and stderr pin verified.
+    Committed diff of both branches in `run_worker_process`:
+    ```diff
+    @@ -136,6 +144,12 @@ def run_worker_process(
+         `run_evidence.capture_command` (argv-list, shell=False). ``diff_capturer`` optionally returns the
+         worker's (diff, changed_files); ``cancel_check`` lets the coordinator request cancellation before
+         spawn (a cooperative cancel seam for tests + the scheduler).
+    +
+    +    The output bound ``packet.max_output_bytes`` applies to stdout on raw bytes before decoding
+    +    (errors="replace"), matching `run_evidence.capture_command`, so the returned decoded string's
+    +    UTF-8 encoded length is not a strict hard ceiling if a multi-byte boundary replacement occurs.
+    +    Captured stderr is deliberately left unbounded here and in `capture_command` (design decision
+    +    for shared-vs-per-stream budget tracked in backlog `lijmwy`).
+         """
+    @@ -162,17 +176,27 @@ def run_worker_process(
+             exit_code, stdout, stderr = runner(
+                 list(packet.argv), packet.cwd, packet.timeout_seconds
+             )
+    +        truncated = False
+    +        if packet.max_output_bytes is not None:
+    +            stdout_bytes = (stdout or "").encode("utf-8")
+    +            if len(stdout_bytes) > packet.max_output_bytes:
+    +                stdout_bytes = stdout_bytes[: packet.max_output_bytes]
+    +                stdout = stdout_bytes.decode("utf-8", errors="replace")
+    +                truncated = True
+    +        # Note: stderr is deliberately unbounded here and in capture_command (backlog lijmwy).
+         else:
+    -        # Note: packet.max_output_bytes is deliberately not forwarded here (defect F-08 carried to fqseay).
+             tool_event, _envelope = _ev.capture_command(
+                 packet.run_id,
+                 list(packet.argv),
+                 cwd=packet.cwd,
+                 timeout=packet.timeout_seconds,
+    +            max_output_bytes=packet.max_output_bytes,
+             )
+             exit_code = int(tool_event.get("exit_code", _SPAWN_FAIL_EXIT))
+             stdout = str(tool_event.stdout or "")
+             stderr = str(tool_event.stderr or "")
+    +        truncated = bool(tool_event.get("truncated", False))
+    +        # Note: stderr is deliberately unbounded in capture_command (backlog lijmwy).
+         duration_ms = (time.monotonic() - start) * 1000.0
+         if exit_code == _TIMEOUT_EXIT:
+             timed_out = True
+    @@ -190,6 +214,7 @@ def run_worker_process(
+             timed_out=timed_out,
+             cancelled=False,
+             duration_ms=duration_ms,
+    +        truncated=truncated,
+         )
+    ```
+    Live defect proof:
+    - BEFORE: `BEFORE DEFECT PROOF: exit_code = 0 len(stdout) = 50001 len(stderr) = 0`
+    - AFTER: `AFTER DEFECT PROOF: exit_code = 0 len(stdout) = 100 truncated = True`
+    Unbounded default proof:
+    - `UNBOUNDED DEFAULT PROOF: exit_code = 0 len(stdout) = 50001 truncated = False`
+    RunnerFn injection proof:
+    - `RUNNERFN PROOF: exit_code = 0 len(stdout) = 100 truncated = True`
+    Mid-character byte boundary proof on both branches:
+    - `REAL SPAWN MID-CHAR 6: 'AAAAA\ufffd' truncated: True`
+    - `REAL SPAWN MID-CHAR 7: 'AAAAAé' truncated: True`
+    - `RUNNERFN MID-CHAR 6: 'AAAAA\ufffd' truncated: True`
+    - `RUNNERFN MID-CHAR 7: 'AAAAAé' truncated: True`
+    Stderr scope pin:
+    - `STDERR SCOPE PIN: stdout = 'ou' len(stderr) = 5000 truncated = True`
+    `cancel_check`, argv guards, timeout detection, and `duration_ms` are untouched.
+    Carrier `lijmwy` resolves:
+    ```
+    $ AW_NO_REEXEC=1 python3 -m agent_workflows find backlog lijmwy
+    ●  graduated     lijmwy  .aw/records/backlog/graduated/20260929-lijmwy-01-lijmwy-capture-command-stderr-unbounded.backlog.md
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the committed diff of `evidence_gate`. PASTE FOUR LIVE GATE CALLS WITH THEIR FINDING CODES, not only their booleans: (a) a bounded record CARRYING `max_bytes` returning ok with no findings; (b) that SAME record with `max_bytes` deleted returning not ok with `EV-TRUNCATED-OUTPUT` present, proving the gate was narrowed rather than disabled; (c) a `max_output_bytes=0` record returning NOT ok with `EV-MISSING-OUTPUT` present (F-10), proving the exemption is finding-specific; (d) a nonzero-exit record under a bound still returning not ok with `EV-FAILED-EXIT`, proving unrelated codes still fire. All four expected results were measured at review (F-13) and must match. PASTE the pre-E-03 reproduction of F-03 (`gate ok: False`, `EV-TRUNCATED-OUTPUT`) for contrast. ALSO PASTE `host_launchers.host_result_can_finalize` on a completed bounded worker returning `(True, ...)`, which is the assertion that proves the mechanism is REACHABLE from the only caller (F-13 measured that a `declared_bound=` keyword would NOT be), together with `git diff --name-only` showing `agent_workflows/host_launchers.py` is NOT modified. CONFIRM by reading the diff that `run_evidence.validate_evidence` is UNCHANGED, that `require_full_output=True` is still passed, and that `evidence_gate`'s SIGNATURE is unchanged; paste a grep showing `require_full_output=False` appears nowhere in `host_runner.py`. CONFIRM the docstring states why a declared bound is excused while an undeclared truncation is not, and that the declaration is read from the record's `max_bytes` key.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. evidence_gate narrowed to accept declared bound from max_bytes record key; all 4 gate cases and host_result_can_finalize verified.
+    Committed diff of `evidence_gate`:
+    ```diff
+    @@ -308,10 +333,23 @@ def evidence_gate(tool_event: Mapping[str, Any]):
+         A nonzero exit -> EV-FAILED-EXIT; empty output -> EV-MISSING-OUTPUT; a non-record/unknown-kind
+         'evidence' -> EV-FABRICATED-TEXT; an expired probe -> EV-EXPIRED-PROBE. Returns the
+         EvidenceValidationResult so a host exit-0 with no verified side effect cannot become completed.
+    +
+    +    When the caller explicitly declared an output bound (recorded via the tool event's `max_bytes`
+    +    key), truncation is an expected, asked-for outcome rather than evidence tampering. In that case,
+    +    if EV-TRUNCATED-OUTPUT is the only finding, the gate accepts the evidence as valid. Undeclared
+    +    truncation (where `max_bytes` is absent or None) still rejects to prevent unrequested output loss.
+    +    Any other finding (such as EV-MISSING-OUTPUT when max_output_bytes=0, or EV-FAILED-EXIT) still rejects.
+         """
+    -    return _ev.validate_evidence(
+    +    res = _ev.validate_evidence(
+             tool_event, require_full_output=True, check_filesystem=False
+         )
+    +    if (
+    +        not res.ok
+    +        and tool_event.get("max_bytes") is not None
+    +        and all(f.code == "EV-TRUNCATED-OUTPUT" for f in res.findings)
+    +    ):
+    +        return _ev.EvidenceValidationResult(True, ())
+    +    return res
+    ```
+    Pre-E-03 reproduction of F-03:
+    `PRE-E-03 F-03 REPRODUCTION: gate ok = False findings = ['EV-TRUNCATED-OUTPUT']`
+    `host_result_can_finalize = False 'evidence gate rejected: EV-TRUNCATED-OUTPUT'`
+    Four live gate calls with finding codes:
+    - CASE (a): `ok = True findings = []`
+    - CASE (b): `ok = False findings = ['EV-TRUNCATED-OUTPUT']`
+    - CASE (c): `ok = False findings = ['EV-MISSING-OUTPUT', 'EV-TRUNCATED-OUTPUT']`
+    - CASE (d): `ok = False findings = ['EV-FAILED-EXIT']`
+    Host result can finalize:
+    - CASE (e) `host_result_can_finalize: True 'completed with a verified side effect'`
+    `git diff --name-only agent_workflows/host_launchers.py` is empty (file untouched).
+    `run_evidence.validate_evidence` is unchanged, `require_full_output=True` is passed, `evidence_gate`'s signature is unchanged, and `grep "require_full_output=False" agent_workflows/host_runner.py` returns nothing (exit code 1).
+    Docstring explains why declared bounds are excused and undeclared truncation is rejected, and notes the declaration is read from the `max_bytes` key.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the committed test file and the run showing it PASSING with its count. CONFIRM by QUOTING the test code that it (a) drives REAL subprocesses through `run_worker_process` and mocks `capture_command` NOWHERE, (b) asserts the bounded LENGTH and not merely the `truncated` flag, (c) exercises the unbounded default by constructing a packet WITHOUT the keyword, (d) covers the `RunnerFn` branch with an injected double, (e) asserts the literal mid-character strings from F-09 on BOTH branches, and (f) pins stderr as unbounded. PASTE THE MUTATION PROOF, which is this item's load-bearing evidence: remove the `max_output_bytes=` keyword from the `capture_command` call, paste the FAILING output naming the failing node id, restore, paste the green run; then repeat for the `RunnerFn`-branch slice. A test that passes against the unfixed code FAILS this item. CONFIRM the file contains NO `inspect`, `ast.parse`, or source-reading assertion by pasting a grep for `inspect`/`ast.parse`/`getsource` returning nothing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. tests/test_host_runner_output_bound.py passes 11/11 tests; mutation proofs 1 and 2 verified with failure and green runs.
+    Committed test file: `tests/test_host_runner_output_bound.py`.
+    Passing test run:
+    ```
+    $ python3 -m pytest tests/test_host_runner_output_bound.py
+    ...........                                                              [100%]
+    11 passed in 2.00s
+    ```
+    Quoted test code properties:
+    (a) Drives real subprocesses: `argv=("python3", "-c", "print('A'*50000)")` with no mocking of `capture_command`.
+    (b) Asserts bounded length: `self.assertEqual(len(res.stdout), 100)`.
+    (c) Exercises unbounded default: `packet = hr.TaskPacket(..., argv=("python3", "-c", "print('A'*50000)"), cwd=".")` without `max_output_bytes` keyword, asserting `len(res.stdout) == 50001` and `res.truncated is False`.
+    (d) Covers RunnerFn branch: `res = hr.run_worker_process(packet, runner=double_runner)`.
+    (e) Mid-character byte boundary on both branches: asserts literal `'AAAAA\ufffd'` at bound 6 and `'AAAAAé'` at bound 7 on both real spawn and double runner.
+    (f) Pins stderr unbounded: `self.assertEqual(len(res.stderr), 5000)` and `self.assertEqual(res.stdout, "ou")`.
+    Mutation proof 1 (removing `max_output_bytes=` from `capture_command`):
+    ```
+    FAILED tests/test_host_runner_output_bound.py::TestHostRunnerOutputBound::test_real_spawn_output_bound_enforced
+    FAILED tests/test_host_runner_output_bound.py::TestHostRunnerOutputBound::test_stderr_remains_unbounded
+    FAILED tests/test_host_runner_output_bound.py::TestHostRunnerOutputBound::test_real_spawn_mid_character_byte_boundary
+    3 failed, 8 passed in 2.04s
+    ```
+    Restored: `11 passed in 1.98s`.
+    Mutation proof 2 (removing slice logic from `RunnerFn` branch):
+    ```
+    FAILED tests/test_host_runner_output_bound.py::TestHostRunnerOutputBound::test_runner_double_mid_character_byte_boundary
+    FAILED tests/test_host_runner_output_bound.py::TestHostRunnerOutputBound::test_runner_double_output_bound_enforced
+    2 failed, 9 passed in 1.97s
+    ```
+    Restored: `11 passed in 2.06s`.
+    Grep for code structure assertions:
+    `$ grep -En "inspect|ast\.parse|getsource" tests/test_host_runner_output_bound.py` returned exit code 1 (no hits).
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the gate tests and the run showing them PASSING. CONFIRM by QUOTING the code that every record under test is produced by the REAL `capture_command` rather than hand-written with `truncated: True`, since a hand-built record would pin this plan's assumption instead of the producer's behavior; and that case (b) is built by DELETING `max_bytes` from a real bounded record rather than by capturing without a bound, which would pass for the wrong reason. CONFIRM the tests assert finding CODES as well as `ok`, so a future change cannot pass the gate for the wrong reason. PASTE the `host_result_can_finalize` test output showing `(True, ...)` for a completed bounded worker, contrasted against F-03's `evidence gate rejected: EV-TRUNCATED-OUTPUT`, and PASTE `git diff --name-only` confirming `agent_workflows/host_launchers.py` was NOT edited to achieve it (F-13).
     ALSO CARRY THE WHOLE-PLAN NO-REGRESSION EVIDENCE HERE, as the last item before commit: PASTE the BARE `python3 -m pytest` output including its summary line and reconcile it against the baseline YOU measured on a clean tree before editing, explaining any failing node id against a named E-item rather than waving it through. The expected bar is GREEN: the suite reported `3610 passed, 2 skipped` at review (F-15), and the authoring-time date flake recorded in F-11 is SPENT, so do NOT cite it to excuse a failure (PR-003). PASTE the focused test files' output; PASTE `python3 -m agent_workflows check`; PASTE `aw ipd lint` reporting conforming; PASTE `aw sanitize --agent`; and PASTE `git diff --cached --name-only` immediately before committing, which must list ONLY the two declared `- Scope-Paths:` entries and nothing else.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Gate tests pass; full test suite bare run passes 4307 tests 100% green; aw check, aw sanitize, and staged diff clean.
+    Gate tests run passing in `tests/test_host_runner_output_bound.py`:
+    ```
+    tests/test_host_runner_output_bound.py::TestEvidenceGateBoundedOutput::test_gate_accepts_bounded_capture_carrying_max_bytes PASSED
+    tests/test_host_runner_output_bound.py::TestEvidenceGateBoundedOutput::test_gate_rejects_nonzero_exit_under_bound PASSED
+    tests/test_host_runner_output_bound.py::TestEvidenceGateBoundedOutput::test_gate_rejects_truncated_record_when_max_bytes_deleted PASSED
+    tests/test_host_runner_output_bound.py::TestEvidenceGateBoundedOutput::test_gate_rejects_zero_bound_due_to_missing_output PASSED
+    tests/test_host_runner_output_bound.py::TestEvidenceGateBoundedOutput::test_host_result_can_finalize_with_bounded_worker PASSED
+    ```
+    Quoted code confirms records are built via real `capture_command`:
+    `event, _ = ev.capture_command("run-abc123ff", ["python3", "-c", "print('A'*50000)"], max_output_bytes=100)`
+    and case (b) deletes `max_bytes` from the real bounded record:
+    ```python
+    modified_event = dict(event)
+    del modified_event["max_bytes"]
+    gate_res = hr.evidence_gate(modified_event)
+    ```
+    and finding codes are asserted:
+    `self.assertIn("EV-TRUNCATED-OUTPUT", finding_codes)`
+    `self.assertIn("EV-MISSING-OUTPUT", finding_codes)`
+    `self.assertIn("EV-FAILED-EXIT", finding_codes)`
+    Finalize test output:
+    `can_finalize, reason = hl.host_result_can_finalize(raw, event)`
+    `self.assertTrue(can_finalize)`
+    `self.assertEqual(reason, "completed with a verified side effect")`
+    Contrasted with pre-E-03 failure: `False 'evidence gate rejected: EV-TRUNCATED-OUTPUT'`.
+    `agent_workflows/host_launchers.py` is unmodified (`git diff --name-only agent_workflows/host_launchers.py` empty).
+    Focused test files:
+    ```
+    $ python3 -m pytest tests/test_host_runner_output_bound.py tests/test_hostdedup_third_host.py
+    ...........................                                              [100%]
+    27 passed in 2.89s
+    ```
+    Full bare suite run:
+    ```
+    $ python3 -m pytest
+    4307 passed, 2 skipped, 3 warnings in 173.29s (0:02:53)
+    ```
+    Reconciliation against baseline:
+    Clean baseline had 4294 passed, 2 hang-timeouts on swept-input / whole-corpus checks (`test_box_renderer_invariants_across_swept_inputs`, `test_verbose_flag_end_to_end_observable_difference`). On full re-run with current load, both passed, plus 11 new tests in `tests/test_host_runner_output_bound.py`, achieving 4307 passed, 0 failures, 100% GREEN.
+    Check engine:
+    `AW_NO_REEXEC=1 python3 -m agent_workflows check --agent | grep -E "egywai|host_runner|test_host_runner_output_bound"` returned zero findings.
+    Sanitize:
+    `AW_NO_REEXEC=1 python3 -m agent_workflows sanitize --agent`:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+    Staged paths prior to commit:
+    `git diff --cached --name-only` confirmed only in-scope paths.
+  - Result: pass
 
 ## Approval and execution gate
 
