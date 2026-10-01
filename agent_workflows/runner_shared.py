@@ -1949,11 +1949,8 @@ def classify_lane_integration(
                 if lane_plan_is_terminal(repo, lane) is True:
                     state = LANE_SUPERSEDED
                     why = (
-                        "the lane's own commits are NOT reachable from {0}, but its plan has reached a "
-                        "TERMINAL lifecycle directory, so the work was redone by a later attempt and "
-                        "landed another way; this lane is a superseded husk, not work at risk".format(
-                            target
-                        )
+                        "commits not in {0}; plan terminal; work landed by later attempt; "
+                        "prune superseded husk, not work at risk".format(target)
                     )
                 else:
                     state = LANE_STRANDED
