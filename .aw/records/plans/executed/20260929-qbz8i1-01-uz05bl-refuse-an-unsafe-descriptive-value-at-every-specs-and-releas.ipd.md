@@ -6,7 +6,7 @@
 - Scope: Apply the shared `attention_contract.is_safe_descriptive` predicate to every value `aw specs new`, `aw specs set`, `aw specs note` and `aw releases new` write into a record AND does not already validate, refusing BEFORE any file is written, through the refusal shape `specs.run_set` already uses for `--gate-summary`. Bounded descriptive fields (`--title`, `--summary`, `--version`) and the two identifier-shaped front-matter fields review found unguarded (`--blocks-release`, `--from-backlog`, E-07) get the full predicate; history-record messages (`--message`) get LINE INTEGRITY ONLY, unbounded in length, because 60 of 148 committed spec history messages already exceed the 300-character bound (F-09). THE COVERAGE CLAIM IS ENUMERATED, NOT ASSERTED: `--priority` and `--work-kind` are argparse enums that already refuse, `--graduated-to` already has a setid-shape refusal, and `--gate-summary`/`--gate-ref`/`--evidence` already call the predicate at three existing sites, so the guarded set plus the already-validated set is the complete front-matter writer set for these four verbs (F-13). DELIBERATELY NOT COVERED: `--date`, whose defect is a path traversal rather than a descriptive-field violation and which Order 02 owns; and the CHECKER half, which Order 03 owns.
 - Scope-Paths: agent_workflows/specs.py, agent_workflows/releases.py, tests/test_specs_releases_descriptive_safety.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: uz05bl
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: uz05bl verified (set qbz8i1, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 
