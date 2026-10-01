@@ -116,6 +116,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier: 858lhj
 - WIDENING `runs next` AND `runs status` TO THEIR FULL MEASURED REACHABLE SETS (`(0,2,3,5,7)` and `(0,1,2,3,5,7)`). This plan adds only argparse's floor 2 to whatever is still violating; the reachable 5 and 7 are a separate, independently measured correction owned by an APPROVED sibling. E-03 is written so that if that sibling lands first this plan leaves both leaves untouched, and so that it can never narrow them (F-13).
   - Carrier: 69rdv6
+  - Carrier-Evidence: .aw/records/plans/executed/20260930-runsexits-01-69rdv6-declare-runs-next-and-runs-status-by-their-measured-exit-cod.ipd.md
 - DECLARING `oc runipd` AND `agy runipd` AS ADMITTING THE REACHABLE EXIT 3, the other measured-wrong pair in this same inventory. Not a floor violation (both already declare 2), so this plan's gate is silent on them, and a third pending plan already owns the correction together with the user-facing documents that restate the three-state claim.
   - Carrier: u28vqb
 - REVIVING THE DELETED CONFORMANCE DRIVERS (golden-byte, ANSI, fact-parity, budget, accessibility gates), which records the open question of whether the harness's encoded contract is still intended. This plan adds one targeted consumer and corrects the stale docstring (F-08).
