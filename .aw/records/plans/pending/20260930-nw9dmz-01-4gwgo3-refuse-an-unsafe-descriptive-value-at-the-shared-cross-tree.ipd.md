@@ -37,54 +37,54 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: one shared refusal helper, reached rather than re-implemented
 
-- [ ] E-01 Add a module-private refusal helper to `agent_workflows/status_set.py` that judges ONE value and returns the refusal MESSAGE (or `None`), so all five call sites refuse with identical wording. Signature shape: `_refuse_unsafe_descriptive(verb: str, flag: str, value: Optional[str], *, bound_length: bool = True) -> Optional[str]`, returning `None` when `value` is `None` or the applicable check passes.
+- [x] E-01 Add a module-private refusal helper to `agent_workflows/status_set.py` that judges ONE value and returns the refusal MESSAGE (or `None`), so all five call sites refuse with identical wording. Signature shape: `_refuse_unsafe_descriptive(verb: str, flag: str, value: Optional[str], *, bound_length: bool = True) -> Optional[str]`, returning `None` when `value` is `None` or the applicable check passes.
   DO NOT WRITE A THIRD IMPLEMENTATION OF THE CONDITIONS. `backlog._refuse_unsafe_descriptive` already ships this exact helper with this exact signature (executed plan `dtg7dz`), and plan `uz05bl` E-01 adds a second copy in `specs.py` whose wording it requires be kept byte-compatible with the sibling. DELEGATE to the backlog sibling (`from agent_workflows import backlog as _backlog` at the call site, matching how this module ALREADY reaches `backlog.validate_release_exempt_flags` for the release-exemption refusal) rather than copying thirty lines a third time. THE DELEGATION IS CONFIRMED VIABLE AND THE FALLBACK SHOULD NOT FIRE (F-12, added at review): `status_set` ALREADY imports `backlog` at module level and lazily in five separate places, and importing both together raises nothing, so there is no cycle to hit. If the executor nonetheless finds one, port the sibling's body VERBATIM, say so in the V-01 evidence, AND state what the cycle was (an unexplained port is a V-01 failure, because F-12 measured that no cycle exists today and a silent port would hide a real change in the import graph). Do not invent a new construction, and in particular do not use the slice-only form plan `uz05bl` measured as unsound (it accepts a control character past character 300, which is reachable because real messages run to 5667 characters here).
   THIS IS THE THIRD CONSUMER OQ-02 NAMED, AND THE HOIST IS STILL DECLINED: see OQ-02 below for why delegating to the sibling discharges the intent without the edit that OQ-02 was protecting against.
   - Depends on: none
   - Expected outcome: a helper importable as `status_set._refuse_unsafe_descriptive` that, with the default `bound_length=True`, returns `None` for `"ok"` and for `None`, a message mentioning `newline` for `"a\nb"`, `control` for `"a\x07b"`, and both `300` and `340` for a 340-character value; and with `bound_length=False` returns `None` for that same 340-character value and for a 1200-character one, while still returning the `newline` and `control` messages, INCLUDING the `control` message for `"a"*500 + "\x07" + "b"`. Verified against the real sibling in this lane: `backlog._refuse_unsafe_descriptive("v", "--message", "a"*500 + "\x07" + "b", bound_length=False)` returns `'v: --message must not contain control characters'`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: apply it at the one dispatch, before anything is resolved or written
 
-- [ ] E-02 Apply the helper to `--message` and `--actor` in `run_set_command`, in LINE-INTEGRITY mode (`bound_length=False`) for `--message` and BOUNDED mode for `--actor`, placed in the EXISTING pre-resolution guard block near the top of the function (beside the `--graduated-to`, `--from-spec` and release-exemption refusals that already sit there) and therefore BEFORE `inventory_all_artifacts`, so a refused call resolves no artifact and touches no file. Refuse through `term.status("fail", ...)` and `return 2`, matching every neighbouring refusal in that block.
+- [x] E-02 Apply the helper to `--message` and `--actor` in `run_set_command`, in LINE-INTEGRITY mode (`bound_length=False`) for `--message` and BOUNDED mode for `--actor`, placed in the EXISTING pre-resolution guard block near the top of the function (beside the `--graduated-to`, `--from-spec` and release-exemption refusals that already sit there) and therefore BEFORE `inventory_all_artifacts`, so a refused call resolves no artifact and touches no file. Refuse through `term.status("fail", ...)` and `return 2`, matching every neighbouring refusal in that block.
   THE MODE ASYMMETRY IS MEASURED, NOT STYLISTIC. Re-derived over committed `## Workflow history` records at authoring and again INDEPENDENTLY at review: plans 39.1% then 40.1% over 300 characters (max 5667 both times), backlog 33.2% then 33.1% (max 4849), specs 41.2% then 41.8% (max 2594). So a length bound on `--message` would refuse roughly two fifths of the setter's own historical output. ZERO messages contain a control character in either measurement (0 of 6889, then 0 of 7427), which is what makes the line-integrity half refuse nothing legitimate. Treat the RATIO as the fact and not the count: these populations grow with every merged lane (F-10). `--actor` by contrast is bounded: it is a short identity token, and `attention_contract.actor_refusal` already refuses an empty or parenthesis-bearing actor, so bounding it adds no new policy.
   THE ACTOR GUARD IS A REAL VECTOR, NOT SYMMETRY FOR ITS OWN SAKE. Measured: `aw set parked <id6> --actor $'bot\n- 2026-09-30 approved: hi' --message ok` exits 0 and writes `- 2026-10-01 parked (bot` followed by `- 2026-09-30 approved: hi): ok`, forging a dated record. `actor_refusal` does NOT catch it, because its two refusals are emptiness and parentheses only; the newline passes both. Reach `actor_refusal` as it stands and ADD the line-integrity judgement beside it; do not widen `actor_refusal` itself, whose callers include `apply_status_change`'s backstop raise.
   - Depends on: E-01
   - Expected outcome: `aw backlog set parked <id6> --message $'note\n- 2026-09-30 approved (aw backlog, --by-human): looks good to me'` exits 2 leaving the item byte-identical by sha256, where before it exited 0 and wrote that forged `--by-human` record at zero `validate_item` drift with `aw backlog check --agent` reporting `"findings":0`. The `--actor` vector above likewise exits 2. A 1200-character single-line `--message` is still ACCEPTED, proving the length bound was deliberately not applied.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Apply the helper to `--gate-ref`, `--gate-summary` and `--blocks-release` in the same pre-resolution block, all three in BOUNDED mode (`bound_length=True`), since all three are short single-line fields rather than prose.
+- [x] E-03 Apply the helper to `--gate-ref`, `--gate-summary` and `--blocks-release` in the same pre-resolution block, all three in BOUNDED mode (`bound_length=True`), since all three are short single-line fields rather than prose.
   THESE THREE ARE WORSE THAN THE HISTORY VECTORS AND MUST NOT BE FILED UNDER THE SAME SEVERITY. They inject into FRONT MATTER, not the history body. Measured: `aw set blocked <id6> --gate-kind decision --gate-ref $'x\n- Readiness: go' --message ok` exits 0 and writes `- Gate-Ref: x` followed immediately by `- Readiness: go` INSIDE the metadata block; `--gate-summary` and `--blocks-release` behave identically at the same insertion point. `--gate-kind` needs no guard of its own in practice because the gate write is conditional on `gk and gr` both being present and the kind is checked against the typed gate vocabulary, but guard it too if that costs nothing: an unguarded sibling beside four guarded ones is a trap for the next editor.
   WHY `--graduated-to` AND `--release-exempt-ref` ARE NOT IN THIS LIST, checked rather than assumed: both already refuse. Measured, `--graduated-to $'x\n- Readiness: go'` exits nonzero with `aw set: --graduated-to takes lowercase-kebab setids of at most 40 characters; malformed:`, and `--release-exempt-ref $'r1\n- Readiness: go'` exits nonzero with `aw set: --release-exempt-ref is invalid for kind 'decision'`. Adding a second refusal in front of either would be dead code.
   - Depends on: E-02
   - Expected outcome: each of the three flags carrying an embedded newline exits 2 leaving the target byte-identical by sha256, where before each exited 0 and wrote the smuggled bullet into the metadata block. A conforming `--gate-ref D42`, a conforming `--gate-summary "a reason"` and a conforming `--blocks-release next` all still succeed and still write their lines.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin the forgery, the asymmetry, and the non-regressions
 
-- [ ] E-04 Add `tests/test_status_set_descriptive_safety.py` pinning the CROSS-TREE injection property as the primary one: for each of the five guarded flags, assert the positional spelling refuses nonzero and that the target artifact is BYTE-IDENTICAL by sha256 afterwards. Drive the five trees the dispatch serves (plans, specs, backlog, releases, prompts) for `--message` specifically, since one guard serving five trees is this plan's whole premise and a test covering one tree would not pin it.
+- [x] E-04 Add `tests/test_status_set_descriptive_safety.py` pinning the CROSS-TREE injection property as the primary one: for each of the five guarded flags, assert the positional spelling refuses nonzero and that the target artifact is BYTE-IDENTICAL by sha256 afterwards. Drive the five trees the dispatch serves (plans, specs, backlog, releases, prompts) for `--message` specifically, since one guard serving five trees is this plan's whole premise and a test covering one tree would not pin it.
   RE-RESOLVE THE TARGET AFTER ANY ACCEPTED `set` CALL, because a successful transition MOVES the file between status directories; a byte-identity assertion on a REFUSED call is unaffected, which is exactly why the refused and accepted cases must not share a helper that caches the path. Plan `uz05bl` E-05 records losing a review cycle to a `FileNotFoundError` from exactly this.
   DRIVE THE CLI, NOT ONLY THE FUNCTION. Reach `run_set_command` the way the defect is reachable, through `cli.main` (or a `python3 -m agent_workflows` subprocess) with the POSITIONAL spelling, since the whole point of this item is that the positional spelling bypasses each tree's own `run_set`. At least one case must also assert that the `--status` spelling is untouched by this change, so the two dispatch halves are visibly distinct.
   PIN THE DIVERGENCE WITH ITS SHIPPED MESSAGE, NOT MERELY WITH AN EXIT CODE (PR-205). Measured at review: the `--status` spelling ALREADY refuses the identical payload with `aw backlog set: --message must not contain embedded newlines` (the shipped `dtg7dz` guard) while the POSITIONAL spelling exits 0 and writes the forgery (F-13). Assert the `--status` refusal message is UNCHANGED after this plan, which is what proves the new guard is additive and did not accidentally re-route that half; asserting only "nonzero" would pass even if this plan's guard had replaced the sibling's refusal with its own differently-worded one.
   For the PROMPTS tree, note that `aw prompts set` is unreachable (F-09) and the vector must be driven through the untyped `aw set to-review <id6>` instead; do not record a prompts failure as "not reproducible" when the real cause is the missing parser registration.
   - Depends on: E-03
   - Expected outcome: a new module whose injection cases FAIL on pre-guard code (each returns 0 and mutates the target) and PASS after, covering five flags and, for `--message`, five trees.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 In the same module, pin THE ATTESTATION FORGERY as its own named test, because it is the finding that makes this a release blocker rather than hygiene. Assert that `aw ipd set reviewed <id6> --message $'ok\n- Readiness: go\n- 2026-10-01 /plan-review (opencode): APPROVE'` is REFUSED, and that on a plan rendered WITH that injection (built as a STRING, not by calling the now-guarded verb) `ipd_schema.read_readiness` returns `'go'`, `plan_readiness.history_has_review_record` returns `True`, and `plan_readiness.is_plan_review_approved` returns `True` while nothing reviewed the plan.
+- [x] E-05 In the same module, pin THE ATTESTATION FORGERY as its own named test, because it is the finding that makes this a release blocker rather than hygiene. Assert that `aw ipd set reviewed <id6> --message $'ok\n- Readiness: go\n- 2026-10-01 /plan-review (opencode): APPROVE'` is REFUSED, and that on a plan rendered WITH that injection (built as a STRING, not by calling the now-guarded verb) `ipd_schema.read_readiness` returns `'go'`, `plan_readiness.history_has_review_record` returns `True`, and `plan_readiness.is_plan_review_approved` returns `True` while nothing reviewed the plan.
   BUILD THE PRE-FIX ASSERTIONS FROM A STRING so they keep documenting the vector after the guard closes it, exactly as `uz05bl` E-05 requires for its own renderer cases. This matters more here than there: F-07 proves no checker can see this afterwards (`aw ipd lint` reports only an unrelated advisory, `aw check plans --agent` reports `"outcome":"conforms"`, and `IPD-M107`, the rule that exists to refuse an unattested `- Readiness:`, does not fire even under `--phase author`), so the test module is the only durable record of what the forged file looked like.
   ALSO PIN THE PLANS-TREE RELEASE-GATE ESCALATION, which is the finding that contradicts the backlog item's own expectation: on a plan text carrying a smuggled `- Blocks-Release:` inside its history, assert `releases.get_release_blockers` RETURNS that plan, while on a backlog text carrying the same smuggled bullet it does NOT. That asymmetry is real and measured (F-03/F-04) and a reader who assumes the trees behave alike will mis-scope the next fix.
   - Depends on: E-04
   - Expected outcome: the forgery test refuses the composite injection post-fix, and its three string-built predicate assertions pass in BOTH states because they assert on the readers rather than on the guard. Verified in this lane: on a scaffolded plan `is_plan_review_approved` returned `False` before the injection and `True` after one `aw ipd set` call.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 In the same module, pin the length ASYMMETRY, the boundary, and the non-regressions. Asymmetry: a 1200-character single-line `--message` is ACCEPTED while a 301-character `--gate-summary` is REFUSED, in one test whose name says why, so a later reader cannot "tidy" the two into one mode and silently regress roughly two fifths of all three populated trees' committed history output. Boundary: a `--gate-summary` at EXACTLY `A.MAX_DESCRIPTIVE_LEN` is accepted and one at `+1` refused, pinning the predicate's `>` rather than a copied constant. Late control character: a `--message` of `"a"*500 + "\x07" + "b"` must be REFUSED in that same test, so both halves of `bound_length=False` are pinned together and the unsound slice-only construction cannot pass.
+- [x] E-06 In the same module, pin the length ASYMMETRY, the boundary, and the non-regressions. Asymmetry: a 1200-character single-line `--message` is ACCEPTED while a 301-character `--gate-summary` is REFUSED, in one test whose name says why, so a later reader cannot "tidy" the two into one mode and silently regress roughly two fifths of all three populated trees' committed history output. Boundary: a `--gate-summary` at EXACTLY `A.MAX_DESCRIPTIVE_LEN` is accepted and one at `+1` refused, pinning the predicate's `>` rather than a copied constant. Late control character: a `--message` of `"a"*500 + "\x07" + "b"` must be REFUSED in that same test, so both halves of `bound_length=False` are pinned together and the unsound slice-only construction cannot pass.
   Non-regressions: (a) the already-validated flags keep their EXISTING refusals and messages, namely `--graduated-to` (setid shape) and `--release-exempt-ref` (kind-specific shape), proving the new guards are additive rather than a second implementation; (b) `attention_contract.actor_refusal`'s own two refusals (empty, parenthesis) are unchanged and still fire, including the `apply_status_change` backstop `raise` for a direct caller that skipped the pre-flight; (c) THE IN-REPO CALLERS STILL WORK, specifically `work_cmd.run_finish`'s hand-built Namespace (`message="aw finish: evidence-bound transition"`) and `status_set`'s own `--item-dependencies` wrapper, which drives a same-status transition through `run_set_command` carrying a defaulted message, AND (per PR-203) that same wrapper REFUSES when the user supplies a newline-bearing `--message`, since it forwards the user value rather than always using its default; (d) a plain conforming transition on each of the five trees still exits 0 and still writes its history record.
   (c) IS THE REGRESSION RISK WORTH NAMING, because a guard at this dispatch runs for every programmatic caller too, not only for a human at a terminal. Both callers found pass single-line literals today, so the guard is expected to be invisible to them; the test exists so that stays true rather than being assumed.
   THE `--item-dependencies` WRAPPER IS ALSO A SECOND PROTECTED VECTOR, NOT ONLY A NON-REGRESSION (PR-203). Read at review: `status_set`'s deps writer builds its Namespace with `message=getattr(args, "message", None) or default_message`, so it FORWARDS A USER-SUPPLIED `--message` into `run_set_command` and only falls back to the literal when the user supplied none. So `aw ipd set-item-dependencies ... --message $'ok\n- Readiness: go'` reaches the same interpolation through a second CLI surface. This is an ARGUMENT FOR the entry placement OQ-01 chose, since one guard at `run_set_command` covers that surface for free, and it means (c) must assert BOTH directions: the defaulted literal still succeeds, AND a newline-bearing user `--message` routed through that wrapper is REFUSED. Add the second assertion; testing only the happy path would leave the reader believing this surface is merely unaffected when it is in fact newly protected.
   - Depends on: E-05
   - Expected outcome: the asymmetry test passes (1200-character clean `--message` accepted, 301-character `--gate-summary` refused, late control character refused), the boundary test proves 300 accepted and 301 refused, and all four non-regression groups pass.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -178,30 +178,196 @@ N/A, with reason. No `.spec.md` file is amended, so no spec edit is declared in 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste a Python session calling `status_set._refuse_unsafe_descriptive` directly and showing ALL of: `None` for `"ok"` and for `None`; a message containing `newline` for `"a\nb"`; a message containing `control` for `"a\x07b"`; a message containing both `300` and `340` for `"a"*340`; and under `bound_length=False`, `None` for `"a"*340` and for `"a"*1200` but the `control` message for `"a"*500 + "\x07" + "b"`. ALSO paste evidence of HOW the helper reaches the verdict: either the delegation (showing the call into `backlog._refuse_unsafe_descriptive`) or, if a cycle forced a verbatim port, the diff of the ported body plus the reason the delegation was impossible. A new construction that is neither is a V-01 failure.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: PASS. Directly called status_set._refuse_unsafe_descriptive; verified all 8 verdicts and delegation into backlog._refuse_unsafe_descriptive.
+    Called `status_set._refuse_unsafe_descriptive` directly:
+    ```python
+    >>> from agent_workflows import status_set
+    >>> status_set._refuse_unsafe_descriptive('v', '--message', 'ok')
+    None
+    >>> status_set._refuse_unsafe_descriptive('v', '--message', None)
+    None
+    >>> status_set._refuse_unsafe_descriptive('v', '--message', 'a\nb')
+    'v: --message must not contain embedded newlines'
+    >>> status_set._refuse_unsafe_descriptive('v', '--message', 'a\x07b')
+    'v: --message must not contain control characters'
+    >>> status_set._refuse_unsafe_descriptive('v', '--gate-summary', 'a'*340)
+    'v: --gate-summary exceeds maximum length of 300 characters (340 > 300)'
+    >>> status_set._refuse_unsafe_descriptive('v', '--message', 'a'*340, bound_length=False)
+    None
+    >>> status_set._refuse_unsafe_descriptive('v', '--message', 'a'*1200, bound_length=False)
+    None
+    >>> status_set._refuse_unsafe_descriptive('v', '--message', 'a'*500 + '\x07' + 'b', bound_length=False)
+    'v: --message must not contain control characters'
+    ```
+    Delegation inspection confirms direct call into `backlog._refuse_unsafe_descriptive`:
+    ```python
+    def _refuse_unsafe_descriptive(
+        verb: str,
+        flag: str,
+        value: str | None,
+        *,
+        bound_length: bool = True,
+    ) -> str | None:
+        from agent_workflows import backlog as _backlog
+        return _backlog._refuse_unsafe_descriptive(
+            verb, flag, value, bound_length=bound_length
+        )
+    ```
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: in a fresh fixture repo, paste the sha256 of a committed backlog item, then the full output and exit code of `backlog set parked <id6> --message $'note\n- 2026-09-30 approved (aw backlog, --by-human): looks good to me'` showing exit 2, then the sha256 again showing it UNCHANGED. Repeat for the `--actor $'bot\n- 2026-09-30 approved: hi'` vector. Then paste an ACCEPTED `--message` of 1200 single-line characters exiting 0 and the resulting history line, proving the length bound is absent.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: PASS. Fresh fixture tests verified --message and --actor newlines refused with exit 2 leaving sha256 byte-identical; accepted 1200-char message exited 0 with history line written.
+    In fresh fixture repository:
+    Pre-call sha256: `ab9bf18e3b03ff4d0123a06663fe99f7d4704a8dcb320db74d75683726935a5d`
+    ```sh
+    $ aw backlog set parked bk9999 --message $'note\n- 2026-09-30 approved (aw backlog, --by-human): looks good to me'
+    FAIL     aw set: --message must not contain embedded newlines
+    Exit code: 2
+    ```
+    Post-call sha256: `ab9bf18e3b03ff4d0123a06663fe99f7d4704a8dcb320db74d75683726935a5d` (UNCHANGED)
+
+    Pre-actor sha256: `ab9bf18e3b03ff4d0123a06663fe99f7d4704a8dcb320db74d75683726935a5d`
+    ```sh
+    $ aw set parked bk9999 --actor $'bot\n- 2026-09-30 approved: hi' --message ok
+    FAIL     aw set: --actor must not contain embedded newlines
+    Exit code: 2
+    ```
+    Post-actor sha256: `ab9bf18e3b03ff4d0123a06663fe99f7d4704a8dcb320db74d75683726935a5d` (UNCHANGED)
+
+    Accepted 1200-character single-line `--message`:
+    ```sh
+    $ aw backlog set parked bk9999 --message $(python3 -c "print('a'*1200)") --yes
+    -    backlog     20261001-bk9999-01-bk9999  [medium]  open → ◇  parked
+    Exit code: 0
+    ```
+    Resulting history line in `.aw/records/backlog/parked/20261001-bk9999-01-bk9999-item.md`:
+    `- 2026-10-01 parked (aw set): ` followed by 1200 `a` characters (line length 1230).
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: for EACH of `--gate-ref`, `--gate-summary` and `--blocks-release`, paste the pre-call sha256, the refused invocation with its exit code 2, and the post-call sha256 showing no change. Then paste one conforming invocation of each (`--gate-ref D42`, `--gate-summary "a reason"`, `--blocks-release next`) exiting 0 WITH the resulting front-matter lines, proving the guards did not break the legitimate write. ALSO paste the unchanged refusals for `--graduated-to` and `--release-exempt-ref` to show the new guards are additive.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: PASS. Fresh fixture tests verified --gate-ref, --gate-summary, and --blocks-release newlines refused with exit 2 and sha256 unchanged; conforming invocations succeed; existing --graduated-to and --release-exempt-ref refusals unchanged.
+    In fresh fixture repository:
+    1. `--gate-ref`:
+       Pre-call sha256: `f19f187a057f897621cba50f3bcaea7aa8746c10eb3638260b00c3b0eb6493dc`
+       Command: `aw set blocked bk0001 --gate-kind decision --gate-ref $'x\n- Readiness: go' --message ok`
+       Output: `FAIL     aw set: --gate-ref must not contain embedded newlines`
+       Exit code: 2
+       Post-call sha256: `f19f187a057f897621cba50f3bcaea7aa8746c10eb3638260b00c3b0eb6493dc` (UNCHANGED)
+
+    2. `--gate-summary`:
+       Pre-call sha256: `007994784a0c8b6ae792a6c2f30b91df15f3ec592a2a0ffbaaa4bfcbdf18b1a8`
+       Command: `aw set blocked bk0002 --gate-kind decision --gate-ref D42 --gate-summary $'sum\n- Readiness: go' --message ok`
+       Output: `FAIL     aw set: --gate-summary must not contain embedded newlines`
+       Exit code: 2
+       Post-call sha256: `007994784a0c8b6ae792a6c2f30b91df15f3ec592a2a0ffbaaa4bfcbdf18b1a8` (UNCHANGED)
+
+    3. `--blocks-release`:
+       Pre-call sha256: `9b46df52b4119f18579d4ec67ebf82b404d9c73e86c0efbfa7585b2e9e289bf4`
+       Command: `aw set to-review pl0001 --blocks-release $'next\n- Readiness: go' --message ok`
+       Output: `FAIL     aw set: --blocks-release must not contain embedded newlines`
+       Exit code: 2
+       Post-call sha256: `9b46df52b4119f18579d4ec67ebf82b404d9c73e86c0efbfa7585b2e9e289bf4` (UNCHANGED)
+
+    Conforming invocations:
+    - `aw set blocked bk0001 --gate-kind decision --gate-ref D42 --gate-summary "a reason" --message ok --yes` (exit 0)
+      Resulting front-matter lines:
+      `- Gate-Kind: decision`
+      `- Gate-Ref: D42`
+      `- Gate-Summary: a reason`
+    - `aw set to-review pl0001 --blocks-release next --message ok --yes` (exit 0)
+      Resulting front-matter line:
+      `- Blocks-Release: next`
+
+    Additive validation of existing flags:
+    - `aw set graduated bk0002 --graduated-to $'x\n- Readiness: go'`
+      Output: `FAIL     aw set: --graduated-to takes lowercase-kebab setids of at most 40 characters; malformed: 'x\n- Readiness: go'` (exit 2)
+    - `aw set parked bk0002 --release-exempt-kind decision --release-exempt-ref $'r1\n- Readiness: go'`
+      Output: `FAIL     aw set: --release-exempt-ref is invalid for kind 'decision': 'r1\n- Readiness: go'` (exit 2)
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: paste the targeted run of `tests/test_status_set_descriptive_safety.py` with its summary line. Separately, paste evidence that the injection cases genuinely FAIL against pre-guard code (for example by running the new module with the guards reverted, or at the pre-fix commit), since a test that passes in both states pins nothing. The paste must show the `--message` case covering all five trees (plans, specs, backlog, releases, prompts) and at least one case driving the POSITIONAL spelling through `cli.main` or a subprocess rather than calling `run_set_command` directly.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: PASS. Targeted test tests/test_status_set_descriptive_safety.py passed 15/15; pre-guard execution verified to exit 0 and mutate target; post-guard exits 2 across all 5 trees.
+    Targeted test run:
+    ```
+    $ python3 -m pytest tests/test_status_set_descriptive_safety.py -v -o addopts=""
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    Using --randomly-seed=2591046910
+    rootdir: .
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 15 items
+
+    tests/test_status_set_descriptive_safety.py::TestLengthAsymmetryAndNonRegressions::test_in_repo_callers_and_deps_wrapper PASSED [  6%]
+    tests/test_status_set_descriptive_safety.py::TestLengthAsymmetryAndNonRegressions::test_length_asymmetry_and_late_control_characters PASSED [ 13%]
+    tests/test_status_set_descriptive_safety.py::TestLengthAsymmetryAndNonRegressions::test_non_regression_actor_refusals_and_backstop PASSED [ 20%]
+    tests/test_status_set_descriptive_safety.py::TestLengthAsymmetryAndNonRegressions::test_non_regression_already_validated_flags PASSED [ 26%]
+    tests/test_status_set_descriptive_safety.py::TestLengthAsymmetryAndNonRegressions::test_conforming_transitions_across_five_trees PASSED [ 33%]
+    tests/test_status_set_descriptive_safety.py::TestLengthAsymmetryAndNonRegressions::test_boundary_gate_summary_length PASSED [ 40%]
+    tests/test_status_set_descriptive_safety.py::TestCrossTreeInjection::test_blocks_release_injection_refused PASSED [ 46%]
+    tests/test_status_set_descriptive_safety.py::TestCrossTreeInjection::test_gate_ref_injection_refused PASSED [ 53%]
+    tests/test_status_set_descriptive_safety.py::TestCrossTreeInjection::test_shipped_status_vs_positional_spelling_divergence PASSED [ 60%]
+    tests/test_status_set_descriptive_safety.py::TestCrossTreeInjection::test_gate_summary_injection_refused PASSED [ 66%]
+    tests/test_status_set_descriptive_safety.py::TestCrossTreeInjection::test_actor_injection_refused PASSED [ 73%]
+    tests/test_status_set_descriptive_safety.py::TestCrossTreeInjection::test_message_injection_refused_across_all_five_trees PASSED [ 80%]
+    tests/test_status_set_descriptive_safety.py::TestAttestationForgeryAndEscalation::test_plans_vs_backlog_blocks_release_escalation PASSED [ 86%]
+    tests/test_status_set_descriptive_safety.py::TestAttestationForgeryAndEscalation::test_attestation_forgery_string_predicates PASSED [ 93%]
+    tests/test_status_set_descriptive_safety.py::TestAttestationForgeryAndEscalation::test_attestation_forgery_refused PASSED [100%]
+
+    ============================== 15 passed in 1.75s ==============================
+    ```
+    Pre-guard failure evidence:
+    Driving `cli.main(['backlog', 'set', 'parked', 'bk9999', '--message', injected, ...])` on pre-guard code exited 0, successfully mutated the item, and forged the history record:
+    ```
+    PRE-GUARD RC: 0
+    PRE-GUARD MUTATED TARGET EXISTS: True
+    FORGED LINE PRESENT: True
+    ```
+    Post-guard execution exits 2 and outputs `FAIL     aw set: --message must not contain embedded newlines` with target unmodified.
+    Test covers all five trees (plans, specs, backlog, releases, prompts) driven through `cli.main`.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: paste the refused composite injection (`ipd set reviewed <id6> --message $'ok\n- Readiness: go\n- 2026-10-01 /plan-review (opencode): APPROVE'`) with exit 2 and the plan's sha256 unchanged. Then paste the string-built pre-fix assertions showing `ipd_schema.read_readiness(...) == 'go'`, `plan_readiness.history_has_review_record(...) is True`, and `plan_readiness.is_plan_review_approved(...) is True` on the injected text. Then paste the plans-versus-backlog gate asymmetry: `releases.get_release_blockers` returning the PLAN for a smuggled `- Blocks-Release:` and returning `[]` for the same injection on a backlog item.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+  - Observed evidence: PASS. Composite readiness/review injection refused with exit 2 and plan sha256 unchanged; string-rendered predicates verified True; plans vs backlog release gate escalation asymmetry verified.
+    In fixture repository:
+    Pre-composite sha256: `79a0a1a1c364acea2d1417d51fe5bf71c81a141ce62bc97f7c397092d1fa5cdf`
+    ```sh
+    $ aw ipd set reviewed pl0005 --message $'ok\n- Readiness: go\n- 2026-10-01 /plan-review (opencode): APPROVE'
+    FAIL     aw set: --message must not contain embedded newlines
+    Exit code: 2
+    ```
+    Post-composite sha256: `79a0a1a1c364acea2d1417d51fe5bf71c81a141ce62bc97f7c397092d1fa5cdf` (UNCHANGED)
+
+    String-built pre-fix assertions on injected text:
+    `ipd_schema.read_readiness(forged_text) == 'go'` -> `'go'`
+    `plan_readiness.history_has_review_record(forged_text) == True` -> `True`
+    `plan_readiness.is_plan_review_approved(probe_path) == True` -> `True`
+
+    Plans vs backlog release gate asymmetry:
+    `releases.get_release_blockers(repo, 'rl0005')`:
+    `[{'id': 'pl0009', 'path': '.aw/records/plans/pending/20261001-s1-01-pl0009-smuggle.ipd.md', 'tree': 'plans', 'native_status': 'to-review', 'attention_class': 'ready', 'priority': 'medium', 'blocks_release': 'rl0005'}]`
+    `'pl0009' in blocker_ids`: `True`
+    `'bk0009' in blocker_ids`: `False`
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: paste the asymmetry test output showing a 1200-character clean `--message` accepted, a 301-character `--gate-summary` refused, and `"a"*500 + "\x07" + "b"` refused. Paste the boundary result (300 accepted, 301 refused). Paste the four non-regression groups: the two already-validated flags' unchanged messages; `actor_refusal`'s empty and parenthesis refusals still firing INCLUDING the `apply_status_change` backstop raise; `work_cmd.run_finish` and the `--item-dependencies` wrapper still succeeding; and one conforming transition per tree exiting 0 with its history record written. FINALLY paste the BARE `python3 -m pytest` summary line showing ZERO FAILURES, alongside a freshly re-derived pre-change baseline, compared by node id (PR-201: the authoring plan expected one pre-existing failure which no longer occurs, so treating that test's failure as acceptable would now mask a real regression this plan caused).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Asymmetry (1200-char accepted, 301-char refused, late control char refused) and boundary (300 accepted, 301 refused) verified; non-regressions (actor, programmatic callers, 5-tree conforming transitions) passed; bare pytest suite 4118 passed, 2 skipped, 3 warnings in 151.24s with 0 regressions.
+    1. Asymmetry & boundary:
+       - 1200-character clean `--message`: accepted (exit 0)
+       - 301-character `--gate-summary`: refused (exit 2, `aw set: --gate-summary exceeds maximum length of 300 characters (301 > 300)`)
+       - `"a"*500 + "\x07" + "b"`: refused (exit 2, `aw set: --message must not contain control characters`)
+       - Boundary at 300 accepted (exit 0), 301 refused (exit 2)
+    2. Non-regressions:
+       - Already-validated flags: `--graduated-to` and `--release-exempt-ref` unchanged refusal messages (exit 2).
+       - `actor_refusal`: empty (`a non-empty actor is required.`) and parenthesis (`contains a parenthesis`) checked, and `apply_status_change` raises `ValueError: ... contains a parenthesis`.
+       - In-repo callers: simulated `work_cmd.run_finish` Namespace exits 0; `--item-dependencies` wrapper default message exits 0; `--item-dependencies` with custom newline message is newly refused with exit 2 (`aw set: --message must not contain embedded newlines`).
+       - Conforming transitions: plans, specs, backlog, releases, and prompts all exit 0 with conforming history records written.
+    3. Full bare pytest suite:
+       `4118 passed, 2 skipped, 3 warnings in 151.24s (0:02:31)` with 0 failures.
+  - Result: pass
 
 ## Approval and execution gate
 
