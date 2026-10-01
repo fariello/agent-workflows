@@ -1,5 +1,5 @@
 - Id: nyzuyx
-- Status: graduated
+- Status: done
 - Graduated-To: gateatrest
 - Set: nyzuyx
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: check.blocking-item-closed-without-gate cannot see a close that was never git-staged
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD b24o3q executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-gateatrest-01-f7igdu-record-a-satisfying-close-evidence-citation-durably-on-the-b.ipd.md, .aw/records/plans/executed/20260930-gateatrest-02-b24o3q-give-the-release-gate-close-backstop-an-at-rest-whole-tree-a.ipd.md); evidence .aw/records/plans/executed/20260930-gateatrest-01-f7igdu-record-a-satisfying-close-evidence-citation-durably-on-the-b.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053053Z-3200037: b24o3q, f7igdu
 - 2026-09-26 created (aw backlog): check.blocking-item-closed-without-gate cannot see a close that was never git-staged
 
