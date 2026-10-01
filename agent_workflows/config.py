@@ -1761,7 +1761,7 @@ def release_gate_work_kinds(
 # --------------------------------------------------------------------------------------
 # retrytier Order 01 (y4adch) E-01/E-02: the ONE repository-policy retry budget.
 #
-# Spec 25kzda 2.1/5.5 declares a THREE-TIER precedence for the correction budget - CLI over
+# Spec 25kzda 5.5 declares a THREE-TIER precedence for the correction budget - CLI over
 # repository policy over the default of 2 - and this key is the MIDDLE tier's home. Spec 5.5 names
 # it `run.retry_budget`, so it is read as the `retry_budget` member of a `run` object rather than as
 # a bare top-level key: the spec is `approved` and names a nested path, so honoring it is not a

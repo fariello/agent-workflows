@@ -9845,7 +9845,7 @@ def classify_integration_refusal(integ_kind: str) -> bool:
 def resolve_integration_retry_limit(cli_value: Any) -> int:
     """`--integration-retry-limit`'s effective value: CLI over the default of 10.
 
-    DELIBERATELY NOT CLAMPED TO SPEC 2.1's 0..10 RANGE, which bounds the CORRECTION budget
+    DELIBERATELY NOT CLAMPED TO SPEC 5.5's 0..10 RANGE, which bounds the CORRECTION budget
     specifically (`resolve_retry_budget` reaches that bound through
     `run_recovery.validate_retry_budget`). Conflating the two is the category error spec 2.1's new
     Rules bullet and backlog `5wdoze` both name explicitly. A NEGATIVE value is refused, because a
@@ -14993,7 +14993,7 @@ RUN_POLICY_FLAGS_BY_FLAG: dict = {row.flag: row for row in RUN_POLICY_FLAGS}
 #: `{dest: RunPolicyFlag}`, for a caller reading an `argparse.Namespace` or a frozen options dict.
 RUN_POLICY_FLAGS_BY_DEST: dict = {row.dest: row for row in RUN_POLICY_FLAGS}
 
-#: Spec 2.1's default retry budget. NOT a second definition of the value: it is read FROM
+#: Spec 5.5's default retry budget. NOT a second definition of the value: it is read FROM
 #: `run_recovery.DEFAULT_RETRY_LIMIT` at call time (see `resolve_retry_budget`), and this name exists
 #: only so a reader of this section knows where the number lives.
 RETRY_BUDGET_OWNER = "run_recovery.DEFAULT_RETRY_LIMIT"
@@ -15154,9 +15154,9 @@ def resolve_retry_budget(
     repo: Any = None,
     warn: Any = None,
 ) -> int:
-    """Spec 2.1's retry-budget precedence, and the ONE place the range bound is reached.
+    """Spec 5.5's retry-budget precedence, and the ONE place the range bound is reached.
 
-    ALL THREE TIERS SHIP: per spec 2.1 and 5.5 the precedence is CLI over repository policy over the
+    ALL THREE TIERS SHIP: per spec 5.5 the precedence is CLI over repository policy over the
     default of 2. The middle tier is `config.policy_retry_budget`, reading spec 5.5's
     `run.retry_budget` from the committed `.aw/config/project.json`.
 
@@ -16166,7 +16166,7 @@ def freeze_run_policy_flags(args: Any, *, repo: Any = None) -> dict:
             # integpath-03 (`51vw4y`) E-02: resolved to its EFFECTIVE integer here, exactly as
             # `retry_budget` is, so no later reader has to re-resolve a bare `None` (and re-resolve it
             # differently). Its own resolver, NOT `resolve_retry_budget`: the two count different
-            # quantities and this one is deliberately not clamped to spec 2.1's 0..10 range.
+            # quantities and this one is deliberately not clamped to spec 5.5's 0..10 range (the contrast spec 2.1's Rules bullet names).
             frozen[row.dest] = resolve_integration_retry_limit(_supplied(row.dest))
         elif row.dest == "on_integration_blocked":
             frozen[row.dest] = resolve_on_integration_blocked(_supplied(row.dest))

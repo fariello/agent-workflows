@@ -10,7 +10,7 @@
 - Scope: Declare spec `25kzda` `### 5.5 Retry policy` the single normative home of the `0..10` correction-budget bound and its three-tier precedence; demote the restatements in §1.4, §2.1 and §4.1 to explicit pointers at §5.5 while leaving §2.1's usage-synopsis token intact; retarget every bound-naming citation in `run_recovery.py` (nine sites, including the operator-visible `InvalidRetryBudgetError` message), `runner_shared.py` (four sites) and `config.py` (one site) from `2.1` to `5.5`; add one consistency test that derives the bound's enclosing section FROM the spec file and asserts the runtime message names it, so this drift is caught mechanically rather than by review; record the amendment with `aw specs note`; and correct the record of review finding PR-305 by appending to the review record and to `si24ia`'s workflow history. EXCLUDES: changing the bound's VALUE, the default of 2, the precedence order, the retryable/never-retryable class lists, or any runtime behavior beyond the text of one error message; touching the FLAG-SURFACE citations of §2.1 in `runner_shared.py` and `oc_runipd.py`/`agy_runipd.py`/`cli.py`/`command_surface.py`, which name §2.1 for the command grammar and are CORRECT; editing `si24ia`'s findings table, Concern, or E/V items in place (it is `executed`); repairing the sibling citation-rot items `sbh1o1`, `ajomj3` or the class-vocabulary gap `rb4wgj`, each of which owns its own fix; minting requirement ids in any spec; and building any general spec-citation checker.
 - Scope-Paths: .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, agent_workflows/run_recovery.py, agent_workflows/runner_shared.py, agent_workflows/config.py, tests/test_retry_budget_citation.py, .aw/records/reviews/20260910-specreq-01-si24ia-decide-whether-spec-requirements-get-machine-readable-tracki.review.md, .aw/records/plans/executed/20260908-specreq-01-si24ia-decide-whether-spec-requirements-get-machine-readable-tracki.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -21,9 +21,9 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: cpi6p3
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: cpi6p3 verified (set 88manw, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 through PR-011, all FIXED in place. Reviewed at HEAD `09f68a5b` in an isolated lane; typed record at `.aw/records/reviews/20260929-88manw-01-cpi6p3-make-spec-25kzda-section-5-5-the-canonical-home-of-the-0-10.review.md`. `aw ipd lint --phase author` conformed BEFORE semantic review and `--phase review-finalize` conforms after revision, so nothing found was structural.
   THE PLAN'S CENTRAL CLAIM RE-DERIVED CORRECT AT REVIEW HEAD. Mapping each bound-bearing line to its enclosing `###` heading reproduces the plan exactly: `:173` -> §1.4, `:192` and `:219` -> `### 2.1 Command grammar`, `:774` -> §4.1, `:1306` -> `### 5.5 Retry policy`. So §2.1 DOES state the bound, `si24ia`'s citation was right, PR-305 was wrong, and §1.1 (`Normative roles`) states no bound. The operator-visible half reproduces live too: `runner_shared.resolve_retry_budget(99)` raises `--retry-budget: invalid retry budget 99: must be an int in the inclusive range 0..10 (spec 25kzda 2.1)`.
@@ -51,44 +51,44 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: give the bound one normative home in the spec
 
-- [ ] E-01 In spec `25kzda` `### 5.5 Retry policy`, mark that section the SINGLE normative home of the correction-budget bound and its precedence, WITHOUT changing the bound, the default, or the precedence order. Edit the paragraph beginning "`N` must be an integer from 0 through 10 inclusive" to state, in the spec's own established voice, that this section is where the bound and the three-tier precedence are DEFINED and that every other mention in the spec is a pointer here. Follow the convention the spec already uses on itself: its preamble says of a rule governing three paragraphs that "The convention is stated once, here, because it governs all three equally and a rule attached to one paragraph while its neighbors decay is a fourth thing to maintain rather than a fix." Cite that precedent in the amendment text so the choice reads as the spec's own convention rather than a new one. Do NOT touch §5.5's retryable or never-retryable class lists (backlog `rb4wgj` owns those), and do NOT renumber any section. PREFER ADDING A SENTENCE TO REWORDING THE EXISTING ONE (PR-006): E-05's locator anchors on the exact string `must be an integer from 0 through 10 inclusive`, which is unique in the file today, so leaving that sentence byte-identical and placing the canonicality statement BEFORE or AFTER it keeps E-01 and E-05 independent. If you do reword it, you MUST update E-05's anchor constant in the same change and record both the old and new single-match counts in V-05.
+- [x] E-01 In spec `25kzda` `### 5.5 Retry policy`, mark that section the SINGLE normative home of the correction-budget bound and its precedence, WITHOUT changing the bound, the default, or the precedence order. Edit the paragraph beginning "`N` must be an integer from 0 through 10 inclusive" to state, in the spec's own established voice, that this section is where the bound and the three-tier precedence are DEFINED and that every other mention in the spec is a pointer here. Follow the convention the spec already uses on itself: its preamble says of a rule governing three paragraphs that "The convention is stated once, here, because it governs all three equally and a rule attached to one paragraph while its neighbors decay is a fourth thing to maintain rather than a fix." Cite that precedent in the amendment text so the choice reads as the spec's own convention rather than a new one. Do NOT touch §5.5's retryable or never-retryable class lists (backlog `rb4wgj` owns those), and do NOT renumber any section. PREFER ADDING A SENTENCE TO REWORDING THE EXISTING ONE (PR-006): E-05's locator anchors on the exact string `must be an integer from 0 through 10 inclusive`, which is unique in the file today, so leaving that sentence byte-identical and placing the canonicality statement BEFORE or AFTER it keeps E-01 and E-05 independent. If you do reword it, you MUST update E-05's anchor constant in the same change and record both the old and new single-match counts in V-05.
   - Depends on: none
   - Expected outcome: §5.5 names itself the definition site of the `0..10` bound and the CLI-over-policy-over-default-of-2 precedence; the bound value, the default, the precedence order and both class lists are byte-identical to HEAD apart from the added canonicality sentence(s).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Demote the three restatements to explicit pointers at §5.5, preserving each section's own purpose. Specifically: (a) in `### 1.4 Resolution of the required revisions`, the `A2: configurable retries` row keeps its summary of WHAT was resolved but points at §5.5 for the normative bound instead of restating the range as its own rule; (b) in `### 2.1 Command grammar`, the prose bullet beginning "`--retry-budget` is an integer from 0 through 10 inclusive" defers to §5.5 for the bound, the default and the precedence, retaining only what §2.1 is FOR (that the flag exists, takes an integer, and that its frozen value cannot change on resume); (c) in `### 4.1 Message and recovery conventions`, the `RETRY` failure-action bullet keeps describing the action and points at §5.5 rather than restating "The default correction budget is 2; the valid frozen range is 0 through 10". LEAVE §2.1's usage-synopsis token `[--retry-budget <0..10>]` EXACTLY AS IS: a synopsis legitimately shows a range, and the sibling bullet for `--integration-retry-limit` explicitly contrasts itself against "that flag's 0..10 range", so the token carries load. Do not delete that contrast; if it must be reworded, it must still say the two quantities are different and that the integration limit is NOT bounded by the correction budget's range.
+- [x] E-02 Demote the three restatements to explicit pointers at §5.5, preserving each section's own purpose. Specifically: (a) in `### 1.4 Resolution of the required revisions`, the `A2: configurable retries` row keeps its summary of WHAT was resolved but points at §5.5 for the normative bound instead of restating the range as its own rule; (b) in `### 2.1 Command grammar`, the prose bullet beginning "`--retry-budget` is an integer from 0 through 10 inclusive" defers to §5.5 for the bound, the default and the precedence, retaining only what §2.1 is FOR (that the flag exists, takes an integer, and that its frozen value cannot change on resume); (c) in `### 4.1 Message and recovery conventions`, the `RETRY` failure-action bullet keeps describing the action and points at §5.5 rather than restating "The default correction budget is 2; the valid frozen range is 0 through 10". LEAVE §2.1's usage-synopsis token `[--retry-budget <0..10>]` EXACTLY AS IS: a synopsis legitimately shows a range, and the sibling bullet for `--integration-retry-limit` explicitly contrasts itself against "that flag's 0..10 range", so the token carries load. Do not delete that contrast; if it must be reworded, it must still say the two quantities are different and that the integration limit is NOT bounded by the correction budget's range.
   - Depends on: E-01
   - Expected outcome: each of §1.4, §2.1 and §4.1 refers to §5.5 for the bound and none of the three states it as its own rule; §2.1's synopsis token and the `--integration-retry-limit` contrast both survive; no section's distinct purpose is lost.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: give the code and the operator message one true anchor
 
-- [ ] E-03 Retarget the bound-naming citations in `agent_workflows/run_recovery.py` from `2.1` to `5.5`. ALL NINE name the bound and all nine move: the module docstring's "The budget's own legal RANGE is spec 25kzda 2.1's inclusive 0..10"; the `DEFAULT_RETRY_LIMIT` comment quoting "Spec 25kzda 2.1: \"The default correction budget is 2; the valid frozen range is 0 through 10.\""; the "NOT a range check: spec 2.1's 0..10 bound" comment; the `MIN_RETRY_LIMIT`/`MAX_RETRY_LIMIT` comment "Spec 25kzda 2.1's legal frozen range for the correction budget"; `InvalidRetryBudgetError`'s docstring; `InvalidRetryBudgetError.__init__`'s OPERATOR-FACING message suffix `(spec 25kzda 2.1)`; `validate_retry_budget`'s docstring "Enforces spec 25kzda 2.1's inclusive 0..10 range"; `plan_retry`'s numbered precondition 6; and `retry_budget_remaining`'s docstring. NOTE the quoted sentence in the `DEFAULT_RETRY_LIMIT` comment is in fact §4.1's text, not §2.1's, so after E-02 it must be re-quoted from wherever the sentence then lives or replaced by §5.5's wording; do not leave a quotation attributed to a section that does not contain it. Change no logic, no constant, no signature, and no control flow.
+- [x] E-03 Retarget the bound-naming citations in `agent_workflows/run_recovery.py` from `2.1` to `5.5`. ALL NINE name the bound and all nine move: the module docstring's "The budget's own legal RANGE is spec 25kzda 2.1's inclusive 0..10"; the `DEFAULT_RETRY_LIMIT` comment quoting "Spec 25kzda 2.1: \"The default correction budget is 2; the valid frozen range is 0 through 10.\""; the "NOT a range check: spec 2.1's 0..10 bound" comment; the `MIN_RETRY_LIMIT`/`MAX_RETRY_LIMIT` comment "Spec 25kzda 2.1's legal frozen range for the correction budget"; `InvalidRetryBudgetError`'s docstring; `InvalidRetryBudgetError.__init__`'s OPERATOR-FACING message suffix `(spec 25kzda 2.1)`; `validate_retry_budget`'s docstring "Enforces spec 25kzda 2.1's inclusive 0..10 range"; `plan_retry`'s numbered precondition 6; and `retry_budget_remaining`'s docstring. NOTE the quoted sentence in the `DEFAULT_RETRY_LIMIT` comment is in fact §4.1's text, not §2.1's, so after E-02 it must be re-quoted from wherever the sentence then lives or replaced by §5.5's wording; do not leave a quotation attributed to a section that does not contain it. Change no logic, no constant, no signature, and no control flow.
   - Depends on: E-01, E-02
   - Expected outcome: `grep -nP "2\.1(?![0-9a-z])" agent_workflows/run_recovery.py` returns nothing; every one of the nine sites names §5.5; `validate_retry_budget(99)` raises a message naming `5.5`; `DEFAULT_RETRY_LIMIT` is still `2`, `MIN_RETRY_LIMIT`/`MAX_RETRY_LIMIT` still `0`/`10`. Use the ANCHORED pattern rather than a bare `2\.1` (PR-003): a bare `grep` also matches `2.1a`/`2.1b`/`2.10`, which are different sections. In `run_recovery.py` at review HEAD both patterns happen to return 9, so the anchoring is precautionary here and load-bearing in E-04's arithmetic.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Retarget ONLY the four bound-naming citations in `agent_workflows/runner_shared.py` to §5.5, leaving every FLAG-SURFACE citation of §2.1 untouched. Work from the enumerated list below rather than any blanket substitution, because most of this file's §2.1 citations are CORRECT and a sweep would corrupt them. THE FOUR THAT MOVE are the symbol `runner_shared.resolve_integration_retry_limit`'s docstring ("DELIBERATELY NOT CLAMPED TO SPEC 2.1's 0..10 RANGE"), the comment above `RETRY_BUDGET_OWNER` ("Spec 2.1's default retry budget"), `resolve_retry_budget`'s docstring ("Spec 2.1's retry-budget precedence, and the ONE place the range bound is reached", whose "per spec 2.1 and 5.5" clause should collapse to §5.5 now that one section owns both), and the freeze-loop comment ("this one is deliberately not clamped to spec 2.1's 0..10 range"). TWO OF THOSE FOUR NEED A SPLIT EDIT RATHER THAN A TOKEN SWAP, because each sentence carries TWO different claims that after E-02 live in TWO different sections (PR-002). In `resolve_integration_retry_limit`'s docstring the first clause names the BOUND (moves to §5.5) while its next sentence, "the category error spec 2.1's new Rules bullet and backlog `5wdoze` both name explicitly", cites the `--integration-retry-limit` CONTRAST bullet, which E-02 KEEPS IN §2.1 and which §5.5 does not mention at all (measured at review HEAD: `integration-retry-limit` appears in the spec only in §2.1, §2.1b and §7.2, never in §5.5, and the string "category error" appears nowhere in the spec). So that sentence must keep naming §2.1 and must NOT be swept to §5.5; retargeting it would create a new wrong citation inside this plan's own fix. The same split applies to the freeze-loop comment, whose "deliberately not clamped" clause is the same contrast: name §5.5 for the bound it is contrasting AGAINST and §2.1 for the bullet that states the contrast, or keep the sentence on §2.1 and let the neighbouring bound reference carry §5.5. State in V-04 which form was chosen. EVERY OTHER `2.1` IN THIS FILE STAYS, including the module preamble's "spec `25kzda` 2.1 POLICY" note, `RUN_POLICY_FLAGS` with its by-flag and by-dest tables, `register_run_policy_flags`, the `--type` repeatability note, the re-derivation and lane-conflict notes citing §2.1/§2.1b, and the operator-surface note beside the `aw <host> run` selector table. Each of those names the COMMAND GRAMMAR or the policy-flag surface, which genuinely live in §2.1. ALSO RETARGET THE ONE BOUND CITATION IN `agent_workflows/config.py`, which is declared in `- Scope-Paths:` for this purpose: the comment above `RUN_POLICY_KEY` reading "Spec 25kzda 2.1/5.5 declares a THREE-TIER precedence for the correction budget" should name §5.5 alone once §5.5 owns both the bound and the precedence. Leave that file's neighbouring "THE BOUND IS NOT DEFINED HERE" paragraph intact: it is correct and is the in-code precedent E-01 mirrors. FOUR FILES STAY CLOSED because they are outside `- Scope-Paths:` and their §2.1 citations are all flag-surface and CORRECT: `agent_workflows/cli.py`, `agent_workflows/command_surface.py`, `agent_workflows/oc_runipd.py` and `agent_workflows/agy_runipd.py`. E-07 records them as deliberate, correct survivors so a later reader does not mistake them for missed work.
+- [x] E-04 Retarget ONLY the four bound-naming citations in `agent_workflows/runner_shared.py` to §5.5, leaving every FLAG-SURFACE citation of §2.1 untouched. Work from the enumerated list below rather than any blanket substitution, because most of this file's §2.1 citations are CORRECT and a sweep would corrupt them. THE FOUR THAT MOVE are the symbol `runner_shared.resolve_integration_retry_limit`'s docstring ("DELIBERATELY NOT CLAMPED TO SPEC 2.1's 0..10 RANGE"), the comment above `RETRY_BUDGET_OWNER` ("Spec 2.1's default retry budget"), `resolve_retry_budget`'s docstring ("Spec 2.1's retry-budget precedence, and the ONE place the range bound is reached", whose "per spec 2.1 and 5.5" clause should collapse to §5.5 now that one section owns both), and the freeze-loop comment ("this one is deliberately not clamped to spec 2.1's 0..10 range"). TWO OF THOSE FOUR NEED A SPLIT EDIT RATHER THAN A TOKEN SWAP, because each sentence carries TWO different claims that after E-02 live in TWO different sections (PR-002). In `resolve_integration_retry_limit`'s docstring the first clause names the BOUND (moves to §5.5) while its next sentence, "the category error spec 2.1's new Rules bullet and backlog `5wdoze` both name explicitly", cites the `--integration-retry-limit` CONTRAST bullet, which E-02 KEEPS IN §2.1 and which §5.5 does not mention at all (measured at review HEAD: `integration-retry-limit` appears in the spec only in §2.1, §2.1b and §7.2, never in §5.5, and the string "category error" appears nowhere in the spec). So that sentence must keep naming §2.1 and must NOT be swept to §5.5; retargeting it would create a new wrong citation inside this plan's own fix. The same split applies to the freeze-loop comment, whose "deliberately not clamped" clause is the same contrast: name §5.5 for the bound it is contrasting AGAINST and §2.1 for the bullet that states the contrast, or keep the sentence on §2.1 and let the neighbouring bound reference carry §5.5. State in V-04 which form was chosen. EVERY OTHER `2.1` IN THIS FILE STAYS, including the module preamble's "spec `25kzda` 2.1 POLICY" note, `RUN_POLICY_FLAGS` with its by-flag and by-dest tables, `register_run_policy_flags`, the `--type` repeatability note, the re-derivation and lane-conflict notes citing §2.1/§2.1b, and the operator-surface note beside the `aw <host> run` selector table. Each of those names the COMMAND GRAMMAR or the policy-flag surface, which genuinely live in §2.1. ALSO RETARGET THE ONE BOUND CITATION IN `agent_workflows/config.py`, which is declared in `- Scope-Paths:` for this purpose: the comment above `RUN_POLICY_KEY` reading "Spec 25kzda 2.1/5.5 declares a THREE-TIER precedence for the correction budget" should name §5.5 alone once §5.5 owns both the bound and the precedence. Leave that file's neighbouring "THE BOUND IS NOT DEFINED HERE" paragraph intact: it is correct and is the in-code precedent E-01 mirrors. FOUR FILES STAY CLOSED because they are outside `- Scope-Paths:` and their §2.1 citations are all flag-surface and CORRECT: `agent_workflows/cli.py`, `agent_workflows/command_surface.py`, `agent_workflows/oc_runipd.py` and `agent_workflows/agy_runipd.py`. E-07 records them as deliberate, correct survivors so a later reader does not mistake them for missed work.
   - Depends on: E-01, E-02
   - Expected outcome: the four named `runner_shared.py` sites and the one `config.py` site cite §5.5; the count of remaining `2.1` citations in `runner_shared.py` equals the HEAD count minus exactly the sites touched, with every survivor demonstrably about the flag surface or the command grammar.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Add `tests/test_retry_budget_citation.py` holding ONE consistency test that makes this drift mechanically detectable. It must (a) locate the `25kzda` spec by glob under `.aw/records/specs/` recursively (not a flat glob, and not a hard-coded status directory, so the `1bdxcp` status-subdirectory move cannot break it. At review HEAD the recursive glob finds exactly 1 file, across eight status subdirectories named `approved`, `deferred`, `draft`, `implemented`, `implementing`, `reviewed`, `superseded` and `to-review`.) (b) find the line that normatively states the `0..10` bound, (c) DERIVE its enclosing `###` section number from the file by scanning preceding headings, and (d) assert that the message raised by `run_recovery.validate_retry_budget` for an out-of-range value names THAT section number. THE LOCATOR'S PREDICATE MUST BE A NAMED, EXACT STRING, NOT THE IDEA "normatively states" (PR-005), because that idea is not mechanically decidable and three lines of the spec contain `0 through 10` today (`:219`, `:774`, `:1306`) while a naive `0..10` match also hits the §1.4 row and §2.1's synopsis token. Use the SENTENCE §5.5 actually carries, `must be an integer from 0 through 10 inclusive`, which at review HEAD matches EXACTLY ONCE in the whole file (verified: `grep -c` -> `1` at `:1306`, inside `### 5.5 Retry policy`), and whose distinguishing `must be` separates it from §2.1's `is an integer from 0 through 10 inclusive`. If E-01's amendment rewords that sentence, update the anchor IN THE SAME CHANGE and say so in V-05; do not weaken the anchor to a substring that matches the pointers. Write the anchor as a module-level named constant with a comment explaining why the exact wording is load-bearing, so the next editor who rewords §5.5 gets a loud, self-explaining failure rather than a puzzle. This is a behavior test, not a code-pinning test: it CALLS the function and asserts on the real exception message, and the expected value is computed from a RECORD file rather than from production source, so it never reads, parses or greps `agent_workflows/*.py`. Do not use `inspect`, `ast`, or any read of a production module's text. Keep it to this one bound; do NOT generalize it into a spec-citation checker (explicitly deferred below). State in the test's own docstring the honest limit: it proves the message and the spec AGREE, never that either is independently correct, and it is silent if the spec stops stating the bound in a form the locator recognizes, so the locator must FAIL LOUDLY (not skip) when it finds zero or more than one normative statement.
+- [x] E-05 Add `tests/test_retry_budget_citation.py` holding ONE consistency test that makes this drift mechanically detectable. It must (a) locate the `25kzda` spec by glob under `.aw/records/specs/` recursively (not a flat glob, and not a hard-coded status directory, so the `1bdxcp` status-subdirectory move cannot break it. At review HEAD the recursive glob finds exactly 1 file, across eight status subdirectories named `approved`, `deferred`, `draft`, `implemented`, `implementing`, `reviewed`, `superseded` and `to-review`.) (b) find the line that normatively states the `0..10` bound, (c) DERIVE its enclosing `###` section number from the file by scanning preceding headings, and (d) assert that the message raised by `run_recovery.validate_retry_budget` for an out-of-range value names THAT section number. THE LOCATOR'S PREDICATE MUST BE A NAMED, EXACT STRING, NOT THE IDEA "normatively states" (PR-005), because that idea is not mechanically decidable and three lines of the spec contain `0 through 10` today (`:219`, `:774`, `:1306`) while a naive `0..10` match also hits the §1.4 row and §2.1's synopsis token. Use the SENTENCE §5.5 actually carries, `must be an integer from 0 through 10 inclusive`, which at review HEAD matches EXACTLY ONCE in the whole file (verified: `grep -c` -> `1` at `:1306`, inside `### 5.5 Retry policy`), and whose distinguishing `must be` separates it from §2.1's `is an integer from 0 through 10 inclusive`. If E-01's amendment rewords that sentence, update the anchor IN THE SAME CHANGE and say so in V-05; do not weaken the anchor to a substring that matches the pointers. Write the anchor as a module-level named constant with a comment explaining why the exact wording is load-bearing, so the next editor who rewords §5.5 gets a loud, self-explaining failure rather than a puzzle. This is a behavior test, not a code-pinning test: it CALLS the function and asserts on the real exception message, and the expected value is computed from a RECORD file rather than from production source, so it never reads, parses or greps `agent_workflows/*.py`. Do not use `inspect`, `ast`, or any read of a production module's text. Keep it to this one bound; do NOT generalize it into a spec-citation checker (explicitly deferred below). State in the test's own docstring the honest limit: it proves the message and the spec AGREE, never that either is independently correct, and it is silent if the spec stops stating the bound in a form the locator recognizes, so the locator must FAIL LOUDLY (not skip) when it finds zero or more than one normative statement.
   - Depends on: E-01, E-03
   - Expected outcome: a new test that FAILS against the pre-E-03 message and PASSES after it, demonstrated in both directions; it fails rather than skips if the spec's bound statement becomes unlocatable or ambiguous.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: leave the records truthful
 
-- [ ] E-06 Correct the RECORD of review finding PR-305 without rewriting it, in both places it is durable. (a) Append a new `## Corrections` section to `.aw/records/reviews/20260910-specreq-01-si24ia-...review.md` (a `##` section other than a `## Round <N>`: `review_findings.parse_review_text` clears `cur_section` on any non-Round `##` heading, so a table below one is attributed to no section and cannot become a findings row; the `## Workflow history` precedent exists in two review records in this tree, `7jqev2` and `1i300e`). PROVEN AT REVIEW, NOT ASSUMED (PR-004): appending a `## Corrections` section CONTAINING a full nine-column findings table to a copy of this very record left the parse byte-for-byte equivalent - round 1 still yields exactly `PR-302, PR-303, PR-308, PR-301, PR-304, PR-305, PR-306, PR-307, PR-309` and zero diagnostics, identical to the tracked file. So the append is safe even in the worst shape; a prose-only section is safer still. The section must state that PR-305's evidence cell was itself wrong, that §2.1 DID contain the bound and §1.1 did not, that the plan's citation was correct, and that this plan moved the bound's home to §5.5 so both the old finding and the old citation are now superseded by one anchor. Do NOT edit the Round 1 findings table, its Severity, or its Decision: the round is historical and `check.review-finding-unescalated` reads current-round findings, so rewriting a FIXED row would falsify what the reviewer actually recorded. (b) Append ONE dated line to `si24ia`'s `## Workflow history` pointing at this plan, which `AGENTS.md` permits for an `executed` plan ("You MAY append a dated `## Workflow history` line to it that points at later work"), and change NOTHING else in that file. Re-run `aw check reviews` afterwards and require it still CONFORMS.
+- [x] E-06 Correct the RECORD of review finding PR-305 without rewriting it, in both places it is durable. (a) Append a new `## Corrections` section to `.aw/records/reviews/20260910-specreq-01-si24ia-...review.md` (a `##` section other than a `## Round <N>`: `review_findings.parse_review_text` clears `cur_section` on any non-Round `##` heading, so a table below one is attributed to no section and cannot become a findings row; the `## Workflow history` precedent exists in two review records in this tree, `7jqev2` and `1i300e`). PROVEN AT REVIEW, NOT ASSUMED (PR-004): appending a `## Corrections` section CONTAINING a full nine-column findings table to a copy of this very record left the parse byte-for-byte equivalent - round 1 still yields exactly `PR-302, PR-303, PR-308, PR-301, PR-304, PR-305, PR-306, PR-307, PR-309` and zero diagnostics, identical to the tracked file. So the append is safe even in the worst shape; a prose-only section is safer still. The section must state that PR-305's evidence cell was itself wrong, that §2.1 DID contain the bound and §1.1 did not, that the plan's citation was correct, and that this plan moved the bound's home to §5.5 so both the old finding and the old citation are now superseded by one anchor. Do NOT edit the Round 1 findings table, its Severity, or its Decision: the round is historical and `check.review-finding-unescalated` reads current-round findings, so rewriting a FIXED row would falsify what the reviewer actually recorded. (b) Append ONE dated line to `si24ia`'s `## Workflow history` pointing at this plan, which `AGENTS.md` permits for an `executed` plan ("You MAY append a dated `## Workflow history` line to it that points at later work"), and change NOTHING else in that file. Re-run `aw check reviews` afterwards and require it still CONFORMS.
   - Depends on: E-01
   - Expected outcome: the review record carries an appended correction and its Round 1 table is byte-identical; `si24ia` gains exactly one history line and is otherwise byte-identical; `aw check reviews` still reports 0 errors and 0 warnings.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Record the spec amendment with `aw specs note` on the `25kzda` spec, naming this plan and backlog `88manw`, stating WHAT changed (§5.5 declared the single normative home; §1.4, §2.1 and §4.1 demoted to pointers) and WHAT DELIBERATELY DID NOT (the bound value, the default of 2, the precedence order, both class lists, §2.1's synopsis token, and the `--integration-retry-limit` contrast). The note must also record the two known SURVIVING out-of-fence citations so the next reader can find them rather than believing the sweep was total: `config.py`'s "Spec 25kzda 2.1/5.5 declares a THREE-TIER precedence" and the flag-surface citations in `cli.py`, `command_surface.py`, `oc_runipd.py` and `agy_runipd.py` (the latter group being CORRECT and not defects). Finally, note the interaction with open backlog `rb4wgj`, which also proposes amending §5.5 but targets its retry CLASS vocabulary, so the two amendments touch different paragraphs of the same section.
+- [x] E-07 Record the spec amendment with `aw specs note` on the `25kzda` spec, naming this plan and backlog `88manw`, stating WHAT changed (§5.5 declared the single normative home; §1.4, §2.1 and §4.1 demoted to pointers) and WHAT DELIBERATELY DID NOT (the bound value, the default of 2, the precedence order, both class lists, §2.1's synopsis token, and the `--integration-retry-limit` contrast). The note must also record the two known SURVIVING out-of-fence citations so the next reader can find them rather than believing the sweep was total: `config.py`'s "Spec 25kzda 2.1/5.5 declares a THREE-TIER precedence" and the flag-surface citations in `cli.py`, `command_surface.py`, `oc_runipd.py` and `agy_runipd.py` (the latter group being CORRECT and not defects). Finally, note the interaction with open backlog `rb4wgj`, which also proposes amending §5.5 but targets its retry CLASS vocabulary, so the two amendments touch different paragraphs of the same section.
   - Depends on: E-01, E-02, E-03, E-04
   - Expected outcome: one new dated `aw specs note` record at the top of the spec's `## Workflow history` naming plan `cpi6p3` and backlog `88manw`, listing the changed sections, the deliberate non-changes, the surviving citations, and the `rb4wgj` interaction; the spec's `- Status:` remains `approved`.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -208,40 +208,421 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the amended §5.5 paragraph in full, showing (a) the canonicality sentence naming §5.5 as the definition site of the bound and the precedence, and (b) the unchanged "`N` must be an integer from 0 through 10 inclusive", the unchanged default of `2`, and the unchanged precedence list. Paste a `git diff` of §5.5 proving both class lists (retryable and never-retryable) are untouched, and paste the section heading list showing no section was renumbered.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED.
+    Amended §5.5 paragraph in full:
+    ```markdown
+    `N` must be an integer from 0 through 10 inclusive. It counts correction attempts after the initial attempt, separately for each action. `0` means the first failed deterministic check or retryable host attempt immediately fails the item; no correction packet is issued. The frozen budget cannot be raised on resume. A new run may choose a different policy. This section is the single normative home where the correction-budget bound and its three-tier precedence are defined; every other mention in this specification is an informational pointer here, following the convention stated in this specification's preamble that "The convention is stated once, here, because it governs all three equally and a rule attached to one paragraph while its neighbors decay is a fourth thing to maintain rather than a fix."
+    ```
+    (a) The canonicality sentence names §5.5 as the definition site of the bound and precedence.
+    (b) The unchanged sentence "`N` must be an integer from 0 through 10 inclusive" was preserved verbatim; unchanged default is `2`; unchanged precedence list:
+    ```markdown
+    Retry budget precedence is:
 
-- [ ] V-02 validates E-02
+    1. `--retry-budget N` on the original invocation;
+    2. repository policy `run.retry_budget`;
+    3. default `2`.
+    ```
+    git diff of §5.5 proving both class lists (retryable and never-retryable) are untouched:
+    ```diff
+    @@ -1303,7 +1303,7 @@ Retry budget precedence is:
+     2. repository policy `run.retry_budget`;
+     3. default `2`.
+
+    -`N` must be an integer from 0 through 10 inclusive. It counts correction attempts after the initial attempt, separately for each action. `0` means the first failed deterministic check or retryable host attempt immediately fails the item; no correction packet is issued. The frozen budget cannot be raised on resume. A new run may choose a different policy.
+    +`N` must be an integer from 0 through 10 inclusive. It counts correction attempts after the initial attempt, separately for each action. `0` means the first failed deterministic check or retryable host attempt immediately fails the item; no correction packet is issued. The frozen budget cannot be raised on resume. A new run may choose a different policy. This section is the single normative home where the correction-budget bound and its three-tier precedence are defined; every other mention in this specification is an informational pointer here, following the convention stated in this specification's preamble that "The convention is stated once, here, because it governs all three equally and a rule attached to one paragraph while its neighbors decay is a fourth thing to maintain rather than a fix."
+
+     The engine may spend budget only on failures classified as retryable:
+    ```
+    Section heading list (`grep -n "^###* " .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md`) showing no section was renumbered:
+    115:## 1. Executive summary
+    123:### 1.1 Normative roles
+    132:### 1.2 Required execution sequence
+    150:### 1.3 Disposition of behavior previously bundled together
+    168:### 1.4 Resolution of the required revisions
+    178:## 2. Selector resolution and mixed-type policy
+    180:### 2.1 Command grammar
+    235:### 2.1a The records-only front-matter conflict is RE-DERIVED, not retried
+    257:### 2.1b A merge-back conflict on an execute lane is sent back to the agent to resolve in its lane
+    271:### 2.1c The verification flag surface is PER HOST
+    297:### 2.2 Type vocabulary
+    313:### 2.3 Resolution algorithm
+    331:### 2.4 `all` and explicit type targeting
+    355:### 2.4a The needs-review selector
+    367:### 2.5 Mixed-type gate
+    389:### 2.5a Draft admission gate
+    417:### 2.5b Orchestrator coverage gate
+    465:### 2.5c Spec-edit acknowledgement gate
+    475:### 2.6 Overrides
+    488:### 2.7 Mandatory cross-item dependency statement
+    547:### 2.8 Scope of the mandatory field
+    553:### 2.9 Dependency satisfaction
+    588:### 2.10 One shared dependency predicate and rule family
+    621:### 2.11 Grandfathering and deterministic author pressure
+    646:## 3. Per-type dispatch table
+    648:### 3.1 Shared dispatch rules
+    665:### 3.2 IPDs
+    684:### 3.3 Specs
+    703:### 3.4 Backlog items
+    718:### 3.5 Prompt files
+    729:## Run contract
+    746:### 3.6 Research artifacts, release records, and walkthroughs
+    756:## 4. Per-type deterministic verification checklists
+    758:### 4.1 Message and recovery conventions
+    779:#### Exhaustive `ABORT RUN` set
+    802:#### Failed-item containment transaction
+    816:### 4.2 Checks common to every actionable type
+    871:### 4.3 Cross-item dependency verification
+    893:### 4.4 IPD review verification
+    908:### 4.5 IPD approval verification
+    917:### 4.6 One-off IPD execution verification
+    935:### 4.7 Reusable IPD execution verification
+    945:### 4.8 Spec verification
+    947:#### Review and approval
+    958:#### IPD authoring from an approved spec
+    968:#### Implementing and implemented specs
+    977:### 4.9 Backlog graduation verification
+    989:### 4.10 Prompt verification
+    1003:### 4.11 Research, release, and walkthrough skip verification
+    1011:### 4.12 Terminal and gated-item skip verification
+    1023:## 5. Cross-cutting design
+    1025:### 5.1 Deterministic authority boundary
+    1051:#### The attributed suite-attribution exception
+    1157:### 5.2 Safety policy
+    1159:#### Per-host capability descriptor
+    1199:#### Guarantee classification
+    1220:### 5.3 Durable state and restartability
+    1238:#### 5.3a Per-invocation telemetry: a BEST-EFFORT DERIVED artifact, never a gate
+    1267:### 5.4 Queue ordering and dependencies
+    1298:### 5.5 Retry policy
+    1331:#### 5.5a Additive scope widening is a finalize-time accept, not a retry
+    1352:### 5.6 Reporting
+    1417:### 5.7 Failure taxonomy
+    1446:### 5.8 Interactive and unattended parity
+    1464:## 6. Open questions and honest limits
+    1466:### 6.1 Limits that the implementation must state plainly
+    1478:### 6.2 Implementation choices still requiring repository-level definition
+    1493:## 7. Concrete worked example
+    1512:### 7.1 Command exactly as requested
+    1528:#### Queue trace
+    1570:### 7.2 Explicit mixed-type variant
+    1604:## Workflow history
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the `git diff` for §1.4, §2.1 and §4.1. For each, show it now POINTS at §5.5 and no longer states the bound as its own rule. Additionally paste (a) the surviving §2.1 synopsis token `[--retry-budget <0..10>]` verbatim, (b) the surviving `--integration-retry-limit` bullet showing the contrast against the correction budget's range is intact, and (c) the re-verification of F-6 (`tests/test_run_flag_surface.py` still absent and nothing else extracting the grammar stanza) performed BEFORE the §2.1 edit.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED.
+    git diff for §1.4, §2.1, and §4.1:
+    ```diff
+    @@ -173,1 +173,1 @@
+    -| A2: configurable retries | `--retry-budget <0..10>` overrides repository policy; repository policy overrides the default of 2. Zero means no automatic correction after the initial attempt. Non-retryable classes remain non-retryable at every budget. |
+    +| A2: configurable retries | `--retry-budget` overrides repository policy; repository policy overrides the default of 2 (Section 5.5 is the single normative home for the 0..10 bound and precedence). Zero means no automatic correction after the initial attempt. Non-retryable classes remain non-retryable at every budget. |
+    @@ -219,1 +219,1 @@
+    -- `--retry-budget` is an integer from 0 through 10 inclusive. It counts automatic correction attempts after the initial execution attempt. The CLI value overrides repository policy; repository policy overrides the default of 2. The frozen value cannot change on resume.
+    +- `--retry-budget` takes an integer value counting automatic correction attempts after the initial execution attempt. Section 5.5 is the normative home for the 0..10 bound, default of 2, and three-tier precedence. The frozen value cannot change on resume.
+    @@ -774,1 +774,1 @@
+    -- **RETRY**: enter `correction_required`, issue a bounded correction packet, and retry the checker while the frozen retry budget remains. The default correction budget is 2; the valid frozen range is 0 through 10.
+    +- **RETRY**: enter `correction_required`, issue a bounded correction packet, and retry the checker while the frozen retry budget remains (Section 5.5 is the normative home for the budget bound, default, and precedence).
+    ```
+    (a) Surviving §2.1 synopsis token verbatim (line 192):
+    `    [--retry-budget <0..10>]`
+    (b) Surviving `--integration-retry-limit` bullet (line 220):
+    `- `--integration-retry-limit` bounds how many times a DEFERRED lane-to-main integration is RE-ATTEMPTED before the item reaches the terminal `fail-merge` (legacy `merge-needs-human`) state. It counts INTEGRATION RE-ATTEMPTS and it is a DIFFERENT QUANTITY from `--retry-budget`: it is NOT bounded by that flag's 0..10 range, it is not read from the same default, and changing one must not move the other. The two are separate because the reasoning behind each differs. A correction retry spends a paid agent turn and cannot turn failure into success by mere repetition, which is why its budget is small; an integration re-attempt costs one `git status` and one `git merge-tree`, spends no agent turn, and CAN succeed on repetition, because the condition it waits on is another writer's transient uncommitted file in the shared checkout. It is a non-negative integer defaulting to 10, and the frozen value cannot change on resume. Every re-attempt MUST route through the same merge-and-revalidate gate as the first attempt: a clean `merge-tree` proves the absence of a textual conflict and never that the combined result still passes.`
+    (c) Re-verification of F-6 performed BEFORE §2.1 edit:
+    `$ ls tests/test_run_flag_surface.py` -> `ls: cannot access 'tests/test_run_flag_surface.py': No such file or directory` (exit code 2).
+    `$ grep -rn "validate_retry_budget\|MIN_RETRY_LIMIT\|MAX_RETRY_LIMIT\|inclusive range" tests/ --include=*.py` -> empty (exit code 1).
+    Only test reading spec 25kzda was `tests/test_runner_shared.py:4898` (`test_spec_25kzda_contains_no_follow_generated_token`), asserting only the absence of `--follow-generated`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `grep -n "2\.1" agent_workflows/run_recovery.py` returning NOTHING, and `grep -n "5\.5" agent_workflows/run_recovery.py` showing all nine retargeted sites. Paste the executed runtime message before and after (`invalid retry budget 99: ... (spec 25kzda 2.1)` -> `... (spec 25kzda 5.5)`). Paste the `DEFAULT_RETRY_LIMIT` comment showing F-8's misattributed quotation is now either quoted from the section that contains it or replaced by §5.5's wording, and NOT merely relabelled. Paste proof the constants are unchanged (`DEFAULT_RETRY_LIMIT == 2`, `MIN_RETRY_LIMIT == 0`, `MAX_RETRY_LIMIT == 10`).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED.
+    `grep -nP "2\.1(?![0-9a-z])" agent_workflows/run_recovery.py` output:
+    Exit code 1 (NOTHING returned).
+    `grep -nP "5\.5" agent_workflows/run_recovery.py` output:
+    ```text
+    17:    The budget's own legal RANGE is spec 25kzda 5.5's inclusive 0..10, enforced by the shared
+    51:# Spec 25kzda 5.5: default is 2; "`N` must be an integer from 0 through 10 inclusive."
+    64:# NOT a range check: spec 5.5's 0..10 bound is enforced separately by `validate_retry_budget()`
+    69:# Spec 25kzda 5.5's legal frozen range for the correction budget: 0 through 10 INCLUSIVE. `0` is a
+    116:    """Raised when a retry budget is outside spec 25kzda 5.5's legal 0..10 inclusive range.
+    129:            f"{MIN_RETRY_LIMIT}..{MAX_RETRY_LIMIT} (spec 25kzda 5.5)"
+    139:    Enforces spec 25kzda 5.5's inclusive 0..10 range. This is the SINGLE definition of that bound.
+    291:      6. `limit` MUST be in spec 25kzda 5.5's inclusive 0..10 range, checked via the shared
+    420:    `limit` is validated against spec 25kzda 5.5's inclusive 0..10 range by the shared
+    ```
+    Executed runtime message before and after:
+    Before E-03:
+    `validate_retry_budget: InvalidRetryBudgetError: invalid retry budget 99: must be an int in the inclusive range 0..10 (spec 25kzda 2.1)`
+    `resolve_retry_budget: RunFlagRefusal: --retry-budget: invalid retry budget 99: must be an int in the inclusive range 0..10 (spec 25kzda 2.1)`
+    After E-03:
+    `validate_retry_budget: InvalidRetryBudgetError: invalid retry budget 99: must be an int in the inclusive range 0..10 (spec 25kzda 5.5)`
+    `resolve_retry_budget: RunFlagRefusal: --retry-budget: invalid retry budget 99: must be an int in the inclusive range 0..10 (spec 25kzda 5.5)`
+    `DEFAULT_RETRY_LIMIT` comment in `run_recovery.py`:
+    `# Spec 25kzda 5.5: default is 2; "`N` must be an integer from 0 through 10 inclusive."`
+    (Replaced with §5.5's wording rather than merely relabelled).
+    Proof constants unchanged:
+    `python3 -c "from agent_workflows import run_recovery; assert run_recovery.DEFAULT_RETRY_LIMIT == 2; assert run_recovery.MIN_RETRY_LIMIT == 0; assert run_recovery.MAX_RETRY_LIMIT == 10; print('Constants verified:', run_recovery.DEFAULT_RETRY_LIMIT, run_recovery.MIN_RETRY_LIMIT, run_recovery.MAX_RETRY_LIMIT)"`
+    Output: `Constants verified: 2 0 10`
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `grep -nP "2\.1(?![0-9a-z])" agent_workflows/runner_shared.py` BEFORE and AFTER with counts (the ANCHORED pattern, per PR-003: a bare `grep -n "2\.1"` also matches `2.1a`, `2.1b` and `2.10`, which are DIFFERENT sections and must not enter the arithmetic; measured at review HEAD `09f68a5b` the naive pattern matches 45 lines and the anchored one 37). Enumerate every AFTER survivor with a one-line justification that it names the command grammar or the policy-flag surface rather than the bound; there are 33 of them after the four move, not the "roughly eighteen" F-5 originally estimated, so budget for a 33-row enumeration. Paste the FOUR retargeted `runner_shared.py` sites showing §5.5, and paste the ONE retargeted `config.py` site (the `RUN_POLICY_KEY` comment) showing §5.5 alone. Paste `git diff --stat` for both files confirming no logic change, and confirm by name that `cli.py`, `command_surface.py`, `oc_runipd.py` and `agy_runipd.py` are absent from `git status`. DO NOT require `config.py` to be absent: E-04 EDITS it and it is declared in `- Scope-Paths:` for that purpose (PR-001; the earlier wording of this item demanded it be unmodified, contradicting E-04, the Scope check and E-07 all at once).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED.
+    `grep -cP "2\.1(?![0-9a-z])" agent_workflows/runner_shared.py`:
+    BEFORE: 37
+    AFTER: 33
+    The 33 AFTER survivors in `agent_workflows/runner_shared.py` with justifications:
+    1. line 105: section banner for run policy flags grammar block
+    2. line 107: preamble note citing spec 25kzda 2.1 policy flags
+    3. line 1123: comment on RUN_POLICY_FLAGS closed flag list defined in spec 2.1
+    4. line 4288: comment on re-derivation invocation rule in spec 2.1
+    5. line 4677: comment on invocation and resume semantics in spec 2.1
+    6. line 7329: comment on invocation repetition prohibition in spec 2.1
+    7. line 9850: docstring citing spec 2.1's Rules contrast bullet for --integration-retry-limit
+    8. line 13110: comment citing spec 25kzda 2.1 operator surface
+    9. line 14565: banner for spec 25kzda 2.1 run policy flag surface
+    10. line 14568: comment on spec 25kzda 2.1 invocation surface closed list
+    11. line 14590: docstring for RunPolicyFlag row in spec 25kzda 2.1 policy flag list
+    12. line 14644: docstring for RUN_POLICY_FLAGS matching spec 25kzda 2.1 order
+    13. line 14654: comment on spec 2.1 policy flag declaration
+    14. line 14655: comment on bidirectional test guarding spec 2.1 flag table
+    15. line 14663: comment on multi-choice flag kind in spec 2.1
+    16. line 14689: comment on flag declared in spec 2.1 grammar block
+    17. line 14691: comment on flag amended in spec 2.1 grammar block
+    18. line 14693: comment on flag order matching spec 2.1 grammar block
+    19. line 14853: comment on flags declared in spec 25kzda 2.1 grammar
+    20. line 14874: comment on flag registration matching spec 2.1
+    21. line 14899: comment on integration-serialization escape hatch in spec 2.1
+    22. line 15017: docstring for register_run_policy_flags from spec 2.1 flags
+    23. line 15042: error message validating dests against spec 2.1 flags
+    24. line 15119: comment on repeatable flag syntax in spec 2.1
+    25. line 16092: docstring for refuse_frozen_run_policy_flag citing spec 2.1 resume rule
+    26. line 16109: refusal message citing spec 25kzda 2.1 freeze on resume
+    27. line 16116: docstring for freeze_run_policy_flags citing spec 2.1 flag values
+    28. line 16118: comment quoting spec 2.1 resume options rule
+    29. line 16169: comment on --integration-retry-limit contrast in spec 2.1 Rules bullet
+    30. line 17049: docstring citing spec 2.1 for --unverifiable-ok precondition
+    31. line 17051: comment on spec 2.1 legality rule for --unverifiable-ok
+    32. line 17085: docstring for apply_passed_run_policy_flags citing spec 2.1 flags
+    33. line 26987: comment on action invocation permission in spec 2.1
 
-- [ ] V-05 validates E-05
+    FOUR retargeted `runner_shared.py` sites:
+    1. Line 9848: `DELIBERATELY NOT CLAMPED TO SPEC 5.5's 0..10 RANGE, which bounds the CORRECTION budget`
+    2. Line 14996: `#: Spec 5.5's default retry budget. NOT a second definition of the value: it is read FROM`
+    3. Lines 15157 & 15159: `"""Spec 5.5's retry-budget precedence... ALL THREE TIERS SHIP: per spec 5.5 the precedence is CLI over repository policy over the default of 2.`
+    4. Line 16169: `# quantities and this one is deliberately not clamped to spec 5.5's 0..10 range (the contrast spec 2.1's Rules bullet names).`
+    Split edit form chosen: named §5.5 for the bound it contrasts against and §2.1 for the Rules bullet stating the contrast.
+
+    ONE retargeted `config.py` site:
+    Line 1764: `# Spec 25kzda 5.5 declares a THREE-TIER precedence for the correction budget - CLI over`
+
+    `git diff --stat agent_workflows/runner_shared.py agent_workflows/config.py`:
+    ```text
+     agent_workflows/config.py        |  2 +-
+     agent_workflows/runner_shared.py | 10 +++++-----
+     2 files changed, 6 insertions(+), 6 deletions(-)
+    ```
+    Unopened files confirmed absent from `git status`:
+    `agent_workflows/cli.py`, `agent_workflows/command_surface.py`, `agent_workflows/oc_runipd.py`, `agent_workflows/agy_runipd.py` all absent.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the new test's source. Paste it FAILING against the pre-E-03 message and PASSING after, both as real runner output. Paste a demonstration that the spec locator FAILS LOUDLY (not skips) when it finds zero or more than one match of its anchor sentence, exercised on a modified copy of the spec in a temporary directory rather than on the tracked file (do NOT edit the tracked spec to produce this evidence). Paste the anchor constant and the `grep -c` proving it matches EXACTLY ONCE in the spec as E-01 leaves it, and state whether E-01's amendment reworded the anchored sentence; if it did, show the updated anchor and its new single-match count (PR-005). Confirm in the pasted source that the test contains no `inspect`, no `ast`, and no read of any `agent_workflows/*.py`, and that it resolves the spec by RECURSIVE glob under `.aw/records/specs/` rather than a hard-coded status directory.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED.
+    Pasted source of `tests/test_retry_budget_citation.py`:
+    ```python
+    """Consistency test ensuring the runtime retry budget validation error cites the canonical spec section.
 
-- [ ] V-06 validates E-06
+    Honest limit: this test proves the runtime refusal message and spec 25kzda AGREE on which section
+    holds the normative retry-budget bound (Section 5.5). It never proves either is independently
+    correct, and it is silent if the spec stops stating the bound in a form the locator recognizes.
+    To guard against silent drift or ambiguity, the spec locator fails loudly (raising ValueError)
+    rather than skipping when it finds zero or more than one normative statement.
+    """
+
+    from __future__ import annotations
+
+    import pathlib
+    import pytest
+
+    from agent_workflows import run_recovery
+
+    #: The exact sentence in spec 25kzda where the correction-budget bound is defined normatively.
+    #: Load-bearing: must match exactly once in the spec. The distinguishing "must be" separates
+    #: this sentence from §2.1's "is an integer from 0 through 10 inclusive" (which was demoted to a
+    #: pointer). If §5.5 is reworded, update this anchor to match the new normative sentence.
+    BOUND_NORMATIVE_SENTENCE: str = "must be an integer from 0 through 10 inclusive"
+
+
+    def locate_spec_25kzda(repo_root: pathlib.Path) -> pathlib.Path:
+        """Locate spec 25kzda recursively under .aw/records/specs/ across any status subdirectory."""
+        specs_dir = repo_root / ".aw" / "records" / "specs"
+        matches = sorted(specs_dir.rglob("*-25kzda-*.spec.md"))
+        if len(matches) != 1:
+            raise ValueError(
+                f"Expected exactly 1 spec matching *-25kzda-*.spec.md under {specs_dir}, "
+                f"found {len(matches)}: {matches}"
+            )
+        return matches[0]
+
+
+    def derive_bound_section(spec_path: pathlib.Path, anchor: str = BOUND_NORMATIVE_SENTENCE) -> str:
+        """Derive the enclosing ### section number holding the normative bound in the spec.
+
+        Fails loudly (raises ValueError) if zero or multiple lines match the anchor, or if no
+        preceding '### ' heading is found.
+        """
+        text = spec_path.read_text(encoding="utf-8")
+        lines = text.splitlines()
+        matching_line_indices = [i for i, line in enumerate(lines) if anchor in line]
+        if not matching_line_indices:
+            raise ValueError(
+                f"Found 0 lines matching anchor {anchor!r} in {spec_path}. "
+                "The normative bound statement could not be located."
+            )
+        if len(matching_line_indices) > 1:
+            raise ValueError(
+                f"Found {len(matching_line_indices)} lines matching anchor {anchor!r} in {spec_path} "
+                f"(line indices: {matching_line_indices}); expected exactly 1."
+            )
+
+        target_idx = matching_line_indices[0]
+        for i in range(target_idx, -1, -1):
+            line = lines[i].strip()
+            if line.startswith("### "):
+                parts = line[4:].strip().split()
+                if parts:
+                    return parts[0]
+        raise ValueError(
+            f"Could not find preceding '###' section heading for line {target_idx + 1} in {spec_path}"
+        )
+
+
+    def test_retry_budget_error_cites_canonical_spec_section() -> None:
+        """Assert validate_retry_budget error message cites the spec section holding the bound."""
+        repo_root = pathlib.Path(__file__).resolve().parent.parent
+        spec_path = locate_spec_25kzda(repo_root)
+        expected_section = derive_bound_section(spec_path)
+
+        with pytest.raises(run_recovery.InvalidRetryBudgetError) as exc_info:
+            run_recovery.validate_retry_budget(99)
+
+        msg = str(exc_info.value)
+        expected_citation = f"spec 25kzda {expected_section}"
+        assert expected_citation in msg, (
+            f"Runtime message {msg!r} does not contain expected citation {expected_citation!r}"
+        )
+    ```
+    FAILING output before E-03 (`python3 -m pytest tests/test_retry_budget_citation.py -o addopts=""`):
+    ```text
+    =================================== FAILURES ===================================
+    _____________ test_retry_budget_error_cites_canonical_spec_section _____________
+
+        def test_retry_budget_error_cites_canonical_spec_section() -> None:
+            """Assert validate_retry_budget error message cites the spec section holding the bound."""
+            repo_root = pathlib.Path(__file__).resolve().parent.parent
+            spec_path = locate_spec_25kzda(repo_root)
+            expected_section = derive_bound_section(spec_path)
+
+            with pytest.raises(run_recovery.InvalidRetryBudgetError) as exc_info:
+                run_recovery.validate_retry_budget(99)
+
+            msg = str(exc_info.value)
+            expected_citation = f"spec 25kzda {expected_section}"
+    >       assert expected_citation in msg, (
+                f"Runtime message {msg!r} does not contain expected citation {expected_citation!r}"
+            )
+    E       AssertionError: Runtime message 'invalid retry budget 99: must be an int in the inclusive range 0..10 (spec 25kzda 2.1)' does not contain expected citation 'spec 25kzda 5.5'
+    E       assert 'spec 25kzda 5.5' in 'invalid retry budget 99: must be an int in the inclusive range 0..10 (spec 25kzda 2.1)'
+
+    tests/test_retry_budget_citation.py:79: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_retry_budget_citation.py::test_retry_budget_error_cites_canonical_spec_section
+    ============================== 1 failed in 0.22s ===============================
+    ```
+    PASSING output after E-03 (`python3 -m pytest tests/test_retry_budget_citation.py -o addopts=""`):
+    ```text
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=2704193833
+    rootdir: <worktree>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 1 item
+
+    tests/test_retry_budget_citation.py .                                    [100%]
+
+    ============================== 1 passed in 0.11s ===============================
+    ```
+    Loud failure demonstration on modified spec in temporary directory:
+    PASS Case 1 (0 matches): ValueError: Found 0 lines matching anchor 'must be an integer from 0 through 10 inclusive' in /tmp/tmpf554admm/spec.md. The normative bound statement could not be located.
+    PASS Case 2 (>1 matches): ValueError: Found 2 lines matching anchor 'must be an integer from 0 through 10 inclusive' in /tmp/tmpf554admm/spec.md (line indices: [2, 3]); expected exactly 1.
+    Anchor constant: `BOUND_NORMATIVE_SENTENCE = "must be an integer from 0 through 10 inclusive"`
+    Grep match count: `grep -c "must be an integer from 0 through 10 inclusive" .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md` -> `1`.
+    E-01's amendment did NOT reword the anchored sentence; it was preserved byte-identical.
+    Confirmed: source contains no `inspect`, no `ast`, no reads of `agent_workflows/*.py`, and resolves the spec via recursive `specs_dir.rglob("*-25kzda-*.spec.md")`.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste `git diff` for the review record showing ONLY an appended `## Corrections` section and a byte-identical Round 1 findings table, and `git diff` for `si24ia` showing exactly ONE added `## Workflow history` line and nothing else. Paste `aw check reviews` output showing `CONFORMS` with 0 errors and 0 warnings (review-HEAD baseline for comparison: `CONFORMS 504 reviews checked`, 0 errors 0 warnings; re-measure rather than trusting the count, which grows as other lanes land reviews). Paste the parsed round-1 finding ID list BEFORE and AFTER the append and show them IDENTICAL, obtained by calling the shipped parser rather than by eye: `python3 -c "import pathlib; from agent_workflows import review_findings as rf; d=rf.parse_review_text(pathlib.Path('<record>').read_text()); print([[f.id for f in r.findings] for r in d.rounds], d.diagnostics)"`. The expected list is `[['PR-302', 'PR-303', 'PR-308', 'PR-301', 'PR-304', 'PR-305', 'PR-306', 'PR-307', 'PR-309']]` with an EMPTY diagnostics list, unchanged by the append. Also confirm `si24ia`'s history section is NEWEST-FIRST (the new line goes directly under the `## Workflow history` heading, not at the end), which is the convention `plan_readiness.extract_newest_history_entry` reads.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED.
+    git diff for the review record `.aw/records/reviews/20260910-specreq-01-si24ia-decide-whether-spec-requirements-get-machine-readable-tracki.review.md`:
+    ```diff
+    @@ -68,3 +68,9 @@
+     | D-4 | The one baseline suite failure is caused by a gitignored `opencode-recovery/` directory of 189 files owned by another party. How should the plan handle it? | Documented it as the real, environmental failure and added an explicit prohibition on deleting or modifying that directory, in required-tests, the deferred list and V-05 | Say nothing and let the executor discover it (rejected: the plan named a DIFFERENT failing test, so an executor reconciling the mismatch has a live incentive to remove the offending files); ask for the directory to be cleaned (rejected outright: destroying a co-worker's uncommitted work in a shared checkout) | `.gitignore:49`; measured failure output; `AGENTS.md` shared-checkout rule | yes |
+    +
+    +## Corrections
+    +
+    +### 2026-10-01: Correction of finding PR-305 (plan cpi6p3, backlog 88manw)
+    +
+    +Finding PR-305's evidence cell was itself in error: spec `25kzda` §2.1 ("Command grammar") did contain the retry-budget bound in its prose bullet at line 219, while §1.1 ("Normative roles") states no bound at all. Plan `si24ia`'s original citation of §2.1 was therefore correct. Plan `cpi6p3` (backlog `88manw`) declared §5.5 ("Retry policy") the single canonical normative home of the `0..10` bound and demoted the restatements in §1.4, §2.1, and §4.1 to pointers, superseding both the original §2.1 citation and PR-305's erroneous correction. The Round 1 table above is preserved without in-place edits as an immutable historical review record.
+    ```
+    git diff for `si24ia` `.aw/records/plans/executed/20260908-specreq-01-si24ia-decide-whether-spec-requirements-get-machine-readable-tracki.ipd.md`:
+    ```diff
+    @@ -21,6 +21,7 @@
+     - From-Backlog: f1sw71
 
-- [ ] V-07 validates E-07
+     ## Workflow history
+    +- 2026-10-01 note (cpi6p3): Finding PR-305 corrected and retry-budget bound §2.1 citation superseded by plan cpi6p3 (backlog 88manw), which declared spec 25kzda section 5.5 the canonical home of the 0..10 bound.
+     - 2026-09-21 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: si24ia verified (set specreq, attempt 1).
+     - 2026-09-13 approved (aw set): status set to approved
+    ```
+    `aw check reviews` output:
+    ```text
+    AW check  reviews                                                           0 ms
+    ✓ CONFORMS  647 reviews checked
+
+    Evidence
+      checked  647
+      errors  0   warnings  0
+    ```
+    Parsed round-1 finding ID list before and after:
+    Before: `[['PR-302', 'PR-303', 'PR-308', 'PR-301', 'PR-304', 'PR-305', 'PR-306', 'PR-307', 'PR-309']] ()`
+    After: `[['PR-302', 'PR-303', 'PR-308', 'PR-301', 'PR-304', 'PR-305', 'PR-306', 'PR-307', 'PR-309']] ()`
+    Confirmed: identical list and empty diagnostics list.
+    Confirmed: `si24ia`'s history section is newest-first (the new line is directly below `## Workflow history`).
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste the new `aw specs note` history line in full, showing it names plan `cpi6p3` and backlog `88manw`, lists the changed sections, lists the deliberate non-changes (bound value, default, precedence, both class lists, §2.1 synopsis token, `--integration-retry-limit` contrast), records the surviving out-of-fence citations in `config.py`, `cli.py`, `command_surface.py`, `oc_runipd.py` and `agy_runipd.py`, and records the `rb4wgj` interaction. Paste the spec's `- Status:` line showing it is still `approved`. Paste the full-suite run (`python3 -m pytest`) and the executor's own measured baseline for comparison, plus `aw ipd lint --phase pre-transition` conforming.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED.
+    New `aw specs note` history line in full:
+    `- 2026-10-01 note (aw specs): AMENDED (plan cpi6p3, backlog 88manw): Section 5.5 declared the single normative home of the 0..10 correction-budget bound and three-tier precedence; Section 1.4 A2 row, Section 2.1 prose bullet, and Section 4.1 RETRY bullet demoted to pointers at Section 5.5. What deliberately did not change: the bound value (0..10), default of 2, three-tier precedence order, retryable and never-retryable class lists, Section 2.1 synopsis token [--retry-budget <0..10>], and the --integration-retry-limit contrast. Surviving out-of-fence citations: config.py's RUN_POLICY_KEY comment (retargeted to Section 5.5) and flag-surface/command-grammar citations in cli.py, command_surface.py, oc_runipd.py, and agy_runipd.py (deliberate, correct survivors). Composes with backlog rb4wgj, which proposes amending Section 5.5's retry class vocabulary rather than the bound paragraph.`
+    Spec `- Status:` line:
+    `- Status: approved`
+    Executor's measured baseline full-suite run:
+    `3551 passed, 2 skipped, 3 warnings in 203.34s (0:03:23)`
+    Post-change bare full-suite run:
+    `3552 passed, 2 skipped, 3 warnings in 69.72s (0:01:09)`
+    (Pass count increased by exactly 1 for the new test; zero new failures).
+    `aw ipd lint --phase pre-transition` conforming output:
+    ```text
+    - >  ◕  approved     plan        20260928-88manw-01-cpi6p3  [low]  [blocking]  advisory
+    ```
+    (Exit code 0; 0 errors).
+  - Result: pass
 
 ## Approval and execution gate
 

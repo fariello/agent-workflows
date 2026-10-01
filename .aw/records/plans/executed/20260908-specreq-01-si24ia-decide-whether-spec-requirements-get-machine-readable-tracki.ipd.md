@@ -21,6 +21,7 @@
 - From-Backlog: f1sw71
 
 ## Workflow history
+- 2026-10-01 note (cpi6p3): Finding PR-305 corrected and retry-budget bound §2.1 citation superseded by plan cpi6p3 (backlog 88manw), which declared spec 25kzda section 5.5 the canonical home of the 0..10 bound.
 - 2026-09-21 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: si24ia verified (set specreq, attempt 1).
 - 2026-09-13 approved (aw set): status set to approved
 

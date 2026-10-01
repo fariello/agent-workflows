@@ -1,5 +1,5 @@
 - Id: 88manw
-- Status: graduated
+- Status: done
 - Graduated-To: 88manw
 - Blocks-Release: next
 - Set: 88manw
@@ -8,6 +8,7 @@
 - Summary: plan si24ia review finding PR-305 rejected a correct spec section citation and substituted a wrong one, and the 25kzda 0..10 retry bound is stated in four different sections
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): closed by aw oc run: IPD cpi6p3 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-88manw-01-cpi6p3-make-spec-25kzda-section-5-5-the-canonical-home-of-the-0-10.ipd.md); evidence .aw/records/plans/executed/20260928-88manw-01-cpi6p3-make-spec-25kzda-section-5-5-the-canonical-home-of-the-0-10.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T235632Z-1358353: cpi6p3
 - 2026-09-20 created (aw backlog): plan si24ia review finding PR-305 rejected a correct spec section citation and substituted a wrong one, and the 25kzda 0..10 retry bound is stated in four different sections
 
