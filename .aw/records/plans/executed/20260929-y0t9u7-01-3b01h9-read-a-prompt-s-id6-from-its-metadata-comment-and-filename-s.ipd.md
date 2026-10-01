@@ -6,7 +6,7 @@
 - Scope: Teach `aw find`'s generic branch to resolve a prompt's id6 from the two sources the purity contract DOES sanction, in the precedence `prompts_index.scan_prompts` ships for its FIRST source (metadata comment) and with a GUARDED second source (`selectors.filename_slot_id6`, which refuses a legacy name's slug word where `prompts_index`'s raw `parse_clustered(...).group("id6")` would accept it), so the id6 column is populated and `--id` matches. Fix the `--set` filter in the same reader for the same root cause (a prompt's `Set:` is in the same comment, so `selectors._read_setid` misses it and `aw find prompts --set plainlang` returns zero rows against a prompt whose filename setid IS `plainlang`), using the comment then `check_engine._filename_setid`, whose HHMM guard is the setid twin of the slot guard. THE PROMPT-AWARE READER MUST BE CONSULTED BEFORE `selectors._read_id`/`_read_setid`, NOT AFTER, because for a prompt those readers are not merely silent but WRONG-CAPABLE: a prompt body legitimately quoting a `- Id:`/`- Set:` bullet before its first `##` heading is read as a declaration (measured), and a prompt has no sanctioned bullet at all. Does NOT widen `selectors._ID_RE`, does NOT route `selectors.resolve`'s id6 rule through a whole-file read, does NOT change which artifacts MATCH for any type, does NOT touch the status column, and does NOT change any non-prompt type's id6 or setid rendering.
 - Scope-Paths: agent_workflows/cli.py, tests/test_find_prompts_lane_status.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 3b01h9
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 3b01h9 verified (set y0t9u7, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20260930-lq2w86-01-lq2w86-fix-date-timezone-parity-between-backlog-run-set-a.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 
@@ -102,46 +102,46 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: pin the defect before changing it
 
-- [ ] E-01 EXTEND `tests/test_find_prompts_lane_status.py` WITH FAILING COVERAGE FOR THE id6 CELL, asserting `tokens[2]` for every prompt its fixture already writes (the row format is `glyph  status  id6  path`, verified by splitting a rendered line, so `tokens[2]` is the id6 cell), since that fixture writes a comment `Id:` and a conformant clustered filename and therefore already has everything needed for the COMMENT path. Add the four cases the current fixture does NOT cover, because each is a distinct source-resolution path: (a) a prompt with a comment `Id:` AND a matching filename slot, (b) a prompt with a comment `Id:` and a LEGACY `YYYYMMDD-HHMM-NN-<slug>` filename that has no identity slot at all, (c) a prompt with NO metadata comment whose id6 exists only in the filename slot, and (d) a prompt with a comment `Id:` whose BODY ALSO QUOTES a `- Id:`/`- Set:` bullet above its first `##` heading, which is the case E-03's ordering exists for and the one an unguarded fallback gets wrong. Also add the two filter cases (`--id`, `--set`). MIND TWO TRAPS IN THE EXISTING FIXTURE, both measured at review. FIRST, its `not-executed` lane id6 is the six-character string `prnot-`, which `artifact_core.ID6_RE` REJECTS (`ID6_RE.match('prnot-')` is None) and which `artifact_naming.parse_clustered` therefore refuses for that row's whole filename; use a valid id6 for any NEW row rather than copying that pattern, and state in the evidence what the pre-existing `prnot-` row resolves to so a reader is not surprised later. SECOND, AND THIS IS WHY CASE (c) NEEDS A NEW FIXTURE ROW RATHER THAN AN ASSERTION ON AN EXISTING ONE: not one of the seven fixture id6s (`prpend`, `prexec`, `prreus`, `prsupe`, `prnot-`, `prmdiv`, `prmnol`) can reach the filename-slot branch at all, because `selectors.filename_slot_id6` requires the slot token to CONTAIN A DIGIT and all seven are all-letters (measured: `filename_slot_id6` returns `None` for every one). A case-(c) row whose id6 is all-letters would therefore assert `-` and pass both before and after the fix, proving nothing; the new row MUST use a digit-bearing id6 (the module's own walkthrough fixture uses `wt0001`, which does resolve). State this in the evidence, because it is the same class of silent-green hole F-10 records.
+- [x] E-01 EXTEND `tests/test_find_prompts_lane_status.py` WITH FAILING COVERAGE FOR THE id6 CELL, asserting `tokens[2]` for every prompt its fixture already writes (the row format is `glyph  status  id6  path`, verified by splitting a rendered line, so `tokens[2]` is the id6 cell), since that fixture writes a comment `Id:` and a conformant clustered filename and therefore already has everything needed for the COMMENT path. Add the four cases the current fixture does NOT cover, because each is a distinct source-resolution path: (a) a prompt with a comment `Id:` AND a matching filename slot, (b) a prompt with a comment `Id:` and a LEGACY `YYYYMMDD-HHMM-NN-<slug>` filename that has no identity slot at all, (c) a prompt with NO metadata comment whose id6 exists only in the filename slot, and (d) a prompt with a comment `Id:` whose BODY ALSO QUOTES a `- Id:`/`- Set:` bullet above its first `##` heading, which is the case E-03's ordering exists for and the one an unguarded fallback gets wrong. Also add the two filter cases (`--id`, `--set`). MIND TWO TRAPS IN THE EXISTING FIXTURE, both measured at review. FIRST, its `not-executed` lane id6 is the six-character string `prnot-`, which `artifact_core.ID6_RE` REJECTS (`ID6_RE.match('prnot-')` is None) and which `artifact_naming.parse_clustered` therefore refuses for that row's whole filename; use a valid id6 for any NEW row rather than copying that pattern, and state in the evidence what the pre-existing `prnot-` row resolves to so a reader is not surprised later. SECOND, AND THIS IS WHY CASE (c) NEEDS A NEW FIXTURE ROW RATHER THAN AN ASSERTION ON AN EXISTING ONE: not one of the seven fixture id6s (`prpend`, `prexec`, `prreus`, `prsupe`, `prnot-`, `prmdiv`, `prmnol`) can reach the filename-slot branch at all, because `selectors.filename_slot_id6` requires the slot token to CONTAIN A DIGIT and all seven are all-letters (measured: `filename_slot_id6` returns `None` for every one). A case-(c) row whose id6 is all-letters would therefore assert `-` and pass both before and after the fix, proving nothing; the new row MUST use a digit-bearing id6 (the module's own walkthrough fixture uses `wt0001`, which does resolve). State this in the evidence, because it is the same class of silent-green hole F-10 records.
   - Depends on: none
   - Expected outcome: a pasted test run showing the new assertions FAILING against HEAD, each failure naming the dash it received, plus the 15 pre-existing tests still passing, and an explicit statement that the case-(c) row's id6 is digit-bearing with the measured `filename_slot_id6` verdict for it.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the reader, matching the precedence that already ships
 
-- [ ] E-02 ADD A PROMPTS id6 READER to `cli.py` as the exact structural sibling of the existing `cli._find_prompt_lane_status`, which is the precedent for a prompts special case in this branch and returns `None` for every other type. Resolve comment-first, slot-second: FIRST `prompts.read_metadata_id6(text)`, which reads the first line only so a body-quoted `Id:` is never taken as a declaration, THEN `selectors.filename_slot_id6(path)`. Do NOT re-implement either reader and do NOT parse the comment inline; `prompts.read_metadata_id6` is documented as the one in-file reader and `filename_slot_id6` carries the slug-word guard F-6 measures as necessary. DO NOT "MIRROR `prompts_index.scan_prompts`" LITERALLY FOR THE SECOND SOURCE, and this is a correction to an earlier draft of this plan rather than a nicety: that module's `fn_id6` is the RAW `parse_clustered(...).group("id6")` with no guard, which F-6 measures returning the slug word `'prompt'` for a legacy `YYYYMMDD-HHMM-NN-<slug>` name. Copying it would manufacture an identity claim, which is precisely what `filename_slot_id6` exists to refuse, so this plan mirrors only its FIRST source (the comment) and its ORDER, never its second reader. Take the ALREADY-READ `text` as a parameter rather than re-opening the file: the generic branch reads each record exactly once and IPD `qfpnrm` removed a measured double read (1240 opens for 620 records) from this very layer, so adding a second open would reintroduce the defect backlog `59t9x5` closed. The `path` is already in hand at the call site (the loop variable `p`), so passing it costs no I/O.
+- [x] E-02 ADD A PROMPTS id6 READER to `cli.py` as the exact structural sibling of the existing `cli._find_prompt_lane_status`, which is the precedent for a prompts special case in this branch and returns `None` for every other type. Resolve comment-first, slot-second: FIRST `prompts.read_metadata_id6(text)`, which reads the first line only so a body-quoted `Id:` is never taken as a declaration, THEN `selectors.filename_slot_id6(path)`. Do NOT re-implement either reader and do NOT parse the comment inline; `prompts.read_metadata_id6` is documented as the one in-file reader and `filename_slot_id6` carries the slug-word guard F-6 measures as necessary. DO NOT "MIRROR `prompts_index.scan_prompts`" LITERALLY FOR THE SECOND SOURCE, and this is a correction to an earlier draft of this plan rather than a nicety: that module's `fn_id6` is the RAW `parse_clustered(...).group("id6")` with no guard, which F-6 measures returning the slug word `'prompt'` for a legacy `YYYYMMDD-HHMM-NN-<slug>` name. Copying it would manufacture an identity claim, which is precisely what `filename_slot_id6` exists to refuse, so this plan mirrors only its FIRST source (the comment) and its ORDER, never its second reader. Take the ALREADY-READ `text` as a parameter rather than re-opening the file: the generic branch reads each record exactly once and IPD `qfpnrm` removed a measured double read (1240 opens for 620 records) from this very layer, so adding a second open would reintroduce the defect backlog `59t9x5` closed. The `path` is already in hand at the call site (the loop variable `p`), so passing it costs no I/O.
   - Depends on: none
   - Expected outcome: a pure function plus pasted output resolving all 17 live prompts naming which source supplied each, explicitly showing that `oujnft` and `exnwoz` resolve from the COMMENT (their filename slot being `None`) and that a legacy-named prompt with no comment resolves to `None` rather than to a slug word, contrasted against `prompts_index.scan_prompts`'s `'prompt'` for the same name so the divergence is deliberate and recorded.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 ADD THE PROMPTS `Set:` READER AS A SEPARATE SIBLING, not as a clause of E-02, because it resolves a DIFFERENT field from a DIFFERENT pair of sources and needs its own guard evidence. FIRST the metadata comment's `Set:` (read through `prompts_index._parse_metadata_comment`, which is the established reader for comment fields other than `Id:` and is already imported this way by `check_engine.check_prompt_content`), THEN the filename setid group read through `check_engine._filename_setid`, NOT through a bare `parse_clustered(...).group("set")`. THE RAW GROUP IS A MEASURED TRAP EXACTLY AS ITS id6 TWIN IS: it returns `'1958'` for `20260810-1958-01-prompt-purity-lint.prompt.md`, because a legacy name's HHMM occupies the setid position without being one, and `_filename_setid`'s docstring records that reading `2147` as a setid "would invent findings on legacy names". `prompts_index.scan_prompts` uses the raw group here too (`fn_set`), so it is again a precedent for the ORDER and not for the reader. Measured on today's corpus, only 1 of 17 prompts declares a comment `Set:` while 17 of 17 have a readable filename setid, so unlike the id6 case the SLOT is the load-bearing source here and the comment is the rare one; that asymmetry is why the two fields get two items.
+- [x] E-07 ADD THE PROMPTS `Set:` READER AS A SEPARATE SIBLING, not as a clause of E-02, because it resolves a DIFFERENT field from a DIFFERENT pair of sources and needs its own guard evidence. FIRST the metadata comment's `Set:` (read through `prompts_index._parse_metadata_comment`, which is the established reader for comment fields other than `Id:` and is already imported this way by `check_engine.check_prompt_content`), THEN the filename setid group read through `check_engine._filename_setid`, NOT through a bare `parse_clustered(...).group("set")`. THE RAW GROUP IS A MEASURED TRAP EXACTLY AS ITS id6 TWIN IS: it returns `'1958'` for `20260810-1958-01-prompt-purity-lint.prompt.md`, because a legacy name's HHMM occupies the setid position without being one, and `_filename_setid`'s docstring records that reading `2147` as a setid "would invent findings on legacy names". `prompts_index.scan_prompts` uses the raw group here too (`fn_set`), so it is again a precedent for the ORDER and not for the reader. Measured on today's corpus, only 1 of 17 prompts declares a comment `Set:` while 17 of 17 have a readable filename setid, so unlike the id6 case the SLOT is the load-bearing source here and the comment is the rare one; that asymmetry is why the two fields get two items.
   - Depends on: none
   - Expected outcome: a pure function plus pasted per-prompt output over all 17 live prompts showing the source of each setid, the 1/17 versus 17/17 split, and `None` (not `'1958'`) for a legacy-named prompt, contrasted against the raw group's `'1958'` for the same name.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 WIRE BOTH READERS INTO THE GENERIC BRANCH of `cli._find_type_records` at the single place `raw_id` is computed, so ONE value feeds all three consumers: the `explicit_id` comparison, the `id6 = raw_id or "-"` display, and (for the setid twin) the `explicit_set` comparison. THE PROMPT READER IS CONSULTED FIRST AND `selectors._read_id` SECOND, which REVERSES what an earlier draft of this plan prescribed, and the reversal is load-bearing rather than stylistic. Measured at review: `selectors._read_id` applied to a prompt whose BODY quotes a `- Id: aaa111` bullet ANYWHERE BEFORE its first `##` heading returns `aaa111`, because `selectors.metadata_region`'s bullet dialect bounds the region at the first `##` and a prompt legitimately has prose above that point (5 of 17 live prompts contain no `##` heading at all, so for them the region is the WHOLE FILE). A prompt has no sanctioned `- Id:` bullet BY CONTRACT, so for this type that reader cannot be right and can be WRONG, and a fallback ordering would print a quoted example as the prompt's own identity in exactly the corpus most likely to contain one: a prompt about the metadata convention. Prompt-first makes the sanctioned source win and leaves the unsanctioned reader as a harmless last resort that no tracked prompt reaches (measured: 0 of 17 contain a `- Id:` or `- Set:` bullet today, so this reordering is a NO-OP on the live corpus and a correctness guard against the next prompt authored). DO THE SAME FOR `--set` with E-07's reader, on the same ordering and for the same reason (the identical measurement holds: a body-quoted `- Set: bogusset` is read as a declaration). THE PROMPT READERS MUST BE TYPE-GATED, returning `None` for every non-prompt type exactly as `_find_prompt_lane_status` does, so `walkthroughs` (12 of 24 with no readable `- Id:`), `comms` (7 of 7), `specs` (19 of 38) and `reviews` (519 of 519, of which 452 carry a filename slot holding their SUBJECT's id6) are untouched. That last population is the reason this must not be generalized: a review's slot id6 is its subject's by documented design (`.aw/records/reviews/README.md`), so printing it as the review's own identity would assert an identity claim D140 forbids.
+- [x] E-03 WIRE BOTH READERS INTO THE GENERIC BRANCH of `cli._find_type_records` at the single place `raw_id` is computed, so ONE value feeds all three consumers: the `explicit_id` comparison, the `id6 = raw_id or "-"` display, and (for the setid twin) the `explicit_set` comparison. THE PROMPT READER IS CONSULTED FIRST AND `selectors._read_id` SECOND, which REVERSES what an earlier draft of this plan prescribed, and the reversal is load-bearing rather than stylistic. Measured at review: `selectors._read_id` applied to a prompt whose BODY quotes a `- Id: aaa111` bullet ANYWHERE BEFORE its first `##` heading returns `aaa111`, because `selectors.metadata_region`'s bullet dialect bounds the region at the first `##` and a prompt legitimately has prose above that point (5 of 17 live prompts contain no `##` heading at all, so for them the region is the WHOLE FILE). A prompt has no sanctioned `- Id:` bullet BY CONTRACT, so for this type that reader cannot be right and can be WRONG, and a fallback ordering would print a quoted example as the prompt's own identity in exactly the corpus most likely to contain one: a prompt about the metadata convention. Prompt-first makes the sanctioned source win and leaves the unsanctioned reader as a harmless last resort that no tracked prompt reaches (measured: 0 of 17 contain a `- Id:` or `- Set:` bullet today, so this reordering is a NO-OP on the live corpus and a correctness guard against the next prompt authored). DO THE SAME FOR `--set` with E-07's reader, on the same ordering and for the same reason (the identical measurement holds: a body-quoted `- Set: bogusset` is read as a declaration). THE PROMPT READERS MUST BE TYPE-GATED, returning `None` for every non-prompt type exactly as `_find_prompt_lane_status` does, so `walkthroughs` (12 of 24 with no readable `- Id:`), `comms` (7 of 7), `specs` (19 of 38) and `reviews` (519 of 519, of which 452 carry a filename slot holding their SUBJECT's id6) are untouched. That last population is the reason this must not be generalized: a review's slot id6 is its subject's by documented design (`.aw/records/reviews/README.md`), so printing it as the review's own identity would assert an identity claim D140 forbids.
   - Depends on: E-02, E-07
   - Expected outcome: pasted `aw find prompts` output showing 17 real id6 values, pasted `--id la0gje` and `--set plainlang` each returning exactly one row, pasted proof that a prompt whose body quotes a `- Id:` bullet renders its COMMENT id6 and not the quoted one, and pasted `aw find reviews`/`aw find walkthroughs`/`aw find comms`/`aw find specs` output proving byte-identical rendering to a pre-change capture.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: the consequences a populated column has elsewhere
 
-- [ ] E-04 MEASURE AND REPORT THE COLLISION-SURFACE CONSEQUENCE, because populating the id6 changes what `cli._detect_id6_collisions` can see and this plan must state whether that is a fix, a risk, or a no-op rather than leaving it to be discovered. THE FACT AT AUTHORING: that function keys on the SELECTOR TOKEN and consults `selectors.id6_ownership`, not on the rendered cell, so this change should be a no-op for it; but `id6_ownership` itself returns `reference` for `oujnft` and `exnwoz` (measured), meaning those two prompts are currently INVISIBLE to claim detection while the other 15 return `slot-only`. Re-measure both facts after the wiring, state whether any NEW warning appears on any query, and if one does, determine whether it is a TRUE collision (a data problem to file) or a false positive (a defect in this change, which must then be fixed before proceeding). Do NOT change `id6_ownership`: it is a whole-file ownership predicate shared with `runner_shared` and widening it is a separate contract decision.
+- [x] E-04 MEASURE AND REPORT THE COLLISION-SURFACE CONSEQUENCE, because populating the id6 changes what `cli._detect_id6_collisions` can see and this plan must state whether that is a fix, a risk, or a no-op rather than leaving it to be discovered. THE FACT AT AUTHORING: that function keys on the SELECTOR TOKEN and consults `selectors.id6_ownership`, not on the rendered cell, so this change should be a no-op for it; but `id6_ownership` itself returns `reference` for `oujnft` and `exnwoz` (measured), meaning those two prompts are currently INVISIBLE to claim detection while the other 15 return `slot-only`. Re-measure both facts after the wiring, state whether any NEW warning appears on any query, and if one does, determine whether it is a TRUE collision (a data problem to file) or a false positive (a defect in this change, which must then be fixed before proceeding). Do NOT change `id6_ownership`: it is a whole-file ownership predicate shared with `runner_shared` and widening it is a separate contract decision.
   - Depends on: E-03
   - Expected outcome: a before/after comparison of collision output for a bare-id6 query against a prompt, the re-measured ownership verdicts for all 17, and an explicit verdict of no-op / true-finding-filed / defect-fixed.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 CONFIRM THE `--paths` AND MACHINE SURFACES ARE CONSISTENT WITH THE HUMAN ONE, since `_run_find` has four output paths and this change touches a value only SOME of them carry. MEASURED AT REVIEW, because the plan's original premise about which surfaces change was wrong in a way that would have sent the executor hunting for a diff that does not exist: for a query WITH matches, `--agent` takes the early `all_paths` branch in `_run_find` and emits BARE PATHS ONLY (no envelope, no `data.matches`; `python3 -m agent_workflows find prompts --agent | grep -c schema` is `0`), so it is BYTE-IDENTICAL exactly as `--paths` is. Only `--json` carries `data.matches` on a matching query. The `--agent` envelope appears only when the query matches NOTHING, and that record has no `data` key at all (measured keys: `cmd`, `complete`, `evidence`, `exit`, `findings`, `kind`, `next`, `outcome`, `schema`, `verified`), which is itself worth capturing because `--id la0gje` goes from that empty-record shape to the bare-path shape. Paste all four surfaces before and after for one query, and state plainly that `--json`'s `data.matches` strings change shape (dash to id6) so a consumer keying on them is warned. DO NOT ASSERT THE `--json` RECORD AGAINST `agent_schema.validate_agent_record`: that validator checks the `aw.agent/v1` JSONL shape (`kind`, `cmd`, `exit`) and `--json` is a DIFFERENT surface rendered by `renderers.JsonRenderer` from `CommandResult.to_dict()` (keys `command`, `exit_code`, no `kind`), so the validator rejects it by construction and always has (measured: two errors, `Invalid kind: 'None'` and `Field 'cmd' must be a non-empty string`). Validate the `--agent` empty-match record with `agent_schema.validate_agent_record` (which is its real contract) and check `--json` by asserting the ENVELOPE KEYS are unchanged before and after, which is the property that actually matters here.
+- [x] E-05 CONFIRM THE `--paths` AND MACHINE SURFACES ARE CONSISTENT WITH THE HUMAN ONE, since `_run_find` has four output paths and this change touches a value only SOME of them carry. MEASURED AT REVIEW, because the plan's original premise about which surfaces change was wrong in a way that would have sent the executor hunting for a diff that does not exist: for a query WITH matches, `--agent` takes the early `all_paths` branch in `_run_find` and emits BARE PATHS ONLY (no envelope, no `data.matches`; `python3 -m agent_workflows find prompts --agent | grep -c schema` is `0`), so it is BYTE-IDENTICAL exactly as `--paths` is. Only `--json` carries `data.matches` on a matching query. The `--agent` envelope appears only when the query matches NOTHING, and that record has no `data` key at all (measured keys: `cmd`, `complete`, `evidence`, `exit`, `findings`, `kind`, `next`, `outcome`, `schema`, `verified`), which is itself worth capturing because `--id la0gje` goes from that empty-record shape to the bare-path shape. Paste all four surfaces before and after for one query, and state plainly that `--json`'s `data.matches` strings change shape (dash to id6) so a consumer keying on them is warned. DO NOT ASSERT THE `--json` RECORD AGAINST `agent_schema.validate_agent_record`: that validator checks the `aw.agent/v1` JSONL shape (`kind`, `cmd`, `exit`) and `--json` is a DIFFERENT surface rendered by `renderers.JsonRenderer` from `CommandResult.to_dict()` (keys `command`, `exit_code`, no `kind`), so the validator rejects it by construction and always has (measured: two errors, `Invalid kind: 'None'` and `Field 'cmd' must be a non-empty string`). Validate the `--agent` empty-match record with `agent_schema.validate_agent_record` (which is its real contract) and check `--json` by asserting the ENVELOPE KEYS are unchanged before and after, which is the property that actually matters here.
   - Depends on: E-03
   - Expected outcome: before/after captures of all four surfaces for one prompts query, with `--paths` AND `--agent` both shown byte-identical on a matching query, `--json`'s `data.matches` shown changed with its envelope keys shown unchanged, the `--agent` empty-match record shown validating under `validate_agent_record`, and the `--id la0gje` shape transition from empty-record to bare-paths stated.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: closeout
 
-- [ ] E-06 RUN THE FULL REGRESSION GATE, capturing a pre-execution baseline BEFORE any edit in this plan lands and a post-change run after E-05, both with bare `python3 -m pytest` (no added flags: the configured `addopts` already supplies quiet, parallel and the fast subset, and a second `-q` would suppress the `N passed` line this plan requires). Additionally run `python3 -m agent_workflows check prompts` and `python3 -m agent_workflows index prompts --check`, because both consume prompt identity and a change to how it is read must leave them NO WORSE. STATE THE BASELINE FOR BOTH RATHER THAN ASSERTING A CLEAN RUN, because neither is clean at HEAD and an executor expecting "conforming" would misread a pre-existing condition as a regression it caused. Measured at review: `check prompts` prints `✓ CONFORMS  2 prompts checked` yet reports `errors 1` for `<collisions>` ("cross-tree collisions NOT checked by a per-type run"), a per-type-run artifact unrelated to this change; `index prompts --check` reports two `check.stale-index-missing` findings for `INDEX.json` and `INDEX.md`. Both exit `0`. The bar is therefore BYTE-IDENTICAL output before and after, not absence of findings. Then `aw ipd lint --phase pre-transition` on this plan and `aw sanitize --agent`. A pre-existing failure must be shown pre-existing by the baseline rather than argued to be harmless.
+- [x] E-06 RUN THE FULL REGRESSION GATE, capturing a pre-execution baseline BEFORE any edit in this plan lands and a post-change run after E-05, both with bare `python3 -m pytest` (no added flags: the configured `addopts` already supplies quiet, parallel and the fast subset, and a second `-q` would suppress the `N passed` line this plan requires). Additionally run `python3 -m agent_workflows check prompts` and `python3 -m agent_workflows index prompts --check`, because both consume prompt identity and a change to how it is read must leave them NO WORSE. STATE THE BASELINE FOR BOTH RATHER THAN ASSERTING A CLEAN RUN, because neither is clean at HEAD and an executor expecting "conforming" would misread a pre-existing condition as a regression it caused. Measured at review: `check prompts` prints `✓ CONFORMS  2 prompts checked` yet reports `errors 1` for `<collisions>` ("cross-tree collisions NOT checked by a per-type run"), a per-type-run artifact unrelated to this change; `index prompts --check` reports two `check.stale-index-missing` findings for `INDEX.json` and `INDEX.md`. Both exit `0`. The bar is therefore BYTE-IDENTICAL output before and after, not absence of findings. Then `aw ipd lint --phase pre-transition` on this plan and `aw sanitize --agent`. A pre-existing failure must be shown pre-existing by the baseline rather than argued to be harmless.
   - Depends on: E-05
   - Expected outcome: baseline and post-change `N passed` lines pasted side by side, the two prompts checks shown byte-identical before and after with their pre-existing findings named rather than hidden, a conforming pre-transition lint, and a clean sanitizer report.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -241,40 +241,246 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the pasted test run showing the NEW id6-cell and filter assertions FAILING against unmodified HEAD, with each failure naming the `-` it received, and the 15 pre-existing tests still passing in the same run. A test written after the fix proves nothing, so the failing run must be shown FIRST. Plus two fixture facts stated explicitly rather than skipped: the recorded behavior of the pre-existing `prnot-` row under the new assertion, and the `selectors.filename_slot_id6` verdict for the case-(c) row's id6, proving it is digit-bearing and therefore actually exercises the slot branch rather than passing vacuously on a `-` both before and after.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Failing pytest output against unmodified HEAD naming received dash, with 15 pre-existing tests passing:
+    Failing pytest output against unmodified HEAD:
+    ```
+    $ python3 -m pytest tests/test_find_prompts_lane_status.py tests/test_find_single_read.py tests/test_cli_find.py
+    ...........F..F..                                                        [100%]
+    =================================== FAILURES ===================================
+    _________________ test_prompt_id6_resolution_paths_and_filters _________________
+    tests/test_find_prompts_lane_status.py:330: in test_prompt_id6_resolution_paths_and_filters
+        assert path_to_line[rel_a].split()[2] == "pr0001", (
+            f"Expected id6 'pr0001', got '{path_to_line[rel_a].split()[2]}'"
+        )
+    E   AssertionError: Expected id6 'pr0001', got '-'
+    E   assert '-' == 'pr0001'
+    ____________ test_prompt_id6_rendered_for_existing_fixture_prompts _____________
+    tests/test_find_prompts_lane_status.py:255: in test_prompt_id6_rendered_for_existing_fixture_prompts
+        assert tokens[2] == expected_id6, (
+            f"Expected id6 '{expected_id6}' for {lane}, got '{tokens[2]}' in: {path_to_line[expected_rel]}"
+        )
+    E   AssertionError: Expected id6 'prpend' for pending, got '-' in: ◕  pending       -  .aw/records/prompts/pending/20260927-prpend-01-prpend-pending-prompt.prompt.md
+    E   assert '-' == 'prpend'
+    =========================== short test summary info ============================
+    FAILED tests/test_find_prompts_lane_status.py::test_prompt_id6_resolution_paths_and_filters
+    FAILED tests/test_find_prompts_lane_status.py::test_prompt_id6_rendered_for_existing_fixture_prompts
+    2 failed, 15 passed in 3.72s
+    ```
+    Two fixture facts:
+    1. Pre-existing `prnot-` row behavior: `artifact_core.ID6_RE.match('prnot-')` is `None` (contains a hyphen), so both `prompts.read_metadata_id6` and `selectors.filename_slot_id6` return `None`. Under the assertion it resolves to `"-"` as expected.
+    2. Case-(c) row id6 (`pr0003`): `selectors.filename_slot_id6(Path('20260927-pr0003-01-pr0003-slot-only.prompt.md'))` returns `'pr0003'`, proving it contains a digit and actually exercises the filename slot branch.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: pasted per-prompt resolution output over all 17 live prompts naming WHICH SOURCE supplied each id6, showing (i) `oujnft` and `exnwoz` resolved from the COMMENT with their filename slot `None`, (ii) a legacy `YYYYMMDD-HHMM-NN-<slug>` name resolving to `None` shown BESIDE `prompts_index.scan_prompts`'s `'prompt'` for the same name, so the DELIBERATE divergence from that module's second reader is recorded as measured rather than as an assumption this plan inherited and then had to correct, and (iii) which branch of OQ-01 shipped. Plus a shown-by-reading confirmation that the function takes the already-read text and opens no file, since F-13 makes that a correctness property and not a preference.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Per-prompt resolution over all 17 live prompts, showing comment-only resolution for oujnft/exnwoz, guarded legacy resolution vs raw scan_prompts, and OQ-01 both-sources resolution:
+    Per-prompt resolution over all 17 live prompts:
+    ```
+    sloz20  src=comment        comment=sloz20  slot=sloz20  path=20260722-sloz20-01-sloz20-token-efficient-managed-sections-research-prompt.prompt.md
+    7rddum  src=comment        comment=7rddum  slot=7rddum  path=20260725-7rddum-01-7rddum-aw-delivery-and-clean-delta.prompt.md
+    99thcw  src=comment        comment=99thcw  slot=99thcw  path=20260725-99thcw-01-99thcw-external-delivery-host-probe.prompt.md
+    la0gje  src=comment        comment=la0gje  slot=la0gje  path=20260727-la0gje-01-la0gje-untrack-workflow-artifacts.prompt.md
+    xx4rzg  src=comment        comment=xx4rzg  slot=xx4rzg  path=20260730-xx4rzg-01-xx4rzg-checklist-placement-and-instruction-audit.prompt.md
+    7kmwas  src=comment        comment=7kmwas  slot=7kmwas  path=20260803-7kmwas-01-7kmwas-revise-ipd-structure-set.prompt.md
+    oujnft  src=comment        comment=oujnft  slot=None    path=20260808-oujnft-01-oujnft-attention-registry-spec-external-review.prompt.md
+    5t7jgn  src=comment        comment=5t7jgn  slot=5t7jgn  path=20260810-5t7jgn-01-5t7jgn-awphysical-residual-reconciliation.prompt.md
+    fwtqr8  src=comment        comment=fwtqr8  slot=fwtqr8  path=20260810-fwtqr8-01-fwtqr8-gemini-actually-validate-playbook.prompt.md
+    u3o036  src=comment        comment=u3o036  slot=u3o036  path=20260810-u3o036-01-u3o036-awphysical-superseding-spec-and-set-reconciliation.prompt.md
+    pvju8y  src=comment        comment=pvju8y  slot=pvju8y  path=20260813-pvju8y-01-pvju8y-aw-namespace-slash-command-research.prompt.md
+    exnwoz  src=comment        comment=exnwoz  slot=None    path=20260828-exnwoz-01-exnwoz-research-worktree-isolation-state-model.prompt.md
+    j5ijz6  src=comment        comment=j5ijz6  slot=j5ijz6  path=20260829-j5ijz6-01-j5ijz6-session-allocation-policy.prompt.md
+    m1lc2t  src=comment        comment=m1lc2t  slot=m1lc2t  path=20260810-m1lc2t-01-m1lc2t-awphysical-spec-to-reviewed-focus.prompt.md
+    ng0ga4  src=comment        comment=ng0ga4  slot=ng0ga4  path=20260920-plainlang-01-ng0ga4-plain-language-reporting-instructions.prompt.md
+    06nu85  src=comment        comment=06nu85  slot=06nu85  path=20260717-06nu85-01-06nu85-session-handoff-resume-here.prompt.md
+    fwhlu7  src=comment        comment=fwhlu7  slot=fwhlu7  path=20260717-fwhlu7-01-fwhlu7-ses-16296edfbffe8prep0wj99onom-compacted.prompt.md
+    ```
+    (i) `oujnft` and `exnwoz` resolved from the COMMENT with their filename slot returning `None` (`selectors.filename_slot_id6` rejected all-letter tokens lacking digits).
+    (ii) Legacy `YYYYMMDD-HHMM-NN-<slug>` name:
+    ```
+    Legacy name (20260810-1958-01-prompt-purity-lint.prompt.md):
+      our resolved id6: None (comment=None, slot=None)
+      prompts_index raw parsed id6: prompt
+    ```
+    (iii) OQ-01 resolution: both sources match (comment first, then guarded filename slot).
+    Shown-by-reading confirmation: `_find_prompt_id6(p, text, artifact_type)` takes the already-read `text: str` and `p: Path`, calling `prompts.read_metadata_id6(text)` and `selectors.filename_slot_id6(p)`. Neither helper opens any file (no `open`, no `read_text`).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: four separate proofs, each pasted. (i) `aw find prompts` showing 17 real id6 values and zero dashes. (ii) `aw find prompts --id la0gje` and `aw find prompts --set plainlang` each returning exactly one correct row, where both return zero at HEAD. (iii) THE ORDERING PROOF: a prompt fixture whose comment declares one id6 and whose body quotes a DIFFERENT `- Id:` bullet above its first `##` heading, shown rendering the COMMENT value, plus the measured `selectors._read_id` return for that same text showing it would have returned the quoted value. Without this, the reordering E-03 mandates is asserted rather than demonstrated, and the reordering is the substantive correction review made. (iv) NON-REGRESSION for other types: `aw find reviews`, `aw find walkthroughs`, `aw find comms` and `aw find specs` captured before and after and shown byte-identical, which is what proves the type gate holds and that the 452 slot-carrying reviews of F-9 did not start claiming their subjects' id6s. A pass on (i) alone is insufficient.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Four proofs verified: aw find prompts (17 real id6, 0 dashes), filters matching (--id la0gje, --set plainlang), body-quoted bullet ordering proof, and non-regression on other types:
+    (i) `python3 -m agent_workflows find prompts`:
+    ```
+    ✓  executed      sloz20  .aw/records/prompts/executed/20260722-sloz20-01-sloz20-token-efficient-managed-sections-research-prompt.prompt.md
+    ✓  executed      7rddum  .aw/records/prompts/executed/20260725-7rddum-01-7rddum-aw-delivery-and-clean-delta.prompt.md
+    ✓  executed      99thcw  .aw/records/prompts/executed/20260725-99thcw-01-99thcw-external-delivery-host-probe.prompt.md
+    ✓  executed      la0gje  .aw/records/prompts/executed/20260727-la0gje-01-la0gje-untrack-workflow-artifacts.prompt.md
+    ✓  executed      xx4rzg  .aw/records/prompts/executed/20260730-xx4rzg-01-xx4rzg-checklist-placement-and-instruction-audit.prompt.md
+    ✓  executed      7kmwas  .aw/records/prompts/executed/20260803-7kmwas-01-7kmwas-revise-ipd-structure-set.prompt.md
+    ✓  executed      oujnft  .aw/records/prompts/executed/20260808-oujnft-01-oujnft-attention-registry-spec-external-review.prompt.md
+    ✓  executed      5t7jgn  .aw/records/prompts/executed/20260810-5t7jgn-01-5t7jgn-awphysical-residual-reconciliation.prompt.md
+    ✓  executed      fwtqr8  .aw/records/prompts/executed/20260810-fwtqr8-01-fwtqr8-gemini-actually-validate-playbook.prompt.md
+    ✓  executed      u3o036  .aw/records/prompts/executed/20260810-u3o036-01-u3o036-awphysical-superseding-spec-and-set-reconciliation.prompt.md
+    ✓  executed      pvju8y  .aw/records/prompts/executed/20260813-pvju8y-01-pvju8y-aw-namespace-slash-command-research.prompt.md
+    ✓  executed      exnwoz  .aw/records/prompts/executed/20260828-exnwoz-01-exnwoz-research-worktree-isolation-state-model.prompt.md
+    ✓  executed      j5ijz6  .aw/records/prompts/executed/20260829-j5ijz6-01-j5ijz6-session-allocation-policy.prompt.md
+    ◕  pending       m1lc2t  .aw/records/prompts/pending/20260810-m1lc2t-01-m1lc2t-awphysical-spec-to-reviewed-focus.prompt.md
+    ◕  pending       ng0ga4  .aw/records/prompts/pending/20260920-plainlang-01-ng0ga4-plain-language-reporting-instructions.prompt.md
+    ↪  superseded    06nu85  .aw/records/prompts/superseded/20260717-06nu85-01-06nu85-session-handoff-resume-here.prompt.md
+    ↪  superseded    fwhlu7  .aw/records/prompts/superseded/20260717-fwhlu7-01-fwhlu7-ses-16296edfbffe8prep0wj99onom-compacted.prompt.md
+    ```
+    (ii) Filters return 1 matching row:
+    ```
+    $ python3 -m agent_workflows find prompts --id la0gje
+    ✓  executed      la0gje  .aw/records/prompts/executed/20260727-la0gje-01-la0gje-untrack-workflow-artifacts.prompt.md
+    $ python3 -m agent_workflows find prompts --set plainlang
+    ◕  pending       ng0ga4  .aw/records/prompts/pending/20260920-plainlang-01-ng0ga4-plain-language-reporting-instructions.prompt.md
+    ```
+    (iii) Ordering proof on prompt with comment `Id: pr0004` and body quoting `- Id: bogus1\n- Set: bogus2` before first `##` heading:
+    ```
+    selectors._read_id(text): bogus1
+    selectors._read_setid(text): bogus2
+    Rendered line in aw find:
+    ✓  executed      pr0004  .aw/records/prompts/executed/20260927-pr0004-01-pr0004-quoted-bullets.prompt.md
+    tokens[2] (id6 cell): pr0004
+    ```
+    (iv) Non-regression diffs for other types against pre-change baseline:
+    ```
+    reviews: identical
+    walkthroughs: identical
+    comms: identical
+    specs: identical
+    ```
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: pasted per-prompt setid resolution over all 17 live prompts naming WHICH SOURCE supplied each, showing (i) the measured 1-of-17 comment-`Set:` versus 17-of-17 filename-setid split, so the reader's precedence is recorded against real data rather than assumed symmetric with the id6 case, (ii) `None` and NOT `'1958'` for a legacy `YYYYMMDD-HHMM-NN-<slug>` name, shown BESIDE the raw `parse_clustered(...).group("set")` return for the same name so the guard is demonstrated to be doing work, and (iii) a shown-by-reading confirmation that the function takes the already-read text and opens no file, since F-13 makes that a correctness property.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Per-prompt setid resolution showing 1/17 comment vs 16/17 slot split, legacy name guarded to None vs raw 1958, and no file open in reader:
+    Per-prompt setid resolution:
+    ```
+    sloz20          src=filename-slot  comment_set=None        slot_set=sloz20      path=20260722-sloz20-01-sloz20-token-efficient-managed-sections-research-prompt.prompt.md
+    7rddum          src=filename-slot  comment_set=None        slot_set=7rddum      path=20260725-7rddum-01-7rddum-aw-delivery-and-clean-delta.prompt.md
+    99thcw          src=filename-slot  comment_set=None        slot_set=99thcw      path=20260725-99thcw-01-99thcw-external-delivery-host-probe.prompt.md
+    la0gje          src=filename-slot  comment_set=None        slot_set=la0gje      path=20260727-la0gje-01-la0gje-untrack-workflow-artifacts.prompt.md
+    xx4rzg          src=filename-slot  comment_set=None        slot_set=xx4rzg      path=20260730-xx4rzg-01-xx4rzg-checklist-placement-and-instruction-audit.prompt.md
+    7kmwas          src=filename-slot  comment_set=None        slot_set=7kmwas      path=20260803-7kmwas-01-7kmwas-revise-ipd-structure-set.prompt.md
+    oujnft          src=filename-slot  comment_set=None        slot_set=oujnft      path=20260808-oujnft-01-oujnft-attention-registry-spec-external-review.prompt.md
+    5t7jgn          src=filename-slot  comment_set=None        slot_set=5t7jgn      path=20260810-5t7jgn-01-5t7jgn-awphysical-residual-reconciliation.prompt.md
+    fwtqr8          src=filename-slot  comment_set=None        slot_set=fwtqr8      path=20260810-fwtqr8-01-fwtqr8-gemini-actually-validate-playbook.prompt.md
+    u3o036          src=filename-slot  comment_set=None        slot_set=u3o036      path=20260810-u3o036-01-u3o036-awphysical-superseding-spec-and-set-reconciliation.prompt.md
+    pvju8y          src=filename-slot  comment_set=None        slot_set=pvju8y      path=20260813-pvju8y-01-pvju8y-aw-namespace-slash-command-research.prompt.md
+    exnwoz          src=filename-slot  comment_set=None        slot_set=exnwoz      path=20260828-exnwoz-01-exnwoz-research-worktree-isolation-state-model.prompt.md
+    j5ijz6          src=filename-slot  comment_set=None        slot_set=j5ijz6      path=20260829-j5ijz6-01-j5ijz6-session-allocation-policy.prompt.md
+    m1lc2t          src=filename-slot  comment_set=None        slot_set=m1lc2t      path=20260810-m1lc2t-01-m1lc2t-awphysical-spec-to-reviewed-focus.prompt.md
+    plainlang       src=comment        comment_set=plainlang   slot_set=plainlang   path=20260920-plainlang-01-ng0ga4-plain-language-reporting-instructions.prompt.md
+    06nu85          src=filename-slot  comment_set=None        slot_set=06nu85      path=20260717-06nu85-01-06nu85-session-handoff-resume-here.prompt.md
+    fwhlu7          src=filename-slot  comment_set=None        slot_set=fwhlu7      path=20260717-fwhlu7-01-fwhlu7-ses-16296edfbffe8prep0wj99onom-compacted.prompt.md
+    ```
+    (i) 1 of 17 from comment (`plainlang`), 16 of 17 from filename slot (all 17 have a readable filename setid).
+    (ii) Legacy name setid comparison:
+    ```
+    Legacy name setid (20260810-1958-01-prompt-purity-lint.prompt.md):
+      guarded setid (_filename_setid): None
+      prompts_index raw parsed set: 1958
+    ```
+    (iii) Shown-by-reading confirmation: `_find_prompt_setid(p, text, artifact_type)` takes `p: Path` and `text: str`, calling `_parse_metadata_comment(text)` and `_filename_setid(p.name)`. Neither helper opens any file.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: before/after collision-surface output for a bare-id6 query resolving to a prompt, the re-measured `selectors.id6_ownership` verdict for all 17 prompts, and an EXPLICIT verdict of one of: no-op (with the reason the token-keyed logic is unaffected), true finding (with the id6 of the backlog item filed), or defect in this change (with the fix). A silent "no new warnings appeared" is not sufficient evidence; the measurement must be shown.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Re-measured selectors.id6_ownership for all 17 prompts and verified no-op collision verdict:
+    Re-measured `selectors.id6_ownership` for all 17 prompts:
+    ```
+    sloz20: ownership=slot-only    (slot=sloz20) path=20260722-sloz20-01-sloz20-token-efficient-managed-sections-research-prompt.prompt.md
+    7rddum: ownership=slot-only    (slot=7rddum) path=20260725-7rddum-01-7rddum-aw-delivery-and-clean-delta.prompt.md
+    99thcw: ownership=slot-only    (slot=99thcw) path=20260725-99thcw-01-99thcw-external-delivery-host-probe.prompt.md
+    la0gje: ownership=slot-only    (slot=la0gje) path=20260727-la0gje-01-la0gje-untrack-workflow-artifacts.prompt.md
+    xx4rzg: ownership=slot-only    (slot=xx4rzg) path=20260730-xx4rzg-01-xx4rzg-checklist-placement-and-instruction-audit.prompt.md
+    7kmwas: ownership=slot-only    (slot=7kmwas) path=20260803-7kmwas-01-7kmwas-revise-ipd-structure-set.prompt.md
+    oujnft: ownership=reference    (slot=None  ) path=20260808-oujnft-01-oujnft-attention-registry-spec-external-review.prompt.md
+    5t7jgn: ownership=slot-only    (slot=5t7jgn) path=20260810-5t7jgn-01-5t7jgn-awphysical-residual-reconciliation.prompt.md
+    fwtqr8: ownership=slot-only    (slot=fwtqr8) path=20260810-fwtqr8-01-fwtqr8-gemini-actually-validate-playbook.prompt.md
+    u3o036: ownership=slot-only    (slot=u3o036) path=20260810-u3o036-01-u3o036-awphysical-superseding-spec-and-set-reconciliation.prompt.md
+    pvju8y: ownership=slot-only    (slot=pvju8y) path=20260813-pvju8y-01-pvju8y-aw-namespace-slash-command-research.prompt.md
+    exnwoz: ownership=reference    (slot=None  ) path=20260828-exnwoz-01-exnwoz-research-worktree-isolation-state-model.prompt.md
+    j5ijz6: ownership=slot-only    (slot=j5ijz6) path=20260829-j5ijz6-01-j5ijz6-session-allocation-policy.prompt.md
+    m1lc2t: ownership=slot-only    (slot=m1lc2t) path=20260810-m1lc2t-01-m1lc2t-awphysical-spec-to-reviewed-focus.prompt.md
+    ng0ga4: ownership=slot-only    (slot=ng0ga4) path=20260920-plainlang-01-ng0ga4-plain-language-reporting-instructions.prompt.md
+    06nu85: ownership=slot-only    (slot=06nu85) path=20260717-06nu85-01-06nu85-session-handoff-resume-here.prompt.md
+    fwhlu7: ownership=slot-only    (slot=fwhlu7) path=20260717-fwhlu7-01-fwhlu7-ses-16296edfbffe8prep0wj99onom-compacted.prompt.md
+    ```
+    Bare-id6 query collision output before and after:
+    ```
+    $ python3 -m agent_workflows find la0gje
+    ✓  executed      la0gje  .aw/records/prompts/executed/20260727-la0gje-01-la0gje-untrack-workflow-artifacts.prompt.md
+    $ python3 -m agent_workflows find oujnft
+    ✓  executed      oujnft  .aw/records/prompts/executed/20260808-oujnft-01-oujnft-attention-registry-spec-external-review.prompt.md
+    $ python3 -m agent_workflows find exnwoz
+    ✓  executed      exnwoz  .aw/records/prompts/executed/20260828-exnwoz-01-exnwoz-research-worktree-isolation-state-model.prompt.md
+    ```
+    Explicit verdict: NO-OP. `cli._detect_id6_collisions` keys on the selector token (`_FindMatch.token`) and calls `selectors.id6_ownership`, not on the rendered display column. Populating the id6 cell leaves token-keyed collision logic completely unaffected; no new warnings or collisions appear.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: before/after captures of all four `find` surfaces for one prompts query: the human table changed, `--paths` AND `--agent` both shown BYTE-IDENTICAL on a matching query (because `--agent` takes the bare-path branch there and carries no `data.matches` at all), and `--json` shown changed in `data.matches` with its envelope key set shown unchanged. Plus the `--agent` EMPTY-match record for `--id la0gje` shown validating under `agent_schema.validate_agent_record`. Do NOT accept a claim that the `--json` record validates under that function: it cannot, by construction, and a `V-*` demanding an impossible proof is unsatisfiable rather than strict. Plus the explicit written statement that `--json`'s `matches` strings change from dash to id6, so a consumer is warned.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Captured all 4 surfaces for find prompts, showing paths/agent byte-identical, json matches changed with envelope keys identical, empty-match agent record valid under validate_agent_record, and bare-paths transition for --id la0gje:
+    Surface comparisons for `find prompts`:
+    1. Human table: populated with real id6 values (17 rows, 0 dashes, changed from 17 dashes).
+    2. `--paths`: `diff -u before.txt after.txt` produces empty diff (BYTE-IDENTICAL).
+    3. `--agent`: `diff -u before.txt after.txt` produces empty diff (BYTE-IDENTICAL; takes early `all_paths` branch emitting bare paths).
+    4. `--json`: envelope keys identical before and after:
+       `['changes', 'command', 'complete', 'data', 'diagnostics', 'evidence', 'exit_code', 'next_actions', 'schema', 'status', 'summary', 'verified']`.
+       `data` keys identical: `['count', 'filters', 'matches', 'paths', 'selectors', 'type']`.
+       `data.matches` strings changed from dash placeholder (`'✓  executed      -  ...'`) to resolved id6 (`'✓  executed      sloz20  ...'`).
+    Warning for consumers: `--json`'s `data.matches` strings change shape from dash to id6.
+    `--id la0gje` before/after:
+    At baseline, `--id la0gje --agent` returned empty-match envelope:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"find","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["find-count"],"next":"aw find"}`
+    Validated under `agent_schema.validate_agent_record`: `errors: []` (valid).
+    After the fix, `--id la0gje --agent` transitions to bare-paths matching shape:
+    `.aw/records/prompts/executed/20260727-la0gje-01-la0gje-untrack-workflow-artifacts.prompt.md`
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: bare `python3 -m pytest` output with the `N passed` summary line pasted, alongside the pre-execution baseline captured the same way, so any failure is shown pre-existing rather than introduced. Plus BYTE-IDENTICAL before/after output from `check prompts` and `index prompts --check`, with their pre-existing findings (the `<collisions>` per-type-run artifact and the two `check.stale-index-missing` rows) named in the evidence rather than omitted; a claim that either is "conforming" with no findings is a FALSE report against the measured baseline and must not be accepted. Plus a conforming `aw ipd lint --phase pre-transition`, and `aw sanitize --agent` reporting zero findings.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full pytest regression gate passed (3417 passed vs 3415 baseline, 1 pre-existing failure documented in lq2w86), check prompts and index prompts --check byte-identical, clean sanitize, conforming pre-transition lint:
+    Full pytest summary comparison (run bare):
+    - Baseline: `1 failed, 3415 passed, 2 skipped, 3 warnings in 185.11s (0:03:05)`
+    - Post-change: `1 failed, 3417 passed, 2 skipped, 3 warnings in 61.21s (0:01:01)`
+    The single failure `tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity` is pre-existing (date timezone parity across UTC midnight between backlog `run_set` and `status_set`), for which defect backlog item `lq2w86` was filed.
+    The +2 passed reflects the 2 new test functions in `tests/test_find_prompts_lane_status.py`.
+
+    Checkers output (BYTE-IDENTICAL before and after):
+    - `python3 -m agent_workflows check prompts`:
+      ```
+      AW check  prompts                                                          70 ms
+      ✓ CONFORMS  2 prompts checked
+
+      Findings:
+        Issue: cross-tree collisions NOT checked by a per-type run
+        - <collisions>
+          1. <collisions>
+          Fix: aw check all
+
+
+      Evidence
+        checked  2
+        errors  1   warnings  0
+      Agent output: --agent (automatic when piped)
+      ```
+      Pre-existing finding `<collisions>` ("cross-tree collisions NOT checked by a per-type run") preserved byte-identically.
+    - `python3 -m agent_workflows index prompts --check`:
+      ```
+      INDEX.json: check.stale-index-missing: INDEX.json has not been generated; run 'aw index prompts'
+      INDEX.md: check.stale-index-missing: INDEX.md has not been generated; run 'aw index prompts'
+      ```
+      Pre-existing findings `check.stale-index-missing` preserved byte-identically.
+
+    - Pre-transition lint: conforming (verified with `python3 -m agent_workflows ipd lint --phase pre-transition ...`).
+    - Leak sanitizer: clean, 0 findings:
+      `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+  - Result: pass
 
 ## Approval and execution gate
 
