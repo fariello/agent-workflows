@@ -6,7 +6,7 @@
 - Scope: Remove the `recovery=fix or ""` kwarg from the single `ce.enrich_drift` call in `cli._run_check` so the machine finding carries the rule's own `recovery` verbatim instead of doctor's human `Fix:` prose, and pin the property with a hermetic regression test. The human `Fix:` line, the `Next` line, the `--agent` `next` field and `next_actions` are all deliberately UNCHANGED (F-05, F-09). This does NOT touch `doctor.build_remediation` (sibling `iyilwm` owns it), does NOT change `check_engine.enrich_drift`, and does NOT normalize the 22 placeholder-bearing recovery literals (the item's own second question, declined in Deferred).
 - Scope-Paths: agent_workflows/cli.py, tests/test_check_recovery_fidelity.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: wef7yo
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: wef7yo verified (set 2cnvh1, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261001-mu4k1g-01-mu4k1g-test-box-renderer-invariants-across-swept-inputs-e.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-301 through PR-306, all FIXED in place. Reviewed at HEAD `c32a71ea` in an isolated lane; typed record at `.aw/records/reviews/20260929-2cnvh1-01-wef7yo-stop-the-check-cli-overwriting-a-finding-s-structured-recove.review.md` with six recorded Decisions (D-1..D-6), all reversible. `aw ipd lint --phase author` conformed with ZERO findings BEFORE semantic review and `--phase review-finalize` still conforms with zero findings, zero density advisories and zero carrier drifts.
   THE DIAGNOSIS IS EXACT AND MOST OF THE EVIDENCE RE-MEASURED CORRECT, by running it rather than reading it. Every link of F-01's chain verified in the shipped code. F-02's PROPERTY reproduced exactly (zero faithful findings, both partitions non-empty) while its COUNTS drifted 17/15/2 -> 32/30/2 in one day. F-03's hermetic witness drove end to end at rc 1 with exactly one finding and both strings byte-identical to its quotes, leak-free. F-05/F-06 reproduced on all three surfaces: the scoped fix makes the machine record faithful while the human `Fix:`, `Next` and agent `next` stay byte-identical. F-07's 4-way matrix reproduced in SHAPE (0/32, 30/32 with 2 still fabricated, 32/32, 32/32), confirming the two sibling plans are independent and order-free and that `iyilwm` alone does not close this item; both siblings confirmed `reviewed` with `doctor.py`-only scope. F-08 reproduced at `3246 passed`. F-09, F-11, F-12 verified. The LEAK RULE is verified and load-bearing: two rules really do interpolate the absolute repo root into the recovery this fix publishes.
