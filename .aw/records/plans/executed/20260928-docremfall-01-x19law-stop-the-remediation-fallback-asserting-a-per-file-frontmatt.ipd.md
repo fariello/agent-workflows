@@ -6,7 +6,7 @@
 - Scope: Give `build_remediation`'s terminal fallback a sentinel-aware shape so a finding whose location is `<...>` no longer receives a per-file frontmatter remedy or a `file_path` pointing at a non-file, and delete the provably unreachable sentinel tuple in `_categorize_drift`, replacing it with the module's existing sentinel predicate idiom. Guard both with tests. This deliberately does NOT add the `recovery` preference (sibling `iyilwm` E-01), does NOT touch any of the 16 existing branches, does NOT change the `title` rule, and does NOT touch `check_engine.py` or `cli.py`.
 - Scope-Paths: agent_workflows/doctor.py, tests/test_doctor.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: x19law
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: x19law verified (set docremfall, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261001-cqgr7f-01-cqgr7f-statusline-swept-inputs-test-exceeds-90s-hang-time.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-09-30 approved (aw set): status set to approved
 
 - 2026-09-29 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-701..PR-704 all FIXED, none deferred, none escalated. Reviewed at HEAD `f3f0d52c` in a lane worktree; `aw ipd lint --phase author --agent` conformed before revision and `--phase review-finalize` conforms after. THIS IS AN UNUSUALLY WELL-EVIDENCED PLAN AND EVERY AUTHORED FINDING REPRODUCED. Independently re-measured: F-01's exact four fields; F-02's census via AST rather than regex, giving the same 12 sites over 10 sentinels and the same 7 on the fallback; F-03's pivotal orthogonality claim, which reproduces EXACTLY (staging `iyilwm`'s preference cures 1 and leaves 6 broken); F-04's five recovery-free `doctor.probe-failed` producers; F-05's zero `rglob` calls and identical returned tuple; F-06's per-member unreachability table; F-07's `file_path` contrast; F-08's two-hit grep; F-10's differential (54 pairs here against authoring's 57, both 0 differences); and F-12's leak-free witness. No authored finding needed correction, which is rare. THE REVIEW'S CONTRIBUTION IS FOUR ADDED CALIBRATIONS, not corrections. PR-701 (MEDIUM): the plan's Goal and approval paragraph could be read as promising the frontmatter sentence disappears, and measured on `aw check plans` only 1 of 26 findings is sentinel-located, so that surface goes 26 -> 25 and not to 0; F-13 added and the Goal, approval paragraph, scope check and V-01 now size the change honestly. PR-702 (MEDIUM): `cli._run_check`'s recovery overwrite is unconditional and total, not limited to fallback rules (all 26 findings report a recovery equal to the rendered human line), which makes carrier `2cnvh1` larger and better justified than the deferral row implied; F-14 added. PR-703 (LOW): OQ-01's "composable in either order" is true of the outcome set and of 6 of 7 sites, but the two orders differ on `<collisions>` (`aw check all` versus the sentinel sentence), both honest; F-15 added and OQ-01 calibrated so a later reader does not test byte-equality across orders. PR-704 (LOW): review's own differential used 54 pairs where authoring used 57, so the pair COUNT is not the bar and only zero differences is. Findings and decisions D-1..D-4 in `.aw/records/reviews/20260928-docremfall-01-x19law-stop-the-remediation-fallback-asserting-a-per-file-frontmatt.review.md`. No production code was modified by this review.
