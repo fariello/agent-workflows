@@ -16,7 +16,7 @@
 - From-Backlog: ildjse
 - Set: runwire
 - Order: 0
-- Highest E allocated: 03
+- Highest E allocated: 02
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: i18yaz
 
@@ -39,29 +39,26 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: orchestration of the runwire Set
 
-- [ ] E-01 CONFIRM THE TWO CHILDREN ARE AUTHORED AND MUTUALLY CONSISTENT before either executes: each carries `- From-Backlog: ildjse`, neither declares a `- Blocks-Release:` gate (the item carries none, and `chore` is not in the release-gate work-kind set), their `- Scope-Paths:` do not both claim the same NEW symbol, and Order 02 declares its dependency on Order 01 if and only if it consumes Order 01's translation. This is orchestration, not work: it performs no edit to any product file.
+- [ ] E-01 CONFIRM 32jpl1 REACHED executed
   - Depends on: none
-  - Expected outcome: both child rows in the table below resolve to real files on disk; the four cross-child properties above are checked and reported; no product file is touched by this item.
+  Confirm child 01 (`32jpl1`, map the driver item status vocabulary onto run_state) is `executed`, with its own validation evidence present. Confirms the two children are authored and mutually consistent before either executes: each carries `- From-Backlog: ildjse`, neither declares a `- Blocks-Release:` gate, and their `- Scope-Paths:` do not collide.
+  - Expected outcome: both child rows in the table below resolve to real files on disk; the cross-child properties are checked and reported; no product file is touched by this item.
   - Execution state: pending
 
-- [ ] E-02 CONFIRM THE SET-WIDE NO-REGRESSION PROPERTY after both children are executed: no driver status token was renamed or removed by either child, and every reader of that vocabulary still passes. This is the Set's single most important invariant because a translation is meant to be ADDITIVE, and it is checked once at the Set level rather than twice per child.
+- [ ] E-02 CONFIRM eow7p4 REACHED executed
   - Depends on: E-01
+  Confirm child 02 (`eow7p4`, enforce verifier session independence and verifier state authority) is `executed`. Confirms the Set-wide no-regression property after both children are executed: no driver status token was renamed or removed by either child, and every reader of that vocabulary still passes.
   - Expected outcome: `runner_shared.TERMINAL_STATES_CANONICAL`, `runner_shared.TERMINAL_STATUS_ALIASES` and `runner_shutdown.KNOWN_ITEM_STATUSES` hold the same members after the Set as before it, proven by a before/after set comparison, and the readers named in V-02 pass.
-  - Execution state: pending
-
-- [ ] E-03 RECORD THE SET'S RESIDUAL HONESTLY in this plan's own record: state which of the three modules remains unwired (`run_recovery`), why (unreachable without a ledger substrate), and that the decision is OPEN rather than taken. A Set that closes a wiring gap partially must say which part it did not close, or the next reader will believe the gap is shut.
-  - Depends on: E-02
-  - Expected outcome: a `## Workflow history` entry on this plan naming `run_recovery` as still unwired, citing the `retrywire` comment's own words that the ledger question is open, and pointing at OQ-01; no backlog item is closed by this Set.
   - Execution state: pending
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
 ## Child IPDs, sequence, and dependencies
 
-| Order | File | What it does | Depends on |
-|---|---|---|---|
-| 01 | `.aw/records/plans/pending/20260930-runwire-01-32jpl1-map-the-driver-item-status-vocabulary-onto-run-state-through.ipd.md` | Adds ONE shared translation from a driver item status to a `run_state` position, and uses it to CHECK each driver status write against `run_state`'s legal transition table. Report-only: records the check result and refuses nothing. | none |
-| 02 | `.aw/records/plans/pending/20260930-runwire-02-eow7p4-enforce-verifier-session-independence-and-verifier-state-aut.ipd.md` | Consumes `verify_roles` at the one shared verify site: asserts the verifier session identity differs from the execute session's (today `_v_session` is discarded), and checks the verifier's `state_authority` before its verdict is allowed to downgrade an item. | 01 |
+| Order | Id | File | What it does | Depends on |
+|---|---|---|---|---|
+| 01 | `32jpl1` | `20260930-runwire-01-32jpl1-map-the-driver-item-status-vocabulary-onto-run-state-through.ipd.md` | Adds ONE shared translation from a driver item status to a `run_state` position, and uses it to CHECK each driver status write against `run_state`'s legal transition table. Report-only: records the check result and refuses nothing. | none |
+| 02 | `eow7p4` | `20260930-runwire-02-eow7p4-enforce-verifier-session-independence-and-verifier-state-aut.ipd.md` | Consumes `verify_roles` at the one shared verify site: asserts the verifier session identity differs from the execute session's (today `_v_session` is discarded), and checks the verifier's `state_authority` before its verdict is allowed to downgrade an item. | 01 |
 
 WHY 02 DEPENDS ON 01 rather than being independent: 02's authority check asks "is this actor allowed to make the transition `verifying -> correction_required`?", and that question is only askable once something knows the item is AT `verifying`, which is exactly what 01's translation supplies. Ordered serially so 02 consumes 01's function instead of privately re-deriving the position, which would create the second state machine this Set exists to avoid.
 
@@ -138,17 +135,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 
-- [ ] V-03 validates E-03
-  - Required evidence: QUOTE the `## Workflow history` entry added to this plan, showing it names `run_recovery` as still unwired and cites the open ledger question. PASTE a grep for `run_recovery` and `run_engine` across `agent_workflows/oc_runipd.py` and `agent_workflows/agy_runipd.py` showing ZERO matches in both (the fence held). Confirm and state that backlog item `ildjse` was NOT set to `done` by this Set.
-  - Observed evidence:
-  - Result: pending
-
 ## Approval and execution gate
 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-This orchestrator carries ORCHESTRATION ONLY. Its three E-items confirm the children exist and agree (E-01), check the one Set-wide invariant that is cheaper to verify once than twice (E-02), and record the residual (E-03). None of them edits a product file, so none of them is work a child should own instead. Its `- Scope-Paths:` is its own file for that reason.
+This orchestrator carries ORCHESTRATION ONLY. Its two E-items confirm the children exist and agree (E-01), and check the one Set-wide invariant that is cheaper to verify once than twice (E-02). None of them edits a product file, so none of them is work a child should own instead. Its `- Scope-Paths:` is its own file for that reason.
 
 EXECUTION CONTRACT. Execute children in Order (01 then 02); 02 consumes 01's translation and must not re-derive it. Commit only files changed for the item being executed, through `aw commit <plan> -- <paths>`, never `git add -A` and never `git push`. Verify the staged set with `git diff --cached --name-only` before every commit: this is a shared checkout and uncommitted work you did not create is not yours. Run the suite BARE as `python3 -m pytest` and paste the actual summary line; never claim a pass you did not run.
 
