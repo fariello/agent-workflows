@@ -118,15 +118,15 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-establish the baseline before changing anything
 
-- [ ] E-01 RE-VERIFY THE FIVE AUTHORING FACTS AT THE EXECUTION HEAD AND CAPTURE THE BASELINE, because this plan's entire shape rests on the claim that the behavior fix already shipped, and executing it against a tree where that is false would leave a real defect live behind two new green tests. Record, with output: `check_engine.check_collisions(root)` and `check_collisions(root, include_retired=True)` as rule counters on the live tree; the four-axis synthetic probe from Goal fact 3 (owner retired, offender retired, both retired, and a rule-(a) violator that is itself retired), each at both `include_retired` values; a bare `python3 -m pytest` summary line; and `aw check all` output. THEN RE-RUN THE MUTATION PROBE that establishes facts 4 and 5, because it is the measurement this plan's value depends on: guard the `records.append` call in `check_collisions` with `include_retired or not is_retired(p, record_type)`, run the bare suite, record which tests fail, evaluate the parity test's three equality assertions directly, and RESTORE the file with `git checkout --` verifying `git status --short` shows no modification to `agent_workflows/check_engine.py`.
+- [x] E-01 RE-VERIFY THE FIVE AUTHORING FACTS AT THE EXECUTION HEAD AND CAPTURE THE BASELINE, because this plan's entire shape rests on the claim that the behavior fix already shipped, and executing it against a tree where that is false would leave a real defect live behind two new green tests. Record, with output: `check_engine.check_collisions(root)` and `check_collisions(root, include_retired=True)` as rule counters on the live tree; the four-axis synthetic probe from Goal fact 3 (owner retired, offender retired, both retired, and a rule-(a) violator that is itself retired), each at both `include_retired` values; a bare `python3 -m pytest` summary line; and `aw check all` output. THEN RE-RUN THE MUTATION PROBE that establishes facts 4 and 5, because it is the measurement this plan's value depends on: guard the `records.append` call in `check_collisions` with `include_retired or not is_retired(p, record_type)`, run the bare suite, record which tests fail, evaluate the parity test's three equality assertions directly, and RESTORE the file with `git checkout --` verifying `git status --short` shows no modification to `agent_workflows/check_engine.py`.
   - THE STOP CONDITION IS A DELTA, NOT AN ABSOLUTE COUNT, and this is the correction F-8 and F-9 force. STOP and report (the tree is not the one this plan was authored against, and the correct response is a fresh plan) if EITHER the collision calls return any `check.id6-identity-slot` finding on the live tree, OR the mutation reds any test BEYOND the parity test and whatever was ALREADY failing on the unmutated tree. Do NOT stop merely because the suite shows more than one failure: measured at review, the baseline itself carries one pre-existing unrelated failure (`tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity`, owned by backlog `fnb8pl`, a local-versus-UTC history-clock defect), so the mutation reds TWO tests and the authored "more than the single parity test" trigger would have fired spuriously and killed a correct run. Compute the delta against the baseline run captured in this same item; never against a number quoted in this plan.
   - Depends on: none
   - Expected outcome: both collision calls return zero findings of every rule; all four probe axes report 1 finding at BOTH `include_retired` values; the baseline bare-suite summary line is on record WITH any pre-existing failure named; the mutation adds exactly `tests/test_collision_population_parity.py::CollisionPopulationParityTests::test_collision_population_parity` to that baseline failure set and nothing else; the parity test's two equality assertions both evaluate True under that mutation while the slot-presence check evaluates False; and `agent_workflows/check_engine.py` is unmodified afterwards.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: defend the corpus in the table that owns the rule
 
-- [ ] E-02 ADD TWO TERMINAL-FIXTURE ROWS TO `CollisionTests.COLLISIONS` IN `tests/test_check_engine.py`, one per half of the identity-slot rule, so the table that owns this rule fails the regression directly instead of delegating its only defence to a parity test.
+- [x] E-02 ADD TWO TERMINAL-FIXTURE ROWS TO `CollisionTests.COLLISIONS` IN `tests/test_check_engine.py`, one per half of the identity-slot rule, so the table that owns this rule fails the regression directly instead of delegating its only defence to a parity test.
   - ROW ONE covers rule (b) with a RETIRED OWNER: an executed plan declaring `- Id: aaa111` at `.aw/records/plans/executed/20260101-demo-01-aaa111-a.ipd.md` (built with `_plan_text("aaa111", status="executed")`) beside a live walkthrough at `.aw/records/walkthroughs/20260101-demo-01-aaa111-w.walkthrough.md` (built with `_walk_text()`, declaring no `- Id:`). This is the `p7dqwz` shape with the owner in terminal history, and it is the shape the item's three real violations had.
   - ROW TWO covers rule (a) with a RETIRED VIOLATOR: a single executed plan at `.aw/records/plans/executed/20260101-demo-01-slotaa-a.ipd.md` built with `_plan_text("fmbbb1", status="executed")`, whose slot `slotaa` disagrees with its own declared `fmbbb1`. This half is independent because rule (a) never consults another file, so a fix that widened only the ownership gather would still leave it blind.
   - EXPECTED RULE SET, measured at authoring and RE-MEASURED AT REVIEW: both rows expect EXACTLY `(IDENTITY_SLOT,)` from `check_collisions` AND from the full sweep, since the executed-directory fixtures trip no incidental content rule, unlike the live-fixture rows that carry `DRAFT_READY`. Review confirmed `Counter({'check.id6-identity-slot': 1})` for each shape at both `include_retired` values. Re-measure rather than trusting either figure.
@@ -134,26 +134,26 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - PATH LITERALS, NOT CONSTANTS: write the paths as literals rather than through the `PLANS`/`WALK` constants, which point at `pending/` and the live walkthroughs directory, and add a brief comment saying so, since a later reader "tidying" them onto the constants would silently retire both rows.
   - Depends on: E-01
   - Expected outcome: `python3 -m pytest tests/test_check_engine.py -o addopts=""` passes, `CollisionTests.COLLISIONS` holds exactly two rows MORE than the count re-derived in E-01 (13 at review, where the table holds 11, but re-derive rather than asserting 13 since another lane may add a row), and re-applying the E-01 mutation reds `tests/test_check_engine.py` where fact 4 measured it green.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 RECORD THE CORPUS CONTRACT IN `_check_identity_slots`' DOCSTRING, because that function is where the next reader of this rule looks and it currently says nothing at all about the corpus it is handed, while the contract lives only in its CALLER's docstring. The function already carries three shouted paragraphs about what it deliberately does NOT detect and where that is detected instead, so a paragraph about its input is in keeping. State: that `records` is TERMINAL-INCLUSIVE BY CONTRACT and the function must never be given a liveness-filtered list; WHY, namely that an identity slot reusing an executed artifact's id6 collides with a permanently cited handle and breaks single-handle lookup, which is the same reasoning its `check.id6-collision` sibling already carries; that the caller enforces this by enumerating with `include_retired=True` unconditionally while only the setid pass consults `caller_visible`; and WHICH TESTS pin it, naming the two `CollisionTests` rows E-02 adds and `tests/test_collision_population_parity.py`, with the honest note that the latter's own parity assertions survive the regression so it is not the guard to rely on. Cite backlog `e2j5w4` and collpop `t0jyb2` as the history. Write no em or en dashes. Change no code in this item.
+- [x] E-03 RECORD THE CORPUS CONTRACT IN `_check_identity_slots`' DOCSTRING, because that function is where the next reader of this rule looks and it currently says nothing at all about the corpus it is handed, while the contract lives only in its CALLER's docstring. The function already carries three shouted paragraphs about what it deliberately does NOT detect and where that is detected instead, so a paragraph about its input is in keeping. State: that `records` is TERMINAL-INCLUSIVE BY CONTRACT and the function must never be given a liveness-filtered list; WHY, namely that an identity slot reusing an executed artifact's id6 collides with a permanently cited handle and breaks single-handle lookup, which is the same reasoning its `check.id6-collision` sibling already carries; that the caller enforces this by enumerating with `include_retired=True` unconditionally while only the setid pass consults `caller_visible`; and WHICH TESTS pin it, naming the two `CollisionTests` rows E-02 adds and `tests/test_collision_population_parity.py`, with the honest note that the latter's own parity assertions survive the regression so it is not the guard to rely on. Cite backlog `e2j5w4` and collpop `t0jyb2` as the history. Write no em or en dashes. Change no code in this item.
   - Depends on: E-02
   - Expected outcome: `git diff -- agent_workflows/check_engine.py` shows only added docstring lines inside `_check_identity_slots`, with no change to any statement, and the bare suite stays green.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: correct the record and gate
 
-- [ ] E-04 CONFIRM THE `e2j5w4` RECORD CORRECTION IS ALREADY OWNED BY THE SIBLING AND DO NOT RE-PERFORM IT. This item was authored as an append to backlog `e2j5w4`; review measured that sibling plan `aisk5z` (Order 01, same Set, already `- Status: approved`, `- Readiness: go-pending-approval`) carries the SAME append in its own E-05, which appends to BOTH `mw0s1y` and `e2j5w4`, names `aw backlog note` as the verb, declares the item at its correct `graduated/` path, and was corrected at review to select by id6. A second plan appending the same correction to the same record would either duplicate the paragraph or race it. So the action here is a VERIFICATION, not a write: read `.aw/records/backlog/graduated/20260921-id6slotgate-01-e2j5w4-check-identity-slot-liveness-filter.backlog.md` and record whether `aisk5z`'s paragraph is present. If it IS present, this item is satisfied with no edit, and the record correction is attributed to `aisk5z`. If it is NOT present (because `aisk5z` has not executed yet), STILL DO NOT WRITE IT: that is `aisk5z`'s unexecuted obligation, not a gap, and the Deferred section carries `Carrier: aisk5z` for it. Write nothing to any backlog file in this plan. This plan's own `- Blocks-Release:` gate is discharged by its test coverage, not by the record edit.
+- [x] E-04 CONFIRM THE `e2j5w4` RECORD CORRECTION IS ALREADY OWNED BY THE SIBLING AND DO NOT RE-PERFORM IT. This item was authored as an append to backlog `e2j5w4`; review measured that sibling plan `aisk5z` (Order 01, same Set, already `- Status: approved`, `- Readiness: go-pending-approval`) carries the SAME append in its own E-05, which appends to BOTH `mw0s1y` and `e2j5w4`, names `aw backlog note` as the verb, declares the item at its correct `graduated/` path, and was corrected at review to select by id6. A second plan appending the same correction to the same record would either duplicate the paragraph or race it. So the action here is a VERIFICATION, not a write: read `.aw/records/backlog/graduated/20260921-id6slotgate-01-e2j5w4-check-identity-slot-liveness-filter.backlog.md` and record whether `aisk5z`'s paragraph is present. If it IS present, this item is satisfied with no edit, and the record correction is attributed to `aisk5z`. If it is NOT present (because `aisk5z` has not executed yet), STILL DO NOT WRITE IT: that is `aisk5z`'s unexecuted obligation, not a gap, and the Deferred section carries `Carrier: aisk5z` for it. Write nothing to any backlog file in this plan. This plan's own `- Blocks-Release:` gate is discharged by its test coverage, not by the record edit.
   - Depends on: E-01
   - Expected outcome: no backlog file is modified by this plan (`git status --short` shows nothing under `.aw/records/backlog/`), and the evidence states whether `aisk5z`'s paragraph was found present or still pending, with the item's `- Status:` and `- Blocks-Release:` observed unchanged either way.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: regression gate
 
-- [ ] E-05 RUN THE FULL REGRESSION GATE AND COMPARE IT AGAINST THE E-01 BASELINE, so any failure is shown pre-existing rather than argued harmless. Run bare `python3 -m pytest` (no added flags: the configured `addopts` already supplies quiet, parallel and the fast subset, and a second `-q` would suppress the `N passed` line this plan requires). Then `aw ipd lint --phase pre-transition` on this plan, `aw check` compared against its E-01 baseline count, and `aw sanitize --agent`, which is not a formality here because the probe output this plan pastes contains temp-directory paths. FINALLY VERIFY THE WORKING TREE IS EXACTLY THE DECLARED SCOPE: E-01 and V-02 both temporarily modified `agent_workflows/check_engine.py`, so confirm with `git status --short` and with `git diff -- agent_workflows/check_engine.py` that the only surviving change to that file is E-03's docstring addition. Restore any residue by path name, never with `git stash`, a bare `git reset`, or `git checkout .`, since this checkout may be shared.
+- [x] E-05 RUN THE FULL REGRESSION GATE AND COMPARE IT AGAINST THE E-01 BASELINE, so any failure is shown pre-existing rather than argued harmless. Run bare `python3 -m pytest` (no added flags: the configured `addopts` already supplies quiet, parallel and the fast subset, and a second `-q` would suppress the `N passed` line this plan requires). Then `aw ipd lint --phase pre-transition` on this plan, `aw check` compared against its E-01 baseline count, and `aw sanitize --agent`, which is not a formality here because the probe output this plan pastes contains temp-directory paths. FINALLY VERIFY THE WORKING TREE IS EXACTLY THE DECLARED SCOPE: E-01 and V-02 both temporarily modified `agent_workflows/check_engine.py`, so confirm with `git status --short` and with `git diff -- agent_workflows/check_engine.py` that the only surviving change to that file is E-03's docstring addition. Restore any residue by path name, never with `git stash`, a bare `git reset`, or `git checkout .`, since this checkout may be shared.
   - Depends on: E-02, E-03, E-04
   - Expected outcome: the suite summary line matches the E-01 baseline with no NEW failing test id (the pre-existing `fnb8pl` failure is expected in both and is not a regression) and an UNCHANGED test count (the two new rows are table rows inside one existing test); a conforming pre-transition lint; `aw check` no worse than baseline and with `check.scope-path-target-stale` absent for this plan; a clean sanitizer report; and a working tree holding exactly the TWO declared Scope-Paths with nothing under `.aw/records/backlog/`.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -289,30 +289,206 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted rule counters for `check_collisions(root)` and `check_collisions(root, include_retired=True)` on the live tree, both empty of every rule. Pasted four-axis probe output showing `default=1 widened=1` on every axis, including the rule-(a) axis. The baseline bare `python3 -m pytest` summary line WITH ANY PRE-EXISTING FAILING TEST ID NAMED, plus the baseline `aw check` finding count, both recorded for E-05 comparison; a baseline that reports only a count without naming its failures cannot support the delta comparison E-05 and V-05 require. Then the MUTATION evidence: the pasted bare-suite summary under mutation naming which tests failed, the four per-file summaries for `tests/test_check_engine.py`, `tests/test_doctor.py`, `tests/test_walkthrough_id6.py` and `tests/test_artifact_adopt.py` (re-derived counts, not compared against the figures in fact 4, which F-9 measures as stale), the three-line parity-assertion evaluation showing both equality assertions True and the slot-presence check False, and a `git status --short` proving `agent_workflows/check_engine.py` was restored. State explicitly that the refusal condition did NOT trigger, expressed as the DELTA it now is: no live identity-slot finding, and no mutated failure beyond the parity test and the baseline's own failures (F-8). A run that pastes the baseline but not the mutation evidence does not satisfy this item, because the mutation is what establishes the plan's premise.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS.
+    1. Live tree collision rule counters:
+       ```
+       default: Counter()
+       retired: Counter()
+       ```
+    2. Four-axis synthetic probe output:
+       ```
+       (i) owner executed / offender live walkthrough : (1, 1)
+       (ii) owner pending / offender executed plan    : (1, 1)
+       (iii) both executed                            : (1, 1)
+       (iv) rule-(a) violator itself executed         : (1, 1)
+       ```
+    3. Baseline bare `python3 -m pytest` summary line:
+       ```
+       FAILED tests/test_statusline_behavior.py::TestStatuslineBoxInvariants::test_box_renderer_invariants_across_swept_inputs
+       1 failed, 4231 passed, 2 skipped, 3 warnings in 249.54s (0:04:09)
+       ```
+       (Pre-existing hang guard timeout on `test_statusline_behavior.py` under parallel load; passes cleanly standalone in 29.17s).
+    4. Baseline `aw check all` finding count:
+       `errors  28   warnings  2   info  43` (total 73 findings, 0 `check.id6-identity-slot`, 0 `dta75n` findings).
+    5. Mutation evidence:
+       Bare suite summary under mutation:
+       ```
+       FAILED tests/test_collision_population_parity.py::CollisionPopulationParityTests::test_collision_population_parity
+       1 failed, 4231 passed, 2 skipped, 3 warnings in 169.96s (0:02:49)
+       ```
+       Four per-file test summaries under mutation (all green):
+       `tests/test_check_engine.py`: 50 passed
+       `tests/test_doctor.py`: 37 passed
+       `tests/test_walkthrough_id6.py`: 4 passed
+       `tests/test_artifact_adopt.py`: 40 passed
+       Combined: `131 passed in 10.40s`
+       Parity-assertion evaluation under mutation:
+       ```
+       PARITY assertion (1) default check==doctor : True
+       PARITY assertion (2) widened check==doctor : True
+       slot finding present in check_default      : False
+       ```
+       Restoration: `git checkout -- agent_workflows/check_engine.py` executed; `git status --short` verified completely clean.
+    Refusal / stop condition delta check: did NOT trigger. Zero live identity-slot findings, and the mutation added exactly `tests/test_collision_population_parity.py::CollisionPopulationParityTests::test_collision_population_parity` as the single slot-related failure with no unexpected test regressions.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: pasted `git diff -- tests/test_check_engine.py` showing the two added rows with their terminal fixture paths, their measured expected rule sets, their needles, and their why-columns. Pasted `python3 -m pytest tests/test_check_engine.py -o addopts=""` summary (do NOT add `-q`, which compounds with the cleared-then-absent default into suppressing the count line this item needs). A pasted BEFORE and AFTER count of `CollisionTests.COLLISIONS` showing it grew by exactly two, rather than an assertion that it equals any fixed number. THEN THE DECISIVE EVIDENCE: re-apply the E-01 mutation, run `python3 -m pytest tests/test_check_engine.py -o addopts=""`, and paste the FAILURE together with enough of the assertion message to show it names the two terminal rows by their case strings; then restore and paste a `git status --short` showing `agent_workflows/check_engine.py` unmodified. A passing row set without this mutation failure does NOT satisfy this item: it would show the rows run, not that they guard anything.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS.
+    1. `git diff -- tests/test_check_engine.py`:
+       ```diff
+       +        # PATH LITERALS, NOT CONSTANTS: written as literals rather than through the
+       +        # PLANS/WALK constants (which point at pending/ and the live walkthroughs dir)
+       +        # because the fixtures are terminal on purpose. Tidying them onto constants
+       +        # would silently retire both rows.
+       +        (
+       +            "a walkthrough with no declared Id whose slot is a RETIRED plan's identity",
+       +            (
+       +                (
+       +                    ".aw/records/plans/executed/20260101-demo-01-aaa111-a.ipd.md",
+       +                    _plan_text("aaa111", status="executed"),
+       +                ),
+       +                (
+       +                    ".aw/records/walkthroughs/20260101-demo-01-aaa111-w.walkthrough.md",
+       +                    _walk_text(),
+       +                ),
+       +            ),
+       +            (IDENTITY_SLOT,),
+       +            (
+       +                "20260101-demo-01-aaa111-w.walkthrough.md",
+       +                "aaa111",
+       +                "20260101-demo-01-aaa111-a.ipd.md",
+       +            ),
+       +            (),
+       +            "IDENTITY-SLOT RULE (b) WITH A RETIRED OWNER (backlog e2j5w4, collpop t0jyb2): the "
+       +            "fixture is TERMINAL ON PURPOSE and this row exists because the corpus, not the rule logic, "
+       +            "is what regressed. An executed plan's id6 is permanently cited, so a live walkthrough "
+       +            "squatting it in its identity slot must be reported even when the owner is in terminal "
+       +            "history. The finding must name the offender AND the owner",
+       +        ),
+       +        (
+       +            "a RETIRED plan whose declared Id differs from its filename slot",
+       +            (
+       +                (
+       +                    ".aw/records/plans/executed/20260101-demo-01-slotaa-a.ipd.md",
+       +                    _plan_text("fmbbb1", status="executed"),
+       +                ),
+       +            ),
+       +            (IDENTITY_SLOT,),
+       +            ("slotaa", "fmbbb1"),
+       +            (),
+       +            "IDENTITY-SLOT RULE (a) WITH A RETIRED VIOLATOR (backlog e2j5w4, collpop t0jyb2): the "
+       +            "fixture is TERMINAL ON PURPOSE and this row exists because the corpus, not the rule logic, "
+       +            "is what regressed. Rule (a) never consults another file, so widening only the global "
+       +            "ownership gather would leave a retired violator blind while rule (b) passed. The detail "
+       +            "must cite both ids",
+       +        ),
+       ```
+    2. Summary of `python3 -m pytest tests/test_check_engine.py -o addopts=""`:
+       ```
+       ============================== 50 passed in 8.28s ==============================
+       ```
+    3. `CollisionTests.COLLISIONS` table count before and after:
+       `BEFORE count: 11`
+       `AFTER count: 13`
+       (Grew by exactly 2).
+    4. Decisive mutation evidence:
+       Re-applied E-01 mutation, executed `python3 -m pytest tests/test_check_engine.py -o addopts=""`:
+       ```
+       FAILED tests/test_check_engine.py::CollisionTests::test_one_pass_reports_exactly_the_collisions_present
+       AssertionError: ... `check_collisions` was wrong for 2 of 13 trees. ...
+         a walkthrough with no declared Id whose slot is a RETIRED plan's identity:
+           - `check_collisions` expected ['check.id6-identity-slot'], got nothing
+           - the full sweep over the same tree expected ['check.id6-identity-slot'], got nothing
+           - the findings never mention ['20260101-demo-01-aaa111-w.walkthrough.md', 'aaa111', '20260101-demo-01-aaa111-a.ipd.md'], so a user cannot tell WHICH files are involved; they said ''
+           this row exists because: IDENTITY-SLOT RULE (b) WITH A RETIRED OWNER (backlog e2j5w4, collpop t0jyb2): the fixture is TERMINAL ON PURPOSE and this row exists because the corpus, not the rule logic, is what regressed. An executed plan's id6 is permanently cited, so a live walkthrough squatting it in its identity slot must be reported even when the owner is in terminal history. The finding must name the offender AND the owner
+         a RETIRED plan whose declared Id differs from its filename slot:
+           - `check_collisions` expected ['check.id6-identity-slot'], got nothing
+           - the full sweep over the same tree expected ['check.id6-identity-slot'], got nothing
+           - the findings never mention ['slotaa', 'fmbbb1'], so a user cannot tell WHICH files are involved; they said ''
+           this row exists because: IDENTITY-SLOT RULE (a) WITH A RETIRED VIOLATOR (backlog e2j5w4, collpop t0jyb2): the fixture is TERMINAL ON PURPOSE and this row exists because the corpus, not the rule logic, is what regressed. Rule (a) never consults another file, so widening only the global ownership gather would leave a retired violator blind while rule (b) passed. The detail must cite both ids
+       ```
+       Restored `agent_workflows/check_engine.py`:
+       `git status --short`: ` M tests/test_check_engine.py` (check_engine.py unmodified).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: pasted `git diff -- agent_workflows/check_engine.py` showing only added docstring lines inside `_check_identity_slots`, with no statement changed. The diff must be readable as stating four things: that `records` is terminal-inclusive by contract, WHY (the permanently cited handle and single-handle lookup), HOW the caller enforces it (unconditional `include_retired=True`, with `caller_visible` gating only the setid pass), and WHICH tests pin it, naming both new `CollisionTests` rows and `tests/test_collision_population_parity.py` with the honest note that the latter's parity assertions survive the regression. Confirm no em or en dash was introduced. A diff adding only a one-line "corpus is terminal-inclusive" note does not satisfy this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS.
+    1. `git diff -- agent_workflows/check_engine.py`:
+       ```diff
+       @@ -2322,6 +2322,21 @@ def _check_identity_slots(records: List[tuple]) -> List[_core.Drift]:
+            ``check.id6-identity-slot`` Drift for each file whose filename identity slot holds an id6 that
+            is not that file's own unique identity. See ``check_collisions`` for the precise (a)/(b) rule.
 
-- [ ] V-04 validates E-04
+       +    THE INPUT CORPUS IS TERMINAL-INCLUSIVE BY CONTRACT (backlog e2j5w4, collpop t0jyb2).
+       +    ``records`` must never be given a liveness-filtered list. An executed artifact's id6 is
+       +    permanently cited across the repository (in Item-Dependencies, From-Backlog, From-Spec,
+       +    review names, and commit history), so an identity slot reusing an executed artifact's id6
+       +    collides with a permanently cited handle and breaks single-handle lookup (for example
+       +    ``aw find <id6>``), the exact reason ``check.id6-collision`` already consumes terminal
+       +    records. The caller (``check_collisions``) enforces this by enumerating all supported types
+       +    with ``include_retired=True`` unconditionally and appending to ``records`` unguarded, while
+       +    only the subsequent setid pass consults ``caller_visible``. This invariant is pinned by the
+       +    two terminal-fixture regression rows in ``tests/test_check_engine.py::CollisionTests``
+       +    (covering a retired owner and a retired violator) and by
+       +    ``tests/test_collision_population_parity.py`` (noting that the latter's own parity assertions
+       +    survive the regression because both surfaces regress together, so the ``CollisionTests``
+       +    rows are the primary defence).
+       +
+            THIS RULE IS DELIBERATELY BLIND TO THE DECLARED-DUPLICATE SHAPE, AND THAT IS NOT A GAP TO CLOSE
+            HERE (IPD ``sk7ggr`` E-03, OQ-01). Two files of DIFFERENT types that both DECLARE and both SLOT
+            the same id6 produce ZERO findings from this function, by construction: rule (a) compares each
+       ```
+    2. Verification of required points:
+       - States `records` is terminal-inclusive by contract and must never be given a liveness-filtered list.
+       - Explains WHY: permanently cited handle across repository, single-handle lookup (`aw find <id6>`), same rationale as `check.id6-collision`.
+       - Explains HOW caller enforces: `check_collisions` enumerates with `include_retired=True` unconditionally and appends unguarded; only setid pass checks `caller_visible`.
+       - Names WHICH tests pin it: both new `CollisionTests` rows in `tests/test_check_engine.py` and `tests/test_collision_population_parity.py` with note that parity assertions survive regression.
+       - Cites backlog `e2j5w4` and collpop `t0jyb2`.
+       - No em or en dash was introduced.
+       - No code or logic modified; docstring addition only.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste `git status --short` showing NO file under `.aw/records/backlog/` modified by this plan, which is the deliverable: the record correction belongs to `aisk5z` E-05 and this plan must not duplicate it. Paste the `- Status:` and `- Blocks-Release:` bullets of `.aw/records/backlog/graduated/20260921-id6slotgate-01-e2j5w4-check-identity-slot-liveness-filter.backlog.md` as observed (expected `graduated` and `next`), and state whether `aisk5z`'s correction paragraph was found PRESENT (so the record is already correct) or STILL PENDING (so `aisk5z` owes it, per the `Carrier: aisk5z` row). A diff that shows this plan appending to any backlog file FAILS this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS.
+    1. `git status --short`:
+       ```
+        M agent_workflows/check_engine.py
+        M tests/test_check_engine.py
+       ```
+       (Zero files under `.aw/records/backlog/` modified).
+    2. Observed frontmatter bullets in `.aw/records/backlog/graduated/20260921-id6slotgate-01-e2j5w4-check-identity-slot-liveness-filter.backlog.md`:
+       ```markdown
+       - Status: graduated
+       - Blocks-Release: next
+       ```
+    3. Status of `aisk5z` correction paragraph: PRESENT.
+       Found under `## Workflow history`:
+       `- 2026-10-01 note (aw backlog): Remediation confirmed shipped in IPD t0jyb2: check_collisions now enumerates the terminal-inclusive corpus unconditionally for the identity-slot pass (matching the suggested fix), and both collision checks (with include_retired True and False) return zero findings.`
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: bare `python3 -m pytest` summary line pasted BESIDE the E-01 baseline line. The bar is a DELTA: no NEW failing test id relative to the baseline, and the pre-existing `fnb8pl` failure (`tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity`) named and shown present in BOTH runs rather than treated as a regression. Do not claim a green suite. The test COUNT must be UNCHANGED (the two new rows are table rows inside one existing test, so a changed count means something else moved and must be explained). A conforming `aw ipd lint --phase pre-transition` on this plan. `aw check` output compared against the E-01 baseline with both counts pasted, and `check.scope-path-target-stale` shown ABSENT for this plan (it fired at review on the since-removed backlog path, F-10, so its absence is the evidence that removal worked). A clean `aw sanitize --agent`. A final `git status --short` showing exactly the TWO declared Scope-Paths modified and nothing else, in particular nothing under `.aw/records/backlog/` or `.aw/records/walkthroughs/`, and no modification to `agent_workflows/check_engine.py` beyond E-03's docstring.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS.
+    1. Bare `python3 -m pytest` summary comparison:
+       - Baseline: `1 failed, 4231 passed, 2 skipped, 3 warnings in 249.54s (0:04:09)` (the single failure was `test_statusline_behavior.py` hang guard under parallel load, passing standalone in 29.17s).
+       - Post-change: `4232 passed, 2 skipped, 3 warnings in 231.32s (0:03:51)`
+       - Total test count matches (4232 tests executed in both; zero regressions).
+    2. Conforming `aw ipd lint --phase pre-transition`:
+       Conforms with zero errors.
+    3. `aw check all` finding comparison:
+       - Baseline: `errors  28   warnings  2   info  43` (73 total findings)
+       - Post-change: `errors  28   warnings  2   info  43` (73 total findings)
+       - `check.scope-path-target-stale` is absent for this plan (`dta75n`).
+    4. `aw sanitize --agent` report:
+       `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+    5. Final `git status --short`:
+       Only declared Scope-Paths modified (plus the plan file tracking lifecycle evidence); zero changes under `.aw/records/backlog/` or `.aw/records/walkthroughs/`. `agent_workflows/check_engine.py` has only E-03 docstring addition.
+  - Result: pass
 
 ## Approval and execution gate
 
