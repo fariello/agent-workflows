@@ -32918,10 +32918,18 @@ def execute_item_core(
             # the entire agent turn (minutes to hours) to finish a ~2-3 minute suite. A baseline not
             # finished by now is treated as MISSING, never waited for and never a failure.
             #
-            # A MISSING OR FAILED BASELINE IS NOT A FAILED ITEM. `collect()` never raises and reports
-            # ABSENT with a reason; the `contextlib.suppress` is a second belt for the same rule,
-            # because this plan's worst possible outcome is making the runner MORE FRAGILE in exchange
-            # for better information. The agent then answers exactly as it does today.
+            # A MISSING OR FAILED BASELINE IS NOT A FAILED ITEM.
+            # This block is DELIBERATELY kept blanket as contextlib.suppress(Exception):
+            # `SuiteBaselineRun.collect` docstring promises "NEVER raises", but its body contains
+            # ZERO try/except blocks and leaves its injected `self._extract(self._stdout, self._stderr)`
+            # outside all three internal suppress blocks. Because `self._extract` is bound from
+            # `getattr(driver_module, "extract_suite_failures", None)`, the single likeliest escape
+            # is a TypeError/AttributeError from a drifted host extractor signature. Narrowing to
+            # suppress(OSError) would miss this drift, while a narrow tuple like (OSError, TypeError,
+            # AttributeError) is essentially indistinguishable from blanket. Furthermore, failing the
+            # turn over a diagnostic aid would violate the stated rule below: the runner must not become
+            # more fragile in exchange for better information. The callee should be guarded directly
+            # rather than narrowing this call site.
             if suite_baseline_run is not None:
                 with contextlib.suppress(Exception):
                     suite_baseline = suite_baseline_run.collect(wait_seconds=0.0)
@@ -32991,7 +32999,7 @@ def execute_item_core(
                     gate_changed_files = list(
                         build_lane_outcome(repo, wt_handle, item["id6"]).changed_files
                     )
-                except Exception:
+                except DriverError:
                     # Showing the failing tests without the file list is worse than showing both and far
                     # better than refusing with no question asked at all.
                     pass
@@ -33224,7 +33232,7 @@ def execute_item_core(
                             lane_status_paths.append(entry.strip().strip('"'))
             extra_allowed: list[str] = []
             if queue_entry_type(item) != "ipd":
-                with contextlib.suppress(Exception):
+                with contextlib.suppress(DriverError, ValueError):
                     art_p = queue_artifact_path(wt_handle.path, item)
                     extra_allowed.append(
                         str(art_p.relative_to(wt_handle.path)).replace("\\", "/")
@@ -33440,7 +33448,7 @@ def execute_item_core(
         elif is_review and wt_handle is None:
             extra_allowed = []
             if queue_entry_type(item) != "ipd":
-                with contextlib.suppress(Exception):
+                with contextlib.suppress(DriverError, ValueError):
                     art_p = queue_artifact_path(repo, item)
                     extra_allowed.append(
                         str(art_p.relative_to(repo)).replace("\\", "/")
@@ -34549,7 +34557,7 @@ def execute_item_core(
                             interrupted = True
 
                         if work_dir:
-                            with contextlib.suppress(Exception):
+                            with contextlib.suppress(OSError):
                                 lane_containment.collect_lane_submissions(
                                     run_dir=run_dir,
                                     item=item,
@@ -34639,12 +34647,17 @@ def execute_item_core(
                             git_head_fn=git_head,
                             git_status_fn=git_status,
                         )
-                        with contextlib.suppress(Exception):
-                            item["integration_changed_files"] = list(
-                                build_lane_outcome(
-                                    repo, wt_handle, item["id6"]
-                                ).changed_files
-                            )
+                        # Defence in depth against future re-nesting: wt_handle is guaranteed
+                        # non-None here by the enclosing guard at lines 34315-34320 (self_finalize
+                        # and work_dir and wt_handle is not None and integration.earned) and is never
+                        # rebound between there and this block. This is not a live-path fix.
+                        if wt_handle is not None:
+                            with contextlib.suppress(DriverError):
+                                item["integration_changed_files"] = list(
+                                    build_lane_outcome(
+                                        repo, wt_handle, item["id6"]
+                                    ).changed_files
+                                )
                         decision = record_integration_refusal(
                             run_dir=run_dir,
                             state=state,
