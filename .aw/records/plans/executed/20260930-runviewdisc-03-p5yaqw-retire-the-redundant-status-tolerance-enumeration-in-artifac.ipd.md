@@ -6,7 +6,7 @@
 - Scope: DELETE `agent_workflows.artifact_audit._status_disagrees` and its docstring, which no caller reaches; pin the tolerance and its `executed/` counterexample behaviorally against the LIVE mechanism (`allowed_lifecycle_pairs`, reached through `audit_artifact`) for every member of `runner_shared.TERMINAL_STATES`; and correct the `run_status_is_nonterminal` docstring, which claims a `tests/test_artifact_audit.py` pin against `TERMINAL_STATES` that does not exist.
 - Scope-Paths: agent_workflows/artifact_audit.py, tests/test_artifact_audit.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: OpenCode lane qpgs4t
 - Id: p5yaqw
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: p5yaqw verified (set runviewdisc, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 
 - 2026-10-01 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-009. THE PLAN'S CENTRAL PREMISE WAS FALSIFIED AT REVIEW AND THE PLAN IS REWRITTEN AROUND THE MEASUREMENT. `_status_disagrees` is DEAD: commit `33834c719` deleted its only call site and the repo now holds one occurrence of the name (its own `def`), proven three ways (an AST load-site scan of the defining module finding zero `Load` contexts, a repo-wide grep over every `.py`/`.toml`/`.json`, and a call-counting spy recording 0 calls across the eight audits the plan's own F-01 claims to measure). So E-03's refactor would have rewritten unreachable code, E-01 and E-02 would have pinned a predicate nothing calls, and V-01's and V-03's mutation demonstrations were IMPOSSIBLE TO SATISFY (verified: narrowing the arm to `interrupted` changes nothing an audit returns). The plan now deletes the helper and pins the LIVE mechanism. F-04's 384-pair sweep, F-05's `timed-out`, F-07's asymmetry and OQ-02 were all measurements OF THE DEAD HELPER and are corrected or retired accordingly; F-07's real-behavior counterpart is the opposite of what it claimed. The one surviving defect from the original plan is the false docstring claim (F-06), kept as E-03.
