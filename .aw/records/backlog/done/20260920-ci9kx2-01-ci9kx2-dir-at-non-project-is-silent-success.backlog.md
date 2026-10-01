@@ -1,5 +1,5 @@
 - Id: ci9kx2
-- Status: graduated
+- Status: done
 - Graduated-To: ci9kx2
 - Blocks-Release: next
 - Set: ci9kx2
@@ -8,6 +8,7 @@
 - Summary: aw attention --dir <non-AW-directory> prints nothing and exits 0, so an explicitly named wrong directory looks like success
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): closed by aw oc run: IPD bjgqez executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-ci9kx2-01-bjgqez-make-an-explicit-dir-at-a-non-aw-directory-report-cannot-run.ipd.md); evidence .aw/records/plans/executed/20260929-ci9kx2-01-bjgqez-make-an-explicit-dir-at-a-non-aw-directory-report-cannot-run.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: bjgqez
 - 2026-09-20 created (aw backlog): aw attention --dir <non-AW-directory> prints nothing and exits 0, so an explicitly named wrong directory looks like success
 
