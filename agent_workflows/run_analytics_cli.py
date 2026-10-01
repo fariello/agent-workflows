@@ -495,6 +495,7 @@ def _render_report_html(repo: Path, *, generated_label: str) -> str:
 
     from typing import Mapping
     from agent_workflows import run_analytics_pricing as pricing_mod
+    from agent_workflows import run_analytics_schema as schema_mod
     from agent_workflows import run_analytics_spa as spa_mod
     from agent_workflows import run_analytics_statistics as stats_mod
 
@@ -528,6 +529,7 @@ def _render_report_html(repo: Path, *, generated_label: str) -> str:
         pass
 
     rows: list[dict[str, Any]] = []
+    attempt_population: list[dict[str, Any]] = []
     runs_dir = Path(repo) / ".aw" / "records" / "runs"
     if entries:
         for e in entries:
@@ -661,6 +663,21 @@ def _render_report_html(repo: Path, *, generated_label: str) -> str:
                             ):
                                 phase_acc[pk]["cost"] += float(acost)
                                 phase_acc[pk]["has_c"] = True
+
+                            att_m, _ = schema_mod.resolve_attempt_model(
+                                att, s_data, role="execute"
+                            )
+                            attempt_population.append(
+                                {
+                                    "model": att_m,
+                                    "cost": (
+                                        float(acost)
+                                        if isinstance(acost, (int, float))
+                                        and not isinstance(acost, bool)
+                                        else None
+                                    ),
+                                }
+                            )
 
                             atoks = att.get("tokens")
                             if isinstance(atoks, Mapping):
@@ -1022,8 +1039,8 @@ def _render_report_html(repo: Path, *, generated_label: str) -> str:
     for r in underpowered.values():
         results.append(r)
 
-    # Model comparison refusal (under 80% coverage)
-    results.append(stats_mod.model_comparison([]))
+    # Model comparison (attempt-grain population, refuses below 80% coverage)
+    results.append(stats_mod.model_comparison(attempt_population))
 
     # Resource saturation refusal (0 telemetry runs)
     results.append(

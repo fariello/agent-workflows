@@ -80,6 +80,7 @@ __all__ = [
     "check_conservation_four_term",
     "QualitySummary",
     "SchemaError",
+    "resolve_attempt_model",
 ]
 
 
@@ -928,3 +929,104 @@ def usage_from_mapping(
         # conservation violation, i.e. the check would start reporting on itself.
         dropped_component_count=unsafe,
     )
+
+
+# --- Model Resolution ---------------------------------------------------------------------------
+def resolve_attempt_model(
+    attempt: Mapping[str, Any] | None,
+    state: Mapping[str, Any] | None = None,
+    role: str = "main",
+) -> tuple[str, str]:
+    """Resolve which model an attempt ran under, and who said so, from attempt and run state.
+
+    Role vocabulary:
+    - "main" or "execute": Primary execution turn for the attempt.
+    - "verify": Verifier turn for the attempt. Prefers verify-specific attempt and run fields.
+    - Any other role (e.g. "gate-answer", "recovery"): Resolves through the execute chain,
+      reporting a source label that does not claim verify provenance.
+
+    Precedence tiers (strongest evidence first):
+    1. Observed host model: attempt["host_model"] (or attempt["verify_host_model"] for verify role)
+       with source attempt["host_model_source"] (defaulting to "export-session-current").
+    2. Frozen launch model: attempt["model"] (or attempt["verify_model"] for verify role)
+       with source attempt["model_source"] (defaulting to "options").
+    3. Verify twin rule: for verify role, attempt-level verify keys take priority over executor
+       attempt keys.
+    4. Run-level options: state["options"]["model"] / state["options"]["explicit_model"]
+       (or state["options"]["verify_model"] / ["explicit_verify_model"] for verify role)
+       with source "options".
+    5. Run-level cost attribution: state["options"]["cost_attribution"]["model"]
+       (or state["options"]["verify_cost_attribution"]["model"] for verify role)
+       with source "cost_attribution".
+    6. Unrecorded: ("", "unrecorded").
+
+    Pure function: returns (model, source_label). Never raises on malformed inputs.
+    """
+    att = attempt if isinstance(attempt, Mapping) else {}
+    st = state if isinstance(state, Mapping) else {}
+    opts = st.get("options") if isinstance(st.get("options"), Mapping) else {}
+    ca = (
+        opts.get("cost_attribution")
+        if isinstance(opts.get("cost_attribution"), Mapping)
+        else {}
+    )
+    v_ca = (
+        opts.get("verify_cost_attribution")
+        if isinstance(opts.get("verify_cost_attribution"), Mapping)
+        else {}
+    )
+
+    norm_role = str(role or "main").strip().lower()
+    is_verify = norm_role == "verify"
+
+    if is_verify:
+        # Tier 1 (verify): observed host model for verify
+        v_host = att.get("verify_host_model")
+        if v_host and str(v_host).strip():
+            src = str(att.get("verify_host_model_source") or "export-session-current")
+            return str(v_host).strip(), src
+
+        # Tier 2 (verify): frozen model for verify
+        v_model = att.get("verify_model")
+        if v_model and str(v_model).strip():
+            src = str(att.get("verify_model_source") or "options")
+            return str(v_model).strip(), src
+
+        # Tier 4 (verify): run-level options verify_model
+        v_opt = opts.get("verify_model") or opts.get("explicit_verify_model")
+        if v_opt and str(v_opt).strip():
+            return str(v_opt).strip(), "options"
+
+        # Tier 5 (verify): run-level cost attribution verify model
+        v_ca_model = v_ca.get("model") or ca.get("verify_model")
+        if v_ca_model and str(v_ca_model).strip():
+            return str(v_ca_model).strip(), "cost_attribution"
+
+        # Fallback to executor chain if no verify-specific model was configured
+
+    # Execute chain (used for main, execute, and any other role e.g. gate-answer, recovery;
+    # also fallback for verify if no verify keys were present).
+    # Tier 1: observed host model
+    host_model = att.get("host_model")
+    if host_model and str(host_model).strip():
+        src = str(att.get("host_model_source") or "export-session-current")
+        return str(host_model).strip(), src
+
+    # Tier 2: frozen launch model
+    frozen_model = att.get("model")
+    if frozen_model and str(frozen_model).strip():
+        src = str(att.get("model_source") or "options")
+        return str(frozen_model).strip(), src
+
+    # Tier 4: run-level options model
+    opt_model = opts.get("model") or opts.get("explicit_model")
+    if opt_model and str(opt_model).strip():
+        return str(opt_model).strip(), "options"
+
+    # Tier 5: run-level cost attribution model
+    ca_model = ca.get("model")
+    if ca_model and str(ca_model).strip():
+        return str(ca_model).strip(), "cost_attribution"
+
+    # Tier 6: unrecorded
+    return "", "unrecorded"
