@@ -4754,6 +4754,7 @@ def evaluate_blocking_close(
     lane_carrier_ref: Optional[str] = None,
     lane_carrier_path: Optional[str] = None,
     lane_carrier_override: Optional[tuple[str, str]] = None,
+    carrier_index: Optional[Dict[str, List[Tuple[Path, Optional[str]]]]] = None,
 ) -> CloseVerdict:
     """The shared close-legitimacy predicate for a release-gated backlog item (bklggrad orb9zb).
 
@@ -4834,7 +4835,12 @@ def evaluate_blocking_close(
         same_gate_carriers: List[Path] = []
         if item_id6:
             release_cache: Dict[str, Optional[Path]] = {}
-            for _p, carrier_br in find_from_backlog_artifacts(repo_root, item_id6):
+            carrier_items = (
+                carrier_index.get(item_id6, [])
+                if carrier_index is not None
+                else find_from_backlog_artifacts(repo_root, item_id6)
+            )
+            for _p, carrier_br in carrier_items:
                 if _same_release(
                     repo_root, carrier_br, blocks_release, cache=release_cache
                 ):
@@ -5041,7 +5047,29 @@ def _from_backlog_carrier_index(
     return index
 
 
-def check_release_gate_consistency(repo_root: Path) -> List[_core.Drift]:
+def _item_close_date(item_text: str) -> Optional[str]:
+    """Derive the close date (compact YYYYMMDD) for a backlog item from its workflow history (b24o3q E-02).
+
+    Reuses `attention._history_section_lines` to bound the history section and
+    `attention_contract.last_history_at` to extract the newest record date.
+    Returns compact YYYYMMDD, or None if no parseable date is found.
+    """
+    from agent_workflows import attention as _att
+    from agent_workflows import attention_contract as _ac
+
+    lines = _att._history_section_lines(item_text)
+    date_str = _ac.last_history_at(lines)
+    if not date_str:
+        return None
+    compact = date_str.replace("-", "").strip()
+    return compact if len(compact) >= 8 else None
+
+
+def check_release_gate_consistency(
+    repo_root: Path,
+    *,
+    at_rest: bool = False,
+) -> List[_core.Drift]:
     """bklggrad orb9zb E-05: cross-tree consistency rules reusing `evaluate_blocking_close`.
 
     ERROR-severity (fold into the exit-blocking sweep):
@@ -5086,6 +5114,7 @@ def check_release_gate_consistency(repo_root: Path) -> List[_core.Drift]:
     # `done/` items closed before this guard existed are grandfathered (never retroactively flagged).
     # A staged done+blocking item with no legitimate gate is the fingerprint of a hand-edit that
     # bypassed the `aw backlog set done` gate. Fast no-op when nothing under backlog/ is staged.
+    seen_blocking_locations: Set[str] = set()
     for staged_path in _staged_backlog_done_items(repo_root):
         staged_text = _blob_text(repo_root, ":0:", staged_path)
         if not staged_text or not _META_BLOCKS_RELEASE_RE.search(staged_text):
@@ -5096,6 +5125,7 @@ def check_release_gate_consistency(repo_root: Path) -> List[_core.Drift]:
             repo_root, repo_root / staged_path, "done", item_text=staged_text
         )
         if not verdict.legitimate and verdict.severity == "error":
+            seen_blocking_locations.add(staged_path)
             drift.append(
                 _core.Drift(
                     staged_path,
@@ -5107,6 +5137,62 @@ def check_release_gate_consistency(repo_root: Path) -> List[_core.Drift]:
                     ),
                 )
             )
+
+    # Rule 1 at-rest arm (gateatrest b24o3q E-03): judges every committed done backlog item on disk
+    # against the stamped cutover date, deduplicating against the staged arm by location.
+    if at_rest:
+        from agent_workflows import config as _config
+
+        cutover = _config.resolve_cutover_date(
+            repo_root, "release_gate_at_rest", compact=True
+        )
+        if cutover is not None:
+            from agent_workflows import backlog as _backlog
+
+            candidates: List[Tuple[Path, str, str]] = []
+            for item_p in _backlog._iter_items(repo_root):
+                try:
+                    rel_path = str(item_p.relative_to(repo_root)).replace("\\", "/")
+                except ValueError:
+                    rel_path = str(item_p).replace("\\", "/")
+                if rel_path in seen_blocking_locations:
+                    continue
+                try:
+                    item_txt = item_p.read_text(encoding="utf-8")
+                except OSError:
+                    continue
+                if _status_meta(item_txt) != "done":
+                    continue
+                if not _META_BLOCKS_RELEASE_RE.search(item_txt):
+                    continue
+                cdate = _item_close_date(item_txt)
+                if cdate is None or cdate < cutover:
+                    continue
+                candidates.append((item_p, rel_path, item_txt))
+
+            if candidates:
+                shared_carrier_idx = _from_backlog_carrier_index(repo_root)
+                for item_p, rel_path, item_txt in candidates:
+                    verdict = evaluate_blocking_close(
+                        repo_root,
+                        item_p,
+                        "done",
+                        item_text=item_txt,
+                        carrier_index=shared_carrier_idx,
+                    )
+                    if not verdict.legitimate and verdict.severity == "error":
+                        seen_blocking_locations.add(rel_path)
+                        drift.append(
+                            _core.Drift(
+                                rel_path,
+                                "check.blocking-item-closed-without-gate",
+                                (
+                                    "a done backlog item still carries Blocks-Release with no handoff "
+                                    "(From-Backlog plan), resolvable evidence, or de-gate; close it via "
+                                    "`aw backlog set done` (which enforces the gate) rather than by hand"
+                                ),
+                            )
+                        )
 
     # Rule 2: From-Backlog plan whose Blocks-Release differs from the backlog item's.
     from agent_workflows import backlog as _backlog
@@ -5314,7 +5400,7 @@ def check_release_gates(repo_root: Path) -> List[_core.Drift]:
     except Exception:
         pass
     try:
-        drift.extend(check_release_gate_consistency(repo_root))
+        drift.extend(check_release_gate_consistency(repo_root, at_rest=True))
     except Exception:
         pass
     try:
