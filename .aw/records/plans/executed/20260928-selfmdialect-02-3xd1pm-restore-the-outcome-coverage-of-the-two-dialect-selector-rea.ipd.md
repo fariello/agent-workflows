@@ -6,7 +6,7 @@
 - Scope: IN: ONE new test file, `tests/test_selector_two_dialect_readers.py`, restoring OUTCOME coverage for the four measured-unguarded properties plus the two measured-guarded ones (so the file is a complete statement of the readers' contract rather than a patch over today's holes), each test proven non-vacuous by the RED-under-mutation measurement recorded in Findings. Every test drives `selectors.resolve`/`resolve_for_mutation`/the three readers on FIXTURE records in a temp repo and asserts observable answers (match KIND, matched paths, refusal text). OUT, and deliberately: any edit to `agent_workflows/selectors.py` (this plan asserts existing behavior and must not change it); restoring the two deleted files verbatim (they carry code-structure pins that `GUIDING_PRINCIPLES.md` P16 now prohibits, enumerated in Findings as X1..X4, and re-adding them would reintroduce exactly what plan `b02ohu` is removing); the two properties measured as genuinely unobservable (M3 bullet-first ordering, M4 the fence pre-filter), which are named in Deferred with the measurement that retired them rather than left implied; and the general audit of `19313eed`, which is backlog `xvp5vx`.
 - Scope-Paths: tests/test_selector_two_dialect_readers.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 3xd1pm
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 3xd1pm verified (set selfmdialect, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20260930-7qvs1c-01-7qvs1c-status-set-uses-utc-date-while-backlog-uses-local.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-201 through PR-205 all fixed; full mutation census reproduced
 
