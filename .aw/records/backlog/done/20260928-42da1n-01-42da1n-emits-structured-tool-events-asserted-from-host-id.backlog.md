@@ -1,5 +1,5 @@
 - Id: 42da1n
-- Status: graduated
+- Status: done
 - Graduated-To: 42da1n
 - Blocks-Release: next
 - Set: 42da1n
@@ -8,6 +8,7 @@
 - Summary: emits_structured_tool_events is asserted from host identity and reads False for antigravity, which streams stream-json and is parsed
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): closed by aw oc run: IPD dwbm7a executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-42da1n-01-dwbm7a-decide-emits-structured-tool-events-by-an-executed-probe-of.ipd.md); evidence .aw/records/plans/executed/20260929-42da1n-01-dwbm7a-decide-emits-structured-tool-events-by-an-executed-probe-of.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260929T021205Z-3914774: dwbm7a
 - 2026-09-28 created (aw backlog): emits_structured_tool_events is asserted from host identity and reads False for antigravity, which streams stream-json and is parsed
 
