@@ -1,5 +1,5 @@
 - Id: qm04zi
-- Status: graduated
+- Status: done
 - Graduated-To: qm04zi
 - Blocks-Release: next
 - Set: qm04zi
@@ -8,6 +8,7 @@
 - Summary: docs advertise --verbose as a general agent-mode token-control flag but only upgrade-test new accepts it, so the documented usage exits 2
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw agy run: IPD c4btis executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261001-qm04zi-01-c4btis-wire-verbose-onto-the-shared-output-mode-parents-and-sanitiz.ipd.md); evidence .aw/records/plans/executed/20261001-qm04zi-01-c4btis-wire-verbose-onto-the-shared-output-mode-parents-and-sanitiz.ipd.md
 - 2026-10-01 set (aw backlog): graduated by run run-20260930T053024Z-3198670: c4btis
 - 2026-09-29 created (aw backlog): Carrier filed while authoring plan 75ic2f (backlog rcjorx): the same reach defect rcjorx records for --fields, on its documented sibling --verbose.
 
