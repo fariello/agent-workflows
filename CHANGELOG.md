@@ -32,6 +32,7 @@ Major storage-layout boundary. The logical model (D126-D129) was superseded by t
 - Fixed: a backlog item closed through the question-answered path now keeps its full workflow history instead of losing prior records and gaining a re-dated created line; `aw record-history` help text no longer claims the gitignored sidecar holds full history; and the obsolete inline-history migration has been removed.
 - Fixed: a backlog item's history record now names the transition (such as graduated, done, or same-status) whichever spelling of `aw backlog set` was used, replacing the uninformative set label on the flag-based path.
 - Fixed: a backlog item closed on cited evidence now records that citation, so the release-gate check can tell a legitimate evidence-satisfied close from a hand close.
+- Added: `aw backlog set` gains `--lane-carrier-ref` and `--lane-carrier-path` to allow the runner's in-lane close to verify a lane carrier while evaluating the release gate against main.
 - Fixed: the installer's --diff preview now reports the only-when-absent scaffolding files an install would create.
 - Fixed: `aw uninstall` now removes the install-emitted `.aw/system/layout.json` and `.aw/system/layout.schema.json` so no `.aw/` directory is left behind.
 - Fixed: when another process holds the shared writer lock past the wait budget, commands now report a clean refusal message naming the lock holder instead of failing with an unhandled exception traceback.

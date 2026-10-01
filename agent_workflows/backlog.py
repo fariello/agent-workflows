@@ -1417,6 +1417,19 @@ def run_set(args) -> int:
     else:
         gate_root = repo_root
 
+    lane_carrier_ref = getattr(args, "lane_carrier_ref", None)
+    lane_carrier_path = getattr(args, "lane_carrier_path", None)
+    if lane_carrier_ref is not None and lane_carrier_path is None:
+        sys.stderr.write(
+            "aw backlog set: --lane-carrier-ref requires --lane-carrier-path\n"
+        )
+        return 2
+    if lane_carrier_path is not None and lane_carrier_ref is None:
+        sys.stderr.write(
+            "aw backlog set: --lane-carrier-path requires --lane-carrier-ref\n"
+        )
+        return 2
+
     target = getattr(args, "path", None)
     new_status = getattr(args, "status", None)
     if not target or new_status not in STATUSES:
@@ -1659,6 +1672,8 @@ def run_set(args) -> int:
         evidence=getattr(args, "evidence", None),
         item_text=rendered,
         prior_priority=parse_item(text).priority,
+        lane_carrier_ref=lane_carrier_ref,
+        lane_carrier_path=lane_carrier_path,
     )
     if not verdict.legitimate and verdict.severity == "error":
         sys.stderr.write(f"aw backlog set: refused: {verdict.reason}.\n")

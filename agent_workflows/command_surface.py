@@ -1503,6 +1503,8 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
             "--gate-ref",
             "--blocks-release",
             "--gate-dir",
+            "--lane-carrier-ref",
+            "--lane-carrier-path",
             "--evidence",
             # bklgkind b5sfwm E-05 / gatebypass 47ttnv E-06: `--evidence` declared alongside the two
             # CLASSIFICATION setters. This entry is now MORE complete but still NOT complete: `--yes`

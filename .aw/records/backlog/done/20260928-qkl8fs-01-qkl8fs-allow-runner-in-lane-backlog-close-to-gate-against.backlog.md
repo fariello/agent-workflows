@@ -1,5 +1,5 @@
 - Id: qkl8fs
-- Status: graduated
+- Status: done
 - Graduated-To: qkl8fs
 - Set: qkl8fs
 - Priority: medium
@@ -21,5 +21,6 @@ Resolving this requires either:
 (c) moving the runner's backlog close to post-merge.
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw agy run: IPD 4nbvfr executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-qkl8fs-01-4nbvfr-gate-the-runner-s-in-lane-backlog-close-against-main-with-a.ipd.md); evidence .aw/records/plans/executed/20260930-qkl8fs-01-4nbvfr-gate-the-runner-s-in-lane-backlog-close-against-main-with-a.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053059Z-3200713: 4nbvfr
 - 2026-09-28 created (aw backlog): Allow runner in-lane backlog close to gate against main via carrier override or resolution bridge

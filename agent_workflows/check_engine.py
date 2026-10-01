@@ -4646,6 +4646,65 @@ def _carrier_is_executed(path: Path) -> bool:
     return False
 
 
+def _lane_carrier_is_executed(
+    repo_root: Path,
+    carrier_path: Path,
+    ref: str,
+) -> bool:
+    """Verify whether ``carrier_path`` is terminal executed/implemented in git ``ref``.
+
+    Checked via `git ls-tree -r --name-only <ref>` against the shared object store and never
+    trusted. For a plan (.ipd.md), requires a path in the ref whose parts contain 'executed'
+    for that carrier's id6/filename. For a spec (.spec.md), reads the blob text at that ref via
+    `_blob_text` and checks for `- Status: implemented`.
+    """
+    p = Path(carrier_path)
+    if p.name.endswith(".ipd.md"):
+        rc, out, _err = _git_capture(repo_root, ["ls-tree", "-r", "--name-only", ref])
+        if rc != 0:
+            return False
+        from agent_workflows import artifact_naming as _naming
+
+        m = _naming.parse_clustered(p.name)
+        cid6 = m.group("id6") if m and "id6" in m.groupdict() else None
+        for line in out.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            lp = Path(line)
+            if "executed" in lp.parts:
+                if lp.name == p.name or (cid6 and cid6 in lp.name):
+                    return True
+        return False
+    if p.name.endswith(".spec.md"):
+        rc, out, _err = _git_capture(repo_root, ["ls-tree", "-r", "--name-only", ref])
+        if rc != 0:
+            return False
+        from agent_workflows import artifact_naming as _naming
+
+        m = _naming.parse_clustered(p.name)
+        cid6 = m.group("id6") if m and "id6" in m.groupdict() else None
+        target_path = None
+        for line in out.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            lp = Path(line)
+            if lp.name == p.name or (cid6 and cid6 in lp.name):
+                target_path = line
+                break
+        if not target_path:
+            try:
+                target_path = str(p.resolve().relative_to(Path(repo_root).resolve()))
+            except ValueError:
+                target_path = str(p)
+        blob = _blob_text(repo_root, ref, target_path)
+        if blob is not None:
+            return _status_meta(blob) == "implemented"
+        return False
+    return False
+
+
 def evaluate_blocking_close(
     repo_root: Path,
     item_path: Path,
@@ -4654,6 +4713,9 @@ def evaluate_blocking_close(
     *,
     item_text: Optional[str] = None,
     prior_priority: Optional[str] = None,
+    lane_carrier_ref: Optional[str] = None,
+    lane_carrier_path: Optional[str] = None,
+    lane_carrier_override: Optional[tuple[str, str]] = None,
 ) -> CloseVerdict:
     """The shared close-legitimacy predicate for a release-gated backlog item (bklggrad orb9zb).
 
@@ -4684,6 +4746,43 @@ def evaluate_blocking_close(
     mce = _META_CLOSE_EVIDENCE_RE.search(text)
     item_close_evidence = mce.group(1) if mce else None
 
+    # Resolve lane carrier override pair if provided
+    ov_ref = lane_carrier_ref
+    ov_path = lane_carrier_path
+    if lane_carrier_override is not None:
+        if (
+            isinstance(lane_carrier_override, (tuple, list))
+            and len(lane_carrier_override) == 2
+        ):
+            a, b = lane_carrier_override
+            if ("/" in str(a) or str(a).endswith(".md")) and not (
+                "/" in str(b) or str(b).endswith(".md")
+            ):
+                ov_path, ov_ref = str(a), str(b)
+            elif ("/" in str(b) or str(b).endswith(".md")) and not (
+                "/" in str(a) or str(a).endswith(".md")
+            ):
+                ov_ref, ov_path = str(a), str(b)
+            else:
+                ov_path, ov_ref = str(a), str(b)
+        elif (
+            isinstance(lane_carrier_override, dict) and len(lane_carrier_override) == 1
+        ):
+            ov_path, ov_ref = next(iter(lane_carrier_override.items()))
+
+    def _matches_override(carrier: Path, target: str) -> bool:
+        try:
+            if carrier.resolve() == (repo_root / target).resolve():
+                return True
+        except Exception:
+            pass
+        try:
+            if carrier.resolve() == Path(target).resolve():
+                return True
+        except Exception:
+            pass
+        return carrier.name == Path(target).name
+
     if target_status == "done":
         # DE-GATED: the post-mutation item carries no Blocks-Release -> nothing to preserve.
         if not blocks_release:
@@ -4702,8 +4801,15 @@ def evaluate_blocking_close(
                     repo_root, carrier_br, blocks_release, cache=release_cache
                 ):
                     same_gate_carriers.append(_p)
+
+            def _carrier_eval(c: Path) -> bool:
+                if ov_ref and ov_path and _matches_override(c, ov_path):
+                    if _lane_carrier_is_executed(repo_root, c, ov_ref):
+                        return True
+                return _carrier_is_executed(c)
+
             if same_gate_carriers and all(
-                _carrier_is_executed(_c) for _c in same_gate_carriers
+                _carrier_eval(_c) for _c in same_gate_carriers
             ):
                 return CloseVerdict(
                     True,
