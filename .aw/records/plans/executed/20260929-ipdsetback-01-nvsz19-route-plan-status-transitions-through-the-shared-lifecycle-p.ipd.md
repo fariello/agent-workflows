@@ -6,7 +6,7 @@
 - Scope: Give the plan branch of `status_set.validate_transition_allowed` the same shape the SPECS branch beside it already has - one delegation to the shared transition predicate - so all setter spellings fail closed on an illegal plan edge. Preserve the three ENUMERATED legal backward recovery edges, preserve retirement into `superseded`/`not-executed`, and preserve the shipped `--allow-terminal-reopen` escape hatch, which a naive gate is MEASURED to break.
 - Scope-Paths: agent_workflows/status_set.py, tests/test_plan_transition_gate.py, tests/test_status_set.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: nvsz19
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: nvsz19 verified (set ipdsetback, attempt 1). [Scope reconciliation - in-scope-unmodified tests/test_status_set.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-09-30 approved (aw set): status set to approved
 
 - 2026-09-30 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-801, PR-802, PR-803, PR-804, PR-805 all fixed. Reviewed at HEAD `fd9e05db`. Every one of the plan's 15 authored findings was re-measured and all 15 hold, including the 26/19/5/2 corpus sweep and the exact 3 probe-red tests. THREE MEASURED DESIGN ERRORS WERE CORRECTED, each of which would have shipped a regression. PR-801: F-06 claimed the finalize delegation is UPSTREAM of the gate site; it is DOWNSTREAM (proven by spying on `validate_transition_allowed`), so omitting `actor=` is not sufficient and the gate must skip a normalized `-> executed` target or it converts that path's exit `2` into a `1`. PR-802: E-04's remedy was keyed on `--allow-terminal-reopen` being PASSED, which leaves the BARE terminal case refusing at `1` from the new gate instead of `2` from the shipped guard, reddening two of the three tests E-05 expects to pass unchanged; the carve-out is now on the terminal SOURCE unconditionally. PR-803: the gate never case-folded the source, and 25 live plans carry an uppercase `- Status:`, so the exact edge the plan refuses passed at exit `0` through an unfolded gate. The corrected shape was then BUILT AND MEASURED end to end (F-07b): correct exit codes on all 10 classes and a bare suite of `3368 passed, 2 skipped` with zero test edits.
