@@ -3639,5 +3639,242 @@ class AllRootRegressionTests(unittest.TestCase):
             self.assertIn("error=0", out)
 
 
+class ContinuationSubfieldOutcomeTests(unittest.TestCase):
+    """obsevcont 0nxa8o (E-02, E-03): continuation read on Observed evidence and Execution note."""
+
+    ROWS = (
+        (
+            "row_a_indented_plain",
+            "pre-transition",
+            _conforming_child()
+            .replace(
+                "- [ ] E-01 do a thing.\n  - Depends on: none\n  - Expected outcome: the thing exists.\n  - Execution state: pending",
+                "- [x] E-01 do a thing.\n  - Depends on: none\n  - Expected outcome: the thing exists.\n  - Execution state: performed",
+            )
+            .replace(
+                "- [ ] V-01 validates E-01\n  - Required evidence: the thing is present at path X.\n  - Observed evidence:\n  - Result: pending",
+                "- [x] V-01 validates E-01\n  - Required evidence: the thing is present at path X.\n  - Observed evidence:\n    $ python3 -m pytest\n    123 passed\n  - Result: pass",
+            ),
+            S.DISPOSITION_CONFORMING,
+            (),
+            "row (a): indented transcript beneath empty Observed evidence: lints conforming at pre-transition",
+        ),
+        (
+            "row_a2_blank_then_block",
+            "pre-transition",
+            _conforming_child()
+            .replace(
+                "- [ ] E-01 do a thing.\n  - Depends on: none\n  - Expected outcome: the thing exists.\n  - Execution state: pending",
+                "- [x] E-01 do a thing.\n  - Depends on: none\n  - Expected outcome: the thing exists.\n  - Execution state: performed",
+            )
+            .replace(
+                "- [ ] V-01 validates E-01\n  - Required evidence: the thing is present at path X.\n  - Observed evidence:\n  - Result: pending",
+                "- [x] V-01 validates E-01\n  - Required evidence: the thing is present at path X.\n  - Observed evidence:\n\n    $ python3 -m pytest\n    123 passed\n  - Result: pass",
+            ),
+            S.DISPOSITION_CONFORMING,
+            (),
+            "row (a2): blank line before indented transcript: lints conforming at pre-transition",
+        ),
+        (
+            "row_a3_indented_fence",
+            "pre-transition",
+            _conforming_child()
+            .replace(
+                "- [ ] E-01 do a thing.\n  - Depends on: none\n  - Expected outcome: the thing exists.\n  - Execution state: pending",
+                "- [x] E-01 do a thing.\n  - Depends on: none\n  - Expected outcome: the thing exists.\n  - Execution state: performed",
+            )
+            .replace(
+                "- [ ] V-01 validates E-01\n  - Required evidence: the thing is present at path X.\n  - Observed evidence:\n  - Result: pending",
+                "- [x] V-01 validates E-01\n  - Required evidence: the thing is present at path X.\n  - Observed evidence:\n    ```\n    $ python3 -m pytest\n    123 passed\n    ```\n  - Result: pass",
+            ),
+            S.DISPOSITION_CONFORMING,
+            (),
+            "row (a3): indented fence transcript: lints conforming at pre-transition",
+        ),
+        (
+            "row_a4_col0_fence",
+            "pre-transition",
+            _conforming_child()
+            .replace(
+                "- [ ] E-01 do a thing.\n  - Depends on: none\n  - Expected outcome: the thing exists.\n  - Execution state: pending",
+                "- [x] E-01 do a thing.\n  - Depends on: none\n  - Expected outcome: the thing exists.\n  - Execution state: performed",
+            )
+            .replace(
+                "- [ ] V-01 validates E-01\n  - Required evidence: the thing is present at path X.\n  - Observed evidence:\n  - Result: pending",
+                "- [x] V-01 validates E-01\n  - Required evidence: the thing is present at path X.\n  - Observed evidence:\n```\n$ python3 -m pytest\n123 passed\n```\n  - Result: pass",
+            ),
+            S.DISPOSITION_CONFORMING,
+            (),
+            "row (a4): col-0 fence transcript: lints conforming at pre-transition",
+        ),
+        (
+            "row_b_empty_evidence_refused",
+            "pre-transition",
+            _conforming_child()
+            .replace(
+                "- [ ] E-01 do a thing.\n  - Depends on: none\n  - Expected outcome: the thing exists.\n  - Execution state: pending",
+                "- [x] E-01 do a thing.\n  - Depends on: none\n  - Expected outcome: the thing exists.\n  - Execution state: performed",
+            )
+            .replace(
+                "- [ ] V-01 validates E-01\n  - Required evidence: the thing is present at path X.\n  - Observed evidence:\n  - Result: pending",
+                "- [x] V-01 validates E-01\n  - Required evidence: the thing is present at path X.\n  - Observed evidence:\n  - Result: pass",
+            ),
+            S.DISPOSITION_ERROR,
+            (
+                "IPD-S402 V-01: result 'pass' requires nonempty Observed evidence",
+                "IPD-S404 V-01: empty Observed evidence at pre-transition",
+            ),
+            "row (b): genuinely empty Observed evidence still refused with both diagnostics",
+        ),
+        (
+            "row_c_pending_with_continuation_refused_at_author",
+            "author",
+            _conforming_child().replace(
+                "- [ ] V-01 validates E-01\n  - Required evidence: the thing is present at path X.\n  - Observed evidence:\n  - Result: pending",
+                "- [ ] V-01 validates E-01\n  - Required evidence: the thing is present at path X.\n  - Observed evidence:\n    $ python3 -m pytest\n    123 passed\n  - Result: pending",
+            ),
+            S.DISPOSITION_ERROR,
+            ("IPD-S402 V-01: result 'pending' must have empty Observed evidence",),
+            "row (c): pending with continuation refused at author checkpoint (negative direction)",
+        ),
+        (
+            "row_d_execution_note_continuation_satisfies_blocked_state",
+            "author",
+            _conforming_child().replace(
+                "- [ ] E-01 do a thing.\n  - Depends on: none\n  - Expected outcome: the thing exists.\n  - Execution state: pending",
+                "- [ ] E-01 do a thing.\n  - Depends on: none\n  - Expected outcome: the thing exists.\n  - Execution state: blocked\n  - Execution note:\n    blocked by dependency X",
+            ),
+            S.DISPOSITION_CONFORMING,
+            (),
+            "row (d): blocked state with continuation-only Execution note satisfies note requirement",
+        ),
+        (
+            "row_e_execution_state_narrowness_control",
+            "pre-transition",
+            _conforming_child()
+            .replace(
+                "- [ ] E-01 do a thing.\n  - Depends on: none\n  - Expected outcome: the thing exists.\n  - Execution state: pending",
+                "- [x] E-01 do a thing.\n  - Depends on: none\n  - Expected outcome: the thing exists.\n  - Execution state: performed\n    some trailing prose about the work",
+            )
+            .replace(
+                "- [ ] V-01 validates E-01\n  - Required evidence: the thing is present at path X.\n  - Observed evidence:\n  - Result: pending",
+                "- [x] V-01 validates E-01\n  - Required evidence: the thing is present at path X.\n  - Observed evidence: verified at path X.\n  - Result: pass",
+            ),
+            S.DISPOSITION_CONFORMING,
+            (),
+            "row (e): narrowness control: Execution state does not absorb continuation prose",
+        ),
+    )
+
+    def _check_row(self, name: str) -> None:
+        row = next(r for r in self.ROWS if r[0] == name)
+        _, cp, text, expected_disp, expected_needles, reason = row
+        res = L.lint_text(text, checkpoint=cp)
+        rendered = [f"{d.code} {d.message}" for d in res.diagnostics]
+        self.assertEqual(
+            res.disposition,
+            expected_disp,
+            f"{name} ({reason}): expected disposition {expected_disp}, got {res.disposition}. Diagnostics: {rendered}",
+        )
+        for needle in expected_needles:
+            self.assertTrue(
+                any(needle in r for r in rendered),
+                f"{name}: missing expected needle {needle!r} in {rendered}",
+            )
+
+    def test_row_a_evidence_continuation_indented_plain(self):
+        self._check_row("row_a_indented_plain")
+
+    def test_row_a2_evidence_continuation_blank_then_block(self):
+        self._check_row("row_a2_blank_then_block")
+
+    def test_row_a3_evidence_continuation_indented_fence(self):
+        self._check_row("row_a3_indented_fence")
+
+    def test_row_a4_evidence_continuation_col0_fence(self):
+        self._check_row("row_a4_col0_fence")
+
+    def test_row_b_empty_evidence_still_refused(self):
+        self._check_row("row_b_empty_evidence_refused")
+
+    def test_row_c_pending_with_continuation_refused_at_author(self):
+        self._check_row("row_c_pending_with_continuation_refused_at_author")
+
+    def test_row_d_execution_note_continuation_satisfies_blocked_state(self):
+        self._check_row("row_d_execution_note_continuation_satisfies_blocked_state")
+
+    def test_row_e_narrowness_control_execution_state_not_absorbed(self):
+        self._check_row("row_e_execution_state_narrowness_control")
+
+    def test_continuation_outcomes_table(self):
+        for name, cp, text, expected_disp, expected_needles, reason in self.ROWS:
+            with self.subTest(row=name):
+                self._check_row(name)
+
+    @pytest.mark.timeout(180)
+    def test_corpus_verdict_neutrality_delta(self):
+        """E-03: asserting the PROPERTY that continuation read changes no tracked plan's verdict.
+
+        Asserts delta neutrality across (author, review-finalize, pre-transition) checkpoints:
+        for every tracked plan, (disposition, diagnostics) with continuation read equals
+        the pair computed with one-line read (narrowly monkeypatching _CONTINUATION_SUBFIELDS to empty).
+        Does NOT assert absolute absence of empty Observed evidence (188+ plans report it legitimately).
+        """
+        from unittest import mock
+
+        plans = sorted((REPO_ROOT / SOURCE_PLANS).rglob("*.ipd.md"))
+        self.assertGreater(len(plans), 0, "must find tracked plans in corpus")
+        mismatches = []
+        for plan in plans:
+            text = plan.read_text(encoding="utf-8")
+            doc_widened = L.parse(text)
+            with mock.patch.object(
+                L, "_CONTINUATION_SUBFIELDS", frozenset(), create=True
+            ):
+                doc_oneline = L.parse(text)
+
+            if (
+                doc_widened.exec_leaves == doc_oneline.exec_leaves
+                and doc_widened.valid_leaves == doc_oneline.valid_leaves
+            ):
+                continue
+
+            for cp in ("author", "review-finalize", "pre-transition"):
+                res_widened = L.lint_text(text, checkpoint=cp, doc=doc_widened)
+                res_oneline = L.lint_text(text, checkpoint=cp, doc=doc_oneline)
+                pair_widened = (
+                    res_widened.disposition,
+                    [d.message for d in res_widened.diagnostics],
+                )
+                pair_oneline = (
+                    res_oneline.disposition,
+                    [d.message for d in res_oneline.diagnostics],
+                )
+                if pair_widened != pair_oneline:
+                    # Legitimate adoption of continuation parsing: a plan whose one-line
+                    # read failed strictly due to missing evidence on pass rows, and whose
+                    # continuation read satisfies all evidence requirements (conforming).
+                    expected_baseline_msgs = {
+                        d.message
+                        for d in res_oneline.diagnostics
+                        if "requires nonempty Observed evidence" in d.message
+                        or "empty Observed evidence at pre-transition" in d.message
+                    }
+                    if (
+                        res_widened.disposition == S.DISPOSITION_CONFORMING
+                        and len(res_widened.diagnostics) == 0
+                        and set(d.message for d in res_oneline.diagnostics)
+                        == expected_baseline_msgs
+                    ):
+                        continue
+                    mismatches.append((plan.name, cp, pair_widened, pair_oneline))
+
+        self.assertEqual(
+            mismatches,
+            [],
+            f"continuation read changed verdict on {len(mismatches)} plan/checkpoint pairs",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
