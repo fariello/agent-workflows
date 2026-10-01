@@ -10,7 +10,7 @@
 - Scope: Make `aw group plans` and `aw rename plans` REFUSE (exit 2, nothing written) when a named plan's own front matter says `- Kind: child` AND its RESOLVED Order is 0, naming the plan, the rule, and the override in the message; add a `--allow-invalid-order` escape hatch so a deliberate act is still possible; declare that flag in `command_surface.py` so the declared surface cannot drift from the parser; and pin the permitted cases (orchestrator at 0, `Kind`-less plan at 0, multi-plan `--order 0` with an orchestrator first, bare regroup with no `--order`) with tests. The refusal consults `ipd_schema`'s existing rule rather than re-spelling the comparison. EXCLUDES: changing the rule itself or its message text in `ipd_schema`/`ipd_lint`; changing `IPD-M104`'s severity in `aw check` (a separate policy question, deferred); `research_refs.run_set_assign` and `artifact_rename.run_group_generic` (other trees, other grammars, no `Kind` field); the `aw group research` Order-preservation defect (`ao0v8x` owns it); the `aw group plans` date fallback (`949enf` owns it); sweeping or repairing any existing plan; and the orchestrator-at-nonzero mirror case, which is measured here and deferred with a filing obligation.
 - Scope-Paths: agent_workflows/plans_refs.py, agent_workflows/cli.py, agent_workflows/command_surface.py, tests/test_group_verb_policy.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -20,9 +20,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: qhcojn
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: qhcojn verified (set r30nnz, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): reviewed by /plan-review 2026-09-29; readiness go-pending-approval
 
