@@ -11,7 +11,7 @@
   OUT, each for a stated reason. WIRING the ledger substrate into either driver, because the measured blocker is an absent ledger-creation path plus spec `25kzda` 6.2's undecided storage location, which is a design question this plan has no authority to settle (recorded as OQ-01, non-blocking, with the evidence). RETIRING `plan_retry`/`retry_budget_remaining`, refused on the evidence above and recorded in OQ-01 rather than left implicit. Any change to `run_recovery.py`'s BEHAVIOR, to the `0..10` bound, to the default of 2, or to the retry-class tables: the bound's citation is pending plan `cpi6p3`'s scope and the class-vocabulary gap is backlog `rb4wgj`'s. Any change to `run_cli.py`, which pending plans `fuuw94` and `e6f0jx` both declare - this plan touches the TEST that observes it and deliberately not the code. The driver-side turn/finalize retry paths in `runner_shared.py`, which are wired and tested and are not what this item is about. Restoring any OTHER file `19313eed` deleted (2578 dangling `tests/test_*.py` citations across 1056 tracked files were measured; that is its own backlog item, not this plan's). Rewriting `docs/recovery.md` beyond the one false clause.
 - Scope-Paths: tests/test_run_recovery_cli.py, agent_workflows/run_recovery.py, docs/recovery.md, DECISIONS.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -21,9 +21,9 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: e834yk
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: e834yk verified (set eh91an, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): reviewed by /plan-review 2026-09-29; readiness go-pending-approval
 
