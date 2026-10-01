@@ -48,7 +48,18 @@ vocabulary (GO / GO - PENDING HUMAN APPROVAL / NO-GO). It is the machine signal 
 instead of matching prose in the history line. It is OPTIONAL, and ABSENT MEANS UNKNOWN, NOT CLEAR:
 a consumer that finds no field (or an out-of-vocab value) FAILS CLOSED. `Readiness` states what the
 REVIEW concluded; `Status` states where the plan is in the lifecycle. They are independent, and
-`Readiness: go-pending-approval` is never by itself permission to execute.
+`Readiness: go-pending-approval` is never by itself permission to execute. The field is written by
+`/plan-review` and is absent exactly when no review has recorded a verdict, so a plan at `draft` or
+`to-review` has no field and that is correct. The field is not backfilled onto plans lacking one,
+decided in backlog `0z1b2s`. A hand-written value asserts a review that never ran, violating the
+`AGENTS.md` "NEVER WRITE ANOTHER ROLE'S ATTESTATION FIELD" prohibition and repeating the 2026-09-06
+incident behind it. Because absence is already the fail-closed state, uniformity would buy nothing
+and cost the field its meaning; both `IPD-M107` and `aw ipd recheck-readiness` enforce this
+mechanically. Absence means no verdict was recorded rather than no review was attempted:
+`/plan-review`'s R6 orchestrator-exhaustion path deliberately leaves the field absent after a review
+has run and honestly declined to conclude (leaving the plan at `Status: to-review`). A plan in the
+`(to-review, absent)` state may therefore be one no reviewer has opened or one a review examined and
+could not conclude on, and a reader cannot tell which from the field alone.
 
 Each plan also keeps a `## Workflow history` section: one dated line per workflow that touched it
 (assess, plan-review, ...), so you can see the path a plan took. The section is NEWEST-FIRST: each
