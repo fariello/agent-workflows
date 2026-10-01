@@ -5013,13 +5013,9 @@ class UninstallCompletenessTests(unittest.TestCase):
     def test_deep_cleanup_records_remove_leaves_no_aw_directory(self):
         """E-04, V-04: install -> uninstall -> deep cleanup with records REMOVE leaves NO .aw/ directory.
 
-        PRE-EXISTING FAILURE, NOT INTRODUCED BY THE TABLE WORK, and kept rather than weakened: verified
-        failing at HEAD (commit 6123749b) before this file was touched. Measured cause: after the full
-        sequence, `.aw/system/layout.json` and `.aw/system/layout.schema.json` survive. Those are the
-        install-time-emitted layout artifacts (wslayout Order 04, spec kw5y2s 6.1), a feature added
-        AFTER this test was written, and neither the uninstall path nor `plan_deep_cleanup` enumerates
-        them, so `.aw/system/` cannot be pruned. This is a real completeness gap in
-        `agent_workflows/`, whose fix is a product change this test-only change must not make.
+        Verified passing with plan 5j7jv1 (backlog 4vfkl1): uninstall_repo removes the
+        install-emitted layout artifacts (.aw/system/layout.json and .aw/system/layout.schema.json)
+        in step 4 so .aw/system/ and .aw/ are completely pruned when records are removed.
         """
         repo = init_repo(self.base / "deep_clean_remove")
         INS.install_into_repo(repo, self.source, yes=True, no_color=True)

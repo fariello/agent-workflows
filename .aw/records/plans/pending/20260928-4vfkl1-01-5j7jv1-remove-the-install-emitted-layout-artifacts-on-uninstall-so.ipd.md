@@ -42,25 +42,25 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure, then fix the removal gap
 
-- [ ] E-01 RE-MEASURE AT THE EXECUTING HEAD BEFORE CHANGING ANYTHING, because this item's own failure list is already stale by one test (F-01) and the same may be true again by execution time. Run `python3 -m pytest tests/ -n auto -m slow -o addopts="" -q` and paste the summary plus every failing node id. Then, on a scratch repo built with `tests.support.init_repo` and `engine.install_into_repo(repo, SOURCE_WORKFLOWS, yes=True, no_color=True)` followed by `engine.write_setup_marker`, `engine.uninstall_repo(repo, use_git=True, force=True, changed_out=[])`, `engine.plan_deep_cleanup`, and `engine.run_deep_cleanup(..., remove_records=True)`, paste the enumerated survivors under `.aw/` and the layout-path subset of `changed_out`.
+- [x] E-01 RE-MEASURE AT THE EXECUTING HEAD BEFORE CHANGING ANYTHING, because this item's own failure list is already stale by one test (F-01) and the same may be true again by execution time. Run `python3 -m pytest tests/ -n auto -m slow -o addopts="" -q` and paste the summary plus every failing node id. Then, on a scratch repo built with `tests.support.init_repo` and `engine.install_into_repo(repo, SOURCE_WORKFLOWS, yes=True, no_color=True)` followed by `engine.write_setup_marker`, `engine.uninstall_repo(repo, use_git=True, force=True, changed_out=[])`, `engine.plan_deep_cleanup`, and `engine.run_deep_cleanup(..., remove_records=True)`, paste the enumerated survivors under `.aw/` and the layout-path subset of `changed_out`.
   IF THE SURVIVOR SET IS ALREADY EMPTY, STOP and report the defect fixed rather than writing a change with nothing to fix. THE LIKELIEST CAUSE OF AN ALREADY-EMPTY SURVIVOR SET IS NOT A THIRD PARTY'S UNRELATED FIX BUT SIBLING PLAN `g1w58u` HAVING EXECUTED FIRST (OQ-03, F-11): it makes this identical edit. So if the defect is already gone, check `git log -S AW_LAYOUT_JSON_PATH -- agent_workflows/engine.py` and the disposition of `g1w58u` BEFORE concluding anything, and report which plan landed it rather than reporting a mystery. If the survivors differ from the two layout files, report that too: this plan's fix is scoped to exactly those two paths and a third survivor would mean a second cause.
   `run_deep_cleanup`'s SIGNATURE TAKES `use_git` POSITIONALLY after the plan, so the probe call is `engine.run_deep_cleanup(repo, plan, True, remove_records=True)`; omitting it raises `TypeError: run_deep_cleanup() missing 1 required positional argument: 'use_git'` (hit at review while reproducing F-03).
   - Depends on: none
   - Expected outcome: `test_deep_cleanup_records_remove_leaves_no_aw_directory` and `test_interactive_deep_cleanup_records_remove_fully_cleans_aw` fail; the survivors are exactly `.aw/system/`, `.aw/system/layout.json`, `.aw/system/layout.schema.json`; the layout subset of `changed_out` is empty. All four were reproduced at review, so a DIFFERENT result is a finding to report rather than to normalize.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 REMOVE BOTH EMITTED LAYOUT ARTIFACTS IN `engine.uninstall_repo`, in the step-4 block that already removes the framework's other deterministic non-manifest generated files, immediately BEFORE the existing `aw_gi = ".aw/.gitignore"` removal and AFTER the `.aw/state` loop. Iterate `(AW_LAYOUT_JSON_PATH, AW_LAYOUT_SCHEMA_PATH)`, and for each path that `is_file()` call the same three things the sibling removals in that block call: `_uninstall_remove(repo_root, rel, use_git)`, `_record_changed(rel)`, and `actions.append(f"removed {rel}")`.
+- [x] E-02 REMOVE BOTH EMITTED LAYOUT ARTIFACTS IN `engine.uninstall_repo`, in the step-4 block that already removes the framework's other deterministic non-manifest generated files, immediately BEFORE the existing `aw_gi = ".aw/.gitignore"` removal and AFTER the `.aw/state` loop. Iterate `(AW_LAYOUT_JSON_PATH, AW_LAYOUT_SCHEMA_PATH)`, and for each path that `is_file()` call the same three things the sibling removals in that block call: `_uninstall_remove(repo_root, rel, use_git)`, `_record_changed(rel)`, and `actions.append(f"removed {rel}")`.
   USE THE MODULE CONSTANTS, never literal strings, since `engine` already defines `AW_LAYOUT_JSON_PATH` and `AW_LAYOUT_SCHEMA_PATH` as `f"{AW_SYSTEM_DIR}/..."` and `emit_layout_artifacts` writes through those same two names. A literal would silently desynchronize if the paths move.
   PUT IT IN `uninstall_repo`, NOT IN DEEP CLEANUP, and this is the plan's central design decision: these are framework-emitted generated files, exactly like `.aw/config`, `.aw/state` and `.aw/.gitignore` which that block already removes, and NOT user content whose removal must be opt-in and warned. F-05 measures that the deep-cleanup route regresses two tests, and OQ-01 records the full reasoning.
   RECORDING IN `changed_out` IS REQUIRED, NOT COSMETIC: callers stage from it, so a removal missing from it can leave a deletion unstaged. The sibling removals in the block all record, and V-02 asserts this.
   DO NOT TOUCH the pruning loop at the end of the function; it already removes `.aw/system/` and then `.aw/` once those two files are gone, which is why no pruning change is needed.
   - Depends on: E-01
   - Expected outcome: after `uninstall_repo` on a real install, neither layout file exists, both appear in `changed_out` and in the returned actions, `.aw/system/` is pruned unless another member survives, and no other removal in the function changed.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: coverage and record correction
 
-- [ ] E-03 ADD `tests/test_uninstall_layout_artifacts.py` WITH THE REGRESSION COVERAGE, behavioral only (drive the real functions and assert on real filesystem state and real return values; no `inspect`, no source-text or symbol-census assertions, per GUIDING_PRINCIPLES P16).
+- [x] E-03 ADD `tests/test_uninstall_layout_artifacts.py` WITH THE REGRESSION COVERAGE, behavioral only (drive the real functions and assert on real filesystem state and real return values; no `inspect`, no source-text or symbol-census assertions, per GUIDING_PRINCIPLES P16).
   MAKE THE PRIMARY CASES DEFAULT-VISIBLE, with NO module-level `pytest.mark.slow`. This is the point of the item's closing paragraph: the guarantee regressed precisely because every test asserting it is slow-marked and `pyproject.toml` `addopts` carries `-m 'not slow'`, so the contract-mandated bare run never ran them. Plan `baxbdh` set this precedent deliberately for the same tree; follow it. Build a minimal fixture repo by hand (`git init`, an `.aw/.gitignore`, the two layout files, one other `.aw/` member) and call `engine.uninstall_repo` on it rather than performing a real install, which authoring measured at 2 to 3.4 seconds per install against a small fraction of that for a hand-built fixture.
   THE FIXTURE ROUTE IS PROVEN, NOT HOPED FOR, SO THE FALLBACK IS DEAD (verified at review, PR-802). The plan as authored hedged "if a hand-built fixture cannot reach the removal block ... fall back to a real install". Review built exactly that fixture (`git init`, a commit, `.aw/system/{layout.json,layout.schema.json}`, an unrelated `.aw/system/` sibling, `.aw/.gitignore`) and called `engine.uninstall_repo(repo, use_git=True, force=True, changed_out=[])` on it: the removal block IS reached, both files are removed, both repo-relative paths appear in `changed_out`, the unrelated sibling SURVIVES and keeps `.aw/system/` alive, and with no sibling present both `.aw/system/` and `.aw/` are pruned. Elapsed: 0.008s. So all four properties in this E-item are reachable without an install, and the fallback should not be taken; if an executor nevertheless cannot reach the block, that CONTRADICTS this measurement and is itself a finding to report rather than a licence to slow-mark the primary cases.
   COVER FOUR PROPERTIES: (1) both layout files are gone after `uninstall_repo`; (2) both repo-relative paths appear in the `changed_out` list; (3) `.aw/system/` is pruned when it held nothing else, and `.aw/` with it; (4) NEGATIVE CONTROL, a `.aw/system/` sibling that uninstall does not own (write an unrelated file there) is NOT deleted and `.aw/system/` correctly survives holding it, proving the change removes two named paths rather than the directory wholesale.
@@ -68,14 +68,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   MUTATION-CHECK THE NEW TESTS, since a regression test that cannot fail proves nothing: revert E-02, paste the new default-visible cases FAILING, restore, paste them green.
   - Depends on: E-02
   - Expected outcome: a new test module whose primary cases run under a bare `python3 -m pytest`, covering removal, `changed_out`, pruning and the negative control, plus one slow-marked real-install case; all failing before E-02 and passing after.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 CORRECT THE NOW-STALE DOCSTRING on `tests/test_installer.py::UninstallCompletenessTests::test_deep_cleanup_records_remove_leaves_no_aw_directory` AND ADD THE CHANGELOG LINE. That docstring currently declares itself a `PRE-EXISTING FAILURE, NOT INTRODUCED BY THE TABLE WORK`, names the surviving layout artifacts, and says the fix "is a product change this test-only change must not make". Once E-02 lands the test passes and that prose is false and misleading. Rewrite it to describe what the test asserts and cite this plan as the fix.
+- [x] E-04 CORRECT THE NOW-STALE DOCSTRING on `tests/test_installer.py::UninstallCompletenessTests::test_deep_cleanup_records_remove_leaves_no_aw_directory` AND ADD THE CHANGELOG LINE. That docstring currently declares itself a `PRE-EXISTING FAILURE, NOT INTRODUCED BY THE TABLE WORK`, names the surviving layout artifacts, and says the fix "is a product change this test-only change must not make". Once E-02 lands the test passes and that prose is false and misleading. Rewrite it to describe what the test asserts and cite this plan as the fix.
   DO NOT CHANGE A SINGLE ASSERTION in that test, or its setup, or any other test in the file. The docstring is the entire edit. Its assertions are the specification this plan is being judged against, and weakening them to make the plan pass would be the exact defect-hiding the repository contract forbids.
   ADD ONE `CHANGELOG.md` LINE under the appropriate unreleased bug-fix heading, matching the file's existing entry style, saying that `aw uninstall` now removes the install-emitted `.aw/system/layout.json` and `.aw/system/layout.schema.json` so no `.aw/` directory is left behind. This is user-facing prose: write no em or en dashes in it.
   - Depends on: E-03
   - Expected outcome: the docstring describes a passing test and cites this plan, every assertion in `tests/test_installer.py` is byte-identical, and one CHANGELOG line is added in the existing style.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -193,25 +193,305 @@ THE ONE RECORD CORRECTION IS A TEST DOCSTRING (E-04), not documentation: it curr
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the PRE-CHANGE slow-subset run (`python3 -m pytest tests/ -n auto -m slow -o addopts="" -q`) with its summary line and every failing node id, and confirm it names `test_deep_cleanup_records_remove_leaves_no_aw_directory` and `test_interactive_deep_cleanup_records_remove_fully_cleans_aw`. Paste the PRE-CHANGE survivor enumeration from the scratch-repo probe, showing exactly `.aw/system/`, `.aw/system/layout.json` and `.aw/system/layout.schema.json` remaining after the full sequence, and the layout subset of `uninstall_repo`'s `changed_out` being EMPTY. State the HEAD commit the measurement was taken at, and state explicitly whether the failure set matched F-01/F-02/F-07 or differed; if it differed, say how and whether the plan still applies. Name the interpreter used.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Measured at executing HEAD `be43196b2886bdfeeda57299f5275c3de21f624c` using Python 3.14.6 (`python3`).
+    Pre-change slow subset test run:
+    ```
+    $ python3 -m pytest tests/ -n auto -m slow -o addopts="" -q
+    =========================== short test summary info ============================
+    FAILED tests/test_installer.py::UninstallCompletenessTests::test_deep_cleanup_records_remove_leaves_no_aw_directory
+    FAILED tests/test_cli.py::SubcommandDescriptionTests::test_every_subparser_has_fuller_description
+    FAILED tests/test_cli.py::InstallAtomicWizardTests::test_interactive_deep_cleanup_records_remove_fully_cleans_aw
+    3 failed, 199 passed in 177.74s (0:02:57)
+    ```
+    The failure set matches F-01, F-02, and F-07 exactly: `test_deep_cleanup_records_remove_leaves_no_aw_directory` and `test_interactive_deep_cleanup_records_remove_fully_cleans_aw` fail on the orphaned layout artifacts, and `test_every_subparser_has_fuller_description` fails on the known subparser gap owned by sibling item `g0bdgg`.
 
-- [ ] V-02 validates E-02
+    Pre-change scratch-repo probe enumeration:
+    ```
+    SURVIVORS: ['.aw/system', '.aw/system/layout.json', '.aw/system/layout.schema.json']
+    LAYOUT CHANGED: []
+    ```
+    Survivors after full install -> write_setup_marker -> uninstall_repo(force=True) -> plan_deep_cleanup -> run_deep_cleanup(remove_records=True) are exactly `.aw/system/`, `.aw/system/layout.json`, and `.aw/system/layout.schema.json`. The layout subset of `uninstall_repo`'s `changed_out` is empty (`[]`).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the committed diff region of `engine.uninstall_repo` showing the two-path removal loop using the `AW_LAYOUT_JSON_PATH` and `AW_LAYOUT_SCHEMA_PATH` CONSTANTS (not literals), placed after the `.aw/state` loop and before the `.aw/.gitignore` removal, and calling `_uninstall_remove`, `_record_changed` and `actions.append` for each path. Confirm by reading the diff that NO other removal in the function changed and that the pruning loop is byte-identical. Paste the POST-CHANGE survivor enumeration showing NO `.aw/` directory after the full sequence, and the `changed_out` layout subset now containing BOTH paths. Paste the three previously failing tests green by node id, plus the full `tests/test_installer.py` module, `tests/test_deep_cleanup_regenerable.py`, `tests/test_layout.py`, `tests/test_layout_inventory.py`, `tests/test_project_layout.py` and `tests/test_check_engine.py`. Paste the POST-CHANGE slow-subset run and confirm the ONLY surviving failure is `SubcommandDescriptionTests::test_every_subparser_has_fuller_description` (F-07); if anything else survives, the fix is incomplete and must not be marked done.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Two-path removal loop added to engine.uninstall_repo using named constants AW_LAYOUT_JSON_PATH and AW_LAYOUT_SCHEMA_PATH, with full suite and scratch probe passing.
+    Committed diff region of `engine.uninstall_repo`:
+    ```diff
+         state_dir = repo_root / ".aw" / "state"
+         if state_dir.is_dir():
+             for p in sorted(state_dir.rglob("*")):
+                 if p.is_file():
+                     rel = p.relative_to(repo_root).as_posix()
+                     _uninstall_remove(repo_root, rel, use_git)
+                     _record_changed(rel)
+                     actions.append(f"removed {rel}")
 
-- [ ] V-03 validates E-03
+    +    for rel in (AW_LAYOUT_JSON_PATH, AW_LAYOUT_SCHEMA_PATH):
+    +        if (repo_root / rel).is_file():
+    +            _uninstall_remove(repo_root, rel, use_git)
+    +            _record_changed(rel)
+    +            actions.append(f"removed {rel}")
+    +
+         aw_gi = ".aw/.gitignore"
+         if (repo_root / aw_gi).is_file():
+             _uninstall_remove(repo_root, aw_gi, use_git)
+             _record_changed(aw_gi)
+             actions.append(f"removed {aw_gi}")
+    ```
+    Constants `AW_LAYOUT_JSON_PATH` and `AW_LAYOUT_SCHEMA_PATH` are used (not literals), placed immediately after the `.aw/state` loop and before the `.aw/.gitignore` removal, calling `_uninstall_remove`, `_record_changed`, and `actions.append(f"removed {rel}")`. No other removal changed, and the pruning loop is byte-identical.
+
+    Post-change survivor enumeration on scratch repo probe:
+    ```
+    SURVIVORS: []
+    AW_EXISTS: False
+    LAYOUT CHANGED: ['.aw/system/layout.json', '.aw/system/layout.schema.json']
+    ```
+    No `.aw/` directory survives after the full sequence (`AW_EXISTS: False`), and the layout subset of `changed_out` contains both `.aw/system/layout.json` and `.aw/system/layout.schema.json`.
+
+    Three previously failing tests green:
+    ```
+    $ python3 -m pytest tests/test_installer.py::UninstallCompletenessTests::test_deep_cleanup_records_remove_leaves_no_aw_directory tests/test_cli.py::InstallAtomicWizardTests::test_interactive_deep_cleanup_records_remove_fully_cleans_aw tests/test_installer.py::DeepCleanupTests::test_plan_counts_and_all_recoverable_when_committed -o addopts=""
+    tests/test_cli.py .                                                      [ 33%]
+    tests/test_installer.py ..                                               [100%]
+    ============================== 3 passed in 15.18s ==============================
+    ```
+
+    Full `tests/test_installer.py` module:
+    ```
+    $ python3 -m pytest tests/test_installer.py -o addopts="" -q
+    122 passed in 249.10s (0:04:09)
+    ```
+
+    Adjacent modules:
+    ```
+    $ python3 -m pytest tests/test_deep_cleanup_regenerable.py tests/test_layout.py tests/test_layout_inventory.py tests/test_project_layout.py tests/test_check_engine.py
+    114 passed in 4.26s
+    ```
+
+    Post-change slow-subset run:
+    ```
+    $ python3 -m pytest tests/ -n auto -m slow -o addopts="" -q
+    =========================== short test summary info ============================
+    FAILED tests/test_cli.py::SubcommandDescriptionTests::test_every_subparser_has_fuller_description
+    1 failed, 202 passed in 63.19s (0:01:03)
+    ```
+    The ONLY surviving failure is `SubcommandDescriptionTests::test_every_subparser_has_fuller_description` (F-07), owned by sibling item `g0bdgg`.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste `tests/test_uninstall_layout_artifacts.py` in full and the run showing it passing. Confirm by quoting the test code that it asserts all four properties (both files removed; both paths in `changed_out`; `.aw/system/` and `.aw/` pruned; and the NEGATIVE CONTROL where a non-owned `.aw/system/` sibling survives and keeps the directory alive), and that it includes one class-scoped slow real-install end-to-end case. Confirm by quoting the module that the primary cases carry NO module-level `pytest.mark.slow`, and paste a BARE `python3 -m pytest tests/test_uninstall_layout_artifacts.py` showing them RUNNING with only the intended class deselected. Paste the MUTATION PROOF: revert E-02, paste the FAILING run, restore, paste it green, and state that the mutation was reverted leaving no artifact. Confirm the tests are BEHAVIORAL: quote them to show no `inspect`, no source-text reads, and no symbol-census or caller-count assertions (GUIDING_PRINCIPLES P16). If a hand-built fixture proved unable to reach the removal block and a real install was used instead, say so explicitly and paste the reason.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. tests/test_uninstall_layout_artifacts.py added with 4 default-visible unit tests and 1 slow real-install integration test; mutation tested.
+    `tests/test_uninstall_layout_artifacts.py` in full:
+    ```python
+    """Tests for uninstall removal of install-emitted layout artifacts (IPD 5j7jv1, backlog 4vfkl1)."""
 
-- [ ] V-04 validates E-04
+    import tempfile
+    import unittest
+    from pathlib import Path
+
+    import pytest
+
+    from agent_workflows import engine
+    from tests.support import SOURCE_WORKFLOWS, git, init_repo
+
+
+    class UninstallLayoutArtifactsTests(unittest.TestCase):
+        """Behavioral unit tests for removal of layout artifacts during uninstall_repo.
+
+        Default-visible (no module-level slow mark). Built on a minimal hand-crafted fixture repo
+        rather than a real install so pytest runs them in milliseconds.
+        """
+
+        def setUp(self):
+            self.tmp = tempfile.TemporaryDirectory()
+            self.repo = init_repo(Path(self.tmp.name) / "repo")
+            (self.repo / "README.md").write_text("initial\n", encoding="utf-8")
+            git(self.repo, "add", "-A")
+            git(self.repo, "commit", "-m", "init")
+
+            self.aw_dir = self.repo / ".aw"
+            self.system_dir = self.aw_dir / "system"
+            self.system_dir.mkdir(parents=True, exist_ok=True)
+            (self.system_dir / "layout.json").write_text("{}", encoding="utf-8")
+            (self.system_dir / "layout.schema.json").write_text("{}", encoding="utf-8")
+            (self.aw_dir / ".gitignore").write_text(
+                "system/layout.json\nsystem/layout.schema.json\n", encoding="utf-8"
+            )
+
+        def tearDown(self):
+            self.tmp.cleanup()
+
+        def test_uninstall_removes_layout_artifacts(self):
+            """(1) Both layout files are gone after uninstall_repo."""
+            changed = []
+            engine.uninstall_repo(self.repo, use_git=True, force=True, changed_out=changed)
+            self.assertFalse((self.system_dir / "layout.json").exists())
+            self.assertFalse((self.system_dir / "layout.schema.json").exists())
+
+        def test_uninstall_records_layout_artifacts_in_changed_out(self):
+            """(2) Both repo-relative paths appear in the changed_out list."""
+            changed = []
+            engine.uninstall_repo(self.repo, use_git=True, force=True, changed_out=changed)
+            self.assertIn(".aw/system/layout.json", changed)
+            self.assertIn(".aw/system/layout.schema.json", changed)
+
+        def test_uninstall_prunes_empty_aw_system_and_aw_base(self):
+            """(3) .aw/system/ is pruned when it held nothing else, and .aw/ with it."""
+            changed = []
+            engine.uninstall_repo(self.repo, use_git=True, force=True, changed_out=changed)
+            self.assertFalse(self.system_dir.exists())
+            self.assertFalse(self.aw_dir.exists())
+
+        def test_negative_control_unrelated_sibling_preserves_aw_system(self):
+            """(4) Negative control: a non-owned .aw/system/ sibling survives and keeps .aw/system/ alive."""
+            unrelated = self.system_dir / "custom_tool.py"
+            unrelated.write_text("# user custom tool\n", encoding="utf-8")
+            changed = []
+            engine.uninstall_repo(self.repo, use_git=True, force=True, changed_out=changed)
+            self.assertFalse((self.system_dir / "layout.json").exists())
+            self.assertFalse((self.system_dir / "layout.schema.json").exists())
+            self.assertTrue(unrelated.exists())
+            self.assertTrue(self.system_dir.exists())
+            self.assertTrue(self.aw_dir.exists())
+
+
+    class RealInstallIntegrationTests(unittest.TestCase):
+        """Integration test on a full real install.
+
+        Class-scoped slow mark: deselected under `-m 'not slow'` while primary tests run.
+        """
+
+        pytestmark = pytest.mark.slow
+
+        def setUp(self):
+            self.tmp = tempfile.TemporaryDirectory()
+            self.repo = init_repo(Path(self.tmp.name) / "repo")
+
+        def tearDown(self):
+            self.tmp.cleanup()
+
+        def test_real_install_uninstall_deep_cleanup_removes_aw_directory(self):
+            """Real install proves shipped emit_layout_artifacts and uninstall agree to leave no .aw/."""
+            engine.install_into_repo(self.repo, SOURCE_WORKFLOWS, yes=True, no_color=True)
+            engine.write_setup_marker(self.repo)
+
+            changed = []
+            engine.uninstall_repo(self.repo, use_git=True, force=True, changed_out=changed)
+            self.assertIn(".aw/system/layout.json", changed)
+            self.assertIn(".aw/system/layout.schema.json", changed)
+
+            plan = engine.plan_deep_cleanup(self.repo)
+            engine.run_deep_cleanup(self.repo, plan, use_git=True, remove_records=True)
+
+            self.assertFalse(
+                (self.repo / ".aw").exists(),
+                "NO .aw/ directory must remain after install, uninstall, and deep cleanup with records remove",
+            )
+    ```
+
+    Verification of property assertions:
+    - Property 1 (layout files removed): `self.assertFalse((self.system_dir / "layout.json").exists())` and `self.assertFalse((self.system_dir / "layout.schema.json").exists())`
+    - Property 2 (changed_out recording): `self.assertIn(".aw/system/layout.json", changed)` and `self.assertIn(".aw/system/layout.schema.json", changed)`
+    - Property 3 (directory pruning): `self.assertFalse(self.system_dir.exists())` and `self.assertFalse(self.aw_dir.exists())`
+    - Property 4 (negative control): `self.assertTrue(unrelated.exists())`, `self.assertTrue(self.system_dir.exists())`, and `self.assertTrue(self.aw_dir.exists())`
+    - Integration class: `class RealInstallIntegrationTests(unittest.TestCase)` with class-scoped `pytestmark = pytest.mark.slow`.
+
+    The module carries NO module-level `pytest.mark.slow`. Primary cases run bare:
+    ```
+    $ python3 -m pytest tests/test_uninstall_layout_artifacts.py
+    ....                                                                     [100%]
+    NOTE: 1 tests were deselected by -m/-k and did not run (the default run skips 'slow' and 'livecorpus'); run everything with: make test-all
+    4 passed in 1.82s
+    ```
+    Full module run (including slow integration test):
+    ```
+    $ python3 -m pytest tests/test_uninstall_layout_artifacts.py -o addopts=""
+    5 passed in 3.93s
+    ```
+
+    Mutation proof:
+    Reverting E-02 (`git checkout -- agent_workflows/engine.py`):
+    ```
+    $ python3 -m pytest tests/test_uninstall_layout_artifacts.py
+    FFFF                                                                     [100%]
+    =========================== short test summary info ============================
+    FAILED tests/test_uninstall_layout_artifacts.py::UninstallLayoutArtifactsTests::test_negative_control_unrelated_sibling_preserves_aw_system
+    FAILED tests/test_uninstall_layout_artifacts.py::UninstallLayoutArtifactsTests::test_uninstall_prunes_empty_aw_system_and_aw_base
+    FAILED tests/test_uninstall_layout_artifacts.py::UninstallLayoutArtifactsTests::test_uninstall_records_layout_artifacts_in_changed_out
+    FAILED tests/test_uninstall_layout_artifacts.py::UninstallLayoutArtifactsTests::test_uninstall_removes_layout_artifacts
+    4 failed in 1.90s
+    ```
+    Restoring E-02:
+    ```
+    $ python3 -m pytest tests/test_uninstall_layout_artifacts.py
+    4 passed in 1.89s
+    ```
+    The mutation was fully restored in the working tree leaving no leftover artifact.
+
+    Behavioral test confirmation: tests invoke real `engine.uninstall_repo` and `engine.run_deep_cleanup` functions and assert on filesystem existence and return values. No `inspect`, AST, regex, symbol censuses, line counts, or source-text assertions are used (GUIDING_PRINCIPLES P16). Hand-built fixture reached the removal block directly without falling back to a full install.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste `git diff tests/test_installer.py` IN FULL and confirm from it that the ONLY change is the docstring of `test_deep_cleanup_records_remove_leaves_no_aw_directory`, that every assertion, the setup, and every other test in the file are byte-identical, and that the new docstring no longer calls the test a pre-existing failure and cites this plan (`5j7jv1`). Paste the added `CHANGELOG.md` line with enough surrounding context to show it sits under the correct unreleased bug-fix heading in the file's existing style, and confirm by inspection that it contains NO em or en dash. Paste the BARE full-suite summary line and the failing-node-id delta against the pre-work baseline, plus `python3 -m agent_workflows check` showing no new diagnostic, `aw ipd lint` conforming, `aw sanitize --agent` clean, and `git status --short` showing only this plan's four declared scope paths with every throwaway repo cleaned up.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Docstring updated in tests/test_installer.py with zero assertion changes, CHANGELOG.md updated with no em/en dashes, suite clean, sanitize clean.
+    `git diff tests/test_installer.py` in full:
+    ```diff
+    diff --git a/tests/test_installer.py b/tests/test_installer.py
+    index 988503623..4e6237eb5 100644
+    --- a/tests/test_installer.py
+    +++ b/tests/test_installer.py
+    @@ -5013,13 +5013,9 @@ class UninstallCompletenessTests(unittest.TestCase):
+         def test_deep_cleanup_records_remove_leaves_no_aw_directory(self):
+             """E-04, V-04: install -> uninstall -> deep cleanup with records REMOVE leaves NO .aw/ directory.
+
+    -        PRE-EXISTING FAILURE, NOT INTRODUCED BY THE TABLE WORK, and kept rather than weakened: verified
+    -        failing at HEAD (commit 6123749b) before this file was touched. Measured cause: after the full
+    -        sequence, `.aw/system/layout.json` and `.aw/system/layout.schema.json` survive. Those are the
+    -        install-time-emitted layout artifacts (wslayout Order 04, spec kw5y2s 6.1), a feature added
+    -        AFTER this test was written, and neither the uninstall path nor `plan_deep_cleanup` enumerates
+    -        them, so `.aw/system/` cannot be pruned. This is a real completeness gap in
+    -        `agent_workflows/`, whose fix is a product change this test-only change must not make.
+    +        Verified passing with plan 5j7jv1 (backlog 4vfkl1): uninstall_repo removes the
+    +        install-emitted layout artifacts (.aw/system/layout.json and .aw/system/layout.schema.json)
+    +        in step 4 so .aw/system/ and .aw/ are completely pruned when records are removed.
+             """
+             repo = init_repo(self.base / "deep_clean_remove")
+             INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+    ```
+    The only edit is the docstring of `test_deep_cleanup_records_remove_leaves_no_aw_directory`. All assertions, setup, and other tests are byte-identical. The new docstring cites plan `5j7jv1` and backlog `4vfkl1` and describes the passing test.
+
+    Added line in `CHANGELOG.md` with surrounding context:
+    ```markdown
+    Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
+
+    - Fixed: `aw specs check` now reports the examined count in human output, distinguishing a clean verdict over zero specs from a clean verdict over many.
+    - Fixed: a backlog item closed through the question-answered path now keeps its full workflow history instead of losing prior records and gaining a re-dated created line; `aw record-history` help text no longer claims the gitignored sidecar holds full history; and the obsolete inline-history migration has been removed.
+    - Fixed: the installer's --diff preview now reports the only-when-absent scaffolding files an install would create.
+    - Fixed: `aw uninstall` now removes the install-emitted `.aw/system/layout.json` and `.aw/system/layout.schema.json` so no `.aw/` directory is left behind.
+    - Added: an advisory check.spec-criteria-uncovered rule (info severity) in aw check that cross-checks a spec acceptance criteria against the validation coverage of the plan Set implementing it.
+    ```
+    Inspection confirms the line contains no em or en dashes.
+
+    Bare full-suite summary:
+    Pre-work baseline: `1 failed, 3476 passed, 2 skipped, 3 warnings in 104.55s`
+    Post-work result: `1 failed, 3480 passed, 2 skipped, 3 warnings in 82.78s`
+    Failing-node-id delta against pre-work baseline: 0 (the single failure is the pre-existing adjacent issue `tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity` caused by UTC midnight mismatch between local date in `backlog.py` and UTC date in `status_set.py`).
+
+    Diagnostics and checks:
+    - `python3 -m agent_workflows check`: zero new diagnostics introduced for any changed file.
+    - `aw ipd lint --phase pre-transition`: reports conforming.
+    - `aw sanitize --agent`: clean (`{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`).
+    - `git status --short`: shows only the four declared Scope-Paths with all throwaway repos cleaned up:
+    ```
+     M CHANGELOG.md
+     M agent_workflows/engine.py
+     M tests/test_installer.py
+    ?? tests/test_uninstall_layout_artifacts.py
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
