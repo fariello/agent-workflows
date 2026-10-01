@@ -745,6 +745,91 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.prompt-status-mismatch": RuleSpec(
         "warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-03"
     ),
+    # sevreg Order 01 (qgpanb) E-02: lane integration drift rules (attention.lane-stranded and
+    # attention.lane-superseded).
+    #
+    # These values MIRROR what attention.lane_drift_severity already stamps, so registration changes
+    # NO exit code today and its whole value is that the severity stops being inherited from
+    # _DEFAULT_RULESPEC.
+    #
+    # The `info` severity on `attention.lane-superseded` is NOT a weakening but the deliberate
+    # exemption whose reasoning lives in attention.lane_drift_severity's docstring: a superseded
+    # lane's work landed another way, so failing on it asserts a loss that did not happen.
+    #
+    # Why `info` and not `warning`: artifact_core.drift_exit_code exempts ONLY `info`, so `warning`
+    # would have failed the gate identically to `error` and was therefore never the middle option it
+    # looks like.
+    #
+    # The emitter's stamp still wins by construction, because check_engine.enrich_drift computes
+    # `drift.severity or spec.severity`, which is why attention.lane_drift_severity remains the
+    # authority for a lane and the registry entry is a DECLARATION that matches it rather than a
+    # second source of truth.
+    #
+    # Invariant `""` for both: the invariant catalog in spec pqsx96 has no invariant covering lane
+    # integration (I-14 is authorship attribution in a shared worktree, not lane landing), and
+    # inventing a catalog row is out of scope.
+    "attention.lane-stranded": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
+    "attention.lane-superseded": RuleSpec(
+        "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
+    # sevreg Order 01 (qgpanb) E-03: dangling citation rule in research and plans indices.
+    #
+    # Registered `info`, because the corpus analysis (F-04) measured that 19 of its 23 distinct
+    # dangling ids are documentation placeholders (`aaaaaa`, `bbbbbb`, `ccc333`, `def456`, `a1b2c3`)
+    # appearing in IPD test-evidence prose across 70 live findings (65 in plans, 5 in backlog), while
+    # research_contract.EXAMPLE_ID6S covers only two examples. The rule's verdict is
+    # necessary-not-sufficient and the corpus has never been swept for example ids.
+    #
+    # GATING CONSEQUENCE: this is an intended gating change. `aw index research --check` currently
+    # exits 1 on these findings; registering at `info` (and stamping at the emitter in E-04) changes
+    # `aw index research --check` from exit 1 to exit 0.
+    #
+    # Why `warning` was rejected: artifact_core.drift_exit_code exempts ONLY `info`, so `warning`
+    # would leave the gate red while stating a weaker contract, which the registry already records
+    # as a failure mode at check.stale-index-missing.
+    #
+    # Invariant is `""`: no catalog invariant in spec pqsx96 covers citation integrity (I-09 is
+    # filename grammar).
+    "dangling-citation": RuleSpec("info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""),
+    # sevreg Order 01 (qgpanb) E-03: adopted research doc with no declared consumer.
+    #
+    # Registered `info`, because 17 of the 35 live findings are in `archive/202607/`, representing
+    # deep-shelved historical records that predate the metadata convention and will not be retrofitted
+    # with a `consumed-by` field.
+    #
+    # GATING CONSEQUENCE: this is an intended gating change. Together with dangling citations and
+    # stale promotion states, registering this rule at `info` allows `aw index research --check` to
+    # transition from exit 1 to exit 0 once stamped in E-04.
+    #
+    # Why `warning` was rejected: artifact_core.drift_exit_code exempts ONLY `info`, so `warning`
+    # would leave the gate red while stating a weaker contract, which the registry already records
+    # as a failure mode at check.stale-index-missing.
+    #
+    # Invariant is `""`: no catalog invariant in spec pqsx96 covers adopted document consumer
+    # declarations.
+    "adopted-without-consumer": RuleSpec(
+        "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
+    # sevreg Order 01 (qgpanb) E-03: active/todo research doc whose set is synthesized or cited by executed.
+    #
+    # Registered `info`, because it names a HOUSEKEEPING state ("promote this doc"), which is an
+    # authoring nudge and workflow suggestion across 18 live findings, rather than a contract violation.
+    #
+    # GATING CONSEQUENCE: this is an intended gating change. Stamping this rule at `info` alongside the
+    # other research drift rules allows `aw index research --check` to transition from exit 1 to exit 0
+    # once E-04 lands.
+    #
+    # Why `warning` was rejected: artifact_core.drift_exit_code exempts ONLY `info`, so `warning`
+    # would leave the gate red while stating a weaker contract, which the registry already records
+    # as a failure mode at check.stale-index-missing.
+    #
+    # Invariant is `""`: no catalog invariant in spec pqsx96 covers research promotion hot-state
+    # (I-07 is release-gate preservation).
+    "stale-state-to-promote": RuleSpec(
+        "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
 }
 
 # Conservative default for an unregistered rule id: treat it as an error-severity, repository-class,

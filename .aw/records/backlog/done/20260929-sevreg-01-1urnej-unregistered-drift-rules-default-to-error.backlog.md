@@ -1,5 +1,5 @@
 - Id: 1urnej
-- Status: graduated
+- Status: done
 - Graduated-To: sevreg
 - Set: sevreg
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: five live drift rules are absent from RULE_REGISTRY and silently default to error severity
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD qgpanb executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-sevreg-01-qgpanb-register-the-five-unregistered-live-drift-rules-with-recorde.ipd.md); evidence .aw/records/plans/executed/20260930-sevreg-01-qgpanb-register-the-five-unregistered-live-drift-rules-with-recorde.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: qgpanb
 - 2026-09-29 created (aw backlog): Carrier for an obligation deferred by plan nwcf8j (sevtruth), which declined to register them because changing a severity moves exit codes.
 

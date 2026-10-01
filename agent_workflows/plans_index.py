@@ -310,7 +310,8 @@ def check_drift(
     # check_content` forwards these findings WITHOUT enriching them. An un-enriched `Drift` carries
     # `severity=""`, and `drift_exit_code` fails the gate for anything that is not `info`, so merely
     # REGISTERING the rules left a missing manifest still exiting 1 on both surfaces. Enriching at the
-    # emitter is what makes the registry the single source of severity for every consumer.
+    # emitter is what makes the registry the single source of severity for every consumer (extended in
+    # sevreg qgpanb E-04 to cover `dangling-citation` as well).
     from agent_workflows import check_engine as _ce
 
     for path_const, exists, matches, label in (
@@ -367,7 +368,9 @@ def check_drift(
         exclude_root=plans_dir,
     ):
         drift.append(
-            _core.Drift(f"{d.file}:{d.line}", "dangling-citation", f"PLAN-{d.id6}")
+            _ce.enrich_drift(
+                _core.Drift(f"{d.file}:{d.line}", "dangling-citation", f"PLAN-{d.id6}")
+            )
         )
     return drift
 
