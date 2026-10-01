@@ -24,12 +24,14 @@ WHAT "IDENTICAL" MEANS HERE, precisely. Two co-defined top-level symbols are IDE
 `ast.unparse` normalizations are equal after docstrings are stripped from every nested scope. That
 normalization deliberately erases comments, formatting and docstrings, because those are exactly the
 differences that do not affect behavior. It equally deliberately does NOT erase NAMES, which is the
-scanner's most important limitation and is why `--closure` exists: two bodies that both read
-`FULL_AUTO_ACTOR` compare EQUAL while resolving to different strings per host. That is not a
-hypothetical, it is the measured state of `set_plan_approved` (`"aw oc run --full-auto"` on oc,
-`"aw agy run --full-auto"` on agy), and a lift performed on the identity verdict alone would have
-misattributed every Antigravity auto-approval in permanent plan history. READ THE CLOSURE REPORT
-BEFORE ACTING ON THE IDENTITY REPORT.
+scanner's most important limitation: two bodies that both read `FULL_AUTO_ACTOR` compare EQUAL while
+resolving to different strings per host. That was measured history in `set_plan_approved` (`"aw oc run
+--full-auto"` on oc, `"aw agy run --full-auto"` on agy; since unified), where a lift performed on the
+identity verdict alone would have misattributed every Antigravity auto-approval in permanent plan
+history. That hazard is enumerated repository-wide by `--constants`, which statically resolves
+module-level assignments co-defined across both hosts regardless of whether any still-forked def loads
+them. `--closure` remains the complementary per-fork view, showing which dependencies a specific function
+pulls in. READ THE CONSTANTS AND CLOSURE REPORTS BEFORE ACTING ON THE IDENTITY REPORT.
 
 THE THREE-WAY CASE THE IDENTITY REPORT ALONE ALSO HIDES. A symbol can be defined in BOTH runners and
 ALSO ALREADY in `runner_shared`, with the hosts ignoring the shared copy. That is strictly worse than
@@ -58,6 +60,7 @@ USAGE
     python3 tools/runner_fork_scan.py --closure        # + per-symbol module-level closure
     python3 tools/runner_fork_scan.py --hazards        # + __file__ / host-token scan
     python3 tools/runner_fork_scan.py --triples        # + symbols ALSO defined in runner_shared
+    python3 tools/runner_fork_scan.py --constants      # + module-level constants divergence scan
     python3 tools/runner_fork_scan.py --repo-wide      # + the sweep over ALL agent_workflows/*.py
     python3 tools/runner_fork_scan.py --all            # every section
     python3 tools/runner_fork_scan.py --json           # machine-readable
@@ -208,6 +211,125 @@ def module_index(tree: ast.Module) -> dict[str, str]:
                             alias.asname or alias.name.split(".")[0], "import"
                         )
     return out
+
+
+def top_level_constants(tree: ast.Module) -> dict[str, ast.AST | None]:
+    """Every UPPER_CASE name assigned at module scope, mapped to its RHS AST node.
+
+    Handles three binding shapes:
+      1. ast.Assign with an ast.Name target (maps name -> node.value)
+      2. ast.Assign with an ast.Tuple or ast.List target whose elements are ast.Name.
+         Tuple-unpacked names have no single 1:1 RHS node, so they map to None and
+         land in the unresolved set during resolution.
+      3. ast.AnnAssign with a value (maps target.id -> node.value).
+
+    Keys on str.isupper() to match the population the shipped suite guard matches.
+    Last definition wins on redefinition.
+    """
+    out: dict[str, ast.AST | None] = {}
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    if target.id.isupper():
+                        out[target.id] = node.value
+                elif isinstance(target, (ast.Tuple, ast.List)):
+                    for elt in target.elts:
+                        if isinstance(elt, ast.Name) and elt.id.isupper():
+                            out[elt.id] = None
+        elif isinstance(node, ast.AnnAssign):
+            if isinstance(node.target, ast.Name) and node.target.id.isupper():
+                if node.value is not None:
+                    out[node.target.id] = node.value
+    return out
+
+
+module_constants = top_level_constants
+
+
+def resolve_constant(
+    node: ast.AST | None,
+    trees: dict[str, ast.Module],
+    *,
+    max_depth: int = 10,
+    current_depth: int = 0,
+) -> ast.AST | None:
+    """Statically resolve a module-level constant RHS node through trees.
+
+    Follows:
+      - `runner_shared.NAME.field` chains through keyword arguments of Call nodes (e.g. HostLabels(...))
+      - `runner_shared.NAME` chains into runner_shared module-level assignments
+      - Bare `ast.Name` references within runner_shared
+    Returns the terminal AST node, or None if the chain cannot be followed statically.
+    Recursion is bounded by max_depth to prevent cycles/hangs.
+    """
+    if node is None or current_depth >= max_depth:
+        return None
+
+    # runner_shared.NAME.field
+    if (
+        isinstance(node, ast.Attribute)
+        and isinstance(node.value, ast.Attribute)
+        and isinstance(node.value.value, ast.Name)
+        and node.value.value.id == SHARED
+    ):
+        const_name = node.value.attr
+        field_name = node.attr
+        shared_tree = trees.get(SHARED)
+        if shared_tree is None:
+            return None
+        shared_consts = top_level_constants(shared_tree)
+        if const_name not in shared_consts:
+            return None
+        target = shared_consts[const_name]
+        resolved_target = resolve_constant(
+            target, trees, max_depth=max_depth, current_depth=current_depth + 1
+        )
+        if isinstance(resolved_target, ast.Call):
+            for kw in resolved_target.keywords:
+                if kw.arg == field_name:
+                    return resolve_constant(
+                        kw.value,
+                        trees,
+                        max_depth=max_depth,
+                        current_depth=current_depth + 1,
+                    )
+        return None
+
+    # runner_shared.NAME
+    if (
+        isinstance(node, ast.Attribute)
+        and isinstance(node.value, ast.Name)
+        and node.value.id == SHARED
+    ):
+        const_name = node.attr
+        shared_tree = trees.get(SHARED)
+        if shared_tree is None:
+            return None
+        shared_consts = top_level_constants(shared_tree)
+        if const_name not in shared_consts:
+            return None
+        target = shared_consts[const_name]
+        return resolve_constant(
+            target, trees, max_depth=max_depth, current_depth=current_depth + 1
+        )
+
+    # Name reference within shared (if resolving within shared)
+    if isinstance(node, ast.Name):
+        shared_tree = trees.get(SHARED)
+        if shared_tree is None:
+            return None
+        shared_consts = top_level_constants(shared_tree)
+        if node.id in shared_consts:
+            return resolve_constant(
+                shared_consts[node.id],
+                trees,
+                max_depth=max_depth,
+                current_depth=current_depth + 1,
+            )
+        return None
+
+    return node
 
 
 def free_names(node: ast.stmt) -> set[str]:
@@ -553,6 +675,77 @@ def repo_wide_sweep() -> dict[str, Any]:
     }
 
 
+def constants_census(
+    trees: dict[str, ast.Module], symbols: Iterable[str] | None = None
+) -> dict[str, Any]:
+    """Census module-level UPPER_CASE constants across both hosts and runner_shared."""
+    c_oc = top_level_constants(trees[OC])
+    c_agy = top_level_constants(trees[AGY])
+    c_sh = top_level_constants(trees[SHARED])
+
+    co_defined = sorted(set(c_oc) & set(c_agy))
+    if symbols is not None:
+        wanted = set(symbols)
+        co_defined = [name for name in co_defined if name in wanted]
+
+    divergent: list[str] = []
+    unresolved: list[str] = []
+    values: dict[str, dict[str, str]] = {}
+
+    for name in co_defined:
+        res_oc = resolve_constant(c_oc[name], trees)
+        res_agy = resolve_constant(c_agy[name], trees)
+        if res_oc is None or res_agy is None:
+            unresolved.append(name)
+            continue
+        u_oc = ast.unparse(res_oc)
+        u_agy = ast.unparse(res_agy)
+        if u_oc != u_agy:
+            divergent.append(name)
+            values[name] = {"oc": u_oc, "agy": u_agy}
+
+    three_way_co = sorted(set(co_defined) & set(c_sh))
+    three_way_matches_neither: list[str] = []
+    for name in three_way_co:
+        res_oc = resolve_constant(c_oc[name], trees)
+        res_agy = resolve_constant(c_agy[name], trees)
+        res_sh = resolve_constant(c_sh[name], trees)
+        if res_sh is None:
+            if name not in unresolved:
+                unresolved.append(name)
+            continue
+        if res_oc is None or res_agy is None:
+            continue
+        u_oc = ast.unparse(res_oc)
+        u_agy = ast.unparse(res_agy)
+        u_sh = ast.unparse(res_sh)
+        if u_sh != u_oc and u_sh != u_agy:
+            three_way_matches_neither.append(name)
+            if name not in values:
+                values[name] = {}
+            values[name].update({"sh": u_sh, "oc": u_oc, "agy": u_agy})
+
+    return {
+        "host_pair_test": (
+            "HOST-PAIR DIVERGENCE: UPPER_CASE constants co-defined in both hosts "
+            "whose statically resolved values differ"
+        ),
+        "three_way_test": (
+            "THREE-WAY MATCHES-NEITHER: UPPER_CASE constants co-defined in all three modules "
+            "whose runner_shared value equals neither host's resolved value"
+        ),
+        "unresolved_test": (
+            "UNRESOLVED: UPPER_CASE constants whose value chain could not be resolved statically"
+        ),
+        "co_defined": co_defined,
+        "host_pair_divergent": divergent,
+        "divergent": divergent,
+        "three_way_matches_neither": three_way_matches_neither,
+        "unresolved": unresolved,
+        "values": values,
+    }
+
+
 def census(symbols: Iterable[str] | None = None) -> dict[str, Any]:
     """The whole measurement, as data. Every report below is a rendering of this.
 
@@ -663,6 +856,7 @@ def census(symbols: Iterable[str] | None = None) -> dict[str, Any]:
         # class (d) answer too and a consumer cannot get the pairwise numbers without the sweep that
         # bounds them (`rununify` E-03 requires the check be repo-wide, not pairwise).
         "repo_wide": repo_wide_sweep(),
+        "constants": constants_census(trees, symbols),
         "symbols": records,
     }
 
@@ -754,6 +948,49 @@ def render_repo_wide(data: dict[str, Any]) -> list[str]:
     return out
 
 
+def render_constants(data: dict[str, Any]) -> list[str]:
+    cdata = data["constants"]
+    out = [
+        "MODULE-LEVEL CONSTANTS (READ, DO NOT RULE: a host-varying constant reports a lift hazard and never a defect; differences are frequently correct by design)"
+    ]
+    out.append(f"  {cdata['host_pair_test']}")
+    out.append(f"  co-defined in both runners   : {len(cdata['co_defined'])}")
+    out.append(f"  divergent between hosts      : {len(cdata['host_pair_divergent'])}")
+    if not cdata["host_pair_divergent"]:
+        out.append("    none")
+    for name in cdata["host_pair_divergent"]:
+        vals = cdata["values"].get(name, {})
+        oc_val = vals.get("oc", "<unknown>")
+        agy_val = vals.get("agy", "<unknown>")
+        out.append(f"    {name}")
+        out.append(f"        oc : {oc_val}")
+        out.append(f"        agy: {agy_val}")
+    out.append("")
+    out.append(f"  {cdata['three_way_test']}")
+    out.append(
+        f"  matches neither host         : {len(cdata['three_way_matches_neither'])}"
+    )
+    if not cdata["three_way_matches_neither"]:
+        out.append("    none")
+    for name in cdata["three_way_matches_neither"]:
+        vals = cdata["values"].get(name, {})
+        sh_val = vals.get("sh", "<unknown>")
+        oc_val = vals.get("oc", "<unknown>")
+        agy_val = vals.get("agy", "<unknown>")
+        out.append(f"    {name}")
+        out.append(f"        shared: {sh_val}")
+        out.append(f"        oc    : {oc_val}")
+        out.append(f"        agy   : {agy_val}")
+    out.append("")
+    if cdata["unresolved"]:
+        out.append(f"  {cdata['unresolved_test']}")
+        out.append(f"  unresolved chain             : {len(cdata['unresolved'])}")
+        for name in cdata["unresolved"]:
+            out.append(f"    {name}")
+        out.append("")
+    return out
+
+
 def render(
     data: dict[str, Any],
     *,
@@ -761,6 +998,7 @@ def render(
     hazards: bool,
     triples: bool,
     repo_wide: bool = False,
+    constants: bool = False,
 ) -> str:
     out: list[str] = []
     out.append("RUNNER FORK CENSUS")
@@ -850,6 +1088,9 @@ def render(
             out.append(f"    {name:42s} shared copy identical to the hosts': {same}")
         out.append("")
 
+    if constants:
+        out.extend(render_constants(data))
+
     if hazards:
         out.append("RELOCATION HAZARDS")
         any_hazard = False
@@ -927,6 +1168,11 @@ def main(argv: list[str] | None = None) -> int:
         help="symbols ALSO defined in runner_shared while both hosts keep their own copy",
     )
     parser.add_argument(
+        "--constants",
+        action="store_true",
+        help="module-level constants census and divergence report between hosts",
+    )
+    parser.add_argument(
         "--repo-wide",
         action="store_true",
         help=(
@@ -957,6 +1203,7 @@ def main(argv: list[str] | None = None) -> int:
             hazards=args.hazards or args.all,
             triples=args.triples or args.all,
             repo_wide=args.repo_wide or args.all,
+            constants=args.constants or args.all,
         )
     )
     return 0
