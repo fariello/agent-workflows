@@ -6,7 +6,7 @@
 - Scope: IN: SIX of the seven blanket `contextlib.suppress(Exception)` blocks inside `execute_item_core` (`runner_shared.py`) narrowed to the exception class each actually anticipates, so a programming error surfaces instead of degrading a record; the SECOND `build_lane_outcome` call site at the gate question, whose bare `except Exception: pass` carries the identical measured defect and which this plan's census originally missed (E-07, added at review); a defence-in-depth `wt_handle is None` guard on the refusal call (E-02, retained but re-justified: review measured that `None` is NOT reachable there); a written census of the function's true blanket-swallow population so this plan's claim is not read as completeness (E-08, added at review); and behavioral regression tests that FAIL when a narrowed block is widened back to `Exception`. OUT: the SEVENTH blanket block, the suite-baseline `collect` call, which review REVERSED to keep-blanket-and-document because `OSError` would miss the injected-callable drift that is its likeliest escape (E-05, F-10); the two blocks already correctly narrowed to `(DriverError, OSError)`; the two `finally`-arm blocks, whose blanket form is a correctness requirement; the other bare `except Exception` swallows inside the function, which E-08 records rather than narrows; every `suppress` OUTSIDE `execute_item_core`; any change to what the runner DECIDES on a refusal; and the separate defect `he9x6j`.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_suppress_narrowing.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 8o709f
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 8o709f verified (set suppressnarrow, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 
