@@ -636,13 +636,15 @@ aw ipd recheck-readiness <id6> --apply    # write, when every condition is clear
 
 The verb RECOMPUTES the three `NO-GO` conditions above with the shipped predicates,
 reports each one individually with its reason, and writes only when all three are
-clear. Three properties bound it, and they are what make it something an agent may
+clear. Four properties bound it, and they are what make it something an agent may
 run at all:
 
 - It can reach ONLY `GO - PENDING HUMAN APPROVAL`. **Only a review may set `GO`**,
   and `GO` still requires human approval. The verb refuses an absent field (absence
   means no review recorded a signal, and minting a value would assert a review that
   never happened), an out-of-vocab field, and any readiness that is not `NO-GO`.
+- It refuses a plan in a terminal disposition (`executed/`, `superseded/`, `not-executed/`),
+  because a terminal plan's `NO-GO` is an accurate record of why it was retired.
 - It RECORDS its computed evidence in the plan's `## Workflow history`, labelled a
   readiness re-check and containing no verdict token, so it is never read as a
   review and a reader can audit the claim without re-running anything.
@@ -665,7 +667,8 @@ it destroys the audit trail. `aw ipd recheck-readiness --stale-findings` reports
 these (and writes the round under `--apply`), matching the question to the finding
 on the question's declared `- Finding: <ID>` back-reference rather than on a
 judgement about what the question was about. A question that is still open does NOT
-make its finding stale.
+make its finding stale. This review-record amendment still applies to a terminal
+plan, clearing its stale gating finding without rewriting the plan file itself.
 
 ---
 ## Required final report

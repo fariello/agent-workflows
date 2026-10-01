@@ -129,34 +129,36 @@ class _Row:
         self.action = "refused"
         self.stale: Tuple = ()
         self.stale_applied = False
+        self.stale_detail = ""
+        self.amended_reviews: List[Tuple[str, str]] = []
         self.detail = ""
 
 
 def _run_stale_findings(
     repo_root: Path, path: Path, apply: bool, actor: str, today: str
-) -> Tuple[Tuple, bool, str]:
+) -> Tuple[Tuple, bool, str, List[Tuple[str, str]]]:
     """The escalation RETURN PATH for one plan: report, and under ``apply`` append a closing round.
 
-    Returns ``(stale, applied, detail)``. Reports nothing and writes nothing when the plan carries no
-    resolved question whose `- Finding:` reference names a currently-blocking finding, which is the
-    NEGATIVE case: an unanswered question leaves its finding blocking.
+    Returns ``(stale, applied, detail, amended_reviews)``. Reports nothing and writes nothing when
+    the plan carries no resolved question whose `- Finding:` reference names a currently-blocking
+    finding, which is the NEGATIVE case: an unanswered question leaves its finding blocking.
     """
     from agent_workflows import review_findings as RF
 
     try:
         text = path.read_text(encoding="utf-8")
     except OSError as exc:
-        return (), False, "unreadable: {0}".format(exc)
+        return (), False, "unreadable: {0}".format(exc), []
     import re
 
     m = re.search(r"(?m)^-\s*Id:\s*([0-9a-z]{6})\s*$", text)
     if not m:
-        return (), False, "no `- Id:` bullet, so no review record can be matched"
+        return (), False, "no `- Id:` bullet, so no review record can be matched", []
     stale = RF.stale_escalated_findings(repo_root, m.group(1), text)
     if not stale:
-        return (), False, ""
+        return (), False, "", []
     if not apply:
-        return stale, False, "dry-run: no round appended"
+        return stale, False, "dry-run: no round appended", []
     # Group by review record: one appended round closes every stale finding in that record at once,
     # rather than appending a round per finding, which would fragment one event across rounds.
     by_record: dict = {}
@@ -164,6 +166,7 @@ def _run_stale_findings(
         by_record.setdefault(s.review_path, []).append(s)
     applied = False
     details: List[str] = []
+    amended: List[Tuple[str, str]] = []
     for review_path, items in sorted(by_record.items()):
         new_text = RF.append_round_resolving_stale(
             review_path, items, date=today, actor=actor, apply=True
@@ -176,12 +179,12 @@ def _run_stale_findings(
             )
             continue
         applied = True
-        details.append(
-            "appended a round to {0} marking {1} fixed".format(
-                review_path, ", ".join(s.finding_id for s in items)
-            )
+        msg = "appended a round to {0} marking {1} fixed".format(
+            review_path, ", ".join(s.finding_id for s in items)
         )
-    return stale, applied, "; ".join(details)
+        details.append(msg)
+        amended.append((str(review_path), msg))
+    return stale, applied, "; ".join(details), amended
 
 
 def run_recheck_readiness(args: argparse.Namespace) -> int:
@@ -238,8 +241,9 @@ def run_recheck_readiness(args: argparse.Namespace) -> int:
         stale: Tuple = ()
         stale_applied = False
         stale_detail = ""
+        amended_reviews: List[Tuple[str, str]] = []
         if want_stale:
-            stale, stale_applied, stale_detail = _run_stale_findings(
+            stale, stale_applied, stale_detail, amended_reviews = _run_stale_findings(
                 repo_root, path, apply, actor, today
             )
         result, new_text = PR.recheck_readiness(
@@ -248,6 +252,8 @@ def run_recheck_readiness(args: argparse.Namespace) -> int:
         row = _Row(path, result)
         row.stale = stale
         row.stale_applied = stale_applied
+        row.stale_detail = stale_detail
+        row.amended_reviews = amended_reviews
         if result.may_write:
             row.action = "updated" if apply else "would-update"
             row.detail = "`{0}` -> `{1}`".format(
@@ -270,16 +276,27 @@ def run_recheck_readiness(args: argparse.Namespace) -> int:
     )
 
     if ctx.is_agent or ctx.is_json:
-        changes = [
-            Change(
-                path=str(r.path),
-                kind="update",
-                applied=(r.action == "updated"),
-                detail=r.detail,
-            )
-            for r in rows
-            if r.action != "refused"
-        ]
+        changes: List[Change] = []
+        for r in rows:
+            if r.action != "refused":
+                changes.append(
+                    Change(
+                        path=str(r.path),
+                        kind="update",
+                        applied=(r.action == "updated"),
+                        detail=r.detail,
+                    )
+                )
+            if r.stale_applied:
+                for rev_path, rev_msg in r.amended_reviews:
+                    changes.append(
+                        Change(
+                            path=str(rev_path),
+                            kind="update",
+                            applied=True,
+                            detail=rev_msg,
+                        )
+                    )
         diagnostics = [
             Diagnostic(
                 location=str(r.path),
@@ -332,6 +349,8 @@ def run_recheck_readiness(args: argparse.Namespace) -> int:
         if r.action == "refused":
             for reason in r.result.refusals:
                 print("  REFUSED: {0}".format(reason))
+            if r.stale_detail:
+                print("  stale findings: {0}".format(r.stale_detail))
         else:
             print("  {0}: {1}".format(r.action, r.detail))
     print("")

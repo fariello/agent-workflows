@@ -39,7 +39,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: close the write-path hole first
 
-- [ ] E-01 REFUSE THE READINESS RECOMPUTE ON A PLAN IN A TERMINAL DISPOSITION, in `plan_readiness.recheck_conditions`, as a REFUSAL beside the existing readiness-field refusals rather than as a fourth condition. The distinction is the one that function's own comment already draws: a refusal is "a reason the re-check may not act at all, as distinct from reasons the plan is not ready", and disposition is exactly that. Derive the disposition from the plan's PATH, never from its `- Status:` text, and reuse `plans.TERMINAL` as the vocabulary so the terminal set is not spelled a second time.
+- [x] E-01 REFUSE THE READINESS RECOMPUTE ON A PLAN IN A TERMINAL DISPOSITION, in `plan_readiness.recheck_conditions`, as a REFUSAL beside the existing readiness-field refusals rather than as a fourth condition. The distinction is the one that function's own comment already draws: a refusal is "a reason the re-check may not act at all, as distinct from reasons the plan is not ready", and disposition is exactly that. Derive the disposition from the plan's PATH, never from its `- Status:` text, and reuse `plans.TERMINAL` as the vocabulary so the terminal set is not spelled a second time.
   DERIVE IT THE WAY THE REPOSITORY ALREADY DOES, WHICH IS THE FIRST PATH COMPONENT UNDER THE PLANS DIR AND NOT `parent.name`. Three shipped sites establish this and each documents why: `check_engine._plan_disposition`, `attention._plan_disposition_from_rel`, and `plans_index.plan_entry` (whose `rel.split("/", 1)[0]` the other two cite as the derivation they reuse; the authored citation said `plans_index.scan_plans`, and review measured that the split lives in `plan_entry`, which `scan_plans` calls). The reason is load-bearing here: `aw archive plans` shards a terminal plan into `<disposition>/YYYYMM/` (`plans_archive._shard_target`), so a parent-directory test silently stops recognizing every sharded plan, and both plans this Set must protect are archive candidates.
   CALL `check_engine._plan_disposition` VIA A FUNCTION-LOCAL (LAZY) IMPORT. That choice is measured, not preferred, and this bullet fixes an authored instruction that would have produced the wrong code (review PR-001). THE ONLY TWO CANDIDATE HELPERS ARE NOT EQUIVALENT, because they resolve the plans root differently: `check_engine._plan_disposition` relativizes against `_type_dirs(repo_root, "plans")`, i.e. the RESOLVED records root, while `attention._plan_disposition_from_rel` matches the two hard-coded string prefixes `.aw/records/plans/` and `.agents/plans/`. Measured at review in a scratch repo configured `records_backend: companion` (records resolved to `<repo>.aw/records/plans`): `check_engine._plan_disposition` returned `not-executed`, `superseded` (sharded) and `pending` correctly for the three cases, while the attention-style derivation returned `''` for ALL THREE, because the plan is not relative to the repo at all. So the attention helper would silently treat every plan in a companion-backed repo as NON-terminal, which is precisely the fail-open this item exists to close.
   THE AUTHORED IMPORT WARNING IS FACTUALLY WRONG AND IS CORRECTED HERE. It said "`check_engine` is NOT a safe module-scope import here and must not become one". Measured at review: importing `check_engine` at `plan_readiness` module scope raises NO ImportError in either import order (probed by loading a patched copy of the module), so there is no cycle. The real objection is COST, which is smaller than implied: a cold `import agent_workflows.check_engine` measures 0.203s against 0.193s for `plan_readiness` itself. Use a FUNCTION-LOCAL import anyway, for the reason the module already uses one for `review_findings` in this very function ("Lazy import avoids any import cycle"), and because a 7839-line checker module has no business being on the import path of a predicate both host runners load. Do NOT write the instruction as "no cycle is possible"; write it as the deliberate cost-and-layering choice it is.
@@ -47,45 +47,45 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   USE `plans.TERMINAL` FOR THE COMPARISON, AND NORMALIZE THE `done` ALIAS. `plans.DISPOSITION_DIRS` includes the legacy read alias `done`, which is NOT in `plans.TERMINAL` as a literal but which `plans.normalize_status("done")` maps to `executed` (measured). No `done/` directory exists in this tree today, so this is a latent case rather than a live one; compare `plans.normalize_status(disposition) in plans.TERMINAL` rather than testing raw membership, so a repository that still carries `done/` is not silently left writable. Measured at review: `normalize_status` maps `done`/`executed`/`superseded`/`not-executed` into `TERMINAL` and maps `pending`->`to-review`, `reusable`->`reusable`, and an archive shard name like `202609` -> `legacy/unknown`, none of which are terminal, so the normalization adds no false positive.
   - Depends on: none
   - Expected outcome: `recheck_conditions` on a plan under `executed/`, `superseded/`, or `not-executed/` returns `may_write` False with a refusal naming the disposition and stating that a terminal plan's record is history; the same call on a `pending/` plan and on a plan at an arbitrary path outside the plans tree is UNCHANGED. Paste the before/after refusal lists for one terminal and one pending plan.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 KEEP THE STALE-FINDING AMENDMENT REACHABLE ON A TERMINAL PLAN, so E-01 narrows the write to the plan file and does not disable the return path the two target records need. In `readiness_recheck.run_recheck_readiness` the two halves already run in a fixed order for a documented reason ("THE STALE-FINDING HALF RUNS FIRST, deliberately. It can CHANGE the second condition's answer"), and that order is what makes this separable: the amendment half writes only to the REVIEW record, and `append_round_resolving_stale` takes `review_path`, never the plan path.
+- [x] E-02 KEEP THE STALE-FINDING AMENDMENT REACHABLE ON A TERMINAL PLAN, so E-01 narrows the write to the plan file and does not disable the return path the two target records need. In `readiness_recheck.run_recheck_readiness` the two halves already run in a fixed order for a documented reason ("THE STALE-FINDING HALF RUNS FIRST, deliberately. It can CHANGE the second condition's answer"), and that order is what makes this separable: the amendment half writes only to the REVIEW record, and `append_round_resolving_stale` takes `review_path`, never the plan path.
   THE REPORTING MUST SAY WHICH HALF ACTED, because after E-01 a terminal plan's row is simultaneously a refusal and an amendment, and a row that renders one while doing the other is the false report this area exists to avoid. The row already carries both (`_Row` is documented as "carrying BOTH halves so a report can never state an action without a cause").
   THE MACHINE SURFACE IS ALREADY BROKEN FOR THIS CASE, AND REVIEW MEASURED IT, so this is a repair with a named target rather than an open-ended "make it visible" (review PR-002). Driven at base against a terminal plan forced into the readiness-refusal branch (`- Readiness: go-pending-approval`) with `--stale-findings --apply`: the amendment WAS written to the `.review.md`, and `--json` reported `changes: []` with a single `readiness.recheck-refused` diagnostic whose `detail` carried the amendment only as trailing prose; the `--agent` compact record reported `"findings":1` and NO `changes` key at all, because `_Row.action` stays `"refused"` and `run_recheck_readiness` builds its `changes` list from `r.action != "refused"`. So an agent consuming `--agent` sees a file written and no `Change` naming it, which is exactly the false report the row's own docstring forbids. THE FIX IS THEREFORE SPECIFIC: emit a `Change` for the AMENDED `.review.md` path whenever `stale_applied` is true, INDEPENDENTLY of whether the readiness half refused, and keep the refusal as its own `Diagnostic`. A row must never report a write with no `Change`, nor a `Change` whose `path` is the plan when the plan was not written.
   NOTE THE `--agent` COMPACT RENDERING LIMIT, so V-02's evidence demand is satisfiable. `CommandResult.to_agent_record` drops each `Diagnostic`'s `detail` unless the context is verbose, and `aw ipd recheck-readiness` registers no `--verbose` flag (measured: its `--help` lists only the four shared presentation flags plus `--apply`, `--stale-findings`, `--actor`, `--dir`). So the compact `--agent` record can carry the rule NAME but not the reason text. Do NOT try to satisfy V-02 by pasting a `detail` from `--agent`; use `--json`, which carries `detail` in full (measured), and require `--agent` only to show a `Change` for the review path beside the `readiness.recheck-refused` diagnostic. Adding `--verbose` to this verb is OUT OF SCOPE.
   DO NOT ADD AN OVERRIDE FLAG. There is no `--allow-terminal` here: the amendment is the sanctioned act and the plan write is not, so a flag would only re-open the hole E-01 closes.
   - Depends on: E-01
   - Expected outcome: `aw ipd recheck-readiness --stale-findings --apply <terminal-plan>` appends the closing round to the REVIEW record, leaves the plan file BYTE-IDENTICAL (assert the hash), and reports the readiness refusal and the amendment in the same row; `--json` carries both the refusal `detail` and a `Change` for the `.review.md` path, and `--agent` carries that `Change` beside the `readiness.recheck-refused` diagnostic; the same command on a pending plan behaves exactly as it does today.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: pin both behaviors
 
-- [ ] E-03 PIN E-01 AND E-02 WITH BEHAVIORAL TESTS, in `tests/test_review_record_classifier.py`, which is the surviving home for `plan_readiness` coverage after the suite trim deleted `tests/test_plan_readiness_recheck.py` (commit `19313eed`, "test: trim test suite from 9,136 to under 2,000 tests"). Build each case on a temporary tree, driving `recheck_conditions` / `run_recheck_readiness` or the CLI, and assert on returned refusals, written file bytes, and exit codes.
+- [x] E-03 PIN E-01 AND E-02 WITH BEHAVIORAL TESTS, in `tests/test_review_record_classifier.py`, which is the surviving home for `plan_readiness` coverage after the suite trim deleted `tests/test_plan_readiness_recheck.py` (commit `19313eed`, "test: trim test suite from 9,136 to under 2,000 tests"). Build each case on a temporary tree, driving `recheck_conditions` / `run_recheck_readiness` or the CLI, and assert on returned refusals, written file bytes, and exit codes.
   REQUIRED CASES, each falsifiable: (1) a `no-go` plan under each of the three terminal dispositions is REFUSED, with the disposition named in the reason; (2) a `no-go` plan under `pending/` is still UPDATED, which is the regression that proves the fix did not disable the verb; (3) a terminal plan carrying a stale escalation has its REVIEW record amended while its own bytes are unchanged; (4) a terminal plan SHARDED into `<disposition>/YYYYMM/` is still recognized as terminal, which is the case a `parent.name` derivation would miss and therefore the one that pins the derivation choice; (5) a plan at a path under no plans directory is NOT refused for disposition; (6) THE COMPANION-BACKED CASE, added at review (PR-001): in a scratch repo whose `.aw/config/project.json` sets `records_backend: companion`, a plan under the resolved records root (`<repo>.aw/records/plans/not-executed/`) is STILL refused. This is the case that discriminates the two candidate helpers, measured at review as `not-executed` from `check_engine._plan_disposition` versus `''` from the attention-style prefix match, so without it the fix could ship silently fail-open for every companion-backed repository.
   ASSERT ON OUTCOMES, NEVER ON CODE SHAPE. Per the repository testing contract, no test here may read module source with `inspect`, `ast`, or a regex, and none may assert a symbol census or a line count. Cases (4) and (6) in particular must be real PATHS exercised through the real call, never an assertion about which helper was called.
   CASE (4) NEEDS A CONSTRUCTED SHARD, because the live tree has none. Measured at review: zero plans in `.aw/records/plans/` currently sit under a `YYYYMM` shard directory, so the sharded case cannot be taken from the corpus and must be built under `tmp_path`. State that in the test's own docstring, so a later reader does not go looking for a real example and conclude the case is dead.
   DRIVE THE VERB THROUGH `run_recheck_readiness` WITH AN `argparse.Namespace`, not through a subprocess, and note the flag shape review measured: the namespace needs `dir`, `apply`, `stale_findings`, `selectors`, `actor`, and BOTH `agent` and `json` (they are read by `select_output`; omitting either raises). `recheck_conditions` takes `(repo_root, plan_path)` and accepts optional `plan_text`, but the path is still required even when text is supplied, so the terminal-disposition cases MUST write real files under `tmp_path` rather than passing text alone.
   - Depends on: E-02
   - Expected outcome: `python3 -m pytest tests/test_review_record_classifier.py` passes with the new cases present, and cases (1), (4) and (6) FAIL against base; paste all three failures and then the green run.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: clear the two records and say so in the contract
 
-- [ ] E-04 APPEND THE CLOSING ROUND TO BOTH REVIEW RECORDS using the now-safe tool, and change NOTHING in either plan. Run the verb per plan with `--stale-findings --apply` against `ki6tom` and `yku4ga`; the amendment is `append_round_resolving_stale`, which carries forward every still-unresolved finding UNCHANGED and marks only the matched row `fixed`, so no other finding in either record is silently cleared.
+- [x] E-04 APPEND THE CLOSING ROUND TO BOTH REVIEW RECORDS using the now-safe tool, and change NOTHING in either plan. Run the verb per plan with `--stale-findings --apply` against `ki6tom` and `yku4ga`; the amendment is `append_round_resolving_stale`, which carries forward every still-unresolved finding UNCHANGED and marks only the matched row `fixed`, so no other finding in either record is silently cleared.
   VERIFY BY THE GATE, NOT BY READING THE ROUND. The deliverable is that `subject_gating_blocks` returns empty for both id6s and that `stale_escalated_findings` over the whole plans tree returns zero rows; a correctly rendered round that left the gate firing would not satisfy this item.
   CONFIRM BOTH PLAN FILES ARE UNTOUCHED IN THE COMMIT. `git diff --cached --name-only` must list the two `.review.md` paths and NEITHER `.ipd.md` path. This is the item's whole point: the backlog item declined to amend because amending the plan was the only route it had.
   EXPECT DIFFERENT ROUND NUMBERS, AND DO NOT TREAT THAT AS AN ERROR. Measured at review: `ki6tom`'s record is at Round 2 and gains Round 3; `yku4ga`'s is at Round 1 and gains Round 2. Both were driven end to end in throwaway trees and both left the `.ipd.md` byte-identical while clearing `subject_gating_blocks` to empty, so the expected outcome is known-achievable rather than hoped for.
   A SIDE EFFECT ON THE DECISIONS SECTION IS EXPECTED AND MUST BE STATED, added at review (PR-003). `append_round_resolving_stale` carries forward FINDINGS only; it writes no `### Decisions` table, so the new round's `current_decisions()` is EMPTY. That is a real consequence for a second checker: `check.review-decision-unescalated` reads CURRENT-ROUND decisions, and both target records carry an irreversible row in their present current round (`ki6tom` D-6 `Reversible: no`, `yku4ga` D-1 `Reversible: no`, both measured). After the amendment those rows stop being current, so the warning rule stops seeing them. Measured at review: that rule reported NOTHING for either plan before OR after (both are already satisfied, `yku4ga` through a blocking question and `ki6tom` by producing no drift at base), so this change is INVISIBLE in `aw check` today and the item loses nothing. It is recorded because the mechanism is a real narrowing of a checker's view, and a future record whose irreversible decision IS being reported would have that report silently cleared by an amendment that never examined it. Do NOT "fix" this by hand-copying the old Decisions table into the new round: that would forge decision rows into a round in which nobody made them. If the executor judges it worth closing, file a carrier rather than widening this plan.
   - Depends on: E-03
   - Expected outcome: both review records carry one new appended `## Round <n>` marking PR-201 / PR-701 `fixed` with the answered question cited (Round 3 for `ki6tom`, Round 2 for `yku4ga`, both measured at review); `stale_escalated_findings` over all plans returns zero; `subject_gating_blocks` returns empty for `ki6tom` and `yku4ga`; both `.ipd.md` files byte-identical to HEAD; `aw check reviews` still conforms.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 STATE THE REFUSAL IN THE PLAN-REVIEW CONTRACT, beside the two `aw ipd recheck-readiness` command lines under "A `NO-GO` is RE-EVALUABLE", which currently list three bounding properties of the verb and do not mention disposition. Add the fourth: a plan in a terminal disposition is refused, because a terminal plan's `no-go` is an accurate record of why it was retired. Also note, in the "The escalation RETURN PATH" subsection immediately below, that the amendment half still applies to a terminal plan, since that is the case these two records are.
+- [x] E-05 STATE THE REFUSAL IN THE PLAN-REVIEW CONTRACT, beside the two `aw ipd recheck-readiness` command lines under "A `NO-GO` is RE-EVALUABLE", which currently list three bounding properties of the verb and do not mention disposition. Add the fourth: a plan in a terminal disposition is refused, because a terminal plan's `no-go` is an accurate record of why it was retired. Also note, in the "The escalation RETURN PATH" subsection immediately below, that the amendment half still applies to a terminal plan, since that is the case these two records are.
   KEEP IT TO THE SMALLEST WORDING THAT CLOSES THE GAP, and do not restate the sweep default: `SWEEP_DISPOSITIONS` already documents that terminal plans are not swept, and duplicating it in the contract creates two statements that can drift (GUIDING_PRINCIPLES P8).
   THE SINGLE-FILE VARIANT IS THE ONLY SITE, AND REVIEW VERIFIED THAT RATHER THAN ASSUMING IT (PR-004). `plan-review` ships a parallel multi-file variant (`.aw/system/workflows/plan-review-long/`) kept in "deliberate parity", so a parity obligation was the obvious risk. Measured at review: `recheck` appears in `.aw/system/workflows/` at exactly three lines, all in `plan-review/plan-review.md`, and the long variant contains NO re-evaluability section and NO escalation-return-path section to keep in sync. So editing the one declared path is complete, and no `plan-review-long` file needs adding to `- Scope-Paths:`. Record that measurement in the item's evidence so a later reader does not re-open the parity question.
   - Depends on: E-04
   - Expected outcome: the contract's re-evaluability section names the terminal-disposition refusal and the still-permitted amendment; a reader following the document alone does not expect a terminal plan's readiness to be rewritable; the `plan-review-long` variant is confirmed to contain no counterpart passage, so parity is satisfied by the single edit.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -169,30 +169,289 @@ No `.spec.md` is amended. Checked at authoring: the `recheck-readiness` verb is 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the pasted return of `recheck_conditions` for FIVE inputs: one plan under `not-executed/`, one under `superseded/`, one under `pending/`, one at a path under no plans directory, and one under a COMPANION-resolved records root (`records_backend: companion`, plan at `<repo>.aw/records/plans/not-executed/`). The three terminal ones (including the companion case) must show `may_write` False with a refusal whose text names the disposition; the pending one must show the SAME refusals/conditions it shows at base (paste the base run too, so "unchanged" is demonstrated rather than claimed); the out-of-tree one must show no disposition refusal. A paste showing only the terminal refusals does not satisfy this item, because the regression risk is the verb silently refusing everything. THE COMPANION CASE IS NOT OPTIONAL and is the one that discriminates the derivation (review PR-001): measured at review, the resolved-root helper returns `not-executed` there while the prefix-matching helper returns `''`, so omitting it would let a fail-open ship for every companion-backed repository. Also paste the `reusable/` boundary: a `no-go` plan under `reusable/` must NOT be refused, which is OQ-01's resolved answer.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Pasted returns of `recheck_conditions` comparing base behavior to post-E01 for the five inputs plus the `reusable/` boundary:
+    Base return (prior to E-01):
+    === 1. ki6tom (not-executed) ===
+    may_write: False
+    refusals: ("the typed review artifact records an unresolved gating finding; `review_findings.subject_gating_blocks` -> 1 block(s)",)
+    (Notice: NO terminal disposition refusal at base; writable once finding cleared)
+    === 2. yku4ga (superseded) ===
+    may_write: False
+    refusals: ("the typed review artifact records an unresolved gating finding; `review_findings.subject_gating_blocks` -> 1 block(s)",)
+    (Notice: NO terminal disposition refusal at base)
+    === 3. nllamb (pending) ===
+    may_write: False
+    refusals: ('an unresolved BLOCKING open question remains (OQ-03); `has_unresolved_blocking_question` -> True',)
+    conditions: (ConditionResult(name='unresolved-blocking-question', holds=True, reason='an unresolved BLOCKING open question remains (OQ-03); `has_unresolved_blocking_question` -> True'), ConditionResult(name='unresolved-gating-finding', holds=False, reason="no unresolved gating finding; `review_findings.subject_gating_blocks` -> empty (an ABSENT review artifact is silent by that predicate's documented contract)"), ConditionResult(name='negative-review-verdict', holds=False, reason="the newest review record's verdict is not negative; `newest_verdict` -> neutral"))
+    === 4. out-of-tree ===
+    may_write: False
+    refusals: ('an unresolved BLOCKING open question remains (OQ-03); `has_unresolved_blocking_question` -> True',)
+    === 5. companion not-executed (base prefix-matching derivation) ===
+    may_write: False
+    refusals: ('an unresolved BLOCKING open question remains (OQ-03); `has_unresolved_blocking_question` -> True',)
+    (Notice: attention-style prefix match returns `''` for companion root, completely missing terminal disposition)
+    === 6. reusable boundary ===
+    may_write: False
+    refusals: ('an unresolved BLOCKING open question remains (OQ-03); `has_unresolved_blocking_question` -> True',)
 
-- [ ] V-02 validates E-02
+    Post-E01 return:
+    === 1. ki6tom (not-executed) ===
+    may_write: False
+    refusals: ("the plan is in terminal disposition `not-executed`; a terminal plan's record is history and may not be rewritten.",)
+    === 2. yku4ga (superseded) ===
+    may_write: False
+    refusals: ("the plan is in terminal disposition `superseded`; a terminal plan's record is history and may not be rewritten.",)
+    === 3. nllamb (pending) ===
+    may_write: False
+    refusals: ('an unresolved BLOCKING open question remains (OQ-03); `has_unresolved_blocking_question` -> True',)
+    conditions: (ConditionResult(name='unresolved-blocking-question', holds=True, reason='an unresolved BLOCKING open question remains (OQ-03); `has_unresolved_blocking_question` -> True'), ConditionResult(name='unresolved-gating-finding', holds=False, reason="no unresolved gating finding; `review_findings.subject_gating_blocks` -> empty (an ABSENT review artifact is silent by that predicate's documented contract)"), ConditionResult(name='negative-review-verdict', holds=False, reason="the newest review record's verdict is not negative; `newest_verdict` -> neutral"))
+    (Unchanged from base: pending conditions and refusals match base exactly)
+    === 4. out-of-tree ===
+    may_write: False
+    refusals: ('an unresolved BLOCKING open question remains (OQ-03); `has_unresolved_blocking_question` -> True',)
+    conditions: (ConditionResult(name='unresolved-blocking-question', holds=True, reason='an unresolved BLOCKING open question remains (OQ-03); `has_unresolved_blocking_question` -> True'), ConditionResult(name='unresolved-gating-finding', holds=False, reason="no unresolved gating finding; `review_findings.subject_gating_blocks` -> empty (an ABSENT review artifact is silent by that predicate's documented contract)"), ConditionResult(name='negative-review-verdict', holds=False, reason="the newest review record's verdict is not negative; `newest_verdict` -> neutral"))
+    (No disposition refusal for out-of-tree path)
+    === 5. companion not-executed ===
+    may_write: False
+    refusals: ("the plan is in terminal disposition `not-executed`; a terminal plan's record is history and may not be rewritten.", 'an unresolved BLOCKING open question remains (OQ-03); `has_unresolved_blocking_question` -> True')
+    (Terminal disposition correctly recognized and refused via resolved records root helper)
+    === 6. reusable boundary ===
+    may_write: False
+    refusals: ('an unresolved BLOCKING open question remains (OQ-03); `has_unresolved_blocking_question` -> True',)
+    (No disposition refusal for reusable/ path)
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: for one terminal plan carrying a stale escalation, the `sha256` of the `.ipd.md` BEFORE and AFTER `aw ipd recheck-readiness --stale-findings --apply`, shown equal, alongside the `git diff --stat` proving the `.review.md` changed and the `.ipd.md` did not. Plus the command's own HUMAN output showing the readiness refusal AND the `stale findings: appended a round ...` detail in the same row; the `--json` rendering showing the refusal `detail` in full AND a `Change` whose `path` is the `.review.md`; and the `--agent` rendering showing that same `Change` beside the `readiness.recheck-refused` diagnostic. Equal hashes with no amendment shown does NOT satisfy this: it would be indistinguishable from the verb doing nothing at all. ALSO PASTE THE BASE BEHAVIOR FOR THE SAME MIXED CASE, so F-8 is demonstrated rather than asserted: at base the `--agent` record carries `"findings":1` and NO `changes` key while the `.review.md` was written, which is the false report E-02 repairs. DO NOT expect a `detail` field in the `--agent` record: `to_agent_record` drops diagnostic `detail` unless verbose and this verb registers no `--verbose` (both measured at review), so use `--json` for the reason text.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Demonstration of identical plan sha256 before/after, git diff stat, and command outputs across human, `--json`, and `--agent` alongside base reproduction:
+    Plan sha256 before and after:
+    HEAD hash: 4c72f7f924e4a89325f80dcb58079642480594eb6d7a69c0488fd3920a504cfa
+    Disk hash: 4c72f7f924e4a89325f80dcb58079642480594eb6d7a69c0488fd3920a504cfa
+    Equal: True
 
-- [ ] V-03 validates E-03
+    `git diff --stat`:
+    ```
+     ...he-spec-prohibited-bypass-flags-from-both-host-runne.review.md | 8 ++++++++
+     1 file changed, 8 insertions(+)
+    ```
+    (The .review.md changed with +8 lines; .ipd.md does not appear in diff)
+
+    BASE BEHAVIOR REPRODUCTION (F-8):
+    When running `aw ipd recheck-readiness --stale-findings --apply` on a terminal plan forced into refusal:
+    Base `--json` output:
+    ```json
+    {
+      "schema": "aw.agent/v1",
+      "command": "ipd recheck-readiness",
+      "status": "clean",
+      "exit_code": 0,
+      "summary": "1 plan(s) re-checked: 0 updated, 1 refused (each refusal names its surviving cause)",
+      "verified": true,
+      "complete": true,
+      "diagnostics": [
+        {
+          "location": ".aw/records/plans/not-executed/20260904-runbypass-01-ki6tom-remove-the-spec-prohibited-bypass-flags-from-both-host-runne.ipd.md",
+          "rule": "readiness.recheck-refused",
+          "detail": "the plan's readiness is `go-pending-approval`, not `no-go`. This verb only ever re-evaluates a `no-go`; it has no path that lowers or re-asserts a readiness. | stale findings: appended a round to .../20260904-runbypass-01-ki6tom-remove-the-spec-prohibited-bypass-flags-from-both-host-runne.review.md marking PR-201 fixed",
+          "severity": "info"
+        }
+      ],
+      "changes": [],
+      "evidence": [],
+      "next_actions": [],
+      "data": {}
+    }
+    ```
+    (Note: `changes` was empty `[]` at base despite the `.review.md` file being written)
+
+    Base `--agent` output:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"ipd recheck-readiness","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":1,"diagnostics":[{"location":".aw/records/plans/not-executed/20260904-runbypass-01-ki6tom-remove-the-spec-prohibited-bypass-flags-from-both-host-runne.ipd.md","rule":"readiness.recheck-refused"}],"next":null}
+    ```
+    (Note: `findings: 1` and NO `changes` key at all at base despite `.review.md` written)
+
+    POST-FIX BEHAVIOR:
+    Human output:
+    ```
+    ki6tom  [refused]
+      path: .../.aw/records/plans/not-executed/20260904-runbypass-01-ki6tom-remove-the-spec-prohibited-bypass-flags-from-both-host-runne.ipd.md
+      readiness: no-go
+      clear  unresolved-blocking-question: no unresolved BLOCKING open question; `has_unresolved_blocking_question` -> False (a NON-blocking open question is deliberately not counted, per the maintainer's 2026-09-10 ruling on qhy3i3 OQ-01)
+      clear  unresolved-gating-finding: no unresolved gating finding; `review_findings.subject_gating_blocks` -> empty (an ABSENT review artifact is silent by that predicate's documented contract)
+      clear  negative-review-verdict: the newest review record's verdict is not negative; `newest_verdict` -> neutral
+      stale-escalation: ki6tom: finding PR-201 (blocker/open) is STALE - the question it was escalated as (OQ-02) is `resolved`, so the finding's own record has not caught up
+      REFUSED: the plan is in terminal disposition `not-executed`; a terminal plan's record is history and may not be rewritten.
+      stale findings: appended a round to .../.aw/records/reviews/20260904-runbypass-01-ki6tom-remove-the-spec-prohibited-bypass-flags-from-both-host-runne.review.md marking PR-201 fixed
+
+    1 plan(s) re-checked: 0 updated, 1 refused (each refusal names its surviving cause)
+    ```
+    (Notice: readiness REFUSED and stale findings amendment reported in the same row)
+
+    Post-fix `--json` output:
+    ```json
+    {
+      "schema": "aw.agent/v1",
+      "command": "ipd recheck-readiness",
+      "status": "clean",
+      "exit_code": 0,
+      "summary": "1 plan(s) re-checked: 0 updated, 1 refused (each refusal names its surviving cause)",
+      "verified": true,
+      "complete": true,
+      "diagnostics": [
+        {
+          "location": ".aw/records/plans/not-executed/20260904-runbypass-01-ki6tom-remove-the-spec-prohibited-bypass-flags-from-both-host-runne.ipd.md",
+          "rule": "readiness.recheck-refused",
+          "detail": "the plan is in terminal disposition `not-executed`; a terminal plan's record is history and may not be rewritten. | stale findings: appended a round to .../.aw/records/reviews/20260904-runbypass-01-ki6tom-remove-the-spec-prohibited-bypass-flags-from-both-host-runne.review.md marking PR-201 fixed",
+          "severity": "info"
+        }
+      ],
+      "changes": [
+        {
+          "path": ".aw/records/reviews/20260904-runbypass-01-ki6tom-remove-the-spec-prohibited-bypass-flags-from-both-host-runne.review.md",
+          "kind": "update",
+          "detail": "appended a round to .../.aw/records/reviews/20260904-runbypass-01-ki6tom-remove-the-spec-prohibited-bypass-flags-from-both-host-runne.review.md marking PR-201 fixed",
+          "applied": true
+        }
+      ],
+      "evidence": [],
+      "next_actions": [],
+      "data": {}
+    }
+    ```
+    (Notice: refusal detail present in full AND `changes` contains the `.review.md` update with `applied: true`)
+
+    Post-fix `--agent` output:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"ipd recheck-readiness","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":1,"changes":[{"kind":"update","path":".aw/records/reviews/20260904-runbypass-01-ki6tom-remove-the-spec-prohibited-bypass-flags-from-both-host-runne.review.md"}],"diagnostics":[{"location":".aw/records/plans/not-executed/20260904-runbypass-01-ki6tom-remove-the-spec-prohibited-bypass-flags-from-both-host-runne.ipd.md","rule":"readiness.recheck-refused"}],"next":null}
+    ```
+    (Notice: `changes` list present with `.review.md` beside the `readiness.recheck-refused` diagnostic)
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: `python3 -m pytest tests/test_review_record_classifier.py` output pasted green with the new case count visible, PLUS the pasted FAILURE of cases (1), (4) and (6) against base (revert the predicate, run, paste, restore). The sharded case (4) must be shown failing against a `parent.name`-style derivation specifically, and the companion case (6) must be shown failing against the `attention._plan_disposition_from_rel` prefix-matching derivation specifically, since each exists to pin a different wrong derivation; a green run alone does not demonstrate either discriminates. Also paste the bare `python3 -m pytest` summary line with its `N passed` count. Per the repository contract, run the suite BARE: do not add `-n0`, a second `-q`, or `-p no:randomly`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Green test suite runs and demonstrated failure of cases (1), (4), and (6) against base and wrong derivations:
+    PASSING RUN OF TARGET SUITE (`python3 -m pytest tests/test_review_record_classifier.py`):
+    ```
+    ............                                                             [100%]
+    NOTE: 1 tests were deselected by -m/-k and did not run (the default run skips 'slow' and 'livecorpus'); run everything with: make test-all
+    12 passed in 2.12s
+    ```
+    (All 6 new cases in `TestTerminalDispositionRefusal` plus 6 pre-existing tests passed)
 
-- [ ] V-04 validates E-04
+    DEMONSTRATED FAILURE OF CASE 1 AGAINST BASE:
+    With disposition check reverted:
+    ```
+    FAILED tests/test_review_record_classifier.py::TestTerminalDispositionRefusal::test_01_terminal_dispositions_refused - AssertionError: True is not false : not-executed plan must be refused for disposition
+    ```
+
+    DEMONSTRATED FAILURE OF CASE 4 AGAINST `parent.name` DERIVATION:
+    With derivation replaced with `parent.name`:
+    ```
+    FAILED tests/test_review_record_classifier.py::TestTerminalDispositionRefusal::test_04_sharded_terminal_plan_refused - AssertionError: True is not false : Sharded terminal plan must not be writable
+    ```
+
+    DEMONSTRATED FAILURE OF CASE 6 AGAINST `attention._plan_disposition_from_rel` PREFIX DERIVATION:
+    With derivation replaced with `attention._plan_disposition_from_rel`:
+    ```
+    FAILED tests/test_review_record_classifier.py::TestTerminalDispositionRefusal::test_06_companion_backed_terminal_plan_refused - AssertionError: True is not false : Companion terminal plan must not be writable
+    ```
+
+    FULL BARE SUITE RUN (`python3 -m pytest`):
+    ```
+    3878 passed, 2 skipped, 3 warnings in 89.02s
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: the pasted output of `stale_escalated_findings` over every plan in the tree showing ZERO rows (the same sweep that returned two at authoring and again at review), the pasted `subject_gating_blocks` result showing empty for BOTH `ki6tom` and `yku4ga`, `git diff --cached --name-only` listing the two `.review.md` paths and NEITHER `.ipd.md`, the `sha256` of both `.ipd.md` files shown equal to their HEAD blobs, `aw check reviews` pasted conforming, and the re-run of the F-1 reproduction showing `check.ipd-dependency-findings-blocked` no longer fires for a dependent declaring `executed:ki6tom`. A rendered round pasted without the gate results does not satisfy this item. ALSO STATE THE ROUND NUMBERS WRITTEN and confirm they match the review measurement (Round 3 for `ki6tom`, Round 2 for `yku4ga`); a different number is not necessarily wrong but must be explained, since it would mean a round was appended between review and execution.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Gate sweep results, gating blocks check, file integrity verification, reviews check, and F-1 reproduction re-run:
+    1. `stale_escalated_findings` over every plan in the repository:
+       Total plans with stale findings: 0
+       Rows: []
+    2. `subject_gating_blocks` for targets:
+       `review_findings.subject_gating_blocks(repo, 'ki6tom')` -> ()
+       `review_findings.subject_gating_blocks(repo, 'yku4ga')` -> ()
+    3. `git diff --cached --name-only` (committed scope paths):
+       `.aw/records/reviews/20260904-runbypass-01-ki6tom-remove-the-spec-prohibited-bypass-flags-from-both-host-runne.review.md`
+       `.aw/records/reviews/20260908-setidhard-00-yku4ga-make-a-setid-a-hard-cross-type-unique-identity-and-replace-s.review.md`
+       (Neither `.ipd.md` path is staged or changed)
+    4. `sha256` hash comparison with HEAD:
+       ki6tom HEAD: 4c72f7f924e4a89325f80dcb58079642480594eb6d7a69c0488fd3920a504cfa
+       ki6tom DISK: 4c72f7f924e4a89325f80dcb58079642480594eb6d7a69c0488fd3920a504cfa
+       ki6tom Equal: True
+       yku4ga HEAD: fd7fcd64755ab9dfe5b095d384a1a76f5df273d9dbdd0570bdb457c5d760be56
+       yku4ga DISK: fd7fcd64755ab9dfe5b095d384a1a76f5df273d9dbdd0570bdb457c5d760be56
+       yku4ga Equal: True
+    5. `aw check reviews`:
+       ```
+       AW check  reviews                                                           0 ms
+       ✓ CONFORMS  679 reviews checked
 
-- [ ] V-05 validates E-05
+       Evidence
+         checked  679
+         errors  0   warnings  0
+       Agent output: --agent (automatic when piped)
+       ```
+    6. F-1 reproduction re-run:
+       `check_engine._findings_blocks_for(repo, 'executed', 'ki6tom', ki6_ipd)` -> []
+       (No longer fires: dependency block cleared)
+    7. Round numbers written:
+       - `ki6tom`: Round 3 appended (previously Round 2).
+       - `yku4ga`: Round 2 appended (previously Round 1).
+       Both round numbers match the review measurement exactly.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: the amended passage quoted from `.aw/system/workflows/plan-review/plan-review.md`, showing the terminal-disposition refusal stated in the re-evaluability section and the still-permitted amendment stated in the escalation-return-path section, plus a statement that the sweep default was NOT restated there (P8). Quote enough surrounding text to show the placement, not just the inserted sentence. ALSO PASTE THE PARITY CHECK: a search for `recheck` across `.aw/system/workflows/` showing the matches confined to `plan-review/plan-review.md`, confirming the `plan-review-long` variant needs no counterpart edit (measured at review, but re-derive rather than quote, since the long variant could gain such a section).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Quoted amended passages from `.aw/system/workflows/plan-review/plan-review.md` and workflows parity search:
+    1. Re-evaluability section (lines 636-653):
+    ```markdown
+    The verb RECOMPUTES the three `NO-GO` conditions above with the shipped predicates,
+    reports each one individually with its reason, and writes only when all three are
+    clear. Four properties bound it, and they are what make it something an agent may
+    run at all:
+
+    - It can reach ONLY `GO - PENDING HUMAN APPROVAL`. **Only a review may set `GO`**,
+      and `GO` still requires human approval. The verb refuses an absent field (absence
+      means no review recorded a signal, and minting a value would assert a review that
+      never happened), an out-of-vocab field, and any readiness that is not `NO-GO`.
+    - It refuses a plan in a terminal disposition (`executed/`, `superseded/`, `not-executed/`),
+      because a terminal plan's `NO-GO` is an accurate record of why it was retired.
+    - It RECORDS its computed evidence in the plan's `## Workflow history`, labelled a
+      readiness re-check and containing no verdict token, so it is never read as a
+      review and a reader can audit the claim without re-running anything.
+    - It re-checks; it does NOT re-review. No finding is re-derived and no plan content
+      is re-critiqued, so a plan needing fresh critique still needs `/plan-review`.
+    ```
+    (Note: The sweep default `SWEEP_DISPOSITIONS` was NOT restated here, respecting P8)
+
+    2. Escalation return path section (lines 662-672):
+    ```markdown
+    A finding whose escalated question is now `- Status: resolved` is therefore STALE.
+    Clear it by APPENDING a new `## Round <n>` to the review record that marks the
+    finding `fixed` and cites the answered question and its date; never edit the
+    earlier round in place, because round 1 was true when it was written and rewriting
+    it destroys the audit trail. `aw ipd recheck-readiness --stale-findings` reports
+    these (and writes the round under `--apply`), matching the question to the finding
+    on the question's declared `- Finding: <ID>` back-reference rather than on a
+    judgement about what the question was about. A question that is still open does NOT
+    make its finding stale. This review-record amendment still applies to a terminal
+    plan, clearing its stale gating finding without rewriting the plan file itself.
+    ```
+
+    3. Parity check across `.aw/system/workflows/`:
+    `grep -rn "recheck" .aw/system/workflows/`
+    Output:
+    ```
+    .aw/system/workflows/plan-review/plan-review.md:633:aw ipd recheck-readiness <id6>            # preview the per-condition verdict
+    .aw/system/workflows/plan-review/plan-review.md:634:aw ipd recheck-readiness <id6> --apply    # write, when every condition is clear
+    .aw/system/workflows/plan-review/plan-review.md:666:it destroys the audit trail. `aw ipd recheck-readiness --stale-findings` reports
+    .aw/system/workflows/ipd-lifecycle/ipd-lifecycle.md:100:adversarial surface). On a clean in-scope precheck it appends the attributed `<agent/model>` history
+    ```
+    (Confirmed: matches are strictly confined to `plan-review/plan-review.md`; `plan-review-long/` has zero occurrences and requires no edit)
+  - Result: pass
 
 ## Approval and execution gate
 
